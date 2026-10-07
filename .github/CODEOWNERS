@@ -1,0 +1,37 @@
+# Donos de código (US-077 · Permissões). A última regra que casa com o arquivo vence.
+# Os nomes dos times são provisórios até a organização do GitHub ser definida (lacuna registrada
+# em docs/architecture/decisions.md — DEC-062). A revisão obrigatória é imposta pela proteção
+# de branch da main (US-079).
+
+# Padrão: qualquer engenheiro do produto.
+*                                           @contrataflow/engineering
+
+# Design system: front-end + design.
+/packages/ui/                               @contrataflow/frontend @contrataflow/design
+
+# Especificação canônica: Tech Lead + PO.
+/docs/architecture/                         @contrataflow/tech-lead @contrataflow/product
+/docs/mvp-01/                               @contrataflow/tech-lead @contrataflow/product
+/docs/adr/                                  @contrataflow/tech-lead @contrataflow/product
+
+# Áreas sensíveis: Tech Lead + segurança/plataforma.
+/apps/api/src/shared/                       @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/api/src/modules/access/               @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/api/src/modules/identity/             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/api/src/modules/tenancy/              @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/api/src/modules/audit/                @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/api/src/modules/platform/             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/api/prisma/                           @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/apps/web/src/bff/                          @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.github/                                   @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.husky/                                    @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/pnpm-workspace.yaml                        @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/pnpm-lock.yaml                             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.npmrc                                     @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/renovate.json5                             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.dependency-cruiser.cjs                    @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/tools/module-levels.json                   @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.gitleaks.toml                             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/commitlint.config.mjs                      @contrataflow/tech-lead @contrataflow/platform
+/packages/eslint-config/                    @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/packages/tsconfig/                         @contrataflow/tech-lead @contrataflow/platform

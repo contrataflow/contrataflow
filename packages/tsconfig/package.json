@@ -1,0 +1,18 @@
+{
+  "name": "@contrataflow/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bases TypeScript estritas do monorepo (RN-FND-03).",
+  "files": [
+    "base.json",
+    "node.json",
+    "next.json",
+    "library.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./node.json": "./node.json",
+    "./next.json": "./next.json",
+    "./library.json": "./library.json"
+  }
+}

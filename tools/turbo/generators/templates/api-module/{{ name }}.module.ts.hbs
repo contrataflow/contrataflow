@@ -1,0 +1,10 @@
+import { Module } from '@nestjs/common';
+
+import { {{ pascalCase name }}Facade } from './application/{{ name }}.facade.js';
+
+/** Módulo `{{ name }}` (DEC-040): outros módulos usam somente a fachada exportada. */
+@Module({
+  providers: [{{ pascalCase name }}Facade],
+  exports: [{{ pascalCase name }}Facade],
+})
+export class {{ pascalCase name }}Module {}

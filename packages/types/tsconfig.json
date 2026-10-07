@@ -1,0 +1,7 @@
+{
+  "extends": "@contrataflow/tsconfig/library.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src", "*.config.ts"]
+}

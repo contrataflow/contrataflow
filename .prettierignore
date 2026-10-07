@@ -1,0 +1,17 @@
+# Especificação canônica e material de trabalho: formatação própria, fora do Prettier.
+docs/
+_work/
+.ddesktop/
+.claude/
+prototype/
+
+# Gerados
+pnpm-lock.yaml
+**/dist/
+**/.next/
+**/coverage/
+**/.turbo/
+**/next-env.d.ts
+
+# Templates Handlebars dos geradores (formatados após a geração)
+tools/turbo/generators/templates/

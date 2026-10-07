@@ -1,0 +1,11 @@
+{
+  "extends": "@contrataflow/tsconfig/next.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "src", "*.config.ts", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+
+/* Componentes do design system (classes detectadas pelo Tailwind no app consumidor). */
+@source './';
+
+/* Tokens do design system (cores, tipografia, espaçamentos): definidos pela US-086. */
+@theme {
+}

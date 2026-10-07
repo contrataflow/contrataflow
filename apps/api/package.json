@@ -1,0 +1,55 @@
+{
+  "name": "@contrataflow/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "API REST /api/v1 (NestJS 11, monólito modular — DEC-040/041).",
+  "type": "module",
+  "imports": {
+    "#config/*": {
+      "types": "./src/config/*",
+      "default": "./dist/config/*"
+    },
+    "#shared/*": {
+      "types": "./src/shared/*",
+      "default": "./dist/shared/*"
+    },
+    "#modules/*": {
+      "types": "./src/modules/*",
+      "default": "./dist/modules/*"
+    }
+  },
+  "scripts": {
+    "build": "swc src -d dist --strip-leading-paths --config-file .swcrc --ignore \"**/*.spec.ts\" --delete-dir-on-start",
+    "dev": "pnpm run build && concurrently --kill-others --names swc,api \"swc src -d dist --strip-leading-paths --config-file .swcrc --ignore **/*.spec.ts --watch\" \"node --enable-source-maps --watch-path=dist dist/main.js\"",
+    "start": "node --enable-source-maps dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+  },
+  "dependencies": {
+    "@contrataflow/editor": "workspace:*",
+    "@contrataflow/types": "workspace:*",
+    "@contrataflow/validation": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-express": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@contrataflow/eslint-config": "workspace:*",
+    "@contrataflow/tsconfig": "workspace:*",
+    "@nestjs/testing": "catalog:",
+    "@swc/cli": "catalog:",
+    "@swc/core": "catalog:",
+    "@types/node": "catalog:",
+    "chokidar": "catalog:",
+    "concurrently": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "unplugin-swc": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

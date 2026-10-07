@@ -1,0 +1,33 @@
+{
+  "name": "@contrataflow/tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scripts de engenharia do monorepo: versões fixadas, fixtures de regras, verificação de clone limpo e geradores.",
+  "type": "module",
+  "scripts": {
+    "check:versions": "tsx check-versions.ts",
+    "verify:fresh-clone": "tsx verify-fresh-clone.ts",
+    "smoke:hello": "tsx smoke-hello.ts",
+    "secrets:scan": "tsx scan-secrets.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@commitlint/lint": "catalog:",
+    "@commitlint/load": "catalog:",
+    "@contrataflow/eslint-config": "workspace:*",
+    "@contrataflow/tsconfig": "workspace:*",
+    "@turbo/gen": "catalog:",
+    "@types/node": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "eslint": "catalog:",
+    "tsx": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "yaml": "catalog:"
+  }
+}

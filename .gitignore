@@ -1,0 +1,44 @@
+# Dependências
+node_modules/
+.pnpm-store/
+
+# Saídas de build e cache
+dist/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Ambiente local (DEC-137: segredos nunca no repositório)
+.env
+.env.*
+!.env.example
+
+# Logs e sistema
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editores (exceto configurações compartilhadas)
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Ferramentas locais de agentes
+.claude/scheduled_tasks.lock
+
+# Runtime local do dcoder-terminal / ddx (gerenciado pelo app, por máquina)
+.ddesktop/
+.claude/skills/
+
+# Material de trabalho regenerável (os scripts de _work/ geram de novo)
+_work/packs/
+_work/screens/
+_work/api/
+_work/prototype/shots/
+_work/cards_plan.json

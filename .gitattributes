@@ -1,0 +1,13 @@
+# Fins de linha LF em todas as plataformas (RN-FND-12 · FA-05)
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+
+pnpm-lock.yaml linguist-generated=true -diff merge=binary

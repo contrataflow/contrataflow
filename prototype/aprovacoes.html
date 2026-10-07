@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aprovações — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-014 — Aprovações (/aprovacoes) · US-057 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="aprovacoes" data-breadcrumb="Aprovações" data-user="Carlos Lima" data-role="Secretário · Secretaria de Obras">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho da página -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Aprovações</h1>
+      <p class="mt-1 text-sm text-slate-600">Solicitações de aprovação sob sua responsabilidade, como titular ou substituto.</p>
+    </div>
+  </div>
+
+  <!-- Abas -->
+  <div class="mt-6 border-b border-slate-200">
+    <div class="flex gap-6" data-tabs="aprovacoes" role="tablist" aria-label="Situação das aprovações">
+      <button type="button" id="tab-pendentes" role="tab" aria-selected="true" aria-controls="panel-pendentes" data-tab="pendentes" data-state="active" class="border-b-2 border-transparent px-1 pb-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:font-semibold data-[state=active]:text-brand-700">Pendentes</button>
+      <button type="button" id="tab-decididas" role="tab" aria-selected="false" aria-controls="panel-decididas" data-tab="decididas" class="border-b-2 border-transparent px-1 pb-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:font-semibold data-[state=active]:text-brand-700">Decididas</button>
+    </div>
+  </div>
+
+  <!-- Painel: Pendentes -->
+  <section id="panel-pendentes" data-panel="pendentes" data-group="aprovacoes" role="tabpanel" aria-labelledby="tab-pendentes" data-state="active">
+
+    <!-- Busca e filtros -->
+    <section aria-label="Busca e filtros" class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <label class="relative flex-1">
+          <span class="sr-only">Pesquisar por título, processo ou solicitante</span>
+          <i data-lucide="search" class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"></i>
+          <input type="search" data-filter-search="aprovacoes" placeholder="Pesquisar por título, processo ou solicitante…"
+                 class="h-10 w-full rounded-md border border-slate-300 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+        </label>
+        <div class="flex flex-wrap items-center gap-2" data-filter-group="aprovacoes" aria-label="Filtros rápidos">
+          <button type="button" data-filter-tag="comigo" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-brand-600 aria-pressed:bg-brand-50 aria-pressed:text-brand-800"><i data-lucide="user" class="h-4 w-4"></i>Pendentes comigo</button>
+          <button type="button" data-filter-tag="perfil" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-brand-600 aria-pressed:bg-brand-50 aria-pressed:text-brand-800"><i data-lucide="shield-check" class="h-4 w-4"></i>Por perfil</button>
+          <button type="button" data-filter-tag="substituto" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-brand-600 aria-pressed:bg-brand-50 aria-pressed:text-brand-800"><i data-lucide="user" class="h-4 w-4"></i>Como substituto</button>
+        </div>
+      </div>
+    </section>
+
+    <p class="mt-4 text-sm text-slate-600" aria-live="polite"><span data-filter-count="aprovacoes">2</span> aprovações pendentes</p>
+
+    <!-- Tabela (desktop) -->
+    <div class="mt-2 hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm" data-filter-target="aprovacoes">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Solicitação</th>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Documentos cobertos</th>
+              <th scope="col" class="px-4 py-3">Solicitante</th>
+              <th scope="col" class="px-4 py-3">Solicitada em</th>
+              <th scope="col" class="px-4 py-3">Prazo</th>
+              <th scope="col" class="px-4 py-3"><span class="sr-only">Ação</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr data-row data-tags="comigo" class="hover:bg-slate-50">
+              <td class="px-4 py-3 font-semibold text-slate-900">Aprovação da demanda — DFD 0005/2026</td>
+              <td class="px-4 py-3"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0012/2026</a><p class="max-w-xs truncate text-xs text-slate-500">Aquisição de cimento para manutenção de vias</p></td>
+              <td class="px-4 py-3 text-slate-700">DFD 0005/2026 <span class="text-xs text-slate-500">(1 documento)</span></td>
+              <td class="px-4 py-3"><p class="text-slate-700">Ana Souza</p><p class="text-xs text-slate-500">Setor de Manutenção</p></td>
+              <td class="px-4 py-3 text-slate-700">Hoje, 10:47</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 14/10</span></td>
+              <td class="px-4 py-3 text-right"><a href="aprovacao.html" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="stamp" class="h-4 w-4"></i>Analisar</a></td>
+            </tr>
+            <tr data-row data-tags="comigo" class="hover:bg-slate-50">
+              <td class="px-4 py-3 font-semibold text-slate-900">Aprovação da demanda — DFD 0004/2026</td>
+              <td class="px-4 py-3"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0011/2026</a><p class="max-w-xs truncate text-xs text-slate-500">Contratação de serviço de poda de árvores</p></td>
+              <td class="px-4 py-3 text-slate-700">DFD 0004/2026 <span class="text-xs text-slate-500">(1 documento)</span></td>
+              <td class="px-4 py-3"><p class="text-slate-700">Rui Alves</p><p class="text-xs text-slate-500">Setor de Manutenção</p></td>
+              <td class="px-4 py-3 text-slate-700">30/09/2026</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence amanhã</span></td>
+              <td class="px-4 py-3 text-right"><a href="aprovacao.html" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="stamp" class="h-4 w-4"></i>Analisar</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Cartões (celular) -->
+    <ul class="mt-2 space-y-3 md:hidden" data-filter-target="aprovacoes">
+      <li data-row data-tags="comigo" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="font-semibold text-slate-900">Aprovação da demanda — DFD 0005/2026</p>
+        <p class="mt-1 text-sm text-slate-700"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0012/2026</a> · Aquisição de cimento para manutenção de vias</p>
+        <p class="mt-2 text-xs text-slate-500">Documentos: DFD 0005/2026 (1) · Solicitante: Ana Souza</p>
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 14/10</span>
+          <a href="aprovacao.html" class="inline-flex h-10 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="stamp" class="h-4 w-4"></i>Analisar</a>
+        </div>
+      </li>
+      <li data-row data-tags="comigo" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="font-semibold text-slate-900">Aprovação da demanda — DFD 0004/2026</p>
+        <p class="mt-1 text-sm text-slate-700"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0011/2026</a> · Contratação de serviço de poda de árvores</p>
+        <p class="mt-2 text-xs text-slate-500">Documentos: DFD 0004/2026 (1) · Solicitante: Rui Alves</p>
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence amanhã</span>
+          <a href="aprovacao.html" class="inline-flex h-10 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="stamp" class="h-4 w-4"></i>Analisar</a>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Vazio para os filtros -->
+    <div data-filter-empty="aprovacoes" hidden class="mt-2 rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
+      <i data-lucide="info" class="mx-auto h-8 w-8 text-slate-400"></i>
+      <p class="mt-3 font-medium">Nenhuma aprovação corresponde aos filtros</p>
+      <p class="mt-1 text-sm text-slate-600">Remova algum filtro rápido ou altere a pesquisa para ver mais resultados.</p>
+    </div>
+  </section>
+
+  <!-- Painel: Decididas -->
+  <section id="panel-decididas" data-panel="decididas" data-group="aprovacoes" role="tabpanel" aria-labelledby="tab-decididas" hidden>
+    <p class="mt-6 text-sm text-slate-600">Últimas decisões registradas por você.</p>
+
+    <!-- Tabela (desktop) -->
+    <div class="mt-2 hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Solicitação</th>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Solicitante</th>
+              <th scope="col" class="px-4 py-3">Decidida em</th>
+              <th scope="col" class="px-4 py-3">Resultado</th>
+              <th scope="col" class="px-4 py-3"><span class="sr-only">Ação</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3 font-semibold text-slate-900">Aprovação da demanda — DFD 0002/2026</td>
+              <td class="px-4 py-3"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0002/2026</a><p class="max-w-xs truncate text-xs text-slate-500">Reforma de calçamento da Rua das Flores</p></td>
+              <td class="px-4 py-3 text-slate-700">Rui Alves</td>
+              <td class="px-4 py-3 text-slate-700">01/10/2026, 09:15</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="circle-check" class="h-3.5 w-3.5"></i>Aprovada</span></td>
+              <td class="px-4 py-3 text-right"><button type="button" data-toast="Neste protótipo, o detalhe da aprovação está disponível apenas para a solicitação pendente (DFD 0005/2026)." data-toast-type="info" class="text-sm font-medium text-brand-700 hover:underline">Ver decisão</button></td>
+            </tr>
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3 font-semibold text-slate-900">Aprovação da demanda — DFD 0001/2026</td>
+              <td class="px-4 py-3"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0009/2026</a><p class="max-w-xs truncate text-xs text-slate-500">Recuperação de calçadas no Bairro Centro</p></td>
+              <td class="px-4 py-3 text-slate-700">Ana Souza</td>
+              <td class="px-4 py-3 text-slate-700">25/09/2026, 16:40</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200"><i data-lucide="undo-2" class="h-3.5 w-3.5"></i>Devolvida</span></td>
+              <td class="px-4 py-3 text-right"><button type="button" data-toast="Neste protótipo, o detalhe da aprovação está disponível apenas para a solicitação pendente (DFD 0005/2026)." data-toast-type="info" class="text-sm font-medium text-brand-700 hover:underline">Ver decisão</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Cartões (celular) -->
+    <ul class="mt-2 space-y-3 md:hidden">
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><span class="font-semibold text-slate-900">DFD 0002/2026</span><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="circle-check" class="h-3.5 w-3.5"></i>Aprovada</span></div>
+        <p class="mt-1 text-sm text-slate-700"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0002/2026</a> · Reforma de calçamento da Rua das Flores</p>
+        <p class="mt-2 text-xs text-slate-500">Rui Alves · Decidida em 01/10/2026, 09:15</p>
+        <button type="button" data-toast="Neste protótipo, o detalhe da aprovação está disponível apenas para a solicitação pendente (DFD 0005/2026)." data-toast-type="info" class="mt-2 text-sm font-medium text-brand-700 hover:underline">Ver decisão</button>
+      </li>
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><span class="font-semibold text-slate-900">DFD 0001/2026</span><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200"><i data-lucide="undo-2" class="h-3.5 w-3.5"></i>Devolvida</span></div>
+        <p class="mt-1 text-sm text-slate-700"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0009/2026</a> · Recuperação de calçadas no Bairro Centro</p>
+        <p class="mt-2 text-xs text-slate-500">Ana Souza · Decidida em 25/09/2026, 16:40</p>
+        <button type="button" data-toast="Neste protótipo, o detalhe da aprovação está disponível apenas para a solicitação pendente (DFD 0005/2026)." data-toast-type="info" class="mt-2 text-sm font-medium text-brand-700 hover:underline">Ver decisão</button>
+      </li>
+    </ul>
+  </section>
+
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Caixa de tarefas — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-013 — Caixa de tarefas (/tarefas) · US-056 (principal), US-058; US-055 (badges), US-050 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="tarefas" data-breadcrumb="Caixa de tarefas">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho -->
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Caixa de tarefas</h1>
+    <p class="mt-1 text-sm text-slate-600">Processos sob sua responsabilidade, na fila da sua unidade e em acompanhamento.</p>
+  </div>
+
+  <!-- Abas -->
+  <div class="mt-6 overflow-x-auto border-b border-slate-200">
+    <div role="tablist" aria-label="Caixa de tarefas" data-tabs="tarefas" class="flex w-max min-w-full gap-1">
+      <button type="button" role="tab" id="tab-comigo" aria-controls="panel-comigo" aria-selected="true" data-tab="comigo" data-state="active" class="inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">
+        <i data-lucide="inbox" class="h-4 w-4"></i>Comigo
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-700">2</span>
+      </button>
+      <button type="button" role="tab" id="tab-fila-unidade" aria-controls="panel-fila-unidade" aria-selected="false" data-tab="fila-unidade" class="inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">
+        <i data-lucide="users" class="h-4 w-4"></i>Na fila da minha unidade
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-700">1</span>
+      </button>
+      <button type="button" role="tab" id="tab-aprovacoes" aria-controls="panel-aprovacoes" aria-selected="false" data-tab="aprovacoes" class="inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">
+        <i data-lucide="check" class="h-4 w-4"></i>Aprovações pendentes
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-700">0</span>
+      </button>
+      <button type="button" role="tab" id="tab-devolvidos" aria-controls="panel-devolvidos" aria-selected="false" data-tab="devolvidos" class="inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">
+        <i data-lucide="undo-2" class="h-4 w-4"></i>Devolvidos
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-700">1</span>
+      </button>
+      <button type="button" role="tab" id="tab-atrasados" aria-controls="panel-atrasados" aria-selected="false" data-tab="atrasados" class="inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">
+        <i data-lucide="triangle-alert" class="h-4 w-4"></i>Atrasados
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-700">1</span>
+      </button>
+      <button type="button" role="tab" id="tab-acompanhando" aria-controls="panel-acompanhando" aria-selected="false" data-tab="acompanhando" class="inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">
+        <i data-lucide="eye" class="h-4 w-4"></i>Acompanhando
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-700">2</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Painel: Comigo -->
+  <div data-panel="comigo" data-group="tarefas" id="panel-comigo" role="tabpanel" aria-labelledby="tab-comigo" class="mt-4">
+    <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Etapa</th>
+              <th scope="col" class="px-4 py-3">Desde</th>
+              <th scope="col" class="px-4 py-3" aria-sort="none"><button type="button" class="inline-flex items-center gap-1 uppercase" data-toast="Ordenação por prazo (simulação)." data-toast-type="info">Prazo<i data-lucide="refresh-cw" aria-hidden="true" class="h-3.5 w-3.5"></i></button></th>
+              <th scope="col" class="px-4 py-3 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0012/2026</a><p class="max-w-xs truncate text-slate-700">Aquisição de cimento para manutenção de vias</p></td>
+              <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+              <td class="px-4 py-3 text-slate-600">05/10</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 20/10</span></td>
+              <td class="px-4 py-3 text-right"><a href="processo.html" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></td>
+            </tr>
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0015/2026</a><p class="max-w-xs truncate text-slate-700">Locação de retroescavadeira para obras de drenagem</p></td>
+              <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+              <td class="px-4 py-3 text-slate-600">06/10</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 24/10</span></td>
+              <td class="px-4 py-3 text-right"><a href="processo.html" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <ul class="space-y-3 md:hidden">
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0012/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 20/10</span></div>
+        <p class="mt-1 text-sm">Aquisição de cimento para manutenção de vias</p>
+        <p class="mt-1 text-xs text-slate-500">Formalização da demanda · desde 05/10</p>
+        <a href="processo.html" class="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a>
+      </li>
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0015/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 24/10</span></div>
+        <p class="mt-1 text-sm">Locação de retroescavadeira para obras de drenagem</p>
+        <p class="mt-1 text-xs text-slate-500">Formalização da demanda · desde 06/10</p>
+        <a href="processo.html" class="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Painel: Na fila da minha unidade -->
+  <div data-panel="fila-unidade" data-group="tarefas" id="panel-fila-unidade" role="tabpanel" aria-labelledby="tab-fila-unidade" class="mt-4" hidden>
+    <div class="sticky bottom-0 z-10 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm sm:static" aria-live="polite">
+      <p class="font-medium text-brand-900">1 selecionado <span class="font-normal text-brand-700">· selecione de 2 a 50 processos para ações em lote</span></p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-brand-300 bg-white px-3 text-sm font-medium text-brand-800 hover:bg-brand-100" data-toast="1 processo assumido por você." data-toast-type="success"><i data-lucide="user-check" class="h-4 w-4"></i>Assumir selecionados</button>
+        <button type="button" data-open="dlg-atribuir" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-brand-300 bg-white px-3 text-sm font-medium text-brand-800 hover:bg-brand-100"><i data-lucide="users" class="h-4 w-4"></i>Atribuir…</button>
+      </div>
+    </div>
+    <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="w-10 px-4 py-3"><label class="sr-only" for="sel-all-fila">Selecionar todos os processos desta lista</label><input type="checkbox" id="sel-all-fila" checked class="h-4 w-4 rounded border-slate-300 text-brand-700"></th>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Etapa</th>
+              <th scope="col" class="px-4 py-3">Desde</th>
+              <th scope="col" class="px-4 py-3">Prazo</th>
+              <th scope="col" class="px-4 py-3 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><label class="sr-only" for="sel-0009">Selecionar processo 0009/2026</label><input type="checkbox" id="sel-0009" checked class="h-4 w-4 rounded border-slate-300 text-brand-700"></td>
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0009/2026</a><p class="max-w-xs truncate text-slate-700">Recuperação de calçadas no Bairro Centro</p><p class="text-xs text-slate-500">Fila da unidade · sem responsável</p></td>
+              <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+              <td class="px-4 py-3 text-slate-600">05/10</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 16/10</span></td>
+              <td class="px-4 py-3 text-right"><div class="flex justify-end gap-2"><button type="button" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800" data-toast="Processo 0009/2026 assumido por você." data-toast-type="success"><i data-lucide="user-check" class="h-4 w-4"></i>Assumir</button><a href="processo.html" class="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <ul class="space-y-3 md:hidden">
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start gap-2"><label class="sr-only" for="sel-0009-m">Selecionar processo 0009/2026</label><input type="checkbox" id="sel-0009-m" checked class="mt-1 h-4 w-4 rounded border-slate-300 text-brand-700"><div><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0009/2026</a><p class="text-sm">Recuperação de calçadas no Bairro Centro</p></div></div>
+          <span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 16/10</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-500">Formalização da demanda · sem responsável · desde 05/10</p>
+        <div class="mt-3 flex gap-2">
+          <button type="button" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800" data-toast="Processo 0009/2026 assumido por você." data-toast-type="success"><i data-lucide="user-check" class="h-4 w-4"></i>Assumir</button>
+          <a href="processo.html" class="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Painel: Aprovações pendentes -->
+  <div data-panel="aprovacoes" data-group="tarefas" id="panel-aprovacoes" role="tabpanel" aria-labelledby="tab-aprovacoes" class="mt-4" hidden>
+    <div class="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
+      <i data-lucide="circle-check" class="mx-auto h-8 w-8 text-emerald-500"></i>
+      <p class="mt-3 font-medium">Nenhuma aprovação pendente para você</p>
+      <p class="mt-1 text-sm text-slate-600">Quando um documento precisar da sua decisão, ele aparecerá aqui.</p>
+      <a href="aprovacoes.html" class="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium hover:bg-slate-50">Ver aprovações da instituição</a>
+    </div>
+  </div>
+
+  <!-- Painel: Devolvidos -->
+  <div data-panel="devolvidos" data-group="tarefas" id="panel-devolvidos" role="tabpanel" aria-labelledby="tab-devolvidos" class="mt-4" hidden>
+    <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Etapa</th>
+              <th scope="col" class="px-4 py-3">Motivo da devolução</th>
+              <th scope="col" class="px-4 py-3">Prazo</th>
+              <th scope="col" class="px-4 py-3 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0009/2026</a><p class="max-w-xs truncate text-slate-700">Recuperação de calçadas no Bairro Centro</p></td>
+              <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+              <td class="px-4 py-3 max-w-xs text-slate-700">Ajustar quantidades conforme levantamento de campo</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 16/10</span></td>
+              <td class="px-4 py-3 text-right"><a href="processo.html" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <ul class="space-y-3 md:hidden">
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0009/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 16/10</span></div>
+        <p class="mt-1 text-sm">Recuperação de calçadas no Bairro Centro</p>
+        <p class="mt-1 text-xs text-slate-500">Formalização da demanda</p>
+        <p class="mt-2 rounded-md bg-orange-50 px-2 py-1.5 text-xs text-orange-800">Motivo: Ajustar quantidades conforme levantamento de campo</p>
+        <a href="processo.html" class="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Painel: Atrasados -->
+  <div data-panel="atrasados" data-group="tarefas" id="panel-atrasados" role="tabpanel" aria-labelledby="tab-atrasados" class="mt-4" hidden>
+    <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Etapa</th>
+              <th scope="col" class="px-4 py-3">Desde</th>
+              <th scope="col" class="px-4 py-3" aria-sort="descending"><button type="button" class="inline-flex items-center gap-1 uppercase" data-toast="Ordenação por prazo (simulação)." data-toast-type="info">Prazo<i data-lucide="refresh-cw" aria-hidden="true" class="h-3.5 w-3.5"></i></button></th>
+              <th scope="col" class="px-4 py-3 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0010/2026</a><p class="max-w-xs truncate text-slate-700">Aquisição de medicamentos da farmácia básica</p><span class="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"><i data-lucide="eye" class="h-3 w-3"></i>Acompanhando</span></td>
+              <td class="px-4 py-3 text-slate-700">ETP e mapa de riscos</td>
+              <td class="px-4 py-3 text-slate-600">15/09</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>Atrasado há 4 dias</span></td>
+              <td class="px-4 py-3 text-right"><a href="processo.html" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <ul class="space-y-3 md:hidden">
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0010/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>4 dias</span></div>
+        <p class="mt-1 text-sm">Aquisição de medicamentos da farmácia básica</p>
+        <p class="mt-1 text-xs text-slate-500">ETP e mapa de riscos · desde 15/09</p>
+        <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"><i data-lucide="eye" class="h-3 w-3"></i>Acompanhando</span>
+        <a href="processo.html" class="mt-3 block w-fit rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Abrir</a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Painel: Acompanhando -->
+  <div data-panel="acompanhando" data-group="tarefas" id="panel-acompanhando" role="tabpanel" aria-labelledby="tab-acompanhando" class="mt-4" hidden>
+    <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Processo</th>
+              <th scope="col" class="px-4 py-3">Etapa</th>
+              <th scope="col" class="px-4 py-3">Desde</th>
+              <th scope="col" class="px-4 py-3">Prazo</th>
+              <th scope="col" class="px-4 py-3 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0010/2026</a><p class="max-w-xs truncate text-slate-700">Aquisição de medicamentos da farmácia básica</p></td>
+              <td class="px-4 py-3 text-slate-700">ETP e mapa de riscos</td>
+              <td class="px-4 py-3 text-slate-600">15/09</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>Atrasado há 4 dias</span></td>
+              <td class="px-4 py-3 text-right"><a href="processo.html" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></td>
+            </tr>
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0011/2026</a><p class="max-w-xs truncate text-slate-700">Contratação de serviço de poda de árvores</p></td>
+              <td class="px-4 py-3 text-slate-700">Aprovação da demanda</td>
+              <td class="px-4 py-3 text-slate-600">06/10</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence amanhã</span></td>
+              <td class="px-4 py-3 text-right"><a href="processo.html" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Abrir</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <ul class="space-y-3 md:hidden">
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0010/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>4 dias</span></div>
+        <p class="mt-1 text-sm">Aquisição de medicamentos da farmácia básica</p>
+        <p class="mt-1 text-xs text-slate-500">ETP e mapa de riscos · desde 15/09</p>
+        <a href="processo.html" class="mt-3 block w-fit rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Abrir</a>
+      </li>
+      <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <div class="flex items-center justify-between gap-2"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0011/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence amanhã</span></div>
+        <p class="mt-1 text-sm">Contratação de serviço de poda de árvores</p>
+        <p class="mt-1 text-xs text-slate-500">Aprovação da demanda · desde 06/10</p>
+        <a href="processo.html" class="mt-3 block w-fit rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Abrir</a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Atribuir em lote -->
+  <dialog id="dlg-atribuir" class="w-[28rem] bg-white" aria-labelledby="dlg-atribuir-t">
+    <form data-fake-submit="Processo 0009/2026 atribuído a Rui Alves." data-toast-type="success" class="p-6">
+      <div class="flex items-center justify-between">
+        <h2 id="dlg-atribuir-t" class="text-lg font-semibold">Atribuir processos selecionados</h2>
+        <button type="button" data-close class="rounded-md p-1.5 hover:bg-slate-100" aria-label="Fechar"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <p class="mt-1 text-sm text-slate-600">1 processo selecionado · selecione de 2 a 50 processos para ações em lote.</p>
+      <label class="mt-4 block text-sm"><span class="font-medium">Responsável</span>
+        <select required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3">
+          <option value="">Selecione…</option>
+          <option selected>Rui Alves — Setor de Manutenção</option>
+          <option>Ana Souza — Setor de Manutenção</option>
+          <option>Carlos Lima — Secretaria de Obras</option>
+        </select></label>
+      <label class="mt-4 block text-sm"><span class="font-medium">Motivo</span>
+        <textarea required minlength="10" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Explique o motivo da atribuição."></textarea></label>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="h-10 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">Atribuir</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

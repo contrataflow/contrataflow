@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DFD 0005/2026 — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-007 — DFD (wizard/editor) · US-014 (principal), US-015, US-016, US-017, US-018 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="processos" data-breadcrumb="Processos|processos.html > 0012/2026|processo.html > DFD 0005/2026">
+<main id="page" class="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho da página -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-semibold tracking-tight">DFD 0005/2026</h1>
+        <span class="inline-flex items-center whitespace-nowrap rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200">Em elaboração</span>
+      </div>
+      <p class="mt-1 text-sm text-slate-600">Processo 0012/2026 — Aquisição de cimento para manutenção de vias · Setor de Manutenção</p>
+      <p class="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+        <span class="inline-flex items-center gap-1 whitespace-nowrap"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>Etapa "Formalização da demanda" até 20/10</span>
+        <span class="inline-flex items-center gap-1.5" aria-live="polite"><i data-lucide="save" class="h-3.5 w-3.5 text-slate-400"></i><span data-autosave-status>Salvo às 10:42</span></span>
+      </p>
+      <p class="mt-1 text-xs text-slate-500">Abaixo de 768 px este editor abre em modo leitura; para editar o texto rico, use um desktop.</p>
+    </div>
+    <a href="processo.html" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50"><i data-lucide="x" class="h-4 w-4"></i>Fechar e voltar ao processo</a>
+  </div>
+
+  <!-- Aviso de conflito de seção -->
+  <div id="banner-conflito" class="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    <i data-lucide="triangle-alert" class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600"></i>
+    <div class="flex-1">
+      <p><strong>Rui Alves</strong> salvou esta seção há 2 min.</p>
+      <div class="mt-2 flex flex-wrap gap-4">
+        <button type="button" class="inline-flex items-center gap-1 font-medium text-amber-900 underline hover:no-underline" data-toast="Comparação de versões simulada neste protótipo." data-toast-type="info"><i data-lucide="git-compare" class="h-3.5 w-3.5"></i>Comparar versões</button>
+        <button type="button" class="font-medium text-amber-900 underline hover:no-underline" data-toast="Sua versão foi mantida." data-toast-type="success">Manter a minha</button>
+      </div>
+    </div>
+    <button type="button" onclick="document.getElementById('banner-conflito').remove()" class="rounded-md p-1 text-amber-700 hover:bg-amber-100" aria-label="Dispensar aviso"><i data-lucide="x" class="h-4 w-4"></i></button>
+  </div>
+
+  <form data-autosave class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-card sm:p-6">
+    <nav aria-label="Passos do assistente" data-wizard>
+      <ol class="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-slate-200 pb-5" role="list">
+        <li>
+          <button type="button" data-go-step="1" data-step-indicator="1" data-state="current" aria-current="step" class="group flex items-center gap-2 text-sm font-medium text-slate-500 data-[state=current]:text-brand-700 data-[state=done]:text-emerald-700">
+            <span class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-xs font-semibold group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+              <i data-lucide="check" class="hidden h-3.5 w-3.5 group-data-[state=done]:block"></i>
+              <span class="group-data-[state=done]:hidden">1</span>
+            </span>
+            <span>Necessidade e justificativa</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" data-go-step="2" data-step-indicator="2" class="group flex items-center gap-2 text-sm font-medium text-slate-500 data-[state=current]:text-brand-700 data-[state=done]:text-emerald-700">
+            <span class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-xs font-semibold group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+              <i data-lucide="check" class="hidden h-3.5 w-3.5 group-data-[state=done]:block"></i>
+              <span class="group-data-[state=done]:hidden">2</span>
+            </span>
+            <span>Itens e quantidades</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" data-go-step="3" data-step-indicator="3" class="group flex items-center gap-2 text-sm font-medium text-slate-500 data-[state=current]:text-brand-700 data-[state=done]:text-emerald-700">
+            <span class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-xs font-semibold group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+              <i data-lucide="check" class="hidden h-3.5 w-3.5 group-data-[state=done]:block"></i>
+              <span class="group-data-[state=done]:hidden">3</span>
+            </span>
+            <span>PCA e prioridade</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" data-go-step="4" data-step-indicator="4" class="group flex items-center gap-2 text-sm font-medium text-slate-500 data-[state=current]:text-brand-700 data-[state=done]:text-emerald-700">
+            <span class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-xs font-semibold group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+              <i data-lucide="check" class="hidden h-3.5 w-3.5 group-data-[state=done]:block"></i>
+              <span class="group-data-[state=done]:hidden">4</span>
+            </span>
+            <span>Revisão</span>
+          </button>
+        </li>
+      </ol>
+
+      <!-- Passo 1 — Necessidade e justificativa -->
+      <div data-step="1" class="space-y-5 pt-6">
+        <div>
+          <label for="descricao-necessidade" class="block text-sm font-medium">Descrição da necessidade</label>
+          <p class="mb-1 text-xs text-slate-500">Descreva, em linguagem clara, o que precisa ser contratado e por quê.</p>
+          <div class="flex items-center gap-1 rounded-t-md border border-b-0 border-slate-300 bg-slate-50 px-2 py-1" role="toolbar" aria-label="Formatação do texto da necessidade">
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Negrito" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="bold" class="h-4 w-4"></i></button>
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Itálico" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="italic" class="h-4 w-4"></i></button>
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Lista com marcadores" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="list" class="h-4 w-4"></i></button>
+          </div>
+          <textarea id="descricao-necessidade" required rows="4" class="block w-full rounded-b-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Diversas vias do município apresentam trechos de pavimentação deteriorados, identificados pelo Setor de Manutenção nas vistorias de 2026. É necessária a aquisição de cimento Portland e demais insumos para os serviços de recuperação do pavimento e das calçadas afetadas.</textarea>
+        </div>
+        <div>
+          <label for="justificativa" class="block text-sm font-medium">Justificativa</label>
+          <p class="mb-1 text-xs text-slate-500">Explique o problema que a contratação resolve e o risco de não contratar.</p>
+          <div class="flex items-center gap-1 rounded-t-md border border-b-0 border-slate-300 bg-slate-50 px-2 py-1" role="toolbar" aria-label="Formatação do texto da justificativa">
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Negrito" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="bold" class="h-4 w-4"></i></button>
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Itálico" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="italic" class="h-4 w-4"></i></button>
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Lista com marcadores" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="list" class="h-4 w-4"></i></button>
+          </div>
+          <textarea id="justificativa" required minlength="20" rows="4" class="block w-full rounded-b-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">A deterioração das vias compromete a segurança do tráfego de veículos e pedestres e gera reclamações recorrentes da população. O estoque de insumos do Setor de Manutenção está esgotado desde setembro/2026.</textarea>
+          <p class="mt-1 text-xs text-slate-500">Mínimo de 20 caracteres · <span data-count-for="justificativa"></span></p>
+        </div>
+        <div>
+          <label for="resultados-pretendidos" class="block text-sm font-medium">Resultados pretendidos</label>
+          <p class="mb-1 text-xs text-slate-500">O que se espera alcançar com a contratação.</p>
+          <div class="flex items-center gap-1 rounded-t-md border border-b-0 border-slate-300 bg-slate-50 px-2 py-1" role="toolbar" aria-label="Formatação do texto dos resultados pretendidos">
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Negrito" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="bold" class="h-4 w-4"></i></button>
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Itálico" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="italic" class="h-4 w-4"></i></button>
+            <button type="button" class="rounded p-1.5 text-slate-600 hover:bg-slate-200" aria-label="Lista com marcadores" data-toast="Formatação de texto simulada neste protótipo." data-toast-type="info"><i data-lucide="list" class="h-4 w-4"></i></button>
+          </div>
+          <textarea id="resultados-pretendidos" required rows="3" class="block w-full rounded-b-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Recuperação de aproximadamente 1.200 m² de pavimentação e calçadas nas vias priorizadas, reduzindo as ocorrências de buracos registradas no atendimento ao cidadão.</textarea>
+        </div>
+        <div class="flex justify-end border-t border-slate-200 pt-4">
+          <button type="button" data-next class="h-10 rounded-md bg-brand-700 px-5 text-sm font-semibold text-white hover:bg-brand-800">Próximo</button>
+        </div>
+      </div>
+
+      <!-- Passo 2 — Itens e quantidades -->
+      <div data-step="2" class="space-y-4 pt-6" hidden>
+        <p class="text-sm text-slate-600">5 itens vinculados ao processo 0012/2026. Ajuste as quantidades e registre a memória de cálculo de cada item.</p>
+        <div class="overflow-hidden rounded-lg border border-slate-200">
+          <div class="cf-scroll overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th scope="col" class="px-4 py-3">Item</th>
+                  <th scope="col" class="px-4 py-3">Apresentação</th>
+                  <th scope="col" class="px-4 py-3">Quantidade</th>
+                  <th scope="col" class="px-4 py-3">Unidade</th>
+                  <th scope="col" class="px-4 py-3">Memória de cálculo</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr>
+                  <td class="px-4 py-3 font-medium text-slate-800">Cimento Portland CP II-E-32</td>
+                  <td class="px-4 py-3 text-slate-600">saco 50 kg</td>
+                  <td class="px-4 py-3"><label class="sr-only" for="qtd-1">Quantidade de Cimento Portland CP II-E-32</label><input type="number" id="qtd-1" required min="1" value="1200" class="h-9 w-24 rounded-md border border-slate-300 px-2 text-right text-sm tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></td>
+                  <td class="px-4 py-3 text-slate-600">un</td>
+                  <td class="px-4 py-3 align-top"><details><summary class="cursor-pointer text-xs font-medium text-brand-700 hover:underline">Memória de cálculo</summary><label class="sr-only" for="memoria-1">Memória de cálculo de Cimento Portland CP II-E-32</label><textarea id="memoria-1" rows="3" class="mt-2 w-56 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Consumo médio de 100 sacos/mês apurado em 2025, para 12 meses de obras nas vias priorizadas.</textarea></details></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-medium text-slate-800">Areia média lavada</td>
+                  <td class="px-4 py-3 text-slate-400">—</td>
+                  <td class="px-4 py-3"><label class="sr-only" for="qtd-2">Quantidade de Areia média lavada</label><input type="number" id="qtd-2" required min="1" step="0.5" value="80" class="h-9 w-24 rounded-md border border-slate-300 px-2 text-right text-sm tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></td>
+                  <td class="px-4 py-3 text-slate-600">m³</td>
+                  <td class="px-4 py-3 align-top"><details><summary class="cursor-pointer text-xs font-medium text-brand-700 hover:underline">Memória de cálculo</summary><label class="sr-only" for="memoria-2">Memória de cálculo de Areia média lavada</label><textarea id="memoria-2" rows="3" class="mt-2 w-56 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Traço usual de 1:3 (cimento:areia) aplicado ao volume estimado de massa asfáltica/concreto.</textarea></details></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-medium text-slate-800">Brita nº 1</td>
+                  <td class="px-4 py-3 text-slate-400">—</td>
+                  <td class="px-4 py-3"><label class="sr-only" for="qtd-3">Quantidade de Brita nº 1</label><input type="number" id="qtd-3" required min="1" step="0.5" value="60" class="h-9 w-24 rounded-md border border-slate-300 px-2 text-right text-sm tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></td>
+                  <td class="px-4 py-3 text-slate-600">m³</td>
+                  <td class="px-4 py-3 align-top"><details><summary class="cursor-pointer text-xs font-medium text-brand-700 hover:underline">Memória de cálculo</summary><label class="sr-only" for="memoria-3">Memória de cálculo de Brita nº 1</label><textarea id="memoria-3" rows="3" class="mt-2 w-56 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Proporção equivalente à areia, para o traço do concreto usado na recuperação do pavimento.</textarea></details></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-medium text-slate-800">Cal hidratada</td>
+                  <td class="px-4 py-3 text-slate-600">20 kg</td>
+                  <td class="px-4 py-3"><label class="sr-only" for="qtd-4">Quantidade de Cal hidratada</label><input type="number" id="qtd-4" required min="1" value="400" class="h-9 w-24 rounded-md border border-slate-300 px-2 text-right text-sm tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></td>
+                  <td class="px-4 py-3 text-slate-600">sc</td>
+                  <td class="px-4 py-3 align-top"><details><summary class="cursor-pointer text-xs font-medium text-brand-700 hover:underline">Memória de cálculo</summary><label class="sr-only" for="memoria-4">Memória de cálculo de Cal hidratada</label><textarea id="memoria-4" rows="3" class="mt-2 w-56 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Uso em argamassa de assentamento e rejunte das calçadas, conforme histórico de obras similares.</textarea></details></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-medium text-slate-800">Tela soldada Q-92</td>
+                  <td class="px-4 py-3 text-slate-400">—</td>
+                  <td class="px-4 py-3"><label class="sr-only" for="qtd-5">Quantidade de Tela soldada Q-92</label><input type="number" id="qtd-5" required min="1" value="100" class="h-9 w-24 rounded-md border border-slate-300 px-2 text-right text-sm tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></td>
+                  <td class="px-4 py-3 text-slate-600">un</td>
+                  <td class="px-4 py-3 align-top"><details><summary class="cursor-pointer text-xs font-medium text-brand-700 hover:underline">Memória de cálculo</summary><label class="sr-only" for="memoria-5">Memória de cálculo de Tela soldada Q-92</label><textarea id="memoria-5" rows="3" class="mt-2 w-56 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Reforço estrutural das calçadas em trechos de maior fluxo, conforme projeto padrão do Setor de Manutenção.</textarea></details></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="flex justify-between border-t border-slate-200 pt-4">
+          <button type="button" data-prev class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Voltar</button>
+          <button type="button" data-next class="h-10 rounded-md bg-brand-700 px-5 text-sm font-semibold text-white hover:bg-brand-800">Próximo</button>
+        </div>
+      </div>
+
+      <!-- Passo 3 — PCA e prioridade -->
+      <div data-step="3" class="space-y-6 pt-6" hidden>
+        <fieldset>
+          <legend class="text-sm font-medium">Situação no Plano de Contratações Anual (PCA)</legend>
+          <div class="mt-2 flex flex-wrap gap-4 text-sm">
+            <label class="flex items-center gap-2"><input type="radio" name="pca" value="previsto" required checked class="peer/prev h-4 w-4 text-brand-700">Previsto no PCA</label>
+            <label class="flex items-center gap-2"><input type="radio" name="pca" value="nao-previsto" required class="peer/naoprev h-4 w-4 text-brand-700">Não previsto no PCA</label>
+          </div>
+          <div class="hidden peer-checked/naoprev:block">
+            <label for="justificativa-pca" class="mt-3 block text-sm font-medium">Justificativa para contratação fora do PCA</label>
+            <textarea id="justificativa-pca" rows="3" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200" placeholder="Explique o motivo da contratação não constar no PCA vigente."></textarea>
+          </div>
+        </fieldset>
+        <div class="grid gap-6 sm:grid-cols-2">
+          <div>
+            <label for="prioridade" class="block text-sm font-medium">Prioridade</label>
+            <select id="prioridade" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+              <option>Baixa</option>
+              <option selected>Média</option>
+              <option>Alta</option>
+              <option>Urgente</option>
+            </select>
+            <p class="mt-2 inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Prioridade atual: Média</p>
+          </div>
+          <div>
+            <label for="data-pretendida" class="block text-sm font-medium">Data pretendida da contratação</label>
+            <input type="date" id="data-pretendida" required value="2026-11-16" class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+          </div>
+        </div>
+        <div class="max-w-xs">
+          <label for="estimativa" class="block text-sm font-medium">Estimativa preliminar</label>
+          <input type="text" id="estimativa" required value="R$ 98.000,00" class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+          <p class="mt-1 text-xs text-slate-500">Valor preliminar; será detalhado na pesquisa de preços.</p>
+        </div>
+        <div class="flex justify-between border-t border-slate-200 pt-4">
+          <button type="button" data-prev class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Voltar</button>
+          <button type="button" data-next class="h-10 rounded-md bg-brand-700 px-5 text-sm font-semibold text-white hover:bg-brand-800">Próximo</button>
+        </div>
+      </div>
+
+      <!-- Passo 4 — Revisão -->
+      <div data-step="4" class="space-y-6 pt-6" hidden>
+        <div>
+          <h2 class="flex items-center gap-2 text-base font-semibold"><i data-lucide="file-text" class="h-4 w-4 text-slate-500"></i>Resumo do DFD</h2>
+          <ul class="mt-2 space-y-1 text-sm text-slate-700">
+            <li>Necessidade: recuperação de pavimentação e calçadas pelo Setor de Manutenção.</li>
+            <li>5 itens vinculados (cimento, areia, brita, cal hidratada, tela soldada).</li>
+            <li>PCA: previsto · Prioridade: Média · Data pretendida: 16/11/2026.</li>
+            <li>Estimativa preliminar: R$ 98.000,00.</li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="text-base font-semibold">Checklist de completude</h2>
+          <ul class="mt-2 space-y-2 text-sm">
+            <li class="flex items-center gap-2 text-emerald-700"><i data-lucide="circle-check" class="h-4 w-4 flex-shrink-0"></i>Necessidade e justificativa preenchidas — Concluído</li>
+            <li class="flex items-center gap-2 text-emerald-700"><i data-lucide="circle-check" class="h-4 w-4 flex-shrink-0"></i>5 itens com quantidades informadas — Concluído</li>
+            <li class="flex items-center gap-2 text-emerald-700"><i data-lucide="circle-check" class="h-4 w-4 flex-shrink-0"></i>Situação no PCA e prioridade definidas — Concluído</li>
+            <li class="flex items-center gap-2 text-emerald-700"><i data-lucide="circle-check" class="h-4 w-4 flex-shrink-0"></i>Data pretendida e estimativa preliminar informadas — Concluído</li>
+            <li class="flex items-center gap-2 text-amber-700"><i data-lucide="triangle-alert" class="h-4 w-4 flex-shrink-0"></i>Anexos de referência — Pendente (opcional)</li>
+          </ul>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+          <button type="button" data-prev class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Voltar</button>
+          <div class="flex flex-wrap gap-3">
+            <button type="button" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium hover:bg-slate-50" data-toast="Pré-visualização do PDF de rascunho simulada neste protótipo." data-toast-type="info"><i data-lucide="eye" class="h-4 w-4"></i>Visualizar PDF de rascunho</button>
+            <button type="button" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800" data-toast="DFD 0005/2026 concluído e enviado para aprovação de Carlos Lima (Secretário de Obras)." data-toast-type="success" data-redirect="processo.html"><i data-lucide="circle-check" class="h-4 w-4"></i>Concluir e enviar para aprovação</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </form>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

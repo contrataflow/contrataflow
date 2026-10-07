@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapa comparativo — PP 0003/2026 — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-010 — Mapa comparativo (/processos/[id]/pesquisa-precos/[researchId]/mapa) · US-031 (principal), US-030 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="processos" data-user="Marcos Pereira" data-role="Compras · Departamento de Compras" data-breadcrumb="Processos|processos.html > 0008/2026|processo.html > PP 0003/2026|pesquisa-precos.html > Mapa comparativo">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho da página -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Mapa comparativo — PP 0003/2026</h1>
+      <p class="mt-1 text-sm text-slate-600">Processo <a href="processo.html" class="font-medium text-brand-700 hover:underline">0008/2026</a> — Material de expediente para as escolas · Secretaria de Educação</p>
+      <p class="mt-1 text-xs text-slate-500">Pesquisa <a href="pesquisa-precos.html" class="text-slate-600 hover:underline">PP 0003/2026</a> · data-base 01/10/2026 · método AUTO_CV (média se CV ≤ 25%, mediana acima) · arredondamento HALF_UP</p>
+    </div>
+    <div class="cf-no-print flex flex-wrap items-center gap-2">
+      <button type="button" data-toast="Exportação em PDF gerada: Mapa_comparativo_PP_0003-2026.pdf (simulação)." data-toast-type="success" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="download" class="h-4 w-4"></i>Exportar PDF</button>
+      <button type="button" data-toast="Exportação em XLSX gerada: Mapa_comparativo_PP_0003-2026.xlsx (simulação)." data-toast-type="success" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>Exportar XLSX</button>
+      <button type="button" onclick="window.print()" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">
+        <i data-lucide="printer" class="h-4 w-4"></i>Imprimir</button>
+    </div>
+  </div>
+
+  <!-- Matriz comparativa -->
+  <section aria-labelledby="matriz-h" class="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
+    <h2 id="matriz-h" class="sr-only">Matriz comparativa de preços por item e por fonte</h2>
+    <div class="cf-scroll overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <caption class="sr-only">Preços cotados por item e por fonte, com estatísticas e valor recomendado; cotações desconsideradas aparecem riscadas com o motivo e outliers são sinalizados</caption>
+        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <tr>
+            <th scope="col" class="sticky left-0 z-10 bg-slate-50 px-4 py-3">Item</th>
+            <th scope="col" class="px-4 py-3 text-right">Painel de Preços</th>
+            <th scope="col" class="px-4 py-3 text-right">Vila Nova<br>(Ata 12/2026)</th>
+            <th scope="col" class="px-4 py-3 text-right">Papelaria Central</th>
+            <th scope="col" class="px-4 py-3 text-right">Distrib. Escolar Sul</th>
+            <th scope="col" class="px-4 py-3 text-right">Comercial Alfa</th>
+            <th scope="col" class="px-4 py-3 text-right">Média</th>
+            <th scope="col" class="px-4 py-3 text-right">Mediana</th>
+            <th scope="col" class="px-4 py-3 text-right">Menor</th>
+            <th scope="col" class="px-4 py-3 text-right">CV</th>
+            <th scope="col" class="px-4 py-3 text-right">Recomendado</th>
+            <th scope="col" class="px-4 py-3 text-right">Qtd.</th>
+            <th scope="col" class="px-4 py-3 text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr>
+            <th scope="row" class="sticky left-0 z-10 bg-white px-4 py-3 text-left font-medium">Papel A4 75 g resma</th>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 20,80</td>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Vila Nova não cotou este item">—</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 22,40</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 23,50</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 19,34</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 21,51</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 21,60</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 19,34</td>
+            <td class="px-4 py-3 text-right tabular-nums">7,3%</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 21,51</td>
+            <td class="px-4 py-3 text-right tabular-nums">2.000 un</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 43.020,00</td>
+          </tr>
+          <tr>
+            <th scope="row" class="sticky left-0 z-10 bg-white px-4 py-3 text-left font-medium">Caneta esferográfica azul cx 50</th>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 42,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 45,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 45,00</td>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Distribuidora Escolar Sul não cotou este item">—</td>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Comercial Alfa não cotou este item">—</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 44,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 45,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 42,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">3,2%</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 44,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">120 cx</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 5.280,00</td>
+          </tr>
+          <tr class="bg-amber-50/40">
+            <th scope="row" class="sticky left-0 z-10 bg-amber-50/40 px-4 py-3 text-left font-medium">Grampeador médio 26/6</th>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Painel de Preços não cotou este item">—</td>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Vila Nova não cotou este item">—</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 25,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 27,00</td>
+            <td class="px-4 py-3 text-right">
+              <p class="tabular-nums line-through text-slate-500">R$ 32,00</p>
+              <p class="mt-0.5 text-[11px] text-slate-500" title="Especificação não corresponde ao modelo solicitado (26/6 reforçado, não o grampeador médio especificado).">Desconsiderada</p>
+            </td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 26,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 26,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 25,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">3,8%</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 26,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">150 un</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 3.900,00</td>
+          </tr>
+          <tr>
+            <th scope="row" class="sticky left-0 z-10 bg-white px-4 py-3 text-left font-medium">Lápis preto nº 2 cx 144</th>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 88,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 89,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 91,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 92,00</td>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Comercial Alfa não cotou este item">—</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 90,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 90,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 88,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">1,8%</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 90,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">80 cx</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 7.200,00</td>
+          </tr>
+          <tr class="bg-red-50/40">
+            <th scope="row" class="sticky left-0 z-10 bg-red-50/40 px-4 py-3 text-left font-medium">Cola branca 1 kg</th>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 15,00</td>
+            <td class="px-4 py-3 text-right text-slate-400" aria-label="Vila Nova não cotou este item">—</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 15,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 18,00</td>
+            <td class="px-4 py-3 text-right">
+              <p class="tabular-nums">R$ 7,50</p>
+              <p class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-red-700" title="Preço abaixo de 70% da mediana das demais cotações deste item — possível inexequibilidade."><i data-lucide="triangle-alert" class="h-3 w-3"></i>Outlier</p>
+            </td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 13,88</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 15,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">R$ 7,50</td>
+            <td class="px-4 py-3 text-right tabular-nums">28,0%</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 15,00</td>
+            <td class="px-4 py-3 text-right tabular-nums">200 un</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 3.000,00</td>
+          </tr>
+        </tbody>
+        <tfoot class="bg-slate-50">
+          <tr>
+            <th scope="row" class="sticky left-0 z-10 bg-slate-50 px-4 py-3 text-left font-semibold">Total geral</th>
+            <td class="px-4 py-3" colspan="11"></td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 62.400,00</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- Alertas dos itens -->
+  <ul class="mt-4 space-y-2 text-sm">
+    <li class="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-amber-800"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+      <span><strong>Grampeador médio 26/6:</strong> abaixo do mínimo de 3 cotações (2 válidas) — 1 cotação foi desconsiderada.</span></li>
+    <li class="flex items-start gap-2 rounded-md bg-red-50 p-3 text-red-700"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+      <span><strong>Cola branca 1 kg:</strong> a cotação da Comercial Alfa Suprimentos (R$ 7,50) está abaixo de 70% da mediana das demais — possível inexequibilidade.</span></li>
+  </ul>
+
+  <!-- Legenda -->
+  <section aria-labelledby="legenda-h" class="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+    <h2 id="legenda-h" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="info" class="h-4 w-4 text-slate-500"></i>Legenda</h2>
+    <ul class="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+      <li class="flex items-start gap-1.5"><span class="text-slate-400">—</span><span>Fonte não apresentou cotação para este item.</span></li>
+      <li class="flex items-start gap-1.5"><span class="whitespace-nowrap text-slate-500 line-through">R$ 0,00</span><span>Cotação desconsiderada; motivo visível na célula e na dica ao focar/passar o cursor.</span></li>
+      <li class="flex items-start gap-1.5"><i data-lucide="triangle-alert" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-700"></i><span>Outlier: preço fora da faixa de 70%–130% da mediana das demais cotações do item; continua nas estatísticas, mas pede revisão.</span></li>
+      <li class="flex items-start gap-1.5"><span class="font-semibold">R$ 0,00</span><span>Coluna "Recomendado" em destaque: valor unitário usado no total do item, conforme o método AUTO_CV (média ou mediana).</span></li>
+    </ul>
+  </section>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

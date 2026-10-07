@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-003 — Dashboard (/painel) · US-076 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="painel" data-breadcrumb="Painel" data-user="Ana Souza">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho e filtros -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><i data-lucide="layout-dashboard" class="h-6 w-6 text-brand-700"></i>Bom dia, Ana</h1>
+      <p class="mt-1 text-sm text-slate-600">Quarta-feira, 07 de outubro de 2026 · Prefeitura de São José</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2" aria-label="Filtros do painel">
+      <label class="sr-only" for="f-secretaria">Secretaria</label>
+      <select id="f-secretaria" class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+        <option>Todas as secretarias</option>
+        <option>Secretaria de Obras</option>
+        <option>Secretaria de Saúde</option>
+        <option>Secretaria de Educação</option>
+        <option>Gabinete do Prefeito</option>
+      </select>
+      <label class="sr-only" for="f-unidade">Unidade</label>
+      <select id="f-unidade" class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+        <option>Todas as unidades</option>
+        <option>Setor de Manutenção</option>
+        <option>Departamento de Compras</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Cartões de indicadores -->
+  <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <a href="tarefas.html" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card transition hover:border-brand-300 hover:shadow-md">
+      <p class="text-sm text-slate-600">Com você</p>
+      <p class="mt-1 text-3xl font-semibold text-brand-700">2</p>
+      <p class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand-700">Ver tarefas<i data-lucide="arrow-right" class="h-3.5 w-3.5"></i></p>
+    </a>
+    <a href="processos.html" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card transition hover:border-brand-300 hover:shadow-md">
+      <p class="text-sm text-slate-600">Na fila da unidade</p>
+      <p class="mt-1 text-3xl font-semibold">1</p>
+      <p class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-600">Ver processos<i data-lucide="arrow-right" class="h-3.5 w-3.5"></i></p>
+    </a>
+    <a href="processos.html" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card transition hover:border-red-300 hover:shadow-md">
+      <p class="text-sm text-slate-600">Atrasados</p>
+      <p class="mt-1 flex items-center gap-1.5 text-3xl font-semibold text-red-700">1<i data-lucide="triangle-alert" class="h-5 w-5"></i></p>
+      <p class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-700">Ver processos<i data-lucide="arrow-right" class="h-3.5 w-3.5"></i></p>
+    </a>
+    <a href="aprovacoes.html" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card transition hover:border-amber-300 hover:shadow-md">
+      <p class="text-sm text-slate-600">Aguardando aprovação</p>
+      <p class="mt-1 text-3xl font-semibold text-amber-800">2</p>
+      <p class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-800">Ver aprovações<i data-lucide="arrow-right" class="h-3.5 w-3.5"></i></p>
+    </a>
+  </div>
+
+  <!-- Grade de widgets independentes -->
+  <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+    <section aria-labelledby="w-pend-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <h2 id="w-pend-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="inbox" class="h-4 w-4 text-slate-500"></i>Pendências</h2>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li><a href="processo.html" class="font-medium text-brand-700 hover:underline">DFD 0005/2026</a><span class="text-slate-600"> — elaborar e enviar (processo 0012/2026)</span></li>
+        <li><a href="processo.html" class="font-medium text-brand-700 hover:underline">0009/2026</a><span class="text-slate-600"> — devolvido para ajuste na formalização</span></li>
+        <li><a href="processo.html" class="font-medium text-brand-700 hover:underline">0006/2026</a><span class="text-slate-600"> — aprovação da autoridade competente, vence hoje</span></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="w-status-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <h2 id="w-status-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="stamp" class="h-4 w-4 text-slate-500"></i>Processos por status</h2>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li class="flex items-center justify-between"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span><span class="font-semibold tabular-nums">5</span></li>
+        <li class="flex items-center justify-between"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Aguardando aprovação</span><span class="font-semibold tabular-nums">2</span></li>
+        <li class="flex items-center justify-between"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200">Devolvido</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300">Suspenso</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Concluído</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">Cancelado</span><span class="font-semibold tabular-nums">1</span></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="w-etapa-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <h2 id="w-etapa-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="arrow-right" class="h-4 w-4 text-slate-500"></i>Processos por etapa</h2>
+      <ul class="mt-3 space-y-1.5 text-sm text-slate-700">
+        <li class="flex items-center justify-between gap-2"><span>1. Formalização da demanda</span><span class="font-semibold tabular-nums">3</span></li>
+        <li class="flex items-center justify-between gap-2"><span>2. Aprovação da demanda</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between gap-2"><span>3. ETP e mapa de riscos</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between gap-2"><span>4. Pesquisa de preços</span><span class="font-semibold tabular-nums">2</span></li>
+        <li class="flex items-center justify-between gap-2"><span>5. Termo de Referência</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between gap-2"><span>6. Aprovação da autoridade competente</span><span class="font-semibold tabular-nums">1</span></li>
+        <li class="flex items-center justify-between gap-2"><span>7. Planejamento da contratação concluído</span><span class="font-semibold tabular-nums">1</span></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="w-prazo-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <h2 id="w-prazo-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="triangle-alert" class="h-4 w-4 text-red-600"></i>Atrasados e próximos do prazo</h2>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li class="flex items-center justify-between gap-2"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0010/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>Atrasado há 4 dias</span></li>
+        <li class="flex items-center justify-between gap-2"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0011/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence amanhã</span></li>
+        <li class="flex items-center justify-between gap-2"><a href="processo.html" class="font-medium text-brand-700 hover:underline">0006/2026</a><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence hoje</span></li>
+      </ul>
+    </section>
+
+    <!-- Tempo médio por etapa — demonstra o estado de erro independente do widget (§1.4) -->
+    <section aria-labelledby="w-tempo-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <h2 id="w-tempo-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="clock" class="h-4 w-4 text-slate-500"></i>Tempo médio por etapa (90 dias)</h2>
+      <div data-err class="mt-4 flex flex-col items-center gap-3 rounded-md bg-red-50 p-4 text-center">
+        <i data-lucide="triangle-alert" class="h-6 w-6 text-red-600"></i>
+        <p class="text-sm font-medium text-red-800">Não foi possível carregar este widget agora.</p>
+        <button type="button" onclick="var w=this.closest('section');w.querySelector('[data-err]').hidden=true;w.querySelector('[data-ok]').hidden=false;" class="inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"><i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i>Tentar novamente</button>
+        <div class="flex items-center gap-1.5 text-xs text-slate-500">
+          <span>ID de correlação: a1c4-92fe-77b0</span>
+          <button type="button" data-toast="ID de correlação copiado." data-toast-type="info" class="rounded p-1 hover:bg-slate-200" aria-label="Copiar ID de correlação"><i data-lucide="copy" class="h-3.5 w-3.5"></i></button>
+        </div>
+      </div>
+          <div data-ok hidden class="mt-4 space-y-2.5 text-sm" role="img" aria-label="Tempo médio por etapa nos últimos 90 dias, em dias úteis">
+        <div><div class="flex justify-between text-xs"><span>Formalização da demanda</span><span class="tabular-nums text-slate-600">4,2 dias</span></div><div class="mt-1 h-2 rounded bg-slate-100"><div class="h-2 rounded bg-brand-400" style="width:34%"></div></div></div>
+        <div><div class="flex justify-between text-xs"><span>Aprovação da demanda</span><span class="tabular-nums text-slate-600">1,8 dia</span></div><div class="mt-1 h-2 rounded bg-slate-100"><div class="h-2 rounded bg-brand-400" style="width:15%"></div></div></div>
+        <div><div class="flex justify-between text-xs"><span>ETP e mapa de riscos</span><span class="tabular-nums text-slate-600">9,6 dias</span></div><div class="mt-1 h-2 rounded bg-slate-100"><div class="h-2 rounded bg-brand-500" style="width:77%"></div></div></div>
+        <div><div class="flex justify-between text-xs"><span>Pesquisa de preços</span><span class="tabular-nums text-slate-600">12,4 dias</span></div><div class="mt-1 h-2 rounded bg-slate-100"><div class="h-2 rounded bg-amber-500" style="width:100%"></div></div></div>
+        <div><div class="flex justify-between text-xs"><span>Termo de Referência</span><span class="tabular-nums text-slate-600">6,1 dias</span></div><div class="mt-1 h-2 rounded bg-slate-100"><div class="h-2 rounded bg-brand-400" style="width:49%"></div></div></div>
+        <div><div class="flex justify-between text-xs"><span>Aprovação da autoridade</span><span class="tabular-nums text-slate-600">2,3 dias</span></div><div class="mt-1 h-2 rounded bg-slate-100"><div class="h-2 rounded bg-brand-400" style="width:19%"></div></div></div>
+        <p class="pt-1 text-xs text-slate-500">Gargalo: Pesquisa de preços.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="w-mes-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <h2 id="w-mes-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="file-plus" class="h-4 w-4 text-slate-500"></i>Abertos por mês</h2>
+      <div class="mt-4 flex h-32 items-end gap-2" role="img" aria-label="Processos abertos por mês: abril 1, maio 2, junho 1, julho 2, agosto 1, setembro 3, outubro 2">
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-200" style="height:17%"></div><span class="text-[11px] text-slate-500">Abr</span></div>
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-300" style="height:33%"></div><span class="text-[11px] text-slate-500">Mai</span></div>
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-200" style="height:17%"></div><span class="text-[11px] text-slate-500">Jun</span></div>
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-300" style="height:33%"></div><span class="text-[11px] text-slate-500">Jul</span></div>
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-200" style="height:17%"></div><span class="text-[11px] text-slate-500">Ago</span></div>
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-700" style="height:50%"></div><span class="text-[11px] text-slate-500">Set</span></div>
+        <div class="flex h-full flex-1 flex-col items-center justify-end gap-1"><div class="w-full rounded-t bg-brand-300" style="height:33%"></div><span class="text-[11px] text-slate-500">Out</span></div>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">Abr–Out/2026 · 1, 2, 1, 2, 1, 3, 2 processos abertos.</p>
+    </section>
+
+    <section aria-labelledby="w-valor-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card lg:col-span-2">
+      <h2 id="w-valor-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="building-2" class="h-4 w-4 text-slate-500"></i>Valor estimado por secretaria</h2>
+      <ul class="mt-3 space-y-2.5 text-sm">
+        <li class="flex items-center justify-between"><span>Secretaria de Obras</span><span class="font-semibold tabular-nums">R$ 653.000,00</span></li>
+        <li class="flex items-center justify-between"><span>Secretaria de Educação</span><span class="font-semibold tabular-nums">R$ 472.400,00</span></li>
+        <li class="flex items-center justify-between"><span>Secretaria de Saúde</span><span class="inline-flex items-center gap-1 text-slate-500"><i data-lucide="lock" class="h-3.5 w-3.5"></i>Valores sigilosos não somados</span></li>
+        <li class="flex items-center justify-between"><span>Gabinete do Prefeito</span><span class="font-semibold tabular-nums">R$ 85.300,00</span></li>
+      </ul>
+      <p class="mt-2 text-xs text-slate-500"><i data-lucide="info" class="mr-1 inline h-3.5 w-3.5"></i>Conforme a POL-09, valores de orçamento sigiloso não entram neste total.</p>
+    </section>
+
+    <section aria-labelledby="w-atividade-t" class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between">
+        <h2 id="w-atividade-t" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="circle-check" class="h-4 w-4 text-slate-500"></i>Atividade recente</h2>
+        <a href="#" data-toast="Tela de notificações completa — não faz parte deste protótipo." data-toast-type="info" class="text-xs font-medium text-brand-700 hover:underline">Ver tudo</a>
+      </div>
+      <ul class="mt-3 space-y-3 text-sm">
+        <li class="flex gap-2"><i data-lucide="arrow-right" class="mt-0.5 h-4 w-4 shrink-0 text-blue-700"></i><span>09:40 — <a href="processo.html" class="text-brand-700 hover:underline">0012/2026</a> avançou para Formalização da demanda</span></li>
+        <li class="flex gap-2"><i data-lucide="file-plus" class="mt-0.5 h-4 w-4 shrink-0 text-slate-500"></i><span>09:05 — DFD 0005/2026 foi criado para o processo 0012/2026</span></li>
+        <li class="flex gap-2"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0 text-orange-700"></i><span>08:50 — 0009/2026 foi devolvido para ajuste na formalização</span></li>
+        <li class="flex gap-2"><i data-lucide="stamp" class="mt-0.5 h-4 w-4 shrink-0 text-amber-700"></i><span>Ontem, 16:30 — 0011/2026 foi encaminhado para aprovação de Carlos Lima</span></li>
+        <li class="flex gap-2"><i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-700"></i><span>Ontem, 14:10 — 0005/2026 (gestão de frota) foi concluído</span></li>
+      </ul>
+    </section>
+
+  </div>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

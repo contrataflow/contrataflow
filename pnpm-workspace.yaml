@@ -1,0 +1,113 @@
+# Fonte única de versões do monorepo (RN-FND-01 · US-077).
+# - Dependências externas: "catalog:" (ou "catalog:react") no package.json do pacote.
+# - Dependências internas: "workspace:*".
+# - Somente versões EXATAS aqui; faixas (^, ~, *, latest) são proibidas (pnpm check:versions).
+# - Dependência nova exige a justificativa da RN-FND-11 no PR e aprovação dos donos deste arquivo.
+# Linhas, motivos e medições: docs/engineering/versions.md.
+
+packages:
+  - apps/*
+  - packages/*
+  - tools
+
+# Recusa versões publicadas há menos de 3 dias (defesa de cadeia de suprimentos — RS-11).
+minimumReleaseAge: 4320
+
+# `pnpm add` só aceita versões do catálogo.
+catalogMode: strict
+
+# Scripts de instalação só destes pacotes (pnpm 10 bloqueia os demais — RS-11).
+# Inclusão somente após revisão de segurança (CODEOWNERS).
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
+
+# Scripts revisados e dispensáveis (binários nativos já chegam por optionalDependencies).
+ignoredBuiltDependencies:
+  - unrs-resolver
+
+catalog:
+  # Runtime e build
+  typescript: 5.9.3
+  '@types/node': 24.19.1
+  turbo: 2.11.7
+  '@turbo/gen': 2.11.7
+  tsx: 4.23.15
+  yaml: 2.9.1
+  concurrently: 10.0.5
+  '@swc/core': 1.16.13
+  '@swc/cli': 0.8.1
+  chokidar: 5.0.0
+
+  # Qualidade
+  eslint: 9.39.5
+  '@eslint/js': 9.39.5
+  typescript-eslint: 8.71.0
+  eslint-plugin-import-x: 4.17.1
+  eslint-import-resolver-typescript: 4.4.5
+  eslint-plugin-jsx-a11y: 6.10.2
+  eslint-plugin-react-hooks: 7.1.1
+  '@next/eslint-plugin-next': 16.3.8
+  globals: 17.13.0
+  prettier: 3.9.9
+  prettier-plugin-tailwindcss: 0.8.1
+  '@commitlint/cli': 21.2.3
+  '@commitlint/config-conventional': 21.2.3
+  '@commitlint/lint': 21.2.3
+  '@commitlint/load': 21.2.3
+  husky: 9.1.7
+  lint-staged: 16.4.0
+  dependency-cruiser: 17.4.3
+
+  # Back-end (api/worker)
+  '@nestjs/common': 11.2.7
+  '@nestjs/core': 11.2.7
+  '@nestjs/platform-express': 11.2.7
+  '@nestjs/testing': 11.2.7
+  reflect-metadata: 0.2.2
+  rxjs: 7.8.2
+  prisma: 7.10.0
+  '@prisma/client': 7.10.0
+  '@prisma/adapter-pg': 7.10.0
+  pg: 8.23.1
+  bullmq: 5.81.5
+  ioredis: 5.11.1
+  '@opentelemetry/sdk-node': 0.222.0
+  pino: 10.4.0
+  nestjs-pino: 4.6.1
+  pino-http: 11.0.0
+
+  # Contratos (DEC-054)
+  zod: 4.6.5
+  '@asteasolutions/zod-to-openapi': 8.5.0
+
+  # Front-end (web/ui)
+  next: 16.3.8
+  tailwindcss: 4.3.3
+  '@tailwindcss/postcss': 4.3.3
+  '@tanstack/react-query': 5.104.1
+  '@tanstack/react-table': 8.21.3
+  react-hook-form: 7.89.0
+  next-intl: 4.14.9
+  '@tiptap/core': 3.31.4
+  '@tiptap/pm': 3.31.4
+  '@tiptap/starter-kit': 3.31.4
+
+  # Testes
+  vitest: 4.1.11
+  vite: 7.3.6
+  '@vitest/coverage-v8': 4.1.11
+  unplugin-swc: 2.0.0
+  '@playwright/test': 1.63.0
+  testcontainers: 11.14.0
+  supertest: 7.3.1
+  '@types/supertest': 7.2.1
+  axe-core: 4.13.0
+
+catalogs:
+  # React e tipos andam juntos (uma única versão no lockfile — DUPLICATE_MAJOR).
+  react:
+    react: 19.2.8
+    react-dom: 19.2.8
+    '@types/react': 19.2.18
+    '@types/react-dom': 19.2.7

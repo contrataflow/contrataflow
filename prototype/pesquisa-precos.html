@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pesquisa de preços PP 0003/2026 — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-009 — Pesquisa de preços (/processos/[id]/pesquisa-precos/[researchId]) · US-024 (principal), US-026, US-027, US-029, US-030, US-032 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="processos" data-user="Marcos Pereira" data-role="Compras · Departamento de Compras" data-breadcrumb="Processos|processos.html > 0008/2026|processo.html > PP 0003/2026">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho da página -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-semibold tracking-tight">Pesquisa de preços PP 0003/2026</h1>
+        <span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em elaboração</span>
+      </div>
+      <p class="mt-1 text-sm text-slate-600">Processo <a href="processo.html" class="font-medium text-brand-700 hover:underline">0008/2026</a> — Material de expediente para as escolas · Secretaria de Educação</p>
+      <p class="mt-1 text-xs text-slate-500">Etapa do processo: Pesquisa de preços (4 de 7) ·
+        <a href="#" data-toast="Documento da pesquisa não faz parte deste protótipo." data-toast-type="info" class="text-slate-500 hover:underline">Ver documento da pesquisa</a></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" data-open="dlg-registrar-cotacao" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="plus" class="h-4 w-4"></i>Registrar cotação</button>
+      <a href="mapa-comparativo.html" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>Mapa comparativo</a>
+      <button type="button" data-open="dlg-concluir-pesquisa" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">
+        <i data-lucide="circle-check" class="h-4 w-4"></i>Concluir pesquisa</button>
+    </div>
+  </div>
+
+  <!-- Parâmetros copiados na criação -->
+  <section aria-labelledby="param-h" class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+    <h2 id="param-h" class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="calculator" class="h-4 w-4 text-slate-500"></i>Parâmetros da pesquisa</h2>
+    <p class="mt-1 text-xs text-slate-500">Definidos na criação da pesquisa; não são editáveis nesta tela.</p>
+    <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+      <div><dt class="text-xs text-slate-500">Data-base</dt><dd class="font-medium">01/10/2026</dd></div>
+      <div><dt class="text-xs text-slate-500">Método</dt><dd class="font-medium">AUTO_CV</dd></div>
+      <div><dt class="text-xs text-slate-500">Mínimo de cotações</dt><dd class="font-medium">3 por item</dd></div>
+      <div><dt class="text-xs text-slate-500">Faixas de alerta</dt><dd class="font-medium">70%–130% da mediana das demais</dd></div>
+      <div><dt class="text-xs text-slate-500">Arredondamento</dt><dd class="font-medium">HALF_UP</dd></div>
+    </dl>
+    <p class="mt-3 rounded-md bg-slate-50 p-3 text-xs text-slate-600"><i data-lucide="info" class="mr-1 inline h-3.5 w-3.5"></i>Método AUTO_CV: usa a <strong>média</strong> das cotações válidas quando o coeficiente de variação (CV) é ≤ 25%; acima disso, usa a <strong>mediana</strong>.</p>
+  </section>
+
+  <!-- Resumo -->
+  <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-live="polite">
+    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card"><dt class="text-xs text-slate-500">Valor estimado</dt><dd class="mt-1 text-xl font-semibold tabular-nums">R$ 62.400,00</dd></div>
+    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card"><dt class="text-xs text-slate-500">Itens</dt><dd class="mt-1 text-xl font-semibold tabular-nums">5</dd></div>
+    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card"><dt class="text-xs text-slate-500">Fontes</dt><dd class="mt-1 text-xl font-semibold tabular-nums">5</dd></div>
+    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card"><dt class="text-xs text-slate-500">Cotações</dt><dd class="mt-1 text-xl font-semibold tabular-nums">18 <span class="text-xs font-normal text-slate-500">(17 válidas)</span></dd></div>
+  </dl>
+
+  <!-- Abas -->
+  <div class="mt-6 border-b border-slate-200">
+    <nav class="flex gap-6" data-tabs="pesquisa" aria-label="Seções da pesquisa">
+      <button type="button" data-tab="itens" class="border-b-2 border-transparent px-1 pb-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">Itens</button>
+      <button type="button" data-tab="fontes" class="border-b-2 border-transparent px-1 pb-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">Fontes</button>
+      <button type="button" data-tab="cotacoes" class="border-b-2 border-transparent px-1 pb-3 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-700">Cotações</button>
+    </nav>
+  </div>
+
+  <!-- Painel: Itens -->
+  <div data-panel="itens" data-group="pesquisa" class="mt-4">
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <caption class="sr-only">Itens da pesquisa de preços, com estatísticas e valor unitário recomendado</caption>
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Item</th>
+              <th scope="col" class="px-4 py-3 text-right">Qtd.</th>
+              <th scope="col" class="px-4 py-3 text-right">Cotações válidas</th>
+              <th scope="col" class="px-4 py-3 text-right">Média</th>
+              <th scope="col" class="px-4 py-3 text-right">Mediana</th>
+              <th scope="col" class="px-4 py-3 text-right">Menor</th>
+              <th scope="col" class="px-4 py-3 text-right">CV</th>
+              <th scope="col" class="px-4 py-3">Método efetivo</th>
+              <th scope="col" class="px-4 py-3 text-right">Valor unit. recomendado</th>
+              <th scope="col" class="px-4 py-3 text-right">Total</th>
+              <th scope="col" class="px-4 py-3">Alertas</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr>
+              <td class="px-4 py-3 font-medium">Papel A4 75 g resma</td>
+              <td class="px-4 py-3 text-right tabular-nums">2.000 un</td>
+              <td class="px-4 py-3 text-right tabular-nums">4</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 21,51</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 21,60</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 19,34</td>
+              <td class="px-4 py-3 text-right tabular-nums">7,3%</td>
+              <td class="px-4 py-3">Média</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 21,51</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 43.020,00</td>
+              <td class="px-4 py-3 text-slate-400">—</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Caneta esferográfica azul cx 50</td>
+              <td class="px-4 py-3 text-right tabular-nums">120 cx</td>
+              <td class="px-4 py-3 text-right tabular-nums">3</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 44,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 45,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 42,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">3,2%</td>
+              <td class="px-4 py-3">Média</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 44,00</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 5.280,00</td>
+              <td class="px-4 py-3 text-slate-400">—</td>
+            </tr>
+            <tr class="bg-amber-50/40">
+              <td class="px-4 py-3 font-medium">Grampeador médio 26/6</td>
+              <td class="px-4 py-3 text-right tabular-nums">150 un</td>
+              <td class="px-4 py-3 text-right tabular-nums">2</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 26,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 26,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 25,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">3,8%</td>
+              <td class="px-4 py-3">Média</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 26,00</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 3.900,00</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>Abaixo do mínimo (2 de 3) — justifique</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Lápis preto nº 2 cx 144</td>
+              <td class="px-4 py-3 text-right tabular-nums">80 cx</td>
+              <td class="px-4 py-3 text-right tabular-nums">4</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 90,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 90,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 88,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">1,8%</td>
+              <td class="px-4 py-3">Média</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 90,00</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 7.200,00</td>
+              <td class="px-4 py-3 text-slate-400">—</td>
+            </tr>
+            <tr class="bg-red-50/40">
+              <td class="px-4 py-3 font-medium">Cola branca 1 kg</td>
+              <td class="px-4 py-3 text-right tabular-nums">200 un</td>
+              <td class="px-4 py-3 text-right tabular-nums">4</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 13,88</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 15,00</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 7,50</td>
+              <td class="px-4 py-3 text-right tabular-nums">28,0%</td>
+              <td class="px-4 py-3">Mediana</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 15,00</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 3.000,00</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>1 cotação possivelmente inexequível (abaixo de 70% da mediana)</span></td>
+            </tr>
+          </tbody>
+          <tfoot class="bg-slate-50">
+            <tr>
+              <td class="px-4 py-3 font-semibold" colspan="9">Total geral</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">R$ 62.400,00</td>
+              <td class="px-4 py-3"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel: Fontes -->
+  <div data-panel="fontes" data-group="pesquisa" class="mt-4" hidden>
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <caption class="sr-only">Fontes de pesquisa cadastradas nesta pesquisa de preços</caption>
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Fonte</th>
+              <th scope="col" class="px-4 py-3">Tipo</th>
+              <th scope="col" class="px-4 py-3">Referência</th>
+              <th scope="col" class="px-4 py-3 text-right">Itens cotados</th>
+              <th scope="col" class="px-4 py-3">Ações</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr>
+              <td class="px-4 py-3 font-medium">Painel de Preços</td>
+              <td class="px-4 py-3 text-slate-700">Base de preços pública (Gov.br)</td>
+              <td class="px-4 py-3 text-slate-700">Consultado em 02/10/2026</td>
+              <td class="px-4 py-3 text-right tabular-nums">4</td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-registrar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="plus" class="h-3.5 w-3.5"></i>Registrar cotação</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Contratação similar — Prefeitura de Vila Nova</td>
+              <td class="px-4 py-3 text-slate-700">Contratação similar</td>
+              <td class="px-4 py-3 text-slate-700">Ata de Registro de Preços 12/2026</td>
+              <td class="px-4 py-3 text-right tabular-nums">2</td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-registrar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="plus" class="h-3.5 w-3.5"></i>Registrar cotação</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Papelaria Central Ltda</td>
+              <td class="px-4 py-3 text-slate-700">Fornecedor</td>
+              <td class="px-4 py-3 text-slate-700">CNPJ 12.345.678/0001-90</td>
+              <td class="px-4 py-3 text-right tabular-nums">5</td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-registrar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="plus" class="h-3.5 w-3.5"></i>Registrar cotação</button>
+                <a href="#" data-toast="Cadastro de fornecedores não faz parte deste protótipo." data-toast-type="info" class="ml-2 text-xs text-slate-500 hover:underline">Ver cadastro</a></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Distribuidora Escolar Sul Ltda</td>
+              <td class="px-4 py-3 text-slate-700">Fornecedor</td>
+              <td class="px-4 py-3 text-slate-700">CNPJ 23.456.789/0001-01</td>
+              <td class="px-4 py-3 text-right tabular-nums">4</td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-registrar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="plus" class="h-3.5 w-3.5"></i>Registrar cotação</button>
+                <a href="#" data-toast="Cadastro de fornecedores não faz parte deste protótipo." data-toast-type="info" class="ml-2 text-xs text-slate-500 hover:underline">Ver cadastro</a></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Comercial Alfa Suprimentos</td>
+              <td class="px-4 py-3 text-slate-700">Fornecedor</td>
+              <td class="px-4 py-3 text-slate-700">CNPJ 34.567.890/0001-12</td>
+              <td class="px-4 py-3 text-right tabular-nums">3 <span class="text-xs text-slate-500">(1 desconsiderada)</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-registrar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="plus" class="h-3.5 w-3.5"></i>Registrar cotação</button>
+                <a href="#" data-toast="Cadastro de fornecedores não faz parte deste protótipo." data-toast-type="info" class="ml-2 text-xs text-slate-500 hover:underline">Ver cadastro</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel: Cotações -->
+  <div data-panel="cotacoes" data-group="pesquisa" class="mt-4" hidden>
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
+      <div class="cf-scroll overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <caption class="sr-only">Todas as cotações registradas, por item e fonte</caption>
+          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3">Item</th>
+              <th scope="col" class="px-4 py-3">Fonte</th>
+              <th scope="col" class="px-4 py-3 text-right">Preço unit.</th>
+              <th scope="col" class="px-4 py-3">Data</th>
+              <th scope="col" class="px-4 py-3">Evidência</th>
+              <th scope="col" class="px-4 py-3">Situação</th>
+              <th scope="col" class="px-4 py-3">Ações</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Papel A4 75 g resma</td>
+              <td class="px-4 py-3 font-medium">Painel de Preços</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 20,80</td>
+              <td class="px-4 py-3 text-slate-700">02/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Captura de tela</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Papel A4 75 g resma</td>
+              <td class="px-4 py-3 font-medium">Papelaria Central Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 22,40</td>
+              <td class="px-4 py-3 text-slate-700">29/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Papel A4 75 g resma</td>
+              <td class="px-4 py-3 font-medium">Distribuidora Escolar Sul Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 23,50</td>
+              <td class="px-4 py-3 text-slate-700">30/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Papel A4 75 g resma</td>
+              <td class="px-4 py-3 font-medium">Comercial Alfa Suprimentos</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 19,34</td>
+              <td class="px-4 py-3 text-slate-700">01/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>E-mail de orçamento</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Caneta esferográfica azul cx 50</td>
+              <td class="px-4 py-3 font-medium">Painel de Preços</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 42,00</td>
+              <td class="px-4 py-3 text-slate-700">02/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Captura de tela</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Caneta esferográfica azul cx 50</td>
+              <td class="px-4 py-3 font-medium">Papelaria Central Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 45,00</td>
+              <td class="px-4 py-3 text-slate-700">29/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Caneta esferográfica azul cx 50</td>
+              <td class="px-4 py-3 font-medium">Contratação similar — Vila Nova</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 45,00</td>
+              <td class="px-4 py-3 text-slate-700">15/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Ata 12/2026 (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Grampeador médio 26/6</td>
+              <td class="px-4 py-3 font-medium">Papelaria Central Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 25,00</td>
+              <td class="px-4 py-3 text-slate-700">29/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Grampeador médio 26/6</td>
+              <td class="px-4 py-3 font-medium">Distribuidora Escolar Sul Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 27,00</td>
+              <td class="px-4 py-3 text-slate-700">30/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr class="bg-slate-50 text-slate-500">
+              <td class="px-4 py-3">Grampeador médio 26/6</td>
+              <td class="px-4 py-3 font-medium">Comercial Alfa Suprimentos</td>
+              <td class="px-4 py-3 text-right tabular-nums line-through">R$ 32,00</td>
+              <td class="px-4 py-3">01/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-slate-500 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>E-mail de orçamento</button></td>
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-300" title="Especificação não corresponde ao modelo solicitado (26/6 reforçado, não o grampeador médio especificado)."><i data-lucide="ban" class="h-3 w-3"></i>Desconsiderada</span>
+                <p class="mt-0.5 text-[11px] text-slate-500">Motivo: especificação não corresponde ao modelo solicitado.</p>
+              </td>
+              <td class="px-4 py-3"><button type="button" data-toast="Cotação restaurada e considerada novamente nas estatísticas." data-toast-type="success" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="check" class="h-3.5 w-3.5"></i>Restaurar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Lápis preto nº 2 cx 144</td>
+              <td class="px-4 py-3 font-medium">Painel de Preços</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 88,00</td>
+              <td class="px-4 py-3 text-slate-700">02/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Captura de tela</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Lápis preto nº 2 cx 144</td>
+              <td class="px-4 py-3 font-medium">Contratação similar — Vila Nova</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 89,00</td>
+              <td class="px-4 py-3 text-slate-700">15/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Ata 12/2026 (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Lápis preto nº 2 cx 144</td>
+              <td class="px-4 py-3 font-medium">Papelaria Central Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 91,00</td>
+              <td class="px-4 py-3 text-slate-700">29/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Lápis preto nº 2 cx 144</td>
+              <td class="px-4 py-3 font-medium">Distribuidora Escolar Sul Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 92,00</td>
+              <td class="px-4 py-3 text-slate-700">30/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Cola branca 1 kg</td>
+              <td class="px-4 py-3 font-medium">Painel de Preços</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 15,00</td>
+              <td class="px-4 py-3 text-slate-700">02/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Captura de tela</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Cola branca 1 kg</td>
+              <td class="px-4 py-3 font-medium">Papelaria Central Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 15,00</td>
+              <td class="px-4 py-3 text-slate-700">29/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-slate-700">Cola branca 1 kg</td>
+              <td class="px-4 py-3 font-medium">Distribuidora Escolar Sul Ltda</td>
+              <td class="px-4 py-3 text-right tabular-nums">R$ 18,00</td>
+              <td class="px-4 py-3 text-slate-700">30/09/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>Orçamento (PDF)</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+            <tr class="bg-red-50/40">
+              <td class="px-4 py-3 text-slate-700">Cola branca 1 kg</td>
+              <td class="px-4 py-3 font-medium">Comercial Alfa Suprimentos</td>
+              <td class="px-4 py-3 text-right">
+                <p class="tabular-nums">R$ 7,50</p>
+                <p class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-red-700" title="Preço abaixo de 70% da mediana das demais cotações deste item — possível inexequibilidade."><i data-lucide="triangle-alert" class="h-3 w-3"></i>Possível inexequibilidade</p>
+              </td>
+              <td class="px-4 py-3 text-slate-700">01/10/2026</td>
+              <td class="px-4 py-3"><button type="button" data-toast="Pré-visualização do anexo (simulação)." data-toast-type="info" class="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"><i data-lucide="eye" class="h-3.5 w-3.5"></i>E-mail de orçamento</button></td>
+              <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"><i data-lucide="check" class="h-3 w-3"></i>Válida</span></td>
+              <td class="px-4 py-3"><button type="button" data-open="dlg-desconsiderar-cotacao" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"><i data-lucide="ban" class="h-3.5 w-3.5"></i>Desconsiderar</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diálogo: Registrar cotação -->
+  <dialog id="dlg-registrar-cotacao" class="w-[30rem] bg-white" aria-labelledby="dlg-reg-t">
+    <form data-fake-submit="Cotação registrada. Estatísticas do item recalculadas." class="flex max-h-[85vh] flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <h2 id="dlg-reg-t" class="text-lg font-semibold">Registrar cotação</h2>
+        <button type="button" data-close class="rounded-md p-1.5 hover:bg-slate-100" aria-label="Fechar"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
+        <label class="block" for="reg-fonte"><span class="font-medium">Fonte</span>
+          <select id="reg-fonte" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3">
+            <option value="">Selecione…</option>
+            <option>Painel de Preços</option>
+            <option>Contratação similar — Prefeitura de Vila Nova (Ata 12/2026)</option>
+            <option>Papelaria Central Ltda</option>
+            <option>Distribuidora Escolar Sul Ltda</option>
+            <option>Comercial Alfa Suprimentos</option>
+          </select></label>
+        <label class="block" for="reg-item"><span class="font-medium">Item</span>
+          <select id="reg-item" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3">
+            <option value="">Selecione…</option>
+            <option>Papel A4 75 g resma</option>
+            <option>Caneta esferográfica azul cx 50</option>
+            <option>Grampeador médio 26/6</option>
+            <option>Lápis preto nº 2 cx 144</option>
+            <option>Cola branca 1 kg</option>
+          </select></label>
+        <label class="block" for="reg-preco"><span class="font-medium">Preço unitário (R$)</span>
+          <input id="reg-preco" type="number" min="0" step="0.01" required placeholder="0,00" class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3"></label>
+        <label class="block" for="reg-data"><span class="font-medium">Data da cotação</span>
+          <input id="reg-data" type="date" required value="2026-10-02" max="2026-10-07" class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3"></label>
+        <label class="block" for="reg-evidencia"><span class="font-medium">Evidência anexada</span>
+          <input id="reg-evidencia" type="file" required accept=".pdf,.jpg,.png" class="mt-1 block w-full text-sm file:mr-3 file:rounded-md file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-slate-50"></label>
+        <p class="rounded-md bg-slate-50 p-3 text-xs text-slate-600"><i data-lucide="info" class="mr-1 inline h-3.5 w-3.5"></i>Obrigatório anexar a evidência (captura de tela, orçamento ou e-mail) que comprove o preço cotado.</p>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="plus" class="h-4 w-4"></i>Registrar cotação</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Diálogo: Desconsiderar cotação -->
+  <dialog id="dlg-desconsiderar-cotacao" class="w-[28rem] bg-white" aria-labelledby="dlg-desc-t">
+    <form data-fake-submit="Cotação desconsiderada. Estatísticas do item recalculadas." data-toast-type="info" class="p-6">
+      <h2 id="dlg-desc-t" class="text-lg font-semibold">Desconsiderar cotação</h2>
+      <p class="mt-1 text-sm text-slate-600">A cotação deixa de contar nas estatísticas do item, mas continua visível na lista, riscada, com o motivo registrado. Pode ser restaurada depois.</p>
+      <label class="mt-4 block text-sm" for="just-desconsiderar"><span class="font-medium">Justificativa</span>
+        <textarea id="just-desconsiderar" required minlength="20" rows="3" placeholder="Explique por que esta cotação não deve ser considerada (mínimo 20 caracteres)…" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"></textarea></label>
+      <p class="mt-1 text-xs text-slate-500"><span data-count-for="just-desconsiderar">0</span>/20 caracteres (mínimo)</p>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"><i data-lucide="ban" class="h-4 w-4"></i>Desconsiderar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Diálogo: Concluir pesquisa -->
+  <dialog id="dlg-concluir-pesquisa" class="w-[32rem] bg-white" aria-labelledby="dlg-concluir-t">
+    <form data-fake-submit="Pesquisa PP 0003/2026 concluída. Valor estimado do processo atualizado para R$ 62.400,00." class="p-6">
+      <h2 id="dlg-concluir-t" class="text-lg font-semibold">Concluir pesquisa de preços</h2>
+      <p class="mt-1 text-sm text-slate-600">Revise os alertas abaixo antes de confirmar. Eles não impedem a conclusão.</p>
+      <ul class="mt-4 space-y-2 text-sm">
+        <li class="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-amber-800"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+          <span><strong>Grampeador médio 26/6:</strong> abaixo do mínimo de 3 cotações (2 válidas) — justifique, se necessário, antes de concluir.</span></li>
+        <li class="flex items-start gap-2 rounded-md bg-red-50 p-3 text-red-700"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+          <span><strong>Cola branca 1 kg:</strong> 1 cotação (Comercial Alfa Suprimentos, R$ 7,50) possivelmente inexequível — abaixo de 70% da mediana das demais.</span></li>
+      </ul>
+      <label class="mt-4 flex items-start gap-2 text-sm">
+        <input type="checkbox" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-700">
+        <span>Revisei os alertas acima e confirmo os valores calculados para cada item.</span>
+      </label>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="circle-check" class="h-4 w-4"></i>Concluir pesquisa</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "$comment": "Níveis dos módulos de DEC-040 (architecture.md §3.3). Um módulo só importa fachadas de módulos de nível INFERIOR; no sentido contrário usa eventos ou portas. Fonte das regras 'module-levels' do .dependency-cruiser.cjs e dos escopos do commitlint. Exceções exigem registro em decisions.md e entram em 'allow' como [origem, destino].",
+  "levels": [
+    { "level": 0, "name": "infraestrutura compartilhada", "modules": ["platform"] },
+    {
+      "level": 1,
+      "name": "fundação",
+      "modules": ["tenancy", "organization", "identity", "access", "catalog", "audit"]
+    },
+    {
+      "level": 2,
+      "name": "capacidades genéricas",
+      "modules": ["workflow", "document", "files", "approval", "supplier"]
+    },
+    { "level": 3, "name": "agregado central", "modules": ["process"] },
+    {
+      "level": 4,
+      "name": "artefatos do processo",
+      "modules": ["dfd", "etp", "term", "price-research", "risk", "collaboration"]
+    },
+    {
+      "level": 5,
+      "name": "leitura e efeitos colaterais",
+      "modules": ["timeline", "inbox", "dashboard", "notification"]
+    }
+  ],
+  "allow": []
+}

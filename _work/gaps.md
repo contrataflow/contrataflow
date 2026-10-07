@@ -1,0 +1,94 @@
+# Lacunas reportadas pelos subagentes (consolidar em fontes canônicas / risks-and-decisions.md)
+
+Formato: lote · story · lacuna → proposta · situação (resolvida | aberta | registrar em risks-and-decisions)
+
+## Onda 1
+- B03 · US-017 · Precedência de `Process.priority` na aprovação do DFD não documentada (DEC-032 só cobre valor) → sincronizar com `Dfd.priority` (análogo ao PCA, RN-DFD-66) · **registrada como PEND-19** (padrão RN-DFD-66) em decisions.md §10 e risks-and-decisions §8
+- B03 · US-018 · Cópia de itens na duplicação para processo existente → DFD-05 clona `ProcessItem` no destino · suposição aceita (coerente com DFD-05)
+- B03 · US-017 · Evento/auditoria da propagação e endpoint da decisão · **resolvida pelo piloto** (ProcessUpdated/ProcessItemsChanged, process.update/process.items_update, APV-03)
+- B09 · US-033/034 · Política de edição de `Risk`/`RiskTreatment` → **resolvida pelo piloto**: POL-02 estendida às coleções dos documentos tipados (permissions.md); RN-RISK-09 alinhada
+- B09 · US-035 · Routing key `document.<fato>.risk_map` (DEC-162, código do tipo em minúsculas) · suposição aceita
+- B09 · US-035 · Seções narrativas do template `RISK_MAP` (US-110) não fixadas → **resolvida**: seções canônicas em entities.md (`INTRODUCTION`, `METHODOLOGY`, `NOTES` + `RISK_MATRIX`/`RISK_LIST`), aplicadas na biblioteca padrão (US-110)
+- B09 · US-035 · Códigos `RISK_LIST_EMPTY`/`RISK_TREATMENT_REQUIRED_FOR_LEVEL` · conforme api.md §2.1.2 (prefixo do módulo, definidos na story dona) — não é lacuna
+- B01 · US-009/010 · NotificationType de cancelado/concluído → **resolvida pelo piloto**: `PROCESS_STATUS_CHANGED` (e-mail desligado por padrão); timeline `PROCESS_COMPLETED` corrigida para "Planejamento da contratação concluído" (DEC-015) em events.md, overview, risks-and-decisions, product-overview, roadmap (L-03 resolvida)
+- B01 · US-011 · Routing key de `DocumentCreated` → **resolvida**: `document.created.<type>` (DEC-162)
+- B04 · US-021 · Nome de alternativa duplicado no ETP → `VALIDATION_ERROR` + `errors[].code = DUPLICATE_IN_LIST` (campo `name`) · suposição aceita (sem código dedicado)
+- B04 · US-019..021 · Suposições: `importFromDfd` booleano; alternativa recomendada substituída volta a `UNDER_ANALYSIS`; `decisionJustification` ≥ 20 caracteres · aceitas
+- B06 · US-025 · Fornecedor em uso → **resolvida pelo piloto**: `SUPPLIER_IN_USE` (409) em api.md §2.2
+- B06 · US-028 · Rota para baixar modelo de importação → **resolvida pelo piloto**: `PRS-24 GET /price-research/{id}/import-template` (xlsx) em api.md §3
+- Consolidação · api.md "Total MVP 1: 259 operações" e overview.md desatualizados (PLT-06..08, PRS-24…) → recontar no fim
+- B10 · US-037 · `IMPORT_PREVIEW_EXPIRED` também para origem alterada → **resolvida pelo piloto** (descrição ampliada em api.md §2.2)
+- B10 · US-037 · Campo calculado `etpChangedSinceImport` (resposta TRM) e `importToken` assinado sem estado · aceitas como definição da story (registrar em api.md §4 TRM na D10)
+- B10 · US-039 · Divergência de quantidade ETP×TR no MVP 1 → **resolvida pelo piloto**: DEC-019 alinhada (aviso determinístico no MVP 1; ampliada no MVP 5)
+- B10 · US-036/039 · Justificativa do valor `MANUAL` do TR · **aceita**: narrativa obrigatória na seção `ESTIMATED_VALUE` (RN-TR-08), sem campo novo
+- B02 · US-012 · Participante duplicado → **resolvida pelo piloto**: `PARTICIPANT_ALREADY_EXISTS` (409) em api.md §2.2; exceção de autonotificação ao "seguir" registrada em events.md (`PARTICIPANT_ADDED`)
+- B02 · US-013 · Diálogo de sigilo sem SCR próprio → usa SCR-006 · aceita (avaliar em screens.md, D07/D08)
+- B05 · US-022/023 · Auditoria dos campos tipados do cabeçalho do ETP (ETP-04) → `document.draft_update` · aceita
+- B05 · US-022 · Cancelamento da pesquisa vinculada ao ETP → desvínculo automático preservando último valor · aceita (definição da story; revisar em DEC-032 na consolidação)
+
+## Onda 3 (3ª sessão)
+- B16 · US-056 · Visão "Acompanhando" fora de DEC-026 → **resolvida pelo piloto**: DEC-026 inclui o ramo `ProcessParticipant` ativo (qualquer `role`)
+- B16 · US-058 · Lote fora do limite → `VALIDATION_ERROR` + `TOO_SHORT`/`TOO_LONG` · aceita; limite fixo 2–50 (RN-INBOX-19) registrado em api.md TSK-03/04 (configurável por tenant: avaliar no MVP 2)
+- B16 · EP-009 · Título do épico alinhado a epics.md ("Caixa de tarefas") · corrigido pelo piloto
+- B13 · US-051 · Campo de cobertura de documentos da etapa de aprovação → **resolvida pelo piloto**: já existia `WorkflowStage.approvalDocumentTypeCodes` (subagente usou nome inventado); story corrigida
+- B13 · US-051 · `Approval.dueAt` nulo na submissão avulsa (`subjectType = DOCUMENT`) · aceita no MVP 1 (prazo por `DocumentType`: avaliar no MVP 2)
+- B13 · US-048 · Algoritmo de `PREVIOUS_ASSIGNEE` → **resolvida pelo piloto**: definição registrada no enum `StageAssignmentPolicy` (entities.md)
+- B13 · US-049..051 · Suposições aceitas: `allowDeputy` automático só para `DEPARTMENT_HEAD`; motivo obrigatório na reatribuição (opcional na 1ª atribuição); assumir/atribuir só em etapas `TASK`/`START`
+- B07 · US-029 · Mínimo de `manualJustification` → **resolvida pelo piloto**: ≥ 20 caracteres em entities.md (convenção de `exclusionJustification`)
+- B07 · US-031 · Seção `PRICE_SUMMARY` ausente da lista do template → **resolvida pelo piloto**: registrada em entities.md como seção computada
+- B07 · US-032 · ETP vinculado atualizado "na mesma transação" (conflito com US-022 RN-ETP-29, assíncrono por evento) → **resolvida pelo piloto**: US-032 alinhada (Process/ProcessItem na transação; ETP pelo consumidor de `PriceResearchCompleted`)
+- B07 · US-029/032 · Códigos `PRICE_ITEM_WITHOUT_PRICE`/`PRICE_ITEM_BELOW_MINIMUM_UNJUSTIFIED` definidos nas stories donas (api.md §2.1.2) · aceita; `isExpired = false` sem `maxAgeDays` · aceita
+- B17 · US-060 · Agrupamento de `TimelineEntryType` sem enum canônico → mapeamento estático de apresentação (RN-TML-12) · aceita
+- B17 · US-060 · Entradas `BUDGET_RESTRICTED` omitidas (não mascaradas) para quem não atende POL-09 → **resolvida pelo piloto**: regra registrada em entities.md (`ProcessTimelineEntry.visibility`)
+- B11 · US-042 · Seeder de workflows como listener assíncrono de `TenantProvisioned` (conflito com US-099: seeders registrados executados no checklist, antes do evento) → **resolvida pelo piloto**: US-042 alinhada a US-099
+- B11 · US-042 · Desempate de `applicabilityPriority` → **resolvida pelo piloto**: `createdAt` crescente registrado em entities.md
+- B11 · US-043 · `WF-08` (criar rascunho da publicada) também usado por US-043 → **resolvida pelo piloto**: api.md §3 lista "US-043, US-045"
+- B14 · US-053 · "Custódia anterior" do `APV-04` sem POL → **resolvida pelo piloto**: POL-17 em permissions.md (o subagente sugeriu POL-06, que já é "Cancelar"); api.md APV-04 aponta POL-17
+- B14 · US-053 · Novo aprovador inelegível → **resolvida pelo piloto**: `APPROVER_NOT_ELIGIBLE` (422) em api.md §2.2
+- B14 · US-055 · Detecção automática de atraso sem ação de auditoria · aceita: registro = evento `ProcessStageOverdue` + timeline `STAGE_OVERDUE` (sem `AuditLog`)
+- B14 · US-052 · `REJECT` de aprovação de etapa → `RETURNED` via `WorkflowTransition` `action = REJECT` · aceita (coerente com `TransitionAction`)
+- B08/US-024 · Lacunas antigas da US-024 → **resolvidas pelo piloto**: `PriceResearch.roundingMode` (snapshot) em entities.md; `PRS-06` emite `PriceResearchRecalculated`; POL-09 cobre edição de valores (RN-PRICE-12); `document.items_update` já existia em events.md §7; máscaras semeadas `PP {seq:4}/{year}` (PRICE_RESEARCH) e `MR {seq:4}/{year}` (RISK_MAP) — códigos de exemplo atualizados em US-004/006/024/036
+- B18 · US-062..065 · Sem lacunas; suposições aceitas: anexo de nova versão com `targetType = DOCUMENT` até `DOC-19`; tipo sem modelo publicado → `REFERENCE_INACTIVE`; `UPLOADED` sem arquivo → `FIELD_REQUIRED`; cancelar documento exige custódia (POL-01); decisão de aprovação notifica por `APPROVAL_DECIDED`
+- B12 · US-044 · "Testar regra" sem endpoint → **resolvida pelo piloto**: `WF-23 POST /workflow-versions/{versionId}/rules/test` em api.md §3.10; suposições aceitas: Versões e Diagrama como abas da SCR-034; `WORKFLOW_IN_USE` conforme api.md §2.2
+- Revisão do piloto · US-056 · `UNIT_QUEUE` restrita a titular/substituto (contradizia POL-04, `PROCESS_RECEIVED` em events.md §6 e a jornada J-08) → **corrigida**: lotados com `PROCESS_CLAIM` **ou** titular/substituto; ajustes de redação em US-058, FT-036 e epic-009
+- B15 · US-047 · Lacunas antigas ainda abertas (o subagente afirmou que estavam resolvidas): (1) schema de `ProcessMovement.metadata` → **resolvida pelo piloto** em entities.md; (2) contrato de prévia de `PRC-08` → registrar em api.md §4 (D09–D11); (3) unidade de destino inativa → `TRANSITION_NOT_AVAILABLE` com `detail` · aceita; (4) J-08 × events.md (`PROCESS_RECEIVED` só para lotados com `PROCESS_CLAIM`) → **resolvida**: J-08 alinhada
+- B22 · US-073 · Limiares de coalescência e contenção de `access.denied` → **resolvida pelo piloto**: contenção registrada em events.md §7; parâmetros de **plataforma** (env), não do tenant (o subagente propôs por tenant — risco de um tenant reduzir a própria trilha)
+- B22 · US-074 · Sem `NotificationType` para quebra de integridade do selo / dead letter do job · aceita no MVP 1 (log `error` + métrica + alerta operacional); avaliar notificação ao `ADMIN_ORGAO`/`AUDITOR` no MVP 2 → registrar em risks-and-decisions na consolidação
+- B22 · US-073..075 · Suposições aceitas: selagem com `ActorType = SYSTEM`; `audit.seal` gravado no período seguinte; `OFFBOARDING` bloqueia comandos com `TENANT_SUSPENDED` (DEC-132); `audit.sealVerification.maxPeriods` = 720 (plataforma)
+- B23 · US-076 · Catálogo de indicadores → **resolvida pelo piloto**: `DashboardWidgetKey` (registro) em entities.md §2 + `WIDGET_NOT_FOUND` em api.md §2.2
+- B23 · US-076 · Mascaramento de agregados → **resolvida pelo piloto**: POL-09 estendida (soma só o visível; flag `confidentialExcluded: true` — renomeada de `totalMasked`, que sugeria total nulo)
+- B24 · US-078 · "4º bucket" `tenant-assets` → **corrigida pelo piloto**: não existe; ativos do tenant ficam no bucket `documents` (storage.md §3–§4)
+- B24 · US-079 · Gate de cobertura "informativo" → **corrigida pelo piloto**: bloqueante, com os limiares do release-checklist.md (80% do código novo em domain/application; 100% em cálculo e políticas)
+- B24 · US-080 · Nomes de classes transversais (`ProblemDetailsExceptionFilter`, `RedisThrottlerStorage` etc.) e tags de imagens Docker pinadas na US-078 · aceitas como definição das stories
+- B19 · US-066 · Formato da resposta de `DOC-18` (comparação) → aceita como definição da story; registrar em api.md §4 (D09–D11)
+- B19 · US-068 · Quota por tenant → **resolvida pelo piloto**: `STORAGE_QUOTA_EXCEEDED` (422) em api.md §2.2; limite técnico da plataforma (não configuração do tenant); valor em PEND-17
+- B19 · US-068 · Alvo não editável → **resolvida**: `DOCUMENT_NOT_EDITABLE` (documento) · `INVALID_PROCESS_STATUS` (alvos ligados ao processo); componente `AttachmentUploader` sem SCR própria (registrar em screens.md)
+- B30 · US-101 · Inativar órgão principal/único ativo → **resolvida pelo piloto**: `PRIMARY_ORGANIZATION_REQUIRED` (409) em api.md §2.2; suposições aceitas (logo por ATT-02/03 com `TENANT_ASSET`; `SET-03` para vínculos ativos; `expectedVersions` por chave no `PATCH /settings`)
+- B27 · US-089 · Rota `GET /api/auth/forgot-password` → **resolvida pelo piloto**: incluída na lista do BFF (api.md §3.1)
+- B27 · US-090 · Reset administrativo de MFA → **resolvida pelo piloto**: `USR-13 POST /users/{userId}/mfa-reset` + auditoria `membership.mfa_reset` (events.md §7)
+- B25 · US-081 · Lint contra `set_config` de sessão em migrações → script `scripts/lint-sql.ts` no estágio Lint (US-079) · aceita; nome do papel corrigido nas notas do pacote (`cf_readonly_report`)
+- B20 · US-069 · Herança de POL-09 por anexos de documento `RESTRICTED` → **resolvida pelo piloto**: ratificada em permissions.md (POL-09) e storage.md §6
+- B20 · US-070 · Presença sem endpoint → **resolvida pelo piloto**: `DOC-24 PUT` / `DOC-25 DELETE /documents/{id}/presence` em api.md §3; suposições aceitas (presença em `FREE_TEXT`/`STRUCTURED`; CORS de GET no bucket `documents` para prévia com pdf.js)
+- B31 · US-104 · Exclusão de itens não-sistema (DEC-027) sem `DELETE` em CAT-01..06 → **resolvida pelo piloto**: DEC-027 esclarece que no MVP 1 o ciclo de vida é ativar/desativar
+- B31 · US-106 · `Holiday.isSystem` sem proteção explícita → **resolvida pelo piloto**: entities.md e `CATALOG_ITEM_SYSTEM` (api.md) cobrem feriados semeados; duplicidade de feriado → `CONFLICT` · aceita
+- B28 · US-092/093 · gravadas antes do limite; verificador OK, sem lacunas
+- B28 · US-095 · Perfil duplicado usava `BUSINESS_RULE_VIOLATION` (422) → **corrigida pelo piloto**: `ROLE_ALREADY_EXISTS` (409), padrão `*_ALREADY_EXISTS`; reativação de perfil fora do MVP 1 (duplicar via ROL-07) → registrar em risks-and-decisions
+- B32 · US-107/108 · `TEMPLATE_NAME_TAKEN` e `TEMPLATE_IN_USE` (409) → **registrados pelo piloto** em api.md §2.2; tipo de `fieldConfig` registrado em entities.md
+- B32 · US-109 · Prévia de template sem `Document` → **resolvida pelo piloto**: estado efêmero em Redis (TTL 24 h), `TPL-12`/`TPL-13` em api.md §3 e chave `template-previews` em storage.md §4 (sem migrar `document_renditions`)
+- B26 · US-084..086 · Aceitas: `ObservabilityModule`; `debug` por correlationId fora do MVP 1; dashboards D1–D3 na US-085 (D4–D7 com os domínios); `<Can permission>` e contingência IndexedDB adotados (architecture.md atualizado). **Consolidação:** runbooks RB-06..09 "(a criar)" em observability.md → incluir no release-checklist
+- B34 · US-111 · Agrupamento de 5 min sobrescrevia `sourceEventId` (quebrava a idempotência por chave natural na reentrega) → **corrigida pelo piloto**: `groupKey`/`groupCount`/`groupedEventIds` em entities.md + RN-NTF-04 ajustada
+- B34 · US-112 · Webhook de bounce/queixa do SES fora do MVP 1 (atualização manual de `emailError` pelo suporte) · aceita → registrar em risks-and-decisions (MVP 2)
+- B21 · US-072 · Sem lacunas (Mention, `UserMentioned`/`MENTIONED`, `CMT-05` já canônicos)
+- B29 · US-096 · Atribuição ativa duplicada usava `CONFLICT` genérico → **resolvida pelo piloto**: `ROLE_ASSIGNMENT_ALREADY_EXISTS` (409) em api.md §2.2
+- B29 · US-098 · Valores de `preferences.density`/`theme` → **resolvida pelo piloto**: tipo do jsonb em entities.md (`User.preferences`)
+- B33 · US-110 · Atualização da biblioteca padrão da plataforma sem entidade/endpoint → adoção manual (TPL-06/08/10) guiada por changelog de release · aceita; endpoint de diff por `contentHash` → registrar em risks-and-decisions (MVP 2)
+- D01 · authentication.md · Divergências corrigidas pelo piloto: reset de MFA (security.md §4 alinhado a `USR-13`; suporte da plataforma só sem outro admin) e TTL do JWKS (architecture.md: 10 min, RN-IAM-05)
+- D06 · tests.md · p95 do painel situacional divergente (500/600/800 ms) → **resolvida pelo piloto**: 800 ms (C2, SLO-04) em architecture.md, release-checklist.md, US-004 e tests.md; autosave 500 ms (SLO-06). Jornadas usam "Prefeitura de São José"/"Câmara de Vila Nova" (seed de aceite) × "Prefeitura A/B" (seed dev e tenant leak) — documentado em tests.md
+- D07 · telas A · Nomes de componentes divergentes → **unificados pelo piloto**: `DueDateBadge` (US-002/004), `ConfidentialValue` (US-022/024); `ConfidentialBadge` (selo de processo sigiloso) e `EstimatedValueBadge` (valor + origem) mantidos por serem componentes distintos
+- D08 · telas B · SCR-109 também tem a aba Etiquetas (US-007) e as preferências de notificação (US-113) ficam em SCR-039 → **inventário ajustado** em features.md (Apêndice A); `screens.md` montado (A + B)
+- API-2 · DOC/TPL · `DocumentWithdrawn` referenciado a events.md §4; auditoria `template.version_create` criada em events.md §7 (TPL-06). Abertos (a definir na implementação): `responsibleId` em `UPLOADED` (DOC-02), forma `notApplicable`×`state` do DFD (DOC-05), formato interno do diff (DOC-18), ordenação de DOC-xx/TPL-01, erros de TPL-12/13 por analogia a DOC-22/23
+- Consolidação · débitos DT-13..DT-18 e DT-08 ampliado em risks-and-decisions §6; PEND-19 criada; PEND-17 com o limite proposto de storage; runbooks RB-06..09 no release-checklist
+- API-4 · TSK-03/04 lote 1–50 (piloto) × 2–50 (US-058) → **corrigido para 2–50** em api.md, risks-and-decisions e US-058; CMT-03 prazo de edição → `COMMENT_EDIT_WINDOW_EXPIRED` (já canônico) em US-071 e no arquivo da API. Abertos (a definir na implementação): formatos de 7 widgets de DSH-02, campos de `sort` de listas
+- API-3 · Abertos (a definir na implementação): parâmetros editáveis do snapshot em PRS-04, layout da planilha-modelo PRS-24, endereço de fornecedor (mesmos campos de Organization), `sort` das listas; SUP-05 sem evento de domínio (só auditoria) · aceita
+- API-5 · USR/ROL/ORG/DEP/SET/CAT/CAL/PLT/HLT · Referências canônicas aplicadas pelo piloto (enums de entities.md §2; `ROLE_ASSIGNMENT_NOT_FOUND` pelo padrão `<RESOURCE>_NOT_FOUND`; payloads de `TenantOffboarded`/`TenantDeactivated` em events.md; tenant com `activate=false` permanece `PROVISIONING`). Abertos (a definir na implementação): resposta de `USR-02` (lookup), contratos de PLT-06..08 por analogia a PLT-05, parâmetro árvore/lista de DEP-01, `year` de CAL-01, `sort` das listas
+- Consolidação · Rótulo "fase preparatória completa" em contexto do MVP 1 (M4 em delivery-plan e roadmap, J-03, US-052, tests.md) → **alinhado a DEC-015**: "planejamento da contratação concluído" (a fase preparatória só se completa no MVP 2)

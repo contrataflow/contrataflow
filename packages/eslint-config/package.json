@@ -1,0 +1,68 @@
+{
+  "name": "@contrataflow/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ESLint flat config compartilhada, com as proibições de segurança da RN-FND-06.",
+  "type": "module",
+  "exports": {
+    "./base": {
+      "types": "./base.d.ts",
+      "default": "./base.js"
+    },
+    "./node": {
+      "types": "./node.d.ts",
+      "default": "./node.js"
+    },
+    "./nest": {
+      "types": "./nest.d.ts",
+      "default": "./nest.js"
+    },
+    "./react": {
+      "types": "./react.d.ts",
+      "default": "./react.js"
+    },
+    "./next": {
+      "types": "./next.d.ts",
+      "default": "./next.js"
+    },
+    "./storybook": {
+      "types": "./storybook.d.ts",
+      "default": "./storybook.js"
+    },
+    "./security": {
+      "types": "./security.d.ts",
+      "default": "./security.js"
+    },
+    "./plugin": {
+      "types": "./plugin/index.d.ts",
+      "default": "./plugin/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eslint/js": "catalog:",
+    "@next/eslint-plugin-next": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import-x": "catalog:",
+    "eslint-plugin-jsx-a11y": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "globals": "catalog:",
+    "typescript-eslint": "catalog:"
+  },
+  "devDependencies": {
+    "@contrataflow/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

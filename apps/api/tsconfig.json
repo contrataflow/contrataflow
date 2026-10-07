@@ -1,0 +1,10 @@
+{
+  "extends": "@contrataflow/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "test", "*.config.ts"]
+}

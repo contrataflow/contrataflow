@@ -1,0 +1,9 @@
+{
+  "extends": "@contrataflow/tsconfig/library.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2024"]
+  },
+  "include": ["src", "*.config.ts"]
+}

@@ -1,0 +1,133 @@
+// Política de atualização de dependências (RN-FND-09 · RT-09 · RS-11).
+// Alterações exigem revisão do Tech Lead + segurança (CODEOWNERS).
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    ':dependencyDashboard',
+    'docker:pinDigests',
+    'helpers:pinGitHubActionDigests',
+  ],
+  timezone: 'America/Sao_Paulo',
+  // Janela semanal: segunda-feira antes das 06:00.
+  schedule: ['before 6am on monday'],
+  // Versões exatas (RN-FND-01); o catálogo do pnpm-workspace.yaml é atualizado no lugar.
+  rangeStrategy: 'pin',
+  minimumReleaseAge: '3 days',
+  internalChecksFilter: 'strict',
+  prConcurrentLimit: 10,
+  // Commits no padrão do commitlint: `chore(deps): …` (escopo isento do rodapé Refs).
+  semanticCommits: 'enabled',
+  semanticCommitType: 'chore',
+  semanticCommitScope: 'deps',
+  labels: ['dependências'],
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['before 6am on the first day of the month'],
+  },
+  // Alertas de segurança fora da janela e sem espera.
+  vulnerabilityAlerts: {
+    enabled: true,
+    schedule: ['at any time'],
+    minimumReleaseAge: null,
+    labels: ['segurança'],
+  },
+  osvVulnerabilityAlerts: true,
+  packageRules: [
+    {
+      description: 'Majors: 14 dias de maturidade e aprovação no Dependency Dashboard (FA-06).',
+      matchUpdateTypes: ['major'],
+      minimumReleaseAge: '14 days',
+      dependencyDashboardApproval: true,
+    },
+    {
+      description: 'Runtime fixo: Node.js 24.x (RN-FND-02; mudança exige atualizar DEC-050).',
+      matchPackageNames: ['node', '@types/node'],
+      allowedVersions: '<25',
+    },
+    {
+      description: 'TypeScript 5.x (DEC-050); 6/7 exigem nova decisão.',
+      matchPackageNames: ['typescript'],
+      allowedVersions: '<6',
+    },
+    {
+      description: 'pnpm 10.x (RN-FND-02).',
+      matchPackageNames: ['pnpm'],
+      allowedVersions: '<11',
+    },
+    { groupName: 'NestJS', matchPackageNames: ['@nestjs/**', 'reflect-metadata', 'rxjs'] },
+    {
+      groupName: 'Next.js + React',
+      matchPackageNames: [
+        'next',
+        '@next/**',
+        'react',
+        'react-dom',
+        '@types/react',
+        '@types/react-dom',
+      ],
+    },
+    { groupName: 'Prisma', matchPackageNames: ['prisma', '@prisma/**'] },
+    { groupName: 'OpenTelemetry', matchPackageNames: ['@opentelemetry/**'] },
+    { groupName: 'TanStack', matchPackageNames: ['@tanstack/**'] },
+    {
+      groupName: 'Radix/shadcn',
+      matchPackageNames: [
+        '@radix-ui/**',
+        'class-variance-authority',
+        'clsx',
+        'tailwind-merge',
+        'lucide-react',
+      ],
+    },
+    { groupName: 'TipTap', matchPackageNames: ['@tiptap/**'] },
+    {
+      groupName: 'Storybook',
+      matchPackageNames: ['storybook', '@storybook/**', 'eslint-plugin-storybook'],
+    },
+    {
+      groupName: 'Vitest',
+      matchPackageNames: ['vitest', '@vitest/**', 'vite', 'unplugin-swc'],
+      automerge: true,
+      matchUpdateTypes: ['patch', 'minor'],
+    },
+    {
+      groupName: 'lint',
+      matchPackageNames: [
+        'eslint',
+        '@eslint/**',
+        'typescript-eslint',
+        '@typescript-eslint/**',
+        'eslint-plugin-**',
+        'eslint-import-resolver-**',
+        '@next/eslint-plugin-next',
+        'globals',
+        'prettier',
+        'prettier-plugin-**',
+        '@commitlint/**',
+        'husky',
+        'lint-staged',
+        'dependency-cruiser',
+      ],
+      automerge: true,
+      matchUpdateTypes: ['patch', 'minor'],
+    },
+    {
+      description: 'Demais ferramentas de desenvolvimento: automerge de patch/minor com CI verde.',
+      matchPackageNames: ['@types/**', 'turbo', '@turbo/gen', 'tsx', '@swc/cli', 'concurrently'],
+      matchUpdateTypes: ['patch', 'minor'],
+      automerge: true,
+    },
+    { groupName: 'imagens Docker', matchDatasources: ['docker'] },
+    {
+      groupName: 'GitHub Actions',
+      matchManagers: ['github-actions'],
+    },
+    {
+      description: 'Digests de Actions: automerge com CI verde.',
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['digest', 'pinDigest'],
+      automerge: true,
+    },
+  ],
+}

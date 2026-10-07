@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Processo 0012/2026 — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-006 — Detalhe do processo (/processos/[id]) · US-004 (principal), US-005, US-006, US-054, US-060, US-062, US-071 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="processos" data-breadcrumb="Processos|processos.html > 0012/2026">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho do processo -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <p class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <span class="font-semibold text-slate-700">0012/2026</span>
+        <span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span>
+        <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-700"><span class="h-2 w-2 rounded-full bg-sky-500"></span><span class="sr-only">Prioridade: </span>Média</span>
+        <span class="inline-block whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">Obras</span>
+      </p>
+      <h1 class="mt-1 text-2xl font-semibold tracking-tight">Aquisição de cimento para manutenção de vias</h1>
+      <p class="mt-1 flex items-center gap-1.5 text-sm text-slate-600"><i data-lucide="building-2" class="h-4 w-4 text-slate-400"></i>Secretaria de Obras › Setor de Manutenção</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600">
+        <input type="checkbox" data-toggle-masked class="h-4 w-4 rounded border-slate-300 text-brand-700">
+        <i data-lucide="lock" class="h-3.5 w-3.5 text-slate-400"></i>
+        Ver como usuário sem permissão de orçamento sigiloso
+      </label>
+      <button type="button" data-open="dlg-devolver" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="undo-2" class="h-4 w-4"></i>Devolver</button>
+      <button type="button" data-open="drawer-encaminhar" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">
+        <i data-lucide="send" class="h-4 w-4"></i>Encaminhar</button>
+      <div class="relative">
+        <button type="button" data-menu-toggle="menu-mais" aria-haspopup="true" aria-expanded="false" class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white hover:bg-slate-50" aria-label="Mais ações">
+          <i data-lucide="ellipsis" class="h-4 w-4"></i></button>
+        <div id="menu-mais" data-menu="menu-mais" hidden class="absolute right-0 z-10 mt-2 w-64 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          <button type="button" data-open="dlg-atribuir" class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-slate-50"><i data-lucide="user-plus" class="h-4 w-4 text-slate-400"></i>Atribuir responsável / Assumir</button>
+          <button type="button" data-open="dlg-duplicar" class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-slate-50"><i data-lucide="copy" class="h-4 w-4 text-slate-400"></i>Duplicar</button>
+          <button type="button" data-open="dlg-suspender" class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-slate-50"><i data-lucide="pause" class="h-4 w-4 text-slate-400"></i>Suspender</button>
+          <hr class="my-1 border-slate-200">
+          <button type="button" data-open="dlg-cancelar" class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-700 hover:bg-red-50"><i data-lucide="circle-x" class="h-4 w-4"></i>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel situacional -->
+  <section aria-label="Painel situacional" class="mt-6">
+    <h2 class="sr-only">Painel situacional</h2>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>Onde está</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">Etapa 1 de 7 — Formalização da demanda</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="users" class="h-3.5 w-3.5"></i>Responsável</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">Ana Souza</p>
+        <p class="text-xs text-slate-500">Setor de Manutenção</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Desde quando · prazo</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">Desde 05/10/2026, 14:30</p>
+        <p class="mt-1"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 20/10</span></p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="list-checks" class="h-3.5 w-3.5"></i>O que falta</p>
+        <ul class="mt-2 space-y-1 text-sm">
+          <li class="flex items-start gap-1.5 text-amber-800"><i data-lucide="triangle-alert" class="mt-0.5 h-3.5 w-3.5 shrink-0"></i><span>DFD existente e completo — <a href="dfd.html" class="font-medium text-brand-700 hover:underline">concluir o DFD</a></span></li>
+        </ul>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>Próximo passo</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">Concluir o DFD e encaminhar para Aprovação da demanda</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="file-text" class="h-3.5 w-3.5"></i>Documentos</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">1 em elaboração</p>
+        <p class="text-xs text-slate-500">DFD 0005/2026</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+        <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><i data-lucide="circle-check" class="h-3.5 w-3.5"></i>Aprovações</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">Nenhuma pendente</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stepper do workflow -->
+  <section aria-label="Etapas do processo" class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+    <h2 class="text-sm font-semibold text-slate-700">Fase preparatória — Lei 14.133/2021 · v1</h2>
+    <ol class="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-0">
+      <li aria-current="step" class="flex items-center gap-2 text-sm font-semibold text-brand-800 sm:pr-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-700 text-xs text-white">1</span>Formalização da demanda
+      </li>
+      <li class="hidden text-slate-300 sm:block"><i data-lucide="arrow-right" class="h-4 w-4"></i></li>
+      <li class="flex items-center gap-2 text-sm text-slate-500 sm:px-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs text-slate-500">2</span>Aprovação da demanda
+      </li>
+      <li class="hidden text-slate-300 sm:block"><i data-lucide="arrow-right" class="h-4 w-4"></i></li>
+      <li class="flex items-center gap-2 text-sm text-slate-500 sm:px-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs text-slate-500">3</span>ETP e mapa de riscos
+      </li>
+      <li class="hidden text-slate-300 sm:block"><i data-lucide="arrow-right" class="h-4 w-4"></i></li>
+      <li class="flex items-center gap-2 text-sm text-slate-500 sm:px-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs text-slate-500">4</span>Pesquisa de preços
+      </li>
+      <li class="hidden text-slate-300 sm:block"><i data-lucide="arrow-right" class="h-4 w-4"></i></li>
+      <li class="flex items-center gap-2 text-sm text-slate-500 sm:px-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs text-slate-500">5</span>Termo de Referência
+      </li>
+      <li class="hidden text-slate-300 sm:block"><i data-lucide="arrow-right" class="h-4 w-4"></i></li>
+      <li class="flex items-center gap-2 text-sm text-slate-500 sm:px-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs text-slate-500">6</span>Aprovação da autoridade competente
+      </li>
+      <li class="hidden text-slate-300 sm:block"><i data-lucide="arrow-right" class="h-4 w-4"></i></li>
+      <li class="flex items-center gap-2 text-sm text-slate-500 sm:pl-3">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs text-slate-500">7</span>Planejamento da contratação concluído
+      </li>
+    </ol>
+  </section>
+
+  <!-- Abas -->
+  <section aria-label="Detalhes do processo" class="mt-6" data-tabs="processo">
+    <div role="tablist" aria-label="Abas do processo" class="flex gap-1 overflow-x-auto border-b border-slate-200">
+      <button type="button" id="tab-resumo" role="tab" data-tab="resumo" aria-selected="true" aria-controls="painel-resumo" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Resumo</button>
+      <button type="button" id="tab-documentos" role="tab" data-tab="documentos" aria-selected="false" aria-controls="painel-documentos" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Documentos</button>
+      <button type="button" id="tab-itens" role="tab" data-tab="itens" aria-selected="false" aria-controls="painel-itens" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Itens</button>
+      <button type="button" id="tab-tramitacao" role="tab" data-tab="tramitacao" aria-selected="false" aria-controls="painel-tramitacao" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Tramitação</button>
+      <button type="button" id="tab-timeline" role="tab" data-tab="timeline" aria-selected="false" aria-controls="painel-timeline" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Timeline</button>
+      <button type="button" id="tab-comentarios" role="tab" data-tab="comentarios" aria-selected="false" aria-controls="painel-comentarios" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Comentários</button>
+      <button type="button" id="tab-participantes" role="tab" data-tab="participantes" aria-selected="false" aria-controls="painel-participantes" class="shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-700 data-[state=active]:text-brand-800">Participantes</button>
+    </div>
+
+    <!-- Resumo -->
+    <div id="painel-resumo" data-panel="resumo" data-group="processo" role="tabpanel" aria-labelledby="tab-resumo" tabindex="0" class="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+      <h2 class="text-sm font-semibold text-slate-700">Dados do processo</h2>
+      <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+        <div><dt class="text-xs text-slate-500">Workflow</dt><dd class="mt-0.5 flex items-center gap-1.5 text-slate-900"><i data-lucide="check" class="h-3.5 w-3.5 text-emerald-600"></i>Fase preparatória — Lei 14.133/2021 · v1</dd></div>
+        <div><dt class="text-xs text-slate-500">Aberto em</dt><dd class="mt-0.5 text-slate-900">05/10/2026, por Ana Souza</dd></div>
+        <div><dt class="text-xs text-slate-500">Secretaria · Unidade</dt><dd class="mt-0.5 text-slate-900">Secretaria de Obras › Setor de Manutenção</dd></div>
+        <div><dt class="text-xs text-slate-500">Prioridade</dt><dd class="mt-0.5 flex items-center gap-1.5 text-slate-900"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Média</dd></div>
+        <div><dt class="text-xs text-slate-500">Valor estimado</dt><dd class="mt-0.5 font-medium text-slate-900" data-confidential="R$ 98.000,00">R$ 98.000,00</dd></div>
+        <div><dt class="text-xs text-slate-500">Origem do valor</dt><dd class="mt-0.5 text-slate-900">DFD 0005/2026</dd></div>
+      </dl>
+    </div>
+
+    <!-- Documentos -->
+    <div id="painel-documentos" data-panel="documentos" data-group="processo" role="tabpanel" aria-labelledby="tab-documentos" tabindex="0" hidden class="mt-4 space-y-4">
+      <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+        <h2 class="text-sm font-semibold text-slate-700">Documentos da fase preparatória</h2>
+        <ul class="mt-3 divide-y divide-slate-100">
+          <li class="flex flex-wrap items-center justify-between gap-2 py-3">
+            <a href="dfd.html" class="flex items-center gap-2 font-medium text-brand-700 hover:underline"><i data-lucide="file-text" class="h-4 w-4"></i>DFD 0005/2026 — Documento de Formalização da Demanda</a>
+            <span class="inline-flex items-center whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300">Em elaboração</span>
+          </li>
+          <li class="flex flex-wrap items-center justify-between gap-2 py-3 text-slate-400">
+            <span class="flex items-center gap-2"><i data-lucide="file-text" class="h-4 w-4"></i>ETP e mapa de riscos</span>
+            <span class="text-xs">A criar nas próximas etapas</span>
+          </li>
+          <li class="flex flex-wrap items-center justify-between gap-2 py-3 text-slate-400">
+            <span class="flex items-center gap-2"><i data-lucide="file-text" class="h-4 w-4"></i>Pesquisa de preços</span>
+            <span class="text-xs">A criar nas próximas etapas</span>
+          </li>
+          <li class="flex flex-wrap items-center justify-between gap-2 py-3 text-slate-400">
+            <span class="flex items-center gap-2"><i data-lucide="file-text" class="h-4 w-4"></i>Termo de Referência</span>
+            <span class="text-xs">A criar nas próximas etapas</span>
+          </li>
+        </ul>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-700">Anexos</h2>
+          <button type="button" data-toast="Anexo enviado (simulação)." data-toast-type="success" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50"><i data-lucide="paperclip" class="h-4 w-4"></i>Anexar</button>
+        </div>
+        <ul class="mt-3 divide-y divide-slate-100 text-sm">
+          <li class="flex items-center justify-between gap-2 py-2.5"><span class="flex items-center gap-2 text-slate-700"><i data-lucide="paperclip" class="h-4 w-4 text-slate-400"></i>foto-via-danificada.jpg</span><span class="text-xs text-slate-500">480 KB · Ana Souza</span></li>
+          <li class="flex items-center justify-between gap-2 py-2.5"><span class="flex items-center gap-2 text-slate-700"><i data-lucide="paperclip" class="h-4 w-4 text-slate-400"></i>orcamento-fornecedor.pdf</span><span class="text-xs text-slate-500">212 KB · Ana Souza</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Itens -->
+    <div id="painel-itens" data-panel="itens" data-group="processo" role="tabpanel" aria-labelledby="tab-itens" tabindex="0" hidden class="mt-4">
+      <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+        <div class="cf-scroll overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <tr><th scope="col" class="px-4 py-3">Item</th><th scope="col" class="px-4 py-3">Unidade</th><th scope="col" class="px-4 py-3 text-right">Quantidade</th><th scope="col" class="px-4 py-3 text-right">Valor unitário</th><th scope="col" class="px-4 py-3 text-right">Subtotal</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr><td class="px-4 py-3 text-slate-800">Cimento Portland CP II-E-32, saco 50 kg</td><td class="px-4 py-3 text-slate-600">saco</td><td class="px-4 py-3 text-right tabular-nums">1.200</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 42,50">R$ 42,50</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 51.000,00">R$ 51.000,00</td></tr>
+              <tr><td class="px-4 py-3 text-slate-800">Areia média lavada</td><td class="px-4 py-3 text-slate-600">m³</td><td class="px-4 py-3 text-right tabular-nums">80</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 165,00">R$ 165,00</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 13.200,00">R$ 13.200,00</td></tr>
+              <tr><td class="px-4 py-3 text-slate-800">Brita nº 1</td><td class="px-4 py-3 text-slate-600">m³</td><td class="px-4 py-3 text-right tabular-nums">60</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 180,00">R$ 180,00</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 10.800,00">R$ 10.800,00</td></tr>
+              <tr><td class="px-4 py-3 text-slate-800">Cal hidratada, 20 kg</td><td class="px-4 py-3 text-slate-600">sc</td><td class="px-4 py-3 text-right tabular-nums">400</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 18,00">R$ 18,00</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 7.200,00">R$ 7.200,00</td></tr>
+              <tr><td class="px-4 py-3 text-slate-800">Tela soldada Q-92</td><td class="px-4 py-3 text-slate-600">un</td><td class="px-4 py-3 text-right tabular-nums">100</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 158,00">R$ 158,00</td><td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" data-confidential="R$ 15.800,00">R$ 15.800,00</td></tr>
+            </tbody>
+            <tfoot class="bg-slate-50">
+              <tr><td colspan="4" class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Total</td><td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold tabular-nums" data-confidential="R$ 98.000,00">R$ 98.000,00</td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      <ul class="space-y-3 md:hidden">
+        <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+          <p class="font-medium text-slate-900">Cimento Portland CP II-E-32, saco 50 kg</p>
+          <p class="mt-1 text-xs text-slate-500">1.200 saco × <span data-confidential="R$ 42,50">R$ 42,50</span></p>
+          <p class="mt-1 text-sm font-medium text-slate-900">Subtotal: <span data-confidential="R$ 51.000,00">R$ 51.000,00</span></p>
+        </li>
+        <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+          <p class="font-medium text-slate-900">Areia média lavada</p>
+          <p class="mt-1 text-xs text-slate-500">80 m³ × <span data-confidential="R$ 165,00">R$ 165,00</span></p>
+          <p class="mt-1 text-sm font-medium text-slate-900">Subtotal: <span data-confidential="R$ 13.200,00">R$ 13.200,00</span></p>
+        </li>
+        <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+          <p class="font-medium text-slate-900">Brita nº 1</p>
+          <p class="mt-1 text-xs text-slate-500">60 m³ × <span data-confidential="R$ 180,00">R$ 180,00</span></p>
+          <p class="mt-1 text-sm font-medium text-slate-900">Subtotal: <span data-confidential="R$ 10.800,00">R$ 10.800,00</span></p>
+        </li>
+        <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+          <p class="font-medium text-slate-900">Cal hidratada, 20 kg</p>
+          <p class="mt-1 text-xs text-slate-500">400 sc × <span data-confidential="R$ 18,00">R$ 18,00</span></p>
+          <p class="mt-1 text-sm font-medium text-slate-900">Subtotal: <span data-confidential="R$ 7.200,00">R$ 7.200,00</span></p>
+        </li>
+        <li class="rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+          <p class="font-medium text-slate-900">Tela soldada Q-92</p>
+          <p class="mt-1 text-xs text-slate-500">100 un × <span data-confidential="R$ 158,00">R$ 158,00</span></p>
+          <p class="mt-1 text-sm font-medium text-slate-900">Subtotal: <span data-confidential="R$ 15.800,00">R$ 15.800,00</span></p>
+        </li>
+        <li class="rounded-lg border border-slate-300 bg-slate-50 p-4">
+          <p class="flex items-center justify-between text-sm font-semibold text-slate-800">Total <span data-confidential="R$ 98.000,00">R$ 98.000,00</span></p>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Tramitação -->
+    <div id="painel-tramitacao" data-panel="tramitacao" data-group="processo" role="tabpanel" aria-labelledby="tab-tramitacao" tabindex="0" hidden class="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+      <h2 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><i data-lucide="history" class="h-4 w-4 text-slate-400"></i>Histórico de tramitação</h2>
+      <ol class="mt-3 space-y-4 border-l border-slate-200 pl-4 text-sm">
+        <li class="relative"><span class="absolute -left-[1.1rem] flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-brand-700"><i data-lucide="file-text" class="h-3 w-3"></i></span>
+          <p class="font-medium text-slate-900">Processo criado</p>
+          <p class="text-xs text-slate-500">05/10/2026, 14:30 · por Ana Souza · entrou em Formalização da demanda</p>
+        </li>
+      </ol>
+      <p class="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">Sem encaminhamentos ainda.</p>
+      <p class="mt-3"><a href="#" data-toast="Tela de auditoria completa não faz parte deste protótipo." data-toast-type="info" class="text-sm font-medium text-brand-700 hover:underline">Ver auditoria completa</a></p>
+    </div>
+
+    <!-- Timeline -->
+    <div id="painel-timeline" data-panel="timeline" data-group="processo" role="tabpanel" aria-labelledby="tab-timeline" tabindex="0" hidden class="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+      <h2 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>Linha do tempo</h2>
+      <ul class="mt-3 space-y-4 text-sm">
+        <li class="flex gap-3"><i data-lucide="file-text" class="mt-0.5 h-4 w-4 shrink-0 text-brand-600"></i><div><p class="text-slate-900">Processo 0012/2026 criado por Ana Souza</p><p class="text-xs text-slate-500">05/10/2026, 14:30</p></div></li>
+        <li class="flex gap-3"><i data-lucide="file-text" class="mt-0.5 h-4 w-4 shrink-0 text-brand-600"></i><div><p class="text-slate-900">DFD 0005/2026 iniciado</p><p class="text-xs text-slate-500">05/10/2026, 14:35</p></div></li>
+        <li class="flex gap-3"><i data-lucide="paperclip" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"></i><div><p class="text-slate-900">2 anexos adicionados</p><p class="text-xs text-slate-500">06/10/2026, 09:10</p></div></li>
+        <li class="flex gap-3"><i data-lucide="message-square" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"></i><div><p class="text-slate-900">Novo comentário de Rui Alves</p><p class="text-xs text-slate-500">06/10/2026, 11:02</p></div></li>
+      </ul>
+    </div>
+
+    <!-- Comentários -->
+    <div id="painel-comentarios" data-panel="comentarios" data-group="processo" role="tabpanel" aria-labelledby="tab-comentarios" tabindex="0" hidden class="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+      <h2 class="text-sm font-semibold text-slate-700">Comentários</h2>
+      <ul class="mt-3 space-y-4 text-sm">
+        <li class="flex gap-3">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800">AS</span>
+          <div><p><span class="font-medium text-slate-900">Ana Souza</span> <span class="text-xs text-slate-500">05/10/2026, 15:02</span></p>
+          <p class="mt-0.5 text-slate-700">Abri o DFD e já adiantei os itens com base no levantamento da equipe.</p></div>
+        </li>
+        <li class="flex gap-3">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">RA</span>
+          <div><p><span class="font-medium text-slate-900">Rui Alves</span> <span class="text-xs text-slate-500">06/10/2026, 11:02</span></p>
+          <p class="mt-0.5 text-slate-700"><span class="font-medium text-brand-700">@Rui Alves</span> aqui — confirmo as quantidades de brita e areia com o almoxarifado.</p></div>
+        </li>
+        <li class="flex gap-3">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800">AS</span>
+          <div><p><span class="font-medium text-slate-900">Ana Souza</span> <span class="text-xs text-slate-500">06/10/2026, 11:20</span></p>
+          <p class="mt-0.5 text-slate-700">Perfeito, obrigada! Assim que o DFD estiver completo eu encaminho.</p></div>
+        </li>
+      </ul>
+      <form class="mt-4 border-t border-slate-200 pt-4" data-toast="Comentário publicado (simulação)." data-toast-type="success">
+        <label class="block text-sm font-medium" for="novo-comentario">Novo comentário</label>
+        <textarea id="novo-comentario" rows="3" placeholder="Escreva um comentário… use @ para mencionar alguém" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+        <div class="mt-2 flex justify-end"><button type="submit" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="message-square" class="h-4 w-4"></i>Comentar</button></div>
+      </form>
+    </div>
+
+    <!-- Participantes -->
+    <div id="painel-participantes" data-panel="participantes" data-group="processo" role="tabpanel" aria-labelledby="tab-participantes" tabindex="0" hidden class="mt-4 rounded-lg border border-slate-200 bg-white shadow-card">
+      <ul class="divide-y divide-slate-100 text-sm">
+        <li class="flex items-center justify-between gap-2 px-5 py-3">
+          <span class="flex items-center gap-2"><i data-lucide="users" class="h-4 w-4 text-slate-400"></i>Ana Souza</span>
+          <span class="text-xs text-slate-500">Responsável</span>
+        </li>
+        <li class="flex items-center justify-between gap-2 px-5 py-3">
+          <span class="flex items-center gap-2"><i data-lucide="users" class="h-4 w-4 text-slate-400"></i>Rui Alves</span>
+          <span class="text-xs text-slate-500">Colaborador</span>
+        </li>
+        <li class="flex items-center justify-between gap-2 px-5 py-3">
+          <span class="flex items-center gap-2"><i data-lucide="users" class="h-4 w-4 text-slate-400"></i>Carlos Lima</span>
+          <span class="text-xs text-slate-500">Acompanha</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- SCR-103 — Encaminhar processo -->
+  <dialog id="drawer-encaminhar" class="cf-drawer bg-white" aria-labelledby="drawer-encaminhar-t">
+    <form data-fake-submit="Processo 0012/2026 encaminhado para Aprovação da demanda (Carlos Lima)." data-redirect="processo.html" class="flex h-full flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <h2 id="drawer-encaminhar-t" class="text-lg font-semibold">Encaminhar processo</h2>
+        <button type="button" data-close class="rounded-md p-1.5 hover:bg-slate-100" aria-label="Fechar"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="flex-1 space-y-5 overflow-y-auto px-5 py-4 text-sm">
+        <fieldset>
+          <legend class="font-medium">Transição</legend>
+          <label class="mt-2 flex items-start gap-2 rounded-md border border-brand-200 bg-brand-50 p-3">
+            <input type="radio" name="transicao" checked required class="mt-0.5 h-4 w-4 text-brand-700">
+            <span><span class="block font-medium text-slate-900">Aprovação da demanda</span>
+            <span class="block text-xs text-slate-600">Etapa 2 de 7 · titular Carlos Lima</span></span>
+          </label>
+        </fieldset>
+        <div>
+          <p class="font-medium">Destino</p>
+          <p class="mt-1 flex items-center gap-1.5 text-slate-700"><i data-lucide="building-2" class="h-4 w-4 text-slate-400"></i>Secretaria de Obras — Carlos Lima (titular)</p>
+        </div>
+        <div>
+          <p class="font-medium">Prazo</p>
+          <p class="mt-1 flex items-center gap-1.5 text-slate-700"><i data-lucide="clock" class="h-4 w-4 text-slate-400"></i>Calculado em dias úteis — até 14/10/2026</p>
+        </div>
+        <div>
+          <p class="font-medium">Documentos que seguem</p>
+          <ul class="mt-2 space-y-1.5">
+            <li class="flex items-start gap-1.5 rounded-md bg-amber-50 p-2 text-amber-800">
+              <i data-lucide="triangle-alert" class="mt-0.5 h-3.5 w-3.5 shrink-0"></i>
+              <span>DFD 0005/2026 — exige "DFD existente e completo"</span>
+            </li>
+          </ul>
+        </div>
+        <label class="block"><span class="font-medium">Comentário (opcional)</span>
+          <textarea rows="3" placeholder="Alguma observação para quem recebe o processo…" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+        </label>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="send" class="h-4 w-4"></i>Encaminhar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- SCR-104 — Devolver processo -->
+  <dialog id="dlg-devolver" class="w-[30rem] bg-white" aria-labelledby="dlg-devolver-t">
+    <form data-fake-submit="Processo 0012/2026 devolvido (simulação)." data-toast-type="info" class="p-6">
+      <h2 id="dlg-devolver-t" class="text-lg font-semibold">Devolver processo</h2>
+      <p class="mt-1 text-sm text-slate-600">Devolve o processo a uma etapa já percorrida.</p>
+      <label class="mt-4 block text-sm"><span class="font-medium">Etapa de destino</span>
+        <select required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+          <option value="">Selecione…</option>
+          <option>Formalização da demanda</option>
+        </select>
+      </label>
+      <label class="mt-4 block text-sm"><span class="font-medium">Motivo</span>
+        <textarea id="motivo-devolucao" required minlength="10" rows="3" placeholder="Explique por que o processo está sendo devolvido…" aria-describedby="motivo-devolucao-contador" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+        <span id="motivo-devolucao-contador" data-count-for="motivo-devolucao" class="mt-1 block text-xs text-slate-500">Mínimo de 10 caracteres</span>
+      </label>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="undo-2" class="h-4 w-4"></i>Devolver</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- SCR-115 — Atribuir responsável / assumir -->
+  <dialog id="dlg-atribuir" class="w-[28rem] bg-white" aria-labelledby="dlg-atribuir-t">
+    <form data-fake-submit="Responsável do processo 0012/2026 atualizado (simulação)." class="p-6">
+      <h2 id="dlg-atribuir-t" class="text-lg font-semibold">Atribuir responsável</h2>
+      <p class="mt-1 text-sm text-slate-600">Atribua ou reatribua o responsável dentro do Setor de Manutenção.</p>
+      <label class="mt-4 block text-sm"><span class="font-medium">Responsável</span>
+        <select required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+          <option>Ana Souza</option>
+          <option>Rui Alves</option>
+          <option>Deixar na fila da unidade</option>
+        </select>
+      </label>
+      <label class="mt-4 block text-sm"><span class="font-medium">Motivo (opcional)</span>
+        <textarea rows="2" placeholder="Por que a responsabilidade está mudando…" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+      </label>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="user-plus" class="h-4 w-4"></i>Confirmar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Duplicar processo -->
+  <dialog id="dlg-duplicar" class="w-[26rem] bg-white" aria-labelledby="dlg-duplicar-t">
+    <form data-fake-submit="Processo duplicado como rascunho (simulação)." class="p-6">
+      <h2 id="dlg-duplicar-t" class="text-lg font-semibold">Duplicar processo</h2>
+      <p class="mt-2 text-sm text-slate-600">Cria um novo processo em rascunho com os mesmos itens e dados de 0012/2026, sem copiar documentos nem tramitação.</p>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="copy" class="h-4 w-4"></i>Duplicar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- SCR-116 — Suspender processo -->
+  <dialog id="dlg-suspender" class="w-[28rem] bg-white" aria-labelledby="dlg-suspender-t">
+    <form data-fake-submit="Processo 0012/2026 suspenso (simulação)." data-toast-type="info" class="p-6">
+      <h2 id="dlg-suspender-t" class="text-lg font-semibold">Suspender processo</h2>
+      <p class="mt-1 text-sm text-slate-600">O prazo da etapa fica pausado até a retomada. Os participantes são notificados.</p>
+      <label class="mt-4 block text-sm"><span class="font-medium">Motivo</span>
+        <textarea required rows="3" placeholder="Explique o motivo da suspensão…" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+      </label>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="pause" class="h-4 w-4"></i>Suspender</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- SCR-116 — Cancelar processo -->
+  <dialog id="dlg-cancelar" class="w-[28rem] bg-white" aria-labelledby="dlg-cancelar-t">
+    <form data-fake-submit="Processo 0012/2026 cancelado (simulação)." data-toast-type="error" class="p-6">
+      <h2 id="dlg-cancelar-t" class="text-lg font-semibold">Cancelar processo</h2>
+      <p class="mt-3 flex items-start gap-1.5 rounded-md bg-red-50 p-3 text-sm text-red-800"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>Esta ação é irreversível. Não há aprovações pendentes a cancelar.</p>
+      <label class="mt-4 block text-sm"><span class="font-medium">Justificativa</span>
+        <textarea id="motivo-cancelamento" required minlength="20" rows="4" placeholder="Explique por que o processo está sendo cancelado (mínimo de 20 caracteres)…" aria-describedby="motivo-cancelamento-contador" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+        <span id="motivo-cancelamento-contador" data-count-for="motivo-cancelamento" class="mt-1 block text-xs text-slate-500">Mínimo de 20 caracteres</span>
+      </label>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Voltar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"><i data-lucide="circle-x" class="h-4 w-4"></i>Cancelar processo</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

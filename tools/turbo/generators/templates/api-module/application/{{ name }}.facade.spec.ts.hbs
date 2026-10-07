@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+
+import { {{ pascalCase name }}Facade } from './{{ name }}.facade.js';
+
+describe('{{ pascalCase name }}Facade', () => {
+  it('é instanciável', () => {
+    expect(new {{ pascalCase name }}Facade()).toBeInstanceOf({{ pascalCase name }}Facade);
+  });
+});

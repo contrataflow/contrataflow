@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Processos — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-004 — Processos (/processos) · US-002 (principal), US-003, US-007, US-055 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="processos" data-breadcrumb="Processos">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+
+  <!-- Cabeçalho da página -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Processos</h1>
+      <p class="mt-1 text-sm text-slate-600">Processos de contratação que você pode ver na Prefeitura de São José.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="sr-only" for="visao">Visão salva</label>
+      <select id="visao" class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+        <option>Todos os processos</option>
+        <optgroup label="Minhas visões">
+          <option>Obras — em andamento</option>
+          <option>Atrasados da secretaria</option>
+        </optgroup>
+        <optgroup label="Visões da instituição">
+          <option>Aguardando aprovação</option>
+        </optgroup>
+      </select>
+      <button type="button" data-open="dlg-salvar-visao" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="bookmark-plus" class="h-4 w-4"></i>Salvar visão</button>
+      <button type="button" data-open="dlg-exportar" class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+        <i data-lucide="download" class="h-4 w-4"></i>Exportar CSV</button>
+      <a href="processo-novo.html" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">
+        <i data-lucide="plus" class="h-4 w-4"></i>Novo processo</a>
+    </div>
+  </div>
+
+  <!-- Busca e filtros -->
+  <section aria-label="Busca e filtros" class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <label class="relative flex-1">
+        <span class="sr-only">Pesquisar por número, título ou objeto</span>
+        <i data-lucide="search" class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"></i>
+        <input type="search" data-filter-search="processos" placeholder="Pesquisar por número, título ou objeto…"
+               class="h-10 w-full rounded-md border border-slate-300 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+      </label>
+      <div class="flex flex-wrap items-center gap-2" data-filter-group="processos" aria-label="Filtros rápidos">
+        <button type="button" data-filter-tag="comigo" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-brand-600 aria-pressed:bg-brand-50 aria-pressed:text-brand-800"><i data-lucide="user" class="h-4 w-4"></i>Comigo</button>
+        <button type="button" data-filter-tag="unidade" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-brand-600 aria-pressed:bg-brand-50 aria-pressed:text-brand-800"><i data-lucide="users" class="h-4 w-4"></i>Da minha unidade</button>
+        <button type="button" data-filter-tag="atrasado" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-red-600 aria-pressed:bg-red-50 aria-pressed:text-red-800"><i data-lucide="triangle-alert" class="h-4 w-4"></i>Atrasados</button>
+        <button type="button" data-filter-tag="devolvido" aria-pressed="false" class="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 px-4 text-sm hover:bg-slate-50 aria-pressed:border-orange-600 aria-pressed:bg-orange-50 aria-pressed:text-orange-800"><i data-lucide="undo-2" class="h-4 w-4"></i>Devolvidos</button>
+        <button type="button" data-open="dlg-filtros" class="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50"><i data-lucide="sliders-horizontal" class="h-4 w-4"></i>Filtros</button>
+      </div>
+    </div>
+    <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <span class="text-slate-500">Filtros ativos:</span>
+      <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-slate-700">Exercício: 2026
+        <button type="button" class="rounded-full p-0.5 hover:bg-slate-200" aria-label="Remover filtro Exercício: 2026" data-toast="Filtro removido (simulação)."><i data-lucide="x" class="h-3.5 w-3.5"></i></button></span>
+    </div>
+  </section>
+
+  <p class="mt-4 text-sm text-slate-600" aria-live="polite"><span data-filter-count="processos">11</span> processos encontrados</p>
+
+  <!-- Tabela (desktop) -->
+  <div class="mt-2 hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card md:block">
+    <div class="cf-scroll overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm" data-filter-target="processos">
+        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <tr>
+            <th scope="col" class="px-4 py-3" aria-sort="descending"><button type="button" class="inline-flex items-center gap-1 uppercase" data-toast="Ordenação por número (simulação).">Processo<i data-lucide="arrow-down" class="h-3.5 w-3.5"></i></button></th>
+            <th scope="col" class="px-4 py-3">Status</th>
+            <th scope="col" class="px-4 py-3">Etapa atual</th>
+            <th scope="col" class="px-4 py-3">Unidade · Responsável</th>
+            <th scope="col" class="px-4 py-3">Prazo da etapa</th>
+            <th scope="col" class="px-4 py-3 text-right">Valor estimado</th>
+            <th scope="col" class="px-4 py-3">Prioridade</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr data-row data-tags="comigo unidade" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0015/2026</a><p class="max-w-xs truncate text-slate-700">Locação de retroescavadeira para obras de drenagem</p><span class="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">Obras</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></td>
+            <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Setor de Manutenção</p><p class="text-xs text-slate-500">Ana Souza</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 24/10</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 126.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Média</span></td>
+          </tr>
+          <tr data-row data-tags="comigo unidade" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0012/2026</a><p class="max-w-xs truncate text-slate-700">Aquisição de cimento para manutenção de vias</p><span class="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">Obras</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></td>
+            <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Setor de Manutenção</p><p class="text-xs text-slate-500">Ana Souza</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 20/10</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 98.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Média</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0011/2026</a><p class="max-w-xs truncate text-slate-700">Contratação de serviço de poda de árvores</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Aguardando aprovação</span></td>
+            <td class="px-4 py-3 text-slate-700">Aprovação da demanda</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Secretaria de Obras</p><p class="text-xs text-slate-500">Carlos Lima (titular)</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence amanhã</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 240.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-orange-500"></span>Alta</span></td>
+          </tr>
+          <tr data-row data-tags="atrasado" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0010/2026</a><p class="max-w-xs truncate text-slate-700">Aquisição de medicamentos da farmácia básica</p><span class="mt-1 inline-flex items-center gap-1 rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-white"><i data-lucide="lock" class="h-3 w-3"></i>Orçamento sigiloso</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></td>
+            <td class="px-4 py-3 text-slate-700">ETP e mapa de riscos</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Secretaria de Saúde</p><p class="text-xs text-slate-500">Beatriz Rocha</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>Atrasado há 4 dias</span></td>
+            <td class="px-4 py-3 text-right"><span class="inline-flex items-center gap-1 text-slate-500"><i data-lucide="lock" class="h-3.5 w-3.5"></i>Sigiloso</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-red-600"></span>Urgente</span></td>
+          </tr>
+          <tr data-row data-tags="devolvido unidade" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0009/2026</a><p class="max-w-xs truncate text-slate-700">Recuperação de calçadas no Bairro Centro</p><span class="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">Obras</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200">Devolvido</span></td>
+            <td class="px-4 py-3 text-slate-700">Formalização da demanda</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Setor de Manutenção</p><p class="text-xs text-slate-500">Fila da unidade (sem responsável)</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 16/10</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 315.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-orange-500"></span>Alta</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0008/2026</a><p class="max-w-xs truncate text-slate-700">Material de expediente para as escolas</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></td>
+            <td class="px-4 py-3 text-slate-700">Pesquisa de preços</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Departamento de Compras</p><p class="text-xs text-slate-500">Marcos Pereira</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 23/10</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 62.400,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Média</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0007/2026</a><p class="max-w-xs truncate text-slate-700">Reforma da UBS Centro</p><span class="mt-1 inline-flex items-center gap-1 rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-white"><i data-lucide="lock" class="h-3 w-3"></i>Orçamento sigiloso</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></td>
+            <td class="px-4 py-3 text-slate-700">Termo de Referência</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Secretaria de Saúde</p><p class="text-xs text-slate-500">Eva Martins (consultoria)</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-700"><i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400"></i>até 30/10</span></td>
+            <td class="px-4 py-3 text-right"><span class="inline-flex items-center gap-1 text-slate-500"><i data-lucide="lock" class="h-3.5 w-3.5"></i>Sigiloso</span></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-orange-500"></span>Alta</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0006/2026</a><p class="max-w-xs truncate text-slate-700">Uniformes da Guarda Municipal</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Aguardando aprovação</span></td>
+            <td class="px-4 py-3 text-slate-700">Aprovação da autoridade competente</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Gabinete do Prefeito</p><p class="text-xs text-slate-500">Autoridade competente</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"><i data-lucide="clock" class="h-3.5 w-3.5"></i>Vence hoje</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 85.300,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Média</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0005/2026</a><p class="max-w-xs truncate text-slate-700">Software de gestão de frota (dispensa)</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Concluído</span></td>
+            <td class="px-4 py-3 text-slate-700">Planejamento da contratação concluído</td>
+            <td class="px-4 py-3 text-slate-400">—</td>
+            <td class="px-4 py-3 text-xs text-slate-400">Sem prazo</td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 48.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-slate-400"></span>Baixa</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0004/2026</a><p class="max-w-xs truncate text-slate-700">Gêneros alimentícios para a merenda escolar</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300">Suspenso</span></td>
+            <td class="px-4 py-3 text-slate-700">Pesquisa de preços</td>
+            <td class="px-4 py-3"><p class="text-slate-700">Departamento de Compras</p><p class="text-xs text-slate-500">Marcos Pereira</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700"><i data-lucide="pause" class="h-3.5 w-3.5"></i>Prazo suspenso</span></td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 410.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-orange-500"></span>Alta</span></td>
+          </tr>
+          <tr data-row data-tags="" class="hover:bg-slate-50">
+            <td class="px-4 py-3"><a href="processo.html" class="font-semibold text-brand-700 hover:underline">0003/2026</a><p class="max-w-xs truncate text-slate-700">Manutenção de aparelhos de ar-condicionado</p></td>
+            <td class="px-4 py-3"><span class="inline-flex items-center whitespace-nowrap rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">Cancelado</span></td>
+            <td class="px-4 py-3 text-slate-400">—</td>
+            <td class="px-4 py-3 text-slate-400">—</td>
+            <td class="px-4 py-3 text-xs text-slate-400">Sem prazo</td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">R$ 36.000,00</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 text-xs"><span class="h-2 w-2 rounded-full bg-slate-400"></span>Baixa</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cartões (celular) -->
+  <ul class="mt-2 space-y-3 md:hidden" data-filter-target="processos">
+    <li data-row data-tags="comigo unidade"><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0015/2026</span><span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></div>
+      <p class="mt-1 text-sm">Locação de retroescavadeira para obras de drenagem</p>
+      <p class="mt-2 text-xs text-slate-500">Formalização da demanda · Setor de Manutenção · Ana Souza</p>
+      <p class="mt-1 text-xs text-slate-700">Prazo até 24/10 · R$ 126.000,00</p></a></li>
+    <li data-row data-tags="comigo unidade"><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0012/2026</span><span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></div>
+      <p class="mt-1 text-sm">Aquisição de cimento para manutenção de vias</p>
+      <p class="mt-2 text-xs text-slate-500">Formalização da demanda · Setor de Manutenção · Ana Souza</p>
+      <p class="mt-1 text-xs text-slate-700">Prazo até 20/10 · R$ 98.000,00</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0011/2026</span><span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Aguardando aprovação</span></div>
+      <p class="mt-1 text-sm">Contratação de serviço de poda de árvores</p>
+      <p class="mt-2 text-xs text-slate-500">Aprovação da demanda · Secretaria de Obras</p>
+      <p class="mt-1 text-xs font-medium text-amber-800">Vence amanhã · R$ 240.000,00</p></a></li>
+    <li data-row data-tags="atrasado"><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0010/2026</span><span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></div>
+      <p class="mt-1 text-sm">Aquisição de medicamentos da farmácia básica</p>
+      <p class="mt-2 text-xs text-slate-500">ETP e mapa de riscos · Secretaria de Saúde</p>
+      <p class="mt-1 text-xs font-medium text-red-700">Atrasado há 4 dias · Valor sigiloso</p></a></li>
+    <li data-row data-tags="devolvido unidade"><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0009/2026</span><span class="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200">Devolvido</span></div>
+      <p class="mt-1 text-sm">Recuperação de calçadas no Bairro Centro</p>
+      <p class="mt-2 text-xs text-slate-500">Formalização da demanda · Fila do Setor de Manutenção</p>
+      <p class="mt-1 text-xs text-slate-700">Prazo até 16/10 · R$ 315.000,00</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0008/2026</span><span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></div>
+      <p class="mt-1 text-sm">Material de expediente para as escolas</p>
+      <p class="mt-2 text-xs text-slate-500">Pesquisa de preços · Departamento de Compras</p>
+      <p class="mt-1 text-xs text-slate-700">Prazo até 23/10 · R$ 62.400,00</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0007/2026</span><span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Em andamento</span></div>
+      <p class="mt-1 text-sm">Reforma da UBS Centro</p>
+      <p class="mt-2 text-xs text-slate-500">Termo de Referência · Secretaria de Saúde</p>
+      <p class="mt-1 text-xs text-slate-700">Prazo até 30/10 · Valor sigiloso</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0006/2026</span><span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Aguardando aprovação</span></div>
+      <p class="mt-1 text-sm">Uniformes da Guarda Municipal</p>
+      <p class="mt-2 text-xs text-slate-500">Aprovação da autoridade competente · Gabinete do Prefeito</p>
+      <p class="mt-1 text-xs font-medium text-amber-800">Vence hoje · R$ 85.300,00</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0005/2026</span><span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Concluído</span></div>
+      <p class="mt-1 text-sm">Software de gestão de frota (dispensa)</p>
+      <p class="mt-2 text-xs text-slate-500">Planejamento da contratação concluído</p>
+      <p class="mt-1 text-xs text-slate-700">R$ 48.000,00</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0004/2026</span><span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300">Suspenso</span></div>
+      <p class="mt-1 text-sm">Gêneros alimentícios para a merenda escolar</p>
+      <p class="mt-2 text-xs text-slate-500">Pesquisa de preços · Departamento de Compras</p>
+      <p class="mt-1 text-xs text-slate-700">Prazo suspenso · R$ 410.000,00</p></a></li>
+    <li data-row data-tags=""><a href="processo.html" class="block rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+      <div class="flex items-center justify-between"><span class="font-semibold text-brand-700">0003/2026</span><span class="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">Cancelado</span></div>
+      <p class="mt-1 text-sm">Manutenção de aparelhos de ar-condicionado</p>
+      <p class="mt-1 text-xs text-slate-700">R$ 36.000,00</p></a></li>
+  </ul>
+
+  <!-- Vazio para os filtros -->
+  <div data-filter-empty="processos" hidden class="mt-2 rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
+    <i data-lucide="search-x" class="mx-auto h-8 w-8 text-slate-400"></i>
+    <p class="mt-3 font-medium">Nenhum processo corresponde aos filtros</p>
+    <p class="mt-1 text-sm text-slate-600">Remova algum filtro rápido ou altere a pesquisa.</p>
+  </div>
+
+  <!-- Paginação -->
+  <nav aria-label="Paginação" class="mt-4 flex items-center justify-between text-sm text-slate-600">
+    <p>Página 1 de 1</p>
+    <div class="flex gap-2">
+      <button type="button" disabled class="h-9 rounded-md border border-slate-200 px-3 text-slate-400">Anterior</button>
+      <button type="button" disabled class="h-9 rounded-md border border-slate-200 px-3 text-slate-400">Próxima</button>
+    </div>
+  </nav>
+
+  <!-- Painel de filtros avançados -->
+  <dialog id="dlg-filtros" class="cf-drawer bg-white" aria-labelledby="dlg-filtros-t">
+    <form data-fake-submit="Filtros aplicados (simulação)." data-toast-type="info" class="flex h-full flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <h2 id="dlg-filtros-t" class="text-lg font-semibold">Filtros</h2>
+        <button type="button" data-close class="rounded-md p-1.5 hover:bg-slate-100" aria-label="Fechar"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="flex-1 space-y-5 overflow-y-auto px-5 py-4 text-sm">
+        <fieldset><legend class="font-medium">Status</legend>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2"><input type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-brand-700">Em andamento</label>
+            <label class="flex items-center gap-2"><input type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-brand-700">Aguardando aprovação</label>
+            <label class="flex items-center gap-2"><input type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-brand-700">Devolvido</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-700">Suspenso</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-700">Concluído</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-700">Cancelado</label>
+          </div>
+        </fieldset>
+        <label class="block"><span class="font-medium">Etapa atual</span>
+          <select class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3"><option>Todas</option><option>Formalização da demanda</option><option>Aprovação da demanda</option><option>ETP e mapa de riscos</option><option>Pesquisa de preços</option><option>Termo de Referência</option><option>Aprovação da autoridade competente</option></select></label>
+        <label class="block"><span class="font-medium">Secretaria solicitante</span>
+          <select class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3"><option>Todas</option><option>Secretaria de Obras</option><option>Secretaria de Saúde</option><option>Secretaria de Educação</option><option>Gabinete do Prefeito</option></select></label>
+        <label class="block"><span class="font-medium">Modalidade</span>
+          <select class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3"><option>Todas</option><option>Pregão</option><option>Concorrência</option><option>Dispensa</option><option>Inexigibilidade</option></select></label>
+        <fieldset><legend class="font-medium">Abertura</legend>
+          <div class="mt-1 grid grid-cols-2 gap-2">
+            <label><span class="text-xs text-slate-500">De</span><input type="date" value="2026-01-01" class="mt-0.5 h-10 w-full rounded-md border border-slate-300 px-2"></label>
+            <label><span class="text-xs text-slate-500">Até</span><input type="date" value="2026-10-07" class="mt-0.5 h-10 w-full rounded-md border border-slate-300 px-2"></label>
+          </div>
+        </fieldset>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+        <button type="reset" class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Limpar</button>
+        <button type="submit" class="h-10 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">Aplicar filtros</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Salvar visão -->
+  <dialog id="dlg-salvar-visao" class="w-[28rem] bg-white" aria-labelledby="dlg-visao-t">
+    <form data-fake-submit="Visão “Obras — em andamento” salva em Minhas visões." class="p-6">
+      <h2 id="dlg-visao-t" class="text-lg font-semibold">Salvar visão</h2>
+      <p class="mt-1 text-sm text-slate-600">Guarda a pesquisa, os filtros e a ordenação atuais.</p>
+      <label class="mt-4 block text-sm"><span class="font-medium">Nome da visão</span>
+        <input required minlength="3" value="Obras — em andamento" class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3"></label>
+      <fieldset class="mt-4 text-sm"><legend class="font-medium">Compartilhamento</legend>
+        <label class="mt-2 flex items-center gap-2"><input type="radio" name="escopo" checked class="h-4 w-4 text-brand-700">Somente para mim</label>
+        <label class="mt-1 flex items-center gap-2"><input type="radio" name="escopo" class="h-4 w-4 text-brand-700">Toda a instituição (exige permissão)</label>
+      </fieldset>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="h-10 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Exportar CSV -->
+  <dialog id="dlg-exportar" class="w-[28rem] bg-white" aria-labelledby="dlg-exp-t">
+    <form data-fake-submit="Exportação concluída: 11 processos (processos-2026-10-07.csv)." class="p-6">
+      <h2 id="dlg-exp-t" class="text-lg font-semibold">Exportar processos em CSV</h2>
+      <p class="mt-1 text-sm text-slate-600">Serão exportados os 11 processos da pesquisa atual, com as colunas visíveis. Valores de orçamento sigiloso saem mascarados para quem não tem permissão.</p>
+      <p class="mt-3 rounded-md bg-slate-50 p-3 text-xs text-slate-600"><i data-lucide="info" class="mr-1 inline h-3.5 w-3.5"></i>Limite de 50.000 linhas por exportação.</p>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-close class="h-10 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</button>
+        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="download" class="h-4 w-4"></i>Exportar</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

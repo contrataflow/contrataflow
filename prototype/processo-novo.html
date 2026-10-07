@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novo processo — ContrataFlow (protótipo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/tailwind-config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<!-- SCR-005 — Novo processo (/processos/novo) · US-001 -->
+<body class="bg-slate-50 font-sans text-slate-900 antialiased" data-shell="app" data-active="processos" data-breadcrumb="Processos|processos.html > Novo processo">
+<main id="page" class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-3xl">
+
+    <h1 class="text-2xl font-semibold tracking-tight">Novo processo</h1>
+    <p class="mt-1 text-sm text-slate-600">Passo a passo para abrir um processo de contratação pública.</p>
+
+    <div data-wizard class="mt-6">
+      <ol class="hidden items-center gap-x-6 gap-y-2 md:flex" aria-label="Passos do assistente">
+        <li data-step-indicator="1" data-state="current" class="group flex items-center gap-2">
+          <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-sm font-semibold text-slate-500 group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+            <span class="group-data-[state=done]:hidden">1</span>
+            <i data-lucide="check" class="hidden h-4 w-4 group-data-[state=done]:block"></i>
+          </span>
+          <span class="text-sm text-slate-500 group-data-[state=current]:font-semibold group-data-[state=current]:text-brand-800 group-data-[state=done]:text-emerald-700">Identificação</span>
+        </li>
+        <li data-step-indicator="2" data-state="upcoming" class="group flex items-center gap-2">
+          <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-sm font-semibold text-slate-500 group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+            <span class="group-data-[state=done]:hidden">2</span>
+            <i data-lucide="check" class="hidden h-4 w-4 group-data-[state=done]:block"></i>
+          </span>
+          <span class="text-sm text-slate-500 group-data-[state=current]:font-semibold group-data-[state=current]:text-brand-800 group-data-[state=done]:text-emerald-700">Classificação</span>
+        </li>
+        <li data-step-indicator="3" data-state="upcoming" class="group flex items-center gap-2">
+          <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-sm font-semibold text-slate-500 group-data-[state=current]:border-brand-700 group-data-[state=current]:bg-brand-700 group-data-[state=current]:text-white group-data-[state=done]:border-emerald-600 group-data-[state=done]:bg-emerald-600 group-data-[state=done]:text-white">
+            <span class="group-data-[state=done]:hidden">3</span>
+            <i data-lucide="check" class="hidden h-4 w-4 group-data-[state=done]:block"></i>
+          </span>
+          <span class="text-sm text-slate-500 group-data-[state=current]:font-semibold group-data-[state=current]:text-brand-800 group-data-[state=done]:text-emerald-700">Revisão</span>
+        </li>
+      </ol>
+      <p data-step-label aria-live="polite" class="mt-2 text-sm font-medium text-slate-600">Passo 1 de 3</p>
+
+      <form novalidate class="mt-4 rounded-lg border border-slate-200 bg-white p-6 shadow-card">
+
+        <!-- Passo 1 — Identificação -->
+        <section data-step="1" aria-labelledby="step-1-title">
+          <h2 id="step-1-title" tabindex="-1" class="text-lg font-semibold">Identificação</h2>
+          <p class="mt-1 text-sm text-slate-600">Dados básicos para abrir o processo de contratação.</p>
+          <div class="mt-4 space-y-4">
+            <label class="block text-sm" for="f-titulo"><span class="font-medium">Título do processo <span aria-hidden="true" class="text-red-600">*</span></span>
+              <input id="f-titulo" name="titulo" type="text" required minlength="5" value="Aquisição de cimento para manutenção de vias"
+                     class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+            </label>
+            <label class="block text-sm" for="f-objeto"><span class="font-medium">Objeto <span aria-hidden="true" class="text-red-600">*</span></span>
+              <input id="f-objeto" name="objeto" type="text" required minlength="10" value="Aquisição de cimento Portland CP-II para manutenção de vias públicas do município"
+                     class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+            </label>
+            <label class="block text-sm" for="f-descricao"><span class="font-medium">Descrição detalhada <span aria-hidden="true" class="text-red-600">*</span></span>
+              <textarea id="f-descricao" name="descricao" rows="4" required minlength="20" aria-describedby="f-descricao-cont"
+                        class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">Reposição do estoque de cimento utilizado pelas equipes de manutenção viária nos bairros do município ao longo do segundo semestre de 2026.</textarea>
+              <span id="f-descricao-cont" data-count-for="f-descricao" class="mt-1 block text-xs text-slate-500">Mínimo de 20 caracteres.</span>
+            </label>
+          </div>
+          <div class="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
+            <a href="processos.html" class="flex h-10 items-center rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</a>
+            <button type="button" data-next class="inline-flex h-10 items-center gap-1.5 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">Próximo<i data-lucide="arrow-right" class="h-4 w-4"></i></button>
+          </div>
+        </section>
+
+        <!-- Passo 2 — Classificação -->
+        <section data-step="2" aria-labelledby="step-2-title" hidden>
+          <h2 id="step-2-title" tabindex="-1" class="text-lg font-semibold">Classificação</h2>
+          <p class="mt-1 text-sm text-slate-600">Como este processo será conduzido e por quem.</p>
+          <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label class="block text-sm" for="f-tipo"><span class="font-medium">Tipo de contratação <span aria-hidden="true" class="text-red-600">*</span></span>
+              <select id="f-tipo" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+                <option selected>Compras</option><option>Serviços</option><option>Obras</option><option>Serviços de engenharia</option><option>Soluções de TIC</option>
+              </select>
+            </label>
+            <label class="block text-sm" for="f-modalidade"><span class="font-medium">Modalidade prevista <span aria-hidden="true" class="text-red-600">*</span></span>
+              <select id="f-modalidade" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+                <option selected>Pregão</option><option>Concorrência</option><option>Dispensa</option><option>Inexigibilidade</option><option>Credenciamento</option>
+              </select>
+            </label>
+            <fieldset class="text-sm"><legend class="font-medium">Registro de preços</legend>
+              <div class="mt-2 flex gap-4">
+                <label class="flex items-center gap-1.5"><input type="radio" name="registro-precos" class="h-4 w-4 text-brand-700">Sim</label>
+                <label class="flex items-center gap-1.5"><input type="radio" name="registro-precos" checked class="h-4 w-4 text-brand-700">Não</label>
+              </div>
+            </fieldset>
+            <label class="block text-sm" for="f-origem"><span class="font-medium">Origem da demanda <span aria-hidden="true" class="text-red-600">*</span></span>
+              <select id="f-origem" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+                <option selected>Prevista no PCA 2026</option><option>Demanda não planejada</option><option>Determinação legal ou judicial</option><option>Continuidade de contrato anterior</option>
+              </select>
+            </label>
+            <label class="block text-sm" for="f-orgao"><span class="font-medium">Órgão <span aria-hidden="true" class="text-red-600">*</span></span>
+              <select id="f-orgao" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+                <option selected>Prefeitura de São José</option><option>Câmara Municipal de Vila Nova</option>
+              </select>
+            </label>
+            <label class="block text-sm" for="f-prioridade"><span class="font-medium">Prioridade <span aria-hidden="true" class="text-red-600">*</span></span>
+              <select id="f-prioridade" required class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+                <option>Baixa</option><option selected>Média</option><option>Alta</option><option>Urgente</option>
+              </select>
+            </label>
+            <label class="block text-sm" for="f-secretaria-sol"><span class="font-medium">Secretaria solicitante</span>
+              <select id="f-secretaria-sol" disabled aria-describedby="f-secretaria-sol-dica" class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-slate-600">
+                <option selected>Secretaria de Obras</option>
+              </select>
+              <span id="f-secretaria-sol-dica" class="mt-1 block text-xs text-slate-500">Definida pelo seu vínculo.</span>
+            </label>
+            <label class="block text-sm" for="f-unidade-sol"><span class="font-medium">Unidade solicitante</span>
+              <select id="f-unidade-sol" disabled aria-describedby="f-unidade-sol-dica" class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-slate-600">
+                <option selected>Setor de Manutenção</option>
+              </select>
+              <span id="f-unidade-sol-dica" class="mt-1 block text-xs text-slate-500">Definida pelo seu vínculo com o Setor de Manutenção.</span>
+            </label>
+            <label class="block text-sm md:col-span-2" for="f-valor"><span class="font-medium">Valor estimado preliminar (opcional)</span>
+              <input id="f-valor" type="text" inputmode="decimal" value="R$ 98.000,00" placeholder="R$ 0,00" class="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 md:w-1/2">
+            </label>
+            <div class="rounded-md border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+              <label class="flex items-start gap-2 text-sm" for="f-sigilo"><input id="f-sigilo" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-700"><span class="font-medium">Classificar orçamento como sigiloso</span></label>
+              <p class="mt-1 flex items-start gap-1.5 text-xs text-slate-600"><i data-lucide="info" class="mt-0.5 h-3.5 w-3.5 shrink-0"></i>Quando marcado, o valor estimado só aparece para quem tem permissão de ver orçamento sigiloso ou está com a custódia do processo; os demais veem o valor mascarado em telas, documentos e exportações (POL-09).</p>
+            </div>
+          </div>
+          <div class="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
+            <a href="processos.html" class="flex h-10 items-center rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</a>
+            <div class="flex gap-2">
+              <button type="button" data-prev class="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50"><i data-lucide="arrow-left" class="h-4 w-4"></i>Voltar</button>
+              <button type="button" data-next class="inline-flex h-10 items-center gap-1.5 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800">Próximo<i data-lucide="arrow-right" class="h-4 w-4"></i></button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Passo 3 — Revisão -->
+        <section data-step="3" aria-labelledby="step-3-title" hidden>
+          <h2 id="step-3-title" tabindex="-1" class="text-lg font-semibold">Revisão</h2>
+          <p class="mt-1 text-sm text-slate-600">Confira os dados antes de criar o processo.</p>
+
+          <div class="mt-4 rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">Identificação</h3>
+              <button type="button" data-go-step="1" class="text-sm font-medium text-brand-700 hover:underline">Editar</button>
+            </div>
+            <dl class="mt-2 space-y-1.5 text-sm">
+              <div><dt class="inline text-slate-500">Título: </dt><dd class="inline">Aquisição de cimento para manutenção de vias</dd></div>
+              <div><dt class="inline text-slate-500">Objeto: </dt><dd class="inline">Aquisição de cimento Portland CP-II para manutenção de vias públicas do município</dd></div>
+              <div><dt class="block text-slate-500">Descrição:</dt><dd>Reposição do estoque de cimento utilizado pelas equipes de manutenção viária nos bairros do município ao longo do segundo semestre de 2026.</dd></div>
+            </dl>
+          </div>
+
+          <div class="mt-4 rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">Classificação</h3>
+              <button type="button" data-go-step="2" class="text-sm font-medium text-brand-700 hover:underline">Editar</button>
+            </div>
+            <dl class="mt-2 grid grid-cols-1 gap-1.5 text-sm md:grid-cols-2">
+              <div><dt class="inline text-slate-500">Tipo de contratação: </dt><dd class="inline">Compras</dd></div>
+              <div><dt class="inline text-slate-500">Modalidade prevista: </dt><dd class="inline">Pregão</dd></div>
+              <div><dt class="inline text-slate-500">Registro de preços: </dt><dd class="inline">Não</dd></div>
+              <div><dt class="inline text-slate-500">Origem da demanda: </dt><dd class="inline">Prevista no PCA 2026</dd></div>
+              <div><dt class="inline text-slate-500">Órgão: </dt><dd class="inline">Prefeitura de São José</dd></div>
+              <div><dt class="inline text-slate-500">Secretaria solicitante: </dt><dd class="inline">Secretaria de Obras</dd></div>
+              <div><dt class="inline text-slate-500">Unidade solicitante: </dt><dd class="inline">Setor de Manutenção</dd></div>
+              <div><dt class="inline text-slate-500">Prioridade: </dt><dd class="inline">Média</dd></div>
+              <div><dt class="inline text-slate-500">Valor estimado preliminar: </dt><dd class="inline">R$ 98.000,00</dd></div>
+              <div><dt class="inline text-slate-500">Sigilo do orçamento: </dt><dd class="inline">Não sigiloso</dd></div>
+            </dl>
+          </div>
+
+          <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-center justify-between">
+              <h3 class="flex items-center gap-2 font-semibold"><i data-lucide="building-2" class="h-4 w-4 text-slate-500"></i>Workflow que será aplicado</h3>
+              <a href="#" data-toast="Visualização completa do fluxo — não faz parte deste protótipo." data-toast-type="info" class="text-xs font-medium text-brand-700 hover:underline">Ver fluxo completo</a>
+            </div>
+            <p class="mt-1 text-sm text-slate-700">Fase preparatória — Lei 14.133/2021 · v1</p>
+            <p class="mt-1 text-xs text-slate-500">Fluxo padrão da instituição, com 7 etapas até o planejamento da contratação concluído.</p>
+          </div>
+
+          <div class="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <div class="flex items-start gap-2">
+              <i data-lucide="triangle-alert" class="mt-0.5 h-5 w-5 shrink-0 text-amber-700"></i>
+              <div>
+                <h3 class="font-semibold text-amber-900">Possível duplicidade</h3>
+                <p class="mt-1 text-sm text-amber-900">Encontramos um processo semelhante aberto recentemente: <a href="processo.html" class="font-medium underline">0011/2026 — Contratação de serviço de poda de árvores</a>.</p>
+                <label class="mt-3 flex items-start gap-2 text-sm text-amber-900" for="f-duplicidade-ok">
+                  <input id="f-duplicidade-ok" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-amber-400 text-brand-700">
+                  Já revisei: este processo é diferente do candidato acima. Criar mesmo assim.
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
+            <a href="processos.html" class="flex h-10 items-center rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50">Cancelar</a>
+            <div class="flex gap-2">
+              <button type="button" data-prev class="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50"><i data-lucide="arrow-left" class="h-4 w-4"></i>Voltar</button>
+              <button type="button" data-toast="Processo 0012/2026 criado. Próximo passo: elaborar o DFD." data-toast-type="success" data-redirect="processo.html" class="inline-flex h-10 items-center gap-1.5 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"><i data-lucide="circle-check" class="h-4 w-4"></i>Criar processo</button>
+            </div>
+          </div>
+        </section>
+
+      </form>
+    </div>
+  </div>
+</main>
+<script src="assets/app.js"></script>
+</body>
+</html>

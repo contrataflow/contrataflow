@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+
+import { packageName } from './index.js';
+
+describe('@contrataflow/{{ name }}', () => {
+  it('expõe o nome do pacote', () => {
+    expect(packageName).toBe('@contrataflow/{{ name }}');
+  });
+});

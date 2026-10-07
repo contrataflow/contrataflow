@@ -1,0 +1,6 @@
+# Typecheck só dos pacotes afetados em relação à main (o CI repete a verificação completa).
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+  pnpm exec turbo run typecheck --filter="...[origin/main]"
+else
+  pnpm exec turbo run typecheck
+fi

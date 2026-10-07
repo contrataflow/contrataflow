@@ -1,0 +1,68 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalDependencies": [".npmrc", ".nvmrc", "packages/tsconfig/*.json"],
+  "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": ["CI", "DOCKER_HOST", "TESTCONTAINERS_*", "NEXT_TELEMETRY_DISABLED"],
+  "tasks": {
+    "db:generate": {
+      "inputs": ["prisma/schema.prisma"],
+      "outputs": ["node_modules/.prisma/**"]
+    },
+    "openapi:generate": {
+      "dependsOn": ["^build"],
+      "outputs": ["openapi/**"]
+    },
+    "build": {
+      "dependsOn": ["^build", "db:generate"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "db:generate"]
+    },
+    "lint": {
+      "dependsOn": ["^build", "//#lint:repo"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/eslint-config/**"]
+    },
+    "//#lint:repo": {
+      "inputs": [
+        "**/*",
+        "!**/node_modules/**",
+        "!**/dist/**",
+        "!**/.next/**",
+        "!**/.turbo/**",
+        "!**/coverage/**",
+        "!docs/**",
+        "!_work/**",
+        "!prototype/**",
+        "!.ddesktop/**",
+        "!.claude/**"
+      ]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:integration": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "//#depcruise": {
+      "inputs": [
+        "apps/*/src/**",
+        "packages/*/src/**",
+        ".dependency-cruiser.cjs",
+        "tools/module-levels.json"
+      ]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

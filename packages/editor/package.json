@@ -1,0 +1,36 @@
+{
+  "name": "@contrataflow/editor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schema de conteúdo do editor rico (TipTap/ProseMirror), validação e serialização HTML no servidor (DEC-051, DEC-056).",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@contrataflow/types": "workspace:*",
+    "@contrataflow/validation": "workspace:*"
+  },
+  "devDependencies": {
+    "@contrataflow/eslint-config": "workspace:*",
+    "@contrataflow/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

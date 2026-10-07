@@ -1,0 +1,698 @@
+# Pesquisa de preços e fornecedores (`price-research`, `supplier`)
+
+> Parte de [api.md §4](../api.md#4-especificação-por-endpoint). Convenções e erros genéricos: api.md §1–§2.
+
+| ID | Método | Rota | Permissão | Story |
+|---|---|---|---|---|
+| PRS-01 | GET | `/processes/{id}/price-research` | `PROCESS_VIEW` | US-024 |
+| PRS-02 | POST | `/processes/{id}/price-research` | `PRICE_RESEARCH_CREATE` + POL-02 | US-024 |
+| PRS-03 | GET | `/price-research/{id}` | `PROCESS_VIEW` (+ POL-09) | US-024 |
+| PRS-04 | PATCH | `/price-research/{id}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-024, US-029 |
+| PRS-05 | GET | `/price-research/{id}/items` | `PROCESS_VIEW` (+ POL-09) | US-024, US-029 |
+| PRS-06 | POST | `/price-research/{id}/items` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-024 |
+| PRS-07 | PATCH | `/price-items/{itemId}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-029 |
+| PRS-08 | DELETE | `/price-items/{itemId}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-024 |
+| PRS-09 | GET | `/price-research/{id}/sources` | `PROCESS_VIEW` (+ POL-09) | US-026 |
+| PRS-10 | POST | `/price-research/{id}/sources` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-026 |
+| PRS-11 | PATCH | `/price-sources/{sourceId}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-026 |
+| PRS-12 | DELETE | `/price-sources/{sourceId}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-026 |
+| PRS-13 | PUT | `/price-sources/{sourceId}/quotations` | `PRICE_RESEARCH_UPDATE` + POL-02 (IM da fonte) | US-026 |
+| PRS-14 | PATCH | `/quotations/{quotationId}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-026 |
+| PRS-15 | DELETE | `/quotations/{quotationId}` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-026 |
+| PRS-16 | POST | `/quotations/{quotationId}/exclude` | `PRICE_RESEARCH_EXCLUDE_QUOTATION` + POL-02 | US-027 |
+| PRS-17 | POST | `/quotations/{quotationId}/restore` | `PRICE_RESEARCH_EXCLUDE_QUOTATION` + POL-02 | US-027 |
+| PRS-18 | POST | `/price-research/{id}/import-preview` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-028 |
+| PRS-19 | POST | `/price-research/{id}/import` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-028 |
+| PRS-20 | POST | `/price-research/{id}/recalculate` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-029 |
+| PRS-21 | GET | `/price-research/{id}/comparative-map` | `PROCESS_VIEW` (+ POL-09) | US-031 |
+| PRS-22 | GET | `/price-research/{id}/comparative-map/export` | `PROCESS_VIEW` (+ POL-09) | US-031 |
+| PRS-23 | POST | `/price-research/{id}/complete` | `PRICE_RESEARCH_COMPLETE` + POL-02 | US-032 |
+| PRS-24 | GET | `/price-research/{id}/import-template` | `PRICE_RESEARCH_UPDATE` + POL-02 | US-028 |
+| SUP-01 | GET | `/suppliers` | `SUPPLIER_VIEW` | US-025 |
+| SUP-02 | POST | `/suppliers` | `SUPPLIER_MANAGE` | US-025 |
+| SUP-03 | GET | `/suppliers/{id}` | `SUPPLIER_VIEW` | US-025 |
+| SUP-04 | PATCH | `/suppliers/{id}` | `SUPPLIER_MANAGE` | US-025 |
+| SUP-05 | DELETE | `/suppliers/{id}` | `SUPPLIER_MANAGE` (somente sem uso) | US-025 |
+| SUP-06 | GET | `/suppliers/lookup` | `SUPPLIER_VIEW` | US-025 |
+
+O "mapa comparativo" em PDF é a renderização do documento `PRICE_RESEARCH` (`DOC-20`/`DOC-21`/`DOC-22`/`DOC-23`, fora deste arquivo), cujo template inclui a seção `PRICE_SUMMARY`. Anexos de fonte usam o fluxo genérico de upload (`ATT-02`, US-068).
+
+---
+
+### PRS-01 — Listar pesquisas de preços do processo
+`GET /api/v1/processes/{id}/price-research` · **Permissão:** `PROCESS_VIEW` · **Story:** US-024
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório) — processo
+- **Request:** —
+- **Response:** `200 { data: PriceResearchSummary[] }` (0 ou 1 não cancelada + canceladas)
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 404 | `NOT_FOUND` | Processo inexistente/outro tenant |
+
+- **Efeitos:** —
+- **Notas:** —
+
+### PRS-02 — Criar pesquisa de preços a partir dos itens do processo
+`POST /api/v1/processes/{id}/price-research` · **Permissão:** `PRICE_RESEARCH_CREATE` + POL-02 · **Story:** US-024
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório) — processo
+- **Request:**
+```ts
+{
+  title?: string;          // 5–250; padrão "Pesquisa de preços — {código do processo}"
+  templateId?: string;     // ativo, publicado, do tipo; padrão do tipo
+  referenceDate?: string;  // YYYY-MM-DD, ≤ hoje; padrão hoje
+  items?: Array<{ processItemId: string; quantity?: string }>; // ≥1 (padrão: todos os itens); quantity >0, ≤4 casas
+}
+```
+- **Response:** `201 { data: PriceResearch }`
+```json
+{ "data": { "id": "0192…", "documentId": "0192…", "processId": "0192…", "code": "PP 0003/2026",
+  "title": "Pesquisa de preços — 0012/2026", "status": "DRAFT", "confidentiality": "INTERNAL", "referenceDate": "2026-10-06",
+  "parameters": { "defaultMethod": "AUTO_CV", "cvThresholdPercent": "25.0000", "minQuotations": 3,
+    "directQuoteMaxAgeDays": 180, "similarContractMaxAgeDays": 365, "outlierLowerPercent": "70.0000",
+    "outlierUpperPercent": "130.0000", "unitPriceDecimals": 2, "roundingMode": "HALF_UP" },
+  "itemsCount": 3, "itemsWithAlertsCount": 3, "totalEstimatedValue": null, "totalEstimatedValueMasked": false,
+  "completedAt": null, "pendingApprovalId": null, "version": 1 } }
+```
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` / `NOT_PROCESS_CUSTODIAN` | Sem permissão/custódia |
+| 409 | `INVALID_PROCESS_STATUS` | Processo suspenso/cancelado/concluído |
+| 409 | `DOCUMENT_ALREADY_EXISTS` | Pesquisa não cancelada já existe |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Etapa não permite o tipo |
+| 422 | `BUSINESS_RULE_VIOLATION` (`PRICE_ITEMS_REQUIRED`) | Processo sem itens |
+| 422 | `VALIDATION_ERROR` | Item inválido (`REFERENCE_NOT_FOUND`/`DUPLICATE_IN_LIST`); quantidade inválida (`REQUIRED`/`OUT_OF_RANGE`/`INVALID_DECIMAL`); data-base futura (`OUT_OF_RANGE`); título fora de 5–250 (`TOO_SHORT`/`TOO_LONG`); template inativo (`REFERENCE_INACTIVE`) |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
+
+- **Efeitos:** Eventos: `DocumentCreated` (`document.created.price_research`) — `documentId`, `documentTypeCode = PRICE_RESEARCH`, `kind = STRUCTURED`, `code`, `title`, `templateVersionId`. Auditoria: `document.create` (`DATA_CHANGE`) — `metadata`: `documentCode`, `documentTypeCode`, `processCode`, `itemsCount`, snapshot de `parameters`, `idempotencyKey`. Timeline: `DOCUMENT_CREATED`.
+- **Notas:** `parameters` (inclui `roundingMode`) é um snapshot fixado na criação (RN-PRICE-05); confidencialidade herdada do processo.
+
+### PRS-03 — Obter pesquisa de preços
+`GET /api/v1/price-research/{id}` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-024
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `200 { data: PriceResearch, meta: { allowedActions } }` + `ETag` (schema de PRS-02)
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 404 | `NOT_FOUND` | Inexistente/outro tenant/não visível |
+
+- **Efeitos:** —
+- **Notas:** leitura de valores sigilosos sujeita a POL-09/RN-PRICE-12 (api.md §1.4): quem não atende a política recebe `totalEstimatedValue: null` + `totalEstimatedValueMasked: true`.
+
+### PRS-04 — Atualizar pesquisa de preços (data-base, título e parâmetros de cálculo)
+`PATCH /api/v1/price-research/{id}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-024, US-029
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{
+  referenceDate?: string;    // ≤ hoje
+  title?: string;             // 5–250
+  defaultMethod?: string;     // PriceCalculationMethod
+  cvThresholdPercent?: string;
+  minQuotations?: number;
+  unitPriceDecimals?: number;
+  roundingMode?: string;      // RoundingMode
+}
+```
+- **Response:** `200 { data: PriceResearch }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa concluída |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` | Campo fora de formato/faixa; parâmetro fixado no snapshot (`NOT_ALLOWED`) |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit — `priceResearchId`, `itemsCount`, `itemsWithAlertsCount`, sem valores. Auditoria: `document.draft_update` (data-base/título) ou `price_research.method_change`/`price_research.recalculate` (parâmetros de cálculo, US-029).
+- **Notas:** demais parâmetros do snapshot (ex.: `directQuoteMaxAgeDays`, `similarContractMaxAgeDays`, `outlierLowerPercent/UpperPercent`) não aparecem como editáveis nas stories-fonte — a definir na implementação.
+
+### PRS-05 — Listar itens da pesquisa
+`GET /api/v1/price-research/{id}/items` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-024, US-029
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório); query: `page`, `pageSize` (api.md §1.2); filtros `lot`, `hasAlerts` (booleano) — sem campo de ordenação documentado (ordem padrão: `sortOrder`)
+- **Request:** —
+- **Response:** `200 { data: PriceItem[], meta }`
+```ts
+PriceItem {
+  id: string; processItemId: string; quantity: string;
+  methodOverride?: string | null; manualUnitPrice?: string | null; manualJustification?: string | null;
+  validQuotationsCount: number; meanPrice?: string; medianPrice?: string; lowestPrice?: string; highestPrice?: string;
+  stdDeviation?: string; coefficientOfVariation?: string;
+  effectiveMethod: string; recommendedUnitPrice?: string; recommendedUnitPriceMasked?: boolean;
+  totalPrice?: string; calculatedAt?: string; belowMinimumJustification?: string | null;
+  sortOrder: number; version: number;
+}
+```
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+
+- **Efeitos:** —
+- **Notas:** valores mascarados conforme POL-09/RN-PRICE-12 quando a pesquisa é sigilosa.
+
+### PRS-06 — Incluir itens na pesquisa
+`POST /api/v1/price-research/{id}/items` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-024
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{ items: Array<{ processItemId: string; quantity?: string }> } // itens do processo, não excluídos, sem repetição
+```
+- **Response:** `201 { data: PriceItem[] }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa concluída |
+| 422 | `VALIDATION_ERROR` | Item inválido (`REFERENCE_NOT_FOUND`/`DUPLICATE_IN_LIST`); quantidade inválida (`OUT_OF_RANGE`/`INVALID_DECIMAL`) |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) **sempre** no commit — `priceResearchId`, `itemsCount`, `itemsWithAlertsCount`. Auditoria: `document.items_update` (`DATA_CHANGE`) — `changes`: itens incluídos com quantidade.
+- **Notas:** PRS-06 emite `PriceResearchRecalculated` em todo commit, mesmo sem cotações ainda lançadas.
+
+### PRS-07 — Atualizar item da pesquisa (quantidade e método)
+`PATCH /api/v1/price-items/{itemId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-029
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `itemId` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{
+  quantity?: string;              // >0
+  methodOverride?: string | null; // MEAN|MEDIAN|LOWEST|MANUAL; vazio = segue padrão da pesquisa
+  manualUnitPrice?: string;       // >0; condicional MANUAL; casas ≤ unitPriceDecimals
+  manualJustification?: string;   // ≥20; condicional MANUAL (RN-PRICE-43)
+}
+```
+- **Response:** `200 { data: PriceItem }` com estatísticas recalculadas
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` | `MANUAL` sem valor/justificativa (`CONDITIONAL_REQUIRED`); valor inválido (`INVALID_DECIMAL`); `methodOverride` fora do enum (`INVALID_ENUM`); campo calculado enviado (`NOT_ALLOWED`); `quantity` ≤0 (`OUT_OF_RANGE`) |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit. Auditoria: `price_research.method_change` (`DATA_CHANGE`) quando `methodOverride` muda — `changes`: método anterior/novo; `metadata.priceItemId`.
+- **Notas:** estatísticas (`validQuotationsCount`, `meanPrice` etc.) e `effectiveMethod`/`recommendedUnitPrice`/`totalPrice` são somente leitura. Edição de `manualUnitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12.
+
+### PRS-08 — Remover item da pesquisa
+`DELETE /api/v1/price-items/{itemId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-024
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `itemId` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `204` sem corpo
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa concluída |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` (`NOT_ALLOWED`) | Remover o último item da pesquisa |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit. Auditoria: `document.items_update` (`DATA_CHANGE`) — `changes`: item removido; `metadata`: nº de cotações apagadas.
+- **Notas:** a pesquisa precisa de ao menos um item.
+
+### PRS-09 — Listar fontes da pesquisa
+`GET /api/v1/price-research/{id}/sources` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório); paginação padrão (api.md §1.2), sem filtros/ordenação documentados
+- **Request:** —
+- **Response:** `200 { data: PriceSource[], meta }`
+```ts
+PriceSource {
+  id: string; sourceTypeId: string; description: string; supplierId?: string | null;
+  quoteDate?: string; accessedAt?: string; url?: string; referenceOrganization?: string;
+  referenceDocument?: string; supplierChoiceJustification?: string; notes?: string; version: number;
+}
+```
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+
+- **Efeitos:** —
+- **Notas:** —
+
+### PRS-10 — Criar fonte de pesquisa
+`POST /api/v1/price-research/{id}/sources` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{
+  sourceTypeId: string;                 // catálogo PRICE_SOURCE_TYPE, ativo
+  description: string;                  // ≤300
+  supplierId?: string;                  // condicional (requiredFields); fornecedor ativo do tenant
+  quoteDate?: string;                   // condicional
+  accessedAt?: string;                  // condicional; não futura
+  url?: string;                         // condicional; inicia com https://
+  referenceOrganization?: string;       // condicional; ≤250
+  referenceDocument?: string;           // condicional; ≤120
+  supplierChoiceJustification?: string; // condicional
+  notes?: string;
+}
+```
+- **Response:** `201 { data: PriceSource }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 422 | `QUOTATION_REQUIRED_FIELDS` | Campos exigidos pelo tipo de fonte ausentes |
+| 422 | `VALIDATION_ERROR` | `sourceTypeId`/`supplierId` inválido (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); `url` sem `https://` (`INVALID_FORMAT`); data futura (`DATE_IN_PAST`) |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
+
+- **Efeitos:** Auditoria: `price_research.source_create` (`DATA_CHANGE`) — `metadata.sourceTypeId`.
+- **Notas:** anexo (`attachment`) usa o fluxo genérico de upload (`ATT-02`, US-068).
+
+### PRS-11 — Atualizar fonte de pesquisa
+`PATCH /api/v1/price-sources/{sourceId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `sourceId` (path, uuid, obrigatório)
+- **Request:** campos editáveis de PRS-10 (parciais)
+- **Response:** `200 { data: PriceSource }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` / `QUOTATION_REQUIRED_FIELDS` | Ver PRS-10 |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.source_update` (`DATA_CHANGE`) — `changes`: campos alterados.
+- **Notas:** —
+
+### PRS-12 — Remover fonte de pesquisa
+`DELETE /api/v1/price-sources/{sourceId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `sourceId` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `204` sem corpo
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.source_delete` (`DATA_CHANGE`) — `metadata`: quantidade de cotações removidas.
+- **Notas:** —
+
+### PRS-13 — Lançar cotações da fonte (grade)
+`PUT /api/v1/price-sources/{sourceId}/quotations` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 (`If-Match` da fonte) · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório (versão da fonte)
+- **Parâmetros:** `sourceId` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{ items: Array<{ priceItemId: string; unitPrice: string; brandModel?: string }> } // unitPrice >0, unitPriceDecimals casas; brandModel ≤200
+```
+- **Response:** `200 { data: Quotation[] }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Fonte inexistente/outro tenant |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` (`INVALID_DECIMAL`) | Preço ausente/zero/negativo ou fora das casas |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.quotation_create`/`quotation_update` (`DATA_CHANGE`) por linha — `metadata`: `priceItemId`, `priceSourceId`.
+- **Notas:** linhas sobre cotação `EXCLUDED` são bloqueadas (`INVALID_STATE`) — restaurar antes de editar (PRS-17). Edição de `unitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12.
+
+### PRS-14 — Atualizar cotação individual
+`PATCH /api/v1/quotations/{quotationId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `quotationId` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{ unitPrice?: string; brandModel?: string }
+```
+- **Response:** `200 { data: Quotation }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 409 | `INVALID_STATE` | Cotação `EXCLUDED` |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` (`INVALID_DECIMAL`) | Preço inválido |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.quotation_update` (`DATA_CHANGE`) — `metadata`: `priceItemId`, `priceSourceId`.
+- **Notas:** edição de `unitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12.
+
+### PRS-15 — Remover cotação
+`DELETE /api/v1/quotations/{quotationId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `quotationId` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `204` sem corpo
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.quotation_delete` (`DATA_CHANGE`) — `metadata`: `priceItemId`, `priceSourceId`.
+- **Notas:** —
+
+### PRS-16 — Desconsiderar cotação
+`POST /api/v1/quotations/{quotationId}/exclude` · **Permissão:** `PRICE_RESEARCH_EXCLUDE_QUOTATION` + POL-02 · **Story:** US-027
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `quotationId` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{ exclusionReason: string; exclusionJustification: string } // ExclusionReason enum; justificativa ≥20
+```
+- **Response:** `200 { data: Quotation }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 409 | `INVALID_STATE` | Já `EXCLUDED` |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` | Motivo ausente (`REQUIRED`); justificativa curta (`TOO_SHORT`) |
+
+- **Efeitos:** Eventos: `QuotationExcluded` (`price_research.quotation_excluded`) — `priceResearchId`, `quotationId`, `priceItemId`, `reason`; seguido de `PriceResearchRecalculated`. Auditoria: `price_research.quotation_exclude` (`DATA_CHANGE`) — `metadata.reason`; justificativa como hash + tamanho.
+- **Notas:** —
+
+### PRS-17 — Restaurar cotação
+`POST /api/v1/quotations/{quotationId}/restore` · **Permissão:** `PRICE_RESEARCH_EXCLUDE_QUOTATION` + POL-02 · **Story:** US-027
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `quotationId` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `200 { data: Quotation }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 409 | `INVALID_STATE` | Já `VALID` |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+
+- **Efeitos:** Eventos: `QuotationRestored` (`price_research.quotation_restored`) — `priceResearchId`, `quotationId`, `priceItemId`; seguido de `PriceResearchRecalculated`. Auditoria: `price_research.quotation_restore` (`DATA_CHANGE`) — `metadata.priceItemId`.
+- **Notas:** —
+
+### PRS-18 — Pré-visualizar importação de cotações por planilha
+`POST /api/v1/price-research/{id}/import-preview` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-028
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** multipart `.xlsx` (`file`, obrigatório)
+- **Response:** `200 { data: { previewToken: string, rows: [...], summary: { total: number, valid: number, errors: number } } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 413 | `FILE_TOO_LARGE` | Arquivo acima do limite |
+| 415 | `FILE_TYPE_NOT_ALLOWED` | Extensão/MIME fora de `.xlsx` |
+| 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`) | Linha/coluna com item ou fonte não encontrada |
+| 422 | `VALIDATION_ERROR` (`INVALID_DECIMAL`) | Preço inválido |
+
+- **Efeitos:** — (não grava nada, não gera evento).
+- **Notas:** `previewToken` válido por 15 min; consumido em PRS-19.
+
+### PRS-19 — Aplicar importação de cotações
+`POST /api/v1/price-research/{id}/import` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-028
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:**
+```ts
+{ previewToken: string }
+```
+- **Response:** `200 { data: { appliedCount: number, skippedCount: number } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
+| 410 | `IMPORT_PREVIEW_EXPIRED` | Token expirado (15 min) ou origem alterada desde a prévia |
+| 422 | `VALIDATION_ERROR` / `IDEMPOTENCY_KEY_REUSED` | Corpo inválido / chave reutilizada |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit. Auditoria: `price_research.import` (`DATA_CHANGE`) — `metadata`: `appliedCount`, `skippedCount`, nome do arquivo.
+- **Notas:** —
+
+### PRS-20 — Recalcular estatísticas da pesquisa
+`POST /api/v1/price-research/{id}/recalculate` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-029
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** `{}`
+- **Response:** `200 { data: { itemsCount: number, itemsWithAlertsCount: number, lastCalculatedAt: string } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) — `priceResearchId`, `itemsCount`, `itemsWithAlertsCount` (RN-PRICE-45). Auditoria: `price_research.recalculate` (`DATA_CHANGE`) — `metadata`: `itemsCount`, `itemsWithAlertsCount`, `trigger`.
+- **Notas:** recálculo manual; também disparado implicitamente por PRS-04/06/07/08/11/12/13/14/15/16/17/19.
+
+### PRS-21 — Obter mapa comparativo
+`GET /api/v1/price-research/{id}/comparative-map` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-031
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `200 { data: { items: [...], sources: [...], cells: [...] } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 404 | `PRICE_RESEARCH_NOT_FOUND` | Pesquisa inexistente/outro tenant/não visível |
+
+- **Efeitos:** —
+- **Notas:** visão somente leitura sobre `PriceItem`/`PriceSource`/`Quotation` (editados em PRS-06..PRS-17/PRS-07).
+
+### PRS-22 — Exportar mapa comparativo (xlsx)
+`GET /api/v1/price-research/{id}/comparative-map/export?format=xlsx` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-031
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório); query: `format` (obrigatório, somente `xlsx` no MVP 1)
+- **Request:** —
+- **Response:** `200` arquivo `xlsx`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 404 | `PRICE_RESEARCH_NOT_FOUND` | Pesquisa não visível/outro tenant |
+| 422 | `EXPORT_TOO_LARGE` | Acima de 500 itens ou 50 fontes |
+| 422 | `VALIDATION_ERROR` (`INVALID_ENUM`) | `format` diferente de `xlsx` |
+
+- **Efeitos:** Auditoria: `price_research.export` (`EXPORT`) — `metadata`: `format`, `itemsCount`, `sourcesCount`, `masked: boolean`.
+- **Notas:** —
+
+### PRS-23 — Concluir pesquisa de preços
+`POST /api/v1/price-research/{id}/complete` · **Permissão:** `PRICE_RESEARCH_COMPLETE` + POL-02 · **Story:** US-032
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` obrigatório
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** `{}`
+- **Response:** `200 { data: PriceResearch }` com `completedAt`, `document: { status: "FINALIZED", currentVersionId }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Já concluída/não editável |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `PRICE_RESEARCH_INCOMPLETE` | Item sem `recommendedUnitPrice` (`violations[].code = PRICE_ITEM_WITHOUT_PRICE`) ou abaixo do mínimo sem justificativa (`PRICE_ITEM_BELOW_MINIMUM_UNJUSTIFIED`) |
+
+- **Efeitos:** Eventos: `PriceResearchCompleted` (`DocumentFinalized`) (`document.finalized.price_research`) — forma tipada; `typedSummary: { totalEstimatedValueMasked, itemsCount, itemsWithAlertsCount }`; `DocumentVersionCreated` (`document.version_created.price_research`) — `reason = FINALIZATION`, `contentHash`. Auditoria: `price_research.complete` (`DATA_CHANGE`) — `changes`: `estimatedValue` anterior/novo (hash + mascarado se sigiloso); `metadata`: `documentVersionId`, `itemsCount`, `itemsWithAlertsCount`, `idempotencyKey`.
+- **Notas:** propaga `Process.estimatedValue`/`estimatedValueSource` e `ProcessItem.referenceUnitPrice` (RN-PRICE-61/62).
+
+### PRS-24 — Obter modelo de planilha para importação
+`GET /api/v1/price-research/{id}/import-template` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-028
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `200` arquivo `.xlsx` (matriz itens × fontes com preços atuais)
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+
+- **Efeitos:** —
+- **Notas:** planilha gerada serve de base para a importação via PRS-18/PRS-19; layout exato (colunas/abas) não detalhado na story além da matriz itens × fontes — a definir na implementação.
+
+### SUP-01 — Listar fornecedores
+`GET /api/v1/suppliers` · **Permissão:** `SUPPLIER_VIEW` · **Story:** US-025
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** query: `q` (busca textual, mín. 2 caracteres, api.md §1.2); `isActive` (filtro booleano); `page`, `pageSize` — sem campo de ordenação documentado
+- **Request:** —
+- **Response:** `200 { data: Supplier[], meta }`
+```ts
+Supplier {
+  id: string; documentType: string; documentNumber: string; legalName: string; tradeName?: string;
+  email?: string; phone?: string; website?: string; contactName?: string;
+  addressStreet?: string; /* …demais campos de endereço, iguais a Organization */ addressZipCode?: string;
+  isActive: boolean; notes?: string; version: number;
+}
+```
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem `SUPPLIER_VIEW` |
+
+- **Efeitos:** —
+- **Notas:** lista completa dos campos de endereço remetida a "mesmos campos de `Organization`" pela story, sem enumeração própria — ver `entities.md` se necessário.
+
+### SUP-02 — Cadastrar fornecedor
+`POST /api/v1/suppliers` · **Permissão:** `SUPPLIER_MANAGE` · **Story:** US-025
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
+- **Parâmetros:** —
+- **Request:**
+```ts
+{
+  documentType: string;       // SupplierDocumentType; imutável após criar
+  documentNumber: string;     // CNPJ/CPF com dígito verificador válido; imutável após criar
+  legalName: string;          // 2–250
+  tradeName?: string;         // ≤250
+  email?: string;             // formato válido
+  phone?: string;             // ≤20
+  website?: string;           // ≤255
+  contactName?: string;       // ≤150
+  addressStreet?: string;     // … demais campos de endereço, como Organization
+  notes?: string;             // ≤5000
+}
+```
+- **Response:** `201 { data: Supplier }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 409 | `SUPPLIER_ALREADY_EXISTS` | Mesmo CNPJ/CPF no tenant |
+| 422 | `VALIDATION_ERROR` | Campo obrigatório ausente; CNPJ/CPF com DV inválido (`INVALID_CNPJ`/`INVALID_CPF`); formato inválido (`INVALID_FORMAT`); limites de tamanho (`TOO_LONG`) |
+
+- **Efeitos:** Eventos: `SupplierCreated` (`supplier.created`) — `supplierId`, `documentType`. Auditoria: `supplier.create` (`DATA_CHANGE`) — `changes`: campos não sensíveis (CPF como hash); `metadata.documentType`.
+- **Notas:** —
+
+### SUP-03 — Obter fornecedor
+`GET /api/v1/suppliers/{id}` · **Permissão:** `SUPPLIER_VIEW` · **Story:** US-025
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `200 { data: Supplier }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+
+- **Efeitos:** —
+- **Notas:** —
+
+### SUP-04 — Atualizar fornecedor
+`PATCH /api/v1/suppliers/{id}` · **Permissão:** `SUPPLIER_MANAGE` · **Story:** US-025
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** campos editáveis de SUP-02, exceto `documentType`/`documentNumber`
+- **Response:** `200 { data: Supplier }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` (`NOT_ALLOWED`) | Alterar `documentType`/`documentNumber` |
+| 422 | `VALIDATION_ERROR` | Demais campos (ver SUP-02) |
+
+- **Efeitos:** Eventos: `SupplierUpdated` (`supplier.updated`), inclui inativação — `supplierId`, `documentType`, `changedFields[]`. Auditoria: `supplier.update` (`DATA_CHANGE`) — `changes`: campos alterados; ou `supplier.deactivate` quando `isActive` passa a `false` (`metadata`: motivo, se informado).
+- **Notas:** —
+
+### SUP-05 — Excluir fornecedor
+`DELETE /api/v1/suppliers/{id}` · **Permissão:** `SUPPLIER_MANAGE` (somente sem uso) · **Story:** US-025
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Parâmetros:** `id` (path, uuid, obrigatório)
+- **Request:** —
+- **Response:** `204` sem corpo
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant |
+| 409 | `SUPPLIER_IN_USE` | Referenciado por fonte de preço não excluída (oferecer "Inativar") |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+
+- **Efeitos:** Auditoria: `supplier.delete` (`DATA_CHANGE`) — exclusão lógica; `metadata.documentType`.
+- **Notas:** não há evento de domínio dedicado para a exclusão nas fontes canônicas (lacuna sinalizada na própria story de US-025) — apenas auditoria.
+
+### SUP-06 — Consultar fornecedor por documento
+`GET /api/v1/suppliers/lookup?documentNumber=` · **Permissão:** `SUPPLIER_VIEW` · **Story:** US-025
+
+- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Parâmetros:** query: `documentNumber` (obrigatório, CNPJ/CPF)
+- **Request:** —
+- **Response:** `200 { data: Supplier | null }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem permissão |
+
+- **Efeitos:** —
+- **Notas:** usado para evitar duplicidade antes de SUP-02.

@@ -1,0 +1,9 @@
+{
+  "extends": "@contrataflow/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts", "lib", "test", "turbo", "fresh-clone"],
+  "exclude": ["fixtures", "turbo/generators/templates"]
+}
