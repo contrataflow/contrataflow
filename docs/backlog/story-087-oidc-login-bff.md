@@ -28,11 +28,11 @@ A página de entrada (SCR-001) leva ao BFF (`/api/auth/login`), que inicia o flu
 ## Contexto
 - Nos órgãos, é comum o uso de senhas "do setor" e até de servidores por consultores (dores das personas P01 e P15). O produto exige identidade individual, MFA conforme política (US-090) e trilha de acesso.
 - Decisões: OIDC com Authentik e cliente confidencial no BFF (DEC-130, DEC-053, ADR-003); sessão no Redis com cookie `__Host-cf_session` (DEC-131), sendo o Redis de sessões dependência crítica, em alta disponibilidade e separado do Redis de cache/filas; contexto de requisição e status do tenant (DEC-132); CSRF e cabeçalhos (DEC-135); logs seguros (DEC-138); LGPD (DEC-140); identidade global + vínculo por tenant, com o tenant exibido como **instituição contratante** (DEC-012).
-- Domínio único com seleção de instituição (DEC-141): a página de entrada não tem identidade visual de tenant. Login gov.br fica fora do MVP 1 (PEND-18).
+- Domínio único com seleção de instituição (DEC-141): a página de entrada não tem identidade visual de tenant. Login gov.br fica fora do MVP 1 (PEND-18): o botão "Entrar com gov.br" da tela de login só aparece quando a federação estiver ativa.
 - É a primeira story do EP-016 e estabelece o pipeline autenticado (BFF → API) usado por todas as demais. Complementos: US-088 (logout, expiração e renovação), US-089 (recuperação de senha), US-090 (MFA), US-093 (troca de instituição), US-097 (autorização).
 
 ## Objetivo
-Permitir que qualquer usuário com vínculo utilizável entre em até 3 interações (clicar em "Entrar", informar credenciais, confirmar), com processamento do BFF + API no callback em p95 < 800 ms (excluído o tempo no Authentik), garantindo: zero tokens acessíveis ao navegador (verificado por teste automatizado), 100% das requisições à API com JWT e contexto validados, nenhuma possibilidade de *open redirect* e sessão nova a cada login.
+Permitir que qualquer usuário com vínculo utilizável entre em até 2 interações (informar e-mail e senha, confirmar — `/entrar` abre direto a tela de login), com processamento do BFF + API no callback em p95 < 800 ms (excluído o tempo no Authentik), garantindo: zero tokens acessíveis ao navegador (verificado por teste automatizado), 100% das requisições à API com JWT e contexto validados, nenhuma possibilidade de *open redirect* e sessão nova a cada login.
 
 ## Persona
 - **Principal:** Área requisitante — Cláudia Ferreira (perfil `REQUISITANTE`), letramento digital baixo.
@@ -46,9 +46,9 @@ Permitir que qualquer usuário com vínculo utilizável entre em até 3 interaç
 
 ## Fluxo principal
 1. O usuário acessa uma rota protegida (ex.: `/processos/0192…`) sem sessão válida; o middleware do Next.js redireciona para `/entrar?returnTo=/processos/0192…` (somente caminho + query).
-2. SCR-001 exibe: marca e nome "ContrataFlow — gestão das contratações públicas", botão **"Entrar com conta institucional"**, link **"Esqueci minha senha"** (SCR-002), link **"Precisa de ajuda?"** (central de ajuda) e o aviso de privacidade: "Seus dados de acesso são tratados pela instituição contratante, controladora dos dados, para a execução de políticas públicas e o cumprimento de obrigações legais (LGPD, art. 7º, II e III, e art. 23). Consulte a Política de privacidade e os Termos de uso." Mensagens contextuais por `?motivo=` (`saiu`, `sessao-expirada`, `erro`, `indisponivel`).
-3. Ao clicar, o navegador chama `GET /api/auth/login?returnTo=…`. O BFF aplica o limite de 20 req/min por IP, valida `returnTo` (RN-IAM-03), gera `state`, `nonce` e `code_verifier`, calcula `code_challenge = BASE64URL(SHA-256(code_verifier))`, grava a transação `{ state, nonce, codeVerifier, returnTo, createdAt }` no cookie criptografado `__Host-cf_auth` (proposto — ver Lacunas) e responde **302** para o `authorization_endpoint` do Authentik com `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge` e `code_challenge_method=S256`.
-4. O Authentik exibe o fluxo de autenticação com a identidade visual do ContrataFlow (pt-BR); o usuário informa e-mail e senha (e o segundo fator, quando exigido — US-090).
+2. Sem `motivo`, `/entrar` não tem tela própria: segue direto para `GET /api/auth/login?returnTo=…` (passo 3), e a primeira tela que o usuário vê é a tela de login do passo 4. Com `motivo` (`saiu`, `saiu-parcial`, `sessao-expirada`, `senha-redefinida`, `erro`, `indisponivel`), SCR-001 exibe, na mesma moldura da tela de login (painel institucional + painel de acesso — screens.md), a mensagem do motivo, o botão **"Entrar"** e o link **"Esqueci minha senha"** (SCR-002). Nas duas páginas, a moldura traz o link **"Precisa de ajuda?"** (central de ajuda) e o selo **"Ambiente seguro"** ("Seus dados são protegidos e utilizados conforme a LGPD."), cujo "Saiba mais" mostra o aviso de privacidade: "Seus dados de acesso são tratados pela instituição contratante, controladora dos dados, para a execução de políticas públicas e o cumprimento de obrigações legais (LGPD, art. 7º, II e III, e art. 23). Consulte a Política de privacidade e os Termos de uso."
+3. O navegador chama `GET /api/auth/login?returnTo=…` (direto a partir de `/entrar` ou pelo botão "Entrar"). O BFF aplica o limite de 20 req/min por IP, valida `returnTo` (RN-IAM-03), gera `state`, `nonce` e `code_verifier`, calcula `code_challenge = BASE64URL(SHA-256(code_verifier))`, grava a transação `{ state, nonce, codeVerifier, returnTo, createdAt }` no cookie criptografado `__Host-cf_auth` (proposto — ver Lacunas) e responde **302** para o `authorization_endpoint` do Authentik com `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge` e `code_challenge_method=S256`.
+4. O Authentik exibe a tela de login com a identidade visual do ContrataFlow (pt-BR), na moldura de SCR-001: "E-mail", "Senha" (com mostrar/ocultar), "Lembrar de mim", "Esqueci minha senha" e "Entrar"; o usuário informa e-mail e senha (e o segundo fator, quando exigido — US-090).
 5. O Authentik redireciona para `GET /api/auth/callback?code=…&state=…`.
 6. O BFF localiza a transação pelo `state` no cookie, troca o código no `token_endpoint` com autenticação do cliente (segredo) e o `code_verifier`, e valida o `id_token` (RN-IAM-04).
 7. O BFF chama a API pela rede privada (contrato de eventos de sessão — proposto) com o access token do usuário: a API valida o JWT (RN-IAM-05), resolve o `User` pelo `sub` e faz o vínculo do primeiro login (RN-IAM-06), verifica `User.status`, atualiza `lastLoginAt` e devolve o resumo do usuário e a lista de vínculos com o status de cada instituição.
@@ -141,7 +141,7 @@ Feature: Login OIDC com Authentik e sessão segura no BFF
 
   Scenario: [Sucesso] Entrar com um único vínculo e voltar à página pedida
     Given que "Cláudia" não tem sessão e acessa "/processos/0192aa"
-    When for redirecionada para "/entrar", clicar em "Entrar com conta institucional" e informar credenciais válidas
+    When for redirecionada para "/entrar", que abre direto a tela de login, e informar credenciais válidas
     Then o BFF deve criar uma sessão com o cookie "__Host-cf_session" marcado como HttpOnly, Secure, SameSite=Lax e Path=/
     And a instituição ativa deve ser "Prefeitura de São José" sem exibir a seleção
     And "Cláudia" deve ser levada a "/processos/0192aa"
@@ -270,6 +270,8 @@ Feature: Login OIDC com Authentik e sessão segura no BFF
   4. `ME-04`, o início de sessão e `USR-06` leem vínculos de vários tenants, o que o RLS `FORCE` impede; proposta: funções `SECURITY DEFINER` restritas (ex.: `cf_user_memberships(user_id)`), a documentar em multi-tenancy.md, e exceção explícita a `X-Tenant-Id` em DEC-132.
   5. events.md §7 não define em qual tenant registrar `auth.session_start` antes da seleção nem logins sem vínculo; adotado RN-IAM-17.
   6. Não há código de erro para usuário bloqueado (`User.status = BLOCKED`) nem para falha de CSRF; adotado `PERMISSION_DENIED`; propõe-se `USER_BLOCKED`.
+  7. "Lembrar de mim" (tela de login escolhida pelo produto em 2026-10-07): regra confirmada pelo produto em 2026-10-07 — lembra só o e-mail neste dispositivo e não prolonga a sessão (DEC-131). Conferir se a etapa de identificação da versão adotada do Authentik oferece a opção; se não oferecer, implementar no tema (retirar o item exige nova decisão do produto).
+  8. A moldura de SCR-001 (`prototype/entrar.html`) deve ser reproduzida com os recursos de tema do Authentik (layout do fluxo com o formulário à direita, imagem de fundo e CSS próprios). O que o tema não permitir em HTML (ex.: textos do painel institucional) pode entrar na imagem de fundo como conteúdo decorativo; a comparação visual com o protótipo faz parte da revisão de UI.
 
 ## Impacto técnico
 - Estabelece o pipeline autenticado usado por todas as stories: middleware de rotas protegidas, proxy `/api/v1/*`, `SessionStore` (Redis de sessões) e, na API, `JwtAuthGuard` + `TenantContextGuard` (DEC-132).
@@ -287,10 +289,10 @@ Feature: Login OIDC com Authentik e sessão segura no BFF
 - **Transação:** o vínculo do `sub` e `lastLoginAt` em uma transação sobre `users` (`UPDATE … WHERE external_subject IS NULL`; conflito no índice único → relê); `auth.session_start` na transação da instituição ativa.
 
 ## Frontend
-- **Tela(s):** SCR-001 (`/entrar`), SCR-101 (`/selecionar-orgao`, lista simples — completada na US-093), SCR-111 (`/erro/*`: "sem vínculo", 403 bloqueado, indisponibilidade).
-- **Componentes:** `LoginCard` (marca, título, botão principal), `LoginReasonMessage` (motivos), `PrivacyNotice` (links para política de privacidade e termos de uso), `HelpLink`, `InstitutionList` (SCR-101), `NoMembershipPage`.
+- **Tela(s):** SCR-001 (`/entrar` e tema da tela de login no Authentik — referência `prototype/entrar.html`), SCR-101 (`/selecionar-orgao`, lista simples — completada na US-093), SCR-111 (`/erro/*`: "sem vínculo", 403 bloqueado, indisponibilidade).
+- **Componentes:** `LoginFrame` (moldura de duas colunas, reproduzida no tema do Authentik), `LoginBrandPanel` (painel institucional), `LoginReasonMessage` (motivos), `PrivacyNotice` (selo "Ambiente seguro"; aviso completo e links para política de privacidade e termos de uso), `HelpLink`, `InstitutionList` (SCR-101), `NoMembershipPage`.
 - **Estados:** botão "Entrar" com estado "Redirecionando…"; mensagens de motivo em `role="status"`; erro com correlationId copiável; sem skeleton (página estática).
-- **Acessibilidade e responsividade:** foco inicial no título, botão alcançável por teclado, contraste AA, `lang="pt-BR"`; layout de coluna única a partir de 360 px; páginas do Authentik com o mesmo tema e testadas com axe.
+- **Acessibilidade e responsividade:** foco inicial no e-mail (tela de login) ou no título (página de motivo), tudo alcançável por teclado, contraste AA inclusive sobre a foto, `lang="pt-BR"`; duas colunas a partir de 1024 px e coluna única abaixo disso (mínimo 360 px); páginas do Authentik com o mesmo tema e testadas com axe.
 
 ## Banco de dados
 - **Tabelas:** `users` (plataforma, sem RLS), `tenant_memberships` e `membership_departments` (RLS `ENABLE` + `FORCE`, FKs compostas) conforme entities.md §4.2.
@@ -336,7 +338,7 @@ Exemplo de `GET /api/auth/session`:
 - **API/contrato:** `ME-04` e `ME-01` conforme api.md; 401/403/503 com RFC 9457.
 - **RBAC e multi-tenant:** `X-Tenant-Id` forjado; vínculo de outro tenant; tenant `SUSPENDED`/`OFFBOARDING`.
 - **Segurança:** Playwright verifica ausência de tokens em cookies legíveis, *storage* e DOM; atributos do cookie; anti-fixação (sid muda a cada login); CSRF em métodos mutáveis.
-- **E2E (Playwright):** login com 1 e com 2 vínculos; "sem vínculo"; retorno a `returnTo`; 360 px.
+- **E2E (Playwright):** login com 1 e com 2 vínculos; "sem vínculo"; retorno a `returnTo`; `/entrar` sem motivo abre direto a tela de login e, com motivo, mostra a mensagem e o botão "Entrar"; 360 px e 1024 px.
 - **Acessibilidade/performance:** axe em SCR-001, SCR-101 e SCR-111; k6 com 100 logins/min → callback p95 < 800 ms (sem Authentik); validação de JWT p95 < 2 ms.
 
 ## Definition of Done
@@ -347,7 +349,7 @@ Exemplo de `GET /api/auth/session`:
 - [ ] Teste de isolamento incluído na suíte "tenant leak" (`X-Tenant-Id` forjado)
 - [ ] OpenAPI de `ME-01`/`ME-04` compatível com api.md; contrato interno documentado em authentication.md
 - [ ] Logs sem tokens/códigos; métricas `auth_logins_total{result}` e latência do callback; trace BFF → API
-- [ ] SCR-001/SCR-101/SCR-111 acessíveis (axe) e responsivas (360 px)
+- [ ] SCR-001/SCR-101/SCR-111 acessíveis (axe) e responsivas (360 px); tela de login conferida com `prototype/entrar.html`
 - [ ] Revisão de código e de segurança aprovadas; *blueprint* do Authentik revisado
 
 ## Estimativa

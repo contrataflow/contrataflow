@@ -9,7 +9,7 @@ Precisa de internet: Tailwind CSS (Play CDN), ícones Lucide e a fonte Inter vê
 ## Telas
 | Arquivo | Tela | Especificação |
 |---|---|---|
-| `entrar.html` | Login (entrada pelo Authentik, simulado) | SCR-001 |
+| `entrar.html` | Login (tela do Authentik, simulada); `?motivo=sessao-expirada`, `saiu` ou `senha-redefinida` mostra a página de motivo | SCR-001 |
 | `selecionar-orgao.html` | Seleção de órgão/instituição | SCR-101 |
 | `painel.html` | Dashboard | SCR-003 |
 | `processos.html` | Lista de processos | SCR-004 |

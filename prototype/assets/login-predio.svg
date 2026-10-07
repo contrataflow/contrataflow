@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="1380" viewBox="0 0 660 1380">
+  <!-- Ilustração própria do ContrataFlow, sem direitos de terceiros: prédio público ao entardecer. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#13213b"/>
+      <stop offset="0.45" stop-color="#253a60"/>
+      <stop offset="0.72" stop-color="#3e5a86"/>
+      <stop offset="1" stop-color="#6d7c96"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f0b46a" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#f0b46a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="slab" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#efeae2"/>
+      <stop offset="1" stop-color="#cdc6ba"/>
+    </linearGradient>
+    <linearGradient id="pier" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d6d0c5"/>
+      <stop offset="0.55" stop-color="#ece7de"/>
+      <stop offset="1" stop-color="#c7c0b4"/>
+    </linearGradient>
+    <linearGradient id="pierSide" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a39c90"/>
+      <stop offset="1" stop-color="#857e73"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1728"/>
+      <stop offset="1" stop-color="#172b46"/>
+    </linearGradient>
+    <linearGradient id="plaza" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a857e"/>
+      <stop offset="0.5" stop-color="#66625d"/>
+      <stop offset="1" stop-color="#3b3a39"/>
+    </linearGradient>
+    <radialGradient id="lamp" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe2ad" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffe2ad" stop-opacity="0"/>
+    </radialGradient>
+    <g id="pierShape">
+      <rect x="0" y="236" width="92" height="740" fill="url(#pier)"/>
+      <rect x="92" y="236" width="20" height="740" fill="url(#pierSide)"/>
+      <path d="M0 330H92M0 425H92M0 520H92M0 615H92M0 710H92M0 805H92M0 900H92" stroke="#c3bcb0" stroke-width="2" opacity="0.7"/>
+    </g>
+  </defs>
+
+  <rect width="660" height="1380" fill="url(#sky)"/>
+  <ellipse cx="420" cy="1000" rx="420" ry="160" fill="url(#glow)"/>
+
+  <!-- Fachada de vidro recuada -->
+  <rect x="0" y="236" width="660" height="740" fill="url(#glass)"/>
+  <g fill="#f2c27b">
+    <rect x="114" y="792" width="47" height="180" opacity="0.7"/>
+    <rect x="169" y="792" width="47" height="180" opacity="0.6"/>
+    <rect x="279" y="792" width="47" height="180" opacity="0.75"/>
+    <rect x="334" y="792" width="47" height="180" opacity="0.55"/>
+    <rect x="499" y="792" width="47" height="180" opacity="0.7"/>
+    <rect x="554" y="792" width="47" height="180" opacity="0.6"/>
+    <rect x="169" y="608" width="47" height="176" opacity="0.45"/>
+    <rect x="389" y="608" width="47" height="176" opacity="0.4"/>
+    <rect x="499" y="608" width="47" height="176" opacity="0.5"/>
+    <rect x="279" y="424" width="47" height="176" opacity="0.3"/>
+    <rect x="554" y="424" width="47" height="176" opacity="0.35"/>
+    <rect x="444" y="240" width="47" height="176" opacity="0.2"/>
+  </g>
+  <path d="M55 236V976M110 236V976M165 236V976M220 236V976M275 236V976M330 236V976M385 236V976M440 236V976M495 236V976M550 236V976M605 236V976" stroke="#2a3b54" stroke-width="4"/>
+  <path d="M0 420H660M0 604H660M0 788H660" stroke="#2a3b54" stroke-width="7"/>
+
+  <!-- Pilares de pedra -->
+  <use href="#pierShape" x="30"/>
+  <use href="#pierShape" x="226"/>
+  <use href="#pierShape" x="422"/>
+  <use href="#pierShape" x="618"/>
+
+  <!-- Laje de cobertura e base -->
+  <rect x="-10" y="150" width="680" height="64" fill="url(#slab)"/>
+  <rect x="-10" y="214" width="680" height="22" fill="#8f897f"/>
+  <rect x="-10" y="976" width="680" height="26" fill="url(#slab)"/>
+
+  <!-- Praça -->
+  <rect x="0" y="1002" width="660" height="378" fill="url(#plaza)"/>
+  <rect x="0" y="1002" width="300" height="34" fill="#2d3f5c"/>
+  <path d="M0 1003H300" stroke="#8fa3c2" stroke-width="2" opacity="0.6"/>
+  <path d="M360 1002L-840 1380M360 1002L-600 1380M360 1002L-360 1380M360 1002L-120 1380M360 1002L120 1380M360 1002L360 1380M360 1002L600 1380M360 1002L840 1380M360 1002L1080 1380M360 1002L1320 1380M360 1002L1560 1380" stroke="#77736d" stroke-width="2" opacity="0.5"/>
+  <path d="M0 1040H660M0 1084H660M0 1140H660M0 1212H660M0 1300H660" stroke="#77736d" stroke-width="2" opacity="0.45"/>
+  <ellipse cx="470" cy="1120" rx="150" ry="36" fill="url(#lamp)" opacity="0.35"/>
+  <ellipse cx="150" cy="1090" rx="110" ry="26" fill="url(#lamp)" opacity="0.25"/>
+
+  <!-- Canteiro e luminárias -->
+  <path d="M0 1008V994C20 984 40 984 60 992C80 982 104 982 124 992C146 982 170 982 190 992C212 982 236 982 256 992C278 982 302 982 322 992C344 982 368 982 388 992C410 982 434 982 454 992C476 982 500 982 520 992C542 982 566 982 586 992C608 982 632 982 660 994V1008Z" fill="#1f2c22"/>
+  <ellipse cx="520" cy="1010" rx="24" ry="12" fill="url(#lamp)"/>
+  <ellipse cx="590" cy="1010" rx="24" ry="12" fill="url(#lamp)"/>
+  <circle cx="520" cy="1010" r="4" fill="#ffe2ad"/>
+  <circle cx="590" cy="1010" r="4" fill="#ffe2ad"/>
+
+  <!-- Árvore -->
+  <ellipse cx="300" cy="1180" rx="130" ry="14" fill="#000" opacity="0.28"/>
+  <path d="M290 1178L296 1060L292 990L308 990L310 1060L306 1178Z" fill="#2b2521"/>
+  <path d="M300 1030C320 1000 346 980 376 966M298 1056C276 1040 250 1028 222 1020M300 990C296 960 284 940 266 922" stroke="#2b2521" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <g fill="#1c291f">
+    <ellipse cx="300" cy="900" rx="150" ry="70"/>
+    <ellipse cx="226" cy="932" rx="90" ry="54"/>
+    <ellipse cx="384" cy="922" rx="100" ry="58"/>
+    <ellipse cx="300" cy="850" rx="112" ry="56"/>
+    <ellipse cx="424" cy="880" rx="72" ry="46"/>
+    <ellipse cx="178" cy="886" rx="70" ry="44"/>
+  </g>
+  <g fill="#6a6440" opacity="0.45">
+    <ellipse cx="362" cy="858" rx="60" ry="24"/>
+    <ellipse cx="428" cy="900" rx="40" ry="18"/>
+    <ellipse cx="262" cy="872" rx="48" ry="20"/>
+  </g>
+</svg>

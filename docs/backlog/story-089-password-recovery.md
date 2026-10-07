@@ -48,7 +48,7 @@ Permitir que qualquer usuário redefina a própria senha sem intervenção human
 3. O Authentik exibe, com a identidade visual do ContrataFlow, o formulário "Esqueceu sua senha?" e pede o e-mail.
 4. Exista ou não o e-mail, o Authentik mostra a mesma mensagem genérica (RN-IAM-35) e, se existir conta, envia o próprio e-mail de redefinição (sem notificação do ContrataFlow).
 5. O usuário abre o link (uso único, validade limitada — RN-IAM-37) e define a nova senha; o Authentik valida força e vazamento (RN-IAM-36).
-6. Após redefinir, o Authentik invalida sessões anteriores do usuário e redireciona para `/entrar?motivo=senha_redefinida`.
+6. Após redefinir, o Authentik invalida sessões anteriores do usuário e redireciona para `/entrar?motivo=senha-redefinida`.
 7. SCR-001 exibe "Senha redefinida. Entre com sua nova senha."; nenhuma sessão é criada automaticamente — segue o login normal (US-087).
 
 ## Fluxos alternativos
@@ -71,7 +71,7 @@ Permitir que qualquer usuário redefina a própria senha sem intervenção human
 | Link "Esqueci minha senha" | — | ação | — | Sempre visível e habilitado em SCR-001 | — |
 | E-mail | `email` | texto | Sim | Coletado e validado só pelo Authentik; nunca chega ao ContrataFlow | — |
 | Nova senha | — | senha | Sim | Coletada e validada só pelo Authentik (RN-IAM-36); nunca chega ao ContrataFlow | — |
-| *(técnico)* Motivo de retorno | `motivo` (query de `/entrar`) | texto curto | Não | `senha_redefinida` | gerado pelo Authentik/BFF |
+| *(técnico)* Motivo de retorno | `motivo` (query de `/entrar`) | texto curto | Não | `senha-redefinida` | gerado pelo Authentik/BFF |
 
 ## Validações
 | # | Validação | Camada | Mensagem ao usuário | Código de erro |
@@ -105,7 +105,7 @@ Feature: Recuperar senha
   Scenario: [Sucesso] Redefinir a senha e entrar novamente
     Given que "Cláudia" possui conta no Authentik com e-mail "claudia@pmsj.gov.br"
     When "Cláudia" clicar em "Esqueci minha senha", seguir o fluxo do Authentik e definir uma nova senha válida
-    Then "Cláudia" deve ser levada a "/entrar?motivo=senha_redefinida" e conseguir entrar com a nova senha
+    Then "Cláudia" deve ser levada a "/entrar?motivo=senha-redefinida" e conseguir entrar com a nova senha
 
   Scenario: [Validação] Senha nova não atende à política
     When "Cláudia" tentar definir a senha "123456789012"

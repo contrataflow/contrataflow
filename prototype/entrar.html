@@ -5,65 +5,174 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrar — ContrataFlow (protótipo)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="assets/tailwind-config.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="assets/app.css">
+  <style>
+    .cf-login-photo {
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 45%), linear-gradient(to bottom, transparent 0%, #000 18%);
+      -webkit-mask-composite: source-in;
+      mask-image: linear-gradient(to right, transparent 0%, #000 45%), linear-gradient(to bottom, transparent 0%, #000 18%);
+      mask-composite: intersect;
+    }
+  </style>
 </head>
-<!-- SCR-001 — Login (/entrar) · US-087 (principal), US-088, US-089. Sem casca: rota pública. -->
-<body class="min-h-screen bg-gradient-to-br from-slate-100 via-white to-brand-50 font-sans text-slate-900 antialiased">
-<main id="page" class="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+<!-- SCR-001 — Login (/entrar) · US-087 (principal), US-088, US-089.
+     No produto, o formulário é o fluxo de autenticação do Authentik com o tema do ContrataFlow (DEC-130). Sem casca: rota pública. -->
+<body class="min-h-screen bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300 font-sans text-slate-900 antialiased">
+<main id="page" class="flex min-h-screen flex-col items-center justify-center px-4 py-6 sm:px-6 lg:py-10">
 
-  <div class="cf-no-print mb-6 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-900">Protótipo navegável · dados fictícios — <a href="index.html" class="font-medium underline">roteiro</a></div>
+  <p class="cf-no-print mb-4 rounded-full border border-amber-200 bg-amber-50 px-4 py-1 text-xs text-amber-900">Protótipo navegável · dados fictícios — <a href="index.html" class="font-medium underline">roteiro</a> · <a href="entrar.html?motivo=sessao-expirada" class="underline">ver aviso de sessão expirada</a></p>
 
-  <div data-wizard="login" class="w-full max-w-md">
-    <!-- Passo 1: LoginCard do ContrataFlow -->
-    <section data-step="1" class="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg" aria-labelledby="login-t">
-      <div class="flex items-center gap-2">
-        <span class="grid h-10 w-10 place-items-center rounded-lg bg-brand-700 text-base font-bold text-white">CF</span>
-        <span class="text-lg font-semibold tracking-tight">ContrataFlow</span>
-      </div>
-      <h1 id="login-t" class="mt-6 text-2xl font-semibold tracking-tight">Entrar</h1>
-      <p class="mt-1 text-sm text-slate-600">Planejamento das contratações públicas da sua instituição, conforme a Lei 14.133/2021.</p>
+  <div class="grid w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-2">
 
-      <!-- LoginReasonMessage (aparece quando a URL traz ?motivo=…) -->
-      <div id="motivo" role="status" hidden class="mt-5 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        <i data-lucide="clock" class="mt-0.5 h-4 w-4 flex-none"></i><p>Sua sessão expirou por inatividade. Entre novamente para continuar de onde parou.</p>
-      </div>
+    <!-- Painel institucional -->
+    <section class="relative hidden overflow-hidden bg-gradient-to-b from-[#22365a] via-[#13223d] to-[#0e1b31] text-white lg:flex lg:flex-col" aria-label="Sobre o ContrataFlow">
+      <img src="assets/login-predio.svg" alt="" class="cf-login-photo pointer-events-none absolute bottom-0 right-0 h-[96%] w-auto max-w-none select-none object-cover">
+      <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0e1b31]/95 via-[#0e1b31]/55 to-transparent"></div>
+      <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0e1b31]/40 via-transparent to-[#0e1b31]/30"></div>
 
-      <button type="button" data-next class="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand-700 text-sm font-semibold text-white hover:bg-brand-800">
-        <i data-lucide="log-in" class="h-4 w-4"></i>Entrar com a conta institucional</button>
-      <p class="mt-3 text-center text-sm"><a href="#" data-toast="A recuperação de senha (SCR-002) acontece no provedor de identidade e não faz parte deste protótipo." class="text-brand-700 hover:underline">Esqueci minha senha</a></p>
+      <div class="relative flex flex-1 flex-col px-12 pb-10 pt-12">
+        <a href="index.html" class="flex items-center gap-3" aria-label="ContrataFlow">
+          <svg viewBox="0 0 40 40" class="h-10 w-10" aria-hidden="true">
+            <path d="M8 6 L22 6 L32 16 L18 16 Z" fill="#3b82f6"/>
+            <path d="M8 17 L22 17 L32 27 L18 27 Z" fill="#60a5fa"/>
+            <path d="M8 28 L18 28 L22 34 L12 34 Z" fill="#2563eb"/>
+          </svg>
+          <span class="text-[1.75rem] font-semibold tracking-tight">ContrataFlow</span>
+        </a>
 
-      <div class="mt-8 border-t border-slate-100 pt-4 text-xs leading-relaxed text-slate-500">
-        <p><i data-lucide="shield-check" class="mr-1 inline h-3.5 w-3.5"></i>Seus dados pessoais são tratados conforme a LGPD, para a execução de políticas públicas da sua instituição. <a href="#" data-toast="Aviso de privacidade (fora do protótipo)." class="text-brand-700 hover:underline">Aviso de privacidade</a></p>
-        <p class="mt-2"><a href="#" data-toast="Central de ajuda (fora do protótipo)." class="text-brand-700 hover:underline">Precisa de ajuda?</a></p>
+        <h1 class="mt-10 max-w-md text-[2.6rem] font-bold leading-[1.1] tracking-tight">Contratações públicas mais simples, seguras e eficientes.</h1>
+        <p class="mt-5 max-w-sm text-lg leading-relaxed text-slate-200">Da demanda à publicação, todo o processo em um único lugar.</p>
+
+        <ul class="mt-10 space-y-6">
+          <li class="flex items-center gap-4">
+            <span class="grid h-12 w-12 flex-none place-items-center rounded-lg border border-white/15 bg-white/10"><i data-lucide="file-text" class="h-5 w-5"></i></span>
+            <span><span class="block font-semibold">Processos padronizados</span><span class="block text-sm text-slate-300">ETP, TR, pesquisas, riscos e mais.</span></span>
+          </li>
+          <li class="flex items-center gap-4">
+            <span class="grid h-12 w-12 flex-none place-items-center rounded-lg border border-white/15 bg-white/10"><i data-lucide="zap" class="h-5 w-5"></i></span>
+            <span><span class="block font-semibold">Tramitação e aprovações</span><span class="block text-sm text-slate-300">Fluxos personalizados por órgão.</span></span>
+          </li>
+          <li class="flex items-center gap-4">
+            <span class="grid h-12 w-12 flex-none place-items-center rounded-lg border border-white/15 bg-white/10"><i data-lucide="chart-column" class="h-5 w-5"></i></span>
+            <span><span class="block font-semibold">Transparência e controle</span><span class="block text-sm text-slate-300">Acompanhamento em tempo real.</span></span>
+          </li>
+        </ul>
+
+        <div class="mt-auto pt-12">
+          <span class="block h-px w-6 bg-white/50"></span>
+          <p class="mt-4 text-sm leading-relaxed text-slate-200">Tecnologia a serviço da gestão pública.<br>Planejamento, conformidade e resultados.</p>
+        </div>
       </div>
     </section>
 
-    <!-- Passo 2: tela do provedor de identidade (Authentik), com o tema do ContrataFlow -->
-    <section data-step="2" hidden class="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg" aria-labelledby="idp-t">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Provedor de identidade · Authentik</p>
-      <h2 id="idp-t" class="mt-2 text-xl font-semibold">Acesse sua conta</h2>
-      <p class="mt-1 text-sm text-slate-600">Você será devolvido ao ContrataFlow após a autenticação.</p>
-      <form data-fake-submit="Autenticação concluída." data-redirect="selecionar-orgao.html" class="mt-6 space-y-4">
-        <label class="block text-sm"><span class="font-medium">E-mail institucional</span>
-          <input type="email" required autocomplete="username" value="ana.souza@saojose.sc.gov.br" class="mt-1 h-11 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></label>
-        <label class="block text-sm"><span class="font-medium">Senha</span>
-          <input type="password" required autocomplete="current-password" value="senha-ficticia" class="mt-1 h-11 w-full rounded-md border border-slate-300 px-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"></label>
-        <p class="flex gap-2 rounded-md bg-slate-50 p-3 text-xs text-slate-600"><i data-lucide="smartphone" class="h-4 w-4 flex-none"></i>Se a sua instituição exigir verificação em duas etapas, o código do aplicativo autenticador será pedido em seguida.</p>
-        <button type="submit" class="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand-700 text-sm font-semibold text-white hover:bg-brand-800">Continuar</button>
-        <button type="button" data-prev class="inline-flex h-11 w-full items-center justify-center rounded-md border border-slate-300 text-sm font-medium hover:bg-slate-50">Voltar</button>
-      </form>
+    <!-- Formulário de acesso -->
+    <section class="flex flex-col px-6 py-8 sm:px-12 lg:px-16 lg:py-12" aria-labelledby="login-t">
+      <p class="text-right text-sm text-slate-600">Precisa de ajuda? <a href="#" data-toast="Canal de suporte da instituição (fora do protótipo)." class="font-medium text-brand-700 underline underline-offset-4 hover:text-brand-800">Suporte</a></p>
+
+      <!-- Marca no celular (o painel institucional some abaixo de 1024 px) -->
+      <div class="mt-6 flex items-center gap-2 lg:hidden">
+        <svg viewBox="0 0 40 40" class="h-8 w-8" aria-hidden="true"><path d="M8 6 L22 6 L32 16 L18 16 Z" fill="#3b82f6"/><path d="M8 17 L22 17 L32 27 L18 27 Z" fill="#60a5fa"/><path d="M8 28 L18 28 L22 34 L12 34 Z" fill="#2563eb"/></svg>
+        <span class="text-xl font-semibold tracking-tight">ContrataFlow</span>
+      </div>
+
+      <div class="my-auto w-full max-w-md self-center py-8 lg:py-6">
+        <h2 id="login-t" class="text-4xl font-bold tracking-tight text-slate-900">Acesse sua conta</h2>
+        <p class="mt-3 text-lg text-slate-600">Entre para continuar no ContrataFlow.</p>
+
+        <!-- LoginReasonMessage: no produto, /entrar com ?motivo= é página do app (sem formulário); sem motivo, segue direto para a tela de login do Authentik -->
+        <div id="motivo" role="status" hidden class="mt-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <i data-lucide="info" class="mt-0.5 h-4 w-4 flex-none"></i><p id="motivo-texto"></p>
+        </div>
+
+        <div id="bloco-motivo" hidden class="mt-8 space-y-4">
+          <a href="entrar.html" class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#14223d] text-base font-semibold text-white shadow-sm hover:bg-[#0e1b31]">
+            Entrar <i data-lucide="arrow-right" class="h-5 w-5"></i>
+          </a>
+          <p class="text-center"><a href="#" data-toast="A recuperação de senha (SCR-002) acontece no provedor de identidade e não faz parte deste protótipo." class="text-sm font-medium text-brand-700 hover:underline">Esqueci minha senha</a></p>
+        </div>
+
+        <div id="bloco-form">
+
+        <form data-fake-submit="Autenticação concluída." data-redirect="selecionar-orgao.html" class="mt-8 space-y-5">
+          <label class="block">
+            <span class="text-sm font-medium text-slate-800">E-mail</span>
+            <input type="email" name="email" required autocomplete="username" placeholder="seu@email.gov.br"
+                   class="mt-2 h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-base placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+          </label>
+          <div>
+            <label for="senha" class="text-sm font-medium text-slate-800">Senha</label>
+            <div class="relative mt-2">
+              <input id="senha" type="password" name="senha" required autocomplete="current-password" placeholder="Digite sua senha"
+                     class="h-12 w-full rounded-lg border border-slate-300 bg-white pl-4 pr-12 text-base placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200">
+              <button type="button" id="ver-senha" aria-label="Mostrar senha" aria-pressed="false" class="absolute right-2 top-1.5 grid h-9 w-9 place-items-center rounded-md text-slate-600 hover:bg-slate-100">
+                <i data-lucide="eye" class="h-5 w-5"></i>
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <label class="flex items-center gap-2.5 text-sm text-slate-800" title="Lembra o seu e-mail neste dispositivo (a sessão continua expirando conforme a política da instituição).">
+              <input type="checkbox" checked class="h-5 w-5 rounded border-slate-300 text-brand-700 accent-brand-700">Lembrar de mim
+            </label>
+            <a href="#" data-toast="A recuperação de senha (SCR-002) acontece no provedor de identidade e não faz parte deste protótipo." class="text-sm font-medium text-brand-700 hover:underline">Esqueci minha senha</a>
+          </div>
+          <button type="submit" class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#14223d] text-base font-semibold text-white shadow-sm hover:bg-[#0e1b31] focus-visible:ring-2 focus-visible:ring-brand-300">
+            Entrar <i data-lucide="arrow-right" class="h-5 w-5"></i>
+          </button>
+        </form>
+
+        <div class="my-6 flex items-center gap-3 text-sm text-slate-500"><span class="h-px flex-1 bg-slate-200"></span>ou entrar com<span class="h-px flex-1 bg-slate-200"></span></div>
+
+        <button type="button" data-toast="Login com gov.br está previsto para o MVP 2 (PEND-18). O botão aparece aqui para validar o layout." data-toast-type="info"
+                class="flex h-14 w-full items-center justify-center gap-5 rounded-lg border border-slate-200 bg-slate-50/60 text-base text-slate-800 hover:bg-slate-100">
+          <span class="text-2xl font-black tracking-tight" aria-hidden="true"><span class="text-[#1351B4]">gov</span><span class="text-[#FFCD07]">.</span><span class="text-[#168821]">br</span></span>
+          <span>Entrar com Gov.br</span>
+        </button>
+        </div>
+
+        <div class="mt-6 flex items-center gap-4 rounded-xl bg-brand-50/70 p-4">
+          <span class="grid h-11 w-11 flex-none place-items-center rounded-lg bg-white text-brand-700 shadow-sm"><i data-lucide="shield-check" class="h-5 w-5"></i></span>
+          <span><span class="block text-sm font-semibold text-slate-900">Ambiente seguro</span><span class="block text-sm text-slate-600">Seus dados são protegidos e utilizados conforme a LGPD. <button type="button" data-open="dlg-privacidade" class="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Saiba mais</button></span></span>
+        </div>
+      </div>
     </section>
   </div>
-
-  <p class="mt-6 text-xs text-slate-500">Demonstração: <a href="entrar.html?motivo=sessao-expirada" class="underline">ver mensagem de sessão expirada</a></p>
 </main>
+
+<dialog id="dlg-privacidade" aria-labelledby="dlg-privacidade-t" class="w-[min(32rem,calc(100vw-2rem))]">
+  <div class="p-6">
+    <h2 id="dlg-privacidade-t" class="text-lg font-semibold text-slate-900">Privacidade e proteção de dados</h2>
+    <p class="mt-3 text-sm leading-relaxed text-slate-700">Seus dados de acesso são tratados pela instituição contratante, controladora dos dados, para a execução de políticas públicas e o cumprimento de obrigações legais (LGPD, art. 7º, II e III, e art. 23).</p>
+    <p class="mt-3 text-sm text-slate-700">Consulte a <a href="#" data-toast="Política de privacidade (fora do protótipo)." class="font-medium text-brand-700 underline">Política de privacidade</a> e os <a href="#" data-toast="Termos de uso (fora do protótipo)." class="font-medium text-brand-700 underline">Termos de uso</a>.</p>
+    <div class="mt-6 flex justify-end"><button type="button" data-close class="h-10 rounded-lg bg-[#14223d] px-4 text-sm font-semibold text-white hover:bg-[#0e1b31]">Fechar</button></div>
+  </div>
+</dialog>
+
 <script src="assets/app.js"></script>
 <script>
-  if (new URLSearchParams(location.search).get('motivo') === 'sessao-expirada') document.getElementById('motivo').hidden = false;
+  var MOTIVOS = {
+    'sessao-expirada': 'Sua sessão expirou por inatividade. Entre novamente para continuar de onde parou.',
+    'saiu': 'Você saiu do ContrataFlow.',
+    'senha-redefinida': 'Senha redefinida. Entre com sua nova senha.'
+  };
+  var motivo = MOTIVOS[new URLSearchParams(location.search).get('motivo')];
+  if (motivo) {
+    document.getElementById('motivo-texto').textContent = motivo;
+    document.getElementById('motivo').hidden = false;
+    document.getElementById('bloco-motivo').hidden = false;
+    document.getElementById('bloco-form').hidden = true;
+  }
+  document.getElementById('ver-senha').addEventListener('click', function () {
+    var campo = document.getElementById('senha'); var mostrar = campo.type === 'password';
+    campo.type = mostrar ? 'text' : 'password';
+    this.setAttribute('aria-pressed', String(mostrar));
+    this.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha');
+    this.innerHTML = '<i data-lucide="' + (mostrar ? 'eye-off' : 'eye') + '" class="h-5 w-5"></i>';
+    if (window.lucide) lucide.createIcons();
+  });
 </script>
 </body>
 </html>
