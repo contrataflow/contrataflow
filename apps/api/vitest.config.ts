@@ -20,7 +20,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.spec.ts', 'src/main.ts', 'src/shared/database/generated/**'],
+      exclude: [
+        'src/**/*.spec.ts',
+        'src/main.ts',
+        'src/otel.ts',
+        'src/shared/database/generated/**',
+      ],
       reporter: ['text-summary', 'lcov'],
       reportsDirectory: 'coverage',
     },

@@ -122,11 +122,12 @@ describe('rota de exemplo documentada e validada contra o próprio OpenAPI', () 
     await api.close();
   });
 
-  it('documenta as quatro operações internas com erros RFC 9457', () => {
+  it('documenta as cinco operações internas com erros RFC 9457', () => {
     expect(Object.keys(document.paths).sort()).toEqual([
       '/_internal/echo',
       '/_internal/feed',
       '/_internal/items',
+      '/_internal/jobs/trace-demo',
       '/_internal/ping',
     ]);
     expect(Object.keys(document.paths['/_internal/echo']?.post?.responses ?? {})).toEqual(
@@ -148,6 +149,7 @@ describe('rota de exemplo documentada e validada contra o próprio OpenAPI', () 
     ['get', '/_internal/items?page=1&pageSize=5', 'items', undefined],
     ['get', '/_internal/feed?limit=5', 'feed', undefined],
     ['post', '/_internal/echo', 'echo', { name: 'Caneta' }],
+    ['post', '/_internal/jobs/trace-demo', 'traceDemoJob', undefined],
   ] as const)(
     '%s %s responde conforme o schema documentado',
     async (method, path, handler, body) => {

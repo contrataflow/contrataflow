@@ -33,7 +33,7 @@ export function ExampleForm() {
   } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(internalEchoRequestSchema) });
 
   const mutation = useIdempotentMutation({
-    mutationFn: (values: FormOutput, { idempotencyKey }) => createEcho(values, idempotencyKey),
+    mutationFn: (values: FormOutput, action) => createEcho(values, action),
     onSuccess: (result) => {
       toast({ title: t('created', { name: result.data.name }), tone: 'success' });
       reset();

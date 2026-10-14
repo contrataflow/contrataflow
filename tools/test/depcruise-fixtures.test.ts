@@ -27,6 +27,7 @@ const EXPECTED: Record<string, string> = {
   'packages/validation/src/imports-editor.ts': 'validation-only-types',
   'packages/editor/src/imports-ui.ts': 'editor-only-types-validation',
   'packages/ui/src/imports-validation.ts': 'ui-only-types',
+  'packages/observability/src/imports-validation.ts': 'observability-only-types',
   'apps/api/src/modules/process/application/imports-missing.ts': 'not-to-unresolvable',
 };
 
@@ -37,6 +38,7 @@ const ALLOWED = [
   'packages/validation/src/index.ts',
   'packages/editor/src/index.ts',
   'packages/ui/src/index.ts',
+  'packages/observability/src/index.ts',
 ];
 
 describe('fixtures do dependency-cruiser (RN-FND-05)', () => {

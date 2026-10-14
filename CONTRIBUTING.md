@@ -23,10 +23,11 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 11. [Segurança](#segurança)
 12. [Fronteiras de dependência](#fronteiras-de-dependência)
 13. [API: pipeline de requisição](#api-pipeline-de-requisição)
-14. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
-15. [Testes](#testes)
-16. [Geradores](#geradores)
-17. [Decisões e ADRs](#decisões-e-adrs)
+14. [Observabilidade: logs, correlação e traces](#observabilidade-logs-correlação-e-traces)
+15. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
+16. [Testes](#testes)
+17. [Geradores](#geradores)
+18. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
@@ -164,6 +165,7 @@ packages/types        constantes e tipos puros (permissões, eventos, erros, fil
 packages/validation   schemas Zod de contrato (DEC-054)
 packages/editor       schema do editor rico (DEC-056)
 packages/ui           design system (Tailwind CSS 4)
+packages/observability  logger pino com redação, correlationId e tracing OpenTelemetry (US-084)
 packages/eslint-config, packages/tsconfig   padrões compartilhados
 tools/          scripts de engenharia, fixtures de regras e geradores  @contrataflow/tools
 ```
@@ -398,6 +400,39 @@ envelope (DEC-164).
 **Ambiente:** `pnpm dev` carrega o `.env` da raiz (`--env-file-if-exists`). Até a US-087 os tokens
 são verificados pelo `FakeJwksProvider` (HS256 com `OIDC_FAKE_SIGNING_KEY`; sem a chave, nenhum
 token é aceito) e usuários/vínculos/tenants vêm de adaptadores em memória até a US-081.
+
+## Observabilidade: logs, correlação e traces
+
+Padrão da US-084 ([`observability.md`](docs/architecture/observability.md) §2–§4), comum a web, api e
+worker via `@contrataflow/observability`:
+
+- **Logs:** use o `Logger` do NestJS (api/worker — escreve pelo pino) ou `log()` de
+  `apps/web/src/bff/logger.ts` (BFF), sempre com um `event` estável e campos escalares:
+  `logger.log({ event: 'process.forwarded', processId }, 'process forwarded')`. Toda linha sai em
+  JSON com `service`, `env`, `version`, `correlationId`, `tenantId`/`userId`/`membershipId` (quando
+  houver) e `traceId`/`spanId` do span ativo — não os repita. O formato antigo
+  `'evento chave=valor'` ainda é convertido em campos, mas não o use em código novo.
+- **Níveis:** `error` para 5xx/falha final, `warn` para degradação recuperável, `info` para fatos
+  (inclusive 4xx); `debug`/`trace` nunca em produção (`LOG_LEVEL` é recusado no boot).
+- **Nunca logar** (DEC-138): tokens, cookies, senhas, CPF, conteúdo de documento, corpos, nomes de
+  arquivo, URLs pré-assinadas, valores sigilosos. A redação automática cobre os nomes de
+  `SENSITIVE_KEYS` (`packages/observability/src/redaction.ts`) em qualquer nível do objeto e
+  padrões de texto (JWT, `Bearer`, CPF, e-mail mascarado). **Campo sensível novo em DTO** entra em
+  `SENSITIVE_KEYS` com teste de redação no mesmo PR.
+- **Spans de negócio:** operação cara ou central abre um span manual com `withSpan`, só com
+  atributos `cf.*` permitidos (UUIDs, códigos, enums, contagens) — o que sair da _allowlist_ é
+  descartado e contado em `cf.attributes.dropped`:
+  `await withSpan('process.forward', { 'cf.process.id': id, 'cf.stage.to': to }, () => …)`.
+  Referência: `InternalExampleController.ping` (`apps/api/src/modules/platform/presentation`).
+- **Assíncrono:** o produtor de job grava `correlationId`/`traceparent` com `captureJobTraceMeta()`
+  e o consumidor roda em `runInJobContext()` (span `<fila> process`, filho da requisição). Assim
+  como o `AsyncLocalStorage`, o contexto de trace só segue a cadeia assíncrona: `Promise` criada
+  fora dela (listeners do bootstrap, _fire-and-forget_) gera span órfão — capture o contexto antes
+  (`injectTraceCarrier()`) e restaure-o (`withSpan(…, { parent: extractTraceContext(carrier) })`).
+- **Execução:** `api` e `worker` sobem com `node --import ./dist/otel.js dist/main.js` (scripts
+  `dev`/`start`); o web, pelo `src/instrumentation.ts`. Sem `OTEL_EXPORTER_OTLP_ENDPOINT` (permitido
+  só fora de staging/produção) o tracing fica desligado com o aviso `tracing.disabled`; com o
+  Collector fora do ar, a resposta segue normal e sai `warn tracing.export_failed` (no máximo 1/min).
 
 ## Web: shell, BFF e design system
 

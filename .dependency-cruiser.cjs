@@ -181,6 +181,14 @@ module.exports = {
       to: { path: '^(packages|apps)/', pathNot: '^packages/(ui|types)/' },
     },
     {
+      name: 'observability-only-types',
+      severity: 'error',
+      comment:
+        'packages/observability (logs, correlação e tracing — US-084) só importa packages/types (architecture.md §4.3).',
+      from: { path: '^packages/observability/' },
+      to: { path: '^(packages|apps)/', pathNot: '^packages/(observability|types)/' },
+    },
+    {
       name: 'not-to-unresolvable',
       severity: 'error',
       comment: 'Import que não resolve (dependência ausente ou alias sem mapeamento).',

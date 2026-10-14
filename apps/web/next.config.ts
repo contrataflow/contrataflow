@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Design system consumido como pacote do workspace (CSS e componentes).
   transpilePackages: ['@contrataflow/ui'],
+  // Logger e OpenTelemetry carregados pelo Node em runtime, fora do bundle do servidor: o SDK
+  // depende de `require` dinâmico (instrumentações) e de módulos nativos do Node (US-084).
+  serverExternalPackages: [
+    '@contrataflow/observability',
+    '@opentelemetry/instrumentation-http',
+    '@opentelemetry/instrumentation-undici',
+  ],
 };
 
 export default withNextIntl(nextConfig);

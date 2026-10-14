@@ -1,16 +1,21 @@
 import 'reflect-metadata';
 
-import { Logger } from '@nestjs/common';
+import { createLogger } from '@contrataflow/observability';
 
 import { ConfigValidationError, loadConfigFromProcess } from '#config/env.js';
+import { createApiLogger } from '#shared/observability/observability.module.js';
 
 import { startApi } from './bootstrap.js';
 
 try {
-  await startApi({ config: loadConfigFromProcess() });
+  const config = loadConfigFromProcess();
+  await startApi({ config, rootLogger: createApiLogger(config) });
 } catch (error) {
-  // V-01: configuração inválida impede o processo de subir, apontando as chaves (sem valores).
+  // V-01/V-03: configuração inválida impede o processo de subir, apontando as chaves (sem valores).
   if (!(error instanceof ConfigValidationError)) throw error;
-  new Logger('Bootstrap').error(`api.config_invalid keys=${error.keys.join(',')}`);
+  createLogger({ service: 'api', env: 'unknown', version: 'unknown', level: 'info' }).fatal(
+    { event: 'api.config_invalid', keys: error.keys },
+    'invalid configuration',
+  );
   process.exitCode = 1;
 }

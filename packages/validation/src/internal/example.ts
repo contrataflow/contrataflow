@@ -37,3 +37,22 @@ export const internalEchoSchema = z
 export const internalItemSchema = z
   .object({ id: z.string(), position: z.int().min(1) })
   .meta({ id: 'InternalItem' });
+
+/**
+ * Job de teste da US-084: o `JobMeta` de rastreio que o produtor grava (DEC-164) — prova a
+ * propagação de `correlationId`/`traceparent` da requisição até o worker.
+ */
+export const internalTraceDemoJobSchema = z
+  .object({
+    queue: z.string(),
+    jobName: z.string(),
+    jobId: z.uuid(),
+    meta: z.object({
+      correlationId: z.string(),
+      tenantId: z.uuid().nullable(),
+      causationId: z.string().nullable(),
+      traceparent: z.string().optional(),
+      tracestate: z.string().optional(),
+    }),
+  })
+  .meta({ id: 'InternalTraceDemoJob' });

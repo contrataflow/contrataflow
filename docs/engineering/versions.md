@@ -34,8 +34,10 @@
 | Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.0 · 7.10.0 · 7.10.0 · 8.23.1 | api — persistência e `TenantTransaction` (US-081, DEC-064); gerador `prisma-client` em ESM; `pg` e `@types/pg` 8.23.1 só nos testes de integração |
 | Back-end | `decimal.js` | 10.6.0 | api — cálculos e mapeamento de colunas `Decimal` (DEC-003, US-081) |
 | Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | reservado — filas (DEC-163) |
-| Back-end | `@opentelemetry/sdk-node` | 0.222.0 | reservado — US-084 (SDK 2.x) |
-| Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | reservado — US-080/US-084 |
+| Observabilidade | `@opentelemetry/api` · `sdk-node` · `sdk-trace` · `core` · `context-async-hooks` | 1.9.1 · 0.222.0 · 2.11.0 · 2.11.0 · 2.11.0 | `packages/observability` — SDK 2.x, sampler, propagador W3C e testes em memória (US-084) |
+| Observabilidade | `@opentelemetry/exporter-trace-otlp-http` · `instrumentation` | 0.222.0 | exportador OTLP/HTTP e *hook* ESM (`hook.mjs`) da api e do worker (US-084) |
+| Observabilidade | `@opentelemetry/instrumentation-http` · `-undici` · `-nestjs-core` · `-pg` · `-ioredis` · `@prisma/instrumentation` | 0.222.0 · 0.32.0 · 0.68.0 · 0.74.0 · 0.70.0 · 7.10.0 | instrumentações de observability.md §4.1, alinhadas ao `@opentelemetry/instrumentation` 0.222 (US-084) |
+| Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | logs JSON de web, api e worker (US-084) |
 | Contratos | `zod` · `@asteasolutions/zod-to-openapi` | 4.6.5 · 8.5.0 | `packages/validation`; OpenAPI 3.1 (DEC-063) |
 | Front-end | `next` | 16.3.8 | web (App Router, Turbopack) |
 | Front-end | `tailwindcss` · `@tailwindcss/postcss` | 4.3.3 | ui e web |

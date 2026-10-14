@@ -58,7 +58,10 @@ async function activeSession() {
 describe('apiServerClient (Server Components — RN-FND-88)', () => {
   it('lê com a sessão do cookie e devolve { data, meta }', async () => {
     const { test, record } = await activeSession();
-    request.headers = new Headers({ 'X-Correlation-Id': 'c-rsc', 'X-Forwarded-For': '200.1.2.3' });
+    request.headers = new Headers({
+      'X-Correlation-Id': 'c-rsc-0001',
+      'X-Forwarded-For': '200.1.2.3',
+    });
     test.api.mockResolvedValueOnce(
       Response.json({ data: { ok: 1 }, meta: { page: 1 } }, { headers: { ETag: '"2"' } }),
     );
@@ -70,7 +73,7 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
     expect(result).toEqual({
       data: { ok: 1 },
       status: 200,
-      meta: { page: 1, etag: '"2"', correlationId: 'c-rsc', replayed: false },
+      meta: { page: 1, etag: '"2"', correlationId: 'c-rsc-0001', replayed: false },
     });
     const [url, init] = test.api.mock.calls[0] ?? [];
     expect(url).toBe('http://api.internal:4000/api/v1/processes?page=1');

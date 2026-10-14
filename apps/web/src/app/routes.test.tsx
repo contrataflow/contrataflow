@@ -150,13 +150,13 @@ describe('SCR-111 — páginas /erro/*', () => {
     async (variante, title, action) => {
       const element = await ErrorPage({
         params: Promise.resolve({ variante }),
-        searchParams: Promise.resolve({ retorno: '/processos', codigo: 'c-111' }),
+        searchParams: Promise.resolve({ retorno: '/processos', codigo: 'c-111-0001' }),
       });
       renderIntl(element);
       const heading = screen.getByRole('heading', { level: 1, name: title });
       expect(document.activeElement).toBe(heading);
       expect(screen.getByRole('link', { name: action })).toBeTruthy();
-      expect(screen.getByText('Código: c-111')).toBeTruthy();
+      expect(screen.getByText('Código: c-111-0001')).toBeTruthy();
       expect(await seriousA11yViolations()).toEqual([]);
       expect(
         (

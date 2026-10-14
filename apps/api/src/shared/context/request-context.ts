@@ -8,6 +8,8 @@ export type ActorType = 'ANONYMOUS' | 'USER';
  */
 export interface RequestContext {
   readonly correlationId: string;
+  /** Um salto HTTP (observability.md §3); ausente em jobs. */
+  readonly requestId?: string;
   readonly ip: string;
   readonly userAgent: string;
   readonly actor: {
@@ -26,7 +28,7 @@ const storage = new AsyncLocalStorage<{ value: RequestContext }>();
 
 /** Abre um contexto novo para `fn` (uma requisição, um job). */
 export function runWithRequestContext<T>(
-  initial: Pick<RequestContext, 'correlationId' | 'ip' | 'userAgent'>,
+  initial: Pick<RequestContext, 'correlationId' | 'ip' | 'userAgent' | 'requestId'>,
   fn: () => T,
 ): T {
   return storage.run(
@@ -48,6 +50,22 @@ export function currentRequestContext(): RequestContext | undefined {
   return storage.getStore()?.value;
 }
 
+/**
+ * Campos de correlação de toda linha de log (RN-FND-71 · observability.md §2.2), lidos no momento
+ * do log — o tenant e o usuário aparecem assim que os guards os definem. IP e user-agent ficam fora
+ * (dado pessoal: só em logs de acesso e auditoria).
+ */
+export function requestContextLogFields(): Readonly<Record<string, string | null>> | undefined {
+  const context = currentRequestContext();
+  if (!context) return undefined;
+  return {
+    correlationId: context.correlationId,
+    tenantId: context.tenantId,
+    userId: context.actor.userId,
+    membershipId: context.actor.membershipId,
+  };
+}
+
 /** Erro de programação: código que exige contexto rodando fora dele (falha fechada). */
 export class RequestContextMissingError extends Error {
   constructor() {
@@ -65,7 +83,7 @@ export function requireRequestContext(): RequestContext {
 
 /** Completa o contexto atual (uso exclusivo dos guards do pipeline). */
 export function updateRequestContext(
-  patch: Partial<Omit<RequestContext, 'correlationId' | 'ip' | 'userAgent'>>,
+  patch: Partial<Omit<RequestContext, 'correlationId' | 'ip' | 'userAgent' | 'requestId'>>,
 ): RequestContext {
   const holder = storage.getStore();
   if (!holder) throw new RequestContextMissingError();

@@ -8,7 +8,8 @@
         "@contrataflow/types#build",
         "@contrataflow/validation#build",
         "@contrataflow/editor#build",
-        "@contrataflow/ui#build"
+        "@contrataflow/ui#build",
+        "@contrataflow/observability#build"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",

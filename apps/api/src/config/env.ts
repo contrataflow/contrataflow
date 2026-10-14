@@ -1,34 +1,46 @@
+import { LOG_LEVELS, PRODUCTION_FORBIDDEN_LEVELS } from '@contrataflow/observability';
+import type { LogLevel } from '@contrataflow/observability';
 import { z } from 'zod';
 
 /**
  * Schema único das variáveis de ambiente da API (RN-FND-30 · architecture.md §10.1). Toda
  * variável lida pela aplicação está aqui; `process.env` não é lido fora de `src/config/**`.
  */
-export const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  /** Ambiente lógico; compõe o prefixo das chaves Redis `cf:{env}:…` (multi-tenancy.md §7). */
-  APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
-  PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
-  /** Papel `cf_app` (multi-tenancy.md §5.2): sem BYPASSRLS e sem DDL (US-081 · RN-FND-46). */
-  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  /** Conexões por réplica (architecture.md §12.1). */
-  DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
-  REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
-  OIDC_ISSUER_URL: z.url(),
-  /** Uma ou mais audiências aceitas, separadas por vírgula. */
-  OIDC_AUDIENCE: z.string().trim().min(1).default('contrataflow-api'),
-  OIDC_CLOCK_TOLERANCE_SECONDS: z.coerce.number().int().min(0).max(60).default(30),
-  /**
-   * Chave HS256 do `FakeJwksProvider` (FA-02), só até o verificador JWKS real da US-087. Ausente →
-   * chave aleatória por processo: nenhum token é aceito (falha fechada).
-   */
-  OIDC_FAKE_SIGNING_KEY: z.string().min(32).optional(),
-  CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
-  PAGINATION_MAX_PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(100),
-  RATE_LIMIT_READ_PER_MIN: z.coerce.number().int().positive().default(600),
-  RATE_LIMIT_WRITE_PER_MIN: z.coerce.number().int().positive().default(120),
-  IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().positive().default(24),
-});
+export const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    /** Ambiente lógico; compõe o prefixo das chaves Redis `cf:{env}:…` (multi-tenancy.md §7). */
+    APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
+    PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+    /** Papel `cf_app` (multi-tenancy.md §5.2): sem BYPASSRLS e sem DDL (US-081 · RN-FND-46). */
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    /** Conexões por réplica (architecture.md §12.1). */
+    DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+    REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
+    OIDC_ISSUER_URL: z.url(),
+    /** Uma ou mais audiências aceitas, separadas por vírgula. */
+    OIDC_AUDIENCE: z.string().trim().min(1).default('contrataflow-api'),
+    OIDC_CLOCK_TOLERANCE_SECONDS: z.coerce.number().int().min(0).max(60).default(30),
+    /**
+     * Chave HS256 do `FakeJwksProvider` (FA-02), só até o verificador JWKS real da US-087. Ausente →
+     * chave aleatória por processo: nenhum token é aceito (falha fechada).
+     */
+    OIDC_FAKE_SIGNING_KEY: z.string().min(32).optional(),
+    CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
+    PAGINATION_MAX_PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(100),
+    RATE_LIMIT_READ_PER_MIN: z.coerce.number().int().positive().default(600),
+    RATE_LIMIT_WRITE_PER_MIN: z.coerce.number().int().positive().default(120),
+    IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().positive().default(24),
+    /** Nível mínimo de log (RN-FND-72); `debug`/`trace` nunca em produção (V-03). */
+    LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+    /** `<versão>+g<commit>`, injetado no build (US-079). */
+    APP_VERSION: z.string().trim().min(1).default('0.0.0+local'),
+  })
+  .superRefine((env, context) => {
+    if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
+      context.addIssue({ code: 'custom', path: ['LOG_LEVEL'], message: 'Proibido em produção.' });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 
@@ -65,6 +77,7 @@ export interface AppConfig {
     readonly perTenant: number;
   };
   readonly idempotency: { readonly ttlMs: number };
+  readonly observability: { readonly logLevel: LogLevel; readonly version: string };
 }
 
 /** Variável ausente ou inválida: o processo não sobe (V-01). Lista as chaves, nunca os valores. */
@@ -111,6 +124,7 @@ function toAppConfig(env: Env): AppConfig {
       perTenant: 6_000,
     },
     idempotency: { ttlMs: env.IDEMPOTENCY_TTL_HOURS * 3_600_000 },
+    observability: { logLevel: env.LOG_LEVEL, version: env.APP_VERSION },
   };
 }
 

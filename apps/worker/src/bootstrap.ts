@@ -1,9 +1,12 @@
+import type { Logger as PinoLogger } from '@contrataflow/observability';
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { Logger as NestPinoLogger } from 'nestjs-pino';
 
 import { registerGracefulShutdown } from './graceful-shutdown.js';
 import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
+import { createWorkerLogger } from './observability/worker-logger.js';
 import { WorkerModule } from './worker.module.js';
 
 export interface StartWorkerOptions {
@@ -11,6 +14,8 @@ export interface StartWorkerOptions {
   readonly proc?: ShutdownProcess;
   /** `false` silencia o logger do Nest (testes). */
   readonly logger?: false;
+  /** Logger pino raiz (padrão: stdout, nível `info` — RN-FND-71). */
+  readonly rootLogger?: PinoLogger;
 }
 
 export interface RunningWorker {
@@ -24,13 +29,18 @@ export interface RunningWorker {
  * em SIGTERM/SIGINT. Enquanto não há filas, um temporizador mantém o processo ativo.
  */
 export async function startWorker(options: StartWorkerOptions = {}): Promise<RunningWorker> {
+  const silent = options.logger === false;
+  const rootLogger =
+    options.rootLogger ??
+    createWorkerLogger({ environment: 'local', version: '0.0.0+local', logLevel: 'info' });
   const context = await NestFactory.createApplicationContext(
-    WorkerModule,
-    options.logger === false ? { logger: false } : {},
+    WorkerModule.forRoot(rootLogger),
+    silent ? { logger: false } : { bufferLogs: true },
   );
+  if (!silent) context.useLogger(context.get(NestPinoLogger));
   const logger = new Logger('Bootstrap');
   const keepAlive = setInterval(() => undefined, 60_000);
-  logger.log('worker.started');
+  logger.log({ event: 'worker.started' }, 'worker started');
 
   const stopped = registerGracefulShutdown(
     {

@@ -57,7 +57,12 @@ export function fetchItems(page: number, signal?: AbortSignal): Promise<ApiResul
 
 export function createEcho(
   body: InternalEchoRequest,
-  idempotencyKey: string,
+  action: { readonly idempotencyKey: string; readonly correlationId?: string },
 ): Promise<ApiResult<InternalEcho>> {
-  return apiRequest<InternalEcho>(examplePaths.echo, { method: 'POST', body, idempotencyKey });
+  return apiRequest<InternalEcho>(examplePaths.echo, {
+    method: 'POST',
+    body,
+    idempotencyKey: action.idempotencyKey,
+    correlationId: action.correlationId,
+  });
 }

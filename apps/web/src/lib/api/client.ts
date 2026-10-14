@@ -1,9 +1,12 @@
+import { CORRELATION_HEADER, uuidv7 } from '@contrataflow/observability/correlation';
+
 import { ApiError, apiErrorFromResponse } from './api-error';
 
 /*
  * Cliente same-origin dos Client Components (architecture.md §8.4/§8.5 · RN-FND-89/90): único
  * caminho de leitura e mutação do browser, sempre via proxy `/api/v1/*` do BFF (sem Server
- * Actions). Envia `X-CF-Request` (CSRF), `If-Match` e `Idempotency-Key`; expõe `ETag` em
+ * Actions). Envia `X-CF-Request` (CSRF), `If-Match`, `Idempotency-Key` e o `X-Correlation-Id` da
+ * ação do usuário (reutilizado nas retentativas — observability.md §3); expõe `ETag` em
  * `meta.etag` e converte problem+json em `ApiError`.
  */
 
@@ -32,6 +35,8 @@ export interface ApiRequestOptions {
   readonly body?: unknown;
   readonly ifMatch?: string | null | undefined;
   readonly idempotencyKey?: string | undefined;
+  /** Um por ação do usuário; o BFF gera um se ausente. */
+  readonly correlationId?: string | undefined;
   readonly signal?: AbortSignal | undefined;
   readonly fetchImpl?: typeof fetch | undefined;
 }
@@ -73,6 +78,7 @@ export async function apiRequest<T>(
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.ifMatch) headers.set('If-Match', options.ifMatch);
   if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey);
+  if (options.correlationId) headers.set(CORRELATION_HEADER, options.correlationId);
 
   let response: Response;
   try {
@@ -155,4 +161,9 @@ export async function retryIdempotent<T>(
 /** Nova chave de idempotência (UUID v4). */
 export function newIdempotencyKey(): string {
   return crypto.randomUUID();
+}
+
+/** Novo `correlationId` de uma ação do usuário (UUIDv7, aceito pelo BFF — RN-FND-74). */
+export function newCorrelationId(): string {
+  return uuidv7();
 }

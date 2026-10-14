@@ -298,6 +298,7 @@ contrataflow/
 │   ├── types/              # enums, permissões, eventos, códigos de erro, chaves de configuração, allowlist de upload
 │   ├── validation/         # schemas Zod (DTOs, eventos, RuleContext, settings) + geração OpenAPI 3.1
 │   ├── editor/             # extensões TipTap, schema ProseMirror, validador e serializador HTML (DEC-051, DEC-056)
+│   ├── observability/      # logger pino com redação (DEC-138), correlationId e tracing OpenTelemetry (US-084)
 │   ├── eslint-config/      # regras compartilhadas (inclui proibições de segurança — §4.4)
 │   └── tsconfig/           # bases strict (node, next, library)
 ├── infra/
@@ -320,18 +321,20 @@ contrataflow/
 | `packages/validation` | Schemas Zod de contrato (request/response, eventos, `RuleContext`, settings). | Regras dependentes de estado (DEC-054). |
 | `packages/editor` | Schema TipTap/ProseMirror, validação de conteúdo, `generateHTML` no servidor. | Componentes React de página. |
 | `packages/ui` | Componentes acessíveis, tokens, temas. | Chamadas de API, conhecimento de domínio. |
+| `packages/observability` | Logger pino comum (campos e redação de DEC-138), `correlationId`, helpers de tracing (`withSpan`, propagação W3C até o job) e bootstrap do OpenTelemetry Node SDK (US-084). | Conhecimento de domínio; leitura de `process.env` (cada app passa a configuração). |
 
 ### 4.3 Regras de dependência
 
-| De ↓ / Para → | `types` | `validation` | `editor` | `ui` | `apps/api` | `apps/web` | `apps/worker` |
-|---|---|---|---|---|---|---|---|
-| `packages/types` | — | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ |
-| `packages/validation` | ✔ | — | ✘ | ✘ | ✘ | ✘ | ✘ |
-| `packages/editor` | ✔ | ✔ | — | ✘ | ✘ | ✘ | ✘ |
-| `packages/ui` | ✔ | ✘ | ✘ | — | ✘ | ✘ | ✘ |
-| `apps/web` | ✔ | ✔ | ✔ | ✔ | ✘ (só HTTP) | — | ✘ |
-| `apps/api` | ✔ | ✔ | ✔ | ✘ | — | ✘ | ✘ |
-| `apps/worker` | ✔ | ✔ | ✔ | ✘ | ✔ (somente `src/modules/*/{application,infrastructure,domain}`, `*.module.ts` e `src/shared`) | ✘ | — |
+| De ↓ / Para → | `types` | `validation` | `editor` | `ui` | `observability` | `apps/api` | `apps/web` | `apps/worker` |
+|---|---|---|---|---|---|---|---|---|
+| `packages/types` | — | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ |
+| `packages/validation` | ✔ | — | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ |
+| `packages/editor` | ✔ | ✔ | — | ✘ | ✘ | ✘ | ✘ | ✘ |
+| `packages/ui` | ✔ | ✘ | ✘ | — | ✘ | ✘ | ✘ | ✘ |
+| `packages/observability` | ✔ | ✘ | ✘ | ✘ | — | ✘ | ✘ | ✘ |
+| `apps/web` | ✔ | ✔ | ✔ | ✔ | ✔ | ✘ (só HTTP) | — | ✘ |
+| `apps/api` | ✔ | ✔ | ✔ | ✘ | ✔ | — | ✘ | ✘ |
+| `apps/worker` | ✔ | ✔ | ✔ | ✘ | ✔ | ✔ (somente `src/modules/*/{application,infrastructure,domain}`, `*.module.ts` e `src/shared`) | ✘ | — |
 
 Regras adicionais dentro de `apps/api` (DEC-041):
 1. `modules/<m>/domain/**` não importa `@nestjs/*`, `@prisma/*`, `ioredis`, SDKs de nuvem nem outro módulo.
@@ -963,7 +966,8 @@ export const envSchema = z.object({
 
 | Variável | web | api | worker | Descrição |
 |---|:-:|:-:|:-:|---|
-| `APP_ENV`, `LOG_LEVEL` | ✔ | ✔ | ✔ | Ambiente lógico e nível de log |
+| `APP_ENV`, `LOG_LEVEL` | ✔ | ✔ | ✔ | Ambiente lógico e nível de log (`info` padrão; `debug`/`trace` recusados em produção — US-084 V-03) |
+| `APP_VERSION` | ✔ | ✔ | ✔ | `<versão>+g<commit>` injetado no build (US-079); campo `version` dos logs e `service.version` dos traces |
 | `APP_BASE_URL` | ✔ | ✔ | ✔ | URL pública da aplicação (CSP, Origin, links de e-mail) |
 | `API_INTERNAL_URL` | ✔ | | | URL privada da API (Cloud Map / service connect) |
 | `OIDC_ISSUER_URL` | ✔ | ✔ | | Issuer do provider Authentik (`…/application/o/<slug>/`) |
@@ -987,7 +991,7 @@ export const envSchema = z.object({
 | `GOTENBERG_URL`, `CLAMAV_HOST`, `CLAMAV_PORT` | | | ✔ | Serviços internos |
 | `EMAIL_TRANSPORT` (`smtp`\|`ses`), `SMTP_URL`, `SES_REGION`, `EMAIL_FROM` | | | ✔ | Envio de e-mail (Mailpit em dev) |
 | `WORKER_QUEUES`, `WORKER_ADMIN_PORT`, `SHUTDOWN_GRACE_MS` | | | ✔ | Perfil do worker e Bull Board interno ([`queues.md`](queues.md)) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER_ARG` | ✔ | ✔ | ✔ | Telemetria ([`observability.md`](observability.md)) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER_ARG` | ✔ | ✔ | ✔ | Telemetria ([`observability.md`](observability.md)): endpoint obrigatório em staging/produção (ausente fora deles = tracing desligado); `OTEL_SERVICE_NAME`, se informado, deve ser o fixo do app; razão de amostragem 0–1 (padrão 1) |
 | `TRUSTED_PROXY_CIDRS` | ✔ | ✔ | | Origem confiável de `X-Forwarded-For` (ALB → web; web → api) |
 
 Variáveis exclusivas de dev (ex.: `AUTHENTIK_BOOTSTRAP_*`, credenciais do MinIO) ficam em `.env` local, ignorado pelo git e verificado pelo `gitleaks`.

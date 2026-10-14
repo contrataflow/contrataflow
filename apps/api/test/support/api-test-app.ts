@@ -1,7 +1,10 @@
 import type { Server } from 'node:http';
 
+import type { Logger as PinoLogger } from '@contrataflow/observability';
 import type { INestApplication, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Logger as NestPinoLogger } from 'nestjs-pino';
+import { __resetOutOfContextForTests } from 'nestjs-pino/PinoLogger.js';
 
 import { loadConfig } from '#config/env.js';
 import type { AppConfig } from '#config/env.js';
@@ -42,6 +45,8 @@ export interface TestApiOptions {
   readonly stores?: 'memory' | 'redis';
   /** Controllers extras só para o teste (ex.: handler lento). */
   readonly controllers?: Type[];
+  /** Logger pino que recebe os logs da aplicação (padrão: Nest silenciado). */
+  readonly logger?: PinoLogger;
 }
 
 export interface TestApi {
@@ -56,9 +61,11 @@ export interface TestApi {
 
 export async function createTestApi(options: TestApiOptions = {}): Promise<TestApi> {
   const config = options.config ?? testConfig();
+  // O nestjs-pino guarda o logger de fora de requisição no primeiro uso do processo.
+  if (options.logger) __resetOutOfContextForTests();
   const rateLimitStore = new InMemoryRateLimitStore();
   let builder = Test.createTestingModule({
-    imports: [AppModule.forRoot(config)],
+    imports: [AppModule.forRoot(config, options.logger ? { logger: options.logger } : {})],
     controllers: options.controllers ?? [],
   });
   if ((options.stores ?? 'memory') === 'memory') {
@@ -72,6 +79,7 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
   const app = configureApiApp(
     moduleRef.createNestApplication({ bodyParser: false, logger: false }),
   );
+  if (options.logger) app.useLogger(app.get(NestPinoLogger));
   // Já escutando: o supertest reutiliza o servidor em vez de abrir uma porta por requisição.
   await app.listen(0, '127.0.0.1');
   const verifier = app.get<FakeJwksProvider>(TOKEN_VERIFIER);

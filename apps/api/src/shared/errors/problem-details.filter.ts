@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-
+import { uuidv7 } from '@contrataflow/observability';
 import type { ErrorCode } from '@contrataflow/types';
 import type { ProblemDetails } from '@contrataflow/validation';
 import { Catch, HttpException, Logger } from '@nestjs/common';
@@ -10,6 +9,7 @@ import { ApiError, validationError } from './api-error.js';
 import { problemType } from './error-catalog.js';
 import { CORRELATION_HEADER } from '../context/correlation.js';
 import { currentRequestContext } from '../context/request-context.js';
+import { annotateProblemCode } from '../context/request-context.middleware.js';
 import { requestPath } from '../http/http-types.js';
 import type { HttpRequest, HttpResponse } from '../http/http-types.js';
 import { toFieldErrors } from '../validation/zod-issues.js';
@@ -61,7 +61,7 @@ export function toApiError(exception: unknown): { error: ApiError; unexpected: b
 /**
  * Filtro global RFC 9457 (DEC-103 · api.md §2): toda saída de erro vira `application/problem+json`
  * com `code` estável e `correlationId`; exceção não mapeada → 500 `INTERNAL_ERROR` sem detalhe
- * interno (stack só em log `debug`).
+ * interno ao cliente — tipo, mensagem redigida e stack ficam só no log `error`, ligado ao trace.
  */
 @Catch()
 export class ProblemDetailsExceptionFilter implements ExceptionFilter {
@@ -75,12 +75,12 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
     const correlationId = this.correlationId(response);
 
     if (unexpected) {
-      const cause = exception instanceof Error ? exception : undefined;
       this.logger.error(
-        `http.unhandled_exception correlationId=${correlationId} errorCode=${error.code} cause=${cause?.name ?? typeof exception}`,
+        { event: 'http.unhandled_exception', correlationId, errorCode: error.code, err: exception },
+        'unhandled exception',
       );
-      if (cause?.stack) this.logger.debug(cause.stack);
     }
+    annotateProblemCode(response, error.code);
 
     const body: ProblemDetails = {
       ...error.extensions,
@@ -111,6 +111,6 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
     const fromContext = currentRequestContext()?.correlationId;
     if (fromContext) return fromContext;
     const fromHeader = response.getHeader(CORRELATION_HEADER);
-    return typeof fromHeader === 'string' ? fromHeader : randomUUID();
+    return typeof fromHeader === 'string' ? fromHeader : uuidv7();
   }
 }

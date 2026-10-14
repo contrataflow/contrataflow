@@ -75,4 +75,23 @@ describe('loadConfig', () => {
       /PAGINATION_MAX_PAGE_SIZE/,
     );
   });
+
+  it('observabilidade: LOG_LEVEL padrão info e APP_VERSION informada (US-084)', () => {
+    expect(loadConfig(REQUIRED).observability).toEqual({
+      logLevel: 'info',
+      version: '0.0.0+local',
+    });
+    expect(
+      loadConfig({ ...REQUIRED, LOG_LEVEL: 'debug', APP_VERSION: '1.4.2+g3f9c2ab' }).observability,
+    ).toEqual({ logLevel: 'debug', version: '1.4.2+g3f9c2ab' });
+  });
+
+  it.each(['debug', 'trace'])('V-03: LOG_LEVEL=%s em produção impede o boot', (level) => {
+    expect(() => loadConfig({ ...REQUIRED, NODE_ENV: 'production', LOG_LEVEL: level })).toThrow(
+      expect.objectContaining({ keys: ['LOG_LEVEL'] }),
+    );
+    expect(
+      loadConfig({ ...REQUIRED, NODE_ENV: 'production', LOG_LEVEL: 'warn' }).observability.logLevel,
+    ).toBe('warn');
+  });
 });

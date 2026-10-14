@@ -57,18 +57,27 @@ describe('CSRF em métodos mutáveis (V-01/V-02 · DEC-135)', () => {
 });
 
 describe('correlationId recebido do browser (regra da US-084)', () => {
-  it.each(['c-7f3a', 'a.b:c_d-1', 'x'.repeat(128)])('aceita %s', (value) => {
+  it.each(['c-7f3a2b9e', 'a.b:c_d-1', 'x'.repeat(64)])('aceita %s', (value) => {
     expect(isValidCorrelationId(value)).toBe(true);
     expect(resolveCorrelationId(value)).toBe(value);
   });
 
-  it.each(['', 'com espaço', 'quebra\nde-linha', 'x'.repeat(129), '<script>', null, undefined])(
-    'gera novo UUID para %j',
-    (value) => {
-      expect(isValidCorrelationId(value)).toBe(false);
-      expect(resolveCorrelationId(value)).toMatch(/^[0-9a-f-]{36}$/);
-    },
-  );
+  it.each([
+    '',
+    'c-7f3a',
+    'a b c',
+    'com espaço',
+    'quebra\nde-linha',
+    'x'.repeat(65),
+    '<script>',
+    null,
+    undefined,
+  ])('descarta %j e gera um UUIDv7 (V-01)', (value) => {
+    expect(isValidCorrelationId(value)).toBe(false);
+    expect(resolveCorrelationId(value)).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
 });
 
 describe('IP do cliente (TRUSTED_PROXY_CIDRS — RN-FND-94)', () => {
