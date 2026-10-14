@@ -120,7 +120,7 @@ Implementação: contadores atômicos no Redis principal (janela deslizante por 
 | *Login CSRF* | `state` vinculado ao browser por cookie de transação de curta duração ([`authentication.md`](authentication.md#4-login-authorization-code--pkce)) |
 | Logout por `POST` | Logout forçado por terceiros não é possível |
 
-Falha → 403 `PERMISSION_DENIED` com registro `access.denied` (`reasonCode = CSRF`†).
+Falha → 403 `CSRF_REJECTED` (api.md §2.2), respondido pelo próprio BFF antes de qualquer chamada à API e registrado no log `bff.csrf_rejected` (US-086); o registro de auditoria `access.denied` (`reasonCode = CSRF`†) fica para quando o BFF tiver canal de auditoria.
 
 ## 8. Cabeçalhos de segurança, CSP e IP do cliente
 

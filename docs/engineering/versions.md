@@ -38,12 +38,16 @@
 | Contratos | `zod` · `@asteasolutions/zod-to-openapi` | 4.6.5 · 8.5.0 | `packages/validation`; OpenAPI 3.1 (DEC-063) |
 | Front-end | `next` | 16.3.8 | web (App Router, Turbopack) |
 | Front-end | `tailwindcss` · `@tailwindcss/postcss` | 4.3.3 | ui e web |
-| Front-end | `@tanstack/react-query` · `@tanstack/react-table` | 5.104.1 · 8.21.3 | reservado — US-086 |
-| Front-end | `react-hook-form` · `next-intl` | 7.89.0 · 4.14.9 | reservado — US-086 |
+| Front-end | `@tanstack/react-query` · `@tanstack/react-table` | 5.104.1 · 8.21.3 | web — cache por tenant (US-086); Table reservado |
+| Front-end | `react-hook-form` · `@hookform/resolvers` · `next-intl` | 7.89.0 · 5.9.1 · 4.14.9 | web — formulários com `zodResolver` e i18n pt-BR (US-086) |
+| Front-end | `radix-ui` | 1.7.0 | ui — primitives acessíveis do shadcn/ui (pacote unificado; US-086) |
+| Front-end | `server-only` | 0.0.1 | web — `src/bff/**` nunca vai ao bundle do cliente (RN-FND-88) |
+| Front-end | `storybook` · `@storybook/react-vite` · `@storybook/addon-a11y` | 10.6.1 | ui — histórias por componente com axe (RN-FND-91) |
 | Front-end | `@tiptap/core` · `@tiptap/pm` · `@tiptap/starter-kit` | 3.31.4 | reservado — editor rico (DEC-056) |
 | Testes | `vitest` · `@vitest/coverage-v8` · `vite` | 4.1.11 · 4.1.11 · 7.3.6 | todos os pacotes (`vite` é _peer_ obrigatório) |
 | Testes | `unplugin-swc` | 2.0.0 | Vitest na api e no worker |
-| Testes | `@playwright/test` · `axe-core` | 1.63.0 · 4.13.0 | reservado — E2E (US-079) |
+| Testes | `@playwright/test` · `axe-core` | 1.63.0 · 4.13.0 | E2E (US-079); axe também nos testes de componente (US-086) |
+| Testes | `jsdom` · `@testing-library/react` · `dom` · `user-event` | 29.1.1 · 16.3.3 · 10.4.2 · 14.6.7 | testes de componente de web e ui (US-086). `jsdom` 30 exige Node ≥ 24.15 — fica na 29 enquanto `engines` aceitar 24.11 |
 | Testes | `testcontainers` · `supertest` · `@types/supertest` | 11.14.0 · 7.3.1 · 7.2.1 | reservado — integração (US-078/US-079) |
 
 **Catálogo nomeado `react`** (uma única versão no lockfile): `react` 19.2.8 · `react-dom` 19.2.8 · `@types/react` 19.2.18 · `@types/react-dom` 19.2.7.
@@ -60,7 +64,7 @@ Entradas "reservado" já fixam a linha-alvo da US-077 para as stories seguintes;
 | `minimumReleaseAge` | 4320 min (3 dias) | não instala versões recém-publicadas (RS-11) |
 | `catalogMode` | `strict` | `pnpm add` só aceita versões do catálogo |
 | `onlyBuiltDependencies` | `@swc/core`, `esbuild` | binários nativos verificados no `postinstall` |
-| `ignoredBuiltDependencies` | `unrs-resolver` | revisado: o binário chega por `optionalDependencies`; o script é dispensável |
+| `ignoredBuiltDependencies` | `unrs-resolver`, `@parcel/watcher` (next-intl), `cpu-features`, `protobufjs`, `ssh2` | revisado: o binário chega por `optionalDependencies`; o script é dispensável |
 
 ## 4. Exceções de TypeScript
 

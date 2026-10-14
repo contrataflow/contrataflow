@@ -22,20 +22,33 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "storybook": "storybook dev --port 6006",
+    "build-storybook": "storybook build --output-dir storybook-static"
   },
   "dependencies": {
-    "@contrataflow/types": "workspace:*"
+    "@contrataflow/types": "workspace:*",
+    "radix-ui": "catalog:"
   },
   "devDependencies": {
     "@contrataflow/eslint-config": "workspace:*",
     "@contrataflow/tsconfig": "workspace:*",
+    "@storybook/addon-a11y": "catalog:",
+    "@storybook/react-vite": "catalog:",
+    "@tailwindcss/postcss": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:react",
     "@types/react-dom": "catalog:react",
+    "@vitest/coverage-v8": "catalog:",
+    "axe-core": "catalog:",
     "eslint": "catalog:",
+    "jsdom": "catalog:",
     "react": "catalog:react",
     "react-dom": "catalog:react",
+    "storybook": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

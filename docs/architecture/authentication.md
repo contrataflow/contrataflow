@@ -180,7 +180,7 @@ Detalhado em [security.md §7](security.md#7-cors-e-csrf) e [§8](security.md#8-
 
 - Cookie `SameSite=Lax` + header obrigatório `X-CF-Request: 1` em métodos mutáveis + `Sec-Fetch-Site: same-origin` (ou `Origin` = `APP_BASE_URL`) + prefixo `__Host-` (impede *cookie tossing* por subdomínio).
 - Login CSRF coberto pelo `state` vinculado ao cookie de transação (§3); logout exigido por `POST` (§7).
-- Falha de CSRF → 403 `PERMISSION_DENIED` com `access.denied` (`reasonCode = CSRF`).
+- Falha de CSRF → 403 `CSRF_REJECTED` respondido pelo BFF (security.md §7).
 - Respostas de `/api/auth/*` levam `Cache-Control: no-store` e os cabeçalhos de DEC-135 (CSP com nonce, HSTS, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `frame-ancestors 'none'`) (RN-IAM-19).
 - O CSP único do BFF inclui `form-action` para `https://auth.<domínio>` porque o logout por formulário termina em redirecionamento ao *end-session* do Authentik (navegadores aplicam `form-action` a redirecionamentos).
 - IP do cliente: o BFF confia apenas no último salto de `X-Forwarded-For` adicionado pelo ALB e o repassa à API; alimenta rate limit, sessão e `AuditLog.ip` (security.md §8).

@@ -1,0 +1,11 @@
+{
+  "//": "Só para o dependency-cruiser resolver os aliases do web (apps/web/tsconfig.json — US-077/US-086).",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./apps/web/src/*"],
+      "@test/*": ["./apps/web/test/*"]
+    }
+  },
+  "include": ["apps/web/src", "apps/web/test"]
+}

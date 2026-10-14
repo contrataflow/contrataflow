@@ -872,7 +872,7 @@ export const processKeys = {
 - React Hook Form + `zodResolver` com os **mesmos** schemas de `packages/validation` usados pela API (DEC-054); mensagens pt-BR via mapa de erros do Zod configurado com next-intl.
 - Erros do servidor: `errors[]` → `setError(field)`; `violations[]` → checklist na própria tela (ex.: painel lateral de encaminhamento SCR-103, com reconhecimento de `WARNING` gerando `acknowledgedWarnings`).
 - Wizards (Novo processo, DFD — DEC-181) mantêm estado por etapa e só enviam ao final (ou salvam rascunho via API, sem estado só no cliente).
-- Autosave (DEC-182): debounce 1,5 s, indicador acessível (`aria-live="polite"`), contingência em IndexedDB **cifrada por sessão** e apagada no logout (adotado em US-086) ([`security.md`](security.md#9-validação-de-entrada-e-sanitização)).
+- Autosave (DEC-182): debounce 1,5 s, indicador acessível (`aria-live="polite"`), contingência em IndexedDB **cifrada por sessão** e apagada no logout (convenção adotada na US-086; implementada com a primeira tela com autosave — o shell não tem formulário de negócio) ([`security.md`](security.md#9-validação-de-entrada-e-sanitização)).
 
 ### 8.7 Tabelas
 
@@ -893,7 +893,7 @@ next-intl com um único locale (`pt-BR`) e mensagens por *namespace* de feature 
 ### 8.11 Permissões na UI
 
 - `GET /api/v1/me/permissions` (ME-03) alimenta `usePermission(code)`; ações sobre um processo usam `useProcessCapabilities(processId)` (PRC-08 `available-actions`, que já aplica escopo e políticas e devolve o motivo da indisponibilidade) — permissions.md §9.
-- Componente declarativo `<Can permission="PROCESS_CREATE">` (adotado em US-086; variante `<Can action="forward" capabilities={…}>`† para capacidades contextuais) para ocultar (nunca possível) ou desabilitar com explicação (indisponível no contexto).
+- Componente declarativo `<Can permission="PROCESS_CREATE">` (adotado em US-086 — `apps/web/src/lib/permissions/can.tsx`, com `action`/`allowedActions` para a indisponibilidade contextual; variante `<Can action="forward" capabilities={…}>`† para capacidades de processo) para ocultar (nunca possível) ou desabilitar com explicação (indisponível no contexto).
 - A UI nunca reimplementa POL-xx: usa a resposta de `available-actions`/`meta.allowedActions`.
 
 ### 8.12 Erros e boundaries
@@ -970,7 +970,9 @@ export const envSchema = z.object({
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | ✔ | | | Cliente confidencial do BFF (DEC-130) — segredo |
 | `OIDC_REDIRECT_URI`, `OIDC_POST_LOGOUT_REDIRECT_URI` | ✔ | | | Callback e retorno de logout |
 | `OIDC_AUDIENCE`, `OIDC_CLOCK_TOLERANCE_SECONDS` | | ✔ | | Validação do JWT (DEC-132) |
-| `OIDC_FAKE_SIGNING_KEY` | | ✔ | | Chave HS256 do `FakeJwksProvider` — temporária, até o verificador JWKS real (US-087); ausente = nenhum token aceito |
+| `OIDC_FAKE_SIGNING_KEY` | ✔ | ✔ | | Chave HS256 do `FakeJwksProvider` — temporária, até o verificador JWKS real (US-087); ausente = nenhum token aceito. No web liga o provedor de identidade fake do BFF (US-086 FA-06), recusado fora de `local`/`dev`/`test` |
+| `SESSION_COOKIE_NAME`, `CSP_REPORT_URI` | ✔ | | | Cookie de sessão (`__Host-cf_session` — DEC-131) e endpoint interno de relatório de CSP (`/api/csp-report`) — US-086 |
+| `NEXT_PUBLIC_APP_NAME` | ✔ | | | Única variável exposta ao browser (lista fechada — §8.3; `NEXT_PUBLIC_*` fora dela falha o build) |
 | `PORT`, `CORRELATION_HEADER_NAME`, `PAGINATION_MAX_PAGE_SIZE`, `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN`, `IDEMPOTENCY_TTL_HOURS` | | ✔ | | Pipeline HTTP (US-080 — tabela "Campos") |
 | `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM dos tokens no registro de sessão — segredo ([`authentication.md`](authentication.md)) |
 | `AUTHENTIK_API_URL`, `AUTHENTIK_API_TOKEN` | | ✔ | ✔ | API de administração (convites, desativação) — segredo, token de conta de serviço com permissões mínimas |

@@ -23,9 +23,10 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 11. [Segurança](#segurança)
 12. [Fronteiras de dependência](#fronteiras-de-dependência)
 13. [API: pipeline de requisição](#api-pipeline-de-requisição)
-14. [Testes](#testes)
-15. [Geradores](#geradores)
-16. [Decisões e ADRs](#decisões-e-adrs)
+14. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
+15. [Testes](#testes)
+16. [Geradores](#geradores)
+17. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
@@ -386,6 +387,35 @@ envelope (DEC-164).
 são verificados pelo `FakeJwksProvider` (HS256 com `OIDC_FAKE_SIGNING_KEY`; sem a chave, nenhum
 token é aceito) e usuários/vínculos/tenants vêm de adaptadores em memória até a US-081.
 
+## Web: shell, BFF e design system
+
+O `apps/web` (US-086) já entrega a casca de toda tela: route groups `(auth)` (sem shell),
+`(app)` (shell autenticado — o `layout.tsx` resolve sessão e instituição no servidor) e
+`(app)/admin`; BFF em `src/bff/**` (`server-only`): `/api/auth/*`, proxy `/api/v1/[...path]` e
+cabeçalhos de segurança/CSP com nonce aplicados no `src/proxy.ts`. Numa tela nova:
+
+- crie a feature em `src/features/<nome>/` (componentes de domínio ficam aqui, nunca em
+  `packages/ui`); o Server Component faz o _prefetch_ com `apiServerClient.get` e entrega
+  `HydrationBoundary`; `'use client'` só nas folhas interativas;
+- toda _query key_ nasce de `tenantKey(tenantId, …)` (`['t', tenantId, …]`); só `['me']` e
+  `['me', 'memberships']` ficam fora do tenant;
+- leituras e mutações do cliente usam `apiRequest` (`/api/v1/*` via proxy — nunca _Server
+  Actions_); mutação com `useIdempotentMutation` (uma `Idempotency-Key` por intenção) e `If-Match`
+  com o `meta.etag` da leitura; erros seguem a política única de `src/lib/api/error-policy.ts`;
+- formulários: React Hook Form + `zodResolver` com o schema de `packages/validation`; mensagens
+  pt-BR (`messages/pt-BR/<namespace>.json`, next-intl) e Zod em `pt-BR`;
+- ações por permissão com `<Can permission="…">` (oculta sem permissão; desabilita com motivo
+  quando `allowedActions` não traz a ação).
+
+**Ambiente:** `pnpm dev` carrega o `.env` da raiz. Com `OIDC_FAKE_SIGNING_KEY`, o BFF usa o
+provedor de identidade fake (FA-06) até o OIDC da US-087: entre por
+`http://localhost:3000/api/auth/login?as=ana` (pessoas `ana`, `bruno`, `davi`, `gil`, espelhando o
+diretório em memória da API). A página `/exemplo` exercita sessão, cache, permissões e erros.
+
+**Design system:** componente novo em `packages/ui/src/components/` exige `<nome>.stories.tsx`;
+`src/stories.a11y.test.tsx` audita toda história com axe (V-05). `pnpm --filter @contrataflow/ui
+storybook` abre o Storybook com o painel de acessibilidade.
+
 ## Testes
 
 - **Unitários:** Vitest, ao lado do código (`*.test.ts` nos pacotes; `*.spec.ts` na API e no
@@ -394,8 +424,11 @@ token é aceito) e usuários/vínculos/tenants vêm de adaptadores em memória a
   `pnpm test` gera `coverage/lcov.info`, que alimenta o gate de cobertura do CI.
 - **Tenant leak e autorização:** tarefas `test:tenant-leak` e `test:authz` do Turborepo (estágio
   Testes do CI); a suíte de banco fica em `tools/ci/tenant-leak.ts` (Docker).
+- **Web:** Vitest com jsdom e Testing Library (`// @vitest-environment jsdom` no arquivo) e axe
+  nos testes de componente; BFF testado em `apps/web/test/bff/**` com a API simulada.
 - **E2E:** Playwright + axe-core em `apps/web/test/e2e` (`pnpm turbo run test:e2e`, com o Compose de
-  pé); toda página nova chama `expectNoSeriousA11yViolations`.
+  pé); toda página nova chama `expectNoSeriousA11yViolations`. O shell (`shell.spec.ts`) roda contra
+  a API simulada `test/e2e/support/mock-api.mjs` e o provedor fake, sem Authentik.
 - **Regras de engenharia:** `tools/test/**` cobre o `check:versions`, o commitlint, as _fixtures_
   de lint e de fronteiras, o CODEOWNERS, o grafo do Turborepo, o lockfile e o pipeline de CI
   (cenários da US-079 em `ci-pipeline.test.ts`); `tools/test/integration/**` exige Docker

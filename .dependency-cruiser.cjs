@@ -201,6 +201,8 @@ module.exports = {
       ],
     },
     tsPreCompilationDeps: true,
+    // Alias `@/*` → `apps/web/src/*` do web (US-077); API e worker usam subpath imports (`#…`).
+    tsConfig: { fileName: require('node:path').join(__dirname, 'depcruise.tsconfig.json') },
     combinedDependencies: false,
     preserveSymlinks: false,
     enhancedResolveOptions: {

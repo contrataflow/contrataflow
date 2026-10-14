@@ -5,6 +5,7 @@ import { base } from '@contrataflow/eslint-config/base';
 import { security } from '@contrataflow/eslint-config/security';
 import { cruise } from 'dependency-cruiser';
 import type { ICruiseOptions, ICruiseResult, IViolation } from 'dependency-cruiser';
+import extractTSConfig from 'dependency-cruiser/config-utl/extract-ts-config';
 import { ESLint } from 'eslint';
 import type { Linter } from 'eslint';
 import tseslint from 'typescript-eslint';
@@ -73,7 +74,10 @@ export async function cruiseTree(baseDir: string, roots: string[]): Promise<IVio
     validate: true,
     ruleSet: { forbidden },
   } as ICruiseOptions;
-  const result = await cruise(roots, cruiseOptions);
+  // Como a CLI: o `tsConfig` da configuração resolve os aliases `@/*` do web.
+  const tsConfigFile = options.tsConfig?.fileName;
+  const transpileOptions = tsConfigFile ? { tsConfig: extractTSConfig(tsConfigFile) } : {};
+  const result = await cruise(roots, cruiseOptions, {}, transpileOptions);
   const output = result.output as ICruiseResult;
   return output.summary.violations;
 }

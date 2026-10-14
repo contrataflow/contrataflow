@@ -1,0 +1,24 @@
+{
+  "title": "Exemplo do shell",
+  "description": "Página interna que exercita sessão, instituição ativa, cache, permissões, formulário e tratamento de erros. Não é tela de negócio.",
+  "context": {
+    "heading": "Contexto da requisição",
+    "tenant": "Instituição",
+    "correlation": "Correlação",
+    "loading": "Carregando o contexto…"
+  },
+  "items": {
+    "heading": "Itens de exemplo",
+    "summary": "{total, plural, one {# item} other {# itens}} · página {page} de {pages}"
+  },
+  "form": {
+    "heading": "Novo registro de exemplo",
+    "name": "Nome",
+    "quantity": "Quantidade (opcional)",
+    "submit": "Criar registro",
+    "submitting": "Criando…",
+    "created": "Registro “{name}” criado.",
+    "forbidden": "Você não tem permissão para criar registros."
+  },
+  "money": "Valor de referência: {value}"
+}

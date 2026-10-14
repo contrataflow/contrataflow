@@ -1,0 +1,65 @@
+{
+  "correlation": {
+    "label": "Código: {correlationId}",
+    "copy": "Copiar código",
+    "copied": "Código copiado."
+  },
+  "actions": {
+    "retry": "Tentar novamente",
+    "home": "Ir para o início",
+    "switchTenant": "Trocar de instituição",
+    "login": "Entrar novamente",
+    "reload": "Recarregar a página"
+  },
+  "pages": {
+    "403": {
+      "title": "Acesso negado",
+      "description": "Você não tem permissão para acessar esta página. Se precisar do acesso, procure o administrador da sua instituição."
+    },
+    "404": {
+      "title": "Página não encontrada ou sem acesso",
+      "description": "O endereço pode estar incorreto, o conteúdo pode ter sido removido ou você pode não ter acesso a ele."
+    },
+    "500": {
+      "title": "Ocorreu um erro inesperado",
+      "description": "Não foi possível concluir a operação. Tente novamente; se o problema continuar, informe o código ao suporte."
+    },
+    "sessao-expirada": {
+      "title": "Sua sessão expirou",
+      "description": "Por segurança, a sessão foi encerrada. Entre novamente para continuar de onde parou."
+    },
+    "manutencao": {
+      "title": "Sistema temporariamente indisponível",
+      "description": "Estamos realizando uma manutenção ou o serviço está indisponível no momento. Tente novamente em alguns minutos."
+    },
+    "sem-vinculo": {
+      "title": "Seu acesso a este órgão não está ativo",
+      "description": "Você não possui vínculo ativo com uma instituição contratante. Procure o administrador da sua instituição para solicitar o acesso."
+    },
+    "acesso-indisponivel": {
+      "title": "Acesso indisponível",
+      "description": "O acesso a esta instituição está indisponível no momento. Procure o administrador."
+    }
+  },
+  "boundary": {
+    "title": "Ocorreu um erro inesperado",
+    "description": "Não foi possível carregar esta área. Tente novamente; se o problema continuar, informe o código ao suporte.",
+    "unavailableTitle": "Serviço temporariamente indisponível",
+    "unavailableDescription": "Não conseguimos falar com o servidor agora. Tente novamente em alguns instantes."
+  },
+  "conflict": {
+    "title": "Este registro foi alterado por outra pessoa.",
+    "description": "Recarregue para ver a versão mais recente antes de continuar. Alterações não salvas nesta tela podem ser perdidas.",
+    "reload": "Recarregar",
+    "diff": "Ver diferenças",
+    "cancel": "Cancelar"
+  },
+  "toast": {
+    "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+    "rateLimitedWait": "Muitas tentativas. Aguarde {seconds, plural, one {# segundo} other {# segundos}}.",
+    "csrf": "Não foi possível confirmar a origem da solicitação.",
+    "csrfHint": "Recarregue a página e tente novamente.",
+    "unexpected": "Ocorreu um erro inesperado.",
+    "permission": "Você não tem permissão para esta ação."
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "skipLink": "Pular para o conteúdo",
+  "appName": "ContrataFlow",
+  "footer": "Lei 14.133/2021 · MVP 1",
+  "loading": "Carregando…",
+  "nav": {
+    "label": "Menu principal",
+    "open": "Abrir menu",
+    "close": "Fechar menu",
+    "dashboard": "Painel",
+    "tasks": "Caixa de tarefas",
+    "approvals": "Aprovações",
+    "processes": "Processos",
+    "suppliers": "Fornecedores",
+    "example": "Exemplo do shell",
+    "administration": "Administração"
+  },
+  "admin": {
+    "label": "Navegação de administração",
+    "title": "Administração",
+    "description": "Configurações da instituição. Cada área exige a permissão administrativa correspondente.",
+    "users": "Usuários",
+    "roles": "Perfis e permissões",
+    "structure": "Estrutura organizacional",
+    "templates": "Templates",
+    "workflows": "Workflows",
+    "documentTypes": "Tipos de documento",
+    "catalogs": "Catálogos",
+    "calendar": "Calendário",
+    "settings": "Configurações"
+  },
+  "search": {
+    "label": "Buscar processos",
+    "placeholder": "Buscar processo (número, título, objeto)"
+  },
+  "notifications": {
+    "label": "Notificações"
+  },
+  "tenant": {
+    "label": "Instituição ativa: {name}",
+    "heading": "Instituição ativa",
+    "current": "(atual)",
+    "switched": "Instituição alterada para {name}.",
+    "switchFailed": "Não foi possível trocar de instituição."
+  },
+  "user": {
+    "menu": "Menu do usuário {name}",
+    "profile": "Meu perfil",
+    "logout": "Sair"
+  },
+  "readOnly": "Instituição em encerramento: somente consulta e exportação.",
+  "session": {
+    "otherTab": "A instituição ativa foi alterada em outra aba. Os dados serão recarregados."
+  }
+}

@@ -24,6 +24,7 @@ onlyBuiltDependencies:
 
 # Scripts revisados e dispensáveis (binários nativos já chegam por optionalDependencies).
 ignoredBuiltDependencies:
+  - '@parcel/watcher'
   - cpu-features
   - protobufjs
   - ssh2
@@ -92,6 +93,12 @@ catalog:
   '@tanstack/react-table': 8.21.3
   react-hook-form: 7.89.0
   next-intl: 4.14.9
+  '@hookform/resolvers': 5.9.1
+  radix-ui: 1.7.0
+  server-only: 0.0.1
+  storybook: 10.6.1
+  '@storybook/react-vite': 10.6.1
+  '@storybook/addon-a11y': 10.6.1
   '@tiptap/core': 3.31.4
   '@tiptap/pm': 3.31.4
   '@tiptap/starter-kit': 3.31.4
@@ -106,6 +113,10 @@ catalog:
   supertest: 7.3.1
   '@types/supertest': 7.2.1
   axe-core: 4.13.0
+  jsdom: 29.1.1
+  '@testing-library/react': 16.3.3
+  '@testing-library/dom': 10.4.2
+  '@testing-library/user-event': 14.6.7
 
 catalogs:
   # React e tipos andam juntos (uma única versão no lockfile — DUPLICATE_MAJOR).

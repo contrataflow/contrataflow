@@ -51,7 +51,9 @@ export function base({ tsconfigRootDir }) {
       },
       settings: {
         'import-x/resolver-next': [
-          createTypeScriptImportResolver({ alwaysTryTypes: true }),
+          // `project` fixo no pacote: os aliases do tsconfig (ex.: `@/*` do web) resolvem mesmo
+          // quando o ESLint roda da raiz (lint-staged), não só dentro do pacote (turbo).
+          createTypeScriptImportResolver({ alwaysTryTypes: true, project: tsconfigRootDir }),
           createNodeResolver(),
         ],
       },

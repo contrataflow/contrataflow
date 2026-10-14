@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "jsx": "react-jsx",
-    "lib": ["DOM", "DOM.Iterable", "ES2024"]
+    "lib": ["DOM", "DOM.Iterable", "ES2024"],
+    "skipLibCheck": true
   },
-  "include": ["src", "*.config.ts"]
+  "include": ["src", ".storybook/*.ts", "*.config.ts"]
 }
