@@ -9,6 +9,9 @@ export default mergeConfig(
     test: {
       include: ['test/**/*.spec.ts'],
       testTimeout: 120_000,
+      // O `beforeAll` sobe contêineres (e baixa a imagem num runner novo do CI): o padrão de
+      // 10 s do Vitest para hooks estoura de forma intermitente.
+      hookTimeout: 120_000,
     },
   }),
 );
