@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "node --env-file-if-exists=../../.env node_modules/next/dist/bin/next dev --port 3000",
+    "dev": "next dev --port 3000",
     "start": "node --env-file-if-exists=../../.env node_modules/next/dist/bin/next start --port 3000",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
