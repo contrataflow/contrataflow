@@ -166,6 +166,13 @@ services:
   authentik-worker:
     <<: *authentik
     command: worker
+    # Server e worker montam o mesmo volume; num volume novo o Docker copia nele o conteúdo da
+    # imagem na primeira montagem, e as duas cópias em paralelo falham com "file exists".
+    depends_on:
+      postgres:
+        condition: service_healthy
+      authentik-server:
+        condition: service_started
     healthcheck:
       test: ['CMD', 'ak', 'healthcheck']
       interval: 10s
