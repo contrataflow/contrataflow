@@ -3,6 +3,13 @@
   "extends": ["//"],
   "tasks": {
     "test": {
+      "dependsOn": [
+        "$TURBO_EXTENDS$",
+        "@contrataflow/types#build",
+        "@contrataflow/validation#build",
+        "@contrataflow/editor#build",
+        "@contrataflow/ui#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/package.json",

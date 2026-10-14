@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
@@ -40,7 +41,7 @@ export class PipelineTestController {
   @Get('context')
   async context() {
     // Intervalo assíncrono aleatório: força o entrelaçamento de requisições concorrentes.
-    await sleep(Math.floor(Math.random() * 15));
+    await sleep(randomInt(15));
     const context = requireRequestContext();
     return { correlationId: context.correlationId, userId: context.actor.userId };
   }
