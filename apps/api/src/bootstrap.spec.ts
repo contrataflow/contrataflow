@@ -5,16 +5,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { startApi } from './bootstrap.js';
 import type { ShutdownProcess } from './graceful-shutdown.js';
+import { testConfig } from '../test/support/api-test-app.js';
 
 class FakeProcess extends EventEmitter implements ShutdownProcess {
   exitCode: number | string | null | undefined = undefined;
   readonly exit = vi.fn<(code: number) => void>();
 }
 
-describe('api em estado hello', () => {
-  it('inicializa sem erros e encerra com código 0 ao receber SIGTERM', async () => {
+describe('startApi', () => {
+  it('sobe com todos os módulos e encerra com código 0 ao receber SIGTERM', async () => {
     const proc = new FakeProcess();
-    const { app, stopped } = await startApi({ port: 0, proc, logger: false });
+    const { app, stopped } = await startApi({ config: testConfig(), port: 0, proc, logger: false });
     const server = app.getHttpServer() as Server;
 
     expect(server.listening).toBe(true);

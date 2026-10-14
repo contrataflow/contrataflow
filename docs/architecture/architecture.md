@@ -595,9 +595,9 @@ Implementação de DEC-105 e api.md §1.3 por um interceptor nas rotas marcadas 
 | Passo | Ação |
 |---|---|
 | 1 | Chave Redis `cf:{env}:t:{tenantId}:idem:{sha256(userId + método + rota + Idempotency-Key)}`† |
-| 2 | `SET NX` com estado `IN_PROGRESS` + hash do corpo (TTL 24 h). Já existe `IN_PROGRESS` → 409 `IDEMPOTENCY_IN_PROGRESS` |
+| 2 | `SET NX` com estado `IN_PROGRESS` + hash do corpo (TTL de 60 s — maior que o timeout de transação, para que uma réplica que caia no meio da requisição não prenda a chave por 24 h; US-080). Já existe `IN_PROGRESS` → 409 `IDEMPOTENCY_IN_PROGRESS` |
 | 3 | Existe `DONE` com mesmo hash de corpo → reproduz status, headers relevantes (`ETag`, `Location`) e corpo com `Idempotent-Replayed: true`; hash diferente → 422 `IDEMPOTENCY_KEY_REUSED` |
-| 4 | Após o commit, grava `DONE` com a resposta (≤ 64 KB; respostas maiores guardam só status + `Location`); erro 4xx de validação libera a chave; erro 5xx libera a chave para nova tentativa |
+| 4 | Após o commit, grava `DONE` com a resposta (TTL 24 h — `IDEMPOTENCY_TTL_HOURS`; ≤ 64 KB; respostas maiores guardam só status + `Location`); qualquer erro (4xx ou 5xx) libera a chave para nova tentativa |
 
 ### 6.11 Concorrência
 
@@ -970,6 +970,8 @@ export const envSchema = z.object({
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | ✔ | | | Cliente confidencial do BFF (DEC-130) — segredo |
 | `OIDC_REDIRECT_URI`, `OIDC_POST_LOGOUT_REDIRECT_URI` | ✔ | | | Callback e retorno de logout |
 | `OIDC_AUDIENCE`, `OIDC_CLOCK_TOLERANCE_SECONDS` | | ✔ | | Validação do JWT (DEC-132) |
+| `OIDC_FAKE_SIGNING_KEY` | | ✔ | | Chave HS256 do `FakeJwksProvider` — temporária, até o verificador JWKS real (US-087); ausente = nenhum token aceito |
+| `PORT`, `CORRELATION_HEADER_NAME`, `PAGINATION_MAX_PAGE_SIZE`, `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN`, `IDEMPOTENCY_TTL_HOURS` | | ✔ | | Pipeline HTTP (US-080 — tabela "Campos") |
 | `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM dos tokens no registro de sessão — segredo ([`authentication.md`](authentication.md)) |
 | `AUTHENTIK_API_URL`, `AUTHENTIK_API_TOKEN` | | ✔ | ✔ | API de administração (convites, desativação) — segredo, token de conta de serviço com permissões mínimas |
 | `DATABASE_URL` | | ✔ | ✔ | Papel `cf_app` (API) / `cf_worker` (worker) |

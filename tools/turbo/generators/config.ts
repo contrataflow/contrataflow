@@ -74,7 +74,7 @@ export default function generator(plop: PlopTypes.NodePlopAPI): void {
         stripExtensions: ['hbs'],
         globOptions: { dot: true },
       },
-      'Módulo criado. Importe {{ pascalCase name }}Module no AppModule quando houver casos de uso.',
+      'Módulo criado. Descreva a responsabilidade no README.md e registre {{ pascalCase name }}Module em src/modules/index.ts (API_MODULES).',
     ],
   });
 }

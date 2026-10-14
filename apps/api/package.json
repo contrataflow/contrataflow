@@ -20,22 +20,26 @@
   },
   "scripts": {
     "build": "swc src -d dist --strip-leading-paths --config-file .swcrc --ignore \"**/*.spec.ts\" --delete-dir-on-start",
-    "dev": "pnpm run build && concurrently --kill-others --names swc,api \"swc src -d dist --strip-leading-paths --config-file .swcrc --ignore **/*.spec.ts --watch\" \"node --enable-source-maps --watch-path=dist dist/main.js\"",
+    "dev": "pnpm run build && concurrently --kill-others --names swc,api \"swc src -d dist --strip-leading-paths --config-file .swcrc --ignore **/*.spec.ts --watch\" \"node --env-file-if-exists=../../.env --enable-source-maps --watch-path=dist dist/main.js\"",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
+    "openapi:generate": "pnpm run build && node --enable-source-maps dist/openapi/generate.js"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "catalog:",
     "@contrataflow/editor": "workspace:*",
     "@contrataflow/types": "workspace:*",
     "@contrataflow/validation": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "ioredis": "catalog:",
     "reflect-metadata": "catalog:",
-    "rxjs": "catalog:"
+    "rxjs": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@contrataflow/eslint-config": "workspace:*",
@@ -44,10 +48,13 @@
     "@swc/cli": "catalog:",
     "@swc/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/supertest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "chokidar": "catalog:",
     "concurrently": "catalog:",
     "eslint": "catalog:",
+    "supertest": "catalog:",
+    "testcontainers": "catalog:",
     "typescript": "catalog:",
     "unplugin-swc": "catalog:",
     "vite": "catalog:",

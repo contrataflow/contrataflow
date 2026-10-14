@@ -25,10 +25,25 @@ interface Check {
   readonly detail: string;
 }
 
-function start(name: string, cwd: string, args: string[], ready: RegExp): Promise<Running> {
+/**
+ * Variáveis obrigatórias da API (US-080 — RN-FND-30). O Redis não precisa estar de pé: o cliente
+ * conecta em segundo plano e o pipeline degrada sem ele (CA-T-07).
+ */
+const API_ENV = {
+  REDIS_CACHE_URL: 'redis://127.0.0.1:6380',
+  OIDC_ISSUER_URL: 'http://localhost:9080/application/o/contrataflow/',
+};
+
+function start(
+  name: string,
+  cwd: string,
+  args: string[],
+  ready: RegExp,
+  extraEnv: Record<string, string> = {},
+): Promise<Running> {
   const child = spawn(process.execPath, args, {
     cwd,
-    env: { ...process.env, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' },
+    env: { ...process.env, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1', ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -72,7 +87,13 @@ function stop({ name, child }: Running): Promise<number | null> {
 
 async function checkNestApp(name: 'api' | 'worker', ready: RegExp): Promise<Check[]> {
   const cwd = path.join(REPO_ROOT, 'apps', name);
-  const running = await start(name, cwd, ['--enable-source-maps', 'dist/main.js'], ready);
+  const running = await start(
+    name,
+    cwd,
+    ['--enable-source-maps', 'dist/main.js'],
+    ready,
+    name === 'api' ? API_ENV : {},
+  );
   const checks: Check[] = [{ name: `${name}: inicializa sem erros`, ok: true, detail: 'pronto' }];
   const code = await stop(running);
   checks.push(

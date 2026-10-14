@@ -22,9 +22,10 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 10. [Dependências](#dependências)
 11. [Segurança](#segurança)
 12. [Fronteiras de dependência](#fronteiras-de-dependência)
-13. [Testes](#testes)
-14. [Geradores](#geradores)
-15. [Decisões e ADRs](#decisões-e-adrs)
+13. [API: pipeline de requisição](#api-pipeline-de-requisição)
+14. [Testes](#testes)
+15. [Geradores](#geradores)
+16. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
@@ -351,6 +352,36 @@ com uma _fixture_ de violação por regra em `tools/fixtures/depcruise/**`:
   eventos ou portas).
 - O shared kernel não importa módulos; o cliente de plataforma (`system-prisma.service.ts`) só é
   usado no provisionamento de tenants, no relay do outbox e nos schedulers; sem ciclos.
+
+## API: pipeline de requisição
+
+Toda rota da API herda o pipeline da US-080 (`apps/api/src/app.module.ts`): contexto (`X-Correlation-Id`
+e `AsyncLocalStorage`) → corpo JSON → autenticação → tenant → vínculo → MFA → rate limit → `If-Match`
+→ idempotência → `ZodValidationPipe` → handler → envelope `{ data }`/`{ data, meta }`; qualquer
+exceção vira `application/problem+json` (api.md §2). Numa rota nova:
+
+- valide entrada só com `@ZodBody`/`@ZodQuery`/`@ZodParams(schema de packages/validation)` e
+  documente com `@ApiOperation({ operationId, summary, responses })`; depois rode
+  `pnpm turbo run openapi:generate` e versione `apps/api/openapi/api.v1.json`;
+- devolva o recurso, um `PageResult`/`CursorResult` (helpers de `#shared/http/pagination.js`) ou nada
+  (204) — nunca monte o envelope à mão; erros são `ApiError` com o código de api.md;
+- marque `@Idempotent()` nas rotas "Idem." do catálogo, `@RequireIfMatch()` nas mutações de recurso
+  versionado e `@RateLimit('autosave' | 'export' | 'upload')` quando a classe não for leitura/escrita;
+- `@WithoutTenant()` só nas rotas que o catálogo define sem tenant; rotas públicas ficam na
+  _allowlist_ `PUBLIC_ROUTE_PREFIXES` (`/health/*`, `/metrics`).
+
+**`AsyncLocalStorage`:** o `RequestContext` (`requireRequestContext()`) acompanha a cadeia
+assíncrona da requisição (inclusive `await` e timers criados dentro dela). Callbacks registrados
+fora dela — _listeners_ de _event emitters_ criados no bootstrap, clientes/pools com callbacks
+próprios, filas consumidas depois — rodam sem contexto ou com o de quem os registrou, e trabalho
+_fire-and-forget_ que sobrevive à resposta carrega o contexto de uma requisição encerrada: capture
+os valores antes (`const { tenantId } = requireRequestContext()`) e passe-os explicitamente, ou abra
+um contexto próprio com `runWithRequestContext`. Jobs do worker abrem o contexto a partir do
+envelope (DEC-164).
+
+**Ambiente:** `pnpm dev` carrega o `.env` da raiz (`--env-file-if-exists`). Até a US-087 os tokens
+são verificados pelo `FakeJwksProvider` (HS256 com `OIDC_FAKE_SIGNING_KEY`; sem a chave, nenhum
+token é aceito) e usuários/vínculos/tenants vêm de adaptadores em memória até a US-081.
 
 ## Testes
 

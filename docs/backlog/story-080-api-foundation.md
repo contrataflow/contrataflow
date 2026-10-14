@@ -78,7 +78,10 @@ Entregar uma API que sobe com todos os módulos de DEC-040 registrados nas camad
 | `NODE_ENV` | enum | Sim | `development`\|`test`\|`production` | `development` |
 | `REDIS_CACHE_URL` | URL | Sim | `redis://…` válido | US-078 (`redis-cache`) |
 | `OIDC_ISSUER_URL` | URL | Sim | URL válida | US-078 (Authentik) / `FakeJwksProvider` em teste |
-| `OIDC_AUDIENCE` | texto | Sim | não vazio | `contrataflow-api` |
+| `OIDC_AUDIENCE` | texto | Sim | não vazio; várias separadas por vírgula | `contrataflow-api` (Authentik local: `contrataflow-web`, o client_id do BFF) |
+| `OIDC_CLOCK_TOLERANCE_SECONDS` | número | Não | 0–60 | `30` (architecture.md §10.1) |
+| `OIDC_FAKE_SIGNING_KEY` | texto | Não | ≥ 32 caracteres | Só até a US-087; ausente → chave aleatória por processo (nenhum token aceito) |
+| `APP_ENV` | enum | Não | `local`\|`dev`\|`test`\|`staging`\|`production` | `local` — prefixo `cf:{env}:` das chaves Redis |
 | `CORRELATION_HEADER_NAME` | texto | Não | fixo por contrato | `X-Correlation-Id` |
 | `PAGINATION_MAX_PAGE_SIZE` | número | Não | 1–100 | `100` (DEC-106) |
 | `RATE_LIMIT_READ_PER_MIN` | número | Não | > 0 | `600` (api.md §1.6) |
