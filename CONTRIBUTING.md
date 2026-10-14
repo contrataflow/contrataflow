@@ -54,7 +54,7 @@ pnpm build                        # types → validation → editor/ui → apps 
 cp .env.example .env              # valores de desenvolvimento; funcionam sem edição
 pnpm env:up && pnpm env:seed      # infraestrutura local + tenants "Prefeitura A" e "Prefeitura B"
 pnpm db:migrate                   # migrações do Prisma + senha local dos papéis cf_* (US-081)
-pnpm dev                          # web :3000, api :4000 e worker
+pnpm dev                          # web :3000, api :4000 e worker — entre com requisitante.a
 ```
 
 `pnpm install` só executa scripts de instalação dos pacotes em `onlyBuiltDependencies`
@@ -122,8 +122,11 @@ minúsculas e `-` no lugar de `_` — por exemplo `requisitante.a` (Ana Ribeiro,
 do Authentik são só informativos: perfis e vínculos por tenant ficam no banco (o Authentik
 autentica, o ContrataFlow autoriza).
 
-Até a US-081 criar o schema real, os dados do seed ficam no schema provisório `dev_seed` do banco
-`contrataflow` (DEC-065), com RLS e o papel `dev_seed_reader` para testar isolamento:
+Os dados do seed ficam no schema provisório `dev_seed` do banco `contrataflow` (DEC-065), com RLS e
+o papel `dev_seed_reader` para testar isolamento. Desde a US-087, `tenants`, `users` (com o `sub` do
+Authentik) e `tenant_memberships` também são espelhados nas tabelas reais — no fim do `env:seed` e
+do `db:migrate`, em qualquer ordem — para o login local funcionar ponta a ponta; as demais tabelas
+migram com as stories donas:
 
 ```sql
 BEGIN;
@@ -397,9 +400,11 @@ os valores antes (`const { tenantId } = requireRequestContext()`) e passe-os exp
 um contexto próprio com `runWithRequestContext`. Jobs do worker abrem o contexto a partir do
 envelope (DEC-164).
 
-**Ambiente:** `pnpm dev` carrega o `.env` da raiz (`--env-file-if-exists`). Até a US-087 os tokens
-são verificados pelo `FakeJwksProvider` (HS256 com `OIDC_FAKE_SIGNING_KEY`; sem a chave, nenhum
-token é aceito) e usuários/vínculos/tenants vêm de adaptadores em memória até a US-081.
+**Ambiente:** `pnpm dev` carrega o `.env` da raiz (`--env-file-if-exists`). Desde a US-087 o access
+token do Authentik é verificado pelo JWKS (`JwksTokenVerifier`) e usuários, vínculos e tenants vêm
+do PostgreSQL (`users`, `tenants`, `cf_user_memberships`). Com `OIDC_FAKE_SIGNING_KEY` (só
+local/dev/test) a API volta ao modo fake: `FakeJwksProvider` HS256 e diretório em memória
+(`shared/testing/fake-directory.ts`) — é o modo dos testes de unidade.
 
 ## Observabilidade: logs, correlação e traces
 
@@ -454,10 +459,14 @@ cabeçalhos de segurança/CSP com nonce aplicados no `src/proxy.ts`. Numa tela n
 - ações por permissão com `<Can permission="…">` (oculta sem permissão; desabilita com motivo
   quando `allowedActions` não traz a ação).
 
-**Ambiente:** `pnpm dev` carrega o `.env` da raiz. Com `OIDC_FAKE_SIGNING_KEY`, o BFF usa o
-provedor de identidade fake (FA-06) até o OIDC da US-087: entre por
-`http://localhost:3000/api/auth/login?as=ana` (pessoas `ana`, `bruno`, `davi`, `gil`, espelhando o
-diretório em memória da API). A página `/exemplo` exercita sessão, cache, permissões e erros.
+**Ambiente:** `pnpm dev` carrega o `.env` da raiz. Login real (US-087): `http://localhost:3000`
+leva à tela do Authentik com o tema do ContrataFlow; entre com um usuário semeado
+(`requisitante.a` / `CF_DEV_USER_PASSWORD`). Sessões no Redis de sessões (`REDIS_SESSION_URL`) com
+tokens cifrados; sem `SESSION_ENCRYPTION_KEY`, a chave é aleatória por processo (reiniciar o web
+encerra as sessões). Com `OIDC_FAKE_SIGNING_KEY` descomentada no `.env`, BFF e API usam a
+identidade fake (FA-06, sem Authentik): entre por `http://localhost:3000/api/auth/login?as=ana`
+(pessoas `ana`, `bruno`, `davi`, `eva`, `gil`). A página `/exemplo` exercita sessão, cache,
+permissões e erros.
 
 **Design system:** componente novo em `packages/ui/src/components/` exige `<nome>.stories.tsx`;
 `src/stories.a11y.test.tsx` audita toda história com axe (V-05). `pnpm --filter @contrataflow/ui

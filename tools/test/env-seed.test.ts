@@ -30,6 +30,7 @@ import {
   TENANT_TABLES,
   workflowDefinition,
   zeroCounts,
+  identityMirrorSql,
 } from '../env/seed/sql.js';
 import type { AuthentikIdentity, SeedTable } from '../env/seed/sql.js';
 import { REPO_ROOT } from '../lib/workspace.js';
@@ -224,9 +225,22 @@ describe('SQL do seed', () => {
     expect(sql.trimEnd()).toMatch(/COMMIT;\nSELECT pg_advisory_unlock\(.*\);$/);
   });
 
-  it('grava fora do schema public (DEC-065)', () => {
-    const sql = buildSeedSql(identities());
+  it('grava fora do schema public (DEC-065), exceto o espelho de identidade (US-087)', () => {
+    const sql = buildSeedSql(identities()).replace(identityMirrorSql(), '');
     expect(sql).not.toMatch(/INTO public\.|TABLE IF NOT EXISTS public\./);
+  });
+
+  it('US-087: espelha tenants, usuários (com o sub) e vínculos nas tabelas reais, só se existirem', () => {
+    const mirror = identityMirrorSql();
+    expect(buildSeedSql(identities())).toContain(mirror);
+    expect(mirror).toMatch(/to_regclass\('public\.tenant_memberships'\) IS NULL/);
+    expect(mirror).toMatch(/to_regclass\('dev_seed\.tenant_memberships'\) IS NULL/);
+    for (const table of ['tenants', 'users', 'tenant_memberships']) {
+      expect(mirror).toContain(`INSERT INTO public.${table} `);
+    }
+    expect(mirror).toMatch(
+      /ON CONFLICT \(id\) DO UPDATE SET external_subject = EXCLUDED\.external_subject/,
+    );
   });
 
   it.each(TENANT_TABLES)(

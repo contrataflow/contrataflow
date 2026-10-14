@@ -43,7 +43,19 @@ describe('configuração do web (Campos da US-086)', () => {
       issuerUrl: BASE_ENV.OIDC_ISSUER_URL,
       audience: 'contrataflow-web',
       fakeSigningKey: BASE_ENV.OIDC_FAKE_SIGNING_KEY,
+      clientId: 'contrataflow-web',
+      clientSecret: null,
+      scopes: 'openid profile email offline_access',
+      redirectUri: 'http://localhost:3000/api/auth/callback',
+      postLogoutRedirectUri: 'http://localhost:3000/',
     });
+    expect(config.session).toEqual({
+      redisUrl: null,
+      encryptionKey: null,
+      keyPrefix: 'cf:test:sess:',
+    });
+    expect(config.authRateLimitPerMinute).toBe(20);
+    expect(config.internalServiceToken).toBeNull();
   });
 
   it('usa só o primeiro `aud` e liga HTTPS por APP_BASE_URL', () => {
@@ -77,13 +89,52 @@ describe('configuração do web (Campos da US-086)', () => {
     );
   });
 
+  it('US-087: fora de local/dev/test exige Redis de sessões, chave, segredo do cliente e credencial interna', () => {
+    expect(() =>
+      loadWebConfig({ ...BASE_ENV, APP_ENV: 'staging', OIDC_FAKE_SIGNING_KEY: undefined }),
+    ).toThrow(
+      new WebConfigError([
+        'INTERNAL_SERVICE_TOKEN',
+        'OIDC_CLIENT_SECRET',
+        'REDIS_SESSION_URL',
+        'SESSION_ENCRYPTION_KEY',
+      ]),
+    );
+    const key = Buffer.alloc(32, 7).toString('base64');
+    const config = loadWebConfig({
+      ...BASE_ENV,
+      APP_ENV: 'staging',
+      OIDC_FAKE_SIGNING_KEY: undefined,
+      REDIS_SESSION_URL: 'rediss://sessions.internal:6379',
+      SESSION_ENCRYPTION_KEY: key,
+      OIDC_CLIENT_SECRET: 'segredo-do-cliente',
+      INTERNAL_SERVICE_TOKEN: 's'.repeat(32),
+    });
+    expect(config.session.encryptionKey?.equals(Buffer.alloc(32, 7))).toBe(true);
+    expect(config.session.keyPrefix).toBe('cf:staging:sess:');
+    expect(() =>
+      loadWebConfig({ ...BASE_ENV, SESSION_ENCRYPTION_KEY: Buffer.alloc(16).toString('base64') }),
+    ).toThrow(/SESSION_ENCRYPTION_KEY/);
+  });
+
   it('proíbe o provedor fake fora de local/dev/test (FA-06)', () => {
     expect(() => loadWebConfig({ ...BASE_ENV, APP_ENV: 'production' })).toThrow(
       /OIDC_FAKE_SIGNING_KEY/,
     );
+    const production = {
+      ...BASE_ENV,
+      APP_ENV: 'production',
+      REDIS_SESSION_URL: 'rediss://sessions.internal:6379',
+      SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 5).toString('base64'),
+      OIDC_CLIENT_SECRET: 'segredo-do-cliente',
+      INTERNAL_SERVICE_TOKEN: 's'.repeat(32),
+    };
     expect(
-      loadWebConfig({ ...BASE_ENV, APP_ENV: 'production', OIDC_FAKE_SIGNING_KEY: undefined }).oidc
-        .fakeSigningKey,
+      loadWebConfig({ ...production, OIDC_FAKE_SIGNING_KEY: undefined }).oidc.fakeSigningKey,
+    ).toBeNull();
+    // Variável vazia conta como ausente (sobrescreve o `.env` sem precisar apagá-lo).
+    expect(
+      loadWebConfig({ ...production, OIDC_FAKE_SIGNING_KEY: '' }).oidc.fakeSigningKey,
     ).toBeNull();
   });
 

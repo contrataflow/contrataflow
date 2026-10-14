@@ -1,5 +1,5 @@
 import type { Logger as PinoLogger } from '@contrataflow/observability';
-import { Logger } from '@nestjs/common';
+import { Logger, RequestMethod } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -13,6 +13,12 @@ import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
 
 /** Prefixo de todas as rotas de negócio (api.md §1.1); `/health/*` e `/metrics` ficam fora (US-085). */
 export const API_PREFIX = 'api/v1';
+
+/**
+ * Rotas internas BFF → API (`/internal/*` — US-087) ficam fora de `/api/v1`: o proxy do BFF só
+ * encaminha `/api/v1/*`, então o navegador nunca as alcança.
+ */
+export const INTERNAL_ROUTES = { path: 'internal/{*path}', method: RequestMethod.ALL };
 
 export interface StartApiOptions {
   readonly config: AppConfig;
@@ -34,7 +40,7 @@ export interface RunningApi {
 
 /** Ajustes da aplicação HTTP comuns ao bootstrap e aos testes. */
 export function configureApiApp(app: INestApplication): INestApplication {
-  app.setGlobalPrefix(API_PREFIX);
+  app.setGlobalPrefix(API_PREFIX, { exclude: [INTERNAL_ROUTES] });
   // Express: sem `X-Powered-By`; `req.ip` direto do socket (o BFF repassa o IP do cliente).
   (app as NestExpressApplication).disable('x-powered-by');
   return app;

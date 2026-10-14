@@ -11,6 +11,7 @@ import { NONCE_HEADER, PATHNAME_HEADER } from './edge';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import type { SessionLookup } from './session/session-service';
+import { SessionStoreUnavailableError } from './session/types';
 import { toShellSession } from './session/view';
 import { buildUpstreamHeaders, callUpstream } from './upstream';
 
@@ -34,6 +35,21 @@ export async function currentSession(runtime: BffRuntime = bffRuntime()): Promis
   return runtime.sessions.lookup(cookieStore.get(runtime.config.sessionCookieName)?.value);
 }
 
+/**
+ * Sessão para páginas: o Redis de sessões fora do ar vira `unavailable` (a página leva a SCR-111
+ * "manutenção"), nunca "sem sessão" — a sessão continua válida quando ele voltar (DEC-131).
+ */
+export async function currentSessionOrUnavailable(
+  runtime: BffRuntime = bffRuntime(),
+): Promise<SessionLookup | { readonly status: 'unavailable' }> {
+  try {
+    return await currentSession(runtime);
+  } catch (error) {
+    if (error instanceof SessionStoreUnavailableError) return { status: 'unavailable' };
+    throw error;
+  }
+}
+
 export async function currentShellSession(runtime: BffRuntime = bffRuntime()) {
   const lookup = await currentSession(runtime);
   return lookup.status === 'active' ? toShellSession(lookup.record) : null;
@@ -55,7 +71,10 @@ export const apiServerClient = {
   ): Promise<ApiResult<T>> {
     const requestHeaders = await headers();
     const correlationId = resolveCorrelationId(requestHeaders.get('X-Correlation-Id'));
-    const lookup = await currentSession(runtime);
+    const lookup = await currentSessionOrUnavailable(runtime);
+    if (lookup.status === 'unavailable') {
+      throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
+    }
     if (lookup.status !== 'active') {
       throw new ApiError({
         status: 401,

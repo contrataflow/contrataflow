@@ -34,11 +34,15 @@ export function shellSession(overrides: Partial<ActiveShellSession> = {}): Activ
       {
         membershipId: 'm-a',
         tenant: { id: TENANT_A.id, name: TENANT_A.name, status: 'ACTIVE' },
+        type: 'INTERNAL',
+        expiresAt: null,
         usable: true,
       },
       {
         membershipId: 'm-b',
         tenant: { id: TENANT_B.id, name: TENANT_B.name, status: 'ACTIVE' },
+        type: 'INTERNAL',
+        expiresAt: null,
         usable: true,
       },
     ],

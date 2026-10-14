@@ -6,6 +6,7 @@ import {
   DatabaseUnavailableError,
   isRetryableTransactionError,
   isTransientDatabaseError,
+  isUniqueViolation,
   VersionConflictError,
 } from './errors.js';
 
@@ -66,6 +67,15 @@ describe('isRetryableTransactionError', () => {
       true,
     );
     expect(isRetryableTransactionError(adapterError('P2039', '42501'))).toBe(false);
+  });
+});
+
+describe('isUniqueViolation', () => {
+  it('P2002 do Prisma ou SQLSTATE 23505 do adapter; demais erros não', () => {
+    expect(isUniqueViolation(Object.assign(new Error('x'), { code: 'P2002' }))).toBe(true);
+    expect(isUniqueViolation(adapterError('P2010', '23505'))).toBe(true);
+    expect(isUniqueViolation(adapterError('P2010', '40P01'))).toBe(false);
+    expect(isUniqueViolation('texto')).toBe(false);
   });
 });
 

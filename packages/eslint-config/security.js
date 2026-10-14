@@ -10,8 +10,11 @@ export const CODE_FILES = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 export const SECURITY_ALLOWLISTS = Object.freeze({
   /** Módulo de configuração (US-080) e arquivos de configuração de ferramentas. */
   processEnv: ['**/src/config/**', '**/*.config.{ts,mts,cts,js,mjs,cjs}'],
-  /** Wrapper TenantCache e infraestrutura de plataforma (RM-03). */
-  redis: ['**/shared/cache/**', '**/modules/platform/**'],
+  /**
+   * Wrapper TenantCache e infraestrutura de plataforma (RM-03); no web, só a conexão do Redis de
+   * sessões do BFF (chaves de plataforma — DEC-131 · US-087).
+   */
+  redis: ['**/shared/cache/**', '**/modules/platform/**', '**/src/bff/session/redis-connection.ts'],
   /** Repositórios Prisma e shared kernel de banco (DEC-041). */
   prisma: ['**/infrastructure/**', '**/shared/database/**'],
   /** Construção do PrismaClient e driver: só o shared kernel de banco e os testes de integração. */

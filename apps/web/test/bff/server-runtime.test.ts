@@ -173,12 +173,15 @@ describe('runtime do processo', () => {
     const runtime = bffRuntime();
     expect(runtime.identity).toBeInstanceOf(UnconfiguredIdentityProvider);
     await expect(
-      runtime.identity.beginLogin({ appOrigin: '', state: '', stepUp: false, hint: null }),
+      runtime.identity.beginLogin({ appOrigin: '', stepUp: false, hint: null }),
     ).rejects.toThrow();
-    expect(await runtime.identity.completeLogin(new URLSearchParams(), null)).toEqual({
-      ok: false,
-      reason: 'PROVIDER_ERROR',
-    });
+    expect(
+      await runtime.identity.completeLogin(new URLSearchParams(), {
+        state: 's',
+        nonce: 'n',
+        codeVerifier: 'v',
+      }),
+    ).toEqual({ ok: false, reason: 'PROVIDER_UNAVAILABLE' });
     expect(runtime.identity.endSessionUrl(null)).toBeNull();
   });
 

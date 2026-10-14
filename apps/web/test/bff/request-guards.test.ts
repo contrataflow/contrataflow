@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { clientIpFrom, isInCidr, isTrustedProxy } from '@/bff/client-ip';
-import {
-  clearCookie,
-  decodeLoginTransaction,
-  encodeLoginTransaction,
-  readCookie,
-  serializeCookie,
-} from '@/bff/cookies';
+import { clearCookie, readCookie, serializeCookie } from '@/bff/cookies';
 import { isValidCorrelationId, resolveCorrelationId } from '@/bff/correlation';
 import { checkCsrf, isMutatingMethod } from '@/bff/csrf';
 import { safeReturnTo } from '@/bff/return-to';
@@ -119,6 +113,9 @@ describe('returnTo (anti open redirect)', () => {
       '/processos/0192a000-0000-7000-8000-00000000000a',
       '/processos/0192a000-0000-7000-8000-00000000000a',
     ],
+    ['/convite/abc%2Bdef', '/convite/abc%2Bdef'],
+    ['/processos/ação', '/processos/a%C3%A7%C3%A3o'],
+    ['/entrada', '/entrada'],
   ])('aceita %s', (value, expected) => {
     expect(safeReturnTo(value)).toBe(expected);
   });
@@ -134,8 +131,30 @@ describe('returnTo (anti open redirect)', () => {
     'javascript:alert(1)',
     '/a\r\nSet-Cookie:x',
     '/api/auth/logout',
+    '/API/v1/x',
+    '/entrar',
+    '/entrar?motivo=saiu',
     '/%E0%A4%A',
     `/${'a'.repeat(2048)}`,
+    // Corpus de open redirect (RN-IAM-03): codificação dupla/tripla, barra invertida, esquemas.
+    '/%252f%252fevil.com',
+    '/%25252f%25252fevil.com',
+    '%252F%252Fevil.com',
+    '/%5cevil.com',
+    '/%255cevil.com',
+    '/a/..//evil.com',
+    '/%2e%2e//evil.com',
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    '/%0d%0aSet-Cookie:x',
+    '/%250d%250aLocation:x',
+    '/x y',
+    '/xy',
+    'data:text/html,<script>',
+    '\\\\evil.com',
+    ' /exemplo',
+    '/%2e%2e/%2fevil.com',
+    `/${'%25'.repeat(10)}`,
   ])('recusa %j', (value) => {
     expect(safeReturnTo(value)).toBeNull();
   });
@@ -157,13 +176,5 @@ describe('cookies do BFF (DEC-131)', () => {
     expect(readCookie(headers, 'vazio')).toBeNull();
     expect(readCookie(headers, 'b')).toBeNull();
     expect(readCookie(new Headers(), 'a')).toBeNull();
-  });
-
-  it('transação de login: ida e volta; valor corrompido → null', () => {
-    const value = encodeLoginTransaction({ state: 's', returnTo: '/x', stepUp: true });
-    expect(decodeLoginTransaction(value)).toEqual({ state: 's', returnTo: '/x', stepUp: true });
-    expect(decodeLoginTransaction(null)).toBeNull();
-    expect(decodeLoginTransaction('%%%')).toBeNull();
-    expect(decodeLoginTransaction(Buffer.from('{"state":1}').toString('base64url'))).toBeNull();
   });
 });

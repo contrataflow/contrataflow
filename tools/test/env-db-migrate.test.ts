@@ -5,6 +5,7 @@ import { dbMigrate, devPasswordsSql, LOGIN_ROLES, migrationUrl } from '../env/li
 import type { CommandRunner } from '../env/lib/db-migrate.js';
 import { memoryLogger } from '../env/lib/log.js';
 import type { Psql } from '../env/lib/psql.js';
+import { identityMirrorSql } from '../env/seed/sql.js';
 import { REPO_ROOT } from '../lib/workspace.js';
 
 function fakeCompose(postgres: 'healthy' | 'starting'): Compose {
@@ -63,7 +64,7 @@ describe('pnpm db:migrate (US-081 — fluxo principal 1)', () => {
     expect(calls[0]?.args[0]).toMatch(/prisma[\\/]build[\\/]index\.js$/);
     expect(calls[0]?.url).toBe(migrationUrl(env));
     expect(calls[0]?.cwd.replaceAll('\\', '/')).toMatch(/apps\/api$/);
-    expect(scripts).toEqual([devPasswordsSql("dev'pass")]);
+    expect(scripts).toEqual([devPasswordsSql("dev'pass"), identityMirrorSql()]);
     expect(logger.lines.join('\n')).toContain('env.db_migrated');
   });
 

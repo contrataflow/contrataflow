@@ -81,6 +81,28 @@ export function requireRequestContext(): RequestContext {
   return context;
 }
 
+/**
+ * Executa `fn` com o tenant e o ator informados, num contexto filho (o da requisição não muda).
+ * Uso restrito a rotas `@WithoutTenant()` que, depois de conferir o vínculo do próprio usuário,
+ * precisam escrever no tenant escolhido (início de sessão — US-087).
+ */
+export function runWithTenantScope<T>(
+  scope: { readonly tenantId: string; readonly userId: string; readonly membershipId: string },
+  fn: () => T,
+): T {
+  const current = requireRequestContext();
+  return storage.run(
+    {
+      value: {
+        ...current,
+        tenantId: scope.tenantId,
+        actor: { type: 'USER', userId: scope.userId, membershipId: scope.membershipId },
+      },
+    },
+    fn,
+  );
+}
+
 /** Completa o contexto atual (uso exclusivo dos guards do pipeline). */
 export function updateRequestContext(
   patch: Partial<Omit<RequestContext, 'correlationId' | 'ip' | 'userAgent' | 'requestId'>>,

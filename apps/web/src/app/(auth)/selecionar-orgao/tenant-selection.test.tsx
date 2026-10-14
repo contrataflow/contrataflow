@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { subscribeSessionEvents } from '@/lib/session/session-channel';
-import { jsonResponse, shellSession, TENANT_B, IntlProvider } from '@test/support/render';
+import type { ShellMembership } from '@/lib/session/types';
+import { seriousA11yViolations } from '@test/support/axe';
+import {
+  IntlProvider,
+  TENANT_A,
+  TENANT_B,
+  jsonResponse,
+  problem,
+  shellSession,
+} from '@test/support/render';
 
 import { TenantSelection } from './tenant-selection';
 
@@ -12,43 +21,257 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderSelection(activeTenantId: string | null) {
-  const assign = vi.fn();
-  vi.stubGlobal('location', { href: window.location.href, assign });
-  render(
-    <IntlProvider>
-      <TenantSelection memberships={shellSession().memberships} activeTenantId={activeTenantId} />
-    </IntlProvider>,
-  );
-  return assign;
+function membership(overrides: Partial<ShellMembership> = {}): ShellMembership {
+  return {
+    membershipId: 'm-x',
+    tenant: { id: 'tenant-x', name: 'Prefeitura X', status: 'ACTIVE' },
+    type: 'INTERNAL',
+    expiresAt: null,
+    usable: true,
+    ...overrides,
+  };
 }
 
-describe('seleção de instituição (FA-02)', () => {
-  it('troca a instituição, avisa as abas e vai ao início', async () => {
+function renderSelection(
+  activeTenantId: string | null,
+  options: {
+    readonly memberships?: readonly ShellMembership[];
+    readonly returnTo?: string | null;
+  } = {},
+) {
+  const assign = vi.fn();
+  vi.stubGlobal('location', { href: window.location.href, assign });
+  const view = render(
+    <IntlProvider>
+      <TenantSelection
+        memberships={options.memberships ?? shellSession().memberships}
+        activeTenantId={activeTenantId}
+        returnTo={options.returnTo ?? null}
+      />
+    </IntlProvider>,
+  );
+  return { assign, ...view };
+}
+
+describe('seleção de instituição (FA-01)', () => {
+  it('troca a instituição, avisa as abas e vai ao início quando não há returnTo', async () => {
     const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(jsonResponse({ data: {} })));
     vi.stubGlobal('fetch', fetchMock);
     const events: unknown[] = [];
     const stop = subscribeSessionEvents((event) => events.push(event));
-    const assign = renderSelection(null);
+    const { assign } = renderSelection(null);
     await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
     await waitFor(() => {
       expect(assign).toHaveBeenCalledWith('/exemplo');
     });
-    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('X-CF-Request')).toBe('1');
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe('/api/auth/switch-tenant');
+    expect(init?.method).toBe('POST');
+    expect(new Headers(init?.headers).get('X-CF-Request')).toBe('1');
+    expect(new Headers(init?.headers).get('Content-Type')).toBe('application/json');
+    expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toEqual({
+      tenantId: TENANT_B.id,
+    });
     await waitFor(() => {
       expect(events).toEqual([{ type: 'tenant-switched', tenantId: TENANT_B.id }]);
     });
     stop();
   });
 
-  it('falha mostra o aviso e permite tentar de novo', async () => {
+  it('sucesso navega para o returnTo recebido do servidor', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => Promise.reject(new TypeError('offline'))),
+      vi.fn(() => Promise.resolve(jsonResponse({ data: {} }))),
     );
-    const assign = renderSelection(TENANT_B.id);
-    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
-    expect(await screen.findByRole('alert')).toBeTruthy();
+    const { assign } = renderSelection(null, { returnTo: '/processos/0192aa?aba=2' });
+    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura A' }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/processos/0192aa?aba=2');
+    });
+  });
+
+  it('mostra o vínculo externo com a validade em dd/mm/aaaa e o aviso de instituição em encerramento', () => {
+    renderSelection(null, {
+      memberships: [
+        membership({
+          membershipId: 'm-ext',
+          tenant: { id: 'tenant-ext', name: 'Câmara Municipal de Vila Nova', status: 'ACTIVE' },
+          type: 'EXTERNAL',
+          expiresAt: '2026-12-31T23:59:59-03:00',
+        }),
+        membership({
+          membershipId: 'm-off',
+          tenant: { id: 'tenant-off', name: 'Prefeitura em Encerramento', status: 'OFFBOARDING' },
+        }),
+        membership({
+          membershipId: 'm-int',
+          tenant: { id: 't-int', name: 'Prefeitura Interna', status: 'ACTIVE' },
+        }),
+      ],
+    });
+    const external = screen.getByRole('button', { name: /Câmara Municipal de Vila Nova/ });
+    expect(within(external).getByText('Vínculo externo')).toBeTruthy();
+    expect(within(external).getByText('Válido até 31/12/2026')).toBeTruthy();
+    const offboarding = screen.getByRole('button', { name: /Prefeitura em Encerramento/ });
+    expect(offboarding.textContent).toContain(
+      'Instituição em encerramento: somente leitura e exportação',
+    );
+    expect(offboarding.getAttribute('aria-disabled')).toBeNull();
+    const internal = screen.getByRole('button', { name: /Prefeitura Interna/ });
+    expect(within(internal).queryByText('Vínculo externo')).toBeNull();
+    expect(within(internal).queryByText(/Válido até/)).toBeNull();
+  });
+
+  it('FA-08: instituição indisponível e vínculo sem acesso aparecem desabilitados e não são enviados', async () => {
+    const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(jsonResponse({ data: {} })));
+    vi.stubGlobal('fetch', fetchMock);
+    const { assign } = renderSelection(null, {
+      memberships: [
+        membership({
+          membershipId: 'm-sus',
+          tenant: { id: 't-sus', name: 'Prefeitura Suspensa', status: 'SUSPENDED' },
+          usable: false,
+        }),
+        membership({
+          membershipId: 'm-exp',
+          tenant: { id: 't-exp', name: 'Prefeitura Vencida', status: 'ACTIVE' },
+          type: 'EXTERNAL',
+          expiresAt: '2025-01-31T12:00:00-03:00',
+          usable: false,
+        }),
+        membership({
+          membershipId: 'm-ok',
+          tenant: { id: 't-ok', name: 'Prefeitura Ativa', status: 'ACTIVE' },
+        }),
+      ],
+    });
+    const suspended = screen.getByRole('button', { name: /Prefeitura Suspensa/ });
+    expect(suspended.getAttribute('aria-disabled')).toBe('true');
+    expect(suspended.textContent).toContain('Instituição temporariamente indisponível');
+    const expired = screen.getByRole('button', { name: /Prefeitura Vencida/ });
+    expect(expired.getAttribute('aria-disabled')).toBe('true');
+    expect(expired.textContent).toContain('Seu acesso a esta instituição não está ativo.');
+    // A validade só é mostrada para vínculos utilizáveis.
+    expect(expired.textContent).not.toContain('Válido até');
+    // Descrição acessível: o motivo é lido junto com o botão.
+    expect(suspended.getAttribute('aria-describedby')).toBeTruthy();
+
+    // Utilizáveis vêm primeiro.
+    const names = screen
+      .getAllByRole('button', { name: /Prefeitura/ })
+      .map((button) => button.textContent);
+    expect(names[0]).toContain('Prefeitura Ativa');
+
+    await userEvent.click(suspended);
+    await userEvent.click(expired);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('durante a troca o botão fica com aria-busy e novos cliques são ignorados', async () => {
+    const fetchMock = vi.fn<typeof fetch>(() => new Promise<Response>(() => undefined));
+    vi.stubGlobal('fetch', fetchMock);
+    renderSelection(null);
+    const chosen = screen.getByRole('button', { name: /Prefeitura B/ });
+    await userEvent.click(chosen);
+    expect(chosen.getAttribute('aria-busy')).toBe('true');
+    expect(chosen.textContent).toContain('Entrando…');
+    const other = screen.getByRole('button', { name: /Prefeitura A/ });
+    expect(other.getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(other);
+    await userEvent.click(chosen);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falha de rede mostra o aviso e permite tentar de novo', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce(jsonResponse({ data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { assign } = renderSelection(TENANT_B.id);
+    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Não foi possível selecionar a instituição. Tente novamente.');
+    expect(assign).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Prefeitura B' }).getAttribute('aria-busy')).toBe(
+      'false',
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/exemplo');
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([
+    [403, 'MEMBERSHIP_INACTIVE', 'Seu acesso a esta instituição não está ativo.'],
+    [403, 'TENANT_SUSPENDED', 'Esta instituição está temporariamente indisponível.'],
+    [403, 'PERMISSION_DENIED', 'Requisição não permitida. Recarregue a página.'],
+    [403, 'CSRF_REJECTED', 'Requisição não permitida. Recarregue a página.'],
+    [503, 'DEPENDENCY_UNAVAILABLE', 'Não foi possível entrar agora. Tente novamente em instantes.'],
+    [500, 'INTERNAL_ERROR', 'Não foi possível selecionar a instituição. Tente novamente.'],
+  ])('erro %s %s vira mensagem inline com role=alert', async (status, code, message) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(problem(status, code))),
+    );
+    const { assign } = renderSelection(null);
+    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura A' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(message);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('sessão expirada durante a escolha leva à entrada com o motivo e o returnTo', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(problem(401, 'SESSION_EXPIRED'))),
+    );
+    const { assign } = renderSelection(null, { returnTo: '/processos?x=1' });
+    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura A' }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith(
+        '/entrar?motivo=sessao-expirada&returnTo=%2Fprocessos%3Fx%3D1',
+      );
+    });
+  });
+
+  it('rodapé: orientação de convite e "Sair" que encerra a sessão', async () => {
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { redirectTo: '/entrar?motivo=saiu' } })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { assign } = renderSelection(null);
+    expect(
+      screen.getByText(
+        'Não encontrou sua instituição? Peça ao administrador do órgão um convite para o seu e-mail.',
+      ),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Sair' }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/entrar?motivo=saiu');
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/auth/logout');
+  });
+
+  it('sem violação de acessibilidade (lista, desabilitados, erro)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(problem(403, 'MEMBERSHIP_INACTIVE'))),
+    );
+    renderSelection(null, {
+      memberships: [
+        ...shellSession().memberships,
+        membership({
+          membershipId: 'm-sus',
+          tenant: { id: 't-sus', name: 'Prefeitura Suspensa', status: 'SUSPENDED' },
+          usable: false,
+        }),
+      ],
+    });
+    await userEvent.click(screen.getByRole('button', { name: TENANT_A.name }));
+    await screen.findByRole('alert');
+    expect(await seriousA11yViolations()).toEqual([]);
   });
 });

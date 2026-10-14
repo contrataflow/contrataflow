@@ -23,6 +23,8 @@ import { configureApiApp } from '../../src/bootstrap.js';
 
 /** Chave HS256 de teste do `FakeJwksProvider` (nunca usada fora dos testes). */
 export const TEST_SIGNING_KEY = 'contrataflow-test-only-signing-key-0000';
+/** Credencial de serviço do BFF nas rotas `/internal/*` (US-087), só nos testes. */
+export const TEST_SERVICE_TOKEN = 'contrataflow-test-only-service-token-000';
 export const TEST_ISSUER = 'https://issuer.contrataflow.test/application/o/contrataflow/';
 
 /** Configuração de teste; por padrão o Redis aponta para uma porta fechada (falha imediata). */
@@ -35,6 +37,7 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
     REDIS_CACHE_URL: 'redis://127.0.0.1:1',
     OIDC_ISSUER_URL: TEST_ISSUER,
     OIDC_FAKE_SIGNING_KEY: TEST_SIGNING_KEY,
+    INTERNAL_SERVICE_TOKEN: TEST_SERVICE_TOKEN,
     ...overrides,
   });
 }
@@ -47,6 +50,8 @@ export interface TestApiOptions {
   readonly controllers?: Type[];
   /** Logger pino que recebe os logs da aplicação (padrão: Nest silenciado). */
   readonly logger?: PinoLogger;
+  /** Substitui providers pelo token (ex.: diretório do Authentik, relógio). */
+  readonly providers?: readonly { readonly token: unknown; readonly value: unknown }[];
 }
 
 export interface TestApi {
@@ -74,6 +79,9 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
       .useValue(rateLimitStore)
       .overrideProvider(IDEMPOTENCY_STORE)
       .useValue(new InMemoryIdempotencyStore());
+  }
+  for (const { token, value } of options.providers ?? []) {
+    builder = builder.overrideProvider(token).useValue(value);
   }
   const moduleRef = await builder.compile();
   const app = configureApiApp(

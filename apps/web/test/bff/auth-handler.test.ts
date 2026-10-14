@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { LOGIN_TRANSACTION_COOKIE } from '@/bff/auth/login-transaction';
 import { handleAuthRequest } from '@/bff/auth-handler';
-import { LOGIN_TRANSACTION_COOKIE } from '@/bff/cookies';
 import { handleCspReport, parseCspReports } from '@/bff/csp-report';
 import { captureLogsForTests } from '@/bff/logger';
 import { UnconfiguredIdentityProvider, createBffRuntime } from '@/bff/runtime';
 import { FAKE_PERSONAS } from '@/bff/session/fake-identity';
+import { SessionStoreUnavailableError } from '@/bff/session/types';
 import type { TestRuntime } from '@test/support/bff';
 import { APP_ORIGIN, browserRequest, createTestRuntime, signIn } from '@test/support/bff';
 
@@ -89,10 +90,11 @@ describe('login e callback', () => {
     expect(logs.lines.some((line) => line.includes('"auth.return_to_rejected"'))).toBe(true);
   });
 
-  it('pessoa sem vínculo → /selecionar-orgao', async () => {
+  it('pessoa sem vínculo → "sem vínculo" (SCR-111), com sessão sem instituição ativa (FA-02)', async () => {
     const test = createTestRuntime();
     const { callback } = await login(test, '?as=gil');
-    expect(callback.headers.get('Location')).toBe('/selecionar-orgao');
+    expect(callback.headers.get('Location')).toBe('/erro/sem-vinculo');
+    expect(test.store.size).toBe(1);
   });
 
   it('callback sem transação (login CSRF) → /entrar?motivo=erro, sem sessão', async () => {
@@ -133,14 +135,18 @@ describe('login e callback', () => {
     expect(test.store.size).toBe(1);
   });
 
-  it('provedor não configurado → 503 no login', async () => {
+  it('provedor não configurado ou fora do ar → SCR-001 "indisponível" mantendo o returnTo', async () => {
     const test = createTestRuntime({ identity: new UnconfiguredIdentityProvider() });
     const response = await handleAuthRequest(
-      browserRequest('/api/auth/login'),
+      browserRequest('/api/auth/login?returnTo=%2Fprocessos'),
       'login',
       test.runtime,
     );
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe(
+      '/entrar?motivo=indisponivel&returnTo=%2Fprocessos',
+    );
+    expect(response.headers.get('Set-Cookie')).toBeNull();
     const runtime = createBffRuntime(test.runtime.config);
     expect(runtime.identity.kind).toBe('fake');
   });
@@ -348,6 +354,22 @@ describe('roteamento das ações', () => {
     expect(wrong.status).toBe(405);
     expect(wrong.headers.get('Allow')).toBe('POST');
     expect(wrong.headers.get('X-Frame-Options')).toBe('DENY');
+  });
+
+  it('Redis de sessões fora do ar → 503 DEPENDENCY_UNAVAILABLE com Retry-After (nunca 401)', async () => {
+    const test = createTestRuntime();
+    const broken = {
+      ...test.runtime,
+      sessions: { lookup: () => Promise.reject(new SessionStoreUnavailableError()) },
+    } as unknown as TestRuntime['runtime'];
+    const response = await handleAuthRequest(
+      browserRequest('/api/auth/session'),
+      'session',
+      broken,
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get('Retry-After')).toBe('5');
+    expect(((await response.json()) as { code: string }).code).toBe('DEPENDENCY_UNAVAILABLE');
   });
 
   it('exceção inesperada → 500 e log', async () => {

@@ -58,14 +58,55 @@ export async function runTenantTransaction<T>(
 ): Promise<T> {
   const { tenantId, userId } = requireTenantId();
   const statementTimeout = String(settings.statementTimeoutMs);
+  return await runScoped(base, settings, work, (tx) =>
+    options.readOnly
+      ? tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
+      : tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`,
+  );
+}
+
+export interface PlatformTransactionOptions extends TenantTransactionOptions {
+  /**
+   * Usuário em `app.user_id` (condição de `cf_user_memberships`); padrão: o ator do contexto.
+   * Informado explicitamente só onde o usuário ainda não está no contexto (início de sessão).
+   */
+  readonly userId?: string | null;
+}
+
+/**
+ * Transação de plataforma (multi-tenancy.md §6 · US-087): tabelas sem `tenant_id` (`users`,
+ * `tenants`) e funções de leitura entre tenants (`cf_user_memberships`). NÃO define
+ * `app.tenant_id`: qualquer consulta a tabela com RLS falha fechada (variável ausente ou vazia).
+ */
+export async function runPlatformTransaction<T>(
+  base: PrismaClient,
+  settings: TenantTransactionSettings,
+  work: (tx: TenantTx) => Promise<T>,
+  options: PlatformTransactionOptions,
+): Promise<T> {
+  const userId = options.userId ?? currentRequestContext()?.actor.userId ?? '';
+  if (userId !== '' && !isUuid(userId)) throw new TenantContextMissingError();
+  const statementTimeout = String(settings.statementTimeoutMs);
+  return await runScoped(base, settings, work, (tx) =>
+    options.readOnly
+      ? tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
+      : tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`,
+  );
+}
+
+/** Transação `READ COMMITTED` cuja primeira instrução é `prepare` (o `set_config` do escopo). */
+async function runScoped<T>(
+  base: PrismaClient,
+  settings: TenantTransactionSettings,
+  work: (tx: TenantTx) => Promise<T>,
+  prepare: (tx: TenantTx) => Promise<number>,
+): Promise<T> {
   const retries = settings.retries ?? 2;
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await base.$transaction(
         async (tx) => {
-          await (options.readOnly
-            ? tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
-            : tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`);
+          await prepare(tx);
           return work(tx);
         },
         {
@@ -100,6 +141,12 @@ export function tenantTransactionExtension(
         options: TenantTransactionOptions = {},
       ): Promise<T> {
         return runTenantTransaction(base, settings, work, options);
+      },
+      $platformTransaction<T>(
+        work: (tx: TenantTx) => Promise<T>,
+        options: PlatformTransactionOptions = {},
+      ): Promise<T> {
+        return runPlatformTransaction(base, settings, work, options);
       },
     },
   });

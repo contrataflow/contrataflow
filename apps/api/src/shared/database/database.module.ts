@@ -4,9 +4,21 @@ import type { OnModuleDestroy } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 
+import { DATABASE_CLIENT } from './database-client.js';
+import { PlatformTransaction } from './platform-transaction.js';
 import { createTenantPrismaClient } from './prisma-client.js';
 import type { TenantPrismaClient } from './prisma-client.js';
 import type { TenantTx } from './tenant-transaction.js';
+
+/** Encerra o pool no shutdown (o cliente é criado sob demanda, na primeira transação). */
+@Injectable()
+export class DatabaseLifecycle implements OnModuleDestroy {
+  constructor(@Inject(DATABASE_CLIENT) private readonly prisma: TenantPrismaClient) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.prisma.$disconnect();
+  }
+}
 
 /**
  * Acesso a dados de todo módulo de negócio (RN-FND-43 · architecture.md §6.5): cada chamada abre
@@ -14,12 +26,8 @@ import type { TenantTx } from './tenant-transaction.js';
  * fora de `shared/database/**` vê o `PrismaClient`.
  */
 @Injectable()
-export class TenantTransaction implements OnModuleDestroy {
-  private readonly prisma: TenantPrismaClient;
-
-  constructor(@Inject(APP_CONFIG) config: AppConfig) {
-    this.prisma = createTenantPrismaClient(config.database);
-  }
+export class TenantTransaction {
+  constructor(@Inject(DATABASE_CLIENT) private readonly prisma: TenantPrismaClient) {}
 
   /** Comando: transação de escrita. */
   run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
@@ -30,13 +38,24 @@ export class TenantTransaction implements OnModuleDestroy {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.prisma.$tenantTransaction(work, { readOnly: true });
   }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.prisma.$disconnect();
-  }
 }
 
-/** Módulo global do banco (shared kernel): exporta só o `TenantTransaction`. */
+/**
+ * Módulo global do banco (shared kernel): exporta só as duas formas de transação
+ * (`PlatformTransaction` em `platform-transaction.ts`, de uso restrito).
+ */
 @Global()
-@Module({ providers: [TenantTransaction], exports: [TenantTransaction] })
+@Module({
+  providers: [
+    {
+      provide: DATABASE_CLIENT,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) => createTenantPrismaClient(config.database),
+    },
+    DatabaseLifecycle,
+    TenantTransaction,
+    PlatformTransaction,
+  ],
+  exports: [TenantTransaction, PlatformTransaction],
+})
 export class DatabaseModule {}

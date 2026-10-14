@@ -126,3 +126,8 @@ export function isTransientDatabaseError(error: unknown): boolean {
 export function isRetryableTransactionError(error: unknown): boolean {
   return codesOf(error).some((code) => RETRYABLE.has(code));
 }
+
+/** Violação de unicidade (P2002 do Prisma ou SQLSTATE 23505): o chamador relê o estado vencedor. */
+export function isUniqueViolation(error: unknown): boolean {
+  return codesOf(error).some((code) => code === 'P2002' || code === '23505');
+}

@@ -3,12 +3,9 @@ import 'server-only';
 /*
  * Cookies do BFF (DEC-131 · security.md §7): opacos, `HttpOnly`, `Secure`, `SameSite=Lax`,
  * `Path=/` e prefixo `__Host-` (impede *cookie tossing* por subdomínio). Navegadores aceitam
- * `Secure` em http://localhost (contexto seguro), então os atributos valem também em dev.
+ * `Secure` em http://localhost (contexto seguro), então os atributos valem também em dev. O
+ * cookie de sessão não tem `Max-Age`: a expiração é controlada no servidor (RN-IAM-10).
  */
-
-/** Cookie de transação do login (`state` vinculado ao browser — login CSRF). */
-export const LOGIN_TRANSACTION_COOKIE = '__Host-cf_auth_tx';
-export const LOGIN_TRANSACTION_MAX_AGE_SECONDS = 600;
 
 export function readCookie(headers: Headers, name: string): string | null {
   const raw = headers.get('Cookie');
@@ -32,33 +29,4 @@ export function serializeCookie(name: string, value: string, maxAgeSeconds?: num
 
 export function clearCookie(name: string): string {
   return serializeCookie(name, '', 0);
-}
-
-export interface LoginTransaction {
-  readonly state: string;
-  readonly returnTo: string;
-  readonly stepUp: boolean;
-}
-
-export function encodeLoginTransaction(transaction: LoginTransaction): string {
-  return Buffer.from(JSON.stringify(transaction), 'utf8').toString('base64url');
-}
-
-export function decodeLoginTransaction(value: string | null): LoginTransaction | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(
-      Buffer.from(value, 'base64url').toString('utf8'),
-    ) as Partial<LoginTransaction>;
-    if (
-      typeof parsed.state !== 'string' ||
-      typeof parsed.returnTo !== 'string' ||
-      typeof parsed.stepUp !== 'boolean'
-    ) {
-      return null;
-    }
-    return { state: parsed.state, returnTo: parsed.returnTo, stepUp: parsed.stepUp };
-  } catch {
-    return null;
-  }
 }

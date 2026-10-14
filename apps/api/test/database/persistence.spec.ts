@@ -127,7 +127,7 @@ describe('padrão de persistência (PostgreSQL real)', () => {
   });
 
   describe('[Permissão] papéis de banco (RN-FND-46)', () => {
-    it('cria os papéis com os atributos mínimos; só o relay tem BYPASSRLS', async () => {
+    it('cria os papéis com os atributos mínimos; BYPASSRLS só no relay e no dono das funções', async () => {
       const roles = await db.admin<{
         rolname: string;
         rolcanlogin: boolean;
@@ -143,6 +143,14 @@ describe('padrão de persistência (PostgreSQL real)', () => {
           rolname: 'cf_app',
           rolcanlogin: true,
           rolbypassrls: false,
+          rolinherit: true,
+          privileged: false,
+        },
+        {
+          // Dono das funções SECURITY DEFINER de leitura entre tenants (US-087): sem login.
+          rolname: 'cf_definer',
+          rolcanlogin: false,
+          rolbypassrls: true,
           rolinherit: true,
           privileged: false,
         },
@@ -192,9 +200,15 @@ describe('padrão de persistência (PostgreSQL real)', () => {
         UNION ALL
         SELECT p.proname, pg_get_userbyid(p.proowner) FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname = 'public' AND p.proname LIKE 'cf\\_%'`);
+        WHERE n.nspname = 'public' AND p.proname LIKE 'cf\\_%' AND NOT p.prosecdef`);
       expect(owners.length).toBeGreaterThan(0);
       expect(new Set(owners.map((row) => row.owner))).toEqual(new Set(['cf_owner']));
+      // Funções SECURITY DEFINER (leitura entre tenants): sempre do cf_definer (US-087).
+      const definers = await db.admin<{ owner: string }>(`
+        SELECT DISTINCT pg_get_userbyid(p.proowner) AS owner FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.prosecdef`);
+      expect(definers).toEqual([{ owner: 'cf_definer' }]);
     });
 
     it('cf_app não altera a definição das tabelas nem cria objetos', async () => {
@@ -459,6 +473,14 @@ describe('padrão de persistência (PostgreSQL real)', () => {
     it('reaplicar em outro banco do mesmo cluster reaproveita os papéis e não diverge do schema', async () => {
       await db.admin('CREATE DATABASE cf_second');
       const url = db.url('postgres').replace(/\/contrataflow$/, '/cf_second');
+      // Extensões vêm do init da infraestrutura, não das migrações (RN-FND-14).
+      const bootstrap = new pg.Client({ connectionString: url });
+      await bootstrap.connect();
+      try {
+        await bootstrap.query('CREATE EXTENSION IF NOT EXISTS citext');
+      } finally {
+        await bootstrap.end();
+      }
       await runPrisma(['migrate', 'deploy'], url);
       const second = new pg.Client({ connectionString: url });
       await second.connect();

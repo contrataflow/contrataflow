@@ -2,6 +2,9 @@ import { LOG_LEVELS, PRODUCTION_FORBIDDEN_LEVELS } from '@contrataflow/observabi
 import type { LogLevel } from '@contrataflow/observability';
 import { z } from 'zod';
 
+/** Ambientes em que a identidade fake (FA-02) pode ser ligada. */
+const FAKE_IDENTITY_ENVS: ReadonlySet<string> = new Set(['local', 'dev', 'test']);
+
 /**
  * Schema único das variáveis de ambiente da API (RN-FND-30 · architecture.md §10.1). Toda
  * variável lida pela aplicação está aqui; `process.env` não é lido fora de `src/config/**`.
@@ -22,10 +25,22 @@ export const envSchema = z
     OIDC_AUDIENCE: z.string().trim().min(1).default('contrataflow-api'),
     OIDC_CLOCK_TOLERANCE_SECONDS: z.coerce.number().int().min(0).max(60).default(30),
     /**
-     * Chave HS256 do `FakeJwksProvider` (FA-02), só até o verificador JWKS real da US-087. Ausente →
-     * chave aleatória por processo: nenhum token é aceito (falha fechada).
+     * Modo de identidade fake (FA-02 da US-080 · FA-06 da US-086): chave HS256 do
+     * `FakeJwksProvider` e diretório em memória, para testes e desenvolvimento sem Authentik. Só em
+     * local/dev/test; ausente (padrão) → JWKS do Authentik e tabelas reais (US-087).
      */
-    OIDC_FAKE_SIGNING_KEY: z.string().min(32).optional(),
+    OIDC_FAKE_SIGNING_KEY: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().min(32).optional(),
+    ),
+    /**
+     * Credencial de serviço do BFF nas rotas `/internal/*` (US-087): comparada em tempo constante
+     * com `X-CF-Service-Token`. Obrigatória em staging/produção; ausente → rotas internas recusadas.
+     */
+    INTERNAL_SERVICE_TOKEN: z.string().min(32).optional(),
+    /** API administrativa do Authentik (vínculo do `sub` no primeiro login — RN-IAM-06). */
+    AUTHENTIK_API_URL: z.url().optional(),
+    AUTHENTIK_API_TOKEN: z.string().min(16).optional(),
     CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
     PAGINATION_MAX_PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(100),
     RATE_LIMIT_READ_PER_MIN: z.coerce.number().int().positive().default(600),
@@ -39,6 +54,20 @@ export const envSchema = z
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
       context.addIssue({ code: 'custom', path: ['LOG_LEVEL'], message: 'Proibido em produção.' });
+    }
+    if (env.OIDC_FAKE_SIGNING_KEY && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['OIDC_FAKE_SIGNING_KEY'],
+        message: 'Identidade fake proibida neste ambiente.',
+      });
+    }
+    if (!env.INTERNAL_SERVICE_TOKEN && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['INTERNAL_SERVICE_TOKEN'],
+        message: 'Obrigatória fora de local/dev/test.',
+      });
     }
   });
 
@@ -69,6 +98,10 @@ export interface AppConfig {
     readonly clockToleranceSeconds: number;
     readonly fakeSigningKey: string | null;
   };
+  /** Rotas `/internal/*` (BFF → API): credencial de serviço; `null` = rotas recusadas. */
+  readonly internal: { readonly serviceToken: string | null };
+  /** API administrativa do Authentik; `null` = vínculo do `sub` só por e-mail verificado. */
+  readonly authentik: { readonly apiUrl: string; readonly apiToken: string } | null;
   readonly http: { readonly correlationHeader: string };
   readonly pagination: { readonly maxPageSize: number };
   readonly rateLimit: {
@@ -109,6 +142,11 @@ function toAppConfig(env: Env): AppConfig {
       clockToleranceSeconds: env.OIDC_CLOCK_TOLERANCE_SECONDS,
       fakeSigningKey: env.OIDC_FAKE_SIGNING_KEY ?? null,
     },
+    internal: { serviceToken: env.INTERNAL_SERVICE_TOKEN ?? null },
+    authentik:
+      env.AUTHENTIK_API_URL && env.AUTHENTIK_API_TOKEN
+        ? { apiUrl: env.AUTHENTIK_API_URL, apiToken: env.AUTHENTIK_API_TOKEN }
+        : null,
     http: { correlationHeader: env.CORRELATION_HEADER_NAME },
     pagination: { maxPageSize: env.PAGINATION_MAX_PAGE_SIZE },
     rateLimit: {

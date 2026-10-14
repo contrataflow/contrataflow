@@ -33,8 +33,12 @@
       "description": "Estamos realizando uma manutenção ou o serviço está indisponível no momento. Tente novamente em alguns minutos."
     },
     "sem-vinculo": {
-      "title": "Seu acesso a este órgão não está ativo",
-      "description": "Você não possui vínculo ativo com uma instituição contratante. Procure o administrador da sua instituição para solicitar o acesso."
+      "title": "Sua conta não tem acesso ativo a nenhuma instituição",
+      "description": "Sua conta não tem acesso ativo a nenhuma instituição no ContrataFlow. Se você recebeu um convite, abra o link enviado por e-mail. Em caso de dúvida, procure o administrador da sua instituição."
+    },
+    "acesso-bloqueado": {
+      "title": "Seu acesso ao ContrataFlow está bloqueado",
+      "description": "Procure o suporte da sua instituição."
     },
     "acesso-indisponivel": {
       "title": "Acesso indisponível",

@@ -3,9 +3,9 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 
 import type {
-  AuthenticatedIdentity,
   IdentityProvider,
   MembershipSummary,
+  ProviderLogin,
   SessionRecord,
   SessionStore,
 } from './types';
@@ -21,7 +21,10 @@ export const SESSION_IDLE_MS = 30 * 60_000;
 export const SESSION_ABSOLUTE_MS = 12 * 60 * 60_000;
 /** Renova o access token quando faltam ≤ 60 s (RN-IAM-25). */
 export const REFRESH_WINDOW_MS = 60_000;
+/** Sessões simultâneas por usuário; a mais antiga é encerrada (RN-IAM-10). */
+export const MAX_SESSIONS_PER_USER = 10;
 
+/** `sid` aleatório de 256 bits, sempre novo a cada login (anti-fixação — RN-IAM-10). */
 export function newSessionId(): string {
   return randomBytes(32).toString('base64url');
 }
@@ -29,6 +32,11 @@ export function newSessionId(): string {
 /** Chave do registro: SHA-256 do id do cookie (o valor em claro nunca é armazenado). */
 export function hashSessionId(sessionId: string): string {
   return createHash('sha256').update(sessionId).digest('hex');
+}
+
+/** Hash do user-agent guardado na sessão (o texto completo só vai para a auditoria). */
+export function hashUserAgent(userAgent: string | null): string | null {
+  return userAgent ? createHash('sha256').update(userAgent).digest('hex').slice(0, 32) : null;
 }
 
 export type SessionLookup =
@@ -43,15 +51,14 @@ export type FreshToken =
   /** IdP indisponível e sem token válido: 503, sessão preservada (RN-IAM-26). */
   | { readonly status: 'unavailable' };
 
-export type TenantSwitch =
-  | { readonly status: 'switched' | 'noop'; readonly record: SessionRecord }
-  | { readonly status: 'not_usable' };
-
-/** Instituição ativa ao criar a sessão: o único vínculo usável ou o primeiro (padrão). */
-export function defaultMembership(
-  memberships: readonly MembershipSummary[],
-): MembershipSummary | null {
-  return memberships.find((membership) => membership.usable) ?? null;
+/** Dados da sessão nova, resolvidos pelo IdP (`login`) e pela API (usuário e vínculos). */
+export interface NewSession {
+  readonly login: ProviderLogin;
+  readonly user: { readonly id: string; readonly displayName: string };
+  readonly firstLogin: boolean;
+  readonly memberships: readonly MembershipSummary[];
+  readonly ip: string | null;
+  readonly userAgent: string | null;
 }
 
 export class SessionService {
@@ -63,30 +70,37 @@ export class SessionService {
     private readonly now: () => number = Date.now,
   ) {}
 
+  /**
+   * Grava a sessão nova, ainda sem instituição ativa, com a chave = SHA-256 do `sessionId`.
+   * Sessões além do limite por usuário são encerradas (devolvidas em `evicted`).
+   */
   async create(
-    identity: AuthenticatedIdentity,
-  ): Promise<{ sessionId: string; record: SessionRecord }> {
-    const sessionId = newSessionId();
+    sessionId: string,
+    session: NewSession,
+  ): Promise<{ record: SessionRecord; evicted: readonly string[] }> {
     const now = this.now();
     const absoluteExpiresAt = now + SESSION_ABSOLUTE_MS;
-    const active = defaultMembership(identity.memberships);
     const record: SessionRecord = {
       key: hashSessionId(sessionId),
-      userId: identity.userId,
-      subject: identity.subject,
-      displayName: identity.displayName,
-      activeTenantId: active?.tenant.id ?? null,
-      membershipId: active?.membershipId ?? null,
-      memberships: identity.memberships,
-      tokens: identity.tokens,
-      amr: identity.amr,
+      userId: session.user.id,
+      subject: session.login.subject,
+      displayName: session.user.displayName,
+      activeTenantId: null,
+      membershipId: null,
+      memberships: session.memberships,
+      tokens: session.login.tokens,
+      amr: session.login.amr,
+      authTime: session.login.authTime,
+      firstLogin: session.firstLogin,
+      ip: session.ip,
+      userAgentHash: hashUserAgent(session.userAgent),
       createdAt: now,
       lastSeenAt: now,
       idleExpiresAt: Math.min(now + SESSION_IDLE_MS, absoluteExpiresAt),
       absoluteExpiresAt,
     };
-    await this.store.save(record);
-    return { sessionId, record };
+    const evicted = await this.store.create(record, MAX_SESSIONS_PER_USER);
+    return { record, evicted };
   }
 
   async lookup(sessionId: string | null | undefined): Promise<SessionLookup> {
@@ -152,28 +166,33 @@ export class SessionService {
     return stillValid ? { status: 'ok', record } : { status: 'unavailable' };
   }
 
-  /** Troca a instituição ativa reaproveitando a sessão (RN-IAM-66/70). */
-  async switchTenant(record: SessionRecord, tenantId: string): Promise<TenantSwitch> {
-    if (record.activeTenantId === tenantId) return { status: 'noop', record };
-    const target = record.memberships.find(
-      (membership) => membership.tenant.id === tenantId && membership.usable,
-    );
-    if (!target) return { status: 'not_usable' };
+  /**
+   * Registra a instituição ativa, conferida pela API (RN-IAM-09/17), e a lista de vínculos mais
+   * recente. Reaproveita a sessão (`sid`) — sem novo cookie (RN-IAM-66).
+   */
+  async activateTenant(
+    record: SessionRecord,
+    active: { readonly tenantId: string; readonly membershipId: string },
+    memberships: readonly MembershipSummary[] = record.memberships,
+  ): Promise<SessionRecord> {
     const updated: SessionRecord = {
       ...record,
-      activeTenantId: target.tenant.id,
-      membershipId: target.membershipId,
+      activeTenantId: active.tenantId,
+      membershipId: active.membershipId,
+      memberships,
     };
     await this.store.save(updated);
-    return { status: 'switched', record: updated };
+    return updated;
   }
 
   /** Step-up: substitui os tokens da sessão existente, sem novo login completo (RN-IAM-41). */
-  async replaceTokens(
-    record: SessionRecord,
-    identity: AuthenticatedIdentity,
-  ): Promise<SessionRecord> {
-    const updated: SessionRecord = { ...record, tokens: identity.tokens, amr: identity.amr };
+  async replaceTokens(record: SessionRecord, login: ProviderLogin): Promise<SessionRecord> {
+    const updated: SessionRecord = {
+      ...record,
+      tokens: login.tokens,
+      amr: login.amr,
+      authTime: login.authTime,
+    };
     await this.store.save(updated);
     return updated;
   }

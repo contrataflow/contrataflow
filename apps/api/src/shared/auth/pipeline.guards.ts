@@ -1,13 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createParamDecorator, Inject, Injectable, Logger } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { z } from 'zod';
 
+import { canReadOffboardingTenant } from './membership-policy.js';
 import {
   MEMBERSHIP_PORT,
   TENANT_STATUS_PORT,
   TOKEN_VERIFIER,
   TokenVerificationError,
+  TokenVerifierUnavailableError,
   USER_PORT,
 } from './ports.js';
 import type {
@@ -16,8 +18,10 @@ import type {
   TenantStatusPort,
   TokenVerifierPort,
   UserPort,
+  VerifiedToken,
 } from './ports.js';
 import {
+  ALLOW_UNBOUND_SUBJECT_METADATA,
   isPublicRoute,
   REQUIRE_MFA_METADATA,
   rejectRequest,
@@ -25,6 +29,7 @@ import {
   WITHOUT_TENANT_METADATA,
 } from './route-access.js';
 import { requireRequestContext, updateRequestContext } from '../context/request-context.js';
+import { ApiError } from '../errors/api-error.js';
 import { headerValue } from '../http/http-types.js';
 import type { HttpRequest } from '../http/http-types.js';
 
@@ -42,16 +47,30 @@ type RequestWithMembership = HttpRequest & { [MEMBERSHIP]?: MembershipRecord };
 
 const BEARER = /^Bearer ([A-Za-z0-9._~+/-]+=*)$/;
 
+/** Token verificado pelo guard de autenticação (rotas `@AllowUnboundSubject()`). */
+const VERIFIED_TOKEN = Symbol('cf:verified-token');
+type RequestWithToken = HttpRequest & { [VERIFIED_TOKEN]?: VerifiedToken };
+
+/** Parâmetro do handler com o token verificado (só em rotas `@AllowUnboundSubject()`). */
+export const VerifiedTokenParam = createParamDecorator(
+  (_data: unknown, context: ExecutionContext): VerifiedToken => {
+    const token = context.switchToHttp().getRequest<RequestWithToken>()[VERIFIED_TOKEN];
+    if (!token) throw new ApiError('UNAUTHENTICATED');
+    return token;
+  },
+);
+
 /** 1 — JWT (assinatura, `iss`, `aud`, `exp`, `nbf`) e `User` ativo: 401 `UNAUTHENTICATED`/`SESSION_EXPIRED`. */
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
   constructor(
+    private readonly reflector: Reflector,
     @Inject(TOKEN_VERIFIER) private readonly verifier: TokenVerifierPort,
     @Inject(USER_PORT) private readonly users: UserPort,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<HttpRequest>();
+    const request = context.switchToHttp().getRequest<RequestWithToken>();
     if (isPublicRoute(request)) return true;
 
     const token = BEARER.exec(headerValue(request, 'authorization') ?? '')?.[1];
@@ -67,7 +86,23 @@ export class AuthenticationGuard implements CanActivate {
       if (error instanceof TokenVerificationError) {
         throw rejectRequest('authentication', 'invalid_token', 'UNAUTHENTICATED');
       }
+      if (error instanceof TokenVerifierUnavailableError) {
+        // `kid` desconhecido com o JWKS fora do ar: indisponibilidade, nunca 401 (RN-IAM-05).
+        const rejection = rejectRequest(
+          'authentication',
+          'jwks_unavailable',
+          'DEPENDENCY_UNAVAILABLE',
+        );
+        throw new ApiError(rejection.code, { headers: { 'Retry-After': '30' }, cause: error });
+      }
       throw error;
+    }
+
+    // Início de sessão: o `sub` pode ainda não estar vinculado (primeiro login — RN-IAM-06).
+    if (routeFlag(this.reflector, ALLOW_UNBOUND_SUBJECT_METADATA, context)) {
+      request[VERIFIED_TOKEN] = verified;
+      updateRequestContext({ amr: verified.amr, authTime: verified.authTime });
+      return true;
     }
 
     const user = await this.users.findByExternalSubject(verified.subject);
@@ -89,6 +124,9 @@ export class AuthenticationGuard implements CanActivate {
 }
 
 const tenantIdSchema = z.uuid();
+
+/** Métodos de leitura: os únicos aceitos numa instituição em encerramento. */
+const READ_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * 2 — `X-Tenant-Id` (DEC-132) e tenant `ACTIVE`: 403 `TENANT_SUSPENDED`. Sem vínculo no tenant
@@ -118,15 +156,18 @@ export class TenantContextGuard implements CanActivate {
     const membership = userId ? await this.memberships.findByUserAndTenant(userId, tenantId) : null;
     if (!membership) throw rejectRequest('tenant', 'no_membership', 'MEMBERSHIP_INACTIVE');
 
-    // OFFBOARDING (somente leitura para ADMIN_ORGAO/AUDITOR — DEC-132) depende dos perfis do
-    // módulo `access`; até lá todo status diferente de ACTIVE é recusado.
+    // OFFBOARDING: somente leitura e exportação para ADMIN_ORGAO/AUDITOR (DEC-132 · FA-08).
     const status = await this.tenants.findStatus(tenantId);
-    if (status !== 'ACTIVE') {
+    const readOnly = status === 'OFFBOARDING' && canReadOffboardingTenant(membership.roleKeys);
+    if (status !== 'ACTIVE' && !readOnly) {
       throw rejectRequest(
         'tenant',
         `tenant_${(status ?? 'missing').toLowerCase()}`,
         'TENANT_SUSPENDED',
       );
+    }
+    if (readOnly && !READ_METHODS.has((request.method ?? 'GET').toUpperCase())) {
+      throw rejectRequest('tenant', 'tenant_offboarding_command', 'TENANT_SUSPENDED');
     }
 
     request[MEMBERSHIP] = membership;
@@ -138,7 +179,12 @@ export class TenantContextGuard implements CanActivate {
 /** 3 — `TenantMembership` `ACTIVE` e não expirado: 403 `MEMBERSHIP_INACTIVE`. */
 @Injectable()
 export class MembershipGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  private readonly logger = new Logger('Guards');
+
+  constructor(
+    private readonly reflector: Reflector,
+    @Inject(MEMBERSHIP_PORT) private readonly memberships: MembershipPort,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<RequestWithMembership>();
@@ -156,6 +202,16 @@ export class MembershipGuard implements CanActivate {
 
     const current = requireRequestContext();
     updateRequestContext({ actor: { ...current.actor, membershipId: membership.id } });
+    // Último acesso ao vínculo (RN-IAM-16) sem segurar a requisição.
+    void this.memberships.recordAccess?.(membership, new Date()).catch((error: unknown) => {
+      this.logger.warn(
+        {
+          event: 'identity.last_access_failed',
+          errorName: error instanceof Error ? error.name : 'unknown',
+        },
+        'identity.last_access_failed',
+      );
+    });
     return true;
   }
 }

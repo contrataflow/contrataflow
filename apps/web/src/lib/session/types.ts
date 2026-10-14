@@ -14,6 +14,10 @@ export interface ShellTenant {
 export interface ShellMembership {
   readonly membershipId: string;
   readonly tenant: Pick<ShellTenant, 'id' | 'name' | 'status'>;
+  /** `INTERNAL` | `EXTERNAL` | `SERVICE` (SCR-101 mostra "Vínculo externo"). */
+  readonly type: string;
+  /** Validade do vínculo (ISO 8601) — externos; `null` = sem prazo. */
+  readonly expiresAt: string | null;
   readonly usable: boolean;
 }
 

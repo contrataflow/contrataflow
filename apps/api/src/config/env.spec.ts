@@ -34,6 +34,33 @@ describe('loadConfig', () => {
     expect(Object.isFrozen(config.rateLimit.perClass)).toBe(true);
   });
 
+  it('US-087: identidade fake só em local/dev/test e credencial interna obrigatória fora deles', () => {
+    const fake = 'x'.repeat(32);
+    expect(loadConfig({ ...REQUIRED, OIDC_FAKE_SIGNING_KEY: fake }).oidc.fakeSigningKey).toBe(fake);
+    expect(() =>
+      loadConfig({
+        ...REQUIRED,
+        APP_ENV: 'production',
+        OIDC_FAKE_SIGNING_KEY: fake,
+        INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      }),
+    ).toThrow(/OIDC_FAKE_SIGNING_KEY/);
+    expect(() => loadConfig({ ...REQUIRED, APP_ENV: 'staging' })).toThrow(/INTERNAL_SERVICE_TOKEN/);
+    const staging = loadConfig({
+      ...REQUIRED,
+      APP_ENV: 'staging',
+      INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      AUTHENTIK_API_URL: 'https://auth.contrataflow.test/api/v3/',
+      AUTHENTIK_API_TOKEN: 'z'.repeat(16),
+    });
+    expect(staging.internal.serviceToken).toBe('y'.repeat(32));
+    expect(staging.authentik).toEqual({
+      apiUrl: 'https://auth.contrataflow.test/api/v3/',
+      apiToken: 'z'.repeat(16),
+    });
+    expect(loadConfig(REQUIRED).authentik).toBeNull();
+  });
+
   it('converte números e separa audiências por vírgula', () => {
     const config = loadConfig({
       ...REQUIRED,

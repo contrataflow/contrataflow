@@ -1,47 +1,64 @@
-import { Alert, buttonClassName } from '@contrataflow/ui';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { safeReturnTo } from '@/bff/return-to';
+import { currentSessionOrUnavailable } from '@/bff/server-session';
+import { LoginFrame } from '@/features/auth/login-frame';
+import { isLoginReason, LoginReasonMessage } from '@/features/auth/login-reason-message';
+import { LoginSubmitLink } from '@/features/auth/login-submit-link';
+import { LoginTitle } from '@/features/auth/login-title';
+import { HOME_PATH } from '@/lib/routes';
 
 /*
- * `/entrar` (SCR-001 — a tela definitiva vem com a US-087). Sem `motivo`, segue direto para o
- * login do BFF preservando `returnTo`; com `motivo`, mostra a mensagem e o botão "Entrar".
+ * `/entrar` (SCR-001). Sem `motivo`, a página não tem tela própria: segue direto para
+ * `GET /api/auth/login` (preserva `returnTo`) e a primeira tela do usuário é a do Authentik.
+ * Com `motivo`, mostra a moldura de login com a mensagem, o botão "Entrar" e "Esqueci minha
+ * senha". Já autenticado, volta para `returnTo` (FA-07) sem novo login.
  */
 
-const REASONS = ['saiu', 'sessao-expirada', 'senha-redefinida', 'erro', 'indisponivel'] as const;
-type Reason = (typeof REASONS)[number];
-
-function isReason(value: string | undefined): value is Reason {
-  return (REASONS as readonly (string | undefined)[]).includes(value);
+function single(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 interface LoginPageProps {
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('auth.login');
+  return { title: t('metaTitle') };
+}
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const query = await searchParams;
-  const motivo = typeof query.motivo === 'string' ? query.motivo : undefined;
-  const returnTo = safeReturnTo(typeof query.returnTo === 'string' ? query.returnTo : null);
-  const loginHref = `/api/auth/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`;
-  if (!isReason(motivo)) redirect(loginHref);
+  const motivo = single(query.motivo);
+  const returnTo = safeReturnTo(single(query.returnTo));
 
-  const t = await getTranslations('auth');
+  // FA-07. Redis de sessões fora do ar (`unavailable`): segue o fluxo normal — o login do BFF
+  // responde com a indisponibilidade, e esta página precisa continuar acessível.
+  const lookup = await currentSessionOrUnavailable();
+  if (lookup.status === 'active') {
+    // Nunca devolve para a própria página de entrada (RN-IAM-03).
+    redirect(returnTo && !returnTo.startsWith('/entrar') ? returnTo : HOME_PATH);
+  }
+
+  const loginHref = `/api/auth/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`;
+  if (!isLoginReason(motivo)) redirect(loginHref);
+
+  const t = await getTranslations('auth.login');
   return (
-    <section className="flex w-full max-w-md flex-col gap-4 py-12">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('login.title')}</h1>
-      <p className="text-muted-foreground">{t('login.subtitle')}</p>
-      <Alert
-        tone={motivo === 'erro' || motivo === 'indisponivel' ? 'warning' : 'info'}
-        title={t(`login.reasons.${motivo}`)}
-      />
-      <a href={loginHref} className={buttonClassName({ className: 'w-full' })}>
-        {t('login.submit')}
-      </a>
-      <a href="/recuperar-senha" className="text-sm text-primary underline">
-        {t('login.forgot')}
-      </a>
-    </section>
+    <LoginFrame>
+      <LoginTitle />
+      <LoginReasonMessage reason={motivo} />
+      <div className="mt-8 space-y-4">
+        <LoginSubmitLink href={loginHref} />
+        <p className="text-center">
+          <a href="/recuperar-senha" className="text-sm font-medium text-primary hover:underline">
+            {t('forgot')}
+          </a>
+        </p>
+      </div>
+    </LoginFrame>
   );
 }

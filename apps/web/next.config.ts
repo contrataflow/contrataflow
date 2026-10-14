@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
   // depende de `require` dinâmico (instrumentações) e de módulos nativos do Node (US-084).
   serverExternalPackages: [
     '@contrataflow/observability',
+    // Cliente do Redis de sessões (US-087): módulos nativos do Node (net/tls).
+    'ioredis',
     '@opentelemetry/instrumentation-http',
     '@opentelemetry/instrumentation-undici',
   ],

@@ -63,6 +63,12 @@ RESET ROLE;
   `GRANT`s, índices parciais, triggers e partições — o Prisma não expressa nada disso (RN-FND-47).
   Índice parcial: declare no schema o mesmo `@@index` (com `map`) sem o `WHERE`.
 - Nunca `set_config(…, false)` nem `SET app.*` de sessão (RN-FND-44): `pnpm ci:sql-lint` barra.
+- **FK para tabela com RLS `FORCE`** (ex.: `tenant_memberships`): ao criar a FK, o PostgreSQL valida
+  as linhas como o dono da tabela — que está sujeito à RLS — e falha por falta de `app.tenant_id`
+  ("unrecognized configuration parameter"). Na mesma migração, crie as FKs **antes** de ligar a RLS
+  (US-087); em migração posterior, defina um tenant nulo só para a validação, na mesma transação:
+  `SELECT set_config('app.tenant_id', '00000000-0000-0000-0000-000000000000', true);` antes do
+  `ADD CONSTRAINT` (a tabela nova está vazia; a política continua valendo para a aplicação).
 - O CI reprova (estágio Migrações e suíte tenant leak): tabela com `tenant_id` sem RLS
   `ENABLE`+`FORCE`+política, `tenant_id` nulo fora de `audit_logs`/`outbox_events`, tabela sem
   `tenant_id` fora de `tenants`/`users`/`permissions`, FK ou unicidade sem `tenant_id` e objeto cujo

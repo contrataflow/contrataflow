@@ -32,6 +32,16 @@ export const BFF_PROBLEMS = {
     title: 'Vínculo inativo',
     detail: 'Seu acesso a este órgão não está ativo.',
   },
+  TENANT_SUSPENDED: {
+    status: 403,
+    title: 'Instituição indisponível',
+    detail: 'Esta instituição está temporariamente indisponível.',
+  },
+  PERMISSION_DENIED: {
+    status: 403,
+    title: 'Acesso bloqueado',
+    detail: 'Seu acesso ao ContrataFlow está bloqueado.',
+  },
   NOT_FOUND: {
     status: 404,
     title: 'Não encontrado',
@@ -51,6 +61,11 @@ export const BFF_PROBLEMS = {
     status: 400,
     title: 'Requisição malformada',
     detail: 'Não foi possível interpretar a requisição.',
+  },
+  RATE_LIMITED: {
+    status: 429,
+    title: 'Muitas tentativas',
+    detail: 'Muitas tentativas. Aguarde alguns instantes.',
   },
   DEPENDENCY_UNAVAILABLE: {
     status: 503,

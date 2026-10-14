@@ -14,6 +14,7 @@ import type { Psql } from './psql.js';
 import type { CommandResult, RunOptions } from '../../lib/process.js';
 import { isolatedEnv, run } from '../../lib/process.js';
 import { REPO_ROOT } from '../../lib/workspace.js';
+import { identityMirrorSql } from '../seed/sql.js';
 
 /** Papéis de LOGIN da migração inicial (RN-FND-46); `cf_owner` não faz login. */
 export const LOGIN_ROLES = [
@@ -99,6 +100,14 @@ export async function dbMigrate(deps: DbMigrateDeps): Promise<void> {
   const passwords = await deps.psql(devPasswordsSql(deps.env.POSTGRES_PASSWORD ?? ''));
   if (!passwords.ok) {
     throw new EnvError('MIGRATION_FAILED', `Senhas locais dos papéis: ${passwords.stderr}`);
+  }
+  // Seed já aplicado antes das migrações: leva a identidade às tabelas reais (US-087).
+  const mirror = await deps.psql(identityMirrorSql());
+  if (!mirror.ok) {
+    throw new EnvError(
+      'MIGRATION_FAILED',
+      `Identidade do seed nas tabelas reais: ${mirror.stderr}`,
+    );
   }
   deps.logger.info(
     'env.db_migrated',

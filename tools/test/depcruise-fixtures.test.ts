@@ -18,6 +18,8 @@ const EXPECTED: Record<string, string> = {
   'apps/api/src/shared/uses-module.ts': 'shared-kernel-is-independent',
   'apps/api/src/modules/process/application/uses-redis.ts': 'redis-only-in-cache-or-platform',
   'apps/api/src/modules/process/infrastructure/uses-system-prisma.ts': 'system-prisma-allowlist',
+  'apps/api/src/modules/process/infrastructure/uses-platform-transaction.ts':
+    'platform-transaction-allowlist',
   'apps/worker/src/processors/loads-controller.ts': 'worker-never-loads-presentation',
   'apps/worker/src/processors/loads-api-main.ts': 'worker-only-api-allowed-paths',
   'apps/web/src/app/imports-api.ts': 'web-never-imports-api',
@@ -34,6 +36,7 @@ const EXPECTED: Record<string, string> = {
 /** Usos legítimos que não podem ser reprovados. */
 const ALLOWED = [
   'apps/api/src/modules/dfd/application/dfd.facade.ts',
+  'apps/api/src/modules/identity/infrastructure/prisma-identity.repository.ts',
   'apps/worker/src/outbox/relay.ts',
   'packages/validation/src/index.ts',
   'packages/editor/src/index.ts',

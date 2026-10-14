@@ -1,0 +1,121 @@
+# Tela de login do Authentik no tema do ContrataFlow (US-087 · SCR-001 · Lacunas 7 e 8 · DEC-130).
+# Fluxo de autenticação próprio na moldura de prototype/entrar.html: formulário à direita
+# (`sidebar_right`), painel institucional como imagem de fundo decorativa servida pelo web
+# (`/auth-theme/*`), e-mail e senha na mesma etapa, "mostrar senha" e "Lembrar de mim" (lembra só
+# o e-mail neste dispositivo; não prolonga a sessão — DEC-131). A sessão do próprio Authentik dura
+# no máximo o teto absoluto da plataforma (RN-IAM-32). O segundo fator reaproveita a etapa padrão
+# de MFA (política da US-090). Idempotente por `identifiers`; nenhum segredo neste arquivo.
+version: 1
+metadata:
+  name: 'ContrataFlow — tela de login'
+  labels:
+    blueprints.goauthentik.io/description: 'Fluxo de autenticação e tema da marca do ContrataFlow (SCR-001). Somente ambiente local/CI; em produção o mesmo conteúdo é aplicado pela infraestrutura.'
+entries:
+  # A etapa de MFA vem do fluxo padrão (precisa existir antes da ligação).
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: 'Default - Authentication flow'
+      required: true
+
+  - model: authentik_stages_password.passwordstage
+    id: password
+    identifiers:
+      name: contrataflow-login-password
+    attrs:
+      backends:
+        - authentik.core.auth.InbuiltBackend
+      failed_attempts_before_cancel: 5
+      # Botão mostrar/ocultar senha (SCR-001).
+      allow_show_password: true
+
+  - model: authentik_stages_identification.identificationstage
+    id: identification
+    identifiers:
+      name: contrataflow-login-identification
+    attrs:
+      # E-mail institucional; o nome de usuário segue aceito para os usuários semeados (US-078).
+      user_fields:
+        - email
+        - username
+      # Senha na mesma etapa (2 interações: informar e-mail e senha, confirmar).
+      password_stage: !KeyOf password
+      case_insensitive_matching: true
+      # Mensagem genérica: não revela se a conta existe (RN-IAM-18).
+      pretend_user_exists: true
+      show_matched_user: false
+      # "Lembrar de mim": guarda só o e-mail neste navegador (Lacuna 7).
+      enable_remember_me: true
+
+  - model: authentik_stages_user_login.userloginstage
+    id: login
+    identifiers:
+      name: contrataflow-login-session
+    attrs:
+      session_duration: hours=12
+      remember_me_offset: seconds=0
+
+  - model: authentik_flows.flow
+    id: flow
+    identifiers:
+      slug: contrataflow-authentication
+    attrs:
+      name: 'ContrataFlow — entrar'
+      title: 'Acesse sua conta'
+      designation: authentication
+      authentication: none
+      layout: sidebar_right
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf identification
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage:
+        !Find [
+          authentik_stages_authenticator_validate.authenticatorvalidatestage,
+          [name, default-authentication-mfa-validation],
+        ]
+      order: 30
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf login
+      order: 100
+
+  # Marca padrão: título, logo, fundo, CSS e o fluxo de autenticação acima.
+  - model: authentik_brands.brand
+    identifiers:
+      domain: authentik-default
+    attrs:
+      branding_title: ContrataFlow
+      branding_logo: !Format ['%s/auth-theme/contrataflow-logo.svg', !Env CF_APP_BASE_URL]
+      branding_default_flow_background:
+        !Format ['%s/auth-theme/login-background.svg', !Env CF_APP_BASE_URL]
+      flow_authentication: !KeyOf flow
+      branding_custom_css: |
+        /* Tema do ContrataFlow (SCR-001 · prototype/entrar.html). */
+        :root {
+          --pf-global--FontFamily--sans-serif: Inter, 'Segoe UI', Roboto, Arial, sans-serif;
+          --pf-global--primary-color--100: #14223d;
+          --pf-global--primary-color--200: #0e1b31;
+          --pf-global--link--Color: #1d4ed8;
+          --pf-global--link--Color--hover: #1e40af;
+          --ak-accent: #14223d;
+        }
+        .pf-c-button.pf-m-primary {
+          background-color: #14223d;
+          border-radius: 0.5rem;
+          font-weight: 600;
+          min-height: 3rem;
+        }
+        .pf-c-button.pf-m-primary:hover {
+          background-color: #0e1b31;
+        }
+        .pf-c-form-control {
+          border-radius: 0.5rem;
+          min-height: 3rem;
+        }

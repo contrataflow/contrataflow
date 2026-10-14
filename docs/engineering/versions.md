@@ -33,7 +33,8 @@
 | Back-end | `reflect-metadata` · `rxjs` | 0.2.2 · 7.8.2 | peers do NestJS |
 | Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.0 · 7.10.0 · 7.10.0 · 8.23.1 | api — persistência e `TenantTransaction` (US-081, DEC-064); gerador `prisma-client` em ESM; `pg` e `@types/pg` 8.23.1 só nos testes de integração |
 | Back-end | `decimal.js` | 10.6.0 | api — cálculos e mapeamento de colunas `Decimal` (DEC-003, US-081) |
-| Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | reservado — filas (DEC-163) |
+| Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | `ioredis`: cache/idempotência/rate limit da api (US-080) e Redis de sessões do BFF (US-087); `bullmq` reservado — filas (DEC-163) |
+| Segurança | `jose` | 6.2.12 | api e web — verificação de JWT (RS256/ES256) com JWKS em cache próprio: access token na API e `id_token` no BFF (US-087, RN-IAM-04/05). Sem dependências, MIT; escolhido em vez de verificar assinatura à mão com `node:crypto` |
 | Observabilidade | `@opentelemetry/api` · `sdk-node` · `sdk-trace` · `core` · `context-async-hooks` | 1.9.1 · 0.222.0 · 2.11.0 · 2.11.0 · 2.11.0 | `packages/observability` — SDK 2.x, sampler, propagador W3C e testes em memória (US-084) |
 | Observabilidade | `@opentelemetry/exporter-trace-otlp-http` · `instrumentation` | 0.222.0 | exportador OTLP/HTTP e *hook* ESM (`hook.mjs`) da api e do worker (US-084) |
 | Observabilidade | `@opentelemetry/instrumentation-http` · `-undici` · `-nestjs-core` · `-pg` · `-ioredis` · `@prisma/instrumentation` | 0.222.0 · 0.32.0 · 0.68.0 · 0.74.0 · 0.70.0 · 7.10.0 | instrumentações de observability.md §4.1, alinhadas ao `@opentelemetry/instrumentation` 0.222 (US-084) |

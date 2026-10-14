@@ -94,10 +94,22 @@ sequenceDiagram
 - Limite de 20 req/min por IP em `/api/auth/login` e `/api/auth/callback` → 429 `RATE_LIMITED` (RN-IAM-15).
 - Auditoria `auth.session_start` (SECURITY) gravada na instituição que se torna ativa, com `sessionIdHash`, IP, user-agent e `metadata { selection, firstLogin, amr }` (RN-IAM-17). Mensagens não revelam se a conta existe (RN-IAM-18).
 
+### 3.1 Implementação (US-087 · DEC-070)
+
+- **Cookie de transação:** `__Host-cf_auth_tx`, cifrado com AES-256-GCM (subchave HKDF de `SESSION_ENCRYPTION_KEY`, AAD = nome do cookie), com a lista `{ state, nonce, codeVerifier, returnTo, stepUp, createdAt }` de até 3 transações (abas) de 10 min; cada transação é retirada no callback (uso único). O conjunto nunca passa de ~3,8 KB (as mais antigas saem primeiro).
+- **Cliente OIDC** (`apps/web/src/bff/auth/oidc-provider.ts`): descoberta (`issuer` precisa ser o configurado), `authorization_endpoint` com `code_challenge_method=S256`, troca do código por `client_secret_basic` + `code_verifier`, `id_token` validado com `jose` (JWKS remoto com cache de 10 min e no máx. uma busca a cada 30 s). IdP fora do ar ou `temporarily_unavailable` → SCR-001 `motivo=indisponivel` mantendo o `returnTo`; demais recusas → `motivo=erro`. Step-up pede `max_age=0`. Logout RP-initiated com `client_id` + `post_logout_redirect_uri`, **sem** `id_token_hint` (o token nunca vai a uma URL do navegador).
+- **Contrato BFF → API** — `POST /internal/session-events` (fora de `/api/v1` e do OpenAPI público; só na rede privada):
+  - Cabeçalhos: `Authorization: Bearer <access token do usuário>`, `X-CF-Service-Token` (credencial de serviço do BFF, `INTERNAL_SERVICE_TOKEN`), `X-Correlation-Id`.
+  - Corpo: `{ type: "SESSION_STARTED" | "TENANT_SWITCHED", sessionIdHash, tenantId?, selection?: "AUTO" | "DEFAULT" | "MANUAL", firstLogin?, fromTenantId?, ip, userAgent }` (schema `sessionEventRequestSchema` em `@contrataflow/validation`).
+  - `SESSION_STARTED` sem `tenantId`: resolve o `User` pelo `sub` — vínculo do primeiro login (RN-IAM-06), `lastLoginAt` (RN-IAM-16) — e devolve os vínculos. Com `tenantId`: confere o vínculo (RN-IAM-08), registra `lastAccessAt` e grava `auth.session_start`. `TENANT_SWITCHED` grava `auth.tenant_switch` (US-093).
+  - Resposta `200 { data: { user { id, displayName }, firstLogin, memberships[] (ME-04 + tenant.timezone), activeMembership { membershipId, tenantId, readOnly } | null, mfaRequired } }`; 401 token inválido; 403 `PERMISSION_DENIED` + `reason: USER_BLOCKED` (usuário bloqueado), `MEMBERSHIP_INACTIVE` (sem usuário ou sem vínculo — "sem vínculo") ou `TENANT_SUSPENDED`; 503 banco/JWKS indisponível.
+- **Callback no BFF:** transação → troca do código → `SESSION_STARTED` → sessão nova no Redis (sem instituição) → seleção (1 vínculo utilizável → `AUTO`; vários → instituição padrão, se houver, `DEFAULT`; senão nenhuma) → ativação na API → cookie `__Host-cf_session` → `returnTo`, `/selecionar-orgao?returnTo=…` ou `/erro/sem-vinculo`. Bloqueado → `/erro/acesso-bloqueado`; API/banco fora → `/erro/manutencao?codigo=<correlationId>`; Redis de sessões fora → 503 `DEPENDENCY_UNAVAILABLE` sem cookie de sessão. Primeira escolha em SCR-101 (`POST /api/auth/switch-tenant` numa sessão sem instituição) grava `auth.session_start` com `selection = MANUAL`.
+- **Limite de tentativas:** 20 req/min por IP (janela fixa) em `login`, `callback` e `step-up`, no Redis de sessões; sem IP conhecido (sem balanceador, só local) não limita; Redis do contador fora → falha aberta com `warn auth.rate_limit_degraded`.
+
 ## 4. Sessão no BFF
 
 - **Cookie:** `__Host-cf_session`, opaco, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`; o prefixo `__Host-` impede que subdomínios o sobrescrevam (DEC-131, security.md §7).
-- **Armazenamento:** o Redis de sessões guarda `userId`, `activeTenantId`/`membershipId`, tokens (access/refresh/id) cifrados e expirações; a chave é o hash SHA-256 do id do cookie — nunca o valor em claro.
+- **Armazenamento:** o Redis de sessões guarda `userId`, `activeTenantId`/`membershipId`, tokens (access/refresh/id) cifrados e expirações; a chave é o hash SHA-256 do id do cookie — nunca o valor em claro. Layout (DEC-070): registro em `cf:{env}:sess:{sha256(sid)}` (TTL até o fim absoluto; tokens cifrados com AES-256-GCM e AAD = a própria chave) e índice por usuário em `cf:{env}:sess:user:{userId}` (sorted set por criação; acima de 10 sessões, as mais antigas são encerradas — RN-IAM-10). Sem `REDIS_SESSION_URL` (só `local`/`dev`/`test`) as sessões ficam na memória do processo.
 
 | Configuração (`entities.md` §6) | Padrão | Faixa | Efeito |
 |---|---|---|---|
@@ -125,6 +137,7 @@ Pipeline de guards fixo e global (as etapas 4 e 5 — permissão e política —
 | 2 | `TenantContextGuard` | `X-Tenant-Id` (definido pelo BFF a partir da sessão); `TenantMembership` `ACTIVE` e não expirado; acesso conforme `Tenant.status`: `ACTIVE` → normal; `OFFBOARDING` → somente leitura/exportação para `ADMIN_ORGAO`/`AUDITOR`; `PROVISIONING`, `SUSPENDED`, `DEACTIVATED` → negado a usuários (operadores usam `/platform/*`) | 403 `TENANT_SUSPENDED` / `MEMBERSHIP_INACTIVE` |
 | 3 | `MfaGuard` | Ver §9 | 403 `MFA_REQUIRED` |
 
+- **Implementação (US-087):** `JwksTokenVerifier` (`jose`) com cache próprio do JWKS — com o JWKS fora do ar, tokens de chave já conhecida continuam aceitos e `kid` desconhecido vira 503 `DEPENDENCY_UNAVAILABLE` + `error auth.jwks_refresh` (alerta). `User` e vínculo vêm do PostgreSQL pelo `PlatformTransaction` (`users` e `cf_user_memberships` — multi-tenancy.md §6); `TenantMembership.lastAccessAt` é gravado sem segurar a requisição. `OFFBOARDING`: só `GET`/`HEAD`/`OPTIONS` para quem tem `ADMIN_ORGAO`/`AUDITOR` (os perfis chegam com a US-096; até lá a lista de perfis do vínculo é vazia e a instituição em encerramento fica indisponível).
 - Contexto propagado por `AsyncLocalStorage` (`RequestContext`): `correlationId`, `traceparent`, `actor { type, userId, membershipId }`, `tenantId`, `sessionIdHash` (SHA-256 do id de sessão do BFF — liga a auditoria da API à sessão sem expor o cookie), `authTime`, `amr` (POL-14), `ip`, `userAgent`, `locale`, `timezone`.
 - Recurso de outro tenant ou não visível → 404, nunca 403 (DEC-024); a verificação de visibilidade acontece antes de qualquer política.
 - **Proxy autenticado (`/api/v1/*`):** o BFF remove `Authorization`, `X-Tenant-Id`, `Cookie` e `X-Forwarded-*` recebidos do cliente e injeta `Authorization` (Bearer), `X-Tenant-Id` (da sessão) e `X-Correlation-Id` (gerado se ausente); a API nunca é exposta à internet (RN-IAM-13, DEC-053). Métodos mutáveis exigem `X-CF-Request: 1` e `Origin`/`Sec-Fetch-Site` da própria origem (RN-IAM-14, DEC-135).
@@ -211,7 +224,7 @@ Eventos de auditoria `auth.*`:
 
 ## 14. Falhas e degradação
 
-- **Redis de sessões indisponível** → o BFF responde 503 `DEPENDENCY_UNAVAILABLE` em todas as rotas autenticadas; a interface mostra indisponibilidade (nunca "sessão expirada") e preserva rascunhos locais (RN-IAM-33, DEC-131).
+- **Redis de sessões indisponível** → o BFF responde 503 `DEPENDENCY_UNAVAILABLE` (com `Retry-After`) em todas as rotas autenticadas e as páginas de `(app)` levam a SCR-111 "manutenção"; a interface mostra indisponibilidade (nunca "sessão expirada") e preserva rascunhos locais (RN-IAM-33, DEC-131). O cliente Redis não enfileira comandos por mais de 1 s.
 - **Authentik indisponível na renovação de token:** falha transitória segue com o access token ainda válido; sem token válido → 503 `DEPENDENCY_UNAVAILABLE` com sessão preservada; falha definitiva (`invalid_grant`) encerra a sessão (RN-IAM-26).
 - O Redis de sessões é logicamente — de preferência fisicamente — separado do Redis de cache/idempotência/filas: a degradação deste último não derruba sessões, só degrada cache e rate limit sem perder consistência (CA-T-07, DEC-131).
 - JWKS: cache de 10 min na API, com renovação forçada ao ver `kid` desconhecido (limitada a 1×/30 s), para resistir à rotação de chaves no Authentik sem sobrecarregar o IdP (RN-IAM-05).

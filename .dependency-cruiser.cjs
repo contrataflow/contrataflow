@@ -109,6 +109,20 @@ module.exports = {
       to: { path: 'shared/database/system-(prisma|db)\\.service\\.ts$' },
     },
     {
+      name: 'platform-transaction-allowlist',
+      severity: 'error',
+      comment:
+        'Transação sem app.tenant_id (users, tenants, cf_user_memberships) só nos adaptadores de identity/tenancy do pipeline de autenticação e do início de sessão (US-087 · multi-tenancy.md §6).',
+      from: {
+        pathNot: [
+          '^apps/api/src/modules/(identity|tenancy)/infrastructure/',
+          '^apps/api/src/shared/database/',
+          '^apps/api/test/database/',
+        ],
+      },
+      to: { path: 'shared/database/platform-transaction\\.ts$' },
+    },
+    {
       name: 'worker-never-loads-presentation',
       severity: 'error',
       comment: 'O worker nunca carrega controllers da API (DEC-052).',

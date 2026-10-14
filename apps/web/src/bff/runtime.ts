@@ -3,17 +3,37 @@ import 'server-only';
 import { webConfig } from '@/config/env';
 import type { WebConfig } from '@/config/env';
 
-import { FakeIdentityProvider } from './session/fake-identity';
+import { ApiSessionDirectory } from './auth/api-session-directory';
+import { OidcIdentityProvider } from './auth/oidc-provider';
+import { AuthRateLimiter, MemoryRateLimitCounter, RedisRateLimitCounter } from './auth/rate-limit';
+import type { RateLimitCounter } from './auth/rate-limit';
+import { deriveKey, masterKey } from './crypto';
+import { log } from './logger';
+import { FakeIdentityProvider, FakeSessionDirectory } from './session/fake-identity';
 import { MemorySessionStore } from './session/memory-store';
+import { createSessionRedis } from './session/redis-connection';
+import { RedisSessionStore } from './session/redis-store';
 import { SessionService } from './session/session-service';
-import type { IdentityProvider, LoginCompletion, LoginStart, RefreshResult } from './session/types';
+import type {
+  IdentityProvider,
+  LoginCompletion,
+  LoginStart,
+  RefreshResult,
+  SessionDirectory,
+  SessionStore,
+} from './session/types';
 import { UPSTREAM_TIMEOUT_MS } from './upstream';
 
 /** Dependências do BFF montadas uma vez por processo (substituíveis nos testes). */
 export interface BffRuntime {
   readonly config: WebConfig;
   readonly identity: IdentityProvider;
+  /** A API como diretório de identidade (`POST /internal/session-events`). */
+  readonly directory: SessionDirectory;
   readonly sessions: SessionService;
+  readonly authRateLimiter: AuthRateLimiter;
+  /** Subchave AES-256 do cookie de transação do login (RN-IAM-02). */
+  readonly transactionKey: Buffer;
   readonly fetch: typeof fetch;
   readonly now: () => number;
   /** Timeout de cada chamada à API (30 s — architecture.md §8.4). */
@@ -21,8 +41,8 @@ export interface BffRuntime {
 }
 
 /**
- * Sem provedor configurado (nem fake nem OIDC — US-087): login recusado com 503 e renovação
- * tratada como falha transitória (a sessão nunca é destruída por isso).
+ * Sem provedor configurado (nem fake nem cliente OIDC): login recusado (SCR-001 "indisponível") e
+ * renovação tratada como falha transitória (a sessão nunca é destruída por isso).
  */
 export class UnconfiguredIdentityProvider implements IdentityProvider {
   readonly kind = 'oidc' as const;
@@ -32,7 +52,7 @@ export class UnconfiguredIdentityProvider implements IdentityProvider {
   }
 
   completeLogin(): Promise<LoginCompletion> {
-    return Promise.resolve({ ok: false, reason: 'PROVIDER_ERROR' });
+    return Promise.resolve({ ok: false, reason: 'PROVIDER_UNAVAILABLE' });
   }
 
   refresh(): Promise<RefreshResult> {
@@ -44,29 +64,87 @@ export class UnconfiguredIdentityProvider implements IdentityProvider {
   }
 }
 
-export function createBffRuntime(
-  config: WebConfig,
-  overrides: Partial<Omit<BffRuntime, 'config' | 'sessions'>> & {
-    readonly store?: MemorySessionStore;
-  } = {},
-): BffRuntime {
+function identityFor(config: WebConfig, now: () => number, fetchImpl: typeof fetch) {
+  if (config.oidc.fakeSigningKey) {
+    return new FakeIdentityProvider({
+      signingKey: config.oidc.fakeSigningKey,
+      issuer: config.oidc.issuerUrl,
+      audience: config.oidc.audience,
+      now,
+    });
+  }
+  if (config.oidc.clientSecret) {
+    return new OidcIdentityProvider({
+      issuer: config.oidc.issuerUrl,
+      clientId: config.oidc.clientId,
+      clientSecret: config.oidc.clientSecret,
+      scopes: config.oidc.scopes,
+      redirectUri: config.oidc.redirectUri,
+      postLogoutRedirectUri: config.oidc.postLogoutRedirectUri,
+      fetch: fetchImpl,
+      now,
+    });
+  }
+  return new UnconfiguredIdentityProvider();
+}
+
+export interface RuntimeOverrides {
+  readonly identity?: IdentityProvider;
+  readonly directory?: SessionDirectory;
+  readonly store?: SessionStore;
+  readonly rateLimitCounter?: RateLimitCounter;
+  readonly fetch?: typeof fetch;
+  readonly now?: () => number;
+  readonly upstreamTimeoutMs?: number;
+}
+
+export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides = {}): BffRuntime {
   const now = overrides.now ?? Date.now;
-  const identity =
-    overrides.identity ??
+  const fetchImpl: typeof fetch = overrides.fetch ?? ((input, init) => fetch(input, init));
+  const identity = overrides.identity ?? identityFor(config, now, fetchImpl);
+  const directory =
+    overrides.directory ??
     (config.oidc.fakeSigningKey
-      ? new FakeIdentityProvider({
-          signingKey: config.oidc.fakeSigningKey,
-          issuer: config.oidc.issuerUrl,
-          audience: config.oidc.audience,
+      ? new FakeSessionDirectory()
+      : new ApiSessionDirectory({
+          apiInternalUrl: config.apiInternalUrl,
+          serviceToken: config.internalServiceToken,
+          fetch: fetchImpl,
+        }));
+  const master = masterKey(config.session.encryptionKey);
+  const redis =
+    (!overrides.store || !overrides.rateLimitCounter) && config.session.redisUrl
+      ? createSessionRedis(config.session.redisUrl)
+      : null;
+  const store =
+    overrides.store ??
+    (redis
+      ? new RedisSessionStore(redis, {
+          keyPrefix: config.session.keyPrefix,
+          tokenKey: deriveKey(master, 'session-tokens'),
           now,
         })
-      : new UnconfiguredIdentityProvider());
-  const store = overrides.store ?? new MemorySessionStore();
+      : new MemorySessionStore());
+  const counter =
+    overrides.rateLimitCounter ??
+    (redis ? new RedisRateLimitCounter(redis) : new MemoryRateLimitCounter());
   return {
     config,
     identity,
+    directory,
     sessions: new SessionService(store, identity, now),
-    fetch: overrides.fetch ?? ((input, init) => fetch(input, init)),
+    authRateLimiter: new AuthRateLimiter(counter, {
+      limit: config.authRateLimitPerMinute,
+      keyPrefix: `cf:${config.appEnv}:rl:auth:`,
+      now,
+      onError: (error) => {
+        log('warn', 'auth.rate_limit_degraded', {
+          errorName: error instanceof Error ? error.name : 'unknown',
+        });
+      },
+    }),
+    transactionKey: deriveKey(master, 'login-transaction'),
+    fetch: fetchImpl,
     now,
     upstreamTimeoutMs: overrides.upstreamTimeoutMs ?? UPSTREAM_TIMEOUT_MS,
   };

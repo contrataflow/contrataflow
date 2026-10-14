@@ -974,17 +974,19 @@ export const envSchema = z.object({
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | ✔ | | | Cliente confidencial do BFF (DEC-130) — segredo |
 | `OIDC_REDIRECT_URI`, `OIDC_POST_LOGOUT_REDIRECT_URI` | ✔ | | | Callback e retorno de logout |
 | `OIDC_AUDIENCE`, `OIDC_CLOCK_TOLERANCE_SECONDS` | | ✔ | | Validação do JWT (DEC-132) |
-| `OIDC_FAKE_SIGNING_KEY` | ✔ | ✔ | | Chave HS256 do `FakeJwksProvider` — temporária, até o verificador JWKS real (US-087); ausente = nenhum token aceito. No web liga o provedor de identidade fake do BFF (US-086 FA-06), recusado fora de `local`/`dev`/`test` |
+| `OIDC_SCOPES`, `AUTH_RATE_LIMIT_PER_MIN` | ✔ | | | Escopos pedidos ao Authentik (`openid profile email offline_access`) e limite por IP de `/api/auth/login|callback|step-up` (20 — RN-IAM-15) — US-087 |
+| `OIDC_FAKE_SIGNING_KEY` | ✔ | ✔ | | Modo de identidade fake, só `local`/`dev`/`test` (recusado nos demais): na API, `FakeJwksProvider` HS256 + diretório em memória; no BFF, provedor e diretório fake (US-086 FA-06). Ausente (padrão): JWKS do Authentik e tabelas reais (US-087) |
+| `INTERNAL_SERVICE_TOKEN` | ✔ | ✔ | | Credencial de serviço do BFF nas rotas `/internal/*` da API (`X-CF-Service-Token`, comparada em tempo constante) — segredo; obrigatória fora de `local`/`dev`/`test` (US-087) |
 | `SESSION_COOKIE_NAME`, `CSP_REPORT_URI` | ✔ | | | Cookie de sessão (`__Host-cf_session` — DEC-131) e endpoint interno de relatório de CSP (`/api/csp-report`) — US-086 |
 | `NEXT_PUBLIC_APP_NAME` | ✔ | | | Única variável exposta ao browser (lista fechada — §8.3; `NEXT_PUBLIC_*` fora dela falha o build) |
 | `PORT`, `CORRELATION_HEADER_NAME`, `PAGINATION_MAX_PAGE_SIZE`, `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN`, `IDEMPOTENCY_TTL_HOURS` | | ✔ | | Pipeline HTTP (US-080 — tabela "Campos") |
-| `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM dos tokens no registro de sessão — segredo ([`authentication.md`](authentication.md)) |
+| `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM (32 bytes em base64) dos tokens no registro de sessão e do cookie de transação do login (subchaves HKDF por finalidade) — segredo, obrigatória fora de `local`/`dev`/`test` ([`authentication.md`](authentication.md)) |
 | `AUTHENTIK_API_URL`, `AUTHENTIK_API_TOKEN` | | ✔ | ✔ | API de administração (convites, desativação) — segredo, token de conta de serviço com permissões mínimas |
 | `DATABASE_URL` | | ✔ | ✔ | Papel `cf_app` (API) / `cf_worker` (worker) |
 | `DATABASE_URL_PLATFORM` | | ✔ | ✔ | Papel `cf_platform` (`systemPrisma`) — usado só por código na allowlist |
 | `DATABASE_URL_RELAY` | | | ✔ | Papel `cf_relay` (relay do outbox) |
 | `DATABASE_POOL_SIZE` | | ✔ | ✔ | Conexões por réplica (orçamento no §12.1) |
-| `REDIS_SESSION_URL`† | ✔ | | | Redis de sessões (crítico, HA — DEC-131) |
+| `REDIS_SESSION_URL` | ✔ | | | Redis de sessões (crítico, HA — DEC-131); chaves `cf:{env}:sess:*` e `cf:{env}:rl:auth:*`. Obrigatória fora de `local`/`dev`/`test` (sem ela, sessões em memória do processo — US-087) |
 | `REDIS_URL`, `REDIS_CACHE_URL` | ✔ | ✔ | ✔ | Redis principal (filas, idempotência, rate limit, locks); cache opcional separado |
 | `S3_*`, `UPLOADS_MAX_FILE_SIZE_MB_CEILING` | | ✔ | ✔ | Ver [`storage.md`](storage.md#22-configuração) |
 | `KMS_APP_FIELDS_KEY_ID`, `BLIND_INDEX_KEY` | | ✔ | ✔ | Criptografia de campos e *blind index* (DEC-086) — segredo |

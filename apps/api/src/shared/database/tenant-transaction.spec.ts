@@ -7,7 +7,9 @@ import { runWithRequestContext, updateRequestContext } from '#shared/context/req
 import { TenantTransaction } from './database.module.js';
 import { DatabaseUnavailableError, TenantContextMissingError } from './errors.js';
 import type { PrismaClient } from './generated/prisma/client.js';
-import { runTenantTransaction } from './tenant-transaction.js';
+import { PlatformTransaction } from './platform-transaction.js';
+import { createTenantPrismaClient } from './prisma-client.js';
+import { runPlatformTransaction, runTenantTransaction } from './tenant-transaction.js';
 import type { TenantTx } from './tenant-transaction.js';
 
 const TENANT = '0192a000-0000-7000-8000-00000000000a';
@@ -139,6 +141,45 @@ describe('runTenantTransaction (RN-FND-43/44)', () => {
   });
 });
 
+describe('runPlatformTransaction (multi-tenancy.md §6 · US-087)', () => {
+  it('define só app.user_id (do contexto) e o statement_timeout — nunca app.tenant_id', async () => {
+    const client = fakeClient();
+    await inTenant(() =>
+      runPlatformTransaction(client.base, settings, () => Promise.resolve(), {}),
+    );
+    expect(client.raw[0]?.sql).toMatch(/^SELECT set_config\('app\.user_id', \?, true\)/);
+    expect(client.raw[0]?.sql).not.toContain('app.tenant_id');
+    expect(client.raw[0]?.values).toEqual([USER, '5000']);
+  });
+
+  it('usuário explícito (início de sessão) e leitura somente leitura', async () => {
+    const client = fakeClient();
+    const other = '0192a000-0000-7000-8000-0000000000b1';
+    await runPlatformTransaction(client.base, settings, () => Promise.resolve(), {
+      userId: other,
+      readOnly: true,
+    });
+    expect(client.raw[0]?.values).toEqual([other, '5000']);
+    expect(client.raw[0]?.sql).toContain("set_config('transaction_read_only', 'on', true)");
+  });
+
+  it('fora de requisição e sem usuário: app.user_id vazio (cf_user_memberships não responde)', async () => {
+    const client = fakeClient();
+    await runPlatformTransaction(client.base, settings, () => Promise.resolve(), {});
+    expect(client.raw[0]?.values).toEqual(['', '5000']);
+  });
+
+  it('usuário que não é UUID falha fechado antes do banco', async () => {
+    const client = fakeClient();
+    await expect(
+      runPlatformTransaction(client.base, settings, () => Promise.resolve(), {
+        userId: "x', true); --",
+      }),
+    ).rejects.toBeInstanceOf(TenantContextMissingError);
+    expect(client.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe('TenantTransaction (provider do Nest)', () => {
   const config = loadConfig({
     DATABASE_URL: 'postgresql://cf_app:x@127.0.0.1:1/contrataflow',
@@ -148,18 +189,21 @@ describe('TenantTransaction (provider do Nest)', () => {
 
   it('run e read exigem tenant no contexto; o pool só conecta sob demanda', async () => {
     vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-    const transaction = new TenantTransaction(config);
+    const client = createTenantPrismaClient(config.database);
+    const transaction = new TenantTransaction(client);
     await expect(transaction.run(() => Promise.resolve())).rejects.toBeInstanceOf(
       TenantContextMissingError,
     );
     await expect(transaction.read(() => Promise.resolve())).rejects.toBeInstanceOf(
       TenantContextMissingError,
     );
-    await transaction.onModuleDestroy();
+    await client.$disconnect();
   });
 
   it('com o banco fora do ar, run e read respondem DatabaseUnavailableError', async () => {
-    const transaction = new TenantTransaction(config);
+    const client = createTenantPrismaClient(config.database);
+    const transaction = new TenantTransaction(client);
+    const platform = new PlatformTransaction(client);
     try {
       await expect(inTenant(() => transaction.run(() => Promise.resolve()))).rejects.toBeInstanceOf(
         DatabaseUnavailableError,
@@ -167,8 +211,14 @@ describe('TenantTransaction (provider do Nest)', () => {
       await expect(
         inTenant(() => transaction.read(() => Promise.resolve())),
       ).rejects.toBeInstanceOf(DatabaseUnavailableError);
+      await expect(platform.read(() => Promise.resolve())).rejects.toBeInstanceOf(
+        DatabaseUnavailableError,
+      );
+      await expect(platform.run(() => Promise.resolve(), { userId: USER })).rejects.toBeInstanceOf(
+        DatabaseUnavailableError,
+      );
     } finally {
-      await transaction.onModuleDestroy();
+      await client.$disconnect();
     }
   });
 });

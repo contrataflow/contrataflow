@@ -9,6 +9,7 @@ import { log } from './logger';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import { applyApiSecurityHeaders } from './security-headers';
+import { SessionStoreUnavailableError } from './session/types';
 import type { SessionRecord } from './session/types';
 import {
   MAX_BODY_BYTES,
@@ -176,6 +177,14 @@ export async function handleProxyRequest(
     // Corpo repassado em *streaming* (exportações CSV), sem leitura no BFF.
     return new Response(response.body, { status: response.status, headers });
   } catch (error) {
+    if (error instanceof SessionStoreUnavailableError) {
+      // Redis de sessões fora: indisponibilidade, nunca "sessão expirada" (DEC-131 · RN-IAM-33).
+      log('error', 'bff.session_store_unavailable', { route: routeTemplate(path), correlationId });
+      return problemResponse('DEPENDENCY_UNAVAILABLE', {
+        ...context,
+        headers: { 'Retry-After': '5' },
+      });
+    }
     log('error', 'bff.unhandled_exception', {
       route: routeTemplate(path),
       errorName: error instanceof Error ? error.name : 'unknown',

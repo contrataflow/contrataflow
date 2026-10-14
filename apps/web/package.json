@@ -24,6 +24,8 @@
     "@opentelemetry/instrumentation-http": "catalog:",
     "@opentelemetry/instrumentation-undici": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "ioredis": "catalog:",
+    "jose": "catalog:",
     "next": "catalog:",
     "next-intl": "catalog:",
     "react": "catalog:react",
