@@ -80,6 +80,12 @@ describe('Compose (RN-FND-13)', () => {
     expect(base.services['authentik-server']?.image).toBe(base.services['authentik-worker']?.image);
   });
 
+  it('authentik-worker só sobe depois do server (volume compartilhado preenchido uma vez)', () => {
+    const worker = base.services['authentik-worker']?.depends_on;
+    expect(worker?.['authentik-server']?.condition).toBe('service_started');
+    expect(worker?.postgres?.condition).toBe('service_healthy');
+  });
+
   it('portas publicadas só em 127.0.0.1 e configuráveis pela variável da tabela "Campos"', () => {
     for (const [name, service] of Object.entries(allServices)) {
       const variables = SERVICE_PORT_VARS[name] ?? [];
