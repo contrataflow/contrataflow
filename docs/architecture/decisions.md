@@ -458,7 +458,19 @@ Código no GitHub e CI/CD com GitHub Actions: estágios obrigatórios para *merg
   - `teamReviewersFromCodeowners: true`;
   - `prevent_self_review: true`.
 
-  Depois reaplicar com `pnpm ci:github-settings -- --apply`. `tools/test/ci-pipeline.test.ts` cobre os dois modos. Registrado em 2026-10-14 (US-079).
+  Depois reaplicar com `pnpm ci:github-settings --apply`. `tools/test/ci-pipeline.test.ts` cobre os dois modos. Registrado em 2026-10-14 (US-079).
+
+### DEC-068 — Entrega por lote: um commit por card e um PR por lote · `Aceita` · complementa DEC-066 e DEC-067
+- **Contexto:** a `main` do GitHub só aceita PR (DEC-066/DEC-067). Os cards rodam em sequência, pelos workers do ddx, na mesma pasta e sobre a `main` local. Workers que terminavam sem commit misturavam o trabalho de uma story com o da seguinte.
+- **Decisão do produto (2026-10-14):**
+  - cada card termina com **um commit** na `main` local; as regras para os agentes ficam no `AGENTS.md`, fora do bloco do Turborepo;
+  - o mantenedor promove um **lote** de cards, por exemplo uma sprint;
+  - com a fila vazia, o piloto envia o lote para um branch `lote/<nome>` e abre o PR;
+  - com o pipeline verde e o aval do mantenedor, o lote entra por **rebase**, ficando um commit por story na `main`;
+  - por fim, o piloto realinha a `main` local com a do GitHub.
+- **Métodos de merge:** a ruleset aceita `squash` nos PRs avulsos (o título do PR vira o commit) e `rebase` nos lotes (os commits dos cards entram como estão, já validados pelo commitlint no hook local). `required_linear_history` continua valendo.
+- **Alternativa descartada:** um PR por card com merge automático. Exigiria e-mail verificado na conta do GitHub, branch por card nos workers e a fila parada até cada merge.
+- Registrado em 2026-10-14 (US-079).
 
 ---
 

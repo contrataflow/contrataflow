@@ -128,15 +128,15 @@ describe('Feature: Pipeline de CI com quality gates (US-079)', () => {
       expect(checks.strict_required_status_checks_policy).toBe(true);
     });
 
-    it('o PR fica elegível só para squash merge, com o título validado', () => {
+    it('o PR entra por squash (avulso) ou rebase (lote, DEC-068), nunca por merge commit', () => {
       expect(rule('pull_request')).toMatchObject({
-        allowed_merge_methods: ['squash'],
+        allowed_merge_methods: ['squash', 'rebase'],
         dismiss_stale_reviews_on_push: true,
       });
       expect(settings.repository).toMatchObject({
         allow_squash_merge: true,
         allow_merge_commit: false,
-        allow_rebase_merge: false,
+        allow_rebase_merge: true,
         squash_merge_commit_title: 'PR_TITLE',
       });
       // Fluxo principal 5: o título do PR (a mensagem do squash) passa pelo commitlint.
