@@ -132,3 +132,32 @@ Fixadas por _tag_ exata **e** _digest_ em [`infra/docker-compose.yml`](../../inf
 | `api` · `web` · `worker` _(perfil full)_ | `node` (base de `infra/docker/app.Dockerfile`) | `24-bookworm-slim` | mesmo _digest_ do `verify:fresh-clone` |
 
 Medições na estação da §5 (imagens já baixadas): primeira subida com volumes vazios **~3 min 45 s** (dominada pelas migrações do Authentik no 1º start); `pnpm env:up` com o ambiente de pé **~6 s**; `pnpm env:seed` **~4 s**; `pnpm env:smoke` completo **~35 s**.
+
+## 9. Pipeline de CI (US-079 · DEC-066)
+
+Fixados em 2026-10-14 pela mesma regra (versão mais recente publicada há pelo menos 3 dias). Actions **por SHA do commit** (comentário com a tag ao lado — Renovate `helpers:pinGitHubActionDigests`); imagens de ferramentas **por tag + digest** nas variáveis `*_IMAGE` dos workflows (Renovate, gerenciador `regex`). O `cosign` é a versão padrão do `sigstore/cosign-installer` (verificada pelo próprio instalador).
+
+| Action | Tag | Uso |
+|---|---|---|
+| `actions/checkout` | `v7.0.1` | todos os jobs (`persist-credentials: false`) |
+| `actions/setup-node` | `v7.1.0` | Node.js do `.nvmrc` (`.github/actions/setup`) |
+| `actions/cache` | `v6.1.0` | store do pnpm, cache do Turborepo e base do Trivy |
+| `actions/upload-artifact` · `download-artifact` | `v7.0.2` · `v8.0.2` | SBOM, relatório do Trivy, digests, relatórios do Playwright/ZAP |
+| `github/codeql-action` (`init`/`analyze`) | `v4.38.3` | SAST (estágio 2) |
+| `docker/setup-buildx-action` · `build-push-action` | `v4.4.1` · `v7.4.0` | build multi-stage com cache `type=gha` |
+| `sigstore/cosign-installer` | `v4.1.2` (cosign `v3.0.6`) | assinatura e verificação das imagens |
+| `aws-actions/configure-aws-credentials` · `amazon-ecr-login` | `v6.3.0` · `v2.1.7` | OIDC da AWS e ECR (pós-merge) |
+
+| Ferramenta (imagem) | Tag | Estágio |
+|---|---|---|
+| `zricethezav/gitleaks` | `v8.30.0` | 1 — mesma imagem de `pnpm secrets:scan` |
+| `rhysd/actionlint` | `1.7.12` | 2 |
+| `semgrep/semgrep` | `1.180.0` | 2 |
+| `anchore/syft` | `v1.54.1` | 6 — SBOM CycloneDX |
+| `aquasec/trivy` | `0.75.0` | 6 — o `0.76.0` saiu no dia da fixação |
+| `registry` | `3.1.2` | 6 — registry local efêmero do PR |
+| `zaproxy/zap-stable` | `2.17.0` | 8 |
+| `grafana/k6` | `2.3.0` | 8 |
+| `@playwright/test` · `axe-core` · `@vitest/coverage-v8` | catálogo (`1.63.0` · `4.13.0` · `4.1.11`) | 7 e 4 |
+
+Imagens de produção (`infra/docker/prod.Dockerfile`, base `node:24-bookworm-slim` do mesmo digest): `api` e `worker` **~380 MB**, `web` **~800 MB** (Next.js com `@next/swc` e `sharp`; `output: 'standalone'` fica como otimização futura). Varredura em 2026-10-14: **0** CVE crítica/alta com correção disponível depois de remover npm/corepack/yarn do runtime e aplicar as atualizações de segurança do Debian; restam CVEs altas do Debian **sem** correção publicada (não bloqueiam; registrar com prazo em `.github/ci-policy.yml`).

@@ -1,0 +1,51 @@
+# Preparação comum dos jobs do CI (US-079): Node.js do .nvmrc, pnpm do `packageManager` (Corepack),
+# cache do store do pnpm e do Turborepo (actions/cache — sem cache remoto de terceiros no MVP 1) e
+# instalação com lockfile congelado (RN-FND-21 · V-01).
+name: Preparar Node.js e pnpm
+description: Node.js 24, pnpm via Corepack, caches e pnpm install --frozen-lockfile.
+
+runs:
+  using: composite
+  steps:
+    - name: Início do estágio
+      shell: bash
+      run: echo "CF_STAGE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+    - name: Node.js (.nvmrc)
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .nvmrc
+        package-manager-cache: false
+
+    - name: pnpm (Corepack, versão do packageManager)
+      shell: bash
+      env:
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+      run: |
+        corepack enable
+        pnpm --version
+        echo "PNPM_STORE=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+    - name: Cache do store do pnpm
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.PNPM_STORE }}
+        key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-
+
+    - name: Cache do Turborepo
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .turbo/cache
+        key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+        restore-keys: turbo-${{ runner.os }}-${{ github.job }}-
+
+    - name: pnpm install --frozen-lockfile
+      shell: bash
+      run: |
+        if ! pnpm install --frozen-lockfile 2>&1 | tee "$RUNNER_TEMP/pnpm-install.log"; then
+          if grep -q ERR_PNPM_OUTDATED_LOCKFILE "$RUNNER_TEMP/pnpm-install.log"; then
+            echo "::error file=pnpm-lock.yaml,title=ERR_PNPM_OUTDATED_LOCKFILE::Execute pnpm install e versione o lockfile."
+          fi
+          exit 1
+        fi

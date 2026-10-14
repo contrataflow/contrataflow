@@ -1,0 +1,17 @@
+# CodeQL do estágio "Estático" (US-079 — RN-FND-22 · security.md §20). Alterar exige Tech Lead +
+# segurança (CODEOWNERS). Achado de severidade alta ou maior bloqueia pela regra `code_scanning` da
+# ruleset da main (.github/repository-settings.json).
+name: ContrataFlow
+queries:
+  - uses: security-extended
+paths-ignore:
+  - docs
+  - _work
+  - prototype
+  - '**/node_modules'
+  - '**/dist'
+  - '**/.next'
+  - '**/coverage'
+  # Violações intencionais verificadas pelos testes de tools/ e casos de teste do Semgrep.
+  - tools/fixtures
+  - .semgrep/rules

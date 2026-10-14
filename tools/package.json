@@ -18,7 +18,14 @@
     "env:blueprint": "tsx env/blueprint.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:tenant-leak": "tsx ci/tenant-leak.ts",
+    "ci:licenses": "tsx ci/licenses.ts",
+    "ci:contract": "tsx ci/contract.ts",
+    "ci:coverage": "tsx ci/coverage-gate.ts",
+    "ci:migrations": "tsx ci/migrations.ts",
+    "ci:github-settings": "tsx ci/github-settings.ts"
   },
   "devDependencies": {
     "@commitlint/lint": "catalog:",

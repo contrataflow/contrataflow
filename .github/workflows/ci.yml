@@ -1,0 +1,375 @@
+# Pipeline de Pull Request (US-079 · DEC-061 · architecture.md §4.5). Os estágios 1–7 são os
+# required checks da ruleset da `main` (.github/repository-settings.json); o estágio 8 roda depois
+# do merge (deploy-staging.yml). Alterar este arquivo exige Tech Lead + segurança (CODEOWNERS).
+#
+# Ordem: 1. Higiene → (2. Estático · 3. Contrato · 4. Testes · 5. Migrações · 6. Imagens · 7. E2E)
+# em paralelo. PR só de docs/** pula 4–7 (FA-05) — por job, nunca por `paths-ignore`, para que os
+# required checks sempre reportem. Sem `pull_request_target`: PR de fork roda sem segredos.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# FA-01: um push novo no mesmo PR cancela a execução anterior. FA-06: rebase/force-push reexecuta
+# tudo do zero (o cache do Turborepo é por conteúdo, nunca por SHA antigo).
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CI: 'true'
+  HUSKY: '0'
+  TURBO_TELEMETRY_DISABLED: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  # FA-02: ambiente efêmero próprio de cada execução (Compose e contêineres de teste).
+  COMPOSE_PROJECT_NAME: cf-ci-${{ github.run_id }}-${{ github.run_attempt }}
+  ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+  SEMGREP_IMAGE: semgrep/semgrep:1.180.0@sha256:529ee8a277ec8adc5b534d7c74eea0a47e9de21d62852b6ba7ac6ba9566845c3
+
+jobs:
+  hygiene:
+    name: 1. Higiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar dependências (lockfile congelado)
+        uses: ./.github/actions/setup
+
+      - name: Escopo da mudança (FA-05)
+        id: changes
+        run: pnpm --dir tools exec tsx ci/changes.ts --base "$BASE_SHA"
+
+      - name: Título do PR = mensagem do squash (commitlint)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: pnpm --dir tools exec tsx ci/pr-title.ts
+
+      - name: Segredos nos commits do PR (gitleaks)
+        run: pnpm secrets:scan --git "$BASE_SHA..HEAD"
+
+      - name: Licenças das dependências de runtime (RN-FND-10)
+        run: pnpm --dir tools exec tsx ci/licenses.ts
+
+      - name: Versões fixadas pelo catálogo (RN-FND-01)
+        run: pnpm check:versions
+
+      - name: Fim do estágio
+        if: always()
+        uses: ./.github/actions/stage-log
+        with:
+          stage: 1. Higiene
+          status: ${{ job.status }}
+
+  static:
+    name: 2. Estático
+    needs: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar dependências (lockfile congelado)
+        uses: ./.github/actions/setup
+
+      - name: Lint e tipos (ESLint, Prettier, tsc)
+        run: pnpm turbo run lint typecheck --continue 2>&1 | tee "$RUNNER_TEMP/static.log"
+
+      - name: Anotar erros de lint e tipos no PR
+        if: failure()
+        run: pnpm --dir tools exec tsx ci/annotate.ts "$RUNNER_TEMP/static.log"
+
+      - name: Fronteiras de módulo (dependency-cruiser — DEC-041)
+        if: success() || failure()
+        run: pnpm depcruise
+
+      - name: Workflows do GitHub Actions (actionlint)
+        if: success() || failure()
+        run: docker run --rm -v "$PWD:/repo" -w /repo "$ACTIONLINT_IMAGE" -color
+
+      - name: SAST — testes das regras do Semgrep
+        if: success() || failure()
+        run: docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" semgrep --test --metrics off .semgrep/rules
+
+      - name: SAST — Semgrep (regras de security.md §20)
+        if: success() || failure()
+        env:
+          # Com o token, entram também as regras gerenciadas da política do Semgrep; sem ele, só as locais.
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          configs=(--config .semgrep/rules)
+          if [ -n "$SEMGREP_APP_TOKEN" ]; then configs+=(--config policy); fi
+          docker run --rm -e SEMGREP_APP_TOKEN -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
+            semgrep scan "${configs[@]}" --exclude .semgrep --error --metrics off \
+            --json-output /src/semgrep.json
+
+      - name: Anotar achados do Semgrep no PR
+        if: failure() && hashFiles('semgrep.json') != ''
+        run: pnpm --dir tools exec tsx ci/semgrep-annotate.ts semgrep.json
+
+      - name: Fim do estágio
+        if: always()
+        uses: ./.github/actions/stage-log
+        with:
+          stage: 2. Estático
+          status: ${{ job.status }}
+
+  codeql:
+    name: 2. Estático (CodeQL)
+    needs: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # Achado de severidade alta+ bloqueia pela regra `code_scanning` da ruleset da main.
+      - name: Analisar
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:javascript-typescript
+
+  contract:
+    name: 3. Contrato
+    needs: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar dependências (lockfile congelado)
+        uses: ./.github/actions/setup
+
+      - name: Gerar o OpenAPI a partir dos schemas Zod (RN-FND-38)
+        run: pnpm turbo run openapi:generate
+
+      - name: Diff com o contrato versionado (DEC-108)
+        run: pnpm --dir tools exec tsx ci/contract.ts --base "$BASE_SHA"
+
+      - name: Fim do estágio
+        if: always()
+        uses: ./.github/actions/stage-log
+        with:
+          stage: 3. Contrato
+          status: ${{ job.status }}
+
+  tests:
+    name: 4. Testes
+    needs: hygiene
+    if: needs.hygiene.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar dependências (lockfile congelado)
+        uses: ./.github/actions/setup
+
+      # Ordem obrigatória (RN-FND-24): unitários → integração → tenant leak → autorização.
+      - name: Unitários (Vitest, com cobertura)
+        run: pnpm turbo run test
+
+      - name: Cobertura do código novo em domain/ e application/ (RN-FND-24)
+        run: pnpm --dir tools exec tsx ci/coverage-gate.ts --base "$BASE_SHA"
+
+      - name: Integração (Testcontainers — PostgreSQL com RLS, Redis, MinIO)
+        run: pnpm turbo run test:integration
+
+      - name: Suíte tenant leak (CA-T-01)
+        run: pnpm turbo run test:tenant-leak
+
+      - name: Matriz de autorização (permissions.md §10)
+        run: pnpm turbo run test:authz
+
+      - name: Descartar contêineres efêmeros
+        if: always()
+        run: docker ps -aq --filter label=com.contrataflow.ci=true | xargs -r docker rm -f
+
+      - name: Fim do estágio
+        if: always()
+        uses: ./.github/actions/stage-log
+        with:
+          stage: 4. Testes
+          status: ${{ job.status }}
+
+  migrations:
+    name: 5. Migrações
+    needs: hygiene
+    if: needs.hygiene.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Instalar dependências (lockfile congelado)
+        uses: ./.github/actions/setup
+
+      - name: Do zero e sobre o snapshot da versão publicada (RN-FND-25)
+        run: pnpm --dir tools exec tsx ci/migrations.ts --base "$BASE_SHA"
+
+      - name: Descartar contêineres efêmeros
+        if: always()
+        run: docker ps -aq --filter label=com.contrataflow.ci=true | xargs -r docker rm -f
+
+      - name: Fim do estágio
+        if: always()
+        uses: ./.github/actions/stage-log
+        with:
+          stage: 5. Migrações
+          status: ${{ job.status }}
+
+  images:
+    name: Imagens
+    needs: hygiene
+    if: needs.hygiene.outputs.code == 'true'
+    uses: ./.github/workflows/images.yml
+    with:
+      push-to-ecr: false
+
+  # Check único do estágio 6 (os checks da matriz não servem de required check quando pulados).
+  images-gate:
+    name: 6. Imagens
+    needs: [hygiene, images]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Consolidar o estágio
+        env:
+          HYGIENE: ${{ needs.hygiene.result }}
+          CODE: ${{ needs.hygiene.outputs.code }}
+          IMAGES: ${{ needs.images.result }}
+        run: |
+          if [ "$IMAGES" = "success" ]; then exit 0; fi
+          if [ "$HYGIENE" = "success" ] && [ "$CODE" = "false" ] && [ "$IMAGES" = "skipped" ]; then
+            echo "Mudança só em docs/**: estágio pulado (FA-05)."
+            exit 0
+          fi
+          echo "::error title=6. Imagens::Estágio Imagens terminou com '$IMAGES' (Higiene: $HYGIENE)."
+          exit 1
+
+  e2e:
+    name: 7. E2E
+    needs: hygiene
+    if: needs.hygiene.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar dependências (lockfile congelado)
+        uses: ./.github/actions/setup
+
+      - name: Ambiente efêmero (.env de desenvolvimento, projeto próprio do Compose)
+        run: |
+          cp .env.example .env
+          sed -i "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME/" .env
+
+      - name: Baixar as imagens do Compose (retry — FA-04)
+        run: >-
+          pnpm --dir tools exec tsx ci/retry.ts --service "registries de imagens" --attempts 3
+          --delay 15 --timeout 600 -- docker compose --env-file .env pull --quiet
+
+      - name: Subir o Compose da US-078 (Authentik real)
+        run: pnpm env:up
+
+      - name: Semear os tenants A e B
+        run: pnpm env:seed
+
+      - name: Navegador do Playwright (retry — FA-04)
+        run: >-
+          pnpm --dir tools exec tsx ci/retry.ts --service "download do Chromium" --attempts 3
+          --delay 15 --timeout 600 -- pnpm --filter @contrataflow/web exec playwright install
+          --with-deps chromium
+
+      - name: Playwright + axe-core (RN-FND-27)
+        run: pnpm turbo run test:e2e
+
+      - name: Relatório do Playwright
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+      - name: Descartar o ambiente efêmero
+        if: always()
+        run: docker compose --env-file .env down --volumes --remove-orphans || true
+
+      - name: Fim do estágio
+        if: always()
+        uses: ./.github/actions/stage-log
+        with:
+          stage: 7. E2E
+          status: ${{ job.status }}
+
+  notify:
+    name: Avisar falha no PR
+    needs: [hygiene, static, codeql, contract, tests, migrations, images-gate, e2e]
+    # PR de fork não recebe token de escrita: o autor vê os checks e o e-mail nativo do GitHub.
+    if: failure() && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comentar os estágios que falharam
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS: ${{ toJSON(needs) }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          failed=$(jq -r 'to_entries[] | select(.value.result == "failure") | "- `" + .key + "`"' <<<"$NEEDS")
+          body=$(printf '<!-- cf-ci -->\n### ❌ CI falhou\n\n%s\n\nO merge continua bloqueado até todos os estágios 1–7 ficarem verdes. [Logs completos](%s)\n' "$failed" "$RUN_URL")
+          existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- cf-ci -->")))][0].id // empty')
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" > /dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+          fi

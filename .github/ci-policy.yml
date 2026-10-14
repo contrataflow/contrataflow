@@ -1,0 +1,48 @@
+# Política do pipeline de CI (US-079 — Campos). Lida por tools/ci (lib/policy.ts). Fica em .github/
+# de propósito: alterar exige Tech Lead + segurança (CODEOWNERS), e a revisão do PR que altera este
+# arquivo é a aprovação registrada de cada exceção.
+
+ci:
+  # RN-FND-24 — cobertura mínima de linhas do código novo em domain/ + application/, por módulo
+  # tocado no PR (0–100). Mesmo limiar do release-checklist.md.
+  coverageThreshold: 80
+  # Desativar só por decisão registrada da liderança técnica (cite a DEC no PR).
+  coverageGateEnabled: true
+
+licenses:
+  # RN-FND-10 (US-077) — licenças aceitas nas dependências de runtime de api, web e worker.
+  # GPL, AGPL, SSPL, BUSL e licenças desconhecidas bloqueiam (estágio Higiene).
+  allowed:
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+    - 0BSD
+    - BlueOak-1.0.0
+    - MPL-2.0
+  # Exceções aprovadas: `package` aceita `*` no fim; `license` é a expressão exata do pacote.
+  exceptions:
+    - package: caniuse-lite
+      license: CC-BY-4.0
+      reason: >-
+        Base de dados de compatibilidade de navegadores (dados, não código), dependência transitiva
+        do Next.js; a atribuição exigida pela CC-BY-4.0 segue no próprio pacote.
+      approvedBy: Tech Lead + segurança (revisão do PR da US-079)
+    - package: '@img/sharp-libvips-*'
+      license: LGPL-3.0-or-later
+      reason: >-
+        Binário pré-compilado do libvips usado pelo sharp (otimização de imagens do Next.js),
+        carregado dinamicamente e sem modificação — as obrigações da LGPL ficam atendidas.
+      approvedBy: Tech Lead + segurança (revisão do PR da US-079)
+    - package: '@img/sharp-*'
+      license: Apache-2.0 AND LGPL-3.0-or-later
+      reason: >-
+        Pacote de plataforma do sharp que embute o mesmo libvips (LGPL, linkagem dinâmica).
+      approvedBy: Tech Lead + segurança (revisão do PR da US-079)
+
+cve:
+  # RN-FND-26 · FA-03 — CVE crítica/alta SEM correção disponível vira exceção com prazo de revisão
+  # (security.md §19). Vencido o prazo, a exceção deixa de valer e o pós-deploy alerta o time.
+  # Formato: { id: CVE-AAAA-NNNN, package?: nome, reason: texto, reviewBy: AAAA-MM-DD, owner: quem }
+  exceptions: []

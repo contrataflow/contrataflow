@@ -1,0 +1,34 @@
+# Evento de fim de estágio (US-079 — Logs): `ci.stage_completed` (info) ou `ci.stage_failed`
+# (error, com o link dos logs completos), no formato dos scripts `tools/` e no resumo do job.
+# Só bash: funciona mesmo quando a instalação de dependências falhou.
+name: Registrar fim do estágio
+description: Emite ci.stage_completed ou ci.stage_failed com estágio, duração e resultado.
+
+inputs:
+  stage:
+    description: 'Nome do estágio, como 2. Estático.'
+    required: true
+  status:
+    description: Resultado do job (job.status).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        STAGE: ${{ inputs.stage }}
+        STATUS: ${{ inputs.status }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        now=$(date +%s)
+        duration=$(( now - ${CF_STAGE_STARTED:-$now} ))
+        data=$(jq -cn --arg stage "$STAGE" --arg result "$STATUS" --argjson d "$duration" \
+          --arg logs "$RUN_URL" '{stage: $stage, durationSeconds: $d, result: $result, logs: $logs}')
+        if [ "$STATUS" = "success" ]; then
+          echo "✔ ci.stage_completed — $STAGE concluído em ${duration}s $data"
+          echo "✅ **$STAGE** concluído em ${duration}s" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "✖ ci.stage_failed — $STAGE: $STATUS após ${duration}s. Logs: $RUN_URL $data"
+          echo "❌ **$STAGE**: $STATUS após ${duration}s — [logs completos]($RUN_URL)" >> "$GITHUB_STEP_SUMMARY"
+        fi

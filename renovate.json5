@@ -33,6 +33,19 @@
     labels: ['segurança'],
   },
   osvVulnerabilityAlerts: true,
+  // Imagens de ferramentas fora do Compose (US-079): variáveis `*_IMAGE` dos workflows e
+  // constantes `*_IMAGE` dos scripts de tools/, sempre com tag + digest.
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'Imagens *_IMAGE (tag + digest) dos workflows e de tools/',
+      managerFilePatterns: ['/^\\.github/workflows/.+\\.ya?ml$/', '/^tools/.+\\.ts$/'],
+      matchStrings: [
+        "_IMAGE\\s*[:=]\\s*'?(?<depName>[a-z0-9][a-z0-9./_-]*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})",
+      ],
+      datasourceTemplate: 'docker',
+    },
+  ],
   packageRules: [
     {
       description: 'Majors: 14 dias de maturidade e aprovação no Dependency Dashboard (FA-06).',

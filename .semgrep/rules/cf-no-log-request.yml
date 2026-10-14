@@ -1,0 +1,26 @@
+# SAST (US-079 — RN-FND-22 · security.md §15 e §20 · DEC-138): o objeto da requisição carrega
+# cookies, tokens e corpo com dados pessoais — nunca vai inteiro para o log.
+rules:
+  - id: cf-no-log-request
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Objeto de requisição/resposta HTTP enviado ao log (cookies, Authorization e corpo com dados
+      pessoais). Registre só campos permitidos (método, rota, status, correlationId).
+    metadata:
+      cwe: 'CWE-532: Insertion of Sensitive Information into Log File'
+      references: [docs/architecture/security.md#15-logs-seguros-dec-138]
+    patterns:
+      - pattern-inside: $LOGGER.$METHOD(...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(log|info|warn|error|debug|verbose|fatal|trace)$
+      # O identificador inteiro como argumento ou como valor de propriedade — nunca `req.method`.
+      - pattern-either:
+          - pattern: $LOGGER.$METHOD(..., $REQ, ...)
+          - pattern: '{ $KEY: $REQ }'
+          - pattern: '{ $REQ }'
+      - pattern-not: $LOGGER.$METHOD(..., $X.$Y, ...)
+      - metavariable-regex:
+          metavariable: $REQ
+          regex: ^(req|request|res|response|headers|cookies)$

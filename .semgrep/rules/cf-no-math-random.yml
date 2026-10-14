@@ -1,0 +1,19 @@
+# SAST (US-079 — RN-FND-22 · security.md §20): Math.random não é criptograficamente seguro. No
+# código de servidor (API, worker e BFF), tokens, códigos e identificadores usam node:crypto.
+rules:
+  - id: cf-no-math-random
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Math.random() é previsível e não serve para tokens, segredos ou identificadores. Use
+      crypto.randomUUID()/randomBytes()/randomInt() de node:crypto.
+    metadata:
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      references: [docs/architecture/security.md#20-sast-dast-e-testes-de-segurança]
+    paths:
+      include:
+        - '/apps/api/**'
+        - '/apps/worker/**'
+        - '/apps/web/src/bff/**'
+        - '/.semgrep/rules/**'
+    pattern: Math.random()

@@ -15,5 +15,14 @@ export default defineConfig({
   test: {
     include: ['src/**/*.spec.ts'],
     environment: 'node',
+    // lcov alimenta o gate de cobertura do código novo do CI (US-079 — RN-FND-24); `include`
+    // faz arquivos sem teste aparecerem com 0% em vez de sumirem do relatório.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/main.ts'],
+      reporter: ['text-summary', 'lcov'],
+      reportsDirectory: 'coverage',
+    },
   },
 });

@@ -9,6 +9,15 @@ import type { Profile } from './env-file.js';
 
 export const PROJECT_NAME = 'contrataflow';
 
+/**
+ * Projeto do Compose: `COMPOSE_PROJECT_NAME` do `.env` (o CI usa um por execução — US-079 FA-02,
+ * ambientes efêmeros isolados) ou o padrão `contrataflow`.
+ */
+export function projectNameFrom(env: Readonly<Record<string, string>>): string {
+  const name = env.COMPOSE_PROJECT_NAME?.trim() ?? '';
+  return /^[a-z0-9][a-z0-9_-]*$/.test(name) ? name : PROJECT_NAME;
+}
+
 /** Arquivos do Compose (relativos à raiz); os perfis ficam nos overrides (RN-FND-13). */
 export const COMPOSE_FILES = [
   'infra/docker-compose.yml',
@@ -91,11 +100,16 @@ export const runCommand: CommandRunner = (command, args, options) =>
   });
 
 /** Prefixo comum: projeto, `.env` da raiz e todos os arquivos (perfis decidem o que sobe). */
-export function composeArgs(root: string, profiles: readonly Profile[], args: readonly string[]) {
+export function composeArgs(
+  root: string,
+  profiles: readonly Profile[],
+  args: readonly string[],
+  projectName: string = PROJECT_NAME,
+) {
   return [
     'compose',
     '--project-name',
-    PROJECT_NAME,
+    projectName,
     '--env-file',
     path.join(root, ENV_FILE),
     ...COMPOSE_FILES.flatMap((file) => ['-f', path.join(root, file)]),
@@ -112,11 +126,15 @@ export interface Compose {
   ) => Promise<CommandResult>;
 }
 
-export function createCompose(root: string, runner: CommandRunner = runCommand): Compose {
+export function createCompose(
+  root: string,
+  runner: CommandRunner = runCommand,
+  projectName: string = PROJECT_NAME,
+): Compose {
   return {
     root,
     run: (args, options = {}) =>
-      runner('docker', composeArgs(root, options.profiles ?? [], args), {
+      runner('docker', composeArgs(root, options.profiles ?? [], args, projectName), {
         cwd: root,
         ...(options.input === undefined ? {} : { input: options.input }),
         ...(options.stream === undefined ? {} : { stream: options.stream }),

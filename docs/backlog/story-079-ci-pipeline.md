@@ -62,7 +62,7 @@ Garantir que 100% dos PRs contra `main` executem os 8 estágios de CI, que os 7 
 - **FA-02 — PRs simultâneos:** cada execução usa um ambiente efêmero isolado (Testcontainers/Compose com projeto próprio); nenhuma interferência entre PRs.
 - **FA-03 — Exceção de CVE sem correção disponível:** o estágio Imagens não bloqueia quando não há *patch* publicado; a exceção é registrada com prazo de revisão (security.md §19) e some do relatório quando expira sem solução.
 - **FA-04 — Falha intermitente de infraestrutura externa (registry/scanner):** o estágio correspondente faz retry automático (política de tentativas com backoff) antes de marcar falha definitiva; cada *job* tem timeout para não travar o pipeline indefinidamente.
-- **FA-05 — Mudança só de documentação:** um filtro de caminhos (`paths-ignore`) pula os estágios 4–7 para PRs que tocam apenas `docs/**`, mantendo 1–3 (Higiene, Estático, Contrato) sempre ativos.
+- **FA-05 — Mudança só de documentação:** um filtro de caminhos pula os estágios 4–7 para PRs que tocam apenas `docs/**`, mantendo 1–3 (Higiene, Estático, Contrato) sempre ativos. O filtro é feito por condição de job (o Higiene calcula o escopo), não por `paths-ignore` no workflow — senão os *required checks* nunca reportariam (DEC-066).
 - **FA-06 — Rebase/force-push:** o pipeline reexecuta do zero; não há *cache* de resultado por SHA antigo.
 
 ## Regras de negócio

@@ -1,0 +1,20 @@
+# SAST (US-079 — RN-FND-22 · security.md §20 · DEC-056): HTML cru no React só pelo componente de
+# pré-visualização sanitizada.
+rules:
+  - id: cf-no-dangerous-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML injeta HTML sem sanitização (XSS). Use o componente
+      sanitized-html-preview.tsx.
+    metadata:
+      cwe: 'CWE-79: Cross-site Scripting'
+      references: [docs/architecture/security.md#20-sast-dast-e-testes-de-segurança]
+    paths:
+      exclude:
+        - '**/sanitized-html-preview.tsx'
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={$HTML} />
+      - pattern: <$EL dangerouslySetInnerHTML={$HTML}>...</$EL>
+      - pattern: |
+          {dangerouslySetInnerHTML: $HTML}

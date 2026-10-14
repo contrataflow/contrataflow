@@ -1,0 +1,18 @@
+# Fora da varredura SAST do estágio "Estático" (US-079). Alterar exige Tech Lead + segurança.
+# Dependências e artefatos gerados
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+pnpm-lock.yaml
+
+# Especificação, protótipo e material de trabalho (não são código do produto)
+docs/
+_work/
+prototype/
+.ddesktop/
+.claude/
+
+# Violações intencionais verificadas pelos testes de tools/ (fixtures das regras)
+tools/fixtures/

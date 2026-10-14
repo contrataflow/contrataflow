@@ -3,7 +3,7 @@
 
 import { createAuthentikApi } from './authentik.js';
 import type { AuthentikApi } from './authentik.js';
-import { createCompose } from './compose.js';
+import { createCompose, projectNameFrom } from './compose.js';
 import type { Compose } from './compose.js';
 import { loadEnv, parseProfiles, PROFILES, validateEnv } from './env-file.js';
 import type { EnvMap, Profile } from './env-file.js';
@@ -36,7 +36,7 @@ export function createContext(
       issues.map((issue) => issue.message).join('\n'),
     );
   }
-  const compose = createCompose(root);
+  const compose = createCompose(root, undefined, projectNameFrom(env));
   return {
     root,
     env,

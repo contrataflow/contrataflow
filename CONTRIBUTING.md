@@ -16,14 +16,15 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 4. [Estrutura do monorepo](#estrutura-do-monorepo)
 5. [Scripts](#scripts)
 6. [Branches e PRs](#branches-e-prs)
-7. [Commits](#commits)
-8. [Definition of Done](#definition-of-done)
-9. [Dependências](#dependências)
-10. [Segurança](#segurança)
-11. [Fronteiras de dependência](#fronteiras-de-dependência)
-12. [Testes](#testes)
-13. [Geradores](#geradores)
-14. [Decisões e ADRs](#decisões-e-adrs)
+7. [Pipeline de CI](#pipeline-de-ci)
+8. [Commits](#commits)
+9. [Definition of Done](#definition-of-done)
+10. [Dependências](#dependências)
+11. [Segurança](#segurança)
+12. [Fronteiras de dependência](#fronteiras-de-dependência)
+13. [Testes](#testes)
+14. [Geradores](#geradores)
+15. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
@@ -181,12 +182,13 @@ Pacotes internos se chamam `@contrataflow/<nome>`, são `"private": true` e nunc
 | `pnpm format`             | Formata o repositório com Prettier                                                        |
 | `pnpm smoke:hello`        | Sobe os apps já construídos e confere o estado _hello_                                    |
 | `pnpm verify:fresh-clone` | Clone limpo em contêiner `node:24-bookworm-slim` (install → test, smoke)                  |
-| `pnpm secrets:scan`       | Varredura de segredos com gitleaks (Docker)                                               |
+| `pnpm secrets:scan`       | Varredura de segredos com gitleaks (Docker); `-- --git <base>..HEAD` varre commits        |
+| `pnpm ci:*`               | Gates do CI rodando localmente — veja [Pipeline de CI](#pipeline-de-ci)                   |
 | `pnpm env:*`              | Ambiente local com Docker Compose — veja [Ambiente local](#ambiente-local-docker-compose) |
 
-O CI (US-079) roda `pnpm turbo run lint typecheck test` e os demais gates. Os hooks locais
-(husky) são conveniência, não controle: `--no-verify` é permitido localmente, mas o CI bloqueia
-o _merge_ (FA-04).
+O CI (US-079) repete esses comandos e os demais gates — veja [Pipeline de CI](#pipeline-de-ci).
+Os hooks locais (husky) são conveniência, não controle: `--no-verify` é permitido localmente, mas o
+CI bloqueia o _merge_ (FA-04).
 
 ## Branches e PRs
 
@@ -203,6 +205,53 @@ o _merge_ (FA-04).
 - Hooks: `pre-commit` roda o lint-staged (ESLint `--fix` e Prettier nos arquivos _staged_);
   `commit-msg` roda o commitlint; `pre-push` roda o typecheck dos pacotes afetados desde
   `origin/main`.
+
+## Pipeline de CI
+
+GitHub Actions (DEC-061 · DEC-066). Todo PR contra a `main` roda `.github/workflows/ci.yml`; um
+push novo no mesmo PR cancela a execução anterior. Os checks abaixo são os _required checks_ da
+_ruleset_ da `main` — o merge (só _squash_) exige todos verdes **e** a aprovação dos donos de cada
+caminho no CODEOWNERS, sem exceção para administradores.
+
+| Check                  | O que roda                                                                                                                                          | Rodar localmente                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `1. Higiene`           | `pnpm install --frozen-lockfile`, título do PR (commitlint), gitleaks nos commits do PR, licenças de runtime, `check:versions`                      | `pnpm secrets:scan`, `pnpm ci:licenses`, `pnpm check:versions`                            |
+| `2. Estático`          | `turbo run lint typecheck` (erros viram anotação no arquivo e na linha), `depcruise`, actionlint, Semgrep (`.semgrep/rules/`, com `semgrep --test`) | `pnpm turbo run lint typecheck`, `pnpm depcruise`                                         |
+| `2. Estático (CodeQL)` | CodeQL `security-extended`; achado alto ou crítico bloqueia pela regra `code_scanning`                                                              | —                                                                                         |
+| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                    | `pnpm ci:contract -- --base origin/main`                                                  |
+| `4. Testes`            | unitários (com cobertura) → cobertura do código novo → integração (Testcontainers) → `test:tenant-leak` → `test:authz`                              | `pnpm turbo run test`, `pnpm ci:coverage`, `pnpm turbo run test:tenant-leak`              |
+| `5. Migrações`         | lint expand/contract, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de RLS e FK composta        | `pnpm ci:migrations -- --base origin/main`                                                |
+| `6. Imagens`           | `infra/docker/prod.Dockerfile` por app, SBOM (Syft), Trivy + gate de CVE, assinatura cosign                                                         | `docker build -f infra/docker/prod.Dockerfile --build-arg APP=api --target runtime-api .` |
+| `7. E2E`               | Compose da US-078 num projeto próprio, `env:seed`, Playwright + axe-core (`apps/web/test/e2e`)                                                      | `pnpm env:up && pnpm env:seed && pnpm turbo run test:e2e`                                 |
+
+- **Só `docs/**`:** os estágios 4–7 são pulados (aparecem como _skipped_, que conta como aprovado).
+- **Falhas:** o PR recebe um comentário com os estágios que falharam (PR do próprio repositório);
+  cada job registra `ci.stage_completed` ou `ci.stage_failed` no log e no resumo.
+- **Infraestrutura instável** (registry, base do Trivy, download do Chromium): retry com _backoff_
+  (`tools/ci/retry.ts`) e tempo limite por tentativa e por job.
+- **Pós-merge** (`deploy-staging.yml`, ligado pela variável `CF_STAGING_ENABLED=true`): imagens no
+  ECR assinadas _keyless_, deploy em staging (assinatura verificada antes), estágio `8. Pós-deploy`
+  (ZAP baseline, k6 _smoke_, traces). Falha alerta `#cf-ci` e bloqueia a promoção para produção,
+  que exige aprovação do Tech Lead no ambiente `production`.
+
+**Política (`.github/ci-policy.yml`, donos: Tech Lead + segurança):** `ci.coverageThreshold` (80) e
+`ci.coverageGateEnabled` (desligar só com decisão registrada), licenças permitidas e exceções, e
+exceções de CVE **sem** correção disponível, com prazo (`reviewBy`). CVE crítica ou alta com
+correção sempre bloqueia — atualize o pacote ou a imagem base.
+
+**Configuração do repositório** (por quem administra; repetir quando o arquivo mudar):
+`GH_TOKEN=<token de admin> pnpm ci:github-settings -- --apply --repo <dono>/<repo>` aplica
+`.github/repository-settings.json` (ruleset da `main`, merge só por _squash_, permissões do Actions,
+ambientes `staging` e `production`). Sem `--apply`, mostra o que seria enviado.
+
+| Onde                               | Nome                                                                                  | Uso                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Variável do repositório            | `CF_STAGING_ENABLED`                                                                  | `true` liga o pós-merge                       |
+| Segredo do repositório (opcional)  | `SEMGREP_APP_TOKEN`                                                                   | regras gerenciadas do Semgrep além das locais |
+| Ambientes `staging` e `production` | `AWS_OIDC_ROLE_ARN`, `AWS_REGION`, `ECR_REGISTRY`                                     | OIDC da AWS e registry (sem chave estática)   |
+| Ambientes `staging` e `production` | `ECS_CLUSTER`, `ECS_SERVICE_PREFIX`, `ECS_MIGRATOR_FAMILY`, `ECS_MIGRATOR_NETWORK`    | deploy no ECS (`tools/ci/deploy-ecs.ts`)      |
+| Ambiente `staging`                 | `STAGING_URL`, `STAGING_API_URL`, `TRACES_QUERY_URL` e o segredo `TRACES_QUERY_TOKEN` | ZAP, k6 e verificação de traces               |
+| Ambiente `staging`                 | segredo `SLACK_CI_WEBHOOK_URL`                                                        | alerta do pós-deploy em `#cf-ci`              |
 
 ## Commits
 
@@ -307,9 +356,16 @@ com uma _fixture_ de violação por regra em `tools/fixtures/depcruise/**`:
 
 - **Unitários:** Vitest, ao lado do código (`*.test.ts` nos pacotes; `*.spec.ts` na API e no
   worker, com SWC para os metadados de decorators). Não dependem de banco.
-- **Integração:** `apps/api/test/**` com Testcontainers — `pnpm test:integration` (Docker).
+- **Integração:** `apps/api/test/**` com Testcontainers — `pnpm test:integration` (Docker). Na API,
+  `pnpm test` gera `coverage/lcov.info`, que alimenta o gate de cobertura do CI.
+- **Tenant leak e autorização:** tarefas `test:tenant-leak` e `test:authz` do Turborepo (estágio
+  Testes do CI); a suíte de banco fica em `tools/ci/tenant-leak.ts` (Docker).
+- **E2E:** Playwright + axe-core em `apps/web/test/e2e` (`pnpm turbo run test:e2e`, com o Compose de
+  pé); toda página nova chama `expectNoSeriousA11yViolations`.
 - **Regras de engenharia:** `tools/test/**` cobre o `check:versions`, o commitlint, as _fixtures_
-  de lint e de fronteiras, o CODEOWNERS, o grafo do Turborepo e o lockfile.
+  de lint e de fronteiras, o CODEOWNERS, o grafo do Turborepo, o lockfile e o pipeline de CI
+  (cenários da US-079 em `ci-pipeline.test.ts`); `tools/test/integration/**` exige Docker
+  (`pnpm --filter @contrataflow/tools test:integration`).
 
 ## Geradores
 

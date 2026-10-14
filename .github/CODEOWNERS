@@ -1,7 +1,7 @@
 # Donos de código (US-077 · Permissões). A última regra que casa com o arquivo vence.
 # Os nomes dos times são provisórios até a organização do GitHub ser definida (lacuna registrada
-# em docs/architecture/decisions.md — DEC-062). A revisão obrigatória é imposta pela proteção
-# de branch da main (US-079).
+# em docs/architecture/decisions.md — DEC-062). A revisão obrigatória é imposta pela ruleset da
+# main (US-079): .github/repository-settings.json, aplicada com `pnpm ci:github-settings --apply`.
 
 # Padrão: qualquer engenheiro do produto.
 *                                           @contrataflow/engineering
@@ -32,6 +32,11 @@
 /.dependency-cruiser.cjs                    @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
 /tools/module-levels.json                   @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
 /.gitleaks.toml                             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+# Pipeline de CI (US-079): gates, regras de SAST, política e imagens de produção.
+/tools/ci/                                  @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.semgrep/                                  @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/.semgrepignore                             @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
+/infra/docker/                              @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
 /commitlint.config.mjs                      @contrataflow/tech-lead @contrataflow/platform
 /packages/eslint-config/                    @contrataflow/tech-lead @contrataflow/security @contrataflow/platform
 /packages/tsconfig/                         @contrataflow/tech-lead @contrataflow/platform

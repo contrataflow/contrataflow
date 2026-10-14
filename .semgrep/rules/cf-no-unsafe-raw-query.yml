@@ -1,0 +1,15 @@
+# SAST do estágio "Estático" (US-079 — RN-FND-22 · security.md §20). Segunda camada da regra
+# ESLint contrataflow/no-unsafe-raw-query (US-077): SQL montado com string vira injeção.
+rules:
+  - id: cf-no-unsafe-raw-query
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      $queryRawUnsafe/$executeRawUnsafe montam SQL com texto livre (injeção de SQL). Use
+      $queryRaw/$executeRaw parametrizado (tagged template) no repositório do módulo.
+    metadata:
+      cwe: 'CWE-89: SQL Injection'
+      references: [docs/architecture/security.md#20-sast-dast-e-testes-de-segurança]
+    pattern-either:
+      - pattern: $DB.$queryRawUnsafe(...)
+      - pattern: $DB.$executeRawUnsafe(...)

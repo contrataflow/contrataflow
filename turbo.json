@@ -51,6 +51,14 @@
       "dependsOn": ["build"],
       "cache": false
     },
+    "test:tenant-leak": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "test:authz": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "//#depcruise": {
       "inputs": [
         "apps/*/src/**",

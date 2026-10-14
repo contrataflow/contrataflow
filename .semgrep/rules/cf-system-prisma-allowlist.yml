@@ -1,0 +1,24 @@
+# SAST (US-079 — RN-FND-22 · security.md §20 · multi-tenancy.md §5.3): o cliente de plataforma
+# (papel cf_platform, ignora RLS) só pode ser usado no provisionamento de tenants, no relay do outbox
+# e nos schedulers — a mesma allowlist da regra system-prisma-allowlist do dependency-cruiser.
+rules:
+  - id: cf-system-prisma-allowlist
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      O cliente de plataforma (SystemPrismaService/systemPrisma) ignora o isolamento por tenant e só
+      é permitido no provisionamento de tenants, no relay do outbox e nos schedulers. Use o
+      repositório do módulo com o contexto de tenant.
+    metadata:
+      cwe: 'CWE-639: Authorization Bypass Through User-Controlled Key'
+      references: [docs/architecture/multi-tenancy.md]
+    paths:
+      exclude:
+        - '/apps/api/src/modules/tenancy/application/provisioning/**'
+        - '/apps/worker/src/outbox/**'
+        - '/apps/worker/src/schedulers/**'
+        - '/apps/api/src/shared/database/**'
+    pattern-either:
+      - pattern: import { SystemPrismaService } from '$MODULE'
+      - pattern: import { $ANY, SystemPrismaService } from '$MODULE'
+      - pattern: $X.systemPrisma

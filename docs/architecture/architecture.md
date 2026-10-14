@@ -382,12 +382,14 @@ A matriz de níveis do §3.3 é gerada a partir de um arquivo `tools/module-leve
     "test":             { "dependsOn": ["^build"], "outputs": ["coverage/**"] },
     "test:integration": { "dependsOn": ["build"], "cache": false },
     "test:e2e":         { "dependsOn": ["build"], "cache": false },
+    "test:tenant-leak": { "dependsOn": ["^build"], "cache": false },
+    "test:authz":       { "dependsOn": ["^build"], "cache": false },
     "depcruise":        { "inputs": ["src/**", "../../.dependency-cruiser.cjs"] }
   }
 }
 ```
 
-Estágios do CI (GitHub Actions — DEC-061), todos obrigatórios para *merge* (detalhe em US-079):
+Estágios do CI (GitHub Actions — DEC-061), todos obrigatórios para *merge* (detalhe em US-079; implementação em DEC-066):
 
 | Estágio | Conteúdo | Falha bloqueia |
 |---|---|---|
@@ -399,6 +401,8 @@ Estágios do CI (GitHub Actions — DEC-061), todos obrigatórios para *merge* (
 | 6. Imagens | Build multi-stage, SBOM, scan de vulnerabilidades, assinatura ([`security.md`](security.md#19-dependências-e-cadeia-de-suprimentos)) | Sim (CVE crítica/alta com correção disponível) |
 | 7. E2E | Playwright + axe-core contra o ambiente efêmero (Docker Compose, Authentik real) | Sim |
 | 8. Pós-deploy (staging) | ZAP baseline, k6 *smoke*, verificação de *traces* | Alerta; bloqueia promoção para produção |
+
+Implementação (DEC-066 · [`CONTRIBUTING.md`](../../CONTRIBUTING.md#pipeline-de-ci)): `.github/workflows/ci.yml` (1–7), `images.yml` (6, reutilizável) e `deploy-staging.yml` (6 com publicação → deploy → 8 → promoção). Depois da Higiene, 2–7 rodam em paralelo; os nomes dos jobs (`1. Higiene` … `7. E2E`, mais `2. Estático (CodeQL)`) são os *required checks* da *ruleset* da `main` (`.github/repository-settings.json`). PR só de `docs/**` pula 4–7 por condição de job (nunca `paths-ignore`, que deixaria os checks pendentes).
 
 ---
 

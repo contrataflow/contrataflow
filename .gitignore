@@ -11,6 +11,11 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 
+# Relatórios de teste e do CI (US-079)
+playwright-report/
+test-results/
+semgrep.json
+
 # Ambiente local (DEC-137: segredos nunca no repositório)
 .env
 .env.*

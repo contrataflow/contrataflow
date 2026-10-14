@@ -8,6 +8,10 @@ Ex.: `feat(process): adiciona filtro por unidade` — o título também é valid
 - Story: US-NNN — <!-- link para docs/backlog/story-NNN-*.md -->
 - Branch: `feat|fix|refactor|test|docs|ci|chore/US-NNN-slug`
 
+<!-- Rodapé do commit de squash (validado pelo commitlint no estágio Higiene). Troque o número. -->
+
+Refs: US-NNN
+
 ## O que muda
 
 <!-- Resumo objetivo da mudança e do motivo. -->

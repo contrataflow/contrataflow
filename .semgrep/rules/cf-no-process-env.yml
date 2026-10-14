@@ -1,0 +1,23 @@
+# SAST (US-079 — RN-FND-22 · security.md §20 · DEC-137): configuração só pelo módulo validado
+# (`src/config/**`, US-080); o resto do código recebe valores tipados por injeção.
+rules:
+  - id: cf-no-process-env
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      process.env fora de src/config/** espalha configuração não validada (e pode vazar segredos em
+      log). Leia o valor pela configuração validada e injetada (US-080).
+    metadata:
+      cwe: 'CWE-532: Insertion of Sensitive Information into Log File'
+      references: [docs/architecture/security.md#14-gestão-de-segredos]
+    paths:
+      exclude:
+        - '**/src/config/**'
+        - '*.config.ts'
+        - '*.config.mts'
+        - '*.config.js'
+        - '*.config.mjs'
+        - '*.config.cjs'
+        - '/tools/**'
+        - '/.github/**'
+    pattern: process.env
