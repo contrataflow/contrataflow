@@ -419,16 +419,16 @@ Código no GitHub e CI/CD com GitHub Actions: estágios obrigatórios para *merg
 - API e worker em ESM (`"type": "module"`, `NodeNext`, *subpath imports* `#config/*`, `#shared/*`, `#modules/*`); build e `dev` com SWC (`decoratorMetadata`), typecheck com `tsc --noEmit`, testes com Vitest + `unplugin-swc` (esbuild não emite metadados de decorators).
 - Versões exatas no catálogo do pnpm; linhas, motivos e medições em [`docs/engineering/versions.md`](../engineering/versions.md). Registrado em 2026-10-07 (US-077).
 
-### DEC-064 — Prisma 7 com *driver adapter* · `Proposta`
-- Prisma ORM 7.x com `@prisma/adapter-pg` + `pg` 8.x (fixados no catálogo: 7.10.0 / 8.23.1); *fallback*: Prisma 6.x.
-- Depende do resultado do *spike* RT-02 (RLS + contexto por transação + pool em modo transação), que deve ser registrado em ADR antes da US-081. Registrado em 2026-10-07 (US-077).
+### DEC-064 — Prisma 7 com *driver adapter* · `Aceita` · [ADR-012](../adr/adr-012-prisma-tenant-transaction.md)
+- Prisma ORM 7.x com `@prisma/adapter-pg` + `pg` 8.x (fixados no catálogo: 7.10.0 / 8.23.1); o *fallback* para Prisma 6.x foi descartado.
+- O *spike* RT-02 (RLS + contexto por transação + reuso de conexão do pool) foi feito na US-081 com Testcontainers e registrado no ADR-012. Proposta registrada em 2026-10-07 (US-077); aceita em 2026-10-14 (US-081).
 
 ### DEC-065 — Ambiente local com Docker Compose · `Aceita` · complementa DEC-050 e DEC-058
 - **Imagens fixadas por *tag* exata + *digest*** em `infra/docker-compose.yml` e `infra/compose/*.yml` (Renovate `docker:pinDigests`); linhas e motivos em [`docs/engineering/versions.md`](../engineering/versions.md) §8.
 - **MinIO:** a imagem oficial `minio/minio`/`minio/mc` deixou de ser distribuída no Docker Hub (acesso negado desde 2025). Em dev usamos o *build* comunitário `pgsty/minio`/`pgsty/mc` (mesmo código-fonte AGPL do MinIO, mesma API S3), fixado por *digest*. Como só usamos a API S3 (DEC-058), a troca por SeaweedFS/Garage continua possível sem tocar na aplicação (storage.md §11). Produção usa S3.
 - **Portas publicadas só em `127.0.0.1`** (nada do ambiente local fica exposto na rede da estação); a porta interna nunca muda, só a publicada (`*_PORT` no `.env`).
 - **Usuários de desenvolvimento no Authentik** por *blueprint* gerado a partir do *dataset* do seed (`tools/env/seed/dataset.ts` → `pnpm env:blueprint`), com senha lida do ambiente (`!Env`); um teste falha se o *blueprint* versionado divergir do *dataset*.
-- **Seed provisório:** até existir o schema real (US-081, provisionamento da US-099), `pnpm env:seed` grava os tenants semeados no schema **`dev_seed`** do banco `contrataflow` — fora de `public`, para não colidir com as migrações do Prisma —, com os nomes de tabela/coluna de `entities.md`, `tenant_id` + RLS `ENABLE`/`FORCE` e a política de DEC-082. A US-081 troca o destino do seed pelas tabelas reais e remove o schema `dev_seed`. Registrado em 2026-10-07 (US-078).
+- **Seed provisório:** até existir o schema real (US-081, provisionamento da US-099), `pnpm env:seed` grava os tenants semeados no schema **`dev_seed`** do banco `contrataflow` — fora de `public`, para não colidir com as migrações do Prisma —, com os nomes de tabela/coluna de `entities.md`, `tenant_id` + RLS `ENABLE`/`FORCE` e a política de DEC-082. O destino do seed passa às tabelas reais quando elas existirem — a US-081 só criou `outbox_events`; `tenants`, `users`, vínculos e catálogos chegam com as stories de identidade, tenancy e provisionamento (US-087/US-099/US-100), que então removem o schema `dev_seed`. Registrado em 2026-10-07 (US-078); revisto em 2026-10-14 (US-081).
 
 ### DEC-066 — Implementação do pipeline de CI · `Aceita` · complementa DEC-061
 - **Workflows:** `.github/workflows/ci.yml` (PR, estágios 1–7), `images.yml` (estágio 6 reutilizável por `workflow_call`) e `deploy-staging.yml` (pós-merge: 6 com publicação, deploy, 8 e promoção). Depois da Higiene, os estágios 2–7 rodam **em paralelo** (caminho crítico ≈ Higiene + o mais lento); a ordem obrigatória da RN-FND-24 vale **dentro** do estágio Testes.
@@ -471,6 +471,15 @@ Código no GitHub e CI/CD com GitHub Actions: estágios obrigatórios para *merg
 - **Métodos de merge:** a ruleset aceita `squash` nos PRs avulsos (o título do PR vira o commit) e `rebase` nos lotes (os commits dos cards entram como estão, já validados pelo commitlint no hook local). `required_linear_history` continua valendo.
 - **Alternativa descartada:** um PR por card com merge automático. Exigiria e-mail verificado na conta do GitHub, branch por card nos workers e a fila parada até cada merge.
 - Registrado em 2026-10-14 (US-079).
+
+### DEC-069 — Implementação da persistência · `Aceita` · complementa DEC-064, DEC-082 e DEC-055 · [ADR-012](../adr/adr-012-prisma-tenant-transaction.md)
+- **Acesso a dados:** provider global `TenantTransaction` (`apps/api/src/shared/database`) com `run` (comando) e `read` (consulta em transação somente leitura); cada chamada abre a transação com `set_config('app.tenant_id', …, true)` como primeira instrução. O `PrismaClient`, o *adapter* e o `pg` ficam só em `shared/database/**` (lint `contrataflow/no-prisma-client-outside-database`); os repositórios recebem o `tx` e importam tipos de `#shared/database/prisma.js`.
+- **Papéis:** criados pela migração inicial em bloco idempotente e sem senha; em produção a infraestrutura cria os papéis de login (senha no Secrets Manager) e concede `CREATE` em `public` ao `cf_migrator` antes do primeiro deploy. Toda migração cria objetos depois de `SET ROLE cf_owner`; a checagem de catálogo do CI reprova objeto com outro dono no schema `public`.
+- **Catálogo (V-02/V-03):** além de RLS, FK composta e unicidade, o CI reprova `tenant_id` nulo fora de `audit_logs`/`outbox_events` e tabela sem `tenant_id` fora de `tenants`/`users`/`permissions`/`_prisma_migrations` (lista fechada de DEC-080).
+- **Lint de SQL (RN-FND-44):** `pnpm ci:sql-lint` (estágio `2. Estático`) e o lint das migrações novas (estágio `5. Migrações`) barram `set_config` cujo terceiro argumento não é o literal `true` e `SET [SESSION] app.*`, em migrações, no código e nos testes das apps e nos scripts de init do PostgreSQL.
+- **Decimais (DEC-003):** o mapeador `toDbDecimal` **recusa** valor fora da escala ou da precisão da coluna (`DecimalScaleError`); arredondar é sempre explícito (`roundTo`, `ROUND_HALF_UP`). Leitura com `fromDbDecimal` (decimal.js 10.6.0).
+- **Erros:** *deadlock*/serialização → até 2 retentativas da transação inteira; conexão/tempo de espera → `DatabaseUnavailableError` (503 `DEPENDENCY_UNAVAILABLE`, `Retry-After: 5`); `UPDATE` versionado com 0 linhas → `VersionConflictError` (412 `VERSION_CONFLICT`). Tempos: espera do pool 2 s, transação 10 s, `statement_timeout` 5 s (architecture.md §6.5).
+- **Variáveis:** `DATABASE_URL` (papel `cf_app`, obrigatória) e `DATABASE_POOL_SIZE` (padrão 10) na API; `DATABASE_MIGRATION_URL` só para a CLI do Prisma (`prisma.config.ts`). Em dev, `pnpm db:migrate` aplica as migrações e define a senha local dos papéis. Registrado em 2026-10-14 (US-081).
 
 ---
 
@@ -691,3 +700,4 @@ Itens que exigem decisão de produto, jurídico ou cliente-piloto. A especifica�
 | [ADR-009](../adr/adr-009-audit-trail.md) | Auditoria transacional append-only com selagem periódica | Aceito |
 | [ADR-010](../adr/adr-010-shared-validation.md) | Validação compartilhada com Zod e contrato OpenAPI gerado | Aceito |
 | [ADR-011](../adr/adr-011-identifiers-numbering.md) | UUIDv7 e numeração de negócio por sequência transacional | Aceito |
+| [ADR-012](../adr/adr-012-prisma-tenant-transaction.md) | Prisma 7 com *driver adapter* e contexto de tenant por transação | Aceito |

@@ -17,6 +17,7 @@ const SECURITY_RULES = [
   'contrataflow/no-process-env',
   'contrataflow/no-direct-redis',
   'contrataflow/no-prisma-outside-infrastructure',
+  'contrataflow/no-prisma-client-outside-database',
   'contrataflow/no-dangerous-html',
   'contrataflow/require-server-only',
 ];
@@ -70,6 +71,9 @@ describe('fábricas de configuração', () => {
     const byName = Object.fromEntries(security().map((config) => [config.name, config]));
     expect(byName['contrataflow/security/redis']?.ignores).toEqual(SECURITY_ALLOWLISTS.redis);
     expect(byName['contrataflow/security/prisma']?.ignores).toEqual(SECURITY_ALLOWLISTS.prisma);
+    expect(byName['contrataflow/security/prisma-client']?.ignores).toEqual(
+      SECURITY_ALLOWLISTS.prismaClient,
+    );
     expect(byName['contrataflow/security/process-env']?.ignores).toEqual(
       SECURITY_ALLOWLISTS.processEnv,
     );

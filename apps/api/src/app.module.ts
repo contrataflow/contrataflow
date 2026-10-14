@@ -12,6 +12,7 @@ import {
   TenantContextGuard,
 } from '#shared/auth/pipeline.guards.js';
 import { RequestContextMiddleware } from '#shared/context/request-context.middleware.js';
+import { DatabaseModule } from '#shared/database/database.module.js';
 import { ProblemDetailsExceptionFilter } from '#shared/errors/problem-details.filter.js';
 import { EnvelopeInterceptor } from '#shared/http/envelope.interceptor.js';
 import { JsonBodyMiddleware } from '#shared/http/json-body.middleware.js';
@@ -30,7 +31,7 @@ export class AppModule implements NestModule {
   static forRoot(config: AppConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [ConfigModule.forRoot(config), ...API_MODULES],
+      imports: [ConfigModule.forRoot(config), DatabaseModule, ...API_MODULES],
       providers: [
         { provide: APP_FILTER, useClass: ProblemDetailsExceptionFilter },
         { provide: APP_GUARD, useClass: AuthenticationGuard },

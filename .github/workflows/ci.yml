@@ -101,6 +101,10 @@ jobs:
         if: success() || failure()
         run: pnpm depcruise
 
+      - name: Lint de SQL — contexto de tenant só por transação (RN-FND-44)
+        if: success() || failure()
+        run: pnpm --dir tools exec tsx ci/sql-lint.ts
+
       - name: Workflows do GitHub Actions (actionlint)
         if: success() || failure()
         run: docker run --rm -v "$PWD:/repo" -w /repo "$ACTIONLINT_IMAGE" -color

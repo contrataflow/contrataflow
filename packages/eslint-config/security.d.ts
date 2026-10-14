@@ -6,6 +6,7 @@ export declare const SECURITY_ALLOWLISTS: Readonly<{
   processEnv: string[];
   redis: string[];
   prisma: string[];
+  prismaClient: string[];
   dangerousHtml: string[];
   console: string[];
 }>;

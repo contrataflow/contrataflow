@@ -147,7 +147,7 @@ GRANT SELECT, INSERT, UPDATE ON processes TO cf_app, cf_worker;
 GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 ```
 
-- **Contexto por transação:** a UoW executa `SELECT set_config('app.tenant_id', $1, true)` (terceiro argumento `true` = escopo da transação). Sem contexto, `current_setting('app.tenant_id')` gera erro (variável inexistente) ou falha no *cast* de string vazia — a consulta **falha fechada**, nunca retorna dados de outro tenant.
+- **Contexto por transação** (implementação: `TenantTransaction`, US-081 · ADR-012): a UoW executa `SELECT set_config('app.tenant_id', $1, true)` (terceiro argumento `true` = escopo da transação). Sem contexto, `current_setting('app.tenant_id')` gera erro (variável inexistente) ou falha no *cast* de string vazia — a consulta **falha fechada**, nunca retorna dados de outro tenant.
 - Toda leitura também roda em transação (somente leitura), pois `set_config(..., true)` só vale dentro dela.
 - **Papéis de banco:**
 
@@ -163,7 +163,7 @@ GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 | `cf_purge`† | Sim (desabilitado por padrão) | Não | Não | Expurgo físico no *offboarding* (§13.3), habilitado só durante o runbook com dupla aprovação |
 
 - **Tabelas particionadas** (`audit_logs`): privilégios concedidos só na tabela-mãe (acesso direto a partições negado) e RLS também habilitada em cada partição criada pelo job `maintenance` (`audit-partitions-ensure`).
-- **Pooling:** PgBouncer em modo transação (ou RDS Proxy) é compatível porque o contexto é por transação. É proibido `SET`/`set_config(..., false)` de sessão (vazaria contexto entre clientes do pool) — verificado por lint de SQL e por teste que reutiliza a mesma conexão para dois tenants. O comportamento de *pinning* do RDS Proxy com `set_config` deve ser validado antes de adotá-lo.
+- **Pooling:** PgBouncer em modo transação (ou RDS Proxy) é compatível porque o contexto é por transação. É proibido `SET`/`set_config(..., false)` de sessão (vazaria contexto entre clientes do pool) — verificado por lint de SQL (`pnpm ci:sql-lint`, DEC-069) e por teste que reutiliza a mesma conexão para dois tenants (`apps/api/test/database/tenant-isolation.spec.ts`). O comportamento de *pinning* do RDS Proxy com `set_config` deve ser validado antes de adotá-lo.
 - **Performance:** todo índice de tabela de negócio começa por `tenant_id`; o predicado da política é *stable* e usa esses índices. Para planos estáveis, a forma `(SELECT current_setting('app.tenant_id')::uuid)` é equivalente e avaliada uma vez por consulta.
 
 ### 5.3 Acesso de plataforma (`systemPrisma`)

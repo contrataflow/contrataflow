@@ -26,10 +26,12 @@ interface Check {
 }
 
 /**
- * Variáveis obrigatórias da API (US-080 — RN-FND-30). O Redis não precisa estar de pé: o cliente
- * conecta em segundo plano e o pipeline degrada sem ele (CA-T-07).
+ * Variáveis obrigatórias da API (US-080 — RN-FND-30). Nem o Redis nem o PostgreSQL precisam estar
+ * de pé: o cliente Redis conecta em segundo plano e o pipeline degrada sem ele (CA-T-07); o pool
+ * do banco só conecta na primeira transação (US-081).
  */
 const API_ENV = {
+  DATABASE_URL: 'postgresql://cf_app:devpassword@127.0.0.1:5432/contrataflow',
   REDIS_CACHE_URL: 'redis://127.0.0.1:6380',
   OIDC_ISSUER_URL: 'http://localhost:9080/application/o/contrataflow/',
 };

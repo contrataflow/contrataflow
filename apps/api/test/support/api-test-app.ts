@@ -27,6 +27,8 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
   return loadConfig({
     NODE_ENV: 'test',
     APP_ENV: 'test',
+    // Porta fechada: nenhuma rota do pipeline abre transação; o pool conecta sob demanda.
+    DATABASE_URL: 'postgresql://cf_app:test@127.0.0.1:1/contrataflow',
     REDIS_CACHE_URL: 'redis://127.0.0.1:1',
     OIDC_ISSUER_URL: TEST_ISSUER,
     OIDC_FAKE_SIGNING_KEY: TEST_SIGNING_KEY,

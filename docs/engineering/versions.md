@@ -31,7 +31,8 @@
 | Qualidade | `dependency-cruiser` | 17.4.3 | fronteiras (RN-FND-05) |
 | Back-end | `@nestjs/common` · `core` · `platform-express` · `testing` | 11.2.7 | api e worker (Express 5) |
 | Back-end | `reflect-metadata` · `rxjs` | 0.2.2 · 7.8.2 | peers do NestJS |
-| Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.0 · 7.10.0 · 7.10.0 · 8.23.1 | reservado — US-081 (depende do _spike_ RT-02, DEC-064) |
+| Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.0 · 7.10.0 · 7.10.0 · 8.23.1 | api — persistência e `TenantTransaction` (US-081, DEC-064); gerador `prisma-client` em ESM; `pg` e `@types/pg` 8.23.1 só nos testes de integração |
+| Back-end | `decimal.js` | 10.6.0 | api — cálculos e mapeamento de colunas `Decimal` (DEC-003, US-081) |
 | Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | reservado — filas (DEC-163) |
 | Back-end | `@opentelemetry/sdk-node` | 0.222.0 | reservado — US-084 (SDK 2.x) |
 | Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | reservado — US-080/US-084 |

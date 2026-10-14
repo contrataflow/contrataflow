@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ConfigValidationError, loadConfig } from '#config/env.js';
 
 const REQUIRED = {
+  DATABASE_URL: 'postgresql://cf_app:devpassword@localhost:5432/contrataflow',
   REDIS_CACHE_URL: 'redis://localhost:6380',
   OIDC_ISSUER_URL: 'http://localhost:9080/application/o/contrataflow/',
 };
@@ -14,6 +15,12 @@ describe('loadConfig', () => {
       nodeEnv: 'development',
       appEnv: 'local',
       port: 4000,
+      database: {
+        poolSize: 10,
+        maxWaitMs: 2_000,
+        transactionTimeoutMs: 10_000,
+        statementTimeoutMs: 5_000,
+      },
       oidc: { audiences: ['contrataflow-api'], clockToleranceSeconds: 30 },
       http: { correlationHeader: 'X-Correlation-Id' },
       pagination: { maxPageSize: 100 },
@@ -49,7 +56,13 @@ describe('loadConfig', () => {
       attempt();
     } catch (error) {
       const failure = error as ConfigValidationError;
-      expect(failure.keys).toEqual(['NODE_ENV', 'OIDC_ISSUER_URL', 'PORT', 'REDIS_CACHE_URL']);
+      expect(failure.keys).toEqual([
+        'DATABASE_URL',
+        'NODE_ENV',
+        'OIDC_ISSUER_URL',
+        'PORT',
+        'REDIS_CACHE_URL',
+      ]);
       expect(failure.message).not.toContain('segredo');
     }
   });

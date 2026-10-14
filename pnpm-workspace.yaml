@@ -25,7 +25,10 @@ onlyBuiltDependencies:
 # Scripts revisados e dispensáveis (binários nativos já chegam por optionalDependencies).
 ignoredBuiltDependencies:
   - '@parcel/watcher'
+  # A CLI do Prisma baixa o schema-engine sob demanda no primeiro uso (US-081).
+  - '@prisma/engines'
   - cpu-features
+  - prisma
   - protobufjs
   - ssh2
   - unrs-resolver
@@ -74,6 +77,8 @@ catalog:
   '@prisma/client': 7.10.0
   '@prisma/adapter-pg': 7.10.0
   pg: 8.23.1
+  '@types/pg': 8.23.1
+  decimal.js: 10.6.0
   bullmq: 5.81.5
   ioredis: 5.11.1
   '@opentelemetry/sdk-node': 0.222.0

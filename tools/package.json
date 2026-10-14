@@ -16,6 +16,7 @@
     "env:check": "tsx env/check.ts",
     "env:smoke": "tsx env/smoke.ts",
     "env:blueprint": "tsx env/blueprint.ts",
+    "db:migrate": "tsx env/db-migrate.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
@@ -25,7 +26,8 @@
     "ci:contract": "tsx ci/contract.ts",
     "ci:coverage": "tsx ci/coverage-gate.ts",
     "ci:migrations": "tsx ci/migrations.ts",
-    "ci:github-settings": "tsx ci/github-settings.ts"
+    "ci:github-settings": "tsx ci/github-settings.ts",
+    "ci:sql-lint": "tsx ci/sql-lint.ts"
   },
   "devDependencies": {
     "@commitlint/lint": "catalog:",

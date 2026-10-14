@@ -1,3 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-export class PrismaService extends PrismaClient {}
+import { PrismaClient } from './generated/prisma/client.js';
+
+export const client = new PrismaClient({ adapter: new PrismaPg({ connectionString: '' }) });

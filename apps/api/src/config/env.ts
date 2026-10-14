@@ -9,6 +9,10 @@ export const envSchema = z.object({
   /** Ambiente lógico; compõe o prefixo das chaves Redis `cf:{env}:…` (multi-tenancy.md §7). */
   APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+  /** Papel `cf_app` (multi-tenancy.md §5.2): sem BYPASSRLS e sem DDL (US-081 · RN-FND-46). */
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  /** Conexões por réplica (architecture.md §12.1). */
+  DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
   OIDC_ISSUER_URL: z.url(),
   /** Uma ou mais audiências aceitas, separadas por vírgula. */
@@ -36,6 +40,16 @@ export interface AppConfig {
   readonly nodeEnv: Env['NODE_ENV'];
   readonly appEnv: Env['APP_ENV'];
   readonly port: number;
+  readonly database: {
+    readonly url: string;
+    readonly poolSize: number;
+    /** Espera máxima por uma conexão do pool ao abrir a transação. */
+    readonly maxWaitMs: number;
+    /** Duração máxima de uma transação (architecture.md §6.5). */
+    readonly transactionTimeoutMs: number;
+    /** `statement_timeout` de cada instrução, definido por transação. */
+    readonly statementTimeoutMs: number;
+  };
   readonly redis: { readonly cacheUrl: string };
   readonly oidc: {
     readonly issuerUrl: string;
@@ -66,6 +80,13 @@ function toAppConfig(env: Env): AppConfig {
     nodeEnv: env.NODE_ENV,
     appEnv: env.APP_ENV,
     port: env.PORT,
+    database: {
+      url: env.DATABASE_URL,
+      poolSize: env.DATABASE_POOL_SIZE,
+      maxWaitMs: 2_000,
+      transactionTimeoutMs: 10_000,
+      statementTimeoutMs: 5_000,
+    },
     redis: { cacheUrl: env.REDIS_CACHE_URL },
     oidc: {
       issuerUrl: env.OIDC_ISSUER_URL,

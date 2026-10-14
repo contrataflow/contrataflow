@@ -14,6 +14,8 @@ export const SECURITY_ALLOWLISTS = Object.freeze({
   redis: ['**/shared/cache/**', '**/modules/platform/**'],
   /** Repositórios Prisma e shared kernel de banco (DEC-041). */
   prisma: ['**/infrastructure/**', '**/shared/database/**'],
+  /** Construção do PrismaClient e driver: só o shared kernel de banco e os testes de integração. */
+  prismaClient: ['**/shared/database/**', '**/test/**'],
   /** Componente de pré-visualização sanitizada (DEC-056). */
   dangerousHtml: ['**/sanitized-html-preview.tsx'],
   /** Arquivos de configuração de ferramentas (os scripts de tools/ desligam a regra no próprio pacote). */
@@ -62,6 +64,12 @@ export function security() {
       files: CODE_FILES,
       ignores: SECURITY_ALLOWLISTS.prisma,
       rules: { 'contrataflow/no-prisma-outside-infrastructure': 'error' },
+    },
+    {
+      name: 'contrataflow/security/prisma-client',
+      files: CODE_FILES,
+      ignores: SECURITY_ALLOWLISTS.prismaClient,
+      rules: { 'contrataflow/no-prisma-client-outside-database': 'error' },
     },
     {
       name: 'contrataflow/security/dangerous-html',

@@ -4,10 +4,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { runIsolationSuite } from '../../ci/lib/isolation.js';
-import { verifyMigrations } from '../../ci/lib/migrations.js';
+import { listMigrations, verifyMigrations } from '../../ci/lib/migrations.js';
 import type { Migration } from '../../ci/lib/migrations.js';
 import { startPostgres } from '../../ci/lib/postgres.js';
 import type { EphemeralPostgres } from '../../ci/lib/postgres.js';
+import { REPO_ROOT } from '../../lib/workspace.js';
 
 const migration = (name: string, sql: string): Migration => ({
   name,
@@ -25,16 +26,26 @@ async function withPostgres<T>(task: (pg: EphemeralPostgres) => Promise<T>): Pro
   }
 }
 
-const TENANT_TABLE = `CREATE TABLE organizations (id uuid PRIMARY KEY, tenant_id uuid NOT NULL,
+/** Migrações reais do repositório (papéis, `cf_owner`…): toda migração nova roda depois delas. */
+const FOUNDATION = listMigrations(REPO_ROOT);
+
+/** Tabela de tenant no padrão de multi-tenancy.md §15, criada como `cf_owner` (RN-FND-46). */
+function tenantTable(name: string, columns = ''): string {
+  return `SET ROLE cf_owner;
+CREATE TABLE ${name} (id uuid PRIMARY KEY, tenant_id uuid NOT NULL${columns},
   UNIQUE (tenant_id, id));
-ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE organizations FORCE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON organizations USING (tenant_id = current_setting('app.tenant_id')::uuid);`;
+ALTER TABLE ${name} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ${name} FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON ${name} USING (tenant_id = current_setting('app.tenant_id')::uuid);
+RESET ROLE;`;
+}
+
+const TENANT_TABLE = tenantTable('organizations');
 
 describe('[Tenant incorreto] suíte tenant leak no banco', () => {
   it('passa com as migrações do PR e o seed dos tenants A e B', async () => {
     const checks = await withPostgres((pg) =>
-      runIsolationSuite(pg, [migration('001_organizacoes', TENANT_TABLE)]),
+      runIsolationSuite(pg, [...FOUNDATION, migration('901_organizacoes', TENANT_TABLE)]),
     );
     expect(checks.filter((check) => !check.ok)).toEqual([]);
     expect(checks.map((check) => check.name)).toEqual(
@@ -46,20 +57,36 @@ describe('[Tenant incorreto] suíte tenant leak no banco', () => {
     );
   });
 
-  it('falha com tabela de tenant sem FORCE RLS, FK sem tenant_id e unicidade global', async () => {
+  it('falha com tabela de tenant sem FORCE RLS, FK sem tenant_id, unicidade global, tenant_id nulo, tabela sem tenant_id e dono errado', async () => {
     const regression = migration(
-      '002_processos',
+      '902_processos',
       `CREATE TABLE processes (id uuid PRIMARY KEY, tenant_id uuid NOT NULL,
   organization_id uuid REFERENCES organizations (id), number text UNIQUE);
-ALTER TABLE processes ENABLE ROW LEVEL SECURITY;`,
+ALTER TABLE processes ENABLE ROW LEVEL SECURITY;
+SET ROLE cf_owner;
+CREATE TABLE notes (id uuid PRIMARY KEY, tenant_id uuid);
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notes FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON notes USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE TABLE logs (id uuid PRIMARY KEY);
+RESET ROLE;`,
     );
     const checks = await withPostgres((pg) =>
-      runIsolationSuite(pg, [migration('001_organizacoes', TENANT_TABLE), regression]),
+      runIsolationSuite(pg, [
+        ...FOUNDATION,
+        migration('901_organizacoes', TENANT_TABLE),
+        regression,
+      ]),
     );
     const catalog = checks.find((check) => check.name.startsWith('catálogo'));
     expect(catalog?.ok).toBe(false);
     expect(catalog?.detail).toContain(
-      'Tabela public.processes tem tenant_id sem RLS ENABLE + FORCE e política.',
+      'Migração bloqueada: tabela sem RLS — public.processes tem tenant_id sem RLS ENABLE + FORCE e política.',
+    );
+    expect(catalog?.detail).toContain('Tabela public.notes aceita tenant_id nulo');
+    expect(catalog?.detail).toContain('Tabela public.logs sem tenant_id fora da lista fechada');
+    expect(catalog?.detail).toContain(
+      'Tabela public.processes pertence a postgres, não a cf_owner',
     );
     expect(catalog?.detail).toContain('não inclui tenant_id (FK composta — DEC-081).');
     expect(catalog?.detail).toContain('Unicidade processes_number_key em public.processes');
@@ -68,32 +95,40 @@ ALTER TABLE processes ENABLE ROW LEVEL SECURITY;`,
 
 describe('[Falha de banco] migrações do zero e sobre o snapshot da versão publicada', () => {
   it('passam quando o PR só acrescenta migrações compatíveis', async () => {
-    const published = [migration('001_organizacoes', TENANT_TABLE)];
+    const published = [...FOUNDATION, migration('901_organizacoes', TENANT_TABLE)];
     const current = [
       ...published,
-      migration('002_nome', 'ALTER TABLE organizations ADD COLUMN name text;'),
+      migration(
+        '902_nome',
+        'SET ROLE cf_owner;\nALTER TABLE organizations ADD COLUMN name text;\nRESET ROLE;',
+      ),
     ];
     const checks = await withPostgres((pg) => verifyMigrations(pg, current, published, 'v1.0.0'));
-    expect(checks.map((check) => [check.label, check.ok, check.apply.applied])).toEqual([
-      ['do zero', true, ['001_organizacoes', '002_nome']],
-      ['sobre o snapshot v1.0.0', true, ['002_nome']],
+    expect(checks.map((check) => [check.label, check.ok, check.apply.applied.at(-1)])).toEqual([
+      ['do zero', true, '902_nome'],
+      ['sobre o snapshot v1.0.0', true, '902_nome'],
     ]);
+    expect(checks[1]?.apply.applied).toEqual(['902_nome']);
   });
 
   it('migração que só quebra sobre o snapshot falha com o erro nativo do PostgreSQL', async () => {
     // A versão publicada criou a tabela sem `kind`; alguém editou a migração antiga (proibido)
     // e a nova depende disso: do zero passa, sobre o snapshot quebra.
-    const published = [migration('001_config', 'CREATE TABLE settings (id int PRIMARY KEY);')];
+    const published = [...FOUNDATION, migration('901_config', tenantTable('settings'))];
     const current = [
-      migration('001_config', 'CREATE TABLE settings (id int PRIMARY KEY, kind text);'),
-      migration('002_indice', 'CREATE INDEX settings_kind ON settings (kind);'),
+      ...FOUNDATION,
+      migration('901_config', tenantTable('settings', ', kind text')),
+      migration(
+        '902_indice',
+        'SET ROLE cf_owner;\nCREATE INDEX settings_kind ON settings (tenant_id, kind);\nRESET ROLE;',
+      ),
     ];
     const [zero, snapshot] = await withPostgres((pg) =>
       verifyMigrations(pg, current, published, 'v1.0.0'),
     );
     expect(zero?.ok).toBe(true);
     expect(snapshot?.ok).toBe(false);
-    expect(snapshot?.apply.failed?.migration.name).toBe('002_indice');
+    expect(snapshot?.apply.failed?.migration.name).toBe('902_indice');
     expect(snapshot?.apply.failed?.error).toMatch(/ERROR: +column "kind" does not exist/);
   });
 });

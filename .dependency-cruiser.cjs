@@ -198,6 +198,8 @@ module.exports = {
         '^tools/',
         '^packages/(eslint-config|tsconfig)/',
         '(^|/)[^/]+\\.config\\.[cm]?[jt]s$',
+        // Cliente Prisma gerado (US-081): ciclos internos do gerador, fora das fronteiras.
+        '/shared/database/generated/',
       ],
     },
     tsPreCompilationDeps: true,

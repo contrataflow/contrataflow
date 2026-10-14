@@ -2,8 +2,10 @@
 
 - `test/*.spec.ts` — integração com Docker, executada por `pnpm test:integration` (fora do
   `pnpm test`): Testcontainers com Redis (`redis-pipeline.spec.ts`: throttler, idempotência,
-  concorrência e queda do Redis); PostgreSQL + RLS, MinIO e a suíte _tenant leak_ chegam com as
-  stories donas.
+  concorrência e queda do Redis); `database/` (US-081) com PostgreSQL real e as migrações aplicadas
+  por `prisma migrate deploy`: `tenant-isolation.spec.ts` (suíte _tenant leak_ no banco, também em
+  `pnpm test:tenant-leak`) e `persistence.spec.ts` (papéis, concorrência otimista, decimais, falha
+  de banco, travas, snapshots e migrações). MinIO chega com a story dona.
 - `test/support/` — apoio compartilhado pelos testes unitários e de integração: `createTestApi()`
   (aplicação Nest completa com armazenamentos em memória ou Redis, tokens do `FakeJwksProvider`) e
   controllers usados só pelos testes do pipeline.

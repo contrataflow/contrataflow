@@ -1,0 +1,56 @@
+// Schema único da API (US-081 · DEC-001/002/003/083). Convenções:
+// - modelo PascalCase singular e campo camelCase no código; tabela snake_case plural e coluna
+//   snake_case no banco, sempre por @map/@@map (DEC-001 · RN-FND-40);
+// - chave primária UUIDv7 gerada pela aplicação (`newId()`), nunca pelo banco (DEC-002 · RN-FND-39);
+// - datas em timestamptz; dinheiro Decimal(18,2), preço unitário/quantidade Decimal(18,4) e
+//   percentual Decimal(9,4), convertidos para decimal.js nos mapeadores (DEC-003 · RN-FND-41);
+// - colunas padrão de DEC-083 e `version` em agregados mutáveis (DEC-055 · RN-FND-42);
+// - RLS, papéis, GRANTs e triggers vivem em SQL bruto nas migrações (RN-FND-45/47).
+// Guia: apps/api/prisma/README.md.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/shared/database/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+  generatedFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// entities.md §1 — situação de um evento do outbox (DEC-161 · ADR-004).
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+
+  @@map("outbox_status")
+}
+
+/// entities.md `OutboxEvent` (módulo platform). Escrito na transação do caso de uso (US-082);
+/// `tenantId` nulo só para eventos de plataforma (DEC-080). Imutável para a aplicação: só o relay
+/// (`cf_relay`) atualiza status/tentativas.
+model OutboxEvent {
+  id            String       @id @db.Uuid
+  tenantId      String?      @map("tenant_id") @db.Uuid
+  eventType     String       @map("event_type") @db.VarChar(80)
+  routingKey    String       @map("routing_key") @db.VarChar(120)
+  eventVersion  Int          @default(1) @map("event_version")
+  aggregateType String       @map("aggregate_type") @db.VarChar(60)
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  processId     String?      @map("process_id") @db.Uuid
+  payload       Json         @db.JsonB
+  metadata      Json         @db.JsonB
+  occurredAt    DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  nextAttemptAt DateTime?    @map("next_attempt_at") @db.Timestamptz(6)
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(6)
+  lastError     String?      @map("last_error")
+
+  @@index([status, occurredAt], map: "outbox_events_pending_idx")
+  @@index([tenantId, aggregateType, aggregateId, occurredAt], map: "outbox_events_aggregate_idx")
+  @@map("outbox_events")
+}

@@ -1236,5 +1236,5 @@ Princípios já fixados para o MVP 5: (1) habilitação por tenant (`features.<f
 ## Referências
 
 - Decisões: DEC-010 a DEC-015, DEC-022 a DEC-026, DEC-040, DEC-041, DEC-050 a DEC-060, DEC-080 a DEC-086, DEC-100 a DEC-108, DEC-130 a DEC-140, DEC-160 a DEC-164, DEC-180 a DEC-184 ([`decisions.md`](decisions.md)).
-- ADRs: [ADR-001](../adr/adr-001-modular-monolith.md), [ADR-002](../adr/adr-002-multi-tenancy.md), [ADR-003](../adr/adr-003-authentication.md), ADR-004 a ADR-011.
+- ADRs: [ADR-001](../adr/adr-001-modular-monolith.md), [ADR-002](../adr/adr-002-multi-tenancy.md), [ADR-003](../adr/adr-003-authentication.md), ADR-004 a ADR-012.
 - MVP 1: [`entities.md`](../mvp-01/entities.md), [`permissions.md`](../mvp-01/permissions.md), [`api.md`](../mvp-01/api.md), [`events.md`](../mvp-01/events.md), [`features.md`](../mvp-01/features.md), [`acceptance-criteria.md`](../mvp-01/acceptance-criteria.md), [`delivery-plan.md`](../mvp-01/delivery-plan.md).
