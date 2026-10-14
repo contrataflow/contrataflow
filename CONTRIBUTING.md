@@ -196,7 +196,12 @@ CI bloqueia o _merge_ (FA-04).
 
 - Modelo _trunk-based_ (RN-FND-08): branches curtas `feat|fix|refactor|test|docs|ci|chore/US-NNN-slug`
   a partir da `main`, sempre implantável.
-- _Squash merge_: o **título do PR** vira a mensagem do commit e segue o padrão de commits.
+- _Squash merge_ nos PRs avulsos: o **título do PR** vira a mensagem do commit e segue o padrão de
+  commits.
+- **Entrega por lote (DEC-068):** os cards do ddx rodam em sequência na `main` local e cada um
+  termina com **um commit** (regras para agentes em `AGENTS.md`). Com a fila vazia, o piloto envia o
+  lote para `lote/<nome>` e abre o PR; com o pipeline verde e o aval do mantenedor, o lote entra por
+  **rebase** — um commit por story na `main` — e a `main` local é realinhada com a do GitHub.
 - Use o modelo `.github/pull_request_template.md` (card, checklist de DoD, impacto em fontes
   canônicas, justificativa de dependência nova).
 - O `.github/CODEOWNERS` pede os revisores obrigatórios. Áreas sensíveis — `apps/api/src/shared/`,
@@ -212,7 +217,8 @@ CI bloqueia o _merge_ (FA-04).
 
 GitHub Actions (DEC-061 · DEC-066). Todo PR contra a `main` roda `.github/workflows/ci.yml`; um
 push novo no mesmo PR cancela a execução anterior. Os checks abaixo são os _required checks_ da
-_ruleset_ da `main` — o merge (só _squash_) exige todos verdes, sem exceção para administradores.
+_ruleset_ da `main` — o merge (_squash_ ou, nos lotes, _rebase_) exige todos verdes, sem exceção
+para administradores.
 Enquanto o projeto tiver um único mantenedor (DEC-067), a _ruleset_ não exige aprovação humana,
 porque o GitHub não deixa ninguém aprovar o próprio PR. Quando entrar a segunda pessoa, religue a
 aprovação dos donos de cada caminho no CODEOWNERS como manda a DEC-067.
