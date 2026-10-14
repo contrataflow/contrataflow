@@ -19,6 +19,7 @@ import {
   readSettings,
   requiredReviewers,
   requiredTeams,
+  teamsToResolve,
   toFnmatch,
 } from '../ci/lib/github-settings.js';
 import { leakMessage } from '../ci/lib/isolation.js';
@@ -79,7 +80,15 @@ const ruleset = buildRuleset(settings, codeowners, teamIds) as {
   bypass_actors: unknown[];
   rules: { type: string; parameters?: Record<string, unknown> }[];
 };
-const rule = (type: string) => ruleset.rules.find((item) => item.type === type)?.parameters ?? {};
+// Com mais de um mantenedor (DEC-067 revertida), os times do CODEOWNERS voltam a aprovar por caminho.
+const teamSettings = {
+  ...settings,
+  ruleset: { ...settings.ruleset, teamReviewersFromCodeowners: true },
+};
+const teamRuleset = buildRuleset(teamSettings, codeowners, teamIds) as typeof ruleset;
+const ruleOf = (set: typeof ruleset, type: string) =>
+  set.rules.find((item) => item.type === type)?.parameters ?? {};
+const rule = (type: string) => ruleOf(ruleset, type);
 
 const runs = (job: Job | undefined) => (job?.steps ?? []).map((step) => step.run ?? '').join('\n');
 const stepIndex = (job: Job | undefined, text: string) =>
@@ -119,11 +128,9 @@ describe('Feature: Pipeline de CI com quality gates (US-079)', () => {
       expect(checks.strict_required_status_checks_policy).toBe(true);
     });
 
-    it('o PR fica elegível só para squash merge, com aprovação de CODEOWNERS', () => {
+    it('o PR fica elegível só para squash merge, com o título validado', () => {
       expect(rule('pull_request')).toMatchObject({
         allowed_merge_methods: ['squash'],
-        require_code_owner_review: true,
-        required_approving_review_count: 1,
         dismiss_stale_reviews_on_push: true,
       });
       expect(settings.repository).toMatchObject({
@@ -247,11 +254,26 @@ describe('Feature: Pipeline de CI com quality gates (US-079)', () => {
       for (const team of ['tech-lead', 'security']) {
         expect(reviewers.find((item) => item.team === team)?.patterns).toContain('.github/**/*');
       }
-      const required = rule('pull_request').required_reviewers as {
+      // Com mais de um mantenedor (DEC-067 revertida), a ruleset exige os times por caminho.
+      const required = ruleOf(teamRuleset, 'pull_request').required_reviewers as {
         file_patterns: string[];
         reviewer: { type: string };
       }[];
+      expect(required.length).toBeGreaterThan(0);
       expect(required.every((item) => item.reviewer.type === 'Team')).toBe(true);
+    });
+
+    it('com mantenedor único (DEC-067), nenhuma aprovação humana é exigida', () => {
+      expect(rule('pull_request')).toMatchObject({
+        required_approving_review_count: 0,
+        require_code_owner_review: false,
+        require_last_push_approval: false,
+      });
+      expect(rule('pull_request')).not.toHaveProperty('required_reviewers');
+      // Só o time do ambiente production precisa existir para aplicar a configuração.
+      expect(teamsToResolve(settings, codeowners)).toEqual(['tech-lead']);
+      const production = settings.environments.find((item) => item.name === 'production');
+      expect(production?.prevent_self_review).toBe(false);
     });
 
     it('nem administradores contornam a ruleset (sem bypass)', () => {
@@ -325,7 +347,7 @@ describe('Feature: Pipeline de CI com quality gates (US-079)', () => {
       expect(requiredTeams(['@contrataflow/engineering'])).toEqual([]);
       expect(toFnmatch('/apps/api/src/shared/')).toBe('apps/api/src/shared/**/*');
       expect(toFnmatch('/pnpm-workspace.yaml')).toBe('pnpm-workspace.yaml');
-      expect(() => buildRuleset(settings, codeowners, new Map())).toThrow(/não encontrado/);
+      expect(() => buildRuleset(teamSettings, codeowners, new Map())).toThrow(/não encontrado/);
     });
   });
 

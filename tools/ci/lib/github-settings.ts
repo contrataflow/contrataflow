@@ -1,7 +1,8 @@
 // Proteção da `main` e configuração do repositório como código (US-079 — RN-FND-20 · Permissões):
 // `.github/repository-settings.json` descreve o estado desejado; daqui saem os payloads da API do
 // GitHub (ruleset da `main`, opções de merge, permissões do Actions e ambientes). Os revisores
-// obrigatórios por caminho vêm do CODEOWNERS (DEC-062: Tech Lead **e** segurança nas áreas sensíveis).
+// obrigatórios por caminho vêm do CODEOWNERS (DEC-062: Tech Lead **e** segurança nas áreas sensíveis)
+// quando `teamReviewersFromCodeowners` está ligado; com mantenedor único (DEC-067) ficam desligados.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -33,6 +34,11 @@ export interface RepositorySettings {
     readonly name: string;
     readonly requiredStatusChecks: readonly string[];
     readonly strict: boolean;
+    /**
+     * Gera `required_reviewers` (times por caminho) a partir do CODEOWNERS. Desligado enquanto o
+     * projeto tem um único mantenedor (DEC-067): ninguém consegue aprovar o próprio PR.
+     */
+    readonly teamReviewersFromCodeowners: boolean;
     readonly pullRequest: Readonly<Record<string, unknown>>;
     /** Achados do CodeQL acima do limiar bloqueiam o merge (regra `code_scanning`). */
     readonly codeScanning: {
@@ -131,11 +137,15 @@ export function buildRuleset(
         type: 'pull_request',
         parameters: {
           ...settings.ruleset.pullRequest,
-          required_reviewers: requiredReviewers(rules).map((item) => ({
-            file_patterns: item.patterns,
-            minimum_approvals: 1,
-            reviewer: { id: teamId(item.team), type: 'Team' },
-          })),
+          ...(settings.ruleset.teamReviewersFromCodeowners
+            ? {
+                required_reviewers: requiredReviewers(rules).map((item) => ({
+                  file_patterns: item.patterns,
+                  minimum_approvals: 1,
+                  reviewer: { id: teamId(item.team), type: 'Team' },
+                })),
+              }
+            : {}),
         },
       },
     ],
@@ -166,7 +176,9 @@ export function teamsToResolve(
   rules: readonly CodeownersRule[],
 ): string[] {
   const teams = new Set<string>();
-  for (const item of requiredReviewers(rules)) teams.add(item.team);
+  if (settings.ruleset.teamReviewersFromCodeowners) {
+    for (const item of requiredReviewers(rules)) teams.add(item.team);
+  }
   for (const environment of settings.environments) {
     for (const team of environment.reviewers) teams.add(team);
   }

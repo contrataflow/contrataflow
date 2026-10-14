@@ -1,5 +1,5 @@
 {
-  "$comment": "Estado desejado do repositório no GitHub (US-079). Aplicar: GH_TOKEN=<admin> pnpm ci:github-settings --apply --repo <dono/nome>. Os required checks precisam ser os nomes exatos dos jobs de .github/workflows/ci.yml (teste em tools/test/ci-pipeline.test.ts). Os revisores obrigatórios por caminho vêm do .github/CODEOWNERS.",
+  "$comment": "Estado desejado do repositório no GitHub (US-079). Aplicar: GH_TOKEN=<admin> pnpm ci:github-settings --apply --repo <dono/nome>. Os required checks precisam ser os nomes exatos dos jobs de .github/workflows/ci.yml (teste em tools/test/ci-pipeline.test.ts). Os revisores obrigatórios por caminho vêm do .github/CODEOWNERS (teamReviewersFromCodeowners). Modo mantenedor único (DEC-067): 0 aprovações, sem CODEOWNERS obrigatório e autoaprovação em production; reverter conforme a DEC-067 quando entrar a segunda pessoa.",
   "organization": "contrataflow",
   "repository": {
     "allow_squash_merge": true,
@@ -29,11 +29,12 @@
       "7. E2E"
     ],
     "strict": true,
+    "teamReviewersFromCodeowners": false,
     "pullRequest": {
-      "required_approving_review_count": 1,
-      "require_code_owner_review": true,
+      "required_approving_review_count": 0,
+      "require_code_owner_review": false,
       "dismiss_stale_reviews_on_push": true,
-      "require_last_push_approval": true,
+      "require_last_push_approval": false,
       "required_review_thread_resolution": true,
       "allowed_merge_methods": ["squash"]
     },
@@ -54,7 +55,7 @@
       "name": "production",
       "reviewers": ["tech-lead"],
       "wait_timer": 0,
-      "prevent_self_review": true
+      "prevent_self_review": false
     }
   ]
 }

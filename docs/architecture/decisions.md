@@ -443,6 +443,23 @@ Código no GitHub e CI/CD com GitHub Actions: estágios obrigatórios para *merg
 - **Estágio 8:** ZAP baseline (`.github/zap/rules.tsv`), k6 smoke (`.github/k6/smoke.js`, p95 < 500 ms) e trace com `traceparent` conhecido consultado no backend (API do Tempo); falha alerta `#cf-ci` e bloqueia o job de promoção (ambiente `production` com aprovação do Tech Lead). O workflow só roda com a variável `CF_STAGING_ENABLED=true` e para merges de *maintainer*.
 - **Política versionada** em `.github/ci-policy.yml` (`ci.coverageThreshold`, `ci.coverageGateEnabled`, licenças e exceções, exceções de CVE): está sob CODEOWNERS de `.github/`, então a aprovação do PR é o registro da exceção. Licenças verificadas só no runtime de api/web/worker; exceções iniciais: `caniuse-lite` (CC-BY-4.0, dados) e o libvips do `sharp` (LGPL, linkagem dinâmica). Registrado em 2026-10-14 (US-079).
 
+### DEC-067 — Repositório público e aprovação com mantenedor único · `Aceita` · flexibiliza DEC-062 e DEC-066 enquanto houver uma só pessoa mantenedora
+- **Repositório público** na organização `contrataflow` do GitHub, por decisão do produto em 2026-10-14. No plano gratuito ficam disponíveis rulesets, CODEOWNERS e CodeQL, sem *GitHub Code Security*. Todo o conteúdo versionado e o histórico ficam públicos: nenhum segredo no repositório (DEC-137) e atenção a material de terceiros, como imagens de referência.
+- **Mantenedor único:** o GitHub não deixa ninguém aprovar o próprio PR, e com uma só pessoa a aprovação obrigatória de CODEOWNERS (DEC-062/DEC-066) bloquearia todo merge. Enquanto for assim, a ruleset da `main` funciona assim:
+  - não exige nenhuma aprovação;
+  - não exige revisão de CODEOWNERS nem aprovação do último push;
+  - não tem revisores obrigatórios por caminho (`teamReviewersFromCodeowners: false` em `.github/repository-settings.json`).
+- **Continuam valendo:** os required checks 1–7 emitidos pelo GitHub Actions, a regra `code_scanning`, o histórico linear, o merge só por *squash* e a ausência de *bypass*.
+- **Produção:** o ambiente `production` mantém a aprovação do time `tech-lead`, com `prevent_self_review: false`: a pessoa que mescla aprova a promoção. Para o `pnpm ci:github-settings -- --apply`, só o time `tech-lead` precisa existir.
+- **Reverter quando** a segunda pessoa entrar nos times `tech-lead`/`security`:
+  - `required_approving_review_count: 1`;
+  - `require_code_owner_review: true`;
+  - `require_last_push_approval: true`;
+  - `teamReviewersFromCodeowners: true`;
+  - `prevent_self_review: true`.
+
+  Depois reaplicar com `pnpm ci:github-settings -- --apply`. `tools/test/ci-pipeline.test.ts` cobre os dois modos. Registrado em 2026-10-14 (US-079).
+
 ---
 
 ## 5. Dados e persistência
