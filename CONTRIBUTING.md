@@ -248,6 +248,8 @@ correção sempre bloqueia — atualize o pacote ou a imagem base.
 `.github/repository-settings.json` (ruleset da `main`, merge só por _squash_, permissões do Actions,
 ambientes `staging` e `production`). Sem `--apply`, mostra o que seria enviado. Com mantenedor
 único (DEC-067), só o time `tech-lead` precisa existir: é ele que aprova o ambiente `production`.
+Com o GitHub CLI logado como administrador, o token sai do próprio `gh`, sem copiá-lo. No
+PowerShell: `$env:GH_TOKEN = gh auth token; pnpm ci:github-settings --apply --repo <dono>/<repo>`.
 
 | Onde                               | Nome                                                                                  | Uso                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------- |
