@@ -181,12 +181,12 @@ Feature: Ambiente local com Docker Compose
 
 ## Dependências
 - **Stories:** US-077 (monorepo, scripts, Node/pnpm — pré-requisito direto). Relacionadas: US-079 (reaproveita este Compose no estágio E2E efêmero), US-081 (schema Prisma consome os bancos aqui criados), US-087 (login real passa a usar este Authentik), US-085 (configura dashboards sobre o perfil `observability` aqui criado).
-- **Decisões/ADRs:** DEC-050, DEC-058, DEC-060, DEC-080, DEC-130, DEC-131, DEC-136, DEC-137; ADR-002, ADR-003, ADR-007.
+- **Decisões/ADRs:** DEC-050, DEC-058, DEC-060, DEC-065, DEC-080, DEC-130, DEC-131, DEC-136, DEC-137; ADR-002, ADR-003, ADR-007.
 - **Configurações:** variáveis de ambiente da tabela "Campos"; nenhuma `TenantSetting` (são dados semeados, não configuração de produto).
 - **Lacunas nas fontes canônicas:** nenhuma (não há 4º bucket: os ativos do tenant usam o bucket `documents`, storage.md §3–§4).
 
 ## Impacto técnico
-- Define as imagens e versões de infraestrutura para todo o backlog (análogo ao papel da US-077 para a stack de aplicação): `postgres:17-bookworm` com extensão `pgvector` (imagem `pgvector/pgvector:pg17`), `redis:7-alpine` (×2 serviços), `minio/minio` + `minio/mc` (bootstrap), `ghcr.io/goauthentik/server` + `.../worker` (mesma *tag* fixa para os dois), `axllent/mailpit`, `gotenberg/gotenberg:8`, `clamav/clamav`; perfil `observability`: `prom/prometheus`, `grafana/grafana`, `grafana/loki`, `grafana/tempo`, `otel/opentelemetry-collector-contrib`. Tags exatas fixadas no `docker-compose.yml` (sem `latest`).
+- Define as imagens e versões de infraestrutura para todo o backlog (análogo ao papel da US-077 para a stack de aplicação): `postgres:17-bookworm` com extensão `pgvector` (imagem `pgvector/pgvector:pg17`), `redis:7-alpine` (×2 serviços), `pgsty/minio` + `pgsty/mc` (bootstrap; *build* comunitário do MinIO — a imagem oficial `minio/minio` deixou de ser distribuída, DEC-065), `ghcr.io/goauthentik/server` + `.../worker` (mesma *tag* fixa para os dois), `axllent/mailpit`, `gotenberg/gotenberg:8`, `clamav/clamav`; perfil `observability`: `prom/prometheus`, `grafana/grafana`, `grafana/loki`, `grafana/tempo`, `otel/opentelemetry-collector-contrib`. Tags exatas fixadas no `docker-compose.yml` (sem `latest`).
 - `minio-bootstrap` e a aplicação do blueprint do Authentik devem ser **idempotentes** (RN-FND-18) para suportar `env:reset` e reexecução em CI (US-079).
 - Volumes nomeados por serviço (`pg-data`, `minio-data`, `authentik-data`) permitem `docker compose down` sem perda e `down -v` para reset total.
 - `pnpm test:integration` (US-077) depende deste Compose subir `postgres`/`redis-cache`/`minio` via Testcontainers ou apontando para os serviços já de pé, a critério da suíte.

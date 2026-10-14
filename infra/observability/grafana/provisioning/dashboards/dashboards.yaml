@@ -1,0 +1,12 @@
+# Dashboards como código: os JSON de infra/observability/grafana/dashboards/ (os mesmos de
+# produção) são carregados na subida. Os painéis D1..Dn chegam com a US-085.
+apiVersion: 1
+
+providers:
+  - name: contrataflow
+    folder: ContrataFlow
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

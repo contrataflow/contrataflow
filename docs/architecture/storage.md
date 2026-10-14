@@ -513,7 +513,7 @@ mc admin policy attach local contrataflow-app --user "$S3_ACCESS_KEY_ID"
 - **Credenciais de dev** só no `.env` local (o repositório traz `.env.example` com placeholders; `gitleaks` no CI). A aplicação usa o usuário `contrataflow-app`, nunca o root.
 - **Diferenças conhecidas em relação à produção:** sem SSE-KMS (o MinIO exige KES), CORS global via `MINIO_API_CORS_ALLOW_ORIGIN`, sem Bucket Key, classes de armazenamento e CloudTrail. O código não depende de headers de criptografia (criptografia padrão do bucket em produção), então o caminho é o mesmo; a validação de KMS acontece em homologação na AWS.
 - **ClamAV em dev é obrigatório** (US-078). Testes de scan geram a string de teste EICAR em tempo de execução — nunca versionada, pois antivírus locais colocariam arquivos do repositório em quarentena. `FakeScanner` só existe em testes unitários e o bootstrap falha se for configurado com `NODE_ENV=production`.
-- **Risco:** mudanças recentes na distribuição da edição comunitária do MinIO. Mitigação: imagem fixada por *digest* e alternativas S3-compatíveis mapeadas para dev (ex.: SeaweedFS, Garage), viáveis porque só usamos a API S3 (DEC-058).
+- **Risco (materializado):** a imagem oficial `minio/minio`/`minio/mc` deixou de ser distribuída no Docker Hub. O Compose da US-078 usa o *build* comunitário `pgsty/minio`/`pgsty/mc` fixado por *digest* (DEC-065); se ele também parar, as alternativas S3-compatíveis mapeadas para dev (ex.: SeaweedFS, Garage) continuam viáveis porque só usamos a API S3 (DEC-058). O bootstrap real está em `infra/minio/minio-bootstrap.sh`.
 
 ---
 

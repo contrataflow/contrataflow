@@ -1,0 +1,25 @@
+# Prometheus do ambiente local (observability.md §11.1). As aplicações rodam no host via
+# `pnpm dev`; os endpoints /metrics nascem na US-084 e os dashboards na US-085 — até lá os alvos
+# web/api aparecem como DOWN, sem afetar nada.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: contrataflow-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:4000']
+        labels:
+          service: api
+
+  - job_name: contrataflow-web
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+        labels:
+          service: web

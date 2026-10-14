@@ -110,3 +110,25 @@ As linhas-alvo da US-077 foram mantidas; as _majors_ abaixo já existem e só en
 ## 7. Política de atualização (RN-FND-09)
 
 Configurada em [`renovate.json5`](../../renovate.json5): janela semanal (segunda-feira antes das 06:00, `America/Sao_Paulo`); maturidade mínima de 3 dias (patch/minor) e 14 dias (major); grupos por ecossistema; _automerge_ só de patch/minor de ferramentas de desenvolvimento e de _digests_ de Actions com CI verde; _majors_ só com aprovação no _Dependency Dashboard_; alertas de segurança fora da janela; Node.js restrito a 24.x, TypeScript a 5.x e pnpm a 10.x; imagens Docker e Actions fixadas por _digest_; `lockFileMaintenance` mensal.
+
+## 8. Imagens de contêiner do ambiente local (US-078 · DEC-065)
+
+Fixadas por _tag_ exata **e** _digest_ em [`infra/docker-compose.yml`](../../infra/docker-compose.yml) e [`infra/compose/`](../../infra/compose/) (o Renovate atualiza os dois com `docker:pinDigests`). Versão escolhida: a mais recente da linha-alvo publicada há pelo menos 3 dias em 2026-10-07.
+
+| Serviço | Imagem | Tag | Observação |
+|---|---|---|---|
+| `postgres` | `pgvector/pgvector` | `0.8.7-pg17-bookworm` | PostgreSQL 17 + pgvector 0.8.7 (DEC-050); `pg_trgm`, `unaccent` e `citext` vêm do contrib |
+| `redis-session` · `redis-cache` | `redis` | `7.4.11-alpine` | dois serviços (DEC-131 · RN-FND-15); cache com `noeviction` (BullMQ) |
+| `minio` · `minio-bootstrap` | `pgsty/minio` · `pgsty/mc` | `RELEASE.2026-08-04T00-00-00Z` · `RELEASE.2026-09-16T00-00-00Z` | _build_ comunitário: a imagem oficial `minio/minio` deixou de ser distribuída (DEC-065) |
+| `authentik-server` · `authentik-worker` | `ghcr.io/goauthentik/server` | `2026.8.3` | mesma imagem e _tag_ (comandos `server`/`worker`); desde 2025.10 o Authentik não usa Redis |
+| `mailpit` | `axllent/mailpit` | `v1.31.4` | |
+| `gotenberg` | `gotenberg/gotenberg` | `8.37.0` | DEC-060 |
+| `clamav` | `clamav/clamav` | `1.5.4` | 1º start baixa a base de assinaturas (volume `clamav-db`) |
+| `prometheus` _(perfil observability)_ | `prom/prometheus` | `v3.15.0` | |
+| `grafana` _(observability)_ | `grafana/grafana` | `12.4.12` | |
+| `loki` _(observability)_ | `grafana/loki` | `3.7.8` | |
+| `tempo` _(observability)_ | `grafana/tempo` | `2.10.8` | |
+| `otel-collector` _(observability)_ | `otel/opentelemetry-collector-contrib` | `0.162.0` | |
+| `api` · `web` · `worker` _(perfil full)_ | `node` (base de `infra/docker/app.Dockerfile`) | `24-bookworm-slim` | mesmo _digest_ do `verify:fresh-clone` |
+
+Medições na estação da §5 (imagens já baixadas): primeira subida com volumes vazios **~3 min 45 s** (dominada pelas migrações do Authentik no 1º start); `pnpm env:up` com o ambiente de pé **~6 s**; `pnpm env:seed` **~4 s**; `pnpm env:smoke` completo **~35 s**.

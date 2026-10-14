@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "pnpm --filter @contrataflow/tools run env:check && turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -24,6 +24,13 @@
     "verify:fresh-clone": "pnpm --filter @contrataflow/tools run verify:fresh-clone",
     "smoke:hello": "pnpm --filter @contrataflow/tools run smoke:hello",
     "secrets:scan": "pnpm --filter @contrataflow/tools run secrets:scan",
+    "env:up": "pnpm --filter @contrataflow/tools run env:up",
+    "env:up:full": "pnpm --filter @contrataflow/tools run env:up:full",
+    "env:seed": "pnpm --filter @contrataflow/tools run env:seed",
+    "env:reset": "pnpm --filter @contrataflow/tools run env:reset",
+    "env:check": "pnpm --filter @contrataflow/tools run env:check",
+    "env:smoke": "pnpm --filter @contrataflow/tools run env:smoke",
+    "env:blueprint": "pnpm --filter @contrataflow/tools run env:blueprint",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -423,6 +423,13 @@ Código no GitHub e CI/CD com GitHub Actions: estágios obrigatórios para *merg
 - Prisma ORM 7.x com `@prisma/adapter-pg` + `pg` 8.x (fixados no catálogo: 7.10.0 / 8.23.1); *fallback*: Prisma 6.x.
 - Depende do resultado do *spike* RT-02 (RLS + contexto por transação + pool em modo transação), que deve ser registrado em ADR antes da US-081. Registrado em 2026-10-07 (US-077).
 
+### DEC-065 — Ambiente local com Docker Compose · `Aceita` · complementa DEC-050 e DEC-058
+- **Imagens fixadas por *tag* exata + *digest*** em `infra/docker-compose.yml` e `infra/compose/*.yml` (Renovate `docker:pinDigests`); linhas e motivos em [`docs/engineering/versions.md`](../engineering/versions.md) §8.
+- **MinIO:** a imagem oficial `minio/minio`/`minio/mc` deixou de ser distribuída no Docker Hub (acesso negado desde 2025). Em dev usamos o *build* comunitário `pgsty/minio`/`pgsty/mc` (mesmo código-fonte AGPL do MinIO, mesma API S3), fixado por *digest*. Como só usamos a API S3 (DEC-058), a troca por SeaweedFS/Garage continua possível sem tocar na aplicação (storage.md §11). Produção usa S3.
+- **Portas publicadas só em `127.0.0.1`** (nada do ambiente local fica exposto na rede da estação); a porta interna nunca muda, só a publicada (`*_PORT` no `.env`).
+- **Usuários de desenvolvimento no Authentik** por *blueprint* gerado a partir do *dataset* do seed (`tools/env/seed/dataset.ts` → `pnpm env:blueprint`), com senha lida do ambiente (`!Env`); um teste falha se o *blueprint* versionado divergir do *dataset*.
+- **Seed provisório:** até existir o schema real (US-081, provisionamento da US-099), `pnpm env:seed` grava os tenants semeados no schema **`dev_seed`** do banco `contrataflow` — fora de `public`, para não colidir com as migrações do Prisma —, com os nomes de tabela/coluna de `entities.md`, `tenant_id` + RLS `ENABLE`/`FORCE` e a política de DEC-082. A US-081 troca o destino do seed pelas tabelas reais e remove o schema `dev_seed`. Registrado em 2026-10-07 (US-078).
+
 ---
 
 ## 5. Dados e persistência

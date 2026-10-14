@@ -9,6 +9,13 @@
     "verify:fresh-clone": "tsx verify-fresh-clone.ts",
     "smoke:hello": "tsx smoke-hello.ts",
     "secrets:scan": "tsx scan-secrets.ts",
+    "env:up": "tsx env/up.ts",
+    "env:up:full": "tsx env/up.ts --profile full",
+    "env:seed": "tsx env/seed.ts",
+    "env:reset": "tsx env/reset.ts",
+    "env:check": "tsx env/check.ts",
+    "env:smoke": "tsx env/smoke.ts",
+    "env:blueprint": "tsx env/blueprint.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run"

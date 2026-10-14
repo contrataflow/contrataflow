@@ -12,25 +12,26 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 
 1. [Ambiente](#ambiente)
 2. [Primeiros passos](#primeiros-passos)
-3. [Estrutura do monorepo](#estrutura-do-monorepo)
-4. [Scripts](#scripts)
-5. [Branches e PRs](#branches-e-prs)
-6. [Commits](#commits)
-7. [Definition of Done](#definition-of-done)
-8. [Dependências](#dependências)
-9. [Segurança](#segurança)
-10. [Fronteiras de dependência](#fronteiras-de-dependência)
-11. [Testes](#testes)
-12. [Geradores](#geradores)
-13. [Decisões e ADRs](#decisões-e-adrs)
+3. [Ambiente local (Docker Compose)](#ambiente-local-docker-compose)
+4. [Estrutura do monorepo](#estrutura-do-monorepo)
+5. [Scripts](#scripts)
+6. [Branches e PRs](#branches-e-prs)
+7. [Commits](#commits)
+8. [Definition of Done](#definition-of-done)
+9. [Dependências](#dependências)
+10. [Segurança](#segurança)
+11. [Fronteiras de dependência](#fronteiras-de-dependência)
+12. [Testes](#testes)
+13. [Geradores](#geradores)
+14. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
-| Ferramenta | Versão                               | Como obter                                                |
-| ---------- | ------------------------------------ | --------------------------------------------------------- |
-| Node.js    | 24.x LTS (`>=24.11.0 <25`, `.nvmrc`) | `fnm use` ou `nvm use` na raiz                            |
-| pnpm       | o do campo `packageManager` (10.x)   | `corepack enable` (o Corepack baixa a versão fixada)      |
-| Docker     | opcional nesta etapa                 | necessário para `test:integration` e `verify:fresh-clone` |
+| Ferramenta    | Versão                               | Como obter                                                                     |
+| ------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| Node.js       | 24.x LTS (`>=24.11.0 <25`, `.nvmrc`) | `fnm use` ou `nvm use` na raiz                                                 |
+| pnpm          | o do campo `packageManager` (10.x)   | `corepack enable` (o Corepack baixa a versão fixada)                           |
+| Docker Engine | com Docker Compose v2                | Linux nativo, macOS ou Windows com WSL 2; ≥ 6 GB de RAM livres para o ambiente |
 
 - **Node fora da versão (FA-01):** com `engine-strict=true`, o `pnpm install` falha com
   `ERR_PNPM_UNSUPPORTED_ENGINE` — use o Node.js 24 LTS (veja `.nvmrc`).
@@ -46,12 +47,106 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 corepack enable
 pnpm install --frozen-lockfile   # valida engines, instala pelo lockfile e instala os hooks
 pnpm build                        # types → validation → editor/ui → apps (cache do Turborepo)
+cp .env.example .env              # valores de desenvolvimento; funcionam sem edição
+pnpm env:up && pnpm env:seed      # infraestrutura local + tenants "Prefeitura A" e "Prefeitura B"
 pnpm dev                          # web :3000, api :4000 e worker
 ```
 
 `pnpm install` só executa scripts de instalação dos pacotes em `onlyBuiltDependencies`
 (`pnpm-workspace.yaml`). O aviso `ignored build scripts` indica um pacote novo com script:
 adicione-o à lista **somente após revisão de segurança** (CODEOWNERS).
+
+`pnpm dev` confere antes a infraestrutura local (`pnpm env:check`) e não sobe api/worker contra um
+ambiente fora do ar (`ENV_NOT_READY`). Para trabalhar só na interface sem Docker, use
+`pnpm --filter @contrataflow/web dev`.
+
+## Ambiente local (Docker Compose)
+
+Todas as dependências de infraestrutura sobem com um comando (US-078 · DEC-065). Os arquivos ficam
+em `infra/` (`docker-compose.yml` + `compose/observability.yml` e `compose/full.yml`) e os scripts
+em `tools/env/`. A primeira subida baixa as imagens e leva até ~10 min; depois, segundos.
+
+```bash
+cp .env.example .env     # uma vez; nada a editar (FA-03 abaixo se uma porta estiver ocupada)
+pnpm env:up              # sobe e espera todos os serviços ficarem healthy
+pnpm env:seed            # idempotente: tenants, unidades, 15 perfis, catálogos, workflows, usuários
+pnpm dev                 # web/api/worker no host, com hot-reload, usando os serviços abaixo
+docker compose stop      # fim do dia: para tudo e preserva os volumes
+pnpm env:reset           # recomeça do zero: down -v + env:up + env:seed
+```
+
+| Comando                               | O que faz                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pnpm env:up`                         | Valida o `.env`, checa portas, `docker compose up -d` e espera os healthchecks e blueprints                   |
+| `pnpm env:up --profile observability` | Idem + Prometheus, Grafana, Loki, Tempo e coletor OTel (FA-02)                                                |
+| `pnpm env:up:full`                    | Idem + api, web e worker em contêiner (perfil `full`, FA-01) — não rode junto com `pnpm dev`                  |
+| `pnpm env:seed`                       | Povoa "Prefeitura A" e "Prefeitura B" (`ENV_NOT_READY` se o ambiente não estiver de pé)                       |
+| `pnpm env:reset`                      | `down -v` (apaga bancos, buckets, IdP e base do ClamAV) + `env:up` + `env:seed`                               |
+| `pnpm env:check`                      | Confere se a infraestrutura padrão está saudável (usado por `pnpm dev`)                                       |
+| `pnpm env:smoke`                      | Smoke test do ambiente: bancos, Redis, buckets, login OIDC, e-mail, PDF, antivírus, isolamento e idempotência |
+| `pnpm env:blueprint`                  | Regenera o blueprint de usuários do Authentik a partir do dataset do seed                                     |
+
+Com o `.env` copiado, `docker compose ps|logs <serviço>|stop` funcionam direto na raiz
+(`COMPOSE_FILE`). Perfis opcionais também podem ficar fixos em `COMPOSE_PROFILES` no `.env`.
+
+### Serviços e portas
+
+Todas as portas são publicadas só em `127.0.0.1`.
+
+| Serviço                                 | Porta no host (variável)                                | Acesso / uso                                                                                                                           |
+| --------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `postgres` (PostgreSQL 17 + pgvector)   | 5432 (`POSTGRES_PORT`)                                  | bancos `contrataflow` (extensões `vector`, `pg_trgm`, `unaccent`, `citext`) e `authentik`; usuário `postgres`                          |
+| `redis-session`                         | 6379 (`REDIS_SESSION_PORT`)                             | sessões do BFF (DEC-131)                                                                                                               |
+| `redis-cache`                           | 6380 (`REDIS_CACHE_PORT`)                               | cache, idempotência, rate limit e filas (`noeviction`)                                                                                 |
+| `minio` + `minio-bootstrap`             | 9000 · 9001 (`MINIO_PORT` · `MINIO_CONSOLE_PORT`)       | API S3 e console (`MINIO_ROOT_USER`); buckets `contrataflow-dev-{quarantine,documents,renditions}`; a aplicação usa `S3_ACCESS_KEY_ID` |
+| `authentik-server` + `authentik-worker` | 9080 · 9443 (`AUTHENTIK_PORT` · `AUTHENTIK_HTTPS_PORT`) | IdP OIDC; admin `akadmin` / `AUTHENTIK_BOOTSTRAP_PASSWORD`; issuer `http://localhost:9080/application/o/contrataflow/`                 |
+| `mailpit`                               | 1025 · 8025 (`MAILPIT_SMTP_PORT` · `MAILPIT_UI_PORT`)   | SMTP e caixa de e-mails em http://localhost:8025                                                                                       |
+| `gotenberg`                             | 3030 (`GOTENBERG_PORT`)                                 | HTML → PDF                                                                                                                             |
+| `clamav`                                | 3310 (`CLAMAV_PORT`)                                    | `clamd` (INSTREAM); 1º start baixa as assinaturas (1–3 min)                                                                            |
+| perfil `observability`                  | 3001 · 9090 · 3100 · 3200 · 4317/4318                   | Grafana (sem login), Prometheus, Loki, Tempo, coletor OTel                                                                             |
+| perfil `full`                           | 3000 · 4000 (`WEB_PORT` · `API_PORT`)                   | web e api em contêiner                                                                                                                 |
+
+### Usuários semeados
+
+O seed cria um usuário por persona de DEC-035 em cada tenant, todos com a senha
+`CF_DEV_USER_PASSWORD` do `.env` (padrão `devpassword`). O login é `<perfil>.<a|b>`, com o perfil em
+minúsculas e `-` no lugar de `_` — por exemplo `requisitante.a` (Ana Ribeiro, só na Prefeitura A),
+`admin-orgao.b`, `autoridade-competente.a`. O e-mail é `<login>@prefeitura-<a|b>.test`. Os grupos
+do Authentik são só informativos: perfis e vínculos por tenant ficam no banco (o Authentik
+autentica, o ContrataFlow autoriza).
+
+Até a US-081 criar o schema real, os dados do seed ficam no schema provisório `dev_seed` do banco
+`contrataflow` (DEC-065), com RLS e o papel `dev_seed_reader` para testar isolamento:
+
+```sql
+BEGIN;
+SET LOCAL ROLE dev_seed_reader;
+SELECT set_config('app.tenant_id', (SELECT id::text FROM dev_seed.tenants WHERE slug = 'prefeitura-a'), true);
+SELECT name FROM dev_seed.organizations;   -- só a Prefeitura A
+ROLLBACK;
+```
+
+### Solução de problemas
+
+- **`ENV_FILE_MISSING` / `ENV_VAR_MISSING` (V-01/V-02):** rode `cp .env.example .env` ou defina a
+  variável indicada. A checagem acontece antes de qualquer chamada ao Docker.
+- **Porta ocupada (FA-03 · `PORT_IN_USE`):** `pnpm env:up` diz qual variável ajustar
+  (ex.: "Porta 5432 ocupada. Ajuste POSTGRES_PORT no .env."). Mude só a porta publicada no `.env` —
+  a interna não muda — e a URL correspondente na seção "Aplicações" (ex.: `DATABASE_URL`).
+- **`SERVICE_UNHEALTHY` (V-04):** o serviço não ficou saudável no tempo limite (padrão 600 s;
+  `ENV_UP_TIMEOUT_SECONDS` no `.env` muda). Veja `docker compose logs <serviço>`; os serviços já
+  saudáveis continuam no ar. Rode `pnpm env:up` de novo depois de corrigir.
+- **`BOOTSTRAP_FAILED` (`env.bootstrap_failed`):** o `minio-bootstrap` terminou com erro ou um
+  blueprint do Authentik ficou com status `error` (V-06) — `docker compose logs minio-bootstrap` ou
+  `docker compose logs authentik-worker`. Blueprints alterados são reaplicados automaticamente no
+  próximo start (FA-04); não é preciso recriar o volume.
+- **`ENV_NOT_READY` (V-05):** `pnpm env:seed`/`pnpm dev` com o ambiente fora do ar — rode `pnpm env:up`.
+- **Dois `pnpm env:up` ao mesmo tempo:** o segundo espera o primeiro terminar; o bootstrap do MinIO
+  e os blueprints são idempotentes.
+- **Sem internet:** com as imagens já no cache local do Docker, `pnpm env:up` funciona offline
+  (FA-06); a atualização das assinaturas do ClamAV só acontece com rede.
+- **Windows:** use o Docker Desktop com WSL 2. Os scripts são TypeScript e rodam no PowerShell ou
+  no Git Bash.
 
 ## Estrutura do monorepo
 
@@ -73,20 +168,21 @@ Pacotes internos se chamam `@contrataflow/<nome>`, são `"private": true` e nunc
 
 ## Scripts
 
-| Comando                   | O que faz                                                                |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `pnpm build`              | Build de todos os pacotes (Turborepo, cache local)                       |
-| `pnpm dev`                | Apps em modo de desenvolvimento                                          |
-| `pnpm lint`               | Prettier + ESLint da raiz e ESLint de cada pacote                        |
-| `pnpm typecheck`          | `tsc --noEmit` em todos os pacotes                                       |
-| `pnpm test`               | Testes unitários (Vitest) — não exigem banco nem Docker                  |
-| `pnpm test:integration`   | Integração com Testcontainers (exige Docker — US-078/US-079)             |
-| `pnpm depcruise`          | Fronteiras de dependência (dependency-cruiser)                           |
-| `pnpm check:versions`     | Versões exatas pelo catálogo e majors duplicadas                         |
-| `pnpm format`             | Formata o repositório com Prettier                                       |
-| `pnpm smoke:hello`        | Sobe os apps já construídos e confere o estado _hello_                   |
-| `pnpm verify:fresh-clone` | Clone limpo em contêiner `node:24-bookworm-slim` (install → test, smoke) |
-| `pnpm secrets:scan`       | Varredura de segredos com gitleaks (Docker)                              |
+| Comando                   | O que faz                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| `pnpm build`              | Build de todos os pacotes (Turborepo, cache local)                                        |
+| `pnpm dev`                | Apps em modo de desenvolvimento (antes confere o ambiente: `env:check`)                   |
+| `pnpm lint`               | Prettier + ESLint da raiz e ESLint de cada pacote                                         |
+| `pnpm typecheck`          | `tsc --noEmit` em todos os pacotes                                                        |
+| `pnpm test`               | Testes unitários (Vitest) — não exigem banco nem Docker                                   |
+| `pnpm test:integration`   | Integração com Testcontainers (exige Docker — US-078/US-079)                              |
+| `pnpm depcruise`          | Fronteiras de dependência (dependency-cruiser)                                            |
+| `pnpm check:versions`     | Versões exatas pelo catálogo e majors duplicadas                                          |
+| `pnpm format`             | Formata o repositório com Prettier                                                        |
+| `pnpm smoke:hello`        | Sobe os apps já construídos e confere o estado _hello_                                    |
+| `pnpm verify:fresh-clone` | Clone limpo em contêiner `node:24-bookworm-slim` (install → test, smoke)                  |
+| `pnpm secrets:scan`       | Varredura de segredos com gitleaks (Docker)                                               |
+| `pnpm env:*`              | Ambiente local com Docker Compose — veja [Ambiente local](#ambiente-local-docker-compose) |
 
 O CI (US-079) roda `pnpm turbo run lint typecheck test` e os demais gates. Os hooks locais
 (husky) são conveniência, não controle: `--no-verify` é permitido localmente, mas o CI bloqueia

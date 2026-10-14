@@ -1,0 +1,22 @@
+# Contexto de build do perfil `full` (infra/docker/app.Dockerfile — US-078).
+# Segredos locais nunca entram na imagem (DEC-137).
+.env
+.env.*
+!.env.example
+
+# Dependências, saídas e caches (a imagem instala e constrói do zero)
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+
+# Fora do build das aplicações
+.git
+.ddesktop
+.claude
+_work
+prototype
+docs
+infra

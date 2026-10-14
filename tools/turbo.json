@@ -14,7 +14,11 @@
         "$TURBO_ROOT$/.dependency-cruiser.cjs",
         "$TURBO_ROOT$/commitlint.config.mjs",
         "$TURBO_ROOT$/.github/CODEOWNERS",
-        "$TURBO_ROOT$/packages/eslint-config/**"
+        "$TURBO_ROOT$/packages/eslint-config/**",
+        "$TURBO_ROOT$/infra/**",
+        "$TURBO_ROOT$/.env.example",
+        "$TURBO_ROOT$/.gitignore",
+        "$TURBO_ROOT$/.dockerignore"
       ]
     }
   }

@@ -1,0 +1,463 @@
+# GERADO por `pnpm env:blueprint` a partir de tools/env/seed/dataset.ts — não edite à mão.
+# Usuários de desenvolvimento (um por persona de DEC-035 em cada tenant semeado — US-078).
+# A senha vem de CF_DEV_USER_PASSWORD (.env); nenhum segredo neste arquivo (RN-FND-19).
+version: 1
+metadata:
+  name: 'ContrataFlow — usuários de desenvolvimento'
+  labels:
+    blueprints.goauthentik.io/description: 'Usuários por persona dos tenants semeados (US-078). Somente ambiente local/CI.'
+entries:
+  - model: authentik_core.group
+    id: group-dev
+    identifiers:
+      name: 'ContrataFlow — desenvolvimento'
+  - model: authentik_core.group
+    id: group-admin-orgao
+    identifiers:
+      name: 'ContrataFlow — ADMIN_ORGAO'
+  - model: authentik_core.group
+    id: group-gestor-contratacoes
+    identifiers:
+      name: 'ContrataFlow — GESTOR_CONTRATACOES'
+  - model: authentik_core.group
+    id: group-requisitante
+    identifiers:
+      name: 'ContrataFlow — REQUISITANTE'
+  - model: authentik_core.group
+    id: group-planejamento
+    identifiers:
+      name: 'ContrataFlow — PLANEJAMENTO'
+  - model: authentik_core.group
+    id: group-compras
+    identifiers:
+      name: 'ContrataFlow — COMPRAS'
+  - model: authentik_core.group
+    id: group-licitacoes
+    identifiers:
+      name: 'ContrataFlow — LICITACOES'
+  - model: authentik_core.group
+    id: group-contabilidade
+    identifiers:
+      name: 'ContrataFlow — CONTABILIDADE'
+  - model: authentik_core.group
+    id: group-juridico
+    identifiers:
+      name: 'ContrataFlow — JURIDICO'
+  - model: authentik_core.group
+    id: group-controle-interno
+    identifiers:
+      name: 'ContrataFlow — CONTROLE_INTERNO'
+  - model: authentik_core.group
+    id: group-autoridade-competente
+    identifiers:
+      name: 'ContrataFlow — AUTORIDADE_COMPETENTE'
+  - model: authentik_core.group
+    id: group-fiscal-contrato
+    identifiers:
+      name: 'ContrataFlow — FISCAL_CONTRATO'
+  - model: authentik_core.group
+    id: group-gestor-contrato
+    identifiers:
+      name: 'ContrataFlow — GESTOR_CONTRATO'
+  - model: authentik_core.group
+    id: group-auditor
+    identifiers:
+      name: 'ContrataFlow — AUDITOR'
+  - model: authentik_core.group
+    id: group-somente-leitura
+    identifiers:
+      name: 'ContrataFlow — SOMENTE_LEITURA'
+  - model: authentik_core.group
+    id: group-consultor-externo
+    identifiers:
+      name: 'ContrataFlow — CONSULTOR_EXTERNO'
+  - model: authentik_core.user
+    identifiers:
+      username: 'admin-orgao.a'
+    attrs:
+      name: 'Carla Mendes'
+      email: 'admin-orgao.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-admin-orgao
+  - model: authentik_core.user
+    identifiers:
+      username: 'gestor-contratacoes.a'
+    attrs:
+      name: 'Gustavo Lima'
+      email: 'gestor-contratacoes.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-gestor-contratacoes
+  - model: authentik_core.user
+    identifiers:
+      username: 'requisitante.a'
+    attrs:
+      name: 'Ana Ribeiro'
+      email: 'requisitante.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-requisitante
+  - model: authentik_core.user
+    identifiers:
+      username: 'planejamento.a'
+    attrs:
+      name: 'Paulo Teixeira'
+      email: 'planejamento.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-planejamento
+  - model: authentik_core.user
+    identifiers:
+      username: 'compras.a'
+    attrs:
+      name: 'Fábio Moreira'
+      email: 'compras.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-compras
+  - model: authentik_core.user
+    identifiers:
+      username: 'licitacoes.a'
+    attrs:
+      name: 'Larissa Campos'
+      email: 'licitacoes.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-licitacoes
+  - model: authentik_core.user
+    identifiers:
+      username: 'contabilidade.a'
+    attrs:
+      name: 'Cláudio Nunes'
+      email: 'contabilidade.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-contabilidade
+  - model: authentik_core.user
+    identifiers:
+      username: 'juridico.a'
+    attrs:
+      name: 'Juliana Prado'
+      email: 'juridico.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-juridico
+  - model: authentik_core.user
+    identifiers:
+      username: 'controle-interno.a'
+    attrs:
+      name: 'Ingrid Costa'
+      email: 'controle-interno.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-controle-interno
+  - model: authentik_core.user
+    identifiers:
+      username: 'autoridade-competente.a'
+    attrs:
+      name: 'Roberto Azevedo'
+      email: 'autoridade-competente.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-autoridade-competente
+  - model: authentik_core.user
+    identifiers:
+      username: 'fiscal-contrato.a'
+    attrs:
+      name: 'Felipe Rocha'
+      email: 'fiscal-contrato.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-fiscal-contrato
+  - model: authentik_core.user
+    identifiers:
+      username: 'gestor-contrato.a'
+    attrs:
+      name: 'Gabriela Souza'
+      email: 'gestor-contrato.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-gestor-contrato
+  - model: authentik_core.user
+    identifiers:
+      username: 'auditor.a'
+    attrs:
+      name: 'Augusto Dias'
+      email: 'auditor.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-auditor
+  - model: authentik_core.user
+    identifiers:
+      username: 'somente-leitura.a'
+    attrs:
+      name: 'Sérgio Leite'
+      email: 'somente-leitura.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-somente-leitura
+  - model: authentik_core.user
+    identifiers:
+      username: 'consultor-externo.a'
+    attrs:
+      name: 'Eduarda Farias'
+      email: 'consultor-externo.a@prefeitura-a.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-consultor-externo
+  - model: authentik_core.user
+    identifiers:
+      username: 'admin-orgao.b'
+    attrs:
+      name: 'Beatriz Alves'
+      email: 'admin-orgao.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-admin-orgao
+  - model: authentik_core.user
+    identifiers:
+      username: 'gestor-contratacoes.b'
+    attrs:
+      name: 'Henrique Barros'
+      email: 'gestor-contratacoes.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-gestor-contratacoes
+  - model: authentik_core.user
+    identifiers:
+      username: 'requisitante.b'
+    attrs:
+      name: 'Bruno Carvalho'
+      email: 'requisitante.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-requisitante
+  - model: authentik_core.user
+    identifiers:
+      username: 'planejamento.b'
+    attrs:
+      name: 'Patrícia Gomes'
+      email: 'planejamento.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-planejamento
+  - model: authentik_core.user
+    identifiers:
+      username: 'compras.b'
+    attrs:
+      name: 'Marcos Pinto'
+      email: 'compras.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-compras
+  - model: authentik_core.user
+    identifiers:
+      username: 'licitacoes.b'
+    attrs:
+      name: 'Lúcia Martins'
+      email: 'licitacoes.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-licitacoes
+  - model: authentik_core.user
+    identifiers:
+      username: 'contabilidade.b'
+    attrs:
+      name: 'Vitor Cardoso'
+      email: 'contabilidade.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-contabilidade
+  - model: authentik_core.user
+    identifiers:
+      username: 'juridico.b'
+    attrs:
+      name: 'Renata Freitas'
+      email: 'juridico.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-juridico
+  - model: authentik_core.user
+    identifiers:
+      username: 'controle-interno.b'
+    attrs:
+      name: 'Otávio Ramos'
+      email: 'controle-interno.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-controle-interno
+  - model: authentik_core.user
+    identifiers:
+      username: 'autoridade-competente.b'
+    attrs:
+      name: 'Helena Duarte'
+      email: 'autoridade-competente.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-autoridade-competente
+  - model: authentik_core.user
+    identifiers:
+      username: 'fiscal-contrato.b'
+    attrs:
+      name: 'Igor Monteiro'
+      email: 'fiscal-contrato.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-fiscal-contrato
+  - model: authentik_core.user
+    identifiers:
+      username: 'gestor-contrato.b'
+    attrs:
+      name: 'Mariana Lopes'
+      email: 'gestor-contrato.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-gestor-contrato
+  - model: authentik_core.user
+    identifiers:
+      username: 'auditor.b'
+    attrs:
+      name: 'Tiago Correia'
+      email: 'auditor.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-auditor
+  - model: authentik_core.user
+    identifiers:
+      username: 'somente-leitura.b'
+    attrs:
+      name: 'Sofia Batista'
+      email: 'somente-leitura.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-somente-leitura
+  - model: authentik_core.user
+    identifiers:
+      username: 'consultor-externo.b'
+    attrs:
+      name: 'Daniel Vieira'
+      email: 'consultor-externo.b@prefeitura-b.test'
+      path: 'contrataflow/dev'
+      type: internal
+      is_active: true
+      password: !Env CF_DEV_USER_PASSWORD
+      groups:
+        - !KeyOf group-dev
+        - !KeyOf group-consultor-externo

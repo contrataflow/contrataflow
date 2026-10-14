@@ -4,6 +4,6 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["*.ts", "lib", "test", "turbo", "fresh-clone"],
+  "include": ["*.ts", "lib", "test", "turbo", "fresh-clone", "env"],
   "exclude": ["fixtures", "turbo/generators/templates"]
 }

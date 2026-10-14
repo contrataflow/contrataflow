@@ -1,0 +1,92 @@
+# Provider OIDC confidencial do BFF e aplicação ContrataFlow (US-078 · RN-FND-17 · DEC-130).
+# Idempotente por `identifiers`: reaplicado a cada start do Authentik e a cada mudança (FA-04).
+# Client ID/secret, URL da aplicação e senha dos usuários vêm do ambiente (!Env) — nenhum
+# segredo neste arquivo (RN-FND-19).
+version: 1
+metadata:
+  name: 'ContrataFlow — OIDC (BFF)'
+  labels:
+    blueprints.goauthentik.io/description: 'Provider OIDC confidencial do BFF (Authorization Code + PKCE) e aplicação ContrataFlow. Somente ambiente local/CI.'
+entries:
+  # Dependências: fluxos e escopos padrão precisam existir antes do provider (1º start).
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: 'Default - Authentication flow'
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: 'Default - Provider authorization flow (implicit consent)'
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: 'Default - Provider invalidation flow'
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: 'System - OAuth2 Provider - Scopes'
+      required: true
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider
+    identifiers:
+      name: 'ContrataFlow (BFF)'
+    attrs:
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      # Cliente confidencial; só Authorization Code (+ refresh) — implícito, híbrido e password
+      # desabilitados (RN-IAM-01). PKCE S256 é exigido pelo BFF (US-087).
+      client_type: confidential
+      client_id: !Env CF_OIDC_CLIENT_ID
+      client_secret: !Env CF_OIDC_CLIENT_SECRET
+      grant_types:
+        - authorization_code
+        - refresh_token
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ['%s/api/auth/callback', !Env CF_APP_BASE_URL]
+          redirect_uri_type: authorization
+        - matching_mode: strict
+          url: !Format ['%s/', !Env CF_APP_BASE_URL]
+          redirect_uri_type: logout
+      # `sub` = UUID do usuário no Authentik (DEC-130); issuer por provider:
+      # http://localhost:<AUTHENTIK_PORT>/application/o/contrataflow/
+      sub_mode: user_uuid
+      issuer_mode: per_provider
+      include_claims_in_id_token: true
+      access_code_validity: minutes=1
+      access_token_validity: minutes=5
+      # Teto absoluto da sessão (DEC-131: 12 h).
+      refresh_token_validity: hours=12
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [
+            authentik_providers_oauth2.scopemapping,
+            [managed, goauthentik.io/providers/oauth2/scope-openid],
+          ]
+        - !Find [
+            authentik_providers_oauth2.scopemapping,
+            [managed, goauthentik.io/providers/oauth2/scope-email],
+          ]
+        - !Find [
+            authentik_providers_oauth2.scopemapping,
+            [managed, goauthentik.io/providers/oauth2/scope-profile],
+          ]
+        - !Find [
+            authentik_providers_oauth2.scopemapping,
+            [managed, goauthentik.io/providers/oauth2/scope-offline_access],
+          ]
+
+  - model: authentik_core.application
+    identifiers:
+      slug: contrataflow
+    attrs:
+      name: ContrataFlow
+      provider: !KeyOf provider
+      meta_launch_url: !Env CF_APP_BASE_URL
+      policy_engine_mode: any
