@@ -211,17 +211,19 @@ CI bloqueia o _merge_ (FA-04).
 
 GitHub Actions (DEC-061 · DEC-066). Todo PR contra a `main` roda `.github/workflows/ci.yml`; um
 push novo no mesmo PR cancela a execução anterior. Os checks abaixo são os _required checks_ da
-_ruleset_ da `main` — o merge (só _squash_) exige todos verdes **e** a aprovação dos donos de cada
-caminho no CODEOWNERS, sem exceção para administradores.
+_ruleset_ da `main` — o merge (só _squash_) exige todos verdes, sem exceção para administradores.
+Enquanto o projeto tiver um único mantenedor (DEC-067), a _ruleset_ não exige aprovação humana,
+porque o GitHub não deixa ninguém aprovar o próprio PR. Quando entrar a segunda pessoa, religue a
+aprovação dos donos de cada caminho no CODEOWNERS como manda a DEC-067.
 
 | Check                  | O que roda                                                                                                                                          | Rodar localmente                                                                          |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `1. Higiene`           | `pnpm install --frozen-lockfile`, título do PR (commitlint), gitleaks nos commits do PR, licenças de runtime, `check:versions`                      | `pnpm secrets:scan`, `pnpm ci:licenses`, `pnpm check:versions`                            |
 | `2. Estático`          | `turbo run lint typecheck` (erros viram anotação no arquivo e na linha), `depcruise`, actionlint, Semgrep (`.semgrep/rules/`, com `semgrep --test`) | `pnpm turbo run lint typecheck`, `pnpm depcruise`                                         |
 | `2. Estático (CodeQL)` | CodeQL `security-extended`; achado alto ou crítico bloqueia pela regra `code_scanning`                                                              | —                                                                                         |
-| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                    | `pnpm ci:contract -- --base origin/main`                                                  |
+| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                    | `pnpm ci:contract --base origin/main`                                                     |
 | `4. Testes`            | unitários (com cobertura) → cobertura do código novo → integração (Testcontainers) → `test:tenant-leak` → `test:authz`                              | `pnpm turbo run test`, `pnpm ci:coverage`, `pnpm turbo run test:tenant-leak`              |
-| `5. Migrações`         | lint expand/contract, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de RLS e FK composta        | `pnpm ci:migrations -- --base origin/main`                                                |
+| `5. Migrações`         | lint expand/contract, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de RLS e FK composta        | `pnpm ci:migrations --base origin/main`                                                   |
 | `6. Imagens`           | `infra/docker/prod.Dockerfile` por app, SBOM (Syft), Trivy + gate de CVE, assinatura cosign                                                         | `docker build -f infra/docker/prod.Dockerfile --build-arg APP=api --target runtime-api .` |
 | `7. E2E`               | Compose da US-078 num projeto próprio, `env:seed`, Playwright + axe-core (`apps/web/test/e2e`)                                                      | `pnpm env:up && pnpm env:seed && pnpm turbo run test:e2e`                                 |
 
@@ -241,9 +243,10 @@ exceções de CVE **sem** correção disponível, com prazo (`reviewBy`). CVE cr
 correção sempre bloqueia — atualize o pacote ou a imagem base.
 
 **Configuração do repositório** (por quem administra; repetir quando o arquivo mudar):
-`GH_TOKEN=<token de admin> pnpm ci:github-settings -- --apply --repo <dono>/<repo>` aplica
+`GH_TOKEN=<token de admin> pnpm ci:github-settings --apply --repo <dono>/<repo>` aplica
 `.github/repository-settings.json` (ruleset da `main`, merge só por _squash_, permissões do Actions,
-ambientes `staging` e `production`). Sem `--apply`, mostra o que seria enviado.
+ambientes `staging` e `production`). Sem `--apply`, mostra o que seria enviado. Com mantenedor
+único (DEC-067), só o time `tech-lead` precisa existir: é ele que aprova o ambiente `production`.
 
 | Onde                               | Nome                                                                                  | Uso                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------- |
