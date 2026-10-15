@@ -49,6 +49,9 @@ const SETTINGS_ROUTE =
 const CATALOG_ROUTE =
   'Catálogos (US-104): a suíte genérica ainda não tem fixture de item de catálogo do tenant B; o isolamento (404 em CAT-03..05, 422 REFERENCE_NOT_FOUND em parentId/orderedIds de B, lista sem vazamento e RLS de catalog_items) é coberto em test/tenant-leak/catalog.spec.ts, com administradores nos dois tenants.';
 
+const CALENDAR_ROUTE =
+  'Calendário (US-106): a suíte genérica ainda não tem fixture de feriado do tenant B; o isolamento (404 em CAL-03/04, lista e cálculo de dias úteis sem os feriados de B e RLS de holidays) é coberto em test/tenant-leak/calendar.spec.ts, com administradores nos dois tenants.';
+
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
@@ -75,6 +78,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'CAT-04': { kind: 'exempt', reason: CATALOG_ROUTE },
   'CAT-05': { kind: 'exempt', reason: CATALOG_ROUTE },
   'CAT-06': { kind: 'exempt', reason: CATALOG_ROUTE },
+  'CAL-01': { kind: 'exempt', reason: CALENDAR_ROUTE },
+  'CAL-02': { kind: 'exempt', reason: CALENDAR_ROUTE },
+  'CAL-03': { kind: 'exempt', reason: CALENDAR_ROUTE },
+  'CAL-04': { kind: 'exempt', reason: CALENDAR_ROUTE },
+  'CAL-05': { kind: 'exempt', reason: CALENDAR_ROUTE },
+  'CAL-06': { kind: 'exempt', reason: CALENDAR_ROUTE },
   'SET-01': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-02': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-03': { kind: 'exempt', reason: SETTINGS_ROUTE },

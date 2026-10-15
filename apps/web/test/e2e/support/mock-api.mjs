@@ -82,6 +82,24 @@ const catalogItems = [
   version: 1,
 }));
 
+// Calendário (US-106 · CAL-01..04): feriados de 2026 (Natal de sistema, Carnaval facultativo e um
+// feriado municipal próprio), só o necessário para o SCR-110. Versão por feriado com `If-Match`;
+// feriado de sistema nunca é excluído nem renomeado.
+const holidays = [
+  ['2026-02-17', 'Carnaval (terça-feira)', 'OPTIONAL', true, 'c3'],
+  ['2026-10-12', 'Aniversário da cidade', 'MUNICIPAL', false, 'c4'],
+  ['2026-12-25', 'Natal', 'NATIONAL', true, 'c5'],
+].map(([date, name, scope, isSystem, key]) => ({
+  id: `0192a000-0000-7000-8000-00000000${key}00`,
+  date,
+  name,
+  scope,
+  isRecurring: isSystem,
+  isActive: true,
+  isSystem,
+  version: 1,
+}));
+
 // Órgãos (US-101 · ORG-01..04): um órgão principal ativo e um fundo, só o necessário para o SCR-032.
 const organizations = [
   ['PMSJ', 'Prefeitura Municipal de São José', '11222333000181', 'DIRECT_ADMINISTRATION'],
@@ -197,6 +215,7 @@ createServer(async (request, response) => {
             { code: 'ORGANIZATION_MANAGE', scopes: [] },
             { code: 'SETTINGS_MANAGE', scopes: [] },
             { code: 'CATALOG_MANAGE', scopes: [] },
+            { code: 'CALENDAR_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -404,6 +423,60 @@ createServer(async (request, response) => {
       Object.assign(item, body, { version: item.version + 1 });
     }
     return send(response, 200, { data: item }, { ETag: `"${item.version}"` });
+  }
+  if (url.pathname === '/api/v1/holidays' && request.method === 'GET') {
+    const year = url.searchParams.get('year') ?? '2026';
+    const items = holidays
+      .filter((holiday) => holiday.date.startsWith(`${year}-`))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return send(response, 200, {
+      data: items,
+      meta: { page: 1, pageSize: 200, totalItems: items.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/holidays' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (
+      holidays.some(
+        (holiday) =>
+          holiday.date === body.date && holiday.name.toLowerCase() === body.name.toLowerCase(),
+      )
+    ) {
+      return problem(response, 409, 'CONFLICT', String(correlationId));
+    }
+    const created = {
+      id: `0192a000-0000-7000-8000-0000000c6${String(holidays.length).padStart(3, '0')}`,
+      date: body.date,
+      name: body.name,
+      scope: body.scope,
+      isRecurring: body.isRecurring ?? false,
+      isActive: true,
+      isSystem: false,
+      version: 1,
+    };
+    holidays.push(created);
+    return send(response, 201, { data: created }, { ETag: '"1"' });
+  }
+  const holidayRoute = /^\/api\/v1\/holidays\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (holidayRoute && (request.method === 'PATCH' || request.method === 'DELETE')) {
+    const holiday = holidays.find((entry) => entry.id === holidayRoute[1]);
+    if (!holiday) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${holiday.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (request.method === 'DELETE') {
+      if (holiday.isSystem)
+        return problem(response, 409, 'CATALOG_ITEM_SYSTEM', String(correlationId));
+      holidays.splice(holidays.indexOf(holiday), 1);
+      response.writeHead(204);
+      return response.end();
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (body.name !== undefined && body.name !== holiday.name && holiday.isSystem) {
+      return problem(response, 409, 'CATALOG_ITEM_SYSTEM', String(correlationId));
+    }
+    Object.assign(holiday, body, { version: holiday.version + 1 });
+    return send(response, 200, { data: holiday }, { ETag: `"${holiday.version}"` });
   }
   const organizationRoute = /^\/api\/v1\/organizations\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (organizationRoute && request.method === 'GET') {

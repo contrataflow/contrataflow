@@ -1,4 +1,5 @@
 import type { AnyDomainEventDefinition } from './define.js';
+import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import { DocumentTypeChanged } from '../document/events.js';
 import {
@@ -20,6 +21,7 @@ import {
  */
 export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDefinition>> = {
   CatalogItemChanged,
+  HolidayChanged,
   DocumentTypeChanged,
   OrganizationCreated,
   OrganizationUpdated,

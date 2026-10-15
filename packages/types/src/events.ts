@@ -15,6 +15,7 @@ export const DOMAIN_EVENT_NAMES = [
   'TenantDeactivated',
   'TenantSettingsChanged',
   'CatalogItemChanged',
+  'HolidayChanged',
 ] as const satisfies readonly string[];
 
 export type DomainEventName = (typeof DOMAIN_EVENT_NAMES)[number];

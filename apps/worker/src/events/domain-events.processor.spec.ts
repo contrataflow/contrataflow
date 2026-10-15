@@ -204,6 +204,12 @@ describe('ConfigCacheInvalidator (US-061 · RN-DOC-12)', () => {
     expect(cache.deleted).toEqual([`${TENANT}:catalog:items`]);
   });
 
+  it('catalog.holiday_changed (US-106) apaga em bloco o calendário por ano do tenant do evento', async () => {
+    const cache = new MemoryCache();
+    await handlerOf(cache).handle(envelope('catalog.holiday_changed'));
+    expect(cache.deleted).toEqual([`${TENANT}:catalog:holidays:*`]);
+  });
+
   it('é idempotente (reentrega só repete o DEL) e ignora evento de plataforma', async () => {
     const cache = new MemoryCache();
     const handler = handlerOf(cache);

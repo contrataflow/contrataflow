@@ -945,12 +945,12 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 ### CAL-01 — Listar feriados
 `GET /api/v1/holidays` · **Permissão:** implícita · **Story:** US-106
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** query `year` (int, obrigatoriedade e padrão não especificados na story — **a definir na implementação**); paginação padrão (api.md §1.2)
+- **Parâmetros:** query `year` (int 1900–2200, Não; padrão: o ano corrente no fuso do tenant); paginação padrão (api.md §1.2; `pageSize` padrão 100, máximo 200)
 - **Request:** —
 - **Response:** `200 { data: Holiday[], meta }`
 - **Erros:** —
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** Feriados do ano (ativos e inativos) por data e nome; `year` inválido → 422 `VALIDATION_ERROR` em `year`.
 
 ### CAL-02 — Criar feriado
 `POST /api/v1/holidays` · **Permissão:** `CALENDAR_MANAGE` · **Story:** US-106
@@ -967,7 +967,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 422 | `VALIDATION_ERROR` | `REQUIRED`/`INVALID_FORMAT` (data) |
 
 - **Efeitos:** Evento `HolidayChanged` (`catalog.holiday_changed`, `change=CREATED`); auditoria `holiday.create` (`CONFIGURATION`, `date`/`name`/`scope`).
-- **Notas:** RN-TEN-76.
+- **Notas:** RN-TEN-76. `scope` aceita `STATE`, `MUNICIPAL` ou `OPTIONAL` (`NATIONAL` só nasce do seed — 422 em `scope`); `isSystem` e `isActive` do cliente são descartados (novo feriado: `isSystem = false`, ativo). Data ausente → `REQUIRED`; formato ou data inexistente → `INVALID_FORMAT`. Cadastro retroativo é permitido e nunca recalcula `dueAt` (RN-TEN-79). O nome é comparado sem diferenciar maiúsculas; duas criações simultâneas do mesmo feriado: uma 201, a outra 409 `CONFLICT`. Resposta com `Location` e `ETag`.
 
 ### CAL-03 — Atualizar feriado
 `PATCH /api/v1/holidays/{id}` · **Permissão:** `CALENDAR_MANAGE` · **Story:** US-106
@@ -981,12 +981,13 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem `CALENDAR_MANAGE` |
 | 404 | `NOT_FOUND` | Inexistente/outro tenant |
-| 409 | `CATALOG_ITEM_SYSTEM` | Alterar código de feriado de sistema (`isSystem`) |
+| 409 | `CATALOG_ITEM_SYSTEM` | Alterar o nome de feriado de sistema (`isSystem`) |
+| 409 | `CONFLICT` | O novo nome repete `(date, name)` de outro feriado |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-| 422 | `VALIDATION_ERROR` | `REQUIRED`/`INVALID_FORMAT` |
+| 422 | `VALIDATION_ERROR` | `REQUIRED`/`INVALID_FORMAT`; `NOT_ALLOWED` em `scope` (`NATIONAL` num feriado que não é de sistema) |
 
 - **Efeitos:** Evento `HolidayChanged` (`catalog.holiday_changed`, `change=UPDATED`); auditoria `holiday.update` (`CONFIGURATION`, campos alterados).
-- **Notas:** Feriados de sistema podem ser desativados (`isActive:false`) mas não excluídos — ver `CAL-04`.
+- **Notas:** Feriados de sistema podem ser desativados (`isActive:false`) e ter `scope`/`isRecurring` ajustados, mas não renomeados nem excluídos — ver `CAL-04`. A data não é editável (excluir e recadastrar). Nada alterado → 200 sem nova versão, auditoria nem evento. O 412 traz `currentVersion`. Nunca recalcula `dueAt` já gravados (RN-TEN-79).
 
 ### CAL-04 — Excluir feriado
 `DELETE /api/v1/holidays/{id}` · **Permissão:** `CALENDAR_MANAGE` · **Story:** US-106
@@ -1004,34 +1005,34 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Evento `HolidayChanged` (`catalog.holiday_changed`, `change=DELETED`); auditoria `holiday.delete` (`CONFIGURATION`, `metadata`: `holidayId`, `date`).
-- **Notas:** Exclusão física permitida apenas para feriados não semeados; feriados de sistema só podem ser desativados (`CAL-03`) — coerente com `CATALOG_ITEM_SYSTEM` em itens de catálogo.
+- **Notas:** `If-Match` desatualizado → 412 (`currentVersion`). Exclusão física permitida apenas para feriados não semeados; feriados de sistema só podem ser desativados (`CAL-03`) — coerente com `CATALOG_ITEM_SYSTEM` em itens de catálogo.
 
 ### CAL-05 — Consultar dias úteis em um intervalo
 `GET /api/v1/calendar/business-days` · **Permissão:** implícita · **Story:** US-106
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** query `from` (data, Sim), `to` (data, Sim)
+- **Parâmetros:** query `from` (data `YYYY-MM-DD`, Sim), `to` (data `YYYY-MM-DD`, Sim; `from` ≤ `to`, no máximo 1.100 dias)
 - **Request:** —
 - **Response:** `200 { data: { businessDays: number, dates: string[] } }`
 - **Erros:**
 
 | HTTP | code | Quando |
 |---|---|---|
-| 422 | `VALIDATION_ERROR` | Datas inválidas/intervalo invertido |
+| 422 | `VALIDATION_ERROR` | Datas inválidas (`REQUIRED`/`INVALID_FORMAT`); intervalo invertido ou acima de 1.100 dias (`OUT_OF_RANGE` em `to`) |
 
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** `dates` traz os dias úteis do intervalo (inclusive as pontas) em ordem; `OPTIONAL` só conta como não útil com `calendar.optionalHolidaysAreNonBusiness = true`; só feriados ativos do próprio tenant entram (RN-TEN-74).
 
 ### CAL-06 — Somar dias úteis a uma data/hora
 `POST /api/v1/calendar/add-business-days` · **Permissão:** implícita (uso interno e por UI) · **Story:** US-106, US-055
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** —
-- **Request:** `{ fromDateTime: string; businessDays: number; dayCountType?: string }` — `businessDays` dentro do intervalo permitido
+- **Request:** `{ fromDateTime: string; businessDays: number; dayCountType?: 'BUSINESS' | 'CALENDAR' }` — `fromDateTime` ISO 8601 em UTC (`Z`); `businessDays` inteiro de 0 a 1.000; `dayCountType` padrão `BUSINESS`
 - **Response:** `200 { data: { dueDateTime: string } }`
 - **Erros:**
 
 | HTTP | code | Quando |
 |---|---|---|
-| 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | `businessDays` fora do intervalo |
+| 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | `businessDays` fora do intervalo (0–1.000) |
 
 - **Efeitos:** —
-- **Notas:** Usado tanto internamente (cálculo de `dueAt` no encaminhamento de etapas — RN-TRAM-78/82/83) quanto pela UI para pré-visualizar o novo prazo antes de confirmar uma sobrescrita (US-055); `dueAt` é sempre o fim do dia no fuso horário do tenant. Indisponibilidade crítica no cálculo retorna `503 DEPENDENCY_UNAVAILABLE` (fora da tabela de erros padrão da seção, citada aqui por ser o único caso adicional da story).
+- **Notas:** Usado tanto internamente (cálculo de `dueAt` no encaminhamento de etapas — RN-TRAM-78/82/83) quanto pela UI para pré-visualizar o novo prazo antes de confirmar uma sobrescrita (US-055); `dueAt` é sempre o fim do dia no fuso horário do tenant. O dia é o dia LOCAL de `fromDateTime` no fuso do tenant (DEC-003); o dia de partida não conta (`businessDays = 0` → fim do próprio dia); `CALENDAR` soma dias corridos sem olhar feriados. Leitura sem efeito colateral: repetir a chamada devolve o mesmo prazo. Indisponibilidade crítica no cálculo retorna `503 DEPENDENCY_UNAVAILABLE` (fora da tabela de erros padrão da seção, citada aqui por ser o único caso adicional da story).

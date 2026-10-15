@@ -157,6 +157,7 @@ model Tenant {
   organizations Organization[]
   settings      TenantSetting[]
   catalogItems  CatalogItem[]
+  holidays      Holiday[]
 
   @@index([status], map: "tenants_status_idx")
   @@map("tenants")
@@ -608,4 +609,39 @@ model CatalogItem {
   @@unique([tenantId, catalogType, id], map: "catalog_items_tenant_id_catalog_type_id_key")
   @@index([tenantId, catalogType, isActive, sortOrder], map: "catalog_items_list_idx")
   @@map("catalog_items")
+}
+
+/// entities.md §2 — `HolidayScope`.
+enum HolidayScope {
+  NATIONAL
+  STATE
+  MUNICIPAL
+  OPTIONAL
+
+  @@map("holiday_scope")
+}
+
+/// entities.md §4 `Holiday` (módulo catalog · US-106): feriado ou ponto facultativo do calendário do
+/// tenant. A unicidade `(tenant_id, date, lower(name))` é índice de expressão na migração, assim
+/// como o índice parcial de ativos, o gatilho de imutabilidade (tenant, data, `isSystem`) e a
+/// proteção contra a exclusão de feriado de sistema (RN-TEN-77).
+model Holiday {
+  id          String       @id @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  date        DateTime     @db.Date
+  name        String       @db.VarChar(120)
+  scope       HolidayScope
+  isRecurring Boolean      @default(false) @map("is_recurring")
+  isSystem    Boolean      @default(false) @map("is_system")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?      @map("created_by_id") @db.Uuid
+  updatedById String?      @map("updated_by_id") @db.Uuid
+  version     Int          @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "holidays_tenant_id_id_key")
+  @@map("holidays")
 }

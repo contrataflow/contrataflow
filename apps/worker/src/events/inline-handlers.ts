@@ -50,6 +50,15 @@ const CONFIG_CACHE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>
 };
 
 /**
+ * Prefixos de chaves de configuração apagados em bloco: o calendário é guardado por ano
+ * (`catalog:holidays:{year}` — architecture.md §6.3), e o feriado alterado pode estar em qualquer
+ * um (US-106).
+ */
+const CONFIG_CACHE_PREFIXES: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  'catalog.holiday_changed': [['catalog', 'holidays']],
+};
+
+/**
  * `ConfigCacheInvalidator`: `DEL` das chaves de configuração do tenant do evento. Idempotente por
  * natureza — reentrega só repete o DEL; se o Redis falha, o job é repetido pela fila e, no pior
  * caso, o cache expira pelo TTL (US-061 · RN-DOC-12).
@@ -63,6 +72,9 @@ export class ConfigCacheInvalidator implements InlineEventHandler {
     if (event.tenantId === null) return;
     for (const segments of CONFIG_CACHE_KEYS[event.routingKey] ?? []) {
       await this.cache.delete(event.tenantId, segments);
+    }
+    for (const segments of CONFIG_CACHE_PREFIXES[event.routingKey] ?? []) {
+      await this.cache.deleteByPrefix(event.tenantId, segments);
     }
   }
 }

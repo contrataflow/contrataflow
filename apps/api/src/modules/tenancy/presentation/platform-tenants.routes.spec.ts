@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { seedHolidaysOf } from '@contrataflow/types';
 import { problemDetailsSchema, SETTING_DEFINITIONS } from '@contrataflow/validation';
 import type { PlatformTenantDto, ProvisionTenantResultDto } from '@contrataflow/validation';
 import request from 'supertest';
@@ -118,18 +119,24 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
         ['catalog.items', 'DONE'],
         ['access.defaultRoles', 'DONE'],
         ['document.systemTypes', 'DONE'],
+        ['catalog.holidays', 'DONE'],
         ['identity.firstAdmin', 'DONE'],
         ['tenancy.complete', 'DONE'],
       ]);
     });
 
-    it('semeia 84 itens de catálogo, 15 perfis padrão, 11 tipos de documento e o vínculo do administrador', () => {
+    it('semeia 84 itens de catálogo, 15 perfis padrão, os feriados dos 2 anos, 11 tipos de documento e o vínculo do administrador', () => {
       const details = Object.fromEntries(
         tenant.provisioning.steps.map((step) => [step.key, step.details]),
       );
       expect(details['tenancy.settings']).toEqual({ settings: SETTING_DEFINITIONS.length });
       expect(details['catalog.items']).toEqual({ items: 84 });
       expect(details['access.defaultRoles']).toEqual({ roles: 15 });
+      // Ano corrente e seguinte (US-106): o relógio do teste é o real.
+      const year = new Date().getFullYear();
+      expect(details['catalog.holidays']).toEqual({
+        holidays: seedHolidaysOf(year).length + seedHolidaysOf(year + 1).length,
+      });
       expect(details['document.systemTypes']).toEqual({ documentTypes: 11 });
       expect(details['identity.firstAdmin']).toEqual({ memberships: 1 });
     });

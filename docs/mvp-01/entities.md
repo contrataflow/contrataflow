@@ -493,8 +493,10 @@ Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
 | `isSystem` | boolean | não | `false` | Semeado; não pode ser excluído (`CATALOG_ITEM_SYSTEM`), só desativado/editado (US-106) |
 | `isActive` | boolean | não | `true` | |
 
-- **Unique:** `(tenant_id, date, lower(name))`.
+- **Unique:** `(tenant_id, date, lower(name))`; também `(tenant_id, id)` (alvo das FKs de outros módulos — DEC-081).
 - **Índices:** `(tenant_id, date) WHERE is_active`.
+- **Integridade:** `tenant_id`, `date` e `is_system` são imutáveis (trigger; para mudar a data, exclui-se e recadastra-se) e o `name` de feriado de sistema também (é a chave natural do seeder); feriado de sistema não é excluído (trigger de `DELETE` — RN-TEN-77). A aplicação tem `DELETE` (CAL-04, só feriado do administrador); o worker, só `SELECT`/`INSERT` (geração do ano seguinte). `NATIONAL` só nasce do seed.
+- **Auditoria/eventos:** `holiday.create`/`holiday.update`/`holiday.delete` e `HolidayChanged` (US-106).
 
 #### NumberSequence (`number_sequences`) — módulo `catalog`
 | Campo | Tipo | Null | Default | Regras |

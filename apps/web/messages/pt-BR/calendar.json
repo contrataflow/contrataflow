@@ -1,0 +1,106 @@
+{
+  "title": "Calendário de dias úteis",
+  "description": "Mantenha os feriados e pontos facultativos da instituição. Eles definem os dias úteis usados no cálculo dos prazos de tramitação. Alterar o calendário não recalcula prazos já gravados.",
+  "year": {
+    "label": "Ano"
+  },
+  "scopes": {
+    "NATIONAL": "Nacional",
+    "STATE": "Estadual",
+    "MUNICIPAL": "Municipal",
+    "OPTIONAL": "Ponto facultativo"
+  },
+  "list": {
+    "new": "Novo feriado",
+    "loading": "Carregando os feriados…",
+    "loadFailed": "Não foi possível carregar o calendário.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum feriado cadastrado para este ano",
+    "emptyHint": "Cadastre os feriados locais para que os prazos considerem esses dias.",
+    "saving": "Salvando…"
+  },
+  "table": {
+    "caption": "Feriados de {year}",
+    "date": "Data",
+    "name": "Feriado",
+    "scope": "Escopo",
+    "status": "Situação",
+    "actions": "Ações"
+  },
+  "badges": {
+    "system": "Padrão do sistema",
+    "recurring": "Recorrente",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "actions": {
+    "edit": "Editar {name}",
+    "editLabel": "Editar",
+    "deactivate": "Desativar {name}",
+    "deactivateLabel": "Desativar",
+    "activate": "Ativar {name}",
+    "activateLabel": "Ativar",
+    "delete": "Excluir {name}",
+    "deleteLabel": "Excluir"
+  },
+  "deactivate": {
+    "title": "Desativar {name}?",
+    "description": "Este dia volta a contar como dia útil nos novos cálculos de prazo. Prazos já gravados não são recalculados.",
+    "cancel": "Cancelar",
+    "confirm": "Desativar"
+  },
+  "delete": {
+    "title": "Excluir {name}?",
+    "description": "O feriado será removido do calendário. Prazos já gravados não são recalculados.",
+    "cancel": "Cancelar",
+    "confirm": "Excluir"
+  },
+  "form": {
+    "createTitle": "Novo feriado",
+    "editTitle": "Editar {name}",
+    "description": "Os campos com * são obrigatórios. Cadastros no passado são permitidos e não recalculam prazos já gravados.",
+    "date": "Data *",
+    "dateHint": "A data não muda depois do cadastro: para alterá-la, exclua o feriado e cadastre-o de novo.",
+    "name": "Nome *",
+    "nameHint": "Até 120 caracteres. O nome não se repete na mesma data.",
+    "nameLockedSystem": "O nome de um feriado padrão do sistema não pode ser alterado.",
+    "scope": "Escopo *",
+    "scopePlaceholder": "Selecione o escopo",
+    "scopeHint": "Pontos facultativos só contam como dia não útil se a configuração do calendário assim definir.",
+    "recurring": "Repetir todos os anos",
+    "recurringHint": "O sistema gera a ocorrência do ano seguinte automaticamente.",
+    "active": "Feriado ativo",
+    "cancel": "Cancelar",
+    "submit": "Salvar",
+    "submitting": "Salvando…"
+  },
+  "validation": {
+    "required": "Informe {field}.",
+    "invalidDate": "Informe uma data válida.",
+    "tooLong": "Informe no máximo {max} caracteres.",
+    "field": {
+      "date": "a data",
+      "name": "o nome",
+      "scope": "o escopo"
+    }
+  },
+  "toast": {
+    "created": "Feriado {name} cadastrado.",
+    "updated": "Feriado {name} atualizado.",
+    "activated": "Feriado {name} ativado.",
+    "deactivated": "Feriado {name} desativado.",
+    "deleted": "Feriado {name} excluído."
+  },
+  "conflict": {
+    "title": "Este feriado foi alterado por outra pessoa. Recarregue o calendário.",
+    "reload": "Recarregar"
+  },
+  "errors": {
+    "permission": "Você não tem permissão para gerenciar o calendário.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+    "generic": "Ocorreu um erro inesperado. Tente novamente.",
+    "notFound": "Este feriado não existe mais. Recarregue o calendário.",
+    "duplicate": "Já existe um feriado com esta data e nome.",
+    "system": "Feriados padrão do sistema não podem ser excluídos."
+  }
+}
