@@ -177,8 +177,14 @@ const EXPORTS = [
   'attachment.download',
   'audit.export',
 ] as const;
-const ACCESS = ['process.confidential_view', 'audit.search'] as const;
-const SYSTEM = ['attachment.scan_result', 'audit.seal'] as const;
+const ACCESS = ['process.confidential_view', 'audit.search', 'queue_dashboard.access'] as const;
+const SYSTEM = [
+  'attachment.scan_result',
+  'audit.seal',
+  'outbox.republish',
+  'dead_letter.retry',
+  'dead_letter.discard',
+] as const;
 
 export type AuditAction =
   | (typeof AUTH_SECURITY)[number]

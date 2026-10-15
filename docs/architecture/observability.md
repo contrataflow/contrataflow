@@ -456,7 +456,7 @@ service:
 
 ## 12. Runbooks iniciais
 
-Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-06 indisponibilidade/5xx da API, RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria.
+Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-06 indisponibilidade/5xx da API, RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais.
 
 ### RB-01 — Lag do outbox
 - **Alertas:** A05, A06, A07.
@@ -502,6 +502,21 @@ Estrutura padrão: alertas → impacto → diagnóstico → mitigação → vali
 - **Mitigação:** reiniciar/escalar clamd; aumentar memória ou desativar `ConcurrentDatabaseReload` (a recarga bloqueia o scan por instantes, mas reduz o pico de memória); espelho privado de assinaturas. **Nunca** desligar o scan nem marcar anexos como `AVAILABLE` manualmente.
 - **Validação:** breaker fechado; fila `file-scan` drenando; `cf_attachments_stuck` = 0 (o reconciliador reenfileira órfãos).
 - **Pós-incidente:** indisponibilidade > 24 h gera rejeições `UPLOAD_EXPIRED` — avisar os usuários afetados para reenviar; revisar capacidade.
+
+### RB-11 — Operação das filas (Bull Board e CLI de reprocessamento)
+Entregável da US-083 ([queues.md](queues.md) §5.6, §11, §12 e §15.1). Para o time de suporte e plantão de plataforma.
+- **Quem pode:** operador de plataforma (`User.isPlatformOperator`) com `PLATFORM_QUEUE_ADMIN` (*claim* `cf_platform_permissions` do cliente OIDC de operação) **e** MFA na sessão. Sem permissão → 403 `PERMISSION_DENIED`; sem MFA → 403 `MFA_REQUIRED` (refazer o login com segundo fator). Toda entrada, negada ou concedida, fica em `queue_dashboard.access`.
+- **Bull Board (inspeção, somente leitura):** porta interna `WORKER_ADMIN_PORT` do worker, alcançada por VPN ou *port forwarding* (SSM) — nunca pela internet. Envie o *access token* do cliente de operação em `Authorization: Bearer …` (ou no cookie `cf_ops_token`). Caminho: `/queues`; saúde: `/health`. Botões de retry/limpeza não funcionam de propósito (405): toda mutação é pela CLI.
+- **Ler um job sem expor dado de negócio:** payloads só têm IDs; o `correlationId` do `meta` abre o *trace* e os logs. Examinar dado do órgão segue o fluxo de suporte de DEC-139.
+- **CLI** (no contêiner do worker, com `CF_OPS_TOKEN` = *access token* do operador; saída JSON para colar no ticket):
+  - `node dist/cli.js dlq:list [--queue <fila>] [--tenant <id>] [--since 1h|ISO]` — fila de origem, classe do erro, tentativas, idade.
+  - `node dist/cli.js dlq:show <id>` — detalhe com redação de campos sensíveis (`id` = `<fila>.<jobId>`).
+  - `node dist/cli.js dlq:retry <id> --ticket <ref> --reason <texto>` — reenfileira na fila de origem com `jobId = <jobId>.r<n>` (auditoria `dead_letter.retry`).
+  - `node dist/cli.js dlq:retry --queue <fila> --since <ts> --ticket <ref> --reason <texto> --dry-run` — confira a lista e rode de novo sem `--dry-run` (um registro de auditoria por job).
+  - `node dist/cli.js dlq:discard <id> --ticket <ref> --reason <texto>` — só com justificativa (auditoria `dead_letter.discard`).
+  - `node dist/cli.js outbox:republish --id <eventId> --ticket <ref> --reason <texto>` — evento `FAILED` corrigido volta a `PENDING` (exige `DATABASE_URL_RELAY`; auditoria `outbox.republish`).
+- **Antes de reprocessar:** remova a causa (RB-02); handlers são idempotentes, então o retry é seguro. Breaker aberto (`cf_circuit_breaker_state = 2`): os jobs da fila ficam em `delayed` e voltam sozinhos a cada 30 s — não reprocesse, restaure a dependência (RB-03, RB-05).
+- **Schedulers:** `deadlines-tick` (15 min, UTC), `audit-seal-tick` (min. 5 de cada hora, UTC) e `maintenance-daily` (03:00 America/Sao_Paulo) são recriados no bootstrap de toda réplica; não os edite pelo Redis. Execução `skipped` (`cf_scheduled_job_skipped_total`) significa outra réplica com a trava — normal se esporádico. Alerta `worker.scheduler_missed_sla` (deadlines > 45 min, audit-seal > 3 h, maintenance > 26 h): verifique se há réplica do worker no ar e se a trava consultiva está presa (`SELECT pid FROM pg_locks WHERE locktype = 'advisory'`).
 
 ### RB-10 — Suspeita de vazamento entre tenants
 Entregável da US-100 (DEC-076 · [multi-tenancy.md](multi-tenancy.md) §12/§14 · [security.md](security.md)). Vale para alerta automático **e** para relato de usuário, órgão ou auditor ("vi dado de outra instituição").

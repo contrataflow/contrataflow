@@ -9,6 +9,12 @@ catalogs:
     '@asteasolutions/zod-to-openapi':
       specifier: 8.5.0
       version: 8.5.0
+    '@bull-board/api':
+      specifier: 9.10.2
+      version: 9.10.2
+    '@bull-board/express':
+      specifier: 9.10.2
+      version: 9.10.2
     '@commitlint/cli':
       specifier: 21.2.3
       version: 21.2.3
@@ -120,6 +126,9 @@ catalogs:
     '@turbo/gen':
       specifier: 2.11.7
       version: 2.11.7
+    '@types/express':
+      specifier: 5.0.6
+      version: 5.0.6
     '@types/node':
       specifier: 24.19.1
       version: 24.19.1
@@ -165,6 +174,9 @@ catalogs:
     eslint-plugin-react-hooks:
       specifier: 7.1.1
       version: 7.1.1
+    express:
+      specifier: 5.2.1
+      version: 5.2.1
     globals:
       specifier: 17.13.0
       version: 17.13.0
@@ -486,7 +498,7 @@ importers:
         version: link:../../packages/validation
       '@hookform/resolvers':
         specifier: 'catalog:'
-        version: 5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.20.0)(react-hook-form@7.89.0(@types/react@19.2.18)(react@19.2.8))(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5)
+        version: 5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.20.0)(react-hook-form@7.89.0(@types/react@19.2.18)(react@19.2.8))(valibot@1.5.0(typescript@5.9.3))(zod@4.6.5)
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
@@ -587,6 +599,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@bull-board/api':
+        specifier: 'catalog:'
+        version: 9.10.2(@bull-board/ui@9.10.2(bullmq@5.81.5)(typescript@5.9.3))(bullmq@5.81.5)(typescript@5.9.3)
+      '@bull-board/express':
+        specifier: 'catalog:'
+        version: 9.10.2(bullmq@5.81.5)(typescript@5.9.3)
       '@contrataflow/editor':
         specifier: workspace:*
         version: link:../../packages/editor
@@ -626,9 +644,15 @@ importers:
       bullmq:
         specifier: 'catalog:'
         version: 5.81.5
+      express:
+        specifier: 'catalog:'
+        version: 5.2.1
       ioredis:
         specifier: 'catalog:'
         version: 5.11.1
+      jose:
+        specifier: 'catalog:'
+        version: 6.2.12
       nestjs-pino:
         specifier: 'catalog:'
         version: 4.6.1(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@11.0.0)(pino@10.4.0)(rxjs@7.8.2)
@@ -663,6 +687,9 @@ importers:
       '@swc/core':
         specifier: 'catalog:'
         version: 1.16.13(@swc/helpers@0.5.23)
+      '@types/express':
+        specifier: 'catalog:'
+        version: 5.0.6
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.1
@@ -1117,6 +1144,24 @@ packages:
   '@bramus/specificity@2.4.3':
     resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
     hasBin: true
+
+  '@bull-board/api@9.10.2':
+    resolution: {integrity: sha512-x/PLmpFI+RxpoFA9Z3kXZH/evVSqwmY59drNRFjFY+h+Ls60pwG2uhx0560qGAz8z6Orv/4kfT/5DcGBuFrF6g==}
+    peerDependencies:
+      '@bull-board/ui': 9.10.2
+      bull: ^4.16.5
+      bullmq: ^5.56.0 || ^6.0.0
+    peerDependenciesMeta:
+      bull:
+        optional: true
+      bullmq:
+        optional: true
+
+  '@bull-board/express@9.10.2':
+    resolution: {integrity: sha512-/sWepkHLRTiyF8ITe7/wp5Dz9zKwEBpPISpddcG31Q+PC3QIAStVp6D7PGlPz/Laore7ySc+JZcXC2H5VHkwpw==}
+
+  '@bull-board/ui@9.10.2':
+    resolution: {integrity: sha512-7VHpIe1XIdxlye0deOmMNbmHGVdkEy9nC/gZZitx9uZA3lLE21i92MPGHLFEvMm0Y33fAswPfvzTc3m4pQFg/Q==}
 
   '@commitlint/cli@21.2.3':
     resolution: {integrity: sha512-5yOX6IRjcrIReCxpyAd04hgI/yhUMpVBJ/ouwFV0wk9yx5+fYRDWZWJ5h55Tbedgfol+5m2mU5nqzbB8g3v0vQ==}
@@ -4216,8 +4261,14 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/body-parser@1.19.6':
+    resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
+
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+
+  '@types/connect@3.4.38':
+    resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
 
   '@types/cookiejar@2.1.5':
     resolution: {integrity: sha512-he+DHOWReW0nghN24E1WUqM0efK4kI9oTqDm6XmK8ZPe2djZ90BSNdGnIyCLzCPw7/pogPlGbzI2wHGGmi4O/Q==}
@@ -4270,11 +4321,20 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
+  '@types/express-serve-static-core@5.1.3':
+    resolution: {integrity: sha512-dPfW8NFiOF4wOHc7+N/QSxlY9cfSsenewGbAz8C8U/MULPd/YZ27LvJUIlzaXie7e6Ove9YunJGgC9tbHD2cKw==}
+
+  '@types/express@5.0.6':
+    resolution: {integrity: sha512-sKYVuV7Sv9fbPIt/442koC7+IIwK5olP1KWeD88e/idgoJqDm3JV/YUiPwkoKK92ylff2MGxSz1CSjsXelx0YA==}
+
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
 
   '@types/http-cache-semantics@4.2.0':
     resolution: {integrity: sha512-L3LgimLHXtGkWikKnsPg0/VFx9OGZaC+eN1u4r+OB1XRqH3meBIAVC2zr1WdMH+RHmnRkqliQAOHNJ/E0j/e0Q==}
+
+  '@types/http-errors@2.0.5':
+    resolution: {integrity: sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -4300,6 +4360,12 @@ packages:
   '@types/pg@8.23.1':
     resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
 
+  '@types/qs@6.15.1':
+    resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
+
+  '@types/range-parser@1.2.7':
+    resolution: {integrity: sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==}
+
   '@types/react-dom@19.2.7':
     resolution: {integrity: sha512-I8bPpDLcHBv1qiIiXDCy71Rt8eQDKJP0sMSWJphDdAcdqiJ1sGpZamavoEIRZmYzjia9LuEb2HlYdDpmoENpvQ==}
     peerDependencies:
@@ -4310,6 +4376,12 @@ packages:
 
   '@types/resolve@1.20.6':
     resolution: {integrity: sha512-A4STmOXPhMUtHH+S6ymgE2GiBSMqf4oTvcQZMcHzokuTLVYzXTB8ttjcgxOVaAp2lGwEdzZ0J+cRbbeevQj1UQ==}
+
+  '@types/send@1.2.1':
+    resolution: {integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==}
+
+  '@types/serve-static@2.2.0':
+    resolution: {integrity: sha512-8mam4H1NHLtu7nmtalF7eyBH14QyOASmcxHhSfEoRyr0nP/YdoesEtU+uSRvMe96TW/HPTtkoKqQLl53N7UXMQ==}
 
   '@types/ssh2-streams@0.1.13':
     resolution: {integrity: sha512-faHyY3brO9oLEA0QlcO8N2wT7R0+1sHWZvQ+y3rMLwdY1ZyS1z0W3t65j9PqT4HmQ6ALzNe7RZlNuCNE0wBSWA==}
@@ -5394,6 +5466,11 @@ packages:
 
   effect@3.20.0:
     resolution: {integrity: sha512-qMLfDJscrNG8p/aw+IkT9W7fgj50Z4wG5bLBy0Txsxz8iUHjDIkOgO3SV0WZfnQbNG2VJYb0b+rDLMrhM4+Krw==}
+
+  ejs@6.0.1:
+    resolution: {integrity: sha512-UaaM14yby8U3k02ihS1Bmj5Kz2d7CCQM1scxpgs4Mhkq8F1wR2gl3+Ts4h5Ne4Mnt7M9m4Dw7jsuMr3+xO4vZA==}
+    engines: {node: '>=0.12.18'}
+    hasBin: true
 
   electron-to-chromium@1.5.444:
     resolution: {integrity: sha512-5ss/uJfoDYDHT0lfJzT6FbcskIzROIOPf0BbbFkGcvDzoJU7i//9GDrwwIHQVmIsrAGiF3ihpADBRIsrEFt1rQ==}
@@ -7265,6 +7342,9 @@ packages:
     resolution: {integrity: sha512-1qny3OExCf0UvUV/5wpYKf2YwPcOqXzkwKKSmKHiE6ZMQs5heeE/c8eXK+PNllPvmjgAbfnsbpkGZWy8cBpn9w==}
     engines: {node: '>=4'}
 
+  redis-info@3.1.0:
+    resolution: {integrity: sha512-ER4L9Sh/vm63DkIE0bkSjxluQlioBiBgf5w1UuldaW/3vPcecdljVDisZhmnCMvsxHNiARTTDDHGg9cGwTfrKg==}
+
   redis-parser@3.0.0:
     resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
     engines: {node: '>=4'}
@@ -8046,6 +8126,14 @@ packages:
       typescript:
         optional: true
 
+  valibot@1.5.0:
+    resolution: {integrity: sha512-nil6AkP2TChWL43Z5uJ6GTxX01CUA+g8LWUM+N/rB9NBbkUMaUsi9PUNzlUPgoKASgmx9f7eGOYpJ04/fSa6FQ==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
@@ -8440,6 +8528,36 @@ snapshots:
   '@bramus/specificity@2.4.3':
     dependencies:
       css-tree: 3.2.1
+
+  '@bull-board/api@9.10.2(@bull-board/ui@9.10.2(bullmq@5.81.5)(typescript@5.9.3))(bullmq@5.81.5)(typescript@5.9.3)':
+    dependencies:
+      '@bull-board/ui': 9.10.2(bullmq@5.81.5)(typescript@5.9.3)
+      redis-info: 3.1.0
+      valibot: 1.5.0(typescript@5.9.3)
+    optionalDependencies:
+      bullmq: 5.81.5
+    transitivePeerDependencies:
+      - typescript
+
+  '@bull-board/express@9.10.2(bullmq@5.81.5)(typescript@5.9.3)':
+    dependencies:
+      '@bull-board/api': 9.10.2(@bull-board/ui@9.10.2(bullmq@5.81.5)(typescript@5.9.3))(bullmq@5.81.5)(typescript@5.9.3)
+      '@bull-board/ui': 9.10.2(bullmq@5.81.5)(typescript@5.9.3)
+      ejs: 6.0.1
+      express: 5.2.1
+    transitivePeerDependencies:
+      - bull
+      - bullmq
+      - supports-color
+      - typescript
+
+  '@bull-board/ui@9.10.2(bullmq@5.81.5)(typescript@5.9.3)':
+    dependencies:
+      '@bull-board/api': 9.10.2(@bull-board/ui@9.10.2(bullmq@5.81.5)(typescript@5.9.3))(bullmq@5.81.5)(typescript@5.9.3)
+    transitivePeerDependencies:
+      - bull
+      - bullmq
+      - typescript
 
   '@commitlint/cli@21.2.3(@types/node@24.19.1)(conventional-commits-parser@7.1.2)(typescript@5.9.3)':
     dependencies:
@@ -8840,7 +8958,7 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
-  '@hookform/resolvers@5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.20.0)(react-hook-form@7.89.0(@types/react@19.2.18)(react@19.2.8))(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5)':
+  '@hookform/resolvers@5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.20.0)(react-hook-form@7.89.0(@types/react@19.2.18)(react@19.2.8))(valibot@1.5.0(typescript@5.9.3))(zod@4.6.5)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.89.0(@types/react@19.2.18)(react@19.2.8)
@@ -8848,7 +8966,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
       effect: 3.20.0
-      valibot: 1.4.2(typescript@5.9.3)
+      valibot: 1.5.0(typescript@5.9.3)
       zod: 4.6.5
 
   '@humanfs/core@0.19.2':
@@ -11211,10 +11329,19 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
+  '@types/body-parser@1.19.6':
+    dependencies:
+      '@types/connect': 3.4.38
+      '@types/node': 24.19.1
+
   '@types/chai@5.2.3':
     dependencies:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
+
+  '@types/connect@3.4.38':
+    dependencies:
+      '@types/node': 24.19.1
 
   '@types/cookiejar@2.1.5': {}
 
@@ -11265,9 +11392,24 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
+  '@types/express-serve-static-core@5.1.3':
+    dependencies:
+      '@types/node': 24.19.1
+      '@types/qs': 6.15.1
+      '@types/range-parser': 1.2.7
+      '@types/send': 1.2.1
+
+  '@types/express@5.0.6':
+    dependencies:
+      '@types/body-parser': 1.19.6
+      '@types/express-serve-static-core': 5.1.3
+      '@types/serve-static': 2.2.0
+
   '@types/geojson@7946.0.16': {}
 
   '@types/http-cache-semantics@4.2.0': {}
+
+  '@types/http-errors@2.0.5': {}
 
   '@types/json-schema@7.0.15': {}
 
@@ -11299,6 +11441,10 @@ snapshots:
       pg-protocol: 1.16.1
       pg-types: 2.2.0
 
+  '@types/qs@6.15.1': {}
+
+  '@types/range-parser@1.2.7': {}
+
   '@types/react-dom@19.2.7(@types/react@19.2.18)':
     dependencies:
       '@types/react': 19.2.18
@@ -11308,6 +11454,15 @@ snapshots:
       csstype: 3.2.3
 
   '@types/resolve@1.20.6': {}
+
+  '@types/send@1.2.1':
+    dependencies:
+      '@types/node': 24.19.1
+
+  '@types/serve-static@2.2.0':
+    dependencies:
+      '@types/http-errors': 2.0.5
+      '@types/node': 24.19.1
 
   '@types/ssh2-streams@0.1.13':
     dependencies:
@@ -12521,6 +12676,8 @@ snapshots:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 3.23.2
+
+  ejs@6.0.1: {}
 
   electron-to-chromium@1.5.444: {}
 
@@ -14545,6 +14702,10 @@ snapshots:
 
   redis-errors@1.2.0: {}
 
+  redis-info@3.1.0:
+    dependencies:
+      lodash: 4.18.1
+
   redis-parser@3.0.0:
     dependencies:
       redis-errors: 1.2.0
@@ -15464,6 +15625,10 @@ snapshots:
   uuid@10.0.0: {}
 
   valibot@1.4.2(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
+  valibot@1.5.0(typescript@5.9.3):
     optionalDependencies:
       typescript: 5.9.3
 

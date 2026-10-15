@@ -27,7 +27,7 @@ function documentedActions(): string[] {
 describe('catálogo de ações de auditoria (events.md §7 · US-073)', () => {
   it('é exatamente o da tabela de events.md §7', () => {
     expect(AUDIT_ACTION_NAMES).toEqual(documentedActions());
-    expect(AUDIT_ACTION_NAMES).toHaveLength(139);
+    expect(AUDIT_ACTION_NAMES).toHaveLength(143);
   });
 
   it('cada ação segue `resource.action` e tem uma categoria válida', () => {
@@ -44,6 +44,8 @@ describe('catálogo de ações de auditoria (events.md §7 · US-073)', () => {
     expect(AUDIT_ACTIONS['process.forward'].category).toBe('WORKFLOW');
     expect(AUDIT_ACTIONS['process.export'].category).toBe('EXPORT');
     expect(AUDIT_ACTIONS['audit.seal'].category).toBe('SYSTEM');
+    expect(AUDIT_ACTIONS['queue_dashboard.access'].category).toBe('ACCESS');
+    expect(AUDIT_ACTIONS['dead_letter.retry'].category).toBe('SYSTEM');
     expect(AUDIT_ACTION_NAMES.filter((action) => AUDIT_ACTIONS[action].coalescible)).toEqual([
       'document.draft_update',
     ]);

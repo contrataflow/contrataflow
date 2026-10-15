@@ -522,14 +522,16 @@ Com base 5 s e 5 tentativas, as esperas ficam em ≈ 2,5–5 s, 5–10 s, 10–2
 | Desconhecido | `TypeError`, exceção não mapeada | Transitório até esgotar → DLQ com stack |
 
 ### 10.3 Pausa por dependência indisponível (circuit breaker)
-Cada dependência externa do worker tem um breaker (`cockatiel`: timeout + retry curto + `circuitBreaker` com meia-abertura após 30 s). Com o breaker aberto, o processador pausa a fila inteira sem gastar a tentativa do job:
+Cada dependência externa do worker tem um breaker (5 falhas de conexão seguidas abrem o circuito; meia-abertura após 30 s, uma tentativa por vez). Com o breaker aberto, o `runJob` adia o job por 30 s sem gastar a tentativa; os demais jobs da fila encontram o mesmo breaker aberto e também são adiados na hora, sem chamar a dependência — na prática, a fila fica parada até a meia-abertura:
 
 ```ts
-if (gotenbergBreaker.state === CircuitState.Open) {
-  await worker.rateLimit(30_000);     // pausa a fila por 30 s (todas as réplicas respeitam o limite global)
-  throw Worker.RateLimitError();      // devolve o job à espera sem consumir tentativa
+if (error instanceof DependencyUnavailableError) {   // breaker aberto
+  await job.moveToDelayed(Date.now() + 30_000, token); // volta em 30 s
+  throw new DelayedError();                            // sem consumir tentativa
 }
 ```
+
+**Por que não `rateLimit` + `RateLimitError` (US-083):** no BullMQ 5.81, com concorrência > 1, o job devolvido pelo *rate limit* manual é retomado para `active` por outro *slot* e fica parado até o fim da pausa sem renovar a trava; com pausa ≥ `lockDuration` (30 s) a trava expira (`Missing lock … moveToFinished`) e, com `maxStalledCount: 1`, o job viraria um falso *poison job*. O adiamento por job não tem esse efeito.
 
 Métrica `cf_circuit_breaker_state{dependency}` (0 fechado, 1 meia-aberto, 2 aberto); breaker aberto por mais de 5 min dispara alerta e runbook ([observability.md](observability.md)).
 
@@ -638,7 +640,8 @@ Regras complementares: timeouts de jobs interativos (≤ 90 s) cabem na janela d
 
 ### 15.1 Bull Board
 - `@bull-board/api` + adaptador HTTP montados no worker em porta interna (`WORKER_ADMIN_PORT`), **nunca** expostos à internet (sub-rede privada; acesso por VPN ou *port forwarding* via SSM).
-- Autenticação de plataforma: login OIDC no Authentik com cliente dedicado de operação; exige `User.isPlatformOperator` com `PLATFORM_QUEUE_ADMIN` e MFA ([permissions.md](../mvp-01/permissions.md) §8). Acesso registrado em auditoria de plataforma (`queue_dashboard.access` **(proposta)**).
+- Autenticação de plataforma: login OIDC no Authentik com cliente dedicado de operação; exige `User.isPlatformOperator` com `PLATFORM_QUEUE_ADMIN` e MFA ([permissions.md](../mvp-01/permissions.md) §8). Acesso registrado em auditoria de plataforma (`queue_dashboard.access`, concedido ou negado — events.md §7).
+- **Verificação adotada no MVP 1 (US-083):** o painel e a CLI recebem o *access token* do cliente de operação (`Authorization: Bearer`, ou cookie `cf_ops_token` no navegador; na CLI, `CF_OPS_TOKEN`), validado pelo JWKS do emissor (`iss`, `aud` = `WORKER_ADMIN_OIDC_AUDIENCE`, `exp`, RS256/ES256). `PLATFORM_QUEUE_ADMIN` vem da *claim* `cf_platform_permissions` (grupo do Authentik mapeado no cliente de operação); `isPlatformOperator` é relido em `users` (`external_subject = sub`, `status = ACTIVE`); MFA pelo `amr` (RFC 8176). Sem permissão → 403 `PERMISSION_DENIED`; sem MFA → 403 `MFA_REQUIRED`. O fluxo de login interativo (*authorization code*) no próprio painel fica para o endurecimento.
 - Adaptadores em `readOnlyMode: true`: mutações (retry, descarte, limpeza) só pela CLI auditada (§11.2).
 
 ### 15.2 Métricas

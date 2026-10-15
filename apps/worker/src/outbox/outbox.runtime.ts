@@ -1,10 +1,5 @@
-import { runInJobContext } from '@contrataflow/observability';
-import type { JobTraceMeta } from '@contrataflow/observability';
-import { DOMAIN_EVENTS_QUEUE } from '@contrataflow/types';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
-import { Worker } from 'bullmq';
-import type { Job } from 'bullmq';
+import type { OnApplicationBootstrap, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 import type { OutboxRuntimeConfig } from '#config/outbox.js';
 import type { SessionsRuntimeConfig } from '#config/sessions.js';
@@ -17,6 +12,7 @@ import { BullDomainEventsPublisher } from './domain-events.publisher.js';
 import { OutboxRelay } from './outbox-relay.js';
 import { observeRelayLeader } from './outbox-telemetry.js';
 import { BullFanOutQueues } from '../events/bull-fan-out.queues.js';
+import { DomainEventsJobHandler } from '../events/domain-events.job.js';
 import { DomainEventsProcessor } from '../events/domain-events.processor.js';
 import {
   BusinessMetricsCollector,
@@ -28,40 +24,22 @@ import {
   SessionTerminationDisabled,
   SessionTerminationHandler,
 } from '../events/session-termination.handler.js';
-import { backoffStrategy, consumerConnection, queuePrefix } from '../queues/queue-options.js';
+import { JobHandlerRegistry } from '../queues/job-handler-registry.js';
 
 export const OUTBOX_RUNTIME_CONFIG = Symbol('OutboxRuntimeConfig');
 /** Redis de sessões do encerramento por vínculo (US-088); `null` = consumidor desligado. */
 export const SESSION_TERMINATION_CONFIG = Symbol('SessionTerminationConfig');
 
-/** Concorrência do consumidor de `domain-events` por réplica (queues.md §4). */
-const DOMAIN_EVENTS_CONCURRENCY = 20;
-
-/** Campos de rastreio do job (o `meta` completo é validado pelo processor). */
-function traceMetaOf(job: Job): JobTraceMeta {
-  const meta: unknown = (job.data as { meta?: unknown } | undefined)?.meta;
-  const record = typeof meta === 'object' && meta !== null ? (meta as Record<string, unknown>) : {};
-  const text = (value: unknown) => (typeof value === 'string' ? value : undefined);
-  const traceparent = text(record.traceparent);
-  const tracestate = text(record.tracestate);
-  return {
-    correlationId: text(record.correlationId) ?? job.id ?? 'unknown',
-    tenantId: text(record.tenantId) ?? null,
-    causationId: text(record.causationId) ?? null,
-    ...(traceparent === undefined ? {} : { traceparent }),
-    ...(tracestate === undefined ? {} : { tracestate }),
-  };
-}
-
 /**
  * Peças do outbox no worker (US-082 · DEC-052/072): o relay (`cf_relay` → `domain-events`) e o
  * consumidor de `domain-events` (`DomainEventsProcessor` → `notifications` + handlers leves,
  * entre eles o encerramento de sessões por mudança de vínculo — US-088).
- * Sobe no bootstrap do contexto Nest e encerra no shutdown gracioso. O wrapper completo de
- * consumo (`runJob`, DLQ, Bull Board, timeouts) é da US-083.
+ * O consumidor de `domain-events` é registrado como handler no `JobHandlerRegistry` e roda no
+ * `Worker` do `QueueRuntime`, pelo `runJob` (US-083: contrato comum, timeouts, dead-letter).
+ * Sobe no bootstrap do contexto Nest e encerra no shutdown gracioso.
  */
 @Injectable()
-export class OutboxRuntime implements OnApplicationBootstrap, OnModuleDestroy {
+export class OutboxRuntime implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger('OutboxRuntime');
   private database: OutboxDatabase | undefined;
   private publisher: BullDomainEventsPublisher | undefined;
@@ -69,27 +47,21 @@ export class OutboxRuntime implements OnApplicationBootstrap, OnModuleDestroy {
   private cache: TenantRedisCache | undefined;
   private sessions: SessionRedis | undefined;
   private fanOut: BullFanOutQueues | undefined;
-  private worker: Worker | undefined;
 
   constructor(
     @Inject(OUTBOX_RUNTIME_CONFIG) private readonly config: OutboxRuntimeConfig,
     @Inject(SESSION_TERMINATION_CONFIG)
     private readonly sessionsConfig: SessionsRuntimeConfig | null,
+    private readonly registry: JobHandlerRegistry,
   ) {}
 
   get relayInstance(): OutboxRelay | undefined {
     return this.relay;
   }
 
-  onApplicationBootstrap(): void {
-    const { appEnv, redisUrl, relayDatabaseUrl } = this.config;
-    this.database = createOutboxDatabase({ url: relayDatabaseUrl });
-    this.publisher = new BullDomainEventsPublisher({ redisUrl, appEnv });
-    const relay = new OutboxRelay({ database: this.database, publisher: this.publisher });
-    this.relay = relay;
-    observeRelayLeader(() => relay.isLeader);
-    relay.start();
-
+  /** Registra o consumidor de `domain-events` antes de o `QueueRuntime` subir os `Worker`s. */
+  onModuleInit(): void {
+    const { appEnv, redisUrl } = this.config;
     this.cache = new TenantRedisCache({ redisUrl, appEnv });
     this.cache.connect().catch(() => undefined);
     this.fanOut = new BullFanOutQueues({ redisUrl, appEnv });
@@ -102,43 +74,18 @@ export class OutboxRuntime implements OnApplicationBootstrap, OnModuleDestroy {
         this.createSessionTermination(),
       ],
     });
-    this.worker = new Worker(
-      DOMAIN_EVENTS_QUEUE,
-      (job: Job) =>
-        runInJobContext(
-          {
-            queue: DOMAIN_EVENTS_QUEUE,
-            jobName: job.name,
-            jobId: job.id ?? '',
-            attempt: job.attemptsMade + 1,
-          },
-          traceMetaOf(job),
-          () => processor.process(job.data, job.id),
-        ),
-      {
-        connection: consumerConnection(redisUrl),
-        prefix: queuePrefix(appEnv),
-        concurrency: DOMAIN_EVENTS_CONCURRENCY,
-        settings: { backoffStrategy },
-      },
-    );
-    this.worker.on('error', (error) => {
-      this.logger.warn({
-        event: 'queue.worker_error',
-        queue: DOMAIN_EVENTS_QUEUE,
-        cause: error.name,
-      });
-    });
-    this.worker.on('failed', (job, error) => {
-      this.logger.warn({
-        event: 'job.failed',
-        queue: DOMAIN_EVENTS_QUEUE,
-        jobId: job?.id,
-        attempt: job?.attemptsMade,
-        cause: error.name,
-      });
-    });
-    this.logger.log({ event: 'outbox.runtime_started' }, 'outbox relay and domain-events started');
+    this.registry.register(new DomainEventsJobHandler(processor));
+  }
+
+  onApplicationBootstrap(): void {
+    const { appEnv, redisUrl, relayDatabaseUrl } = this.config;
+    this.database = createOutboxDatabase({ url: relayDatabaseUrl });
+    this.publisher = new BullDomainEventsPublisher({ redisUrl, appEnv });
+    const relay = new OutboxRelay({ database: this.database, publisher: this.publisher });
+    this.relay = relay;
+    observeRelayLeader(() => relay.isLeader);
+    relay.start();
+    this.logger.log({ event: 'outbox.runtime_started' }, 'outbox relay started');
   }
 
   /**
@@ -155,7 +102,6 @@ export class OutboxRuntime implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.worker?.close();
     await this.relay?.stop();
     await this.publisher?.close();
     await this.fanOut?.close();

@@ -1,0 +1,286 @@
+import { scrubText } from '@contrataflow/observability';
+import type { QueueName } from '@contrataflow/types';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import type { OnApplicationBootstrap, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Worker } from 'bullmq';
+import type { Job } from 'bullmq';
+import { z } from 'zod';
+
+import type { QueueRuntimeConfig } from '#config/queues.js';
+import { createOutboxDatabase } from '#shared/database/outbox-database.js';
+import type { OutboxDatabase } from '#shared/database/outbox-database.js';
+import { createWorkerDatabase } from '#shared/database/worker-database.js';
+import type { WorkerDatabase } from '#shared/database/worker-database.js';
+
+import { BullQueues } from './bull-queues.js';
+import { CIRCUIT_STATE_VALUE, CircuitBreaker } from './circuit-breaker.js';
+import { buildDeadLetterRecord, deadLetterJobId } from './dead-letter.js';
+import { PermanentJobError } from './job-errors.js';
+import { JobHandlerRegistry } from './job-handler-registry.js';
+import { JobProducer } from './job-producer.js';
+import { otelQueueMetrics } from './queue-metrics.js';
+import type { QueueMetrics } from './queue-metrics.js';
+import {
+  QUEUE_POLICIES,
+  WORKER_DEFAULTS,
+  backoffStrategy,
+  consumerConnection,
+  queuePrefix,
+} from './queue-options.js';
+import type { ConsumedQueue } from './queue-options.js';
+import { jobMetaOf, runJob } from './run-job.js';
+import type { JobHandler, TenantStatusReader } from './run-job.js';
+import { AuditSealTick, DeadlinesTick, MaintenanceDaily } from './scheduled-ticks.js';
+import { checkSchedulerSla, syncSchedulers } from './schedulers.js';
+import {
+  DatabaseOperatorDirectory,
+  JwksOperatorTokenVerifier,
+  OperatorAuthenticator,
+} from '../admin/operator-authenticator.js';
+import { PlatformAuditWriter } from '../admin/platform-audit.js';
+import type { RunningDashboard } from '../admin/queue-dashboard.js';
+import { startQueueDashboard } from '../admin/queue-dashboard.js';
+import { OutboxPurgeJob } from '../outbox/outbox-purge.job.js';
+
+export const QUEUE_RUNTIME_CONFIG = Symbol('QueueRuntimeConfig');
+export const QUEUE_METRICS = Symbol('QueueMetrics');
+
+/** Intervalo dos coletores de gauges (DLQ, breakers) e da checagem de SLA dos schedulers. */
+const GAUGE_INTERVAL_MS = 15_000;
+const SLA_INTERVAL_MS = 60_000;
+
+/** Job com nome sem handler numa fila consumida: falha permanente → dead-letter. */
+function unknownHandler(queue: QueueName): JobHandler {
+  return {
+    queue,
+    name: '<sem handler>',
+    payloadSchema: z.unknown(),
+    handle: () => Promise.reject(new PermanentJobError('JOB_NOT_REGISTERED')),
+  };
+}
+
+/** Estado do tenant pela tabela de plataforma `tenants` (colunas visíveis ao `cf_worker`). */
+class DatabaseTenantStatusReader implements TenantStatusReader {
+  constructor(private readonly database: WorkerDatabase) {}
+
+  async findStatus(tenantId: string): Promise<string | null> {
+    const { rows } = await this.database.platformTransaction((client) =>
+      client.query<{ status: string }>('SELECT status::text AS status FROM tenants WHERE id = $1', [
+        tenantId,
+      ]),
+    );
+    return rows[0]?.status ?? null;
+  }
+}
+
+/**
+ * Processo de filas do worker (US-083 · DEC-052/163/164): um `Worker` BullMQ por fila com
+ * handler registrado, todos pelo `runJob` (contrato comum, timeouts, classificação de erros,
+ * dead-letter); schedulers únicos sincronizados no bootstrap de toda réplica; coletores de
+ * métricas; e o Bull Board na porta interna. Encerra no shutdown gracioso (queues.md §14).
+ */
+@Injectable()
+export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
+  private readonly logger = new Logger('QueueRuntime');
+  private readonly metrics: QueueMetrics;
+  private readonly startedAt = new Date();
+  private readonly breakers = new Map<string, CircuitBreaker>();
+  private readonly workers: Worker[] = [];
+  private readonly timers: NodeJS.Timeout[] = [];
+  private bull: BullQueues | undefined;
+  private database: WorkerDatabase | undefined;
+  private maintenance: OutboxDatabase | undefined;
+  private dashboard: RunningDashboard | undefined;
+  private producerInstance: JobProducer | undefined;
+
+  constructor(
+    @Inject(QUEUE_RUNTIME_CONFIG) private readonly config: QueueRuntimeConfig,
+    private readonly registry: JobHandlerRegistry,
+    @Optional() @Inject(QUEUE_METRICS) metrics?: QueueMetrics,
+  ) {
+    this.metrics = metrics ?? otelQueueMetrics();
+  }
+
+  /** Produtor de jobs com `meta` do contexto (handlers que enfileiram filhos). */
+  get producer(): JobProducer {
+    if (!this.producerInstance) throw new Error('QueueRuntime ainda não inicializado');
+    return this.producerInstance;
+  }
+
+  get queues(): BullQueues {
+    if (!this.bull) throw new Error('QueueRuntime ainda não inicializado');
+    return this.bull;
+  }
+
+  /** Circuit breaker da dependência (um por processo — `cf_circuit_breaker_state`). */
+  breaker(dependency: string): CircuitBreaker {
+    let breaker = this.breakers.get(dependency);
+    if (!breaker) {
+      breaker = new CircuitBreaker({ dependency });
+      this.breakers.set(dependency, breaker);
+    }
+    return breaker;
+  }
+
+  onModuleInit(): void {
+    const { redisUrl, appEnv, workerDatabaseUrl } = this.config;
+    this.bull = new BullQueues({ redisUrl, appEnv });
+    this.producerInstance = new JobProducer(this.bull);
+    if (workerDatabaseUrl === null) {
+      this.logger.warn({ event: 'worker.database_disabled' }, 'schedulers e TenantTransaction off');
+      return;
+    }
+    this.database = createWorkerDatabase({ url: workerDatabaseUrl });
+    const tickDeps = {
+      producer: this.producerInstance,
+      database: this.database,
+      metrics: this.metrics,
+      isHandled: (queue: QueueName, name: string) => this.registry.isHandled(queue, name),
+    };
+    this.registry
+      .register(new DeadlinesTick(tickDeps))
+      .register(new AuditSealTick(tickDeps))
+      .register(new MaintenanceDaily(tickDeps));
+    const { maintenanceDatabaseUrl } = this.config;
+    if (maintenanceDatabaseUrl) {
+      this.maintenance = createOutboxDatabase({
+        url: maintenanceDatabaseUrl,
+        poolSize: 1,
+        statementTimeoutMs: 60_000,
+        applicationName: 'contrataflow-maintenance',
+      });
+      this.registry.register(new OutboxPurgeJob(this.maintenance, this.database));
+    }
+  }
+
+  async onApplicationBootstrap(): Promise<void> {
+    const bull = this.queues;
+    for (const queue of this.registry.queues()) this.startWorker(queue as ConsumedQueue);
+    if (this.database) {
+      await syncSchedulers((queue) => bull.queue(queue), new Date());
+      this.every(SLA_INTERVAL_MS, () =>
+        checkSchedulerSla(bull, this.metrics, this.startedAt, new Date()).then(() => undefined),
+      );
+    }
+    this.every(GAUGE_INTERVAL_MS, async () => {
+      for (const [dependency, breaker] of this.breakers) {
+        this.metrics.circuitState(dependency, CIRCUIT_STATE_VALUE[breaker.state]);
+      }
+      this.metrics.deadLetterJobs(await bull.deadLetterCounts());
+    });
+    const { admin } = this.config;
+    if (admin && this.database) {
+      this.dashboard = await startQueueDashboard(
+        {
+          queues: bull.all(),
+          authenticator: new OperatorAuthenticator(
+            new JwksOperatorTokenVerifier({ issuer: admin.issuer, audience: admin.audience }),
+            new DatabaseOperatorDirectory(this.database),
+          ),
+          audit: new PlatformAuditWriter(this.database),
+        },
+        admin.port,
+      );
+      this.logger.log({ event: 'worker.admin_started', port: this.dashboard.port });
+    }
+    this.logger.log(
+      { event: 'worker.queues_started', queues: this.registry.queues() },
+      'queue workers started',
+    );
+  }
+
+  private every(intervalMs: number, task: () => Promise<void>): void {
+    const timer = setInterval(() => {
+      task().catch((error: unknown) => {
+        this.logger.warn({ event: 'worker.collector_failed', cause: String(error) });
+      });
+    }, intervalMs);
+    timer.unref();
+    this.timers.push(timer);
+  }
+
+  private startWorker(queue: ConsumedQueue): void {
+    const policy = QUEUE_POLICIES[queue];
+    const tenants = this.database ? new DatabaseTenantStatusReader(this.database) : undefined;
+    const databaseBreaker = this.database ? this.breaker('postgres') : undefined;
+    const deps = {
+      deadLetter: this.queues,
+      metrics: this.metrics,
+      timeoutMs: policy.timeoutMs,
+      database: this.database,
+      databaseBreaker,
+      tenants,
+    };
+    const worker: Worker = new Worker(
+      queue,
+      (job: Job, token?: string) =>
+        runJob(job, this.registry.get(queue, job.name) ?? unknownHandler(queue), {
+          ...deps,
+          postpone: (ms) => job.moveToDelayed(Date.now() + ms, token),
+        }),
+      {
+        connection: consumerConnection(this.config.redisUrl),
+        prefix: queuePrefix(this.config.appEnv),
+        concurrency: policy.concurrency,
+        ...(policy.limiter ? { limiter: { ...policy.limiter } } : {}),
+        ...WORKER_DEFAULTS,
+        settings: { backoffStrategy },
+      },
+    );
+    worker.on('error', (error) => {
+      this.logger.warn({
+        event: 'queue.worker_error',
+        queue,
+        cause: error.name,
+        message: scrubText(error.message).slice(0, 300),
+      });
+    });
+    worker.on('failed', (job, error) => {
+      // FA-02: job que derrubou o worker além do limite falha fora do `runJob` — a cópia na
+      // dead-letter vem daqui (idempotente pelo `jobId`).
+      if (!job || !/stalled more than allowable limit/i.test(error.message)) return;
+      this.parkStalled(queue, job, error).catch((parkError: unknown) => {
+        this.logger.error({ event: 'worker.dead_letter_failed', queue, cause: String(parkError) });
+      });
+    });
+    this.workers.push(worker);
+  }
+
+  private async parkStalled(queue: string, job: Job, error: Error): Promise<void> {
+    await this.queues.park(
+      deadLetterJobId(queue, job.id ?? ''),
+      buildDeadLetterRecord(
+        {
+          queue,
+          jobName: job.name,
+          jobId: job.id ?? '',
+          attemptsMade: job.attemptsMade,
+          enqueuedAt: job.timestamp,
+          data: job.data,
+          meta: jobMetaOf(job.data),
+        },
+        error,
+        'TRANSIENT_EXHAUSTED',
+        new Date(),
+      ),
+    );
+    this.logger.error({
+      event: 'worker.job_dead_lettered',
+      alert: true,
+      queue,
+      jobName: job.name,
+      jobId: job.id,
+      attempts: job.attemptsMade,
+      errorClass: 'STALLED',
+    });
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    for (const timer of this.timers) clearInterval(timer);
+    await this.dashboard?.close();
+    await Promise.all(this.workers.map((worker) => worker.close()));
+    await this.bull?.close();
+    await this.maintenance?.close();
+    await this.database?.close();
+  }
+}

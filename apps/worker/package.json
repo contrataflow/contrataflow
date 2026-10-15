@@ -25,9 +25,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
+    "test:tenant-leak": "vitest run --config vitest.integration.config.ts test/tenant-leak",
+    "cli": "node --enable-source-maps dist/cli.js"
   },
   "dependencies": {
+    "@bull-board/api": "catalog:",
+    "@bull-board/express": "catalog:",
     "@contrataflow/editor": "workspace:*",
     "@contrataflow/observability": "workspace:*",
     "@contrataflow/types": "workspace:*",
@@ -41,7 +45,9 @@
     "@opentelemetry/instrumentation-pg": "catalog:",
     "@opentelemetry/instrumentation-undici": "catalog:",
     "bullmq": "catalog:",
+    "express": "catalog:",
     "ioredis": "catalog:",
+    "jose": "catalog:",
     "nestjs-pino": "catalog:",
     "pg": "catalog:",
     "pino": "catalog:",
@@ -55,6 +61,7 @@
     "@contrataflow/tsconfig": "workspace:*",
     "@swc/cli": "catalog:",
     "@swc/core": "catalog:",
+    "@types/express": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",

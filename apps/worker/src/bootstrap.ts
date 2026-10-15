@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger as NestPinoLogger } from 'nestjs-pino';
 
 import type { OutboxRuntimeConfig } from '#config/outbox.js';
+import type { QueueRuntimeConfig } from '#config/queues.js';
 import type { SessionsRuntimeConfig } from '#config/sessions.js';
 
 import { registerGracefulShutdown } from './graceful-shutdown.js';
@@ -23,6 +24,8 @@ export interface StartWorkerOptions {
   readonly outbox?: OutboxRuntimeConfig | null;
   /** Redis de sessões do encerramento por vínculo (US-088); ausente = descarta com aviso. */
   readonly sessions?: SessionsRuntimeConfig | null;
+  /** Filas, schedulers e Bull Board (US-083); ausente = derivado do outbox ou desligado. */
+  readonly queues?: QueueRuntimeConfig | null;
 }
 
 export interface RunningWorker {
@@ -44,6 +47,7 @@ export async function startWorker(options: StartWorkerOptions = {}): Promise<Run
     WorkerModule.forRoot(rootLogger, {
       outbox: options.outbox ?? null,
       sessions: options.sessions ?? null,
+      queues: options.queues ?? null,
     }),
     silent ? { logger: false } : { bufferLogs: true },
   );

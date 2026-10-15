@@ -4,6 +4,7 @@ import { TelemetryConfigError, createLogger } from '@contrataflow/observability'
 
 import { startWorker } from './bootstrap.js';
 import { OutboxConfigError, loadOutboxConfigFromProcess } from './config/outbox.js';
+import { QueuesConfigError, loadQueuesConfigFromProcess } from './config/queues.js';
 import { SessionsConfigError, loadSessionsConfigFromProcess } from './config/sessions.js';
 import { loadTelemetryConfigFromProcess } from './config/telemetry.js';
 import { createWorkerLogger } from './observability/worker-logger.js';
@@ -13,13 +14,15 @@ try {
     rootLogger: createWorkerLogger(loadTelemetryConfigFromProcess()),
     outbox: loadOutboxConfigFromProcess(),
     sessions: loadSessionsConfigFromProcess(),
+    queues: loadQueuesConfigFromProcess(),
   });
 } catch (error) {
-  // V-03: configuração inválida (observabilidade, outbox ou Redis de sessões) impede o processo
-  // de subir (só as chaves).
+  // V-03: configuração inválida (observabilidade, outbox, filas ou Redis de sessões) impede o
+  // processo de subir (só as chaves).
   if (
     !(error instanceof TelemetryConfigError) &&
     !(error instanceof OutboxConfigError) &&
+    !(error instanceof QueuesConfigError) &&
     !(error instanceof SessionsConfigError)
   )
     throw error;

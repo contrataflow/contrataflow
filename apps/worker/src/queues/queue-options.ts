@@ -1,8 +1,12 @@
+import { createHash } from 'node:crypto';
+
+import type { QueueName } from '@contrataflow/types';
 import type { ConnectionOptions, JobsOptions, MinimalJob } from 'bullmq';
 
 /*
- * Convenções comuns das filas BullMQ (DEC-163 · queues.md §1.2, §2 e §10.1). A US-083 completa o
- * consumo (`runJob`, DLQ, Bull Board); aqui ficam o necessário para o relay e o fan-out.
+ * Convenções comuns das filas BullMQ (DEC-163 · queues.md §1.2, §2, §4 e §10.1): prefixo,
+ * conexões, política padrão de jobs, backoff `cf-exponential-jitter`, opções dos `Worker`s e a
+ * política (concorrência, timeout) de cada fila do MVP 1.
  */
 
 /** Prefixo das chaves BullMQ: `cf:{env}:q` (coerente com `cf:{env}:…` — permissions.md §1.2). */
@@ -56,6 +60,33 @@ export function exponentialJitterMs(
   return Math.round(exp / 2 + random() * (exp / 2));
 }
 
+/**
+ * Fração de jitter determinística por job e tentativa (0 ≤ x < 1): o `runJob` calcula a mesma
+ * espera que o BullMQ aplicará e registra o `nextAttemptAt` exato no log `worker.job_retried`.
+ */
+export function jitterFraction(jobId: string, attemptsMade: number): number {
+  const digest = createHash('sha256')
+    .update(`${jobId}#${String(attemptsMade)}`)
+    .digest();
+  return digest.readUInt32BE(0) / 2 ** 32;
+}
+
+/** Espera até a próxima tentativa de um job com o backoff `cf-exponential-jitter`. */
+export function retryDelayMs(
+  jobId: string | undefined,
+  attemptsMade: number,
+  baseMs: number,
+): number {
+  const random = jobId ? () => jitterFraction(jobId, attemptsMade) : Math.random;
+  return exponentialJitterMs(attemptsMade, baseMs, random);
+}
+
+/** Base do backoff declarada no job (padrão 5 s). */
+export function backoffBaseOf(opts: Pick<JobsOptions, 'backoff'>): number {
+  const delay = opts.backoff;
+  return typeof delay === 'object' && delay.delay ? delay.delay : BACKOFF_BASE_MS;
+}
+
 /** `settings.backoffStrategy` dos `Worker`s: só trata o tipo `cf-exponential-jitter`. */
 export function backoffStrategy(
   attemptsMade: number,
@@ -64,7 +95,44 @@ export function backoffStrategy(
   job?: MinimalJob,
 ): number {
   if (type !== BACKOFF_TYPE) return 0;
-  const delay = job?.opts.backoff;
-  const base = typeof delay === 'object' && delay.delay ? delay.delay : BACKOFF_BASE_MS;
-  return exponentialJitterMs(attemptsMade, base);
+  return retryDelayMs(job?.id, attemptsMade, job ? backoffBaseOf(job.opts) : BACKOFF_BASE_MS);
 }
+
+/**
+ * Opções comuns dos `Worker`s (queues.md §2): trava de 30 s renovada automaticamente; job
+ * *stalled* verificado a cada 30 s e que derruba o worker duas vezes falha (FA-02 — *poison job*).
+ */
+export const WORKER_DEFAULTS = {
+  lockDuration: 30_000,
+  stalledInterval: 30_000,
+  maxStalledCount: 1,
+} as const;
+
+/** A `dead-letter` não tem consumidor: o job fica em espera até a CLI retentar ou descartar. */
+export const DEAD_LETTER_JOB_OPTIONS = {
+  attempts: 1,
+  removeOnComplete: false,
+  removeOnFail: false,
+} as const satisfies JobsOptions;
+
+/** Política de consumo de cada fila (queues.md §4): concorrência por réplica e timeout. */
+export interface QueuePolicy {
+  readonly concurrency: number;
+  readonly timeoutMs: number;
+  /** Limite global de vazão (`limiter` do BullMQ). */
+  readonly limiter?: { readonly max: number; readonly duration: number };
+}
+
+export type ConsumedQueue = Exclude<QueueName, 'dead-letter'>;
+
+export const QUEUE_POLICIES: Readonly<Record<ConsumedQueue, QueuePolicy>> = {
+  'domain-events': { concurrency: 20, timeoutMs: 10_000 },
+  notifications: { concurrency: 10, timeoutMs: 30_000 },
+  // 10 envios/s global, alinhado à cota do provedor (queues.md §4.3).
+  email: { concurrency: 5, timeoutMs: 30_000, limiter: { max: 10, duration: 1_000 } },
+  'document-render': { concurrency: 4, timeoutMs: 60_000 },
+  'file-scan': { concurrency: 4, timeoutMs: 90_000 },
+  deadlines: { concurrency: 5, timeoutMs: 5 * 60_000 },
+  'audit-seal': { concurrency: 2, timeoutMs: 10 * 60_000 },
+  maintenance: { concurrency: 2, timeoutMs: 30 * 60_000 },
+};

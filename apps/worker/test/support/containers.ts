@@ -1,4 +1,4 @@
-// PostgreSQL e Redis reais para a integração do outbox no worker (US-082): Testcontainers com as
+// PostgreSQL e Redis reais para a integração do outbox e das filas no worker (US-082/US-083): Testcontainers com as
 // imagens do Compose local, as extensões de infra/postgres/init e as migrações da API aplicadas na
 // ordem pelo superusuário (o mesmo SQL do `prisma migrate deploy`).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -23,7 +23,7 @@ function postgresImage(): string {
   return image;
 }
 
-export type Role = 'postgres' | 'cf_app' | 'cf_relay' | 'cf_maintenance';
+export type Role = 'postgres' | 'cf_app' | 'cf_relay' | 'cf_maintenance' | 'cf_worker';
 
 export interface TestPostgres {
   url(role: Role): string;
@@ -69,7 +69,7 @@ export async function startPostgres(): Promise<TestPostgres> {
   for (const folder of folders) {
     await admin(readFileSync(`${MIGRATIONS}/${folder}/migration.sql`, 'utf8'));
   }
-  for (const role of ['cf_app', 'cf_relay', 'cf_maintenance']) {
+  for (const role of ['cf_app', 'cf_relay', 'cf_maintenance', 'cf_worker']) {
     await admin(`ALTER ROLE ${role} PASSWORD '${PASSWORD}'`);
   }
   return {
