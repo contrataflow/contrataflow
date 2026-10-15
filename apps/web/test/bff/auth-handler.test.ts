@@ -7,7 +7,6 @@ import { handleCspReport, parseCspReports } from '@/bff/csp-report';
 import { captureLogsForTests } from '@/bff/logger';
 import { handleProxyRequest } from '@/bff/proxy-handler';
 import { UnconfiguredIdentityProvider, createBffRuntime } from '@/bff/runtime';
-import { FAKE_PERSONAS } from '@/bff/session/fake-identity';
 import {
   IdentityProviderUnavailableError,
   SessionStoreUnavailableError,
@@ -353,69 +352,7 @@ describe('login após expiração (RN-IAM-32)', () => {
   });
 });
 
-describe('POST /api/auth/switch-tenant', () => {
-  const tenantB = FAKE_PERSONAS.ana.memberships[1].tenant.id;
-
-  it('troca a instituição ativa na mesma sessão', async () => {
-    const test = createTestRuntime();
-    const { cookie, record } = await signIn(test);
-    const response = await handleAuthRequest(
-      browserRequest('/api/auth/switch-tenant', {
-        method: 'POST',
-        headers: { ...MUTATION, Cookie: cookie, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId: tenantB }),
-      }),
-      'switch-tenant',
-      test.runtime,
-    );
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { data: { activeTenant: { id: string } } };
-    expect(body.data.activeTenant.id).toBe(tenantB);
-    expect((await test.store.get(record.key))?.activeTenantId).toBe(tenantB);
-    expect(response.headers.get('Set-Cookie')).toBeNull();
-    expect(logs.lines.some((line) => line.includes('"auth.tenant_switch"'))).toBe(true);
-  });
-
-  it('exige CSRF, sessão, corpo válido e vínculo usável', async () => {
-    const test = createTestRuntime();
-    const { cookie } = await signIn(test);
-    const send = (headers: Record<string, string>, body: string) =>
-      handleAuthRequest(
-        browserRequest('/api/auth/switch-tenant', { method: 'POST', headers, body }),
-        'switch-tenant',
-        test.runtime,
-      );
-    const csrf = await send({ Cookie: cookie }, JSON.stringify({ tenantId: tenantB }));
-    expect(((await csrf.json()) as { code: string }).code).toBe('CSRF_REJECTED');
-    expect((await send(MUTATION, JSON.stringify({ tenantId: tenantB }))).status).toBe(401);
-    expect((await send({ ...MUTATION, Cookie: cookie }, 'não-json')).status).toBe(400);
-    expect(
-      (await send({ ...MUTATION, Cookie: cookie }, JSON.stringify({ tenantId: 'x' }))).status,
-    ).toBe(400);
-    const forbidden = await send(
-      { ...MUTATION, Cookie: cookie },
-      JSON.stringify({ tenantId: '0192a000-0000-7000-8000-00000000000c' }),
-    );
-    expect(forbidden.status).toBe(403);
-    expect(((await forbidden.json()) as { code: string }).code).toBe('MEMBERSHIP_INACTIVE');
-  });
-
-  it('sessão vencida → 401 SESSION_EXPIRED', async () => {
-    const test = createTestRuntime();
-    const { cookie } = await signIn(test);
-    test.clock.now += 31 * 60_000;
-    const response = await handleAuthRequest(
-      browserRequest('/api/auth/switch-tenant', {
-        method: 'POST',
-        headers: { ...MUTATION, Cookie: cookie },
-        body: JSON.stringify({ tenantId: tenantB }),
-      }),
-      'switch-tenant',
-      test.runtime,
-    );
-    expect(((await response.json()) as { code: string }).code).toBe('SESSION_EXPIRED');
-  });
-});
+// Troca de instituição (US-093): `test/bff/tenant-switch.test.ts`.
 
 describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
   it('logout por POST com CSRF destrói a sessão e apaga o cookie', async () => {

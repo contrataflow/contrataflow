@@ -43,6 +43,34 @@ export interface SessionRedis extends SessionEndRedis {
   zcard(key: string): Promise<number>;
   sadd(key: string, ...members: string[]): Promise<number>;
   pexpire(key: string, ttlMs: number): Promise<number>;
+  eval(script: string, numKeys: number, ...args: (string | number)[]): Promise<unknown>;
+}
+
+/**
+ * *Compare-and-set* do registro: grava só se o valor ainda é o lido (nenhuma outra gravação no
+ * meio). O registro é JSON com os tokens cifrados — o script não interpreta o conteúdo.
+ */
+export const SESSION_CAS_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3])
+  return 1
+end
+return 0`;
+
+/**
+ * Tentativas do *compare-and-set* sob disputa antes de responder indisponível (503). Cada rodada
+ * tem um vencedor; com espera aleatória curta entre as tentativas, dezenas de requisições
+ * paralelas da mesma sessão se resolvem bem antes do limite.
+ */
+export const SESSION_UPDATE_ATTEMPTS = 64;
+/** Teto da espera aleatória entre tentativas do *compare-and-set*. */
+const SESSION_UPDATE_MAX_BACKOFF_MS = 10;
+
+function backoff(attempt: number): Promise<void> {
+  const ms = Math.random() * Math.min(SESSION_UPDATE_MAX_BACKOFF_MS, 1 + attempt * 2);
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 export interface RedisSessionStoreOptions {
@@ -96,6 +124,35 @@ export class RedisSessionStore implements SessionStore {
         'XX',
       ),
     );
+  }
+
+  async update(
+    key: string,
+    mutate: (current: SessionRecord) => SessionRecord,
+  ): Promise<SessionRecord | null> {
+    const recordKey = this.keys.record(key);
+    for (let attempt = 0; attempt < SESSION_UPDATE_ATTEMPTS; attempt += 1) {
+      const raw = await this.call(() => this.redis.get(recordKey));
+      if (raw === null) return null;
+      const current = this.decode(key, raw);
+      if (!current) return null;
+      const next = mutate(current);
+      const swapped = await this.call(() =>
+        this.redis.eval(
+          SESSION_CAS_SCRIPT,
+          1,
+          recordKey,
+          raw,
+          this.encode(next),
+          String(this.ttlOf(next)),
+        ),
+      );
+      if (swapped === 1) return next;
+      await backoff(attempt);
+    }
+    throw new SessionStoreUnavailableError({
+      cause: new Error('Disputa contínua na gravação da sessão.'),
+    });
   }
 
   async create(record: SessionRecord, maxPerUser: number): Promise<readonly string[]> {

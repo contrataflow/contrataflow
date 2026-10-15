@@ -36,7 +36,7 @@ function nextEvent(): Promise<unknown> {
   });
 }
 
-describe('[Tenant incorreto] troca de tenant limpa o cache de dados', () => {
+describe('[Tenant incorreto] troca de tenant limpa o cache de dados (US-093)', () => {
   it('apaga 100% do cache antes de recarregar e avisa as outras abas', async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(tenantKey(A, 'processes', 'list'), [
@@ -55,13 +55,16 @@ describe('[Tenant incorreto] troca de tenant limpa o cache de dados', () => {
     );
     const broadcast = nextEvent();
 
-    const session = await switchTenant(B, {
+    const outcome = await switchTenant('membership-b', {
       queryClient,
+      currentTenantId: A,
       refresh: () => order.push('refresh'),
       fetchImpl,
     });
 
-    expect(session.activeTenant?.id).toBe(B);
+    expect(outcome.kind).toBe('switched');
+    if (outcome.kind !== 'switched') throw new Error('esperado switched');
+    expect(outcome.session.activeTenant?.id).toBe(B);
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(JSON.stringify(queryClient.getQueryCache().getAll())).not.toContain('Prefeitura A');
     expect(order).toEqual(['clear', 'refresh']);
@@ -70,7 +73,61 @@ describe('[Tenant incorreto] troca de tenant limpa o cache de dados', () => {
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
     expect(url).toBe('/api/auth/switch-tenant');
     expect(new Headers(init?.headers).get('X-CF-Request')).toBe('1');
-    expect(init?.body).toBe(JSON.stringify({ tenantId: B }));
+    expect(init?.body).toBe(JSON.stringify({ membershipId: 'membership-b' }));
+  });
+
+  it('[Duplicidade] a instituição já ativa volta como no-op: cache mantido (RN-IAM-70)', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(tenantKey(A, 'x'), 1);
+    const refresh = vi.fn();
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(json({ data: { activeTenant: { id: A } } })),
+    );
+    const outcome = await switchTenant('membership-a', {
+      queryClient,
+      currentTenantId: A,
+      setAsDefault: true,
+      refresh,
+      fetchImpl,
+    });
+    expect(outcome.kind).toBe('unchanged');
+    expect(queryClient.getQueryData(tenantKey(A, 'x'))).toBe(1);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ membershipId: 'membership-a', setAsDefault: true }),
+    );
+  });
+
+  it('primeira escolha (sem cache, grupo (auth)) também avisa as abas', async () => {
+    const refresh = vi.fn();
+    const broadcast = nextEvent();
+    const outcome = await switchTenant('membership-b', {
+      currentTenantId: null,
+      refresh,
+      fetchImpl: () => Promise.resolve(json({ data: { activeTenant: { id: B } } })),
+    });
+    expect(outcome.kind).toBe('switched');
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(await broadcast).toMatchObject({ type: 'tenant-switched', tenantId: B });
+  });
+
+  it('[Falha de integração] MFA_REQUIRED devolve o step-up do BFF (nunca um destino externo)', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(tenantKey(A, 'x'), 1);
+    const reply = (stepUpUrl: unknown) => () =>
+      Promise.resolve(json({ code: 'MFA_REQUIRED', stepUpUrl }, 403));
+    const deps = { queryClient, currentTenantId: A, refresh: vi.fn() };
+    await expect(
+      switchTenant('membership-b', {
+        ...deps,
+        fetchImpl: reply('/api/auth/step-up?returnTo=%2Fexemplo'),
+      }),
+    ).resolves.toEqual({ kind: 'step-up', href: '/api/auth/step-up?returnTo=%2Fexemplo' });
+    await expect(
+      switchTenant('membership-b', { ...deps, fetchImpl: reply('https://evil.example/') }),
+    ).resolves.toEqual({ kind: 'step-up', href: '/api/auth/step-up?returnTo=%2Fexemplo' });
+    expect(queryClient.getQueryData(tenantKey(A, 'x'))).toBe(1);
+    expect(deps.refresh).not.toHaveBeenCalled();
   });
 
   it('troca recusada pelo BFF mantém o cache e lança ApiError', async () => {
@@ -80,7 +137,12 @@ describe('[Tenant incorreto] troca de tenant limpa o cache de dados', () => {
       Promise.resolve(json({ code: 'MEMBERSHIP_INACTIVE' }, 403)),
     );
     await expect(
-      switchTenant(B, { queryClient, refresh: vi.fn(), fetchImpl }),
+      switchTenant('membership-b', {
+        queryClient,
+        currentTenantId: A,
+        refresh: vi.fn(),
+        fetchImpl,
+      }),
     ).rejects.toMatchObject({
       code: 'MEMBERSHIP_INACTIVE',
     });

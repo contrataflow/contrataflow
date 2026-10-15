@@ -27,7 +27,7 @@ import {
 } from '../application/record-session-tenant.command.js';
 import { StartSessionCommand } from '../application/start-session.command.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
-import { displayName } from '../domain/user.js';
+import { defaultTenantOf, displayName } from '../domain/user.js';
 
 /** Prefixo das rotas internas, fora de `/api/v1` (o proxy do BFF nunca as alcança). */
 export const INTERNAL_ROUTE_PREFIX = 'internal';
@@ -52,7 +52,7 @@ export class SessionEventsController {
   @AllowUnboundSubject()
   @ApiOperation({
     operationId: 'INTERNAL-SESSION-EVENTS',
-    summary: 'Registra o início de sessão ou a ativação de instituição (BFF → API)',
+    summary: 'Registra o início de sessão, a ativação ou a troca de instituição (BFF → API)',
     internal: true,
     auditActions: ['auth.session_start', 'auth.tenant_switch'],
     responses: {
@@ -66,36 +66,43 @@ export class SessionEventsController {
     @VerifiedTokenParam() token: VerifiedToken,
     @ZodBody(sessionEventRequestSchema) body: SessionEventRequest,
   ): Promise<SessionEventResult> {
-    if (body.tenantId === undefined) {
+    if (body.tenantId === undefined && body.membershipId === undefined) {
       if (body.type !== 'SESSION_STARTED') {
         throw validationError([
-          { field: 'tenantId', code: 'REQUIRED', message: 'Informe a instituição.' },
+          { field: 'membershipId', code: 'REQUIRED', message: 'Selecione uma instituição válida.' },
         ]);
       }
       return this.start(token);
     }
     const result = await this.recordTenant.execute({
       subject: token.subject,
-      tenantId: body.tenantId,
+      tenantId: body.tenantId ?? null,
+      membershipId: body.membershipId ?? null,
       kind: body.type === 'SESSION_STARTED' ? 'start' : 'switch',
       selection: body.selection ?? 'MANUAL',
       firstLogin: body.firstLogin ?? false,
       fromTenantId: body.fromTenantId ?? null,
+      setAsDefault: body.setAsDefault ?? false,
       amr: token.amr,
       sessionIdHash: body.sessionIdHash,
       ip: body.ip,
       userAgent: body.userAgent,
     });
+    // Troca suspensa pelo MFA do destino (RN-IAM-69): nenhuma instituição ativada.
+    const mfaRequired = result.outcome === 'mfa_required';
     return {
       user: { id: result.user.id, displayName: displayName(result.user) },
       firstLogin: body.firstLogin ?? false,
       memberships: this.memberships(result.memberships),
-      activeMembership: {
-        membershipId: result.membership.id,
-        tenantId: result.membership.tenant.id,
-        readOnly: result.readOnly,
-      },
-      mfaRequired: false,
+      activeMembership: mfaRequired
+        ? null
+        : {
+            membershipId: result.membership.id,
+            tenantId: result.membership.tenant.id,
+            readOnly: result.readOnly,
+          },
+      defaultTenantId: result.defaultTenantId,
+      mfaRequired,
     };
   }
 
@@ -109,6 +116,7 @@ export class SessionEventsController {
       firstLogin: result.firstLogin,
       memberships: this.memberships(result.memberships),
       activeMembership: null,
+      defaultTenantId: defaultTenantOf(result.user),
       mfaRequired: false,
     };
   }

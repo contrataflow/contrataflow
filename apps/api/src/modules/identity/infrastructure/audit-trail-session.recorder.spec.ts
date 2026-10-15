@@ -249,7 +249,7 @@ describe('AuditTrailSessionRecorder — início e troca de instituição (US-087
             firstLogin: false,
             amr: ['pwd'],
           });
-          await recorder.tenantSwitched({ ...base, fromTenantId: TENANT_B });
+          await recorder.tenantSwitched({ ...base, fromTenantId: TENANT_B, selection: 'MANUAL' });
         },
       ),
     );
@@ -261,7 +261,7 @@ describe('AuditTrailSessionRecorder — início e troca de instituição (US-087
       },
       {
         action: 'auth.tenant_switch',
-        metadata: { fromTenantId: TENANT_B, toTenantId: TENANT_A },
+        metadata: { fromTenantId: TENANT_B, toTenantId: TENANT_A, selection: 'MANUAL' },
       },
     ]);
     expect(trail.calls.map(({ context }) => [context.sessionIdHash, context.ip])).toEqual([

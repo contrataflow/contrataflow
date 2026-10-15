@@ -55,7 +55,9 @@ function renderSelection(
 
 describe('seleção de instituição (FA-01)', () => {
   it('troca a instituição, avisa as abas e vai ao início quando não há returnTo', async () => {
-    const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(jsonResponse({ data: {} })));
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { activeTenant: { id: TENANT_B.id } } })),
+    );
     vi.stubGlobal('fetch', fetchMock);
     // Como outra aba recebe: um objeto do canal sem o filtro de origem desta aba.
     const events: unknown[] = [];
@@ -72,7 +74,7 @@ describe('seleção de instituição (FA-01)', () => {
     expect(new Headers(init?.headers).get('X-CF-Request')).toBe('1');
     expect(new Headers(init?.headers).get('Content-Type')).toBe('application/json');
     expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toEqual({
-      tenantId: TENANT_B.id,
+      membershipId: 'm-b',
     });
     await waitFor(() => {
       expect(events).toMatchObject([{ type: 'tenant-switched', tenantId: TENANT_B.id }]);
@@ -192,15 +194,15 @@ describe('seleção de instituição (FA-01)', () => {
       .mockResolvedValueOnce(jsonResponse({ data: {} }));
     vi.stubGlobal('fetch', fetchMock);
     const { assign } = renderSelection(TENANT_B.id);
-    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
+    await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Não foi possível selecionar a instituição. Tente novamente.');
     expect(assign).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Prefeitura B' }).getAttribute('aria-busy')).toBe(
+    expect(screen.getByRole('button', { name: /Prefeitura B/ }).getAttribute('aria-busy')).toBe(
       'false',
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
+    await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
     await waitFor(() => {
       expect(assign).toHaveBeenCalledWith('/exemplo');
     });
@@ -208,11 +210,12 @@ describe('seleção de instituição (FA-01)', () => {
   });
 
   it.each([
-    [403, 'MEMBERSHIP_INACTIVE', 'Seu acesso a esta instituição não está ativo.'],
-    [403, 'TENANT_SUSPENDED', 'Esta instituição está temporariamente indisponível.'],
+    [422, 'VALIDATION_ERROR', 'Selecione uma instituição válida.'],
+    [403, 'MEMBERSHIP_INACTIVE', 'Você não tem mais acesso a esta instituição.'],
+    [403, 'TENANT_SUSPENDED', 'Esta instituição está indisponível no momento.'],
     [403, 'PERMISSION_DENIED', 'Requisição não permitida. Recarregue a página.'],
     [403, 'CSRF_REJECTED', 'Requisição não permitida. Recarregue a página.'],
-    [503, 'DEPENDENCY_UNAVAILABLE', 'Não foi possível entrar agora. Tente novamente em instantes.'],
+    [503, 'DEPENDENCY_UNAVAILABLE', 'Não foi possível trocar agora. Tente novamente.'],
     [500, 'INTERNAL_ERROR', 'Não foi possível selecionar a instituição. Tente novamente.'],
   ])('erro %s %s vira mensagem inline com role=alert', async (status, code, message) => {
     vi.stubGlobal(
@@ -223,6 +226,68 @@ describe('seleção de instituição (FA-01)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Prefeitura A' }));
     expect((await screen.findByRole('alert')).textContent).toBe(message);
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('V-02: vínculo recusado (MEMBERSHIP_INACTIVE) sai das opções selecionáveis', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(problem(403, 'MEMBERSHIP_INACTIVE')));
+    vi.stubGlobal('fetch', fetchMock);
+    renderSelection(TENANT_A.id);
+    const target = screen.getByRole('button', { name: /Prefeitura B/ });
+    await userEvent.click(target);
+    await screen.findByRole('alert');
+    const updated = screen.getByRole('button', { name: /Prefeitura B/ });
+    expect(updated.getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(updated);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a instituição ativa aparece destacada como "Atual" (troca pelo cabeçalho)', () => {
+    renderSelection(TENANT_A.id);
+    const active = screen.getByRole('button', { name: /Prefeitura A/ });
+    expect(active.getAttribute('aria-current')).toBe('true');
+    expect(within(active).getByText('Atual')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /Prefeitura B/ }).getAttribute('aria-current'),
+    ).toBeNull();
+  });
+
+  it('FA-04 "Usar como padrão" vai no pedido de troca', async () => {
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { activeTenant: { id: TENANT_B.id } } })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { assign } = renderSelection(TENANT_A.id);
+    const toggle = screen.getByRole('switch', { name: /Usar como padrão/ });
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/exemplo');
+    });
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toEqual({
+      membershipId: 'm-b',
+      setAsDefault: true,
+    });
+  });
+
+  it('[Falha de integração] destino exige MFA: segue ao step-up devolvido pelo BFF', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            { code: 'MFA_REQUIRED', stepUpUrl: '/api/auth/step-up?returnTo=%2Fexemplo' },
+            { status: 403 },
+          ),
+        ),
+      ),
+    );
+    const { assign } = renderSelection(TENANT_A.id);
+    await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/api/auth/step-up?returnTo=%2Fexemplo');
+    });
   });
 
   it('sessão expirada durante a escolha leva à entrada com o motivo e o returnTo', async () => {

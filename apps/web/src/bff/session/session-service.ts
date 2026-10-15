@@ -22,6 +22,7 @@ import type {
   ClientDetails,
   IdentityProvider,
   MembershipSummary,
+  PendingTenantSwitch,
   ProviderLogin,
   SessionRecord,
   SessionStore,
@@ -47,6 +48,8 @@ export const REFRESH_WAIT_MS = 5_000;
 export const REFRESH_POLL_MS = 100;
 /** Sessões simultâneas por usuário; a mais antiga é encerrada (RN-IAM-10). */
 export const MAX_SESSIONS_PER_USER = 10;
+/** Validade da troca suspensa pelo MFA: o prazo da transação de login do *step-up* (US-093). */
+export const PENDING_SWITCH_TTL_MS = 10 * MINUTE_MS;
 
 /** `sid` aleatório de 256 bits, sempre novo a cada login (anti-fixação — RN-IAM-10). */
 export function newSessionId(): string {
@@ -104,6 +107,8 @@ function minutesBetween(from: number, to: number): number {
 
 export class SessionService {
   private readonly refreshing = new Map<string, Promise<FreshToken>>();
+  /** Fim da fila de operações exclusivas de cada sessão neste processo. */
+  private readonly exclusiveTails = new Map<string, Promise<void>>();
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
 
@@ -154,6 +159,7 @@ export class SessionService {
         absoluteExpiresAt,
       ),
       absoluteExpiresAt,
+      pendingTenantSwitch: null,
     };
     const evicted = await this.store.create(record, MAX_SESSIONS_PER_USER);
     return { record, evicted };
@@ -192,13 +198,34 @@ export class SessionService {
    */
   async touch(record: SessionRecord): Promise<SessionRecord> {
     const now = this.now();
-    const touched: SessionRecord = {
-      ...record,
+    // Sobre o registro mais recente: o `touch` de uma requisição em voo não desfaz uma troca de
+    // instituição nem uma renovação de token gravadas no meio (US-093).
+    const apply = (current: SessionRecord): SessionRecord => ({
+      ...current,
       lastSeenAt: now,
-      idleExpiresAt: Math.min(now + record.idleMinutes * MINUTE_MS, record.absoluteExpiresAt),
-    };
-    await this.store.save(touched);
-    return touched;
+      idleExpiresAt: Math.min(now + current.idleMinutes * MINUTE_MS, current.absoluteExpiresAt),
+    });
+    return (await this.store.update(record.key, apply)) ?? apply(record);
+  }
+
+  /**
+   * Executa `work` depois das demais operações exclusivas da mesma sessão neste processo — dois
+   * cliques de troca de instituição não correm em paralelo (US-093 · Concorrência). Entre
+   * réplicas, a gravação atômica do store mantém o registro íntegro.
+   */
+  async exclusive<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const previous = this.exclusiveTails.get(key) ?? Promise.resolve();
+    const run = previous.then(work);
+    const tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.exclusiveTails.set(key, tail);
+    try {
+      return await run;
+    } finally {
+      if (this.exclusiveTails.get(key) === tail) this.exclusiveTails.delete(key);
+    }
   }
 
   /**
@@ -285,9 +312,13 @@ export class SessionService {
     const result = await this.identity.refresh(record);
     const latencyMs = this.now() - started;
     if (result.kind === 'ok') {
-      // Rotação gravada de uma vez (tokens novos juntos); o refresh anterior não é mais usado.
-      const updated: SessionRecord = { ...record, tokens: result.tokens };
-      await this.store.save(updated);
+      // Rotação gravada de uma vez (tokens novos juntos), só nos tokens do registro mais recente:
+      // uma troca de instituição feita durante a chamada ao IdP continua valendo.
+      const withTokens = (current: SessionRecord): SessionRecord => ({
+        ...current,
+        tokens: result.tokens,
+      });
+      const updated = (await this.store.update(record.key, withTokens)) ?? withTokens(record);
       recordRefresh('ok');
       return { status: 'ok', record: updated };
     }
@@ -326,8 +357,9 @@ export class SessionService {
   /**
    * Registra a instituição ativa, conferida pela API (RN-IAM-09/17), a lista de vínculos mais
    * recente e os limites de sessão da instituição: a ociosidade conta do último uso e a duração
-   * absoluta, da criação da sessão (US-093 recalcula na troca). Reaproveita a sessão (`sid`) —
-   * sem novo cookie (RN-IAM-66).
+   * absoluta, da criação da sessão. Reaproveita a sessão (`sid`) — sem novo cookie (RN-IAM-66) — e
+   * grava `activeTenantId`/`membershipId` juntos, numa única escrita atômica sobre o registro mais
+   * recente (US-093 · Concorrência). Descarta uma troca pendente de *step-up*.
    */
   async activateTenant(
     record: SessionRecord,
@@ -336,36 +368,73 @@ export class SessionService {
       readonly membershipId: string;
       readonly sessionPolicy?: Partial<SessionPolicy> | null;
     },
-    memberships: readonly MembershipSummary[] = record.memberships,
+    memberships?: readonly MembershipSummary[],
   ): Promise<SessionRecord> {
     const policy = resolveSessionPolicy(active.sessionPolicy);
-    const absoluteExpiresAt = record.createdAt + policy.absoluteHours * HOUR_MS;
-    const updated: SessionRecord = {
-      ...record,
-      activeTenantId: active.tenantId,
-      membershipId: active.membershipId,
-      memberships,
-      idleMinutes: policy.idleMinutes,
-      idleExpiresAt: Math.min(
-        record.lastSeenAt + policy.idleMinutes * MINUTE_MS,
+    let previousMembershipId = record.membershipId;
+    const apply = (current: SessionRecord): SessionRecord => {
+      previousMembershipId = current.membershipId;
+      const absoluteExpiresAt = current.createdAt + policy.absoluteHours * HOUR_MS;
+      return {
+        ...current,
+        activeTenantId: active.tenantId,
+        membershipId: active.membershipId,
+        memberships: memberships ?? current.memberships,
+        idleMinutes: policy.idleMinutes,
+        idleExpiresAt: Math.min(
+          current.lastSeenAt + policy.idleMinutes * MINUTE_MS,
+          absoluteExpiresAt,
+        ),
         absoluteExpiresAt,
-      ),
-      absoluteExpiresAt,
+        pendingTenantSwitch: null,
+      };
     };
-    await this.store.save(updated);
-    await this.store.reindex(updated, record.membershipId);
+    const updated = await this.store.update(record.key, apply);
+    // Sessão encerrada no meio (logout em outra aba): nada a reindexar.
+    if (!updated) return apply(record);
+    await this.store.reindex(updated, previousMembershipId);
     return updated;
+  }
+
+  /**
+   * Troca suspensa pelo MFA do destino (RN-IAM-69): guardada até o *step-up* voltar. Uma nova
+   * escolha substitui a anterior.
+   */
+  async suspendTenantSwitch(
+    record: SessionRecord,
+    pending: Omit<PendingTenantSwitch, 'requestedAt'>,
+  ): Promise<SessionRecord> {
+    const apply = (current: SessionRecord): SessionRecord => ({
+      ...current,
+      pendingTenantSwitch: { ...pending, requestedAt: this.now() },
+    });
+    return (await this.store.update(record.key, apply)) ?? apply(record);
+  }
+
+  /** Troca pendente ainda válida (no máximo `PENDING_SWITCH_TTL_MS`); senão `null`. */
+  pendingTenantSwitch(record: SessionRecord): PendingTenantSwitch | null {
+    const pending = record.pendingTenantSwitch ?? null;
+    if (!pending) return null;
+    return this.now() - pending.requestedAt < PENDING_SWITCH_TTL_MS ? pending : null;
+  }
+
+  /** Abandona a troca pendente (recusada ou vencida no retorno do *step-up*). */
+  async clearPendingTenantSwitch(record: SessionRecord): Promise<SessionRecord> {
+    const apply = (current: SessionRecord): SessionRecord => ({
+      ...current,
+      pendingTenantSwitch: null,
+    });
+    return (await this.store.update(record.key, apply)) ?? apply(record);
   }
 
   /** Step-up: substitui os tokens da sessão existente, sem novo login completo (RN-IAM-41). */
   async replaceTokens(record: SessionRecord, login: ProviderLogin): Promise<SessionRecord> {
-    const updated: SessionRecord = {
-      ...record,
+    const apply = (current: SessionRecord): SessionRecord => ({
+      ...current,
       tokens: login.tokens,
       amr: login.amr,
       authTime: login.authTime,
-    };
-    await this.store.save(updated);
-    return updated;
+    });
+    return (await this.store.update(record.key, apply)) ?? apply(record);
   }
 }

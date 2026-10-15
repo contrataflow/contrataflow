@@ -29,6 +29,18 @@ export class MemorySessionStore implements SessionStore {
     return Promise.resolve();
   }
 
+  update(
+    key: string,
+    mutate: (current: SessionRecord) => SessionRecord,
+  ): Promise<SessionRecord | null> {
+    // Uma única réplica e sem `await` entre a leitura e a gravação: já é atômico.
+    const current = this.records.get(key);
+    if (!current) return Promise.resolve(null);
+    const next = mutate(current);
+    this.records.set(key, next);
+    return Promise.resolve(next);
+  }
+
   async create(record: SessionRecord, maxPerUser: number): Promise<readonly string[]> {
     this.records.set(record.key, record);
     const sessions = this.byUser(record.userId).sort(

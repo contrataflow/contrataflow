@@ -33,6 +33,7 @@ export type LogEvent =
   | 'auth.rate_limit_degraded'
   | 'auth.return_to_rejected'
   | 'auth.tenant_switch'
+  | 'auth.tenant_switch_rejected'
   | 'auth.logout'
   | 'auth.session_expired'
   | 'auth.refresh_failed'

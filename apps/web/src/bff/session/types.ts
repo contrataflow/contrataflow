@@ -42,6 +42,20 @@ export interface SessionTokens {
   readonly idToken: string | null;
 }
 
+/**
+ * Troca de instituição suspensa pelo MFA do destino (RN-IAM-69 · US-093): guardada na sessão pelo
+ * `POST /api/auth/switch-tenant` (com CSRF) e concluída no retorno do *step-up* — nunca por um
+ * parâmetro de URL. Vale por 10 min (`PENDING_SWITCH_TTL_MS`), o prazo da transação do *step-up*.
+ */
+export interface PendingTenantSwitch {
+  readonly membershipId: string;
+  /** `null` quando o vínculo não estava na lista da sessão (a API resolve pelo vínculo). */
+  readonly tenantId: string | null;
+  readonly setAsDefault: boolean;
+  /** Epoch em ms. */
+  readonly requestedAt: number;
+}
+
 export interface SessionRecord {
   /** SHA-256 do id do cookie — nunca o valor em claro. */
   readonly key: string;
@@ -66,6 +80,8 @@ export interface SessionRecord {
   readonly idleMinutes: number;
   readonly idleExpiresAt: number;
   readonly absoluteExpiresAt: number;
+  /** Troca à espera do *step-up* (US-093); ausente nos registros anteriores a ela. */
+  readonly pendingTenantSwitch?: PendingTenantSwitch | null;
 }
 
 /** Cliente da requisição que encerra a sessão (vai para a auditoria do encerramento). */
@@ -95,6 +111,16 @@ export interface SessionStore {
    * requisição em voo durante o logout não ressuscita a sessão.
    */
   save(record: SessionRecord): Promise<void>;
+  /**
+   * Leitura-modificação-gravação atômica sobre o registro MAIS RECENTE (Redis: *compare-and-set*
+   * por script Lua, refeito se outra gravação chegou no meio): cada escrita muda só os seus campos
+   * — a troca de instituição não desfaz a renovação de token feita em paralelo, e o `touch` de uma
+   * requisição em voo não desfaz a troca (US-093 · Concorrência). `null` = sessão encerrada.
+   */
+  update(
+    key: string,
+    mutate: (current: SessionRecord) => SessionRecord,
+  ): Promise<SessionRecord | null>;
   /**
    * Grava uma sessão nova e a inclui no índice do usuário; acima de `maxPerUser`, encerra as mais
    * antigas (`SESSION_LIMIT` — RN-IAM-10) e devolve as chaves encerradas.
@@ -210,6 +236,10 @@ export interface DirectoryIdentity {
 
 export type DirectoryResult =
   | ({ readonly kind: 'ok' } & DirectoryIdentity)
+  /** A instituição de destino exige MFA que a sessão não tem: troca suspensa (RN-IAM-69). */
+  | { readonly kind: 'mfa_required' }
+  /** Vínculo que não é do usuário (422 `VALIDATION_ERROR` · `REFERENCE_NOT_FOUND` — V-01). */
+  | { readonly kind: 'invalid_reference' }
   /** `User.status` `BLOCKED`/`DEACTIVATED` (403 `PERMISSION_DENIED` — V-05). */
   | { readonly kind: 'blocked' }
   /** Sem usuário ou sem vínculo com a instituição pedida (403 `MEMBERSHIP_INACTIVE`). */
@@ -230,7 +260,12 @@ export interface DirectoryContext {
 }
 
 export type TenantActivation = DirectoryContext & {
-  readonly tenantId: string;
+  /** Instituição pedida; `null` quando o vínculo escolhido não está na lista da sessão. */
+  readonly tenantId: string | null;
+  /** Vínculo escolhido em SCR-101 (US-093) — conferido pela API contra os do usuário. */
+  readonly membershipId?: string | null;
+  /** "Usar como padrão" (FA-04 da US-093). */
+  readonly setAsDefault?: boolean;
   /** `start`: primeira instituição da sessão (`auth.session_start`); `switch`: troca. */
   readonly kind: 'start' | 'switch';
   readonly selection: 'AUTO' | 'DEFAULT' | 'MANUAL';

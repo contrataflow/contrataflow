@@ -94,7 +94,7 @@ sequenceDiagram
 | `OFFBOARDING` | **Somente leitura e exportação** para vínculos com `ADMIN_ORGAO` ou `AUDITOR`; todos os comandos bloqueados (`TENANT_SUSPENDED`) | Rotas `/platform/*` |
 | `DEACTIVATED` | Sem acesso | Rotas `/platform/*` |
 
-- **Troca de tenant ativo** (`POST /api/auth/switch-tenant` — [`authentication.md`](authentication.md#9-troca-de-tenant-ativo)): o BFF valida o vínculo via `GET /api/v1/me/memberships` (ME-04), atualiza a sessão, rotaciona o id de sessão e o frontend descarta todo o cache (chaves de query começam pelo tenant — [`architecture.md`](architecture.md#85-dados-com-tanstack-query)).
+- **Troca de tenant ativo** (`POST /api/auth/switch-tenant` — [`authentication.md`](authentication.md#9-troca-de-tenant-ativo)): a API revalida o vínculo no banco (`POST /internal/session-events`, `TENANT_SWITCHED`), o BFF atualiza `activeTenantId`/`membershipId` na mesma sessão — sem novo id de sessão nem cookie (RN-IAM-66 · DEC-075) — e o frontend descarta todo o cache (chaves de query começam pelo tenant — [`architecture.md`](architecture.md#85-dados-com-tanstack-query)).
 - Rotas sem tenant (ME-04, `/platform/*`, health) são declaradas explicitamente (`@TenantOptional()`†); nelas a transação usa `app.tenant_id` = UUID nulo (`00000000-0000-0000-0000-000000000000`), que não corresponde a nenhum tenant.
 
 ## 5. Isolamento em consultas

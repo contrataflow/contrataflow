@@ -32,7 +32,8 @@ const SECRET_FRAGMENTS = ['access-', 'refresh-segredo', 'id-token-segredo'];
 
 function membership(tenantId: string, name: string, overrides: Partial<MembershipSummary> = {}) {
   return {
-    membershipId: `${tenantId.slice(0, -2)}m1`,
+    // Vínculo = id da instituição com o penúltimo grupo trocado (UUID válido e único).
+    membershipId: `${tenantId.slice(0, -3)}1${tenantId.slice(-2)}`,
     tenant: {
       id: tenantId,
       name,
@@ -98,7 +99,7 @@ function stubProvider(clock: { now: number }) {
 function stubDirectory() {
   const state: {
     start: DirectoryResult;
-    activation: ((tenantId: string) => DirectoryResult) | null;
+    activation: ((tenantId: string | null) => DirectoryResult) | null;
   } = {
     start: {
       kind: 'ok',
@@ -114,7 +115,9 @@ function stubDirectory() {
   const activateTenant = vi.fn<SessionDirectory['activateTenant']>((input) => {
     if (state.activation) return Promise.resolve(state.activation(input.tenantId));
     if (state.start.kind !== 'ok') return Promise.resolve(state.start);
-    const target = state.start.memberships.find((item) => item.tenant.id === input.tenantId);
+    const target = state.start.memberships.find(
+      (item) => item.tenant.id === input.tenantId || item.membershipId === input.membershipId,
+    );
     return Promise.resolve(
       target?.usable
         ? {
@@ -545,12 +548,14 @@ describe('POST /api/auth/switch-tenant (US-087 · SCR-101)', () => {
     return `__Host-cf_session=${cookieValue(setCookieFor(callback, '__Host-cf_session') ?? '', '__Host-cf_session') ?? ''}`;
   }
 
+  /** Escolha da instituição pelo vínculo (contrato da US-093: `{ membershipId }`). */
   function choose(h: Harness, cookie: string, tenantId: string) {
+    const membershipId = membership(tenantId, '').membershipId;
     return handleAuthRequest(
       browserRequest('/api/auth/switch-tenant', {
         method: 'POST',
         headers: { ...MUTATION, ...BEHIND_ALB, Cookie: cookie, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId }),
+        body: JSON.stringify({ membershipId }),
       }),
       'switch-tenant',
       h.test.runtime,
@@ -570,7 +575,13 @@ describe('POST /api/auth/switch-tenant (US-087 · SCR-101)', () => {
     );
     await choose(h, cookie, TENANT_SJ);
     expect(h.api.activateTenant).toHaveBeenLastCalledWith(
-      expect.objectContaining({ kind: 'switch', fromTenantId: TENANT_SL, tenantId: TENANT_SJ }),
+      expect.objectContaining({
+        kind: 'switch',
+        fromTenantId: TENANT_SL,
+        tenantId: TENANT_SJ,
+        membershipId: membership(TENANT_SJ, '').membershipId,
+        setAsDefault: false,
+      }),
     );
     // Mesma instituição: no-op idempotente, sem nova chamada à API.
     const calls = h.api.activateTenant.mock.calls.length;

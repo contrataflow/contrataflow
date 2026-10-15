@@ -2,9 +2,12 @@
 // `cf_user_memberships` (leitura entre tenants restrita ao próprio usuário), o vínculo do `sub` no
 // primeiro login sob concorrência e o último acesso ao vínculo. Testcontainers + migrações reais.
 import pg from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SessionAuditPort } from '#modules/identity/application/ports.js';
+import { RecordSessionTenantCommand } from '#modules/identity/application/record-session-tenant.command.js';
 import { PrismaIdentityRepository } from '#modules/identity/infrastructure/prisma-identity.repository.js';
+import { InMemoryTenantMfaPolicy } from '#modules/identity/infrastructure/tenant-mfa-policy.js';
 import { PrismaTenantRepository } from '#modules/tenancy/infrastructure/prisma-tenant.repository.js';
 import { TenantTransaction } from '#shared/database/database.module.js';
 import { PlatformTransaction } from '#shared/database/platform-transaction.js';
@@ -156,6 +159,84 @@ describe('identidade no PostgreSQL (US-087)', () => {
         { role: 'cf_relay', allowed: false },
         { role: 'cf_worker', allowed: true },
       ]);
+    });
+  });
+
+  describe('troca de instituição ativa (US-093)', () => {
+    function switchCommand() {
+      const tenantSwitched = vi.fn<SessionAuditPort['tenantSwitched']>(() => Promise.resolve());
+      const audit: SessionAuditPort = {
+        sessionStarted: () => Promise.resolve(),
+        tenantSwitched,
+        sessionEnded: () => Promise.resolve('recorded'),
+      };
+      const command = new RecordSessionTenantCommand(
+        identities,
+        audit,
+        new InMemoryTenantMfaPolicy(),
+        () => new Date(),
+      );
+      const execute = () =>
+        asTenant(null, () =>
+          command.execute({
+            subject: SUB_ANA,
+            tenantId: null,
+            membershipId: ANA_B,
+            kind: 'switch',
+            selection: 'MANUAL',
+            firstLogin: false,
+            fromTenantId: A,
+            setAsDefault: true,
+            amr: ['pwd'],
+            sessionIdHash: 'd'.repeat(64),
+            ip: null,
+            userAgent: null,
+          }),
+        );
+      return { execute, tenantSwitched };
+    }
+
+    it('revalida no banco o status da instituição e do vínculo a cada troca (RN-IAM-65/68)', async () => {
+      const { execute, tenantSwitched } = switchCommand();
+      try {
+        // Prefeitura de Santa Luzia suspensa pela plataforma.
+        await expect(execute()).rejects.toMatchObject({ code: 'TENANT_SUSPENDED' });
+        await db.admin(
+          `UPDATE tenants SET status = 'ACTIVE', suspension_reason = NULL WHERE id = '${B}'`,
+        );
+        await expect(execute()).resolves.toMatchObject({
+          outcome: 'activated',
+          membership: { id: ANA_B, tenant: { id: B } },
+          defaultTenantId: B,
+        });
+        expect(tenantSwitched).toHaveBeenCalledOnce();
+        await db.admin(`UPDATE tenant_memberships SET status = 'SUSPENDED' WHERE id = '${ANA_B}'`);
+        await expect(execute()).rejects.toMatchObject({ code: 'MEMBERSHIP_INACTIVE' });
+      } finally {
+        await db.admin(
+          `UPDATE tenants SET status = 'SUSPENDED', suspension_reason = 'teste' WHERE id = '${B}';
+           UPDATE tenant_memberships SET status = 'ACTIVE' WHERE id = '${ANA_B}';
+           UPDATE users SET preferences = '{}' WHERE id = '${ANA}'`,
+        );
+      }
+    });
+
+    it('"Usar como padrão" grava só preferences.defaultTenantId, sem tocar as demais nem a versão', async () => {
+      await db.admin(`UPDATE users SET preferences = '{"theme":"dark"}' WHERE id = '${ANA}'`);
+      try {
+        await identities.setDefaultTenant(ANA, B);
+        const [row] = await db.admin<{ preferences: unknown; version: number }>(
+          `SELECT preferences, version FROM users WHERE id = '${ANA}'`,
+        );
+        expect(row?.preferences).toEqual({ theme: 'dark', defaultTenantId: B });
+        expect(row?.version).toBe(1);
+        expect((await identities.findUserBySubject(SUB_ANA))?.preferences).toEqual({
+          theme: 'dark',
+          defaultTenantId: B,
+        });
+      } finally {
+        await db.admin(`UPDATE users SET preferences = '{}' WHERE id = '${ANA}'`);
+      }
     });
   });
 

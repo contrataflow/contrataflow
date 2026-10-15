@@ -11,6 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -50,6 +51,7 @@
     "eslint": "catalog:",
     "jsdom": "catalog:",
     "tailwindcss": "catalog:",
+    "testcontainers": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

@@ -12,6 +12,7 @@ import {
   IDENTITY_CLOCK,
   IDENTITY_REPOSITORY,
   SESSION_AUDIT,
+  TENANT_MFA_POLICY,
 } from './application/ports.js';
 import { RecordSessionEndingsCommand } from './application/record-session-endings.command.js';
 import { RecordSessionTenantCommand } from './application/record-session-tenant.command.js';
@@ -29,6 +30,10 @@ import {
 import { JwksTokenVerifier } from './infrastructure/jwks-token-verifier.js';
 import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repository.js';
 import { SessionSweepScheduler } from './infrastructure/session-sweep.scheduler.js';
+import {
+  InMemoryTenantMfaPolicy,
+  RegistryDefaultMfaPolicy,
+} from './infrastructure/tenant-mfa-policy.js';
 import { MeController } from './presentation/me.controller.js';
 import { SessionEventsController } from './presentation/session-events.controller.js';
 
@@ -80,6 +85,12 @@ function identityProviders(): Provider[] {
       },
     },
     { provide: SESSION_AUDIT, useClass: AuditTrailSessionRecorder },
+    {
+      provide: TENANT_MFA_POLICY,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) =>
+        config.oidc.fakeSigningKey ? new InMemoryTenantMfaPolicy() : new RegistryDefaultMfaPolicy(),
+    },
     { provide: IDENTITY_CLOCK, useValue: () => new Date() },
   ];
 }

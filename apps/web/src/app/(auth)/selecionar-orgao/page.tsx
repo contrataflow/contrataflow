@@ -1,3 +1,4 @@
+import { Alert } from '@contrataflow/ui';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
@@ -9,9 +10,10 @@ import { toShellSession } from '@/bff/session/view';
 import { TenantSelection } from './tenant-selection';
 
 /**
- * `/selecionar-orgao` (SCR-101 · FA-01/FA-08): destino do callback e do layout de `(app)` quando
- * a sessão não tem instituição ativa e há mais de um vínculo utilizável. A lista simples é desta
- * story; o seletor completo e a instituição padrão são da US-093. Exige só sessão.
+ * `/selecionar-orgao` (SCR-101 · FA-01/FA-08 da US-087 · US-093): destino do callback e do layout
+ * de `(app)` quando a sessão não tem instituição ativa e há mais de um vínculo utilizável, e do
+ * "Ver todas as instituições" do cabeçalho (troca com "Usar como padrão"). Exige só sessão.
+ * `?motivo=troca-nao-concluida`: a troca que esperava o *step-up* foi recusada.
  */
 
 function single(value: string | string[] | undefined): string | undefined {
@@ -50,6 +52,7 @@ export default async function SelectTenantPage({ searchParams }: SelectTenantPag
 
   const t = await getTranslations('auth.selectTenant');
   const name = firstName(session.user.displayName);
+  const switchNotCompleted = single(query.motivo) === 'troca-nao-concluida';
   return (
     <section className="mx-auto flex w-full max-w-2xl flex-col py-10">
       <h1 className="text-2xl font-semibold tracking-tight">
@@ -58,6 +61,9 @@ export default async function SelectTenantPage({ searchParams }: SelectTenantPag
       <p className="mt-1 text-sm text-muted-foreground">
         {session.memberships.length > 1 ? t('description') : t('descriptionSingle')}
       </p>
+      {switchNotCompleted ? (
+        <Alert tone="warning" title={t('switchNotCompleted')} className="mt-6" />
+      ) : null}
       <TenantSelection
         memberships={session.memberships}
         activeTenantId={session.activeTenant?.id ?? null}

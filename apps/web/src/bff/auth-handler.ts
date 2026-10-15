@@ -1,6 +1,7 @@
 import 'server-only';
 
-import { z } from 'zod';
+import { switchTenantRequestSchema } from '@contrataflow/validation';
+import type { z } from 'zod';
 
 import {
   addTransaction,
@@ -22,7 +23,7 @@ import { clearCookie, readCookie, serializeCookie } from './cookies';
 import { CORRELATION_HEADER, resolveCorrelationId } from './correlation';
 import { checkCsrf } from './csrf';
 import { jsonResponse, problemResponse, redirectResponse } from './http';
-import type { BffProblemCode } from './http';
+import type { BffFieldError, BffProblemCode } from './http';
 import { log } from './logger';
 import { recordLogin } from './metrics';
 import { DEFAULT_RETURN_TO, safeReturnTo } from './return-to';
@@ -36,6 +37,7 @@ import type {
   DirectoryIdentity,
   DirectoryResult,
   LoginFailureReason,
+  PendingTenantSwitch,
   SessionRecord,
 } from './session/types';
 import { toShellSession } from './session/view';
@@ -92,7 +94,16 @@ const MAX_TRANSACTION_COOKIE_BYTES = 3_800;
 /** Segundos sugeridos ao navegador quando o Redis de sessões está fora (DEC-131). */
 const STORE_RETRY_AFTER_SECONDS = '5';
 
-const switchTenantSchema = z.strictObject({ tenantId: z.uuid() });
+/** SCR-101 com o aviso de troca não concluída depois do *step-up* (US-093 · FA-01). */
+export const SWITCH_NOT_COMPLETED_URL = '/selecionar-orgao?motivo=troca-nao-concluida';
+
+/** *Step-up* que conclui a troca suspensa pelo MFA do destino (RN-IAM-69) e segue ao início. */
+export const SWITCH_STEP_UP_URL = `/api/auth/step-up?${new URLSearchParams({
+  returnTo: DEFAULT_RETURN_TO,
+}).toString()}`;
+
+/** Mensagem de V-01 da US-093 (vínculo ausente ou que não é do usuário). */
+const INVALID_MEMBERSHIP_MESSAGE = 'Selecione uma instituição válida.';
 
 interface Context {
   readonly request: Request;
@@ -332,6 +343,9 @@ function identityRejection(
       return { reason: 'NO_MEMBERSHIP', location: '/erro/sem-vinculo' };
     case 'unauthenticated':
       return { reason: 'TOKEN_INVALID', location: loginPage('erro') };
+    // Respostas que o início de sessão não produz: falha de integração.
+    case 'mfa_required':
+    case 'invalid_reference':
     case 'unavailable': {
       const query = new URLSearchParams({ codigo: context.correlationId, retorno: returnTo });
       return { reason: 'DIRECTORY_UNAVAILABLE', location: `/erro/manutencao?${query.toString()}` };
@@ -396,7 +410,14 @@ async function callback(context: Context): Promise<Response> {
     current.status === 'active' &&
     current.record.subject === login.subject
   ) {
-    await sessions.replaceTokens(current.record, login);
+    const updated = await sessions.replaceTokens(current.record, login);
+    // Troca de instituição que esperava este *step-up* (RN-IAM-69 · US-093).
+    const pending = sessions.pendingTenantSwitch(updated);
+    if (pending) {
+      const location = await completePendingSwitch(context, updated, pending, transaction.returnTo);
+      return redirectResponse(location, { correlationId, headers });
+    }
+    if (updated.pendingTenantSwitch) await sessions.clearPendingTenantSwitch(updated);
     return redirectResponse(transaction.returnTo, { correlationId, headers });
   }
 
@@ -604,8 +625,71 @@ const ACTIVATION_PROBLEMS: Readonly<
   blocked: 'PERMISSION_DENIED',
   unauthenticated: 'SESSION_EXPIRED',
   unavailable: 'DEPENDENCY_UNAVAILABLE',
+  mfa_required: 'MFA_REQUIRED',
+  invalid_reference: 'VALIDATION_ERROR',
 };
 
+/** Corpo ilegível (não é JSON): 400, distinto do corpo fora do contrato (422). */
+const MALFORMED_BODY = Symbol('malformed');
+
+/** `errors[]` do 422 de `POST /api/auth/switch-tenant` (V-01 da US-093). */
+function switchRequestErrors(payload: unknown, error: z.ZodError): BffFieldError[] {
+  const membershipId =
+    typeof payload === 'object' && payload !== null
+      ? (payload as Record<string, unknown>).membershipId
+      : undefined;
+  return error.issues.map((issue) => {
+    const field = String(
+      (issue.code === 'unrecognized_keys' ? issue.keys[0] : issue.path[0]) ?? 'membershipId',
+    );
+    if (field !== 'membershipId') {
+      return { field, code: 'INVALID_FORMAT', message: 'Valor inválido.' };
+    }
+    return {
+      field,
+      code: membershipId === undefined ? 'REQUIRED' : 'REFERENCE_NOT_FOUND',
+      message: INVALID_MEMBERSHIP_MESSAGE,
+    };
+  });
+}
+
+/** Resposta de uma ativação recusada pela API (V-01/V-02 · RN-IAM-69 · Casos de erro). */
+function switchRejection(
+  context: Context,
+  kind: Exclude<DirectoryResult['kind'], 'ok'>,
+  logFields: Readonly<Record<string, unknown>>,
+): Response {
+  const code = ACTIVATION_PROBLEMS[kind];
+  if (code !== 'DEPENDENCY_UNAVAILABLE') {
+    log('warn', 'auth.tenant_switch_rejected', {
+      reason: kind === 'invalid_reference' ? 'REFERENCE_NOT_FOUND' : code,
+      ...logFields,
+      correlationId: context.correlationId,
+    });
+  }
+  if (kind === 'invalid_reference') {
+    return problemResponse('VALIDATION_ERROR', {
+      ...context,
+      errors: [
+        { field: 'membershipId', code: 'REFERENCE_NOT_FOUND', message: INVALID_MEMBERSHIP_MESSAGE },
+      ],
+    });
+  }
+  if (kind === 'mfa_required') {
+    return problemResponse('MFA_REQUIRED', {
+      ...context,
+      extensions: { stepUpUrl: SWITCH_STEP_UP_URL },
+    });
+  }
+  return problemResponse(code, context);
+}
+
+/**
+ * Troca de instituição ativa (US-093 · authentication.md §6): `{ membershipId, setAsDefault? }`.
+ * A API revalida o vínculo no banco e audita a troca; o BFF grava `activeTenantId`/`membershipId`
+ * na MESMA sessão (`sid` e cookie mantidos — RN-IAM-66), numa escrita atômica. Dois cliques do
+ * mesmo navegador são atendidos um depois do outro (o segundo vira no-op — RN-IAM-70).
+ */
 async function switchTenant(context: Context): Promise<Response> {
   const { request, runtime, correlationId } = context;
   const csrf = checkCsrf(request.method, request.headers, runtime.config.appOrigin);
@@ -617,27 +701,45 @@ async function switchTenant(context: Context): Promise<Response> {
     });
     return problemResponse('CSRF_REJECTED', context);
   }
-  const cookieName = runtime.config.sessionCookieName;
-  const lookup = await runtime.sessions.lookup(sessionCookieValue(context), context.client);
-  if (lookup.status !== 'active') return inactiveSessionResponse(lookup, context, cookieName);
   let payload: unknown;
   try {
     payload = await request.json();
   } catch {
-    return problemResponse('MALFORMED_REQUEST', context);
+    payload = MALFORMED_BODY;
   }
-  const parsed = switchTenantSchema.safeParse(payload);
-  if (!parsed.success) return problemResponse('MALFORMED_REQUEST', context);
-  const { tenantId } = parsed.data;
+  const cookie = sessionCookieValue(context);
+  const run = () => switchActiveTenant(context, cookie, payload);
+  return cookie ? runtime.sessions.exclusive(hashSessionId(cookie), run) : run();
+}
+
+async function switchActiveTenant(
+  context: Context,
+  cookie: string | null,
+  payload: unknown,
+): Promise<Response> {
+  const { runtime, correlationId } = context;
+  const started = runtime.now();
+  const cookieName = runtime.config.sessionCookieName;
+  const lookup = await runtime.sessions.lookup(cookie, context.client);
+  if (lookup.status !== 'active') return inactiveSessionResponse(lookup, context, cookieName);
+  if (payload === MALFORMED_BODY) return problemResponse('MALFORMED_REQUEST', context);
+  const parsed = switchTenantRequestSchema.safeParse(payload);
+  if (!parsed.success) {
+    return problemResponse('VALIDATION_ERROR', {
+      ...context,
+      errors: switchRequestErrors(payload, parsed.error),
+    });
+  }
+  const { membershipId } = parsed.data;
+  const setAsDefault = parsed.data.setAsDefault === true;
 
   const record = lookup.record;
-  // Trocar para a instituição já ativa é no-op idempotente (RN-IAM-70).
-  if (record.activeTenantId === tenantId) {
+  const fromTenantId = record.activeTenantId;
+  // Trocar para a instituição já ativa é no-op idempotente: sem API, sem auditoria (RN-IAM-70) —
+  // a não ser para gravar a instituição padrão pedida (FA-04).
+  if (fromTenantId !== null && record.membershipId === membershipId && !setAsDefault) {
     const touched = await runtime.sessions.touch(record);
     return jsonResponse({ data: toShellSession(touched) }, { correlationId });
-  }
-  if (!record.memberships.some((m) => m.tenant.id === tenantId && m.usable)) {
-    return problemResponse('MEMBERSHIP_INACTIVE', context);
   }
   const fresh = await runtime.sessions.ensureFreshToken(record, { client: context.client });
   if (fresh.status === 'expired' || fresh.status === 'ended') {
@@ -645,31 +747,103 @@ async function switchTenant(context: Context): Promise<Response> {
   }
   if (fresh.status === 'unavailable') return problemResponse('DEPENDENCY_UNAVAILABLE', context);
 
-  // A API confere o vínculo e grava `auth.session_start` (primeira escolha) ou `auth.tenant_switch`.
-  const fromTenantId = fresh.record.activeTenantId;
+  // A API confere o vínculo (do próprio usuário, utilizável, MFA do destino) e grava
+  // `auth.session_start` (primeira escolha) ou `auth.tenant_switch`.
+  const known = fresh.record.memberships.find((m) => m.membershipId === membershipId);
+  const target = { membershipId, tenantId: known?.tenant.id ?? null, setAsDefault };
   const activation = await runtime.directory.activateTenant({
-    accessToken: fresh.record.tokens.accessToken,
-    sessionIdHash: fresh.record.key,
-    ip: context.clientIp,
-    userAgent: context.userAgent,
-    correlationId,
-    tenantId,
+    ...directoryContextOf(context, fresh.record),
+    ...target,
     kind: fromTenantId ? 'switch' : 'start',
     selection: 'MANUAL',
     firstLogin: fresh.record.firstLogin,
     fromTenantId,
   });
+  if (activation.kind === 'mfa_required') {
+    await runtime.sessions.suspendTenantSwitch(fresh.record, target);
+  }
   if (activation.kind !== 'ok' || !activation.active) {
-    const code =
-      activation.kind === 'ok' ? 'DEPENDENCY_UNAVAILABLE' : ACTIVATION_PROBLEMS[activation.kind];
-    return problemResponse(code, context);
+    return activation.kind === 'ok'
+      ? problemResponse('DEPENDENCY_UNAVAILABLE', context)
+      : switchRejection(context, activation.kind, { userId: record.userId, fromTenantId });
   }
   const updated = await runtime.sessions.activateTenant(
     fresh.record,
     activation.active,
     activation.memberships,
   );
-  log('info', 'auth.tenant_switch', { fromTenantId, toTenantId: tenantId, correlationId });
+  logTenantSwitch(updated, fromTenantId, runtime.now() - started, correlationId);
   const touched = await runtime.sessions.touch(updated);
   return jsonResponse({ data: toShellSession(touched) }, { correlationId });
+}
+
+function directoryContextOf(context: Context, record: SessionRecord): DirectoryContext {
+  return {
+    accessToken: record.tokens.accessToken,
+    sessionIdHash: record.key,
+    ip: context.clientIp,
+    userAgent: context.userAgent,
+    correlationId: context.correlationId,
+  };
+}
+
+/** `info auth.tenant_switch` só para a troca efetiva (nunca cookie, tokens ou IP). */
+function logTenantSwitch(
+  record: SessionRecord,
+  fromTenantId: string | null,
+  durationMs: number,
+  correlationId: string,
+): void {
+  if (record.activeTenantId === fromTenantId) return;
+  log('info', 'auth.tenant_switch', {
+    userId: record.userId,
+    fromTenantId,
+    toTenantId: record.activeTenantId,
+    durationMs,
+    correlationId,
+  });
+}
+
+/**
+ * Retorno do *step-up* com uma troca pendente (FA-01 da US-093): a API revalida com o token novo
+ * (agora com MFA) e a troca se completa; recusada (vínculo encerrado no meio, MFA ainda
+ * insuficiente, API fora), a sessão fica na instituição anterior e SCR-101 mostra o aviso.
+ */
+async function completePendingSwitch(
+  context: Context,
+  record: SessionRecord,
+  pending: PendingTenantSwitch,
+  returnTo: string,
+): Promise<string> {
+  const { runtime, correlationId } = context;
+  const started = runtime.now();
+  const fromTenantId = record.activeTenantId;
+  const activation = await runtime.directory.activateTenant({
+    ...directoryContextOf(context, record),
+    tenantId: pending.tenantId,
+    membershipId: pending.membershipId,
+    setAsDefault: pending.setAsDefault,
+    kind: fromTenantId ? 'switch' : 'start',
+    selection: 'MANUAL',
+    firstLogin: record.firstLogin,
+    fromTenantId,
+  });
+  if (activation.kind === 'ok' && activation.active) {
+    const updated = await runtime.sessions.activateTenant(
+      record,
+      activation.active,
+      activation.memberships,
+    );
+    logTenantSwitch(updated, fromTenantId, runtime.now() - started, correlationId);
+    return returnTo;
+  }
+  await runtime.sessions.clearPendingTenantSwitch(record);
+  log('warn', 'auth.tenant_switch_rejected', {
+    reason: activation.kind === 'ok' ? 'unavailable' : activation.kind,
+    afterStepUp: true,
+    userId: record.userId,
+    fromTenantId,
+    correlationId,
+  });
+  return SWITCH_NOT_COMPLETED_URL;
 }

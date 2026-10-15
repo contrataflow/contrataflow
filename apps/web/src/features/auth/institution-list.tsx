@@ -21,16 +21,22 @@ function noteKey(
   return status === ACTIVE ? 'membershipInactive' : 'unavailable';
 }
 
-/** Lista simples de instituições da seleção do login (SCR-101); o seletor completo é da US-093. */
+/**
+ * Lista de instituições de SCR-101 (`TenantList` — login da US-087 e troca da US-093): utilizáveis
+ * primeiro, a ativa destacada, as indisponíveis desabilitadas com o motivo.
+ */
 export function InstitutionList({
   memberships,
-  pendingTenantId,
+  activeTenantId = null,
+  pendingMembershipId,
   onSelect,
 }: {
   readonly memberships: readonly ShellMembership[];
-  /** Instituição em troca neste momento (bloqueia novas escolhas). */
-  readonly pendingTenantId: string | null;
-  readonly onSelect: (tenantId: string) => void;
+  /** Instituição ativa da sessão (destacada como "atual"). */
+  readonly activeTenantId?: string | null;
+  /** Vínculo em troca neste momento (bloqueia novas escolhas). */
+  readonly pendingMembershipId: string | null;
+  readonly onSelect: (membership: ShellMembership) => void;
 }) {
   const t = useTranslations('auth.selectTenant');
   const format = useFormatter();
@@ -44,8 +50,9 @@ export function InstitutionList({
     <ul aria-label={t('listLabel')} className="mt-6 space-y-3">
       {ordered.map((membership) => {
         const { tenant } = membership;
-        const pending = pendingTenantId === tenant.id;
-        const busy = pendingTenantId !== null;
+        const pending = pendingMembershipId === membership.membershipId;
+        const busy = pendingMembershipId !== null;
+        const current = activeTenantId === tenant.id;
         const external = membership.type === EXTERNAL;
         const validity =
           membership.usable && membership.expiresAt
@@ -66,15 +73,17 @@ export function InstitutionList({
               type="button"
               aria-busy={pending}
               aria-disabled={!membership.usable || busy || undefined}
+              aria-current={current ? 'true' : undefined}
               aria-describedby={note ? noteId : undefined}
               onClick={() => {
-                if (membership.usable && !busy) onSelect(tenant.id);
+                if (membership.usable && !busy) onSelect(membership);
               }}
               className={cx(
                 'group flex w-full items-center gap-4 rounded-xl border p-5 text-left transition',
                 membership.usable
                   ? 'border-border bg-surface shadow-card hover:border-primary/50 hover:bg-primary-soft'
                   : 'cursor-not-allowed border-border bg-muted',
+                current && 'border-primary ring-1 ring-primary',
                 membership.usable && busy && !pending && 'cursor-wait opacity-70',
               )}
             >
@@ -98,6 +107,11 @@ export function InstitutionList({
                   >
                     {tenant.name}
                   </span>
+                  {current ? (
+                    <span className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-primary">
+                      {t('current')}
+                    </span>
+                  ) : null}
                   {external ? (
                     <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-violet-800 ring-1 ring-violet-200 ring-inset">
                       {t('external')}

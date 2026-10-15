@@ -48,12 +48,28 @@ function toMemberships(result: SessionEventResult): MembershipSummary[] {
   }));
 }
 
-async function problemOf(response: Response): Promise<{ code: unknown; reason: unknown }> {
+interface ProblemSummary {
+  readonly code: unknown;
+  readonly reason: unknown;
+  /** Códigos de `errors[]` (422 de validação). */
+  readonly fieldCodes: readonly unknown[];
+}
+
+async function problemOf(response: Response): Promise<ProblemSummary> {
   try {
-    const body = (await response.json()) as { code?: unknown; reason?: unknown } | null;
-    return { code: body?.code, reason: body?.reason };
+    const body = (await response.json()) as {
+      code?: unknown;
+      reason?: unknown;
+      errors?: unknown;
+    } | null;
+    const errors = Array.isArray(body?.errors) ? (body.errors as { code?: unknown }[]) : [];
+    return {
+      code: body?.code,
+      reason: body?.reason,
+      fieldCodes: errors.map((error) => error.code),
+    };
   } catch {
-    return { code: null, reason: null };
+    return { code: null, reason: null, fieldCodes: [] };
   }
 }
 
@@ -73,7 +89,9 @@ export class ApiSessionDirectory implements SessionDirectory {
     return this.send(input, {
       type: input.kind === 'start' ? 'SESSION_STARTED' : 'TENANT_SWITCHED',
       sessionIdHash: input.sessionIdHash,
-      tenantId: input.tenantId,
+      ...(input.tenantId ? { tenantId: input.tenantId } : {}),
+      ...(input.membershipId ? { membershipId: input.membershipId } : {}),
+      ...(input.setAsDefault ? { setAsDefault: true } : {}),
       selection: input.selection,
       firstLogin: input.firstLogin,
       fromTenantId: input.fromTenantId,
@@ -116,14 +134,15 @@ export class ApiSessionDirectory implements SessionDirectory {
         ((await response.json().catch(() => null)) as { data?: unknown } | null)?.data,
       );
       if (!parsed.success) return { kind: 'unavailable' };
+      // Troca suspensa pelo MFA da instituição de destino (RN-IAM-69 · US-093).
+      if (parsed.data.mfaRequired) return { kind: 'mfa_required' };
       return {
         kind: 'ok',
         user: parsed.data.user,
         firstLogin: parsed.data.firstLogin,
         memberships: toMemberships(parsed.data),
         active: parsed.data.activeMembership,
-        // Instituição padrão do usuário (RN-IAM-09) chega com a US-093.
-        defaultTenantId: null,
+        defaultTenantId: parsed.data.defaultTenantId ?? null,
       };
     }
     if (response.status === 401) {
@@ -136,6 +155,14 @@ export class ApiSessionDirectory implements SessionDirectory {
       if (code === 'PERMISSION_DENIED' && reason === 'USER_BLOCKED') return { kind: 'blocked' };
       if (code === 'TENANT_SUSPENDED') return { kind: 'tenant_unavailable' };
       if (code === 'MEMBERSHIP_INACTIVE') return { kind: 'no_membership' };
+      return { kind: 'unavailable' };
+    }
+    if (response.status === 422) {
+      // Vínculo que não é do usuário (V-01 da US-093); outro 422 é falha de integração.
+      const { code, fieldCodes } = await problemOf(response);
+      if (code === 'VALIDATION_ERROR' && fieldCodes.includes('REFERENCE_NOT_FOUND')) {
+        return { kind: 'invalid_reference' };
+      }
       return { kind: 'unavailable' };
     }
     await response.body?.cancel();

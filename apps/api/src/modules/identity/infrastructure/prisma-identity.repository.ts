@@ -224,6 +224,18 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
     return rows.map(toMembership);
   }
 
+  async setDefaultTenant(userId: string, tenantId: string): Promise<void> {
+    // Só a chave `defaultTenantId` do jsonb: as demais preferências (densidade, tema) ficam como
+    // estão. Não incrementa `version` — a instituição padrão não aparece no perfil de ME-01/02.
+    await this.platform.run(
+      (tx) => tx.$executeRaw`
+        UPDATE users
+           SET preferences = preferences || jsonb_build_object('defaultTenantId', ${tenantId}::text)
+         WHERE id = ${userId}::uuid`,
+      { userId },
+    );
+  }
+
   async touchMembershipAccess(tenantId: string, membershipId: string, at: Date): Promise<void> {
     const last = this.lastTouched.get(membershipId);
     if (last !== undefined && at.getTime() - last < LAST_ACCESS_INTERVAL_MS) return;

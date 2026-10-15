@@ -84,15 +84,26 @@ test('cabeçalhos de segurança em página e em /api/*', async ({ page, request 
   expect(api.headers()['content-security-policy']).toContain("default-src 'none'");
 });
 
-test('troca de instituição apaga os dados da anterior', async ({ page }) => {
+test('troca de instituição (US-093): mesma sessão, dados do novo tenant e aviso', async ({
+  page,
+}) => {
   await signIn(page);
   await expect(page.getByText('item-01')).toBeVisible();
+  const cookiesBefore = await page.context().cookies();
   await page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }).click();
   await page.getByRole('menuitem', { name: 'Prefeitura B' }).click();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura B' })).toBeVisible();
-  await expect(
-    page.getByText('Instituição alterada para Prefeitura B.', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('Agora você está em Prefeitura B.', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/exemplo$/);
+  // A API passa a receber o X-Tenant-Id da Prefeitura B, na MESMA sessão (RN-IAM-66).
+  const ping = await page.request.get('/api/v1/_internal/ping');
+  expect(((await ping.json()) as { data: { tenantId: string } }).data.tenantId).toBe(
+    '0192a000-0000-7000-8000-00000000000b',
+  );
+  const session = (cookies: typeof cookiesBefore) =>
+    cookies.find((cookie) => cookie.name === '__Host-cf_session')?.value;
+  expect(session(await page.context().cookies())).toBe(session(cookiesBefore));
+  await expectNoSeriousA11yViolations(page, 'troca de instituição');
 });
 
 test('503 da API: error.tsx com correlationId copiável e "Tentar novamente"', async ({ page }) => {

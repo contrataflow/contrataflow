@@ -38,3 +38,17 @@ Desde a US-088 (DEC-131 · RN-IAM-24/28):
 - **Logs e métrica:** `auth.sessions_swept` (info: `processed`, `recorded`, `deferred`);
   `auth.session_audit_deferred`, `auth.session_sweep_failed` e `auth.session_audit_skipped` (warn);
   contador `auth_sessions_expired_total{reason}`. Nunca a chave da sessão, tokens ou IP.
+
+Desde a US-093 (DEC-075 · RN-IAM-65..72):
+
+- **Troca de instituição ativa:** `TENANT_SWITCHED` em `POST /internal/session-events` aceita o
+  vínculo escolhido (`membershipId`), conferido contra os vínculos do próprio usuário (de outra
+  pessoa → 422 `REFERENCE_NOT_FOUND`), revalida status do vínculo e da instituição no banco e grava
+  `auth.tenant_switch` (`fromTenantId`, `toTenantId`, `selection`). Para a instituição já ativa é
+  no-op, sem auditoria.
+- **MFA do destino:** porta `TENANT_MFA_POLICY` (`security.mfaPolicy`); com `ALL` e sessão sem
+  segundo fator, a resposta traz `mfaRequired = true` e nada é gravado (o BFF conclui depois do
+  _step-up_). Até a US-103, `RegistryDefaultMfaPolicy` devolve o padrão `ADMINS`; em memória,
+  `InMemoryTenantMfaPolicy`. A regra pura fica em `#shared/auth/mfa-policy.js`.
+- **Instituição padrão:** `setAsDefault` grava só `users.preferences.defaultTenantId` (sem
+  `version`); o `session-events` devolve `defaultTenantId` para a seleção `DEFAULT` do login.

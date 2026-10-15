@@ -50,12 +50,17 @@ export class AuditTrailSessionRecorder implements SessionAuditPort {
   }
 
   async tenantSwitched(
-    entry: SessionAuditBase & { readonly fromTenantId: string | null },
+    entry: SessionAuditBase & { readonly fromTenantId: string | null; readonly selection: string },
   ): Promise<void> {
+    // RN-IAM-71: origem e destino; IP e user-agent vão às colunas do registro (US-073).
     await runWithClientDetails(entry, () =>
       this.audit.recordStandalone({
         action: 'auth.tenant_switch',
-        metadata: { fromTenantId: entry.fromTenantId, toTenantId: entry.tenantId },
+        metadata: {
+          fromTenantId: entry.fromTenantId,
+          toTenantId: entry.tenantId,
+          selection: entry.selection,
+        },
       }),
     );
   }

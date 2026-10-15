@@ -1,8 +1,8 @@
 import { SESSION_ENDED_RETENTION_MS } from '@contrataflow/types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { deriveKey } from '@/bff/crypto';
-import { RedisSessionStore } from '@/bff/session/redis-store';
+import { RedisSessionStore, SESSION_UPDATE_ATTEMPTS } from '@/bff/session/redis-store';
 import type { SessionRedis } from '@/bff/session/redis-store';
 import { hashSessionId } from '@/bff/session/session-service';
 import { SessionStoreUnavailableError } from '@/bff/session/types';
@@ -96,6 +96,16 @@ class FakeRedis implements SessionRedis {
     this.ttls.set(key, ttlMs);
     return Promise.resolve(1);
   }
+
+  /** Só o *compare-and-set* do store (`SESSION_CAS_SCRIPT`). */
+  eval(_script: string, _numKeys: number, ...args: (string | number)[]) {
+    this.guard();
+    const [key, expected, value, ttl] = args.map(String);
+    if (key === undefined || this.strings.get(key) !== expected) return Promise.resolve(0);
+    this.strings.set(key, value ?? '');
+    this.ttls.set(key, Number(ttl));
+    return Promise.resolve(1);
+  }
 }
 
 function record(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
@@ -183,6 +193,56 @@ describe('RedisSessionStore', () => {
     expect(
       await subject.end(session, { reason: 'LOGOUT', occurredAt: NOW, ip: null, userAgent: null }),
     ).toBe(false);
+  });
+
+  it('update (US-093): compare-and-set sobre o registro mais recente, refeito se outro gravou no meio', async () => {
+    const { redis, subject } = store();
+    const session = record('sid-cas');
+    await subject.create(session, 10);
+    const rotated = { ...session.tokens, accessToken: 'access-rotacionado' };
+    let interfered = false;
+    const updated = await subject.update(session.key, (current) => {
+      if (!interfered) {
+        interfered = true;
+        // Outra réplica renova os tokens entre a leitura e a gravação desta.
+        redis.strings.set(
+          `${PREFIX}${session.key}`,
+          JSON.stringify({
+            ...JSON.parse(redis.strings.get(`${PREFIX}${session.key}`) ?? '{}'),
+            x: 1,
+          }),
+        );
+      }
+      return { ...current, activeTenantId: 'tenant-b', membershipId: 'm-b' };
+    });
+    expect(interfered).toBe(true);
+    expect(updated).toMatchObject({ activeTenantId: 'tenant-b', membershipId: 'm-b' });
+    expect(await subject.get(session.key)).toMatchObject({
+      activeTenantId: 'tenant-b',
+      membershipId: 'm-b',
+      tokens: session.tokens,
+    });
+    // Campos que a gravação não mexe ficam como estavam no registro mais recente.
+    await subject.update(session.key, (current) => ({ ...current, tokens: rotated }));
+    expect(await subject.get(session.key)).toMatchObject({
+      activeTenantId: 'tenant-b',
+      tokens: rotated,
+    });
+    expect(redis.ttls.get(`${PREFIX}${session.key}`)).toBe(12 * 3_600_000 + RETENTION);
+  });
+
+  it('update: sessão encerrada ou ilegível → null; disputa contínua → indisponível (503)', async () => {
+    const { redis, subject } = store();
+    expect(await subject.update('inexistente', (current) => current)).toBeNull();
+    redis.strings.set(`${PREFIX}adulterada`, '{"key":"adulterada"}');
+    expect(await subject.update('adulterada', (current) => current)).toBeNull();
+    const session = record('sid-disputa');
+    await subject.create(session, 10);
+    const compareAndSet = vi.spyOn(redis, 'eval').mockResolvedValue(0);
+    await expect(subject.update(session.key, (current) => current)).rejects.toBeInstanceOf(
+      SessionStoreUnavailableError,
+    );
+    expect(compareAndSet).toHaveBeenCalledTimes(SESSION_UPDATE_ATTEMPTS);
   });
 
   it('encerramento: registro sem tokens com motivo e cliente, fora dos índices e agendado', async () => {

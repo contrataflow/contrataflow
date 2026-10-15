@@ -19,6 +19,7 @@ import type { User } from '../domain/user.js';
 interface StoredUser extends FakeUser {
   readonly lastLoginAt: Date | null;
   readonly version: number;
+  readonly preferences: Readonly<Record<string, unknown>>;
 }
 
 interface StoredMembership extends FakeMembership {
@@ -43,7 +44,7 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
     tenants: readonly TenantData[] = Object.values(FAKE_TENANTS),
   ) {
     this.users = new Map(
-      users.map((user) => [user.id, { ...user, lastLoginAt: null, version: 1 }]),
+      users.map((user) => [user.id, { ...user, lastLoginAt: null, version: 1, preferences: {} }]),
     );
     this.memberships = memberships.map((membership) => ({ ...membership, lastAccessAt: null }));
     this.tenants = new Map(tenants.map((tenant) => [tenant.id, tenant]));
@@ -145,6 +146,17 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
     return Promise.resolve();
   }
 
+  setDefaultTenant(userId: string, tenantId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      this.users.set(userId, {
+        ...user,
+        preferences: { ...user.preferences, defaultTenantId: tenantId },
+      });
+    }
+    return Promise.resolve();
+  }
+
   // --- Inspeção (testes) -----------------------------------------------------------------------
 
   snapshotUser(userId: string): StoredUser | undefined {
@@ -170,7 +182,7 @@ function toUser(user: StoredUser): User {
     socialName: user.socialName,
     phone: null,
     status: user.status,
-    preferences: {},
+    preferences: user.preferences,
     version: user.version,
   };
 }

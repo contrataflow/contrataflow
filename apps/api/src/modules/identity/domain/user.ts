@@ -63,6 +63,19 @@ export function interfacePreferences(user: Pick<User, 'preferences'>): {
   };
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Instituição padrão (`preferences.defaultTenantId` — RN-IAM-09 · FA-04 da US-093): pré-seleciona
+ * a instituição nos próximos logins. Valor ausente ou malformado → nenhuma.
+ */
+export function defaultTenantOf(user: Pick<User, 'preferences'>): string | null {
+  const { defaultTenantId } = user.preferences;
+  return typeof defaultTenantId === 'string' && UUID_PATTERN.test(defaultTenantId)
+    ? defaultTenantId.toLowerCase()
+    : null;
+}
+
 /** E-mail mascarado para logs (DEC-138): `c***@saojose.sp.gov.br`. */
 export function maskEmail(email: string): string {
   const at = email.indexOf('@');

@@ -5,6 +5,7 @@ import type { TenantMembership } from './tenant-membership.js';
 import {
   bindExternalSubject,
   canSignIn,
+  defaultTenantOf,
   displayName,
   interfacePreferences,
   maskEmail,
@@ -41,6 +42,16 @@ describe('User (entities.md §4.2)', () => {
       density: 'compact',
       theme: 'system',
     });
+  });
+
+  it('defaultTenantOf: instituição padrão só quando é um UUID (FA-04 da US-093)', () => {
+    const tenant = '0192A000-0000-7000-8000-00000000000B';
+    expect(defaultTenantOf({ preferences: { defaultTenantId: tenant } })).toBe(
+      tenant.toLowerCase(),
+    );
+    expect(defaultTenantOf({ preferences: {} })).toBeNull();
+    expect(defaultTenantOf({ preferences: { defaultTenantId: 'prefeitura-b' } })).toBeNull();
+    expect(defaultTenantOf({ preferences: { defaultTenantId: 42 } })).toBeNull();
   });
 
   it('maskEmail: mantém só a inicial e o domínio (DEC-138)', () => {

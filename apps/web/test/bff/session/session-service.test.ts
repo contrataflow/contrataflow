@@ -13,6 +13,7 @@ import {
 import { MemorySessionStore } from '@/bff/session/memory-store';
 import {
   MAX_SESSIONS_PER_USER,
+  PENDING_SWITCH_TTL_MS,
   REFRESH_WINDOW_MS,
   SessionService,
   hashSessionId,
@@ -422,3 +423,119 @@ async function baseRecord(
   await store.create(record, 10);
   return record;
 }
+
+describe('troca de instituição sob concorrência (US-093)', () => {
+  const [MEMBERSHIP_A, MEMBERSHIP_B] = FAKE_PERSONAS.ana.memberships;
+  const toB = { tenantId: MEMBERSHIP_B.tenant.id, membershipId: MEMBERSHIP_B.membershipId };
+
+  it('o touch de uma requisição em voo (registro anterior à troca) não desfaz a troca', async () => {
+    const test = createTestRuntime();
+    const { record: stale } = await signIn(test);
+    expect(stale.activeTenantId).toBe(MEMBERSHIP_A.tenant.id);
+    await test.runtime.sessions.activateTenant(stale, toB);
+    test.clock.now += 1_000;
+    const touched = await test.runtime.sessions.touch(stale);
+    expect(touched).toMatchObject({ activeTenantId: toB.tenantId, lastSeenAt: test.clock.now });
+    expect(await test.store.get(stale.key)).toMatchObject({
+      activeTenantId: toB.tenantId,
+      membershipId: toB.membershipId,
+    });
+  });
+
+  it('a renovação de token iniciada antes da troca grava só os tokens', async () => {
+    const store = new MemorySessionStore();
+    const stale = await baseRecord(store, Date.now() + 10_000);
+    const service = new SessionService(
+      store,
+      stubIdentity(() =>
+        Promise.resolve({
+          kind: 'ok',
+          tokens: {
+            accessToken: 'novo',
+            accessTokenExpiresAt: Date.now() + 300_000,
+            refreshToken: 'r2',
+            idToken: null,
+          },
+        }),
+      ),
+    );
+    await service.activateTenant(stale, toB);
+    const fresh = await service.ensureFreshToken(stale);
+    expect(fresh).toMatchObject({
+      status: 'ok',
+      record: { activeTenantId: toB.tenantId, tokens: { accessToken: 'novo' } },
+    });
+    expect(await store.get(stale.key)).toMatchObject({
+      activeTenantId: toB.tenantId,
+      tokens: { accessToken: 'novo', refreshToken: 'r2' },
+    });
+  });
+
+  it('exclusive: mesma sessão em fila (mesmo após erro); sessões diferentes em paralelo', async () => {
+    const service = new SessionService(
+      new MemorySessionStore(),
+      stubIdentity(() => Promise.reject(new Error('x'))),
+    );
+    const order: string[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = service.exclusive('s1', async () => {
+      order.push('1:início');
+      await gate;
+      order.push('1:fim');
+      throw new Error('falhou');
+    });
+    const second = service.exclusive('s1', () => {
+      order.push('2');
+      return Promise.resolve('ok');
+    });
+    const other = service.exclusive('s2', () => {
+      order.push('outra');
+      return Promise.resolve('paralela');
+    });
+    await expect(other).resolves.toBe('paralela');
+    release();
+    await expect(first).rejects.toThrow('falhou');
+    await expect(second).resolves.toBe('ok');
+    expect(order).toEqual(['1:início', 'outra', '1:fim', '2']);
+  });
+
+  it('troca pendente de step-up vale 10 min e sai ao ativar uma instituição', async () => {
+    const test = createTestRuntime();
+    const { record } = await signIn(test);
+    const sessions = test.runtime.sessions;
+    const suspended = await sessions.suspendTenantSwitch(record, { ...toB, setAsDefault: true });
+    expect(sessions.pendingTenantSwitch(suspended)).toEqual({
+      ...toB,
+      setAsDefault: true,
+      requestedAt: test.clock.now,
+    });
+    test.clock.now += PENDING_SWITCH_TTL_MS;
+    expect(sessions.pendingTenantSwitch(suspended)).toBeNull();
+    // Registro gravado antes da US-093, sem o campo.
+    const { pendingTenantSwitch: _absent, ...legacy } = suspended;
+    expect(sessions.pendingTenantSwitch(legacy)).toBeNull();
+    const switched = await sessions.activateTenant(suspended, toB);
+    expect(switched.pendingTenantSwitch).toBeNull();
+    const cleared = await sessions.clearPendingTenantSwitch(
+      await sessions.suspendTenantSwitch(switched, { ...toB, setAsDefault: false }),
+    );
+    expect(cleared.pendingTenantSwitch).toBeNull();
+  });
+
+  it('sessão encerrada no meio: nenhuma escrita recria o registro', async () => {
+    const test = createTestRuntime();
+    const { record } = await signIn(test);
+    const sessions = test.runtime.sessions;
+    await sessions.end(record, 'LOGOUT');
+    const reindex = vi.spyOn(test.store, 'reindex');
+    expect((await sessions.activateTenant(record, toB)).activeTenantId).toBe(toB.tenantId);
+    expect(reindex).not.toHaveBeenCalled();
+    await sessions.touch(record);
+    await sessions.suspendTenantSwitch(record, { ...toB, setAsDefault: false });
+    await sessions.clearPendingTenantSwitch(record);
+    expect(await test.store.get(record.key)).toBeNull();
+  });
+});

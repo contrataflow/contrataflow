@@ -42,6 +42,16 @@ export const BFF_PROBLEMS = {
     title: 'Acesso bloqueado',
     detail: 'Seu acesso ao ContrataFlow está bloqueado.',
   },
+  MFA_REQUIRED: {
+    status: 403,
+    title: 'Confirmação de identidade necessária',
+    detail: 'Confirme sua identidade para continuar.',
+  },
+  VALIDATION_ERROR: {
+    status: 422,
+    title: 'Dados inválidos',
+    detail: 'Verifique os dados informados.',
+  },
   NOT_FOUND: {
     status: 404,
     title: 'Não encontrado',
@@ -85,12 +95,22 @@ export function problemType(code: string): string {
   return `https://docs.contrataflow.com.br/errors/${code.toLowerCase().replaceAll('_', '-')}`;
 }
 
+/** Erro de campo do problem+json (api.md §2.1.1). */
+export interface BffFieldError {
+  readonly field: string;
+  readonly code: string;
+  readonly message: string;
+}
+
 export function problemResponse(
   code: BffProblemCode,
   context: {
     readonly correlationId: string;
     readonly instance: string;
     readonly headers?: HeadersInit;
+    readonly errors?: readonly BffFieldError[];
+    /** Membros de extensão (RFC 9457 §3.2), ex.: `stepUpUrl` do `MFA_REQUIRED`. */
+    readonly extensions?: Readonly<Record<string, unknown>>;
   },
 ): Response {
   const spec = BFF_PROBLEMS[code];
@@ -107,8 +127,9 @@ export function problemResponse(
       instance: context.instance,
       code,
       correlationId: context.correlationId,
-      errors: [],
+      errors: context.errors ?? [],
       violations: [],
+      ...context.extensions,
     }),
     { status: spec.status, headers },
   );

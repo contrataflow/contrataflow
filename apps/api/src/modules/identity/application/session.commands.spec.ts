@@ -20,6 +20,7 @@ import {
   InMemoryAuthentikDirectory,
   InMemoryIdentityRepository,
 } from '../infrastructure/in-memory-identity.repositories.js';
+import { InMemoryTenantMfaPolicy } from '../infrastructure/tenant-mfa-policy.js';
 
 /* US-087 — StartSessionCommand, RecordSessionTenantCommand, ME-01 e ME-04. */
 
@@ -56,7 +57,7 @@ function setup(options: { pks?: Record<string, string>; users?: FakeUser[] } = {
     repository,
     audit: { sessionStarted, tenantSwitched, sessionEnded },
     start: new StartSessionCommand(repository, directory, clock),
-    record: new RecordSessionTenantCommand(repository, audit, clock),
+    record: new RecordSessionTenantCommand(repository, audit, new InMemoryTenantMfaPolicy(), clock),
   };
 }
 
@@ -190,6 +191,8 @@ describe('StartSessionCommand (passo 7 · RN-IAM-06/07/16)', () => {
 describe('RecordSessionTenantCommand (passo 10 · RN-IAM-08/16/17)', () => {
   const base: Omit<RecordSessionTenantInput, 'subject' | 'tenantId'> = {
     kind: 'start',
+    membershipId: null,
+    setAsDefault: false,
     selection: 'AUTO',
     firstLogin: false,
     fromTenantId: null,
@@ -227,7 +230,12 @@ describe('RecordSessionTenantCommand (passo 10 · RN-IAM-08/16/17)', () => {
       seen.push(currentRequestContext()?.tenantId);
       return Promise.resolve();
     });
-    const record = new RecordSessionTenantCommand(repository, audit, clock);
+    const record = new RecordSessionTenantCommand(
+      repository,
+      audit,
+      new InMemoryTenantMfaPolicy(),
+      clock,
+    );
     await inRequest(async () => {
       await record.execute({ ...base, subject: 'sub-ana', tenantId: FAKE_TENANTS.prefeituraA.id });
       seen.push(currentRequestContext()?.tenantId);

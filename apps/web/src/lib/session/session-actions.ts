@@ -2,8 +2,10 @@ import { clearToasts } from '@contrataflow/ui';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { apiErrorFromResponse } from '@/lib/api/api-error';
+import { stepUpHref } from '@/lib/api/error-policy';
 import { localDrafts } from '@/lib/drafts/local-drafts';
 import type { LocalDrafts } from '@/lib/drafts/local-drafts';
+import { HOME_PATH } from '@/lib/routes';
 
 import { publishSessionEvent } from './session-channel';
 import type { ShellSession } from './types';
@@ -42,24 +44,64 @@ async function json(response: Response): Promise<unknown> {
   }
 }
 
+/** Prefixo aceito no `stepUpUrl` devolvido pelo BFF (nunca um destino externo). */
+const STEP_UP_PREFIX = '/api/auth/step-up';
+
+export type TenantSwitchOutcome =
+  /** Instituição trocada: cache do tenant anterior apagado e abas avisadas (RN-IAM-72). */
+  | { readonly kind: 'switched'; readonly session: ShellSession }
+  /** Já era a instituição ativa: no-op, cache mantido (RN-IAM-70). */
+  | { readonly kind: 'unchanged'; readonly session: ShellSession }
+  /** O destino exige MFA: seguir ao *step-up*, que conclui a troca (RN-IAM-69 · FA-01). */
+  | { readonly kind: 'step-up'; readonly href: string };
+
+function stepUpUrlOf(body: unknown): string {
+  const url = (body as { stepUpUrl?: unknown } | null)?.stepUpUrl;
+  return typeof url === 'string' && url.startsWith(STEP_UP_PREFIX) ? url : stepUpHref(HOME_PATH);
+}
+
+/**
+ * Troca da instituição ativa (US-093): `POST /api/auth/switch-tenant` com o vínculo escolhido.
+ * Na troca efetiva, o cache de consultas do tenant anterior é apagado ANTES de qualquer dado do
+ * novo ser buscado (`refresh` vem depois — RN-IAM-72). Recusa (422/403/503) propaga como
+ * `ApiError`, com o cache intacto.
+ */
 export async function switchTenant(
-  tenantId: string,
+  membershipId: string,
   deps: {
-    readonly queryClient: QueryClient;
+    /**
+     * Cache de consultas da aba; ausente só na SCR-101 do grupo `(auth)`, que não tem cache e
+     * segue com recarga completa.
+     */
+    readonly queryClient?: QueryClient;
+    /** Instituição ativa nesta aba (`null` na primeira escolha). */
+    readonly currentTenantId: string | null;
     readonly refresh: () => void;
+    /** "Usar como padrão" (FA-04). */
+    readonly setAsDefault?: boolean;
     readonly fetchImpl?: FetchLike;
   },
-): Promise<ShellSession> {
+): Promise<TenantSwitchOutcome> {
   const response = await postSession(deps.fetchImpl ?? fetch, '/api/auth/switch-tenant', {
-    tenantId,
+    membershipId,
+    ...(deps.setAsDefault ? { setAsDefault: true } : {}),
   });
   const body = await json(response);
-  if (!response.ok) throw apiErrorFromResponse(response.status, response.headers, body);
-  deps.queryClient.clear();
+  if (!response.ok) {
+    const error = apiErrorFromResponse(response.status, response.headers, body);
+    if (error.code === 'MFA_REQUIRED') return { kind: 'step-up', href: stepUpUrlOf(body) };
+    throw error;
+  }
+  const session = (body as { data: ShellSession }).data;
+  const tenantId = session.activeTenant?.id ?? null;
+  if (tenantId !== null && tenantId === deps.currentTenantId) {
+    return { kind: 'unchanged', session };
+  }
+  deps.queryClient?.clear();
   clearToasts();
-  publishSessionEvent({ type: 'tenant-switched', tenantId });
+  if (tenantId) publishSessionEvent({ type: 'tenant-switched', tenantId });
   deps.refresh();
-  return (body as { data: ShellSession }).data;
+  return { kind: 'switched', session };
 }
 
 /**

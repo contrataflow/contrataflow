@@ -252,8 +252,13 @@ export class FakeIdentityProvider implements IdentityProvider {
   }
 }
 
-/** Diretório fake: as pessoas acima no lugar de `POST /internal/session-events` da API. */
+/**
+ * Diretório fake: as pessoas acima no lugar de `POST /internal/session-events` da API. Guarda a
+ * instituição padrão escolhida em SCR-101 ("Usar como padrão" — US-093) enquanto o processo vive.
+ */
 export class FakeSessionDirectory implements SessionDirectory {
+  private readonly defaults = new Map<string, string>();
+
   startSession(input: DirectoryContext): Promise<DirectoryResult> {
     const name = findFakePersona(subjectOf(input.accessToken));
     if (!name) return Promise.resolve({ kind: 'no_membership' });
@@ -264,7 +269,7 @@ export class FakeSessionDirectory implements SessionDirectory {
       user: { id: persona.userId, displayName: persona.displayName },
       firstLogin: false,
       memberships: persona.memberships,
-      defaultTenantId: persona.defaultTenantId,
+      defaultTenantId: this.defaults.get(persona.userId) ?? persona.defaultTenantId,
       active: null,
     });
   }
@@ -272,13 +277,16 @@ export class FakeSessionDirectory implements SessionDirectory {
   async activateTenant(input: TenantActivation): Promise<DirectoryResult> {
     const result = await this.startSession(input);
     if (result.kind !== 'ok') return result;
-    const target = result.memberships.find(
-      (candidate) => candidate.tenant.id === input.tenantId && candidate.usable,
-    );
-    if (!target) return { kind: 'no_membership' };
+    const target = input.membershipId
+      ? result.memberships.find((candidate) => candidate.membershipId === input.membershipId)
+      : result.memberships.find((candidate) => candidate.tenant.id === input.tenantId);
+    if (!target && input.membershipId) return { kind: 'invalid_reference' };
+    if (!target?.usable) return { kind: 'no_membership' };
+    if (input.setAsDefault) this.defaults.set(result.user.id, target.tenant.id);
     return {
       ...result,
       firstLogin: input.firstLogin,
+      defaultTenantId: this.defaults.get(result.user.id) ?? result.defaultTenantId,
       active: { membershipId: target.membershipId, tenantId: target.tenant.id, readOnly: false },
     };
   }

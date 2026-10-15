@@ -1,5 +1,7 @@
 import type { SessionTombstone, TenantSelection } from '@contrataflow/validation';
 
+import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+
 import type { TenantMembership } from '../domain/tenant-membership.js';
 import type { User } from '../domain/user.js';
 
@@ -30,6 +32,11 @@ export interface IdentityRepository {
   listMemberships(userId: string): Promise<TenantMembership[]>;
   /** `TenantMembership.lastAccessAt`, no máximo 1×/5 min por vínculo (RN-IAM-16). */
   touchMembershipAccess(tenantId: string, membershipId: string, at: Date): Promise<void>;
+  /**
+   * "Usar como padrão" (FA-04 da US-093): grava só a chave `defaultTenantId` de
+   * `User.preferences` (jsonb livre, sem migração), preservando as demais preferências.
+   */
+  setDefaultTenant(userId: string, tenantId: string): Promise<void>;
 }
 
 export const IDENTITY_REPOSITORY = Symbol('IdentityRepository');
@@ -65,7 +72,12 @@ export interface SessionAuditPort {
       readonly amr: readonly string[];
     },
   ): Promise<void>;
-  tenantSwitched(entry: SessionAuditBase & { readonly fromTenantId: string | null }): Promise<void>;
+  tenantSwitched(
+    entry: SessionAuditBase & {
+      readonly fromTenantId: string | null;
+      readonly selection: TenantSelection;
+    },
+  ): Promise<void>;
   /**
    * `auth.session_end` (logout, limite de sessões, vínculo encerrado) ou `auth.session_expired`
    * (ociosidade, fim absoluto, renovação recusada) na instituição da sessão, com o horário real do
@@ -78,6 +90,16 @@ export interface SessionAuditPort {
 }
 
 export const SESSION_AUDIT = Symbol('SessionAuditPort');
+
+/**
+ * `security.mfaPolicy` da instituição (DEC-133 · POL-14). A instituição de destino decide se a
+ * troca exige segundo fator (RN-IAM-69 · US-093) — nunca a de origem.
+ */
+export interface TenantMfaPolicyPort {
+  mfaPolicyOf(tenantId: string): Promise<MfaPolicy>;
+}
+
+export const TENANT_MFA_POLICY = Symbol('TenantMfaPolicyPort');
 
 /** Relógio injetável (testes de expiração de vínculo). */
 export type Clock = () => Date;

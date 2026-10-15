@@ -68,7 +68,8 @@ const sha256Hex = z.string().regex(/^[0-9a-f]{64}$/, { error: 'Hash SHA-256 inv�
  * Evento de sessão enviado pelo BFF com o access token do usuário (RN-IAM-17). `SESSION_STARTED`
  * sem `tenantId` resolve a identidade (vínculo do `sub`, `lastLoginAt`) e lista os vínculos; com
  * `tenantId`, também ativa a instituição e grava `auth.session_start`. `TENANT_SWITCHED` troca a
- * instituição de uma sessão que já tinha uma ativa (`auth.tenant_switch` — US-093).
+ * instituição de uma sessão que já tinha uma ativa (`auth.tenant_switch` — US-093), identificada
+ * pelo vínculo (`membershipId`, conferido contra os vínculos do próprio usuário) ou pelo `tenantId`.
  */
 export const sessionEventRequestSchema = z
   .strictObject({
@@ -76,6 +77,10 @@ export const sessionEventRequestSchema = z
     /** SHA-256 do id da sessão do BFF (liga a auditoria à sessão sem expor o cookie). */
     sessionIdHash: sha256Hex,
     tenantId: z.uuid().optional(),
+    /** Vínculo escolhido em SCR-101 (US-093); de outra pessoa → 422 `REFERENCE_NOT_FOUND`. */
+    membershipId: z.uuid().optional(),
+    /** "Usar como padrão" (FA-04 da US-093): grava `User.preferences.defaultTenantId`. */
+    setAsDefault: z.boolean().optional(),
     selection: z.enum(TENANT_SELECTIONS).optional(),
     /** Primeiro login da pessoa (vindo da resolução da identidade nesta mesma sessão). */
     firstLogin: z.boolean().optional(),
@@ -107,13 +112,32 @@ export const sessionEventResponseSchema = z
     /** O `sub` foi vinculado ao usuário nesta chamada (primeiro login — RN-IAM-06). */
     firstLogin: z.boolean(),
     memberships: z.array(sessionMembershipSchema),
-    /** Instituição ativada por esta chamada (com `tenantId`); `null` ao só resolver a identidade. */
+    /**
+     * Instituição ativada por esta chamada (com `tenantId`/`membershipId`); `null` ao só resolver
+     * a identidade ou quando a troca ficou suspensa pelo MFA (`mfaRequired`).
+     */
     activeMembership: z
       .object({ membershipId: z.uuid(), tenantId: z.uuid(), readOnly: z.boolean() })
       .nullable(),
-    /** Política de MFA exige segundo fator nesta instituição (US-090; sempre `false` até lá). */
+    /** Instituição padrão (`User.preferences.defaultTenantId` — RN-IAM-09 · FA-04 da US-093). */
+    defaultTenantId: z.uuid().nullable().optional(),
+    /**
+     * A instituição de destino exige segundo fator (`security.mfaPolicy`) que a sessão não tem: a
+     * troca não aconteceu e espera o *step-up* (RN-IAM-69 · US-093).
+     */
     mfaRequired: z.boolean(),
   })
   .meta({ id: 'SessionEventResult' });
 
 export type SessionEventResult = z.infer<typeof sessionEventResponseSchema>;
+
+/**
+ * Corpo de `POST /api/auth/switch-tenant` (BFF · US-093): o vínculo escolhido em SCR-101 e o
+ * "Usar como padrão" (FA-04).
+ */
+export const switchTenantRequestSchema = z.strictObject({
+  membershipId: z.uuid(),
+  setAsDefault: z.boolean().optional(),
+});
+
+export type SwitchTenantRequest = z.infer<typeof switchTenantRequestSchema>;

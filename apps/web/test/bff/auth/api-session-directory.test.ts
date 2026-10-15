@@ -127,6 +127,68 @@ describe('ApiSessionDirectory', () => {
     });
   });
 
+  it('troca pelo vínculo (US-093): membershipId, setAsDefault e a instituição padrão devolvida', async () => {
+    const membershipId = RESULT.memberships[0]?.membershipId ?? '';
+    const active = { membershipId, tenantId: TENANT, readOnly: false };
+    const { subject, fetchMock } = directory(() =>
+      Promise.resolve(
+        Response.json({ data: { ...RESULT, activeMembership: active, defaultTenantId: TENANT } }),
+      ),
+    );
+    const switched = await subject.activateTenant({
+      ...CONTEXT,
+      kind: 'switch',
+      selection: 'MANUAL',
+      firstLogin: false,
+      fromTenantId: '0192a000-0000-7000-8000-00000000000b',
+      tenantId: null,
+      membershipId,
+      setAsDefault: true,
+    });
+    expect(switched).toMatchObject({ kind: 'ok', active, defaultTenantId: TENANT });
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({ type: 'TENANT_SWITCHED', membershipId, setAsDefault: true });
+    // Vínculo fora da lista da sessão: a API resolve a instituição pelo vínculo.
+    expect(body).not.toHaveProperty('tenantId');
+  });
+
+  it.each([
+    [
+      '200 com mfaRequired',
+      () => Promise.resolve(Response.json({ data: { ...RESULT, mfaRequired: true } })),
+      'mfa_required',
+    ],
+    [
+      '422 REFERENCE_NOT_FOUND',
+      problem(422, 'VALIDATION_ERROR', {
+        errors: [{ field: 'membershipId', code: 'REFERENCE_NOT_FOUND', message: 'x' }],
+      }),
+      'invalid_reference',
+    ],
+    [
+      '422 de outro campo',
+      problem(422, 'VALIDATION_ERROR', { errors: [{ field: 'ip', code: 'TOO_LONG' }] }),
+      'unavailable',
+    ],
+    ['422 sem corpo', () => Promise.resolve(new Response('x', { status: 422 })), 'unavailable'],
+  ])('troca: %s → %s', async (_case, response, kind) => {
+    const { subject } = directory(response);
+    expect(
+      await subject.activateTenant({
+        ...CONTEXT,
+        kind: 'switch',
+        selection: 'MANUAL',
+        firstLogin: false,
+        fromTenantId: null,
+        tenantId: TENANT,
+        membershipId: RESULT.memberships[0]?.membershipId ?? null,
+      }),
+    ).toEqual({ kind });
+  });
+
   it.each([
     ['401', problem(401, 'UNAUTHENTICATED'), 'unauthenticated'],
     ['403 bloqueado', problem(403, 'PERMISSION_DENIED', { reason: 'USER_BLOCKED' }), 'blocked'],

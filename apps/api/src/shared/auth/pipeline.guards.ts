@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { z } from 'zod';
 
 import { canReadOffboardingTenant } from './membership-policy.js';
+import { hasSecondFactor } from './mfa-policy.js';
 import {
   MEMBERSHIP_PORT,
   TENANT_STATUS_PORT,
@@ -216,9 +217,6 @@ export class MembershipGuard implements CanActivate {
   }
 }
 
-/** Valores de `amr` que comprovam segundo fator (RFC 8176). */
-export const MFA_AMR_VALUES: readonly string[] = ['mfa', 'otp', 'hwk', 'swk', 'fpt', 'face'];
-
 /** 4 — MFA quando a rota exigir (`@RequireMfa()` — POL-14): 403 `MFA_REQUIRED`. */
 @Injectable()
 export class MfaGuard implements CanActivate {
@@ -227,7 +225,7 @@ export class MfaGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     if (!routeFlag(this.reflector, REQUIRE_MFA_METADATA, context)) return true;
     const { amr } = requireRequestContext();
-    if (!amr.some((method) => MFA_AMR_VALUES.includes(method))) {
+    if (!hasSecondFactor(amr)) {
       throw rejectRequest('mfa', 'mfa_missing', 'MFA_REQUIRED');
     }
     return true;
