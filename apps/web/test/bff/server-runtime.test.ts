@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as authGet, POST as authPost } from '@/app/api/auth/[action]/route';
 import { POST as cspPost } from '@/app/api/csp-report/route';
 import { GET as proxyGet } from '@/app/api/v1/[...path]/route';
+import { LOGIN_TRANSACTION_COOKIE } from '@/bff/auth/login-transaction';
+import { RECOVERY_RETURN_COOKIE } from '@/bff/auth/password-recovery';
+import { handleAuthRequest } from '@/bff/auth-handler';
 import { captureLogsForTests, log } from '@/bff/logger';
 import { UnconfiguredIdentityProvider, bffRuntime, setBffRuntimeForTests } from '@/bff/runtime';
 import {
@@ -10,6 +13,7 @@ import {
   currentNonce,
   currentPathname,
   currentShellSession,
+  pendingRecoveryReturnTo,
 } from '@/bff/server-session';
 import { resetWebConfigForTests } from '@/config/env';
 import { proxy } from '@/proxy';
@@ -210,6 +214,38 @@ describe('runtime do processo', () => {
       rpLogout: 'success',
     });
     write.mockRestore();
+  });
+});
+
+describe('US-089 — recuperação de senha em Server Components e no App Router', () => {
+  it('GET /api/auth/forgot-password responde pela rota /api/auth/[action]', async () => {
+    const test = createTestRuntime();
+    setBffRuntimeForTests(test.runtime);
+    const response = await authGet(new Request(`${APP_ORIGIN}/api/auth/forgot-password`), {
+      params: Promise.resolve({ action: 'forgot-password' }),
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe(`${APP_ORIGIN}/entrar?motivo=senha-redefinida`);
+  });
+
+  it('pendingRecoveryReturnTo: cookie da recuperação, senão a transação de login aberta', async () => {
+    const test = createTestRuntime();
+    expect(await pendingRecoveryReturnTo(test.runtime)).toBeNull();
+
+    setCookie(`${RECOVERY_RETURN_COOKIE}=%2Fprocessos%2F9`);
+    expect(await pendingRecoveryReturnTo(test.runtime)).toBe('/processos/9');
+
+    request.cookies.clear();
+    const start = await handleAuthRequest(
+      new Request(`${APP_ORIGIN}/api/auth/login?returnTo=%2Ftarefas`),
+      'login',
+      test.runtime,
+    );
+    const transaction = start.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith(`${LOGIN_TRANSACTION_COOKIE}=`));
+    setCookie(transaction?.split(';')[0] ?? '');
+    expect(await pendingRecoveryReturnTo(test.runtime)).toBe('/tarefas');
   });
 });
 

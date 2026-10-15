@@ -12,6 +12,11 @@ import {
 } from './auth/login-transaction';
 import type { LoginTransaction } from './auth/login-transaction';
 import { OidcIdentityProvider } from './auth/oidc-provider';
+import {
+  PasswordRecoveryUnavailableError,
+  RECOVERY_RETURN_COOKIE,
+  recoveryReturnCookie,
+} from './auth/password-recovery';
 import { clientIpFrom } from './client-ip';
 import { clearCookie, readCookie, serializeCookie } from './cookies';
 import { CORRELATION_HEADER, resolveCorrelationId } from './correlation';
@@ -44,7 +49,8 @@ import {
  * Rotas de sessão do BFF `/api/auth/*` (authentication.md §3/§7/§15 · US-087/US-088): login OIDC
  * com PKCE e transação cifrada, callback (troca do código, `id_token`, identidade na API, sessão
  * nova no Redis, instituição ativa), consulta da sessão (sondagem ou *keepalive*), troca de
- * instituição, step-up e logout por POST (revogação + RP-initiated logout).
+ * instituição, step-up e logout por POST (revogação + RP-initiated logout) e o redirecionamento
+ * ao *flow* de recuperação de senha do Authentik (US-089).
  */
 
 /** Destinos do logout (SCR-001): completo, ou só local quando o Authentik não respondeu (FA-06). */
@@ -58,6 +64,7 @@ export const AUTH_ACTIONS = [
   'step-up',
   'logout',
   'switch-tenant',
+  'forgot-password',
 ] as const;
 export type AuthAction = (typeof AUTH_ACTIONS)[number];
 
@@ -68,10 +75,16 @@ const METHODS: Record<AuthAction, 'GET' | 'POST'> = {
   'step-up': 'GET',
   logout: 'POST',
   'switch-tenant': 'POST',
+  'forgot-password': 'GET',
 };
 
-/** Rotas sujeitas ao limite de tentativas por IP (RN-IAM-15). */
-const RATE_LIMITED_ACTIONS: ReadonlySet<AuthAction> = new Set(['login', 'callback', 'step-up']);
+/** Rotas sujeitas ao limite de tentativas por IP (RN-IAM-15 · RN-IAM-38). */
+const RATE_LIMITED_ACTIONS: ReadonlySet<AuthAction> = new Set([
+  'login',
+  'callback',
+  'step-up',
+  'forgot-password',
+]);
 
 /** Tamanho máximo do cookie de transação (navegadores aceitam ~4 KB por cookie). */
 const MAX_TRANSACTION_COOKIE_BYTES = 3_800;
@@ -152,6 +165,8 @@ export async function handleAuthRequest(
         return await logout(context);
       case 'switch-tenant':
         return await switchTenant(context);
+      case 'forgot-password':
+        return await forgotPassword(context);
     }
   } catch (error) {
     if (error instanceof SessionStoreUnavailableError) {
@@ -181,7 +196,7 @@ async function rateLimited(context: Context, action: AuthAction): Promise<Respon
     ip: maskIp(context.clientIp),
     correlationId: context.correlationId,
   });
-  recordLogin('RATE_LIMITED');
+  if (action !== 'forgot-password') recordLogin('RATE_LIMITED');
   return problemResponse('RATE_LIMITED', {
     ...context,
     headers: { 'Retry-After': String(verdict.retryAfterSeconds) },
@@ -218,6 +233,13 @@ function loginPage(reason: 'erro' | 'indisponivel', returnTo?: string): string {
   const query = new URLSearchParams({ motivo: reason });
   if (returnTo && returnTo !== DEFAULT_RETURN_TO) query.set('returnTo', returnTo);
   return `/entrar?${query.toString()}`;
+}
+
+/** SCR-002 com a indisponibilidade do IdP e o "Tentar novamente" (preserva `returnTo`). */
+function recoveryUnavailablePage(returnTo: string | null): string {
+  const query = new URLSearchParams({ motivo: 'indisponivel' });
+  if (returnTo && returnTo !== DEFAULT_RETURN_TO) query.set('returnTo', returnTo);
+  return `/recuperar-senha?${query.toString()}`;
 }
 
 async function beginLogin(context: Context, stepUp: boolean, hint?: string): Promise<Response> {
@@ -264,10 +286,13 @@ async function beginLogin(context: Context, stepUp: boolean, hint?: string): Pro
     stepUp,
     createdAt: runtime.now(),
   });
-  return redirectResponse(start.redirectUrl, {
-    correlationId,
-    headers: { 'Set-Cookie': transactionCookie(context, transactions) },
-  });
+  const headers = new Headers();
+  headers.append('Set-Cookie', transactionCookie(context, transactions));
+  // O destino guardado por uma recuperação de senha já foi para esta transação (FA-05 da US-089).
+  if (readCookie(context.request.headers, RECOVERY_RETURN_COOKIE)) {
+    headers.append('Set-Cookie', clearCookie(RECOVERY_RETURN_COOKIE));
+  }
+  return redirectResponse(start.redirectUrl, { correlationId, headers });
 }
 
 async function beginStepUp(context: Context): Promise<Response> {
@@ -532,6 +557,42 @@ async function logout(context: Context): Promise<Response> {
   }
   const logoutUrl = providerReachable ? (endSessionUrl ?? LOGOUT_DONE_URL) : LOGOUT_PARTIAL_URL;
   return jsonResponse({ data: { logoutUrl } }, { correlationId, headers });
+}
+
+/**
+ * "Esqueci minha senha" (US-089 · RN-IAM-34/38): rota pública que só redireciona (302) ao *flow*
+ * de recuperação do Authentik. Não lê sessão, tenant, e-mail nem qualquer dado do usuário; só
+ * guarda o `returnTo` validado, devolvido em `/entrar?motivo=senha-redefinida` (FA-05). IdP fora
+ * do ar → SCR-002 com a mensagem de indisponibilidade e o `returnTo` preservado.
+ */
+async function forgotPassword(context: Context): Promise<Response> {
+  const { url, runtime, correlationId } = context;
+  const requested = url.searchParams.get('returnTo');
+  const returnTo = safeReturnTo(requested);
+  if (requested !== null && returnTo === null) {
+    log('warn', 'auth.return_to_rejected', { correlationId });
+  }
+  let location: string;
+  try {
+    location = await runtime.recovery.recoveryUrl();
+  } catch (error) {
+    if (!(error instanceof IdentityProviderUnavailableError)) throw error;
+    log('warn', 'auth.recovery_unavailable', {
+      providerStatus:
+        error instanceof PasswordRecoveryUnavailableError ? error.providerStatus : null,
+      correlationId,
+    });
+    return redirectResponse(recoveryUnavailablePage(returnTo), { correlationId });
+  }
+  log('info', 'auth.recovery_redirect', {
+    returnToAccepted: returnTo !== null,
+    ip: maskIp(context.clientIp),
+    correlationId,
+  });
+  return redirectResponse(location, {
+    correlationId,
+    headers: { 'Set-Cookie': recoveryReturnCookie(returnTo) },
+  });
 }
 
 /** Recusa da API na ativação de instituição → problema do BFF. */

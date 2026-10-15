@@ -5,6 +5,8 @@ import type { WebConfig } from '@/config/env';
 
 import { ApiSessionDirectory } from './auth/api-session-directory';
 import { OidcIdentityProvider } from './auth/oidc-provider';
+import { AuthentikPasswordRecovery, FakePasswordRecovery } from './auth/password-recovery';
+import type { PasswordRecovery } from './auth/password-recovery';
 import { AuthRateLimiter, MemoryRateLimitCounter, RedisRateLimitCounter } from './auth/rate-limit';
 import type { RateLimitCounter } from './auth/rate-limit';
 import { deriveKey, masterKey } from './crypto';
@@ -31,6 +33,8 @@ export interface BffRuntime {
   readonly identity: IdentityProvider;
   /** A API como diretório de identidade (`POST /internal/session-events`). */
   readonly directory: SessionDirectory;
+  /** *Flow* de recuperação de senha do IdP (US-089). */
+  readonly recovery: PasswordRecovery;
   readonly sessions: SessionService;
   readonly authRateLimiter: AuthRateLimiter;
   /** Subchave AES-256 do cookie de transação do login (RN-IAM-02). */
@@ -94,9 +98,21 @@ function identityFor(config: WebConfig, now: () => number, fetchImpl: typeof fet
   return new UnconfiguredIdentityProvider();
 }
 
+function recoveryFor(config: WebConfig, now: () => number, fetchImpl: typeof fetch) {
+  if (config.oidc.fakeSigningKey) return new FakePasswordRecovery(config.appOrigin);
+  // Não depende do cliente confidencial: só da origem do Authentik e do slug do *flow*.
+  return new AuthentikPasswordRecovery({
+    issuerUrl: config.oidc.issuerUrl,
+    flowSlug: config.oidc.recoveryFlowSlug,
+    fetch: fetchImpl,
+    now,
+  });
+}
+
 export interface RuntimeOverrides {
   readonly identity?: IdentityProvider;
   readonly directory?: SessionDirectory;
+  readonly recovery?: PasswordRecovery;
   readonly store?: SessionStore;
   readonly rateLimitCounter?: RateLimitCounter;
   readonly fetch?: typeof fetch;
@@ -138,6 +154,7 @@ export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides 
     config,
     identity,
     directory,
+    recovery: overrides.recovery ?? recoveryFor(config, now, fetchImpl),
     sessions: new SessionService(store, identity, now),
     authRateLimiter: new AuthRateLimiter(counter, {
       limit: config.authRateLimitPerMinute,

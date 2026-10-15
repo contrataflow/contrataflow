@@ -48,6 +48,7 @@ describe('configuração do web (Campos da US-086)', () => {
       scopes: 'openid profile email offline_access',
       redirectUri: 'http://localhost:3000/api/auth/callback',
       postLogoutRedirectUri: 'http://localhost:3000/entrar?motivo=saiu',
+      recoveryFlowSlug: 'contrataflow-recovery',
     });
     expect(config.session).toEqual({
       redisUrl: null,
@@ -56,6 +57,16 @@ describe('configuração do web (Campos da US-086)', () => {
     });
     expect(config.authRateLimitPerMinute).toBe(20);
     expect(config.internalServiceToken).toBeNull();
+  });
+
+  it('US-089: slug do flow de recuperação configurável, só com caracteres de slug', () => {
+    expect(
+      loadWebConfig({ ...BASE_ENV, OIDC_RECOVERY_FLOW_SLUG: 'orgao-recovery' }).oidc
+        .recoveryFlowSlug,
+    ).toBe('orgao-recovery');
+    expect(() =>
+      loadWebConfig({ ...BASE_ENV, OIDC_RECOVERY_FLOW_SLUG: '../admin/?next=//evil' }),
+    ).toThrow(new WebConfigError(['OIDC_RECOVERY_FLOW_SLUG']));
   });
 
   it('usa só o primeiro `aud` e liga HTTPS por APP_BASE_URL', () => {

@@ -136,7 +136,7 @@ flowchart TD
 - **Login gov.br:** o divisor "ou entrar com" e o botão "Entrar com gov.br" só aparecem com a federação gov.br ativa (PEND-18, previsto para o MVP 2; o produto confirmou em 2026-10-07 que não será antecipado); no MVP 1 o bloco não é exibido. O protótipo mostra o botão para validar o layout.
 - **Componentes:** `LoginFrame` (moldura de duas colunas, reproduzida no tema do Authentik), `LoginBrandPanel`, `LoginReasonMessage`, `PrivacyNotice` (selo "Ambiente seguro"; "Saiba mais" abre o aviso de privacidade completo), `HelpLink`, `InstitutionList` (ponte para SCR-101), `NoMembershipPage`.
 - **Dados e endpoints:** rotas do BFF (fora da API NestJS): `GET /api/auth/login`, `GET /api/auth/callback`, `GET /api/auth/session`.
-- **Ações:** `/entrar` sem `motivo` não tem tela própria: segue direto para `GET /api/auth/login` (preserva `returnTo`) → tela de login do Authentik → callback resolve a sessão → SCR-003 (1 vínculo) ou SCR-101 (2+ vínculos). Com `motivo`, a página do app mostra, na mesma moldura, a mensagem, o botão "Entrar" (inicia o mesmo fluxo) e "Esqueci minha senha" → SCR-002.
+- **Ações:** `/entrar` sem `motivo` não tem tela própria: segue direto para `GET /api/auth/login` (preserva `returnTo`) → tela de login do Authentik → callback resolve a sessão → SCR-003 (1 vínculo) ou SCR-101 (2+ vínculos). Com `motivo`, a página do app mostra, na mesma moldura, a mensagem, o botão "Entrar" (inicia o mesmo fluxo) e "Esqueci minha senha" → `GET /api/auth/forgot-password` (o que SCR-002 faz, sem a parada intermediária), preservando `returnTo`.
 - **Estados:** sem *skeleton* (página estática); motivos (`saiu`, `saiu-parcial`, `sessao-expirada`, `senha-redefinida`, `erro`, `indisponivel`) em `role="status"`; botão "Entrar" com estado "Redirecionando…"; erro com `correlationId` copiável; `NoMembershipPage` quando não há vínculo algum.
 - **Validações e mensagens:** motivo vem só por querystring controlada pelo próprio app/BFF; credenciais inválidas recebem a mensagem genérica do Authentik, sem revelar se a conta existe (RN-IAM-18); nenhum código técnico exposto ao usuário além do `correlationId`.
 - **Acessibilidade e responsividade:** foco inicial no e-mail (formulário) ou no título (página de motivo); tudo alcançável por teclado; contraste AA, inclusive sobre a foto (o degradê garante o contraste); foto e ícones decorativos com `alt=""`; `lang="pt-BR"`; coluna única abaixo de 1024 px, a partir de 360 px; páginas do Authentik usam o mesmo tema e são testadas com axe.
@@ -149,7 +149,7 @@ flowchart TD
 - **Componentes:** nenhum componente novo; reaproveita o bloco de erro de SCR-001.
 - **Dados e endpoints:** `GET /api/auth/forgot-password` (BFF) → redireciona ao Authentik, que renderiza a redefinição.
 - **Ações:** Acessar a rota → `GET /api/auth/forgot-password` → redirecionamento imediato.
-- **Estados:** sem *loading* relevante (redirecionamento imediato); erro de indisponibilidade reaproveita o componente de erro de SCR-001.
+- **Estados:** sem *loading* relevante (redirecionamento imediato); erro de indisponibilidade (`?motivo=indisponivel`, para onde o BFF devolve quando o Authentik não responde) reaproveita o componente de erro de SCR-001, com "Tentar novamente" (de novo `GET /api/auth/forgot-password`) e "Voltar para a entrada", preservando `returnTo`.
 - **Validações e mensagens:** nenhuma validação própria (delegada ao Authentik).
 - **Acessibilidade e responsividade:** segue o padrão de foco e contraste de SCR-001.
 - **Stories:** US-089.

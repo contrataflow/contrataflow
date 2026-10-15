@@ -20,7 +20,9 @@ import InvitePage from './(auth)/convite/[token]/page';
 import LoginPage, { generateMetadata as loginMetadata } from './(auth)/entrar/page';
 import ErrorPage, { generateMetadata } from './(auth)/erro/[variante]/page';
 import AuthLayout from './(auth)/layout';
-import PasswordRecoveryPage from './(auth)/recuperar-senha/page';
+import PasswordRecoveryPage, {
+  generateMetadata as recoveryMetadata,
+} from './(auth)/recuperar-senha/page';
 import SelectTenantPage, {
   generateMetadata as selectionMetadata,
 } from './(auth)/selecionar-orgao/page';
@@ -38,6 +40,8 @@ interface ServerState {
   /** `usePathname()` dos Client Components (caminho no navegador). */
   clientPathname: string;
   shell: ActiveShellSession | null;
+  /** `returnTo` guardado no início de uma recuperação de senha (US-089 FA-05). */
+  pendingReturnTo: string | null;
   get: ReturnType<typeof vi.fn<(path: string, options?: unknown) => Promise<unknown>>>;
 }
 
@@ -46,6 +50,7 @@ const server: ServerState = vi.hoisted(() => ({
   pathname: '/processos?x=1',
   clientPathname: '/exemplo',
   shell: null,
+  pendingReturnTo: null,
   get: vi.fn<(path: string, options?: unknown) => Promise<unknown>>(),
 }));
 
@@ -70,6 +75,7 @@ vi.mock('@/bff/server-session', () => ({
   currentSessionOrUnavailable: () => Promise.resolve(server.lookup),
   currentPathname: () => Promise.resolve(server.pathname),
   currentShellSession: () => Promise.resolve(server.shell),
+  pendingRecoveryReturnTo: () => Promise.resolve(server.pendingReturnTo),
   apiServerClient: { get: server.get },
 }));
 
@@ -77,6 +83,7 @@ beforeEach(() => {
   server.lookup = { status: 'none' };
   server.clientPathname = '/exemplo';
   server.shell = null;
+  server.pendingReturnTo = null;
   server.get.mockReset();
 });
 
@@ -469,7 +476,7 @@ describe('SCR-001 — /entrar', () => {
       '/api/auth/login?returnTo=%2Fprocessos%3Fx%3D1',
     );
     expect(screen.getByRole('link', { name: 'Esqueci minha senha' }).getAttribute('href')).toBe(
-      '/recuperar-senha',
+      '/api/auth/forgot-password?returnTo=%2Fprocessos%3Fx%3D1',
     );
     expect(screen.getByRole('link', { name: 'Suporte' }).getAttribute('href')).toMatch(/^mailto:/);
     expect(screen.getByText(/Precisa de ajuda\?/)).toBeTruthy();
@@ -539,6 +546,86 @@ describe('SCR-001 — /entrar', () => {
 
   it('metadata com o título da página', async () => {
     expect((await loginMetadata()).title).toBe('Entrar — ContrataFlow');
+  });
+
+  it('US-089: "Esqueci minha senha" vai direto à rota do BFF, sempre visível e habilitado', async () => {
+    renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'erro' }) }));
+    const forgot = screen.getByRole('link', { name: 'Esqueci minha senha' });
+    expect(forgot.getAttribute('href')).toBe('/api/auth/forgot-password');
+    expect(forgot.getAttribute('aria-disabled')).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('US-089 FA-05: senha redefinida sem returnTo na URL usa o destino guardado na recuperação', async () => {
+    server.pendingReturnTo = '/processos/42';
+    renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'senha-redefinida' }) }));
+    expect(screen.getByRole('status').textContent).toBe(
+      'Senha redefinida. Entre com sua nova senha.',
+    );
+    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
+      '/api/auth/login?returnTo=%2Fprocessos%2F42',
+    );
+  });
+
+  it('US-089 FA-05: o returnTo da URL prevalece e outros motivos ignoram o destino guardado', async () => {
+    server.pendingReturnTo = '/processos/42';
+    renderIntl(
+      await LoginPage({
+        searchParams: Promise.resolve({ motivo: 'senha-redefinida', returnTo: '/tarefas' }),
+      }),
+    );
+    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
+      '/api/auth/login?returnTo=%2Ftarefas',
+    );
+    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe(
+      '/api/auth/login',
+    );
+  });
+});
+
+describe('SCR-002 — /recuperar-senha (US-089)', () => {
+  it('sem motivo aciona GET /api/auth/forgot-password na hora, preservando o returnTo validado', async () => {
+    expect(await redirectOf(PasswordRecoveryPage({ searchParams: Promise.resolve({}) }))).toBe(
+      '/api/auth/forgot-password',
+    );
+    expect(
+      await redirectOf(
+        PasswordRecoveryPage({ searchParams: Promise.resolve({ returnTo: '/processos?x=1' }) }),
+      ),
+    ).toBe('/api/auth/forgot-password?returnTo=%2Fprocessos%3Fx%3D1');
+    expect(
+      await redirectOf(
+        PasswordRecoveryPage({ searchParams: Promise.resolve({ returnTo: '//evil.com' }) }),
+      ),
+    ).toBe('/api/auth/forgot-password');
+  });
+
+  it('[Falha de integração] Authentik indisponível: mensagem de SCR-001, "Tentar novamente" e volta à entrada', async () => {
+    renderIntl(
+      <AuthLayout>
+        {await PasswordRecoveryPage({
+          searchParams: Promise.resolve({ motivo: 'indisponivel', returnTo: '/processos' }),
+        })}
+      </AuthLayout>,
+    );
+    const heading = screen.getByRole('heading', { level: 1, name: 'Recuperar senha' });
+    expect(document.activeElement).toBe(heading);
+    expect(screen.getByRole('status').textContent).toBe(
+      'O serviço de autenticação está indisponível. Tente novamente em instantes.',
+    );
+    expect(screen.getByRole('link', { name: 'Tentar novamente' }).getAttribute('href')).toBe(
+      '/api/auth/forgot-password?returnTo=%2Fprocessos',
+    );
+    expect(screen.getByRole('link', { name: 'Voltar para a entrada' }).getAttribute('href')).toBe(
+      '/entrar?returnTo=%2Fprocessos',
+    );
+    // Nenhum formulário próprio: e-mail e senha só existem no Authentik.
+    expect(document.querySelector('form, input')).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('metadata com o título da página', async () => {
+    expect((await recoveryMetadata()).title).toBe('Recuperar senha — ContrataFlow');
   });
 });
 
@@ -674,7 +761,9 @@ describe('grupo (auth): casca', () => {
     renderIntl(
       <AuthLayout>
         <>
-          {await PasswordRecoveryPage()}
+          {await PasswordRecoveryPage({
+            searchParams: Promise.resolve({ motivo: 'indisponivel' }),
+          })}
           {await InvitePage()}
         </>
       </AuthLayout>,

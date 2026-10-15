@@ -1,6 +1,7 @@
 // Fábricas dos testes do BFF: configuração válida, runtime com API simulada e sessões prontas.
 import { vi } from 'vitest';
 
+import type { PasswordRecovery } from '@/bff/auth/password-recovery';
 import { MemoryRateLimitCounter } from '@/bff/auth/rate-limit';
 import { createBffRuntime } from '@/bff/runtime';
 import type { BffRuntime } from '@/bff/runtime';
@@ -49,6 +50,8 @@ export function createTestRuntime(
   options: {
     readonly identity?: IdentityProvider;
     readonly directory?: SessionDirectory;
+    /** *Flow* de recuperação de senha (padrão: o fake, que volta direto a SCR-001). */
+    readonly recovery?: PasswordRecovery;
     /** Store alternativo (ex.: um que falha); o `store` devolvido continua o em memória. */
     readonly sessionStore?: SessionStore;
     readonly upstreamTimeoutMs?: number;
@@ -66,6 +69,7 @@ export function createTestRuntime(
     now: () => clock.now,
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.directory ? { directory: options.directory } : {}),
+    ...(options.recovery ? { recovery: options.recovery } : {}),
     ...(options.upstreamTimeoutMs ? { upstreamTimeoutMs: options.upstreamTimeoutMs } : {}),
   });
   return { runtime, store, api, clock };

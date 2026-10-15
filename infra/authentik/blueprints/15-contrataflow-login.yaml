@@ -4,7 +4,8 @@
 # (`/auth-theme/*`), e-mail e senha na mesma etapa, "mostrar senha" e "Lembrar de mim" (lembra só
 # o e-mail neste dispositivo; não prolonga a sessão — DEC-131). A sessão do próprio Authentik dura
 # no máximo o teto absoluto da plataforma (RN-IAM-32). O segundo fator reaproveita a etapa padrão
-# de MFA (política da US-090). Idempotente por `identifiers`; nenhum segredo neste arquivo.
+# de MFA (política da US-090). "Esqueci minha senha" no formulário leva ao fluxo de recuperação
+# do blueprint 12 (US-089). Idempotente por `identifiers`; nenhum segredo neste arquivo.
 version: 1
 metadata:
   name: 'ContrataFlow — tela de login'
@@ -16,6 +17,12 @@ entries:
     attrs:
       identifiers:
         name: 'Default - Authentication flow'
+      required: true
+  # O fluxo de recuperação (link do formulário e da marca) precisa existir antes (US-089).
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: 'ContrataFlow — recuperação de senha'
       required: true
 
   - model: authentik_stages_password.passwordstage
@@ -46,6 +53,8 @@ entries:
       show_matched_user: false
       # "Lembrar de mim": guarda só o e-mail neste navegador (Lacuna 7).
       enable_remember_me: true
+      # "Esqueci minha senha" no formulário (SCR-001 → SCR-002 · US-089).
+      recovery_flow: !Find [authentik_flows.flow, [slug, contrataflow-recovery]]
 
   - model: authentik_stages_user_login.userloginstage
     id: login
@@ -96,6 +105,8 @@ entries:
       branding_default_flow_background:
         !Format ['%s/auth-theme/login-background.svg', !Env CF_APP_BASE_URL]
       flow_authentication: !KeyOf flow
+      # Recuperação da marca: também é o fluxo dos links de recuperação gerados pela API do IdP.
+      flow_recovery: !Find [authentik_flows.flow, [slug, contrataflow-recovery]]
       branding_custom_css: |
         /* Tema do ContrataFlow (SCR-001 · prototype/entrar.html). */
         :root {

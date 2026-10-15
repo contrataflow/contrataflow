@@ -525,6 +525,15 @@ Fecha as lacunas 1–4 da US-088 (detalhes em [authentication.md](authentication
 - **Logout:** sem `id_token_hint` no *RP-initiated logout* (mantém a DEC-070 — a story pedia o parâmetro; em computador compartilhado o token ficaria no histórico); `post_logout_redirect_uri` = `/entrar?motivo=saiu`; Authentik indisponível → `saiu-parcial`. O CSRF do logout continua `403 CSRF_REJECTED` (padrão do BFF desde a US-086), não `PERMISSION_DENIED`.
 - Registrado em 2026-10-14 (US-088).
 
+### DEC-074 — Recuperação de senha no Authentik · `Aceita` · complementa DEC-012, DEC-070, DEC-073 e DEC-130
+Decisões de implementação da US-089 (detalhes em [authentication.md](authentication.md) §8):
+- **Rota do BFF:** `GET /api/auth/forgot-password` monta `/if/flow/<slug>/` na origem do emissor OIDC (`OIDC_RECOVERY_FLOW_SLUG`, padrão `contrataflow-recovery`), sem nenhum parâmetro, e antes de redirecionar confere a página do *flow* (GET, 2 s; resultado positivo vale 10 s). Sem resposta 200 — IdP fora do ar ou *flow* não publicado — o navegador vai para SCR-002 `/recuperar-senha?motivo=indisponivel` (com `returnTo`) e o log é `warn auth.recovery_unavailable`; não há 503 porque a rota é navegação de página. Mesmo limite de 20/min por IP das rotas de login, no mesmo contador.
+- **`returnTo` (FA-05):** guardado no cookie `__Host-cf_recovery_rt` (1 h, revalidado na leitura) e devolvido por `/entrar?motivo=senha-redefinida`; quando a recuperação parte do formulário do Authentik, vale o `returnTo` da transação de login mais recente ainda aberta (10 min). O login seguinte apaga o cookie; o Authentik nunca recebe o destino.
+- **Flow (blueprint `12-contrataflow-recovery.yaml`):** identificação só por e-mail com `pretend_user_exists` → e-mail com template próprio em pt-BR (`infra/authentik/templates`, montado em `/templates`), link de 30 min, até 5 envios a cada 5 min por e-mail, sem reativar conta desativada no IdP → nova senha com a política `contrataflow-password-policy` (12 caracteres; Have I Been Pwned sem tolerância; zxcvbn 0–1 recusada) → gravação. O HIBP exige saída à internet e falha fechada. O uso único do link é do próprio Authentik: a confirmação que ele intercala consome o token; reabrir o link recomeça o pedido.
+- **Fim do flow e sessões anteriores:** uma política de expressão avaliada na gravação da senha (a) põe `redirect = /entrar?motivo=senha-redefinida` no plano — o executor conclui o *flow* e limpa o plano (um *redirect stage* deixaria o plano parado na sessão do navegador, e um novo pedido voltaria direto a SCR-001) — e (b) apaga as sessões do usuário no Authentik e os refresh tokens emitidos: sessões abertas do ContrataFlow terminam na renovação seguinte (`REFRESH_FAILED`, US-088), dentro da vida do access token. O *flow* não autentica ninguém (sem `user_login`): a entrada segue o login normal, com o segundo fator quando exigido.
+- **Ponto de entrada no IdP:** `recovery_flow` da etapa de identificação do login (o link "Esqueci minha senha" do formulário) e `flow_recovery` da marca apontam para o mesmo *flow*.
+- Registrado em 2026-10-14 (US-089).
+
 ---
 
 ## 5. Dados e persistência

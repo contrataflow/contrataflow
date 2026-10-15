@@ -101,6 +101,12 @@ const envSchema = z
     OIDC_SCOPES: z.string().trim().min(1).default('openid profile email offline_access'),
     OIDC_REDIRECT_URI: z.url().optional(),
     OIDC_POST_LOGOUT_REDIRECT_URI: z.url().optional(),
+    /** Slug do *flow* de recuperação de senha do Authentik (US-089 · RN-IAM-34). */
+    OIDC_RECOVERY_FLOW_SLUG: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9_-]{1,50}$/)
+      .default('contrataflow-recovery'),
     /** Redis de sessões (DEC-131): crítico, separado do cache/filas. */
     REDIS_SESSION_URL: z.url({ protocol: /^rediss?$/ }).optional(),
     /** Chave AES-256-GCM dos tokens na sessão e do cookie de transação (DEC-137). */
@@ -156,6 +162,8 @@ export interface WebConfig {
     readonly scopes: string;
     readonly redirectUri: string;
     readonly postLogoutRedirectUri: string;
+    /** *Flow* de recuperação de senha no Authentik (`/if/flow/<slug>/` na origem do emissor). */
+    readonly recoveryFlowSlug: string;
   };
   readonly session: {
     /** `null` (só local/dev/test): sessões em memória do processo. */
@@ -215,6 +223,7 @@ export function loadWebConfig(env: EnvSource): WebConfig {
       redirectUri: data.OIDC_REDIRECT_URI ?? new URL('/api/auth/callback', appUrl.origin).href,
       postLogoutRedirectUri:
         data.OIDC_POST_LOGOUT_REDIRECT_URI ?? new URL('/entrar?motivo=saiu', appUrl.origin).href,
+      recoveryFlowSlug: data.OIDC_RECOVERY_FLOW_SLUG,
     },
     session: {
       redisUrl: data.REDIS_SESSION_URL ?? null,

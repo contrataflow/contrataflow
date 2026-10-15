@@ -38,6 +38,8 @@ export type LogEvent =
   | 'auth.refresh_failed'
   | 'auth.rp_logout_unavailable'
   | 'auth.reauthentication_required'
+  | 'auth.recovery_redirect'
+  | 'auth.recovery_unavailable'
   | 'tracing.disabled';
 
 export type LogFields = Readonly<Record<string, string | number | boolean | null>>;

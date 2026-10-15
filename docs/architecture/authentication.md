@@ -180,6 +180,8 @@ Pipeline de guards fixo e global (as etapas 4 e 5 — permissão e política —
 - Política de senha (mínimo 12 caracteres, rejeita senhas presentes em bases de vazamentos conhecidos) é responsabilidade exclusiva da configuração do Authentik — o ContrataFlow não define, valida nem armazena senhas (RN-IAM-36).
 - O link de redefinição é de uso único e sua posse não autentica no ContrataFlow — só permite trocar a senha no IdP (RN-IAM-37).
 - Segue o limite de 20 req/min por IP de `/api/auth/*` e responde `Cache-Control: no-store` (RN-IAM-38).
+- **Implementação (DEC-074):** o BFF monta `/if/flow/<OIDC_RECOVERY_FLOW_SLUG>/` (padrão `contrataflow-recovery`) na origem do emissor e confere a página do *flow* antes de redirecionar (2 s; sucesso vale 10 s); sem resposta 200, o navegador volta a SCR-002 (`/recuperar-senha?motivo=indisponivel`, com `returnTo`). O `returnTo` validado fica no cookie `__Host-cf_recovery_rt` (1 h) — ou, se a recuperação partiu do formulário do Authentik, vem da transação de login aberta — e é devolvido por `/entrar?motivo=senha-redefinida`.
+- **No Authentik (blueprint `12-contrataflow-recovery.yaml`):** e-mail → link de uso único de 30 min (template pt-BR do ContrataFlow) → nova senha com a política `contrataflow-password-policy` → gravação. Na gravação, uma política de expressão encerra as sessões do usuário no IdP, revoga os refresh tokens (as sessões do ContrataFlow terminam na renovação seguinte — §4.1) e conclui o *flow* em `/entrar?motivo=senha-redefinida`, sem autenticar o usuário. O formulário de login e a marca apontam para o mesmo *flow*.
 
 ## 9. MFA e step-up
 

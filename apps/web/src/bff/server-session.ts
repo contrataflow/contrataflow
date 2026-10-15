@@ -5,6 +5,8 @@ import { cookies, headers } from 'next/headers';
 import { ApiError, apiErrorFromResponse } from '@/lib/api/api-error';
 import type { ApiResult } from '@/lib/api/client';
 
+import { LOGIN_TRANSACTION_COOKIE, openTransactions } from './auth/login-transaction';
+import { pendingReturnTo, RECOVERY_RETURN_COOKIE } from './auth/password-recovery';
 import { clientIpFrom } from './client-ip';
 import { resolveCorrelationId } from './correlation';
 import { NONCE_HEADER, PATHNAME_HEADER } from './edge';
@@ -48,6 +50,24 @@ export async function currentSessionOrUnavailable(
     if (error instanceof SessionStoreUnavailableError) return { status: 'unavailable' };
     throw error;
   }
+}
+
+/**
+ * Destino a preservar em `/entrar?motivo=senha-redefinida` (FA-05 da US-089): o `returnTo` da
+ * recuperação pedida pelo ContrataFlow ou o do login em curso quando ela partiu do Authentik.
+ */
+export async function pendingRecoveryReturnTo(
+  runtime: BffRuntime = bffRuntime(),
+): Promise<string | null> {
+  const cookieStore = await cookies();
+  return pendingReturnTo({
+    recoveryCookie: cookieStore.get(RECOVERY_RETURN_COOKIE)?.value ?? null,
+    transactions: openTransactions(
+      runtime.transactionKey,
+      cookieStore.get(LOGIN_TRANSACTION_COOKIE)?.value ?? null,
+      runtime.now(),
+    ),
+  });
 }
 
 export async function currentShellSession(runtime: BffRuntime = bffRuntime()) {
