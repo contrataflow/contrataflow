@@ -8,9 +8,9 @@ import { z } from 'zod';
 
 import { API_MODULES } from '#modules/index.js';
 import { InternalExampleController } from '#modules/platform/presentation/internal-example.controller.js';
-import { WithoutTenant } from '#shared/auth/route-access.js';
 import { API_OPERATION_METADATA, ApiOperation } from '#shared/openapi/api-operation.js';
 import type { ApiOperationSpec } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { FAKE_TENANTS } from '#shared/testing/fake-directory.js';
 import { ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
@@ -87,7 +87,7 @@ describe('openapi:generate (RN-FND-38)', () => {
       }
 
       @Get()
-      @WithoutTenant()
+      @TenantScope('CROSS_TENANT_LOOKUP')
       @ApiOperation({ operationId: 'T-1', summary: 'a', responses: { 200: { description: 'ok' } } })
       list() {
         // só os metadados importam
@@ -100,10 +100,10 @@ describe('openapi:generate (RN-FND-38)', () => {
     }
     const operations = collectOperations([ThingsController]);
     expect(
-      operations.map(({ method, path, withoutTenant }) => ({ method, path, withoutTenant })),
+      operations.map(({ method, path, tenantScope }) => ({ method, path, tenantScope })),
     ).toEqual([
-      { method: 'get', path: '/things', withoutTenant: true },
-      { method: 'post', path: '/things/{thingId}/close', withoutTenant: false },
+      { method: 'get', path: '/things', tenantScope: 'CROSS_TENANT_LOOKUP' },
+      { method: 'post', path: '/things/{thingId}/close', tenantScope: undefined },
     ]);
 
     @Module({ controllers: [ThingsController] })

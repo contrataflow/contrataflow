@@ -177,6 +177,14 @@ describe('padrão de persistência (PostgreSQL real)', () => {
           privileged: false,
         },
         {
+          // SystemDbService (US-100 · RN-TEN-26): sem BYPASSRLS — só as políticas de plataforma.
+          rolname: 'cf_platform',
+          rolcanlogin: true,
+          rolbypassrls: false,
+          rolinherit: true,
+          privileged: false,
+        },
+        {
           rolname: 'cf_readonly_report',
           rolcanlogin: true,
           rolbypassrls: false,
@@ -219,6 +227,7 @@ describe('padrão de persistência (PostgreSQL real)', () => {
         WHERE n.nspname = 'public' AND p.prosecdef ORDER BY 1`);
       expect(definers).toEqual([
         { name: 'cf_audit_ensure_partitions', owner: 'cf_owner' },
+        { name: 'cf_find_invitation', owner: 'cf_definer' },
         { name: 'cf_user_memberships', owner: 'cf_definer' },
       ]);
     });

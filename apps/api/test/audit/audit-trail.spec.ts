@@ -564,7 +564,11 @@ describe('auditoria transacional no PostgreSQL (US-073)', () => {
             VALUES (gen_random_uuid(), now(), NULL, 'USER', 'access.denied', 'ACCESS', 'DENIED', 'X', ${'f'.repeat(64)})`,
         ),
       ),
-    ).rejects.toThrow(/row-level security/);
+    ).rejects.toMatchObject({
+      // US-100: a TenantTransaction trata a recusa da RLS como violação de isolamento (500).
+      name: 'TenantIsolationViolationError',
+      cause: { message: expect.stringMatching(/row-level security/) as unknown },
+    });
   });
 
   describe('amostragem de access.denied no Redis (RN-AUD-07)', () => {

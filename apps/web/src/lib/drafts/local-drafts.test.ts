@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { DRAFT_TTL_MS, LocalDrafts, MemoryDraftBackend, localDrafts } from './local-drafts';
+import {
+  DRAFT_TTL_MS,
+  LocalDrafts,
+  MemoryDraftBackend,
+  draftKey,
+  localDrafts,
+} from './local-drafts';
 
 /* Rascunhos locais por usuário + instituição (RN-IAM-30/31). */
 
@@ -19,6 +25,14 @@ const justification = {
   content: 'trecho digitado',
   baseRevision: 3,
 };
+
+describe('chave local por tenant (RN-TEN-35 · US-100)', () => {
+  it('começa pelo tenant: cf:{tenantId}:{userId}:{alvo}', () => {
+    expect(draftKey({ tenantId: SAO_JOSE, userId: CLAUDIA, target: 'dfd:1:JUSTIFICATION' })).toBe(
+      `cf:${SAO_JOSE}:${CLAUDIA}:dfd:1:JUSTIFICATION`,
+    );
+  });
+});
 
 describe('rascunhos locais (RN-IAM-30)', () => {
   it('[Sucesso] sobrevivem à expiração e voltam ao mesmo usuário na mesma instituição', async () => {

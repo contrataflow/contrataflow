@@ -124,7 +124,7 @@ export interface StorageService {
 ```
 
 Regras obrigatórias da implementação:
-- **Guarda de tenant:** toda operação valida `ref.key.startsWith(\`tenants/${ctx.tenantId}/\`)` contra o tenant do contexto (AsyncLocalStorage). Violação = erro de programação (`TenantIsolationViolation`): log `error`, métrica `cf_storage_tenant_guard_violations_total` e alerta de segurança. Chaves são construídas **somente** pelo `StorageKeyBuilder` no servidor; nenhuma chave vem do cliente.
+- **Guarda de tenant:** toda operação valida `ref.key.startsWith(\`tenants/${ctx.tenantId}/\`)` contra o tenant do contexto (AsyncLocalStorage). Violação = erro de programação (`TenantIsolationViolationError`): log `error security.tenant_isolation_violation` com `barrier = storage`, métrica `cf_tenant_isolation_violations_total{barrier="storage"}` e alerta de segurança (A19). Implementada na US-100 em `apps/api/src/shared/storage` (`StorageKeyBuilder` + `StorageService`), antes de chegar ao adaptador — o adaptador S3/MinIO desta seção é da US-068 (DEC-076). Chaves são construídas **somente** pelo `StorageKeyBuilder` no servidor; nenhuma chave vem do cliente.
 - **Expiração máxima de 300 s** em URLs (DEC-136); valores maiores são recusados.
 - **URLs pré-assinadas são credenciais ao portador:** nunca são logadas, persistidas, enviadas por e-mail nem incluídas em notificações (e-mails apontam para a aplicação).
 - `purge` recusa `documents` e qualquer rendition que não seja `PREVIEW`; eliminação de evidência só por processo futuro de temporalidade (PEND-07).

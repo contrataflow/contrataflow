@@ -24,6 +24,7 @@ import { cursorResult, decodeCursor, pageResult, pageWindow } from '#shared/http
 import type { CursorQueryDto, PageQueryDto } from '#shared/http/pagination.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 /** Posição codificada no cursor do feed fictício. */
@@ -48,6 +49,7 @@ const exampleItems = Array.from({ length: EXAMPLE_ITEM_COUNT }, (_, index) => ({
  * produto e fica fora do contrato público (`internal: true`).
  */
 @Controller('_internal')
+@TenantScope('TENANT')
 export class InternalExampleController {
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 

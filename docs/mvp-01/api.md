@@ -47,7 +47,9 @@ Campos monetários de processos com orçamento sigiloso são retornados como `nu
 - Visível sem permissão/política para a ação → **403** com `code` específico.
 - Recursos com ações retornam `meta.allowedActions` quando indicado (evita chamada extra).
 - IDs **referenciados no corpo** (ex.: `requestingDepartmentId`) que não existem, estão inativos, pertencem a outro tenant ou não estão no escopo do usuário → **422** `VALIDATION_ERROR` com `errors[].code = "REFERENCE_NOT_FOUND"` (ou `REFERENCE_INACTIVE`) no campo — nunca revelando a existência do recurso em outro tenant.
-- Header `X-Tenant-Id` de tenant em que o usuário não tem vínculo ativo → **403** `MEMBERSHIP_INACTIVE`. Header ausente ou inválido em rota com tenant e tenant inexistente respondem igual (nunca revelam se o tenant existe); `TENANT_SUSPENDED` só aparece para quem tem vínculo no tenant (US-080).
+- Header `X-Tenant-Id` de tenant em que o usuário não tem vínculo ativo → **403** `MEMBERSHIP_INACTIVE`; tenant inexistente responde igual (nunca revela se o tenant existe); `TENANT_SUSPENDED` só aparece para quem tem vínculo no tenant (US-080).
+- Header `X-Tenant-Id` **ausente ou malformado** (não é UUID) em rota de tenant → **400** `MALFORMED_REQUEST` com `errors[] = [{ field: "X-Tenant-Id", code: "REQUIRED" | "INVALID_FORMAT" }]` — não revela nada (não há tenant); o BFF refaz a seleção de instituição (US-100 · RN-TEN-19 · DEC-076). Rotas sem tenant ativo (ME-04, `/platform/*`, `/health/*`, aceite de convite) ignoram o cabeçalho; toda rota declara o escopo no OpenAPI (`x-tenant-scope`: `TENANT`, `PLATFORM`, `NONE` ou `CROSS_TENANT_LOOKUP`).
+- Instituição em `OFFBOARDING` (DEC-132 · RN-TEN-37): vínculos `ADMIN_ORGAO`/`AUDITOR` têm acesso de leitura e exportação — todos os `GET` e as rotas de exportação DOC-20, DOC-21, DOC-23, ATT-05, AUD-03, PRS-22 e PRC-34; qualquer outro comando → **403** `TENANT_SUSPENDED`.
 
 ### 1.6 Limites (rate limiting)
 | Classe | Limite padrão | Chave |

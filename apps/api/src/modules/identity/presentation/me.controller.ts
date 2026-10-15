@@ -3,14 +3,15 @@ import type { MembershipSummaryDto, MyProfileDto } from '@contrataflow/validatio
 import { Controller, Get, Res } from '@nestjs/common';
 import { z } from 'zod';
 
-import { WithoutTenant } from '#shared/auth/route-access.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 
 import { GetMyProfileQuery, ListMyMembershipsQuery } from '../application/me.queries.js';
 
 /** ME-01 e ME-04 (api/01-session-me.md): capacidades implícitas do usuário autenticado. */
 @Controller('me')
+@TenantScope('TENANT')
 export class MeController {
   constructor(
     private readonly profile: GetMyProfileQuery,
@@ -36,7 +37,7 @@ export class MeController {
   }
 
   @Get('memberships')
-  @WithoutTenant()
+  @TenantScope('CROSS_TENANT_LOOKUP')
   @ApiOperation({
     operationId: 'ME-04',
     summary: 'Listar vínculos (instituições) do usuário',

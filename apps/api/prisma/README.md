@@ -22,6 +22,9 @@ antes de `build`, `typecheck`, `lint` e `test`.
 | `cf_app`             | sim   | API (`DATABASE_URL`) — sem `BYPASSRLS`, sem DDL                                |
 | `cf_worker`          | sim   | worker — mesmas regras do `cf_app`                                             |
 | `cf_relay`           | sim   | relay do outbox (US-082): `BYPASSRLS`, só `SELECT`/`UPDATE` em `outbox_events` |
+| `cf_maintenance`     | sim   | purga do outbox (US-082): `BYPASSRLS`, só `SELECT`/`DELETE` em `outbox_events` |
+| `cf_platform`        | sim   | `SystemDbService` (US-100, `DATABASE_URL_PLATFORM`): sem `BYPASSRLS`           |
+| `cf_definer`         | não   | dono das funções `SECURITY DEFINER` entre tenants (US-087/US-100)              |
 | `cf_readonly_report` | sim   | reservado (FA-03): `SELECT` em views `report_*`                                |
 
 A migração inicial cria os papéis que faltarem (bloco idempotente — papéis são do cluster) sem
@@ -48,11 +51,8 @@ CREATE TABLE processes (
 );
 CREATE INDEX processes_status_idx ON processes (tenant_id, status, updated_at DESC);
 
-ALTER TABLE processes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE processes FORCE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON processes
-  USING (tenant_id = current_setting('app.tenant_id')::uuid)
-  WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
+-- Depois das FKs: ENABLE + FORCE + política tenant_isolation (US-100 · RN-TEN-25).
+SELECT cf_apply_tenant_rls('processes');
 
 GRANT SELECT, INSERT, UPDATE ON processes TO cf_app, cf_worker;  -- sem DELETE se a exclusão é lógica
 
@@ -71,8 +71,10 @@ RESET ROLE;
   `ADD CONSTRAINT` (a tabela nova está vazia; a política continua valendo para a aplicação).
 - O CI reprova (estágio Migrações e suíte tenant leak): tabela com `tenant_id` sem RLS
   `ENABLE`+`FORCE`+política, `tenant_id` nulo fora de `audit_logs`/`outbox_events`, tabela sem
-  `tenant_id` fora de `tenants`/`users`/`permissions`, FK ou unicidade sem `tenant_id` e objeto cujo
-  dono não é `cf_owner`. Operação destrutiva só em release posterior (`-- cf:contract DEC-NNN`).
+  `tenant_id` fora de `tenants`/`users`/`permissions`, FK entre tabelas de tenant que não começa por
+  `tenant_id`, tabela de negócio sem `UNIQUE (tenant_id, id)`, unicidade sem `tenant_id` e objeto
+  cujo dono não é `cf_owner`. O modelo novo entra em `TENANT_SCOPED_MODELS`
+  (`src/shared/database/tenant-models.ts`) no mesmo PR — o teste compara com o schema. Operação destrutiva só em release posterior (`-- cf:contract DEC-NNN`).
 - **Tabela particionada** (ex.: `audit_logs`, US-073): `PARTITION BY RANGE`, PK com a coluna de
   partição, partições criadas por função `SECURITY DEFINER` da dona da tabela, cada uma com RLS
   `ENABLE` + `FORCE` e as mesmas políticas (a checagem de catálogo também olha as partições). O
@@ -83,6 +85,9 @@ EXECUTE FUNCTION cf_prevent_snapshot_update('content', 'content_hash');` — o `
   listada falha com "snapshot imutável".
 
 ## Acesso a dados (RN-FND-43)
+
+Guia completo (contexto, transação, SQL bruto, jobs, cache, storage, plataforma):
+[`docs/engineering/data-access.md`](../../../docs/engineering/data-access.md) (US-100).
 
 O único ponto de acesso é o `TenantTransaction` (`#shared/database/database.module.js`, global).
 Cada chamada abre uma transação `READ COMMITTED` cuja primeira instrução é

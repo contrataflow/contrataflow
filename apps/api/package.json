@@ -30,7 +30,8 @@
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
-    "test:tenant-leak": "vitest run --config vitest.integration.config.ts test/database/tenant-isolation.spec.ts test/outbox/outbox-writer.spec.ts test/timeline/timeline-projection.spec.ts"
+    "test:tenant-leak": "vitest run --config vitest.integration.config.ts test/database/tenant-isolation.spec.ts test/database/tenancy-foundation.spec.ts test/tenant-leak test/outbox/outbox-writer.spec.ts test/timeline/timeline-projection.spec.ts",
+    "test:perf": "vitest run --config vitest.perf.config.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "catalog:",

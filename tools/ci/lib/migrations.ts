@@ -220,14 +220,24 @@ const sqlList = (items: readonly string[]) =>
  * Checagens de catálogo (multi-tenancy.md §14 · V-02/V-03), uma linha por violação (partição é
  * checada como tabela própria — RLS, FK, unicidade —, mas herda da raiz a exceção de `tenant_id`
  * nulo, ex.: `audit_logs_2026_10` — US-073):
- * `rls|<tabela>`, `fk|<tabela>|<constraint>`, `unique|<tabela>|<índice>`, `nullable|<tabela>`,
- * `platform|<tabela>` (sem `tenant_id` fora da lista de plataforma) e `owner|<tabela>|<dono>`
- * (só no schema `public`, que nasce das migrações).
+ * `rls|<tabela>`, `fk|<tabela>|<constraint>` (FK entre tabelas de tenant sem `tenant_id` como
+ * primeira coluna — RN-TEN-27), `unique|<tabela>|<índice>`, `nullable|<tabela>`,
+ * `platform|<tabela>` (sem `tenant_id` fora da lista de plataforma), `key|<tabela>` (tabela de
+ * negócio sem `UNIQUE (tenant_id, id)`, alvo das FKs compostas — DEC-081 · US-100) e
+ * `owner|<tabela>|<dono>` (estas duas só no schema `public`, que nasce das migrações).
  */
 export function catalogChecksSql(schemas: readonly string[]): string {
   const list = sqlList(schemas);
   const ownerCheck = schemas.includes('public')
     ? `
+UNION ALL
+SELECT 'key|' || t.name FROM tenant_tables t
+WHERE t.name LIKE 'public.%' AND t.tenant_not_null AND t.oid = coalesce(pg_partition_root(t.oid), t.oid)
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_index i
+    JOIN pg_attribute ida ON ida.attrelid = t.oid AND ida.attname = 'id'
+    WHERE i.indrelid = t.oid AND i.indisunique AND i.indnatts = 2
+      AND i.indkey[0] = t.tenant_attnum AND i.indkey[1] = ida.attnum)
 UNION ALL
 SELECT 'owner|public.' || c.relname || '|' || pg_get_userbyid(c.relowner)
 FROM pg_class c
@@ -253,7 +263,7 @@ SELECT 'fk|' || src.name || '|' || k.conname
 FROM pg_constraint k
 JOIN tenant_tables src ON src.oid = k.conrelid
 JOIN tenant_tables dst ON dst.oid = k.confrelid
-WHERE k.contype = 'f' AND NOT (src.tenant_attnum = ANY (k.conkey))
+WHERE k.contype = 'f' AND k.conkey[1] <> src.tenant_attnum
 UNION ALL
 SELECT 'unique|' || t.name || '|' || i.indexrelid::regclass::text
 FROM pg_index i
@@ -273,7 +283,7 @@ ORDER BY 1;`;
 }
 
 export interface CatalogViolation {
-  readonly kind: 'rls' | 'fk' | 'unique' | 'nullable' | 'platform' | 'owner';
+  readonly kind: 'rls' | 'fk' | 'unique' | 'nullable' | 'platform' | 'key' | 'owner';
   readonly table: string;
   readonly object?: string;
   readonly message: string;
@@ -291,7 +301,7 @@ export function parseCatalogViolations(output: string): CatalogViolation[] {
           kind,
           table,
           ...(object === undefined ? {} : { object }),
-          message: `FK ${String(object)} em ${table} não inclui tenant_id (FK composta — DEC-081).`,
+          message: `FK ${String(object)} em ${table} não começa por tenant_id (FK composta — DEC-081 · RN-TEN-27).`,
         };
       }
       if (kind === 'unique') {
@@ -314,6 +324,13 @@ export function parseCatalogViolations(output: string): CatalogViolation[] {
           kind,
           table,
           message: `Tabela ${table} sem tenant_id fora da lista fechada de tabelas de plataforma (DEC-080 · V-02).`,
+        };
+      }
+      if (kind === 'key') {
+        return {
+          kind,
+          table,
+          message: `Tabela ${table} sem UNIQUE (tenant_id, id), alvo das FKs compostas (DEC-081 · RN-TEN-27).`,
         };
       }
       if (kind === 'owner') {

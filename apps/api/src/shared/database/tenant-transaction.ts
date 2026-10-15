@@ -1,17 +1,22 @@
-import { Logger } from '@nestjs/common';
-
 import { currentRequestContext } from '#shared/context/request-context.js';
 
 import { trackTransaction } from './active-transaction.js';
 import {
   DatabaseUnavailableError,
+  isForeignKeyViolation,
   isRetryableTransactionError,
+  isRowLevelSecurityViolation,
   isTransientDatabaseError,
+  referenceNotFound,
   TenantContextMissingError,
 } from './errors.js';
 import { Prisma } from './generated/prisma/client.js';
 import type { PrismaClient } from './generated/prisma/client.js';
 import { isUuid } from './ids.js';
+import { runInTransactionScope } from './transaction-scope.js';
+import type { TransactionScope } from './transaction-scope.js';
+import { isolationMetrics, tenantIsolationViolation } from '../tenancy/isolation.js';
+import { TenantContext } from '../tenancy/tenant-context.js';
 
 /** Cliente da transação entregue aos repositórios (sem `$transaction` nem `$connect`). */
 export type TenantTx = Prisma.TransactionClient;
@@ -28,28 +33,45 @@ export interface TenantTransactionSettings {
 export interface TenantTransactionOptions {
   /** Consulta: a transação recusa escrita (`transaction_read_only`). */
   readonly readOnly?: boolean;
+  /**
+   * Tenant alvo de um caso de uso `PLATFORM` (FA-02 · RN-TEN-21): só fora de contexto de tenant
+   * (ou no mesmo tenant) e com ator `SYSTEM`/`PLATFORM_OPERATOR`. Padrão: o tenant do contexto.
+   */
+  readonly tenantId?: string;
 }
 
-const logger = new Logger('Database');
+/** Atores que podem abrir transação para um tenant alvo (RN-TEN-21). */
+const TARGET_TENANT_ACTORS: ReadonlySet<string> = new Set(['SYSTEM', 'PLATFORM_OPERATOR']);
 
-/** Tenant do contexto ativo (requisição ou job); sem ele, falha fechada antes do banco. */
-function requireTenantId(): { tenantId: string; userId: string } {
+/** Tenant da transação: o do contexto ou, para casos de uso de plataforma, o alvo informado. */
+function resolveTenant(options: TenantTransactionOptions): { tenantId: string; userId: string } {
   const context = currentRequestContext();
-  const tenantId = context?.tenantId ?? null;
-  if (tenantId === null || !isUuid(tenantId)) {
-    // Não deveria ocorrer: indica rota/job sem o guard de tenant (sem dados da consulta no log).
-    logger.error(`db.tenant_context_missing correlationId=${context?.correlationId ?? '-'}`);
-    throw new TenantContextMissingError();
+  if (options.tenantId === undefined) {
+    const tenant = TenantContext.getOrThrow('context', { operation: 'tenant_transaction' });
+    return { tenantId: tenant.tenantId, userId: tenant.userId ?? '' };
   }
-  return { tenantId, userId: context?.actor.userId ?? '' };
+  const target = options.tenantId;
+  if (!isUuid(target)) throw new TenantContextMissingError();
+  const current = context?.tenantId ?? null;
+  if (current !== null && current !== target) {
+    throw tenantIsolationViolation('context', 'transaction_for_other_tenant', {
+      operation: 'tenant_transaction',
+    });
+  }
+  if (current === null && !TARGET_TENANT_ACTORS.has(context?.actor.type ?? 'ANONYMOUS')) {
+    throw tenantIsolationViolation('context', 'target_tenant_without_platform_actor', {
+      operation: 'tenant_transaction',
+    });
+  }
+  return { tenantId: target, userId: context?.actor.userId ?? '' };
 }
 
 /**
- * Corpo da `TenantTransaction` (RN-FND-43 · multi-tenancy.md §5.2): transação interativa
- * `READ COMMITTED` cuja PRIMEIRA instrução é `set_config('app.tenant_id', $1, true)` — escopo da
- * transação, nunca da sessão (RN-FND-44): ao terminar, a conexão volta ao pool sem contexto e
- * pode servir outro tenant (PgBouncer em modo transação/RDS Proxy — FA-01). Leituras também
- * passam por aqui (FA-02), em transação somente leitura.
+ * Corpo da `TenantTransaction` (RN-FND-43 · RN-TEN-22 · multi-tenancy.md §5.2): transação
+ * interativa `READ COMMITTED` cuja PRIMEIRA instrução é `set_config('app.tenant_id', $1, true)` —
+ * escopo da transação, nunca da sessão (RN-FND-44): ao terminar, a conexão volta ao pool sem
+ * contexto e pode servir outro tenant (PgBouncer em modo transação/RDS Proxy — FA-01). Leituras
+ * também passam por aqui (FA-02), em transação somente leitura.
  */
 export async function runTenantTransaction<T>(
   base: PrismaClient,
@@ -57,16 +79,16 @@ export async function runTenantTransaction<T>(
   work: (tx: TenantTx) => Promise<T>,
   options: TenantTransactionOptions,
 ): Promise<T> {
-  const { tenantId, userId } = requireTenantId();
+  const { tenantId, userId } = resolveTenant(options);
   const statementTimeout = String(settings.statementTimeoutMs);
-  return await runScoped(base, settings, work, (tx) =>
+  return await runScoped(base, settings, work, { kind: 'TENANT', tenantId }, (tx) =>
     options.readOnly
       ? tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
       : tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`,
   );
 }
 
-export interface PlatformTransactionOptions extends TenantTransactionOptions {
+export interface PlatformTransactionOptions extends Omit<TenantTransactionOptions, 'tenantId'> {
   /**
    * Usuário em `app.user_id` (condição de `cf_user_memberships`); padrão: o ator do contexto.
    * Informado explicitamente só onde o usuário ainda não está no contexto (início de sessão).
@@ -77,7 +99,8 @@ export interface PlatformTransactionOptions extends TenantTransactionOptions {
 /**
  * Transação de plataforma (multi-tenancy.md §6 · US-087): tabelas sem `tenant_id` (`users`,
  * `tenants`) e funções de leitura entre tenants (`cf_user_memberships`). NÃO define
- * `app.tenant_id`: qualquer consulta a tabela com RLS falha fechada (variável ausente ou vazia).
+ * `app.tenant_id`: qualquer consulta a tabela com RLS falha fechada (variável ausente ou vazia), e a
+ * extensão recusa modelos de tenant antes do banco.
  */
 export async function runPlatformTransaction<T>(
   base: PrismaClient,
@@ -88,38 +111,55 @@ export async function runPlatformTransaction<T>(
   const userId = options.userId ?? currentRequestContext()?.actor.userId ?? '';
   if (userId !== '' && !isUuid(userId)) throw new TenantContextMissingError();
   const statementTimeout = String(settings.statementTimeoutMs);
-  return await runScoped(base, settings, work, (tx) =>
+  return await runScoped(base, settings, work, { kind: 'PLATFORM', tenantId: null }, (tx) =>
     options.readOnly
       ? tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
       : tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`,
   );
 }
 
-/** Transação `READ COMMITTED` cuja primeira instrução é `prepare` (o `set_config` do escopo). */
+/**
+ * Transação `READ COMMITTED` cuja primeira instrução é `prepare` (o `set_config` do escopo), com o
+ * escopo visível à extensão de isolamento durante todo o trabalho. Falha ao preparar (conexão
+ * caída no `set_config`) aborta antes de qualquer consulta de negócio.
+ */
 async function runScoped<T>(
   base: PrismaClient,
   settings: TenantTransactionSettings,
   work: (tx: TenantTx) => Promise<T>,
+  scope: TransactionScope,
   prepare: (tx: TenantTx) => Promise<number>,
 ): Promise<T> {
   const retries = settings.retries ?? 2;
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await base.$transaction(
-        async (tx) => {
-          await prepare(tx);
-          return trackTransaction(tx, () => work(tx));
-        },
-        {
-          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-          maxWait: settings.maxWaitMs,
-          timeout: settings.transactionTimeoutMs,
-        },
+      return await runInTransactionScope(scope, () =>
+        base.$transaction(
+          async (tx) => {
+            const startedAt = performance.now();
+            await prepare(tx);
+            isolationMetrics().contextOverhead.record((performance.now() - startedAt) / 1000, {
+              scope: scope.kind,
+            });
+            return trackTransaction(tx, () => work(tx));
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+            maxWait: settings.maxWaitMs,
+            timeout: settings.transactionTimeoutMs,
+          },
+        ),
       );
     } catch (error) {
       // Serialização/deadlock: refaz a transação inteira (o trabalho não tem efeito externo).
       if (attempt < retries && isRetryableTransactionError(error)) continue;
       if (isTransientDatabaseError(error)) throw new DatabaseUnavailableError(error);
+      // FK composta: referência a registro de outro tenant (ou inexistente) — RN-TEN-33.
+      if (isForeignKeyViolation(error)) throw referenceNotFound(error);
+      // Escrita barrada pela RLS: a aplicação deixou passar dado de outro tenant (V-07).
+      if (isRowLevelSecurityViolation(error)) {
+        throw tenantIsolationViolation('rls', 'rls_write_rejected', { scope: scope.kind }, error);
+      }
       throw error;
     }
   }

@@ -488,7 +488,8 @@ describe('lint de migrações (RN-FND-25)', () => {
         kind: 'fk',
         table: 'public.b',
         object: 'b_fk',
-        message: 'FK b_fk em public.b não inclui tenant_id (FK composta — DEC-081).',
+        message:
+          'FK b_fk em public.b não começa por tenant_id (FK composta — DEC-081 · RN-TEN-27).',
       },
       {
         kind: 'unique',
@@ -509,13 +510,18 @@ describe('lint de migrações (RN-FND-25)', () => {
     );
     expect(sql).toContain("pg_get_userbyid(c.relowner) <> 'cf_owner'");
     expect(catalogChecksSql(['dev_seed'])).not.toContain('owner|');
+    // US-100 · RN-TEN-27: FK começa por tenant_id; tabela de negócio com UNIQUE (tenant_id, id).
+    expect(sql).toContain('k.conkey[1] <> src.tenant_attnum');
+    expect(sql).toContain("SELECT 'key|' || t.name");
+    expect(catalogChecksSql(['dev_seed'])).not.toContain('key|');
     expect(
       parseCatalogViolations(
-        'nullable|public.processes\nplatform|public.logs\nowner|public.processes|cf_app',
+        'nullable|public.processes\nplatform|public.logs\nkey|public.processes\nowner|public.processes|cf_app',
       ).map((violation) => violation.message),
     ).toEqual([
       'Tabela public.processes aceita tenant_id nulo fora da lista fechada de DEC-080 (V-02).',
       'Tabela public.logs sem tenant_id fora da lista fechada de tabelas de plataforma (DEC-080 · V-02).',
+      'Tabela public.processes sem UNIQUE (tenant_id, id), alvo das FKs compostas (DEC-081 · RN-TEN-27).',
       'Tabela public.processes pertence a cf_app, não a cf_owner: crie os objetos depois de SET ROLE cf_owner (RN-FND-46).',
     ]);
   });

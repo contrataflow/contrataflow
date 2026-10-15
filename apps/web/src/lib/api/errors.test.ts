@@ -115,6 +115,26 @@ describe('política de erros (architecture.md §8.12 · RN-FND-93)', () => {
     expect(action(status, code)).toEqual(expected);
   });
 
+  it('US-100: 400 sem instituição ativa (X-Tenant-Id) refaz a seleção; outro 400 fica na tela', () => {
+    const tenantHeader = {
+      status: 400,
+      code: 'MALFORMED_REQUEST',
+      retryAfterSeconds: null,
+      errors: [
+        {
+          field: 'X-Tenant-Id',
+          code: 'REQUIRED' as const,
+          message: 'Não foi possível identificar a instituição ativa. Entre novamente.',
+        },
+      ],
+    };
+    expect(resolveErrorAction(tenantHeader, path)).toEqual({
+      kind: 'redirect',
+      href: '/selecionar-orgao',
+    });
+    expect(resolveErrorAction({ ...tenantHeader, errors: [] }, path)).toEqual({ kind: 'inline' });
+  });
+
   it('429 carrega o Retry-After', () => {
     expect(action(429, 'RATE_LIMITED', 8)).toEqual({ kind: 'rate-limited', retryAfterSeconds: 8 });
     expect(stepUpHref('/a')).toBe('/api/auth/step-up?returnTo=%2Fa');

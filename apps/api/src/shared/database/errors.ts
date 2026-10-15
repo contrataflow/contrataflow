@@ -1,15 +1,7 @@
 import { ApiError } from '#shared/errors/api-error.js';
 
-/**
- * Transação aberta sem tenant no contexto (RN-FND-43). Erro de programação, nunca comportamento
- * esperado: falha fechada antes de tocar no banco — vira 500 `INTERNAL_ERROR` (architecture.md §6.4).
- */
-export class TenantContextMissingError extends Error {
-  constructor() {
-    super('TenantTransaction sem tenant no contexto da requisição ou do job.');
-    this.name = 'TenantContextMissingError';
-  }
-}
+// Erros de isolamento ficam em `shared/tenancy` (US-100); reexportados para os repositórios.
+export { TenantContextMissingError, TenantIsolationViolationError } from '../tenancy/isolation.js';
 
 export interface VersionedTarget {
   /** Agregado (`Process`, `Dfd`…), para o log `db.optimistic_concurrency_conflict`. */
@@ -145,4 +137,80 @@ export function isMissingPartitionError(error: unknown): boolean {
       return typeof value === 'string' && MISSING_PARTITION.test(value);
     }),
   );
+}
+
+/** Violação de FK (P2003 do Prisma ou SQLSTATE 23503): referência inexistente ou de outro tenant. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  if (error instanceof ApiError) return false;
+  return codesOf(error).some(
+    (code) => code === 'P2003' || code === '23503' || code === 'ForeignKeyConstraintViolation',
+  );
+}
+
+const ROW_LEVEL_SECURITY = /row-level security/i;
+
+/**
+ * Escrita barrada pela RLS (SQLSTATE 42501 "new row violates row-level security policy"): erro de
+ * programação — a aplicação deixou passar dado de outro tenant (RN-TEN-33 → 500 + alerta).
+ */
+export function isRowLevelSecurityViolation(error: unknown): boolean {
+  if (error instanceof ApiError) return false;
+  return [...chain(error)].some((item) =>
+    ['message', 'originalMessage'].some((key) => {
+      const value = item[key];
+      return typeof value === 'string' && ROW_LEVEL_SECURITY.test(value);
+    }),
+  );
+}
+
+/** `snake_case` → `camelCase` (coluna → campo da API). */
+function camelCase(column: string): string {
+  return column.replace(/_([a-z0-9])/g, (_match: string, char: string) => char.toUpperCase());
+}
+
+/**
+ * Colunas da FK violada, do que estiver disponível na cadeia do erro: campos do *driver adapter*,
+ * `detail` do PostgreSQL ("Key (tenant_id, x)=…") ou o nome da restrição no padrão do Prisma
+ * (`{tabela}_{colunas}_fkey`, com a tabela tirada da mensagem "on table …").
+ */
+function foreignKeyColumns(error: unknown): string[] {
+  let constraintName: string | undefined;
+  let tableName: string | undefined;
+  for (const item of chain(error)) {
+    const constraint = item.constraint as { fields?: unknown; index?: unknown } | undefined;
+    if (Array.isArray(constraint?.fields)) {
+      return constraint.fields.filter((field): field is string => typeof field === 'string');
+    }
+    if (typeof constraint?.index === 'string') constraintName ??= constraint.index;
+    for (const key of ['detail', 'message', 'originalMessage']) {
+      const value = item[key];
+      if (typeof value !== 'string') continue;
+      const columns = /Key \(([^)]+)\)=/.exec(value)?.[1];
+      if (columns) return columns.split(',').map((column) => column.trim().replaceAll('"', ''));
+      constraintName ??= /foreign key constraint "([^"]+)"/.exec(value)?.[1];
+      tableName ??= /on table "([^"]+)"/.exec(value)?.[1];
+    }
+  }
+  if (constraintName === undefined || tableName === undefined) return [];
+  const prefix = `${tableName}_`;
+  if (!constraintName.startsWith(prefix) || !constraintName.endsWith('_fkey')) return [];
+  const columns = constraintName.slice(prefix.length, -'_fkey'.length);
+  return columns.startsWith('tenant_id_')
+    ? ['tenant_id', columns.slice('tenant_id_'.length)]
+    : [columns];
+}
+
+/**
+ * FK composta violada → 422 `VALIDATION_ERROR` com `REFERENCE_NOT_FOUND` no campo referenciado
+ * (RN-TEN-32/33 · api.md §1.5): o cliente nunca sabe se o registro existe em outro tenant. O campo é
+ * a coluna da FK que não é `tenant_id`, em camelCase (`requesting_department_id` →
+ * `requestingDepartmentId`).
+ */
+export function referenceNotFound(error: unknown): ApiError {
+  const column = foreignKeyColumns(error).find((name) => !/^"?tenant_?id"?$/i.test(name));
+  const field = column ? camelCase(column) : 'reference';
+  return new ApiError('VALIDATION_ERROR', {
+    errors: [{ field, code: 'REFERENCE_NOT_FOUND', message: 'Selecione um registro válido.' }],
+    cause: error,
+  });
 }

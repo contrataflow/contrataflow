@@ -9,6 +9,12 @@ import { uuidv7 } from '@contrataflow/observability';
 export type ActorType = 'ANONYMOUS' | 'USER' | 'SYSTEM' | 'PLATFORM_OPERATOR' | 'INTEGRATION';
 
 /**
+ * Modo de acesso ao tenant (US-100 · RN-TEN-37): `FULL` normal; `READ_EXPORT` em instituição em
+ * `OFFBOARDING` (só leitura e as rotas `@OffboardingExport()`).
+ */
+export type AccessMode = 'FULL' | 'READ_EXPORT';
+
+/**
  * Contexto de requisição (DEC-132 · architecture.md §6.1), aberto pelo middleware antes de
  * qualquer guard e completado pelos guards. Disponível em qualquer camada sem parâmetros.
  */
@@ -30,8 +36,12 @@ export interface RequestContext {
     /** Acesso de suporte em nome de alguém (DEC-139 · FA-02 da US-073). */
     readonly onBehalfOfUserId?: string | null;
   };
-  /** `null` em rotas sem tenant (públicas ou anteriores ao guard de tenant). */
+  /**
+   * `null` em rotas sem tenant (públicas ou anteriores ao guard de tenant). Imutável depois de
+   * definido (RN-TEN-21): só um contexto filho (`runWithTenantScope`, jobs) muda de tenant.
+   */
   readonly tenantId: string | null;
+  readonly accessMode: AccessMode;
   /** Métodos de autenticação do token (`amr`) — usados pelo guard de MFA (POL-14). */
   readonly amr: readonly string[];
   readonly authTime: Date | null;
@@ -53,6 +63,7 @@ export function runWithRequestContext<T>(
         ...initial,
         actor: { type: 'ANONYMOUS', userId: null, membershipId: null },
         tenantId: null,
+        accessMode: 'FULL',
         amr: [],
         authTime: null,
       },
@@ -99,7 +110,7 @@ export function requireRequestContext(): RequestContext {
 
 /**
  * Executa `fn` com o tenant e o ator informados, num contexto filho (o da requisição não muda).
- * Uso restrito a rotas `@WithoutTenant()` que, depois de conferir o vínculo do próprio usuário,
+ * Uso restrito a rotas `@TenantScope('CROSS_TENANT_LOOKUP')` que, depois de conferir o vínculo do próprio usuário,
  * precisam escrever no tenant escolhido (início de sessão — US-087).
  */
 export function runWithTenantScope<T>(
@@ -112,6 +123,10 @@ export function runWithTenantScope<T>(
   fn: () => T,
 ): T {
   const current = requireRequestContext();
+  // RN-TEN-21: um contexto que já tem tenant nunca abre o de outro tenant.
+  if (current.tenantId !== null && current.tenantId !== scope.tenantId) {
+    throw new TenantContextImmutableError();
+  }
   return storage.run(
     {
       value: {
@@ -178,6 +193,7 @@ export function runAsSystem<T>(actor: SystemActor, fn: () => T): T {
         userAgent: '',
         actor: { type: 'SYSTEM', userId: null, membershipId: null, name: actor.name },
         tenantId: actor.tenantId,
+        accessMode: 'FULL',
         amr: [],
         authTime: null,
       },
@@ -186,12 +202,67 @@ export function runAsSystem<T>(actor: SystemActor, fn: () => T): T {
   );
 }
 
+/**
+ * Contexto de um job consumido da fila (US-100 · FA-03 · DEC-164): tenant, ator e correlação vêm
+ * do `JobMeta` validado; sem IP nem user-agent. Aberto pela base `TenantJob` antes do handler.
+ */
+export function runInJobRequestContext<T>(
+  job: {
+    readonly correlationId: string;
+    readonly tenantId: string | null;
+    readonly actor: {
+      readonly type: Exclude<ActorType, 'ANONYMOUS'>;
+      readonly userId: string | null;
+      readonly membershipId: string | null;
+    };
+    /** `fila:job`, gravado como `actorName` quando o ator é `SYSTEM`. */
+    readonly jobName: string;
+  },
+  fn: () => T,
+): T {
+  return storage.run(
+    {
+      value: {
+        correlationId: job.correlationId,
+        ip: '',
+        userAgent: '',
+        actor: {
+          type: job.actor.type,
+          userId: job.actor.userId,
+          membershipId: job.actor.membershipId,
+          name: job.actor.type === 'SYSTEM' ? job.jobName : null,
+        },
+        tenantId: job.tenantId,
+        accessMode: 'FULL',
+        amr: [],
+        authTime: null,
+      },
+    },
+    fn,
+  );
+}
+
+/**
+ * Tentativa de trocar o tenant de um contexto que já tem tenant (RN-TEN-21): erro de programação.
+ * Quem precisa agir em outro tenant abre um contexto filho (casos de uso `PLATFORM`, jobs).
+ */
+export class TenantContextImmutableError extends Error {
+  constructor() {
+    super('O tenant do contexto é imutável durante a requisição ou o job.');
+    this.name = 'TenantContextImmutableError';
+  }
+}
+
 /** Completa o contexto atual (uso exclusivo dos guards do pipeline). */
 export function updateRequestContext(
   patch: Partial<Omit<RequestContext, 'correlationId' | 'ip' | 'userAgent' | 'requestId'>>,
 ): RequestContext {
   const holder = storage.getStore();
   if (!holder) throw new RequestContextMissingError();
+  const current = holder.value.tenantId;
+  if (patch.tenantId !== undefined && current !== null && patch.tenantId !== current) {
+    throw new TenantContextImmutableError();
+  }
   holder.value = { ...holder.value, ...patch };
   return holder.value;
 }

@@ -18,5 +18,9 @@ como `#shared/<caminho>.js`; **nunca** importa `src/modules/**` (dependency-crui
 | `outbox/`      | Porta `OUTBOX_WRITER` e registro `SYNC_EVENT_HANDLERS` (implementados no módulo `platform`, global) — eventos de domínio na transação do caso de uso (US-082 · DEC-072) |
 | `sessions/`    | Porta `SESSION_REGISTRY` do Redis de sessões do BFF (adaptador em `modules/platform`), versão desligada e em memória — varredura de encerramentos (US-088 · RN-IAM-28)  |
 | `testing/`     | Diretório fixo dos adaptadores em memória (sai quando identidade e tenancy tiverem tabelas reais — US-087/US-100)                                                       |
+| `tenancy/`     | `TenantContext`, `@TenantScope`/`@OffboardingExport`, erros e telemetria de isolamento (`security.*`, métricas por barreira) — US-100                                   |
+| `cache/`       | `TenantCache`/`PlatformCache` (chave `cf:{env}:t:{tenantId}:…` do contexto) e a porta `CACHE_STORE` (Redis em `modules/platform`) — US-100                              |
+| `storage/`     | `StorageKeyBuilder` (`tenants/{tenantId}/…`) e a guarda de tenant do `StorageService` (adaptador S3 na US-068) — US-100                                                 |
+| `jobs/`        | `JobMeta` (`buildJobMeta`) e a base `TenantJob` que restaura o contexto do job — US-100 (importável pelo worker)                                                        |
 
-Próximas: `shared/cache/**` (`TenantCache`).
+Guia de uso: [`docs/engineering/data-access.md`](../../../../docs/engineering/data-access.md).

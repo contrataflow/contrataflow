@@ -11,7 +11,7 @@
 | [`product/`](product/) | Visão do produto, personas, roadmap dos 5 MVPs, terminologia | [product-overview.md](product/product-overview.md) |
 | [`architecture/`](architecture/) | Arquitetura, domínios e ERD, multi-tenancy, segurança, autenticação, storage, filas, observabilidade, **registro de decisões** | [decisions.md](architecture/decisions.md) |
 | [`adr/`](adr/) | Architecture Decision Records | [adr-001](adr/adr-001-modular-monolith.md) |
-| [`engineering/`](engineering/) | Versões fixadas da stack e política de atualização (padrões de código em [`CONTRIBUTING.md`](../CONTRIBUTING.md)) | [versions.md](engineering/versions.md) |
+| [`engineering/`](engineering/) | Versões fixadas da stack e política de atualização; guia de acesso a dados com isolamento por tenant (padrões de código em [`CONTRIBUTING.md`](../CONTRIBUTING.md)) | [versions.md](engineering/versions.md), [data-access.md](engineering/data-access.md) |
 | [`mvp-01/`](mvp-01/) | Especificação completa do MVP 1 | [overview.md](mvp-01/overview.md) |
 | [`backlog/`](backlog/) | Épicos, features e stories (cards) no padrão oficial | [backlog/README.md](backlog/README.md) |
 | `mvp-02/` … `mvp-05/` | Reservadas — serão preenchidas na ordem do roadmap | — |
@@ -81,6 +81,7 @@ docs/
 ├── adr/
 │   └── adr-NNN-*.md
 ├── engineering/
+│   ├── data-access.md             ← como acessar dados: contexto de tenant, transação, SQL bruto, jobs, cache, storage (US-100)
 │   └── versions.md                ← versões fixadas, política de atualização e medições de build (US-077)
 ├── mvp-01/
 │   ├── overview.md                ← objetivo, escopo, fechamento do MVP

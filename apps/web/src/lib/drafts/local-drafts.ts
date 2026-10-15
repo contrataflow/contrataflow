@@ -29,9 +29,12 @@ export interface DraftBackend {
   remove(keys: readonly string[]): Promise<void>;
 }
 
-/** Chave única: usuário + instituição + alvo. */
+/**
+ * Chave única: instituição + usuário + alvo, no padrão de todo armazenamento local por tenant
+ * (`cf:{tenantId}:{userId}:…` — RN-TEN-35 da US-100).
+ */
 export function draftKey(draft: Pick<LocalDraft, 'userId' | 'tenantId' | 'target'>): string {
-  return `${draft.userId}|${draft.tenantId}|${draft.target}`;
+  return `cf:${draft.tenantId}:${draft.userId}:${draft.target}`;
 }
 
 export class LocalDrafts {

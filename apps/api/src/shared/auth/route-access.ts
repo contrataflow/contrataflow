@@ -4,12 +4,14 @@ import type { ExecutionContext } from '@nestjs/common';
 import type { Reflector } from '@nestjs/core';
 
 import { ApiError } from '../errors/api-error.js';
+import type { ApiErrorOptions } from '../errors/api-error.js';
 import { requestPath } from '../http/http-types.js';
 import type { HttpRequest } from '../http/http-types.js';
 
 /**
  * Allowlist explícita de rotas públicas (FA-06): pulam autenticação, tenant e vínculo. Nenhuma
- * rota de negócio entra aqui; `/health/*` e `/metrics` são da US-085 (fora de `/api/v1`).
+ * rota de negócio entra aqui; `/health/*` e `/metrics` são da US-085 (fora de `/api/v1`) e
+ * declaram `@TenantScope('NONE')` (US-100). Rotas sem tenant ativo usam `@TenantScope`.
  */
 export const PUBLIC_ROUTE_PREFIXES: readonly string[] = ['/health/', '/metrics'];
 
@@ -18,16 +20,8 @@ export function isPublicRoute(request: Pick<HttpRequest, 'originalUrl'>): boolea
   return PUBLIC_ROUTE_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix));
 }
 
-export const WITHOUT_TENANT_METADATA = 'cf:auth:without-tenant';
 export const REQUIRE_MFA_METADATA = 'cf:auth:require-mfa';
 export const ALLOW_UNBOUND_SUBJECT_METADATA = 'cf:auth:allow-unbound-subject';
-
-/**
- * Rota autenticada sem tenant ativo (ex.: `GET /me/memberships`, `/platform/*`): pula os guards
- * de tenant e de vínculo. Uso restrito às rotas que o catálogo de api.md marca assim.
- */
-export const WithoutTenant = (): MethodDecorator & ClassDecorator =>
-  SetMetadata(WITHOUT_TENANT_METADATA, true);
 
 /**
  * Início de sessão (US-087): o JWT é validado normalmente, mas o `sub` ainda pode não estar
@@ -54,7 +48,12 @@ export function routeFlag(reflector: Reflector, key: string, context: ExecutionC
 const logger = new Logger('Guards');
 
 /** Recusa do pipeline: log `warn guard.rejected` (sem dados do token) e o erro canônico. */
-export function rejectRequest(guard: string, reason: string, code: ErrorCode): ApiError {
+export function rejectRequest(
+  guard: string,
+  reason: string,
+  code: ErrorCode,
+  options: ApiErrorOptions = {},
+): ApiError {
   logger.warn(`guard.rejected guard=${guard} reason=${reason} code=${code}`);
-  return new ApiError(code);
+  return new ApiError(code, options);
 }

@@ -5,7 +5,10 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { TenantContextMissingError } from '#shared/database/errors.js';
+import {
+  TenantContextMissingError,
+  TenantIsolationViolationError,
+} from '#shared/database/errors.js';
 import { newId } from '#shared/database/ids.js';
 import type { TenantPrismaClient } from '#shared/database/prisma-client.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -106,10 +109,12 @@ describe('isolamento por tenant no banco (suíte tenant leak)', () => {
   });
 
   it('[Tenant incorreto] INSERT com tenant_id de B sob o contexto de A viola a política', async () => {
+    // Barreira 2 (US-100): a extensão recusa o tenantId divergente antes do banco.
     const attempt = asTenant(A, () =>
       app.$tenantTransaction((tx) => tx.outboxEvent.create({ data: outboxEvent(B) })),
     );
-    await expect(attempt).rejects.toThrow(/row-level security/i);
+    await expect(attempt).rejects.toBeInstanceOf(TenantIsolationViolationError);
+    // SQL bruto escapa da extensão: a RLS recusa e a TenantTransaction trata como violação (500).
     const raw = asTenant(A, () =>
       app.$tenantTransaction(
         (tx) => tx.$executeRaw`
@@ -117,11 +122,15 @@ describe('isolamento por tenant no banco (suíte tenant leak)', () => {
           VALUES (${newId()}::uuid, ${B}::uuid, 'X', 'x', 'Process', ${newId()}::uuid, '{}', '{}')`,
       ),
     );
-    await expect(raw).rejects.toThrow(/row-level security/i);
+    const rejected = await raw.catch((error: unknown) => error);
+    expect(rejected).toBeInstanceOf(TenantIsolationViolationError);
+    expect((rejected as Error).cause).toMatchObject({
+      message: expect.stringMatching(/row-level security/i) as unknown,
+    });
     const platform = asTenant(A, () =>
       app.$tenantTransaction((tx) => tx.outboxEvent.create({ data: outboxEvent(null) })),
     );
-    await expect(platform).rejects.toThrow(/row-level security/i);
+    await expect(platform).rejects.toBeInstanceOf(TenantIsolationViolationError);
   });
 
   it('[Tenant incorreto] UPDATE sob o contexto de A não alcança linhas de B', async () => {
@@ -160,9 +169,13 @@ describe('isolamento por tenant no banco (suíte tenant leak)', () => {
     expect(first.rows.map((row) => row.tenant_id)).toEqual([A]);
     expect(second.rows.map((row) => row.tenant_id)).toEqual([B]);
 
-    // Fora da transação o contexto não sobrevive na conexão devolvida ao pool (escopo local).
-    const leftover = await single.$queryRaw<{ value: string | null }[]>`
-      SELECT current_setting('app.tenant_id', true) AS value`;
+    // Fora da transação do tenant o contexto não sobrevive na conexão devolvida ao pool (escopo
+    // local): a transação de plataforma seguinte, na mesma conexão, vê a variável vazia.
+    const leftover = await single.$platformTransaction(
+      (tx) => tx.$queryRaw<{ value: string | null; pid: number }[]>`
+        SELECT current_setting('app.tenant_id', true) AS value, pg_backend_pid() AS pid`,
+    );
+    expect(leftover[0]?.pid).toEqual(first.pid[0]?.pid);
     expect(leftover[0]?.value ?? '').toBe('');
   });
 
@@ -176,12 +189,25 @@ describe('isolamento por tenant no banco (suíte tenant leak)', () => {
   });
 
   it('contexto ausente falha fechado também no banco (consulta fora da TenantTransaction)', async () => {
-    // Conexão nova: a variável nem existe → erro; nunca linhas de algum tenant.
+    // Pelo cliente da aplicação, a extensão barra antes do banco (US-100 · V-06).
     const fresh = db.client('cf_app', { poolSize: 1 });
-    await expect(fresh.outboxEvent.findMany()).rejects.toThrow(/app\.tenant_id/);
-    // Conexão já usada por uma TenantTransaction: a variável volta vazia → cast falha.
-    await asTenant(A, () => fresh.$tenantTransaction((tx) => tx.outboxEvent.count()));
-    await expect(fresh.outboxEvent.findMany()).rejects.toThrow(/uuid/i);
+    await expect(fresh.outboxEvent.findMany()).rejects.toBeInstanceOf(TenantContextMissingError);
+    await expect(fresh.$queryRaw`SELECT 1`).rejects.toBeInstanceOf(TenantContextMissingError);
+    // Direto no banco (bug que contornasse a extensão): conexão nova → variável inexistente → erro.
+    const connection = new pg.Client({ connectionString: db.url('cf_app') });
+    await connection.connect();
+    try {
+      await expect(connection.query('SELECT * FROM outbox_events')).rejects.toThrow(
+        /app\.tenant_id/,
+      );
+      // Conexão já usada por uma transação com contexto: a variável volta vazia → cast falha.
+      await connection.query('BEGIN');
+      await connection.query("SELECT set_config('app.tenant_id', $1, true)", [A]);
+      await connection.query('COMMIT');
+      await expect(connection.query('SELECT * FROM outbox_events')).rejects.toThrow(/uuid/i);
+    } finally {
+      await connection.end();
+    }
   });
 
   it('o worker (cf_worker) segue as mesmas regras de isolamento', async () => {
@@ -292,8 +318,11 @@ describe('isolamento da trilha de auditoria (US-073 · suíte tenant leak)', () 
                     'DATA_CHANGE', 'SUCCESS', ${'f'.repeat(64)})`,
         ),
       );
-    await expect(write(B)).rejects.toThrow(/row-level security/);
-    await expect(write(null)).rejects.toThrow(/row-level security/);
+    for (const tenantId of [B, null]) {
+      const rejected = await write(tenantId).catch((error: unknown) => error);
+      expect(rejected).toBeInstanceOf(TenantIsolationViolationError);
+      expect(String((rejected as Error).cause)).toMatch(/row-level security/);
+    }
     await expect(write(A)).resolves.toBe(1);
   });
 

@@ -265,7 +265,11 @@ describe('OutboxWriter no PostgreSQL (US-082)', () => {
                     ${newId()}::uuid, '{}'::jsonb, '{}'::jsonb)`,
         ),
       );
-      await expect(attempt).rejects.toThrow(/row-level security/);
+      await expect(attempt).rejects.toMatchObject({
+        // US-100: a TenantTransaction trata a recusa da RLS como violação de isolamento (500).
+        name: 'TenantIsolationViolationError',
+        cause: { message: expect.stringMatching(/row-level security/) as unknown },
+      });
     });
   });
 });

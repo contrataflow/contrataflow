@@ -98,12 +98,13 @@ module.exports = {
       name: 'system-prisma-allowlist',
       severity: 'error',
       comment:
-        'O cliente de plataforma (papel cf_platform) só é usado no provisionamento de tenants, no relay do outbox e nos schedulers (multi-tenancy.md §5.3).',
+        'O SystemDbService (papel cf_platform — RN-TEN-28) só é usado pelos adaptadores de tenancy (provisionamento e ciclo de vida), identity (vínculos e convites entre tenants) e audit (auditoria de plataforma), pelos schedulers do worker e pelos testes de banco (US-100 · multi-tenancy.md §5.3).',
       from: {
         pathNot: [
-          '^apps/api/src/modules/tenancy/application/provisioning/',
+          '^apps/api/src/modules/(tenancy|identity|audit)/infrastructure/',
           '^apps/worker/src/(outbox|schedulers)/',
           '^apps/api/src/shared/database/',
+          '^apps/api/test/(database|tenant-leak)/',
         ],
       },
       to: { path: 'shared/database/system-(prisma|db)\\.service\\.ts$' },
@@ -117,7 +118,7 @@ module.exports = {
         pathNot: [
           '^apps/api/src/modules/(identity|tenancy|audit)/infrastructure/',
           '^apps/api/src/shared/database/',
-          '^apps/api/test/(database|audit)/',
+          '^apps/api/test/(database|audit|tenant-leak)/',
         ],
       },
       to: { path: 'shared/database/platform-transaction\\.ts$' },

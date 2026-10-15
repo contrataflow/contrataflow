@@ -1,7 +1,7 @@
 # Multi-tenancy
 
 > **Status:** Aceita para especificação · **Data:** 2026-10-05 · **ADR:** [ADR-002](../adr/adr-002-multi-tenancy.md)
-> **Decisões-base:** DEC-011, DEC-012, DEC-080 a DEC-083, DEC-132, DEC-134, DEC-139, DEC-164 ([`decisions.md`](decisions.md)).
+> **Decisões-base:** DEC-011, DEC-012, DEC-080 a DEC-083, DEC-132, DEC-134, DEC-139, DEC-164 e a implementação da US-100 em DEC-076 ([`decisions.md`](decisions.md)). Guia de uso para desenvolvedores: [`../engineering/data-access.md`](../engineering/data-access.md).
 > **Relacionados:** [`architecture.md`](architecture.md) · [`security.md`](security.md) · [`authentication.md`](authentication.md) · [`storage.md`](storage.md) · [`queues.md`](queues.md) · [`observability.md`](observability.md) · [`../mvp-01/entities.md`](../mvp-01/entities.md) · [`../mvp-01/acceptance-criteria.md`](../mvp-01/acceptance-criteria.md) (CA-T-01)
 >
 > **Legenda:** **†** = nome/valor proposto por este documento, ainda não registrado nas fontes canônicas.
@@ -83,7 +83,9 @@ sequenceDiagram
     end
 ```
 
-- O `X-Tenant-Id` **não é fronteira de confiança**: vem do BFF, mas a API sempre revalida o vínculo do usuário do JWT naquele tenant. Um header forjado para um tenant sem vínculo resulta em 403 `MEMBERSHIP_INACTIVE` (CA-T-01).
+- O `X-Tenant-Id` **não é fronteira de confiança**: vem do BFF, mas a API sempre revalida o vínculo do usuário do JWT naquele tenant. Um header forjado para um tenant sem vínculo resulta em 403 `MEMBERSHIP_INACTIVE` (CA-T-01), idêntico ao de um tenant inexistente (o vínculo é conferido **antes** do status — RN-TEN-20). Cabeçalho ausente ou malformado em rota de tenant → 400 `MALFORMED_REQUEST` com `errors[{ field: "X-Tenant-Id" }]` (RN-TEN-19); o BFF refaz a seleção de instituição.
+- **Contexto aberto (US-100):** `tenantId`, `userId`, `membershipId`, ator, `correlationId`, `requestId` e `accessMode` (`FULL` ou `READ_EXPORT`) no `RequestContext` (AsyncLocalStorage — `TenantContext.getOrThrow()` em `apps/api/src/shared/tenancy`). O tenant é **imutável** durante a requisição ou o job (`TenantContextImmutableError`); só um contexto filho de job ou um caso de uso `PLATFORM` age sobre um tenant alvo.
+- **Status do tenant:** `TenantStatusCache` (`cf:{env}:p:tenant-status:{tenantId}`, 30 s, inclusive para tenant inexistente), invalidado pela fachada do `tenancy` quando a US-099 mudar o status; Redis fora → leitura no banco com `warn tenant.status_cache_unavailable`.
 - **Acesso conforme o status do tenant (DEC-132):**
 
 | `TenantStatus` | Usuários do tenant | Operadores da plataforma |
@@ -95,16 +97,17 @@ sequenceDiagram
 | `DEACTIVATED` | Sem acesso | Rotas `/platform/*` |
 
 - **Troca de tenant ativo** (`POST /api/auth/switch-tenant` — [`authentication.md`](authentication.md#9-troca-de-tenant-ativo)): a API revalida o vínculo no banco (`POST /internal/session-events`, `TENANT_SWITCHED`), o BFF atualiza `activeTenantId`/`membershipId` na mesma sessão — sem novo id de sessão nem cookie (RN-IAM-66 · DEC-075) — e o frontend descarta todo o cache (chaves de query começam pelo tenant — [`architecture.md`](architecture.md#85-dados-com-tanstack-query)).
-- Rotas sem tenant (ME-04, `/platform/*`, health) são declaradas explicitamente (`@TenantOptional()`†); nelas a transação usa `app.tenant_id` = UUID nulo (`00000000-0000-0000-0000-000000000000`), que não corresponde a nenhum tenant.
+- **Toda rota declara o escopo** com `@TenantScope(...)` (meta-teste `src/openapi/tenant-isolation-coverage.spec.ts`; sem declaração, vale `TENANT` em tempo de execução): `TENANT` (padrão de negócio, exige `X-Tenant-Id`), `PLATFORM` (`/platform/*` — US-099), `NONE` (`/health/*`, `/metrics`) e `CROSS_TENANT_LOOKUP` (ME-04, aceite de convite USR-06 e o início de sessão do BFF — só por funções `SECURITY DEFINER`, §6). Rotas sem tenant usam o `PlatformTransaction` (sem `app.tenant_id`: tabelas com RLS falham fechadas) ou o `SystemDbService` (`app.tenant_id` = UUID nulo `00000000-0000-0000-0000-000000000000`, que não corresponde a nenhum tenant).
+- **`OFFBOARDING` (RN-TEN-37):** com `accessMode = READ_EXPORT`, só `GET` e as rotas marcadas `@OffboardingExport()` (no MVP 1: DOC-20, DOC-21, DOC-23, ATT-05, AUD-03, PRS-22 e PRC-34) passam; os demais comandos → 403 `TENANT_SUSPENDED`.
 
 ## 5. Isolamento em consultas
 
 ### 5.1 Camada 1 — Contexto obrigatório e Prisma Client Extension
 
 ```ts
-// apps/api/src/shared/database/tenant-prisma.extension.ts (ilustrativo)
-const TENANT_MODELS = new Set(dmmfModelsWithField('tenantId'));   // gerado no build a partir do DMMF
-const PLATFORM_MODELS = new Set(['Tenant', 'User', 'Permission']); // DEC-080 (lista fechada)
+// apps/api/src/shared/database/tenant-isolation.extension.ts (resumo da implementação — US-100)
+// TENANT_SCOPED_MODELS / PLATFORM_MODELS: listas versionadas em tenant-models.ts, conferidas com
+// schema.prisma pelo CI (modelo novo com tenantId fora da lista reprova o build).
 
 export const tenantExtension = Prisma.defineExtension({
   name: 'tenant-isolation',
@@ -126,12 +129,14 @@ export const tenantExtension = Prisma.defineExtension({
 });
 ```
 
-Regras: (1) `tenantId` vindo do chamador é **sobrescrito**; (2) *nested writes* (`create` aninhado) não são cobertos pela injeção → proibidos nos repositórios por lint, ou com `tenantId` explícito — e a RLS (`WITH CHECK`) barra qualquer escape; (3) modelo novo sem `tenantId` e fora da lista de plataforma quebra o build (`UnregisteredModelError`); (4) a extensão é aplicada ao cliente usado pela UoW ([`architecture.md`](architecture.md#65-unit-of-work-e-transações-com-apptenant_id)); não existe cliente tenant-scoped sem ela.
+Regras (implementação da US-100 · DEC-076): (1) o tenant vem do **escopo da transação** aberto pela `TenantTransaction` (o do `set_config`), não da requisição — assim um caso de uso de plataforma usa `runForTenant(tenantId, …)`; (2) `tenantId` informado pelo chamador **diferente** do da transação (nos dados, no filtro ou num `update`) é `TenantIsolationViolationError`, nunca sobrescrito em silêncio — o tipo do Prisma exige `tenantId` nas criações, então o repositório passa o do contexto e a extensão confere; (3) modelo de tenant fora de transação `TENANT` → `TenantContextMissingError` antes do banco; (4) *nested writes* (`create` aninhado) não recebem injeção: use escalares compostos (`tenantId` + FK) — a RLS (`WITH CHECK`) e as FKs compostas barram qualquer escape; (5) modelo fora das duas listas falha fechado; (6) SQL bruto só dentro de transação (FA-04); (7) a extensão é aplicada ao cliente da UoW antes da `TenantTransaction` ([`architecture.md`](architecture.md#65-unit-of-work-e-transações-com-apptenant_id)); não existe cliente de dados de tenant sem ela.
 
 ### 5.2 Camada 2 — Row-Level Security
 
 ```sql
--- Padrão aplicado por migração a TODA tabela com tenant_id (DEC-082)
+-- Padrão aplicado por migração a TODA tabela com tenant_id (DEC-082) — desde a US-100 por
+-- SELECT cf_apply_tenant_rls('processes'); (ENABLE + FORCE + política, idempotente). A política vale
+-- para todos os papéis sem BYPASSRLS (cf_app, cf_worker, cf_platform e o dono sob FORCE).
 ALTER TABLE processes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processes FORCE ROW LEVEL SECURITY;          -- vale inclusive para o dono da tabela
 CREATE POLICY tenant_isolation ON processes
@@ -159,8 +164,8 @@ GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 | `cf_worker` | Sim | Não | Não | Handlers do worker (com contexto de tenant por job) |
 | `cf_relay` | Sim | Não | **Sim**, mas com `SELECT`/`UPDATE` **somente** em `outbox_events` | Relay do outbox (entities.md `OutboxEvent`) |
 | `cf_maintenance` | Sim | Não | **Sim**, mas com `SELECT`/`DELETE` **somente** em `outbox_events` | Purga dos eventos publicados há mais de 7 dias (DEC-085, DEC-072) |
-| `cf_platform` | Sim | Não | Não | `systemPrisma` (§5.3): DML em `tenants`; políticas explícitas `TO cf_platform` para auditoria de plataforma (`tenant_id IS NULL`); demais tabelas só com contexto de um tenant |
-| `cf_definer` | Não | Só das funções `SECURITY DEFINER` | **Sim** | Dono das funções de leitura entre tenants com colunas mínimas (`cf_user_memberships` — US-087, DEC-070); `SELECT` só em `tenants` e `tenant_memberships`; ninguém faz login com ele |
+| `cf_platform` | Sim | Não | Não | `SystemDbService` (§5.3, US-100): `SELECT`/`INSERT`/`UPDATE` em `tenants`; em `audit_logs`, políticas `TO cf_platform` só para registros de plataforma (`tenant_id IS NULL`) ou de `actor_type = PLATFORM_OPERATOR`; em `outbox_events`, só o agregado `Tenant`; `EXECUTE` em `cf_find_invitation` e `cf_user_memberships`; nenhuma tabela de negócio |
+| `cf_definer` | Não | Só das funções `SECURITY DEFINER` | **Sim** | Dono das funções de leitura entre tenants com colunas mínimas (`cf_user_memberships` — US-087, DEC-070; `cf_find_invitation` — US-100); `SELECT` só em `tenants` e `tenant_memberships`; ninguém faz login com ele |
 | `cf_readonly_report` | Sim | Não | Não | `SELECT` apenas em *views* `report_*`†, sempre com contexto de tenant (exportações pesadas; réplica futura) |
 | `cf_purge`† | Sim (desabilitado por padrão) | Não | Não | Expurgo físico no *offboarding* (§13.3), habilitado só durante o runbook com dupla aprovação |
 
@@ -172,7 +177,7 @@ GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 
 **`PlatformTransaction` (US-087 · DEC-070):** transação do mesmo pool do `cf_app` **sem** `app.tenant_id` (só `app.user_id` e `statement_timeout`), para `users`, `tenants` (leitura) e as funções de leitura entre tenants; qualquer consulta a tabela com RLS dentro dela falha fechada. Uso restrito por dependency-cruiser (`platform-transaction-allowlist`) aos adaptadores de `identity`/`tenancy` do pipeline de autenticação e do início de sessão; não substitui o `SystemDbService`.
 
-`SystemDbService` (US-100) é um segundo `PrismaClient` conectado com `cf_platform` (`DATABASE_URL_PLATFORM`), **sem** a extensão de tenant, usado somente por: provisionamento e mudança de status de tenants (`/platform/tenants`, CLI de US-099), *ticks* de jobs de plataforma que listam tenants (`deadlines`, `audit-seal`, `maintenance` — queues.md §9.3) e auditoria de plataforma. Regras: importação restrita por `dependency-cruiser` ([`architecture.md`](architecture.md#43-regras-de-dependência)); toda chamada exige um `reason` de lista fechada (DEC-082) e gera log estruturado `platform_db.access`†; ações com efeito em um tenant são auditadas no próprio tenant com `actorType = SYSTEM` ou `PLATFORM_OPERATOR`. Trabalho sobre dados de um tenant **sempre** reabre uma UoW com o contexto daquele tenant.
+`SystemDbService` (`apps/api/src/shared/database/system-db.service.ts`, US-100 · DEC-076) é um segundo `PrismaClient` conectado com `cf_platform` (`DATABASE_URL_PLATFORM`, obrigatória fora de local/dev/test), **sem** a extensão de tenant, usado somente por: provisionamento e mudança de status de tenants (`/platform/tenants`, CLI de US-099), *ticks* de jobs de plataforma que listam tenants (`deadlines`, `audit-seal`, `maintenance` — queues.md §9.3), auditoria de plataforma e as funções entre tenants. Regras: importação restrita por `dependency-cruiser` (`system-prisma-allowlist`: `infrastructure` de `tenancy`/`identity`/`audit`, schedulers do worker, testes de banco); toda chamada exige um `reason` da lista fechada (`TENANT_LIFECYCLE`, `TENANT_PROVISIONING`, `TENANT_ENUMERATION`, `USER_MEMBERSHIPS_LOOKUP`, `INVITATION_LOOKUP`, `PLATFORM_AUDIT`) e gera log `info system_db.call` (`reason`, `caller`, `outcome`, `durationMs`) e a métrica `cf_system_db_calls_total{reason,outcome}`; toda transação define `app.tenant_id` = UUID nulo; ações com efeito em um tenant são auditadas no próprio tenant com `actorType = SYSTEM` ou `PLATFORM_OPERATOR`. Trabalho sobre dados de um tenant **sempre** reabre uma UoW com o contexto daquele tenant (`TenantTransaction.runForTenant`, só para atores `SYSTEM`/`PLATFORM_OPERATOR` fora de contexto de tenant — RN-TEN-21). Até a US-099 ligar a variável em todos os ambientes, a leitura de vínculos do login (`cf_user_memberships`) e a gravação da auditoria de plataforma seguem no `PlatformTransaction` do `cf_app` (US-087/US-073).
 
 ### 5.4 Camada 3 — FKs compostas
 
@@ -218,18 +223,19 @@ Toda unicidade de negócio inclui `tenant_id` (ex.: `(tenant_id, internal_code) 
 
 | Tabela | `tenant_id` | RLS | Acesso |
 |---|---|---|---|
-| `tenants` | — | Não | `cf_app`: `SELECT` (via `TenantContextService`); escrita só `cf_platform` |
+| `tenants` | — | Não | `cf_app`/`cf_worker`: `SELECT` só das colunas não sensíveis (sem `plan`, `suspension_reason`, `suspended_at`, `deactivated_at`, `offboarding_started_at` — US-100); escrita só `cf_platform` |
 | `users` | — | Não | `cf_app`: leitura/escrita apenas pelo módulo `identity`; dados expostos a um tenant somente para usuários com vínculo nele (entities.md `User`) |
 | `tenant_memberships` (vínculos do próprio usuário em todos os tenants) | Sim | Sim | Só pela função `cf_user_memberships(user_id)` (`SECURITY DEFINER`, dona `cf_definer`, `search_path` fixo): devolve vínculo + nome, status e fuso da instituição **apenas** quando `user_id = app.user_id` da transação; `EXECUTE` para `cf_app`/`cf_worker` (ME-04, início de sessão, troca de instituição — US-087) |
+| `tenant_memberships` (convite por token, USR-06) | Sim | Sim | Só pela função `cf_find_invitation(token_hash)` (`SECURITY DEFINER`, dona `cf_definer`): vínculo, tenant (nome e status), usuário, status e validade do convite; hash em formato fixo (SHA-256 hexadecimal); `EXECUTE` só para `cf_platform` (`INVITATION_LOOKUP` — US-091) |
 | `permissions` | — | Não | Catálogo global somente leitura (sincronizado por migração) |
-| `audit_logs` | Nulo só para eventos de plataforma (DEC-080) | Sim | Registros de plataforma visíveis apenas a `cf_platform` |
-| `outbox_events` | Nulo só para eventos de plataforma | Sim | Aplicação insere no próprio tenant; `cf_relay` lê/atualiza todos |
+| `audit_logs` | Nulo só para eventos de plataforma (DEC-080) | Sim | Registros de plataforma (e ações de `PLATFORM_OPERATOR`) visíveis apenas a `cf_platform` (políticas `platform_role_*`) |
+| `outbox_events` | Nulo só para eventos de plataforma | Sim | Aplicação insere no próprio tenant; `cf_platform` só eventos do agregado `Tenant`; `cf_relay` lê/atualiza todos |
 | `_prisma_migrations` | — | Não | Somente `cf_migrator` |
 
 ## 7. Cache
 
-- **Convenção de chaves:** `cf:{env}:t:{tenantId}:{módulo}:{chave}` para dados de tenant (ex.: `cf:prod:t:0192…:access:eff:{membershipId}` — permissions.md §1.2); `cf:{env}:p:{módulo}:{chave}`† para dados de plataforma; no Redis de sessões (DEC-070): `cf:{env}:sess:{sha256(sid)}` (registro), `cf:{env}:sess:user:{userId}` (índice por usuário) e `cf:{env}:rl:auth:{ip}:{janela}` (limite de login por IP).
-- **Wrapper `TenantCache`†:** monta a chave a partir do `RequestContext` (o chamador não informa `tenantId`), exige TTL, serializa com schema Zod e registra métricas sem label de tenant.
+- **Convenção de chaves:** `cf:{env}:t:{tenantId}:{módulo}:{chave}` para dados de tenant (ex.: `cf:prod:t:0192…:access:eff:{membershipId}` — permissions.md §1.2); `cf:{env}:p:{módulo}:{chave}` para dados de plataforma (ex.: `cf:prod:p:tenant-status:{tenantId}`); no Redis de sessões (DEC-070): `cf:{env}:sess:{sha256(sid)}` (registro), `cf:{env}:sess:user:{userId}` (índice por usuário) e `cf:{env}:rl:auth:{ip}:{janela}` (limite de login por IP).
+- **`TenantCache` / `PlatformCache`** (`apps/api/src/shared/cache`, US-100): montam a chave a partir do `RequestContext` (o chamador não informa `tenantId`; sem contexto → `TenantContextMissingError`), exigem TTL (1 s a 7 dias), serializam em JSON e validam a leitura com schema Zod (valor inválido = ausência); `getOrSet` degrada para o carregamento com o Redis fora (`warn cache.unavailable`). Chave já com escopo (`cf:…`, `t:…`) é violação (`barrier = cache`). O cliente Redis só existe no módulo `platform` (`CACHE_STORE`) — lint `contrataflow/no-direct-redis` e dependency-cruiser.
 
 ```ts
 // uso (ilustrativo)
@@ -243,15 +249,15 @@ const perms = await tenantCache.getOrSet('access', `eff:${membershipId}`, () => 
 ## 8. Storage
 
 Detalhes em [`storage.md`](storage.md#13-isolamento-por-tenant). Resumo:
-- Toda chave começa com `tenants/{tenantId}/` e é construída só no servidor (`StorageKeyBuilder`); o `StorageService` recusa chave fora do tenant do contexto (`TenantIsolationViolation` + alerta).
+- Toda chave começa com `tenants/{tenantId}/` e é construída só no servidor (`StorageKeyBuilder`, com o tenant do contexto e segmentos validados); o `StorageService` (`apps/api/src/shared/storage`, US-100) recusa chave fora do tenant do contexto **antes** de assinar URL ou tocar no bucket (`TenantIsolationViolationError`, `barrier = storage`, + alerta) e limita a URL a 300 s; o adaptador S3/MinIO é da US-068.
 - Buckets privados (Block Public Access), sem listagem para clientes; URLs pré-assinadas de 300 s emitidas **somente após** autorização e visibilidade (anexo de outro tenant → 404) e auditoria do download.
 - Metadados do objeto incluem `cf-tenant-id` para verificação cruzada.
 - **Opção enterprise:** CMK do KMS por tenant (SSE-KMS por objeto com a chave do tenant e *data keys* da criptografia de campos derivadas por tenant), permitindo revogação/rotação por cliente. Exclusão criptográfica (*crypto-shredding*) só após decisão de retenção (PEND-07), pois os documentos são registros públicos.
 
 ## 9. Filas e jobs
 
-- **Contrato:** todo job carrega `meta.tenantId`, `actor`, `correlationId`, `traceparent` (DEC-164; `JobMeta` em [`queues.md`](queues.md#3-contrato-comum-de-job-dec-164)); o produtor injeta a partir do contexto, nunca manualmente.
-- **Consumo:** o wrapper `runJob` valida `meta`, abre o `RequestContext` e a UoW com `app.tenant_id` antes do handler; job sem `tenantId` só é aceito na lista fechada de jobs de plataforma (queues.md §9.3).
+- **Contrato:** todo job carrega `meta.tenantId`, `actor`, `correlationId`, `traceparent` (DEC-164; `JobMeta` em [`queues.md`](queues.md#3-contrato-comum-de-job-dec-164)); o produtor injeta a partir do contexto, nunca manualmente (`buildJobMeta` em `apps/api/src/shared/jobs` — US-100); job de fila de tenant sem tenant no contexto é recusado **na origem**.
+- **Consumo:** a base `TenantJob` (US-100; o `runJob` da US-083 a envolve com timeout, DLQ e métricas) valida `meta` e `payload`, aplica a lista de plataforma (queues.md §9.3), conclui sem efeito quando o tenant não está `ACTIVE` (RN-TEN-12), restaura tenant, ator, correlação e trace e só então chama o handler — cujas transações usam o tenant do job; job sem `tenantId` fora da lista → `error security.tenant_context_missing` (`barrier = job`).
 - **Payload:** apenas IDs e metadados (≤ 16 KB); o handler relê os dados no contexto do tenant — se o recurso não existir naquele tenant, o job termina sem efeito.
 - **Jobs de plataforma iteram tenants explicitamente:** o `tick` (contexto de plataforma) lista tenants elegíveis por `systemPrisma` e enfileira **um job por tenant**; cada um roda isolado, com falha que não afeta os demais.
 - **Fairness e *noisy neighbor*** (queues.md §13): limites da API por usuário + tenant e por tenant (api.md §1.6); semáforo de concorrência por tenant e por fila (`cf:{env}:t:{tenantId}:sem:{fila}`); prioridades (interativo > automático > lote); operações em lote fatiadas; reagendamento sem consumir tentativa. Tenant ruidoso identificado por log com `tenantId` (nunca label de métrica).
@@ -272,7 +278,8 @@ Detalhes em [`storage.md`](storage.md#13-isolamento-por-tenant). Resumo:
 
 ## 12. Observabilidade
 
-- `tenantId` em todo log estruturado (campo pino) e como atributo de span (`tenant.id`†); `userId` e `correlationId` idem — permite investigar um tenant sem acessar o banco.
+- `tenantId` em todo log estruturado (campo pino) e como atributo de span (`cf.tenant.id` no span HTTP e no de job); `userId` e `correlationId` idem — permite investigar um tenant sem acessar o banco.
+- **Eventos de isolamento (US-100):** `tenant.context_opened` (`debug` em produção), `warn tenant.access_denied` (`reason`, `userId`, rota — sem o tenant pedido por quem não tem vínculo), `warn tenant.status_cache_unavailable`, `error security.tenant_context_missing` e `error security.tenant_isolation_violation` (`barrier` = `prisma_extension` · `rls` · `storage` · `cache` · `job` · `context`, sem dados de negócio), `info system_db.call`. Métricas: `cf_tenant_isolation_violations_total{barrier}`, `cf_tenant_context_missing_total{barrier}`, `cf_tenant_context_overhead_seconds{scope}` (meta p95 ≤ 2 ms) e `cf_system_db_calls_total{reason,outcome}` — alerta A19 e runbook RB-10 ([observability.md](observability.md)).
 - **Nunca** como label de métrica Prometheus (cardinalidade de centenas/milhares de tenants × séries); no Loki, `tenantId` é campo do JSON/metadado estruturado, não label de *stream*.
 - Visões por tenant (ex.: tenant ruidoso, uso de storage) vêm de consultas em logs/traces e de relatórios de uso calculados no banco ([`observability.md`](observability.md)).
 
@@ -330,12 +337,14 @@ Suíte **obrigatória no CI** (bloqueia *merge*), implementando CA-T-01:
 
 | Suíte | Como | Esperado |
 |---|---|---|
-| *Tenant leak* HTTP | Testcontainers; tenants A e B com massa equivalente; usuário só em A, outro em A e B (troca de tenant). Para **cada operação do OpenAPI**, substitui parâmetros de caminho por IDs de B | `GET`/`PATCH`/`PUT`/`DELETE`/comandos → 404 (`NOT_FOUND`/`<RESOURCE>_NOT_FOUND`); IDs de B no corpo → 422 `REFERENCE_NOT_FOUND`; nenhum efeito em B (auditoria, outbox e tabelas de B inalteradas) |
+| *Tenant leak* HTTP | `apps/api/test/tenant-leak` (US-100): Testcontainers; tenants A e B com marcadores `LEAK-A`/`LEAK-B`; usuário só em A, outro em A e B. Para **cada operação classificada** no manifesto `src/openapi/tenant-leak.manifest.ts`, substitui parâmetros de caminho e referências do corpo por IDs de B | `GET`/`PATCH`/`PUT`/`DELETE`/comandos → 404 (`NOT_FOUND`/`<RESOURCE>_NOT_FOUND`); IDs de B no corpo → 422 `REFERENCE_NOT_FOUND`; nenhum efeito em B (auditoria, outbox e tabelas de B inalteradas) |
 | Detecção de vazamento | Todos os IDs, números e títulos de B registrados como "canários"; toda resposta de A (listas, buscas, contadores, dashboard, autocomplete, exportações CSV) é varrida | Nenhum canário de B |
 | Cabeçalho forjado | Usuário de A com `X-Tenant-Id` de B | 403 `MEMBERSHIP_INACTIVE` |
-| Cobertura | Meta-teste compara operações do OpenAPI com o manifesto da suíte | Operação nova sem caso → build falha |
+| Cobertura | Meta-testes (`src/openapi/tenant-isolation-coverage.spec.ts`) comparam as operações com o manifesto (coberta ou isenta com motivo) e exigem `@TenantScope` em toda rota | Operação nova sem caso ou rota sem escopo → build falha |
+| Concorrência | Pool de 2 conexões, 500 requisições alternando A e B | Cada resposta só com o próprio tenant; conexões devolvidas sem `app.tenant_id` |
+| Desempenho | `apps/api/test/database/context-overhead.perf.ts` (US-100): 200 transações como `cf_app`, medidas pela métrica `cf_tenant_context_overhead_seconds`; suíte de performance `pnpm --filter @contrataflow/api test:perf` (`vitest.perf.config.ts`, sequencial), medida no endurecimento e fora do CI do PR (DEC-087) | p95 do `set_config` do contexto ≤ 2 ms |
 | RLS direto no banco | Conexão como `cf_app`/`cf_worker` | Sem contexto → erro; contexto A lendo B → 0 linhas; `INSERT`/`UPDATE` com `tenant_id` de B → violação de política; SQL bruto idem; mesma conexão reutilizada para A e depois B sem vazamento de contexto |
-| Catálogo | Consultas a `pg_class`/`pg_constraint`/`pg_index` | Toda tabela com `tenant_id` com RLS `ENABLE`+`FORCE` e política; toda FK entre tabelas de negócio inclui `tenant_id`; toda unicidade de negócio inclui `tenant_id` |
+| Catálogo | Consultas a `pg_class`/`pg_constraint`/`pg_index` (tarefa turbo `test:tenant-leak`: `tools/ci/tenant-leak.ts` e `apps/api/test/database/tenancy-foundation.spec.ts`) | Toda tabela com `tenant_id` com RLS `ENABLE`+`FORCE` e política; toda FK entre tabelas de negócio **começa** por `tenant_id`; toda tabela de negócio tem `UNIQUE (tenant_id, id)`; toda unicidade de negócio inclui `tenant_id` |
 | Cache | Mesmo recurso lógico em A e B | Chaves distintas; invalidação em A não afeta B |
 | Storage | Download/confirmação de anexo de B por usuário de A; chave fora do prefixo | 404; `TenantIsolationViolation` |
 | Filas | Job sem `tenantId` em fila de tenant; job de A com ID de B | Rejeitado; sem efeito |
@@ -372,7 +381,7 @@ WHERE c.relkind IN ('r', 'p')
 |---|---|---|---|
 | Tabela nova sem RLS | Média | Crítico | Checagem de catálogo no CI (§14); migração-modelo; revisão |
 | SQL bruto sem filtro ou com interpolação | Média | Crítico | RLS + lint + CODEOWNERS (§5.6) |
-| Uso indevido de `systemPrisma`/papel com `BYPASSRLS` | Baixa | Crítico | Allowlist no dependency-cruiser; `cf_relay` restrito a uma tabela; logs `platform_db.access`; revisão trimestral de papéis |
+| Uso indevido de `systemPrisma`/papel com `BYPASSRLS` | Baixa | Crítico | Allowlist no dependency-cruiser; `cf_relay` restrito a uma tabela; `cf_platform` sem `BYPASSRLS`; logs `system_db.call`; revisão trimestral de papéis |
 | Contexto de sessão vazando pelo pool | Baixa | Crítico | Apenas `set_config(..., true)` em transação; teste de reutilização de conexão |
 | Chave de cache sem tenant | Média | Alto | `TenantCache` obrigatório; lint contra uso direto do cliente Redis fora de `platform` |
 | Job processado sem contexto | Baixa | Alto | `runJob` com validação de `meta`; lista fechada de jobs de plataforma |
@@ -384,4 +393,4 @@ WHERE c.relkind IN ('r', 'p')
 
 ## Referências
 
-DEC-011, DEC-012, DEC-024, DEC-034, DEC-080 a DEC-086, DEC-131, DEC-132, DEC-134, DEC-139, DEC-140, DEC-160, DEC-164; PEND-07, PEND-17; [ADR-002](../adr/adr-002-multi-tenancy.md); [`../mvp-01/entities.md`](../mvp-01/entities.md); [`../mvp-01/permissions.md`](../mvp-01/permissions.md); [`../mvp-01/api.md`](../mvp-01/api.md); [`../mvp-01/acceptance-criteria.md`](../mvp-01/acceptance-criteria.md) (CA-T-01, CA-T-07).
+DEC-011, DEC-012, DEC-024, DEC-034, DEC-076, DEC-080 a DEC-086, DEC-131, DEC-132, DEC-134, DEC-139, DEC-140, DEC-160, DEC-164; PEND-07, PEND-17; [ADR-002](../adr/adr-002-multi-tenancy.md); [`../mvp-01/entities.md`](../mvp-01/entities.md); [`../mvp-01/permissions.md`](../mvp-01/permissions.md); [`../mvp-01/api.md`](../mvp-01/api.md); [`../mvp-01/acceptance-criteria.md`](../mvp-01/acceptance-criteria.md) (CA-T-01, CA-T-07).

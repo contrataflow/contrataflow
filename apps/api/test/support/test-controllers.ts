@@ -4,12 +4,12 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
 
-import { WithoutTenant } from '#shared/auth/route-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { RateLimit } from '#shared/rate-limit/rate-limit.js';
+import { OffboardingExport, TenantScope } from '#shared/tenancy/tenant-scope.js';
 
 /** Portão controlado pelo teste: o handler lento só termina quando o teste o abre. */
 export class Gate {
@@ -37,6 +37,7 @@ export const slowGate = { current: new Gate() };
 
 /** Rotas usadas só pelos testes do pipeline (não fazem parte da aplicação). */
 @Controller('_test')
+@TenantScope('TENANT')
 export class PipelineTestController {
   @Get('context')
   async context() {
@@ -73,10 +74,18 @@ export class PipelineTestController {
   }
 
   @Get('without-tenant')
-  @WithoutTenant()
+  @TenantScope('PLATFORM')
   withoutTenant() {
     const context = requireRequestContext();
     return { tenantId: context.tenantId, userId: context.actor.userId };
+  }
+
+  @Post('offboarding-export')
+  @HttpCode(202)
+  @OffboardingExport()
+  offboardingExport() {
+    const context = requireRequestContext();
+    return { accessMode: context.accessMode };
   }
 
   @Post('export')

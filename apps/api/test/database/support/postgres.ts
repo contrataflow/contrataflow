@@ -30,7 +30,13 @@ export function postgresImage(): string {
 const PASSWORD = 'test-only';
 
 export type LoginRole =
-  'cf_app' | 'cf_worker' | 'cf_relay' | 'cf_maintenance' | 'cf_readonly_report' | 'cf_migrator';
+  | 'cf_app'
+  | 'cf_worker'
+  | 'cf_relay'
+  | 'cf_maintenance'
+  | 'cf_platform'
+  | 'cf_readonly_report'
+  | 'cf_migrator';
 
 export interface TestDatabase {
   readonly container: StartedTestContainer;
@@ -101,6 +107,7 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     'cf_worker',
     'cf_relay',
     'cf_maintenance',
+    'cf_platform',
     'cf_readonly_report',
     'cf_migrator',
   ]) {

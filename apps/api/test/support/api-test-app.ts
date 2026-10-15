@@ -17,6 +17,7 @@ import type {
 } from '#modules/identity/infrastructure/fake-jwks.provider.js';
 import { AUDIT_SAMPLING_STORE, InMemoryAuditSamplingStore } from '#shared/audit/sampling-store.js';
 import { TOKEN_VERIFIER } from '#shared/auth/ports.js';
+import { CACHE_STORE, InMemoryCacheStore } from '#shared/cache/cache-store.js';
 import { IDEMPOTENCY_STORE } from '#shared/idempotency/idempotency.js';
 import { InMemoryIdempotencyStore } from '#shared/idempotency/in-memory-idempotency.store.js';
 import { InMemoryRateLimitStore } from '#shared/rate-limit/in-memory-rate-limit.store.js';
@@ -86,7 +87,9 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
       .overrideProvider(IDEMPOTENCY_STORE)
       .useValue(new InMemoryIdempotencyStore())
       .overrideProvider(AUDIT_SAMPLING_STORE)
-      .useValue(new InMemoryAuditSamplingStore());
+      .useValue(new InMemoryAuditSamplingStore())
+      .overrideProvider(CACHE_STORE)
+      .useValue(new InMemoryCacheStore());
   }
   for (const { token, value } of options.providers ?? []) {
     builder = builder.overrideProvider(token).useValue(value);

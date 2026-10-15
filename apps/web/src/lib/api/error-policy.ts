@@ -22,6 +22,12 @@ export type ErrorAction =
 /** SCR-111 "sem acesso a esta instituição" (FA-08 da US-088). */
 export const MEMBERSHIP_INACTIVE_HREF = '/erro/vinculo-inativo';
 
+/** SCR-101: a API não recebeu a instituição ativa — refaz a seleção (US-100 · V-01). */
+export const TENANT_SELECTION_HREF = '/selecionar-orgao';
+
+/** Cabeçalho do tenant ativo; o 400 da API aponta para ele em `errors[].field` (RN-TEN-19). */
+const TENANT_HEADER = 'X-Tenant-Id';
+
 /** Login com `returnTo` (caminho interno); após expiração, com reautenticação (RN-IAM-32). */
 export function loginHref(
   returnTo: string,
@@ -36,10 +42,18 @@ export function stepUpHref(returnTo: string): string {
 }
 
 export function resolveErrorAction(
-  error: Pick<ApiError, 'status' | 'code' | 'retryAfterSeconds'>,
+  error: Pick<ApiError, 'status' | 'code' | 'retryAfterSeconds'> &
+    Partial<Pick<ApiError, 'errors'>>,
   currentPath: string,
 ): ErrorAction {
   const { status, code } = error;
+  if (
+    status === 400 &&
+    code === 'MALFORMED_REQUEST' &&
+    error.errors?.some((fieldError) => fieldError.field === TENANT_HEADER)
+  ) {
+    return { kind: 'redirect', href: TENANT_SELECTION_HREF };
+  }
   if (status === 401 && code === 'SESSION_EXPIRED') return { kind: 'session-expired' };
   if (status === 401) return { kind: 'redirect', href: loginHref(currentPath) };
   if (status === 403 && code === 'MFA_REQUIRED') {

@@ -110,7 +110,7 @@ describe('access.denied no pipeline (RN-AUD-10)', () => {
     expect(denials().filter((record) => record.tenantId === B)).toEqual([]);
   });
 
-  it('instituição suspensa → TENANT_SUSPENDED; cabeçalho de tenant inválido não vai para o metadata', async () => {
+  it('instituição suspensa → TENANT_SUSPENDED; cabeçalho de tenant inválido é 400 e não é negação', async () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     await asBrowser(
       request(api.server).get('/api/v1/_internal/ping'),
@@ -119,12 +119,14 @@ describe('access.denied no pipeline (RN-AUD-10)', () => {
     ).expect(403);
     expect(lastDenial()).toMatchObject({ tenantId: null, reasonCode: 'TENANT_SUSPENDED' });
 
+    // US-100 · RN-TEN-19: cabeçalho malformado é requisição malformada (400), não negação auditada.
+    const before = denials().length;
     await asBrowser(
       request(api.server).get('/api/v1/_internal/ping'),
       FAKE_USERS.ana.subject,
       'nao-e-uuid',
-    ).expect(403);
-    expect(lastDenial()?.metadata).not.toHaveProperty('requestedTenantId');
+    ).expect(400);
+    expect(denials()).toHaveLength(before);
   });
 
   it('401 não é negação de autorização: não grava access.denied', async () => {

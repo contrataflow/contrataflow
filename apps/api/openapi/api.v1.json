@@ -309,15 +309,16 @@
             "bearerAuth": []
           }
         ],
+        "x-tenant-scope": "TENANT",
         "parameters": [
           {
             "schema": {
               "type": "string",
               "format": "uuid",
-              "description": "Órgão ativo (DEC-132)."
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
             },
             "required": true,
-            "description": "Órgão ativo (DEC-132).",
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
             "name": "X-Tenant-Id",
             "in": "header"
           }
@@ -416,6 +417,7 @@
             "bearerAuth": []
           }
         ],
+        "x-tenant-scope": "CROSS_TENANT_LOOKUP",
         "responses": {
           "200": {
             "description": "Vínculos do usuário em todas as instituições, com `usable` consolidado.",

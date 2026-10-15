@@ -5,9 +5,10 @@ import type { DynamicModule, Type } from '@nestjs/common';
 import { RequestMethod } from '@nestjs/common';
 import { z } from 'zod';
 
-import { WITHOUT_TENANT_METADATA } from '#shared/auth/route-access.js';
 import { API_OPERATION_METADATA, API_REQUEST_METADATA } from '#shared/openapi/api-operation.js';
 import type { ApiOperationSpec, RequestSchemas } from '#shared/openapi/api-operation.js';
+import { tenantScopeOf } from '#shared/tenancy/tenant-scope.js';
+import type { TenantScopeKind } from '#shared/tenancy/tenant-scope.js';
 
 // Chaves de metadados do Nest (`@nestjs/common/constants`): `@Module`, `@Controller`, `@Get`…
 const MODULE_IMPORTS = 'imports';
@@ -42,7 +43,8 @@ export interface CollectedOperation {
   readonly path: string;
   readonly spec: ApiOperationSpec;
   readonly request: RequestSchemas;
-  readonly withoutTenant: boolean;
+  /** `@TenantScope` do handler ou do controller (US-100); `undefined` = não declarado. */
+  readonly tenantScope: TenantScopeKind | undefined;
 }
 
 const METHODS: Partial<Record<RequestMethod, RouteConfig['method']>> = {
@@ -83,9 +85,7 @@ export function collectOperations(controllers: readonly Type[]): CollectedOperat
         ),
         spec,
         request: (Reflect.getMetadata(API_REQUEST_METADATA, handler) ?? {}) as RequestSchemas,
-        withoutTenant:
-          Reflect.getMetadata(WITHOUT_TENANT_METADATA, handler) === true ||
-          Reflect.getMetadata(WITHOUT_TENANT_METADATA, controller) === true,
+        tenantScope: tenantScopeOf(handler, controller),
       });
     }
   }
@@ -133,8 +133,10 @@ export function buildOpenApiDocument(
   for (const operation of collectOperations(collectControllers(roots))) {
     if (operation.spec.internal && !options.includeInternal) continue;
     const headers: Record<string, z.ZodType> = {};
-    if (!operation.withoutTenant)
-      headers['X-Tenant-Id'] = z.uuid().describe('Órgão ativo (DEC-132).');
+    const tenantScope = operation.tenantScope ?? 'TENANT';
+    if (tenantScope === 'TENANT') {
+      headers['X-Tenant-Id'] = z.uuid().describe('Órgão ativo (DEC-132 · RN-TEN-19).');
+    }
     if (operation.spec.idempotent) {
       headers['Idempotency-Key'] = z.uuid().optional().describe('Chave de idempotência (DEC-105).');
     }
@@ -158,6 +160,7 @@ export function buildOpenApiDocument(
       summary: operation.spec.summary,
       ...(operation.spec.tags ? { tags: [...operation.spec.tags] } : {}),
       security: [{ bearerAuth: [] }],
+      'x-tenant-scope': tenantScope,
       ...(operation.spec.auditActions
         ? { 'x-audit-actions': [...operation.spec.auditActions] }
         : {}),

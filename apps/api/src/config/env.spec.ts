@@ -51,6 +51,7 @@ describe('loadConfig', () => {
       APP_ENV: 'staging',
       INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
       REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379',
+      DATABASE_URL_PLATFORM: 'postgresql://cf_platform:x@db.contrataflow.test:5432/contrataflow',
       AUTHENTIK_API_URL: 'https://auth.contrataflow.test/api/v3/',
       AUTHENTIK_API_TOKEN: 'z'.repeat(16),
     });
@@ -78,12 +79,31 @@ describe('loadConfig', () => {
       ...REQUIRED,
       APP_ENV: 'production',
       INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      DATABASE_URL_PLATFORM: 'postgresql://cf_platform:x@db.contrataflow.test:5432/contrataflow',
     };
     expect(() => loadConfig(production)).toThrow(new ConfigValidationError(['REDIS_SESSION_URL']));
     expect(
       loadConfig({ ...production, REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379' })
         .redis.sessionUrl,
     ).toBe('rediss://sessions.contrataflow.test:6379');
+  });
+
+  it('US-100: papel cf_platform opcional em local/dev/test e obrigatório em staging/produção', () => {
+    expect(loadConfig(REQUIRED).database.platformUrl).toBeNull();
+    expect(loadConfig({ ...REQUIRED, DATABASE_URL_PLATFORM: '' }).database.platformUrl).toBeNull();
+    const url = 'postgresql://cf_platform:x@localhost:5432/contrataflow';
+    expect(loadConfig({ ...REQUIRED, DATABASE_URL_PLATFORM: url }).database.platformUrl).toBe(url);
+    expect(() =>
+      loadConfig({ ...REQUIRED, DATABASE_URL_PLATFORM: 'mysql://cf_platform@host/db' }),
+    ).toThrow(new ConfigValidationError(['DATABASE_URL_PLATFORM']));
+    expect(() =>
+      loadConfig({
+        ...REQUIRED,
+        APP_ENV: 'production',
+        INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+        REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379',
+      }),
+    ).toThrow(new ConfigValidationError(['DATABASE_URL_PLATFORM']));
   });
 
   it('US-073: proxies confiáveis (IPv4/IPv6) e parâmetros de plataforma da auditoria', () => {

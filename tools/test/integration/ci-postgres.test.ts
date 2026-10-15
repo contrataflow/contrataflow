@@ -88,7 +88,11 @@ RESET ROLE;`,
     expect(catalog?.detail).toContain(
       'Tabela public.processes pertence a postgres, não a cf_owner',
     );
-    expect(catalog?.detail).toContain('não inclui tenant_id (FK composta — DEC-081).');
+    expect(catalog?.detail).toContain(
+      'FK processes_organization_id_fkey em public.processes não começa por tenant_id (FK composta — DEC-081 · RN-TEN-27).',
+    );
+    // US-100: tabela de negócio sem UNIQUE (tenant_id, id), alvo das FKs compostas.
+    expect(catalog?.detail).toContain('Tabela public.processes sem UNIQUE (tenant_id, id)');
     expect(catalog?.detail).toContain('Unicidade processes_number_key em public.processes');
   });
 });

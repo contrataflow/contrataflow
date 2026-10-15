@@ -31,6 +31,15 @@ export const envSchema = z
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     /** Conexões por réplica (architecture.md §12.1). */
     DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+    /**
+     * Papel `cf_platform` do `SystemDbService` (US-100 · RN-TEN-28): sem BYPASSRLS, DML em `tenants`,
+     * auditoria de plataforma e as funções entre tenants. Obrigatória fora de local/dev/test;
+     * ausente (só nesses ambientes) → o `SystemDbService` recusa as chamadas.
+     */
+    DATABASE_URL_PLATFORM: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+    ),
     REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
     /**
      * Redis de sessões do BFF (DEC-131), lido só pela varredura de encerramentos de sessão
@@ -124,6 +133,13 @@ export const envSchema = z
         message: 'Obrigatória fora de local/dev/test.',
       });
     }
+    if (!env.DATABASE_URL_PLATFORM && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL_PLATFORM'],
+        message: 'Obrigatória fora de local/dev/test.',
+      });
+    }
     if (!env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
         code: 'custom',
@@ -146,6 +162,8 @@ export interface AppConfig {
   readonly database: {
     readonly url: string;
     readonly poolSize: number;
+    /** Papel `cf_platform` do `SystemDbService` (US-100); `null` = chamadas recusadas. */
+    readonly platformUrl: string | null;
     /** Espera máxima por uma conexão do pool ao abrir a transação. */
     readonly maxWaitMs: number;
     /** Duração máxima de uma transação (architecture.md §6.5). */
@@ -213,6 +231,7 @@ function toAppConfig(env: Env): AppConfig {
     database: {
       url: env.DATABASE_URL,
       poolSize: env.DATABASE_POOL_SIZE,
+      platformUrl: env.DATABASE_URL_PLATFORM ?? null,
       maxWaitMs: 2_000,
       transactionTimeoutMs: 10_000,
       statementTimeoutMs: 5_000,

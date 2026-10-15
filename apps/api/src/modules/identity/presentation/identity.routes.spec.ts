@@ -79,14 +79,15 @@ describe('Feature: Login OIDC — API (US-087)', () => {
       });
     });
 
-    it('[Validação] GET /me sem token → 401; sem instituição ativa → 403 MEMBERSHIP_INACTIVE', async () => {
+    it('[Validação] GET /me sem token → 401; sem instituição ativa → 400 MALFORMED_REQUEST', async () => {
       expectProblem(await request(api.server).get('/api/v1/me'), 401, 'UNAUTHENTICATED');
+      // US-100 · RN-TEN-19: rota TENANT sem X-Tenant-Id é requisição malformada.
       expectProblem(
         await request(api.server)
           .get('/api/v1/me')
           .set('Authorization', api.bearer(FAKE_USERS.ana.subject)),
-        403,
-        'MEMBERSHIP_INACTIVE',
+        400,
+        'MALFORMED_REQUEST',
       );
     });
 

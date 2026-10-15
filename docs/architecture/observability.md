@@ -386,7 +386,7 @@ Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provi
 | A16 | Base de assinaturas desatualizada | `cf_clamav_signature_age_seconds > 86400` | Médio | `#cf-alertas` | RB-05 |
 | A17 | Anexo preso na verificação | `cf_attachments_stuck > 0` por 30 min | Alto | Plantão | RB-05 |
 | A18 | Malware detectado | Aumento de `cf_file_scan_results_total{result="infected"}` | Informativo | `#cf-seguranca` | — |
-| A19 | Violação de isolamento | Guarda de tenant do storage ou job sem tenant fora da lista > 0 | Crítico | Plantão + `#cf-seguranca` | Resposta a incidentes ([security.md](security.md)) |
+| A19 | Violação de isolamento | Aumento de `cf_tenant_isolation_violations_total{barrier}` (extensão do Prisma, RLS, storage, cache, job, contexto) ou de `cf_tenant_context_missing_total` (US-100) | Crítico | Plantão + `#cf-seguranca` | [RB-10](#rb-10--suspeita-de-vazamento-entre-tenants) |
 | A20 | Falha de fixidez | `cf_storage_fixity_failures_total > 0` | Crítico | `#cf-seguranca` | [security.md](security.md) |
 | A21 | Selagem de auditoria | Sem selo há > 3 h (Alto) · verificação falhou (Crítico) | Alto · Crítico | Plantão + `#cf-seguranca` | RB-09 *(a criar)* |
 | A22 | Banco saturado | Conexões > 85% ou espera no pool por 5 min; CPU > 80% por 15 min; réplica > 30 s | Alto | Plantão | RB-07 *(a criar)* |
@@ -502,6 +502,20 @@ Estrutura padrão: alertas → impacto → diagnóstico → mitigação → vali
 - **Mitigação:** reiniciar/escalar clamd; aumentar memória ou desativar `ConcurrentDatabaseReload` (a recarga bloqueia o scan por instantes, mas reduz o pico de memória); espelho privado de assinaturas. **Nunca** desligar o scan nem marcar anexos como `AVAILABLE` manualmente.
 - **Validação:** breaker fechado; fila `file-scan` drenando; `cf_attachments_stuck` = 0 (o reconciliador reenfileira órfãos).
 - **Pós-incidente:** indisponibilidade > 24 h gera rejeições `UPLOAD_EXPIRED` — avisar os usuários afetados para reenviar; revisar capacidade.
+
+### RB-10 — Suspeita de vazamento entre tenants
+Entregável da US-100 (DEC-076 · [multi-tenancy.md](multi-tenancy.md) §12/§14 · [security.md](security.md)). Vale para alerta automático **e** para relato de usuário, órgão ou auditor ("vi dado de outra instituição").
+- **Alertas:** A19 (`cf_tenant_isolation_violations_total` ou `cf_tenant_context_missing_total` > 0; logs `error security.tenant_isolation_violation` / `security.tenant_context_missing`, com `barrier`, `model`/`operation` e `correlationId`).
+- **Impacto:** potencialmente crítico (RSK-06, KPI C5 = 0 incidentes). Violação detectada por barreira = a defesa funcionou e a operação foi abortada (500 ao cliente, nada gravado); relato de dado visível de outro tenant = possível exposição real.
+1. **Abrir incidente S1** (resposta em 1 h, contorno em 4 h — product-overview §11.4) em `#cf-seguranca`, com um responsável pela coordenação e outro pela comunicação.
+2. **Conter:** bloquear a rota ou funcionalidade afetada por *deploy* de bloqueio (rota fora do ar com 503 é preferível a qualquer exposição) e, se necessário, suspender os tenants envolvidos (PLT-05 · `TENANT_SUSPENDED`). Nunca desligar barreiras (RLS, extensão, guardas) para "destravar" usuários.
+3. **Preservar evidências** antes de qualquer correção: logs e *traces* pelo `correlationId` dos alertas (Loki/Tempo), trilha de auditoria selada dos tenants envolvidos (`audit_logs` + `AuditSeal`), versão implantada e anotações de deploy. Exportar para o cofre do incidente com SHA-256.
+4. **Delimitar o escopo** por `tenantId` de origem e de destino, rota/operação (`operationId`), período (primeiro e último `correlationId`) e registros expostos — consultas só com o papel de plataforma e no tenant envolvido (DEC-139); nenhum dado de um tenant é mostrado a outro durante a análise.
+5. **Corrigir e provar:** reproduzir o caso na suíte "tenant leak" (`apps/api/test/tenant-leak` — fixture de B no manifesto da operação) **antes** do *fix*; o PR do *fix* traz o teste vermelho → verde e passa pela revisão de segurança. Reabrir a rota só com o teste no CI.
+6. **Comunicar (LGPD):** como operadora, comunicar **imediatamente** as instituições afetadas (controladoras) com o escopo apurado e apoiá-las na comunicação à ANPD e aos titulares (Resolução CD/ANPD nº 15/2024 — prazo de 3 dias úteis para o controlador). Registrar data e hora de cada comunicação.
+7. **Pós-incidente:** *postmortem* sem culpados em até 5 dias úteis, com ações preventivas (nova verificação de catálogo, regra de lint, caso na suíte, revisão das barreiras — ADR-002 "Critérios de revisão").
+- **Validação:** métricas de violação zeradas por 24 h após o *fix*; suíte "tenant leak" verde com o caso reproduzido; instituições comunicadas.
+- **Exercício de mesa:** ensaio semestral com um caso sintético (ex.: rota nova sem `@TenantScope` que escapou da revisão), cronometrando os passos 1–4.
 
 ---
 

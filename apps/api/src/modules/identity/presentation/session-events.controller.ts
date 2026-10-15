@@ -12,9 +12,10 @@ import { Controller, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
 
 import { VerifiedTokenParam } from '#shared/auth/pipeline.guards.js';
 import type { VerifiedToken } from '#shared/auth/ports.js';
-import { AllowUnboundSubject, WithoutTenant } from '#shared/auth/route-access.js';
+import { AllowUnboundSubject } from '#shared/auth/route-access.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody } from '#shared/validation/zod-validation.pipe.js';
 
 import { InternalServiceGuard } from './internal-service.guard.js';
@@ -48,7 +49,7 @@ export class SessionEventsController {
 
   @Post('session-events')
   @HttpCode(200)
-  @WithoutTenant()
+  @TenantScope('CROSS_TENANT_LOOKUP')
   @AllowUnboundSubject()
   @ApiOperation({
     operationId: 'INTERNAL-SESSION-EVENTS',

@@ -5,12 +5,17 @@ import { loadConfig } from '#config/env.js';
 import { runWithRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 
 import { TenantTransaction } from './database.module.js';
-import { DatabaseUnavailableError, TenantContextMissingError } from './errors.js';
+import {
+  DatabaseUnavailableError,
+  TenantContextMissingError,
+  TenantIsolationViolationError,
+} from './errors.js';
 import type { PrismaClient } from './generated/prisma/client.js';
 import { PlatformTransaction } from './platform-transaction.js';
 import { createTenantPrismaClient } from './prisma-client.js';
 import { runPlatformTransaction, runTenantTransaction } from './tenant-transaction.js';
 import type { TenantTx } from './tenant-transaction.js';
+import { currentTransactionScope } from './transaction-scope.js';
 
 const TENANT = '0192a000-0000-7000-8000-00000000000a';
 const USER = '0192a000-0000-7000-8000-0000000000a1';
@@ -38,15 +43,21 @@ function fakeClient(failures: Error[] = []) {
   return { base: { $transaction } as unknown as PrismaClient, $transaction, raw, tx };
 }
 
-function inTenant<T>(fn: () => Promise<T>, tenantId: string | null = TENANT): Promise<T> {
+function inTenant<T>(
+  fn: () => Promise<T>,
+  tenantId: string | null = TENANT,
+  actorType: 'USER' | 'SYSTEM' | 'PLATFORM_OPERATOR' = 'USER',
+): Promise<T> {
   return runWithRequestContext({ correlationId: 'corr-1', ip: '', userAgent: '' }, () => {
     updateRequestContext({
       tenantId,
-      actor: { type: 'USER', userId: USER, membershipId: null },
+      actor: { type: actorType, userId: actorType === 'USER' ? USER : null, membershipId: null },
     });
     return fn();
   });
 }
+
+const OTHER_TENANT = '0192a000-0000-7000-8000-00000000000b';
 
 const deadlock = Object.assign(new Error('deadlock detected'), {
   code: 'P2010',
@@ -84,7 +95,7 @@ describe('runTenantTransaction (RN-FND-43/44)', () => {
     expect(client.raw[0]?.sql).toContain("set_config('transaction_read_only', 'on', true)");
   });
 
-  it('contexto ausente ou inválido falha fechado antes do banco e loga db.tenant_context_missing', async () => {
+  it('contexto ausente ou inválido falha fechado antes do banco e loga security.tenant_context_missing', async () => {
     const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     const client = fakeClient();
     const work = () => Promise.resolve();
@@ -98,8 +109,18 @@ describe('runTenantTransaction (RN-FND-43/44)', () => {
       TenantContextMissingError,
     );
     expect(client.$transaction).not.toHaveBeenCalled();
-    expect(error).toHaveBeenCalledWith('db.tenant_context_missing correlationId=corr-1');
-    expect(error).toHaveBeenCalledWith('db.tenant_context_missing correlationId=-');
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'security.tenant_context_missing',
+        barrier: 'context',
+        correlationId: 'corr-1',
+      }),
+      'security.tenant_context_missing',
+    );
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'security.tenant_context_missing', correlationId: null }),
+      'security.tenant_context_missing',
+    );
   });
 
   it('deadlock/serialização: refaz a transação até 2 vezes', async () => {
@@ -129,6 +150,26 @@ describe('runTenantTransaction (RN-FND-43/44)', () => {
     expect(client.$transaction).toHaveBeenCalledTimes(1);
   });
 
+  it('[Falha de banco] a conexão cai no set_config: nenhuma consulta de negócio e 503 com Retry-After', async () => {
+    const work = vi.fn(() => Promise.resolve());
+    const tx = {
+      $executeRaw: () => Promise.reject(new Error('Connection terminated unexpectedly')),
+    } as unknown as TenantTx;
+    const base = {
+      $transaction: (callback: (client: TenantTx) => Promise<unknown>) => callback(tx),
+    } as unknown as PrismaClient;
+    const error = await inTenant(() => runTenantTransaction(base, settings, work, {})).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(DatabaseUnavailableError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: 'DEPENDENCY_UNAVAILABLE',
+      headers: { 'Retry-After': '5' },
+    });
+    expect(work).not.toHaveBeenCalled();
+  });
+
   it('erro do caso de uso propaga sem retentativa nem reclassificação', async () => {
     const client = fakeClient();
     const failure = new Error('regra de negócio');
@@ -138,6 +179,111 @@ describe('runTenantTransaction (RN-FND-43/44)', () => {
       ),
     ).rejects.toBe(failure);
     expect(client.$transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('isolamento na TenantTransaction (US-100)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('o escopo TENANT da transação fica visível à extensão só durante o trabalho', async () => {
+    const client = fakeClient();
+    const seen = await inTenant(() =>
+      runTenantTransaction(
+        client.base,
+        settings,
+        () => Promise.resolve(currentTransactionScope()),
+        {},
+      ),
+    );
+    expect(seen).toEqual({ kind: 'TENANT', tenantId: TENANT });
+    expect(currentTransactionScope()).toBeUndefined();
+    const platform = await runPlatformTransaction(
+      client.base,
+      settings,
+      () => Promise.resolve(currentTransactionScope()),
+      {},
+    );
+    expect(platform).toEqual({ kind: 'PLATFORM', tenantId: null });
+  });
+
+  it('FA-02: caso de uso de plataforma (SYSTEM/PLATFORM_OPERATOR) abre transação para o tenant alvo', async () => {
+    const client = fakeClient();
+    for (const actor of ['SYSTEM', 'PLATFORM_OPERATOR'] as const) {
+      await inTenant(
+        () =>
+          runTenantTransaction(client.base, settings, () => Promise.resolve(), {
+            tenantId: OTHER_TENANT,
+          }),
+        null,
+        actor,
+      );
+    }
+    expect(client.raw.map((call) => call.values[0])).toEqual([OTHER_TENANT, OTHER_TENANT]);
+    // No mesmo tenant do contexto, qualquer ator.
+    await inTenant(() =>
+      runTenantTransaction(client.base, settings, () => Promise.resolve(), { tenantId: TENANT }),
+    );
+    expect(client.raw.at(-1)?.values[0]).toBe(TENANT);
+  });
+
+  it('RN-TEN-21: dentro de um contexto TENANT, transação para outro tenant é violação', async () => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const client = fakeClient();
+    const work = () => Promise.resolve();
+    await expect(
+      inTenant(() => runTenantTransaction(client.base, settings, work, { tenantId: OTHER_TENANT })),
+    ).rejects.toBeInstanceOf(TenantIsolationViolationError);
+    // Sem tenant no contexto, mas ator comum (usuário): também recusado.
+    await expect(
+      inTenant(
+        () => runTenantTransaction(client.base, settings, work, { tenantId: OTHER_TENANT }),
+        null,
+      ),
+    ).rejects.toBeInstanceOf(TenantIsolationViolationError);
+    await expect(
+      inTenant(
+        () => runTenantTransaction(client.base, settings, work, { tenantId: 'x' }),
+        null,
+        'SYSTEM',
+      ),
+    ).rejects.toBeInstanceOf(TenantContextMissingError);
+    expect(client.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('[Tenant incorreto] FK composta violada → 422 REFERENCE_NOT_FOUND; RLS → violação (500 + alerta)', async () => {
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const fk = Object.assign(new Error('fk'), {
+      code: 'P2010',
+      meta: {
+        driverAdapterError: {
+          cause: { code: '23503', constraint: { fields: ['tenant_id', 'membership_id'] } },
+        },
+      },
+    });
+    const rls = Object.assign(
+      new Error('new row violates row-level security policy for table "x"'),
+      {
+        code: 'P2010',
+      },
+    );
+    const client = fakeClient([fk, rls]);
+    const work = () => Promise.resolve();
+    await expect(
+      inTenant(() => runTenantTransaction(client.base, settings, work, {})),
+    ).rejects.toMatchObject({
+      status: 422,
+      code: 'VALIDATION_ERROR',
+      errors: [expect.objectContaining({ field: 'membershipId', code: 'REFERENCE_NOT_FOUND' })],
+    });
+    await expect(
+      inTenant(() => runTenantTransaction(client.base, settings, work, {})),
+    ).rejects.toBeInstanceOf(TenantIsolationViolationError);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'security.tenant_isolation_violation', barrier: 'rls' }),
+      'security.tenant_isolation_violation',
+    );
   });
 });
 

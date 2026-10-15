@@ -328,12 +328,12 @@ describe('Matriz dos guards (base da suíte "tenant leak")', () => {
       401,
       'UNAUTHENTICATED',
     ],
-    ['sem X-Tenant-Id', () => ({ auth: api.bearer('sub-ana') }), 403, 'MEMBERSHIP_INACTIVE'],
+    ['sem X-Tenant-Id', () => ({ auth: api.bearer('sub-ana') }), 400, 'MALFORMED_REQUEST'],
     [
       'X-Tenant-Id inválido',
       () => ({ auth: api.bearer('sub-ana'), tenant: 'abc' }),
-      403,
-      'MEMBERSHIP_INACTIVE',
+      400,
+      'MALFORMED_REQUEST',
     ],
     [
       'tenant suspenso',
@@ -373,7 +373,7 @@ describe('Matriz dos guards (base da suíte "tenant leak")', () => {
     expectProblem(await call, status, code);
   });
 
-  it('rota sem tenant (@WithoutTenant) exige autenticação mas não X-Tenant-Id', async () => {
+  it('rota sem tenant (@TenantScope PLATFORM) exige autenticação mas não X-Tenant-Id', async () => {
     const ok = await request(api.server)
       .get('/api/v1/_test/without-tenant')
       .set('Authorization', api.bearer('sub-ana'));

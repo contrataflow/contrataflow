@@ -3,10 +3,17 @@ import { Global, Module } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { AUDIT_SAMPLING_STORE } from '#shared/audit/sampling-store.js';
+import { CACHE_STORE } from '#shared/cache/cache-store.js';
+import { PlatformCache, TenantCache } from '#shared/cache/tenant-cache.js';
 import { IDEMPOTENCY_STORE } from '#shared/idempotency/idempotency.js';
 import { OUTBOX_WRITER, SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import { RATE_LIMIT_STORE } from '#shared/rate-limit/rate-limit.js';
 import { DisabledSessionRegistry, SESSION_REGISTRY } from '#shared/sessions/session-registry.js';
+import {
+  OBJECT_STORAGE,
+  StorageService,
+  UnconfiguredObjectStorage,
+} from '#shared/storage/storage.service.js';
 
 import { OUTBOX_STORE } from './application/outbox-ports.js';
 import { OutboxWriterService } from './application/outbox-writer.service.js';
@@ -15,6 +22,7 @@ import { SyncEventHandlerRegistry } from './application/sync-event-handler.regis
 import { InMemoryOutboxStore } from './infrastructure/outbox/in-memory-outbox.store.js';
 import { PrismaOutboxStore } from './infrastructure/outbox/prisma-outbox.store.js';
 import { RedisAuditSamplingStore } from './infrastructure/redis/redis-audit-sampling.store.js';
+import { RedisCacheStore } from './infrastructure/redis/redis-cache.store.js';
 import { RedisIdempotencyStore } from './infrastructure/redis/redis-idempotency.store.js';
 import { RedisSessionRegistry } from './infrastructure/redis/redis-session-registry.js';
 import { RedisThrottlerStorage } from './infrastructure/redis/redis-throttler.storage.js';
@@ -28,7 +36,9 @@ import { InternalExampleController } from './presentation/internal-example.contr
  * outbox transacional (US-082) e o acesso da varredura de sessões ao Redis de sessões do BFF
  * (`SESSION_REGISTRY`, US-088 — desligado sem `REDIS_SESSION_URL`). É GLOBAL porque todo módulo
  * que produz fato de domínio injeta a porta `OUTBOX_WRITER` (e os donos das projeções síncronas,
- * `SYNC_EVENT_HANDLERS`) do shared kernel, sem importar este módulo (DEC-072).
+ * `SYNC_EVENT_HANDLERS`) do shared kernel, sem importar este módulo (DEC-072). Desde a US-100
+ * também fornece o cache isolado por tenant (`TenantCache`/`PlatformCache` sobre `CACHE_STORE`) e o
+ * `StorageService` com a guarda de prefixo `tenants/{tenantId}/` (adaptador S3 na US-068).
  */
 @Global()
 @Module({
@@ -39,6 +49,12 @@ import { InternalExampleController } from './presentation/internal-example.contr
     { provide: RATE_LIMIT_STORE, useClass: RedisThrottlerStorage },
     { provide: IDEMPOTENCY_STORE, useClass: RedisIdempotencyStore },
     { provide: AUDIT_SAMPLING_STORE, useClass: RedisAuditSamplingStore },
+    { provide: CACHE_STORE, useClass: RedisCacheStore },
+    TenantCache,
+    PlatformCache,
+    // Adaptador S3/MinIO da US-068; até lá, a guarda de tenant funciona e o adaptador recusa.
+    { provide: OBJECT_STORAGE, useClass: UnconfiguredObjectStorage },
+    StorageService,
     {
       provide: SESSION_REGISTRY,
       inject: [APP_CONFIG],
@@ -66,6 +82,10 @@ import { InternalExampleController } from './presentation/internal-example.contr
     RATE_LIMIT_STORE,
     IDEMPOTENCY_STORE,
     AUDIT_SAMPLING_STORE,
+    CACHE_STORE,
+    TenantCache,
+    PlatformCache,
+    StorageService,
     SESSION_REGISTRY,
     OUTBOX_WRITER,
     SYNC_EVENT_HANDLERS,
