@@ -21,17 +21,28 @@ import {
 } from './application/ports.js';
 import { PreviewDocumentTypeImpactQuery } from './application/preview-document-type-impact.query.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
+import { TemplateContext } from './application/template-context.js';
+import {
+  CreateTemplateCommand,
+  UpdateTemplateCommand,
+  UpdateTemplateVersionContentCommand,
+} from './application/template.commands.js';
+import { TEMPLATE_REPOSITORY } from './application/template.ports.js';
+import { TemplateQueries } from './application/template.queries.js';
 import { UpdateDocumentTypeCommand } from './application/update-document-type.command.js';
 import {
   InMemoryDocumentTransactions,
   InMemoryDocumentTypeRepository,
   StaticDocumentCounter,
 } from './infrastructure/in-memory-document-type.repository.js';
+import { InMemoryTemplateRepository } from './infrastructure/in-memory-template.repository.js';
 import {
   PrismaDocumentTransactions,
   PrismaDocumentTypeRepository,
 } from './infrastructure/prisma-document-type.repository.js';
+import { PrismaTemplateRepository } from './infrastructure/prisma-template.repository.js';
 import { DocumentTypeController } from './presentation/document-type.controller.js';
+import { TemplateController } from './presentation/template.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
@@ -41,7 +52,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `document` (DEC-040, nível 2): outros módulos usam somente as fachadas exportadas. Dono de
- * `DocumentType` (US-061: DTY-01..03, cache por tenant e semeadura dos tipos de sistema); templates,
+ * `DocumentType` (US-061: DTY-01..03, cache por tenant e semeadura dos tipos de sistema) e dos
+ * templates (US-107: TPL-01..04/07/08 e o `TemplateContentValidator`); publicação de templates,
  * documentos e versões chegam com as stories seguintes. Autorização e MFA vêm de `access`/`identity`;
  * a verificação de uso em fluxos publicados, da porta `DocumentTypeUsageProvider` (implementada
  * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040).
@@ -55,7 +67,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentTypeCatalogModule,
     TenantSeedingModule,
   ],
-  controllers: [DocumentTypeController],
+  controllers: [DocumentTypeController, TemplateController],
   providers: [
     DocumentFacade,
     DocumentTypeFacade,
@@ -70,6 +82,22 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     PrismaDocumentTransactions,
     InMemoryDocumentTypeRepository,
     InMemoryDocumentTransactions,
+    TemplateContext,
+    TemplateQueries,
+    CreateTemplateCommand,
+    UpdateTemplateCommand,
+    UpdateTemplateVersionContentCommand,
+    PrismaTemplateRepository,
+    InMemoryTemplateRepository,
+    {
+      provide: TEMPLATE_REPOSITORY,
+      inject: [APP_CONFIG, PrismaTemplateRepository, InMemoryTemplateRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaTemplateRepository,
+        memory: InMemoryTemplateRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
     {
       provide: DOCUMENT_TYPE_REPOSITORY,
       inject: [APP_CONFIG, PrismaDocumentTypeRepository, InMemoryDocumentTypeRepository],

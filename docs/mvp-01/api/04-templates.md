@@ -30,7 +30,7 @@
 - **Response:** `200 { data: Template[], meta }`.
 - **Erros:** — (apenas `200` documentado na fonte; erros genéricos de acesso seguem api.md §2 quando aplicável).
 - **Efeitos:** —
-- **Notas:** Lista usada para seleção de template em `DOC-02`/wizards tipados e para a tela de administração de templates.
+- **Notas:** Lista usada para seleção de template em `DOC-02`/wizards tipados e para a tela de administração de templates. **Implementação (US-107):** filtros `documentTypeId`, `q` (trecho do nome, sem maiúsculas) e `isActive`; `pageSize` padrão 50 (máx. 100); ordenação por nome. `Template` = `{ id, name, description, documentTypeId, documentType: { id, code, name, kind, systemModule, defaultConfidentiality }, isActive, isSystem, draftVersion, currentPublishedVersion, createdAt, updatedAt, version }`, com `draftVersion`/`currentPublishedVersion` = `{ id, versionNumber, status, sectionCount, updatedAt, publishedAt } | null`.
 
 ### TPL-02 — Criar template
 `POST /api/v1/templates` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-107
@@ -116,7 +116,7 @@
   |---|---|---|
   | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
 - **Efeitos:** —
-- **Notas:** `SectionDefinition` (entities.md §5.1): `{ key, title, order, requirement: SectionRequirement, helpText?, legalBasis?, defaultContent?, minChars?, maxChars, render, allowNarrative }`; `SectionRequirement` = `REQUIRED`\|`REQUIRED_OR_JUSTIFY`\|`OPTIONAL` (entities.md).
+- **Notas:** `SectionDefinition` (entities.md §5.1): `{ key, title, order, requirement: SectionRequirement, helpText?, legalBasis?, defaultContent?, minChars?, maxChars, render, allowNarrative }`; `SectionRequirement` = `REQUIRED`\|`REQUIRED_OR_JUSTIFY`\|`OPTIONAL` (entities.md). **Implementação (US-107):** a resposta traz também `templateId`, `templateName`, `documentType` e `importSources` (só TR: `{ sectionKeys, fieldKeys }` — seções da versão publicada do template ETP padrão do tenant, ou as seções de referência do ETP de entities.md §4.8 enquanto não houver, e os campos do cabeçalho do ETP), base do `ImportMappingsPanel`.
 
 ### TPL-08 — Atualizar conteúdo/layout da versão do template
 `PATCH /api/v1/template-versions/{versionId}` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-107, US-109
@@ -140,6 +140,7 @@
   | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`) | `logo.attachmentId` inexistente ou de outro tenant |
 - **Efeitos:** Auditoria `template.update` (`CONFIGURATION`): para conteúdo, resumo (`sectionsChanged[]`, `fieldConfigChanged`, `importMappingsChanged`); para layout, `layoutChangedFields[]` (ex.: `fontFamily`, `logo.attachmentId`).
 - **Notas:** Upload do logo usa o módulo de anexos (`ATT-02` a `ATT-05`, fora desta seção) com `targetType = 'TENANT_ASSET'`. Mapeamento padrão semeado para `importMappings` (ETP → documento): `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION ← NEED_DESCRIPTION + PROBLEM + OBJECTIVE` (`APPEND`); `SPECIFICATIONS ← REQUIREMENTS`; `ESTIMATED_VALUE ← ESTIMATES` (entities.md §5.8).
+- **Implementação (US-107):** `layout` só é aceito a partir da US-109 (até lá, campo desconhecido → `VALIDATION_ERROR`). Os achados de `TEMPLATE_INVALID` vão em `violations[]` (api.md §2.1.2, `severity = BLOCKING`, `sectionKey` quando aplicável) com os códigos `TEMPLATE_SECTION_KEY_INVALID`, `TEMPLATE_SECTION_KEY_DUPLICATE`, `TEMPLATE_SECTION_ORDER_INVALID`, `TEMPLATE_RENDER_NOT_ALLOWED`, `TEMPLATE_VARIABLE_UNKNOWN` (`params.variable`, `field` = `helpText`\|`defaultContent`), `TEMPLATE_FIELD_CONFIG_NOT_ALLOWED`, `TEMPLATE_FIELD_UNKNOWN`, `TEMPLATE_IMPORT_MAPPINGS_NOT_ALLOWED`, `TEMPLATE_IMPORT_TARGET_UNKNOWN`, `TEMPLATE_IMPORT_TARGET_DUPLICATE`, `TEMPLATE_IMPORT_SOURCE_UNKNOWN` e `TEMPLATE_IMPORT_FIELD_UNKNOWN`. No rascunho, o `TemplateContentValidator` confere as partes enviadas no corpo (seções, `fieldConfig`, `importMappings`) sobre o conteúdo resultante — um mapeamento já salvo não impede adicionar seções antes de ajustá-lo —; a publicação (US-108) confere tudo. Corpo sem mudança → 200 com o mesmo `ETag`, sem auditoria. `defaultContent` é conferido contra o schema permitido de nós/marks (DEC-056) → nó desconhecido é `VALIDATION_ERROR`.
 
 ### TPL-09 — Solicitar prévia da versão do template
 `POST /api/v1/template-versions/{versionId}/preview` · **Permissão:** `TEMPLATE_VIEW` · **Story:** US-109

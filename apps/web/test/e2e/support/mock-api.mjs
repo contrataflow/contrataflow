@@ -271,6 +271,87 @@ function roleSummary(role) {
   return summary;
 }
 
+// Templates (US-107 · TPL-01..04/07/08): template + versão 1 em rascunho; o PATCH da versão
+// recusa variável desconhecida com 422 TEMPLATE_INVALID na seção (o resto das regras é da API).
+const templates = [];
+const templateVersions = [];
+const KNOWN_VARIABLES = new Set([
+  'tenant.name',
+  'organization.name',
+  'organization.cnpj',
+  'organization.address',
+  'process.code',
+  'process.title',
+  'process.object',
+  'process.requestingSecretariat',
+  'process.requestingDepartment',
+  'document.code',
+  'document.title',
+  'document.date',
+  'today',
+  'user.name',
+]);
+const TEMPLATE_LAYOUT = {
+  pageSize: 'A4',
+  orientation: 'portrait',
+  marginsMm: { top: 20, right: 20, bottom: 20, left: 20 },
+  fontFamily: 'Inter',
+  fontSizePt: 11,
+  lineHeight: 1.15,
+  showPageNumbers: true,
+  showDocumentHashInFooter: true,
+  draftWatermark: true,
+};
+function mockUuid() {
+  return `0192a000-0000-7000-8000-${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+}
+function templateTypeOf(template) {
+  const type = documentTypes.find((item) => item.id === template.documentTypeId);
+  return {
+    id: type.id,
+    code: type.code,
+    name: type.name,
+    kind: type.kind,
+    systemModule: type.systemModule,
+    defaultConfidentiality: type.defaultConfidentiality,
+  };
+}
+function templateView(template) {
+  const draft = templateVersions.find(
+    (version) => version.templateId === template.id && version.status === 'DRAFT',
+  );
+  return {
+    ...template,
+    documentType: templateTypeOf(template),
+    draftVersion: draft
+      ? {
+          id: draft.id,
+          versionNumber: draft.versionNumber,
+          status: draft.status,
+          sectionCount: draft.sections.length,
+          updatedAt: draft.updatedAt,
+          publishedAt: null,
+        }
+      : null,
+    currentPublishedVersion: null,
+  };
+}
+function templateVersionView(version) {
+  const template = templates.find((item) => item.id === version.templateId);
+  return { ...version, templateName: template.name, documentType: templateTypeOf(template) };
+}
+function textOf(node) {
+  if (!node) return '';
+  if (node.type === 'text') return node.text ?? '';
+  return (node.content ?? []).map(textOf).join('\n');
+}
+function unknownVariables(section) {
+  const text = `${section.helpText ?? ''} ${textOf(section.defaultContent)}`;
+  return [...text.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)]
+    .map((match) => match[1])
+    .filter((name) => !KNOWN_VARIABLES.has(name));
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   response.end(body === undefined ? '' : JSON.stringify(body));
@@ -358,6 +439,8 @@ createServer(async (request, response) => {
             { code: 'ROLE_VIEW', scopes: [] },
             { code: 'ROLE_MANAGE', scopes: [] },
             { code: 'DEPARTMENT_MANAGE', scopes: [] },
+            { code: 'TEMPLATE_VIEW', scopes: [] },
+            { code: 'TEMPLATE_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -791,6 +874,139 @@ createServer(async (request, response) => {
     }
     Object.assign(organization, body, { version: organization.version + 1 });
     return send(response, 200, { data: organization }, { ETag: `"${organization.version}"` });
+  }
+  if (url.pathname === '/api/v1/templates' && request.method === 'GET') {
+    const data = [...templates]
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      .map(templateView);
+    return send(response, 200, {
+      data,
+      meta: { page: 1, pageSize: 100, totalItems: data.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/templates' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const lower = String(body.name ?? '')
+      .trim()
+      .toLowerCase();
+    const taken = templates.some(
+      (item) => item.documentTypeId === body.documentTypeId && item.name.toLowerCase() === lower,
+    );
+    if (taken) return problem(response, 409, 'TEMPLATE_NAME_TAKEN', String(correlationId));
+    const now = new Date().toISOString();
+    const template = {
+      id: mockUuid(),
+      name: String(body.name).trim(),
+      description: body.description ?? null,
+      documentTypeId: body.documentTypeId,
+      isActive: true,
+      isSystem: false,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    };
+    templates.push(template);
+    templateVersions.push({
+      id: mockUuid(),
+      templateId: template.id,
+      versionNumber: 1,
+      status: 'DRAFT',
+      sections: [],
+      fieldConfig: {},
+      importMappings: null,
+      layout: TEMPLATE_LAYOUT,
+      changeNotes: null,
+      importSources: null,
+      publishedAt: null,
+      retiredAt: null,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    });
+    return send(
+      response,
+      201,
+      { data: templateView(template) },
+      { Location: `/api/v1/templates/${template.id}`, ETag: '"1"' },
+    );
+  }
+  const templateVersionRoute = /^\/api\/v1\/template-versions\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (templateVersionRoute) {
+    const version = templateVersions.find((item) => item.id === templateVersionRoute[1]);
+    if (!version) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (request.method === 'GET') {
+      return send(
+        response,
+        200,
+        { data: templateVersionView(version) },
+        { ETag: `"${version.version}"` },
+      );
+    }
+    if (request.method === 'PATCH') {
+      if (String(request.headers['if-match'] ?? '') !== `"${version.version}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const violations = (body.sections ?? []).flatMap((section) =>
+        unknownVariables(section).map((name) => ({
+          code: 'TEMPLATE_VARIABLE_UNKNOWN',
+          severity: 'BLOCKING',
+          message: `A variável {{${name}}} não é reconhecida.`,
+          ruleId: null,
+          sectionKey: section.key,
+          field: 'defaultContent',
+          itemId: null,
+          params: { variable: name },
+        })),
+      );
+      if (violations.length > 0) {
+        return send(
+          response,
+          422,
+          {
+            type: 'https://docs.contrataflow.com.br/errors/template-invalid',
+            title: 'Template inválido',
+            status: 422,
+            detail: violations[0].message,
+            instance: url.pathname,
+            code: 'TEMPLATE_INVALID',
+            correlationId: String(correlationId),
+            errors: [],
+            violations,
+          },
+          { 'Content-Type': 'application/problem+json' },
+        );
+      }
+      Object.assign(version, body, {
+        version: version.version + 1,
+        updatedAt: new Date().toISOString(),
+      });
+      return send(
+        response,
+        200,
+        { data: templateVersionView(version) },
+        { ETag: `"${version.version}"` },
+      );
+    }
+  }
+  const templateRoute = /^\/api\/v1\/templates\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (templateRoute) {
+    const template = templates.find((item) => item.id === templateRoute[1]);
+    if (!template) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (request.method === 'GET') return send(response, 200, { data: templateView(template) });
+    if (request.method === 'PATCH') {
+      if (String(request.headers['if-match'] ?? '') !== `"${template.version}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      Object.assign(template, body, { version: template.version + 1 });
+      return send(
+        response,
+        200,
+        { data: templateView(template) },
+        { ETag: `"${template.version}"` },
+      );
+    }
   }
   const documentTypeRoute = /^\/api\/v1\/document-types\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (documentTypeRoute && request.method === 'PATCH') {

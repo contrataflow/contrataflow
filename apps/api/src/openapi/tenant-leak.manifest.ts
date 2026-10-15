@@ -67,6 +67,9 @@ const PLATFORM_ROUTE =
 const WORKFLOW_ROUTE =
   'Workflows (US-040): exige WORKFLOW_VIEW/WORKFLOW_MANAGE e a suíte genérica ainda não tem fixture de workflow do tenant B; o isolamento (404 em WF-03/04/07..18 com ids de B, 422 REFERENCE_NOT_FOUND em toStageId/copyFromVersionId de B e RLS das 5 tabelas) é coberto em test/tenant-leak/workflows.spec.ts, com administradores nos dois tenants.';
 
+const TEMPLATE_ROUTE =
+  'Templates (US-107): exige TEMPLATE_VIEW/TEMPLATE_MANAGE e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/07/08 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
+
 /** Classificação por `operationId`. */
 export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Object.freeze({
   'ME-01': { kind: 'covered' },
@@ -124,6 +127,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-16': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-17': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-18': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'TPL-01': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-02': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-03': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-04': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-07': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-08': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'ROL-01': {
     kind: 'exempt',
     reason:

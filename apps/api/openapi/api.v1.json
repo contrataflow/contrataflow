@@ -321,6 +321,679 @@
           "readOnly"
         ]
       },
+      "TemplateVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateName": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "RETIRED"
+            ]
+          },
+          "documentType": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "STRUCTURED",
+                  "FREE_TEXT",
+                  "UPLOADED"
+                ]
+              },
+              "systemModule": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "DFD",
+                  "ETP",
+                  "TERM_OF_REFERENCE",
+                  "RISK_MAP",
+                  "PRICE_RESEARCH",
+                  null
+                ]
+              },
+              "defaultConfidentiality": {
+                "type": "string",
+                "enum": [
+                  "PUBLIC",
+                  "INTERNAL",
+                  "RESTRICTED"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "name",
+              "kind",
+              "systemModule",
+              "defaultConfidentiality"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 150
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "requirement": {
+                  "type": "string",
+                  "enum": [
+                    "REQUIRED",
+                    "REQUIRED_OR_JUSTIFY",
+                    "OPTIONAL"
+                  ],
+                  "default": "REQUIRED"
+                },
+                "helpText": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "legalBasis": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "defaultContent": {
+                  "$ref": "#/components/schemas/TipTapDoc"
+                },
+                "minChars": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "maxChars": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000,
+                  "default": 50000
+                },
+                "render": {
+                  "type": "string",
+                  "enum": [
+                    "TEXT",
+                    "ITEMS_TABLE",
+                    "ALTERNATIVES_TABLE",
+                    "RISK_MATRIX",
+                    "RISK_LIST",
+                    "PRICE_SUMMARY",
+                    "ESTIMATED_VALUE"
+                  ],
+                  "default": "TEXT"
+                },
+                "allowNarrative": {
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "order"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "fieldConfig": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 150
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "defaultValue": {}
+              },
+              "additionalProperties": false
+            }
+          },
+          "importMappings": {
+            "$ref": "#/components/schemas/ImportMappings"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/LayoutDefinition"
+          },
+          "changeNotes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "importSources": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sectionKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fieldKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "sectionKeys",
+              "fieldKeys"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "retiredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "templateId",
+          "templateName",
+          "versionNumber",
+          "status",
+          "documentType",
+          "sections",
+          "fieldConfig",
+          "importMappings",
+          "layout",
+          "changeNotes",
+          "importSources",
+          "publishedAt",
+          "retiredAt",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "TipTapDoc": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "doc"
+            ]
+          },
+          "content": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": {}
+      },
+      "ImportMappings": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "fromDocumentType": {
+            "type": "string",
+            "enum": [
+              "ETP"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "minItems": 1,
+                  "maxItems": 20
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "REPLACE",
+                    "APPEND"
+                  ]
+                }
+              },
+              "required": [
+                "target",
+                "sources",
+                "mode"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 200
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                }
+              },
+              "required": [
+                "target",
+                "source"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "copyQuantities": {
+                "type": "boolean"
+              },
+              "copyCalculationMemoToNotes": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "copyQuantities",
+              "copyCalculationMemoToNotes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "fromDocumentType",
+          "sections",
+          "fields",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "LayoutDefinition": {
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "type": "string",
+            "enum": [
+              "A4"
+            ]
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "portrait",
+              "landscape"
+            ]
+          },
+          "marginsMm": {
+            "type": "object",
+            "properties": {
+              "top": {
+                "type": "number"
+              },
+              "right": {
+                "type": "number"
+              },
+              "bottom": {
+                "type": "number"
+              },
+              "left": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "top",
+              "right",
+              "bottom",
+              "left"
+            ]
+          },
+          "fontFamily": {
+            "type": "string",
+            "enum": [
+              "Inter",
+              "Arial",
+              "Times New Roman",
+              "Liberation Serif"
+            ]
+          },
+          "fontSizePt": {
+            "type": "number"
+          },
+          "lineHeight": {
+            "type": "number"
+          },
+          "header": {
+            "$ref": "#/components/schemas/TipTapDoc"
+          },
+          "footer": {
+            "$ref": "#/components/schemas/TipTapDoc"
+          },
+          "logo": {
+            "type": "object",
+            "properties": {
+              "attachmentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "center",
+                  "right"
+                ]
+              },
+              "maxHeightMm": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "attachmentId",
+              "position",
+              "maxHeightMm"
+            ]
+          },
+          "showPageNumbers": {
+            "type": "boolean"
+          },
+          "showDocumentHashInFooter": {
+            "type": "boolean"
+          },
+          "draftWatermark": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pageSize",
+          "orientation",
+          "marginsMm",
+          "fontFamily",
+          "fontSizePt",
+          "lineHeight",
+          "showPageNumbers",
+          "showDocumentHashInFooter",
+          "draftWatermark"
+        ]
+      },
+      "Template": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documentTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentType": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "STRUCTURED",
+                  "FREE_TEXT",
+                  "UPLOADED"
+                ]
+              },
+              "systemModule": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "DFD",
+                  "ETP",
+                  "TERM_OF_REFERENCE",
+                  "RISK_MAP",
+                  "PRICE_RESEARCH",
+                  null
+                ]
+              },
+              "defaultConfidentiality": {
+                "type": "string",
+                "enum": [
+                  "PUBLIC",
+                  "INTERNAL",
+                  "RESTRICTED"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "name",
+              "kind",
+              "systemModule",
+              "defaultConfidentiality"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "draftVersion": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "PUBLISHED",
+                  "RETIRED"
+                ]
+              },
+              "sectionCount": {
+                "type": "integer"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "publishedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "versionNumber",
+              "status",
+              "sectionCount",
+              "updatedAt",
+              "publishedAt"
+            ]
+          },
+          "currentPublishedVersion": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "PUBLISHED",
+                  "RETIRED"
+                ]
+              },
+              "sectionCount": {
+                "type": "integer"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "publishedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "versionNumber",
+              "status",
+              "sectionCount",
+              "updatedAt",
+              "publishedAt"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "documentTypeId",
+          "documentType",
+          "isActive",
+          "isSystem",
+          "draftVersion",
+          "currentPublishedVersion",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
       "WorkflowRule": {
         "type": "object",
         "properties": {
@@ -11900,6 +12573,947 @@
                     "data": {
                       "type": "object",
                       "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/template-versions/{versionId}": {
+      "get": {
+        "operationId": "TPL-07",
+        "summary": "Consultar versão do template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Versão com seções, `fieldConfig`, `importMappings` e layout (`ETag` = versão).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TemplateVersion"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "TPL-08",
+        "summary": "Atualizar conteúdo da versão do template (rascunho)",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "template.update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 150
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "requirement": {
+                          "type": "string",
+                          "enum": [
+                            "REQUIRED",
+                            "REQUIRED_OR_JUSTIFY",
+                            "OPTIONAL"
+                          ],
+                          "default": "REQUIRED"
+                        },
+                        "helpText": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "legalBasis": {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        "defaultContent": {
+                          "$ref": "#/components/schemas/TipTapDoc"
+                        },
+                        "minChars": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "maxChars": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000,
+                          "default": 50000
+                        },
+                        "render": {
+                          "type": "string",
+                          "enum": [
+                            "TEXT",
+                            "ITEMS_TABLE",
+                            "ALTERNATIVES_TABLE",
+                            "RISK_MATRIX",
+                            "RISK_LIST",
+                            "PRICE_SUMMARY",
+                            "ESTIMATED_VALUE"
+                          ],
+                          "default": "TEXT"
+                        },
+                        "allowNarrative": {
+                          "type": "boolean",
+                          "default": true
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "title",
+                        "order"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 200
+                  },
+                  "fieldConfig": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 150
+                        },
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "defaultValue": {}
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "importMappings": {
+                    "$ref": "#/components/schemas/ImportMappings"
+                  },
+                  "changeNotes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1000
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rascunho atualizado (novo `ETag`); conteúdo inválido → 422 `TEMPLATE_INVALID` com `violations[]`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TemplateVersion"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templates": {
+      "get": {
+        "operationId": "TPL-01",
+        "summary": "Listar templates",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "documentTypeId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 150
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "isActive",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates do tenant por nome (filtros `documentTypeId`, `q` e `isActive`), com o rascunho e a versão publicada de cada um.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Template"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "TPL-02",
+        "summary": "Criar template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "template.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 150
+                  },
+                  "documentTypeId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "name",
+                  "documentTypeId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template criado com a versão 1 em `DRAFT` (`Location` e `ETag` = versão).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templates/{id}": {
+      "get": {
+        "operationId": "TPL-03",
+        "summary": "Consultar template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template (`ETag` = versão).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "TPL-04",
+        "summary": "Atualizar dados do template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "template.update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 150
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadados atualizados (novo `ETag`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
                     }
                   },
                   "required": [

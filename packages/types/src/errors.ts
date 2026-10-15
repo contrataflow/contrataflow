@@ -41,6 +41,10 @@ export const ERROR_CODES = [
   'LAST_ADMIN_REQUIRED',
   'DEPARTMENT_CYCLE',
   'DEPARTMENT_HAS_REFERENCES',
+  'TEMPLATE_NAME_TAKEN',
+  'TEMPLATE_INVALID',
+  'TEMPLATE_VERSION_NOT_DRAFT',
+  'TEMPLATE_DRAFT_EXISTS',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -187,6 +187,26 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Unidade em uso',
     detail: 'Esta unidade está em uso e não pode ser excluída. Desative-a.',
   },
+  TEMPLATE_NAME_TAKEN: {
+    status: 409,
+    title: 'Nome de template em uso',
+    detail: 'Já existe um template com este nome para o tipo selecionado.',
+  },
+  TEMPLATE_INVALID: {
+    status: 422,
+    title: 'Template inválido',
+    detail: 'O template tem problemas de conteúdo. Revise as seções destacadas.',
+  },
+  TEMPLATE_VERSION_NOT_DRAFT: {
+    status: 409,
+    title: 'Versão do template não editável',
+    detail: 'Esta versão está publicada e não pode ser alterada.',
+  },
+  TEMPLATE_DRAFT_EXISTS: {
+    status: 409,
+    title: 'Rascunho já existente',
+    detail: 'Já existe um rascunho em edição para este template.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

@@ -399,7 +399,7 @@ enum Confidentiality {
 
 /// entities.md `DocumentType` (módulo document · US-061): catálogo de tipos do tenant, nunca
 /// excluído (RN-DOC-11). `code`, `kind`, `systemModule` e `isSystem` são imutáveis por trigger.
-/// A FK de `defaultTemplateId` → `document_templates` entra com a US-107. Checks, trigger e RLS
+/// A FK composta de `defaultTemplateId` → `document_templates` vem da US-107. Checks, trigger e RLS
 /// ficam em SQL bruto na migração; o índice `(tenantId, code)` aqui é o único de unicidade.
 model DocumentType {
   id                      String                @id @db.Uuid
@@ -950,4 +950,67 @@ model WorkflowRule {
   @@unique([tenantId, id], map: "workflow_rules_tenant_id_id_key")
   @@index([tenantId, workflowVersionId], map: "workflow_rules_version_idx")
   @@map("workflow_rules")
+}
+
+/// entities.md §2 — `TemplateVersionStatus`.
+enum TemplateVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+
+  @@map("template_version_status")
+}
+
+/// entities.md `DocumentTemplate` (módulo document · US-107): modelo de documento por tipo. O
+/// `documentTypeId` é imutável (gatilho) e a unicidade do nome por tipo sem diferenciar maiúsculas
+/// (`(tenant_id, document_type_id, lower(name))`) é índice de expressão na migração.
+model DocumentTemplate {
+  id                        String   @id @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  documentTypeId            String   @map("document_type_id") @db.Uuid
+  name                      String   @db.VarChar(150)
+  description               String?
+  isActive                  Boolean  @default(true) @map("is_active")
+  isSystem                  Boolean  @default(false) @map("is_system")
+  currentPublishedVersionId String?  @map("current_published_version_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?  @map("created_by_id") @db.Uuid
+  updatedById               String?  @map("updated_by_id") @db.Uuid
+  version                   Int      @default(1)
+
+  @@unique([tenantId, id], map: "document_templates_tenant_id_id_key")
+  @@index([tenantId, documentTypeId], map: "document_templates_type_idx")
+  @@map("document_templates")
+}
+
+/// entities.md `DocumentTemplateVersion` (módulo document · US-107/US-108): conteúdo versionado do
+/// template. Só o rascunho é editável (gatilho `trg_template_version_immutable`); no máximo um
+/// rascunho por template (índice único parcial na migração).
+model DocumentTemplateVersion {
+  id             String                @id @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  templateId     String                @map("template_id") @db.Uuid
+  versionNumber  Int                   @map("version_number")
+  status         TemplateVersionStatus @default(DRAFT)
+  sections       Json                  @default("[]") @db.JsonB
+  layout         Json                  @db.JsonB
+  fieldConfig    Json                  @default("{}") @map("field_config") @db.JsonB
+  importMappings Json?                 @map("import_mappings") @db.JsonB
+  changeNotes    String?               @map("change_notes")
+  publishedAt    DateTime?             @map("published_at") @db.Timestamptz(6)
+  publishedById  String?               @map("published_by_id") @db.Uuid
+  retiredAt      DateTime?             @map("retired_at") @db.Timestamptz(6)
+  retiredById    String?               @map("retired_by_id") @db.Uuid
+  contentHash    String?               @map("content_hash") @db.VarChar(64)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?               @map("created_by_id") @db.Uuid
+  updatedById    String?               @map("updated_by_id") @db.Uuid
+  version        Int                   @default(1)
+
+  @@unique([tenantId, id], map: "document_template_versions_tenant_id_id_key")
+  @@unique([tenantId, templateId, versionNumber], map: "document_template_versions_number_key")
+  @@index([tenantId, templateId], map: "document_template_versions_single_draft_key")
+  @@map("document_template_versions")
 }
