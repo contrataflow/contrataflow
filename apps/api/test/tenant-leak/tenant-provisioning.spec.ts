@@ -38,6 +38,7 @@ const TENANT_TABLES = [
   'roles',
   'role_permissions',
   'document_types',
+  'organizations',
   'tenant_memberships',
   'audit_logs',
   'outbox_events',
@@ -162,12 +163,45 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
       expect(row).toMatchObject({ status: 'ACTIVE', version: 2 });
       expect(row?.activated_at).toBeInstanceOf(Date);
       const counts = await countsOf(tenant.id);
-      expect(counts).toMatchObject({ roles: 15, document_types: 11, tenant_memberships: 1 });
+      expect(counts).toMatchObject({
+        roles: 15,
+        document_types: 11,
+        organizations: 1,
+        tenant_memberships: 1,
+      });
       const [admin] = await db.admin<{ protected: boolean }>(
         `SELECT is_protected AS protected FROM roles WHERE tenant_id = $1 AND key = 'ADMIN_ORGAO'`,
         [tenant.id],
       );
       expect(admin?.protected).toBe(true);
+    });
+
+    it('órgão principal do tenant.json criado e apontado por tenants.primary_organization_id (US-101)', async () => {
+      const [org] = await db.admin<{
+        id: string;
+        short_name: string;
+        cnpj: string;
+        is_active: boolean;
+      }>('SELECT id, short_name, cnpj, is_active FROM organizations WHERE tenant_id = $1', [
+        tenant.id,
+      ]);
+      expect(org).toMatchObject({ short_name: 'PMSJ', cnpj: '11222333000181', is_active: true });
+      const [row] = await db.admin<{ primary_organization_id: string }>(
+        'SELECT primary_organization_id FROM tenants WHERE id = $1',
+        [tenant.id],
+      );
+      expect(row?.primary_organization_id).toBe(org?.id);
+      const trail = await db.admin<{ actor_type: string; metadata: Record<string, unknown> }>(
+        `SELECT actor_type, metadata FROM audit_logs
+          WHERE tenant_id = $1 AND action = 'organization.create'`,
+        [tenant.id],
+      );
+      expect(trail).toEqual([
+        expect.objectContaining({
+          actor_type: 'SYSTEM',
+          metadata: expect.objectContaining({ seeded: true, principal: true }) as unknown,
+        }),
+      ]);
     });
 
     it('vínculo INTERNAL INVITED do administrador, identidade criada sem sub', async () => {

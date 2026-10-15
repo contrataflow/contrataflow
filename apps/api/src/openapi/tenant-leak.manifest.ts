@@ -40,6 +40,9 @@ const EXAMPLE_ROUTE =
 const DOCUMENT_TYPE_ADMIN_ROUTE =
   'Exige DOCUMENT_TYPE_MANAGE (que o usuário comum da suíte não tem): isolamento coberto em test/tenant-leak/document-types.spec.ts, com administradores nos dois tenants.';
 
+const ORGANIZATION_ROUTE =
+  'Órgãos (US-101): a suíte genérica ainda não tem fixture de órgão do tenant B; o isolamento (404 em ORG-03/04 e lista sem vazamento de B) é coberto em test/tenant-leak/organizations.spec.ts, com administradores nos dois tenants.';
+
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
@@ -56,6 +59,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
     kind: 'exempt',
     reason: DOCUMENT_TYPE_ADMIN_ROUTE,
   },
+  'ORG-01': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
+  'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
+  'ORG-03': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
+  'ORG-04': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ROL-01': {
     kind: 'exempt',
     reason:

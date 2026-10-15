@@ -6,6 +6,8 @@
  */
 export const DOMAIN_EVENT_NAMES = [
   'DocumentTypeChanged',
+  'OrganizationCreated',
+  'OrganizationUpdated',
   'TenantProvisioned',
   'TenantActivated',
   'TenantSuspended',

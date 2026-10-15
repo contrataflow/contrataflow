@@ -107,6 +107,17 @@ export class PrismaTenantAdminRepository implements TenantAdminRepository {
     return toDomain(row);
   }
 
+  async setPrimaryOrganization(
+    tx: TenantTx,
+    tenantId: string,
+    organizationId: string,
+  ): Promise<void> {
+    await tx.tenant.update({
+      where: { id: tenantId },
+      data: { primaryOrganizationId: organizationId },
+    });
+  }
+
   async provisionRecorded(tx: TenantTx, tenantId: string): Promise<boolean> {
     // Política `platform_role_select` (US-100): o cf_platform lê as ações de operadores.
     const found = await tx.auditLog.findFirst({

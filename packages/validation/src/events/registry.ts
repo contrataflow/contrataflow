@@ -1,6 +1,8 @@
 import type { AnyDomainEventDefinition } from './define.js';
 import { DocumentTypeChanged } from '../document/events.js';
 import {
+  OrganizationCreated,
+  OrganizationUpdated,
   TenantActivated,
   TenantDeactivated,
   TenantOffboarded,
@@ -16,6 +18,8 @@ import {
  */
 export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDefinition>> = {
   DocumentTypeChanged,
+  OrganizationCreated,
+  OrganizationUpdated,
   TenantProvisioned,
   TenantActivated,
   TenantSuspended,

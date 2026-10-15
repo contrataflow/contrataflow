@@ -49,6 +49,36 @@ const documentTypes = [
   version: 1,
 }));
 
+// Órgãos (US-101 · ORG-01..04): um órgão principal ativo e um fundo, só o necessário para o SCR-032.
+const organizations = [
+  ['PMSJ', 'Prefeitura Municipal de São José', '11222333000181', 'DIRECT_ADMINISTRATION'],
+  ['FMS', 'Fundo Municipal de Saúde', '11444777000161', 'FUND'],
+].map(([shortName, name, cnpj, type], index) => ({
+  id: `0192a000-0000-7000-8000-00000000f1${String(index).padStart(2, '0')}`,
+  name,
+  shortName,
+  cnpj,
+  type,
+  isActive: true,
+  isPrimary: index === 0,
+  email: null,
+  phone: null,
+  website: null,
+  addressStreet: null,
+  addressNumber: null,
+  addressComplement: null,
+  addressDistrict: null,
+  addressCity: null,
+  addressState: null,
+  addressZipCode: null,
+  ibgeCityCode: null,
+  logoAttachmentId: null,
+  metadata: {},
+  createdAt: '2026-10-15T12:00:00.000Z',
+  updatedAt: '2026-10-15T12:00:00.000Z',
+  version: 1,
+}));
+
 function previewOf(type) {
   if (!type.numberingEnabled) return null;
   const mask = type.numberingMask ?? '{type} {seq:4}/{year}';
@@ -131,6 +161,7 @@ createServer(async (request, response) => {
         ? [
             { code: 'PROCESS_CREATE', scopes: ['TENANT'] },
             { code: 'DOCUMENT_TYPE_MANAGE', scopes: [] },
+            { code: 'ORGANIZATION_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -207,6 +238,59 @@ createServer(async (request, response) => {
         Location: `/api/v1/document-types/${created.id}`,
       },
     );
+  }
+  if (url.pathname === '/api/v1/organizations' && request.method === 'GET') {
+    const list = [...organizations].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return send(response, 200, {
+      data: list,
+      meta: { page: 1, pageSize: 100, totalItems: list.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/organizations' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const shortName = String(body.shortName ?? '').toUpperCase();
+    const cnpj = String(body.cnpj ?? '').replace(/[./-]/g, '');
+    if (organizations.some((org) => org.shortName === shortName || org.cnpj === cnpj)) {
+      return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+    }
+    const created = {
+      ...organizations[1],
+      id: randomUUID(),
+      name: body.name,
+      shortName,
+      cnpj,
+      type: body.type,
+      isPrimary: false,
+      isActive: true,
+      version: 1,
+    };
+    organizations.push(created);
+    return send(
+      response,
+      201,
+      { data: created },
+      { ETag: '"1"', Location: `/api/v1/organizations/${created.id}` },
+    );
+  }
+  const organizationRoute = /^\/api\/v1\/organizations\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (organizationRoute && request.method === 'GET') {
+    const organization = organizations.find((item) => item.id === organizationRoute[1]);
+    if (!organization) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    return send(response, 200, { data: organization }, { ETag: `"${organization.version}"` });
+  }
+  if (organizationRoute && request.method === 'PATCH') {
+    const organization = organizations.find((item) => item.id === organizationRoute[1]);
+    if (!organization) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${organization.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const others = organizations.filter((item) => item !== organization && item.isActive);
+    if (body.isActive === false && (organization.isPrimary || others.length === 0)) {
+      return problem(response, 409, 'PRIMARY_ORGANIZATION_REQUIRED', String(correlationId));
+    }
+    Object.assign(organization, body, { version: organization.version + 1 });
+    return send(response, 200, { data: organization }, { ETag: `"${organization.version}"` });
   }
   const documentTypeRoute = /^\/api\/v1\/document-types\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (documentTypeRoute && request.method === 'PATCH') {

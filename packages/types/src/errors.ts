@@ -29,6 +29,7 @@ export const ERROR_CODES = [
   'APPROVER_UNRESOLVED',
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
+  'PRIMARY_ORGANIZATION_REQUIRED',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

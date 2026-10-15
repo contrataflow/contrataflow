@@ -331,6 +331,7 @@ modules/<modulo>/
 ```
 - `domain` não depende de NestJS, Prisma ou qualquer infraestrutura.
 - Dependências entre módulos somente via `application/<modulo>.facade.ts` ou eventos. Proibido importar `infrastructure`/`domain` de outro módulo (verificado por `dependency-cruiser` no CI).
+- **Exceção registrada (US-101):** `tenancy` (nível 1) importa as fachadas de `access` e `identity` (mesmo nível; `allow` em `tools/module-levels.json`) porque os casos de uso de órgão (ORG-01..04) são do `tenancy` e exigem `AccessFacade.assertCan` e `IdentityFacade.mfaPolicy`. `access` e `identity` não importam `tenancy` (sem ciclo).
 - Operações que alteram mais de um agregado (ex.: tramitação + aprovação + documento) usam **uma transação** coordenada por um caso de uso (Unit of Work), aceitável no monólito modular.
 
 ---

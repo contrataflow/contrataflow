@@ -53,3 +53,27 @@ export const TenantDeactivated = defineDomainEvent({
   payload: tenantPayload,
   routingKey: 'tenant.deactivated',
 });
+
+/*
+ * Eventos do agregado `Organization` (events.md §4 · US-101): gravados no commit da criação e da
+ * atualização do órgão, com o `tenantId` do contexto da requisição.
+ */
+
+export const OrganizationCreated = defineDomainEvent({
+  eventType: 'OrganizationCreated',
+  eventVersion: 1,
+  aggregateType: 'Organization',
+  payload: z.strictObject({ organizationId: z.uuid() }),
+  routingKey: 'organization.created',
+});
+
+export const OrganizationUpdated = defineDomainEvent({
+  eventType: 'OrganizationUpdated',
+  eventVersion: 1,
+  aggregateType: 'Organization',
+  payload: z.strictObject({
+    organizationId: z.uuid(),
+    changedFields: z.array(z.string().min(1).max(60)).max(40),
+  }),
+  routingKey: 'organization.updated',
+});

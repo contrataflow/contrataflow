@@ -126,6 +126,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Instituição não encontrada',
     detail: 'Instituição não encontrada.',
   },
+  PRIMARY_ORGANIZATION_REQUIRED: {
+    status: 409,
+    title: 'Órgão principal obrigatório',
+    detail: 'Este é o único órgão ativo e não pode ser inativado.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

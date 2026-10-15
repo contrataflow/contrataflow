@@ -575,10 +575,10 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** query `isActive` (boolean, Não), `q` (string, Não, busca textual mín. 2 caracteres); paginação padrão (api.md §1.2); ordenação: a definir na implementação
 - **Request:** —
-- **Response:** `200 { data: Organization[], meta }`
+- **Response:** `200 { data: Organization[], meta }` — ordenada por nome; `Organization` traz `isPrimary` (= `tenants.primaryOrganizationId`)
 - **Erros:** —
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** `q` busca em nome, sigla e CNPJ (com ou sem máscara).
 
 ### ORG-02 — Criar órgão
 `POST /api/v1/organizations` · **Permissão:** `ORGANIZATION_MANAGE` · **Story:** US-101
@@ -602,7 +602,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 422 | `VALIDATION_ERROR` | `REQUIRED`/`INVALID_FORMAT` (`shortName`, `website`)/`INVALID_CNPJ` |
 
 - **Efeitos:** Evento `OrganizationCreated` (`organization.created`); auditoria `organization.create` (`DATA_CHANGE`, `changes`: campos não sensíveis).
-- **Notas:** RN-TEN-41/42/43.
+- **Notas:** RN-TEN-41/42/43. `shortName` é gravado em maiúsculas e `cnpj` sem máscara; sigla ou CNPJ repetidos no tenant → `422 VALIDATION_ERROR` (`INVALID_FORMAT` em `shortName` / `INVALID_CNPJ` em `cnpj`); `metadata`, `isActive` e `logoAttachmentId` enviados na criação são descartados.
 
 ### ORG-03 — Consultar órgão
 `GET /api/v1/organizations/{id}` · **Permissão:** implícita · **Story:** US-101
@@ -637,7 +637,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 422 | `VALIDATION_ERROR` | Mesmos códigos de `ORG-02`; `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `logoAttachmentId` |
 
 - **Efeitos:** Evento `OrganizationUpdated` (`organization.updated`, `changedFields[]`); auditoria `organization.update` (`DATA_CHANGE`, valores anterior/novo).
-- **Notas:** RN-TEN-41 — `PRIMARY_ORGANIZATION_REQUIRED` protege o último órgão ativo do tenant.
+- **Notas:** RN-TEN-41 — `PRIMARY_ORGANIZATION_REQUIRED` protege o órgão principal e o último órgão ativo do tenant. `412 VERSION_CONFLICT` traz `currentVersion` (versão atual do órgão). Campo opcional é limpo com `null`; corpo sem mudança → `200` sem nova versão, auditoria nem evento.
 
 ### DEP-01 — Listar secretarias/setores
 `GET /api/v1/departments` · **Permissão:** implícita · **Story:** US-102

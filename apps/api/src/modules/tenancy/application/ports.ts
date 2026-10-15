@@ -69,6 +69,11 @@ export interface TenantAdminRepository {
     patch: TenantLifecyclePatch,
     now: Date,
   ): Promise<Tenant>;
+  /**
+   * Aponta `tenants.primary_organization_id` para o órgão principal semeado (US-101). Idempotente;
+   * não muda a versão do tenant (não é transição de ciclo de vida).
+   */
+  setPrimaryOrganization(tx: TenantTx, tenantId: string, organizationId: string): Promise<void>;
   /** Já existe a auditoria `tenant.provision` com sucesso (o `TenantProvisioned` é único)? */
   provisionRecorded(tx: TenantTx, tenantId: string): Promise<boolean>;
   /**

@@ -24,5 +24,8 @@
       "modules": ["timeline", "inbox", "dashboard", "notification"]
     }
   ],
-  "allow": []
+  "allow": [
+    ["tenancy", "access"],
+    ["tenancy", "identity"]
+  ]
 }

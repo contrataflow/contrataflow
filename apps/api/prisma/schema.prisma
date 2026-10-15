@@ -55,6 +55,21 @@ model OutboxEvent {
   @@map("outbox_events")
 }
 
+/// entities.md §2 — `OrganizationType`.
+enum OrganizationType {
+  DIRECT_ADMINISTRATION
+  FUND
+  AUTARCHY
+  FOUNDATION
+  PUBLIC_COMPANY
+  MIXED_CAPITAL_COMPANY
+  PUBLIC_CONSORTIUM
+  LEGISLATIVE
+  OTHER
+
+  @@map("organization_type")
+}
+
 /// entities.md §2 — `TenantType`.
 enum TenantType {
   MUNICIPALITY
@@ -110,7 +125,8 @@ enum MembershipStatus {
 }
 
 /// entities.md `Tenant` (módulo tenancy) · tabela de plataforma, sem RLS (DEC-080). Criada na
-/// US-087; a FK de `primaryOrganizationId` → `organizations` entra com a US-101.
+/// US-087; a FK composta `(id, primaryOrganizationId)` → `organizations(tenantId, id)` (US-101) vive
+/// só na migração (o Prisma não modela a FK que reutiliza a chave primária).
 model Tenant {
   id                      String       @id @db.Uuid
   slug                    String       @unique(map: "tenants_slug_key") @db.VarChar(63)
@@ -137,7 +153,8 @@ model Tenant {
   updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version                 Int          @default(1)
 
-  memberships TenantMembership[]
+  memberships   TenantMembership[]
+  organizations Organization[]
 
   @@index([status], map: "tenants_status_idx")
   @@map("tenants")
@@ -483,4 +500,44 @@ model RolePermission {
   @@unique([tenantId, id])
   @@index([permissionCode])
   @@map("role_permissions")
+}
+
+/// entities.md `Organization` (módulo tenancy · US-101) · órgão/entidade com CNPJ dentro do tenant
+/// (DEC-011); RLS ENABLE + FORCE e sem exclusão (SELECT/INSERT/UPDATE). Checks de formato e o
+/// trigger de imutabilidade do tenant ficam em SQL bruto na migração. A FK de `logoAttachmentId` →
+/// `attachments` entra com a US-068.
+model Organization {
+  id                String           @id @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  name              String           @db.VarChar(250)
+  shortName         String           @map("short_name") @db.VarChar(30)
+  cnpj              String           @db.VarChar(14)
+  type              OrganizationType
+  isActive          Boolean          @default(true) @map("is_active")
+  email             String?          @db.Citext
+  phone             String?          @db.VarChar(20)
+  website           String?          @db.VarChar(255)
+  addressStreet     String?          @map("address_street") @db.VarChar(200)
+  addressNumber     String?          @map("address_number") @db.VarChar(20)
+  addressComplement String?          @map("address_complement") @db.VarChar(100)
+  addressDistrict   String?          @map("address_district") @db.VarChar(100)
+  addressCity       String?          @map("address_city") @db.VarChar(100)
+  addressState      String?          @map("address_state") @db.Char(2)
+  addressZipCode    String?          @map("address_zip_code") @db.Char(8)
+  ibgeCityCode      String?          @map("ibge_city_code") @db.Char(7)
+  logoAttachmentId  String?          @map("logo_attachment_id") @db.Uuid
+  metadata          Json             @default("{}") @db.JsonB
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?          @map("created_by_id") @db.Uuid
+  updatedById       String?          @map("updated_by_id") @db.Uuid
+  version           Int              @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, cnpj], map: "organizations_tenant_id_cnpj_key")
+  @@unique([tenantId, shortName], map: "organizations_tenant_id_short_name_key")
+  @@index([tenantId, isActive, name], map: "organizations_active_name_idx")
+  @@map("organizations")
 }

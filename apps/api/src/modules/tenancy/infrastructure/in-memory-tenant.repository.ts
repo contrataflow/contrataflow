@@ -108,6 +108,17 @@ export class InMemoryTenantRepository implements TenantStatusPort, TenantAdminRe
     return Promise.resolve(updated);
   }
 
+  setPrimaryOrganization(_tx: TenantTx, tenantId: string, organizationId: string): Promise<void> {
+    const current = this.tenants.get(tenantId);
+    if (current) this.tenants.set(tenantId, { ...current, primaryOrganizationId: organizationId });
+    return Promise.resolve();
+  }
+
+  /** `primaryOrganizationId` do tenant (o `OrganizationRepository` em memória lê daqui). */
+  primaryOrganizationOf(tenantId: string): string | null {
+    return this.tenants.get(tenantId)?.primaryOrganizationId ?? null;
+  }
+
   provisionRecorded(_tx: TenantTx, tenantId: string): Promise<boolean> {
     return Promise.resolve(this.provisioned.has(tenantId));
   }

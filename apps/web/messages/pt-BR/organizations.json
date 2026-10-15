@@ -1,0 +1,116 @@
+{
+  "title": "Estrutura organizacional",
+  "description": "Cadastre os órgãos e entidades da instituição (prefeitura, fundos, autarquias). A sigla e o CNPJ de cada órgão identificam os processos e a numeração.",
+  "tabs": {
+    "label": "Áreas da estrutura",
+    "organizations": "Órgãos"
+  },
+  "organizations": {
+    "title": "Órgãos",
+    "new": "Novo órgão",
+    "loading": "Carregando os órgãos…",
+    "loadFailed": "Não foi possível carregar os órgãos.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum órgão cadastrado",
+    "emptyHint": "Cadastre o primeiro órgão para poder abrir processos."
+  },
+  "table": {
+    "caption": "Órgãos e entidades da instituição",
+    "name": "Nome",
+    "shortName": "Sigla",
+    "cnpj": "CNPJ",
+    "type": "Tipo",
+    "status": "Situação",
+    "actions": "Ações"
+  },
+  "badges": {
+    "primary": "Principal",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "types": {
+    "DIRECT_ADMINISTRATION": "Administração direta",
+    "FUND": "Fundo",
+    "AUTARCHY": "Autarquia",
+    "FOUNDATION": "Fundação",
+    "PUBLIC_COMPANY": "Empresa pública",
+    "MIXED_CAPITAL_COMPANY": "Sociedade de economia mista",
+    "PUBLIC_CONSORTIUM": "Consórcio público",
+    "LEGISLATIVE": "Poder Legislativo",
+    "OTHER": "Outro"
+  },
+  "actions": {
+    "edit": "Editar {name}",
+    "editLabel": "Editar",
+    "deactivate": "Inativar {name}",
+    "deactivateLabel": "Inativar",
+    "reactivate": "Reativar {name}",
+    "reactivateLabel": "Reativar"
+  },
+  "form": {
+    "createTitle": "Novo órgão",
+    "editTitle": "Editar {name}",
+    "description": "Os campos com * são obrigatórios. A sigla aparece na numeração dos processos e não pode se repetir.",
+    "name": "Nome *",
+    "shortName": "Sigla *",
+    "shortNameHint": "De 2 a 30 letras, números ou hífen; é exibida em maiúsculas.",
+    "cnpj": "CNPJ *",
+    "cnpjHint": "Aceita o CNPJ numérico e o alfanumérico.",
+    "type": "Tipo *",
+    "typePlaceholder": "Selecione…",
+    "isActive": "Órgão ativo",
+    "isActiveHint": "Órgão inativo não aparece para novos processos, mas continua no histórico.",
+    "contact": "Contato",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "website": "Site",
+    "websiteHint": "Comece com https://",
+    "address": "Endereço",
+    "addressStreet": "Logradouro",
+    "addressNumber": "Número",
+    "addressComplement": "Complemento",
+    "addressDistrict": "Bairro",
+    "addressCity": "Cidade",
+    "addressState": "UF",
+    "addressZipCode": "CEP",
+    "ibgeCityCode": "Código IBGE do município",
+    "logo": "Logotipo",
+    "logoPending": "O envio do logotipo fica disponível com a gestão de anexos.",
+    "cancel": "Cancelar",
+    "submit": "Salvar",
+    "submitting": "Salvando…"
+  },
+  "validation": {
+    "required": "Informe o campo {field}.",
+    "invalidCnpj": "Informe um CNPJ válido."
+  },
+  "errors": {
+    "generic": "Não foi possível salvar o órgão. Tente novamente.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente.",
+    "notFound": "Este órgão não existe mais. Atualize a lista.",
+    "permission": "Você não tem permissão para gerenciar órgãos.",
+    "mfa": "Confirme sua identidade para continuar."
+  },
+  "conflict": {
+    "title": "Este órgão foi alterado por outra pessoa.",
+    "description": "Recarregue os dados atuais; as alterações que você fez no formulário serão mantidas.",
+    "reapply": "Recarregar e reaplicar minhas alterações"
+  },
+  "deactivate": {
+    "title": "Inativar {name}?",
+    "description": "O órgão deixa de aparecer para novos processos. Os processos e documentos existentes continuam no histórico.",
+    "cancel": "Cancelar",
+    "confirm": "Inativar",
+    "blockedHint": "Ative outro órgão antes de inativar este."
+  },
+  "toast": {
+    "created": "Órgão {name} criado.",
+    "updated": "Órgão {name} atualizado.",
+    "deactivated": "Órgão {name} inativado.",
+    "reactivated": "Órgão {name} reativado."
+  },
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para consultar os órgãos desta instituição."
+  }
+}

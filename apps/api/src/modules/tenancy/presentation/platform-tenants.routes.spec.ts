@@ -10,6 +10,7 @@ import { FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
 import { createTestApi } from '../../../../test/support/api-test-app.js';
 import type { TestApi } from '../../../../test/support/api-test-app.js';
 import { ChangeTenantStatusCommand } from '../application/change-tenant-status.command.js';
+import { InMemoryOrganizationRepository } from '../infrastructure/in-memory-organization.repository.js';
 import { InMemoryTenantRepository } from '../infrastructure/in-memory-tenant.repository.js';
 
 /*
@@ -112,6 +113,7 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
       expect(tenant.provisioning.complete).toBe(true);
       expect(tenant.provisioning.steps.map((step) => [step.key, step.status])).toEqual([
         ['tenancy.tenantRecord', 'DONE'],
+        ['tenancy.primaryOrganization', 'DONE'],
         ['access.defaultRoles', 'DONE'],
         ['document.systemTypes', 'DONE'],
         ['identity.firstAdmin', 'DONE'],
@@ -170,8 +172,16 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
       expect(events[0]?.payload).toEqual({
         tenantId: tenant.id,
         slug: 'sao-jose',
-        primaryOrganizationId: null,
+        primaryOrganizationId: expect.any(String) as unknown,
       });
+      // O órgão principal do `tenant.json` foi criado e é o `primaryOrganizationId` do tenant.
+      const organizations = api.app
+        .get(InMemoryOrganizationRepository, { strict: false })
+        .snapshot()
+        .filter((organization) => organization.tenantId === tenant.id);
+      expect(organizations).toHaveLength(1);
+      expect(organizations[0]).toMatchObject({ shortName: 'PMSJ', isActive: true });
+      expect(events[0]?.payload.primaryOrganizationId).toBe(organizations[0]?.id);
     });
 
     it('[Tenant incorreto] a operadora não tem vínculo com o tenant que provisionou', async () => {
