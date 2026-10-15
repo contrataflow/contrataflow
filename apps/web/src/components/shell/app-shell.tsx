@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { CSSProperties, ReactNode } from 'react';
 
+import { NotificationBell } from '@/features/notifications/notification-bell';
 import type { ActiveShellSession } from '@/lib/session/types';
 
 import { Icon } from './icons';
@@ -72,13 +73,7 @@ export function AppShell({
             </form>
             <div className="ml-auto flex flex-none items-center gap-2">
               <TenantSwitcher />
-              <Link
-                href="/notificacoes"
-                aria-label={t('notifications.label')}
-                className="grid size-9 place-items-center rounded-control hover:bg-muted"
-              >
-                <Icon name="bell" className="size-5 text-muted-foreground" />
-              </Link>
+              <NotificationBell />
               <UserMenu />
             </div>
           </header>

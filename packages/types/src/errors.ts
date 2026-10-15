@@ -45,6 +45,7 @@ export const ERROR_CODES = [
   'TEMPLATE_INVALID',
   'TEMPLATE_VERSION_NOT_DRAFT',
   'TEMPLATE_DRAFT_EXISTS',
+  'NOTIFICATION_NOT_FOUND',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

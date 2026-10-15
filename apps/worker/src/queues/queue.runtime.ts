@@ -42,6 +42,8 @@ import type { RunningDashboard } from '../admin/queue-dashboard.js';
 import { startQueueDashboard } from '../admin/queue-dashboard.js';
 import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
+import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
+import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
 import { OutboxPurgeJob } from '../outbox/outbox-purge.job.js';
 
 export const QUEUE_RUNTIME_CONFIG = Symbol('QueueRuntimeConfig');
@@ -145,6 +147,22 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
       .register(new MaintenanceDaily(tickDeps))
       // Tarefas diárias por tenant: cada módulo dono acrescenta a sua (US-106: calendário).
       .register(new TenantHousekeepingJob([new HolidayYearGeneratorTask()]));
+    const producer = this.producerInstance;
+    // US-111: as fontes que dependem de outros módulos entram com as stories donas — visibilidade
+    // do processo (`ProcessAccess`, US-001/US-012), permissão por escopo (US-096) e os `lookups`
+    // de processo, aprovação, anexo e renderização. Sem a fonte, o destinatário não é resolvido.
+    // Um handler já registrado para a fila (testes de integração do runtime) prevalece.
+    if (!this.registry.isHandled('notifications', 'event')) {
+      this.registry.register(
+        new NotificationDispatcher({
+          directory: new SqlNotificationDirectory(),
+          email: {
+            enqueue: (notificationId) =>
+              producer.enqueue('email', 'send', { notificationId }, { jobId: notificationId }),
+          },
+        }),
+      );
+    }
     const { maintenanceDatabaseUrl } = this.config;
     if (maintenanceDatabaseUrl) {
       this.maintenance = createOutboxDatabase({

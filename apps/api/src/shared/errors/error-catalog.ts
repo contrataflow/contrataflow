@@ -207,6 +207,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Rascunho já existente',
     detail: 'Já existe um rascunho em edição para este template.',
   },
+  NOTIFICATION_NOT_FOUND: {
+    status: 404,
+    title: 'Notificação não encontrada',
+    detail: 'Notificação não encontrada.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

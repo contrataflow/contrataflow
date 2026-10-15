@@ -259,7 +259,9 @@ Regras gerais:
 - Nunca notificar o próprio ator.
 - Agrupamento: notificações iguais (`type` + `processId` + destinatário) em 5 min são agrupadas em uma (`groupKey`) para evitar ruído.
 - Conteúdo sem dados sigilosos (POL-09); link direto (`/processos/{id}`, `/aprovacoes/{id}`).
-- E-mail somente se `notifications.emailEnabled` (tenant) e preferência do usuário permitirem.
+- E-mail somente se `notifications.emailEnabled` (tenant) e preferência do usuário permitirem: sem desejo de e-mail (preferência ou padrão do tipo) → `emailStatus = NOT_APPLICABLE`; desejado mas desligado no tenant → `SKIPPED`; senão `PENDING`. Notificação agrupada mantém o `emailStatus` que já tinha (sem novo e-mail por agrupamento).
+- Destinatários por unidade ou perfil acima de 50: notifica o titular e o substituto da unidade ("notifica a unidade").
+- Destinatário que depende de dado de outro módulo (`ProcessAccess`, atribuições de perfil, participantes, anexos, renderizações) só é resolvido quando a fonte do módulo dono existir; sem ela, nada é criado (falha fechada, log `notification.recipient_unresolved`) — US-111.
 
 ---
 

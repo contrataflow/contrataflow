@@ -33,9 +33,6 @@
     "label": "Buscar processos",
     "placeholder": "Buscar processo (número, título, objeto)"
   },
-  "notifications": {
-    "label": "Notificações"
-  },
   "tenant": {
     "label": "Instituição ativa: {name}",
     "heading": "Instituição ativa",

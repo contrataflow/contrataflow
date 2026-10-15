@@ -71,7 +71,15 @@ const TEMPLATE_ROUTE =
   'Templates (US-107): exige TEMPLATE_VIEW/TEMPLATE_MANAGE e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/07/08 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
 
 /** Classificação por `operationId`. */
+const NOTIFICATION_ROUTE =
+  'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
+
 export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Object.freeze({
+  'NTF-01': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
+  'NTF-02': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
+  'NTF-03': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
+  'NTF-04': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
+  'NTF-05': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
   'ME-01': { kind: 'covered' },
   'ME-04': { kind: 'covered' },
   'DTY-01': { kind: 'covered' },

@@ -6,6 +6,7 @@ import documentTypes from '../../messages/pt-BR/documentTypes.json';
 import errors from '../../messages/pt-BR/errors.json';
 import example from '../../messages/pt-BR/example.json';
 import implementationAssistant from '../../messages/pt-BR/implementationAssistant.json';
+import notifications from '../../messages/pt-BR/notifications.json';
 import organizations from '../../messages/pt-BR/organizations.json';
 import permissions from '../../messages/pt-BR/permissions.json';
 import roles from '../../messages/pt-BR/roles.json';
@@ -29,6 +30,7 @@ export const messages = {
   errors,
   example,
   implementationAssistant,
+  notifications,
   organizations,
   permissions,
   roles,

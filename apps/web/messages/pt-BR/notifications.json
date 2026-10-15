@@ -1,0 +1,51 @@
+{
+  "title": "Notificações",
+  "description": "Avisos sobre os processos, aprovações e comentários que pedem a sua atenção nesta instituição.",
+  "bell": {
+    "label": "Notificações",
+    "labelWithCount": "Notificações ({count, plural, one {# não lida} other {# não lidas}})",
+    "announce": "{count, plural, =0 {Nenhuma notificação não lida} one {# notificação não lida} other {# notificações não lidas}}",
+    "overflow": "99+"
+  },
+  "panel": {
+    "heading": "Notificações recentes",
+    "seeAll": "Ver todas as notificações",
+    "empty": "Nenhuma notificação por aqui ainda",
+    "loading": "Carregando notificações…",
+    "failed": "Não foi possível carregar as notificações."
+  },
+  "filters": {
+    "label": "Mostrar",
+    "all": "Todas",
+    "unread": "Não lidas"
+  },
+  "actions": {
+    "markRead": "Marcar como lida",
+    "markReadOf": "Marcar como lida: {title}",
+    "markAllRead": "Marcar todas como lidas",
+    "archive": "Arquivar",
+    "archiveOf": "Arquivar: {title}",
+    "loadMore": "Carregar mais",
+    "retry": "Tentar novamente",
+    "preferences": "Preferências de notificação"
+  },
+  "item": {
+    "unread": "Não lida",
+    "read": "Lida",
+    "grouped": "{count} avisos agrupados"
+  },
+  "list": {
+    "empty": "Nenhuma notificação por aqui ainda",
+    "emptyUnread": "Você leu todas as notificações.",
+    "emptyHint": "Quando um processo chegar, for devolvido ou precisar de aprovação, o aviso aparece aqui.",
+    "loadFailed": "Não foi possível carregar as notificações.",
+    "loading": "Carregando notificações…"
+  },
+  "toast": {
+    "allRead": "{count, plural, =0 {Não havia notificações para marcar} one {# notificação marcada como lida} other {# notificações marcadas como lidas}}",
+    "archived": "Notificação arquivada.",
+    "notFound": "Esta notificação não está mais disponível.",
+    "unavailable": "Não foi possível atualizar suas notificações agora. Tente novamente.",
+    "failed": "Não foi possível concluir a ação. Tente novamente."
+  }
+}

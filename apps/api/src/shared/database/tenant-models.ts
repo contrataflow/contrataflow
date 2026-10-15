@@ -18,6 +18,7 @@ export const TENANT_SCOPED_MODELS = [
   'MembershipDepartment',
   'NumberSequence',
   'Organization',
+  'Notification',
   'OutboxEvent',
   'ProcessTimelineEntry',
   'Role',

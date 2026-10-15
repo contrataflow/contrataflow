@@ -169,7 +169,10 @@ describe('[Tenant incorreto] seletor de instituição (US-093)', () => {
     expect(current.getAttribute('aria-disabled')).toBe('true');
     expect(current.getAttribute('aria-current')).toBe('true');
     await userEvent.click(current);
-    expect(fetchMock).not.toHaveBeenCalled();
+    // O sininho consulta o contador (NTF-02); a troca de instituição não é chamada.
+    expect(
+      fetchMock.mock.calls.filter(([input]) => requestUrl(input) === '/api/auth/switch-tenant'),
+    ).toEqual([]);
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Prefeitura B' }));
     expect(await screen.findByText('Você não tem mais acesso a esta instituição.')).toBeTruthy();
     expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'x'))).toBe(1);

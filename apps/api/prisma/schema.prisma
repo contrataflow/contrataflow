@@ -1014,3 +1014,57 @@ model DocumentTemplateVersion {
   @@index([tenantId, templateId], map: "document_template_versions_single_draft_key")
   @@map("document_template_versions")
 }
+
+/// entities.md §2 — `NotificationPriority`.
+enum NotificationPriority {
+  NORMAL
+  HIGH
+
+  @@map("notification_priority")
+}
+
+/// entities.md §2 — `EmailDeliveryStatus`.
+enum EmailDeliveryStatus {
+  NOT_APPLICABLE
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+
+  @@map("email_delivery_status")
+}
+
+/// entities.md `Notification` (módulo notification · US-111): projeção de sistema gravada só pelo
+/// `NotificationDispatcher` (worker), idempotente por `(tenantId, recipientId, sourceEventId, type)`
+/// e agrupada em 5 min por `groupKey` (`{type}:{processId}`). A API só lê e marca leitura e
+/// arquivamento (GRANT por coluna). `type` é o registro `NotificationType` (`packages/types`). A FK
+/// `(tenantId, recipientId)` → `tenant_memberships (tenant_id, user_id)` fica na migração.
+model Notification {
+  id              String               @id @db.Uuid
+  tenantId        String               @map("tenant_id") @db.Uuid
+  recipientId     String               @map("recipient_id") @db.Uuid
+  type            String               @db.VarChar(60)
+  priority        NotificationPriority @default(NORMAL)
+  title           String               @db.VarChar(200)
+  body            String               @db.VarChar(1000)
+  link            String?              @db.VarChar(500)
+  processId       String?              @map("process_id") @db.Uuid
+  entityType      String?              @map("entity_type") @db.VarChar(40)
+  entityId        String?              @map("entity_id") @db.Uuid
+  sourceEventId   String               @map("source_event_id") @db.Uuid
+  groupKey        String?              @map("group_key") @db.VarChar(120)
+  groupCount      Int                  @default(1) @map("group_count")
+  groupedEventIds String[]             @default([]) @map("grouped_event_ids") @db.Uuid
+  emailStatus     EmailDeliveryStatus  @default(NOT_APPLICABLE) @map("email_status")
+  emailSentAt     DateTime?            @map("email_sent_at") @db.Timestamptz(6)
+  emailError      String?              @map("email_error") @db.VarChar(500)
+  readAt          DateTime?            @map("read_at") @db.Timestamptz(6)
+  archivedAt      DateTime?            @map("archived_at") @db.Timestamptz(6)
+  expiresAt       DateTime?            @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "notifications_tenant_id_id_key")
+  @@unique([tenantId, recipientId, sourceEventId, type], map: "notifications_source_key")
+  @@index([tenantId, recipientId, readAt, createdAt(sort: Desc)], map: "notifications_recipient_idx")
+  @@map("notifications")
+}

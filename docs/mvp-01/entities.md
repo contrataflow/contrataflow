@@ -1360,7 +1360,8 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 | `createdAt` | timestamptz | não | `now()` | |
 
 - **Unique:** `(tenant_id, recipient_id, source_event_id, type)`.
-- **Índices:** `(tenant_id, recipient_id, read_at, created_at DESC)`; `(email_status) WHERE email_status = 'PENDING'`; `(tenant_id, recipient_id, group_key, created_at DESC) WHERE archived_at IS NULL`.
+- **Índices:** `(tenant_id, recipient_id, read_at, created_at DESC)`; `(email_status) WHERE email_status = 'PENDING'`; `(tenant_id, recipient_id, group_key, created_at DESC) WHERE archived_at IS NULL`; GIN em `grouped_event_ids` (reentrega de evento já agregado, mesmo após a janela ou o arquivamento — US-111).
+- **FK:** `(tenant_id, recipient_id)` → `tenant_memberships (tenant_id, user_id)`. A API (`cf_app`) só tem `SELECT` e `UPDATE (read_at, archived_at)`; quem grava é o worker (US-111).
 
 #### NotificationPreference (`notification_preferences`) — módulo `notification`
 `id`, `tenantId`, `userId`, `notificationType` (varchar(60)), `channel` (NotificationChannel), `enabled` (boolean), `createdAt`, `updatedAt`. **Unique:** `(tenant_id, user_id, notification_type, channel)`. Ausência de linha = padrão do registro; tipos obrigatórios (ex.: `APPROVAL_REQUESTED` in-app) não podem ser desativados.

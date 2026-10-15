@@ -23,6 +23,8 @@ import type { SchedulerQueuePort } from './schedulers.js';
 import { MemoryDeadLetter, RecordingQueueMetrics } from './testing.js';
 import { DomainEventsJobHandler } from '../events/domain-events.job.js';
 import { DomainEventsProcessor } from '../events/domain-events.processor.js';
+import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
+import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
 
 const TENANT_A = '0192f0a0-0000-7000-8000-00000000000a';
 const TENANT_B = '0192f0a0-0000-7000-8000-00000000000b';
@@ -317,6 +319,12 @@ describe('registro de handlers (V-03)', () => {
         new DomainEventsJobHandler(
           new DomainEventsProcessor({ queues: { add: () => Promise.resolve() }, handlers: [] }),
         ),
+      )
+      .register(
+        new NotificationDispatcher({
+          directory: new SqlNotificationDirectory(),
+          email: { enqueue: () => Promise.resolve() },
+        }),
       );
     for (const handler of registry.all()) {
       expect(QUEUE_JOBS[handler.queue] as readonly string[]).toContain(handler.name);
@@ -326,6 +334,7 @@ describe('registro de handlers (V-03)', () => {
       'deadlines',
       'domain-events',
       'maintenance',
+      'notifications',
     ]);
   });
 });
