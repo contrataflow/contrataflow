@@ -9,6 +9,7 @@
 /** Modelos de tenant: a extensão injeta e confere `tenantId` em toda operação (RN-TEN-23). */
 export const TENANT_SCOPED_MODELS = [
   'AuditLog',
+  'DocumentType',
   'MembershipDepartment',
   'OutboxEvent',
   'ProcessTimelineEntry',

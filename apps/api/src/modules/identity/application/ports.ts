@@ -1,6 +1,7 @@
 import type { SessionTombstone, TenantSelection } from '@contrataflow/validation';
 
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import type { MembershipStatus } from '#shared/auth/ports.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { TenantMembership } from '../domain/tenant-membership.js';
@@ -16,6 +17,16 @@ export type LoginRecord =
   | { readonly kind: 'recorded'; readonly bound: boolean }
   /** O `sub` já pertence a outro usuário, ou o usuário já tem outro `sub`. */
   | { readonly kind: 'subject_conflict' };
+
+/** Vínculo de um usuário no tenant da transação (qualquer situação), para validar designações. */
+export interface TenantMember {
+  readonly userId: string;
+  readonly membershipId: string;
+  readonly status: MembershipStatus;
+  readonly expiresAt: Date | null;
+  /** Perfis vigentes (`Role.key`); vazio até as atribuições de perfil existirem (US-096). */
+  readonly roleKeys: readonly string[];
+}
 
 export interface IdentityRepository {
   findUserById(userId: string): Promise<User | null>;
@@ -44,6 +55,11 @@ export interface IdentityRepository {
    * de uso: os nomes congelados da timeline (US-059).
    */
   displayNamesInTenant(tx: TenantTx, userIds: readonly string[]): Promise<Map<string, string>>;
+  /**
+   * Vínculos dos usuários no tenant da transação (a RLS de `tenant_memberships` filtra — usuário
+   * sem vínculo no tenant não é devolvido), para validar aprovadores designados (US-061).
+   */
+  membersInTenant(tx: TenantTx, userIds: readonly string[]): Promise<TenantMember[]>;
 }
 
 export const IDENTITY_REPOSITORY = Symbol('IdentityRepository');

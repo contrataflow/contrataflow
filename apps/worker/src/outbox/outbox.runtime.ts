@@ -18,7 +18,11 @@ import { OutboxRelay } from './outbox-relay.js';
 import { observeRelayLeader } from './outbox-telemetry.js';
 import { BullFanOutQueues } from '../events/bull-fan-out.queues.js';
 import { DomainEventsProcessor } from '../events/domain-events.processor.js';
-import { BusinessMetricsCollector, PermissionCacheInvalidator } from '../events/inline-handlers.js';
+import {
+  BusinessMetricsCollector,
+  ConfigCacheInvalidator,
+  PermissionCacheInvalidator,
+} from '../events/inline-handlers.js';
 import type { InlineEventHandler } from '../events/inline-handlers.js';
 import {
   SessionTerminationDisabled,
@@ -94,6 +98,7 @@ export class OutboxRuntime implements OnApplicationBootstrap, OnModuleDestroy {
       handlers: [
         new PermissionCacheInvalidator(this.cache),
         new BusinessMetricsCollector(this.cache),
+        new ConfigCacheInvalidator(this.cache),
         this.createSessionTermination(),
       ],
     });

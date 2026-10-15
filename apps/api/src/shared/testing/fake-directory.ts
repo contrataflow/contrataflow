@@ -133,6 +133,46 @@ export const FAKE_USERS = {
     socialName: null,
     status: 'ACTIVE',
   },
+  /** Marta: ADMIN_ORGAO ativa na Prefeitura A (US-061 — gerencia tipos de documento). */
+  marta: {
+    id: '0192a000-0000-7000-8000-0000000000a4',
+    subject: 'sub-marta',
+    authentikUserId: '109',
+    email: 'marta@prefeitura-a.test',
+    name: 'Marta Ribeiro',
+    socialName: null,
+    status: 'ACTIVE',
+  },
+  /** Otávio: segundo ADMIN_ORGAO da Prefeitura A (edição concorrente — US-061). */
+  otavio: {
+    id: '0192a000-0000-7000-8000-0000000000a5',
+    subject: 'sub-otavio',
+    authentikUserId: '110',
+    email: 'otavio@prefeitura-a.test',
+    name: 'Otávio Campos',
+    socialName: null,
+    status: 'ACTIVE',
+  },
+  /** Lúcia: GESTOR_CONTRATACOES na Prefeitura A (consulta tipos; sem DOCUMENT_TYPE_MANAGE). */
+  lucia: {
+    id: '0192a000-0000-7000-8000-0000000000a6',
+    subject: 'sub-lucia',
+    authentikUserId: '111',
+    email: 'lucia@prefeitura-a.test',
+    name: 'Lúcia Matos',
+    socialName: null,
+    status: 'ACTIVE',
+  },
+  /** Heitor: vínculo só na Prefeitura B (aprovador de outro tenant — US-061). */
+  heitor: {
+    id: '0192a000-0000-7000-8000-0000000000a7',
+    subject: 'sub-heitor',
+    authentikUserId: '112',
+    email: 'heitor@prefeitura-b.test',
+    name: 'Heitor Barros',
+    socialName: null,
+    status: 'ACTIVE',
+  },
 } as const satisfies Record<string, FakeUser>;
 
 export interface FakeMembership {
@@ -230,5 +270,41 @@ export const FAKE_MEMBERSHIPS: readonly FakeMembership[] = [
     status: 'INVITED',
     expiresAt: null,
     roleKeys: ['ADMIN_ORGAO'],
+  },
+  {
+    id: '0192a000-0000-7000-8000-0000000001a4',
+    userId: FAKE_USERS.marta.id,
+    tenantId: A,
+    type: 'INTERNAL',
+    status: 'ACTIVE',
+    expiresAt: null,
+    roleKeys: ['ADMIN_ORGAO'],
+  },
+  {
+    id: '0192a000-0000-7000-8000-0000000001a5',
+    userId: FAKE_USERS.otavio.id,
+    tenantId: A,
+    type: 'INTERNAL',
+    status: 'ACTIVE',
+    expiresAt: null,
+    roleKeys: ['ADMIN_ORGAO'],
+  },
+  {
+    id: '0192a000-0000-7000-8000-0000000001a6',
+    userId: FAKE_USERS.lucia.id,
+    tenantId: A,
+    type: 'INTERNAL',
+    status: 'ACTIVE',
+    expiresAt: null,
+    roleKeys: ['GESTOR_CONTRATACOES'],
+  },
+  {
+    id: '0192a000-0000-7000-8000-0000000002a7',
+    userId: FAKE_USERS.heitor.id,
+    tenantId: B,
+    type: 'INTERNAL',
+    status: 'ACTIVE',
+    expiresAt: null,
+    roleKeys: ['GESTOR_CONTRATACOES'],
   },
 ];

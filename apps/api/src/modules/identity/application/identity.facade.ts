@@ -1,9 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { IDENTITY_REPOSITORY } from './ports.js';
-import type { IdentityRepository } from './ports.js';
+import { IDENTITY_REPOSITORY, TENANT_MFA_POLICY } from './ports.js';
+import type { IdentityRepository, TenantMember, TenantMfaPolicyPort } from './ports.js';
+
+export type { TenantMember } from './ports.js';
 
 /**
  * API pública do módulo `identity` para os demais módulos (DEC-041): métodos de intenção,
@@ -11,7 +15,10 @@ import type { IdentityRepository } from './ports.js';
  */
 @Injectable()
 export class IdentityFacade {
-  constructor(@Inject(IDENTITY_REPOSITORY) private readonly identity: IdentityRepository) {}
+  constructor(
+    @Inject(IDENTITY_REPOSITORY) private readonly identity: IdentityRepository,
+    @Inject(TENANT_MFA_POLICY) private readonly mfaPolicies: TenantMfaPolicyPort,
+  ) {}
 
   /**
    * Nome exibido (social, se houver) dos usuários com vínculo no tenant da transação, lidos no `tx`
@@ -19,5 +26,20 @@ export class IdentityFacade {
    */
   userDisplayNames(tx: TenantTx, userIds: readonly string[]): Promise<Map<string, string>> {
     return this.identity.displayNamesInTenant(tx, userIds);
+  }
+
+  /**
+   * Vínculos dos usuários no tenant da transação, em qualquer situação — quem não tem vínculo no
+   * tenant não volta (US-061: validação de aprovador designado).
+   */
+  membersInTenant(tx: TenantTx, userIds: readonly string[]): Promise<TenantMember[]> {
+    return this.identity.membersInTenant(tx, userIds);
+  }
+
+  /** `security.mfaPolicy` do tenant da requisição (POL-14). */
+  mfaPolicy(): Promise<MfaPolicy> {
+    const { tenantId } = requireRequestContext();
+    if (tenantId === null) throw new Error('mfaPolicy exige o tenant do contexto.');
+    return this.mfaPolicies.mfaPolicyOf(tenantId);
   }
 }

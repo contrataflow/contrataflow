@@ -4,7 +4,7 @@
  * a definição (schema do payload e routing key) em `@contrataflow/validation` e uma decisão de
  * roteamento no worker (V-03 da US-082 — testes nos dois pacotes).
  */
-export const DOMAIN_EVENT_NAMES = [] as const satisfies readonly string[];
+export const DOMAIN_EVENT_NAMES = ['DocumentTypeChanged'] as const satisfies readonly string[];
 
 export type DomainEventName = (typeof DOMAIN_EVENT_NAMES)[number];
 

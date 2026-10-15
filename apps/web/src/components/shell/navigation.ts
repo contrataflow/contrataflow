@@ -33,6 +33,11 @@ export interface AdminNavItem {
     | 'catalogs'
     | 'calendar'
     | 'settings';
+  /**
+   * Permissão que dá acesso à área (permissions.md §9): o item só some quando a API confirma que o
+   * usuário NÃO a tem (ME-03); enquanto a resposta não existe, a própria rota decide (403).
+   */
+  readonly permission?: string;
 }
 
 export const ADMIN_NAV: readonly AdminNavItem[] = [
@@ -41,7 +46,7 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin/estrutura', labelKey: 'structure' },
   { href: '/admin/templates', labelKey: 'templates' },
   { href: '/admin/workflows', labelKey: 'workflows' },
-  { href: '/admin/tipos-documento', labelKey: 'documentTypes' },
+  { href: '/admin/tipos-documento', labelKey: 'documentTypes', permission: 'DOCUMENT_TYPE_MANAGE' },
   { href: '/admin/catalogos', labelKey: 'catalogs' },
   { href: '/admin/calendario', labelKey: 'calendar' },
   { href: '/admin/configuracoes', labelKey: 'settings' },

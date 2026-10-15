@@ -13,6 +13,7 @@ import type {
   AuthentikDirectoryPort,
   IdentityRepository,
   LoginRecord,
+  TenantMember,
 } from '../application/ports.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
 import { displayName } from '../domain/user.js';
@@ -171,6 +172,23 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
       if (user && member) names.set(userId, displayName(user));
     }
     return Promise.resolve(names);
+  }
+
+  membersInTenant(_tx: TenantTx, userIds: readonly string[]): Promise<TenantMember[]> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    return Promise.resolve(
+      this.memberships
+        .filter(
+          (membership) => membership.tenantId === tenantId && userIds.includes(membership.userId),
+        )
+        .map((membership) => ({
+          userId: membership.userId,
+          membershipId: membership.id,
+          status: membership.status,
+          expiresAt: membership.expiresAt,
+          roleKeys: membership.roleKeys,
+        })),
+    );
   }
 
   // --- Inspeção (testes) -----------------------------------------------------------------------

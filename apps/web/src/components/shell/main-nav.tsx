@@ -5,8 +5,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+import { usePermission } from '@/lib/permissions/use-permission';
+
 import { Icon } from './icons';
 import { ADMIN_NAV, MAIN_NAV, isActivePath } from './navigation';
+import type { AdminNavItem } from './navigation';
 
 /** Menu principal (barra lateral e gaveta móvel): página atual com `aria-current`. */
 export function MainNav({ onNavigate }: { readonly onNavigate?: (() => void) | undefined }) {
@@ -60,19 +63,42 @@ export function AdminNav() {
   const pathname = usePathname();
   return (
     <nav aria-label={t('label')} className="flex flex-wrap gap-1 border-b border-border pb-3">
-      {ADMIN_NAV.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          aria-current={isActivePath(pathname, item.href) ? 'page' : undefined}
-          className={cx(
-            'inline-flex min-h-9 items-center rounded-control px-3 text-sm',
-            isActivePath(pathname, item.href) ? 'bg-primary-soft text-primary' : 'hover:bg-muted',
-          )}
-        >
-          {t(item.labelKey)}
-        </Link>
-      ))}
+      {ADMIN_NAV.map((item) =>
+        item.permission ? (
+          <GatedAdminLink key={item.href} item={item} pathname={pathname} />
+        ) : (
+          <AdminLink key={item.href} item={item} pathname={pathname} />
+        ),
+      )}
     </nav>
   );
+}
+
+function AdminLink({ item, pathname }: { readonly item: AdminNavItem; readonly pathname: string }) {
+  const t = useTranslations('shell.admin');
+  return (
+    <Link
+      href={item.href}
+      aria-current={isActivePath(pathname, item.href) ? 'page' : undefined}
+      className={cx(
+        'inline-flex min-h-9 items-center rounded-control px-3 text-sm',
+        isActivePath(pathname, item.href) ? 'bg-primary-soft text-primary' : 'hover:bg-muted',
+      )}
+    >
+      {t(item.labelKey)}
+    </Link>
+  );
+}
+
+/** Item de administração que exige permissão: oculto quando a API confirma que falta (RN-FND-92). */
+function GatedAdminLink({
+  item,
+  pathname,
+}: {
+  readonly item: AdminNavItem;
+  readonly pathname: string;
+}) {
+  const { allowed, status } = usePermission(item.permission ?? '');
+  if (status === 'success' && !allowed) return null;
+  return <AdminLink item={item} pathname={pathname} />;
 }

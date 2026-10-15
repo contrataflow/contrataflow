@@ -37,10 +37,22 @@ export type TenantLeakCase = CoveredOperation | ExemptOperation;
 const EXAMPLE_ROUTE =
   'Rota interna de exemplo do pipeline (US-080/US-084): não lê nem grava dados de tenant e fica fora do contrato público.';
 
+const DOCUMENT_TYPE_ADMIN_ROUTE =
+  'Exige DOCUMENT_TYPE_MANAGE (que o usuário comum da suíte não tem): isolamento coberto em test/tenant-leak/document-types.spec.ts, com administradores nos dois tenants.';
+
 /** Classificação por `operationId`. */
 export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Object.freeze({
   'ME-01': { kind: 'covered' },
   'ME-04': { kind: 'covered' },
+  'DTY-01': { kind: 'covered' },
+  'DTY-02': {
+    kind: 'exempt',
+    reason: DOCUMENT_TYPE_ADMIN_ROUTE,
+  },
+  'DTY-03': {
+    kind: 'exempt',
+    reason: DOCUMENT_TYPE_ADMIN_ROUTE,
+  },
   'INTERNAL-SESSION-EVENTS': {
     kind: 'exempt',
     reason:

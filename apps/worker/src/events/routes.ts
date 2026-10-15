@@ -11,7 +11,10 @@ export type FanOutQueue = Extract<QueueName, 'notifications'>;
 
 /** Handlers leves executados no próprio job do `domain-events` (events.md §3). */
 export type InlineHandlerName =
-  'PermissionCacheInvalidator' | 'BusinessMetricsCollector' | 'SessionTerminationHandler';
+  | 'PermissionCacheInvalidator'
+  | 'BusinessMetricsCollector'
+  | 'SessionTerminationHandler'
+  | 'ConfigCacheInvalidator';
 
 export interface DomainEventRoutes {
   readonly queues: readonly { readonly match: readonly string[]; readonly queue: FanOutQueue }[];
@@ -54,6 +57,12 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
     },
     { match: ['process.*', 'document.*', 'approval.*'], handler: 'BusinessMetricsCollector' },
     {
+      // events.md §3 (legenda C) — invalidadores de cache de configuração. Entram aqui os eventos
+      // de configuração à medida que as stories donas os publicam (US-061: document_type.changed).
+      match: ['document_type.changed'],
+      handler: 'ConfigCacheInvalidator',
+    },
+    {
       // RN-IAM-27 — encerra as sessões da instituição do evento. Por routing key (sem
       // `membership.*`): `membership.activated` etc. não encerram nada. Os eventos entram em
       // `DOMAIN_EVENT_NAMES` com a US-092.
@@ -91,4 +100,6 @@ export function resolveRoutes(
  * stories donas; um teste reprova evento sem decisão e rota que não casa nenhuma routing key.
  */
 export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_ASYNC_CONSUMER'>> =
-  {};
+  {
+    DocumentTypeChanged: ['document_type.changed'],
+  };

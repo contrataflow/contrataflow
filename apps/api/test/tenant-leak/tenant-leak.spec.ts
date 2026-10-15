@@ -71,6 +71,9 @@ INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status, job_title,
 INSERT INTO membership_departments (id, tenant_id, membership_id, department_id, is_primary) VALUES
   ('${randomUUID()}', '${A}', '${BRUNO_A}', '${DEPT_A}', true),
   ('${randomUUID()}', '${B}', '${DANIEL_B}', '${DEPT_B}', true);
+INSERT INTO document_types (id, tenant_id, code, name, kind) VALUES
+  ('${randomUUID()}', '${A}', 'TIPO_A', 'Tipo LEAK-A', 'FREE_TEXT'),
+  ('${randomUUID()}', '${B}', 'TIPO_B', 'Tipo LEAK-B', 'FREE_TEXT');
 INSERT INTO outbox_events (id, tenant_id, event_type, routing_key, aggregate_type, aggregate_id, payload, metadata) VALUES
   ('${randomUUID()}', '${B}', 'ProcessCreated', 'process.created', 'Process', '${randomUUID()}', '{"title":"LEAK-B"}', '{}');
 INSERT INTO audit_logs (id, occurred_at, tenant_id, actor_type, action, category, result, row_hash) VALUES
@@ -224,6 +227,7 @@ describe('Feature: suíte "tenant leak" sobre a API inteira (US-100)', () => {
       (operation) => manifest[operation.spec.operationId]?.kind === 'covered',
     );
     expect(covered.map((operation) => operation.spec.operationId).sort()).toEqual([
+      'DTY-01',
       'LEAK-01',
       'LEAK-02',
       'LEAK-03',

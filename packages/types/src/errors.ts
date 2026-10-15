@@ -25,6 +25,8 @@ export const ERROR_CODES = [
   'RATE_LIMITED',
   'INTERNAL_ERROR',
   'DEPENDENCY_UNAVAILABLE',
+  'NUMBERING_MASK_INVALID',
+  'APPROVER_UNRESOLVED',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

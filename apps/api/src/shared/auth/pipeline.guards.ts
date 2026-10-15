@@ -284,6 +284,7 @@ export class MembershipGuard implements CanActivate {
     const current = requireRequestContext();
     const opened = updateRequestContext({
       actor: { ...current.actor, membershipId: membership.id },
+      roleKeys: membership.roleKeys,
     });
     const fields = {
       event: 'tenant.context_opened',

@@ -7,7 +7,11 @@ import type { TenantRedisCache } from '#shared/cache/tenant-redis.js';
 
 import { DomainEventsProcessor } from './domain-events.processor.js';
 import type { FanOutJob, FanOutQueues } from './domain-events.processor.js';
-import { BusinessMetricsCollector, PermissionCacheInvalidator } from './inline-handlers.js';
+import {
+  BusinessMetricsCollector,
+  ConfigCacheInvalidator,
+  PermissionCacheInvalidator,
+} from './inline-handlers.js';
 import type { InlineEventHandler } from './inline-handlers.js';
 import { DOMAIN_EVENT_ROUTES, ROUTING_DECISIONS, resolveRoutes } from './routes.js';
 import type { FanOutQueue, InlineHandlerName } from './routes.js';
@@ -176,6 +180,31 @@ describe('handlers leves', () => {
     );
     await handler.handle({ ...envelope('role.assigned'), tenantId: null });
     expect(cache.deleted).toEqual([]);
+  });
+});
+
+describe('ConfigCacheInvalidator (US-061 · RN-DOC-12)', () => {
+  const handlerOf = (cache: MemoryCache) =>
+    new ConfigCacheInvalidator(cache as unknown as TenantRedisCache);
+
+  it('document_type.changed apaga a chave de tipos do tenant do evento, sem fila nem métrica', async () => {
+    const cache = new MemoryCache();
+    const processor = new DomainEventsProcessor({
+      queues: new MemoryQueues(),
+      handlers: [handlerOf(cache)],
+    });
+    const result = await processor.process(job('document_type.changed'), EVENT);
+    expect(result).toEqual({ queues: [], inline: ['ConfigCacheInvalidator'] });
+    expect(cache.deleted).toEqual([`${TENANT}:document:types`]);
+  });
+
+  it('é idempotente (reentrega só repete o DEL) e ignora evento de plataforma', async () => {
+    const cache = new MemoryCache();
+    const handler = handlerOf(cache);
+    await handler.handle(envelope('document_type.changed'));
+    await handler.handle(envelope('document_type.changed'));
+    await handler.handle({ ...envelope('document_type.changed'), tenantId: null });
+    expect(cache.deleted).toEqual([`${TENANT}:document:types`, `${TENANT}:document:types`]);
   });
 });
 

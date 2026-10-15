@@ -15,6 +15,9 @@ import type {
   FakeJwksProvider,
   FakeTokenClaims,
 } from '#modules/identity/infrastructure/fake-jwks.provider.js';
+import { OUTBOX_STORE } from '#modules/platform/application/outbox-ports.js';
+import { InMemoryOutboxStore } from '#modules/platform/infrastructure/outbox/in-memory-outbox.store.js';
+import type { InMemoryOutboxRow } from '#modules/platform/infrastructure/outbox/in-memory-outbox.store.js';
 import { AUDIT_SAMPLING_STORE, InMemoryAuditSamplingStore } from '#shared/audit/sampling-store.js';
 import { TOKEN_VERIFIER } from '#shared/auth/ports.js';
 import { CACHE_STORE, InMemoryCacheStore } from '#shared/cache/cache-store.js';
@@ -66,6 +69,8 @@ export interface TestApi {
   readonly rateLimitStore: InMemoryRateLimitStore;
   /** Registros de auditoria gravados (modo em memória — identidade fake sem banco). */
   auditRecords(): readonly SealedAuditRecord[];
+  /** Eventos gravados no outbox (modo em memória): `PENDING` até um relay publicá-los. */
+  outboxRows(): readonly InMemoryOutboxRow[];
   /** `Authorization: Bearer …` válido para o `sub` informado (claims extras opcionais). */
   bearer(subject: string, claims?: Partial<FakeTokenClaims>): string;
   close(): Promise<void>;
@@ -111,6 +116,10 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
     auditRecords: () => {
       const store = app.get<unknown>(AUDIT_LOG_STORE);
       return store instanceof InMemoryAuditLogStore ? store.records : [];
+    },
+    outboxRows: () => {
+      const store = app.get<unknown>(OUTBOX_STORE, { strict: false });
+      return store instanceof InMemoryOutboxStore ? store.rows : [];
     },
     bearer: (subject, claims = {}) => `Bearer ${verifier.sign({ sub: subject, ...claims })}`,
     close: () => app.close(),

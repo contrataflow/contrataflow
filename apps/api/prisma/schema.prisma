@@ -343,3 +343,66 @@ model ProcessTimelineEntry {
   @@index([tenantId, processId, occurredAt(sort: Desc), id(sort: Desc)], map: "process_timeline_entries_process_idx")
   @@map("process_timeline_entries")
 }
+
+/// entities.md §2 — `DocumentKind` (DEC-017).
+enum DocumentKind {
+  STRUCTURED
+  FREE_TEXT
+  UPLOADED
+
+  @@map("document_kind")
+}
+
+/// entities.md §2 — `SystemDocumentModule` (módulos tipados que dependem de código).
+enum SystemDocumentModule {
+  DFD
+  ETP
+  TERM_OF_REFERENCE
+  RISK_MAP
+  PRICE_RESEARCH
+
+  @@map("system_document_module")
+}
+
+/// entities.md §2 — `Confidentiality`.
+enum Confidentiality {
+  PUBLIC
+  INTERNAL
+  RESTRICTED
+
+  @@map("confidentiality")
+}
+
+/// entities.md `DocumentType` (módulo document · US-061): catálogo de tipos do tenant, nunca
+/// excluído (RN-DOC-11). `code`, `kind`, `systemModule` e `isSystem` são imutáveis por trigger.
+/// A FK de `defaultTemplateId` → `document_templates` entra com a US-107. Checks, trigger e RLS
+/// ficam em SQL bruto na migração; o índice `(tenantId, code)` aqui é o único de unicidade.
+model DocumentType {
+  id                      String                @id @db.Uuid
+  tenantId                String                @map("tenant_id") @db.Uuid
+  code                    String                @db.VarChar(40)
+  name                    String                @db.VarChar(120)
+  description             String?
+  kind                    DocumentKind
+  systemModule            SystemDocumentModule? @map("system_module")
+  isSystem                Boolean               @default(false) @map("is_system")
+  isActive                Boolean               @default(true) @map("is_active")
+  allowMultiplePerProcess Boolean               @default(true) @map("allow_multiple_per_process")
+  numberingEnabled        Boolean               @default(true) @map("numbering_enabled")
+  numberingMask           String?               @map("numbering_mask") @db.VarChar(60)
+  requiresApproval        Boolean               @default(false) @map("requires_approval")
+  approvalPolicy          Json?                 @map("approval_policy") @db.JsonB
+  defaultTemplateId       String?               @map("default_template_id") @db.Uuid
+  defaultConfidentiality  Confidentiality       @default(INTERNAL) @map("default_confidentiality")
+  sortOrder               Int                   @default(0) @map("sort_order")
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?               @map("created_by_id") @db.Uuid
+  updatedById             String?               @map("updated_by_id") @db.Uuid
+  version                 Int                   @default(1)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, sortOrder], map: "document_types_active_order_idx")
+  @@map("document_types")
+}

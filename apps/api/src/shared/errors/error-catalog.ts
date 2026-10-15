@@ -106,6 +106,16 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Serviço indisponível',
     detail: 'Serviço temporariamente indisponível.',
   },
+  NUMBERING_MASK_INVALID: {
+    status: 422,
+    title: 'Máscara de numeração inválida',
+    detail: 'A máscara deve conter {seq:N} e {year} e usar apenas os campos permitidos.',
+  },
+  APPROVER_UNRESOLVED: {
+    status: 422,
+    title: 'Aprovador não resolvível',
+    detail: 'Não foi possível determinar quem aprova. Revise o aprovador selecionado.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

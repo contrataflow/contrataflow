@@ -19,57 +19,6 @@
       }
     },
     "schemas": {
-      "MyProfile": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "socialName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "phone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "preferences": {
-            "type": "object",
-            "properties": {
-              "density": {
-                "type": "string"
-              },
-              "theme": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "density",
-              "theme"
-            ]
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "socialName",
-          "phone",
-          "preferences",
-          "version"
-        ]
-      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -217,6 +166,57 @@
           "params"
         ]
       },
+      "MyProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "socialName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "density": {
+                "type": "string"
+              },
+              "theme": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "density",
+              "theme"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "socialName",
+          "phone",
+          "preferences",
+          "version"
+        ]
+      },
       "MembershipSummary": {
         "type": "object",
         "properties": {
@@ -297,6 +297,1231 @@
     "parameters": {}
   },
   "paths": {
+    "/document-types": {
+      "get": {
+        "operationId": "DTY-01",
+        "summary": "Listar tipos de documento",
+        "tags": [
+          "Tipos de documento"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "includeInactive",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tipos do tenant por ordem de exibição (só ativos, salvo `includeInactive=true`, que exige `DOCUMENT_TYPE_MANAGE`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "STRUCTURED",
+                              "FREE_TEXT",
+                              "UPLOADED"
+                            ]
+                          },
+                          "systemModule": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "DFD",
+                              "ETP",
+                              "TERM_OF_REFERENCE",
+                              "RISK_MAP",
+                              "PRICE_RESEARCH",
+                              null
+                            ]
+                          },
+                          "isSystem": {
+                            "type": "boolean"
+                          },
+                          "isActive": {
+                            "type": "boolean"
+                          },
+                          "allowMultiplePerProcess": {
+                            "type": "boolean"
+                          },
+                          "numberingEnabled": {
+                            "type": "boolean"
+                          },
+                          "numberingMask": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nextNumberPreview": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "requiresApproval": {
+                            "type": "boolean"
+                          },
+                          "approvalPolicy": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "approverType": {
+                                "type": "string",
+                                "enum": [
+                                  "USER",
+                                  "ROLE",
+                                  "DEPARTMENT_HEAD"
+                                ]
+                              },
+                              "approverUserId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "approverRoleId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "approverDepartmentResolution": {
+                                "type": "string",
+                                "enum": [
+                                  "FIXED",
+                                  "REQUESTING_SECRETARIAT",
+                                  "REQUESTING_DEPARTMENT"
+                                ]
+                              },
+                              "approverFixedDepartmentId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "allowDeputy": {
+                                "type": "boolean"
+                              },
+                              "slaDays": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 365
+                              },
+                              "slaType": {
+                                "type": "string",
+                                "enum": [
+                                  "BUSINESS",
+                                  "CALENDAR"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "approverType",
+                              "allowDeputy"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "defaultConfidentiality": {
+                            "type": "string",
+                            "enum": [
+                              "PUBLIC",
+                              "INTERNAL",
+                              "RESTRICTED"
+                            ]
+                          },
+                          "defaultTemplate": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "versionNumber": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "versionNumber"
+                            ]
+                          },
+                          "sortOrder": {
+                            "type": "integer"
+                          },
+                          "editableFields": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "name",
+                                "description",
+                                "allowMultiplePerProcess",
+                                "numberingEnabled",
+                                "numberingMask",
+                                "requiresApproval",
+                                "approvalPolicy",
+                                "defaultConfidentiality",
+                                "sortOrder",
+                                "isActive"
+                              ]
+                            }
+                          },
+                          "version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "name",
+                          "description",
+                          "kind",
+                          "systemModule",
+                          "isSystem",
+                          "isActive",
+                          "allowMultiplePerProcess",
+                          "numberingEnabled",
+                          "numberingMask",
+                          "nextNumberPreview",
+                          "requiresApproval",
+                          "approvalPolicy",
+                          "defaultConfidentiality",
+                          "defaultTemplate",
+                          "sortOrder",
+                          "editableFields",
+                          "version"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "DTY-02",
+        "summary": "Criar tipo de documento",
+        "tags": [
+          "Tipos de documento"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document_type.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FREE_TEXT",
+                      "UPLOADED"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "allowMultiplePerProcess": {
+                    "type": "boolean"
+                  },
+                  "numberingEnabled": {
+                    "type": "boolean"
+                  },
+                  "numberingMask": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "requiresApproval": {
+                    "type": "boolean"
+                  },
+                  "approvalPolicy": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "approverType": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ROLE",
+                          "DEPARTMENT_HEAD"
+                        ]
+                      },
+                      "approverUserId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "approverRoleId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "approverDepartmentResolution": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED",
+                          "REQUESTING_SECRETARIAT",
+                          "REQUESTING_DEPARTMENT"
+                        ]
+                      },
+                      "approverFixedDepartmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "allowDeputy": {
+                        "type": "boolean"
+                      },
+                      "slaDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 365
+                      },
+                      "slaType": {
+                        "type": "string",
+                        "enum": [
+                          "BUSINESS",
+                          "CALENDAR"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "approverType",
+                      "allowDeputy"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "defaultConfidentiality": {
+                    "type": "string",
+                    "enum": [
+                      "PUBLIC",
+                      "INTERNAL",
+                      "RESTRICTED"
+                    ]
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 999
+                  }
+                },
+                "required": [
+                  "kind",
+                  "code",
+                  "name",
+                  "allowMultiplePerProcess",
+                  "numberingEnabled",
+                  "requiresApproval",
+                  "defaultConfidentiality"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tipo criado (`Location` e `ETag` = versão).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "STRUCTURED",
+                            "FREE_TEXT",
+                            "UPLOADED"
+                          ]
+                        },
+                        "systemModule": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "DFD",
+                            "ETP",
+                            "TERM_OF_REFERENCE",
+                            "RISK_MAP",
+                            "PRICE_RESEARCH",
+                            null
+                          ]
+                        },
+                        "isSystem": {
+                          "type": "boolean"
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "allowMultiplePerProcess": {
+                          "type": "boolean"
+                        },
+                        "numberingEnabled": {
+                          "type": "boolean"
+                        },
+                        "numberingMask": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "nextNumberPreview": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "requiresApproval": {
+                          "type": "boolean"
+                        },
+                        "approvalPolicy": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "approverType": {
+                              "type": "string",
+                              "enum": [
+                                "USER",
+                                "ROLE",
+                                "DEPARTMENT_HEAD"
+                              ]
+                            },
+                            "approverUserId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "approverRoleId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "approverDepartmentResolution": {
+                              "type": "string",
+                              "enum": [
+                                "FIXED",
+                                "REQUESTING_SECRETARIAT",
+                                "REQUESTING_DEPARTMENT"
+                              ]
+                            },
+                            "approverFixedDepartmentId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "allowDeputy": {
+                              "type": "boolean"
+                            },
+                            "slaDays": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 365
+                            },
+                            "slaType": {
+                              "type": "string",
+                              "enum": [
+                                "BUSINESS",
+                                "CALENDAR"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "approverType",
+                            "allowDeputy"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "defaultConfidentiality": {
+                          "type": "string",
+                          "enum": [
+                            "PUBLIC",
+                            "INTERNAL",
+                            "RESTRICTED"
+                          ]
+                        },
+                        "defaultTemplate": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "versionNumber": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "versionNumber"
+                          ]
+                        },
+                        "sortOrder": {
+                          "type": "integer"
+                        },
+                        "editableFields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "name",
+                              "description",
+                              "allowMultiplePerProcess",
+                              "numberingEnabled",
+                              "numberingMask",
+                              "requiresApproval",
+                              "approvalPolicy",
+                              "defaultConfidentiality",
+                              "sortOrder",
+                              "isActive"
+                            ]
+                          }
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "name",
+                        "description",
+                        "kind",
+                        "systemModule",
+                        "isSystem",
+                        "isActive",
+                        "allowMultiplePerProcess",
+                        "numberingEnabled",
+                        "numberingMask",
+                        "nextNumberPreview",
+                        "requiresApproval",
+                        "approvalPolicy",
+                        "defaultConfidentiality",
+                        "defaultTemplate",
+                        "sortOrder",
+                        "editableFields",
+                        "version"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/document-types/{id}": {
+      "patch": {
+        "operationId": "DTY-03",
+        "summary": "Atualizar tipo de documento (inclui ativar e desativar)",
+        "tags": [
+          "Tipos de documento"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document_type.update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000
+                  },
+                  "allowMultiplePerProcess": {
+                    "type": "boolean"
+                  },
+                  "numberingEnabled": {
+                    "type": "boolean"
+                  },
+                  "numberingMask": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "requiresApproval": {
+                    "type": "boolean"
+                  },
+                  "approvalPolicy": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "approverType": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ROLE",
+                          "DEPARTMENT_HEAD"
+                        ]
+                      },
+                      "approverUserId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "approverRoleId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "approverDepartmentResolution": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED",
+                          "REQUESTING_SECRETARIAT",
+                          "REQUESTING_DEPARTMENT"
+                        ]
+                      },
+                      "approverFixedDepartmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "allowDeputy": {
+                        "type": "boolean"
+                      },
+                      "slaDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 365
+                      },
+                      "slaType": {
+                        "type": "string",
+                        "enum": [
+                          "BUSINESS",
+                          "CALENDAR"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "approverType",
+                      "allowDeputy"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "defaultConfidentiality": {
+                    "type": "string",
+                    "enum": [
+                      "PUBLIC",
+                      "INTERNAL",
+                      "RESTRICTED"
+                    ]
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 999
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tipo atualizado (novo `ETag`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "STRUCTURED",
+                            "FREE_TEXT",
+                            "UPLOADED"
+                          ]
+                        },
+                        "systemModule": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "DFD",
+                            "ETP",
+                            "TERM_OF_REFERENCE",
+                            "RISK_MAP",
+                            "PRICE_RESEARCH",
+                            null
+                          ]
+                        },
+                        "isSystem": {
+                          "type": "boolean"
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "allowMultiplePerProcess": {
+                          "type": "boolean"
+                        },
+                        "numberingEnabled": {
+                          "type": "boolean"
+                        },
+                        "numberingMask": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "nextNumberPreview": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "requiresApproval": {
+                          "type": "boolean"
+                        },
+                        "approvalPolicy": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "approverType": {
+                              "type": "string",
+                              "enum": [
+                                "USER",
+                                "ROLE",
+                                "DEPARTMENT_HEAD"
+                              ]
+                            },
+                            "approverUserId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "approverRoleId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "approverDepartmentResolution": {
+                              "type": "string",
+                              "enum": [
+                                "FIXED",
+                                "REQUESTING_SECRETARIAT",
+                                "REQUESTING_DEPARTMENT"
+                              ]
+                            },
+                            "approverFixedDepartmentId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "allowDeputy": {
+                              "type": "boolean"
+                            },
+                            "slaDays": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 365
+                            },
+                            "slaType": {
+                              "type": "string",
+                              "enum": [
+                                "BUSINESS",
+                                "CALENDAR"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "approverType",
+                            "allowDeputy"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "defaultConfidentiality": {
+                          "type": "string",
+                          "enum": [
+                            "PUBLIC",
+                            "INTERNAL",
+                            "RESTRICTED"
+                          ]
+                        },
+                        "defaultTemplate": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "versionNumber": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "versionNumber"
+                          ]
+                        },
+                        "sortOrder": {
+                          "type": "integer"
+                        },
+                        "editableFields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "name",
+                              "description",
+                              "allowMultiplePerProcess",
+                              "numberingEnabled",
+                              "numberingMask",
+                              "requiresApproval",
+                              "approvalPolicy",
+                              "defaultConfidentiality",
+                              "sortOrder",
+                              "isActive"
+                            ]
+                          }
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "name",
+                        "description",
+                        "kind",
+                        "systemModule",
+                        "isSystem",
+                        "isActive",
+                        "allowMultiplePerProcess",
+                        "numberingEnabled",
+                        "numberingMask",
+                        "nextNumberPreview",
+                        "requiresApproval",
+                        "approvalPolicy",
+                        "defaultConfidentiality",
+                        "defaultTemplate",
+                        "sortOrder",
+                        "editableFields",
+                        "version"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "operationId": "ME-01",

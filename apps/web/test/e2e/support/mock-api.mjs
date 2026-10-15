@@ -8,6 +8,60 @@ const PORT = Number(process.argv[2] ?? 4010);
 const failures = new Map();
 const replays = new Map();
 
+// Tipos de documento (US-061 · DTY-01..03): catálogo em memória, só o necessário para a jornada do SCR-108.
+const EDITABLE_ALL = [
+  'name',
+  'description',
+  'allowMultiplePerProcess',
+  'numberingEnabled',
+  'numberingMask',
+  'requiresApproval',
+  'approvalPolicy',
+  'defaultConfidentiality',
+  'sortOrder',
+  'isActive',
+];
+const EDITABLE_SYSTEM = EDITABLE_ALL.filter((field) => field !== 'allowMultiplePerProcess');
+const documentTypes = [
+  ['DFD', 'Documento de Formalização da Demanda', 'STRUCTURED', 'DFD', 10, null],
+  ['ETP', 'Estudo Técnico Preliminar', 'STRUCTURED', 'ETP', 20, null],
+  ['OFICIO', 'Ofício', 'FREE_TEXT', null, 70, 'OF {seq:4}/{year}'],
+  ['DOCUMENTO_EXTERNO', 'Documento externo', 'UPLOADED', null, 110, null],
+].map(([code, name, kind, systemModule, sortOrder, numberingMask], index) => ({
+  id: `0192a000-0000-7000-8000-00000000d0${String(index).padStart(2, '0')}`,
+  code,
+  name,
+  description: null,
+  kind,
+  systemModule,
+  isSystem: true,
+  isActive: true,
+  allowMultiplePerProcess: kind !== 'STRUCTURED',
+  numberingEnabled: code !== 'DOCUMENTO_EXTERNO',
+  numberingMask,
+  requiresApproval: false,
+  approvalPolicy: null,
+  defaultConfidentiality: 'INTERNAL',
+  defaultTemplate: null,
+  sortOrder,
+  editableFields:
+    kind === 'STRUCTURED' ? EDITABLE_SYSTEM.filter((f) => f !== 'isActive') : EDITABLE_SYSTEM,
+  version: 1,
+}));
+
+function previewOf(type) {
+  if (!type.numberingEnabled) return null;
+  const mask = type.numberingMask ?? '{type} {seq:4}/{year}';
+  return mask
+    .replace(/\{seq:(\d)\}/, (_m, width) => '1'.padStart(Number(width), '0'))
+    .replace('{year}', String(new Date().getFullYear()))
+    .replace('{type}', type.code);
+}
+
+function documentTypeView(type) {
+  return { ...type, nextNumberPreview: previewOf(type) };
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   response.end(body === undefined ? '' : JSON.stringify(body));
@@ -72,7 +126,13 @@ createServer(async (request, response) => {
   const tenantId = request.headers['x-tenant-id'] ?? null;
 
   if (url.pathname === '/api/v1/me/permissions') {
-    const permissions = sub === 'sub-ana' ? [{ code: 'PROCESS_CREATE', scopes: ['TENANT'] }] : [];
+    const permissions =
+      sub === 'sub-ana'
+        ? [
+            { code: 'PROCESS_CREATE', scopes: ['TENANT'] },
+            { code: 'DOCUMENT_TYPE_MANAGE', scopes: [] },
+          ]
+        : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
   }
   if (url.pathname === '/api/v1/_internal/ping') {
@@ -104,6 +164,60 @@ createServer(async (request, response) => {
     };
     if (key) replays.set(key, created);
     return send(response, 201, created);
+  }
+  if (url.pathname === '/api/v1/document-types' && request.method === 'GET') {
+    const all = url.searchParams.get('includeInactive') === 'true';
+    const list = documentTypes
+      .filter((type) => all || type.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'pt-BR'));
+    return send(response, 200, { data: list.map(documentTypeView) });
+  }
+  if (url.pathname === '/api/v1/document-types' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (documentTypes.some((type) => type.code === body.code)) {
+      return problem(response, 409, 'CONFLICT', String(correlationId));
+    }
+    const created = {
+      id: randomUUID(),
+      code: body.code,
+      name: body.name,
+      description: body.description ?? null,
+      kind: body.kind,
+      systemModule: null,
+      isSystem: false,
+      isActive: true,
+      allowMultiplePerProcess: body.allowMultiplePerProcess,
+      numberingEnabled: body.numberingEnabled,
+      numberingMask: body.numberingMask ?? null,
+      requiresApproval: body.requiresApproval,
+      approvalPolicy: body.approvalPolicy ?? null,
+      defaultConfidentiality: body.defaultConfidentiality,
+      defaultTemplate: null,
+      sortOrder: body.sortOrder ?? 0,
+      editableFields: EDITABLE_ALL,
+      version: 1,
+    };
+    documentTypes.push(created);
+    return send(
+      response,
+      201,
+      { data: documentTypeView(created) },
+      {
+        ETag: '"1"',
+        Location: `/api/v1/document-types/${created.id}`,
+      },
+    );
+  }
+  const documentTypeRoute = /^\/api\/v1\/document-types\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (documentTypeRoute && request.method === 'PATCH') {
+    const type = documentTypes.find((item) => item.id === documentTypeRoute[1]);
+    if (!type) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${type.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    Object.assign(type, body, { version: type.version + 1 });
+    return send(response, 200, { data: documentTypeView(type) }, { ETag: `"${type.version}"` });
   }
   return problem(response, 404, 'NOT_FOUND', String(correlationId));
 }).listen(PORT, () => {

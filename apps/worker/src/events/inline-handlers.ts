@@ -38,6 +38,33 @@ export class PermissionCacheInvalidator implements InlineEventHandler {
   }
 }
 
+/**
+ * Chaves de cache de configuração do tenant apagadas por routing key (events.md §3, legenda C):
+ * os segmentos seguem `TenantCache` da api (`cf:{env}:t:{tenantId}:{módulo}:{chave}`). Eventos de
+ * configuração novos entram aqui com a story que os publica (US-061: tipos de documento).
+ */
+const CONFIG_CACHE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  'document_type.changed': [['document', 'types']],
+};
+
+/**
+ * `ConfigCacheInvalidator`: `DEL` das chaves de configuração do tenant do evento. Idempotente por
+ * natureza — reentrega só repete o DEL; se o Redis falha, o job é repetido pela fila e, no pior
+ * caso, o cache expira pelo TTL (US-061 · RN-DOC-12).
+ */
+export class ConfigCacheInvalidator implements InlineEventHandler {
+  readonly name = 'ConfigCacheInvalidator';
+
+  constructor(private readonly cache: TenantRedisCache) {}
+
+  async handle(event: DomainEventEnvelope<Record<string, unknown>>): Promise<void> {
+    if (event.tenantId === null) return;
+    for (const segments of CONFIG_CACHE_KEYS[event.routingKey] ?? []) {
+      await this.cache.delete(event.tenantId, segments);
+    }
+  }
+}
+
 let businessEvents: Counter | undefined;
 
 /**

@@ -44,6 +44,11 @@ export interface RequestContext {
   readonly accessMode: AccessMode;
   /** Métodos de autenticação do token (`amr`) — usados pelo guard de MFA (POL-14). */
   readonly amr: readonly string[];
+  /**
+   * Perfis vigentes (`Role.key`) do vínculo ativo, resolvidos pelo guard de tenant. Ponte até a
+   * autorização por permissões efetivas (US-097): `AccessFacade.assertCan` lê daqui.
+   */
+  readonly roleKeys?: readonly string[];
   readonly authTime: Date | null;
 }
 

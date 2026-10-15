@@ -13,7 +13,7 @@ import { isUniqueViolation } from '#shared/database/errors.js';
 import { PlatformTransaction } from '#shared/database/platform-transaction.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import type { IdentityRepository, LoginRecord } from '../application/ports.js';
+import type { IdentityRepository, LoginRecord, TenantMember } from '../application/ports.js';
 import type { MembershipType, TenantMembership } from '../domain/tenant-membership.js';
 import { displayName } from '../domain/user.js';
 import type { User } from '../domain/user.js';
@@ -250,6 +250,22 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
     return new Map(
       rows.map((row) => [row.id, displayName({ name: row.name, socialName: row.social_name })]),
     );
+  }
+
+  async membersInTenant(tx: TenantTx, userIds: readonly string[]): Promise<TenantMember[]> {
+    if (userIds.length === 0) return [];
+    // A extensão de isolamento injeta o tenant; a RLS confirma. Perfis: US-096 (vazio até lá).
+    const rows = await tx.tenantMembership.findMany({
+      where: { userId: { in: [...userIds] } },
+      select: { id: true, userId: true, status: true, expiresAt: true },
+    });
+    return rows.map((row) => ({
+      userId: row.userId,
+      membershipId: row.id,
+      status: row.status,
+      expiresAt: row.expiresAt,
+      roleKeys: [],
+    }));
   }
 
   async touchMembershipAccess(tenantId: string, membershipId: string, at: Date): Promise<void> {

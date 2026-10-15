@@ -474,7 +474,7 @@
   | 422 | `NUMBERING_MASK_INVALID` | Máscara sem `{seq:N}`/`{year}` ou token desconhecido |
   | 422 | `APPROVER_UNRESOLVED` | Unidade fixa do aprovador sem titular |
 - **Efeitos:** Evento `DocumentTypeChanged` (`documentTypeId`, `code`, `changedFields[]`) — consumidor de invalidação de cache. Auditoria `document_type.create` (`CONFIGURATION`): `changes` valores iniciais; `metadata.code`, `kind`, `idempotencyKey`.
-- **Notas:** `Confidentiality` = `PUBLIC`\|`INTERNAL`\|`RESTRICTED` (entities.md). Sem projeção em timeline (configuração não pertence a um processo).
+- **Notas:** `Confidentiality` = `PUBLIC`\|`INTERNAL`\|`RESTRICTED` (entities.md). Sem projeção em timeline (configuração não pertence a um processo). Código repetido responde `409 CONFLICT` com `detail` "Já existe um tipo com o código {code}." (US-061 · V-05; `DOCUMENT_TYPE_CODE_TAKEN` de api.md §2.2 fica como refinamento futuro). `NUMBERING_MASK_INVALID` traz `errors[]` com `field = numberingMask`.
 
 ### DTY-03 — Atualizar tipo de documento
 `PATCH /api/v1/document-types/{id}` · **Permissão:** `DOCUMENT_TYPE_MANAGE` · **Story:** US-061
@@ -493,7 +493,7 @@
   | 422 | `NUMBERING_MASK_INVALID` | Máscara inválida |
   | 422 | `APPROVER_UNRESOLVED` | Aprovador/unidade não resolvível |
 - **Efeitos:** Evento `DocumentTypeChanged` (inclui ativar/desativar). Auditoria `document_type.update`: `changes` campo a campo (inclui `approvalPolicy`); `metadata` com `code`, `isSystem`, `impact { documentsCount, workflowsReferencing }`.
-- **Notas:** Tipos `STRUCTURED`/`isSystem` têm campos restritos (V-04/V-12, US-061).
+- **Notas:** Tipos `STRUCTURED`/`isSystem` têm campos restritos (V-04/V-12, US-061). Campos fora de `editableFields` (inclusive `code`/`kind`) → 422 `VALIDATION_ERROR` (`NOT_ALLOWED`). Corpo sem alteração real (valores iguais aos atuais ou `{}`) → 200 sem nova versão, auditoria nem evento. `editableFields` da resposta lista o que o tipo aceita alterar (RN-DOC-03).
 
 ### DTY-04 — Definir template padrão do tipo
 `PUT /api/v1/document-types/{id}/default-template` · **Permissão:** `TEMPLATE_PUBLISH` · **Story:** US-108
