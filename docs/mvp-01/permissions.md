@@ -138,7 +138,7 @@ Legenda: **Risco** `L`/`M`/`H` (`H` exige MFA quando `security.mfaPolicy ∈ {AD
 | `CALENDAR_MANAGE` | Gerenciar calendário | M | — | |
 | `SETTINGS_MANAGE` | Gerenciar configurações gerais | H | — | |
 
-**Total MVP 1: 67 permissões.** Fonte em código: `packages/types/src/permissions.ts` (constante `PERMISSIONS` com `code`, `module`, `riskLevel`, `scopable`, `introducedIn`), sincronizada com a tabela `permissions` por migração.
+**Total MVP 1: 68 permissões** (a contagem anterior, 67, estava errada — corrigida na US-094). Fonte em código: `packages/types/src/permissions.ts` (constante `PERMISSIONS` com `code`, `module`, `riskLevel`, `scopable`, `introducedIn`), sincronizada com a tabela `permissions` por migração.
 
 ---
 

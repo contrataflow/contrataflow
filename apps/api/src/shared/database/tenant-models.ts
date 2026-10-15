@@ -13,14 +13,17 @@ export const TENANT_SCOPED_MODELS = [
   'MembershipDepartment',
   'OutboxEvent',
   'ProcessTimelineEntry',
+  'Role',
+  'RolePermission',
   'TenantMembership',
 ] as const;
 
 /**
  * Modelos de plataforma (DEC-080, lista fechada): sem `tenantId`, acessados só pelos adaptadores
- * autorizados (`PlatformTransaction`/`SystemDbService`). `Permission` entra com a US-097.
+ * autorizados (`PlatformTransaction`/`SystemDbService`). `Permission` é o catálogo global (US-094),
+ * lido em tempo de execução a partir de `@contrataflow/types`.
  */
-export const PLATFORM_MODELS = ['Tenant', 'User'] as const;
+export const PLATFORM_MODELS = ['Permission', 'Tenant', 'User'] as const;
 
 export type TenantScopedModel = (typeof TENANT_SCOPED_MODELS)[number];
 

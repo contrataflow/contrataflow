@@ -84,7 +84,7 @@ Esta story não introduz formulário de usuário. O único dado trafegado é o p
 | V-07 | Rota mutável sem `@RequirePermission`/`@Policy` | Build (CI) | — (falha de build, não é erro HTTP) | — |
 
 ## Permissões
-- **Permissão:** não há um código de permissão próprio — esta story é o motor que aplica POL-01..17 e as 67 permissões do catálogo (permissions.md §2) a cada requisição. `ME-03` é capacidade implícita (vínculo ativo).
+- **Permissão:** não há um código de permissão próprio — esta story é o motor que aplica POL-01..17 e as 68 permissões do catálogo (permissions.md §2) a cada requisição. `ME-03` é capacidade implícita (vínculo ativo).
 - **Políticas:** todas (POL-01 a POL-17); esta story é a camada que as executa de forma uniforme.
 - **MFA:** aplicado conforme POL-14 a cada permissão `HIGH`, não apenas aqui.
 - **Sem permissão:** qualquer elemento de UI gated por uma permissão ausente é ocultado/desabilitado pelos hooks desta story; a API sempre responde 403/404 independentemente do estado da UI.

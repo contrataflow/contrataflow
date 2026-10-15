@@ -42,7 +42,7 @@ export interface AdminNavItem {
 
 export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin/usuarios', labelKey: 'users' },
-  { href: '/admin/perfis', labelKey: 'roles' },
+  { href: '/admin/perfis', labelKey: 'roles', permission: 'ROLE_VIEW' },
   { href: '/admin/estrutura', labelKey: 'structure' },
   { href: '/admin/templates', labelKey: 'templates' },
   { href: '/admin/workflows', labelKey: 'workflows' },

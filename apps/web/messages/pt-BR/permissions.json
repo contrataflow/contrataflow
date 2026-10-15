@@ -1,0 +1,57 @@
+{
+  "title": "Catálogo de permissões",
+  "description": "Todas as permissões da plataforma, agrupadas por módulo. O nível de risco indica quais exigem atenção extra ao compor um perfil.",
+  "loading": "Carregando o catálogo de permissões…",
+  "loadFailed": "Não foi possível carregar o catálogo de permissões.",
+  "retry": "Tentar novamente",
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para ver perfis e permissões."
+  },
+  "search": {
+    "label": "Buscar permissão",
+    "placeholder": "Nome, código ou descrição",
+    "empty": "Nenhuma permissão encontrada",
+    "emptyHint": "Revise o termo buscado.",
+    "summary": "{count, plural, one {# permissão} other {# permissões}}"
+  },
+  "group": {
+    "count": "{count, plural, one {# permissão} other {# permissões}}",
+    "listLabel": "Permissões do módulo {module}"
+  },
+  "risk": {
+    "LOW": "Risco baixo",
+    "MEDIUM": "Risco médio",
+    "HIGH": "Risco alto"
+  },
+  "badges": {
+    "scopable": "Aceita escopo",
+    "deprecated": "Descontinuada"
+  },
+  "modules": {
+    "process": "Processo",
+    "document": "Documentos",
+    "files": "Arquivos",
+    "supplier": "Fornecedores",
+    "dfd": "DFD",
+    "etp": "ETP",
+    "price-research": "Pesquisa de preços",
+    "risk": "Riscos",
+    "term": "Termo de referência",
+    "workflow": "Workflow",
+    "approval": "Aprovações",
+    "collaboration": "Colaboração",
+    "inbox": "Caixa de tarefas",
+    "dashboard": "Painel",
+    "audit": "Auditoria",
+    "identity": "Usuários",
+    "access": "Perfis e permissões",
+    "tenancy": "Órgão e configurações",
+    "organization": "Estrutura organizacional",
+    "catalog": "Catálogos e calendário"
+  },
+  "page": {
+    "title": "Perfis e permissões",
+    "description": "Consulte o catálogo de permissões da plataforma. A gestão de perfis e a matriz de permissões chegam em seguida."
+  }
+}

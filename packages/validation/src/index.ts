@@ -1,3 +1,4 @@
+export * from './access/index.js';
 export * from './common/index.js';
 export * from './document/index.js';
 export * from './events/index.js';

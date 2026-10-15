@@ -429,6 +429,7 @@ Catálogo global de permissões, definido em código (`packages/types/permission
 #### RolePermission (`role_permissions`) — módulo `access`
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
+| `id` | uuid | não | UUIDv7 (aplicação) | Só para a unicidade `(tenant_id, id)` de toda tabela de tenant (DEC-081 · US-094); a PK continua composta |
 | `tenantId` | uuid | não | — | |
 | `roleId` | uuid | não | — | FK → `roles` (`ON DELETE CASCADE`) |
 | `permissionCode` | varchar(80) | não | — | FK → `permissions.code` |

@@ -53,6 +53,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
     kind: 'exempt',
     reason: DOCUMENT_TYPE_ADMIN_ROUTE,
   },
+  'ROL-01': {
+    kind: 'exempt',
+    reason:
+      'Catálogo global e idêntico entre tenants (sem dado de tenant) que exige ROLE_VIEW: vínculo de outro tenant → 403 MEMBERSHIP_INACTIVE em access/presentation/permission.routes.spec.ts; RLS de roles/role_permissions em test/tenant-leak/roles.spec.ts.',
+  },
   'INTERNAL-SESSION-EVENTS': {
     kind: 'exempt',
     reason:

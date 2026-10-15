@@ -5,8 +5,9 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { AccessFacade } from './access.facade.js';
+import type { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 
-const facade = new AccessFacade();
+const facade = new AccessFacade({} as SeedDefaultRolesHandler);
 
 function as<T>(roleKeys: readonly string[], amr: readonly string[], fn: () => T): T {
   return runWithRequestContext({ correlationId: 'c', ip: '', userAgent: '' }, () => {

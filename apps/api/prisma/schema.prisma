@@ -406,3 +406,78 @@ model DocumentType {
   @@index([tenantId, isActive, sortOrder], map: "document_types_active_order_idx")
   @@map("document_types")
 }
+
+/// entities.md §2 — `PermissionRiskLevel`.
+enum PermissionRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("permission_risk_level")
+}
+
+/// entities.md `Permission` (módulo access · US-094): catálogo GLOBAL de permissões (tabela de
+/// plataforma, sem `tenantId`), sincronizado por migração a partir de
+/// `packages/types/src/permissions.ts` (upsert por `code`; nunca DELETE — RN-IAM-73).
+model Permission {
+  code         String              @id @db.VarChar(80)
+  module       String              @db.VarChar(40)
+  name         String              @db.VarChar(120)
+  description  String
+  riskLevel    PermissionRiskLevel @map("risk_level")
+  scopable     Boolean
+  isDeprecated Boolean             @default(false) @map("is_deprecated")
+  introducedIn String              @map("introduced_in") @db.VarChar(10)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  grants RolePermission[]
+
+  @@map("permissions")
+}
+
+/// entities.md `Role` (módulo access · US-094): perfis do tenant — os 15 padrão (`isSystem`),
+/// semeados no provisionamento (US-099), e os personalizados (US-095). A unicidade do nome sem
+/// diferenciar maiúsculas (`(tenant_id, lower(name))`) é índice de expressão na migração.
+model Role {
+  id                      String   @id @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  key                     String   @db.VarChar(60)
+  name                    String   @db.VarChar(120)
+  description             String?
+  isSystem                Boolean  @default(false) @map("is_system")
+  isProtected             Boolean  @default(false) @map("is_protected")
+  allowExternalAssignment Boolean  @default(false) @map("allow_external_assignment")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?  @map("created_by_id") @db.Uuid
+  updatedById             String?  @map("updated_by_id") @db.Uuid
+  version                 Int      @default(1)
+
+  permissions RolePermission[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, key])
+  @@map("roles")
+}
+
+/// entities.md `RolePermission` (módulo access · US-094): concessão de uma permissão do catálogo a
+/// um perfil. PK `(tenant_id, role_id, permission_code)`; o `id` existe só para a unicidade
+/// `(tenant_id, id)` exigida de toda tabela de tenant (DEC-081).
+model RolePermission {
+  id             String   @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  permissionCode String   @map("permission_code") @db.VarChar(80)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById    String?  @map("created_by_id") @db.Uuid
+
+  role       Role       @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Restrict)
+
+  @@id([tenantId, roleId, permissionCode])
+  @@unique([tenantId, id])
+  @@index([permissionCode])
+  @@map("role_permissions")
+}

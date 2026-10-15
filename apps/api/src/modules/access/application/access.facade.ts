@@ -7,6 +7,8 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
+import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
+import type { SeedDefaultRolesResult } from './seed-default-roles.handler.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
 
 /** Perfil visto por quem valida designações (US-061 · RN-DOC-07). */
@@ -23,6 +25,18 @@ export interface RoleForApproval {
  */
 @Injectable()
 export class AccessFacade {
+  constructor(private readonly defaultRoles: SeedDefaultRolesHandler) {}
+
+  /**
+   * Seeder `access.defaultRoles` (US-094 · RN-IAM-74..77) para o checklist de provisionamento
+   * (US-099): os 15 perfis padrão e a matriz de permissões no tenant do contexto, dentro do `tx`
+   * do item do checklist (falha desfaz tudo), idempotente na reexecução. O contexto deve ser do
+   * ator `SYSTEM` (`runAsSystem`) — a auditoria `role.create` herda o ator.
+   */
+  seedDefaultRoles(tx: TenantTx): Promise<SeedDefaultRolesResult> {
+    return this.defaultRoles.execute(tx);
+  }
+
   /**
    * Exige a permissão para o vínculo da requisição (RN-AUD-10: a recusa vira `access.denied` com
    * a permissão em `reasonCode`) e, para permissão de risco alto, o segundo fator quando
@@ -35,7 +49,7 @@ export class AccessFacade {
       throw new ApiError('PERMISSION_DENIED', { auditReasonCode: permission });
     }
     if (
-      PERMISSION_RISKS[permission] === 'H' &&
+      PERMISSION_RISKS[permission] === 'HIGH' &&
       options.mfaPolicy !== 'NONE' &&
       !hasSecondFactor(context.amr)
     ) {
@@ -49,8 +63,9 @@ export class AccessFacade {
   }
 
   /**
-   * Perfil do tenant da transação, ou `null` se não existir nele. Os perfis como registro
-   * (`Role`) chegam com a US-094/US-096; até lá não há perfil por id e a consulta devolve `null`.
+   * Perfil do tenant da transação, ou `null` se não existir nele. A tabela `roles` existe desde a
+   * US-094, mas a designação de perfis como aprovadores chega com a US-095/US-096; até lá a
+   * consulta devolve `null`.
    */
   findRoleForApproval(_tx: TenantTx, _roleId: string): Promise<RoleForApproval | null> {
     return Promise.resolve(null);

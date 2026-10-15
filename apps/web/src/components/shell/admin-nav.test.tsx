@@ -31,6 +31,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('[Permissão] item "Perfis e permissões" da navegação de administração', () => {
+  it('aparece para quem tem ROLE_VIEW', async () => {
+    const api = mockPermissions(() =>
+      jsonResponse({ data: { permissions: [{ code: 'ROLE_VIEW', scopes: [] }] } }),
+    );
+    renderWithShell(<AdminNav />);
+    await waitFor(() => {
+      expect(api).toHaveBeenCalled();
+    });
+    expect(await screen.findByRole('link', { name: 'Perfis e permissões' })).toBeTruthy();
+  });
+
+  it('Usuário sem ROLE_VIEW: o item de menu não deve ser exibido', async () => {
+    mockPermissions(() =>
+      jsonResponse({ data: { permissions: [{ code: 'PROCESS_VIEW', scopes: ['TENANT'] }] } }),
+    );
+    renderWithShell(<AdminNav />);
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: 'Perfis e permissões' })).toBeNull();
+    });
+    expect(screen.getByRole('link', { name: 'Usuários' })).toBeTruthy();
+  });
+});
+
 describe('[Permissão] item "Tipos de documento" da navegação de administração', () => {
   it('aparece para quem tem DOCUMENT_TYPE_MANAGE', async () => {
     const api = mockPermissions(() =>

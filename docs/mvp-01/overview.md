@@ -84,7 +84,7 @@ Personas completas: [personas.md](../product/personas.md).
 | Épicos / features / stories | 19 / 59 / 114 |
 | Pontos (P0 / P1 / P2) | 480 / 104 / 31 — total 615 |
 | Entidades (MVP 1) | 58 ([entities.md](entities.md)) |
-| Permissões / perfis padrão / políticas | 67 / 15 / 17 ([permissions.md](permissions.md)) |
+| Permissões / perfis padrão / políticas | 68 / 15 / 17 ([permissions.md](permissions.md)) |
 | Operações de API | 269 ([api.md](api.md) §3; detalhe em [api/](api/)) |
 | Eventos de domínio (canônicos) | 80, mais 12 nomes especializados ([events.md](events.md)) |
 | Telas especificadas | 26 do conjunto pedido + 16 complementares ([screens.md](screens.md)) |
