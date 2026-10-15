@@ -127,7 +127,7 @@ describe('padrão de persistência (PostgreSQL real)', () => {
   });
 
   describe('[Permissão] papéis de banco (RN-FND-46)', () => {
-    it('cria os papéis com os atributos mínimos; BYPASSRLS só no relay e no dono das funções', async () => {
+    it('cria os papéis com os atributos mínimos; BYPASSRLS só no relay, na purga do outbox e no dono das funções', async () => {
       const roles = await db.admin<{
         rolname: string;
         rolcanlogin: boolean;
@@ -150,6 +150,14 @@ describe('padrão de persistência (PostgreSQL real)', () => {
           // Dono das funções SECURITY DEFINER de leitura entre tenants (US-087): sem login.
           rolname: 'cf_definer',
           rolcanlogin: false,
+          rolbypassrls: true,
+          rolinherit: true,
+          privileged: false,
+        },
+        {
+          // Purga do outbox (US-082 · DEC-072): só SELECT/DELETE em outbox_events.
+          rolname: 'cf_maintenance',
+          rolcanlogin: true,
           rolbypassrls: true,
           rolinherit: true,
           privileged: false,
@@ -226,7 +234,7 @@ describe('padrão de persistência (PostgreSQL real)', () => {
         app.$tenantTransaction((tx) => tx.$executeRaw`CREATE TABLE intruder (id int)`),
       );
       await expect(create).rejects.toThrow(/permission denied for schema public/);
-      for (const role of ['cf_worker', 'cf_relay', 'cf_readonly_report']) {
+      for (const role of ['cf_worker', 'cf_relay', 'cf_maintenance', 'cf_readonly_report']) {
         const [can] = await db.admin<{ create: boolean }>(
           `SELECT has_schema_privilege($1, 'public', 'CREATE') AS create`,
           [role],

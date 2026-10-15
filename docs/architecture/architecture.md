@@ -986,6 +986,7 @@ export const envSchema = z.object({
 | `DATABASE_URL` | | ✔ | ✔ | Papel `cf_app` (API) / `cf_worker` (worker) |
 | `DATABASE_URL_PLATFORM` | | ✔ | ✔ | Papel `cf_platform` (`systemPrisma`) — usado só por código na allowlist |
 | `DATABASE_URL_RELAY` | | | ✔ | Papel `cf_relay` (relay do outbox) |
+| `DATABASE_URL_MAINTENANCE` | | | ✔ | Papel `cf_maintenance` (purga de `outbox_events` — DEC-072) |
 | `DATABASE_POOL_SIZE` | | ✔ | ✔ | Conexões por réplica (orçamento no §12.1) |
 | `REDIS_SESSION_URL` | ✔ | | | Redis de sessões (crítico, HA — DEC-131); chaves `cf:{env}:sess:*` e `cf:{env}:rl:auth:*`. Obrigatória fora de `local`/`dev`/`test` (sem ela, sessões em memória do processo — US-087) |
 | `REDIS_URL`, `REDIS_CACHE_URL` | ✔ | ✔ | ✔ | Redis principal (filas, idempotência, rate limit, locks); cache opcional separado |

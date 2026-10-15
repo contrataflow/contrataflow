@@ -158,6 +158,7 @@ GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 | `cf_app` | Sim | Não | Não | API (`apps/api`) |
 | `cf_worker` | Sim | Não | Não | Handlers do worker (com contexto de tenant por job) |
 | `cf_relay` | Sim | Não | **Sim**, mas com `SELECT`/`UPDATE` **somente** em `outbox_events` | Relay do outbox (entities.md `OutboxEvent`) |
+| `cf_maintenance` | Sim | Não | **Sim**, mas com `SELECT`/`DELETE` **somente** em `outbox_events` | Purga dos eventos publicados há mais de 7 dias (DEC-085, DEC-072) |
 | `cf_platform` | Sim | Não | Não | `systemPrisma` (§5.3): DML em `tenants`; políticas explícitas `TO cf_platform` para auditoria de plataforma (`tenant_id IS NULL`); demais tabelas só com contexto de um tenant |
 | `cf_definer` | Não | Só das funções `SECURITY DEFINER` | **Sim** | Dono das funções de leitura entre tenants com colunas mínimas (`cf_user_memberships` — US-087, DEC-070); `SELECT` só em `tenants` e `tenant_memberships`; ninguém faz login com ele |
 | `cf_readonly_report` | Sim | Não | Não | `SELECT` apenas em *views* `report_*`†, sempre com contexto de tenant (exportações pesadas; réplica futura) |

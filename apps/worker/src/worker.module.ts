@@ -1,9 +1,17 @@
 import type { Logger as PinoLogger } from '@contrataflow/observability';
 import { Module } from '@nestjs/common';
-import type { DynamicModule } from '@nestjs/common';
+import type { DynamicModule, Provider } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 
+import type { OutboxRuntimeConfig } from '#config/outbox.js';
+
 import { TraceDemoJobHandler } from './jobs/trace-demo.job.js';
+import { OUTBOX_RUNTIME_CONFIG, OutboxRuntime } from './outbox/outbox.runtime.js';
+
+export interface WorkerModuleOptions {
+  /** Relay do outbox e consumidor de `domain-events` (US-082); `null` = desligados. */
+  readonly outbox?: OutboxRuntimeConfig | null;
+}
 
 /**
  * Composition root do worker (DEC-052): importa as camadas application/infrastructure dos
@@ -12,11 +20,14 @@ import { TraceDemoJobHandler } from './jobs/trace-demo.job.js';
  */
 @Module({})
 export class WorkerModule {
-  static forRoot(logger: PinoLogger): DynamicModule {
+  static forRoot(logger: PinoLogger, options: WorkerModuleOptions = {}): DynamicModule {
+    const outbox: Provider[] = options.outbox
+      ? [{ provide: OUTBOX_RUNTIME_CONFIG, useValue: options.outbox }, OutboxRuntime]
+      : [];
     return {
       module: WorkerModule,
       imports: [LoggerModule.forRoot({ pinoHttp: { logger } })],
-      providers: [TraceDemoJobHandler],
+      providers: [TraceDemoJobHandler, ...outbox],
     };
   }
 }

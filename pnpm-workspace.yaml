@@ -28,6 +28,8 @@ ignoredBuiltDependencies:
   # A CLI do Prisma baixa o schema-engine sob demanda no primeiro uso (US-081).
   - '@prisma/engines'
   - cpu-features
+  # Acelerador nativo opcional do msgpackr (BullMQ — US-082); sem ele o msgpackr usa JS puro.
+  - msgpackr-extract
   - prisma
   - protobufjs
   - ssh2

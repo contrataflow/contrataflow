@@ -4,6 +4,8 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Logger as NestPinoLogger } from 'nestjs-pino';
 
+import type { OutboxRuntimeConfig } from '#config/outbox.js';
+
 import { registerGracefulShutdown } from './graceful-shutdown.js';
 import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
 import { createWorkerLogger } from './observability/worker-logger.js';
@@ -16,6 +18,8 @@ export interface StartWorkerOptions {
   readonly logger?: false;
   /** Logger pino raiz (padrão: stdout, nível `info` — RN-FND-71). */
   readonly rootLogger?: PinoLogger;
+  /** Relay do outbox e consumidor de `domain-events` (US-082); ausente = desligados. */
+  readonly outbox?: OutboxRuntimeConfig | null;
 }
 
 export interface RunningWorker {
@@ -26,7 +30,7 @@ export interface RunningWorker {
 
 /**
  * Sobe o contexto standalone (sem HTTP público), registra `worker.started` e encerra limpo
- * em SIGTERM/SIGINT. Enquanto não há filas, um temporizador mantém o processo ativo.
+ * em SIGTERM/SIGINT. Sem o outbox configurado, um temporizador mantém o processo ativo.
  */
 export async function startWorker(options: StartWorkerOptions = {}): Promise<RunningWorker> {
   const silent = options.logger === false;
@@ -34,7 +38,7 @@ export async function startWorker(options: StartWorkerOptions = {}): Promise<Run
     options.rootLogger ??
     createWorkerLogger({ environment: 'local', version: '0.0.0+local', logLevel: 'info' });
   const context = await NestFactory.createApplicationContext(
-    WorkerModule.forRoot(rootLogger),
+    WorkerModule.forRoot(rootLogger, { outbox: options.outbox ?? null }),
     silent ? { logger: false } : { bufferLogs: true },
   );
   if (!silent) context.useLogger(context.get(NestPinoLogger));

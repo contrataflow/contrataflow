@@ -201,6 +201,39 @@ describe('isolamento por tenant no banco (suíte tenant leak)', () => {
     );
     expect(relay[0]?.allowed).toBe(true);
   });
+
+  it('[Permissão · US-082] o cf_relay é negado em qualquer tabela que não seja outbox_events', async () => {
+    const relay = new pg.Client({ connectionString: db.url('cf_relay') });
+    await relay.connect();
+    try {
+      for (const table of ['tenants', 'users', 'tenant_memberships', 'audit_logs']) {
+        await expect(relay.query(`SELECT 1 FROM ${table} LIMIT 1`)).rejects.toThrow(
+          new RegExp(`permission denied for table ${table}`),
+        );
+      }
+      // BYPASSRLS: enxerga os eventos de todos os tenants, sem app.tenant_id.
+      const { rows } = await relay.query<{ tenants: string }>(
+        'SELECT count(DISTINCT tenant_id)::text AS tenants FROM outbox_events',
+      );
+      expect(Number(rows[0]?.tenants)).toBeGreaterThanOrEqual(2);
+    } finally {
+      await relay.end();
+    }
+  });
+
+  it('a purga (cf_maintenance, BYPASSRLS) só lê e apaga outbox_events (US-082 · DEC-072)', async () => {
+    const [maintenance] = await db.admin<{ allowed: boolean; others: boolean }>(
+      `SELECT has_table_privilege('cf_maintenance', 'outbox_events', 'SELECT')
+          AND has_table_privilege('cf_maintenance', 'outbox_events', 'DELETE')
+          AND NOT has_table_privilege('cf_maintenance', 'outbox_events', 'INSERT')
+          AND NOT has_table_privilege('cf_maintenance', 'outbox_events', 'UPDATE') AS allowed,
+              bool_or(has_table_privilege('cf_maintenance', c.oid, 'SELECT')) FILTER
+                (WHERE c.relname <> 'outbox_events') AS others
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')`,
+    );
+    expect(maintenance).toEqual({ allowed: true, others: false });
+  });
 });
 
 describe('isolamento da trilha de auditoria (US-073 · suíte tenant leak)', () => {

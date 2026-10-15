@@ -34,7 +34,7 @@ describe('pnpm db:migrate (US-081 — fluxo principal 1)', () => {
   it('senha local só para os papéis de LOGIN que existem, com literal escapado', () => {
     const sql = devPasswordsSql("dev'pass");
     expect(sql).toContain(
-      "ARRAY['cf_migrator', 'cf_app', 'cf_worker', 'cf_relay', 'cf_readonly_report']",
+      "ARRAY['cf_migrator', 'cf_app', 'cf_worker', 'cf_relay', 'cf_maintenance', 'cf_readonly_report']",
     );
     expect(sql).toContain("format('ALTER ROLE %I PASSWORD %L', role_name, 'dev''pass')");
     expect(sql).toContain('IF EXISTS (SELECT FROM pg_roles WHERE rolname = role_name)');

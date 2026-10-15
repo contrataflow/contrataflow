@@ -22,6 +22,7 @@ export const LOGIN_ROLES = [
   'cf_app',
   'cf_worker',
   'cf_relay',
+  'cf_maintenance',
   'cf_readonly_report',
 ] as const;
 

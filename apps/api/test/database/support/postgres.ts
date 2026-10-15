@@ -29,7 +29,8 @@ export function postgresImage(): string {
 /** Senha descartável dos papéis de LOGIN, só dentro deste contêiner. */
 const PASSWORD = 'test-only';
 
-export type LoginRole = 'cf_app' | 'cf_worker' | 'cf_relay' | 'cf_readonly_report' | 'cf_migrator';
+export type LoginRole =
+  'cf_app' | 'cf_worker' | 'cf_relay' | 'cf_maintenance' | 'cf_readonly_report' | 'cf_migrator';
 
 export interface TestDatabase {
   readonly container: StartedTestContainer;
@@ -95,7 +96,14 @@ export async function startTestDatabase(): Promise<TestDatabase> {
   await admin(extensions);
   await runPrisma(['migrate', 'deploy'], url('postgres'));
   // Em produção as senhas vêm do Secrets Manager; a migração cria os papéis sem senha.
-  for (const role of ['cf_app', 'cf_worker', 'cf_relay', 'cf_readonly_report', 'cf_migrator']) {
+  for (const role of [
+    'cf_app',
+    'cf_worker',
+    'cf_relay',
+    'cf_maintenance',
+    'cf_readonly_report',
+    'cf_migrator',
+  ]) {
     await admin(`ALTER ROLE ${role} PASSWORD '${PASSWORD}'`);
   }
 
