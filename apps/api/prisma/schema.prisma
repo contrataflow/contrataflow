@@ -306,3 +306,40 @@ model AuditLog {
   @@index([tenantId, action, occurredAt(sort: Desc)], map: "audit_logs_action_idx")
   @@map("audit_logs")
 }
+
+/// entities.md §2 — `TimelineVisibility` (POL-09).
+enum TimelineVisibility {
+  STANDARD
+  BUDGET_RESTRICTED
+
+  @@map("timeline_visibility")
+}
+
+/// entities.md `ProcessTimelineEntry` (módulo timeline · US-059): narrativa curada do processo
+/// (DEC-025), gravada só pelo `TimelineProjector` na transação do caso de uso (DEC-161), com nomes
+/// congelados no momento do fato. Imutável (trigger + só INSERT/SELECT), RLS por tenant e
+/// idempotente por `(tenantId, sourceEventId, type)`. `type` é o registro `TimelineEntryType`
+/// (`packages/types`). A FK de `processId` → `processes` entra com a US-001.
+model ProcessTimelineEntry {
+  id                  String             @id @db.Uuid
+  tenantId            String             @map("tenant_id") @db.Uuid
+  processId           String             @map("process_id") @db.Uuid
+  occurredAt          DateTime           @map("occurred_at") @db.Timestamptz(6)
+  type                String             @db.VarChar(60)
+  actorType           ActorType          @map("actor_type")
+  actorId             String?            @map("actor_id") @db.Uuid
+  actorName           String?            @map("actor_name") @db.VarChar(200)
+  actorDepartmentName String?            @map("actor_department_name") @db.VarChar(200)
+  entityType          String?            @map("entity_type") @db.VarChar(40)
+  entityId            String?            @map("entity_id") @db.Uuid
+  movementId          String?            @map("movement_id") @db.Uuid
+  params              Json               @default("{}") @db.JsonB
+  visibility          TimelineVisibility @default(STANDARD)
+  sourceEventId       String             @map("source_event_id") @db.Uuid
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, sourceEventId, type], map: "process_timeline_entries_source_key")
+  @@index([tenantId, processId, occurredAt(sort: Desc), id(sort: Desc)], map: "process_timeline_entries_process_idx")
+  @@map("process_timeline_entries")
+}

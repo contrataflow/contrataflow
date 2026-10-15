@@ -229,6 +229,8 @@ Eventos próprios de módulos tipados:
 | `RISK_ADDED` / `RISK_LEVEL_CHANGED` / `RISK_REMOVED` | `Risk*` | "{actor} registrou o risco {code} ({levelLabel})" | `code`, `title`, `level` | STANDARD |
 | `TERM_IMPORTED_FROM_ETP` | `TermImportedFromEtp` | "{actor} importou dados do ETP (v{etpVersion}) para o TR" | `etpVersion`, `sectionsCount` | STANDARD |
 
+Os nomes e rótulos dos `params` são resolvidos pelo projetor no momento do fato, por fontes dos módulos donos lidas na mesma transação, e nunca refeitos depois (DEC-077); `{documentLabel}` é gravado como `documentCode`, `documentTitle` e `typeName`. Um evento pode gerar mais de uma entrada (`PROCESS_CREATED` e `PROCESS_DUPLICATED_FROM`): a unicidade é por (`sourceEventId`, `type`). Evento ou discriminador sem linha nesta tabela é ignorado.
+
 ---
 
 ## 6. Notificações derivadas de eventos

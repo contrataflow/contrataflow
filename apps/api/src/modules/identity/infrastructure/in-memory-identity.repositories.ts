@@ -4,6 +4,8 @@ import type {
   MembershipRecord,
   UserPort,
 } from '#shared/auth/ports.js';
+import { currentRequestContext } from '#shared/context/request-context.js';
+import type { TenantTx } from '#shared/database/prisma.js';
 import { FAKE_MEMBERSHIPS, FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
 import type { FakeMembership, FakeUser } from '#shared/testing/fake-directory.js';
 
@@ -155,6 +157,20 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
       });
     }
     return Promise.resolve();
+  }
+
+  displayNamesInTenant(_tx: TenantTx, userIds: readonly string[]): Promise<Map<string, string>> {
+    // Sem RLS em memória: o tenant vem do contexto, como o `app.tenant_id` da transação.
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const names = new Map<string, string>();
+    for (const userId of userIds) {
+      const user = this.users.get(userId);
+      const member = this.memberships.some(
+        (membership) => membership.userId === userId && membership.tenantId === tenantId,
+      );
+      if (user && member) names.set(userId, displayName(user));
+    }
+    return Promise.resolve(names);
   }
 
   // --- Inspeção (testes) -----------------------------------------------------------------------

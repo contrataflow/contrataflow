@@ -1,6 +1,7 @@
 import type { SessionTombstone, TenantSelection } from '@contrataflow/validation';
 
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { TenantMembership } from '../domain/tenant-membership.js';
 import type { User } from '../domain/user.js';
@@ -37,6 +38,12 @@ export interface IdentityRepository {
    * `User.preferences` (jsonb livre, sem migração), preservando as demais preferências.
    */
   setDefaultTenant(userId: string, tenantId: string): Promise<void>;
+  /**
+   * Nomes exibidos dos usuários com vínculo no tenant da transação (a RLS de
+   * `tenant_memberships` filtra — usuário de outro tenant não é encontrado), lidos no `tx` do caso
+   * de uso: os nomes congelados da timeline (US-059).
+   */
+  displayNamesInTenant(tx: TenantTx, userIds: readonly string[]): Promise<Map<string, string>>;
 }
 
 export const IDENTITY_REPOSITORY = Symbol('IdentityRepository');

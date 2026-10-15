@@ -236,6 +236,22 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
     );
   }
 
+  async displayNamesInTenant(
+    tx: TenantTx,
+    userIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    if (userIds.length === 0) return new Map();
+    // `users` é de plataforma (sem RLS): o vínculo, filtrado pela RLS, restringe ao tenant do tx.
+    const rows = await tx.$queryRaw<{ id: string; name: string; social_name: string | null }[]>`
+      SELECT u.id, u.name, u.social_name
+        FROM users u
+       WHERE u.id = ANY(${[...userIds]}::uuid[])
+         AND EXISTS (SELECT 1 FROM tenant_memberships m WHERE m.user_id = u.id)`;
+    return new Map(
+      rows.map((row) => [row.id, displayName({ name: row.name, socialName: row.social_name })]),
+    );
+  }
+
   async touchMembershipAccess(tenantId: string, membershipId: string, at: Date): Promise<void> {
     const last = this.lastTouched.get(membershipId);
     if (last !== undefined && at.getTime() - last < LAST_ACCESS_INTERVAL_MS) return;
