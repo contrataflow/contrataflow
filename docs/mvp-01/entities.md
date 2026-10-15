@@ -508,6 +508,7 @@ Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
 | `createdAt`, `updatedAt` | timestamptz | não | — | |
 
 - **Unique:** `(tenant_id, sequence_key)`. Linha criada sob demanda com `INSERT … ON CONFLICT DO NOTHING`.
+- **Integridade:** formato da chave conferido por check; `tenant_id` e `sequence_key` imutáveis e `last_value` nunca diminui (trigger); sem `DELETE` para a aplicação; o worker só lê. No MVP 1 documentos usam sempre `*` (por tipo e ano no tenant — DEC-028/US-105).
 
 ### 4.4 Processo
 
@@ -1592,6 +1593,7 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `numbering.process.scope` | `"TENANT"` \| `"ORGANIZATION"` | `"TENANT"` | Alterável só no início do exercício (aviso) |
 | `numbering.process.assignOn` | `"CREATE"` \| `"START"` | `"CREATE"` | DEC-028 |
 | `numbering.document.defaultMask` | string | `"{type} {seq:4}/{year}"` | |
+| `numbering.document.<TYPE>.mask` | string | — (ausente = `defaultMask`) | Chave dinâmica por código de tipo (US-105 · RN-TEN-72); máscara de documento; não semeada |
 | `process.duplicateDetectionWindowMinutes` | int | `10` | 0 desativa |
 | `process.requireInternalCode` | boolean | `false` | |
 | `access.historicalDepartmentsCanView` | boolean | `true` | |

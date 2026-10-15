@@ -443,6 +443,19 @@ createServer(async (request, response) => {
       data: Object.fromEntries(PUBLIC_SETTINGS.map((key) => [key, settings.get(key)?.value])),
     });
   }
+  if (url.pathname === '/api/v1/numbering/preview' && request.method === 'POST') {
+    // SET-04 (US-105): exemplo com o próximo número hipotético 12 (processo) ou 5 (documento).
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const next = body.documentTypeCode === undefined ? 12 : 5;
+    const example = String(body.mask ?? '').replace(/\{([^{}]*)\}/g, (_token, name) => {
+      if (name === 'year') return '2026';
+      if (name === 'org') return 'PMSJ';
+      if (name === 'type') return body.documentTypeCode ?? '';
+      const width = Number(/^seq:(\d)$/.exec(name)?.[1] ?? 4);
+      return String(next).padStart(width, '0');
+    });
+    return send(response, 200, { data: { example, nextValue: String(next) } });
+  }
   if (url.pathname === '/api/v1/settings' && request.method === 'PATCH') {
     const body = JSON.parse((await readBody(request)) || '{}');
     const keys = Object.keys(body.values ?? {});

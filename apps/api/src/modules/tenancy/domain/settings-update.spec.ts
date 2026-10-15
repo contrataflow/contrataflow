@@ -145,7 +145,11 @@ describe('planSettingsUpdate (RN-TEN-52..54, tudo ou nada)', () => {
         }),
       ) as InvalidSettingValuesError;
       expect(error.violations).toEqual([
-        { key: 'numbering.process.scope', code: 'NUMBERING_MASK_INVALID' },
+        {
+          key: 'numbering.process.scope',
+          code: 'NUMBERING_MASK_INVALID',
+          missingOrganization: true,
+        },
       ]);
     });
 

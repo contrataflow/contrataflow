@@ -175,7 +175,7 @@ Feature: Configurar numeração de processos e documentos
 ## Backend
 - **Módulo(s):** `catalog` (dono); usa `tenancy` (`SettingsRegistry`, US-103).
 - **Casos de uso:** `PreviewNumberingMaskQuery` (`SET-04`); validação de `numbering.*` plugada no `UpdateSettingsCommand` (`SET-02`, US-103) via schema Zod registrado.
-- **Domínio:** `NumberingFacade.next(sequenceKey)` / `.preview(mask, scope)` / `.formatMask(mask, tokens)`; VO `NumberMask` (parse e validação de tokens).
+- **Domínio:** `NumberingFacade.next(sequenceKey)` / `.preview(mask, scope)` / `.formatMask(mask, tokens)`; VO `NumberMask` (parse e validação de tokens). Implementação: `apps/api/src/modules/catalog` (`domain/number-mask.ts`, `application/numbering.facade.ts` com `assignProcessNumber`/`assignDocumentNumber` para US-001/US-047 e as stories de documento, `application/preview-numbering-mask.query.ts`); regras de máscara compartilhadas em `packages/validation` (`PROCESS_MASK_RULES`, `DOCUMENT_SETTING_MASK_RULES`) — ver DEC-028 em decisions.md (escopo do exercício e documentos por tipo no tenant).
 - **Transação:** `next()` sempre executa dentro da transação do recurso numerado (US-001 e símiles); `preview()` é uma leitura isolada, sem efeito colateral.
 
 ## Frontend
@@ -186,14 +186,14 @@ Feature: Configurar numeração de processos e documentos
 
 ## Banco de dados
 - **Tabelas:** `number_sequences` (leitura/escrita pela `NumberingFacade`); `tenant_settings` (chaves `numbering.*`, via US-103).
-- **Migrações:** nenhuma nova (tabelas já definidas em entities.md §4).
+- **Migrações:** `20261015300000_number_sequences` — tabela `number_sequences` (entities.md §4: check do formato da chave, `UNIQUE (tenant_id, sequence_key)`, trigger de imutabilidade e de `last_value` que não diminui, RLS, sem `DELETE`).
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, sequence_key)` em `number_sequences`.
 
 ## API
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |
 |---|---|---|---|---|---|
 | SET-02 | PATCH | `/settings` | `{ values: { "numbering.process.mask": "…" }, expectedVersions: { "numbering.process.mask": versão } }` | `200 { data: { "<chave>": { value, version } } }` | 200, 403, 412, 422, 428 |
-| SET-04 | POST | `/numbering/preview` | `{ mask, scope? }` | `200 { data: { example, nextValue } } }` | 200, 403, 422 |
+| SET-04 | POST | `/numbering/preview` | `{ mask, scope?, documentTypeCode? }` | `200 { data: { example, nextValue } }` | 200, 403, 422 |
 
 ## Logs
 - `info` `numbering.assigned` — `sequenceKey`, `value`, `durationMs`, `tenantId`.

@@ -1,4 +1,8 @@
-import type { SettingsMapDto } from '@contrataflow/validation';
+import type {
+  NumberingPreview,
+  NumberingPreviewResult,
+  SettingsMapDto,
+} from '@contrataflow/validation';
 
 import { apiRequest } from '@/lib/api/client';
 import type { ApiResult } from '@/lib/api/client';
@@ -13,6 +17,8 @@ export const settingsKeys = {
   all: (tenantId: string) => tenantKey(tenantId, 'settings'),
   full: (tenantId: string) => tenantKey(tenantId, 'settings', 'full'),
   public: (tenantId: string) => tenantKey(tenantId, 'settings', 'public'),
+  numberingPreview: (tenantId: string, request: NumberingPreview) =>
+    tenantKey(tenantId, 'settings', 'numbering-preview', request),
 };
 
 /** Staleness das configurações (architecture.md §8.5: catálogos e configurações). */
@@ -38,5 +44,17 @@ export function updateSettings(
   return apiRequest<SettingsMapDto>('/settings', {
     method: 'PATCH',
     body: { values, expectedVersions },
+  });
+}
+
+/** SET-04 (US-105): exemplo da máscara ainda não salva, sem incrementar a sequência. */
+export function previewNumbering(
+  request: NumberingPreview,
+  signal?: AbortSignal,
+): Promise<ApiResult<NumberingPreviewResult>> {
+  return apiRequest<NumberingPreviewResult>('/numbering/preview', {
+    method: 'POST',
+    body: request,
+    signal,
   });
 }

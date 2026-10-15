@@ -14,6 +14,7 @@ export const TENANT_SCOPED_MODELS = [
   'DocumentType',
   'Holiday',
   'MembershipDepartment',
+  'NumberSequence',
   'Organization',
   'OutboxEvent',
   'ProcessTimelineEntry',

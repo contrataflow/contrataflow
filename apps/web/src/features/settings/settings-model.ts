@@ -1,12 +1,19 @@
 import {
   contrastAgainstWhite,
+  NUMBERING_SCOPES,
   PLATFORM_UPLOAD_EXTENSIONS,
   SETTING_DEFINITIONS,
+  SETTING_DOCUMENT_MASK_KEY,
   SETTING_GROUPS,
   settingGroupOf,
   settingSchemaOf,
 } from '@contrataflow/validation';
-import type { SettingGroup, SettingsMapDto } from '@contrataflow/validation';
+import type {
+  NumberingPreview,
+  NumberingScope,
+  SettingGroup,
+  SettingsMapDto,
+} from '@contrataflow/validation';
 
 /*
  * Modelo do formulário da SCR-041 (US-103): agrupamento por prefixo, tipo de editor por chave,
@@ -25,6 +32,12 @@ export type FieldKind =
   | 'extensions'
   | 'json'
   | 'readonly';
+
+const MASK_KEY = 'numbering.process.mask';
+const SCOPE_KEY = 'numbering.process.scope';
+const DEFAULT_DOCUMENT_MASK_KEY = 'numbering.document.defaultMask';
+/** Tipo de exemplo da prévia da máscara padrão de documento (usa a padrão — DEC-028). */
+export const DEFAULT_MASK_PREVIEW_TYPE = 'DFD';
 
 /** Valores aceitos pelos seletores (iguais aos enums do registro). */
 export const SELECT_OPTIONS: Readonly<Record<string, readonly string[]>> = {
@@ -47,7 +60,8 @@ const NUMBER_KEYS = new Set([
 export function fieldKindOf(key: string): FieldKind {
   if (key === 'branding.primaryColor') return 'color';
   if (key === 'branding.logoAttachmentId') return 'readonly';
-  if (key === 'numbering.process.mask' || key === 'numbering.document.defaultMask') return 'mask';
+  if (key === MASK_KEY || key === DEFAULT_DOCUMENT_MASK_KEY) return 'mask';
+  if (SETTING_DOCUMENT_MASK_KEY.test(key)) return 'mask';
   if (key === 'uploads.allowedExtensions') return 'extensions';
   if (key === 'risk.scale' || key === 'risk.levelThresholds') return 'json';
   if (key in SELECT_OPTIONS) return 'select';
@@ -186,9 +200,6 @@ export function buildPatchBody(changes: readonly PendingChange[]): {
 /** Tipos dos tokens de máscara exibidos nas mensagens. */
 export const MASK_TOKENS = { seqToken: '{seq:N}', yearToken: '{year}', orgToken: '{org}' } as const;
 
-const MASK_KEY = 'numbering.process.mask';
-const SCOPE_KEY = 'numbering.process.scope';
-
 /**
  * Máscara do processo × escopo (SET-02): com escopo `ORGANIZATION` a máscara precisa de `{org}`.
  * Só vale quando o formulário altera uma das duas chaves.
@@ -201,4 +212,47 @@ export function maskNeedsOrganization(
   const scope = drafts[SCOPE_KEY] ?? settings[SCOPE_KEY]?.value;
   const mask = drafts[MASK_KEY] ?? settings[MASK_KEY]?.value;
   return scope === 'ORGANIZATION' && !(typeof mask === 'string' && mask.includes('{org}'));
+}
+
+/** Código do tipo de `numbering.document.<TYPE>.mask`, ou `null` para outras chaves. */
+export function documentMaskTypeOf(key: string): string | null {
+  return SETTING_DOCUMENT_MASK_KEY.exec(key)?.[1] ?? null;
+}
+
+function scopeOf(value: unknown): NumberingScope {
+  return (NUMBERING_SCOPES as readonly unknown[]).includes(value)
+    ? (value as NumberingScope)
+    : 'TENANT';
+}
+
+/**
+ * Corpo de SET-04 (US-105 · FA-04) para a máscara em edição — a do rascunho, nunca a gravada — ou
+ * `null` enquanto o rascunho é inválido (a prévia não avança). A máscara do processo leva o escopo
+ * em edição; as de documento, o tipo de exemplo (`DFD` na padrão).
+ */
+export function maskPreviewRequest(
+  key: string,
+  settings: SettingsMapDto,
+  drafts: Readonly<Record<string, Draft>>,
+): NumberingPreview | null {
+  const draft = drafts[key] ?? toDraft(key, settings[key]?.value);
+  if (typeof draft !== 'string' || !parseDraft(key, draft).ok) return null;
+  if (key === MASK_KEY) {
+    if (maskNeedsOrganization(settings, drafts)) return null;
+    return { mask: draft, scope: scopeOf(drafts[SCOPE_KEY] ?? settings[SCOPE_KEY]?.value) };
+  }
+  if (key === DEFAULT_DOCUMENT_MASK_KEY) {
+    return { mask: draft, documentTypeCode: DEFAULT_MASK_PREVIEW_TYPE };
+  }
+  const type = documentMaskTypeOf(key);
+  return type === null ? null : { mask: draft, documentTypeCode: type };
+}
+
+/** DEC-028 · RN-TEN-68: o escopo em edição difere do gravado (vale só no próximo exercício). */
+export function scopeChanged(
+  settings: SettingsMapDto,
+  drafts: Readonly<Record<string, Draft>>,
+): boolean {
+  const draft = drafts[SCOPE_KEY];
+  return draft !== undefined && draft !== settings[SCOPE_KEY]?.value;
 }

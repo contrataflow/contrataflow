@@ -296,7 +296,7 @@ Feature: Gerenciar tipos de documento
 | DTY-02 | POST | `/api/v1/document-types` | `{ kind, code, name, description?, allowMultiplePerProcess, numberingEnabled, numberingMask?, requiresApproval, approvalPolicy?, defaultConfidentiality, sortOrder? }` + `Idempotency-Key` | `201 { data: DocumentType }` + `Location`, `ETag` | 201, 403, 409, 422, 503 |
 | DTY-03 | PATCH | `/api/v1/document-types/{id}` | campos editáveis (RN-DOC-03) + `If-Match` | `200 { data: DocumentType }` + `ETag` | 200, 403, 404, 409, 412, 422, 428, 503 |
 | DTY-04 | PUT | `/api/v1/document-types/{id}/default-template` | `{ templateId }` + `If-Match` (US-108) | `200 { data: DocumentType }` | 200, 403, 404, 412, 422 |
-| SET-04 | POST | `/api/v1/numbering/preview` | `{ mask, documentTypeCode }` (US-105) | `200 { data: { preview: "PT 008/2026" } }` | 200, 422 |
+| SET-04 | POST | `/api/v1/numbering/preview` | `{ mask, documentTypeCode }` (US-105) | `200 { data: { example: "PT 008/2026", nextValue: "8" } }` | 200, 422 |
 
 ## Logs
 - `info` `document_type.created` / `document_type.updated` — `documentTypeId`, `code`, `changedFields`, `tenantId`, `userId`, `correlationId`.

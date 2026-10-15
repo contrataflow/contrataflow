@@ -5,6 +5,7 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { DatabaseUnavailableError } from '#shared/database/errors.js';
+import { newId } from '#shared/database/ids.js';
 import { FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
 
 import { createTestApi } from '../../../../test/support/api-test-app.js';
@@ -516,6 +517,157 @@ describe('Feature: Configurações gerais do tenant (US-103)', () => {
       } finally {
         await down.close();
       }
+    });
+  });
+
+  describe('US-105 — numeração (SET-02 com as chaves numbering.*)', () => {
+    const MASK = 'numbering.process.mask';
+    const SCOPE = 'numbering.process.scope';
+    const versionOf = (key: string) => rowOf(A, key)?.version ?? 0;
+
+    it('[Sucesso] salvar a máscara: settings.update e TenantSettingsChanged com a chave em keys', async () => {
+      silence();
+      const audits = auditOf('settings.update').length;
+      const events = eventsOf().length;
+
+      const response = await patch(
+        { [MASK]: '{seq:4}/{year}', [SCOPE]: 'TENANT' },
+        { [MASK]: versionOf(MASK), [SCOPE]: versionOf(SCOPE) },
+      );
+
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
+      expect(rowOf(A, MASK)?.value).toBe('{seq:4}/{year}');
+      const records = auditOf('settings.update');
+      expect(records).toHaveLength(audits + 2);
+      expect(records.findLast((r) => (r.metadata as { key?: string }).key === MASK)).toMatchObject({
+        category: 'CONFIGURATION',
+        changes: [{ path: MASK, old: '{org}-{seq:4}/{year}', new: '{seq:4}/{year}' }],
+      });
+      expect(eventsOf()).toHaveLength(events + 1);
+      expect((eventsOf().at(-1)?.payload as { keys: string[] }).keys).toContain(MASK);
+    });
+
+    it('[Sucesso] máscara própria de um tipo de documento (numbering.document.<TYPE>.mask)', async () => {
+      silence();
+      const key = 'numbering.document.OFICIO.mask';
+      const response = await patch({ [key]: 'OF {seq:3}/{year}' }, { [key]: 0 });
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
+      expect(rowOf(A, key)).toMatchObject({ value: 'OF {seq:3}/{year}', version: 1 });
+      expect(dataOf<SettingsMapDto>(await getAll())[key]).toEqual({
+        value: 'OF {seq:3}/{year}',
+        version: 1,
+      });
+      expectProblem(
+        await patch({ [key]: 'OF {seq:3}' }, { [key]: 1 }),
+        422,
+        'NUMBERING_MASK_INVALID',
+      );
+    });
+
+    it('[Validação] máscara "{seq:4}" sem {year}: 422 com a mensagem V-01 e nada alterado', async () => {
+      silence();
+      const before = rowOf(A, MASK);
+      const problem = expectProblem(
+        await patch({ [MASK]: '{seq:4}' }, { [MASK]: versionOf(MASK) }),
+        422,
+        'NUMBERING_MASK_INVALID',
+      );
+      expect(problem.errors).toEqual([
+        {
+          field: `values.${MASK}`,
+          code: 'INVALID_FORMAT',
+          message: 'A máscara deve conter {seq:N} e {year}; verifique os marcadores usados.',
+        },
+      ]);
+      expect(rowOf(A, MASK)).toEqual(before);
+    });
+
+    it.each(['{type} {seq:4}/{year}', '{seq:7}/{year}', '{seq}/{year}', '{seq:4}/{year}/{mes}'])(
+      '[Validação] máscara de processo %s: 422 NUMBERING_MASK_INVALID',
+      async (mask) => {
+        silence();
+        expectProblem(
+          await patch({ [MASK]: mask }, { [MASK]: versionOf(MASK) }),
+          422,
+          'NUMBERING_MASK_INVALID',
+        );
+      },
+    );
+
+    it('[Validação] escopo ORGANIZATION sem {org}: 422 com a mensagem V-02', async () => {
+      silence();
+      const problem = expectProblem(
+        await patch({ [SCOPE]: 'ORGANIZATION' }, { [SCOPE]: versionOf(SCOPE) }),
+        422,
+        'NUMBERING_MASK_INVALID',
+      );
+      expect(problem.errors[0]).toMatchObject({
+        field: `values.${SCOPE}`,
+        message: 'Com numeração por órgão, a máscara deve incluir {org}.',
+      });
+    });
+
+    it('[Validação] assignOn só aceita CREATE ou START (RN-TEN-71)', async () => {
+      silence();
+      const key = 'numbering.process.assignOn';
+      expectProblem(
+        await patch({ [key]: 'APPROVE' }, { [key]: versionOf(key) }),
+        422,
+        'VALIDATION_ERROR',
+      );
+      const accepted = await patch({ [key]: 'START' }, { [key]: versionOf(key) });
+      expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
+      expect(rowOf(A, key)?.value).toBe('START');
+    });
+
+    it('[Permissão] usuária sem SETTINGS_MANAGE alterando a máscara: 403 PERMISSION_DENIED', async () => {
+      silence();
+      const before = rowOf(A, MASK);
+      expectProblem(
+        await patch({ [MASK]: 'X{seq:4}/{year}' }, { [MASK]: versionOf(MASK) }, { user: LUCIA }),
+        403,
+        'PERMISSION_DENIED',
+      );
+      expect(rowOf(A, MASK)).toEqual(before);
+    });
+
+    it('[Tenant incorreto] X-Tenant-Id de tenant sem vínculo: 403 MEMBERSHIP_INACTIVE sem ler nem alterar', async () => {
+      silence();
+      const before = rowOf(B, MASK);
+      const response = await withAuth(request(api.server).patch('/api/v1/settings'), MARTA, {
+        tenant: B,
+      }).send({ values: { [MASK]: 'B{seq:4}/{year}' }, expectedVersions: { [MASK]: 1 } });
+      expectProblem(response, 403, 'MEMBERSHIP_INACTIVE');
+      expect(rowOf(B, MASK)).toEqual(before);
+      expectProblem(
+        await withAuth(request(api.server).get('/api/v1/settings'), MARTA, { tenant: B }),
+        403,
+        'MEMBERSHIP_INACTIVE',
+      );
+    });
+
+    it('[Duplicidade] reenvio com a mesma Idempotency-Key: 200 com o mesmo resultado e Idempotent-Replayed', async () => {
+      silence();
+      const key = newId();
+      const events = eventsOf().length;
+      const body = {
+        values: { [MASK]: 'P{seq:4}/{year}' },
+        expectedVersions: { [MASK]: versionOf(MASK) },
+      };
+      const send = () =>
+        withAuth(request(api.server).patch('/api/v1/settings'), MARTA)
+          .set('Idempotency-Key', key)
+          .send(body);
+
+      const first = await send();
+      const again = await send();
+
+      expect(first.status, JSON.stringify(first.body)).toBe(200);
+      expect(again.status).toBe(200);
+      expect(again.headers['idempotent-replayed']).toBe('true');
+      expect(again.body).toEqual(first.body);
+      expect(rowOf(A, MASK)?.version).toBe(body.expectedVersions[MASK] + 1);
+      expect(eventsOf()).toHaveLength(events + 1);
     });
   });
 

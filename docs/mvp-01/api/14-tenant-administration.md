@@ -46,7 +46,7 @@
 | DEP-08 | POST | `/departments/{id}/activate` | `DEPARTMENT_MANAGE` (IM) | US-102 |
 | DEP-09 | DELETE | `/departments/{id}` | `DEPARTMENT_MANAGE` (IM; sem referências) | US-102 |
 | SET-01 | GET | `/settings` | `SETTINGS_MANAGE` | US-103 |
-| SET-02 | PATCH | `/settings` | `SETTINGS_MANAGE` (IM por chave no corpo) | US-103, US-105 |
+| SET-02 | PATCH | `/settings` | `SETTINGS_MANAGE` (IM por chave no corpo, Idem.) | US-103, US-105 |
 | SET-03 | GET | `/settings/public` | implícita | US-103 |
 | SET-04 | POST | `/numbering/preview` | `SETTINGS_MANAGE` | US-105 |
 | CAT-01 | GET | `/catalogs/{catalogType}/items` | implícita | US-104 |
@@ -803,7 +803,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 
 ### SET-02 — Atualizar configurações do tenant
 `PATCH /api/v1/settings` · **Permissão:** `SETTINGS_MANAGE` · **Story:** US-103, US-105
-- **Cabeçalhos:** `Idempotency-Key` —; `If-Match` — (concorrência via `expectedVersions` por chave no corpo, não pelo cabeçalho `If-Match`)
+- **Cabeçalhos:** `Idempotency-Key` opcional (reenvio com a mesma chave devolve a mesma resposta com `Idempotent-Replayed: true` — US-105); `If-Match` — (concorrência via `expectedVersions` por chave no corpo, não pelo cabeçalho `If-Match`)
 - **Parâmetros:** —
 - **Request:** `{ values: { [chave: string]: unknown }, expectedVersions: { [chave: string]: number } }` — cada chave validada pelo schema Zod específico (`entities.md` §6); `expectedVersions` obrigatório para toda chave presente em `values` (RN-TEN-54); máscara de numeração deve conter `{seq:N}` e `{year}` (e `{org}` se escopo `ORGANIZATION`)
 - **Response:** `200 { data: { [chave: string]: { value: unknown, version: number } } }` — somente as chaves alteradas
@@ -816,7 +816,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 412 | `VERSION_CONFLICT` | `expectedVersions[chave]` divergente do atual |
 | 422 | `SETTING_KEY_UNKNOWN` | Chave fora do registro |
 | 422 | `VALIDATION_ERROR` | Valor fora do schema da chave |
-| 422 | `NUMBERING_MASK_INVALID` | Máscara sem `{seq:N}`/`{year}`, token desconhecido, ou escopo `ORGANIZATION` sem `{org}` |
+| 422 | `NUMBERING_MASK_INVALID` | Máscara sem `{seq:N}`/`{year}`, token desconhecido (inclui `{seq}` sem `N`, `N` fora de 1–6 e `{type}` na máscara do processo), ou escopo `ORGANIZATION` sem `{org}` |
 | 428 | `PRECONDITION_REQUIRED` | `expectedVersions` ausente para chave alterada (incluído apesar de fora do conjunto padrão da seção, por ser mecanismo específico — versão por chave, não `If-Match`) |
 
 - **Efeitos:** Evento `TenantSettingsChanged` (`tenant.settings_changed`, `keys[]`); auditoria `settings.update` (`CONFIGURATION`, uma entrada por chave alterada). Consumidores: `FeatureFlagService`, `NumberingFacade`, `BusinessCalendarFacade` (invalidam cache por chave).
@@ -836,17 +836,18 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 `POST /api/v1/numbering/preview` · **Permissão:** `SETTINGS_MANAGE` · **Story:** US-105
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** —
-- **Request:** `{ mask: string; scope?: "TENANT" | "ORGANIZATION" }`
-- **Response:** `200 { data: { example: string, nextValue: string } }`
+- **Request:** `{ mask: string; scope?: "TENANT" | "ORGANIZATION"; documentTypeCode?: string }` — sem `documentTypeCode`, máscara do processo (`scope` omitido = o gravado); com ele (código do tipo, ex.: `DFD`), máscara de documento daquele tipo (`{type}` permitido)
+- **Response:** `200 { data: { example: string, nextValue: string } }` — `nextValue` é o próximo valor hipotético da sequência corrente (`lastValue + 1`, em texto)
 - **Erros:**
 
 | HTTP | code | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem `SETTINGS_MANAGE` |
 | 422 | `NUMBERING_MASK_INVALID` | Máscara sem `{seq:N}`/`{year}`, token desconhecido, ou `ORGANIZATION` sem `{org}` |
+| 422 | `VALIDATION_ERROR` | Corpo fora do contrato (`scope` fora do enum, `documentTypeCode` fora do padrão do código, campo extra) |
 
 - **Efeitos:** —
-- **Notas:** Não persiste; usado antes de `SET-02` para validar a máscara.
+- **Notas:** Não persiste nem incrementa (RN-TEN-73): leitura simples, em transação somente leitura, que não disputa o bloqueio da sequência real. Calcula sobre a máscara do corpo, nunca a gravada (FA-04). Sequência: `PROCESS:<org|*>:<ano>` (o órgão é o principal do tenant) ou `DOCUMENT:<TYPE>:*:<ano>`; ano no fuso do tenant. `{org}` usa a sigla do órgão principal. Sem auditoria (`x-audit-exempt`).
 
 ### CAT-01 — Listar itens de um catálogo
 `GET /api/v1/catalogs/{catalogType}/items` · **Permissão:** implícita · **Story:** US-104

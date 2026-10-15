@@ -51,8 +51,22 @@ test('máscara de numeração sem {year}: erro inline e "Salvar" desabilitado', 
   await openScreen(page);
   await page.getByRole('tab', { name: 'Numeração' }).click();
   await page.getByLabel('Máscara do número do processo').fill('PROC-{seq:4}');
-  await expect(page.getByText('A máscara deve conter {seq:N} e {year}.')).toBeVisible();
+  await expect(
+    page.getByText('A máscara deve conter {seq:N} e {year}; verifique os marcadores usados.'),
+  ).toBeVisible();
   await expect(page.getByText('Efeito a partir do próximo número')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Salvar' })).toBeDisabled();
   await expectNoSeriousA11yViolations(page, 'numeração');
+});
+
+test('prévia da máscara de numeração: exemplo do próximo número sem salvar (US-105)', async ({
+  page,
+}) => {
+  await openScreen(page);
+  await page.getByRole('tab', { name: 'Numeração' }).click();
+  await expect(page.getByText('Próximo número: 0012/2026')).toBeVisible();
+  await page.getByLabel('Máscara do número do processo').fill('{org}-{seq:5}/{year}');
+  await expect(page.getByText('Próximo número: PMSJ-00012/2026')).toBeVisible();
+  await expect(page.getByText('1 alteração pendente')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'prévia da numeração');
 });

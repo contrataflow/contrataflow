@@ -46,6 +46,9 @@ const ORGANIZATION_ROUTE =
 const SETTINGS_ROUTE =
   'Configurações do tenant (US-103): o registro é por chave e o tenant vem só do contexto (não há ID no caminho nem referência no corpo); o isolamento (leitura e escrita sem atravessar tenants, RLS de tenant_settings) é coberto em test/tenant-leak/tenant-settings.spec.ts, com administradores nos dois tenants.';
 
+const NUMBERING_ROUTE =
+  'Prévia de numeração (US-105): exige SETTINGS_MANAGE (que o usuário comum da suíte não tem) e não há ID no caminho nem referência no corpo; o isolamento (prévia e numeração só com a sequência do tenant do contexto, RLS de number_sequences) é coberto em test/tenant-leak/numbering.spec.ts, com administradores nos dois tenants.';
+
 const CATALOG_ROUTE =
   'Catálogos (US-104): a suíte genérica ainda não tem fixture de item de catálogo do tenant B; o isolamento (404 em CAT-03..05, 422 REFERENCE_NOT_FOUND em parentId/orderedIds de B, lista sem vazamento e RLS de catalog_items) é coberto em test/tenant-leak/catalog.spec.ts, com administradores nos dois tenants.';
 
@@ -105,6 +108,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'SET-01': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-02': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-03': { kind: 'exempt', reason: SETTINGS_ROUTE },
+  'SET-04': { kind: 'exempt', reason: NUMBERING_ROUTE },
   'WF-02': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-03': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-04': { kind: 'exempt', reason: WORKFLOW_ROUTE },

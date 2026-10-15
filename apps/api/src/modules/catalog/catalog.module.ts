@@ -24,6 +24,12 @@ import { CreateHolidayCommand } from './application/create-holiday.command.js';
 import { DeleteHolidayCommand } from './application/delete-holiday.command.js';
 import { CALENDAR_SETTINGS_READER, HOLIDAY_REPOSITORY } from './application/holiday-ports.js';
 import { HolidaysSeeder } from './application/holidays.seeder.js';
+import {
+  NUMBER_SEQUENCE_REPOSITORY,
+  NUMBERING_SETTINGS_READER,
+} from './application/numbering-ports.js';
+import { NumberingFacade } from './application/numbering.facade.js';
+import { PreviewNumberingMaskQuery } from './application/preview-numbering-mask.query.js';
 import { ReorderCatalogItemsCommand } from './application/reorder-catalog-items.command.js';
 import {
   ActivateCatalogItemCommand,
@@ -40,6 +46,10 @@ import {
   InMemoryHolidayRepository,
 } from './infrastructure/in-memory-holiday.repository.js';
 import {
+  InMemoryNumberingSettingsReader,
+  InMemoryNumberSequenceRepository,
+} from './infrastructure/in-memory-number-sequence.repository.js';
+import {
   PrismaCatalogItemRepository,
   PrismaCatalogTransactions,
 } from './infrastructure/prisma-catalog-item.repository.js';
@@ -47,8 +57,13 @@ import {
   PrismaCalendarSettingsReader,
   PrismaHolidayRepository,
 } from './infrastructure/prisma-holiday.repository.js';
+import {
+  PrismaNumberingSettingsReader,
+  PrismaNumberSequenceRepository,
+} from './infrastructure/prisma-number-sequence.repository.js';
 import { CalendarController } from './presentation/calendar.controller.js';
 import { CatalogController } from './presentation/catalog.controller.js';
+import { NumberingController } from './presentation/numbering.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 
@@ -58,13 +73,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 /**
  * Módulo `catalog` (DEC-040): outros módulos usam somente a fachada exportada (`CatalogFacade`,
  * ex.: `assertActive` na criação de processo). Dono dos catálogos parametrizáveis do tenant
- * (US-104: CAT-01..06 e o seeder `catalog.items`) e do calendário de dias úteis (US-106: CAL-01..06,
- * o seeder `catalog.holidays` e a `BusinessCalendarFacade`); autorização e MFA vêm de `access`/`identity`
+ * (US-104: CAT-01..06 e o seeder `catalog.items`), do calendário de dias úteis (US-106: CAL-01..06,
+ * o seeder `catalog.holidays` e a `BusinessCalendarFacade`) e da numeração (US-105: SET-04 e a
+ * `NumberingFacade`, ponto único de número de processos e documentos); autorização e MFA vêm de `access`/`identity`
  * — exceção registrada em `tools/module-levels.json` (mesma de `tenancy`).
  */
 @Module({
   imports: [AccessModule, IdentityModule, TenantSeedingModule],
-  controllers: [CatalogController, CalendarController],
+  controllers: [CatalogController, CalendarController, NumberingController],
   providers: [
     CatalogFacade,
     ListCatalogItemsQuery,
@@ -82,6 +98,12 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     UpdateHolidayCommand,
     DeleteHolidayCommand,
     HolidaysSeeder,
+    NumberingFacade,
+    PreviewNumberingMaskQuery,
+    PrismaNumberSequenceRepository,
+    InMemoryNumberSequenceRepository,
+    PrismaNumberingSettingsReader,
+    InMemoryNumberingSettingsReader,
     PrismaHolidayRepository,
     InMemoryHolidayRepository,
     PrismaCalendarSettingsReader,
@@ -126,9 +148,27 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         memory: InMemoryCalendarSettingsReader,
       ) => (inMemory(config) ? memory : prisma),
     },
+    {
+      provide: NUMBER_SEQUENCE_REPOSITORY,
+      inject: [APP_CONFIG, PrismaNumberSequenceRepository, InMemoryNumberSequenceRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaNumberSequenceRepository,
+        memory: InMemoryNumberSequenceRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: NUMBERING_SETTINGS_READER,
+      inject: [APP_CONFIG, PrismaNumberingSettingsReader, InMemoryNumberingSettingsReader],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaNumberingSettingsReader,
+        memory: InMemoryNumberingSettingsReader,
+      ) => (inMemory(config) ? memory : prisma),
+    },
     { provide: CATALOG_CLOCK, useValue: () => new Date() },
   ],
-  exports: [CatalogFacade, BusinessCalendarFacade],
+  exports: [CatalogFacade, BusinessCalendarFacade, NumberingFacade],
 })
 export class CatalogModule implements OnModuleInit {
   constructor(

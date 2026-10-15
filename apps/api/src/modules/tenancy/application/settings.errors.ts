@@ -17,21 +17,31 @@ export function settingKeyUnknown(error: UnknownSettingKeysError): ApiError {
   });
 }
 
+/** V-01 da US-105: formato da máscara (tokens obrigatórios, desconhecidos ou fora do lugar). */
+const MASK_FORMAT_MESSAGE =
+  'A máscara deve conter {seq:N} e {year}; verifique os marcadores usados.';
+/** V-02 da US-105: escopo `ORGANIZATION` sem `{org}` na máscara do processo. */
+const MASK_ORG_MESSAGE = 'Com numeração por órgão, a máscara deve incluir {org}.';
+
+/** Só violações de máscara de numeração (RN-TEN-53: o lote vira `NUMBERING_MASK_INVALID`). */
+export function isNumberingMaskOnly(error: InvalidSettingValuesError): boolean {
+  return error.violations.every((violation) => violation.code === 'NUMBERING_MASK_INVALID');
+}
+
 /**
  * RN-TEN-53: só máscaras de numeração → 422 `NUMBERING_MASK_INVALID` (código do módulo dono); com
  * qualquer outra violação, 422 `VALIDATION_ERROR` com um item por chave em `values.<chave>`.
  */
 export function invalidSettingValues(error: InvalidSettingValuesError): ApiError {
-  const onlyNumbering = error.violations.every(
-    (violation) => violation.code === 'NUMBERING_MASK_INVALID',
-  );
-  if (onlyNumbering) {
+  if (isNumberingMaskOnly(error)) {
+    const errors = error.violations.map(({ key, missingOrganization }) => ({
+      field: `values.${key}`,
+      code: 'INVALID_FORMAT' as const,
+      message: missingOrganization === true ? MASK_ORG_MESSAGE : MASK_FORMAT_MESSAGE,
+    }));
     return new ApiError('NUMBERING_MASK_INVALID', {
-      errors: error.violations.map(({ key }) => ({
-        field: `values.${key}`,
-        code: 'INVALID_FORMAT',
-        message: 'A máscara deve conter {seq:N} e {year}.',
-      })),
+      detail: errors[0]?.message ?? MASK_FORMAT_MESSAGE,
+      errors,
     });
   }
   return validationError(
@@ -41,6 +51,33 @@ export function invalidSettingValues(error: InvalidSettingValuesError): ApiError
       message: `Valor inválido para ${key}.`,
     })),
   );
+}
+
+/**
+ * `error` `numbering.mask_invalid` (US-105 · Logs): chave, máscara recusada e motivo — máscaras não
+ * são dados pessoais.
+ */
+export function logMaskInvalid(
+  logger: Logger,
+  error: InvalidSettingValuesError,
+  values: Readonly<Record<string, unknown>>,
+  correlationId: string,
+): void {
+  for (const violation of error.violations) {
+    if (violation.code !== 'NUMBERING_MASK_INVALID') continue;
+    const maskKey =
+      violation.missingOrganization === true ? 'numbering.process.mask' : violation.key;
+    logger.error(
+      {
+        event: 'numbering.mask_invalid',
+        key: violation.key,
+        mask: typeof values[maskKey] === 'string' ? values[maskKey] : null,
+        reason: violation.missingOrganization === true ? 'MISSING_ORG' : 'FORMAT',
+        correlationId,
+      },
+      'numbering.mask_invalid',
+    );
+  }
 }
 
 /** V-05: 428 `PRECONDITION_REQUIRED` — o front recarrega `SET-01`. */

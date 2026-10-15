@@ -64,6 +64,36 @@ describe('SettingsRegistry (RN-TEN-52/53)', () => {
     expect(registry.parse('nao.existe', 1)).toBeNull();
   });
 
+  it('numbering.document.<TYPE>.mask é dinâmica, de documento e nunca pública (US-105 · RN-TEN-72)', () => {
+    const mask = registry.definition('numbering.document.RISK_MAP.mask');
+    expect(mask).toMatchObject({
+      group: 'numbering',
+      module: 'catalog',
+      defaultValue: null,
+      isPublic: false,
+      violationCode: 'NUMBERING_MASK_INVALID',
+    });
+    expect(registry.parse('numbering.document.RISK_MAP.mask', 'MR {seq:4}/{year}')).toEqual({
+      ok: true,
+      value: 'MR {seq:4}/{year}',
+    });
+    expect(registry.parse('numbering.document.RISK_MAP.mask', 'MR {seq:4}')).toMatchObject({
+      ok: false,
+    });
+    expect(registry.definition('numbering.document.risk_map.mask')).toBeNull();
+    expect(registry.definitions().some((d) => d.key.endsWith('RISK_MAP.mask'))).toBe(false);
+  });
+
+  it('máscaras numbering.* (RN-TEN-67): {seq:1..6}; {type} só nas de documento', () => {
+    const valid = (key: string, value: unknown) => registry.parse(key, value)?.ok === true;
+    expect(valid('numbering.process.mask', '{org}-{seq:6}/{year}')).toBe(true);
+    expect(valid('numbering.process.mask', '{seq:7}/{year}')).toBe(false);
+    expect(valid('numbering.process.mask', '{type} {seq:4}/{year}')).toBe(false);
+    expect(valid('numbering.process.mask', '{seq}/{year}')).toBe(false);
+    expect(valid('numbering.document.defaultMask', '{type} {seq:4}/{year}')).toBe(true);
+    expect(valid('numbering.document.defaultMask', '{type} {seq:8}/{year}')).toBe(false);
+  });
+
   describe('limites de entities.md §6', () => {
     const valid = (key: string, value: unknown) => registry.parse(key, value)?.ok === true;
 

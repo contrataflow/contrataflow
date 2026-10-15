@@ -4,12 +4,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildPatchBody,
+  documentMaskTypeOf,
   evaluateDrafts,
   fieldKindOf,
   groupSettings,
   hasFutureEffect,
   maskNeedsOrganization,
+  maskPreviewRequest,
   parseDraft,
+  scopeChanged,
   toDraft,
 } from './settings-model';
 
@@ -110,5 +113,56 @@ describe('modelo da SCR-041', () => {
     expect(maskNeedsOrganization(settings, { 'numbering.process.mask': '{seq:4}/{year}' })).toBe(
       false,
     );
+  });
+});
+
+describe('numeração da SCR-041 (US-105)', () => {
+  it('máscaras (inclusive numbering.document.<TYPE>.mask) usam o editor de máscara', () => {
+    expect(fieldKindOf('numbering.process.mask')).toBe('mask');
+    expect(fieldKindOf('numbering.document.defaultMask')).toBe('mask');
+    expect(fieldKindOf('numbering.document.RISK_MAP.mask')).toBe('mask');
+    expect(documentMaskTypeOf('numbering.document.RISK_MAP.mask')).toBe('RISK_MAP');
+    expect(documentMaskTypeOf('numbering.process.mask')).toBeNull();
+  });
+
+  it('corpo de SET-04: rascunho válido com escopo em edição; documento com o tipo', () => {
+    expect(maskPreviewRequest('numbering.process.mask', settings, {})).toEqual({
+      mask: '{seq:4}/{year}',
+      scope: 'TENANT',
+    });
+    expect(
+      maskPreviewRequest('numbering.process.mask', settings, {
+        'numbering.process.mask': '{org}/{seq:4}/{year}',
+        'numbering.process.scope': 'ORGANIZATION',
+      }),
+    ).toEqual({ mask: '{org}/{seq:4}/{year}', scope: 'ORGANIZATION' });
+    expect(maskPreviewRequest('numbering.document.defaultMask', settings, {})).toEqual({
+      mask: '{type} {seq:4}/{year}',
+      documentTypeCode: 'DFD',
+    });
+    const withOverride: SettingsMapDto = {
+      ...settings,
+      'numbering.document.OFICIO.mask': { value: 'OF {seq:3}/{year}', version: 1 },
+    };
+    expect(maskPreviewRequest('numbering.document.OFICIO.mask', withOverride, {})).toEqual({
+      mask: 'OF {seq:3}/{year}',
+      documentTypeCode: 'OFICIO',
+    });
+  });
+
+  it('rascunho inválido (ou escopo por órgão sem {org}) não gera prévia', () => {
+    const mask = 'numbering.process.mask';
+    expect(maskPreviewRequest(mask, settings, { [mask]: '{seq:4}' })).toBeNull();
+    expect(maskPreviewRequest(mask, settings, { [mask]: '{type} {seq:4}/{year}' })).toBeNull();
+    expect(
+      maskPreviewRequest(mask, settings, { 'numbering.process.scope': 'ORGANIZATION' }),
+    ).toBeNull();
+    expect(maskPreviewRequest('labels.department', settings, {})).toBeNull();
+  });
+
+  it('aviso de escopo só quando o escopo em edição difere do gravado', () => {
+    expect(scopeChanged(settings, {})).toBe(false);
+    expect(scopeChanged(settings, { 'numbering.process.scope': 'TENANT' })).toBe(false);
+    expect(scopeChanged(settings, { 'numbering.process.scope': 'ORGANIZATION' })).toBe(true);
   });
 });

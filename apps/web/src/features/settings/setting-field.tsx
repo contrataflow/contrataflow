@@ -2,11 +2,13 @@
 
 import { useTranslations } from 'next-intl';
 import { useId } from 'react';
+import type { ReactNode } from 'react';
 
 import {
   EXTENSION_OPTIONS,
   MASK_TOKENS,
   SELECT_OPTIONS,
+  documentMaskTypeOf,
   fieldKindOf,
   isLowContrast,
 } from './settings-model';
@@ -23,6 +25,8 @@ export interface SettingFieldProps {
   readonly disabled: boolean;
   /** Mensagem de erro já traduzida (rascunho inválido ou resposta 422 da API). */
   readonly error?: string | undefined;
+  /** Conteúdo logo abaixo do editor, associado ao campo (ex.: prévia da máscara — US-105). */
+  readonly addon?: ReactNode;
 }
 
 /**
@@ -37,6 +41,7 @@ export function SettingField({
   onChange,
   disabled,
   error,
+  addon,
 }: SettingFieldProps) {
   const t = useTranslations('settings');
   const id = useId();
@@ -46,13 +51,28 @@ export function SettingField({
 
   // As chaves do registro são dinâmicas (os textos aninham pelo ponto da chave): o cast só informa
   // ao tipo das mensagens que o caminho existe — um teste confere os 32 caminhos.
-  const label = isFlag
-    ? t('field.featureFlag', { name })
-    : t(`fields.${settingKey}.label` as 'fields.labels.secretariat.label');
-  const description = isFlag
-    ? t('field.featureFlagHint')
-    : t(`fields.${settingKey}.description` as 'fields.labels.secretariat.description', MASK_TOKENS);
-  const describedBy = [`${id}-description`, error ? `${id}-error` : undefined, `${id}-version`]
+  const documentType = documentMaskTypeOf(settingKey);
+  let label: string;
+  let description: string;
+  if (isFlag) {
+    label = t('field.featureFlag', { name });
+    description = t('field.featureFlagHint');
+  } else if (documentType !== null) {
+    label = t('field.documentMask', { type: documentType });
+    description = t('field.documentMaskHint', MASK_TOKENS);
+  } else {
+    label = t(`fields.${settingKey}.label` as 'fields.labels.secretariat.label');
+    description = t(
+      `fields.${settingKey}.description` as 'fields.labels.secretariat.description',
+      MASK_TOKENS,
+    );
+  }
+  const describedBy = [
+    `${id}-description`,
+    addon ? `${id}-addon` : undefined,
+    error ? `${id}-error` : undefined,
+    `${id}-version`,
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -229,6 +249,7 @@ export function SettingField({
           </label>
         )}
         {isBoolean ? null : editor}
+        {addon ? <div id={`${id}-addon`}>{addon}</div> : null}
         <p id={`${id}-description`} className="text-xs text-muted-foreground">
           {description}
         </p>

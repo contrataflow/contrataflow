@@ -32,15 +32,22 @@
     "versionHint": "Versão {version}",
     "defaultHint": "Valor padrão (ainda não gravado)",
     "invalid": "Valor inválido para {name}.",
-    "invalidMask": "A máscara deve conter {seqToken} e {yearToken}.",
-    "invalidMaskOrg": "Com escopo por órgão, a máscara também deve conter {orgToken}.",
+    "invalidMask": "A máscara deve conter {seqToken} e {yearToken}; verifique os marcadores usados.",
+    "invalidMaskOrg": "Com numeração por órgão, a máscara deve incluir {orgToken}.",
     "invalidNumber": "Informe um número válido.",
     "invalidJson": "Informe um JSON válido.",
     "contrast": "Escolha uma cor mais escura: o contraste com texto branco deve ser de pelo menos 4,5:1 (AA).",
     "colorPicker": "Seletor de cor",
     "noLogo": "Nenhum logotipo definido. O envio de imagens fica disponível com os anexos do sistema.",
     "featureFlag": "Funcionalidade {name}",
-    "featureFlagHint": "Liga ou desliga a funcionalidade para o seu órgão."
+    "featureFlagHint": "Liga ou desliga a funcionalidade para o seu órgão.",
+    "documentMask": "Máscara dos documentos do tipo {type}",
+    "documentMaskHint": "Substitui a máscara padrão para este tipo; deve conter {seqToken} e {yearToken}."
+  },
+  "preview": {
+    "calculating": "Calculando prévia…",
+    "example": "Próximo número: {example}",
+    "failed": "Não foi possível calcular a prévia agora."
   },
   "options": {
     "NONE": "Nunca",
@@ -232,7 +239,9 @@
   },
   "numberingWarning": {
     "title": "Efeito a partir do próximo número",
-    "description": "Mudanças de escopo valem a partir do próximo número gerado; o escopo por exercício passa a valer a partir do próximo exercício. Números já emitidos não mudam."
+    "description": "Mudanças de escopo valem a partir do próximo número gerado; o escopo por exercício passa a valer a partir do próximo exercício. Números já emitidos não mudam.",
+    "scopeTitle": "Esta mudança vale a partir do próximo exercício",
+    "scopeDescription": "Os processos deste ano continuam na sequência atual; o novo escopo começa no primeiro número do próximo ano."
   },
   "conflict": {
     "title": "Esta configuração foi alterada por outra pessoa.",

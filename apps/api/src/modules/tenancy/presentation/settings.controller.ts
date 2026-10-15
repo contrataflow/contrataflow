@@ -9,6 +9,7 @@ import type { SettingsMapDto, UpdateSettings } from '@contrataflow/validation';
 import { Controller, Get, HttpCode, Patch, Res } from '@nestjs/common';
 
 import type { HttpResponse } from '#shared/http/http-types.js';
+import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody } from '#shared/validation/zod-validation.pipe.js';
@@ -27,7 +28,8 @@ function weakEtag(payload: unknown): string {
  * SET-01..03 (api/14-tenant-administration.md · US-103): configurações do tenant. Leitura completa
  * e escrita exigem `SETTINGS_MANAGE` (+ MFA, POL-14), conferido nos casos de uso; a leitura pública
  * é capacidade implícita de qualquer vínculo ativo (RN-TEN-56). Concorrência por chave no corpo
- * (`expectedVersions`), não por `If-Match`.
+ * (`expectedVersions`), não por `If-Match`; o `PATCH` aceita `Idempotency-Key` (reenvio devolve a
+ * mesma resposta com `Idempotent-Replayed: true` — US-105).
  */
 @Controller('settings')
 @TenantScope('TENANT')
@@ -60,10 +62,12 @@ export class SettingsController {
 
   @Patch()
   @HttpCode(200)
+  @Idempotent()
   @ApiOperation({
     operationId: 'SET-02',
     summary: 'Atualizar configurações do tenant (lote, tudo ou nada)',
     tags: TAGS,
+    idempotent: true,
     auditActions: ['settings.update'],
     responses: {
       200: {

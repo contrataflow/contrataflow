@@ -1,4 +1,10 @@
-import { FEATURE_FLAG_SCHEMA, SETTING_FEATURE_KEY, settingGroupOf } from '@contrataflow/validation';
+import {
+  DOCUMENT_MASK_SETTING_SCHEMA,
+  FEATURE_FLAG_SCHEMA,
+  SETTING_DOCUMENT_MASK_KEY,
+  SETTING_FEATURE_KEY,
+  settingGroupOf,
+} from '@contrataflow/validation';
 import type { SettingDefinition, SettingGroup } from '@contrataflow/validation';
 
 /*
@@ -32,6 +38,22 @@ function featureDefinition(key: string): SettingDefinition {
   };
 }
 
+/**
+ * `numbering.document.<TYPE>.mask` (US-105 · RN-TEN-72): máscara própria do tipo nas configurações,
+ * dinâmica como as flags — sem linha, vale `numbering.document.defaultMask`; nunca pública.
+ */
+function documentMaskDefinition(key: string): SettingDefinition {
+  return {
+    key,
+    group: 'numbering',
+    module: 'catalog',
+    schema: DOCUMENT_MASK_SETTING_SCHEMA,
+    defaultValue: null,
+    isPublic: false,
+    violationCode: 'NUMBERING_MASK_INVALID',
+  };
+}
+
 export class SettingsRegistry {
   private readonly byKey = new Map<string, SettingDefinition>();
 
@@ -61,10 +83,14 @@ export class SettingsRegistry {
   definition(key: string): SettingDefinition | null {
     const fixed = this.byKey.get(key);
     if (fixed) return fixed;
+    if (SETTING_DOCUMENT_MASK_KEY.test(key)) return documentMaskDefinition(key);
     return SETTING_FEATURE_KEY.test(key) ? featureDefinition(key) : null;
   }
 
-  /** Chaves fixas do registro, na ordem de declaração (`features.<flag>` é dinâmica). */
+  /**
+   * Chaves fixas do registro, na ordem de declaração (`features.<flag>` e
+   * `numbering.document.<TYPE>.mask` são dinâmicas).
+   */
   definitions(): readonly SettingDefinition[] {
     return [...this.byKey.values()];
   }

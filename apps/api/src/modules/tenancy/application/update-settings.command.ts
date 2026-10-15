@@ -28,6 +28,8 @@ import type {
 import {
   expectedVersionsMissing,
   invalidSettingValues,
+  isNumberingMaskOnly,
+  logMaskInvalid,
   logSaveFailure,
   settingKeyUnknown,
   settingVersionConflict,
@@ -176,7 +178,12 @@ export class UpdateSettingsCommand {
       return planSettingsUpdate(this.registry, current, input);
     } catch (error) {
       if (error instanceof UnknownSettingKeysError) throw settingKeyUnknown(error);
-      if (error instanceof InvalidSettingValuesError) throw invalidSettingValues(error);
+      if (error instanceof InvalidSettingValuesError) {
+        if (isNumberingMaskOnly(error)) {
+          logMaskInvalid(this.logger, error, input.values, requireRequestContext().correlationId);
+        }
+        throw invalidSettingValues(error);
+      }
       if (error instanceof MissingExpectedVersionsError) throw expectedVersionsMissing(error);
       if (error instanceof SettingVersionConflictError) throw settingVersionConflict(error);
       throw error;

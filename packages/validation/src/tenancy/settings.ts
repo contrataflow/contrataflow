@@ -1,8 +1,12 @@
 import { z } from 'zod';
 
+import { DOCUMENT_TYPE_CODE_PATTERN } from '../document/document-type.js';
 import {
   DEFAULT_DOCUMENT_NUMBERING_MASK,
+  DEFAULT_PROCESS_NUMBERING_MASK,
+  DOCUMENT_SETTING_MASK_RULES,
   isValidNumberingMask,
+  PROCESS_MASK_RULES,
 } from '../document/numbering-mask.js';
 import { dataEnvelope } from '../http/envelope.js';
 
@@ -93,7 +97,13 @@ const primaryColor = z
   .transform((value) => value.toUpperCase())
   .refine((value) => contrastAgainstWhite(value) >= 4.5);
 
-const numberingMask = z.string().refine((mask) => isValidNumberingMask(mask));
+/** RN-TEN-67: `{seq:1..6}` e `{year}`; `{type}` só nas máscaras de documento. */
+const processNumberingMask = z
+  .string()
+  .refine((mask) => isValidNumberingMask(mask, PROCESS_MASK_RULES));
+const documentNumberingMask = z
+  .string()
+  .refine((mask) => isValidNumberingMask(mask, DOCUMENT_SETTING_MASK_RULES));
 
 const scaleLabels = (max: number) => z.array(z.string().trim().min(1).max(40)).length(max);
 
@@ -174,16 +184,16 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
   define({
     key: 'numbering.process.mask',
     group: 'numbering',
-    module: 'process',
-    schema: numberingMask,
-    defaultValue: '{seq:4}/{year}',
+    module: 'catalog',
+    schema: processNumberingMask,
+    defaultValue: DEFAULT_PROCESS_NUMBERING_MASK,
     isPublic: false,
     violationCode: 'NUMBERING_MASK_INVALID',
   }),
   define({
     key: 'numbering.process.scope',
     group: 'numbering',
-    module: 'process',
+    module: 'catalog',
     schema: z.enum(['TENANT', 'ORGANIZATION']),
     defaultValue: 'TENANT',
     isPublic: false,
@@ -191,7 +201,7 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
   define({
     key: 'numbering.process.assignOn',
     group: 'numbering',
-    module: 'process',
+    module: 'catalog',
     schema: z.enum(['CREATE', 'START']),
     defaultValue: 'CREATE',
     isPublic: false,
@@ -199,8 +209,8 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
   define({
     key: 'numbering.document.defaultMask',
     group: 'numbering',
-    module: 'document',
-    schema: numberingMask,
+    module: 'catalog',
+    schema: documentNumberingMask,
     defaultValue: DEFAULT_DOCUMENT_NUMBERING_MASK,
     isPublic: false,
     violationCode: 'NUMBERING_MASK_INVALID',
@@ -414,10 +424,26 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
 /** Esquema de uma flag `features.<nome>` (DEC-059): booleano, padrão desligada, nunca pública. */
 export const FEATURE_FLAG_SCHEMA = z.boolean();
 
-/** Schema Zod da chave (fixa ou `features.<flag>`); `null` fora do registro — usado também pelo front. */
+/**
+ * Máscara própria de um tipo de documento nas configurações (`numbering.document.<TYPE>.mask` —
+ * RN-TEN-72): chave dinâmica como `features.<flag>`, sem padrão (ausente = `defaultMask`), nunca
+ * pública e não semeada.
+ */
+export const SETTING_DOCUMENT_MASK_KEY = new RegExp(
+  `^numbering\\.document\\.(${DOCUMENT_TYPE_CODE_PATTERN.source.slice(1, -1)})\\.mask$`,
+);
+export const DOCUMENT_MASK_SETTING_SCHEMA = documentNumberingMask;
+
+/** Chave da máscara própria do tipo nas configurações (`numbering.document.<TYPE>.mask`). */
+export function documentMaskSettingKey(documentTypeCode: string): string {
+  return `numbering.document.${documentTypeCode}.mask`;
+}
+
+/** Schema Zod da chave (fixa ou dinâmica); `null` fora do registro — usado também pelo front. */
 export function settingSchemaOf(key: string): z.ZodType | null {
   const fixed = SETTING_DEFINITIONS.find((definition) => definition.key === key);
   if (fixed) return fixed.schema;
+  if (SETTING_DOCUMENT_MASK_KEY.test(key)) return DOCUMENT_MASK_SETTING_SCHEMA;
   return SETTING_FEATURE_KEY.test(key) ? FEATURE_FLAG_SCHEMA : null;
 }
 

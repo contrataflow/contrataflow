@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { SETTING_DEFINITIONS } from '@contrataflow/validation';
+import { renderNumberingMask, SETTING_DEFINITIONS } from '@contrataflow/validation';
 import type { SettingsMapDto } from '@contrataflow/validation';
 import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -53,8 +53,22 @@ function problemResponse(
 
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
+/** SET-04 simulado: último número 11 em 2026 (processo) e 4 (documentos). */
+function previewResponse(_url: string, init?: RequestInit): Response {
+  const body = bodyOf(init) as { mask?: string; documentTypeCode?: string };
+  const next = body.documentTypeCode === undefined ? 12 : 5;
+  const example = renderNumberingMask({
+    mask: body.mask ?? '',
+    sequence: next,
+    year: 2026,
+    organization: 'PMSJ',
+    typeCode: body.documentTypeCode ?? '',
+  });
+  return jsonResponse({ data: { example, nextValue: String(next) } });
+}
+
 function mockApi(
-  routes: { get?: Handler; patch?: Handler } = {},
+  routes: { get?: Handler; patch?: Handler; preview?: Handler } = {},
   permissions: readonly string[] = ['SETTINGS_MANAGE'],
 ) {
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
@@ -69,6 +83,9 @@ function mockApi(
     }
     if (method === 'GET' && url === '/api/v1/settings') {
       return Promise.resolve((routes.get ?? (() => jsonResponse({ data: catalog() })))(url, init));
+    }
+    if (method === 'POST' && url === '/api/v1/numbering/preview') {
+      return Promise.resolve((routes.preview ?? previewResponse)(url, init));
     }
     if (method === 'PATCH' && url === '/api/v1/settings') {
       return Promise.resolve(
@@ -248,7 +265,11 @@ describe('[Validação]', () => {
     await userEvent.clear(mask);
     await userEvent.type(mask, 'PROC-{{seq:4}');
 
-    expect(await screen.findByText('A máscara deve conter {seq:N} e {year}.')).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'A máscara deve conter {seq:N} e {year}; verifique os marcadores usados.',
+      ),
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Salvar' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByText('Efeito a partir do próximo número')).toBeTruthy();
     expect(patchCalls(api)).toHaveLength(0);
@@ -262,7 +283,9 @@ describe('[Validação]', () => {
       await screen.findByLabelText('Escopo da numeração'),
       'ORGANIZATION',
     );
-    expect(await screen.findByText(/também deve conter \{org\}/)).toBeTruthy();
+    expect(
+      await screen.findByText('Com numeração por órgão, a máscara deve incluir {org}.'),
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Salvar' }).hasAttribute('disabled')).toBe(true);
   });
 
@@ -305,6 +328,107 @@ describe('[Validação]', () => {
     await userEvent.type(field, ' x');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     expect(await screen.findByText('Valor inválido para labels.department.')).toBeTruthy();
+  });
+});
+
+describe('US-105 · numeração com prévia ao vivo (SET-04)', () => {
+  const previewCalls = (api: ReturnType<typeof mockApi>) =>
+    api.mock.calls.filter(([input]) => requestUrl(input) === '/api/v1/numbering/preview');
+
+  it('máscara válida: "Calculando prévia…" e o exemplo do servidor, anunciados por aria-live', async () => {
+    const api = mockApi();
+    renderWithShell(<SettingsView />);
+    await openGroup('Numeração');
+    const mask = await screen.findByLabelText('Máscara do número do processo');
+    expect(await screen.findByText('Próximo número: 0012/2026')).toBeTruthy();
+
+    await userEvent.clear(mask);
+    await userEvent.type(mask, '{{org}-{{seq:5}/{{year}');
+    expect(screen.getAllByText('Calculando prévia…').length).toBeGreaterThan(0);
+    const live = await screen.findByText('Próximo número: PMSJ-00012/2026');
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(mask.getAttribute('aria-describedby')).toContain(live.parentElement?.id ?? '-');
+    // FA-04: a prévia usa a máscara digitada (não a gravada) e o escopo em edição.
+    expect(bodyOf(previewCalls(api).at(-1)?.[1])).toEqual({
+      mask: '{org}-{seq:5}/{year}',
+      scope: 'TENANT',
+    });
+    expect(patchCalls(api)).toHaveLength(0);
+  });
+
+  it('enquanto a máscara é inválida a prévia não avança (nenhuma chamada nova a SET-04)', async () => {
+    const api = mockApi();
+    renderWithShell(<SettingsView />);
+    await openGroup('Numeração');
+    const mask = await screen.findByLabelText('Máscara do número do processo');
+    await screen.findByText('Próximo número: 0012/2026');
+    const calls = previewCalls(api).length;
+
+    await userEvent.clear(mask);
+    await userEvent.type(mask, '{{seq:4}');
+
+    expect(
+      await screen.findByText(
+        'A máscara deve conter {seq:N} e {year}; verifique os marcadores usados.',
+      ),
+    ).toBeTruthy();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(previewCalls(api)).toHaveLength(calls);
+    expect(screen.queryByText('Próximo número: 0012/2026')).toBeNull();
+  });
+
+  it('máscara padrão de documento usa o tipo de exemplo DFD', async () => {
+    const api = mockApi();
+    renderWithShell(<SettingsView />);
+    await openGroup('Numeração');
+    expect(await screen.findByText('Próximo número: DFD 0005/2026')).toBeTruthy();
+    expect(previewCalls(api).some(([, init]) => bodyOf(init).documentTypeCode === 'DFD')).toBe(
+      true,
+    );
+  });
+
+  it('trocar o escopo mostra o aviso não bloqueante de efeito no próximo exercício', async () => {
+    mockApi();
+    renderWithShell(<SettingsView />);
+    await openGroup('Numeração');
+    expect(screen.queryByText('Esta mudança vale a partir do próximo exercício')).toBeNull();
+    await userEvent.selectOptions(
+      await screen.findByLabelText('Escopo da numeração'),
+      'ORGANIZATION',
+    );
+    expect(await screen.findByText('Esta mudança vale a partir do próximo exercício')).toBeTruthy();
+    const mask = screen.getByLabelText('Máscara do número do processo');
+    await userEvent.clear(mask);
+    await userEvent.type(mask, '{{org}-{{seq:4}/{{year}');
+    // O aviso não bloqueia: com {org}, o lote pode ser salvo.
+    expect(screen.getByRole('button', { name: 'Salvar' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('erro do servidor na prévia mostra a mensagem da API', async () => {
+    mockApi({
+      preview: () =>
+        problemResponse(422, 'NUMBERING_MASK_INVALID', 'x', {
+          errors: [{ field: 'mask', code: 'INVALID_FORMAT', message: 'Máscara recusada.' }],
+        }),
+    });
+    renderWithShell(<SettingsView />);
+    await openGroup('Numeração');
+    expect((await screen.findAllByText('Máscara recusada.')).length).toBeGreaterThan(0);
+  });
+
+  it('máscara própria de um tipo (numbering.document.<TYPE>.mask) tem rótulo e prévia do tipo', async () => {
+    mockApi({
+      get: () =>
+        jsonResponse({
+          data: catalog({
+            'numbering.document.OFICIO.mask': { value: 'OF {seq:3}/{year}', version: 1 },
+          }),
+        }),
+    });
+    renderWithShell(<SettingsView />);
+    await openGroup('Numeração');
+    expect(await screen.findByLabelText('Máscara dos documentos do tipo OFICIO')).toBeTruthy();
+    expect(await screen.findByText('Próximo número: OF 005/2026')).toBeTruthy();
   });
 });
 

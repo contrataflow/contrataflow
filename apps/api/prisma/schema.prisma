@@ -153,11 +153,12 @@ model Tenant {
   updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version                 Int          @default(1)
 
-  memberships   TenantMembership[]
-  organizations Organization[]
-  settings      TenantSetting[]
-  catalogItems  CatalogItem[]
-  holidays      Holiday[]
+  memberships     TenantMembership[]
+  organizations   Organization[]
+  settings        TenantSetting[]
+  catalogItems    CatalogItem[]
+  holidays        Holiday[]
+  numberSequences NumberSequence[]
 
   @@index([status], map: "tenants_status_idx")
   @@map("tenants")
@@ -696,6 +697,24 @@ model Holiday {
 
   @@unique([tenantId, id], map: "holidays_tenant_id_id_key")
   @@map("holidays")
+}
+
+/// entities.md §4 `NumberSequence` (módulo catalog · US-105 · DEC-028): última numeração emitida por
+/// `(tenant, sequenceKey)`. Incrementada só por SQL (`UPDATE … RETURNING`) na transação do recurso
+/// numerado; o formato da chave, o gatilho de imutabilidade (tenant, chave, valor nunca diminui) e a
+/// ausência de DELETE ficam na migração.
+model NumberSequence {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  sequenceKey String   @map("sequence_key") @db.VarChar(120)
+  lastValue   Int      @default(0) @map("last_value")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, sequenceKey], map: "number_sequences_tenant_id_sequence_key_key")
+  @@map("number_sequences")
 }
 
 /// entities.md §2 — enums da definição de workflow (US-040).

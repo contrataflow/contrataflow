@@ -11,14 +11,18 @@ import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { MaskPreview } from './mask-preview';
 import { SettingField } from './setting-field';
 import {
   MASK_TOKENS,
   buildPatchBody,
   evaluateDrafts,
+  fieldKindOf,
   groupSettings,
   hasFutureEffect,
   maskNeedsOrganization,
+  maskPreviewRequest,
+  scopeChanged,
   toDraft,
 } from './settings-model';
 import type { Draft } from './settings-model';
@@ -139,6 +143,9 @@ export function SettingsView() {
   const showNumberingWarning =
     current === 'numbering' &&
     currentGroup?.keys.some((key) => key in drafts && hasFutureEffect(key));
+  // DEC-028 · RN-TEN-68: o novo escopo só vale a partir do próximo exercício (aviso não bloqueante).
+  const showScopeWarning =
+    current === 'numbering' && settings.data ? scopeChanged(settings.data, drafts) : false;
 
   const errorOf = (key: string): string | undefined => {
     const server = serverErrors[key];
@@ -151,10 +158,7 @@ export function SettingsView() {
     if (reason === 'number') return t('field.invalidNumber');
     if (reason === 'json') return t('field.invalidJson');
     if (reason === 'contrast') return t('field.contrast');
-    if (key.startsWith('numbering.') && key.endsWith('ask')) {
-      return t('field.invalidMask', MASK_TOKENS);
-    }
-    if (key.endsWith('Mask')) return t('field.invalidMask', MASK_TOKENS);
+    if (fieldKindOf(key) === 'mask') return t('field.invalidMask', MASK_TOKENS);
     return t('field.invalid', { name: key });
   };
 
@@ -264,6 +268,11 @@ export function SettingsView() {
               {t('numberingWarning.description')}
             </Alert>
           ) : null}
+          {showScopeWarning ? (
+            <Alert tone="warning" title={t('numberingWarning.scopeTitle')}>
+              {t('numberingWarning.scopeDescription')}
+            </Alert>
+          ) : null}
 
           <div
             role="tabpanel"
@@ -282,6 +291,11 @@ export function SettingsView() {
                   draft={drafts[key] ?? toDraft(key, entry.value)}
                   disabled={save.isPending}
                   error={errorOf(key)}
+                  addon={
+                    fieldKindOf(key) === 'mask' ? (
+                      <MaskPreview request={maskPreviewRequest(key, settings.data, drafts)} />
+                    ) : undefined
+                  }
                   onChange={(draft) => {
                     setDrafts((previous) => ({ ...previous, [key]: draft }));
                     setServerErrors(({ [key]: _removed, ...rest }) => rest);

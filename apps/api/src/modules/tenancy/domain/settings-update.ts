@@ -34,6 +34,8 @@ export interface SettingViolation {
   readonly key: string;
   /** Código próprio do módulo dono em vez do genérico `VALIDATION_ERROR` (RN-TEN-53). */
   readonly code: 'VALIDATION_ERROR' | 'NUMBERING_MASK_INVALID';
+  /** Máscara válida, mas sem `{org}` com escopo `ORGANIZATION` (V-02 da US-105). */
+  readonly missingOrganization?: boolean;
 }
 
 /** RN-TEN-53: valor fora do schema da chave. */
@@ -107,7 +109,11 @@ function scopeMaskViolation(
   if (scope !== 'ORGANIZATION' || (typeof mask === 'string' && mask.includes('{org}'))) {
     return null;
   }
-  return { key: parsed.has(maskKey) ? maskKey : scopeKey, code: 'NUMBERING_MASK_INVALID' };
+  return {
+    key: parsed.has(maskKey) ? maskKey : scopeKey,
+    code: 'NUMBERING_MASK_INVALID',
+    missingOrganization: true,
+  };
 }
 
 /**
