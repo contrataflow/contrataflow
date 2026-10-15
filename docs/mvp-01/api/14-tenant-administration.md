@@ -798,7 +798,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 403 | `PERMISSION_DENIED` | Sem `SETTINGS_MANAGE` |
 
 - **Efeitos:** —
-- **Notas:** Grupos exibidos por prefixo de chave: `labels.*`, `branding.*`, `numbering.*`, `process.*`, `access.*`, `approval.*`, `security.*`, `deadlines.*`, `calendar.*`, `priceResearch.*`, `risk.*`, `uploads.*`, `notifications.*`, `features.*`.
+- **Notas:** Grupos exibidos por prefixo de chave: `labels.*`, `branding.*`, `numbering.*`, `process.*`, `access.*`, `approval.*`, `security.*`, `deadlines.*`, `calendar.*`, `priceResearch.*`, `risk.*`, `uploads.*`, `notifications.*`, `features.*`. Chave sem linha persistida (RN-TEN-57) vem com o valor padrão e `version: 0`; `features.<flag>` só aparece quando gravada. A resposta traz `Cache-Control: private, max-age=0, must-revalidate` e `ETag` fraco do conteúdo. A leitura exige `SETTINGS_MANAGE` e, com `security.mfaPolicy` ≠ `NONE`, MFA na sessão (POL-14: permissão de risco `H`) — `403 MFA_REQUIRED`.
 
 ### SET-02 — Atualizar configurações do tenant
 `PATCH /api/v1/settings` · **Permissão:** `SETTINGS_MANAGE` · **Story:** US-103, US-105
@@ -819,7 +819,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 428 | `PRECONDITION_REQUIRED` | `expectedVersions` ausente para chave alterada (incluído apesar de fora do conjunto padrão da seção, por ser mecanismo específico — versão por chave, não `If-Match`) |
 
 - **Efeitos:** Evento `TenantSettingsChanged` (`tenant.settings_changed`, `keys[]`); auditoria `settings.update` (`CONFIGURATION`, uma entrada por chave alterada). Consumidores: `FeatureFlagService`, `NumberingFacade`, `BusinessCalendarFacade` (invalidam cache por chave).
-- **Notas:** RN-TEN-52/53/54; US-090 consome `security.mfaPolicy`; US-105 consome `numbering.*`.
+- **Notas:** RN-TEN-52/53/54; US-090 consome `security.mfaPolicy`; US-105 consome `numbering.*`. Tudo ou nada, nesta ordem de conferência: chave desconhecida (422 `SETTING_KEY_UNKNOWN`) → valor inválido (422 `VALIDATION_ERROR`, `errors[].field = "values.<chave>"`, ou `NUMBERING_MASK_INVALID` quando só há violação de máscara) → versão ausente (428) → versão divergente (412). O 412 traz `conflicts[] { key, currentVersion }` e, com uma única chave em conflito, `currentVersion`. Chave sem linha usa `expectedVersions[chave] = 0` e a primeira gravação cria a versão 1. Valor igual ao atual não grava, não audita nem versiona; lote sem nenhuma mudança → `200 { data: {} }` sem evento. Com `numbering.process.scope = ORGANIZATION`, a máscara efetiva (a do lote ou a gravada) precisa de `{org}`. `branding.logoAttachmentId` não nulo só é aceito com anexo `AVAILABLE` do tenant (`REFERENCE_NOT_FOUND` até a US-068).
 
 ### SET-03 — Consultar configurações públicas
 `GET /api/v1/settings/public` · **Permissão:** implícita (acessível sem vínculo ativo) · **Story:** US-103
@@ -829,7 +829,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Response:** `200 { data: { [chave: string]: unknown } }` — somente chaves públicas
 - **Erros:** — (sem código de domínio específico nesta story; ver api.md §2 para o 401 de sessão ausente, quando aplicável)
 - **Efeitos:** —
-- **Notas:** Usado para branding/identidade antes do login (ex.: `labels.*`, `branding.*`).
+- **Notas:** Usado para branding/identidade (`labels.*`, `branding.*`) por qualquer vínculo ativo: a rota é do tenant da requisição (`X-Tenant-Id` + vínculo ativo, sem `SETTINGS_MANAGE`); antes do login não há tenant no contexto. Mesmos cabeçalhos de cache do `SET-01`.
 
 ### SET-04 — Pré-visualizar máscara de numeração
 `POST /api/v1/numbering/preview` · **Permissão:** `SETTINGS_MANAGE` · **Story:** US-105

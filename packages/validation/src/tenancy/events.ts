@@ -77,3 +77,16 @@ export const OrganizationUpdated = defineDomainEvent({
   }),
   routingKey: 'organization.updated',
 });
+
+/*
+ * Configurações do tenant (events.md §4 · US-103): um único evento por requisição `PATCH /settings`,
+ * com as chaves alteradas. O `aggregateId` é o tenant do contexto.
+ */
+
+export const TenantSettingsChanged = defineDomainEvent({
+  eventType: 'TenantSettingsChanged',
+  eventVersion: 1,
+  aggregateType: 'Tenant',
+  payload: z.strictObject({ keys: z.array(z.string().min(1).max(120)).min(1).max(100) }),
+  routingKey: 'tenant.settings_changed',
+});

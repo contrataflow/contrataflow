@@ -1,3 +1,4 @@
+import { SETTING_DEFINITIONS } from '@contrataflow/validation';
 import { Module } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 
@@ -5,6 +6,7 @@ import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { TENANT_STATUS_PORT } from '#shared/auth/ports.js';
 import { PlatformCache } from '#shared/cache/tenant-cache.js';
+import { currentRequestContext } from '#shared/context/request-context.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { ApplyTenantSeedersCommand } from './application/apply-tenant-seeders.command.js';
@@ -29,18 +31,31 @@ import {
 import { PrimaryOrganizationSeeder } from './application/primary-organization.seeder.js';
 import { ProvisionTenantCommand } from './application/provision-tenant.command.js';
 import { ProvisioningPlan } from './application/provisioning-plan.js';
+import {
+  SETTINGS_CLOCK,
+  SETTINGS_TRANSACTIONS,
+  TENANT_SETTINGS_REPOSITORY,
+} from './application/settings-ports.js';
+import { GetPublicSettingsQuery, GetSettingsQuery } from './application/settings.queries.js';
 import { TenancyFacade } from './application/tenancy.facade.js';
+import { TenantSettingsSeeder } from './application/tenant-settings.seeder.js';
 import {
   GetTenantQuery,
   ListTenantsQuery,
   ResendFirstAdminInvitationCommand,
 } from './application/tenant.queries.js';
 import { UpdateOrganizationCommand } from './application/update-organization.command.js';
+import { UpdateSettingsCommand } from './application/update-settings.command.js';
+import { SettingsRegistry } from './domain/settings-registry.js';
 import {
   InMemoryOrganizationRepository,
   InMemoryOrganizationTransactions,
   RejectingLogoPort,
 } from './infrastructure/in-memory-organization.repository.js';
+import {
+  InMemorySettingsTransactions,
+  InMemoryTenantSettingsRepository,
+} from './infrastructure/in-memory-tenant-settings.repository.js';
 import {
   InMemoryPlatformTransactions,
   InMemoryTenantRepository,
@@ -53,10 +68,15 @@ import {
   PrismaTenantAdminRepository,
   SystemDbPlatformTransactions,
 } from './infrastructure/prisma-tenant-admin.repository.js';
+import {
+  PrismaSettingsTransactions,
+  PrismaTenantSettingsRepository,
+} from './infrastructure/prisma-tenant-settings.repository.js';
 import { PrismaTenantRepository } from './infrastructure/prisma-tenant.repository.js';
 import { TenantStatusCache } from './infrastructure/tenant-status.cache.js';
 import { OrganizationController } from './presentation/organization.controller.js';
 import { PlatformTenantsController } from './presentation/platform-tenants.controller.js';
+import { SettingsController } from './presentation/settings.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 
@@ -74,7 +94,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  */
 @Module({
   imports: [AccessModule, IdentityModule, TenantSeedingModule],
-  controllers: [PlatformTenantsController, OrganizationController],
+  controllers: [PlatformTenantsController, OrganizationController, SettingsController],
   providers: [
     TenancyFacade,
     ProvisioningPlan,
@@ -89,6 +109,39 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateOrganizationCommand,
     UpdateOrganizationCommand,
     PrimaryOrganizationSeeder,
+    GetSettingsQuery,
+    GetPublicSettingsQuery,
+    UpdateSettingsCommand,
+    TenantSettingsSeeder,
+    // Registro tipado de chaves (entities.md §6): chave duplicada entre módulos derruba o boot.
+    { provide: SettingsRegistry, useFactory: () => new SettingsRegistry([SETTING_DEFINITIONS]) },
+    PrismaTenantSettingsRepository,
+    PrismaSettingsTransactions,
+    InMemorySettingsTransactions,
+    {
+      provide: InMemoryTenantSettingsRepository,
+      useFactory: () =>
+        new InMemoryTenantSettingsRepository(() => currentRequestContext()?.tenantId ?? null),
+    },
+    {
+      provide: TENANT_SETTINGS_REPOSITORY,
+      inject: [APP_CONFIG, PrismaTenantSettingsRepository, InMemoryTenantSettingsRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaTenantSettingsRepository,
+        memory: InMemoryTenantSettingsRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: SETTINGS_TRANSACTIONS,
+      inject: [APP_CONFIG, PrismaSettingsTransactions, InMemorySettingsTransactions],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaSettingsTransactions,
+        memory: InMemorySettingsTransactions,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    { provide: SETTINGS_CLOCK, useValue: () => new Date() },
     PrismaOrganizationRepository,
     PrismaOrganizationTransactions,
     InMemoryOrganizationTransactions,
@@ -162,10 +215,12 @@ export class TenancyModule implements OnModuleInit {
   constructor(
     private readonly seeders: TenantSeederRegistry,
     private readonly primaryOrganization: PrimaryOrganizationSeeder,
+    private readonly settings: TenantSettingsSeeder,
   ) {}
 
-  /** Seeder `tenancy.primaryOrganization` no checklist de provisionamento (US-099). */
+  /** Seeders `tenancy.primaryOrganization` e `tenancy.settings` no checklist (US-099). */
   onModuleInit(): void {
     this.seeders.register(this.primaryOrganization);
+    this.seeders.register(this.settings);
   }
 }

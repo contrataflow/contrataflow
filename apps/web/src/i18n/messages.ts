@@ -5,6 +5,7 @@ import example from '../../messages/pt-BR/example.json';
 import implementationAssistant from '../../messages/pt-BR/implementationAssistant.json';
 import organizations from '../../messages/pt-BR/organizations.json';
 import permissions from '../../messages/pt-BR/permissions.json';
+import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
 
 /** Locale único do MVP 1 (architecture.md §8.10 · RN-FND-95). */
@@ -22,6 +23,7 @@ export const messages = {
   implementationAssistant,
   organizations,
   permissions,
+  settings,
   shell,
 };
 

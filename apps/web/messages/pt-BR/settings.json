@@ -1,0 +1,248 @@
+{
+  "title": "Configurações gerais",
+  "description": "Ajuste rótulos, marca, numeração, segurança, prazos e demais comportamentos do seu órgão, sem depender de suporte técnico.",
+  "loading": "Carregando as configurações…",
+  "loadFailed": "Não foi possível carregar as configurações.",
+  "retry": "Tentar novamente",
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para alterar as configurações. Procure o administrador da sua instituição."
+  },
+  "tabs": {
+    "label": "Grupos de configurações",
+    "select": "Grupo de configurações"
+  },
+  "groups": {
+    "labels": "Identidade",
+    "branding": "Marca",
+    "numbering": "Numeração",
+    "process": "Processos",
+    "access": "Acesso",
+    "approval": "Aprovações",
+    "security": "Segurança",
+    "deadlines": "Prazos",
+    "calendar": "Calendário",
+    "priceResearch": "Pesquisa de preços",
+    "risk": "Riscos",
+    "uploads": "Arquivos",
+    "notifications": "Notificações",
+    "features": "Funcionalidades"
+  },
+  "field": {
+    "versionHint": "Versão {version}",
+    "defaultHint": "Valor padrão (ainda não gravado)",
+    "invalid": "Valor inválido para {name}.",
+    "invalidMask": "A máscara deve conter {seqToken} e {yearToken}.",
+    "invalidMaskOrg": "Com escopo por órgão, a máscara também deve conter {orgToken}.",
+    "invalidNumber": "Informe um número válido.",
+    "invalidJson": "Informe um JSON válido.",
+    "contrast": "Escolha uma cor mais escura: o contraste com texto branco deve ser de pelo menos 4,5:1 (AA).",
+    "colorPicker": "Seletor de cor",
+    "noLogo": "Nenhum logotipo definido. O envio de imagens fica disponível com os anexos do sistema.",
+    "featureFlag": "Funcionalidade {name}",
+    "featureFlagHint": "Liga ou desliga a funcionalidade para o seu órgão."
+  },
+  "options": {
+    "NONE": "Nunca",
+    "ADMINS": "Somente administradores",
+    "ALL": "Todos os usuários",
+    "TENANT": "Uma sequência para o órgão inteiro",
+    "ORGANIZATION": "Uma sequência por órgão/entidade",
+    "CREATE": "Ao criar o processo",
+    "START": "Ao iniciar o processo",
+    "AUTO_CV": "Automático (mediana se o CV passar do limite, senão média)",
+    "MEAN": "Média",
+    "MEDIAN": "Mediana",
+    "LOWEST": "Menor preço",
+    "HALF_UP": "Arredondar para cima (0,5 → 1)",
+    "HALF_EVEN": "Arredondar para o par mais próximo",
+    "2": "2 casas decimais",
+    "4": "4 casas decimais"
+  },
+  "fields": {
+    "labels": {
+      "secretariat": {
+        "label": "Nome do nível de unidade requisitante",
+        "description": "Como o seu órgão chama as unidades de primeiro nível (ex.: Secretaria, Diretoria)."
+      },
+      "department": {
+        "label": "Nome do nível de setor",
+        "description": "Como o seu órgão chama as unidades subordinadas (ex.: Setor, Divisão)."
+      }
+    },
+    "branding": {
+      "primaryColor": {
+        "label": "Cor principal",
+        "description": "Cor da marca usada nos destaques da interface; precisa ter contraste AA com texto branco."
+      },
+      "logoAttachmentId": {
+        "label": "Logotipo",
+        "description": "Imagem exibida no cabeçalho e nos documentos."
+      }
+    },
+    "numbering": {
+      "process": {
+        "mask": {
+          "label": "Máscara do número do processo",
+          "description": "Deve conter {seqToken} e {yearToken}; use {orgToken} com escopo por órgão."
+        },
+        "scope": {
+          "label": "Escopo da numeração",
+          "description": "Define se a sequência é única no órgão ou por órgão/entidade."
+        },
+        "assignOn": {
+          "label": "Quando atribuir o número",
+          "description": "Momento em que o processo recebe o número."
+        }
+      },
+      "document": {
+        "defaultMask": {
+          "label": "Máscara padrão dos documentos",
+          "description": "Usada pelos tipos de documento sem máscara própria."
+        }
+      }
+    },
+    "process": {
+      "duplicateDetectionWindowMinutes": {
+        "label": "Janela de detecção de duplicidade (minutos)",
+        "description": "Processos semelhantes criados dentro da janela geram um aviso. Use 0 para desativar."
+      },
+      "requireInternalCode": {
+        "label": "Exigir código interno do processo",
+        "description": "Obriga o preenchimento do código interno na abertura."
+      }
+    },
+    "access": {
+      "historicalDepartmentsCanView": {
+        "label": "Unidades anteriores continuam enxergando o histórico",
+        "description": "Mantém a visibilidade de quem pertenceu a uma unidade que foi alterada."
+      }
+    },
+    "approval": {
+      "preventSelfApproval": {
+        "label": "Impedir autoaprovação",
+        "description": "Segregação de funções: quem elabora um documento não o aprova."
+      }
+    },
+    "security": {
+      "mfaPolicy": {
+        "label": "Verificação em duas etapas",
+        "description": "Quem precisa confirmar a identidade com segundo fator."
+      },
+      "sessionIdleMinutes": {
+        "label": "Inatividade até encerrar a sessão (minutos)",
+        "description": "De 5 a 120 minutos."
+      },
+      "sessionAbsoluteHours": {
+        "label": "Duração máxima da sessão (horas)",
+        "description": "De 1 a 24 horas."
+      },
+      "externalMembershipMaxDays": {
+        "label": "Validade máxima do acesso de externos (dias)",
+        "description": "De 1 a 365 dias."
+      }
+    },
+    "deadlines": {
+      "warnBeforeBusinessDays": {
+        "label": "Avisar antes do prazo (dias úteis)",
+        "description": "De 0 a 10 dias úteis de antecedência."
+      }
+    },
+    "calendar": {
+      "optionalHolidaysAreNonBusiness": {
+        "label": "Pontos facultativos não são dias úteis",
+        "description": "Considera Carnaval e outros pontos facultativos como dias não úteis."
+      }
+    },
+    "priceResearch": {
+      "defaultMethod": {
+        "label": "Método de cálculo padrão",
+        "description": "Estatística usada para o preço de referência (Lei 14.133/2021, art. 23)."
+      },
+      "cvThresholdPercent": {
+        "label": "Limite do coeficiente de variação (%)",
+        "description": "Acima do limite, o método automático usa a mediana."
+      },
+      "minQuotations": {
+        "label": "Mínimo de cotações",
+        "description": "De 1 a 10 cotações válidas."
+      },
+      "directQuoteMaxAgeDays": {
+        "label": "Idade máxima da pesquisa direta (dias)",
+        "description": "Art. 23, §1º, IV — padrão de 180 dias."
+      },
+      "similarContractMaxAgeDays": {
+        "label": "Idade máxima de contratações similares (dias)",
+        "description": "Art. 23, §1º, II — padrão de 365 dias."
+      },
+      "outlierLowerPercent": {
+        "label": "Limite inferior de outlier (% da mediana)",
+        "description": "Cotações abaixo deste percentual da mediana das demais são sinalizadas."
+      },
+      "outlierUpperPercent": {
+        "label": "Limite superior de outlier (% da mediana)",
+        "description": "Cotações acima deste percentual da mediana das demais são sinalizadas."
+      },
+      "unitPriceDecimals": {
+        "label": "Casas decimais do preço unitário",
+        "description": "Precisão exibida e calculada para preços unitários."
+      },
+      "roundingMode": {
+        "label": "Modo de arredondamento",
+        "description": "Regra aplicada aos valores calculados."
+      }
+    },
+    "risk": {
+      "scale": {
+        "label": "Escala de riscos (JSON)",
+        "description": "Tamanho da escala (3, 4 ou 5) e os rótulos de probabilidade e impacto de cada nível."
+      },
+      "levelThresholds": {
+        "label": "Faixas de nível de risco (JSON)",
+        "description": "Faixas de escore contíguas, sem lacunas, começando em 1."
+      }
+    },
+    "uploads": {
+      "maxFileSizeMb": {
+        "label": "Tamanho máximo de arquivo (MB)",
+        "description": "Até o teto da plataforma de 100 MB."
+      },
+      "allowedExtensions": {
+        "label": "Extensões permitidas",
+        "description": "Subconjunto das extensões aceitas pela plataforma."
+      }
+    },
+    "notifications": {
+      "emailEnabled": {
+        "label": "Enviar notificações por e-mail",
+        "description": "Desligue para manter as notificações apenas dentro do sistema."
+      }
+    }
+  },
+  "saveBar": {
+    "region": "Alterações pendentes",
+    "pending": "{count, plural, one {# alteração pendente} other {# alterações pendentes}}",
+    "none": "Nenhuma alteração pendente",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "discard": "Descartar alterações"
+  },
+  "toast": {
+    "saved": "Configurações salvas."
+  },
+  "numberingWarning": {
+    "title": "Efeito a partir do próximo número",
+    "description": "Mudanças de escopo valem a partir do próximo número gerado; o escopo por exercício passa a valer a partir do próximo exercício. Números já emitidos não mudam."
+  },
+  "conflict": {
+    "title": "Esta configuração foi alterada por outra pessoa.",
+    "description": "Recarregue para ver os valores atuais antes de salvar de novo.",
+    "reload": "Recarregar valores"
+  },
+  "errors": {
+    "generic": "Não foi possível salvar agora. Tente novamente.",
+    "unavailable": "Não foi possível salvar agora. Seus valores continuam na tela; tente novamente.",
+    "precondition": "Recarregue a página e tente novamente.",
+    "unknownKey": "Configuração desconhecida. Recarregue para atualizar a lista."
+  }
+}

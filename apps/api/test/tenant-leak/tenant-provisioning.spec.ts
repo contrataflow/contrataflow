@@ -7,7 +7,7 @@
 // `cf_platform`). `pnpm --filter @contrataflow/api test:tenant-leak`.
 import { randomUUID } from 'node:crypto';
 
-import { problemDetailsSchema } from '@contrataflow/validation';
+import { problemDetailsSchema, SETTING_DEFINITIONS } from '@contrataflow/validation';
 import type { PlatformTenantDto, ProvisionTenantResultDto } from '@contrataflow/validation';
 import { Logger } from '@nestjs/common';
 import request from 'supertest';
@@ -39,6 +39,7 @@ const TENANT_TABLES = [
   'role_permissions',
   'document_types',
   'organizations',
+  'tenant_settings',
   'tenant_memberships',
   'audit_logs',
   'outbox_events',
@@ -167,6 +168,7 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
         roles: 15,
         document_types: 11,
         organizations: 1,
+        tenant_settings: SETTING_DEFINITIONS.length,
         tenant_memberships: 1,
       });
       const [admin] = await db.admin<{ protected: boolean }>(

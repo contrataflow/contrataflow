@@ -126,6 +126,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Instituição não encontrada',
     detail: 'Instituição não encontrada.',
   },
+  SETTING_KEY_UNKNOWN: {
+    status: 422,
+    title: 'Configuração desconhecida',
+    detail: 'Configuração desconhecida.',
+  },
   PRIMARY_ORGANIZATION_REQUIRED: {
     status: 409,
     title: 'Órgão principal obrigatório',

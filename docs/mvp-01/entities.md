@@ -276,8 +276,9 @@ Configuração tipada chave-valor; chaves e schemas no registro de configuraçõ
 | `key` | varchar(120) | não | — | Deve existir no registro |
 | `value` | jsonb | não | — | Validado pelo schema Zod da chave |
 
-- **Unique:** `(tenant_id, key)`.
-- **Auditoria:** toda alteração gera `settings.update` com valor anterior e novo.
+- **Unique:** `(tenant_id, key)`. `tenant_id` e `key` são imutáveis (trigger); sem `DELETE` para a aplicação.
+- **Concorrência:** `version` por chave (RN-TEN-54): chave sem linha tem `version = 0` na leitura; a primeira gravação cria a versão 1.
+- **Auditoria:** toda alteração gera `settings.update` com valor anterior e novo, uma entrada por chave (`entityType = Tenant`, `entityId = tenantId`, `metadata.key`/`group`).
 
 #### Organization (`organizations`) — módulo `tenancy` · Padrão
 Órgão/entidade com CNPJ dentro do tenant (DEC-011).

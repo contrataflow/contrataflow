@@ -402,6 +402,7 @@ Tudo em contêineres; dependências por protocolos abertos (PostgreSQL, Redis, S
 
 ### DEC-059 — Feature flags · `Aceita`
 Flags por tenant em `TenantSetting` (`features.<nome>`), lidas por um `FeatureFlagService` com cache. Ferramenta dedicada (ex.: Unleash) avaliada quando houver necessidade de rollout percentual.
+- **Implementação do registro (US-103):** as chaves de entities.md §6 (schema Zod, padrão, grupo, módulo dono, leitura pública) ficam em `packages/validation` (`SETTING_DEFINITIONS`), compartilhadas pela API e pela SCR-041; o `SettingsRegistry` do `tenancy` é montado no boot a partir das contribuições dos módulos e recusa chave duplicada. `features.<nome>` é booleana, padrão desligada, nunca pública e só é gravada quando alterada (não é semeada). O `PATCH /settings` em lote usa `expectedVersions` por chave no corpo (versão 0 = chave sem linha) e as chaves públicas do `SET-03` são `labels.*` e `branding.*` (RN-TEN-56).
 
 ### DEC-060 — Geração de PDF · `Aceita` · [ADR-007](../adr/adr-007-pdf-generation.md)
 Worker gera HTML a partir do snapshot da versão + layout do template, envia ao Gotenberg, calcula SHA-256 do PDF, armazena no S3 e registra `DocumentRendition`. Rascunhos geram `PREVIEW` com marca d'água "RASCUNHO" (expira em 24 h). PDF/A-2b: PEND-09.

@@ -7,6 +7,7 @@ import {
   TenantDeactivated,
   TenantOffboarded,
   TenantProvisioned,
+  TenantSettingsChanged,
   TenantSuspended,
 } from '../tenancy/events.js';
 
@@ -25,4 +26,5 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   TenantSuspended,
   TenantOffboarded,
   TenantDeactivated,
+  TenantSettingsChanged,
 };

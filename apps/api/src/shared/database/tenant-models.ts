@@ -17,6 +17,7 @@ export const TENANT_SCOPED_MODELS = [
   'Role',
   'RolePermission',
   'TenantMembership',
+  'TenantSetting',
 ] as const;
 
 /**

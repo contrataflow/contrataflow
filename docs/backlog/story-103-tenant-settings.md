@@ -183,7 +183,7 @@ Feature: Configurações gerais do tenant
 - `PATCH` em lote é transacional: todas as chaves do corpo são validadas e gravadas juntas, ou nenhuma é.
 
 ## Backend
-- **Módulo(s):** `tenancy` (dono do mecanismo genérico e do seeder `tenancy.settings`); cada módulo registra suas chaves (`catalog`, `organization`, `process`, `document`, `access`, `risk`, `priceResearch`…) no `SettingsRegistry`.
+- **Módulo(s):** `tenancy` (dono do mecanismo genérico e do seeder `tenancy.settings`); cada módulo registra suas chaves (`catalog`, `organization`, `process`, `document`, `access`, `risk`, `priceResearch`…) no `SettingsRegistry`. Implementação: as definições (schema, padrão, grupo, módulo dono, leitura pública) estão em `packages/validation/src/tenancy/settings.ts` (`SETTING_DEFINITIONS`), compartilhadas com a SCR-041 — ver DEC-059 em decisions.md.
 - **Casos de uso:** `GetSettingsQuery`, `GetPublicSettingsQuery`, `UpdateSettingsCommand` (lote).
 - **Domínio:** `SettingsRegistry` (chave → schema Zod, padrão, grupo, `isPublic`); `TenantSetting.upsert(key, value, expectedVersion)`.
 - **Contrato de seeder:** `tenancy.settings` implementa `TenantSeeder` (US-099): `seed()` grava toda chave ausente com o padrão; `verify()` confere que todas as chaves do registro têm linha.
@@ -198,7 +198,7 @@ Feature: Configurações gerais do tenant
 
 ## Banco de dados
 - **Tabelas:** `tenant_settings`.
-- **Migrações:** nenhuma nova (tabela já definida em entities.md §4).
+- **Migrações:** `20261015240000_tenant_settings` — tabela `tenant_settings` (entities.md §4: check do formato da chave, trigger de imutabilidade de tenant e chave, RLS, sem `DELETE`).
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, key)`.
 
 ## API

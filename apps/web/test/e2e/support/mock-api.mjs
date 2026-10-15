@@ -49,6 +49,17 @@ const documentTypes = [
   version: 1,
 }));
 
+// Configurações do tenant (US-103 · SET-01..03): um subconjunto de chaves de grupos diferentes, com
+// versão por chave e conferência de `expectedVersions` no PATCH em lote (tudo ou nada).
+const settings = new Map([
+  ['labels.secretariat', { value: 'Secretaria', version: 1 }],
+  ['labels.department', { value: 'Setor', version: 1 }],
+  ['branding.primaryColor', { value: '#1D4ED8', version: 1 }],
+  ['numbering.process.mask', { value: '{seq:4}/{year}', version: 1 }],
+  ['security.sessionIdleMinutes', { value: 30, version: 1 }],
+]);
+const PUBLIC_SETTINGS = ['labels.secretariat', 'labels.department', 'branding.primaryColor'];
+
 // Órgãos (US-101 · ORG-01..04): um órgão principal ativo e um fundo, só o necessário para o SCR-032.
 const organizations = [
   ['PMSJ', 'Prefeitura Municipal de São José', '11222333000181', 'DIRECT_ADMINISTRATION'],
@@ -162,6 +173,7 @@ createServer(async (request, response) => {
             { code: 'PROCESS_CREATE', scopes: ['TENANT'] },
             { code: 'DOCUMENT_TYPE_MANAGE', scopes: [] },
             { code: 'ORGANIZATION_MANAGE', scopes: [] },
+            { code: 'SETTINGS_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -238,6 +250,34 @@ createServer(async (request, response) => {
         Location: `/api/v1/document-types/${created.id}`,
       },
     );
+  }
+  if (url.pathname === '/api/v1/settings' && request.method === 'GET') {
+    return send(response, 200, { data: Object.fromEntries(settings) });
+  }
+  if (url.pathname === '/api/v1/settings/public' && request.method === 'GET') {
+    return send(response, 200, {
+      data: Object.fromEntries(PUBLIC_SETTINGS.map((key) => [key, settings.get(key)?.value])),
+    });
+  }
+  if (url.pathname === '/api/v1/settings' && request.method === 'PATCH') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const keys = Object.keys(body.values ?? {});
+    if (keys.some((key) => !settings.has(key))) {
+      return problem(response, 422, 'SETTING_KEY_UNKNOWN', String(correlationId));
+    }
+    if (keys.some((key) => body.expectedVersions?.[key] === undefined)) {
+      return problem(response, 428, 'PRECONDITION_REQUIRED', String(correlationId));
+    }
+    if (keys.some((key) => body.expectedVersions[key] !== settings.get(key).version)) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const updated = {};
+    for (const key of keys) {
+      const next = { value: body.values[key], version: settings.get(key).version + 1 };
+      settings.set(key, next);
+      updated[key] = next;
+    }
+    return send(response, 200, { data: updated });
   }
   if (url.pathname === '/api/v1/organizations' && request.method === 'GET') {
     const list = [...organizations].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));

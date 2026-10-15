@@ -112,4 +112,7 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     TenantSuspended: 'NO_ASYNC_CONSUMER',
     TenantOffboarded: 'NO_ASYNC_CONSUMER',
     TenantDeactivated: 'NO_ASYNC_CONSUMER',
+    // US-103: os consumidores (FeatureFlagService, NumberingFacade…) invalidam o cache em processo
+    // pela leitura da versão da chave; nenhum consumidor assíncrono no MVP 1.
+    TenantSettingsChanged: 'NO_ASYNC_CONSUMER',
   };

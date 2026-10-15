@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { problemDetailsSchema } from '@contrataflow/validation';
+import { problemDetailsSchema, SETTING_DEFINITIONS } from '@contrataflow/validation';
 import type { PlatformTenantDto, ProvisionTenantResultDto } from '@contrataflow/validation';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -114,6 +114,7 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
       expect(tenant.provisioning.steps.map((step) => [step.key, step.status])).toEqual([
         ['tenancy.tenantRecord', 'DONE'],
         ['tenancy.primaryOrganization', 'DONE'],
+        ['tenancy.settings', 'DONE'],
         ['access.defaultRoles', 'DONE'],
         ['document.systemTypes', 'DONE'],
         ['identity.firstAdmin', 'DONE'],
@@ -125,6 +126,7 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
       const details = Object.fromEntries(
         tenant.provisioning.steps.map((step) => [step.key, step.details]),
       );
+      expect(details['tenancy.settings']).toEqual({ settings: SETTING_DEFINITIONS.length });
       expect(details['access.defaultRoles']).toEqual({ roles: 15 });
       expect(details['document.systemTypes']).toEqual({ documentTypes: 11 });
       expect(details['identity.firstAdmin']).toEqual({ memberships: 1 });

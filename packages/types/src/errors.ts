@@ -30,6 +30,7 @@ export const ERROR_CODES = [
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
   'PRIMARY_ORGANIZATION_REQUIRED',
+  'SETTING_KEY_UNKNOWN',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
