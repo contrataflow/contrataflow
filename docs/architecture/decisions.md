@@ -472,6 +472,12 @@ Código no GitHub e CI/CD com GitHub Actions: estágios obrigatórios para *merg
 - **Alternativa descartada:** um PR por card com merge automático. Exigiria e-mail verificado na conta do GitHub, branch por card nos workers e a fila parada até cada merge.
 - Registrado em 2026-10-14 (US-079).
 
+### DEC-087 — Verificação enxuta por card e preset por tipo de card · `Aceita` · complementa DEC-068
+Em 2026-10-15 o ritmo era de ~1 card por hora, em série, com sessões de worker em Opus xhigh relendo ~62 milhões de tokens por card; a cota de uso virou o gargalo.
+- **DoD enxuta:** no card, rodam os testes do módulo tocado e `pnpm turbo run lint typecheck test` uma vez. As suítes completas (`test:integration`, `test:tenant-leak`, `test:e2e`) e os benchmarks de p95 rodam no CI do PR do lote (`ci.yml`) e no endurecimento. A DoD da story não muda: todo cenário Gherkin (8 categorias) continua com teste automatizado. Regra operacional no `AGENTS.md`.
+- **Preset por tipo de card:** `claude-code` (Opus xhigh) só em US-001, US-041, US-047, US-051, US-052, US-065, US-097 e US-105; `claude-code-sonnet` nas stories S e nos CRUDs simples de administração (US-007, US-018, US-025, US-027, US-049, US-061, US-069, US-098, US-101, US-103, US-104, US-106, US-113); `claude-code-opus-high` nas demais. Cards novos seguem a mesma regra.
+- **Consequência:** menos tempo e cota por card; o PR do lote passa a ser o ponto de verificação completa, e uma falha ali volta como card de correção.
+
 ### DEC-069 — Implementação da persistência · `Aceita` · complementa DEC-064, DEC-082 e DEC-055 · [ADR-012](../adr/adr-012-prisma-tenant-transaction.md)
 - **Acesso a dados:** provider global `TenantTransaction` (`apps/api/src/shared/database`) com `run` (comando) e `read` (consulta em transação somente leitura); cada chamada abre a transação com `set_config('app.tenant_id', …, true)` como primeira instrução. O `PrismaClient`, o *adapter* e o `pg` ficam só em `shared/database/**` (lint `contrataflow/no-prisma-client-outside-database`); os repositórios recebem o `tx` e importam tipos de `#shared/database/prisma.js`.
 - **Papéis:** criados pela migração inicial em bloco idempotente e sem senha; em produção a infraestrutura cria os papéis de login (senha no Secrets Manager) e concede `CREATE` em `public` ao `cf_migrator` antes do primeiro deploy. Toda migração cria objetos depois de `SET ROLE cf_owner`; a checagem de catálogo do CI reprova objeto com outro dono no schema `public`.
