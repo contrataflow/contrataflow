@@ -7,6 +7,7 @@ import example from '../../messages/pt-BR/example.json';
 import implementationAssistant from '../../messages/pt-BR/implementationAssistant.json';
 import organizations from '../../messages/pt-BR/organizations.json';
 import permissions from '../../messages/pt-BR/permissions.json';
+import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
 
@@ -27,6 +28,7 @@ export const messages = {
   implementationAssistant,
   organizations,
   permissions,
+  roles,
   settings,
   shell,
 };

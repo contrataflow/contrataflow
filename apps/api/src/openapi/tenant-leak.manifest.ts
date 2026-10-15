@@ -52,6 +52,9 @@ const CATALOG_ROUTE =
 const CALENDAR_ROUTE =
   'Calendário (US-106): a suíte genérica ainda não tem fixture de feriado do tenant B; o isolamento (404 em CAL-03/04, lista e cálculo de dias úteis sem os feriados de B e RLS de holidays) é coberto em test/tenant-leak/calendar.spec.ts, com administradores nos dois tenants.';
 
+const ROLE_ROUTE =
+  'Perfis (US-095): exige ROLE_VIEW/ROLE_MANAGE (que o usuário comum da suíte não tem) e a suíte genérica ainda não tem fixture de perfil do tenant B; o isolamento (404 ROLE_NOT_FOUND em ROL-04..08 com ids de B, lista sem perfis de B e RLS de roles/role_permissions) é coberto em test/tenant-leak/role-management.spec.ts, com administradores nos dois tenants.';
+
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
@@ -110,6 +113,13 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
     reason:
       'Catálogo global e idêntico entre tenants (sem dado de tenant) que exige ROLE_VIEW: vínculo de outro tenant → 403 MEMBERSHIP_INACTIVE em access/presentation/permission.routes.spec.ts; RLS de roles/role_permissions em test/tenant-leak/roles.spec.ts.',
   },
+  'ROL-02': { kind: 'exempt', reason: ROLE_ROUTE },
+  'ROL-03': { kind: 'exempt', reason: ROLE_ROUTE },
+  'ROL-04': { kind: 'exempt', reason: ROLE_ROUTE },
+  'ROL-05': { kind: 'exempt', reason: ROLE_ROUTE },
+  'ROL-06': { kind: 'exempt', reason: ROLE_ROUTE },
+  'ROL-07': { kind: 'exempt', reason: ROLE_ROUTE },
+  'ROL-08': { kind: 'exempt', reason: ROLE_ROUTE },
   'INTERNAL-SESSION-EVENTS': {
     kind: 'exempt',
     reason:

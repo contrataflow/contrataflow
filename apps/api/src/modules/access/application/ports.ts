@@ -1,3 +1,5 @@
+import type { PermissionCode } from '@contrataflow/types';
+
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { Role, RolePermission } from '../domain/role.js';
@@ -18,7 +20,61 @@ export interface RoleRepository {
   findByKeys(tx: TenantTx, keys: readonly string[]): Promise<Role[]>;
   /** Concessões ausentes por `(tenant_id, role_id, permission_code)`; devolve quantas gravou. */
   insertMissingGrants(tx: TenantTx, grants: readonly RolePermission[]): Promise<number>;
+
+  // --- Gestão de perfis (US-095) ---------------------------------------------------------------
+
+  /** Perfis do tenant da transação: padrão primeiro, depois por nome. */
+  list(tx: TenantTx, filter: RoleListFilter): Promise<Role[]>;
+  /** `null` se o id não existe NO TENANT da transação (outro tenant → `null`, nunca o registro). */
+  findById(tx: TenantTx, id: string): Promise<Role | null>;
+  /** Perfil com o mesmo nome sem distinção de maiúsculas (RN-IAM-87), exceto `excludingId`. */
+  findByName(tx: TenantTx, name: string, excludingId?: string): Promise<Role | null>;
+  /** Nomes e chaves de todos os perfis do tenant (nome da cópia — RN-IAM-86). */
+  namesAndKeys(tx: TenantTx): Promise<{ names: string[]; keys: string[] }>;
+  /** @throws RoleAlreadyExistsError (índices únicos de `key` e `lower(name)`) */
+  insert(tx: TenantTx, role: Role): Promise<void>;
+  /**
+   * Grava o perfil com `version = version + 1` condicionada a `expectedVersion` (DEC-055).
+   * @throws VersionConflictError @throws RoleAlreadyExistsError
+   */
+  update(tx: TenantTx, role: Role, expectedVersion: number): Promise<void>;
+  /** Códigos concedidos ao perfil, em ordem alfabética. */
+  permissionsOf(tx: TenantTx, roleId: string): Promise<PermissionCode[]>;
+  /** Remove as concessões dos códigos informados (diff da matriz — ROL-06). */
+  removeGrants(tx: TenantTx, roleId: string, codes: readonly PermissionCode[]): Promise<void>;
+  /** Perfis do tenant com as chaves informadas e as respectivas concessões (POL-13). */
+  grantsByKeys(tx: TenantTx, keys: readonly string[]): Promise<RoleGrants[]>;
 }
+
+export interface RoleListFilter {
+  /** Contém, no nome ou na chave, sem diferenciar maiúsculas. */
+  readonly search?: string;
+  readonly isActive?: boolean;
+}
+
+export interface RoleGrants {
+  readonly key: string;
+  readonly isActive: boolean;
+  readonly permissions: readonly PermissionCode[];
+}
+
+/** Nome ou chave já usados no tenant (índices únicos de `roles` — RN-IAM-87 · V-02). */
+export class RoleAlreadyExistsError extends Error {
+  constructor() {
+    super('Nome ou chave de perfil já usados no tenant.');
+    this.name = 'RoleAlreadyExistsError';
+  }
+}
+
+/**
+ * Vínculos com atribuição ativa por perfil (RN-IAM-84 · SCR-030). As atribuições (`role_assignments`)
+ * chegam com a US-096, que implementa esta porta; até lá a contagem é 0.
+ */
+export interface RoleAssignmentCounter {
+  countActive(tx: TenantTx, roleIds: readonly string[]): Promise<ReadonlyMap<string, number>>;
+}
+
+export const ROLE_ASSIGNMENT_COUNTER = Symbol('RoleAssignmentCounter');
 
 export const ROLE_REPOSITORY = Symbol('RoleRepository');
 

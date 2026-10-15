@@ -1,4 +1,5 @@
 import type { AnyDomainEventDefinition } from './define.js';
+import { RoleCreated, RoleUpdated } from '../access/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import { DocumentTypeChanged } from '../document/events.js';
@@ -30,6 +31,8 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   DocumentTypeChanged,
   OrganizationCreated,
   OrganizationUpdated,
+  RoleCreated,
+  RoleUpdated,
   TenantProvisioned,
   TenantActivated,
   TenantSuspended,

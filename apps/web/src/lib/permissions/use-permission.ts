@@ -25,13 +25,10 @@ export interface PermissionState {
   readonly status: 'pending' | 'error' | 'success';
 }
 
-/**
- * Permissão efetiva do usuário no tenant ativo (ME-03 · permissions.md §9). Conveniência de UI:
- * a API continua decidindo cada requisição (RN-FND-92).
- */
-export function usePermission(code: string): PermissionState {
+/** Permissões efetivas do usuário no tenant ativo (ME-03); `undefined` enquanto carrega ou em erro. */
+export function useEffectivePermissions() {
   const tenantId = useTenantId();
-  const query = useQuery({
+  return useQuery({
     queryKey: permissionKeys.all(tenantId),
     queryFn: async ({ signal }) =>
       (await apiRequest<EffectivePermissions>('/me/permissions', { signal })).data,
@@ -39,5 +36,13 @@ export function usePermission(code: string): PermissionState {
     // Falha ao ler permissões só oculta ações; não derruba a página.
     throwOnError: false,
   });
+}
+
+/**
+ * Permissão efetiva do usuário no tenant ativo (ME-03 · permissions.md §9). Conveniência de UI:
+ * a API continua decidindo cada requisição (RN-FND-92).
+ */
+export function usePermission(code: string): PermissionState {
+  const query = useEffectivePermissions();
   return { allowed: hasPermission(query.data, code), status: query.status };
 }

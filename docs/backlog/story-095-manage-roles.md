@@ -216,7 +216,7 @@ Feature: Gerenciar perfis e matriz de permissões
 - **Módulo(s):** `access` (dono); usa `audit` (`AuditService`), `platform` (`OutboxWriter`), e a leitura de permissões efetivas do ator via `AuthorizationService` (US-097).
 - **Casos de uso:** `CreateRoleCommand`, `UpdateRoleCommand`, `UpdateRolePermissionsCommand`, `DuplicateRoleCommand`, `DeactivateRoleCommand` (e seus handlers); `ListRolesQuery`, `GetRoleQuery`.
 - **Domínio:** `Role.create(props)` (RN-IAM-80), `Role.updatePermissions(codes, actorPermissions)` (RN-IAM-81/82), `Role.deactivate(activeAdminCount)` (RN-IAM-84), `Role.duplicate()` (RN-IAM-86).
-- **Integrações internas:** `AuthorizationService.getEffectivePermissions(actorMembershipId)` para POL-13; `AuthorizationService.countActiveAssignments('ADMIN_ORGAO')` para POL-12.
+- **Integrações internas:** `AuthorizationService.getEffectivePermissions(actorMembershipId)` para POL-13; `AuthorizationService.countActiveAssignments('ADMIN_ORGAO')` para POL-12. Até a US-097, `RoleActorResolver` (módulo `access`) resolve as permissões do ator pelas concessões ATUAIS dos perfis do tenant cujas chaves estão no vínculo (perfil inativo não concede nada; chave sem perfil no tenant cai na matriz padrão); POL-12 bloqueia sempre o `ADMIN_ORGAO` (`isProtected`). Até a US-096, a contagem de vínculos ativos (`RoleAssignmentCounter`) é 0. MFA via `IdentityFacade.mfaPolicy` — exceção de nível `access` → `identity` registrada em decisions.md (DEC-041).
 - **Transação:** cada comando (ROL-03/05/06/07/08) é atômico: validação + domínio + `RolePermission` (diff) + auditoria + outbox (`RoleCreated`/`RoleUpdated`) em uma transação com `app.tenant_id`.
 
 ## Frontend
@@ -229,6 +229,7 @@ Feature: Gerenciar perfis e matriz de permissões
 ## Banco de dados
 - **Tabelas:** `roles`, `role_permissions`, `role_assignments` (somente leitura, para contagem de vínculos ativos), `audit_logs`, `outbox_events`.
 - **Migrações:** nenhuma nova (reutiliza `roles`/`role_permissions` de US-094/entities.md).
+- **Erros de domínio novos:** `ROLE_NOT_FOUND` (404), `ROLE_ALREADY_EXISTS` (409), `PRIVILEGE_ESCALATION_FORBIDDEN` (403) e `LAST_ADMIN_REQUIRED` (409); as duas últimas também geram `access.denied`. V-05 usa `violations[].code = ROLE_PROTECTED_PERMISSION` com `params.permission`. FA-04 sem `confirmDeactivate` → 422 `VALIDATION_ERROR` (`REQUIRED` em `confirmDeactivate`).
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, key)`, `UNIQUE (tenant_id, lower(name))` em `roles`; PK composta em `role_permissions`; índice `(tenant_id, role_id) WHERE revoked_at IS NULL` em `role_assignments` para a contagem de vínculos ativos.
 
 ## API

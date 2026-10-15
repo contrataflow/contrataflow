@@ -28,6 +28,7 @@
     ["tenancy", "access"],
     ["tenancy", "identity"],
     ["catalog", "access"],
-    ["catalog", "identity"]
+    ["catalog", "identity"],
+    ["access", "identity"]
   ]
 }

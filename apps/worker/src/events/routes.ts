@@ -116,6 +116,10 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',
+    // US-095: perfil alterado → `PermissionCacheInvalidator` apaga o cache de permissões efetivas
+    // do tenant (o payload não traz `membershipId`); até lá vale o TTL de 5 min (DEC-134).
+    RoleCreated: ['role.created'],
+    RoleUpdated: ['role.updated'],
     // US-099: o caso de uso remove o status do cache logo após o commit (TTL de 30 s como rede de
     // segurança). Sessões não são encerradas: cada requisição é recusada pelo guard (RN-TEN-11).
     TenantProvisioned: 'NO_ASYNC_CONSUMER',

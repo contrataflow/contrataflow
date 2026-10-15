@@ -143,6 +143,81 @@ function documentTypeView(type) {
   return { ...type, nextNumberPreview: previewOf(type) };
 }
 
+// Perfis (US-095 · ROL-01..08): catálogo reduzido e perfis em memória, só o necessário para a
+// jornada do SCR-030/031. Ana tem ROLE_VIEW/ROLE_MANAGE mas não é ADMIN_ORGAO (POL-13 vale).
+const catalog = [
+  ['PROCESS_VIEW', 'process', 'Visualizar processos', 'LOW'],
+  ['PROCESS_CREATE', 'process', 'Criar processos', 'MEDIUM'],
+  ['SUPPLIER_VIEW', 'supplier', 'Visualizar fornecedores', 'LOW'],
+  ['USER_MANAGE', 'identity', 'Gerenciar usuários', 'HIGH'],
+  ['ROLE_VIEW', 'access', 'Visualizar perfis', 'LOW'],
+  ['ROLE_MANAGE', 'access', 'Gerenciar perfis', 'HIGH'],
+  ['SETTINGS_MANAGE', 'tenancy', 'Gerenciar configurações gerais', 'HIGH'],
+].map(([code, module, name, riskLevel]) => ({
+  code,
+  module,
+  name,
+  description: name,
+  riskLevel,
+  scopable: false,
+  isDeprecated: false,
+  introducedIn: 'MVP1',
+}));
+const ANA_PERMISSIONS = ['PROCESS_CREATE', 'SETTINGS_MANAGE', 'ROLE_VIEW', 'ROLE_MANAGE'];
+const roles = [
+  [
+    'ADMIN_ORGAO',
+    'Administrador do órgão',
+    true,
+    ['USER_MANAGE', 'ROLE_VIEW', 'ROLE_MANAGE', 'SETTINGS_MANAGE'],
+  ],
+  ['AUDITOR', 'Auditor', false, ['ROLE_VIEW']],
+].map(([key, name, isProtected, permissions], index) => ({
+  id: `0192a000-0000-7000-8000-0000000095${String(index).padStart(2, '0')}`,
+  key,
+  name,
+  description: null,
+  isSystem: true,
+  isProtected,
+  allowExternalAssignment: key === 'AUDITOR',
+  isActive: true,
+  activeAssignmentsCount: index === 0 ? 1 : 0,
+  permissions,
+  createdAt: '2026-10-15T12:00:00.000Z',
+  updatedAt: '2026-10-15T12:00:00.000Z',
+  version: 1,
+}));
+
+function roleKey(name) {
+  return name
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function newRole(name, description, permissions) {
+  return {
+    ...roles[1],
+    id: randomUUID(),
+    key: roleKey(name),
+    name,
+    description: description ?? null,
+    isSystem: false,
+    isProtected: false,
+    allowExternalAssignment: false,
+    activeAssignmentsCount: 0,
+    permissions,
+    version: 1,
+  };
+}
+
+function roleSummary(role) {
+  const { permissions: _permissions, ...summary } = role;
+  return summary;
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   response.end(body === undefined ? '' : JSON.stringify(body));
@@ -177,6 +252,17 @@ function readBody(request) {
       resolve(raw);
     });
   });
+}
+
+/** O token traz segundo fator (`amr` com `otp`)? — RN-IAM-83 no PATCH de perfil. */
+function hasMfa(authorization) {
+  const token = (authorization ?? '').replace(/^Bearer /, '');
+  try {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString());
+    return Array.isArray(claims.amr) && claims.amr.includes('otp');
+  } catch {
+    return false;
+  }
 }
 
 function subject(authorization) {
@@ -216,6 +302,8 @@ createServer(async (request, response) => {
             { code: 'SETTINGS_MANAGE', scopes: [] },
             { code: 'CATALOG_MANAGE', scopes: [] },
             { code: 'CALENDAR_MANAGE', scopes: [] },
+            { code: 'ROLE_VIEW', scopes: [] },
+            { code: 'ROLE_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -477,6 +565,79 @@ createServer(async (request, response) => {
     }
     Object.assign(holiday, body, { version: holiday.version + 1 });
     return send(response, 200, { data: holiday }, { ETag: `"${holiday.version}"` });
+  }
+  if (url.pathname === '/api/v1/permissions' && request.method === 'GET') {
+    return send(response, 200, { data: catalog });
+  }
+  if (url.pathname === '/api/v1/roles' && request.method === 'GET') {
+    return send(response, 200, { data: roles.map(roleSummary) });
+  }
+  if (url.pathname === '/api/v1/roles' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const name = String(body.name ?? '').trim();
+    if (roles.some((role) => role.name.toLowerCase() === name.toLowerCase())) {
+      return problem(response, 409, 'ROLE_ALREADY_EXISTS', String(correlationId));
+    }
+    const created = newRole(name, body.description, []);
+    roles.push(created);
+    return send(
+      response,
+      201,
+      { data: roleSummary(created) },
+      {
+        ETag: '"1"',
+        Location: `/api/v1/roles/${created.id}`,
+      },
+    );
+  }
+  const roleRoute = /^\/api\/v1\/roles\/([0-9a-f-]{36})(\/[a-z]+)?$/.exec(url.pathname);
+  const role = roleRoute ? roles.find((item) => item.id === roleRoute[1]) : undefined;
+  if (roleRoute && !role) return problem(response, 404, 'ROLE_NOT_FOUND', String(correlationId));
+  if (role && !roleRoute[2] && request.method === 'GET') {
+    return send(response, 200, { data: role }, { ETag: `"${role.version}"` });
+  }
+  if (role && roleRoute[2] === '/duplicate' && request.method === 'POST') {
+    let name = `${role.name} (cópia)`;
+    for (let n = 2; roles.some((item) => item.name === name); n += 1) {
+      name = `${role.name} (cópia ${n})`;
+    }
+    const copy = newRole(name, role.description, [...role.permissions]);
+    roles.push(copy);
+    return send(response, 201, { data: roleSummary(copy) }, { ETag: '"1"' });
+  }
+  if (role && String(request.headers['if-match'] ?? '') !== `"${role.version}"`) {
+    return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+  }
+  if (role && roleRoute[2] === '/permissions' && request.method === 'PUT') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const added = body.permissions.filter((code) => !role.permissions.includes(code));
+    if (added.some((code) => !ANA_PERMISSIONS.includes(code))) {
+      return problem(response, 403, 'PRIVILEGE_ESCALATION_FORBIDDEN', String(correlationId));
+    }
+    Object.assign(role, { permissions: body.permissions, version: role.version + 1 });
+    return send(response, 200, { data: role }, { ETag: `"${role.version}"` });
+  }
+  if (role && !roleRoute[2] && request.method === 'PATCH') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const highRisk = role.permissions.some(
+      (code) => catalog.find((item) => item.code === code)?.riskLevel === 'HIGH',
+    );
+    if (
+      body.allowExternalAssignment === true &&
+      !role.allowExternalAssignment &&
+      highRisk &&
+      !hasMfa(request.headers.authorization)
+    ) {
+      return problem(response, 403, 'MFA_REQUIRED', String(correlationId));
+    }
+    Object.assign(role, body, { version: role.version + 1 });
+    return send(response, 200, { data: roleSummary(role) }, { ETag: `"${role.version}"` });
+  }
+  if (role && roleRoute[2] === '/deactivate' && request.method === 'POST') {
+    if (role.isProtected)
+      return problem(response, 409, 'LAST_ADMIN_REQUIRED', String(correlationId));
+    Object.assign(role, { isActive: false, version: role.version + 1 });
+    return send(response, 200, { data: roleSummary(role) }, { ETag: `"${role.version}"` });
   }
   const organizationRoute = /^\/api\/v1\/organizations\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (organizationRoute && request.method === 'GET') {

@@ -156,6 +156,27 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Workflow inválido',
     detail: 'O fluxo tem problemas que impedem a publicação.',
   },
+  ROLE_NOT_FOUND: {
+    status: 404,
+    title: 'Perfil não encontrado',
+    detail: 'Perfil não encontrado.',
+  },
+  ROLE_ALREADY_EXISTS: {
+    status: 409,
+    title: 'Perfil já existente',
+    detail: 'Já existe um perfil com esse nome.',
+  },
+  PRIVILEGE_ESCALATION_FORBIDDEN: {
+    status: 403,
+    title: 'Concessão não permitida',
+    detail: 'Você não pode conceder uma permissão que você mesmo não possui.',
+  },
+  LAST_ADMIN_REQUIRED: {
+    status: 409,
+    title: 'Administrador obrigatório',
+    detail:
+      'Não é possível desativar o perfil Administrador do órgão: mantenha ao menos um administrador ativo.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

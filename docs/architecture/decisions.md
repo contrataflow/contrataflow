@@ -333,6 +333,7 @@ modules/<modulo>/
 - Dependências entre módulos somente via `application/<modulo>.facade.ts` ou eventos. Proibido importar `infrastructure`/`domain` de outro módulo (verificado por `dependency-cruiser` no CI).
 - **Exceção registrada (US-101):** `tenancy` (nível 1) importa as fachadas de `access` e `identity` (mesmo nível; `allow` em `tools/module-levels.json`) porque os casos de uso de órgão (ORG-01..04) são do `tenancy` e exigem `AccessFacade.assertCan` e `IdentityFacade.mfaPolicy`. `access` e `identity` não importam `tenancy` (sem ciclo).
 - **Exceção registrada (US-104):** `catalog` (nível 1) importa as fachadas de `access` e `identity` (mesmo nível; `allow` em `tools/module-levels.json`) pelo mesmo motivo — os casos de uso de catálogo (CAT-02..06) exigem `AccessFacade.assertCan('CATALOG_MANAGE')` e `IdentityFacade.mfaPolicy`. `access` e `identity` não importam `catalog` (sem ciclo).
+- **Exceção registrada (US-095):** `access` (nível 1) importa a fachada de `identity` (mesmo nível; `allow` em `tools/module-levels.json`) porque os comandos de perfil (ROL-03..08) exigem `ROLE_MANAGE` com MFA conforme `security.mfaPolicy` (`IdentityFacade.mfaPolicy`, POL-14). `identity` não importa `access` (sem ciclo).
 - Operações que alteram mais de um agregado (ex.: tramitação + aprovação + documento) usam **uma transação** coordenada por um caso de uso (Unit of Work), aceitável no monólito modular.
 
 ---

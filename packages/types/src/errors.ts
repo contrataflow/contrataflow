@@ -35,6 +35,10 @@ export const ERROR_CODES = [
   'WORKFLOW_VERSION_NOT_DRAFT',
   'WORKFLOW_DRAFT_EXISTS',
   'WORKFLOW_INVALID',
+  'ROLE_NOT_FOUND',
+  'ROLE_ALREADY_EXISTS',
+  'PRIVILEGE_ESCALATION_FORBIDDEN',
+  'LAST_ADMIN_REQUIRED',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

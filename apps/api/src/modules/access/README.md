@@ -41,8 +41,25 @@ permission_code)` com `ON CONFLICT DO NOTHING` — reexecução não duplica, n�
 O escopo padrão de atribuição de cada perfil (§3.1) fica em `DEFAULT_ROLES[].defaultAssignmentScope`
 (não é coluna de `roles`), para a atribuição de perfis (US-096).
 
+## Gestão de perfis (US-095 · ROL-02..08 · SCR-030/031)
+
+- Casos de uso em `application/role.commands.ts` (`RoleCommandSupport` concentra transação,
+  autorização, auditoria e outbox) e `application/role.queries.ts`; regras puras em
+  `domain/role-management.ts` (chave gerada do nome, diff da matriz, POL-12/13, RN-IAM-82/83/86).
+- **Permissões do ator (POL-13):** `RoleActorResolver` lê, na transação do comando, as concessões
+  ATUAIS dos perfis do tenant cujas chaves estão no vínculo (`roleKeys`); perfil inativo não concede
+  nada (RN-IAM-84); chave sem perfil no tenant cai na matriz padrão. `ROLE_VIEW`/`ROLE_MANAGE` são
+  conferidas com o mesmo conjunto (`authorizeActor`), com MFA por `security.mfaPolicy`.
+- **Protegidas do `ADMIN_ORGAO`:** `ADMIN_ORGAO_SEEDED_PERMISSIONS` (`@contrataflow/validation`, usada
+  também pela UI); um teste confere a igualdade com a coluna `ADMIN_ORGAO` de `DEFAULT_ROLE_GRANTS`.
+- **Vínculos ativos:** porta `RoleAssignmentCounter` — 0 até a US-096 trocar o adaptador
+  `NoRoleAssignmentsCounter` pela contagem em `role_assignments`.
+- **Cache:** `RoleCreated`/`RoleUpdated` (routing `role.*`) → `PermissionCacheInvalidator` do worker
+  apaga as permissões efetivas do tenant; sem relay, vale o TTL de 5 min (DEC-134).
+
 ## Ponte até a US-097
 
-`AccessFacade.assertCan` ainda decide pelos `roleKeys` do contexto contra a matriz padrão
-(`domain/permission-grants.ts`, derivada de `DEFAULT_ROLE_GRANTS`). A US-097 troca isso pelas
-permissões efetivas (perfis do tenant, escopos e cache) sem mudar os chamadores.
+`AccessFacade.assertCan` (usado pelos demais módulos) ainda decide pelos `roleKeys` do contexto contra
+a matriz padrão (`domain/permission-grants.ts`, derivada de `DEFAULT_ROLE_GRANTS`) — não enxerga as
+matrizes editadas pela US-095. A US-097 troca isso pelas permissões efetivas (perfis do tenant,
+escopos e cache) sem mudar os chamadores, e absorve o `RoleActorResolver`.

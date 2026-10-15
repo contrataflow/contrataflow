@@ -49,9 +49,5 @@
     "tenancy": "Órgão e configurações",
     "organization": "Estrutura organizacional",
     "catalog": "Catálogos e calendário"
-  },
-  "page": {
-    "title": "Perfis e permissões",
-    "description": "Consulte o catálogo de permissões da plataforma. A gestão de perfis e a matriz de permissões chegam em seguida."
   }
 }

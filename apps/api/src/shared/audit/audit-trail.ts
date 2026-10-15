@@ -104,4 +104,7 @@ export const AUDITED_DENIAL_CODES: ReadonlySet<string> = new Set([
   'MFA_REQUIRED',
   'MEMBERSHIP_INACTIVE',
   'TENANT_SUSPENDED',
+  // US-095: violações de POL-13 (anti-escalonamento) e POL-12 (anti-bloqueio) na gestão de perfis.
+  'PRIVILEGE_ESCALATION_FORBIDDEN',
+  'LAST_ADMIN_REQUIRED',
 ]);
