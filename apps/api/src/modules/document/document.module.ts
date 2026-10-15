@@ -3,11 +3,13 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalog.js';
 import { DocumentTypeUsageModule } from '#shared/document/document-type-usage.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
+import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
 import { DocumentTypeFacade } from './application/document-type.facade.js';
 import { DocumentFacade } from './application/document.facade.js';
 import { ListDocumentTypesQuery } from './application/list-document-types.query.js';
@@ -42,7 +44,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * `DocumentType` (US-061: DTY-01..03, cache por tenant e semeadura dos tipos de sistema); templates,
  * documentos e versões chegam com as stories seguintes. Autorização e MFA vêm de `access`/`identity`;
  * a verificação de uso em fluxos publicados, da porta `DocumentTypeUsageProvider` (implementada
- * por `workflow`).
+ * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040).
  */
 @Module({
   imports: [
@@ -50,6 +52,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     IdentityModule,
     OrganizationModule,
     DocumentTypeUsageModule,
+    DocumentTypeCatalogModule,
     TenantSeedingModule,
   ],
   controllers: [DocumentTypeController],
@@ -62,6 +65,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     UpdateDocumentTypeCommand,
     PreviewDocumentTypeImpactQuery,
     SystemDocumentTypesSeeder,
+    DocumentTypeCodesAdapter,
     PrismaDocumentTypeRepository,
     PrismaDocumentTransactions,
     InMemoryDocumentTypeRepository,

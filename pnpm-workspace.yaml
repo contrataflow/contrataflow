@@ -135,6 +135,7 @@ catalog:
   '@playwright/test': 1.63.0
   testcontainers: 11.14.0
   supertest: 7.3.1
+  fast-check: 3.23.2
   '@types/supertest': 7.2.1
   axe-core: 4.13.0
   jsdom: 29.1.1

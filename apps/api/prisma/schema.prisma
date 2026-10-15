@@ -645,3 +645,238 @@ model Holiday {
   @@unique([tenantId, id], map: "holidays_tenant_id_id_key")
   @@map("holidays")
 }
+
+/// entities.md §2 — enums da definição de workflow (US-040).
+enum WorkflowVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+
+  @@map("workflow_version_status")
+}
+
+enum StageType {
+  START
+  TASK
+  APPROVAL
+  END
+
+  @@map("stage_type")
+}
+
+enum DepartmentResolution {
+  FIXED
+  REQUESTING_DEPARTMENT
+  REQUESTING_SECRETARIAT
+  CHOSEN_ON_FORWARD
+
+  @@map("department_resolution")
+}
+
+enum StageAssignmentPolicy {
+  UNASSIGNED
+  CREATOR
+  DEPARTMENT_HEAD
+  PREVIOUS_ASSIGNEE
+
+  @@map("stage_assignment_policy")
+}
+
+enum ApproverType {
+  USER
+  ROLE
+  DEPARTMENT_HEAD
+
+  @@map("approver_type")
+}
+
+enum TransitionAction {
+  FORWARD
+  RETURN
+  APPROVE
+  REJECT
+  COMPLETE
+
+  @@map("transition_action")
+}
+
+enum DayCountType {
+  BUSINESS
+  CALENDAR
+
+  @@map("day_count_type")
+}
+
+enum RuleScope {
+  STAGE_EXIT
+  TRANSITION
+
+  @@map("rule_scope")
+}
+
+enum RuleType {
+  REQUIRED_DOCUMENT
+  REQUIRED_FIELD
+  REQUIRED_APPROVAL
+  CONDITION
+
+  @@map("rule_type")
+}
+
+enum RuleSeverity {
+  BLOCKING
+  WARNING
+
+  @@map("rule_severity")
+}
+
+/// entities.md §4.5 `Workflow` (módulo workflow · US-040). Nunca excluído (RN-WF-01). As FKs
+/// compostas (inclusive a circular e deferível `current_published_version_id` → versão do próprio
+/// workflow), o índice parcial do padrão e o gatilho de `key` imutável estão na migração.
+model Workflow {
+  id                        String   @id @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  key                       String   @db.VarChar(60)
+  name                      String   @db.VarChar(150)
+  description               String?
+  isActive                  Boolean  @default(true) @map("is_active")
+  isDefault                 Boolean  @default(false) @map("is_default")
+  applicabilityRule         Json?    @map("applicability_rule") @db.JsonB
+  applicabilityPriority     Int      @default(100) @map("applicability_priority")
+  currentPublishedVersionId String?  @map("current_published_version_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?  @map("created_by_id") @db.Uuid
+  updatedById               String?  @map("updated_by_id") @db.Uuid
+  version                   Int      @default(1)
+
+  @@unique([tenantId, id], map: "workflows_tenant_id_id_key")
+  @@unique([tenantId, key], map: "workflows_tenant_id_key_key")
+  @@map("workflows")
+}
+
+/// entities.md §4.5 `WorkflowVersion`: `DRAFT` → `PUBLISHED` → `RETIRED`. Fora de `DRAFT` só a
+/// aposentadoria muda a linha (gatilho `trg_wf_version_immutable`); `definitionSnapshot` é o JSON
+/// canônico (RFC 8785) e `definitionHash`, o SHA-256 dele. O índice parcial de rascunho único fica
+/// na migração (RN-WF-04).
+model WorkflowVersion {
+  id                 String                @id @db.Uuid
+  tenantId           String                @map("tenant_id") @db.Uuid
+  workflowId         String                @map("workflow_id") @db.Uuid
+  versionNumber      Int                   @map("version_number")
+  status             WorkflowVersionStatus @default(DRAFT)
+  initialStageId     String?               @map("initial_stage_id") @db.Uuid
+  changeNotes        String?               @map("change_notes")
+  publishedAt        DateTime?             @map("published_at") @db.Timestamptz(6)
+  publishedById      String?               @map("published_by_id") @db.Uuid
+  retiredAt          DateTime?             @map("retired_at") @db.Timestamptz(6)
+  retiredById        String?               @map("retired_by_id") @db.Uuid
+  definitionSnapshot Json?                 @map("definition_snapshot") @db.JsonB
+  definitionHash     String?               @map("definition_hash") @db.VarChar(64)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?               @map("created_by_id") @db.Uuid
+  updatedById        String?               @map("updated_by_id") @db.Uuid
+  version            Int                   @default(1)
+
+  @@unique([tenantId, id], map: "workflow_versions_tenant_id_id_key")
+  @@unique([tenantId, workflowId, id], map: "workflow_versions_tenant_id_workflow_id_id_key")
+  @@unique([tenantId, workflowId, versionNumber], map: "workflow_versions_tenant_id_workflow_id_version_number_key")
+  @@index([tenantId, workflowId], map: "workflow_versions_single_draft_key")
+  @@map("workflow_versions")
+}
+
+/// entities.md §4.5 `WorkflowStage`: escrita só em versão `DRAFT` (gatilho
+/// `trg_wf_definition_immutable`); no máximo uma `START` por versão (índice parcial na migração).
+model WorkflowStage {
+  id                           String                @id @db.Uuid
+  tenantId                     String                @map("tenant_id") @db.Uuid
+  workflowVersionId            String                @map("workflow_version_id") @db.Uuid
+  key                          String                @db.VarChar(60)
+  name                         String                @db.VarChar(150)
+  instructions                 String?
+  type                         StageType
+  groupLabel                   String?               @map("group_label") @db.VarChar(60)
+  displayOrder                 Int                   @map("display_order")
+  departmentResolution         DepartmentResolution  @map("department_resolution")
+  fixedDepartmentId            String?               @map("fixed_department_id") @db.Uuid
+  assignmentPolicy             StageAssignmentPolicy @default(UNASSIGNED) @map("assignment_policy")
+  approverType                 ApproverType?         @map("approver_type")
+  approverUserId               String?               @map("approver_user_id") @db.Uuid
+  approverRoleId               String?               @map("approver_role_id") @db.Uuid
+  approverDepartmentResolution DepartmentResolution? @map("approver_department_resolution")
+  approverFixedDepartmentId    String?               @map("approver_fixed_department_id") @db.Uuid
+  allowDeputy                  Boolean               @default(true) @map("allow_deputy")
+  approvalDocumentTypeCodes    String[]              @default([]) @map("approval_document_type_codes") @db.VarChar(40)
+  documentTypeCodes            String[]              @default([]) @map("document_type_codes") @db.VarChar(40)
+  slaDays                      Int?                  @map("sla_days")
+  slaType                      DayCountType          @default(BUSINESS) @map("sla_type")
+  color                        String?               @db.VarChar(7)
+  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                  String?               @map("created_by_id") @db.Uuid
+  updatedById                  String?               @map("updated_by_id") @db.Uuid
+  version                      Int                   @default(1)
+
+  @@unique([tenantId, id], map: "workflow_stages_tenant_id_id_key")
+  @@unique([tenantId, workflowVersionId, id], map: "workflow_stages_tenant_id_workflow_version_id_id_key")
+  @@unique([tenantId, workflowVersionId, key], map: "workflow_stages_tenant_id_workflow_version_id_key_key")
+  @@index([tenantId, workflowVersionId], map: "workflow_stages_single_start_key")
+  @@map("workflow_stages")
+}
+
+/// entities.md §4.5 `WorkflowTransition`: origem e destino da mesma versão (FKs compostas na
+/// migração, com `ON DELETE CASCADE` a partir da etapa).
+model WorkflowTransition {
+  id                   String           @id @db.Uuid
+  tenantId             String           @map("tenant_id") @db.Uuid
+  workflowVersionId    String           @map("workflow_version_id") @db.Uuid
+  key                  String           @db.VarChar(60)
+  name                 String           @db.VarChar(150)
+  description          String?
+  fromStageId          String           @map("from_stage_id") @db.Uuid
+  toStageId            String           @map("to_stage_id") @db.Uuid
+  action               TransitionAction
+  displayOrder         Int              @default(0) @map("display_order")
+  isPrimary            Boolean          @default(false) @map("is_primary")
+  requiresComment      Boolean          @default(false) @map("requires_comment")
+  allowDueDateOverride Boolean          @default(true) @map("allow_due_date_override")
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?          @map("created_by_id") @db.Uuid
+  updatedById          String?          @map("updated_by_id") @db.Uuid
+  version              Int              @default(1)
+
+  @@unique([tenantId, id], map: "workflow_transitions_tenant_id_id_key")
+  @@unique([tenantId, workflowVersionId, id], map: "workflow_transitions_tenant_id_workflow_version_id_id_key")
+  @@unique([tenantId, workflowVersionId, key], map: "workflow_transitions_tenant_id_workflow_version_id_key_key")
+  @@unique([tenantId, workflowVersionId, fromStageId, toStageId, action], map: "workflow_transitions_unique_edge_key")
+  @@map("workflow_transitions")
+}
+
+/// entities.md §4.5 `WorkflowRule`: `config` por tipo (§5.5); alvo coerente com o escopo (check).
+model WorkflowRule {
+  id                String       @id @db.Uuid
+  tenantId          String       @map("tenant_id") @db.Uuid
+  workflowVersionId String       @map("workflow_version_id") @db.Uuid
+  scope             RuleScope
+  stageId           String?      @map("stage_id") @db.Uuid
+  transitionId      String?      @map("transition_id") @db.Uuid
+  type              RuleType
+  name              String       @db.VarChar(150)
+  description       String?
+  severity          RuleSeverity @default(BLOCKING)
+  config            Json         @db.JsonB
+  message           String       @db.VarChar(500)
+  isActive          Boolean      @default(true) @map("is_active")
+  displayOrder      Int          @default(0) @map("display_order")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?      @map("created_by_id") @db.Uuid
+  updatedById       String?      @map("updated_by_id") @db.Uuid
+  version           Int          @default(1)
+
+  @@unique([tenantId, id], map: "workflow_rules_tenant_id_id_key")
+  @@index([tenantId, workflowVersionId], map: "workflow_rules_version_idx")
+  @@map("workflow_rules")
+}

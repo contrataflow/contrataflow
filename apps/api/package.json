@@ -76,6 +76,7 @@
     "chokidar": "catalog:",
     "concurrently": "catalog:",
     "eslint": "catalog:",
+    "fast-check": "catalog:",
     "pg": "catalog:",
     "prisma": "catalog:",
     "supertest": "catalog:",

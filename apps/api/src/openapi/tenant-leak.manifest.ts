@@ -55,6 +55,9 @@ const CALENDAR_ROUTE =
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
+const WORKFLOW_ROUTE =
+  'Workflows (US-040): exige WORKFLOW_VIEW/WORKFLOW_MANAGE e a suíte genérica ainda não tem fixture de workflow do tenant B; o isolamento (404 em WF-03/04/07..18 com ids de B, 422 REFERENCE_NOT_FOUND em toStageId/copyFromVersionId de B e RLS das 5 tabelas) é coberto em test/tenant-leak/workflows.spec.ts, com administradores nos dois tenants.';
+
 /** Classificação por `operationId`. */
 export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Object.freeze({
   'ME-01': { kind: 'covered' },
@@ -87,6 +90,21 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'SET-01': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-02': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-03': { kind: 'exempt', reason: SETTINGS_ROUTE },
+  'WF-02': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-03': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-04': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-07': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-08': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-09': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-10': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-11': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-12': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-13': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-14': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-15': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-16': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-17': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-18': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'ROL-01': {
     kind: 'exempt',
     reason:

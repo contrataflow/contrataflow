@@ -141,6 +141,21 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Órgão principal obrigatório',
     detail: 'Este é o único órgão ativo e não pode ser inativado.',
   },
+  WORKFLOW_VERSION_NOT_DRAFT: {
+    status: 409,
+    title: 'Versão do workflow não editável',
+    detail: 'Esta versão já foi publicada e não pode ser alterada. Crie uma nova versão.',
+  },
+  WORKFLOW_DRAFT_EXISTS: {
+    status: 409,
+    title: 'Rascunho já existente',
+    detail: 'Já existe uma versão em rascunho deste workflow.',
+  },
+  WORKFLOW_INVALID: {
+    status: 422,
+    title: 'Workflow inválido',
+    detail: 'O fluxo tem problemas que impedem a publicação.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

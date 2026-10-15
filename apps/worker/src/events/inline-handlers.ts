@@ -56,6 +56,10 @@ const CONFIG_CACHE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>
  */
 const CONFIG_CACHE_PREFIXES: Readonly<Record<string, readonly (readonly string[])[]>> = {
   'catalog.holiday_changed': [['catalog', 'holidays']],
+  // US-040: a definição de cada versão é imutável (`workflow:def:{versionId}` nunca fica velha);
+  // o que muda na publicação/aposentadoria é o conjunto de versões vigentes do tenant.
+  'workflow.version_published': [['workflow', 'applicable']],
+  'workflow.version_retired': [['workflow', 'applicable']],
 };
 
 /**

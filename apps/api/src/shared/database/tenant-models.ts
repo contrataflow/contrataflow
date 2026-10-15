@@ -20,6 +20,11 @@ export const TENANT_SCOPED_MODELS = [
   'RolePermission',
   'TenantMembership',
   'TenantSetting',
+  'Workflow',
+  'WorkflowRule',
+  'WorkflowStage',
+  'WorkflowTransition',
+  'WorkflowVersion',
 ] as const;
 
 /**

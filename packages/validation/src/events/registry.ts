@@ -12,6 +12,11 @@ import {
   TenantSettingsChanged,
   TenantSuspended,
 } from '../tenancy/events.js';
+import {
+  WorkflowCreated,
+  WorkflowVersionPublished,
+  WorkflowVersionRetired,
+} from '../workflow/events.js';
 
 /**
  * Definições dos eventos de domínio do MVP 1 por `eventType` (V-03 da US-082): espelha
@@ -31,4 +36,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   TenantOffboarded,
   TenantDeactivated,
   TenantSettingsChanged,
+  WorkflowCreated,
+  WorkflowVersionPublished,
+  WorkflowVersionRetired,
 };

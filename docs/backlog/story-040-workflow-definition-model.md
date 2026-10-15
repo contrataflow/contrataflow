@@ -58,7 +58,7 @@ Garantir que 100% das versões publicadas: (a) passaram pelo validador sem erros
 
 ## Fluxos alternativos
 - **FA-01 — Cópia de outro workflow:** com `copyFromVersionId` de versão `PUBLISHED`/`RETIRED` de outro workflow do tenant, a v1 nasce com a definição copiada (novos IDs). Versão de origem `DRAFT` ou de outro tenant → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`).
-- **FA-02 — Já existe rascunho:** WF-08 com uma versão `DRAFT` existente → 409 `CONFLICT` com `meta.draftVersionId`; a UI oferece "Abrir rascunho existente".
+- **FA-02 — Já existe rascunho:** WF-08 com uma versão `DRAFT` existente → 409 `WORKFLOW_DRAFT_EXISTS` com `meta.draftVersionId`; a UI oferece "Abrir rascunho existente".
 - **FA-03 — Etapa inicial trocada:** mudar o tipo da etapa `START` para outro tipo limpa `initialStageId`; criar outra `START` com uma já existente → 422 (RN-WF-07).
 - **FA-04 — Exclusão de etapa referenciada:** excluir etapa referenciada por regra `REQUIRED_APPROVAL` de outra etapa é permitido no rascunho; o validador acusa `WF_RULE_SCOPE_INVALID` até a regra ser corrigida.
 - **FA-05 — Tipo de documento desativado depois da escrita:** a escrita aceitou o código, mas o tipo foi desativado (US-061); o validador acusa `WF_DOCUMENT_TYPE_UNKNOWN` e bloqueia a publicação.
@@ -126,7 +126,7 @@ Garantir que 100% das versões publicadas: (a) passaram pelo validador sem erros
 | V-06 | Ação incompatível com os tipos de origem/destino (RN-WF-10) | API | "Esta ação não é permitida a partir de uma etapa {tipo}." | `VALIDATION_ERROR` (`NOT_ALLOWED`, campo `action`) |
 | V-07 | `config` de regra inválido, caminho desconhecido ou operação proibida | API | "A condição usa um campo ou operação não permitidos." | `VALIDATION_ERROR` (campo `config`) |
 | V-08 | Escrita em versão não `DRAFT` | API + trigger | "Esta versão já foi publicada e não pode ser alterada. Crie uma nova versão." | `WORKFLOW_VERSION_NOT_DRAFT` |
-| V-09 | Segunda versão em rascunho | API (+ índice parcial) | "Já existe uma versão em rascunho deste workflow." | `CONFLICT` |
+| V-09 | Segunda versão em rascunho | API (+ índice parcial) | "Já existe uma versão em rascunho deste workflow." | `WORKFLOW_DRAFT_EXISTS` (409, `meta.draftVersionId`) |
 | V-10 | `If-Match` divergente / ausente | API | "Outra pessoa alterou este item. Recarregue para continuar." | `VERSION_CONFLICT` / `PRECONDITION_REQUIRED` |
 | V-11 | Validação completa do grafo (RN-WF-11..19) | Domínio | Lista por etapa/transição/regra (tabela abaixo) | `WORKFLOW_INVALID` (`errors[]`) |
 
@@ -252,7 +252,7 @@ Feature: Modelo de definição de workflow versionado
   Scenario: [Duplicidade] Segunda versão em rascunho e chave repetida
     Given que o workflow "OBRAS_ENGENHARIA" já possui a versão 2 em "DRAFT"
     When "Rafael" solicitar uma nova versão
-    Then a API deve responder 409 com código "CONFLICT" e "meta.draftVersionId" da versão 2
+    Then a API deve responder 409 com código "WORKFLOW_DRAFT_EXISTS" e "meta.draftVersionId" da versão 2
     When "Rafael" criar outro workflow com a chave "OBRAS_ENGENHARIA"
     Then a API deve responder 409 com código "CONFLICT"
 
@@ -306,7 +306,7 @@ Feature: Modelo de definição de workflow versionado
 - **Consumidores:** US-041, US-042, US-043, US-044, US-045, US-046.
 - **Decisões/ADRs:** DEC-014, DEC-015, DEC-016, DEC-022, DEC-040, DEC-041, DEC-055, DEC-081, DEC-082, DEC-084, DEC-104; ADR-005, ADR-008.
 - **Configurações:** `security.mfaPolicy`.
-- **Lacunas nas fontes canônicas:** (1) códigos `WF_*` de `errors[]`/`warnings[]` do `WORKFLOW_INVALID` não constam do api.md — propor §2.1.3; (2) não há código específico para chave duplicada nem para "rascunho já existente" — adotado `CONFLICT` (409); propor `WORKFLOW_DRAFT_EXISTS`; (3) não há rota para descartar rascunho de versão — propor `DELETE /workflow-versions/{versionId}` (somente `DRAFT`); (4) a coluna "Story" do api.md §3.10 atribui WF-07..WF-18 às stories de interface; o back-end desses endpoints é entregue aqui (propor incluir US-040); (5) não há ações de auditoria granulares para etapa/transição/regra — adotado `workflow.update` com `entityType`.
+- **Lacunas nas fontes canônicas:** (1) códigos `WF_*` de `errors[]`/`warnings[]` do `WORKFLOW_INVALID` — catalogados em api.md §2.3 (membro `validation`); (2) não há código específico para chave duplicada — adotado `CONFLICT` (409); "rascunho já existente" usa `WORKFLOW_DRAFT_EXISTS` (api.md §2.2); (3) não há rota para descartar rascunho de versão — propor `DELETE /workflow-versions/{versionId}` (somente `DRAFT`); (4) a coluna "Story" do api.md §3.10 inclui a US-040 em WF-02..04 e WF-07..18; (5) não há ações de auditoria granulares para etapa/transição/regra — adotado `workflow.update` com `entityType`.
 
 ## Impacto técnico
 - Estabelece o padrão de **definição imutável com snapshot e hash** (reutilizável por templates — US-108) e o validador de grafo usado em escrita, validação (WF-20), publicação (WF-21) e seed (US-042).

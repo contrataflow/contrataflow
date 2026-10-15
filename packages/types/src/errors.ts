@@ -32,6 +32,9 @@ export const ERROR_CODES = [
   'PRIMARY_ORGANIZATION_REQUIRED',
   'SETTING_KEY_UNKNOWN',
   'CATALOG_ITEM_SYSTEM',
+  'WORKFLOW_VERSION_NOT_DRAFT',
+  'WORKFLOW_DRAFT_EXISTS',
+  'WORKFLOW_INVALID',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

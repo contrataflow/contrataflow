@@ -59,8 +59,14 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
     {
       // events.md §3 (legenda C) — invalidadores de cache de configuração. Entram aqui os eventos
       // de configuração à medida que as stories donas os publicam (US-061: document_type.changed;
-      // US-104: catalog.item_changed; US-106: catalog.holiday_changed).
-      match: ['document_type.changed', 'catalog.item_changed', 'catalog.holiday_changed'],
+      // US-104: catalog.item_changed; US-106: catalog.holiday_changed; US-040: workflow.version_*).
+      match: [
+        'document_type.changed',
+        'catalog.item_changed',
+        'catalog.holiday_changed',
+        'workflow.version_published',
+        'workflow.version_retired',
+      ],
       handler: 'ConfigCacheInvalidator',
     },
     {
@@ -120,4 +126,10 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-103: os consumidores (FeatureFlagService, NumberingFacade…) invalidam o cache em processo
     // pela leitura da versão da chave; nenhum consumidor assíncrono no MVP 1.
     TenantSettingsChanged: 'NO_ASYNC_CONSUMER',
+    // US-040: criar workflow não muda definição publicada (nada em cache a invalidar).
+    WorkflowCreated: 'NO_ASYNC_CONSUMER',
+    // US-040: a definição publicada é imutável por versão; o evento invalida a lista de versões
+    // aplicáveis do tenant (`workflow:applicable` — US-042).
+    WorkflowVersionPublished: ['workflow.version_published'],
+    WorkflowVersionRetired: ['workflow.version_retired'],
   };

@@ -5,23 +5,23 @@
 | ID | Método | Rota | Permissão | Story |
 |---|---|---|---|---|
 | WF-01 | GET | `/workflows` | `WORKFLOW_VIEW` | US-043 |
-| WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` | US-043 |
-| WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | US-043 |
-| WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` | US-042, US-043 |
+| WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | US-040, US-043 |
+| WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` | US-040, US-042, US-043 |
 | WF-05 | POST | `/workflows/{id}/set-default` | `WORKFLOW_PUBLISH` | US-042 |
 | WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` | US-042 |
-| WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | US-045, US-046 |
-| WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | US-043, US-045 |
-| WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | US-043, US-046 |
-| WF-10 | POST | `/workflow-versions/{versionId}/stages` | `WORKFLOW_MANAGE` | US-043 |
-| WF-11 | PATCH | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` | US-043 |
-| WF-12 | DELETE | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` | US-043 |
-| WF-13 | POST | `/workflow-versions/{versionId}/transitions` | `WORKFLOW_MANAGE` | US-043 |
-| WF-14 | PATCH | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` | US-043 |
-| WF-15 | DELETE | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` | US-043 |
-| WF-16 | POST | `/workflow-versions/{versionId}/rules` | `WORKFLOW_MANAGE` | US-044 |
-| WF-17 | PATCH | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` | US-044 |
-| WF-18 | DELETE | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` | US-044 |
+| WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | US-040, US-045, US-046 |
+| WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | US-040, US-043, US-045 |
+| WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | US-040, US-043, US-046 |
+| WF-10 | POST | `/workflow-versions/{versionId}/stages` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-11 | PATCH | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-12 | DELETE | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-13 | POST | `/workflow-versions/{versionId}/transitions` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-14 | PATCH | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-15 | DELETE | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` | US-040, US-043 |
+| WF-16 | POST | `/workflow-versions/{versionId}/rules` | `WORKFLOW_MANAGE` | US-040, US-044 |
+| WF-17 | PATCH | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` | US-040, US-044 |
+| WF-18 | DELETE | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` | US-040, US-044 |
 | WF-19 | GET | `/rule-context/schema` | `WORKFLOW_VIEW` | US-044 |
 | WF-20 | POST | `/workflow-versions/{versionId}/validate` | `WORKFLOW_VIEW` | US-045 |
 | WF-21 | POST | `/workflow-versions/{versionId}/publish` | `WORKFLOW_PUBLISH` | US-045 |
@@ -43,17 +43,18 @@
 
 ### WF-02 — Criar workflow
 `POST /api/v1/workflows` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-043
-- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
+- **Cabeçalhos:** `Idempotency-Key` aceito · `If-Match` —
 - **Parâmetros:** —
-- **Request:** `{ name: string (3–150, obrigatório); description?: string (≤2000) }`
-- **Response:** `201 { data: Workflow }` com rascunho de versão 1 criado junto
+- **Request:** `{ key: string (^[A-Z][A-Z0-9_]{2,59}$, obrigatório, única no tenant, imutável — RN-WF-02); name: string (3–150, obrigatório); description?: string (≤2000); copyFromVersionId?: uuid (versão PUBLISHED/RETIRED do tenant — FA-01) }`
+- **Response:** `201 { data: Workflow }` (`Workflow & { draftVersion { id, versionNumber } }`) · `Location` · `ETag: "1"`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
-  | 422 | `VALIDATION_ERROR` | `name`/`description` fora dos limites ou ausentes |
-- **Efeitos:** Evento `WorkflowCreated` (`workflow.created`); auditoria `workflow.create` (`changes`: `name`, `description`)
-- **Notas:** cria também a `WorkflowVersion` v1 em `DRAFT` (sem evento próprio de versão).
+  | 403 | `PERMISSION_DENIED` / `MFA_REQUIRED` | Sem `WORKFLOW_MANAGE` / sessão sem MFA (POL-14) |
+  | 409 | `CONFLICT` | `key` já usada no tenant (V-04) |
+  | 422 | `VALIDATION_ERROR` | Campos fora dos limites; `copyFromVersionId` rascunho ou de outro tenant (`REFERENCE_NOT_FOUND`) |
+- **Efeitos:** Evento `WorkflowCreated` (`workflow.created`); auditoria `workflow.create` (`changes`: `key`, `name`; `metadata`: `copyFromVersionId`, `draftVersionId`)
+- **Notas:** cria também a `WorkflowVersion` v1 em `DRAFT` — vazia ou cópia integral (ids novos) de `copyFromVersionId` — sem evento próprio de versão (US-040).
 
 ### WF-03 — Obter workflow
 `GET /api/v1/workflows/{id}` · **Permissão:** `WORKFLOW_VIEW` · **Story:** US-043
@@ -72,7 +73,7 @@
 `PATCH /api/v1/workflows/{id}` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-042, US-043
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` Obrigatório
 - **Parâmetros:** path `id` (uuid, obrigatório)
-- **Request:** `{ name?: string (3–150); description?: string (≤2000) }`
+- **Request:** `{ name?: string (3–150); description?: string (≤2000) }` (`key` é imutável → 422 `NOT_ALLOWED`; aplicabilidade e ativação chegam com a US-042/US-045)
 - **Response:** `200 { data: Workflow }` · `ETag` nova
 - **Erros:**
   | HTTP | code | quando |
@@ -131,14 +132,15 @@
 `POST /api/v1/workflows/{id}/versions` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-043, US-045 (endpoint compartilhado pelas duas stories)
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório)
-- **Request:** —
-- **Response:** `201 { data: WorkflowVersion }` — cópia da versão publicada corrente, em `DRAFT`
+- **Request:** `{ sourceVersionId?: uuid }` (opcional; versão do próprio workflow) — o corpo pode ser omitido
+- **Response:** `201 { data: WorkflowVersion }` (com `stages`, `transitions`, `rules`) — cópia da versão de origem (padrão: a publicada corrente; sem publicada, a última — RN-WF-22) em `DRAFT` nº máx + 1, com ids novos · `Location` · `ETag`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
-  | 409 | `WORKFLOW_DRAFT_EXISTS` | Já existe um rascunho deste workflow (uma por workflow) |
-  | 409 | `BUSINESS_RULE_VIOLATION` | Não há versão publicada para copiar (US-045 V-06) |
+  | 404 | `NOT_FOUND` | Workflow inexistente/outro tenant |
+  | 409 | `WORKFLOW_DRAFT_EXISTS` | Já existe um rascunho deste workflow (uma por workflow); `meta.draftVersionId` |
+  | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`) | `sourceVersionId` de outro workflow/tenant |
 - **Efeitos:** Auditoria `workflow.version_create` (`metadata`: `sourceVersionId`, `newVersionId`)
 - **Notas:** usado tanto para iniciar a edição de etapas/transições (US-043) quanto para abrir uma nova versão a partir da publicada (US-045); nenhum evento de domínio é gerado na criação do rascunho.
 
@@ -147,7 +149,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `versionId` (uuid, obrigatório)
 - **Request:** —
-- **Response:** `200 { data: WorkflowVersion }` com `stages: WorkflowStage[]` e `transitions: WorkflowTransition[]` embutidos
+- **Response:** `200 { data: WorkflowVersion }` com `stages: WorkflowStage[]`, `transitions: WorkflowTransition[]` e `rules: WorkflowRule[]` embutidos · `ETag` = `WorkflowVersion.version` (incrementado a cada escrita no rascunho — RN-WF-06); versão publicada/aposentada servida do `definitionSnapshot` (FA-07 da US-040)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -160,15 +162,17 @@
 `POST /api/v1/workflow-versions/{versionId}/stages` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-043
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `versionId` (uuid, obrigatório)
-- **Request:** `{ key: string (≤60, SCREAMING_SNAKE_CASE, obrigatório, único na versão); name: string (3–150, obrigatório); instructions?: string (markdown, ≤4000); type: StageType ('START'|'TASK'|'APPROVAL'|'END', obrigatório, padrão 'TASK'); departmentResolution: DepartmentResolution ('FIXED'|'REQUESTING_DEPARTMENT'|'REQUESTING_SECRETARIAT'|'CHOSEN_ON_FORWARD', padrão 'REQUESTING_DEPARTMENT'); fixedDepartmentId?: uuid (obrigatório se 'FIXED'); assignmentPolicy: StageAssignmentPolicy ('UNASSIGNED'|'CREATOR'|'DEPARTMENT_HEAD'|'PREVIOUS_ASSIGNEE', padrão 'UNASSIGNED'); approverType?: ApproverType ('USER'|'ROLE'|'DEPARTMENT_HEAD', obrigatório se type='APPROVAL'); approverUserId?: uuid (se 'USER'); approverRoleId?: uuid (se 'ROLE'); approverDepartmentResolution?: 'FIXED'|'REQUESTING_SECRETARIAT'|'REQUESTING_DEPARTMENT' (se 'DEPARTMENT_HEAD'); approverFixedDepartmentId?: uuid; allowDeputy?: boolean (padrão true); approvalDocumentTypeCodes?: string[] (padrão []); slaDays?: number (1–365); slaType?: DayCountType ('BUSINESS'|'CALENDAR', padrão 'BUSINESS'); color?: string (formato #RRGGBB); displayOrder?: number (≥0) }`
+- **Request:** `{ key: string (≤60, SCREAMING_SNAKE_CASE, obrigatório, único na versão); name: string (3–150, obrigatório); instructions?: string (Markdown restrito, ≤5000, links só `https` — RN-WF-18); type: StageType ('START'|'TASK'|'APPROVAL'|'END', obrigatório, padrão 'TASK'); departmentResolution: DepartmentResolution ('FIXED'|'REQUESTING_DEPARTMENT'|'REQUESTING_SECRETARIAT'|'CHOSEN_ON_FORWARD', padrão 'REQUESTING_DEPARTMENT'); fixedDepartmentId?: uuid (obrigatório se 'FIXED'); assignmentPolicy: StageAssignmentPolicy ('UNASSIGNED'|'CREATOR'|'DEPARTMENT_HEAD'|'PREVIOUS_ASSIGNEE', padrão 'UNASSIGNED'); approverType?: ApproverType ('USER'|'ROLE'|'DEPARTMENT_HEAD', obrigatório se type='APPROVAL'); approverUserId?: uuid (se 'USER'); approverRoleId?: uuid (se 'ROLE'); approverDepartmentResolution?: 'FIXED'|'REQUESTING_SECRETARIAT'|'REQUESTING_DEPARTMENT' (se 'DEPARTMENT_HEAD'); approverFixedDepartmentId?: uuid; allowDeputy?: boolean (padrão true); approvalDocumentTypeCodes?: string[] (só `APPROVAL`, máx. 20, padrão []); documentTypeCodes?: string[] (máx. 30, vazio = todos); groupLabel?: string (≤60); slaDays?: number (1–365); slaType?: DayCountType ('BUSINESS'|'CALENDAR', padrão 'BUSINESS'); color?: string (formato #RRGGBB); displayOrder?: number (≥0) }`
 - **Response:** `201 { data: WorkflowStage }`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
   | 409 | `WORKFLOW_VERSION_NOT_DRAFT` | Versão não está em `DRAFT` |
-  | 422 | `VALIDATION_ERROR` (`DUPLICATE_IN_LIST`) | `key` duplicada na versão |
-  | 422 | `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`) | `APPROVAL` sem `approverType`; `FIXED` sem unidade |
+  | 409 | `CONFLICT` | `key` duplicada na versão (V-04 da US-040) |
+  | 422 | `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`/`NOT_ALLOWED`) | `APPROVAL` sem `approverType`; `FIXED` sem unidade; segunda `START` (`NOT_ALLOWED` em `type`) |
+  | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) | Unidade, usuário, perfil ou tipo de documento inexistente/inativo |
+  | 422 | `BUSINESS_RULE_VIOLATION` | Versão já tem 50 etapas (RN-WF-18) |
 - **Efeitos:** Auditoria `workflow.update` (`metadata.stageId`) — edição em rascunho não gera evento de domínio
 - **Notas:** campos de aprovador detalhados conforme entidade `WorkflowStage` (entities.md; a story resume como `approverType`); `key` imutável após criada (RN-WF-45); `departmentResolution`/`approverType` condicionais por RN-WF-48.
 
@@ -199,25 +203,25 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
   | 409 | `WORKFLOW_VERSION_NOT_DRAFT` | Versão não está em `DRAFT` |
-  | 409 | `BUSINESS_RULE_VIOLATION` | Etapa referenciada por transição não removida |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 - **Efeitos:** Auditoria `workflow.update` (`metadata.stageId`)
-- **Notas:** remover primeiro as transições que usam a etapa (V-08 de US-043).
+- **Notas:** remove em cascata as transições e regras da etapa (US-040, fluxo principal passo 6); regra `REQUIRED_APPROVAL` de outra etapa que a referencie por chave fica e o validador acusa `WF_RULE_SCOPE_INVALID` (FA-04).
 
 ### WF-13 — Criar transição
 `POST /api/v1/workflow-versions/{versionId}/transitions` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-043
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `versionId` (uuid, obrigatório)
-- **Request:** `{ key: string (≤60, obrigatório, único na versão); name: string (3–150, obrigatório); fromStageId: uuid (obrigatório, da mesma versão); toStageId: uuid (obrigatório, da mesma versão, diferente de fromStageId — RN-WF-49); action: TransitionAction ('FORWARD'|'RETURN'|'COMPLETE' nesta story, obrigatório); isPrimary?: boolean (padrão false); requiresComment?: boolean (padrão false; forçado true se action='RETURN') }`
+- **Request:** `{ key: string (≤60, obrigatório, único na versão); name: string (3–150, obrigatório); fromStageId: uuid (obrigatório, da mesma versão); toStageId: uuid (obrigatório, da mesma versão, diferente de fromStageId — RN-WF-49); action: TransitionAction (obrigatório; compatível com os tipos de origem/destino — RN-WF-10); description?: string (≤1000); displayOrder?: number; isPrimary?: boolean (padrão false); requiresComment?: boolean (padrão false; forçado true em RETURN/REJECT); allowDueDateOverride?: boolean (padrão true) }`
 - **Response:** `201 { data: WorkflowTransition }`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
   | 409 | `WORKFLOW_VERSION_NOT_DRAFT` | Versão não está em `DRAFT` |
-  | 422 | `VALIDATION_ERROR` | Origem igual ao destino; `key` duplicada |
+  | 409 | `CONFLICT` | `key` duplicada; mesma `(origem, destino, ação)` |
+  | 422 | `VALIDATION_ERROR` | Origem igual ao destino; etapa de outra versão/tenant (`REFERENCE_NOT_FOUND`); ação incompatível (`NOT_ALLOWED` em `action` — V-06) |
 - **Efeitos:** Auditoria `workflow.update` (`metadata.transitionId`)
-- **Notas:** conjunto completo de `TransitionAction` na entidade inclui também `APPROVE`/`REJECT` (usados nas etapas `APPROVAL`, fora do escopo de criação manual desta story).
+- **Notas:** `APPROVE`/`REJECT` saem de etapas `APPROVAL` (o editor as cria a partir da configuração da aprovação — US-043).
 
 ### WF-14 — Atualizar transição
 `PATCH /api/v1/workflow-transitions/{transitionId}` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-043

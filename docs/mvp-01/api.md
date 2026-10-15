@@ -206,7 +206,7 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `SETTING_KEY_UNKNOWN` | 422 | Chave fora do registro |
 | `EXPORT_TOO_LARGE` | 422 | Exportação acima do limite (refinar filtros) |
 | `TENANT_SLUG_TAKEN` | 409 | Plataforma |
-| `WORKFLOW_DRAFT_EXISTS` | 409 | Já existe versão rascunho do workflow (uma por workflow) |
+| `WORKFLOW_DRAFT_EXISTS` | 409 | Já existe versão rascunho do workflow (uma por workflow); `meta.draftVersionId` traz o rascunho existente (US-040) |
 | `TEMPLATE_DRAFT_EXISTS` | 409 | Já existe versão rascunho do template (uma por template) |
 | `DOCUMENT_TYPE_CODE_TAKEN` | 409 | Código de tipo de documento já usado no tenant |
 | `TEMPLATE_NAME_TAKEN` | 409 | Nome de template já usado para o mesmo tipo de documento no tenant (US-107) |
@@ -216,7 +216,9 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `CSRF_REJECTED` | 403 | BFF: falta `X-CF-Request` ou `Origin` inválido em método mutável |
 
 ### 2.3 Erros de validação do grafo de workflow (`WF_*`)
-`WORKFLOW_INVALID` (422) traz `errors[]` (bloqueiam a publicação) e `warnings[]` (não bloqueiam) com códigos `WF_*` e referência a `stageKey`/`transitionKey`/`ruleId`. Catálogo definido na US-040 (ex.: `WF_START_STAGE_COUNT`, `WF_END_STAGE_MISSING`, `WF_STAGE_UNREACHABLE`, `WF_END_UNREACHABLE`, `WF_APPROVAL_TRANSITIONS`, `WF_APPROVER_UNRESOLVABLE`, `WF_RULE_PATH_UNKNOWN`, `WF_RULE_OPERATOR_FORBIDDEN`, `WF_DOCUMENT_TYPE_UNKNOWN`, `WF_STAGE_NO_SLA` (aviso)).
+`WORKFLOW_INVALID` (422) traz, no membro de extensão `validation`, `errors[]` (bloqueiam a publicação) e `warnings[]` (não bloqueiam) — o `errors[]` de topo do problem+json continua reservado aos erros de campo (§2.1.1). Cada item: `{ code, message, stageKey, transitionKey, ruleId }` (`workflowValidationIssueSchema` em `packages/validation`). Catálogo definido na US-040:
+- **Erros:** `WF_START_STAGE_COUNT`, `WF_END_STAGE_MISSING`, `WF_STAGE_UNREACHABLE`, `WF_END_UNREACHABLE`, `WF_APPROVAL_TRANSITIONS`, `WF_ACTION_NOT_ALLOWED_FROM_STAGE`, `WF_TRANSITION_TARGET_INVALID`, `WF_PRIMARY_DUPLICATED`, `WF_DOCUMENT_TYPE_UNKNOWN`, `WF_APPROVER_UNRESOLVABLE`, `WF_DEPARTMENT_INVALID`, `WF_RULE_CONFIG_INVALID`, `WF_RULE_PATH_UNKNOWN`, `WF_RULE_OPERATOR_FORBIDDEN`, `WF_RULE_SCOPE_INVALID`, `WF_LIMIT_EXCEEDED`.
+- **Avisos:** `WF_STAGE_NO_SLA`, `WF_APPROVER_HEAD_MISSING`, `WF_STAGE_NO_INSTRUCTIONS`, `WF_RULE_INACTIVE`.
 
 ---
 
@@ -421,23 +423,23 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | # | Método | Rota | Perm. | Sucesso | Eventos | Story |
 |---|---|---|---|---|---|---|
 | WF-01 | GET | `/workflows` | `WORKFLOW_VIEW` | 200 | — | US-043 |
-| WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` | 201 | `WorkflowCreated` | US-043 |
-| WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | 200 | — | US-043 |
-| WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-042, US-043 |
+| WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` (Idem.) | 201 | `WorkflowCreated` | US-040, US-043 |
+| WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | 200 | — | US-040, US-043 |
+| WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-042, US-043 |
 | WF-05 | POST | `/workflows/{id}/set-default` | `WORKFLOW_PUBLISH` (IM) | 200 | `WorkflowDefaultChanged` | US-042 |
 | WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` | 200 | — | US-042 |
-| WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | 200 | — | US-045 |
-| WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | 201 | — | US-043, US-045 |
-| WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | 200 | — | US-043, US-046 |
-| WF-10 | POST | `/workflow-versions/{versionId}/stages` | `WORKFLOW_MANAGE` | 201 | — | US-043 |
-| WF-11 | PATCH | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-043 |
-| WF-12 | DELETE | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-043 |
-| WF-13 | POST | `/workflow-versions/{versionId}/transitions` | `WORKFLOW_MANAGE` | 201 | — | US-043 |
-| WF-14 | PATCH | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-043 |
-| WF-15 | DELETE | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-043 |
-| WF-16 | POST | `/workflow-versions/{versionId}/rules` | `WORKFLOW_MANAGE` | 201 | — | US-044 |
-| WF-17 | PATCH | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-044 |
-| WF-18 | DELETE | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-044 |
+| WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | 200 | — | US-040, US-045 |
+| WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043, US-045 |
+| WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | 200 | — | US-040, US-043, US-046 |
+| WF-10 | POST | `/workflow-versions/{versionId}/stages` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043 |
+| WF-11 | PATCH | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-043 |
+| WF-12 | DELETE | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-040, US-043 |
+| WF-13 | POST | `/workflow-versions/{versionId}/transitions` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043 |
+| WF-14 | PATCH | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-043 |
+| WF-15 | DELETE | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-040, US-043 |
+| WF-16 | POST | `/workflow-versions/{versionId}/rules` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-044 |
+| WF-17 | PATCH | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-044 |
+| WF-18 | DELETE | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-040, US-044 |
 | WF-19 | GET | `/rule-context/schema` | `WORKFLOW_VIEW` | 200 | — | US-044 |
 | WF-20 | POST | `/workflow-versions/{versionId}/validate` | `WORKFLOW_VIEW` | 200 | — | US-045 |
 | WF-21 | POST | `/workflow-versions/{versionId}/publish` | `WORKFLOW_PUBLISH` (IM) | 200 | `WorkflowVersionPublished` | US-045 |

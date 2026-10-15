@@ -53,6 +53,7 @@
 | Testes | `@playwright/test` · `axe-core` | 1.63.0 · 4.13.0 | E2E (US-079); axe também nos testes de componente (US-086) |
 | Testes | `jsdom` · `@testing-library/react` · `dom` · `user-event` | 29.1.1 · 16.3.3 · 10.4.2 · 14.6.7 | testes de componente de web e ui (US-086). `jsdom` 30 exige Node ≥ 24.15 — fica na 29 enquanto `engines` aceitar 24.11 |
 | Testes | `testcontainers` · `supertest` · `@types/supertest` | 11.14.0 · 7.3.1 · 7.2.1 | reservado — integração (US-078/US-079) |
+| Testes | `fast-check` | 3.23.2 | api — testes _property-based_ do validador de grafo de workflow (US-040). Mesma versão que já chega transitivamente (`effect` ← `prisma`/`@hookform/resolvers`): nenhum pacote novo no lockfile |
 
 **Catálogo nomeado `react`** (uma única versão no lockfile): `react` 19.2.8 · `react-dom` 19.2.8 · `@types/react` 19.2.18 · `@types/react-dom` 19.2.7.
 
