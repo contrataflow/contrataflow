@@ -6,6 +6,7 @@ import type {
   AuditPartitionsPort,
   AuditTransactions,
   CoalesceQuery,
+  SessionRecordQuery,
 } from '../application/ports.js';
 import { coalesceStateFrom } from '../domain/audit-coalescer.js';
 import type { CoalesceState } from '../domain/audit-coalescer.js';
@@ -42,6 +43,18 @@ export class InMemoryAuditLogStore implements AuditLogStore {
       )
       .at(-1);
     return Promise.resolve(coalesceStateFrom(last?.metadata.coalesce ?? null));
+  }
+
+  existsForSession(_tx: TenantTx, query: SessionRecordQuery): Promise<boolean> {
+    return Promise.resolve(
+      this.records.some(
+        (record) =>
+          record.tenantId === query.tenantId &&
+          record.action === query.action &&
+          record.sessionIdHash === query.sessionIdHash &&
+          record.occurredAt.getTime() === query.occurredAt.getTime(),
+      ),
+    );
   }
 }
 

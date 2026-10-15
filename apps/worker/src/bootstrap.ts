@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger as NestPinoLogger } from 'nestjs-pino';
 
 import type { OutboxRuntimeConfig } from '#config/outbox.js';
+import type { SessionsRuntimeConfig } from '#config/sessions.js';
 
 import { registerGracefulShutdown } from './graceful-shutdown.js';
 import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
@@ -20,6 +21,8 @@ export interface StartWorkerOptions {
   readonly rootLogger?: PinoLogger;
   /** Relay do outbox e consumidor de `domain-events` (US-082); ausente = desligados. */
   readonly outbox?: OutboxRuntimeConfig | null;
+  /** Redis de sessões do encerramento por vínculo (US-088); ausente = descarta com aviso. */
+  readonly sessions?: SessionsRuntimeConfig | null;
 }
 
 export interface RunningWorker {
@@ -38,7 +41,10 @@ export async function startWorker(options: StartWorkerOptions = {}): Promise<Run
     options.rootLogger ??
     createWorkerLogger({ environment: 'local', version: '0.0.0+local', logLevel: 'info' });
   const context = await NestFactory.createApplicationContext(
-    WorkerModule.forRoot(rootLogger, { outbox: options.outbox ?? null }),
+    WorkerModule.forRoot(rootLogger, {
+      outbox: options.outbox ?? null,
+      sessions: options.sessions ?? null,
+    }),
     silent ? { logger: false } : { bufferLogs: true },
   );
   if (!silent) context.useLogger(context.get(NestPinoLogger));

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OidcIdentityProvider } from '@/bff/auth/oidc-provider';
 import { codeChallenge } from '@/bff/auth/pkce';
+import { IdentityProviderUnavailableError } from '@/bff/session/types';
 import type { LoginStart, SessionRecord } from '@/bff/session/types';
 import {
   IDP_CLIENT_ID,
@@ -281,13 +282,56 @@ describe('renovação e logout', () => {
     expect(await create().refresh(record('r1'))).toEqual({ kind: 'transient' });
   });
 
-  it('end-session sem id_token_hint (o token nunca vai à URL do navegador)', async () => {
-    expect(provider.endSessionUrl()).toBeNull();
-    await start();
-    const url = new URL(provider.endSessionUrl() ?? '');
+  it('end-session (RP-initiated) sem id_token_hint — o token nunca vai à URL do navegador', async () => {
+    const url = new URL((await provider.endSessionUrl()) ?? '');
+    expect(`${url.origin}${url.pathname}`).toBe(
+      'http://localhost:9080/application/o/contrataflow/end-session/',
+    );
     expect(Object.fromEntries(url.searchParams)).toEqual({
       client_id: IDP_CLIENT_ID,
       post_logout_redirect_uri: 'http://localhost:3000/',
     });
+    idp.state.down = true;
+    await expect(create().endSessionUrl()).rejects.toBeInstanceOf(IdentityProviderUnavailableError);
+  });
+
+  it('logout revoga o refresh token (RFC 7009) com client_secret_basic', async () => {
+    expect(await provider.revokeRefreshToken(record('r1'))).toBe('revoked');
+    const [revocation] = idp.revocations;
+    expect(Object.fromEntries(revocation?.form ?? [])).toEqual({
+      token: 'r1',
+      token_type_hint: 'refresh_token',
+    });
+    expect(revocation?.authorization).toBe(
+      `Basic ${Buffer.from(`${IDP_CLIENT_ID}:${IDP_CLIENT_SECRET}`).toString('base64')}`,
+    );
+    // Token já inválido (4xx): nada a revogar; sem refresh token: nem chama o IdP.
+    idp.state.revokeStatus = 400;
+    expect(await provider.revokeRefreshToken(record('r1'))).toBe('revoked');
+    expect(await provider.revokeRefreshToken(record(null))).toBe('skipped');
+    expect(idp.revocations).toHaveLength(2);
+  });
+
+  it('[Falha de integração] revogação: IdP com erro, fora do ar ou sem endpoint (FA-06)', async () => {
+    idp.state.revokeStatus = 503;
+    expect(await provider.revokeRefreshToken(record('r1'))).toBe('unavailable');
+    idp.state.revokeStatus = null;
+    expect(await create().revokeRefreshToken(record('r1'))).toBe('skipped');
+    idp.state.down = true;
+    expect(await create().revokeRefreshToken(record('r1'))).toBe('unavailable');
+    // Descoberta já em cache e endpoint de revogação caído (rede).
+    idp.state.down = false;
+    idp.state.revokeStatus = 200;
+    const cached = create();
+    await cached.endSessionUrl();
+    idp.fetch.mockImplementationOnce(() => Promise.reject(new TypeError('fetch failed')));
+    expect(await cached.revokeRefreshToken(record('r1'))).toBe('unavailable');
+  });
+
+  it('entrada após expiração pede senha de novo ao IdP (max_age=0, prompt=login — RN-IAM-32)', async () => {
+    const begin = await provider.beginLogin({ stepUp: false, reauthenticate: true });
+    const url = new URL(begin.redirectUrl);
+    expect(url.searchParams.get('max_age')).toBe('0');
+    expect(url.searchParams.get('prompt')).toBe('login');
   });
 });

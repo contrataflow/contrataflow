@@ -12,7 +12,7 @@ import { AuthIcon } from './auth-icons';
 
 /**
  * "Sair" das páginas sem a casca do shell (sem vínculo, acesso bloqueado, seleção de
- * instituição): `POST /api/auth/logout` com CSRF e navegação para o `redirectTo` do BFF (fim de
+ * instituição): `POST /api/auth/logout` com CSRF e navegação para o `logoutUrl` do BFF (fim de
  * sessão no provedor ou `/entrar?motivo=saiu`). Se a chamada nem sair do navegador (rede), a
  * sessão continua ativa: avisa e permite tentar de novo, em vez de fingir que saiu.
  */

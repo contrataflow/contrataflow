@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Can, resolveCanState } from '@/lib/permissions/can';
 import { tenantKey } from '@/lib/query/keys';
-import { publishSessionEvent } from '@/lib/session/session-channel';
 import { SessionSync } from '@/lib/session/session-sync';
 import { seriousA11yViolations } from '@test/support/axe';
 import {
@@ -18,6 +17,7 @@ import {
   requestUrl,
   shellSession,
 } from '@test/support/render';
+import { postFromOtherTab } from '@test/support/session-tabs';
 
 import { AppProviders } from './app-providers';
 import { AppShell } from './app-shell';
@@ -160,7 +160,7 @@ describe('[Concorrência] duas abas com tenants diferentes', () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(false);
     renderWithShell(<SessionSync onNavigate={vi.fn()} />, { queryClient });
 
-    publishSessionEvent({ type: 'tenant-switched', tenantId: TENANT_B.id });
+    postFromOtherTab({ type: 'tenant-switched', tenantId: TENANT_B.id });
     await waitFor(() => {
       expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     });
@@ -172,7 +172,7 @@ describe('[Concorrência] duas abas com tenants diferentes', () => {
     await waitFor(() => {
       expect(router.refresh).toHaveBeenCalledTimes(1);
     });
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/auth/session?keepalive=1');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/auth/session');
   });
 
   it('aba visível recarrega na hora; mensagem do próprio tenant é ignorada', async () => {
@@ -180,26 +180,22 @@ describe('[Concorrência] duas abas com tenants diferentes', () => {
     queryClient.setQueryData(tenantKey(TENANT_A.id, 'x'), 1);
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     renderWithShell(<SessionSync onNavigate={vi.fn()} />, { queryClient });
-    publishSessionEvent({ type: 'tenant-switched', tenantId: TENANT_A.id });
+    postFromOtherTab({ type: 'tenant-switched', tenantId: TENANT_A.id });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'x'))).toBe(1);
-    publishSessionEvent({ type: 'tenant-switched', tenantId: TENANT_B.id });
+    postFromOtherTab({ type: 'tenant-switched', tenantId: TENANT_B.id });
     await waitFor(() => {
       expect(router.refresh).toHaveBeenCalledTimes(1);
     });
   });
 
-  it('logout/expiração em outra aba levam ao login; foco sem sessão também', async () => {
+  it('logout em outra aba leva à SCR-001; foco sem sessão leva ao login', async () => {
     const navigate = vi.fn();
     stubFetch(() => jsonResponse({}, { status: 401 }));
     renderWithShell(<SessionSync onNavigate={navigate} />);
-    publishSessionEvent({ type: 'logout' });
+    postFromOtherTab({ type: 'logout' });
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith('/entrar?motivo=saiu');
-    });
-    publishSessionEvent({ type: 'expired' });
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('/entrar?motivo=sessao-expirada');
     });
     act(() => {
       window.dispatchEvent(new Event('focus'));

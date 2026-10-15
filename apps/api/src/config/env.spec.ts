@@ -50,6 +50,7 @@ describe('loadConfig', () => {
       ...REQUIRED,
       APP_ENV: 'staging',
       INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379',
       AUTHENTIK_API_URL: 'https://auth.contrataflow.test/api/v3/',
       AUTHENTIK_API_TOKEN: 'z'.repeat(16),
     });
@@ -59,6 +60,30 @@ describe('loadConfig', () => {
       apiToken: 'z'.repeat(16),
     });
     expect(loadConfig(REQUIRED).authentik).toBeNull();
+  });
+
+  it('US-088: Redis de sessões opcional em local/dev/test e obrigatório em staging/produção', () => {
+    expect(loadConfig(REQUIRED).redis).toEqual({
+      cacheUrl: 'redis://localhost:6380',
+      sessionUrl: null,
+    });
+    expect(loadConfig({ ...REQUIRED, REDIS_SESSION_URL: '' }).redis.sessionUrl).toBeNull();
+    expect(
+      loadConfig({ ...REQUIRED, REDIS_SESSION_URL: 'redis://localhost:6379' }).redis.sessionUrl,
+    ).toBe('redis://localhost:6379');
+    expect(() => loadConfig({ ...REQUIRED, REDIS_SESSION_URL: 'http://segredo@host' })).toThrow(
+      new ConfigValidationError(['REDIS_SESSION_URL']),
+    );
+    const production = {
+      ...REQUIRED,
+      APP_ENV: 'production',
+      INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+    };
+    expect(() => loadConfig(production)).toThrow(new ConfigValidationError(['REDIS_SESSION_URL']));
+    expect(
+      loadConfig({ ...production, REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379' })
+        .redis.sessionUrl,
+    ).toBe('rediss://sessions.contrataflow.test:6379');
   });
 
   it('US-073: proxies confiáveis (IPv4/IPv6) e parâmetros de plataforma da auditoria', () => {

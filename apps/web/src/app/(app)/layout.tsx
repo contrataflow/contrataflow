@@ -24,6 +24,9 @@ export default async function AppLayout({ children }: { readonly children: React
   if (lookup.status === 'unavailable') {
     redirect(`/erro/manutencao?retorno=${encodeURIComponent(pathname)}`);
   }
+  // Vínculo encerrado pelo worker (FA-08) → SCR-111; vencida → nova entrada com senha (RN-IAM-32).
+  if (lookup.status === 'membership_ended') redirect('/erro/vinculo-inativo');
+  if (lookup.status === 'expired') redirect(loginHref(pathname, { reauthenticate: true }));
   if (lookup.status !== 'active') redirect(loginHref(pathname));
   const session = toShellSession(lookup.record);
   if (!session.activeTenant) {

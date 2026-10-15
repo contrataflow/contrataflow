@@ -32,6 +32,15 @@ export const envSchema = z
     /** Conexões por réplica (architecture.md §12.1). */
     DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
     REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
+    /**
+     * Redis de sessões do BFF (DEC-131), lido só pela varredura de encerramentos de sessão
+     * (US-088 · RN-IAM-28). Obrigatória fora de local/dev/test; ausente (só nesses ambientes) → a
+     * varredura fica desligada e nenhum `auth.session_end`/`auth.session_expired` é gravado.
+     */
+    REDIS_SESSION_URL: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.url({ protocol: /^rediss?$/ }).optional(),
+    ),
     OIDC_ISSUER_URL: z.url(),
     /** Uma ou mais audiências aceitas, separadas por vírgula. */
     OIDC_AUDIENCE: z.string().trim().min(1).default('contrataflow-api'),
@@ -115,6 +124,13 @@ export const envSchema = z
         message: 'Obrigatória fora de local/dev/test.',
       });
     }
+    if (!env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['REDIS_SESSION_URL'],
+        message: 'Obrigatória fora de local/dev/test.',
+      });
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;
@@ -137,7 +153,11 @@ export interface AppConfig {
     /** `statement_timeout` de cada instrução, definido por transação. */
     readonly statementTimeoutMs: number;
   };
-  readonly redis: { readonly cacheUrl: string };
+  readonly redis: {
+    readonly cacheUrl: string;
+    /** Redis de sessões do BFF (US-088); `null` = varredura de encerramentos desligada. */
+    readonly sessionUrl: string | null;
+  };
   readonly oidc: {
     readonly issuerUrl: string;
     readonly audiences: readonly string[];
@@ -197,7 +217,7 @@ function toAppConfig(env: Env): AppConfig {
       transactionTimeoutMs: 10_000,
       statementTimeoutMs: 5_000,
     },
-    redis: { cacheUrl: env.REDIS_CACHE_URL },
+    redis: { cacheUrl: env.REDIS_CACHE_URL, sessionUrl: env.REDIS_SESSION_URL ?? null },
     oidc: {
       issuerUrl: env.OIDC_ISSUER_URL,
       audiences: env.OIDC_AUDIENCE.split(',')

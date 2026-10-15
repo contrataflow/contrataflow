@@ -24,8 +24,9 @@ import { DEFAULT_RETURN_TO, safeReturnTo } from './return-to';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import { hashSessionId, newSessionId } from './session/session-service';
-import { SessionStoreUnavailableError } from './session/types';
+import { IdentityProviderUnavailableError, SessionStoreUnavailableError } from './session/types';
 import type {
+  ClientDetails,
   DirectoryContext,
   DirectoryIdentity,
   DirectoryResult,
@@ -33,12 +34,22 @@ import type {
   SessionRecord,
 } from './session/types';
 import { toShellSession } from './session/view';
+import {
+  clearReauthCookie,
+  inactiveSessionResponse,
+  reauthenticationRequested,
+} from './session-responses';
 
 /*
- * Rotas de sessão do BFF `/api/auth/*` (authentication.md §3/§15 · US-087): login OIDC com PKCE e
- * transação cifrada, callback (troca do código, `id_token`, identidade na API, sessão nova no
- * Redis, instituição ativa), consulta da sessão, troca de instituição, step-up e logout por POST.
+ * Rotas de sessão do BFF `/api/auth/*` (authentication.md §3/§7/§15 · US-087/US-088): login OIDC
+ * com PKCE e transação cifrada, callback (troca do código, `id_token`, identidade na API, sessão
+ * nova no Redis, instituição ativa), consulta da sessão (sondagem ou *keepalive*), troca de
+ * instituição, step-up e logout por POST (revogação + RP-initiated logout).
  */
+
+/** Destinos do logout (SCR-001): completo, ou só local quando o Authentik não respondeu (FA-06). */
+export const LOGOUT_DONE_URL = '/entrar?motivo=saiu';
+export const LOGOUT_PARTIAL_URL = '/entrar?motivo=saiu-parcial';
 
 export const AUTH_ACTIONS = [
   'login',
@@ -79,6 +90,8 @@ interface Context {
   /** IP do cliente pela cadeia confiável do balanceador (A-10 · FA-09). */
   readonly clientIp: string | null;
   readonly userAgent: string | null;
+  /** IP e user-agent para a auditoria de encerramento da sessão. */
+  readonly client: ClientDetails;
 }
 
 function isAuthAction(value: string): value is AuthAction {
@@ -99,14 +112,20 @@ export async function handleAuthRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   const correlationId = resolveCorrelationId(request.headers.get(CORRELATION_HEADER));
+  const clientIp = clientIpFrom(
+    request.headers.get('X-Forwarded-For'),
+    runtime.config.trustedProxies,
+  );
+  const userAgent = request.headers.get('User-Agent')?.slice(0, 512) ?? null;
   const context: Context = {
     request,
     url,
     runtime,
     correlationId,
     instance: url.pathname,
-    clientIp: clientIpFrom(request.headers.get('X-Forwarded-For'), runtime.config.trustedProxies),
-    userAgent: request.headers.get('User-Agent')?.slice(0, 512) ?? null,
+    clientIp,
+    userAgent,
+    client: { ip: clientIp, userAgent },
   };
   if (!isAuthAction(action)) return problemResponse('NOT_FOUND', context);
   if (request.method !== METHODS[action]) {
@@ -136,7 +155,7 @@ export async function handleAuthRequest(
     }
   } catch (error) {
     if (error instanceof SessionStoreUnavailableError) {
-      log('error', 'bff.session_store_unavailable', {
+      log('error', 'auth.session_store_unavailable', {
         route: `/api/auth/${action}`,
         correlationId,
       });
@@ -209,12 +228,18 @@ async function beginLogin(context: Context, stepUp: boolean, hint?: string): Pro
     log('warn', 'auth.return_to_rejected', { correlationId });
   }
   const returnTo = accepted ?? DEFAULT_RETURN_TO;
+  // Entrada depois de uma expiração (modal "Entrar novamente" ou marca deixada pelo BFF): senha de
+  // novo no Authentik, mesmo com a sessão dele ainda aberta (RN-IAM-32).
+  const reauthenticate =
+    !stepUp &&
+    (url.searchParams.get('reauth') === '1' || reauthenticationRequested(context.request.headers));
   let start;
   try {
     start = await runtime.identity.beginLogin({
       appOrigin: runtime.config.appOrigin,
       stepUp,
       hint: hint ?? url.searchParams.get('as'),
+      reauthenticate,
     });
   } catch (error) {
     // Authentik fora do ar (descoberta) ou cliente não configurado: SCR-001 "indisponível".
@@ -227,6 +252,7 @@ async function beginLogin(context: Context, stepUp: boolean, hint?: string): Pro
   log('info', 'auth.login_started', {
     returnToAccepted: accepted !== null,
     stepUp,
+    reauthenticate,
     ip: maskIp(context.clientIp),
     correlationId,
   });
@@ -245,7 +271,7 @@ async function beginLogin(context: Context, stepUp: boolean, hint?: string): Pro
 }
 
 async function beginStepUp(context: Context): Promise<Response> {
-  const lookup = await context.runtime.sessions.lookup(sessionCookieValue(context));
+  const lookup = await context.runtime.sessions.lookup(sessionCookieValue(context), context.client);
   // Sem sessão, step-up vira login completo preservando o destino.
   if (lookup.status !== 'active') return beginLogin(context, false);
   return beginLogin(context, true, lookup.record.subject);
@@ -339,7 +365,7 @@ async function callback(context: Context): Promise<Response> {
   }
   const { login } = completion;
 
-  const current = await sessions.lookup(sessionCookieValue(context));
+  const current = await sessions.lookup(sessionCookieValue(context), context.client);
   if (
     transaction.stepUp &&
     current.status === 'active' &&
@@ -367,7 +393,10 @@ async function callback(context: Context): Promise<Response> {
     return rejectCallback(context, headers, rejection.reason, rejection.location, started);
   }
 
-  if (current.status === 'active') await sessions.destroy(current.record.key);
+  // Novo login no mesmo navegador encerra a sessão anterior (anti-fixação), como um logout.
+  if (current.status === 'active') {
+    await sessions.end(current.record, 'LOGOUT', { client: context.client });
+  }
   let record: SessionRecord;
   try {
     const created = await sessions.create(sessionId, {
@@ -389,7 +418,7 @@ async function callback(context: Context): Promise<Response> {
   } catch (error) {
     if (!(error instanceof SessionStoreUnavailableError)) throw error;
     // Redis de sessões fora: 503 sem cookie de sessão (DEC-131).
-    log('error', 'bff.session_store_unavailable', { route: '/api/auth/callback', correlationId });
+    log('error', 'auth.session_store_unavailable', { route: '/api/auth/callback', correlationId });
     recordLogin('SESSION_STORE_UNAVAILABLE', runtime.now() - started);
     headers.set('Retry-After', STORE_RETRY_AFTER_SECONDS);
     return problemResponse('DEPENDENCY_UNAVAILABLE', { ...context, headers });
@@ -413,6 +442,9 @@ async function callback(context: Context): Promise<Response> {
   }
 
   headers.append('Set-Cookie', serializeCookie(config.sessionCookieName, sessionId));
+  if (reauthenticationRequested(context.request.headers)) {
+    headers.append('Set-Cookie', clearReauthCookie());
+  }
   const durationMs = runtime.now() - started;
   log('info', 'auth.session_created', {
     userId: record.userId,
@@ -434,24 +466,30 @@ async function callback(context: Context): Promise<Response> {
   return redirectResponse(destination, { correlationId, headers });
 }
 
+/** `keepalive=true` ("Continuar conectado"); aceita também `1`. */
+function isKeepalive(url: URL): boolean {
+  const value = url.searchParams.get('keepalive');
+  return value === 'true' || value === '1';
+}
+
 async function session(context: Context): Promise<Response> {
   const { url, runtime, correlationId } = context;
-  const lookup = await runtime.sessions.lookup(sessionCookieValue(context));
-  if (lookup.status === 'none') return problemResponse('UNAUTHENTICATED', context);
-  if (lookup.status === 'expired') {
-    return problemResponse('SESSION_EXPIRED', {
-      ...context,
-      headers: { 'Set-Cookie': clearCookie(runtime.config.sessionCookieName) },
-    });
+  const lookup = await runtime.sessions.lookup(sessionCookieValue(context), context.client);
+  if (lookup.status !== 'active') {
+    return inactiveSessionResponse(lookup, context, runtime.config.sessionCookieName);
   }
-  // Sondagem (`keepalive=1`, foco da janela) não renova a ociosidade (RN-IAM-21).
-  const record =
-    url.searchParams.get('keepalive') === '1'
-      ? lookup.record
-      : await runtime.sessions.touch(lookup.record);
+  // Sem `keepalive`, é a sondagem do contador do shell e do foco da janela: não renova a
+  // ociosidade. "Continuar conectado" renova — nunca além da duração absoluta (RN-IAM-21/22).
+  const record = isKeepalive(url) ? await runtime.sessions.touch(lookup.record) : lookup.record;
   return jsonResponse({ data: toShellSession(record) }, { correlationId });
 }
 
+/**
+ * Logout (RN-IAM-20): revoga o refresh token (melhor esforço, 2 s), encerra a sessão (`LOGOUT`,
+ * tokens apagados, fora dos índices), expira o cookie e devolve o *RP-initiated logout* do
+ * Authentik. Idempotente: sem sessão, 200 com a SCR-001. Authentik fora do ar → logout local
+ * concluído e `saiu-parcial` (FA-06).
+ */
 async function logout(context: Context): Promise<Response> {
   const { request, runtime, correlationId } = context;
   const csrf = checkCsrf(request.method, request.headers, runtime.config.appOrigin);
@@ -463,17 +501,37 @@ async function logout(context: Context): Promise<Response> {
     });
     return problemResponse('CSRF_REJECTED', context);
   }
-  const lookup = await runtime.sessions.lookup(sessionCookieValue(context));
-  const record = lookup.status === 'active' ? lookup.record : null;
-  if (record) {
-    await runtime.sessions.destroy(record.key);
-    log('info', 'auth.session_end', { reason: 'LOGOUT', userId: record.userId, correlationId });
+  const headers = { 'Set-Cookie': clearCookie(runtime.config.sessionCookieName) };
+  const lookup = await runtime.sessions.lookup(sessionCookieValue(context), context.client);
+  if (lookup.status !== 'active') {
+    return jsonResponse({ data: { logoutUrl: LOGOUT_DONE_URL } }, { correlationId, headers });
   }
-  const redirectTo = runtime.identity.endSessionUrl(record) ?? '/entrar?motivo=saiu';
-  return jsonResponse(
-    { data: { redirectTo } },
-    { correlationId, headers: { 'Set-Cookie': clearCookie(runtime.config.sessionCookieName) } },
-  );
+  const { record } = lookup;
+  const revocation = await runtime.identity.revokeRefreshToken(record);
+  const ended = await runtime.sessions.end(record, 'LOGOUT', { client: context.client });
+  let endSessionUrl: string | null = null;
+  let providerReachable = revocation !== 'unavailable';
+  if (providerReachable) {
+    try {
+      endSessionUrl = await runtime.identity.endSessionUrl();
+    } catch (error) {
+      if (!(error instanceof IdentityProviderUnavailableError)) throw error;
+      providerReachable = false;
+    }
+  }
+  if (!providerReachable) {
+    log('warn', 'auth.rp_logout_unavailable', { revocation, correlationId });
+  }
+  if (ended) {
+    log('info', 'auth.logout', {
+      userId: record.userId,
+      tenantId: record.activeTenantId,
+      rpLogout: providerReachable ? 'success' : 'partial',
+      correlationId,
+    });
+  }
+  const logoutUrl = providerReachable ? (endSessionUrl ?? LOGOUT_DONE_URL) : LOGOUT_PARTIAL_URL;
+  return jsonResponse({ data: { logoutUrl } }, { correlationId, headers });
 }
 
 /** Recusa da API na ativação de instituição → problema do BFF. */
@@ -498,12 +556,9 @@ async function switchTenant(context: Context): Promise<Response> {
     });
     return problemResponse('CSRF_REJECTED', context);
   }
-  const expireCookie = { 'Set-Cookie': clearCookie(runtime.config.sessionCookieName) };
-  const lookup = await runtime.sessions.lookup(sessionCookieValue(context));
-  if (lookup.status === 'none') return problemResponse('UNAUTHENTICATED', context);
-  if (lookup.status === 'expired') {
-    return problemResponse('SESSION_EXPIRED', { ...context, headers: expireCookie });
-  }
+  const cookieName = runtime.config.sessionCookieName;
+  const lookup = await runtime.sessions.lookup(sessionCookieValue(context), context.client);
+  if (lookup.status !== 'active') return inactiveSessionResponse(lookup, context, cookieName);
   let payload: unknown;
   try {
     payload = await request.json();
@@ -523,9 +578,9 @@ async function switchTenant(context: Context): Promise<Response> {
   if (!record.memberships.some((m) => m.tenant.id === tenantId && m.usable)) {
     return problemResponse('MEMBERSHIP_INACTIVE', context);
   }
-  const fresh = await runtime.sessions.ensureFreshToken(record);
-  if (fresh.status === 'expired') {
-    return problemResponse('SESSION_EXPIRED', { ...context, headers: expireCookie });
+  const fresh = await runtime.sessions.ensureFreshToken(record, { client: context.client });
+  if (fresh.status === 'expired' || fresh.status === 'ended') {
+    return inactiveSessionResponse(fresh, context, cookieName);
   }
   if (fresh.status === 'unavailable') return problemResponse('DEPENDENCY_UNAVAILABLE', context);
 

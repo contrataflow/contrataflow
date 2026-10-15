@@ -47,7 +47,7 @@ describe('configuração do web (Campos da US-086)', () => {
       clientSecret: null,
       scopes: 'openid profile email offline_access',
       redirectUri: 'http://localhost:3000/api/auth/callback',
-      postLogoutRedirectUri: 'http://localhost:3000/',
+      postLogoutRedirectUri: 'http://localhost:3000/entrar?motivo=saiu',
     });
     expect(config.session).toEqual({
       redisUrl: null,

@@ -20,7 +20,7 @@ export type LogEvent =
   | 'bff.csrf_rejected'
   | 'bff.unhandled_exception'
   | 'bff.csp_violation'
-  | 'bff.session_store_unavailable'
+  | 'auth.session_store_unavailable'
   | 'auth.login_started'
   | 'auth.login_unavailable'
   | 'auth.session_created'
@@ -33,7 +33,11 @@ export type LogEvent =
   | 'auth.rate_limit_degraded'
   | 'auth.return_to_rejected'
   | 'auth.tenant_switch'
-  | 'auth.session_end'
+  | 'auth.logout'
+  | 'auth.session_expired'
+  | 'auth.refresh_failed'
+  | 'auth.rp_logout_unavailable'
+  | 'auth.reauthentication_required'
   | 'tracing.disabled';
 
 export type LogFields = Readonly<Record<string, string | number | boolean | null>>;

@@ -88,7 +88,8 @@ function stubProvider(clock: { now: number }) {
       });
     },
     refresh: () => Promise.resolve({ kind: 'transient' }),
-    endSessionUrl: () => null,
+    revokeRefreshToken: () => Promise.resolve('skipped' as const),
+    endSessionUrl: () => Promise.resolve(null),
   };
   return { provider, state };
 }

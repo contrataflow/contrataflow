@@ -20,7 +20,7 @@ export const BFF_PROBLEMS = {
   SESSION_EXPIRED: {
     status: 401,
     title: 'Sessão expirada',
-    detail: 'Sua sessão expirou. Entre novamente.',
+    detail: 'Sua sessão expirou. Entre novamente para continuar.',
   },
   CSRF_REJECTED: {
     status: 403,
@@ -30,7 +30,7 @@ export const BFF_PROBLEMS = {
   MEMBERSHIP_INACTIVE: {
     status: 403,
     title: 'Vínculo inativo',
-    detail: 'Seu acesso a este órgão não está ativo.',
+    detail: 'Seu acesso a esta instituição não está ativo.',
   },
   TENANT_SUSPENDED: {
     status: 403,
@@ -70,7 +70,7 @@ export const BFF_PROBLEMS = {
   DEPENDENCY_UNAVAILABLE: {
     status: 503,
     title: 'Serviço indisponível',
-    detail: 'O serviço está temporariamente indisponível. Tente novamente.',
+    detail: 'Serviço temporariamente indisponível. Seu trabalho foi preservado.',
   },
   INTERNAL_ERROR: {
     status: 500,

@@ -13,6 +13,7 @@ import {
   IDENTITY_REPOSITORY,
   SESSION_AUDIT,
 } from './application/ports.js';
+import { RecordSessionEndingsCommand } from './application/record-session-endings.command.js';
 import { RecordSessionTenantCommand } from './application/record-session-tenant.command.js';
 import { StartSessionCommand } from './application/start-session.command.js';
 import { AuditTrailSessionRecorder } from './infrastructure/audit-trail-session.recorder.js';
@@ -27,6 +28,7 @@ import {
 } from './infrastructure/in-memory-identity.repositories.js';
 import { JwksTokenVerifier } from './infrastructure/jwks-token-verifier.js';
 import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repository.js';
+import { SessionSweepScheduler } from './infrastructure/session-sweep.scheduler.js';
 import { MeController } from './presentation/me.controller.js';
 import { SessionEventsController } from './presentation/session-events.controller.js';
 
@@ -86,7 +88,9 @@ function identityProviders(): Provider[] {
  * Módulo `identity` (DEC-040): outros módulos usam somente a fachada exportada. Dono de `User`,
  * `TenantMembership` e `MembershipDepartment`; implementa as portas do pipeline de autenticação
  * (`TokenVerifierPort`, `UserPort`, `MembershipPort`), o início de sessão (`POST
- * /internal/session-events`) e ME-01/ME-04 (US-087).
+ * /internal/session-events`) e ME-01/ME-04 (US-087). Desde a US-088 também roda a varredura de
+ * encerramentos de sessão (`SessionSweepScheduler`, 1 min), que audita logout e expiração a partir
+ * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`).
  */
 @Module({
   controllers: [MeController, SessionEventsController],
@@ -95,6 +99,8 @@ function identityProviders(): Provider[] {
     ...identityProviders(),
     StartSessionCommand,
     RecordSessionTenantCommand,
+    RecordSessionEndingsCommand,
+    SessionSweepScheduler,
     GetMyProfileQuery,
     ListMyMembershipsQuery,
   ],

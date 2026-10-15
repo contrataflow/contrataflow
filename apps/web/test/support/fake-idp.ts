@@ -14,6 +14,7 @@ const AUTHORIZE = 'http://localhost:9080/application/o/authorize/';
 const TOKEN = 'http://localhost:9080/application/o/token/';
 const JWKS = 'http://localhost:9080/application/o/contrataflow/jwks/';
 const END_SESSION = 'http://localhost:9080/application/o/contrataflow/end-session/';
+const REVOKE = 'http://localhost:9080/application/o/revoke/';
 
 type PrivateKey = Awaited<ReturnType<typeof generateKeyPair>>['privateKey'];
 
@@ -37,6 +38,8 @@ export interface TokenRequestRecord {
 export interface FakeIdp {
   readonly fetch: ReturnType<typeof vi.fn<typeof fetch>>;
   readonly tokenRequests: TokenRequestRecord[];
+  /** Pedidos ao endpoint de revogação (RFC 7009 — US-088). */
+  readonly revocations: TokenRequestRecord[];
   /** Estado mutável do IdP (chaves, respostas e falhas). */
   readonly state: {
     keys: IdpKey[];
@@ -51,6 +54,8 @@ export interface FakeIdp {
     down: boolean;
     /** Nonce da transação em curso (o `id_token` o devolve). */
     nonce: string;
+    /** Status do endpoint de revogação; `null` = não publicado na descoberta. */
+    revokeStatus: number | null;
   };
   signIdToken(claims?: JWTPayload): Promise<string>;
 }
@@ -58,6 +63,7 @@ export interface FakeIdp {
 export async function createFakeIdp(now: () => number): Promise<FakeIdp> {
   const key = await idpKey('kid-1');
   const tokenRequests: TokenRequestRecord[] = [];
+  const revocations: TokenRequestRecord[] = [];
   const state: FakeIdp['state'] = {
     keys: [key],
     signingKey: key,
@@ -67,6 +73,7 @@ export async function createFakeIdp(now: () => number): Promise<FakeIdp> {
     tokenBody: null,
     down: false,
     nonce: '',
+    revokeStatus: 200,
   };
 
   const signIdToken = (claims: JWTPayload = {}) => {
@@ -98,7 +105,15 @@ export async function createFakeIdp(now: () => number): Promise<FakeIdp> {
         token_endpoint: TOKEN,
         jwks_uri: JWKS,
         end_session_endpoint: END_SESSION,
+        ...(state.revokeStatus === null ? {} : { revocation_endpoint: REVOKE }),
       });
+    }
+    if (url === REVOKE) {
+      revocations.push({
+        authorization: new Headers(init?.headers).get('authorization'),
+        form: new URLSearchParams(typeof init?.body === 'string' ? init.body : ''),
+      });
+      return new Response(null, { status: state.revokeStatus ?? 404 });
     }
     if (url === JWKS) return Response.json({ keys: state.keys.map((item) => item.jwk) });
     if (url === TOKEN) {
@@ -123,5 +138,5 @@ export async function createFakeIdp(now: () => number): Promise<FakeIdp> {
     return new Response('not found', { status: 404 });
   });
 
-  return { fetch: fetchMock, tokenRequests, state, signIdToken };
+  return { fetch: fetchMock, tokenRequests, revocations, state, signIdToken };
 }

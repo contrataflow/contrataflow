@@ -50,10 +50,11 @@ function setup(options: { pks?: Record<string, string>; users?: FakeUser[] } = {
   const directory = new InMemoryAuthentikDirectory(options.pks);
   const sessionStarted = vi.fn<SessionAuditPort['sessionStarted']>(() => Promise.resolve());
   const tenantSwitched = vi.fn<SessionAuditPort['tenantSwitched']>(() => Promise.resolve());
-  const audit: SessionAuditPort = { sessionStarted, tenantSwitched };
+  const sessionEnded = vi.fn<SessionAuditPort['sessionEnded']>(() => Promise.resolve('recorded'));
+  const audit: SessionAuditPort = { sessionStarted, tenantSwitched, sessionEnded };
   return {
     repository,
-    audit: { sessionStarted, tenantSwitched },
+    audit: { sessionStarted, tenantSwitched, sessionEnded },
     start: new StartSessionCommand(repository, directory, clock),
     record: new RecordSessionTenantCommand(repository, audit, clock),
   };

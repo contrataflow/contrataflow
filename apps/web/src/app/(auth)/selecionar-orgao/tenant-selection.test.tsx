@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { subscribeSessionEvents } from '@/lib/session/session-channel';
+import { SESSION_CHANNEL } from '@/lib/session/session-channel';
 import type { ShellMembership } from '@/lib/session/types';
 import { seriousA11yViolations } from '@test/support/axe';
 import {
@@ -57,8 +57,10 @@ describe('seleção de instituição (FA-01)', () => {
   it('troca a instituição, avisa as abas e vai ao início quando não há returnTo', async () => {
     const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(jsonResponse({ data: {} })));
     vi.stubGlobal('fetch', fetchMock);
+    // Como outra aba recebe: um objeto do canal sem o filtro de origem desta aba.
     const events: unknown[] = [];
-    const stop = subscribeSessionEvents((event) => events.push(event));
+    const otherTab = new BroadcastChannel(SESSION_CHANNEL);
+    otherTab.onmessage = (message: MessageEvent<unknown>) => events.push(message.data);
     const { assign } = renderSelection(null);
     await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
     await waitFor(() => {
@@ -73,9 +75,9 @@ describe('seleção de instituição (FA-01)', () => {
       tenantId: TENANT_B.id,
     });
     await waitFor(() => {
-      expect(events).toEqual([{ type: 'tenant-switched', tenantId: TENANT_B.id }]);
+      expect(events).toMatchObject([{ type: 'tenant-switched', tenantId: TENANT_B.id }]);
     });
-    stop();
+    otherTab.close();
   });
 
   it('sucesso navega para o returnTo recebido do servidor', async () => {
@@ -239,7 +241,7 @@ describe('seleção de instituição (FA-01)', () => {
 
   it('rodapé: orientação de convite e "Sair" que encerra a sessão', async () => {
     const fetchMock = vi.fn<typeof fetch>(() =>
-      Promise.resolve(jsonResponse({ data: { redirectTo: '/entrar?motivo=saiu' } })),
+      Promise.resolve(jsonResponse({ data: { logoutUrl: '/entrar?motivo=saiu' } })),
     );
     vi.stubGlobal('fetch', fetchMock);
     const { assign } = renderSelection(null);

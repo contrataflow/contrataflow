@@ -36,6 +36,10 @@
       "title": "Sua conta não tem acesso ativo a nenhuma instituição",
       "description": "Sua conta não tem acesso ativo a nenhuma instituição no ContrataFlow. Se você recebeu um convite, abra o link enviado por e-mail. Em caso de dúvida, procure o administrador da sua instituição."
     },
+    "vinculo-inativo": {
+      "title": "Seu acesso a esta instituição foi suspenso.",
+      "description": "Seu acesso a esta instituição não está ativo. Se você tem acesso a outra instituição, entre novamente e escolha-a; em caso de dúvida, procure o administrador da instituição."
+    },
     "acesso-bloqueado": {
       "title": "Seu acesso ao ContrataFlow está bloqueado",
       "description": "Procure o suporte da sua instituição."

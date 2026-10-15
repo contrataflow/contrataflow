@@ -21,6 +21,14 @@ export interface CoalesceQuery {
   readonly since: Date;
 }
 
+export interface SessionRecordQuery {
+  readonly tenantId: string;
+  readonly action: AuditAction;
+  readonly sessionIdHash: string;
+  /** Horário exato do fato: escolhe a partição (poda) e o índice `(tenant, action, occurred_at)`. */
+  readonly occurredAt: Date;
+}
+
 export interface AuditLogStore {
   /**
    * INSERT no `tx` recebido (nunca transação própria — RN-AUD-01), sem RETURNING.
@@ -29,6 +37,8 @@ export interface AuditLogStore {
   insert(tx: TenantTx, record: SealedAuditRecord): Promise<void>;
   /** Estado de coalescência do último registro gravado da chave dentro da janela. */
   findLastCoalesced(tx: TenantTx, query: CoalesceQuery): Promise<CoalesceState | null>;
+  /** `oncePerSession`: já há registro desta ação, neste horário, para esta sessão no tenant? */
+  existsForSession(tx: TenantTx, query: SessionRecordQuery): Promise<boolean>;
 }
 
 export const AUDIT_LOG_STORE = Symbol('AuditLogStore');

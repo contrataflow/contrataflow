@@ -18,7 +18,7 @@ export function createSessionRedis(url: string): Redis {
     retryStrategy: (attempt) => Math.min(attempt * 200, 2_000),
   });
   redis.on('error', (error: Error) => {
-    log('warn', 'bff.session_store_unavailable', { errorName: error.name });
+    log('warn', 'auth.session_store_unavailable', { errorName: error.name });
   });
   return redis;
 }

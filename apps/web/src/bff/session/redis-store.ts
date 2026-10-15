@@ -1,31 +1,53 @@
 import 'server-only';
 
+import { randomUUID } from 'node:crypto';
+
+import {
+  DEFAULT_SESSION_POLICY,
+  SESSION_ENDED_RETENTION_MS,
+  sessionKeyspace,
+} from '@contrataflow/types';
+import type { SessionKeyspace } from '@contrataflow/types';
+import {
+  endSession,
+  parseSessionHeader,
+  parseSessionTombstone,
+  sessionDeadline,
+} from '@contrataflow/validation';
+import type { SessionEndRedis, SessionTombstone } from '@contrataflow/validation';
+
 import { seal, unseal } from '../crypto';
 import { SessionStoreUnavailableError } from './types';
-import type { SessionRecord, SessionStore, SessionTokens } from './types';
+import type { SessionEnding, SessionRecord, SessionStore, SessionTokens } from './types';
 
 /*
- * Redis de sessões (DEC-131 · RN-IAM-10 · US-087 Lacuna 3): `cf:{env}:sess:{sha256(sid)}` guarda o
- * registro (tokens cifrados com AES-256-GCM, amarrados à chave da sessão) com TTL até o fim
- * absoluto; `cf:{env}:sess:user:{userId}` é o índice por usuário (sorted set por criação), que
- * limita as sessões simultâneas. Chaves de plataforma: nunca passam pelo `TenantCache`.
+ * Redis de sessões (DEC-131 · RN-IAM-10 · US-087 Lacuna 3 · US-088), layout em
+ * `@contrataflow/types` (`sessionKeyspace`): `cf:{env}:sess:{sha256(sid)}` guarda o registro
+ * (tokens cifrados com AES-256-GCM, amarrados à chave da sessão), com TTL até 24 h depois do fim
+ * absoluto — a varredura da API precisa ler as sessões nunca mais acessadas para auditá-las;
+ * `…:user:{userId}` (sorted set por criação) limita as sessões simultâneas; `…:membership:{id}`
+ * (conjunto) serve ao encerramento pelos eventos de vínculo (worker); `…:expiry` (sorted set por
+ * prazo) é a fila da varredura. O encerramento segue o protocolo de `@contrataflow/validation`
+ * (`endSession`), o mesmo da API e do worker. Chaves de plataforma: nunca passam pelo `TenantCache`.
  */
 
 /** Subconjunto do ioredis usado aqui (facilita o teste com um Redis em memória). */
-export interface SessionRedis {
+export interface SessionRedis extends SessionEndRedis {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode: 'PX', ttlMs: number): Promise<unknown>;
-  del(...keys: string[]): Promise<number>;
-  zadd(key: string, score: number, member: string): Promise<unknown>;
+  set(key: string, value: string, mode: 'PX', ttlMs: number, condition: 'XX'): Promise<'OK' | null>;
+  // O ioredis declara `NX` e `XX` em sobrecargas separadas: a união não seria atribuível.
+  // eslint-disable-next-line @typescript-eslint/unified-signatures -- ver comentário acima
+  set(key: string, value: string, mode: 'PX', ttlMs: number, condition: 'NX'): Promise<'OK' | null>;
   zrange(key: string, start: number, stop: number): Promise<string[]>;
-  zrem(key: string, ...members: string[]): Promise<number>;
   zcard(key: string): Promise<number>;
+  sadd(key: string, ...members: string[]): Promise<number>;
   pexpire(key: string, ttlMs: number): Promise<number>;
 }
 
 export interface RedisSessionStoreOptions {
-  /** `cf:{env}:sess:`. */
-  readonly keyPrefix: string;
+  /** `APP_ENV` — compõe o prefixo `cf:{env}:sess:`. */
+  readonly appEnv: string;
   /** Subchave AES-256 dos tokens (`deriveKey(master, 'session-tokens')`). */
   readonly tokenKey: Buffer;
   readonly now?: () => number;
@@ -47,65 +69,117 @@ function isTokens(value: unknown): value is SessionTokens {
 
 export class RedisSessionStore implements SessionStore {
   private readonly now: () => number;
+  private readonly keys: SessionKeyspace;
 
   constructor(
     private readonly redis: SessionRedis,
     private readonly options: RedisSessionStoreOptions,
   ) {
     this.now = options.now ?? Date.now;
+    this.keys = sessionKeyspace(options.appEnv);
   }
 
   async get(key: string): Promise<SessionRecord | null> {
-    const raw = await this.call(() => this.redis.get(this.recordKey(key)));
+    const raw = await this.call(() => this.redis.get(this.keys.record(key)));
     if (raw === null) return null;
     return this.decode(key, raw);
   }
 
   async save(record: SessionRecord): Promise<void> {
-    const ttl = this.ttlOf(record);
-    if (ttl <= 0) {
-      await this.delete(record.key);
-      return;
-    }
+    // `XX`: sessão encerrada (logout, vínculo, expiração) não volta por uma gravação atrasada.
     await this.call(() =>
-      this.redis.set(this.recordKey(record.key), this.encode(record), 'PX', ttl),
+      this.redis.set(
+        this.keys.record(record.key),
+        this.encode(record),
+        'PX',
+        this.ttlOf(record),
+        'XX',
+      ),
     );
   }
 
   async create(record: SessionRecord, maxPerUser: number): Promise<readonly string[]> {
-    await this.save(record);
-    const index = this.userKey(record.userId);
+    const ttl = this.ttlOf(record);
+    await this.call(() =>
+      this.redis.set(this.keys.record(record.key), this.encode(record), 'PX', ttl),
+    );
+    const index = this.keys.user(record.userId);
     await this.call(() => this.redis.zadd(index, record.createdAt, record.key));
-    await this.call(() => this.redis.pexpire(index, this.ttlOf(record)));
+    await this.call(() => this.redis.pexpire(index, ttl));
+    await this.call(() => this.redis.zadd(this.keys.expiry, sessionDeadline(record), record.key));
     const total = await this.call(() => this.redis.zcard(index));
     if (total <= maxPerUser) return [];
-    // Sessões mais antigas além do limite (RN-IAM-10): encerradas.
+    // Sessões mais antigas além do limite (RN-IAM-10): encerradas com `SESSION_LIMIT`.
     const evicted = await this.call(() => this.redis.zrange(index, 0, total - maxPerUser - 1));
-    if (evicted.length > 0) {
-      await this.call(() => this.redis.del(...evicted.map((key) => this.recordKey(key))));
-      await this.call(() => this.redis.zrem(index, ...evicted));
+    for (const key of evicted) {
+      const header = parseSessionHeader(
+        await this.call(() => this.redis.get(this.keys.record(key))),
+      );
+      if (header) {
+        await this.call(() =>
+          endSession(this.redis, this.keys, {
+            header,
+            reason: 'SESSION_LIMIT',
+            occurredAt: this.now(),
+          }),
+        );
+      } else {
+        await this.call(() => this.redis.zrem(index, key));
+      }
     }
     return evicted;
   }
 
-  async delete(key: string): Promise<void> {
-    const raw = await this.call(() => this.redis.get(this.recordKey(key)));
-    await this.call(() => this.redis.del(this.recordKey(key)));
-    const record = raw === null ? null : this.decode(key, raw);
-    if (record) await this.call(() => this.redis.zrem(this.userKey(record.userId), key));
+  async reindex(record: SessionRecord, previousMembershipId: string | null): Promise<void> {
+    if (previousMembershipId && previousMembershipId !== record.membershipId) {
+      await this.call(() =>
+        this.redis.srem(this.keys.membership(previousMembershipId), record.key),
+      );
+    }
+    if (record.membershipId) {
+      const index = this.keys.membership(record.membershipId);
+      await this.call(() => this.redis.sadd(index, record.key));
+      await this.call(() => this.redis.pexpire(index, this.ttlOf(record)));
+    }
+    // Limites da nova instituição: a varredura passa a olhar o novo prazo.
+    await this.call(() => this.redis.zadd(this.keys.expiry, sessionDeadline(record), record.key));
   }
 
-  private recordKey(key: string): string {
-    return `${this.options.keyPrefix}${key}`;
+  end(record: SessionRecord, ending: SessionEnding): Promise<boolean> {
+    return this.call(() =>
+      endSession(this.redis, this.keys, {
+        header: record,
+        reason: ending.reason,
+        occurredAt: ending.occurredAt,
+        ip: ending.ip,
+        userAgent: ending.userAgent,
+      }),
+    );
   }
 
-  private userKey(userId: string): string {
-    return `${this.options.keyPrefix}user:${userId}`;
+  async getEnded(key: string): Promise<SessionTombstone | null> {
+    return parseSessionTombstone(await this.call(() => this.redis.get(this.keys.ended(key))));
   }
 
-  /** Até o fim absoluto da sessão: depois disso, nem o registro sobra. */
+  async acquireRefreshLock(key: string, ttlMs: number): Promise<string | null> {
+    const owner = randomUUID();
+    const acquired = await this.call(() =>
+      this.redis.set(this.keys.refreshLock(key), owner, 'PX', ttlMs, 'NX'),
+    );
+    return acquired === null ? null : owner;
+  }
+
+  async releaseRefreshLock(key: string, owner: string): Promise<void> {
+    // Só o dono libera; uma trava vencida e retomada por outra réplica não é apagada daqui.
+    const lock = this.keys.refreshLock(key);
+    if ((await this.call(() => this.redis.get(lock))) === owner) {
+      await this.call(() => this.redis.del(lock));
+    }
+  }
+
+  /** Até 24 h depois do fim absoluto: a varredura audita as sessões nunca mais acessadas. */
   private ttlOf(record: SessionRecord): number {
-    return Math.max(0, record.absoluteExpiresAt - this.now());
+    return Math.max(1, record.absoluteExpiresAt + SESSION_ENDED_RETENTION_MS - this.now());
   }
 
   private encode(record: SessionRecord): string {
@@ -125,7 +199,13 @@ export class RedisSessionStore implements SessionStore {
       const plain = unseal(this.options.tokenKey, sealedTokens, key);
       if (plain === null) return null;
       const tokens: unknown = JSON.parse(plain);
-      return isTokens(tokens) ? { ...rest, tokens } : null;
+      if (!isTokens(tokens)) return null;
+      // Sessões gravadas antes da US-088 não têm `idleMinutes`: padrão da plataforma.
+      const idleMinutes =
+        typeof rest.idleMinutes === 'number'
+          ? rest.idleMinutes
+          : DEFAULT_SESSION_POLICY.idleMinutes;
+      return { ...rest, idleMinutes, tokens };
     } catch {
       return null;
     }

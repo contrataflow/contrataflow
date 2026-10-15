@@ -4,7 +4,7 @@ import { isMissingPartitionError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { AuditPartitionMissingError } from '../application/ports.js';
-import type { AuditLogStore, CoalesceQuery } from '../application/ports.js';
+import type { AuditLogStore, CoalesceQuery, SessionRecordQuery } from '../application/ports.js';
 import { coalesceStateFrom } from '../domain/audit-coalescer.js';
 import type { CoalesceState } from '../domain/audit-coalescer.js';
 import type { SealedAuditRecord } from '../domain/audit-record.js';
@@ -57,5 +57,19 @@ export class PrismaAuditLogStore implements AuditLogStore {
        ORDER BY occurred_at DESC
        LIMIT 1`;
     return coalesceStateFrom(rows[0]?.state ?? null);
+  }
+
+  async existsForSession(tx: TenantTx, query: SessionRecordQuery): Promise<boolean> {
+    // `occurred_at` por igualdade poda a consulta à partição do mês; o índice
+    // `audit_logs_action_idx (tenant_id, action, occurred_at DESC)` localiza as linhas do instante.
+    const rows = await tx.$queryRaw<{ found: number }[]>`
+      SELECT 1 AS found
+        FROM audit_logs
+       WHERE tenant_id = ${query.tenantId}::uuid
+         AND action = ${query.action}
+         AND occurred_at = ${query.occurredAt}
+         AND session_id_hash = ${query.sessionIdHash}
+       LIMIT 1`;
+    return rows.length > 0;
   }
 }

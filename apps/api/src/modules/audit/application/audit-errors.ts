@@ -2,12 +2,13 @@ import { ApiError } from '#shared/errors/api-error.js';
 
 /**
  * Chamada do `AuditService` fora do contrato (V-01 ação fora do catálogo, V-02 negação/falha sem
- * motivo, V-03 fora de transação, ids inválidos): erro de programação, recusado antes do INSERT. O
+ * motivo, V-03 fora de transação, ids inválidos, `occurredAt` inválido ou no futuro,
+ * `oncePerSession` sem sessão ou tenant no contexto): erro de programação, recusado antes do INSERT. O
  * filtro RFC 9457 o trata como exceção não mapeada → 500 `INTERNAL_ERROR` com o `correlationId`.
  */
 export class AuditContractError extends Error {
   constructor(
-    readonly rule: 'V-01' | 'V-02' | 'V-03' | 'IDS',
+    readonly rule: 'V-01' | 'V-02' | 'V-03' | 'IDS' | 'OCCURRED_AT' | 'SESSION',
     message: string,
   ) {
     super(`${rule}: ${message}`);

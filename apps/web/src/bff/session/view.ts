@@ -23,6 +23,7 @@ export function toShellSession(record: SessionRecord): ShellSession {
       expiresAt: membership.expiresAt,
       usable: membership.usable,
     })),
+    idleMinutes: record.idleMinutes,
     idleExpiresAt: new Date(record.idleExpiresAt).toISOString(),
     absoluteExpiresAt: new Date(record.absoluteExpiresAt).toISOString(),
     // Instituição em encerramento: faixa "somente leitura e exportação" (FA-08).

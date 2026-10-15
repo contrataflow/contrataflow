@@ -51,6 +51,18 @@ export interface AuditEntry {
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly reasonCode?: string | null;
   readonly coalesce?: AuditCoalesceHint;
+  /**
+   * Horário real do fato, para gravação POSTERIOR a ele (varredura de sessões — US-088: o fim da
+   * sessão é o limite atingido, não o instante em que o job o detectou). Padrão: agora. Entra no
+   * `rowHash` e escolhe a partição mensal. No futuro (> agora + 1 s) → `AuditContractError`.
+   */
+  readonly occurredAt?: Date;
+  /**
+   * Grava no máximo um registro por (tenant, ação, `occurredAt`, sessão) — idempotência de quem
+   * pode repetir a gravação (varredura refeita depois de falha). Exige `sessionIdHash` e tenant
+   * no contexto; o registro já existente devolve `{ kind: 'duplicate' }` sem gravar.
+   */
+  readonly oncePerSession?: boolean;
 }
 
 export type AuditOutcome =
@@ -63,7 +75,9 @@ export type AuditOutcome =
   /** Coalescida (RN-AUD-06): o registro anterior da janela representa esta chamada. */
   | { readonly kind: 'coalesced' }
   /** Amostrada (RN-AUD-07): somada em `metadata.suppressedCount` do próximo registro. */
-  | { readonly kind: 'sampled_out' };
+  | { readonly kind: 'sampled_out' }
+  /** `oncePerSession`: a sessão já tem este registro (mesma ação e horário); nada foi gravado. */
+  | { readonly kind: 'duplicate' };
 
 export interface AuditTrailPort {
   /**

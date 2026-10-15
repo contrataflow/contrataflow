@@ -5,6 +5,7 @@ import { render } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 
+import { LogoutGuard } from '@/components/session/logout-guard';
 import { DEFAULT_TIME_ZONE, LOCALE, messages } from '@/i18n/messages';
 import { makeQueryClient } from '@/lib/query/query-client';
 import { ShellSessionProvider } from '@/lib/session/session-context';
@@ -46,6 +47,7 @@ export function shellSession(overrides: Partial<ActiveShellSession> = {}): Activ
         usable: true,
       },
     ],
+    idleMinutes: 30,
     idleExpiresAt: '2026-10-14T12:30:00.000Z',
     absoluteExpiresAt: '2026-10-15T00:00:00.000Z',
     readOnly: false,
@@ -70,7 +72,7 @@ export function renderWithShell(
     <IntlProvider>
       <QueryClientProvider client={queryClient}>
         <ShellSessionProvider session={options.session ?? shellSession()}>
-          {ui}
+          <LogoutGuard>{ui}</LogoutGuard>
         </ShellSessionProvider>
       </QueryClientProvider>
     </IntlProvider>,

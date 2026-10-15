@@ -176,6 +176,12 @@ describe('SCR-111 — páginas /erro/*', () => {
     ['sessao-expirada', 'Sua sessão expirou', 'link', 'Entrar novamente'],
     ['manutencao', 'Sistema temporariamente indisponível', 'link', 'Tentar novamente'],
     ['acesso-indisponivel', 'Acesso indisponível', 'link', 'Trocar de instituição'],
+    [
+      'vinculo-inativo',
+      'Seu acesso a esta instituição foi suspenso.',
+      'link',
+      'Trocar de instituição',
+    ],
   ] as const;
 
   it.each(variants)(
@@ -254,7 +260,7 @@ describe('SCR-111 — páginas /erro/*', () => {
   it('"Sair" encerra a sessão no BFF e segue para o destino devolvido (fim de sessão no provedor)', async () => {
     const fetchMock = vi.fn<typeof fetch>(() =>
       Promise.resolve(
-        Response.json({ data: { redirectTo: 'https://idp.example/fim-de-sessao?x=1' } }),
+        Response.json({ data: { logoutUrl: 'https://idp.example/fim-de-sessao?x=1' } }),
       ),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -353,10 +359,10 @@ describe('SCR-111 — páginas /erro/*', () => {
 
 describe('SCR-001 — /entrar', () => {
   const REASON_MESSAGES = [
-    ['saiu', 'Você saiu do ContrataFlow.', 'bg-primary-soft'],
+    ['saiu', 'Você saiu com segurança.', 'bg-primary-soft'],
     [
       'saiu-parcial',
-      'Você saiu do ContrataFlow, mas a sessão no provedor de identidade pode continuar ativa neste navegador. Feche o navegador para concluir.',
+      'Você saiu do ContrataFlow. Para encerrar também a conta institucional neste navegador, feche-o.',
       'bg-warning-soft',
     ],
     [

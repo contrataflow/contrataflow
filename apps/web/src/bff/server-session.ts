@@ -75,6 +75,9 @@ export const apiServerClient = {
     if (lookup.status === 'unavailable') {
       throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
     }
+    if (lookup.status === 'membership_ended') {
+      throw new ApiError({ status: 403, code: 'MEMBERSHIP_INACTIVE', correlationId });
+    }
     if (lookup.status !== 'active') {
       throw new ApiError({
         status: 401,
@@ -83,10 +86,14 @@ export const apiServerClient = {
       });
     }
     const fresh = await runtime.sessions.ensureFreshToken(lookup.record);
-    if (fresh.status !== 'ok') {
-      throw fresh.status === 'expired'
-        ? new ApiError({ status: 401, code: 'SESSION_EXPIRED', correlationId })
-        : new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
+    if (fresh.status === 'expired') {
+      throw new ApiError({ status: 401, code: 'SESSION_EXPIRED', correlationId });
+    }
+    if (fresh.status === 'ended') {
+      throw new ApiError({ status: 401, code: 'UNAUTHENTICATED', correlationId });
+    }
+    if (fresh.status === 'unavailable') {
+      throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
     }
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(options.query ?? {})) {

@@ -11,6 +11,7 @@ import type {
   LoginStart,
   MembershipSummary,
   RefreshResult,
+  RevocationResult,
   SessionDirectory,
   SessionRecord,
   SessionTokens,
@@ -241,8 +242,13 @@ export class FakeIdentityProvider implements IdentityProvider {
     });
   }
 
-  endSessionUrl(): string | null {
-    return null;
+  /** Nada a revogar: o provedor fake não emite refresh token real. */
+  revokeRefreshToken(): Promise<RevocationResult> {
+    return Promise.resolve('skipped');
+  }
+
+  endSessionUrl(): Promise<string | null> {
+    return Promise.resolve(null);
   }
 }
 

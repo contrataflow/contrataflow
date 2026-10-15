@@ -71,6 +71,16 @@ export class TimelineProjector implements SyncEventHandler, OnModuleInit {
 
 Efeitos que não precisam ser atômicos (notificação, e-mail, cache, métricas) são **assíncronos**: rota em `apps/worker/src/events/routes.ts` e consumidor idempotente por `eventId` (queues.md §8).
 
+### Redis de sessões do BFF (US-088 · `SESSION_REGISTRY`)
+
+O BFF guarda as sessões no Redis de sessões (`REDIS_SESSION_URL`, cluster à parte do Redis principal
+— DEC-131). A API só o lê para a varredura de encerramentos (módulo `identity`), pela porta
+`SESSION_REGISTRY` do shared kernel (`#shared/sessions/session-registry.js`). O adaptador
+(`infrastructure/redis/redis-session-registry.ts`) tem conexão própria (sem fila offline, timeouts
+curtos) e usa o layout de chaves `sessionKeyspace(appEnv)` de `@contrataflow/types`; sem
+`REDIS_SESSION_URL` (só local/dev/test) o módulo fornece `DisabledSessionRegistry` e a varredura não
+roda. Integração com Redis real: `apps/api/test/audit/session-sweep.spec.ts`.
+
 ### Modo fake e testes
 
 Com `OIDC_FAKE_SIGNING_KEY` (identidade fake, sem banco) o outbox fica em memória (`InMemoryOutboxStore`). Integração com banco real: `apps/api/test/outbox/outbox-writer.spec.ts` (atomicidade, rollback, NOTIFY só no commit e isolamento do handler síncrono — também na suíte `test:tenant-leak`).

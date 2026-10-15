@@ -50,6 +50,32 @@
   },
   "readOnly": "Instituição em encerramento: somente consulta e exportação.",
   "session": {
-    "otherTab": "A instituição ativa foi alterada em outra aba. Os dados serão recarregados."
+    "otherTab": "A instituição ativa foi alterada em outra aba. Os dados serão recarregados.",
+    "idle": {
+      "title": "Você continua aí?",
+      "description": "Sua sessão será encerrada por inatividade em 2 minutos.",
+      "countdown": "Tempo restante: {time}",
+      "stay": "Continuar conectado",
+      "logout": "Sair"
+    },
+    "absolute": "Sua sessão termina às {time}. Salve seu trabalho; depois será preciso entrar novamente.",
+    "expired": {
+      "title": "Sua sessão expirou",
+      "description": "Por segurança, sua sessão foi encerrada. O que você digitou foi guardado neste navegador.",
+      "login": "Entrar novamente"
+    },
+    "unavailable": {
+      "title": "Serviço temporariamente indisponível",
+      "description": "Seu trabalho foi preservado. Tente novamente em instantes.",
+      "retry": "Tentar novamente"
+    },
+    "logoutGuard": {
+      "title": "Sair com alterações não salvas?",
+      "description": "Há alterações neste navegador que ainda não foram enviadas. Se você sair agora, elas serão descartadas.",
+      "cancel": "Continuar aqui",
+      "confirm": "Sair mesmo assim"
+    },
+    "logoutFailed": "Não foi possível sair agora. Tente novamente.",
+    "recovered": "Recuperamos alterações não salvas."
   }
 }

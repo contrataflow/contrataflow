@@ -16,6 +16,7 @@ como `#shared/<caminho>.js`; **nunca** importa `src/modules/**` (dependency-crui
 | `database/`    | `TenantTransaction` (Prisma 7 + `app.tenant_id` por transação), UUIDv7, decimais, concorrência otimista e travas (US-081 — `prisma/README.md`)                          |
 | `audit/`       | Porta `AUDIT_TRAIL` do `AuditService` (módulo `audit`, global) e a porta dos contadores de amostragem de `access.denied` (US-073 · DEC-071)                             |
 | `outbox/`      | Porta `OUTBOX_WRITER` e registro `SYNC_EVENT_HANDLERS` (implementados no módulo `platform`, global) — eventos de domínio na transação do caso de uso (US-082 · DEC-072) |
+| `sessions/`    | Porta `SESSION_REGISTRY` do Redis de sessões do BFF (adaptador em `modules/platform`), versão desligada e em memória — varredura de encerramentos (US-088 · RN-IAM-28)  |
 | `testing/`     | Diretório fixo dos adaptadores em memória (sai quando identidade e tenancy tiverem tabelas reais — US-087/US-100)                                                       |
 
 Próximas: `shared/cache/**` (`TenantCache`).

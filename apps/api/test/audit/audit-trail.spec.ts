@@ -338,6 +338,76 @@ describe('auditoria transacional no PostgreSQL (US-073)', () => {
     expect(await rows("a.action = 'document.draft_update'")).toHaveLength(2);
   });
 
+  it('[Duplicidade] oncePerSession: o mesmo encerramento da mesma sessão grava um único registro, no horário do fato (US-088)', async () => {
+    quiet();
+    const service = new AuditService(
+      loadConfig(configEnv()),
+      new PrismaAuditLogStore(),
+      new PrismaAuditTransactions(new TenantTransaction(app), new PlatformTransaction(app)),
+      new InMemoryAuditSamplingStore(),
+      () => new Date(),
+    );
+    const sessionIdHash = 'd'.repeat(64);
+    // O fato aconteceu antes da gravação (varredura): o registro leva o horário do fato.
+    const fact = new Date(Date.now() - 5_000);
+    const end = (tenantId: string, occurredAt: Date = fact) =>
+      runWithRequestContext(
+        { correlationId: 'corr-sweep', ip: '203.0.113.7', userAgent: 'it', sessionIdHash },
+        () => {
+          updateRequestContext({
+            tenantId,
+            actor: { type: 'USER', userId: ANA.id, membershipId: null, name: 'Ana Souza' },
+          });
+          return service.recordStandalone({
+            action: 'auth.session_expired',
+            occurredAt,
+            oncePerSession: true,
+            metadata: { reason: 'IDLE', idleMinutes: 30 },
+          });
+        },
+      );
+    const ofSession = () =>
+      rows('a.session_id_hash = $1 AND a.action = $2', [sessionIdHash, 'auth.session_expired']);
+
+    expect((await end(A)).kind).toBe('recorded');
+    expect(await end(A)).toEqual({ kind: 'duplicate' });
+    const [row, ...others] = await ofSession();
+    expect(others).toHaveLength(0);
+    expect(row).toMatchObject({
+      tenant_id: A,
+      action: 'auth.session_expired',
+      category: 'SECURITY',
+      actor_type: 'USER',
+      actor_user_id: ANA.id,
+      session_id_hash: sessionIdHash,
+      ip: '203.0.113.7',
+      partition: currentPartition(fact),
+    });
+    expect(row?.occurred_at.getTime()).toBe(fact.getTime());
+    if (!row) throw new Error('auth.session_expired não gravado');
+    expect(row.row_hash).toBe(rowHashOf(fromRow(row)));
+
+    // Outro horário e outra instituição são outros fatos; a RLS isola a consulta por tenant.
+    expect((await end(A, new Date(fact.getTime() + 1_000))).kind).toBe('recorded');
+    expect((await end(B)).kind).toBe('recorded');
+    expect(await ofSession()).toHaveLength(3);
+    const exists = (tenantId: string) =>
+      asAna(A, () =>
+        app.$tenantTransaction(
+          (tx) =>
+            new PrismaAuditLogStore().existsForSession(tx, {
+              tenantId,
+              action: 'auth.session_expired',
+              sessionIdHash,
+              occurredAt: fact,
+            }),
+          { readOnly: true },
+        ),
+      );
+    await expect(exists(A)).resolves.toBe(true);
+    await expect(exists(B)).resolves.toBe(false);
+  });
+
   it('[Concorrência] 20 transações no mesmo segundo → 20 registros distintos com rowHash único', async () => {
     quiet();
     const responses = await Promise.all(

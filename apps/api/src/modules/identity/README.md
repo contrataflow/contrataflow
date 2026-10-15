@@ -16,3 +16,25 @@ Desde a US-087 (DEC-070):
 - **Auditoria:** `AuditTrailSessionRecorder` grava `auth.session_start`/`auth.tenant_switch` pela
   porta `AUDIT_TRAIL` (US-073), na instituição ativa, com o IP, o user-agent e o hash da sessão
   informados pelo BFF.
+
+Desde a US-088 (DEC-131 · RN-IAM-24/28):
+
+- **Varredura de encerramentos de sessão:** `RecordSessionEndingsCommand`, agendado a cada 60 s no
+  processo da API por `SessionSweepScheduler` (como o job de partições da auditoria; vai para o
+  worker na US-083). Só liga com `REDIS_SESSION_URL` (obrigatória fora de local/dev/test). O BFF
+  troca a sessão encerrada (logout, expiração, renovação recusada, limite de sessões, vínculo
+  encerrado) por um registro de encerramento **sem tokens** e a varredura o audita:
+  `auth.session_end` ou `auth.session_expired` (`sessionEndAuditAction`), na instituição ativa
+  da sessão, com o **horário real do fato** (`occurredAt` = o limite atingido), o ator = dono da
+  sessão e o IP/user-agent guardados no registro. Sessão nunca mais acessada é encerrada pela própria
+  varredura (`sessionExpiry`); sessão acessada depois do prazo agendado é só reagendada.
+- **Ordem e falhas:** uma réplica por ciclo (trava `SET NX PX 50 s`), até 500 chaves por ciclo, cada
+  auditoria na sua transação. O registro de encerramento só é apagado **depois** de gravar; com o
+  banco fora ele fica no Redis e é refeito no ciclo seguinte com o horário original
+  (`oncePerSession` impede o registro duplicado). Sessão sem instituição ativa (FA-07) é só removida.
+  Redis fora no meio do ciclo encerra o ciclo sem lançar.
+- **Portas:** `SESSION_REGISTRY` (`#shared/sessions/session-registry.js`, adaptador Redis no módulo
+  `platform`; em memória nos testes) e `SessionAuditPort.sessionEnded`.
+- **Logs e métrica:** `auth.sessions_swept` (info: `processed`, `recorded`, `deferred`);
+  `auth.session_audit_deferred`, `auth.session_sweep_failed` e `auth.session_audit_skipped` (warn);
+  contador `auth_sessions_expired_total{reason}`. Nunca a chave da sessão, tokens ou IP.

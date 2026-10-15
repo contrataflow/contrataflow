@@ -2,7 +2,24 @@ import 'server-only';
 
 import { createHash, randomBytes } from 'node:crypto';
 
+import {
+  DEFAULT_SESSION_POLICY,
+  isMembershipEndReason,
+  isSessionExpiryReason,
+  resolveSessionPolicy,
+} from '@contrataflow/types';
 import type {
+  MembershipEndReason,
+  SessionEndReason,
+  SessionExpiryReason,
+  SessionPolicy,
+} from '@contrataflow/types';
+import { sessionExpiry } from '@contrataflow/validation';
+
+import { log } from '../logger';
+import { recordRefresh } from '../metrics';
+import type {
+  ClientDetails,
   IdentityProvider,
   MembershipSummary,
   ProviderLogin,
@@ -11,16 +28,23 @@ import type {
 } from './types';
 
 /*
- * Ciclo de vida da sessão do BFF (authentication.md §4/§6): criação, expiração por ociosidade
- * (deslizante) e absoluta, renovação de token com trava por sessão, troca de tenant e
- * encerramento. Valores padrão de `security.sessionIdleMinutes`/`sessionAbsoluteHours`; a leitura
- * por tenant entra com a US-088.
+ * Ciclo de vida da sessão do BFF (authentication.md §4/§6/§7 · US-087/US-088): criação, expiração
+ * por ociosidade (deslizante) e absoluta conforme a instituição ativa, renovação de token com trava
+ * por sessão (no processo e entre réplicas), troca de tenant e encerramento. Todo encerramento
+ * deixa no store um registro sem tokens com o motivo e o horário real do fato, que a varredura da
+ * API transforma em `auth.session_end`/`auth.session_expired` (RN-IAM-28).
  */
 
-export const SESSION_IDLE_MS = 30 * 60_000;
-export const SESSION_ABSOLUTE_MS = 12 * 60 * 60_000;
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
 /** Renova o access token quando faltam ≤ 60 s (RN-IAM-25). */
 export const REFRESH_WINDOW_MS = 60_000;
+/** Validade da trava de renovação (`SET NX PX 10000` — Impacto técnico da US-088). */
+export const REFRESH_LOCK_TTL_MS = 10_000;
+/** Espera máxima de quem não obteve a trava (RN-IAM-25). */
+export const REFRESH_WAIT_MS = 5_000;
+export const REFRESH_POLL_MS = 100;
 /** Sessões simultâneas por usuário; a mais antiga é encerrada (RN-IAM-10). */
 export const MAX_SESSIONS_PER_USER = 10;
 
@@ -41,13 +65,18 @@ export function hashUserAgent(userAgent: string | null): string | null {
 
 export type SessionLookup =
   | { readonly status: 'none' }
-  | { readonly status: 'expired'; readonly reason: 'IDLE' | 'ABSOLUTE' }
+  /** Ociosidade, duração absoluta ou renovação recusada → 401 `SESSION_EXPIRED` (V-03). */
+  | { readonly status: 'expired'; readonly reason: SessionExpiryReason }
+  /** Encerrada pelo worker (vínculo suspenso/revogado/expirado) → 403 `MEMBERSHIP_INACTIVE`. */
+  | { readonly status: 'membership_ended'; readonly reason: MembershipEndReason }
   | { readonly status: 'active'; readonly record: SessionRecord };
 
 export type FreshToken =
   | { readonly status: 'ok'; readonly record: SessionRecord }
-  /** Renovação definitiva falhou: sessão destruída (401 `SESSION_EXPIRED`). */
+  /** Renovação definitiva falhou: sessão encerrada (`REFRESH_FAILED` → 401 `SESSION_EXPIRED`). */
   | { readonly status: 'expired' }
+  /** A sessão foi encerrada por outra requisição (logout em outra aba) → 401 `UNAUTHENTICATED`. */
+  | { readonly status: 'ended' }
   /** IdP indisponível e sem token válido: 503, sessão preservada (RN-IAM-26). */
   | { readonly status: 'unavailable' };
 
@@ -61,25 +90,48 @@ export interface NewSession {
   readonly userAgent: string | null;
 }
 
+export interface SessionServiceOptions {
+  readonly now?: () => number;
+  /** Espera entre as conferências de quem aguarda a renovação de outra réplica (testes). */
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+const NO_CLIENT: ClientDetails = { ip: null, userAgent: null };
+
+function minutesBetween(from: number, to: number): number {
+  return Math.max(0, Math.round((to - from) / MINUTE_MS));
+}
+
 export class SessionService {
   private readonly refreshing = new Map<string, Promise<FreshToken>>();
+  private readonly now: () => number;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(
     private readonly store: SessionStore,
     private readonly identity: IdentityProvider,
-    private readonly now: () => number = Date.now,
-  ) {}
+    options: SessionServiceOptions | (() => number) = {},
+  ) {
+    const resolved = typeof options === 'function' ? { now: options } : options;
+    this.now = resolved.now ?? Date.now;
+    this.sleep =
+      resolved.sleep ??
+      ((ms) =>
+        new Promise((resolve) => {
+          setTimeout(resolve, ms);
+        }));
+  }
 
   /**
-   * Grava a sessão nova, ainda sem instituição ativa, com a chave = SHA-256 do `sessionId`.
-   * Sessões além do limite por usuário são encerradas (devolvidas em `evicted`).
+   * Grava a sessão nova, ainda sem instituição ativa (limites padrão da plataforma — FA-07), com
+   * a chave = SHA-256 do `sessionId`. Sessões além do limite por usuário são encerradas.
    */
   async create(
     sessionId: string,
     session: NewSession,
   ): Promise<{ record: SessionRecord; evicted: readonly string[] }> {
     const now = this.now();
-    const absoluteExpiresAt = now + SESSION_ABSOLUTE_MS;
+    const absoluteExpiresAt = now + DEFAULT_SESSION_POLICY.absoluteHours * HOUR_MS;
     const record: SessionRecord = {
       key: hashSessionId(sessionId),
       userId: session.user.id,
@@ -96,92 +148,212 @@ export class SessionService {
       userAgentHash: hashUserAgent(session.userAgent),
       createdAt: now,
       lastSeenAt: now,
-      idleExpiresAt: Math.min(now + SESSION_IDLE_MS, absoluteExpiresAt),
+      idleMinutes: DEFAULT_SESSION_POLICY.idleMinutes,
+      idleExpiresAt: Math.min(
+        now + DEFAULT_SESSION_POLICY.idleMinutes * MINUTE_MS,
+        absoluteExpiresAt,
+      ),
       absoluteExpiresAt,
     };
     const evicted = await this.store.create(record, MAX_SESSIONS_PER_USER);
     return { record, evicted };
   }
 
-  async lookup(sessionId: string | null | undefined): Promise<SessionLookup> {
+  /**
+   * Sessão do cookie. Vencida → encerrada aqui mesmo, com o limite atingido como horário do fato
+   * (RN-IAM-24); já encerrada → o motivo decide a resposta (expirada, vínculo ou nenhuma).
+   */
+  async lookup(
+    sessionId: string | null | undefined,
+    client: ClientDetails = NO_CLIENT,
+  ): Promise<SessionLookup> {
     if (!sessionId) return { status: 'none' };
     const key = hashSessionId(sessionId);
     const record = await this.store.get(key);
-    if (!record) return { status: 'none' };
-    const now = this.now();
-    const reason =
-      now >= record.absoluteExpiresAt ? 'ABSOLUTE' : now >= record.idleExpiresAt ? 'IDLE' : null;
-    if (reason) {
-      await this.store.delete(key);
-      return { status: 'expired', reason };
+    if (record) {
+      const expiry = sessionExpiry(record, this.now());
+      if (!expiry) return { status: 'active', record };
+      await this.end(record, expiry.reason, { occurredAt: expiry.occurredAt, client });
+      return { status: 'expired', reason: expiry.reason };
     }
-    return { status: 'active', record };
+    const ended = await this.store.getEnded(key);
+    if (ended && isSessionExpiryReason(ended.reason)) {
+      return { status: 'expired', reason: ended.reason };
+    }
+    if (ended && isMembershipEndReason(ended.reason)) {
+      return { status: 'membership_ended', reason: ended.reason };
+    }
+    return { status: 'none' };
   }
 
-  /** Requisição iniciada pelo usuário: renova a ociosidade (nunca além da absoluta). */
+  /**
+   * Requisição iniciada pelo usuário (ou "Continuar conectado"): renova a ociosidade, nunca além
+   * da duração absoluta (RN-IAM-21/22).
+   */
   async touch(record: SessionRecord): Promise<SessionRecord> {
     const now = this.now();
     const touched: SessionRecord = {
       ...record,
       lastSeenAt: now,
-      idleExpiresAt: Math.min(now + SESSION_IDLE_MS, record.absoluteExpiresAt),
+      idleExpiresAt: Math.min(now + record.idleMinutes * MINUTE_MS, record.absoluteExpiresAt),
     };
     await this.store.save(touched);
     return touched;
   }
 
   /**
+   * Encerra a sessão (logout, expiração, renovação recusada, novo login no mesmo navegador):
+   * tokens apagados, motivo e horário do fato guardados para a auditoria. `true` só para quem de
+   * fato encerrou — o logout repetido não gera segundo registro.
+   */
+  async end(
+    record: SessionRecord,
+    reason: SessionEndReason,
+    options: { readonly occurredAt?: number; readonly client?: ClientDetails } = {},
+  ): Promise<boolean> {
+    const client = options.client ?? NO_CLIENT;
+    const occurredAt = options.occurredAt ?? this.now();
+    const ended = await this.store.end(record, {
+      reason,
+      occurredAt,
+      ip: client.ip,
+      userAgent: client.userAgent,
+    });
+    if (ended && isSessionExpiryReason(reason)) {
+      log('info', 'auth.session_expired', {
+        reason,
+        idleMinutes: record.idleMinutes,
+        sessionAgeMinutes: minutesBetween(record.createdAt, occurredAt),
+        tenantId: record.activeTenantId,
+      });
+    }
+    return ended;
+  }
+
+  /**
    * Garante access token válido, renovando perto do vencimento (ou sempre, com `force` — após 401
-   * da API). Uma renovação por sessão por vez; requisições concorrentes aguardam a mesma.
+   * da API). Uma renovação por sessão por vez: no processo, as requisições concorrentes aguardam a
+   * mesma promessa; entre réplicas, a trava do store decide quem chama o IdP e as demais esperam
+   * até 5 s pelo token novo (RN-IAM-25).
    */
   ensureFreshToken(
     record: SessionRecord,
-    options: { readonly force?: boolean } = {},
+    options: { readonly force?: boolean; readonly client?: ClientDetails } = {},
   ): Promise<FreshToken> {
     if (!options.force && record.tokens.accessTokenExpiresAt - this.now() > REFRESH_WINDOW_MS) {
       return Promise.resolve({ status: 'ok', record });
     }
     const inFlight = this.refreshing.get(record.key);
     if (inFlight) return inFlight;
-    const refresh = this.refresh(record, options.force === true).finally(() => {
+    const refresh = this.refreshWithLock(
+      record,
+      options.force === true,
+      options.client ?? NO_CLIENT,
+    ).finally(() => {
       this.refreshing.delete(record.key);
     });
     this.refreshing.set(record.key, refresh);
     return refresh;
   }
 
-  private async refresh(record: SessionRecord, forced: boolean): Promise<FreshToken> {
+  private async refreshWithLock(
+    record: SessionRecord,
+    forced: boolean,
+    client: ClientDetails,
+  ): Promise<FreshToken> {
+    const owner = await this.store.acquireRefreshLock(record.key, REFRESH_LOCK_TTL_MS);
+    if (owner === null) return this.awaitOtherRefresh(record, forced);
+    try {
+      // Outra réplica pode ter renovado (ou alguém encerrado) entre a leitura e a trava.
+      const current = await this.store.get(record.key);
+      if (!current) return await this.endedOutcome(record.key);
+      if (current.tokens.accessToken !== record.tokens.accessToken) {
+        return { status: 'ok', record: current };
+      }
+      return await this.refresh(current, forced, client);
+    } finally {
+      await this.store.releaseRefreshLock(record.key, owner);
+    }
+  }
+
+  private async refresh(
+    record: SessionRecord,
+    forced: boolean,
+    client: ClientDetails,
+  ): Promise<FreshToken> {
+    const started = this.now();
     const result = await this.identity.refresh(record);
+    const latencyMs = this.now() - started;
     if (result.kind === 'ok') {
-      const current = (await this.store.get(record.key)) ?? record;
-      const updated: SessionRecord = { ...current, tokens: result.tokens };
+      // Rotação gravada de uma vez (tokens novos juntos); o refresh anterior não é mais usado.
+      const updated: SessionRecord = { ...record, tokens: result.tokens };
       await this.store.save(updated);
+      recordRefresh('ok');
       return { status: 'ok', record: updated };
     }
     if (result.kind === 'invalid_grant') {
-      await this.store.delete(record.key);
+      log('warn', 'auth.refresh_failed', { type: 'INVALID_GRANT', latencyMs });
+      recordRefresh('invalid_grant');
+      await this.end(record, 'REFRESH_FAILED', { client });
       return { status: 'expired' };
     }
+    log('warn', 'auth.refresh_failed', { type: 'TRANSIENT', latencyMs });
+    recordRefresh('transient');
     const stillValid = !forced && record.tokens.accessTokenExpiresAt > this.now();
     return stillValid ? { status: 'ok', record } : { status: 'unavailable' };
   }
 
+  /** Outra réplica está renovando: espera o token novo (máx. 5 s) sem chamar o IdP. */
+  private async awaitOtherRefresh(record: SessionRecord, forced: boolean): Promise<FreshToken> {
+    for (let waited = 0; waited < REFRESH_WAIT_MS; waited += REFRESH_POLL_MS) {
+      await this.sleep(REFRESH_POLL_MS);
+      const current = await this.store.get(record.key);
+      if (!current) return this.endedOutcome(record.key);
+      if (current.tokens.accessToken !== record.tokens.accessToken) {
+        return { status: 'ok', record: current };
+      }
+    }
+    recordRefresh('lock_timeout');
+    const stillValid = !forced && record.tokens.accessTokenExpiresAt > this.now();
+    return stillValid ? { status: 'ok', record } : { status: 'unavailable' };
+  }
+
+  private async endedOutcome(key: string): Promise<FreshToken> {
+    const ended = await this.store.getEnded(key);
+    return ended?.reason === 'REFRESH_FAILED' ? { status: 'expired' } : { status: 'ended' };
+  }
+
   /**
-   * Registra a instituição ativa, conferida pela API (RN-IAM-09/17), e a lista de vínculos mais
-   * recente. Reaproveita a sessão (`sid`) — sem novo cookie (RN-IAM-66).
+   * Registra a instituição ativa, conferida pela API (RN-IAM-09/17), a lista de vínculos mais
+   * recente e os limites de sessão da instituição: a ociosidade conta do último uso e a duração
+   * absoluta, da criação da sessão (US-093 recalcula na troca). Reaproveita a sessão (`sid`) —
+   * sem novo cookie (RN-IAM-66).
    */
   async activateTenant(
     record: SessionRecord,
-    active: { readonly tenantId: string; readonly membershipId: string },
+    active: {
+      readonly tenantId: string;
+      readonly membershipId: string;
+      readonly sessionPolicy?: Partial<SessionPolicy> | null;
+    },
     memberships: readonly MembershipSummary[] = record.memberships,
   ): Promise<SessionRecord> {
+    const policy = resolveSessionPolicy(active.sessionPolicy);
+    const absoluteExpiresAt = record.createdAt + policy.absoluteHours * HOUR_MS;
     const updated: SessionRecord = {
       ...record,
       activeTenantId: active.tenantId,
       membershipId: active.membershipId,
       memberships,
+      idleMinutes: policy.idleMinutes,
+      idleExpiresAt: Math.min(
+        record.lastSeenAt + policy.idleMinutes * MINUTE_MS,
+        absoluteExpiresAt,
+      ),
+      absoluteExpiresAt,
     };
     await this.store.save(updated);
+    await this.store.reindex(updated, record.membershipId);
     return updated;
   }
 
@@ -195,9 +367,5 @@ export class SessionService {
     };
     await this.store.save(updated);
     return updated;
-  }
-
-  async destroy(key: string): Promise<void> {
-    await this.store.delete(key);
   }
 }

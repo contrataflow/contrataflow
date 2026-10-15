@@ -14,8 +14,9 @@ import { HOME_PATH } from '@/lib/routes';
 
 /*
  * SCR-111 — páginas de erro e estados globais (`/erro/*`): destino dos interceptadores e
- * boundaries (architecture.md §8.12) e do callback do login (US-087: `sem-vinculo`,
- * `acesso-bloqueado`, `manutencao`). Só `correlationId` é exibido como código técnico.
+ * boundaries (architecture.md §8.12), do callback do login (US-087: `sem-vinculo`,
+ * `acesso-bloqueado`, `manutencao`) e do vínculo encerrado durante o uso (US-088:
+ * `vinculo-inativo`). Só `correlationId` é exibido como código técnico.
  */
 
 const ERROR_VARIANTS = [
@@ -25,6 +26,7 @@ const ERROR_VARIANTS = [
   'sessao-expirada',
   'manutencao',
   'sem-vinculo',
+  'vinculo-inativo',
   'acesso-bloqueado',
   'acesso-indisponivel',
 ] as const;
@@ -90,6 +92,15 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
       <a href={`/api/auth/login?returnTo=${encodeURIComponent(retorno)}`} className={primary}>
         {t('actions.login')}
       </a>
+    ),
+    // Vínculo suspenso/revogado durante o uso (FA-08 da US-088): outra instituição ou sair.
+    'vinculo-inativo': (
+      <div className="flex flex-wrap items-start gap-3">
+        <Link href="/selecionar-orgao" className={primary}>
+          {t('actions.switchTenant')}
+        </Link>
+        <SignOutButton variant="secondary" />
+      </div>
     ),
     // Usuário bloqueado (FA-06): o BFF não cria a sessão; "Sair" só limpa o que houver.
     'acesso-bloqueado': <SignOutButton />,

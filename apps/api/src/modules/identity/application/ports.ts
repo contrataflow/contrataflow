@@ -1,4 +1,4 @@
-import type { TenantSelection } from '@contrataflow/validation';
+import type { SessionTombstone, TenantSelection } from '@contrataflow/validation';
 
 import type { TenantMembership } from '../domain/tenant-membership.js';
 import type { User } from '../domain/user.js';
@@ -52,7 +52,11 @@ export interface SessionAuditBase {
   readonly userAgent: string | null;
 }
 
-/** Trilha `auth.*` na instituição ativa, gravada pelo `AuditService` (US-073). */
+/**
+ * Trilha `auth.*` na instituição ativa, gravada pelo `AuditService` (US-073). Início e troca de
+ * instituição vêm do BFF em tempo real (US-087); o encerramento vem da varredura de sessões
+ * (US-088), depois do fato.
+ */
 export interface SessionAuditPort {
   sessionStarted(
     entry: SessionAuditBase & {
@@ -62,6 +66,15 @@ export interface SessionAuditPort {
     },
   ): Promise<void>;
   tenantSwitched(entry: SessionAuditBase & { readonly fromTenantId: string | null }): Promise<void>;
+  /**
+   * `auth.session_end` (logout, limite de sessões, vínculo encerrado) ou `auth.session_expired`
+   * (ociosidade, fim absoluto, renovação recusada) na instituição da sessão, com o horário real do
+   * fato (`occurredAt` do registro de encerramento — RN-IAM-24/28). Idempotente por sessão:
+   * `'duplicate'` = nada novo a gravar (já gravado antes, ou sem como atribuir o vínculo); em
+   * ambos os casos o registro de encerramento pode ser apagado. Falha de gravação propaga — o
+   * registro de encerramento fica no Redis para a próxima varredura.
+   */
+  sessionEnded(tombstone: SessionTombstone): Promise<'recorded' | 'duplicate'>;
 }
 
 export const SESSION_AUDIT = Symbol('SessionAuditPort');

@@ -14,8 +14,6 @@ import { MemorySessionStore } from '@/bff/session/memory-store';
 import {
   MAX_SESSIONS_PER_USER,
   REFRESH_WINDOW_MS,
-  SESSION_ABSOLUTE_MS,
-  SESSION_IDLE_MS,
   SessionService,
   hashSessionId,
   hashUserAgent,
@@ -24,6 +22,10 @@ import {
 import type { IdentityProvider, RefreshResult, SessionRecord } from '@/bff/session/types';
 import { toShellSession } from '@/bff/session/view';
 import { FAKE_KEY, createTestRuntime, fakeIdentity, signIn } from '@test/support/bff';
+
+/** Padrões da plataforma (DEC-131): 30 min de ociosidade e 12 h de duração absoluta. */
+const SESSION_IDLE_MS = 30 * 60_000;
+const SESSION_ABSOLUTE_MS = 12 * 3_600_000;
 
 function decodePayload(token: string): Record<string, unknown> {
   const payload = token.split('.')[1] ?? '';
@@ -36,7 +38,8 @@ function stubIdentity(refresh: () => Promise<RefreshResult>): IdentityProvider {
     beginLogin: () => Promise.reject(new Error('não usado')),
     completeLogin: () => Promise.resolve({ ok: false, reason: 'PROVIDER_ERROR' }),
     refresh,
-    endSessionUrl: () => null,
+    revokeRefreshToken: () => Promise.resolve('skipped' as const),
+    endSessionUrl: () => Promise.resolve(null),
   };
 }
 
@@ -86,6 +89,7 @@ describe('SessionService', () => {
     await signIn(test);
     expect(test.store.byUser(first.record.userId)).toHaveLength(MAX_SESSIONS_PER_USER);
     expect(await test.store.get(first.record.key)).toBeNull();
+    expect(test.store.endings().map((ending) => ending.reason)).toEqual(['SESSION_LIMIT']);
     // Outras pessoas não são afetadas.
     await signIn(test, 'bruno');
     expect(test.store.byUser(first.record.userId)).toHaveLength(MAX_SESSIONS_PER_USER);
@@ -331,7 +335,8 @@ describe('FakeIdentityProvider e FakeSessionDirectory (FA-06)', () => {
     ).toEqual({ ok: false, reason: 'PROVIDER_ERROR' });
     expect(isFakePersona('toString')).toBe(false);
     expect(findFakePersona('ninguém')).toBeNull();
-    expect(identity.endSessionUrl()).toBeNull();
+    expect(await identity.endSessionUrl()).toBeNull();
+    expect(await identity.revokeRefreshToken()).toBe('skipped');
   });
 
   it('diretório fake: vínculos e instituição padrão; bloqueada; desconhecido; ativação', async () => {
@@ -410,9 +415,10 @@ async function baseRecord(
     userAgentHash: null,
     createdAt: 0,
     lastSeenAt: 0,
+    idleMinutes: 30,
     idleExpiresAt: Number.MAX_SAFE_INTEGER,
     absoluteExpiresAt: Number.MAX_SAFE_INTEGER,
   };
-  await store.save(record);
+  await store.create(record, 10);
   return record;
 }

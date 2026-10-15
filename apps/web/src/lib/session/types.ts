@@ -26,6 +26,8 @@ export interface ShellSession {
   readonly activeTenant: ShellTenant | null;
   /** Vínculos para o seletor de instituição (ME-04 assume com a US-093). */
   readonly memberships: readonly ShellMembership[];
+  /** Ociosidade da instituição ativa: o contador local é reiniciado a cada ação (RN-IAM-21). */
+  readonly idleMinutes: number;
   readonly idleExpiresAt: string;
   readonly absoluteExpiresAt: string;
   readonly readOnly: boolean;

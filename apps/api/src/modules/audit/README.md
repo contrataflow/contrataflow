@@ -43,6 +43,28 @@ await this.transaction.run(async (tx) => {
   `audit.recordStandalone(entry)`, que abre a transação do tenant do contexto ou, sem tenant, a de
   plataforma.
 - Jobs da API abrem o contexto com `runAsSystem({ name, tenantId })` (ator `SYSTEM`, FA-01).
+- **Gravação posterior ao fato** (`occurredAt`, US-088): por padrão o registro leva o horário da
+  gravação. Quem grava depois do fato — a varredura de sessões audita um logout ou uma expiração
+  minutos depois — informa o horário real em `occurredAt`; ele entra no `rowHash`, escolhe a
+  partição mensal e é a ordem da trilha. Data inválida ou no futuro (além de 1 s de folga de relógio
+  entre réplicas) é `AuditContractError` (`OCCURRED_AT`).
+- **Gravação idempotente por sessão** (`oncePerSession: true`, US-088): para quem pode repetir a
+  gravação (varredura refeita depois de falha). Exige `sessionIdHash` e tenant no contexto
+  (`AuditContractError` `SESSION` sem eles). Antes do INSERT, `AuditLogStore.existsForSession`
+  procura `(tenant, ação, occurredAt, sessionIdHash)`; se já existir, devolve
+  `{ kind: 'duplicate' }` e não grava. A consulta usa `occurred_at` por igualdade (poda a
+  partição) e o índice `audit_logs_action_idx`. Quem faz `switch` em `AuditOutcome` trata
+  `recorded`, `coalesced`, `sampled_out` e `duplicate`.
+
+```ts
+await this.audit.recordStandalone({
+  action: 'auth.session_expired',
+  occurredAt: new Date(tombstone.occurredAt), // o limite atingido, não "agora"
+  oncePerSession: true,
+  metadata: { reason: 'IDLE', idleMinutes: 30 },
+});
+```
+
 - **Negações de acesso** (`PERMISSION_DENIED`, `MFA_REQUIRED`, `MEMBERSHIP_INACTIVE`,
   `TENANT_SUSPENDED`) são gravadas como `access.denied` pelo filtro RFC 9457 — o caso de uso só
   lança o `ApiError`; num `PERMISSION_DENIED`, informe a permissão ausente em `auditReasonCode`
@@ -61,6 +83,7 @@ await this.transaction.run(async (tx) => {
 | Amostragem de `access.denied`  | RN-AUD-07 | `AUDIT_SAMPLING_STORE` (Redis em `modules/platform`)    |
 | `rowHash` (RFC 8785 + SHA-256) | RN-AUD-08 | `domain/audit-record.ts`, `domain/canonical-json.ts`    |
 | INSERT no `tx` (sem RETURNING) | RN-AUD-01 | `infrastructure/prisma-audit-log.store.ts`              |
+| `oncePerSession` (dedup)       | US-088    | `AuditLogStore.existsForSession` (Prisma e em memória)  |
 | Partições mensais (job diário) | FA-03     | `application/ensure-audit-partitions.job.ts`, scheduler |
 
 - **Mascaramento:** segredos (`password`, `token`, `accessToken`, `secret`, `cookie`…) viram

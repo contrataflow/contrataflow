@@ -4,13 +4,20 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 
 import type { OutboxRuntimeConfig } from '#config/outbox.js';
+import type { SessionsRuntimeConfig } from '#config/sessions.js';
 
 import { TraceDemoJobHandler } from './jobs/trace-demo.job.js';
-import { OUTBOX_RUNTIME_CONFIG, OutboxRuntime } from './outbox/outbox.runtime.js';
+import {
+  OUTBOX_RUNTIME_CONFIG,
+  OutboxRuntime,
+  SESSION_TERMINATION_CONFIG,
+} from './outbox/outbox.runtime.js';
 
 export interface WorkerModuleOptions {
   /** Relay do outbox e consumidor de `domain-events` (US-082); `null` = desligados. */
   readonly outbox?: OutboxRuntimeConfig | null;
+  /** Redis de sessões do encerramento por vínculo (US-088); `null` = descarta com aviso. */
+  readonly sessions?: SessionsRuntimeConfig | null;
 }
 
 /**
@@ -22,7 +29,11 @@ export interface WorkerModuleOptions {
 export class WorkerModule {
   static forRoot(logger: PinoLogger, options: WorkerModuleOptions = {}): DynamicModule {
     const outbox: Provider[] = options.outbox
-      ? [{ provide: OUTBOX_RUNTIME_CONFIG, useValue: options.outbox }, OutboxRuntime]
+      ? [
+          { provide: OUTBOX_RUNTIME_CONFIG, useValue: options.outbox },
+          { provide: SESSION_TERMINATION_CONFIG, useValue: options.sessions ?? null },
+          OutboxRuntime,
+        ]
       : [];
     return {
       module: WorkerModule,

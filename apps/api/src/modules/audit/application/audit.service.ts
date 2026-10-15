@@ -50,6 +50,9 @@ const ACTOR_TYPES: Readonly<Record<RequestContext['actor']['type'], ActorType>> 
 /** Intervalo mínimo entre logs agregados (`audit.coalesced`, `audit.sampling_unavailable`). */
 const SUMMARY_LOG_INTERVAL_MS = 60_000;
 
+/** Tolerância de relógio entre réplicas para um `occurredAt` informado pelo chamador. */
+const OCCURRED_AT_FUTURE_TOLERANCE_MS = 1_000;
+
 /** Erros já registrados como `audit.write_failed` (não repetir o log em `recordStandalone`). */
 const loggedFailures = new WeakSet<object>();
 
@@ -70,6 +73,23 @@ function specOf(action: string): AuditActionSpec {
     );
   }
   return AUDIT_ACTIONS[action];
+}
+
+/**
+ * Horário do registro: o informado pelo chamador (fato anterior à gravação — varredura de sessões)
+ * ou o do relógio. Data inválida ou no futuro (além da tolerância) é erro de programação: um fato
+ * não acontece depois de agora, e o `occurredAt` escolhe a partição e entra no `rowHash`.
+ */
+function resolveOccurredAt(entry: AuditEntry, now: Date): Date {
+  if (entry.occurredAt === undefined) return now;
+  const time = entry.occurredAt.getTime();
+  if (Number.isNaN(time)) {
+    throw new AuditContractError('OCCURRED_AT', 'occurredAt não é uma data válida.');
+  }
+  if (time > now.getTime() + OCCURRED_AT_FUTURE_TOLERANCE_MS) {
+    throw new AuditContractError('OCCURRED_AT', 'occurredAt está no futuro.');
+  }
+  return entry.occurredAt;
 }
 
 function optionalUuid(value: string | null | undefined, field: string): string | null {
@@ -118,8 +138,12 @@ export class AuditService implements AuditTrailPort {
       result,
       reasonCode,
       requireRequestContext(),
-      now,
+      resolveOccurredAt(entry, now),
     );
+
+    if (entry.oncePerSession && (await this.alreadyRecordedForSession(tx, draft))) {
+      return { kind: 'duplicate' };
+    }
 
     let { metadata } = draft;
     if (spec.coalescible && entry.coalesce) {
@@ -201,14 +225,14 @@ export class AuditService implements AuditTrailPort {
     result: AuditResult,
     reasonCode: string | null,
     context: RequestContext,
-    now: Date,
+    occurredAt: Date,
   ): AuditRecord {
     const actorType = ACTOR_TYPES[context.actor.type];
     const system = actorType === 'SYSTEM';
     const changes = entry.changes && entry.changes.length > 0 ? maskChanges(entry.changes) : null;
     return {
       id: newId(),
-      occurredAt: now,
+      occurredAt,
       tenantId: context.tenantId,
       actorType,
       actorUserId: system ? null : context.actor.userId,
@@ -230,6 +254,27 @@ export class AuditService implements AuditTrailPort {
       requestId: columnText(context.requestId, 64),
       sessionIdHash: context.sessionIdHash ?? null,
     };
+  }
+
+  /**
+   * `oncePerSession`: a sessão do contexto já tem esta ação neste horário no tenant? Sem sessão ou
+   * sem tenant não há como deduplicar (o registro de plataforma não é legível pela aplicação —
+   * DEC-071): erro de contrato, nunca gravação sem a garantia pedida.
+   */
+  private async alreadyRecordedForSession(tx: TenantTx, draft: AuditRecord): Promise<boolean> {
+    const { tenantId, sessionIdHash } = draft;
+    if (tenantId === null || sessionIdHash === null) {
+      throw new AuditContractError(
+        'SESSION',
+        `oncePerSession exige sessionIdHash e tenant no contexto (${draft.action}).`,
+      );
+    }
+    return this.store.existsForSession(tx, {
+      tenantId,
+      action: draft.action,
+      sessionIdHash,
+      occurredAt: draft.occurredAt,
+    });
   }
 
   /** RN-AUD-06: o último registro da chave na janela representa esta chamada? */

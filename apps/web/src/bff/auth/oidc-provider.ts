@@ -6,12 +6,14 @@ import { createRemoteJWKSet, customFetch, errors, jwtVerify } from 'jose';
 import type { JWTPayload } from 'jose';
 
 import { codeChallenge, newLoginSecrets } from './pkce';
+import { IdentityProviderUnavailableError } from '../session/types';
 import type {
   IdentityProvider,
   LoginCompletion,
   LoginSecrets,
   LoginStart,
   RefreshResult,
+  RevocationResult,
   SessionRecord,
   SessionTokens,
 } from '../session/types';
@@ -25,6 +27,8 @@ import type {
 
 export const ID_TOKEN_ALGORITHMS = ['RS256', 'ES256'];
 const DISCOVERY_TTL_MS = 60 * 60_000;
+/** Tempo-limite das chamadas ao IdP durante o logout (RN-IAM-20). */
+const LOGOUT_TIMEOUT_MS = 2_000;
 
 export interface OidcProviderOptions {
   readonly issuer: string;
@@ -45,6 +49,7 @@ interface Discovery {
   readonly token_endpoint: string;
   readonly jwks_uri: string;
   readonly end_session_endpoint?: string;
+  readonly revocation_endpoint?: string;
 }
 
 function isDiscovery(value: unknown): value is Discovery {
@@ -96,7 +101,10 @@ export class OidcIdentityProvider implements IdentityProvider {
     this.now = options.now ?? Date.now;
   }
 
-  async beginLogin(input: { readonly stepUp: boolean }): Promise<LoginStart> {
+  async beginLogin(input: {
+    readonly stepUp: boolean;
+    readonly reauthenticate?: boolean;
+  }): Promise<LoginStart> {
     const doc = await this.discover();
     const secrets = newLoginSecrets();
     const url = new URL(doc.authorization_endpoint);
@@ -108,8 +116,10 @@ export class OidcIdentityProvider implements IdentityProvider {
     url.searchParams.set('nonce', secrets.nonce);
     url.searchParams.set('code_challenge', codeChallenge(secrets.codeVerifier));
     url.searchParams.set('code_challenge_method', 'S256');
-    // Step-up (US-090): reautenticação no IdP sem reaproveitar a sessão dele.
-    if (input.stepUp) url.searchParams.set('max_age', '0');
+    // Step-up (US-090) e entrada após expiração (RN-IAM-32): reautenticação no IdP sem
+    // reaproveitar a sessão dele — a ociosidade não é contornada pelo SSO.
+    if (input.stepUp || input.reauthenticate === true) url.searchParams.set('max_age', '0');
+    if (input.reauthenticate === true) url.searchParams.set('prompt', 'login');
     return { ...secrets, redirectUrl: url.href };
   }
 
@@ -194,10 +204,59 @@ export class OidcIdentityProvider implements IdentityProvider {
     return tokens ? { kind: 'ok', tokens } : { kind: 'transient' };
   }
 
-  endSessionUrl(): string | null {
-    const endpoint = this.discovery?.doc.end_session_endpoint;
+  /**
+   * Revogação do refresh token no logout (RFC 7009 · RN-IAM-20): melhor esforço com tempo-limite
+   * de 2 s — IdP lento ou fora do ar não segura o logout local (FA-06).
+   */
+  async revokeRefreshToken(record: SessionRecord): Promise<RevocationResult> {
+    const refreshToken = record.tokens.refreshToken;
+    if (!refreshToken) return 'skipped';
+    let doc: Discovery;
+    try {
+      doc = await this.discover(LOGOUT_TIMEOUT_MS);
+    } catch {
+      return 'unavailable';
+    }
+    if (!doc.revocation_endpoint) return 'skipped';
+    try {
+      const response = await this.fetch(doc.revocation_endpoint, {
+        method: 'POST',
+        headers: {
+          authorization: this.clientAuthorization(),
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          token: refreshToken,
+          token_type_hint: 'refresh_token',
+        }).toString(),
+        redirect: 'error',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(LOGOUT_TIMEOUT_MS),
+      });
+      await response.body?.cancel();
+      // 4xx (token já inválido, tipo não suportado): nada a revogar; 5xx: IdP com problema.
+      return response.status >= 500 ? 'unavailable' : 'revoked';
+    } catch {
+      return 'unavailable';
+    }
+  }
+
+  /**
+   * URL do *RP-initiated logout* (`end_session_endpoint`) com `client_id` e
+   * `post_logout_redirect_uri` (`/entrar?motivo=saiu`, registrado no Authentik como `logout`).
+   * Sem `id_token_hint` (DEC-070): o token nunca vai para uma URL do navegador — em computador
+   * compartilhado ficaria no histórico. O endpoint é por aplicação, então o Authentik identifica
+   * o cliente sem ele.
+   */
+  async endSessionUrl(): Promise<string | null> {
+    let doc: Discovery;
+    try {
+      doc = await this.discover(LOGOUT_TIMEOUT_MS);
+    } catch (error) {
+      throw new IdentityProviderUnavailableError({ cause: error });
+    }
+    const endpoint = doc.end_session_endpoint;
     if (!endpoint) return null;
-    // RP-initiated logout sem `id_token_hint`: o token nunca vai para a URL do navegador.
     const url = new URL(endpoint);
     url.searchParams.set('client_id', this.options.clientId);
     url.searchParams.set('post_logout_redirect_uri', this.options.postLogoutRedirectUri);
@@ -246,7 +305,7 @@ export class OidcIdentityProvider implements IdentityProvider {
     return payload;
   }
 
-  private async discover(): Promise<Discovery> {
+  private async discover(timeoutMs = this.options.timeoutMs ?? 5_000): Promise<Discovery> {
     if (this.discovery && this.now() - this.discovery.fetchedAt < DISCOVERY_TTL_MS) {
       return this.discovery.doc;
     }
@@ -257,7 +316,7 @@ export class OidcIdentityProvider implements IdentityProvider {
       headers: { accept: 'application/json' },
       redirect: 'error',
       cache: 'no-store',
-      signal: AbortSignal.timeout(this.options.timeoutMs ?? 5_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) throw new Error(`Descoberta OIDC: HTTP ${response.status}`);
     const doc: unknown = await response.json();
@@ -269,19 +328,24 @@ export class OidcIdentityProvider implements IdentityProvider {
     return doc;
   }
 
+  /** `client_secret_basic` (RFC 6749 §2.3.1). */
+  private clientAuthorization(): string {
+    const credentials = Buffer.from(
+      `${encodeURIComponent(this.options.clientId)}:${encodeURIComponent(this.options.clientSecret)}`,
+    ).toString('base64');
+    return `Basic ${credentials}`;
+  }
+
   private async tokenRequest(
     doc: Discovery,
     form: Readonly<Record<string, string>>,
   ): Promise<TokenResponse> {
-    const credentials = Buffer.from(
-      `${encodeURIComponent(this.options.clientId)}:${encodeURIComponent(this.options.clientSecret)}`,
-    ).toString('base64');
     let response: Response;
     try {
       response = await this.fetch(doc.token_endpoint, {
         method: 'POST',
         headers: {
-          authorization: `Basic ${credentials}`,
+          authorization: this.clientAuthorization(),
           'content-type': 'application/x-www-form-urlencoded',
           accept: 'application/json',
         },

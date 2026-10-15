@@ -251,6 +251,173 @@ describe('AuditService.record (US-073)', () => {
   });
 });
 
+describe('occurredAt do fato (US-088 · gravação posterior ao fato)', () => {
+  const FACT = new Date('2026-10-14T11:30:00.000Z');
+
+  it('[Sucesso] grava com o horário real do fato, que entra no rowHash, não com o da gravação', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    const outcome = await asAna((tx) =>
+      service.record(tx, { action: 'auth.session_expired', occurredAt: FACT }),
+    );
+    const [record] = store.records as [SealedAuditRecord];
+    expect(record.occurredAt).toEqual(FACT);
+    expect(outcome).toMatchObject({ kind: 'recorded', occurredAt: FACT });
+    const { rowHash, ...rest } = record;
+    expect(rowHash).toBe(rowHashOf(rest));
+    expect(rowHash).not.toBe(rowHashOf({ ...rest, occurredAt: new Date('2026-10-14T12:00:00Z') }));
+  });
+
+  it('sem occurredAt, usa o relógio da gravação', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    await asAna((tx) => service.record(tx, { action: 'auth.session_end' }));
+    expect(store.records[0]?.occurredAt).toEqual(new Date('2026-10-14T12:00:00.000Z'));
+  });
+
+  it('[Validação] horário no futuro é recusado antes do INSERT; até 1 s de folga de relógio é aceito', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    const insert = vi.spyOn(store, 'insert');
+    await expect(
+      asAna((tx) =>
+        service.record(tx, {
+          action: 'auth.session_end',
+          occurredAt: new Date('2026-10-14T12:00:01.001Z'),
+        }),
+      ),
+    ).rejects.toMatchObject({ name: 'AuditContractError', rule: 'OCCURRED_AT' });
+    expect(insert).not.toHaveBeenCalled();
+
+    await asAna((tx) =>
+      service.record(tx, {
+        action: 'auth.session_end',
+        occurredAt: new Date('2026-10-14T12:00:01.000Z'),
+      }),
+    );
+    expect(store.records).toHaveLength(1);
+  });
+
+  it('[Validação] data inválida é recusada', async () => {
+    const { service, store } = setup();
+    await expect(
+      asAna((tx) =>
+        service.record(tx, { action: 'auth.session_end', occurredAt: new Date('não é data') }),
+      ),
+    ).rejects.toMatchObject({ rule: 'OCCURRED_AT' });
+    expect(store.records).toHaveLength(0);
+  });
+});
+
+describe('oncePerSession (US-088 · [Duplicidade])', () => {
+  const FACT = new Date('2026-10-14T11:30:00.000Z');
+  const ended = { action: 'auth.session_expired' as const, occurredAt: FACT, oncePerSession: true };
+
+  /** Requisição sem hash de sessão (o que o BFF não informou). */
+  function withoutSession<T>(fn: (tx: TenantTx) => Promise<T>, tenantId = TENANT): Promise<T> {
+    return runWithRequestContext({ correlationId: 'corr-0002', ip: '', userAgent: '' }, () => {
+      updateRequestContext({
+        tenantId,
+        actor: { type: 'USER', userId: ANA, membershipId: ANA_MEMBERSHIP, name: 'Ana Ribeiro' },
+      });
+      return runSimulatedTransaction(fn);
+    });
+  }
+
+  it('a segunda gravação do mesmo fato da mesma sessão devolve duplicate e não grava', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    expect((await asAna((tx) => service.record(tx, ended))).kind).toBe('recorded');
+    expect(await asAna((tx) => service.record(tx, ended))).toEqual({ kind: 'duplicate' });
+    expect(store.records).toHaveLength(1);
+  });
+
+  it('outra sessão, outro horário, outra ação ou outro tenant não colidem', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    await asAna((tx) => service.record(tx, ended));
+    const otherSession = () =>
+      runWithRequestContext(
+        { correlationId: 'c-3', ip: '', userAgent: '', sessionIdHash: 'b'.repeat(64) },
+        () => {
+          updateRequestContext({
+            tenantId: TENANT,
+            actor: { type: 'USER', userId: ANA, membershipId: ANA_MEMBERSHIP },
+          });
+          return runSimulatedTransaction((tx) => service.record(tx, ended));
+        },
+      );
+    expect((await otherSession()).kind).toBe('recorded');
+    expect(
+      (
+        await asAna((tx) =>
+          service.record(tx, { ...ended, occurredAt: new Date(FACT.getTime() + 1) }),
+        )
+      ).kind,
+    ).toBe('recorded');
+    expect(
+      (await asAna((tx) => service.record(tx, { ...ended, action: 'auth.session_end' }))).kind,
+    ).toBe('recorded');
+    expect((await asAna((tx) => service.record(tx, ended), OTHER_TENANT)).kind).toBe('recorded');
+    expect(store.records).toHaveLength(5);
+  });
+
+  it('sem oncePerSession a mesma entrada grava duas vezes (a garantia é opt-in)', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    const plain = { action: 'auth.session_expired' as const, occurredAt: FACT };
+    await asAna((tx) => service.record(tx, plain));
+    await asAna((tx) => service.record(tx, plain));
+    expect(store.records).toHaveLength(2);
+  });
+
+  it('[Validação] sem sessionIdHash ou sem tenant no contexto é erro de contrato', async () => {
+    const { service, store } = setup();
+    await expect(withoutSession((tx) => service.record(tx, ended))).rejects.toMatchObject({
+      name: 'AuditContractError',
+      rule: 'SESSION',
+    });
+    await expect(asAna((tx) => service.record(tx, ended), null)).rejects.toMatchObject({
+      rule: 'SESSION',
+    });
+    expect(store.records).toHaveLength(0);
+  });
+
+  it('o recordStandalone devolve duplicate e não abre nova gravação', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    expect((await asAna(() => service.recordStandalone(ended))).kind).toBe('recorded');
+    expect(await asAna(() => service.recordStandalone(ended))).toEqual({ kind: 'duplicate' });
+    expect(store.records).toHaveLength(1);
+  });
+
+  it('o store em memória confere tenant, ação, sessão e horário exatos', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service, store } = setup();
+    await asAna((tx) => service.record(tx, ended));
+    const query = {
+      tenantId: TENANT,
+      action: 'auth.session_expired' as const,
+      sessionIdHash: 'a'.repeat(64),
+      occurredAt: FACT,
+    };
+    const tx = {} as TenantTx;
+    await expect(store.existsForSession(tx, query)).resolves.toBe(true);
+    await expect(store.existsForSession(tx, { ...query, tenantId: OTHER_TENANT })).resolves.toBe(
+      false,
+    );
+    await expect(
+      store.existsForSession(tx, { ...query, action: 'auth.session_end' }),
+    ).resolves.toBe(false);
+    await expect(
+      store.existsForSession(tx, { ...query, sessionIdHash: 'c'.repeat(64) }),
+    ).resolves.toBe(false);
+    await expect(
+      store.existsForSession(tx, { ...query, occurredAt: new Date(FACT.getTime() - 1) }),
+    ).resolves.toBe(false);
+  });
+});
+
 describe('coalescência (RN-AUD-06 · [Duplicidade])', () => {
   const draftUpdate = (revision: number, size: number, scope = 'JUSTIFICATION') => ({
     action: 'document.draft_update' as const,

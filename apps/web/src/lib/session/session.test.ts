@@ -2,17 +2,17 @@ import { toast } from '@contrataflow/ui';
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
+import { MemoryDraftBackend, LocalDrafts } from '@/lib/drafts/local-drafts';
 import { formatDateTime, formatMoney } from '@/lib/i18n/format';
 import { tenantKey } from '@/lib/query/keys';
 
-import { fetchActiveTenantId, logout, switchTenant } from './session-actions';
+import { extendSession, fetchSessionState, logout, switchTenant } from './session-actions';
 import {
   SESSION_CHANNEL,
   isSessionEvent,
   publishSessionEvent,
   subscribeSessionEvents,
 } from './session-channel';
-import type { SessionEvent } from './session-channel';
 
 const A = '0192a000-0000-7000-8000-00000000000a';
 const B = '0192a000-0000-7000-8000-00000000000b';
@@ -24,12 +24,15 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function nextEvent(): Promise<SessionEvent> {
+/** Próxima mensagem publicada no canal, como outra aba a recebe (sem o filtro de origem). */
+function nextEvent(): Promise<unknown> {
   return new Promise((resolve) => {
-    const stop = subscribeSessionEvents((event) => {
-      stop();
-      resolve(event);
-    });
+    const raw = new BroadcastChannel(SESSION_CHANNEL);
+    raw.onmessage = (message: MessageEvent<unknown>) => {
+      if (!isSessionEvent(message.data)) return;
+      raw.close();
+      resolve(message.data);
+    };
   });
 }
 
@@ -63,7 +66,7 @@ describe('[Tenant incorreto] troca de tenant limpa o cache de dados', () => {
     expect(JSON.stringify(queryClient.getQueryCache().getAll())).not.toContain('Prefeitura A');
     expect(order).toEqual(['clear', 'refresh']);
     expect(clear).toHaveBeenCalledTimes(1);
-    expect(await broadcast).toEqual({ type: 'tenant-switched', tenantId: B });
+    expect(await broadcast).toMatchObject({ type: 'tenant-switched', tenantId: B });
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
     expect(url).toBe('/api/auth/switch-tenant');
     expect(new Headers(init?.headers).get('X-CF-Request')).toBe('1');
@@ -96,12 +99,12 @@ describe('logout e sondagem de sessão', () => {
     await logout({
       queryClient,
       navigate,
-      fetchImpl: () => Promise.resolve(json({ data: { redirectTo: '/entrar?motivo=saiu' } })),
+      fetchImpl: () => Promise.resolve(json({ data: { logoutUrl: '/entrar?motivo=saiu' } })),
     });
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(storage.clear).toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith('/entrar?motivo=saiu');
-    expect(await broadcast).toEqual({ type: 'logout' });
+    expect(await broadcast).toMatchObject({ type: 'logout' });
     vi.unstubAllGlobals();
 
     const fallback = vi.fn();
@@ -119,39 +122,79 @@ describe('logout e sondagem de sessão', () => {
     vi.unstubAllGlobals();
   });
 
-  it('keepalive: sem sessão, tenant ativo ou resposta inútil', async () => {
-    expect(await fetchActiveTenantId(() => Promise.resolve(json({}, 401)))).toEqual({
+  it('logout apaga os rascunhos locais do usuário (RN-IAM-31)', async () => {
+    const drafts = new LocalDrafts(new MemoryDraftBackend());
+    await drafts.save({ userId: 'u1', tenantId: 't', target: 'x', content: 1, baseRevision: null });
+    await drafts.save({ userId: 'u2', tenantId: 't', target: 'x', content: 1, baseRevision: null });
+    vi.stubGlobal('sessionStorage', { clear: vi.fn() });
+    await logout({
+      queryClient: new QueryClient(),
+      navigate: vi.fn(),
+      userId: 'u1',
+      drafts,
+      fetchImpl: () => Promise.resolve(json({ data: { logoutUrl: 'https://idp/fim' } })),
+    });
+    expect(await drafts.hasUnsynced('u1')).toBe(false);
+    expect(await drafts.hasUnsynced('u2')).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('estado da sessão: sondagem sem renovar e "Continuar conectado" com keepalive', async () => {
+    const session = { activeTenant: { id: A }, idleExpiresAt: '2026-10-14T12:30:00.000Z' };
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve(json({ data: session })));
+    expect(await fetchSessionState(fetchImpl)).toEqual({ kind: 'active', session });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/auth/session');
+    await extendSession(fetchImpl);
+    expect(fetchImpl.mock.calls[1]?.[0]).toBe('/api/auth/session?keepalive=true');
+    const answer = (body: unknown, status: number) => () => Promise.resolve(json(body, status));
+    expect(await fetchSessionState(answer({ code: 'SESSION_EXPIRED' }, 401))).toEqual({
+      kind: 'expired',
+    });
+    expect(await fetchSessionState(answer({ code: 'UNAUTHENTICATED' }, 401))).toEqual({
       kind: 'no-session',
     });
+    expect(await fetchSessionState(answer({ code: 'MEMBERSHIP_INACTIVE' }, 403))).toEqual({
+      kind: 'membership-inactive',
+    });
+    // Redis de sessões fora (503) ou rede: indisponível, nunca "expirada" (RN-IAM-33).
+    expect(await fetchSessionState(answer({ code: 'DEPENDENCY_UNAVAILABLE' }, 503))).toEqual({
+      kind: 'unavailable',
+    });
+    expect(await fetchSessionState(() => Promise.reject(new TypeError('rede')))).toEqual({
+      kind: 'unavailable',
+    });
     expect(
-      await fetchActiveTenantId(() => Promise.resolve(json({ data: { activeTenant: { id: A } } }))),
-    ).toEqual({
-      kind: 'tenant',
-      tenantId: A,
-    });
-    expect(await fetchActiveTenantId(() => Promise.resolve(json({}, 503)))).toEqual({
-      kind: 'tenant',
-      tenantId: null,
-    });
-    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve(json({ data: {} })));
-    expect(await fetchActiveTenantId(fetchImpl)).toEqual({ kind: 'tenant', tenantId: null });
-    expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/auth/session?keepalive=1');
+      await fetchSessionState(() => Promise.resolve(new Response('x', { status: 200 }))),
+    ).toEqual({ kind: 'unavailable' });
   });
 });
 
 describe('BroadcastChannel cf-session', () => {
-  it('valida mensagens e entrega às outras instâncias', async () => {
+  it('valida mensagens, ignora as da própria aba e entrega as das outras', async () => {
     expect(SESSION_CHANNEL).toBe('cf-session');
     expect(isSessionEvent({ type: 'expired' })).toBe(true);
     expect(isSessionEvent({ type: 'tenant-switched' })).toBe(false);
+    expect(isSessionEvent({ type: 'extended', idleExpiresAt: 'ontem' })).toBe(false);
     expect(isSessionEvent('logout')).toBe(false);
-    const received = nextEvent();
-    // Mensagem estranha é ignorada; a válida chega.
+    const handler = vi.fn();
+    const stop = subscribeSessionEvents(handler);
     const raw = new BroadcastChannel(SESSION_CHANNEL);
-    raw.postMessage({ type: 'outra-coisa' });
+    raw.postMessage({ type: 'outra-coisa', source: 'outra-aba' });
+    // A aba que sai segue para o Authentik: a própria mensagem não a desvia para a SCR-001.
+    publishSessionEvent({ type: 'logout' });
+    raw.postMessage({
+      type: 'extended',
+      idleExpiresAt: '2026-10-14T12:30:00.000Z',
+      source: 'outra-aba',
+    });
     raw.close();
-    publishSessionEvent({ type: 'expired' });
-    expect(await received).toEqual({ type: 'expired' });
+    await vi.waitFor(() => {
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'extended' }));
+    stop();
   });
 
   it('sem BroadcastChannel (navegador antigo) não quebra', () => {

@@ -19,6 +19,7 @@ import type {
   LoginCompletion,
   LoginStart,
   RefreshResult,
+  RevocationResult,
   SessionDirectory,
   SessionStore,
 } from './session/types';
@@ -59,8 +60,13 @@ export class UnconfiguredIdentityProvider implements IdentityProvider {
     return Promise.resolve({ kind: 'transient' });
   }
 
-  endSessionUrl(): string | null {
-    return null;
+  /** Nada a revogar: o provedor fake não emite refresh token real. */
+  revokeRefreshToken(): Promise<RevocationResult> {
+    return Promise.resolve('skipped');
+  }
+
+  endSessionUrl(): Promise<string | null> {
+    return Promise.resolve(null);
   }
 }
 
@@ -120,11 +126,11 @@ export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides 
     overrides.store ??
     (redis
       ? new RedisSessionStore(redis, {
-          keyPrefix: config.session.keyPrefix,
+          appEnv: config.appEnv,
           tokenKey: deriveKey(master, 'session-tokens'),
           now,
         })
-      : new MemorySessionStore());
+      : new MemorySessionStore(now));
   const counter =
     overrides.rateLimitCounter ??
     (redis ? new RedisRateLimitCounter(redis) : new MemoryRateLimitCounter());

@@ -1,5 +1,8 @@
 import 'server-only';
 
+import type { SessionEndReason, SessionPolicy } from '@contrataflow/types';
+import type { SessionTombstone } from '@contrataflow/validation';
+
 /*
  * Portas da sessão do BFF (authentication.md §3/§4 · DEC-131). Adaptadores (US-087): Redis de
  * sessões com tokens cifrados (`RedisSessionStore`), OIDC do Authentik com PKCE
@@ -59,8 +62,22 @@ export interface SessionRecord {
   readonly userAgentHash: string | null;
   readonly createdAt: number;
   readonly lastSeenAt: number;
+  /** Ociosidade da instituição ativa (`security.sessionIdleMinutes` — RN-IAM-21). */
+  readonly idleMinutes: number;
   readonly idleExpiresAt: number;
   readonly absoluteExpiresAt: number;
+}
+
+/** Cliente da requisição que encerra a sessão (vai para a auditoria do encerramento). */
+export interface ClientDetails {
+  readonly ip: string | null;
+  readonly userAgent: string | null;
+}
+
+/** Encerramento: motivo, horário real do fato e cliente (RN-IAM-24/28). */
+export interface SessionEnding extends ClientDetails {
+  readonly reason: SessionEndReason;
+  readonly occurredAt: number;
 }
 
 /** Redis de sessões (ou o store) fora do ar: o BFF responde 503 — nunca "sessão expirada". */
@@ -73,14 +90,28 @@ export class SessionStoreUnavailableError extends Error {
 
 export interface SessionStore {
   get(key: string): Promise<SessionRecord | null>;
-  /** Grava um registro existente (atualização). */
+  /**
+   * Atualiza um registro vivo. Nunca recria uma sessão já encerrada (Redis: `SET XX`) — uma
+   * requisição em voo durante o logout não ressuscita a sessão.
+   */
   save(record: SessionRecord): Promise<void>;
   /**
    * Grava uma sessão nova e a inclui no índice do usuário; acima de `maxPerUser`, encerra as mais
-   * antigas (RN-IAM-10) e devolve as chaves removidas.
+   * antigas (`SESSION_LIMIT` — RN-IAM-10) e devolve as chaves encerradas.
    */
   create(record: SessionRecord, maxPerUser: number): Promise<readonly string[]>;
-  delete(key: string): Promise<void>;
+  /** Instituição ou limites mudaram: índice por vínculo e prazo da varredura (RN-IAM-27/28). */
+  reindex(record: SessionRecord, previousMembershipId: string | null): Promise<void>;
+  /**
+   * Encerra: apaga os tokens e deixa o registro de encerramento para a auditoria da varredura.
+   * `true` só para quem de fato encerrou (concorrentes recebem `false`).
+   */
+  end(record: SessionRecord, ending: SessionEnding): Promise<boolean>;
+  /** Registro de encerramento ainda não auditado (no máximo 24 h). */
+  getEnded(key: string): Promise<SessionTombstone | null>;
+  /** Trava de renovação por sessão (`SET NX PX`); devolve o dono da trava ou `null`. */
+  acquireRefreshLock(key: string, ttlMs: number): Promise<string | null>;
+  releaseRefreshLock(key: string, owner: string): Promise<void>;
 }
 
 /** Login concluído no IdP: identidade do provedor e tokens (sem dados da aplicação). */
@@ -122,17 +153,39 @@ export type RefreshResult =
   /** Falha transitória do IdP: segue com o token se ainda válido; senão 503. */
   | { readonly kind: 'transient' };
 
+/** Revogação do refresh token (RFC 7009, melhor esforço — RN-IAM-20). */
+export type RevocationResult =
+  | 'revoked'
+  /** Nada a revogar (sem refresh token, provedor sem endpoint de revogação, fake). */
+  | 'skipped'
+  /** IdP fora do ar ou lento (> 2 s): o logout local segue (FA-06). */
+  | 'unavailable';
+
+/** O IdP não respondeu ao montar o *RP-initiated logout* (FA-06). */
+export class IdentityProviderUnavailableError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    super('Provedor de identidade indisponível.', options);
+    this.name = 'IdentityProviderUnavailableError';
+  }
+}
+
 export interface IdentityProvider {
   readonly kind: 'fake' | 'oidc';
   beginLogin(input: {
     readonly appOrigin: string;
     readonly stepUp: boolean;
     readonly hint: string | null;
+    /** Após expiração: reautenticação no IdP, sem reaproveitar a sessão dele (RN-IAM-32). */
+    readonly reauthenticate?: boolean;
   }): Promise<LoginStart>;
   completeLogin(params: URLSearchParams, secrets: LoginSecrets): Promise<LoginCompletion>;
   refresh(record: SessionRecord): Promise<RefreshResult>;
-  /** URL de *end-session* do IdP (RP-initiated logout); `null` quando não há. */
-  endSessionUrl(record: SessionRecord | null): string | null;
+  revokeRefreshToken(record: SessionRecord): Promise<RevocationResult>;
+  /**
+   * URL de *end-session* do IdP (RP-initiated logout); `null` quando não há.
+   * @throws IdentityProviderUnavailableError IdP fora do ar (descoberta)
+   */
+  endSessionUrl(): Promise<string | null>;
 }
 
 /** Identidade da aplicação resolvida pela API (`POST /internal/session-events`). */
@@ -147,6 +200,11 @@ export interface DirectoryIdentity {
     readonly membershipId: string;
     readonly tenantId: string;
     readonly readOnly: boolean;
+    /**
+     * Limites de sessão da instituição (`security.sessionIdleMinutes`/`sessionAbsoluteHours`);
+     * ausente → padrão da plataforma, até a API expô-los com as configurações (US-103).
+     */
+    readonly sessionPolicy?: Partial<SessionPolicy> | null;
   } | null;
 }
 

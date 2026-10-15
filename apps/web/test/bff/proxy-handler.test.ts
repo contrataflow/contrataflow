@@ -50,7 +50,8 @@ function refreshing(result: () => RefreshResult, base: TestRuntime): IdentityPro
     beginLogin: (input) => identity.beginLogin(input),
     completeLogin: (params, transaction) => identity.completeLogin(params, transaction),
     refresh: () => Promise.resolve(result()),
-    endSessionUrl: () => null,
+    revokeRefreshToken: () => Promise.resolve('skipped' as const),
+    endSessionUrl: () => Promise.resolve(null),
   };
 }
 

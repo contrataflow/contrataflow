@@ -213,7 +213,8 @@ export function loadWebConfig(env: EnvSource): WebConfig {
       clientSecret: data.OIDC_CLIENT_SECRET ?? null,
       scopes: data.OIDC_SCOPES,
       redirectUri: data.OIDC_REDIRECT_URI ?? new URL('/api/auth/callback', appUrl.origin).href,
-      postLogoutRedirectUri: data.OIDC_POST_LOGOUT_REDIRECT_URI ?? new URL('/', appUrl.origin).href,
+      postLogoutRedirectUri:
+        data.OIDC_POST_LOGOUT_REDIRECT_URI ?? new URL('/entrar?motivo=saiu', appUrl.origin).href,
     },
     session: {
       redisUrl: data.REDIS_SESSION_URL ?? null,

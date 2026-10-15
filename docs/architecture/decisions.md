@@ -514,6 +514,17 @@ Decisões de implementação da US-082 (guia de uso em `apps/api/src/modules/pla
 - **Observabilidade:** logs `outbox.relay_batch_published` (`batchSize`, `lagMsP95`), `outbox.relay_retry`, `outbox.relay_failed_permanently`, `outbox.relay_leader_acquired`/`outbox.relay_leader_lost` e `outbox.relay_cycle_failed`, sem payload. Métricas OpenTelemetry (no-op até a US-085 registrar o provedor): `cf_outbox_published_total`, `cf_outbox_publish_errors_total`, `cf_outbox_failed_total`, `cf_outbox_publish_lag_seconds`, `cf_outbox_batch_size`, `cf_outbox_batch_duration_seconds`, `cf_outbox_relay_leader` e, na API, `cf_outbox_recorded_total`. Os *gauges* que dependem de consulta ao banco (`cf_outbox_pending_events`, `cf_outbox_oldest_pending_age_seconds`, `cf_outbox_failed_events`) ficam com a US-085.
 - Registrado em 2026-10-15 (US-082).
 
+### DEC-073 — Logout, expiração e varredura de sessões · `Aceita` · complementa DEC-070, DEC-071, DEC-131, DEC-132 e DEC-164
+Fecha as lacunas 1–4 da US-088 (detalhes em [authentication.md](authentication.md) §4.1):
+- **Encerramento sem tokens:** todo fim de sessão (logout, ociosidade, duração absoluta, renovação recusada, limite de sessões, vínculo) troca o registro vivo por um registro de encerramento (`cf:{env}:sess:end:{key}`, 24 h) com motivo e horário real do fato; a sessão viva só é gravada com `SET XX`. O protocolo (`sessionKeyspace` em `@contrataflow/types`, `endSession` em `@contrataflow/validation`) é único para BFF, API e worker, sem script Lua.
+- **Auditoria pela varredura na API:** `auth.session_end`/`auth.session_expired` são gravados pela varredura de 1 min no processo da API (como o job de partições da DEC-071) até o worker ter agendador (US-083) — só a API tem o `AuditService` (`rowHash`, partições, RLS). Cada registro na transação do tenant da sessão, ator = dono da sessão, `occurredAt` = horário real (`AuditEntry.occurredAt`, recusado no futuro) e `oncePerSession` (no máximo um registro por tenant + ação + horário + `sessionIdHash`); o registro de encerramento sai do Redis só depois do commit. Diverge do "mesma transação" da DEC-161 porque o logout não tem transação de banco (lacuna 3 da story).
+- **Encerramento por vínculo no worker:** índice `cf:{env}:sess:membership:{membershipId}` mantido pelo BFF (o payload dos eventos de vínculo só traz `membershipId`), em vez de ler `tenant_memberships` no worker; handler leve nas routing keys `membership.suspended|revoked|expired`, sem registrar os eventos (US-092).
+- **Sondagens:** `GET /api/auth/session` sem parâmetro e `GET /notifications/unread-count`/`/tasks/counters` não renovam a ociosidade; `?keepalive=true` renova (lacuna 1).
+- **Limites por instituição:** a sessão guarda `idleMinutes` e recalcula os prazos na ativação da instituição; até a US-103 expor as chaves (lacuna 4), o padrão 30 min / 12 h.
+- **Reautenticação após expiração (RN-IAM-32):** cookie `__Host-cf_reauth` gravado com o 401 `SESSION_EXPIRED` e `?reauth=1` no login → `max_age=0` + `prompt=login`; refresh token do Authentik válido por 24 h (teto da plataforma).
+- **Logout:** sem `id_token_hint` no *RP-initiated logout* (mantém a DEC-070 — a story pedia o parâmetro; em computador compartilhado o token ficaria no histórico); `post_logout_redirect_uri` = `/entrar?motivo=saiu`; Authentik indisponível → `saiu-parcial`. O CSRF do logout continua `403 CSRF_REJECTED` (padrão do BFF desde a US-086), não `PERMISSION_DENIED`.
+- Registrado em 2026-10-14 (US-088).
+
 ---
 
 ## 5. Dados e persistência

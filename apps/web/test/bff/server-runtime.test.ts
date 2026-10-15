@@ -124,7 +124,8 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
       beginLogin: base.runtime.identity.beginLogin.bind(base.runtime.identity),
       completeLogin: base.runtime.identity.completeLogin.bind(base.runtime.identity),
       refresh: () => Promise.resolve({ kind: 'invalid_grant' as const }),
-      endSessionUrl: () => null,
+      revokeRefreshToken: () => Promise.resolve('skipped' as const),
+      endSessionUrl: () => Promise.resolve(null),
     };
     const expiring = createTestRuntime({ identity });
     const { cookie, record } = await signIn(expiring);
@@ -185,7 +186,8 @@ describe('runtime do processo', () => {
         codeVerifier: 'v',
       }),
     ).toEqual({ ok: false, reason: 'PROVIDER_UNAVAILABLE' });
-    expect(runtime.identity.endSessionUrl(null)).toBeNull();
+    expect(await runtime.identity.endSessionUrl()).toBeNull();
+    expect(await new UnconfiguredIdentityProvider().revokeRefreshToken()).toBe('skipped');
   });
 
   it('fetch padrão delega ao fetch global', async () => {
@@ -199,13 +201,13 @@ describe('runtime do processo', () => {
 
   it('logger escreve JSON por linha no stdout', () => {
     const write = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
-    log('info', 'auth.session_end', { reason: 'LOGOUT' });
+    log('info', 'auth.logout', { rpLogout: 'success' });
     const line = String(write.mock.calls[0]?.[0]);
     expect(JSON.parse(line)).toMatchObject({
       level: 'info',
       service: 'web',
-      event: 'auth.session_end',
-      reason: 'LOGOUT',
+      event: 'auth.logout',
+      rpLogout: 'success',
     });
     write.mockRestore();
   });
