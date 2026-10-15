@@ -261,6 +261,7 @@ Cliente/conta do SaaS e fronteira de isolamento (DEC-011). Sem `tenant_id` e sem
 | `deactivatedAt` | timestamptz | sim | — | |
 | `offboardingStartedAt` | timestamptz | sim | — | Início do encerramento (`OFFBOARDING`) |
 | `offboardingEndsAt` | timestamptz | sim | — | Fim do prazo de leitura/exportação (DEC-132); obrigatório em `OFFBOARDING` |
+| `provisioningFingerprint` | char(64) | sim | — | SHA-256 de slug + CNPJ do órgão principal + e-mail do primeiro administrador (US-099 · DEC-078): a retomada do provisionamento só continua o mesmo pedido. Só o `cf_platform` lê; nunca exposto |
 | `createdAt`, `updatedAt`, `version` | — | não | — | |
 
 - **Unique:** `slug`.

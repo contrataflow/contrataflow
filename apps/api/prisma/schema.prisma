@@ -112,27 +112,30 @@ enum MembershipStatus {
 /// entities.md `Tenant` (módulo tenancy) · tabela de plataforma, sem RLS (DEC-080). Criada na
 /// US-087; a FK de `primaryOrganizationId` → `organizations` entra com a US-101.
 model Tenant {
-  id                    String       @id @db.Uuid
-  slug                  String       @unique(map: "tenants_slug_key") @db.VarChar(63)
-  name                  String       @db.VarChar(200)
-  legalName             String?      @map("legal_name") @db.VarChar(250)
-  type                  TenantType
-  status                TenantStatus @default(PROVISIONING)
-  stateCode             String       @map("state_code") @db.Char(2)
-  ibgeCityCode          String?      @map("ibge_city_code") @db.Char(7)
-  timezone              String       @default("America/Sao_Paulo") @db.VarChar(64)
-  locale                String       @default("pt-BR") @db.VarChar(10)
-  plan                  String       @default("STANDARD") @db.VarChar(40)
-  primaryOrganizationId String?      @map("primary_organization_id") @db.Uuid
-  activatedAt           DateTime?    @map("activated_at") @db.Timestamptz(6)
-  suspendedAt           DateTime?    @map("suspended_at") @db.Timestamptz(6)
-  suspensionReason      String?      @map("suspension_reason")
-  deactivatedAt         DateTime?    @map("deactivated_at") @db.Timestamptz(6)
-  offboardingStartedAt  DateTime?    @map("offboarding_started_at") @db.Timestamptz(6)
-  offboardingEndsAt     DateTime?    @map("offboarding_ends_at") @db.Timestamptz(6)
-  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version               Int          @default(1)
+  id                      String       @id @db.Uuid
+  slug                    String       @unique(map: "tenants_slug_key") @db.VarChar(63)
+  name                    String       @db.VarChar(200)
+  legalName               String?      @map("legal_name") @db.VarChar(250)
+  type                    TenantType
+  status                  TenantStatus @default(PROVISIONING)
+  stateCode               String       @map("state_code") @db.Char(2)
+  ibgeCityCode            String?      @map("ibge_city_code") @db.Char(7)
+  timezone                String       @default("America/Sao_Paulo") @db.VarChar(64)
+  locale                  String       @default("pt-BR") @db.VarChar(10)
+  plan                    String       @default("STANDARD") @db.VarChar(40)
+  primaryOrganizationId   String?      @map("primary_organization_id") @db.Uuid
+  activatedAt             DateTime?    @map("activated_at") @db.Timestamptz(6)
+  suspendedAt             DateTime?    @map("suspended_at") @db.Timestamptz(6)
+  suspensionReason        String?      @map("suspension_reason")
+  deactivatedAt           DateTime?    @map("deactivated_at") @db.Timestamptz(6)
+  offboardingStartedAt    DateTime?    @map("offboarding_started_at") @db.Timestamptz(6)
+  offboardingEndsAt       DateTime?    @map("offboarding_ends_at") @db.Timestamptz(6)
+  /// SHA-256 de slug + CNPJ do órgão principal + e-mail do primeiro administrador (US-099 · FA-01):
+  /// a retomada só continua o mesmo pedido. Só o cf_platform lê (sem GRANT para cf_app/cf_worker).
+  provisioningFingerprint String?      @map("provisioning_fingerprint") @db.Char(64)
+  createdAt               DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int          @default(1)
 
   memberships TenantMembership[]
 

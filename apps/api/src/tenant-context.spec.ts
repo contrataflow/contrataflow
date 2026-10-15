@@ -207,8 +207,8 @@ describe('Feature: Contexto de tenant e isolamento de dados (US-100)', () => {
     expect(memberships.status).toBe(200);
     const platform = await request(api.server)
       .get('/api/v1/_test/without-tenant')
-      .set('Authorization', bearer('ana'))
+      .set('Authorization', api.bearer('sub-operadora', { amr: ['pwd', 'otp'] }))
       .set('X-Tenant-Id', B);
-    expect(platform.body).toEqual({ data: { tenantId: null, userId: FAKE_USERS.ana.id } });
+    expect(platform.body).toEqual({ data: { tenantId: null, userId: FAKE_USERS.operadora.id } });
   });
 });

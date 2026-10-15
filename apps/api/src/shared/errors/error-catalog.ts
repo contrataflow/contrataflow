@@ -116,6 +116,16 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Aprovador não resolvível',
     detail: 'Não foi possível determinar quem aprova. Revise o aprovador selecionado.',
   },
+  TENANT_SLUG_TAKEN: {
+    status: 409,
+    title: 'Identificador em uso',
+    detail: 'O identificador informado já está em uso.',
+  },
+  TENANT_NOT_FOUND: {
+    status: 404,
+    title: 'Instituição não encontrada',
+    detail: 'Instituição não encontrada.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

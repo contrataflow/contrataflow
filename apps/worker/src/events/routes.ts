@@ -102,4 +102,11 @@ export function resolveRoutes(
 export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_ASYNC_CONSUMER'>> =
   {
     DocumentTypeChanged: ['document_type.changed'],
+    // US-099: o caso de uso remove o status do cache logo após o commit (TTL de 30 s como rede de
+    // segurança). Sessões não são encerradas: cada requisição é recusada pelo guard (RN-TEN-11).
+    TenantProvisioned: 'NO_ASYNC_CONSUMER',
+    TenantActivated: 'NO_ASYNC_CONSUMER',
+    TenantSuspended: 'NO_ASYNC_CONSUMER',
+    TenantOffboarded: 'NO_ASYNC_CONSUMER',
+    TenantDeactivated: 'NO_ASYNC_CONSUMER',
   };

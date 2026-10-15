@@ -40,6 +40,9 @@ const EXAMPLE_ROUTE =
 const DOCUMENT_TYPE_ADMIN_ROUTE =
   'Exige DOCUMENT_TYPE_MANAGE (que o usuário comum da suíte não tem): isolamento coberto em test/tenant-leak/document-types.spec.ts, com administradores nos dois tenants.';
 
+const PLATFORM_ROUTE =
+  'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
+
 /** Classificação por `operationId`. */
 export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Object.freeze({
   'ME-01': { kind: 'covered' },
@@ -63,6 +66,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
     reason:
       'Contrato BFF → API com credencial de serviço, fora de /api/v1; vínculo de outra pessoa → 422 REFERENCE_NOT_FOUND coberto em identity/presentation/tenant-switch.routes.spec.ts.',
   },
+  'PLT-01': { kind: 'exempt', reason: PLATFORM_ROUTE },
+  'PLT-02': { kind: 'exempt', reason: PLATFORM_ROUTE },
+  'PLT-03': { kind: 'exempt', reason: PLATFORM_ROUTE },
+  'PLT-04': { kind: 'exempt', reason: PLATFORM_ROUTE },
+  'PLT-05': { kind: 'exempt', reason: PLATFORM_ROUTE },
   'INTERNAL-PING': { kind: 'exempt', reason: EXAMPLE_ROUTE },
   'INTERNAL-ITEMS': { kind: 'exempt', reason: EXAMPLE_ROUTE },
   'INTERNAL-FEED': { kind: 'exempt', reason: EXAMPLE_ROUTE },

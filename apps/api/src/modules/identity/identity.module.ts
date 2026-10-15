@@ -1,16 +1,25 @@
 import { Module } from '@nestjs/common';
-import type { Provider } from '@nestjs/common';
+import type { OnModuleInit, Provider } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
-import { MEMBERSHIP_PORT, TOKEN_VERIFIER, USER_PORT } from '#shared/auth/ports.js';
+import {
+  MEMBERSHIP_PORT,
+  PLATFORM_OPERATOR_PORT,
+  TOKEN_VERIFIER,
+  USER_PORT,
+} from '#shared/auth/ports.js';
+import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
+import { FirstAdminSeeder } from './application/first-admin.seeder.js';
 import { IdentityFacade } from './application/identity.facade.js';
 import { GetMyProfileQuery, ListMyMembershipsQuery } from './application/me.queries.js';
 import {
   AUTHENTIK_DIRECTORY,
+  FIRST_ADMIN_STORE,
   IDENTITY_CLOCK,
   IDENTITY_REPOSITORY,
+  IDENTITY_TENANT_TRANSACTIONS,
   SESSION_AUDIT,
   TENANT_MFA_POLICY,
 } from './application/ports.js';
@@ -23,6 +32,11 @@ import {
   DisabledAuthentikDirectory,
 } from './infrastructure/authentik-admin.client.js';
 import { FakeJwksProvider } from './infrastructure/fake-jwks.provider.js';
+import {
+  InMemoryFirstAdminStore,
+  PrismaFirstAdminStore,
+  PrismaIdentityTenantTransactions,
+} from './infrastructure/first-admin.store.js';
 import {
   InMemoryAuthentikDirectory,
   InMemoryIdentityRepository,
@@ -39,6 +53,8 @@ import { SessionEventsController } from './presentation/session-events.controlle
 
 /** Repositório de identidade efetivo (Prisma, ou em memória no modo de identidade fake). */
 const IDENTITY_STORE = Symbol('IdentityStore');
+/** Primeiro administrador e operadores de plataforma (US-099), Prisma ou em memória. */
+const FIRST_ADMIN_BACKEND = Symbol('FirstAdminBackend');
 
 /**
  * Modo de identidade fake (`OIDC_FAKE_SIGNING_KEY`, só local/dev/test — FA-02 da US-080): token
@@ -84,6 +100,24 @@ function identityProviders(): Provider[] {
           : new DisabledAuthentikDirectory();
       },
     },
+    PrismaFirstAdminStore,
+    PrismaIdentityTenantTransactions,
+    {
+      provide: FIRST_ADMIN_BACKEND,
+      inject: [APP_CONFIG, PrismaFirstAdminStore],
+      useFactory: (config: AppConfig, prisma: PrismaFirstAdminStore) =>
+        config.oidc.fakeSigningKey ? new InMemoryFirstAdminStore() : prisma,
+    },
+    { provide: FIRST_ADMIN_STORE, useExisting: FIRST_ADMIN_BACKEND },
+    { provide: PLATFORM_OPERATOR_PORT, useExisting: FIRST_ADMIN_BACKEND },
+    {
+      provide: IDENTITY_TENANT_TRANSACTIONS,
+      inject: [FIRST_ADMIN_BACKEND, PrismaIdentityTenantTransactions],
+      useFactory: (
+        backend: InMemoryFirstAdminStore | PrismaFirstAdminStore,
+        prisma: PrismaIdentityTenantTransactions,
+      ) => (backend instanceof InMemoryFirstAdminStore ? backend : prisma),
+    },
     { provide: SESSION_AUDIT, useClass: AuditTrailSessionRecorder },
     {
       provide: TENANT_MFA_POLICY,
@@ -101,9 +135,11 @@ function identityProviders(): Provider[] {
  * (`TokenVerifierPort`, `UserPort`, `MembershipPort`), o início de sessão (`POST
  * /internal/session-events`) e ME-01/ME-04 (US-087). Desde a US-088 também roda a varredura de
  * encerramentos de sessão (`SessionSweepScheduler`, 1 min), que audita logout e expiração a partir
- * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`).
+ * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`). Desde a US-099: a
+ * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`.
  */
 @Module({
+  imports: [TenantSeedingModule],
   controllers: [MeController, SessionEventsController],
   providers: [
     IdentityFacade,
@@ -114,7 +150,19 @@ function identityProviders(): Provider[] {
     SessionSweepScheduler,
     GetMyProfileQuery,
     ListMyMembershipsQuery,
+    FirstAdminSeeder,
   ],
-  exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT],
+  exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT, PLATFORM_OPERATOR_PORT],
 })
-export class IdentityModule {}
+export class IdentityModule implements OnModuleInit {
+  constructor(
+    private readonly seeders: TenantSeederRegistry,
+    private readonly firstAdmin: FirstAdminSeeder,
+  ) {}
+
+  /** Seeder `identity.firstAdmin` e convite do primeiro administrador (US-099). */
+  onModuleInit(): void {
+    this.seeders.register(this.firstAdmin);
+    this.seeders.registerFirstAdminInvitation(this.firstAdmin);
+  }
+}

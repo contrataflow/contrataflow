@@ -27,6 +27,8 @@ export const ERROR_CODES = [
   'DEPENDENCY_UNAVAILABLE',
   'NUMBERING_MASK_INVALID',
   'APPROVER_UNRESOLVED',
+  'TENANT_SLUG_TAKEN',
+  'TENANT_NOT_FOUND',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

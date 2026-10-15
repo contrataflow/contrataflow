@@ -92,3 +92,21 @@ export const TOKEN_VERIFIER = Symbol('TokenVerifierPort');
 export const USER_PORT = Symbol('UserPort');
 export const MEMBERSHIP_PORT = Symbol('MembershipPort');
 export const TENANT_STATUS_PORT = Symbol('TenantStatusPort');
+
+/** Operador da plataforma (`User.isPlatformOperator` — permissions.md §8 · DEC-139). */
+export interface PlatformOperator {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly status: UserStatus;
+  readonly isPlatformOperator: boolean;
+}
+
+export interface PlatformOperatorPort {
+  /** Usuário autenticado (rotas `/platform/*`). */
+  findOperatorById(userId: string): Promise<PlatformOperator | null>;
+  /** `--operator <e-mail>` da CLI de operação (US-099). */
+  findOperatorByEmail(email: string): Promise<PlatformOperator | null>;
+}
+
+export const PLATFORM_OPERATOR_PORT = Symbol('PlatformOperatorPort');

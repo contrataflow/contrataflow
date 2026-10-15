@@ -292,6 +292,34 @@
           "usable",
           "readOnly"
         ]
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "totalItems",
+          "totalPages"
+        ]
       }
     },
     "parameters": {}
@@ -1848,6 +1876,1561 @@
                           "introducedIn"
                         ]
                       }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants": {
+      "get": {
+        "operationId": "PLT-02",
+        "summary": "Listar tenants (plataforma)",
+        "tags": [
+          "Plataforma — tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "PLATFORM",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PROVISIONING",
+                "ACTIVE",
+                "SUSPENDED",
+                "OFFBOARDING",
+                "DEACTIVATED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RO",
+                "AC",
+                "AM",
+                "RR",
+                "PA",
+                "AP",
+                "TO",
+                "MA",
+                "PI",
+                "CE",
+                "RN",
+                "PB",
+                "PE",
+                "AL",
+                "SE",
+                "BA",
+                "MG",
+                "ES",
+                "RJ",
+                "SP",
+                "PR",
+                "SC",
+                "RS",
+                "MS",
+                "MT",
+                "GO",
+                "DF"
+              ]
+            },
+            "required": false,
+            "name": "stateCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenants por nome — só metadados, nunca dados de negócio.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "MUNICIPALITY",
+                              "CITY_COUNCIL",
+                              "AUTARCHY",
+                              "PUBLIC_CONSORTIUM",
+                              "FOUNDATION",
+                              "PUBLIC_COMPANY",
+                              "OTHER"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PROVISIONING",
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "OFFBOARDING",
+                              "DEACTIVATED"
+                            ]
+                          },
+                          "stateCode": {
+                            "type": "string"
+                          },
+                          "plan": {
+                            "type": "string"
+                          },
+                          "activatedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "suspendedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "type",
+                          "status",
+                          "stateCode",
+                          "plan",
+                          "activatedAt",
+                          "suspendedAt"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "PLT-01",
+        "summary": "Provisionar tenant",
+        "tags": [
+          "Plataforma — tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "PLATFORM",
+        "x-audit-actions": [
+          "tenant.provision",
+          "tenant.activate"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 63
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 200
+                  },
+                  "legalName": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "MUNICIPALITY",
+                      "CITY_COUNCIL",
+                      "AUTARCHY",
+                      "PUBLIC_CONSORTIUM",
+                      "FOUNDATION",
+                      "PUBLIC_COMPANY",
+                      "OTHER"
+                    ]
+                  },
+                  "stateCode": {
+                    "type": "string",
+                    "enum": [
+                      "RO",
+                      "AC",
+                      "AM",
+                      "RR",
+                      "PA",
+                      "AP",
+                      "TO",
+                      "MA",
+                      "PI",
+                      "CE",
+                      "RN",
+                      "PB",
+                      "PE",
+                      "AL",
+                      "SE",
+                      "BA",
+                      "MG",
+                      "ES",
+                      "RJ",
+                      "SP",
+                      "PR",
+                      "SC",
+                      "RS",
+                      "MS",
+                      "MT",
+                      "GO",
+                      "DF"
+                    ]
+                  },
+                  "ibgeCityCode": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "enum": [
+                      "America/Sao_Paulo",
+                      "America/Bahia",
+                      "America/Fortaleza",
+                      "America/Recife",
+                      "America/Maceio",
+                      "America/Belem",
+                      "America/Araguaina",
+                      "America/Santarem",
+                      "America/Manaus",
+                      "America/Cuiaba",
+                      "America/Campo_Grande",
+                      "America/Porto_Velho",
+                      "America/Boa_Vista",
+                      "America/Rio_Branco",
+                      "America/Eirunepe",
+                      "America/Noronha"
+                    ],
+                    "default": "America/Sao_Paulo"
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "pt-BR"
+                    ],
+                    "default": "pt-BR"
+                  },
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "STANDARD"
+                    ],
+                    "default": "STANDARD"
+                  },
+                  "primaryOrganization": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 250
+                      },
+                      "shortName": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 30,
+                        "pattern": "^[A-Za-z0-9-]+$"
+                      },
+                      "cnpj": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "DIRECT_ADMINISTRATION",
+                          "FUND",
+                          "AUTARCHY",
+                          "FOUNDATION",
+                          "PUBLIC_COMPANY",
+                          "MIXED_CAPITAL_COMPANY",
+                          "PUBLIC_CONSORTIUM",
+                          "LEGISLATIVE",
+                          "OTHER"
+                        ]
+                      },
+                      "email": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 254
+                      },
+                      "phone": {
+                        "type": "string",
+                        "maxLength": 20
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "shortName",
+                      "cnpj",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "firstAdmin": {
+                    "type": "object",
+                    "properties": {
+                      "email": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 254
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "email",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "activate": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name",
+                  "type",
+                  "stateCode",
+                  "primaryOrganization",
+                  "firstAdmin"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant provisionado (e ativado, salvo `activate: false`) com o checklist calculado (`Location`, `ETag`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "MUNICIPALITY",
+                            "CITY_COUNCIL",
+                            "AUTARCHY",
+                            "PUBLIC_CONSORTIUM",
+                            "FOUNDATION",
+                            "PUBLIC_COMPANY",
+                            "OTHER"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROVISIONING",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "OFFBOARDING",
+                            "DEACTIVATED"
+                          ]
+                        },
+                        "stateCode": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "activatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "suspendedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "legalName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ibgeCityCode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "timezone": {
+                          "type": "string"
+                        },
+                        "locale": {
+                          "type": "string"
+                        },
+                        "primaryOrganizationId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "deactivatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "offboardingStartedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "hasSuspensionReason": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "provisioning": {
+                          "type": "object",
+                          "properties": {
+                            "complete": {
+                              "type": "boolean"
+                            },
+                            "steps": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "DONE",
+                                      "PENDING"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "details": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "status",
+                                  "version"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "complete",
+                            "steps"
+                          ]
+                        },
+                        "firstAdmin": {
+                          "type": "object",
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "membershipStatus": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "invitationDispatched": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "email",
+                            "membershipStatus",
+                            "invitationDispatched"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "type",
+                        "status",
+                        "stateCode",
+                        "plan",
+                        "activatedAt",
+                        "suspendedAt",
+                        "legalName",
+                        "ibgeCityCode",
+                        "timezone",
+                        "locale",
+                        "primaryOrganizationId",
+                        "deactivatedAt",
+                        "offboardingStartedAt",
+                        "hasSuspensionReason",
+                        "createdAt",
+                        "updatedAt",
+                        "version",
+                        "provisioning",
+                        "firstAdmin"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{id}": {
+      "get": {
+        "operationId": "PLT-03",
+        "summary": "Consultar tenant (plataforma)",
+        "tags": [
+          "Plataforma — tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "PLATFORM",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dados do tenant e checklist calculado (só contagens); `ETag` = versão.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "MUNICIPALITY",
+                            "CITY_COUNCIL",
+                            "AUTARCHY",
+                            "PUBLIC_CONSORTIUM",
+                            "FOUNDATION",
+                            "PUBLIC_COMPANY",
+                            "OTHER"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROVISIONING",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "OFFBOARDING",
+                            "DEACTIVATED"
+                          ]
+                        },
+                        "stateCode": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "activatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "suspendedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "legalName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ibgeCityCode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "timezone": {
+                          "type": "string"
+                        },
+                        "locale": {
+                          "type": "string"
+                        },
+                        "primaryOrganizationId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "deactivatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "offboardingStartedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "hasSuspensionReason": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "provisioning": {
+                          "type": "object",
+                          "properties": {
+                            "complete": {
+                              "type": "boolean"
+                            },
+                            "steps": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "DONE",
+                                      "PENDING"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "details": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "status",
+                                  "version"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "complete",
+                            "steps"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "type",
+                        "status",
+                        "stateCode",
+                        "plan",
+                        "activatedAt",
+                        "suspendedAt",
+                        "legalName",
+                        "ibgeCityCode",
+                        "timezone",
+                        "locale",
+                        "primaryOrganizationId",
+                        "deactivatedAt",
+                        "offboardingStartedAt",
+                        "hasSuspensionReason",
+                        "createdAt",
+                        "updatedAt",
+                        "version",
+                        "provisioning"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{id}/activate": {
+      "post": {
+        "operationId": "PLT-04",
+        "summary": "Ativar ou reativar tenant",
+        "tags": [
+          "Plataforma — tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "PLATFORM",
+        "x-audit-actions": [
+          "tenant.activate"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PROVISIONING` (checklist completo, envia o convite), `SUSPENDED` ou `OFFBOARDING` → `ACTIVE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "MUNICIPALITY",
+                            "CITY_COUNCIL",
+                            "AUTARCHY",
+                            "PUBLIC_CONSORTIUM",
+                            "FOUNDATION",
+                            "PUBLIC_COMPANY",
+                            "OTHER"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROVISIONING",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "OFFBOARDING",
+                            "DEACTIVATED"
+                          ]
+                        },
+                        "stateCode": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "activatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "suspendedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "legalName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ibgeCityCode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "timezone": {
+                          "type": "string"
+                        },
+                        "locale": {
+                          "type": "string"
+                        },
+                        "primaryOrganizationId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "deactivatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "offboardingStartedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "hasSuspensionReason": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "type",
+                        "status",
+                        "stateCode",
+                        "plan",
+                        "activatedAt",
+                        "suspendedAt",
+                        "legalName",
+                        "ibgeCityCode",
+                        "timezone",
+                        "locale",
+                        "primaryOrganizationId",
+                        "deactivatedAt",
+                        "offboardingStartedAt",
+                        "hasSuspensionReason",
+                        "createdAt",
+                        "updatedAt",
+                        "version"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{id}/suspend": {
+      "post": {
+        "operationId": "PLT-05",
+        "summary": "Suspender tenant",
+        "tags": [
+          "Plataforma — tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "PLATFORM",
+        "x-audit-actions": [
+          "tenant.suspend"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`ACTIVE` → `SUSPENDED`; requisições de usuários recebem 403 em até 60 s.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "MUNICIPALITY",
+                            "CITY_COUNCIL",
+                            "AUTARCHY",
+                            "PUBLIC_CONSORTIUM",
+                            "FOUNDATION",
+                            "PUBLIC_COMPANY",
+                            "OTHER"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROVISIONING",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "OFFBOARDING",
+                            "DEACTIVATED"
+                          ]
+                        },
+                        "stateCode": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "activatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "suspendedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "legalName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ibgeCityCode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "timezone": {
+                          "type": "string"
+                        },
+                        "locale": {
+                          "type": "string"
+                        },
+                        "primaryOrganizationId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "deactivatedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "offboardingStartedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "hasSuspensionReason": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "type",
+                        "status",
+                        "stateCode",
+                        "plan",
+                        "activatedAt",
+                        "suspendedAt",
+                        "legalName",
+                        "ibgeCityCode",
+                        "timezone",
+                        "locale",
+                        "primaryOrganizationId",
+                        "deactivatedAt",
+                        "offboardingStartedAt",
+                        "hasSuspensionReason",
+                        "createdAt",
+                        "updatedAt",
+                        "version"
+                      ]
                     }
                   },
                   "required": [

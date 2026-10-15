@@ -17,6 +17,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
+    "cf": "pnpm --filter @contrataflow/api run cf",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs --output-type err-long",
     "lint:repo": "prettier . --check --log-level warn && eslint . --max-warnings=0",
     "format": "prettier . --write --log-level warn",

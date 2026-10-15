@@ -456,7 +456,7 @@ service:
 
 ## 12. Runbooks iniciais
 
-Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-06 indisponibilidade/5xx da API, RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais.
+Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-06 indisponibilidade/5xx da API, RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants.
 
 ### RB-01 — Lag do outbox
 - **Alertas:** A05, A06, A07.
@@ -517,6 +517,20 @@ Entregável da US-083 ([queues.md](queues.md) §5.6, §11, §12 e §15.1). Para 
   - `node dist/cli.js outbox:republish --id <eventId> --ticket <ref> --reason <texto>` — evento `FAILED` corrigido volta a `PENDING` (exige `DATABASE_URL_RELAY`; auditoria `outbox.republish`).
 - **Antes de reprocessar:** remova a causa (RB-02); handlers são idempotentes, então o retry é seguro. Breaker aberto (`cf_circuit_breaker_state = 2`): os jobs da fila ficam em `delayed` e voltam sozinhos a cada 30 s — não reprocesse, restaure a dependência (RB-03, RB-05).
 - **Schedulers:** `deadlines-tick` (15 min, UTC), `audit-seal-tick` (min. 5 de cada hora, UTC) e `maintenance-daily` (03:00 America/Sao_Paulo) são recriados no bootstrap de toda réplica; não os edite pelo Redis. Execução `skipped` (`cf_scheduled_job_skipped_total`) significa outra réplica com a trava — normal se esporádico. Alerta `worker.scheduler_missed_sla` (deadlines > 45 min, audit-seal > 3 h, maintenance > 26 h): verifique se há réplica do worker no ar e se a trava consultiva está presa (`SELECT pid FROM pg_locks WHERE locktype = 'advisory'`).
+
+### RB-12 — Operação de tenants (CLI de provisionamento e ciclo de vida)
+Entregável da US-099 (DEC-078 · [multi-tenancy.md](multi-tenancy.md) §13). Para Implantação/Sucesso do Cliente e plantão de plataforma.
+- **Onde e quem:** tarefa avulsa na rede privada, na imagem da API (`dist` já compilado), com a configuração da API — inclusive `DATABASE_URL_PLATFORM` — e papel IAM assumido com MFA. Todo comando exige `--operator <e-mail>` de um usuário ativo com `isPlatformOperator`; o operador nunca ganha vínculo com o tenant (DEC-139). Ações ficam na auditoria do tenant com `actorType = PLATFORM_OPERATOR`, `metadata.channel = CLI` e `metadata.runId`.
+- **Códigos de saída:** 0 concluído · 1 validação ou autorização (nada foi feito; leia o campo e o motivo) · 2 incompleto ou dependência indisponível (o que foi feito permanece; repita o mesmo comando).
+- **Provisionar:** preencha `tenant.json` (schema `provisionTenantSchema`: `slug`, `name`, `type`, `stateCode`, `ibgeCityCode`, `primaryOrganization{ name, shortName, cnpj, type }`, `firstAdmin{ email, name }`) e rode `pnpm cf tenant:provision --file tenant.json --operator <e-mail> --dry-run` para ver o plano; depois sem `--dry-run`. `--no-activate` mantém `PROVISIONING` para revisão; `--json` imprime o resultado em JSON (e-mail mascarado). A tabela final mostra cada etapa `DONE`/`PENDING` com versão e contagens.
+- **Retomar:** saída 2 ou 503 → corrija a causa (banco, Redis) e repita **o mesmo arquivo**; só as etapas `PENDING` rodam. Mudou o CNPJ ou o e-mail do administrador? O slug fica preso ao pedido original (409 `TENANT_SLUG_TAKEN`): desative o tenant em `PROVISIONING` (`tenant:deactivate`) e provisione com outro slug.
+- **Consultar:** `pnpm cf tenant:status <slug> [--json] --operator …` — status, versão e checklist calculado (só metadados e contagens).
+- **Ativar depois:** `pnpm cf tenant:activate <slug> --operator …` (ou PLT-04) — exige todas as etapas `DONE` (senão lista as pendentes) e envia o convite.
+- **Suspender / reativar:** `pnpm cf tenant:suspend <slug> --reason "<motivo, 10+ caracteres>" --operator …`; efeito em até 60 s em todas as instâncias (o cache de status é removido no commit). Reativar com `tenant:activate` (preserva o `activatedAt` original). O motivo não aparece para os usuários do tenant.
+- **Encerrar e desativar:** `pnpm cf tenant:offboard <slug> --reason "…" --operator …` (somente leitura e exportação para `ADMIN_ORGAO`/`AUDITOR`); ao fim do prazo contratual, `pnpm cf tenant:deactivate <slug> --confirm-slug <slug> --operator …` (final). Nada é excluído e o slug fica reservado para sempre; expurgo físico só pelo processo de §13.3 (PEND-07).
+- **Convite do primeiro administrador:** `pnpm cf tenant:resend-invite <slug> --operator …` quando o envio falhou ou expirou sem aceite (saída 2 enquanto o envio não estiver disponível — US-091/US-112).
+- **Seeders novos em tenants existentes (RM-07):** `pnpm cf tenant:seed <slug> [--seeder <chave>] [--dry-run] --operator …` — aplica só os seeders `applyToExistingTenants` ainda `PENDING`, sem alterar dados existentes.
+- **Métricas e logs:** `cf_tenant_provisioning_duration_seconds{result}` (meta p95 < 2 min), `cf_tenant_status_changes_total{from,to,channel}`; logs `tenant.provision.started|step_completed|step_failed|resumed`, `tenant.status_changed`, `tenant.invitation_dispatch_failed` — sem e-mail completo nem o texto do motivo.
 
 ### RB-10 — Suspeita de vazamento entre tenants
 Entregável da US-100 (DEC-076 · [multi-tenancy.md](multi-tenancy.md) §12/§14 · [security.md](security.md)). Vale para alerta automático **e** para relato de usuário, órgão ou auditor ("vi dado de outra instituição").

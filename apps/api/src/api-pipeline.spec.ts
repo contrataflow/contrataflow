@@ -373,11 +373,26 @@ describe('Matriz dos guards (base da suíte "tenant leak")', () => {
     expectProblem(await call, status, code);
   });
 
-  it('rota sem tenant (@TenantScope PLATFORM) exige autenticação mas não X-Tenant-Id', async () => {
+  it('rota sem tenant (@TenantScope PLATFORM) exige operador com MFA, mas não X-Tenant-Id', async () => {
     const ok = await request(api.server)
       .get('/api/v1/_test/without-tenant')
-      .set('Authorization', api.bearer('sub-ana'));
-    expect(ok.body).toEqual({ data: { tenantId: null, userId: FAKE_USERS.ana.id } });
+      .set('Authorization', api.bearer('sub-operadora', { amr: ['pwd', 'otp'] }));
+    expect(ok.body).toEqual({ data: { tenantId: null, userId: FAKE_USERS.operadora.id } });
+    // US-099: quem não é operador da plataforma → 403, antes do MFA.
+    expectProblem(
+      await request(api.server)
+        .get('/api/v1/_test/without-tenant')
+        .set('Authorization', api.bearer('sub-ana', { amr: ['pwd', 'otp'] })),
+      403,
+      'PERMISSION_DENIED',
+    );
+    expectProblem(
+      await request(api.server)
+        .get('/api/v1/_test/without-tenant')
+        .set('Authorization', api.bearer('sub-operadora', { amr: ['pwd'] })),
+      403,
+      'MFA_REQUIRED',
+    );
     expectProblem(
       await request(api.server).get('/api/v1/_test/without-tenant'),
       401,

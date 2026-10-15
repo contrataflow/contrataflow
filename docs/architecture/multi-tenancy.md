@@ -287,17 +287,18 @@ Detalhes em [`storage.md`](storage.md#13-isolamento-por-tenant). Resumo:
 
 ### 13.1 Provisionamento
 
-Por `POST /platform/tenants` (PLT-01, `PLATFORM_TENANT_MANAGE`, operador com MFA) ou pela CLI de US-099 (sprint 4 — delivery-plan.md), idempotente por `slug`:
+Por `POST /platform/tenants` (PLT-01, `PLATFORM_TENANT_MANAGE`, operador com MFA) ou pela CLI `pnpm cf tenant:provision` (US-099 · DEC-078 · runbook RB-12), com os mesmos casos de uso. Checklist de etapas idempotentes, **cada uma na sua transação** — falha preserva o que foi feito e a reexecução com o mesmo slug, CNPJ e e-mail continua de onde parou:
 
-| Passo | Ação | Garantia |
+| Etapa | Ação | Garantia |
 |---|---|---|
-| 1 | Registrar o pedido (contrato/chamado) e dados do tenant | `Idempotency-Key`; auditoria de plataforma `tenant.provision` |
-| 2 | Criar `Tenant` (`PROVISIONING`) e a `Organization` principal (`primaryOrganizationId`) | Transação única com `systemPrisma` + contexto do novo tenant |
-| 3 | Semear dados (entities.md §7): perfis de DEC-035, catálogos, tipos de documento, templates, workflow padrão publicado (DEC-015), feriados nacionais, todas as chaves de `TenantSetting` com padrão, sequências de numeração | Mesma transação; falha desfaz tudo |
-| 4 | Convidar o primeiro administrador (`ADMIN_ORGAO`, escopo `TENANT`) — garante POL-12 | `UserInvited` (e-mail após o commit) |
-| 5 | Emitir `TenantProvisioned` | Outbox |
-| 6 | Verificação automática: contagens de seeds, workflow publicado, RLS ativa para o tenant (consulta de fumaça com contexto) | Relatório anexado ao chamado |
-| 7 | Ativar (PLT-04) → `ACTIVE`, `activatedAt`, `TenantActivated`; `slug` torna-se imutável | Auditoria `tenant.activate` |
+| `tenancy.tenantRecord` | Criar `Tenant` (`PROVISIONING`) com a impressão do pedido (`provisioning_fingerprint`) | `SystemDbService`; índice único do slug decide corridas; slug em uso → 409, auditado na plataforma |
+| `tenancy.primaryOrganization`, `tenancy.settings` | `Organization` principal (`cf_set_primary_organization`) e todas as chaves de `TenantSetting` | Seeders de US-101/US-103 |
+| Seeders dos módulos donos | entities.md §7, em ordem topológica de `dependsOn`: catálogos, perfis de DEC-035, tipos de documento, templates, workflows (DEC-015), feriados | `TenantTransaction` do tenant novo como ator `SYSTEM`; idempotentes pela chave natural; `verify()` calcula o checklist |
+| `identity.firstAdmin` | Reutilizar/criar o `User` pelo e-mail e o vínculo `INTERNAL` `INVITED` (+ `ADMIN_ORGAO` no escopo `TENANT` com a US-096) — garante POL-12 | Nunca cria vínculo para o operador (DEC-139) |
+| `tenancy.complete` | Auditoria `tenant.provision` (versões dos seeders) + `TenantProvisioned` | Uma transação, uma única vez por tenant |
+| Ativação | `ACTIVE`, `activatedAt`, `TenantActivated` (ou PLT-04 depois, com checklist completo); convite enviado após o commit; `slug` torna-se imutável (trigger) | Auditoria `tenant.activate` (`PLATFORM_OPERATOR`, no tenant) |
+
+Transições de status (RN-TEN-09 · DEC-078): `PROVISIONING → ACTIVE`; `ACTIVE → SUSPENDED`; `SUSPENDED → ACTIVE`; `ACTIVE|SUSPENDED → OFFBOARDING`; `OFFBOARDING → ACTIVE` (reversão); `OFFBOARDING|PROVISIONING → DEACTIVATED` (final). Qualquer outra → 409 `INVALID_STATE`.
 
 ### 13.2 Suspensão
 
@@ -310,7 +311,7 @@ PLT-05 com `suspensionReason` obrigatório → `SUSPENDED`, `TenantSuspended`. E
 3. **`DEACTIVATED`**: sem acesso de usuários; sessões removidas; integrações desligadas.
 4. **Expurgo físico** somente após confirmação jurídica/contratual (PEND-07 — documentos públicos têm temporalidade legal): runbook com papel `cf_purge`†, dupla aprovação, exclusão em lotes por tabela, prefixo `tenants/{tenantId}/` no S3 (incluindo versões), chaves `cf:{env}:t:{tenantId}:*` no Redis e, se houver, agendamento de exclusão da CMK do tenant; backups expiram pelo ciclo de retenção. Emissão de termo de eliminação ao controlador.
 
-> Lacuna: api.md §3.15 não define rotas para `OFFBOARDING`/`DEACTIVATED` (a ação de auditoria `tenant.deactivate` existe em events.md §7). No MVP 1 essas transições ficam na CLI de plataforma até a especificação das rotas.
+> No MVP 1 o encerramento e a desativação ficam só na CLI (`tenant:offboard`, `tenant:deactivate --confirm-slug`), com a auditoria `tenant.deactivate` (`metadata.toStatus`) e os eventos `TenantOffboarded`/`TenantDeactivated`; PLT-06/PLT-07 (api/15-platform-health.md) ficam para o backoffice do MVP 2.
 
 ### 13.4 Limites e quotas (PEND-17)
 

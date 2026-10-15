@@ -50,6 +50,8 @@ export interface FakeUser {
   readonly name: string;
   readonly socialName: string | null;
   readonly status: UserStatus;
+  /** Operadora da plataforma (`User.isPlatformOperator` — US-099); padrão `false`. */
+  readonly isPlatformOperator?: boolean;
 }
 
 export const FAKE_USERS = {
@@ -172,6 +174,17 @@ export const FAKE_USERS = {
     name: 'Heitor Barros',
     socialName: null,
     status: 'ACTIVE',
+  },
+  /** Carla Antunes: operadora da plataforma (implantação — US-099), sem vínculo com tenants. */
+  operadora: {
+    id: '0192a000-0000-7000-8000-0000000000c9',
+    subject: 'sub-operadora',
+    authentikUserId: '120',
+    email: 'carla@contrataflow.com.br',
+    name: 'Carla Antunes',
+    socialName: null,
+    status: 'ACTIVE',
+    isPlatformOperator: true,
   },
 } as const satisfies Record<string, FakeUser>;
 

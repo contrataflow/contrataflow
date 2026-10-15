@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { DocumentTypeUsageModule } from '#shared/document/document-type-usage.js';
+import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
@@ -16,6 +18,7 @@ import {
   DOCUMENT_TYPE_REPOSITORY,
 } from './application/ports.js';
 import { PreviewDocumentTypeImpactQuery } from './application/preview-document-type-impact.query.js';
+import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { UpdateDocumentTypeCommand } from './application/update-document-type.command.js';
 import {
   InMemoryDocumentTransactions,
@@ -42,7 +45,13 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * por `workflow`).
  */
 @Module({
-  imports: [AccessModule, IdentityModule, OrganizationModule, DocumentTypeUsageModule],
+  imports: [
+    AccessModule,
+    IdentityModule,
+    OrganizationModule,
+    DocumentTypeUsageModule,
+    TenantSeedingModule,
+  ],
   controllers: [DocumentTypeController],
   providers: [
     DocumentFacade,
@@ -52,6 +61,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateDocumentTypeCommand,
     UpdateDocumentTypeCommand,
     PreviewDocumentTypeImpactQuery,
+    SystemDocumentTypesSeeder,
     PrismaDocumentTypeRepository,
     PrismaDocumentTransactions,
     InMemoryDocumentTypeRepository,
@@ -80,4 +90,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   ],
   exports: [DocumentFacade, DocumentTypeFacade],
 })
-export class DocumentModule {}
+export class DocumentModule implements OnModuleInit {
+  constructor(
+    private readonly seeders: TenantSeederRegistry,
+    private readonly systemTypes: SystemDocumentTypesSeeder,
+  ) {}
+
+  /** Seeder `document.systemTypes` no checklist de provisionamento (US-099). */
+  onModuleInit(): void {
+    this.seeders.register(this.systemTypes);
+  }
+}

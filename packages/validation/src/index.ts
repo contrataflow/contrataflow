@@ -6,3 +6,4 @@ export * from './http/index.js';
 export * from './identity/session.js';
 export * from './identity/session-registry.js';
 export * from './internal/example.js';
+export * from './tenancy/index.js';

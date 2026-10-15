@@ -22,6 +22,7 @@
     "build": "swc src -d dist --strip-leading-paths --config-file .swcrc --ignore \"**/*.spec.ts\" --delete-dir-on-start",
     "dev": "pnpm run build && concurrently --kill-others --names swc,api \"swc src -d dist --strip-leading-paths --config-file .swcrc --ignore **/*.spec.ts --watch\" \"node --env-file-if-exists=../../.env --enable-source-maps --import ./dist/otel.js --watch-path=dist dist/main.js\"",
     "start": "node --enable-source-maps --import ./dist/otel.js dist/main.js",
+    "cf": "node --env-file-if-exists=../../.env --enable-source-maps dist/cli/tenant.cli.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --coverage",

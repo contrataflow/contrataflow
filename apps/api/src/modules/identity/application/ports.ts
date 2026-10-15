@@ -128,3 +128,47 @@ export const TENANT_MFA_POLICY = Symbol('TenantMfaPolicyPort');
 export type Clock = () => Date;
 
 export const IDENTITY_CLOCK = Symbol('IdentityClock');
+
+/** Vínculo `INTERNAL` do tenant da transação com o e-mail do usuário (primeiro administrador). */
+export interface InternalMember {
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly email: string;
+  readonly status: string;
+}
+
+/**
+ * Primeiro administrador do provisionamento (US-099 · FA-10): `users` é de plataforma (identidade
+ * global, reutilizada pelo e-mail) e `tenant_memberships` é do tenant (RLS).
+ */
+export interface FirstAdminStore {
+  /** Usuário pelo e-mail (citext) ou criado agora — sem `sub`, que chega no primeiro login. */
+  findOrCreateUser(input: {
+    readonly id: string;
+    readonly email: string;
+    readonly name: string;
+    readonly now: Date;
+  }): Promise<{ readonly id: string; readonly created: boolean }>;
+  /** Vínculos `INTERNAL` do tenant da transação, mais antigos primeiro. */
+  internalMembers(tx: TenantTx): Promise<InternalMember[]>;
+  /** `INSERT … ON CONFLICT (tenant_id, user_id) DO NOTHING`; `true` se criou. */
+  insertInvitedMembership(
+    tx: TenantTx,
+    membership: {
+      readonly id: string;
+      readonly tenantId: string;
+      readonly userId: string;
+      readonly now: Date;
+    },
+  ): Promise<boolean>;
+}
+
+export const FIRST_ADMIN_STORE = Symbol('FirstAdminStore');
+
+/** Transações do tenant do contexto (Prisma: `TenantTransaction`; em memória: simulada). */
+export interface IdentityTenantTransactions {
+  run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+}
+
+export const IDENTITY_TENANT_TRANSACTIONS = Symbol('IdentityTenantTransactions');

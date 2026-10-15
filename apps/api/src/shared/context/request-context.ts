@@ -207,6 +207,49 @@ export function runAsSystem<T>(actor: SystemActor, fn: () => T): T {
   );
 }
 
+export interface PlatformOperatorActor {
+  readonly userId: string;
+  /** Nome do operador, congelado em `AuditLog.actorName`. */
+  readonly name: string;
+  /** Tenant afetado pela ação de plataforma; `null` para auditoria de plataforma (RN-TEN-15). */
+  readonly tenantId: string | null;
+}
+
+/**
+ * Ação de plataforma sobre um tenant (US-099 · RN-TEN-15 · DEC-139): ator `PLATFORM_OPERATOR` no
+ * tenant afetado, para que auditoria e eventos fiquem visíveis ao cliente — sem vínculo do
+ * operador. Herda correlação, IP e user-agent da requisição (`/platform/*`, sem tenant) ou abre um
+ * contexto novo (CLI). Dentro de uma rota de tenant é erro de programação (RN-TEN-21).
+ */
+export function runAsPlatformOperator<T>(operator: PlatformOperatorActor, fn: () => T): T {
+  const current = currentRequestContext();
+  if (current && current.actor.type !== 'PLATFORM_OPERATOR' && current.tenantId !== null) {
+    throw new TenantContextImmutableError();
+  }
+  return storage.run(
+    {
+      value: {
+        correlationId: current?.correlationId ?? uuidv7(),
+        ...(current?.requestId === undefined ? {} : { requestId: current.requestId }),
+        ...(current?.sessionIdHash === undefined ? {} : { sessionIdHash: current.sessionIdHash }),
+        ip: current?.ip ?? '',
+        userAgent: current?.userAgent ?? '',
+        actor: {
+          type: 'PLATFORM_OPERATOR',
+          userId: operator.userId,
+          membershipId: null,
+          name: operator.name,
+        },
+        tenantId: operator.tenantId,
+        accessMode: 'FULL',
+        amr: current?.amr ?? [],
+        authTime: current?.authTime ?? null,
+      },
+    },
+    fn,
+  );
+}
+
 /**
  * Contexto de um job consumido da fila (US-100 · FA-03 · DEC-164): tenant, ator e correlação vêm
  * do `JobMeta` validado; sem IP nem user-agent. Aberto pela base `TenantJob` antes do handler.

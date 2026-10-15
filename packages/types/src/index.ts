@@ -4,4 +4,5 @@ export * from './events.js';
 export * from './permissions.js';
 export * from './queues.js';
 export * from './session.js';
+export * from './tenancy.js';
 export * from './timeline.js';

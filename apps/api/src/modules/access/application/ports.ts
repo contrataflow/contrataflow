@@ -25,3 +25,11 @@ export const ROLE_REPOSITORY = Symbol('RoleRepository');
 export type AccessClock = () => Date;
 
 export const ACCESS_CLOCK = Symbol('AccessClock');
+
+/** Transações do tenant do contexto (Prisma: `TenantTransaction`; em memória: simulada). */
+export interface AccessTransactions {
+  run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+}
+
+export const ACCESS_TRANSACTIONS = Symbol('AccessTransactions');

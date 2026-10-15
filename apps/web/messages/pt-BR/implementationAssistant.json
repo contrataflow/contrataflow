@@ -1,0 +1,56 @@
+{
+  "title": "Monte a estrutura mínima",
+  "description": "{organization} ainda não tem secretarias nem setores. Sugerimos a estrutura abaixo; ajuste nomes e tipos, desmarque o que não quiser e confirme para criar.",
+  "legend": "Unidades sugeridas",
+  "include": "Criar {name}",
+  "unnamed": "unidade sem nome",
+  "fields": {
+    "unit": "Unidade",
+    "subunit": "Unidade subordinada",
+    "type": "Tipo"
+  },
+  "types": {
+    "SECRETARIAT": "Secretaria",
+    "BOARD": "Diretoria",
+    "DEPARTMENT": "Departamento",
+    "DIVISION": "Divisão",
+    "SECTOR": "Setor",
+    "COMMITTEE": "Comissão",
+    "OTHER": "Outro"
+  },
+  "errors": {
+    "REQUIRED": "Informe o nome da unidade.",
+    "TOO_SHORT": "Informe ao menos 2 caracteres.",
+    "TOO_LONG": "Informe no máximo 200 caracteres.",
+    "DUPLICATE": "Já existe uma unidade com este nome no mesmo nível."
+  },
+  "progress": {
+    "pending": "Aguardando",
+    "creating": "Criando…",
+    "created": "Criada",
+    "failed": "Não criada",
+    "summary": "{created} de {total} unidades criadas."
+  },
+  "partialFailure": {
+    "title": "Algumas unidades não foram criadas",
+    "description": "{created} de {total} unidades já foram criadas e serão mantidas. Tente novamente para criar as restantes."
+  },
+  "nothingSelected": "Selecione ao menos uma unidade ou escolha \"Agora não\".",
+  "actions": {
+    "create": "Criar estrutura",
+    "retry": "Tentar novamente",
+    "dismiss": "Agora não"
+  },
+  "firstSteps": {
+    "title": "Primeiros passos",
+    "description": "{count, plural, one {# unidade criada.} other {# unidades criadas.}} Continue a implantação:",
+    "items": {
+      "inviteUsers": "Convidar usuários",
+      "defineHeads": "Definir os titulares das unidades",
+      "purchasingUnit": "Indicar a unidade de Compras na etapa de pesquisa de preços do workflow",
+      "numbering": "Revisar a numeração de processos e documentos",
+      "holidays": "Cadastrar os feriados locais",
+      "templates": "Revisar os templates de documentos"
+    }
+  }
+}

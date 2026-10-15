@@ -1,5 +1,12 @@
 import type { AnyDomainEventDefinition } from './define.js';
 import { DocumentTypeChanged } from '../document/events.js';
+import {
+  TenantActivated,
+  TenantDeactivated,
+  TenantOffboarded,
+  TenantProvisioned,
+  TenantSuspended,
+} from '../tenancy/events.js';
 
 /**
  * Definições dos eventos de domínio do MVP 1 por `eventType` (V-03 da US-082): espelha
@@ -9,4 +16,9 @@ import { DocumentTypeChanged } from '../document/events.js';
  */
 export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDefinition>> = {
   DocumentTypeChanged,
+  TenantProvisioned,
+  TenantActivated,
+  TenantSuspended,
+  TenantOffboarded,
+  TenantDeactivated,
 };

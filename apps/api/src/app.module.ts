@@ -12,6 +12,7 @@ import {
   MfaGuard,
   TenantContextGuard,
 } from '#shared/auth/pipeline.guards.js';
+import { PlatformOperatorGuard } from '#shared/auth/platform-operator.guard.js';
 import { RequestContextMiddleware } from '#shared/context/request-context.middleware.js';
 import { DatabaseModule } from '#shared/database/database.module.js';
 import { ProblemDetailsExceptionFilter } from '#shared/errors/problem-details.filter.js';
@@ -32,7 +33,7 @@ export interface AppModuleOptions {
 
 /**
  * Módulo raiz (fluxo principal, passo 2 da US-080). Pipeline de toda requisição (RN-FND-33/34):
- * logger da requisição (`nestjs-pino`, US-084) → middleware de contexto → corpo JSON → autenticação → tenant → vínculo → MFA → rate limit →
+ * logger da requisição (`nestjs-pino`, US-084) → middleware de contexto → corpo JSON → autenticação → tenant → vínculo → operador de plataforma → MFA → rate limit →
  * If-Match → idempotência → `ZodValidationPipe` → handler → envelope; qualquer exceção → filtro
  * RFC 9457. Os guards e interceptors globais executam na ordem em que são registrados aqui.
  */
@@ -52,6 +53,7 @@ export class AppModule implements NestModule {
         { provide: APP_GUARD, useClass: AuthenticationGuard },
         { provide: APP_GUARD, useClass: TenantContextGuard },
         { provide: APP_GUARD, useClass: MembershipGuard },
+        { provide: APP_GUARD, useClass: PlatformOperatorGuard },
         { provide: APP_GUARD, useClass: MfaGuard },
         { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_GUARD, useClass: PreconditionGuard },
