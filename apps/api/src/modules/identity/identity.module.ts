@@ -15,6 +15,7 @@ import {
 } from './application/ports.js';
 import { RecordSessionTenantCommand } from './application/record-session-tenant.command.js';
 import { StartSessionCommand } from './application/start-session.command.js';
+import { AuditTrailSessionRecorder } from './infrastructure/audit-trail-session.recorder.js';
 import {
   AuthentikAdminClient,
   DisabledAuthentikDirectory,
@@ -25,7 +26,6 @@ import {
   InMemoryIdentityRepository,
 } from './infrastructure/in-memory-identity.repositories.js';
 import { JwksTokenVerifier } from './infrastructure/jwks-token-verifier.js';
-import { LogSessionAuditRecorder } from './infrastructure/log-session-audit.recorder.js';
 import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repository.js';
 import { MeController } from './presentation/me.controller.js';
 import { SessionEventsController } from './presentation/session-events.controller.js';
@@ -77,7 +77,7 @@ function identityProviders(): Provider[] {
           : new DisabledAuthentikDirectory();
       },
     },
-    { provide: SESSION_AUDIT, useClass: LogSessionAuditRecorder },
+    { provide: SESSION_AUDIT, useClass: AuditTrailSessionRecorder },
     { provide: IDENTITY_CLOCK, useValue: () => new Date() },
   ];
 }

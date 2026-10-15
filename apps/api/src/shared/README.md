@@ -14,6 +14,7 @@ como `#shared/<caminho>.js`; **nunca** importa `src/modules/**` (dependency-crui
 | `validation/`  | `ZodValidationPipe`, `@ZodBody`/`@ZodQuery`/`@ZodParams` e a tradução Zod → `errors[]` (RN-FND-32)                                             |
 | `openapi/`     | `@ApiOperation` — metadados lidos pelo `openapi:generate` (RN-FND-38)                                                                          |
 | `database/`    | `TenantTransaction` (Prisma 7 + `app.tenant_id` por transação), UUIDv7, decimais, concorrência otimista e travas (US-081 — `prisma/README.md`) |
+| `audit/`       | Porta `AUDIT_TRAIL` do `AuditService` (módulo `audit`, global) e a porta dos contadores de amostragem de `access.denied` (US-073 · DEC-071)    |
 | `testing/`     | Diretório fixo dos adaptadores em memória (sai quando identidade e tenancy tiverem tabelas reais — US-087/US-100)                              |
 
 Próximas: `shared/cache/**` (`TenantCache`).

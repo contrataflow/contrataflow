@@ -13,5 +13,6 @@ Desde a US-087 (DEC-070):
   `ListMyMembershipsQuery` (ME-04) e `GetMyProfileQuery` (ME-01).
 - **Rotas:** `GET /api/v1/me`, `GET /api/v1/me/memberships` e o contrato interno do BFF
   `POST /internal/session-events` (fora de `/api/v1`, credencial de serviço `X-CF-Service-Token`).
-- **Auditoria:** `LogSessionAuditRecorder` registra a trilha `auth.*` como log estruturado até a
-  auditoria transacional (US-073).
+- **Auditoria:** `AuditTrailSessionRecorder` grava `auth.session_start`/`auth.tenant_switch` pela
+  porta `AUDIT_TRAIL` (US-073), na instituição ativa, com o IP, o user-agent e o hash da sessão
+  informados pelo BFF.

@@ -11,6 +11,7 @@ import type {
   SessionDirectory,
   TenantActivation,
 } from '../session/types';
+import { SESSION_HASH_HEADER } from '../upstream';
 
 /*
  * A API como diretório de identidade do BFF (US-087 · Lacuna 1): `POST /internal/session-events`
@@ -92,6 +93,10 @@ export class ApiSessionDirectory implements SessionDirectory {
       [CORRELATION_HEADER]: context.correlationId,
     });
     if (this.options.serviceToken) headers.set(SERVICE_TOKEN_HEADER, this.options.serviceToken);
+    // O mesmo endereço do corpo nos cabeçalhos: a API audita negações (403) pelo contexto (US-073).
+    if (context.ip) headers.set('X-Forwarded-For', context.ip);
+    if (context.userAgent) headers.set('User-Agent', context.userAgent.slice(0, 512));
+    headers.set(SESSION_HASH_HEADER, context.sessionIdHash);
     let response: Response;
     try {
       response = await this.options.fetch(`${this.options.apiInternalUrl}${SESSION_EVENTS_PATH}`, {

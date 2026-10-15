@@ -1,16 +1,18 @@
 import { uuidv7 } from '@contrataflow/observability';
 import type { ErrorCode } from '@contrataflow/types';
 import type { ProblemDetails } from '@contrataflow/validation';
-import { Catch, HttpException, Logger } from '@nestjs/common';
+import { Catch, HttpException, Inject, Logger, Optional } from '@nestjs/common';
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 
 import { ApiError, validationError } from './api-error.js';
 import { problemType } from './error-catalog.js';
+import { AUDIT_TRAIL, AUDITED_DENIAL_CODES } from '../audit/audit-trail.js';
+import type { AuditTrailPort } from '../audit/audit-trail.js';
 import { CORRELATION_HEADER } from '../context/correlation.js';
 import { currentRequestContext } from '../context/request-context.js';
-import { annotateProblemCode } from '../context/request-context.middleware.js';
-import { requestPath } from '../http/http-types.js';
+import { annotateProblemCode, UNMATCHED_ROUTE } from '../context/request-context.middleware.js';
+import { headerValue, requestPath } from '../http/http-types.js';
 import type { HttpRequest, HttpResponse } from '../http/http-types.js';
 import { toFieldErrors } from '../validation/zod-issues.js';
 
@@ -58,14 +60,20 @@ export function toApiError(exception: unknown): { error: ApiError; unexpected: b
   return { error: new ApiError('INTERNAL_ERROR', { cause: exception }), unexpected: true };
 }
 
+const uuidSchema = z.uuid();
+
 /**
  * Filtro global RFC 9457 (DEC-103 · api.md §2): toda saída de erro vira `application/problem+json`
  * com `code` estável e `correlationId`; exceção não mapeada → 500 `INTERNAL_ERROR` sem detalhe
  * interno ao cliente — tipo, mensagem redigida e stack ficam só no log `error`, ligado ao trace.
+ * Negação de autorização (RN-AUD-10) grava `access.denied` antes de responder; falha ao gravá-la
+ * fica no log `audit.write_failed` e não muda a resposta (o acesso continua negado).
  */
 @Catch()
 export class ProblemDetailsExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('ProblemDetails');
+
+  constructor(@Optional() @Inject(AUDIT_TRAIL) private readonly audit?: AuditTrailPort) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
@@ -81,7 +89,31 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
       );
     }
     annotateProblemCode(response, error.code);
+    if (!AUDITED_DENIAL_CODES.has(error.code)) {
+      this.send(request, response, error, correlationId);
+      return;
+    }
+    // Negação: grava `access.denied` e só então responde — sem deixar rejeição sem tratamento.
+    void this.auditDenial(request, error)
+      .then(() => {
+        this.send(request, response, error, correlationId);
+      })
+      .catch((failure: unknown) => {
+        this.logger.error(
+          { event: 'http.problem_response_failed', correlationId, err: failure },
+          'problem response failed',
+        );
+        if (!response.headersSent) response.statusCode = 500;
+        response.end();
+      });
+  }
 
+  private send(
+    request: HttpRequest,
+    response: HttpResponse,
+    error: ApiError,
+    correlationId: string,
+  ): void {
     const body: ProblemDetails = {
       ...error.extensions,
       type: problemType(error.code),
@@ -104,6 +136,35 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
     response.setHeader(CORRELATION_HEADER, correlationId);
     response.setHeader('Content-Type', PROBLEM_CONTENT_TYPE);
     response.end(JSON.stringify(body));
+  }
+
+  /**
+   * `access.denied` (RN-AUD-10): no tenant já validado pelo pipeline ou, antes disso, como registro
+   * de plataforma com o tenant pedido em `metadata.requestedTenantId` — quem não tem vínculo não
+   * escreve na trilha de um tenant. Sem contexto de requisição (erro antes do middleware), nada.
+   */
+  private async auditDenial(request: HttpRequest, error: ApiError): Promise<void> {
+    const context = currentRequestContext();
+    if (!this.audit || !context) return;
+    const requested = headerValue(request, 'x-tenant-id');
+    const route = request.route?.path;
+    try {
+      await this.audit.recordStandalone({
+        action: 'access.denied',
+        result: 'DENIED',
+        reasonCode: error.auditReasonCode,
+        metadata: {
+          code: error.code,
+          method: request.method ?? null,
+          route: route && !route.includes('{*') ? route : UNMATCHED_ROUTE,
+          ...(context.tenantId === null && requested && uuidSchema.safeParse(requested).success
+            ? { requestedTenantId: requested.toLowerCase() }
+            : {}),
+        },
+      });
+    } catch {
+      // Já registrado (`audit.write_failed`) pelo serviço; a resposta continua a negação.
+    }
   }
 
   /** Do contexto; se o erro ocorreu antes do middleware de contexto, do cabeçalho ou gerado. */

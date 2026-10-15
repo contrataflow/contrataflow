@@ -61,6 +61,35 @@ describe('loadConfig', () => {
     expect(loadConfig(REQUIRED).authentik).toBeNull();
   });
 
+  it('US-073: proxies confiáveis (IPv4/IPv6) e parâmetros de plataforma da auditoria', () => {
+    const config = loadConfig({ ...REQUIRED, TRUSTED_PROXY_CIDRS: ' 10.0.0.0/8, ::1 ,fd00::/8' });
+    expect(config.http.trustedProxies).toEqual(['10.0.0.0/8', '::1', 'fd00::/8']);
+    expect(loadConfig({ ...REQUIRED, TRUSTED_PROXY_CIDRS: '' }).http.trustedProxies).toEqual([]);
+    for (const invalid of ['10.0.0.0/33', 'fd00::/129', 'rede', '10.0.0.0/8/1', '10.0.0.0/x']) {
+      expect(() => loadConfig({ ...REQUIRED, TRUSTED_PROXY_CIDRS: invalid })).toThrow(
+        new ConfigValidationError(['TRUSTED_PROXY_CIDRS']),
+      );
+    }
+    expect(loadConfig(REQUIRED).audit).toEqual({
+      coalesce: { windowMs: 600_000, maxRevisionGap: 20, maxSizeVariationPct: 30 },
+      accessDeniedSampling: { windowSeconds: 60, maxPerWindow: 20 },
+      partitionMonthsAhead: 2,
+    });
+    expect(
+      loadConfig({
+        ...REQUIRED,
+        AUDIT_COALESCE_WINDOW_MINUTES: '5',
+        AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW: '50',
+      }).audit,
+    ).toMatchObject({
+      coalesce: { windowMs: 300_000 },
+      accessDeniedSampling: { maxPerWindow: 50 },
+    });
+    expect(() => loadConfig({ ...REQUIRED, AUDIT_COALESCE_WINDOW_MINUTES: '0' })).toThrow(
+      ConfigValidationError,
+    );
+  });
+
   it('converte números e separa audiências por vírgula', () => {
     const config = loadConfig({
       ...REQUIRED,

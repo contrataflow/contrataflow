@@ -131,3 +131,18 @@ export function isRetryableTransactionError(error: unknown): boolean {
 export function isUniqueViolation(error: unknown): boolean {
   return codesOf(error).some((code) => code === 'P2002' || code === '23505');
 }
+
+const MISSING_PARTITION = /no partition of relation/i;
+
+/**
+ * INSERT em tabela particionada sem partição para a linha (SQLSTATE 23514, "no partition of
+ * relation … found for row") — ex.: `audit_logs` sem a partição do mês (US-073 · FA-03).
+ */
+export function isMissingPartitionError(error: unknown): boolean {
+  return [...chain(error)].some((item) =>
+    ['message', 'originalMessage'].some((key) => {
+      const value = item[key];
+      return typeof value === 'string' && MISSING_PARTITION.test(value);
+    }),
+  );
+}

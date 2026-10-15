@@ -15,6 +15,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { IdentityRepository, LoginRecord } from '../application/ports.js';
 import type { MembershipType, TenantMembership } from '../domain/tenant-membership.js';
+import { displayName } from '../domain/user.js';
 import type { User } from '../domain/user.js';
 
 /** Intervalo mínimo entre gravações de `lastAccessAt` do mesmo vínculo (RN-IAM-16). */
@@ -114,12 +115,13 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
   // --- Pipeline de guards ----------------------------------------------------------------------
 
   async findByExternalSubject(subject: string): Promise<AuthenticatedUser | null> {
-    return this.platform.read((tx) =>
+    const user = await this.platform.read((tx) =>
       tx.user.findUnique({
         where: { externalSubject: subject },
-        select: { id: true, status: true },
+        select: { id: true, status: true, name: true, socialName: true },
       }),
     );
+    return user ? { id: user.id, status: user.status, displayName: displayName(user) } : null;
   }
 
   async findByUserAndTenant(userId: string, tenantId: string): Promise<MembershipRecord | null> {

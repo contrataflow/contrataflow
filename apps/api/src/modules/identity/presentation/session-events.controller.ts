@@ -54,6 +54,7 @@ export class SessionEventsController {
     operationId: 'INTERNAL-SESSION-EVENTS',
     summary: 'Registra o início de sessão ou a ativação de instituição (BFF → API)',
     internal: true,
+    auditActions: ['auth.session_start', 'auth.tenant_switch'],
     responses: {
       200: {
         description: 'Identidade resolvida, vínculos e instituição ativada.',

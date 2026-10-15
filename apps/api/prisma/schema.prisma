@@ -236,3 +236,73 @@ model MembershipDepartment {
   @@index([tenantId, departmentId])
   @@map("membership_departments")
 }
+
+/// entities.md §2 — `ActorType`.
+enum ActorType {
+  USER
+  SYSTEM
+  PLATFORM_OPERATOR
+  INTEGRATION
+
+  @@map("actor_type")
+}
+
+/// entities.md §2 — `AuditCategory` (fixa por ação: `AUDIT_ACTIONS` em packages/types).
+enum AuditCategory {
+  DATA_CHANGE
+  WORKFLOW
+  ACCESS
+  SECURITY
+  EXPORT
+  CONFIGURATION
+  SYSTEM
+
+  @@map("audit_category")
+}
+
+/// entities.md §2 — `AuditResult`.
+enum AuditResult {
+  SUCCESS
+  DENIED
+  FAILURE
+
+  @@map("audit_result")
+}
+
+/// entities.md `AuditLog` (módulo audit · US-073): append-only (trigger + só INSERT/SELECT),
+/// particionada por mês em `occurred_at` na migração (o Prisma não expressa partições), RLS por
+/// tenant e `tenantId` nulo só para registros de plataforma. Escrita exclusiva do `AuditService`
+/// por SQL bruto (sem RETURNING — DEC-071); `id` e `occurredAt` vêm da aplicação (entram no hash).
+model AuditLog {
+  id                String        @db.Uuid
+  occurredAt        DateTime      @map("occurred_at") @db.Timestamptz(6)
+  tenantId          String?       @map("tenant_id") @db.Uuid
+  actorType         ActorType     @map("actor_type")
+  actorUserId       String?       @map("actor_user_id") @db.Uuid
+  actorName         String?       @map("actor_name") @db.VarChar(200)
+  actorMembershipId String?       @map("actor_membership_id") @db.Uuid
+  onBehalfOfUserId  String?       @map("on_behalf_of_user_id") @db.Uuid
+  action            String        @db.VarChar(80)
+  category          AuditCategory
+  result            AuditResult
+  entityType        String?       @map("entity_type") @db.VarChar(60)
+  entityId          String?       @map("entity_id") @db.Uuid
+  processId         String?       @map("process_id") @db.Uuid
+  changes           Json?         @db.JsonB
+  metadata          Json          @default("{}") @db.JsonB
+  reasonCode        String?       @map("reason_code") @db.VarChar(80)
+  ip                String?       @db.Inet
+  userAgent         String?       @map("user_agent") @db.VarChar(512)
+  correlationId     String?       @map("correlation_id") @db.VarChar(64)
+  requestId         String?       @map("request_id") @db.VarChar(64)
+  sessionIdHash     String?       @map("session_id_hash") @db.VarChar(64)
+  rowHash           String        @map("row_hash") @db.VarChar(64)
+
+  @@id([id, occurredAt], map: "audit_logs_pkey")
+  @@index([tenantId, occurredAt(sort: Desc)], map: "audit_logs_tenant_occurred_idx")
+  @@index([tenantId, entityType, entityId, occurredAt(sort: Desc)], map: "audit_logs_entity_idx")
+  @@index([tenantId, processId, occurredAt(sort: Desc)], map: "audit_logs_process_idx")
+  @@index([tenantId, actorUserId, occurredAt(sort: Desc)], map: "audit_logs_actor_idx")
+  @@index([tenantId, action, occurredAt(sort: Desc)], map: "audit_logs_action_idx")
+  @@map("audit_logs")
+}

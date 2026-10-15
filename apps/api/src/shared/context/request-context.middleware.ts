@@ -1,10 +1,14 @@
 import { AsyncResource } from 'node:async_hooks';
 
 import { isIgnoredHttpPath } from '@contrataflow/observability/telemetry';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { NestMiddleware } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
 
+import { APP_CONFIG } from '#config/config.module.js';
+import type { AppConfig } from '#config/env.js';
+
+import { resolveClientAddress, SESSION_HASH_HEADER, trustedProxyList } from './client-address.js';
 import { CORRELATION_HEADER, resolveCorrelationId } from './correlation.js';
 import { currentRequestContext, runWithRequestContext } from './request-context.js';
 import { headerValue, requestPath } from '../http/http-types.js';
@@ -38,6 +42,11 @@ export function annotateProblemCode(response: HttpResponse, code: string): void 
 @Injectable()
 export class RequestContextMiddleware implements NestMiddleware<HttpRequest, HttpResponse> {
   private readonly logger = new Logger('Http');
+  private readonly trustedProxies;
+
+  constructor(@Inject(APP_CONFIG) config: AppConfig) {
+    this.trustedProxies = trustedProxyList(config.http.trustedProxies);
+  }
 
   use(request: HttpRequest, response: HttpResponse, next: () => void): void {
     const correlationId = resolveCorrelationId(headerValue(request, CORRELATION_HEADER));
@@ -47,11 +56,21 @@ export class RequestContextMiddleware implements NestMiddleware<HttpRequest, Htt
     // Span do servidor HTTP (instrumentação OTel): busca do trace pelo correlationId.
     trace.getActiveSpan()?.setAttribute('cf.correlation_id', correlationId);
 
+    // IP real e sessão do navegador só quando quem conecta é o BFF (RN-AUD-05 · security.md §8).
+    const client = resolveClientAddress(
+      request.socket.remoteAddress ?? request.ip,
+      {
+        forwardedFor: headerValue(request, 'x-forwarded-for'),
+        sessionIdHash: headerValue(request, SESSION_HASH_HEADER),
+      },
+      this.trustedProxies,
+    );
+
     runWithRequestContext(
       {
         correlationId,
         ...(typeof requestId === 'string' ? { requestId } : {}),
-        ip: request.ip ?? request.socket.remoteAddress ?? '',
+        ...client,
         userAgent: headerValue(request, 'user-agent') ?? '',
       },
       () => {

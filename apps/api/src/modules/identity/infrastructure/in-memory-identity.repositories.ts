@@ -13,6 +13,7 @@ import type {
   LoginRecord,
 } from '../application/ports.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
+import { displayName } from '../domain/user.js';
 import type { User } from '../domain/user.js';
 
 interface StoredUser extends FakeUser {
@@ -52,7 +53,9 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
 
   findByExternalSubject(subject: string): Promise<AuthenticatedUser | null> {
     const user = this.bySubject(subject);
-    return Promise.resolve(user ? { id: user.id, status: user.status } : null);
+    return Promise.resolve(
+      user ? { id: user.id, status: user.status, displayName: displayName(user) } : null,
+    );
   }
 
   findByUserAndTenant(userId: string, tenantId: string): Promise<MembershipRecord | null> {

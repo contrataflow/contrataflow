@@ -203,6 +203,89 @@ describe('isolamento por tenant no banco (suíte tenant leak)', () => {
   });
 });
 
+describe('isolamento da trilha de auditoria (US-073 · suíte tenant leak)', () => {
+  let db: TestDatabase;
+  let app: TenantPrismaClient;
+
+  /** Registro mínimo como superusuário (sem RLS): a massa dos dois tenants e da plataforma. */
+  const seedAudit = (tenantId: string | null, reasonCode: string | null = null) =>
+    db.admin(
+      `INSERT INTO audit_logs (id, occurred_at, tenant_id, actor_type, action, category, result,
+                               reason_code, row_hash)
+       VALUES ($1, now(), $2, 'USER', $3, $4, $5, $6, $7)`,
+      [
+        newId(),
+        tenantId,
+        reasonCode ? 'access.denied' : 'process.create',
+        reasonCode ? 'ACCESS' : 'DATA_CHANGE',
+        reasonCode ? 'DENIED' : 'SUCCESS',
+        reasonCode,
+        'f'.repeat(64),
+      ],
+    );
+
+  beforeAll(async () => {
+    db = await startTestDatabase();
+    for (const tenantId of [A, A, B, B]) await seedAudit(tenantId);
+    await seedAudit(null, 'MEMBERSHIP_INACTIVE'); // registro de plataforma
+    app = db.client('cf_app');
+  });
+
+  afterAll(async () => {
+    await db.stop();
+  });
+
+  const visible = (tenantId: string) =>
+    asTenant(tenantId, () =>
+      app.$tenantTransaction(
+        (tx) => tx.$queryRaw<{ tenant_id: string | null }[]>`SELECT tenant_id FROM audit_logs`,
+        { readOnly: true },
+      ),
+    );
+
+  it('[Tenant incorreto] o contexto de A só vê a trilha de A — nem B, nem plataforma', async () => {
+    expect((await visible(A)).map((row) => row.tenant_id)).toEqual([A, A]);
+    expect((await visible(B)).map((row) => row.tenant_id)).toEqual([B, B]);
+  });
+
+  it('[Tenant incorreto] gravar na trilha de B (ou de plataforma) sob o contexto de A viola a RLS', async () => {
+    const write = (tenantId: string | null) =>
+      asTenant(A, () =>
+        app.$tenantTransaction(
+          (tx) => tx.$executeRaw`
+            INSERT INTO audit_logs (id, occurred_at, tenant_id, actor_type, action, category, result,
+                                    row_hash)
+            VALUES (${newId()}::uuid, now(), ${tenantId}::uuid, 'USER', 'process.create',
+                    'DATA_CHANGE', 'SUCCESS', ${'f'.repeat(64)})`,
+        ),
+      );
+    await expect(write(B)).rejects.toThrow(/row-level security/);
+    await expect(write(null)).rejects.toThrow(/row-level security/);
+    await expect(write(A)).resolves.toBe(1);
+  });
+
+  it('sem app.tenant_id a leitura da trilha falha fechada (também direto numa partição)', async () => {
+    const connection = new pg.Client({ connectionString: db.url('cf_app') });
+    await connection.connect();
+    try {
+      await expect(connection.query('SELECT count(*) FROM audit_logs')).rejects.toThrow();
+      // A aplicação não tem privilégio nas partições: só pela tabela-mãe, com RLS.
+      const [partition] = await db.admin<{ name: string }>(
+        `SELECT inhrelid::regclass::text AS name FROM pg_inherits
+          WHERE inhparent = 'audit_logs'::regclass ORDER BY 1 LIMIT 1`,
+      );
+      await connection.query('BEGIN');
+      await connection.query("SELECT set_config('app.tenant_id', $1, true)", [A]);
+      await expect(
+        connection.query(`SELECT count(*) FROM ${String(partition?.name)}`),
+      ).rejects.toThrow(/permission denied/);
+      await connection.query('ROLLBACK');
+    } finally {
+      await connection.end();
+    }
+  });
+});
+
 describe('catálogo do banco (multi-tenancy.md §14)', () => {
   let db: TestDatabase;
 
@@ -228,7 +311,9 @@ describe('catálogo do banco (multi-tenancy.md §14)', () => {
     const tables = await db.admin<{ relname: string }>(`
       SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity ORDER BY 1`);
-    expect(tables.map((table) => table.relname)).toContain('outbox_events');
+    expect(tables.map((table) => table.relname)).toEqual(
+      expect.arrayContaining(['outbox_events', 'audit_logs']),
+    );
   });
 
   it('a política usa current_setting(app.tenant_id) em USING e WITH CHECK', async () => {

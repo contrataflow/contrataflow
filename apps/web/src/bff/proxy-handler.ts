@@ -123,6 +123,8 @@ export async function handleProxyRequest(
           tenantId: session.activeTenantId,
           correlationId,
           clientIp,
+          userAgent: request.headers.get('user-agent'),
+          sessionIdHash: session.key,
         }),
         body: body.body,
         signal: request.signal,

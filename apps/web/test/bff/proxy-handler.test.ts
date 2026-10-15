@@ -66,6 +66,8 @@ describe('[Sucesso] proxy autenticado', () => {
           'X-Tenant-Id': 'tenant-forjado',
           'X-Forwarded-For': '9.9.9.9, 200.1.2.3',
           'X-Correlation-Id': 'c-browser-1',
+          'X-CF-Session-Id-Hash': 'forjado',
+          'User-Agent': 'Navegador/1.0',
           'X-Custom': 'nao-repassar',
           Accept: 'application/json',
           'If-Match': '"3"',
@@ -82,6 +84,9 @@ describe('[Sucesso] proxy autenticado', () => {
     expect(headers.get('X-Tenant-Id')).toBe(record.activeTenantId);
     expect(headers.get('X-Correlation-Id')).toBe('c-browser-1');
     expect(headers.get('X-Forwarded-For')).toBe('200.1.2.3');
+    // Auditoria da API (US-073): user-agent do navegador e a sessão do registro, nunca o forjado.
+    expect(headers.get('User-Agent')).toBe('Navegador/1.0');
+    expect(headers.get('X-CF-Session-Id-Hash')).toBe(record.key);
     expect(headers.get('If-Match')).toBe('"3"');
     expect(headers.get('Accept')).toBe('application/json');
     expect(headers.get('Cookie')).toBeNull();

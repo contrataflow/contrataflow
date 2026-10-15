@@ -13,6 +13,12 @@ export interface ApiErrorOptions {
   readonly headers?: Readonly<Record<string, string>>;
   /** Membros de extensão do problem+json (ex.: `currentVersion`). */
   readonly extensions?: Readonly<Record<string, unknown>>;
+  /**
+   * Motivo gravado em `AuditLog.reasonCode` quando o erro é uma negação de acesso auditada
+   * (RN-AUD-10): ex.: a permissão ausente (`PROCESS_CREATE`) num `PERMISSION_DENIED`. Nunca vai na
+   * resposta. Padrão: o próprio código do erro.
+   */
+  readonly auditReasonCode?: string;
   readonly cause?: unknown;
 }
 
@@ -28,6 +34,7 @@ export class ApiError extends Error {
   readonly violations: readonly Violation[];
   readonly headers: Readonly<Record<string, string>>;
   readonly extensions: Readonly<Record<string, unknown>>;
+  readonly auditReasonCode: string;
 
   constructor(
     readonly code: ErrorCode | (string & {}),
@@ -45,6 +52,7 @@ export class ApiError extends Error {
     this.violations = options.violations ?? [];
     this.headers = options.headers ?? {};
     this.extensions = options.extensions ?? {};
+    this.auditReasonCode = options.auditReasonCode ?? code;
   }
 }
 

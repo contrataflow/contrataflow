@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
 
+import { trackTransaction } from './active-transaction.js';
 import {
   DatabaseUnavailableError,
   isRetryableTransactionError,
@@ -107,7 +108,7 @@ async function runScoped<T>(
       return await base.$transaction(
         async (tx) => {
           await prepare(tx);
-          return work(tx);
+          return trackTransaction(tx, () => work(tx));
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,

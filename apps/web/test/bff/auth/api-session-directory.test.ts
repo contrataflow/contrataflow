@@ -78,6 +78,10 @@ describe('ApiSessionDirectory', () => {
     expect(headers.get('authorization')).toBe('Bearer token-do-usuario');
     expect(headers.get('x-cf-service-token')).toBe('s'.repeat(32));
     expect(headers.get('x-correlation-id')).toBe('c-0001');
+    // Endereço do navegador também nos cabeçalhos: a API audita as negações pelo contexto (US-073).
+    expect(headers.get('x-forwarded-for')).toBe('203.0.113.7');
+    expect(headers.get('user-agent')).toBe('Vitest');
+    expect(headers.get('x-cf-session-id-hash')).toBe('a'.repeat(64));
     expect(JSON.parse(init?.body as string)).toEqual({
       type: 'SESSION_STARTED',
       sessionIdHash: CONTEXT.sessionIdHash,

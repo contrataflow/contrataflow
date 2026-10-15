@@ -112,12 +112,12 @@ module.exports = {
       name: 'platform-transaction-allowlist',
       severity: 'error',
       comment:
-        'Transação sem app.tenant_id (users, tenants, cf_user_memberships) só nos adaptadores de identity/tenancy do pipeline de autenticação e do início de sessão (US-087 · multi-tenancy.md §6).',
+        'Transação sem app.tenant_id (users, tenants, cf_user_memberships) só nos adaptadores de identity/tenancy do pipeline de autenticação e do início de sessão (US-087 · multi-tenancy.md §6) e nos da auditoria de plataforma e das partições de audit_logs (US-073 · DEC-071).',
       from: {
         pathNot: [
-          '^apps/api/src/modules/(identity|tenancy)/infrastructure/',
+          '^apps/api/src/modules/(identity|tenancy|audit)/infrastructure/',
           '^apps/api/src/shared/database/',
-          '^apps/api/test/database/',
+          '^apps/api/test/(database|audit)/',
         ],
       },
       to: { path: 'shared/database/platform-transaction\\.ts$' },

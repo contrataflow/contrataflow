@@ -115,7 +115,7 @@ export class AuthenticationGuard implements CanActivate {
     }
 
     updateRequestContext({
-      actor: { type: 'USER', userId: user.id, membershipId: null },
+      actor: { type: 'USER', userId: user.id, membershipId: null, name: user.displayName },
       amr: verified.amr,
       authTime: verified.authTime,
     });

@@ -8,7 +8,7 @@ import { IDENTITY_CLOCK, IDENTITY_REPOSITORY, SESSION_AUDIT } from './ports.js';
 import type { Clock, IdentityRepository, SessionAuditPort } from './ports.js';
 import { isUsable } from '../domain/tenant-membership.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
-import { canSignIn } from '../domain/user.js';
+import { canSignIn, displayName } from '../domain/user.js';
 import type { User } from '../domain/user.js';
 
 export interface RecordSessionTenantInput {
@@ -59,7 +59,7 @@ export class RecordSessionTenantCommand {
     if (!access.usable) throw new ApiError(access.reason);
 
     const scope = { tenantId: input.tenantId, userId: user.id, membershipId: membership.id };
-    await runWithTenantScope(scope, async () => {
+    await runWithTenantScope({ ...scope, actorName: displayName(user) }, async () => {
       await this.identities.touchMembershipAccess(input.tenantId, membership.id, now);
       const entry = {
         ...scope,

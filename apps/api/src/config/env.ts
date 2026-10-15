@@ -1,6 +1,18 @@
+import { isIP } from 'node:net';
+
 import { LOG_LEVELS, PRODUCTION_FORBIDDEN_LEVELS } from '@contrataflow/observability';
 import type { LogLevel } from '@contrataflow/observability';
 import { z } from 'zod';
+
+/** CIDR IPv4 (`10.0.0.0/8`) ou IPv6 (`fd00::/8`); IP sem prefixo vale como host único. */
+export function isCidr(value: string): boolean {
+  const [address = '', prefix, ...rest] = value.split('/');
+  const family = isIP(address);
+  if (family === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+  if (!/^\d{1,3}$/.test(prefix)) return false;
+  return Number(prefix) <= (family === 4 ? 32 : 128);
+}
 
 /** Ambientes em que a identidade fake (FA-02) pode ser ligada. */
 const FAKE_IDENTITY_ENVS: ReadonlySet<string> = new Set(['local', 'dev', 'test']);
@@ -42,6 +54,21 @@ export const envSchema = z
     AUTHENTIK_API_URL: z.url().optional(),
     AUTHENTIK_API_TOKEN: z.string().min(16).optional(),
     CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
+    /**
+     * Origens confiáveis de `X-Forwarded-For` e `X-CF-Session-Id-Hash` (o BFF — security.md §8),
+     * CIDRs IPv4/IPv6 separados por vírgula. Ausente: o IP do socket vale como IP do cliente.
+     */
+    TRUSTED_PROXY_CIDRS: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z
+        .string()
+        .trim()
+        .refine(
+          (value) => value.split(',').every((entry) => isCidr(entry.trim())),
+          'CIDR inválido.',
+        )
+        .optional(),
+    ),
     PAGINATION_MAX_PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(100),
     RATE_LIMIT_READ_PER_MIN: z.coerce.number().int().positive().default(600),
     RATE_LIMIT_WRITE_PER_MIN: z.coerce.number().int().positive().default(120),
@@ -50,6 +77,25 @@ export const envSchema = z
     LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
     /** `<versão>+g<commit>`, injetado no build (US-079). */
     APP_VERSION: z.string().trim().min(1).default('0.0.0+local'),
+    /*
+     * Auditoria (US-073 · RN-AUD-06/07): parâmetros de PLATAFORMA — nenhum tenant reduz a própria
+     * trilha, e nenhuma variável desliga a gravação.
+     */
+    AUDIT_COALESCE_WINDOW_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
+    AUDIT_COALESCE_MAX_REVISION_GAP: z.coerce.number().int().min(1).max(1_000).default(20),
+    AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT: z.coerce.number().min(1).max(1_000).default(30),
+    AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3_600)
+      .default(60),
+    AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10_000)
+      .default(20),
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
@@ -102,7 +148,11 @@ export interface AppConfig {
   readonly internal: { readonly serviceToken: string | null };
   /** API administrativa do Authentik; `null` = vínculo do `sub` só por e-mail verificado. */
   readonly authentik: { readonly apiUrl: string; readonly apiToken: string } | null;
-  readonly http: { readonly correlationHeader: string };
+  readonly http: {
+    readonly correlationHeader: string;
+    /** CIDRs de onde `X-Forwarded-For`/`X-CF-Session-Id-Hash` são aceitos (vazio = nenhum). */
+    readonly trustedProxies: readonly string[];
+  };
   readonly pagination: { readonly maxPageSize: number };
   readonly rateLimit: {
     readonly windowMs: number;
@@ -111,6 +161,20 @@ export interface AppConfig {
   };
   readonly idempotency: { readonly ttlMs: number };
   readonly observability: { readonly logLevel: LogLevel; readonly version: string };
+  /** Parâmetros de plataforma da auditoria (US-073); a gravação em si não é configurável. */
+  readonly audit: {
+    readonly coalesce: {
+      readonly windowMs: number;
+      readonly maxRevisionGap: number;
+      readonly maxSizeVariationPct: number;
+    };
+    readonly accessDeniedSampling: {
+      readonly windowSeconds: number;
+      readonly maxPerWindow: number;
+    };
+    /** Meses de folga das partições mensais de `audit_logs` (job diário — FA-03). */
+    readonly partitionMonthsAhead: number;
+  };
 }
 
 /** Variável ausente ou inválida: o processo não sobe (V-01). Lista as chaves, nunca os valores. */
@@ -147,7 +211,13 @@ function toAppConfig(env: Env): AppConfig {
       env.AUTHENTIK_API_URL && env.AUTHENTIK_API_TOKEN
         ? { apiUrl: env.AUTHENTIK_API_URL, apiToken: env.AUTHENTIK_API_TOKEN }
         : null,
-    http: { correlationHeader: env.CORRELATION_HEADER_NAME },
+    http: {
+      correlationHeader: env.CORRELATION_HEADER_NAME,
+      trustedProxies: (env.TRUSTED_PROXY_CIDRS ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    },
     pagination: { maxPageSize: env.PAGINATION_MAX_PAGE_SIZE },
     rateLimit: {
       windowMs: 60_000,
@@ -163,6 +233,18 @@ function toAppConfig(env: Env): AppConfig {
     },
     idempotency: { ttlMs: env.IDEMPOTENCY_TTL_HOURS * 3_600_000 },
     observability: { logLevel: env.LOG_LEVEL, version: env.APP_VERSION },
+    audit: {
+      coalesce: {
+        windowMs: env.AUDIT_COALESCE_WINDOW_MINUTES * 60_000,
+        maxRevisionGap: env.AUDIT_COALESCE_MAX_REVISION_GAP,
+        maxSizeVariationPct: env.AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT,
+      },
+      accessDeniedSampling: {
+        windowSeconds: env.AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS,
+        maxPerWindow: env.AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW,
+      },
+      partitionMonthsAhead: 2,
+    },
   };
 }
 

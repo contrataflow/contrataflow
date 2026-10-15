@@ -8,10 +8,14 @@ import { __resetOutOfContextForTests } from 'nestjs-pino/PinoLogger.js';
 
 import { loadConfig } from '#config/env.js';
 import type { AppConfig } from '#config/env.js';
+import { AUDIT_LOG_STORE } from '#modules/audit/application/ports.js';
+import type { SealedAuditRecord } from '#modules/audit/domain/audit-record.js';
+import { InMemoryAuditLogStore } from '#modules/audit/infrastructure/in-memory-audit.store.js';
 import type {
   FakeJwksProvider,
   FakeTokenClaims,
 } from '#modules/identity/infrastructure/fake-jwks.provider.js';
+import { AUDIT_SAMPLING_STORE, InMemoryAuditSamplingStore } from '#shared/audit/sampling-store.js';
 import { TOKEN_VERIFIER } from '#shared/auth/ports.js';
 import { IDEMPOTENCY_STORE } from '#shared/idempotency/idempotency.js';
 import { InMemoryIdempotencyStore } from '#shared/idempotency/in-memory-idempotency.store.js';
@@ -59,6 +63,8 @@ export interface TestApi {
   readonly server: Server;
   readonly config: AppConfig;
   readonly rateLimitStore: InMemoryRateLimitStore;
+  /** Registros de auditoria gravados (modo em memória — identidade fake sem banco). */
+  auditRecords(): readonly SealedAuditRecord[];
   /** `Authorization: Bearer …` válido para o `sub` informado (claims extras opcionais). */
   bearer(subject: string, claims?: Partial<FakeTokenClaims>): string;
   close(): Promise<void>;
@@ -78,7 +84,9 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
       .overrideProvider(RATE_LIMIT_STORE)
       .useValue(rateLimitStore)
       .overrideProvider(IDEMPOTENCY_STORE)
-      .useValue(new InMemoryIdempotencyStore());
+      .useValue(new InMemoryIdempotencyStore())
+      .overrideProvider(AUDIT_SAMPLING_STORE)
+      .useValue(new InMemoryAuditSamplingStore());
   }
   for (const { token, value } of options.providers ?? []) {
     builder = builder.overrideProvider(token).useValue(value);
@@ -97,6 +105,10 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
     server: app.getHttpServer() as Server,
     config,
     rateLimitStore,
+    auditRecords: () => {
+      const store = app.get<unknown>(AUDIT_LOG_STORE);
+      return store instanceof InMemoryAuditLogStore ? store.records : [];
+    },
     bearer: (subject, claims = {}) => `Bearer ${verifier.sign({ sub: subject, ...claims })}`,
     close: () => app.close(),
   };

@@ -217,7 +217,9 @@ const sqlList = (items: readonly string[]) =>
   items.map((item) => `'${item.replace(/'/g, "''")}'`).join(', ');
 
 /**
- * Checagens de catálogo (multi-tenancy.md §14 · V-02/V-03), uma linha por violação:
+ * Checagens de catálogo (multi-tenancy.md §14 · V-02/V-03), uma linha por violação (partição é
+ * checada como tabela própria — RLS, FK, unicidade —, mas herda da raiz a exceção de `tenant_id`
+ * nulo, ex.: `audit_logs_2026_10` — US-073):
  * `rls|<tabela>`, `fk|<tabela>|<constraint>`, `unique|<tabela>|<índice>`, `nullable|<tabela>`,
  * `platform|<tabela>` (sem `tenant_id` fora da lista de plataforma) e `owner|<tabela>|<dono>`
  * (só no schema `public`, que nasce das migrações).
@@ -235,7 +237,9 @@ WHERE c.relkind IN ('r', 'p') AND n.nspname = 'public' AND c.relname <> '_prisma
     : '';
   return `WITH tenant_tables AS (
   SELECT c.oid, n.nspname || '.' || c.relname AS name, c.relname, c.relrowsecurity,
-         c.relforcerowsecurity, a.attnum AS tenant_attnum, a.attnotnull AS tenant_not_null
+         c.relforcerowsecurity, a.attnum AS tenant_attnum, a.attnotnull AS tenant_not_null,
+         (SELECT r.relname FROM pg_class r
+           WHERE r.oid = coalesce(pg_partition_root(c.oid), c.oid)) AS root_relname
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
   JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
@@ -257,7 +261,7 @@ JOIN tenant_tables t ON t.oid = i.indrelid
 WHERE i.indisunique AND NOT i.indisprimary AND NOT (t.tenant_attnum = ANY (i.indkey::int2[]))
 UNION ALL
 SELECT 'nullable|' || t.name FROM tenant_tables t
-WHERE NOT t.tenant_not_null AND t.relname NOT IN (${sqlList(NULLABLE_TENANT_TABLES)})
+WHERE NOT t.tenant_not_null AND t.root_relname NOT IN (${sqlList(NULLABLE_TENANT_TABLES)})
 UNION ALL
 SELECT 'platform|' || n.nspname || '.' || c.relname
 FROM pg_class c

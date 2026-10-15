@@ -980,6 +980,7 @@ export const envSchema = z.object({
 | `SESSION_COOKIE_NAME`, `CSP_REPORT_URI` | ✔ | | | Cookie de sessão (`__Host-cf_session` — DEC-131) e endpoint interno de relatório de CSP (`/api/csp-report`) — US-086 |
 | `NEXT_PUBLIC_APP_NAME` | ✔ | | | Única variável exposta ao browser (lista fechada — §8.3; `NEXT_PUBLIC_*` fora dela falha o build) |
 | `PORT`, `CORRELATION_HEADER_NAME`, `PAGINATION_MAX_PAGE_SIZE`, `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN`, `IDEMPOTENCY_TTL_HOURS` | | ✔ | | Pipeline HTTP (US-080 — tabela "Campos") |
+| `AUDIT_COALESCE_WINDOW_MINUTES`, `AUDIT_COALESCE_MAX_REVISION_GAP`, `AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT`, `AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS`, `AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW` | | ✔ | | Parâmetros de **plataforma** da auditoria (padrões 10 min, 20 revisões, 30%, 60 s, 20): coalescência do autosave e amostragem de `access.denied` (RN-AUD-06/07 · DEC-071). Nenhuma variável desliga a gravação — US-073 |
 | `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM (32 bytes em base64) dos tokens no registro de sessão e do cookie de transação do login (subchaves HKDF por finalidade) — segredo, obrigatória fora de `local`/`dev`/`test` ([`authentication.md`](authentication.md)) |
 | `AUTHENTIK_API_URL`, `AUTHENTIK_API_TOKEN` | | ✔ | ✔ | API de administração (convites, desativação) — segredo, token de conta de serviço com permissões mínimas |
 | `DATABASE_URL` | | ✔ | ✔ | Papel `cf_app` (API) / `cf_worker` (worker) |

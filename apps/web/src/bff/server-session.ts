@@ -105,6 +105,8 @@ export const apiServerClient = {
           requestHeaders.get('X-Forwarded-For'),
           runtime.config.trustedProxies,
         ),
+        userAgent: requestHeaders.get('user-agent'),
+        sessionIdHash: fresh.record.key,
       }),
       body: null,
     });

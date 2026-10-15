@@ -203,12 +203,16 @@ describe('padrão de persistência (PostgreSQL real)', () => {
         WHERE n.nspname = 'public' AND p.proname LIKE 'cf\\_%' AND NOT p.prosecdef`);
       expect(owners.length).toBeGreaterThan(0);
       expect(new Set(owners.map((row) => row.owner))).toEqual(new Set(['cf_owner']));
-      // Funções SECURITY DEFINER (leitura entre tenants): sempre do cf_definer (US-087).
-      const definers = await db.admin<{ owner: string }>(`
-        SELECT DISTINCT pg_get_userbyid(p.proowner) AS owner FROM pg_proc p
+      // Funções SECURITY DEFINER: leitura entre tenants sempre do cf_definer (US-087); a criação
+      // de partições de audit_logs é da dona da tabela, a única que pode criá-las (US-073 · DEC-071).
+      const definers = await db.admin<{ name: string; owner: string }>(`
+        SELECT p.proname AS name, pg_get_userbyid(p.proowner) AS owner FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname = 'public' AND p.prosecdef`);
-      expect(definers).toEqual([{ owner: 'cf_definer' }]);
+        WHERE n.nspname = 'public' AND p.prosecdef ORDER BY 1`);
+      expect(definers).toEqual([
+        { name: 'cf_audit_ensure_partitions', owner: 'cf_owner' },
+        { name: 'cf_user_memberships', owner: 'cf_definer' },
+      ]);
     });
 
     it('cf_app não altera a definição das tabelas nem cria objetos', async () => {

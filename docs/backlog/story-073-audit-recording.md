@@ -63,7 +63,7 @@ Esta story entrega o `AuditService`: um serviço de infraestrutura do módulo `a
 
 ## Regras de negócio
 - **RN-AUD-01** — `AuditService.record` recebe o cliente de transação (`tx`) ativo do caso de uso e grava nele; nunca abre transação própria. Falha na gravação do `AuditLog` desfaz toda a transação de negócio (ação e auditoria são atômicas — DEC-161).
-- **RN-AUD-02** — Campos sempre preenchidos: `occurredAt`, `actorType`, `action` (valor do catálogo de events.md §7), `category`, `result`, `rowHash`. `tenantId` é nulo somente para ações de plataforma; `actorUserId`/`actorName`/`actorMembershipId` nulos quando `actorType = SYSTEM`.
+- **RN-AUD-02** — Campos sempre preenchidos: `occurredAt`, `actorType`, `action` (valor do catálogo de events.md §7), `category`, `result`, `rowHash`. `tenantId` é nulo somente para ações de plataforma; `actorUserId`/`actorMembershipId` nulos quando `actorType = SYSTEM`, e `actorName` recebe o nome do job (FA-01 · DEC-071).
 - **RN-AUD-03** — `changes` registra apenas campos efetivamente alterados, no formato `[{ path, old, new }]`; campos sensíveis (`cpf`, tokens, senha) são mascarados ou omitidos (DEC-138); texto rico (TipTap JSON) e textos longos são reduzidos a `{ hash: sha256(conteúdo canonicalizado), length }` — nunca o conteúdo integral.
 - **RN-AUD-04** — `metadata` inclui, quando aplicável ao caso de uso: `processCode`, `documentCode`, `fromStatus`/`toStatus`, `ruleViolations`, `warningsAcknowledged`, `idempotencyKey`, além de qualquer chave específica documentada pela story dona da ação.
 - **RN-AUD-05** — `ip`, `userAgent`, `correlationId`, `requestId` e `sessionIdHash` são obtidos automaticamente do contexto de requisição propagado por `AsyncLocalStorage` (DEC-132, US-084); o caso de uso chamador não os informa manualmente.
@@ -198,7 +198,7 @@ Feature: Registrar auditoria transacional
 - Estabelece o **padrão de auditoria transacional** do produto: todo `*Handler` mutável deve receber/propagar o `tx` ativo e chamar `AuditService.record(tx, …)` antes do commit — análogo ao padrão de comando transacional de US-001, do qual é peça obrigatória.
 - Particionamento mensal de `audit_logs` exige rotina de criação antecipada da partição do próximo mês (job diário idempotente); sua ausência é falha de alta severidade (RN-AUD-01, FA-03).
 - Cálculo de `rowHash` (JSON canonicalizado + SHA-256) a cada escrita tem custo de CPU previsível e baixo; não deve ser paralelizado de forma que mude a ordem determinística dos campos canonicalizados.
-- Amostragem e coalescência dependem de contadores de curto prazo (Redis); indisponibilidade do Redis degrada para "sem amostragem/sem coalescência" (grava tudo), nunca para "sem auditoria" (RN-AUD-07, FA pertinente).
+- A amostragem depende de contadores de curto prazo (Redis); indisponibilidade do Redis degrada para "sem amostragem" (grava tudo), nunca para "sem auditoria" (RN-AUD-07, FA pertinente). A coalescência lê o último registro da chave no próprio `audit_logs`, na transação do caso de uso (DEC-071).
 - Meta-teste de cobertura (RN-AUD-09) roda no CI a partir do catálogo de rotas; deve ser mantido conforme novos endpoints mutáveis forem adicionados por qualquer módulo.
 
 ## Backend

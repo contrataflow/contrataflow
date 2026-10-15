@@ -73,6 +73,11 @@ RESET ROLE;
   `ENABLE`+`FORCE`+política, `tenant_id` nulo fora de `audit_logs`/`outbox_events`, tabela sem
   `tenant_id` fora de `tenants`/`users`/`permissions`, FK ou unicidade sem `tenant_id` e objeto cujo
   dono não é `cf_owner`. Operação destrutiva só em release posterior (`-- cf:contract DEC-NNN`).
+- **Tabela particionada** (ex.: `audit_logs`, US-073): `PARTITION BY RANGE`, PK com a coluna de
+  partição, partições criadas por função `SECURITY DEFINER` da dona da tabela, cada uma com RLS
+  `ENABLE` + `FORCE` e as mesmas políticas (a checagem de catálogo também olha as partições). O
+  Prisma ignora as partições (`migrate diff` limpo). Tabela com `tenant_id` nulo para registros de
+  plataforma: políticas separadas por comando (veja a migração `20261014210000_audit_logs`).
 - Snapshot imutável (DEC-084): `CREATE TRIGGER <t>_immutable BEFORE UPDATE ON <t> FOR EACH ROW
 EXECUTE FUNCTION cf_prevent_snapshot_update('content', 'content_hash');` — o `UPDATE` de uma coluna
   listada falha com "snapshot imutável".

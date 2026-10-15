@@ -52,7 +52,7 @@ export interface SessionAuditBase {
   readonly userAgent: string | null;
 }
 
-/** Trilha `auth.*` (SECURITY) na instituição ativa — log estruturado até a US-073. */
+/** Trilha `auth.*` na instituição ativa, gravada pelo `AuditService` (US-073). */
 export interface SessionAuditPort {
   sessionStarted(
     entry: SessionAuditBase & {

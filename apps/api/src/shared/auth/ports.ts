@@ -47,6 +47,8 @@ export type UserStatus = 'ACTIVE' | 'BLOCKED' | 'DEACTIVATED';
 export interface AuthenticatedUser {
   readonly id: string;
   readonly status: UserStatus;
+  /** Nome exibido (nome social, se houver), congelado em `AuditLog.actorName` (US-073). */
+  readonly displayName: string;
 }
 
 export interface UserPort {

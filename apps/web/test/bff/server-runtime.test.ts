@@ -61,6 +61,7 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
     request.headers = new Headers({
       'X-Correlation-Id': 'c-rsc-0001',
       'X-Forwarded-For': '200.1.2.3',
+      'User-Agent': 'Navegador/1.0',
     });
     test.api.mockResolvedValueOnce(
       Response.json({ data: { ok: 1 }, meta: { page: 1 } }, { headers: { ETag: '"2"' } }),
@@ -81,6 +82,8 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
     expect(headers.get('Authorization')).toBe(`Bearer ${record.tokens.accessToken}`);
     expect(headers.get('X-Tenant-Id')).toBe(record.activeTenantId);
     expect(headers.get('X-Forwarded-For')).toBe('200.1.2.3');
+    expect(headers.get('User-Agent')).toBe('Navegador/1.0');
+    expect(headers.get('X-CF-Session-Id-Hash')).toBe(record.key);
   });
 
   it('erros viram ApiError (problem+json, rede, sessão)', async () => {

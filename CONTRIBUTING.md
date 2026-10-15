@@ -389,7 +389,13 @@ exceção vira `application/problem+json` (api.md §2). Numa rota nova:
 - marque `@Idempotent()` nas rotas "Idem." do catálogo, `@RequireIfMatch()` nas mutações de recurso
   versionado e `@RateLimit('autosave' | 'export' | 'upload')` quando a classe não for leitura/escrita;
 - `@WithoutTenant()` só nas rotas que o catálogo define sem tenant; rotas públicas ficam na
-  _allowlist_ `PUBLIC_ROUTE_PREFIXES` (`/health/*`, `/metrics`).
+  _allowlist_ `PUBLIC_ROUTE_PREFIXES` (`/health/*`, `/metrics`);
+- **auditoria (US-073):** todo caso de uso mutável grava `AuditService.record(tx, …)` — porta
+  `AUDIT_TRAIL` de `#shared/audit/audit-trail.js` — no mesmo `tx` da mudança, antes do commit, e a
+  rota `POST`/`PUT`/`PATCH`/`DELETE` declara `auditActions` no `@ApiOperation` (o meta-teste
+  `audit-coverage.spec.ts` reprova o build sem isso). Negações de acesso já são gravadas pelo
+  filtro: num `PERMISSION_DENIED`, informe a permissão ausente em `auditReasonCode`. Padrão completo
+  em `apps/api/src/modules/audit/README.md`.
 
 **`AsyncLocalStorage`:** o `RequestContext` (`requireRequestContext()`) acompanha a cadeia
 assíncrona da requisição (inclusive `await` e timers criados dentro dela). Callbacks registrados

@@ -164,6 +164,7 @@ describe('identidade no PostgreSQL (US-087)', () => {
       expect(await identities.findByExternalSubject(SUB_ANA)).toEqual({
         id: ANA,
         status: 'ACTIVE',
+        displayName: 'Ana Ribeiro',
       });
       expect(await identities.findByExternalSubject('desconhecido')).toBeNull();
       expect(await asTenant(null, () => identities.findByUserAndTenant(ANA, A))).toEqual({

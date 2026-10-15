@@ -82,6 +82,7 @@ export class InternalExampleController {
     operationId: 'INTERNAL-TRACE-DEMO-JOB',
     summary: 'Dispara o job de teste da propagação de trace',
     internal: true,
+    auditExempt: 'Rota interna de exemplo da US-084: não persiste nada nem age sobre dados.',
     responses: {
       202: {
         description: 'JobMeta de rastreio do job de teste.',
@@ -140,6 +141,7 @@ export class InternalExampleController {
     operationId: 'INTERNAL-ECHO',
     summary: 'Ecoa o corpo validado',
     internal: true,
+    auditExempt: 'Rota interna de exemplo da US-080: só ecoa o corpo, sem persistência.',
     idempotent: true,
     responses: {
       201: { description: 'Registro fictício criado.', schema: dataEnvelope(internalEchoSchema) },

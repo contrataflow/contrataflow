@@ -186,7 +186,7 @@ describe('Feature: Login OIDC — API (US-087)', () => {
     });
 
     it('[Sucesso] com tenantId ativa a instituição e grava auth.session_start', async () => {
-      const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
       const response = await sessionEvent(FAKE_USERS.ana.subject, {
         type: 'SESSION_STARTED',
         tenantId: A,
@@ -203,15 +203,22 @@ describe('Feature: Login OIDC — API (US-087)', () => {
           },
         },
       });
-      expect(log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'auth.session_start',
-          tenantId: A,
-          sessionIdHash: SESSION_HASH,
-          metadata: { selection: 'AUTO', firstLogin: false, amr: [] },
-        }),
-        'auth.session_start',
-      );
+      // Trilha real (US-073), com o IP, o user-agent e a sessão do navegador informados pelo BFF.
+      const record = api.auditRecords().find((entry) => entry.action === 'auth.session_start');
+      expect(record).toMatchObject({
+        tenantId: A,
+        category: 'SECURITY',
+        result: 'SUCCESS',
+        actorType: 'USER',
+        actorUserId: FAKE_USERS.ana.id,
+        actorMembershipId: '0192a000-0000-7000-8000-0000000001a1',
+        actorName: 'Ana Souza',
+        sessionIdHash: SESSION_HASH,
+        ip: '203.0.113.7',
+        userAgent: 'Vitest',
+        metadata: { selection: 'AUTO', firstLogin: false, amr: [] },
+      });
+      expect(record?.rowHash).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it('[Permissão] usuário bloqueado → 403 PERMISSION_DENIED com reason USER_BLOCKED', async () => {

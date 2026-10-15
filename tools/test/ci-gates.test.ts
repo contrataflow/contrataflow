@@ -501,7 +501,9 @@ describe('lint de migrações (RN-FND-25)', () => {
 
   it('V-02: tenant_id nulo, tabela sem tenant_id e dono errado também são violações', () => {
     const sql = catalogChecksSql(['public']);
-    expect(sql).toContain("t.relname NOT IN ('audit_logs', 'outbox_events')");
+    // Partição herda a exceção da raiz (audit_logs_2026_10 — US-073).
+    expect(sql).toContain("t.root_relname NOT IN ('audit_logs', 'outbox_events')");
+    expect(sql).toContain('pg_partition_root(c.oid)');
     expect(sql).toContain(
       "c.relname NOT IN ('tenants', 'users', 'permissions', '_prisma_migrations')",
     );
