@@ -478,8 +478,10 @@ Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
 | `parentId` | uuid | sim | — | FK → `catalog_items` (mesmo `catalogType`) |
 | `metadata` | jsonb | não | `{}` | Schema por tipo (§5.9) |
 
-- **Unique:** `(tenant_id, catalog_type, code)`.
+- **Unique:** `(tenant_id, catalog_type, code)`; também `(tenant_id, catalog_type, id)` (alvo da FK do pai) e `(tenant_id, id)` (alvo das FKs de outros módulos).
 - **Índices:** `(tenant_id, catalog_type, is_active, sort_order)`.
+- **Integridade:** FK composta `(tenant_id, catalog_type, parent_id)` → `catalog_items` (o pai é do mesmo tenant e catálogo); `parent_id <> id`; `code` em `SCREAMING_SNAKE_CASE`; `tenant_id`, `catalog_type`, `code` e `is_system` são imutáveis (trigger); sem `DELETE` para a aplicação (RN-TEN-64). Item novo: `sortOrder = max + 1`.
+- **Auditoria/eventos:** `catalog.create`/`catalog.update`/`catalog.deactivate` e `CatalogItemChanged` (US-104).
 
 #### Holiday (`holidays`) — módulo `catalog` · Padrão
 | Campo | Tipo | Null | Default | Regras |

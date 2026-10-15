@@ -176,6 +176,7 @@ Feature: Gerenciar catálogos parametrizáveis
 - **Decisões/ADRs:** DEC-027, DEC-080, DEC-081, DEC-082, DEC-083, DEC-104; ADR-002.
 - **Configurações:** nenhuma chave própria.
 - **Lacunas nas fontes canônicas:** DEC-027 registra que itens **não-sistema** poderiam, em tese, ser excluídos (a ressalva "nunca excluídos" é dita apenas dos itens de sistema); porém o catálogo de endpoints do épico só define `CAT-01..06` (sem `DELETE`). Adotamos o conceito canônico mais próximo — ciclo de vida só por ativação/desativação para todo item, sem exclusão física (RN-TEN-64) — e registramos a lacuna; proposta: se um `DELETE /catalog-items/{id}` vier a ser necessário, reaproveitar `CATALOG_ITEM_SYSTEM` (409) para itens de sistema e `ITEM_IN_USE` (409) para itens referenciados.
+- **Decisões de implementação (a story não fixa):** (1) o item novo entra no fim da lista (`sortOrder = max + 1`), em vez do `0` do quadro de campos — com `0` ele apareceria antes dos demais; (2) `CAT-01` ordena por `sortOrder` e depois `code`, devolve ativos e inativos (filtro `isActive`) e usa a paginação padrão com `pageSize` 100 por padrão; (3) a reordenação recebe a lista COMPLETA do catálogo (ativos e inativos): ID alheio ou lista incompleta → 422 `VALIDATION_ERROR` em `orderedIds` (`REFERENCE_NOT_FOUND`/`CONDITIONAL_REQUIRED`), e `sortOrder` vira 1..n; (4) `CAT-03` aceita `code` no corpo só para recusá-lo: item de sistema → 409 `CATALOG_ITEM_SYSTEM`; item comum → 422 `NOT_ALLOWED` (RN-TEN-59); (5) `metadata` no PATCH substitui o objeto inteiro e é revalidada pelo schema do tipo; (6) `parentId` também recusa ciclo (a cadeia de ancestrais não pode passar pelo próprio item); (7) CAT-04/05 em item já no estado pedido → 200 sem nova versão, auditoria nem evento (mesma regra de ORG-04); (8) `CATALOG_MANAGE` é risco M: a sessão sem MFA só é recusada com `security.mfaPolicy = ALL` (POL-14), e `GESTOR_CONTRATACOES` também a tem (permissions.md §8); (9) a aba "Etiquetas" do SCR-109 (US-007/`TAG_MANAGE`) não faz parte desta entrega.
 
 ## Impacto técnico
 - `metadata` validada por um schema Zod por `catalogType` (entities.md §5.9), resolvido dinamicamente por um registro `CatalogMetadataSchemas` no módulo `catalog`.
@@ -183,10 +184,10 @@ Feature: Gerenciar catálogos parametrizáveis
 - Volume baixo por tenant (dezenas de itens por catálogo); sem riscos de performance.
 
 ## Backend
-- **Módulo(s):** `catalog` (dono); usa `access` (`AuthorizationService.assertCan('CATALOG_MANAGE')`).
+- **Módulo(s):** `catalog` (dono); usa `access` (`AccessFacade.assertCan('CATALOG_MANAGE')`) e `identity` (`IdentityFacade.mfaPolicy`) — exceção de nível registrada em decisions.md §3. Implementação: o schema de `metadata` por tipo (`catalogMetadataSchema`) e os contratos CAT-01..06 ficam em `packages/validation/src/catalog`, compartilhados com a SCR-109; o catálogo-base de sistema (84 itens, com `metadata`) em `catalog/domain/catalog-seed.ts`.
 - **Casos de uso:** `CreateCatalogItemCommand`, `UpdateCatalogItemCommand`, `ActivateCatalogItemCommand`, `DeactivateCatalogItemCommand`, `ReorderCatalogItemsCommand`; `ListCatalogItemsQuery`.
 - **Domínio:** `CatalogItem.create/update(props)` aplicando RN-TEN-59..63; `CatalogFacade.assertActive(catalogType, id)` reaproveitada por outros módulos.
-- **Transação:** criação/edição/ativação/desativação/reordenação, auditoria e outbox na mesma transação com `app.tenant_id`.
+- **Transação:** criação/edição/ativação/desativação/reordenação, auditoria e outbox na mesma transação com `app.tenant_id`. A reordenação trava as linhas do catálogo (`SELECT … FOR UPDATE` por `id`) para que reordenações concorrentes serializem. O seeder `catalog.items` (`TenantSeeder`, US-099) grava só os itens de sistema cujo `(catalogType, code)` ainda não existe (`ON CONFLICT DO NOTHING`), é idempotente e reaplicável a tenants existentes (`tenant:seed`); `verify()` fecha a etapa quando os 84 itens estão presentes.
 
 ## Frontend
 - **Tela(s):** SCR-109 (`/admin/catalogos`).
@@ -196,8 +197,8 @@ Feature: Gerenciar catálogos parametrizáveis
 
 ## Banco de dados
 - **Tabelas:** `catalog_items`.
-- **Migrações:** nenhuma nova (tabela já definida em entities.md §4).
-- **Índices/constraints relevantes:** `UNIQUE (tenant_id, catalog_type, code)`; índice `(tenant_id, catalog_type, is_active, sort_order)`.
+- **Migrações:** `20261015260000_catalog_items` — enum `catalog_type` e tabela `catalog_items` (entities.md §4: check do formato do `code`, FK composta do pai `(tenant_id, catalog_type, parent_id)`, trigger de imutabilidade de tenant, catálogo, `code` e `is_system`, RLS, sem `DELETE`).
+- **Índices/constraints relevantes:** `UNIQUE (tenant_id, catalog_type, code)`; índice `(tenant_id, catalog_type, is_active, sort_order)`; `UNIQUE (tenant_id, catalog_type, id)` (alvo da FK do pai) e `UNIQUE (tenant_id, id)` (alvo das FKs de outros módulos — DEC-081).
 
 ## API
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |

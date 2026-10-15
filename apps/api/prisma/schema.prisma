@@ -156,6 +156,7 @@ model Tenant {
   memberships   TenantMembership[]
   organizations Organization[]
   settings      TenantSetting[]
+  catalogItems  CatalogItem[]
 
   @@index([status], map: "tenants_status_idx")
   @@map("tenants")
@@ -562,4 +563,49 @@ model TenantSetting {
 
   @@unique([tenantId, key], map: "tenant_settings_tenant_id_key_key")
   @@map("tenant_settings")
+}
+
+/// entities.md §2 — `CatalogType`.
+enum CatalogType {
+  CONTRACTING_TYPE
+  MODALITY
+  PROCESS_ORIGIN
+  UNIT_OF_MEASURE
+  RISK_CATEGORY
+  PRICE_SOURCE_TYPE
+  JUDGMENT_CRITERION
+  ATTACHMENT_CATEGORY
+
+  @@map("catalog_type")
+}
+
+/// entities.md §4 `CatalogItem` (módulo catalog · US-104): item de catálogo parametrizável do
+/// tenant. `code` único por `(tenant, catalogType)` e imutável; itens de sistema (`isSystem`) nunca
+/// são excluídos e nenhum item é excluído pela API (desativação — RN-TEN-64). A FK composta
+/// `(tenant_id, catalog_type, parent_id)` → `(tenant_id, catalog_type, id)` garante o pai no mesmo
+/// tenant e catálogo (RN-TEN-63); checks, gatilhos e RLS ficam em SQL bruto na migração.
+model CatalogItem {
+  id          String      @id @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  catalogType CatalogType @map("catalog_type")
+  code        String      @db.VarChar(60)
+  label       String      @db.VarChar(150)
+  description String?
+  isSystem    Boolean     @default(false) @map("is_system")
+  isActive    Boolean     @default(true) @map("is_active")
+  sortOrder   Int         @default(0) @map("sort_order")
+  parentId    String?     @map("parent_id") @db.Uuid
+  metadata    Json        @default("{}") @db.JsonB
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?     @map("created_by_id") @db.Uuid
+  updatedById String?     @map("updated_by_id") @db.Uuid
+  version     Int         @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, catalogType, code], map: "catalog_items_tenant_id_catalog_type_code_key")
+  @@unique([tenantId, catalogType, id], map: "catalog_items_tenant_id_catalog_type_id_key")
+  @@index([tenantId, catalogType, isActive, sortOrder], map: "catalog_items_list_idx")
+  @@map("catalog_items")
 }

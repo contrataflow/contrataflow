@@ -115,6 +115,7 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
         ['tenancy.tenantRecord', 'DONE'],
         ['tenancy.primaryOrganization', 'DONE'],
         ['tenancy.settings', 'DONE'],
+        ['catalog.items', 'DONE'],
         ['access.defaultRoles', 'DONE'],
         ['document.systemTypes', 'DONE'],
         ['identity.firstAdmin', 'DONE'],
@@ -122,11 +123,12 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
       ]);
     });
 
-    it('semeia 15 perfis padrão, 11 tipos de documento e o vínculo do administrador', () => {
+    it('semeia 84 itens de catálogo, 15 perfis padrão, 11 tipos de documento e o vínculo do administrador', () => {
       const details = Object.fromEntries(
         tenant.provisioning.steps.map((step) => [step.key, step.details]),
       );
       expect(details['tenancy.settings']).toEqual({ settings: SETTING_DEFINITIONS.length });
+      expect(details['catalog.items']).toEqual({ items: 84 });
       expect(details['access.defaultRoles']).toEqual({ roles: 15 });
       expect(details['document.systemTypes']).toEqual({ documentTypes: 11 });
       expect(details['identity.firstAdmin']).toEqual({ memberships: 1 });

@@ -850,7 +850,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 ### CAT-01 — Listar itens de um catálogo
 `GET /api/v1/catalogs/{catalogType}/items` · **Permissão:** implícita · **Story:** US-104
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** path `catalogType` (enum `CatalogType`, Sim); query `isActive` (boolean, Não), `q` (string, Não); paginação padrão (api.md §1.2); ordenação: a definir na implementação (presumível por `sortOrder`, dado o suporte a `CAT-06`, mas não afirmado na story)
+- **Parâmetros:** path `catalogType` (enum `CatalogType`, Sim); query `isActive` (boolean, Não), `q` (string, Não); paginação padrão (api.md §1.2; `pageSize` padrão 100, pois o catálogo tem dezenas de itens); ordenação: `sortOrder`, depois `code`
 - **Request:** —
 - **Response:** `200 { data: CatalogItem[], meta }`
 - **Erros:** —
@@ -871,7 +871,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 422 | `VALIDATION_ERROR` | `REQUIRED`/`INVALID_FORMAT` (`code` duplicado/fora do padrão)/`REFERENCE_NOT_FOUND` (`parentId`)/schema de `metadata` |
 
 - **Efeitos:** Evento `CatalogItemChanged` (`catalog.item_changed`, `change=CREATED`); auditoria `catalog.create` (`CONFIGURATION`, `code`/`label`/`metadata`).
-- **Notas:** RN-TEN-60/62/63.
+- **Notas:** RN-TEN-60/62/63. O item novo entra no fim da lista (`sortOrder = max + 1`); `parentId` precisa ser de outro item do mesmo catálogo e tenant (inexistente, de outro tenant ou de outro catálogo → `REFERENCE_NOT_FOUND`, sem revelar o item). `metadata` omitida vale `{}` e é validada pelo schema do `catalogType` da rota (`errors[].field = "metadata.<chave>"`; chave fora do schema → `NOT_ALLOWED`). Resposta com `Location` e `ETag` (versão 1).
 
 ### CAT-03 — Atualizar item de catálogo
 `PATCH /api/v1/catalog-items/{id}` · **Permissão:** `CATALOG_MANAGE` · **Story:** US-104
@@ -890,7 +890,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 422 | `VALIDATION_ERROR` | Schema de `metadata`; `REFERENCE_NOT_FOUND` (`parentId`) |
 
 - **Efeitos:** Evento `CatalogItemChanged` (`catalog.item_changed`, `change=UPDATED`); auditoria `catalog.update` (`CONFIGURATION`, campos alterados).
-- **Notas:** No MVP 1 não há exclusão física de itens de catálogo — apenas `CAT-04`/`CAT-05`.
+- **Notas:** No MVP 1 não há exclusão física de itens de catálogo — apenas `CAT-04`/`CAT-05`. `code` só é aceito no corpo para ser recusado: item de sistema → 409 `CATALOG_ITEM_SYSTEM`; item comum → 422 `VALIDATION_ERROR` (`NOT_ALLOWED` em `code`, RN-TEN-59). `metadata` substitui o objeto inteiro. Nada alterado → 200 sem nova versão, auditoria nem evento. O 412 traz `currentVersion`.
 
 ### CAT-04 — Ativar item de catálogo
 `POST /api/v1/catalog-items/{id}/activate` · **Permissão:** `CATALOG_MANAGE` · **Story:** US-104
@@ -937,10 +937,10 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | HTTP | code | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem `CATALOG_MANAGE` |
-| 422 | `VALIDATION_ERROR` | `DUPLICATE_IN_LIST`/`REFERENCE_NOT_FOUND` (id fora do catálogo) |
+| 422 | `VALIDATION_ERROR` | `DUPLICATE_IN_LIST`/`REFERENCE_NOT_FOUND` (id fora do catálogo ou de outro tenant)/`CONDITIONAL_REQUIRED` (lista incompleta) em `orderedIds` |
 
-- **Efeitos:** Evento `CatalogItemChanged` (`catalog.item_changed`, `change=UPDATED`, um por item afetado); auditoria `catalog.update` (`CONFIGURATION`, nova ordem).
-- **Notas:** —
+- **Efeitos:** Evento `CatalogItemChanged` (`catalog.item_changed`, `change=UPDATED`, um por item cuja posição mudou); auditoria `catalog.update` (`CONFIGURATION`, uma única entrada com `changes` por item movido: `sortOrder.<code>` anterior e novo).
+- **Notas:** A lista deve conter TODOS os itens do catálogo (ativos e inativos); `sortOrder` é recalculado de 1 a n. As linhas do catálogo são travadas (`FOR UPDATE`) durante a operação: reordenações concorrentes serializam e a ordem final é a da última a confirmar. Ordem idêntica à atual → 200 sem efeitos.
 
 ### CAL-01 — Listar feriados
 `GET /api/v1/holidays` · **Permissão:** implícita · **Story:** US-106

@@ -58,8 +58,9 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
     { match: ['process.*', 'document.*', 'approval.*'], handler: 'BusinessMetricsCollector' },
     {
       // events.md §3 (legenda C) — invalidadores de cache de configuração. Entram aqui os eventos
-      // de configuração à medida que as stories donas os publicam (US-061: document_type.changed).
-      match: ['document_type.changed'],
+      // de configuração à medida que as stories donas os publicam (US-061: document_type.changed;
+      // US-104: catalog.item_changed).
+      match: ['document_type.changed', 'catalog.item_changed'],
       handler: 'ConfigCacheInvalidator',
     },
     {
@@ -102,6 +103,8 @@ export function resolveRoutes(
 export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_ASYNC_CONSUMER'>> =
   {
     DocumentTypeChanged: ['document_type.changed'],
+    // US-104: o catálogo é lido a cada seleção; o invalidador de cache de configuração cobre o resto.
+    CatalogItemChanged: ['catalog.item_changed'],
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',

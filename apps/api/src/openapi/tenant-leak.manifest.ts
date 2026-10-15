@@ -46,6 +46,9 @@ const ORGANIZATION_ROUTE =
 const SETTINGS_ROUTE =
   'Configurações do tenant (US-103): o registro é por chave e o tenant vem só do contexto (não há ID no caminho nem referência no corpo); o isolamento (leitura e escrita sem atravessar tenants, RLS de tenant_settings) é coberto em test/tenant-leak/tenant-settings.spec.ts, com administradores nos dois tenants.';
 
+const CATALOG_ROUTE =
+  'Catálogos (US-104): a suíte genérica ainda não tem fixture de item de catálogo do tenant B; o isolamento (404 em CAT-03..05, 422 REFERENCE_NOT_FOUND em parentId/orderedIds de B, lista sem vazamento e RLS de catalog_items) é coberto em test/tenant-leak/catalog.spec.ts, com administradores nos dois tenants.';
+
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
@@ -66,6 +69,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-03': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-04': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
+  'CAT-01': { kind: 'exempt', reason: CATALOG_ROUTE },
+  'CAT-02': { kind: 'exempt', reason: CATALOG_ROUTE },
+  'CAT-03': { kind: 'exempt', reason: CATALOG_ROUTE },
+  'CAT-04': { kind: 'exempt', reason: CATALOG_ROUTE },
+  'CAT-05': { kind: 'exempt', reason: CATALOG_ROUTE },
+  'CAT-06': { kind: 'exempt', reason: CATALOG_ROUTE },
   'SET-01': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-02': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-03': { kind: 'exempt', reason: SETTINGS_ROUTE },

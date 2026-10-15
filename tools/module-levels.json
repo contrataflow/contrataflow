@@ -26,6 +26,8 @@
   ],
   "allow": [
     ["tenancy", "access"],
-    ["tenancy", "identity"]
+    ["tenancy", "identity"],
+    ["catalog", "access"],
+    ["catalog", "identity"]
   ]
 }

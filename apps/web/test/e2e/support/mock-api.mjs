@@ -60,6 +60,28 @@ const settings = new Map([
 ]);
 const PUBLIC_SETTINGS = ['labels.secretariat', 'labels.department', 'branding.primaryColor'];
 
+// Catálogos (US-104 · CAT-01..06): modalidades de sistema + um item próprio, só o necessário para o
+// SCR-109. Versão por item com `If-Match`; a reordenação recebe a lista completa de IDs.
+const catalogItems = [
+  ['PREGAO', 'Pregão', 'Lei 14.133/2021, art. 28, I', false],
+  ['CONCORRENCIA', 'Concorrência', 'Lei 14.133/2021, art. 28, II', false],
+  ['DISPENSA', 'Dispensa de licitação', 'Lei 14.133/2021, art. 75', true],
+].map(([code, label, legalBasis, isDirectContracting], index) => ({
+  id: `0192a000-0000-7000-8000-00000000c1${String(index).padStart(2, '0')}`,
+  catalogType: 'MODALITY',
+  code,
+  label,
+  description: null,
+  isSystem: true,
+  isActive: true,
+  sortOrder: index + 1,
+  parentId: null,
+  metadata: { legalBasis, isDirectContracting },
+  createdAt: '2026-10-15T12:00:00.000Z',
+  updatedAt: '2026-10-15T12:00:00.000Z',
+  version: 1,
+}));
+
 // Órgãos (US-101 · ORG-01..04): um órgão principal ativo e um fundo, só o necessário para o SCR-032.
 const organizations = [
   ['PMSJ', 'Prefeitura Municipal de São José', '11222333000181', 'DIRECT_ADMINISTRATION'],
@@ -174,6 +196,7 @@ createServer(async (request, response) => {
             { code: 'DOCUMENT_TYPE_MANAGE', scopes: [] },
             { code: 'ORGANIZATION_MANAGE', scopes: [] },
             { code: 'SETTINGS_MANAGE', scopes: [] },
+            { code: 'CATALOG_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -311,6 +334,76 @@ createServer(async (request, response) => {
       { data: created },
       { ETag: '"1"', Location: `/api/v1/organizations/${created.id}` },
     );
+  }
+  const catalogList = /^\/api\/v1\/catalogs\/([A-Z_]+)\/items$/.exec(url.pathname);
+  if (catalogList && request.method === 'GET') {
+    const items = catalogItems
+      .filter((item) => item.catalogType === catalogList[1])
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    return send(response, 200, {
+      data: items,
+      meta: { page: 1, pageSize: 100, totalItems: items.length, totalPages: 1 },
+    });
+  }
+  if (catalogList && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const type = catalogList[1];
+    if (catalogItems.some((item) => item.catalogType === type && item.code === body.code)) {
+      return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+    }
+    const created = {
+      id: `0192a000-0000-7000-8000-00000000c2${String(catalogItems.length).padStart(2, '0')}`,
+      catalogType: type,
+      code: body.code,
+      label: body.label,
+      description: body.description ?? null,
+      isSystem: false,
+      isActive: true,
+      sortOrder:
+        Math.max(0, ...catalogItems.filter((i) => i.catalogType === type).map((i) => i.sortOrder)) +
+        1,
+      parentId: null,
+      metadata: body.metadata ?? {},
+      createdAt: '2026-10-15T12:00:00.000Z',
+      updatedAt: '2026-10-15T12:00:00.000Z',
+      version: 1,
+    };
+    catalogItems.push(created);
+    return send(response, 201, { data: created }, { ETag: '"1"' });
+  }
+  const catalogOrder = /^\/api\/v1\/catalogs\/([A-Z_]+)\/order$/.exec(url.pathname);
+  if (catalogOrder && request.method === 'PUT') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const items = catalogItems.filter((item) => item.catalogType === catalogOrder[1]);
+    const known = new Set(items.map((item) => item.id));
+    if (body.orderedIds.length !== items.length || body.orderedIds.some((id) => !known.has(id))) {
+      return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+    }
+    body.orderedIds.forEach((id, index) => {
+      const item = items.find((entry) => entry.id === id);
+      if (item.sortOrder !== index + 1)
+        Object.assign(item, { sortOrder: index + 1, version: item.version + 1 });
+    });
+    return send(response, 200, { data: [...items].sort((a, b) => a.sortOrder - b.sortOrder) });
+  }
+  const catalogItem =
+    /^\/api\/v1\/catalog-items\/([0-9a-f-]{36})(?:\/(activate|deactivate))?$/.exec(url.pathname);
+  if (catalogItem && (request.method === 'PATCH' || request.method === 'POST')) {
+    const item = catalogItems.find((entry) => entry.id === catalogItem[1]);
+    if (!item) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${item.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (catalogItem[2]) {
+      Object.assign(item, { isActive: catalogItem[2] === 'activate', version: item.version + 1 });
+    } else {
+      const body = JSON.parse((await readBody(request)) || '{}');
+      if (body.code !== undefined && body.code !== item.code) {
+        return problem(response, 409, 'CATALOG_ITEM_SYSTEM', String(correlationId));
+      }
+      Object.assign(item, body, { version: item.version + 1 });
+    }
+    return send(response, 200, { data: item }, { ETag: `"${item.version}"` });
   }
   const organizationRoute = /^\/api\/v1\/organizations\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (organizationRoute && request.method === 'GET') {

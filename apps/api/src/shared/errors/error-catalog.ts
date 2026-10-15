@@ -131,6 +131,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Configuração desconhecida',
     detail: 'Configuração desconhecida.',
   },
+  CATALOG_ITEM_SYSTEM: {
+    status: 409,
+    title: 'Item de sistema protegido',
+    detail: 'Itens padrão do sistema não podem ser excluídos ou ter o código alterado.',
+  },
   PRIMARY_ORGANIZATION_REQUIRED: {
     status: 409,
     title: 'Órgão principal obrigatório',

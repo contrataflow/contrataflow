@@ -1,10 +1,92 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
+import { APP_CONFIG } from '#config/config.module.js';
+import type { AppConfig } from '#config/env.js';
+import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
+
+import { CatalogItemsSeeder } from './application/catalog-items.seeder.js';
+import {
+  CATALOG_CLOCK,
+  CATALOG_ITEM_REPOSITORY,
+  CATALOG_TRANSACTIONS,
+} from './application/catalog-ports.js';
 import { CatalogFacade } from './application/catalog.facade.js';
+import { ListCatalogItemsQuery } from './application/catalog.queries.js';
+import { CreateCatalogItemCommand } from './application/create-catalog-item.command.js';
+import { ReorderCatalogItemsCommand } from './application/reorder-catalog-items.command.js';
+import {
+  ActivateCatalogItemCommand,
+  DeactivateCatalogItemCommand,
+  UpdateCatalogItemCommand,
+} from './application/update-catalog-item.command.js';
+import {
+  InMemoryCatalogItemRepository,
+  InMemoryCatalogTransactions,
+} from './infrastructure/in-memory-catalog-item.repository.js';
+import {
+  PrismaCatalogItemRepository,
+  PrismaCatalogTransactions,
+} from './infrastructure/prisma-catalog-item.repository.js';
+import { CatalogController } from './presentation/catalog.controller.js';
+import { AccessModule } from '../access/access.module.js';
+import { IdentityModule } from '../identity/identity.module.js';
 
-/** Módulo `catalog` (DEC-040): outros módulos usam somente a fachada exportada. */
+/** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): itens em memória. */
+const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
+
+/**
+ * Módulo `catalog` (DEC-040): outros módulos usam somente a fachada exportada (`CatalogFacade`,
+ * ex.: `assertActive` na criação de processo). Dono dos catálogos parametrizáveis do tenant
+ * (US-104: CAT-01..06 e o seeder `catalog.items`); autorização e MFA vêm de `access`/`identity`
+ * — exceção registrada em `tools/module-levels.json` (mesma de `tenancy`).
+ */
 @Module({
-  providers: [CatalogFacade],
+  imports: [AccessModule, IdentityModule, TenantSeedingModule],
+  controllers: [CatalogController],
+  providers: [
+    CatalogFacade,
+    ListCatalogItemsQuery,
+    CreateCatalogItemCommand,
+    UpdateCatalogItemCommand,
+    ActivateCatalogItemCommand,
+    DeactivateCatalogItemCommand,
+    ReorderCatalogItemsCommand,
+    CatalogItemsSeeder,
+    PrismaCatalogItemRepository,
+    PrismaCatalogTransactions,
+    InMemoryCatalogItemRepository,
+    InMemoryCatalogTransactions,
+    {
+      provide: CATALOG_ITEM_REPOSITORY,
+      inject: [APP_CONFIG, PrismaCatalogItemRepository, InMemoryCatalogItemRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaCatalogItemRepository,
+        memory: InMemoryCatalogItemRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: CATALOG_TRANSACTIONS,
+      inject: [APP_CONFIG, PrismaCatalogTransactions, InMemoryCatalogTransactions],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaCatalogTransactions,
+        memory: InMemoryCatalogTransactions,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    { provide: CATALOG_CLOCK, useValue: () => new Date() },
+  ],
   exports: [CatalogFacade],
 })
-export class CatalogModule {}
+export class CatalogModule implements OnModuleInit {
+  constructor(
+    private readonly seeders: TenantSeederRegistry,
+    private readonly items: CatalogItemsSeeder,
+  ) {}
+
+  /** Seeder `catalog.items` no checklist do provisionamento (US-099). */
+  onModuleInit(): void {
+    this.seeders.register(this.items);
+  }
+}
