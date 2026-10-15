@@ -9,7 +9,13 @@ import { ApiError } from '#shared/errors/api-error.js';
 
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 import type { SeedDefaultRolesResult } from './seed-default-roles.handler.js';
+import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
+
+/** Perfis padrão atribuídos com escopo `TENANT` (permissions.md §3.1). */
+const TENANT_WIDE_ROLE_KEYS: ReadonlySet<string> = new Set(
+  DEFAULT_ROLES.filter((role) => role.defaultAssignmentScope === 'TENANT').map((role) => role.key),
+);
 
 /** Perfil visto por quem valida designações (US-061 · RN-DOC-07). */
 export interface RoleForApproval {
@@ -60,6 +66,16 @@ export class AccessFacade {
   /** Algum dos perfis (`Role.key`) concede a permissão — vínculos de terceiros (aprovadores). */
   rolesGrant(roleKeys: readonly string[], permission: PermissionCode): boolean {
     return rolesGrant(roleKeys, permission);
+  }
+
+  /**
+   * Algum dos perfis tem escopo sobre TODAS as unidades do tenant (US-102 · RN-TEN-48: titular e
+   * substituto sem lotação na unidade). PONTE até as atribuições com escopo (US-096): hoje o escopo
+   * é o padrão do perfil (`defaultAssignmentScope = TENANT`); a US-096 troca pela atribuição real
+   * (`DEPARTMENT`/`OWN_DEPARTMENTS`/`ORGANIZATION`/`TENANT` que cubra a unidade) sem mudar quem chama.
+   */
+  rolesCoverAllDepartments(roleKeys: readonly string[]): boolean {
+    return roleKeys.some((roleKey) => TENANT_WIDE_ROLE_KEYS.has(roleKey));
   }
 
   /**

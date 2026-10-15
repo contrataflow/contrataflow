@@ -44,6 +44,8 @@ const CARLA_B = '0192c000-0000-7000-8000-0000000002c1';
 const DANIEL_B = '0192c000-0000-7000-8000-0000000002d1';
 const DEPT_A = '0192c000-0000-7000-8000-0000000003a1';
 const DEPT_B = '0192c000-0000-7000-8000-0000000003b1';
+const ORG_A = '0192c000-0000-7000-8000-0000000004a1';
+const ORG_B = '0192c000-0000-7000-8000-0000000004b1';
 
 /** Fixtures do tenant B usadas nos caminhos e corpos (RN-TEN-36). */
 const B_IDS: Readonly<Record<LeakFixtureKind, string>> = {
@@ -68,6 +70,13 @@ INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status, job_title,
   ('${CARLA_A}', '${A}', '${CARLA}', 'EXTERNAL', 'ACTIVE', 'LEAK-A', now() + interval '30 days'),
   ('${CARLA_B}', '${B}', '${CARLA}', 'EXTERNAL', 'ACTIVE', 'LEAK-B', now() + interval '30 days'),
   ('${DANIEL_B}', '${B}', '${DANIEL}', 'INTERNAL', 'ACTIVE', 'LEAK-B', NULL);
+-- Unidades (US-102): a lotação tem FK composta para \`departments\`.
+INSERT INTO organizations (id, tenant_id, name, short_name, cnpj, type) VALUES
+  ('${ORG_A}', '${A}', 'Órgão LEAK-A', 'OA', '11222333000181', 'DIRECT_ADMINISTRATION'),
+  ('${ORG_B}', '${B}', 'Órgão LEAK-B', 'OB', '11444777000161', 'DIRECT_ADMINISTRATION');
+INSERT INTO departments (id, tenant_id, organization_id, type, name, path, depth) VALUES
+  ('${DEPT_A}', '${A}', '${ORG_A}', 'SECTOR', 'Setor LEAK-A', '/${DEPT_A}/', 0),
+  ('${DEPT_B}', '${B}', '${ORG_B}', 'SECTOR', 'Setor LEAK-B', '/${DEPT_B}/', 0);
 INSERT INTO membership_departments (id, tenant_id, membership_id, department_id, is_primary) VALUES
   ('${randomUUID()}', '${A}', '${BRUNO_A}', '${DEPT_A}', true),
   ('${randomUUID()}', '${B}', '${DANIEL_B}', '${DEPT_B}', true);

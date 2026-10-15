@@ -40,6 +40,8 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
   private readonly users: Map<string, StoredUser>;
   private readonly memberships: StoredMembership[];
   private readonly tenants: Map<string, TenantData>;
+  /** Lotações (`membership_departments`): carregadas pelos testes com `assignDepartment`. */
+  private readonly assignments: { membershipId: string; departmentId: string }[] = [];
 
   constructor(
     users: readonly FakeUser[] = Object.values(FAKE_USERS),
@@ -191,7 +193,41 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
     );
   }
 
+  usersAssignedToDepartment(
+    _tx: TenantTx,
+    departmentId: string,
+    userIds: readonly string[],
+  ): Promise<Set<string>> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const assigned = new Set<string>();
+    for (const membership of this.memberships) {
+      if (membership.tenantId !== tenantId || !userIds.includes(membership.userId)) continue;
+      const lotado = this.assignments.some(
+        (item) => item.membershipId === membership.id && item.departmentId === departmentId,
+      );
+      if (lotado) assigned.add(membership.userId);
+    }
+    return Promise.resolve(assigned);
+  }
+
+  countDepartmentAssignments(_tx: TenantTx, departmentId: string): Promise<number> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const inTenant = new Set(
+      this.memberships.filter((m) => m.tenantId === tenantId).map((m) => m.id),
+    );
+    return Promise.resolve(
+      this.assignments.filter(
+        (item) => item.departmentId === departmentId && inTenant.has(item.membershipId),
+      ).length,
+    );
+  }
+
   // --- Inspeção (testes) -----------------------------------------------------------------------
+
+  /** Carga de testes: lota o vínculo na unidade (no banco, `membership_departments`). */
+  assignDepartment(membershipId: string, departmentId: string): void {
+    this.assignments.push({ membershipId, departmentId });
+  }
 
   snapshotUser(userId: string): StoredUser | undefined {
     return this.users.get(userId);

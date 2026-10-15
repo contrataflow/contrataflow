@@ -39,6 +39,8 @@ export const ERROR_CODES = [
   'ROLE_ALREADY_EXISTS',
   'PRIVILEGE_ESCALATION_FORBIDDEN',
   'LAST_ADMIN_REQUIRED',
+  'DEPARTMENT_CYCLE',
+  'DEPARTMENT_HAS_REFERENCES',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

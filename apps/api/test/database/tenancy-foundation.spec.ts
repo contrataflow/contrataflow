@@ -26,6 +26,8 @@ const CARLA_A = '0192b000-0000-7000-8000-0000000001c1';
 const CARLA_B = '0192b000-0000-7000-8000-0000000002c1';
 const DEPT_A = '0192b000-0000-7000-8000-0000000003a1';
 const DEPT_B = '0192b000-0000-7000-8000-0000000003b1';
+const ORG_A = '0192b000-0000-7000-8000-0000000004a1';
+const ORG_B = '0192b000-0000-7000-8000-0000000004b1';
 const INVITE_HASH = 'a'.repeat(64);
 
 const FIXTURE_SQL = `
@@ -39,6 +41,13 @@ INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status, job_title,
   ('${BRUNO_A}', '${A}', '${BRUNO}', 'INTERNAL', 'ACTIVE', 'LEAK-A', NULL, NULL, NULL),
   ('${CARLA_A}', '${A}', '${CARLA}', 'EXTERNAL', 'ACTIVE', 'LEAK-A', NULL, NULL, now() + interval '30 days'),
   ('${CARLA_B}', '${B}', '${CARLA}', 'EXTERNAL', 'INVITED', 'LEAK-B', '${INVITE_HASH}', now() + interval '2 days', now() + interval '30 days');
+-- Unidades (US-102): a lotação tem FK composta para \`departments\`.
+INSERT INTO organizations (id, tenant_id, name, short_name, cnpj, type) VALUES
+  ('${ORG_A}', '${A}', 'Órgão A', 'OA', '11222333000181', 'DIRECT_ADMINISTRATION'),
+  ('${ORG_B}', '${B}', 'Órgão B', 'OB', '11444777000161', 'DIRECT_ADMINISTRATION');
+INSERT INTO departments (id, tenant_id, organization_id, type, name, path, depth) VALUES
+  ('${DEPT_A}', '${A}', '${ORG_A}', 'SECTOR', 'Setor A', '/${DEPT_A}/', 0),
+  ('${DEPT_B}', '${B}', '${ORG_B}', 'SECTOR', 'Setor B', '/${DEPT_B}/', 0);
 INSERT INTO membership_departments (id, tenant_id, membership_id, department_id, is_primary) VALUES
   ('${newId()}', '${A}', '${BRUNO_A}', '${DEPT_A}', true),
   ('${newId()}', '${B}', '${CARLA_B}', '${DEPT_B}', true);

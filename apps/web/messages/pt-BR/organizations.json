@@ -3,7 +3,8 @@
   "description": "Cadastre os órgãos e entidades da instituição (prefeitura, fundos, autarquias). A sigla e o CNPJ de cada órgão identificam os processos e a numeração.",
   "tabs": {
     "label": "Áreas da estrutura",
-    "organizations": "Órgãos"
+    "organizations": "Órgãos",
+    "departments": "Secretarias"
   },
   "organizations": {
     "title": "Órgãos",

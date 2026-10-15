@@ -36,6 +36,24 @@ export class IdentityFacade {
     return this.identity.membersInTenant(tx, userIds);
   }
 
+  /**
+   * Usuários (entre `userIds`) lotados na unidade, no tenant da transação — elegibilidade de
+   * titular/substituto (US-102 · RN-TEN-48).
+   */
+  usersAssignedToDepartment(
+    tx: TenantTx,
+    departmentId: string,
+    userIds: readonly string[],
+  ): Promise<Set<string>> {
+    if (userIds.length === 0) return Promise.resolve(new Set());
+    return this.identity.usersAssignedToDepartment(tx, departmentId, userIds);
+  }
+
+  /** A unidade tem lotações? (impede a exclusão física — US-102 · RN-TEN-51). */
+  async hasDepartmentAssignments(tx: TenantTx, departmentId: string): Promise<boolean> {
+    return (await this.identity.countDepartmentAssignments(tx, departmentId)) > 0;
+  }
+
   /** `security.mfaPolicy` do tenant da requisição (POL-14). */
   mfaPolicy(): Promise<MfaPolicy> {
     const { tenantId } = requireRequestContext();

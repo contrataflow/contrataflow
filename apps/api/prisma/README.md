@@ -68,7 +68,9 @@ RESET ROLE;
   ("unrecognized configuration parameter"). Na mesma migração, crie as FKs **antes** de ligar a RLS
   (US-087); em migração posterior, defina um tenant nulo só para a validação, na mesma transação:
   `SELECT set_config('app.tenant_id', '00000000-0000-0000-0000-000000000000', true);` antes do
-  `ADD CONSTRAINT` (a tabela nova está vazia; a política continua valendo para a aplicação).
+  `ADD CONSTRAINT` (a tabela nova está vazia; a política continua valendo para a aplicação). O
+  Prisma **não** envolve a migração numa transação: coloque o `set_config` e os `ADD CONSTRAINT`
+  entre `BEGIN;` e `COMMIT;` explícitos (exemplo: `20261015290000_departments`, US-102).
 - O CI reprova (estágio Migrações e suíte tenant leak): tabela com `tenant_id` sem RLS
   `ENABLE`+`FORCE`+política, `tenant_id` nulo fora de `audit_logs`/`outbox_events`, tabela sem
   `tenant_id` fora de `tenants`/`users`/`permissions`, FK entre tabelas de tenant que não começa por

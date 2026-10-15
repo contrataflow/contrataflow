@@ -20,7 +20,7 @@
   },
   "errors": {
     "REQUIRED": "Informe o nome da unidade.",
-    "TOO_SHORT": "Informe ao menos 2 caracteres.",
+    "TOO_SHORT": "Informe ao menos 3 caracteres.",
     "TOO_LONG": "Informe no máximo 200 caracteres.",
     "DUPLICATE": "Já existe uma unidade com este nome no mesmo nível."
   },

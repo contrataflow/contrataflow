@@ -52,7 +52,14 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
   ],
   inline: [
     {
-      match: ['role.*', 'membership.*', 'department.moved'],
+      // US-102: titular/substituto (`department.updated`) e unidade inativa também mudam escopos.
+      match: [
+        'role.*',
+        'membership.*',
+        'department.moved',
+        'department.updated',
+        'department.deactivated',
+      ],
       handler: 'PermissionCacheInvalidator',
     },
     { match: ['process.*', 'document.*', 'approval.*'], handler: 'BusinessMetricsCollector' },
@@ -113,6 +120,12 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     CatalogItemChanged: ['catalog.item_changed'],
     // US-106: o calendário é lido a cada cálculo de prazo; o invalidador de cache por ano cobre o resto.
     HolidayChanged: ['catalog.holiday_changed'],
+    // US-102: criar unidade não muda escopo de ninguém (ninguém está lotado nela ainda); mover,
+    // editar (titular/substituto) e desativar invalidam o cache de permissões efetivas do tenant.
+    DepartmentCreated: 'NO_ASYNC_CONSUMER',
+    DepartmentUpdated: ['department.updated'],
+    DepartmentMoved: ['department.moved'],
+    DepartmentDeactivated: ['department.deactivated'],
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',

@@ -239,7 +239,7 @@ model TenantMembership {
 }
 
 /// entities.md `MembershipDepartment` (módulo identity) · lotação do vínculo; RLS ENABLE + FORCE.
-/// A FK de `departmentId` → `departments` entra com a US-102.
+/// FK composta de `departmentId` → `departments` (`ON DELETE RESTRICT`) na migração da US-102.
 model MembershipDepartment {
   id           String   @id @db.Uuid
   tenantId     String   @map("tenant_id") @db.Uuid
@@ -543,6 +543,58 @@ model Organization {
   @@unique([tenantId, shortName], map: "organizations_tenant_id_short_name_key")
   @@index([tenantId, isActive, name], map: "organizations_active_name_idx")
   @@map("organizations")
+}
+
+/// entities.md §2 — `DepartmentType` (DEC-011).
+enum DepartmentType {
+  SECRETARIAT
+  BOARD
+  DEPARTMENT
+  DIVISION
+  SECTOR
+  COMMITTEE
+  OTHER
+
+  @@map("department_type")
+}
+
+/// entities.md `Department` (módulo organization · US-102) · unidade em árvore dentro do órgão,
+/// com caminho materializado (`path` `/<idRaiz>/…/<id>/`, `depth` 0 na raiz — RN-TEN-45) mantido
+/// pela aplicação. FKs compostas (órgão, pai do mesmo órgão, `ON DELETE RESTRICT`), checks de
+/// caminho, a unicidade de nome entre irmãos (índice de expressão com `lower(name)`), o índice
+/// `text_pattern_ops` do caminho, o trigger de imutabilidade e a RLS ficam em SQL bruto na migração.
+/// Exclusão física só sem referências (RN-TEN-51).
+model Department {
+  id             String         @id @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  parentId       String?        @map("parent_id") @db.Uuid
+  type           DepartmentType
+  name           String         @db.VarChar(200)
+  acronym        String?        @db.VarChar(30)
+  code           String?        @db.VarChar(40)
+  email          String?        @db.Citext
+  phone          String?        @db.VarChar(20)
+  headUserId     String?        @map("head_user_id") @db.Uuid
+  deputyUserId   String?        @map("deputy_user_id") @db.Uuid
+  path           String
+  depth          Int
+  isActive       Boolean        @default(true) @map("is_active")
+  sortOrder      Int            @default(0) @map("sort_order")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by_id") @db.Uuid
+  updatedById    String?        @map("updated_by_id") @db.Uuid
+  version        Int            @default(1)
+
+  @@unique([tenantId, id], map: "departments_tenant_id_id_key")
+  @@unique([tenantId, organizationId, id], map: "departments_tenant_id_organization_id_id_key")
+  // Parcial na migração (`WHERE acronym IS NOT NULL`).
+  @@index([tenantId, organizationId, acronym], map: "departments_acronym_key")
+  @@index([tenantId, organizationId, parentId], map: "departments_parent_idx")
+  @@index([tenantId, headUserId], map: "departments_head_user_idx")
+  @@index([tenantId, deputyUserId], map: "departments_deputy_user_idx")
+  @@map("departments")
 }
 
 /// entities.md `TenantSetting` (módulo tenancy · US-103): configuração tipada chave-valor do tenant.

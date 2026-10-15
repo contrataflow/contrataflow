@@ -82,3 +82,13 @@ describe('AccessFacade.assertCan (POL-14)', () => {
     await expect(facade.findRoleForApproval({} as TenantTx, 'x')).resolves.toBeNull();
   });
 });
+
+describe('AccessFacade.rolesCoverAllDepartments (US-102 · RN-TEN-48)', () => {
+  it('perfil padrão com escopo TENANT cobre todas as unidades; OWN_DEPARTMENTS e desconhecido não', () => {
+    expect(facade.rolesCoverAllDepartments(['ADMIN_ORGAO'])).toBe(true);
+    expect(facade.rolesCoverAllDepartments(['REQUISITANTE', 'GESTOR_CONTRATACOES'])).toBe(true);
+    expect(facade.rolesCoverAllDepartments(['REQUISITANTE'])).toBe(false);
+    expect(facade.rolesCoverAllDepartments(['PERFIL_CUSTOM'])).toBe(false);
+    expect(facade.rolesCoverAllDepartments([])).toBe(false);
+  });
+});

@@ -130,6 +130,59 @@ const organizations = [
   version: 1,
 }));
 
+// Secretarias e setores (US-102 · DEP-01..09): o "Gabinete" do órgão principal tem pessoas lotadas
+// (em uso — DEP-09 responde 409); o resto da árvore é montado pela jornada do SCR-032.
+const departments = [];
+function newDepartment(organizationId, parent, body) {
+  const id = randomUUID();
+  return {
+    id,
+    organizationId,
+    parentId: parent?.id ?? null,
+    type: body.type,
+    name: String(body.name ?? '').trim(),
+    acronym: body.acronym ? String(body.acronym).trim().toUpperCase() : null,
+    code: body.code ?? null,
+    email: body.email ?? null,
+    phone: body.phone ?? null,
+    headUserId: null,
+    deputyUserId: null,
+    isActive: true,
+    isSecretariat: parent === null || ['SECRETARIAT', 'BOARD'].includes(body.type),
+    sortOrder: body.sortOrder ?? 0,
+    path: `${parent?.path ?? '/'}${id}/`,
+    depth: parent ? parent.depth + 1 : 0,
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z',
+    version: 1,
+    inUse: false,
+  };
+}
+departments.push({
+  ...newDepartment(organizations[0].id, null, { type: 'SECRETARIAT', name: 'Gabinete' }),
+  inUse: true,
+});
+/** Lista plana na ordem da árvore (pais antes dos filhos; irmãos por ordem e nome). */
+function departmentTree(organizationId) {
+  const units = departments.filter((unit) => unit.organizationId === organizationId);
+  const out = [];
+  const visit = (parentId) => {
+    units
+      .filter((unit) => unit.parentId === parentId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'pt-BR'))
+      .forEach((unit) => {
+        out.push(unit);
+        visit(unit.id);
+      });
+  };
+  visit(null);
+  return out;
+}
+function departmentView(unit) {
+  const { inUse: _inUse, ...view } = unit;
+  return view;
+}
+
 function previewOf(type) {
   if (!type.numberingEnabled) return null;
   const mask = type.numberingMask ?? '{type} {seq:4}/{year}';
@@ -304,6 +357,7 @@ createServer(async (request, response) => {
             { code: 'CALENDAR_MANAGE', scopes: [] },
             { code: 'ROLE_VIEW', scopes: [] },
             { code: 'ROLE_MANAGE', scopes: [] },
+            { code: 'DEPARTMENT_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -638,6 +692,72 @@ createServer(async (request, response) => {
       return problem(response, 409, 'LAST_ADMIN_REQUIRED', String(correlationId));
     Object.assign(role, { isActive: false, version: role.version + 1 });
     return send(response, 200, { data: roleSummary(role) }, { ETag: `"${role.version}"` });
+  }
+  if (url.pathname === '/api/v1/departments' && request.method === 'GET') {
+    const tree = departmentTree(url.searchParams.get('organizationId') ?? '');
+    return send(response, 200, {
+      data: tree.map(departmentView),
+      meta: { page: 1, pageSize: 100, totalItems: tree.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/departments' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const parent = body.parentId ? departments.find((unit) => unit.id === body.parentId) : null;
+    if (body.parentId && !parent) {
+      return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+    }
+    const created = newDepartment(body.organizationId, parent, body);
+    departments.push(created);
+    return send(
+      response,
+      201,
+      { data: departmentView(created) },
+      { ETag: '"1"', Location: `/api/v1/departments/${created.id}` },
+    );
+  }
+  const departmentRoute =
+    /^\/api\/v1\/departments\/([0-9a-f-]{36})(\/(move|activate|deactivate))?$/.exec(url.pathname);
+  if (departmentRoute) {
+    const unit = departments.find((item) => item.id === departmentRoute[1]);
+    if (!unit) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (request.method === 'GET') {
+      return send(response, 200, { data: departmentView(unit) }, { ETag: `"${unit.version}"` });
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"${unit.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const action = departmentRoute[3];
+    if (request.method === 'DELETE') {
+      if (unit.inUse || departments.some((item) => item.parentId === unit.id)) {
+        return problem(response, 409, 'DEPARTMENT_HAS_REFERENCES', String(correlationId));
+      }
+      departments.splice(departments.indexOf(unit), 1);
+      response.writeHead(204);
+      return response.end();
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (action === 'move') {
+      const target = body.parentId ? departments.find((item) => item.id === body.parentId) : null;
+      if (target && target.path.startsWith(unit.path)) {
+        return problem(response, 422, 'DEPARTMENT_CYCLE', String(correlationId));
+      }
+      const from = { path: unit.path, depth: unit.depth };
+      const path = `${target?.path ?? '/'}${unit.id}/`;
+      const depth = target ? target.depth + 1 : 0;
+      for (const item of departments) {
+        if (item !== unit && item.path.startsWith(from.path)) {
+          item.path = `${path}${item.path.slice(from.path.length)}`;
+          item.depth += depth - from.depth;
+        }
+      }
+      Object.assign(unit, { parentId: target?.id ?? null, path, depth });
+    } else if (action === 'activate' || action === 'deactivate') {
+      unit.isActive = action === 'activate';
+    } else if (request.method === 'PATCH') {
+      Object.assign(unit, body);
+    }
+    unit.version += 1;
+    return send(response, 200, { data: departmentView(unit) }, { ETag: `"${unit.version}"` });
   }
   const organizationRoute = /^\/api\/v1\/organizations\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (organizationRoute && request.method === 'GET') {

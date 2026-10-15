@@ -642,12 +642,12 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 ### DEP-01 — Listar secretarias/setores
 `GET /api/v1/departments` · **Permissão:** implícita · **Story:** US-102
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** query `organizationId` (uuid, Não), `isActive` (boolean, Não), `q` (string, Não); paginação padrão (api.md §1.2); retorno em árvore ou lista plana — nome do parâmetro que alterna o formato não especificado na story (**a definir na implementação**); ordenação: a definir na implementação
+- **Parâmetros:** query `organizationId` (uuid, Não), `isActive` (boolean, Não), `q` (string, Não, mín. 2 caracteres — nome, sigla ou código); paginação padrão (api.md §1.2)
 - **Request:** —
-- **Response:** `200 { data: Department[], meta }`
+- **Response:** `200 { data: Department[], meta }` — sempre **lista plana na ordem da árvore** (pais antes dos filhos; irmãos por `sortOrder`, nome e id), paginada depois da ordenação; o cliente monta a árvore com `parentId`/`path`/`depth`. `Department` traz também `isSecretariat` (RN-TEN-49)
 - **Erros:** —
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** Decisão da US-102: um único formato (sem parâmetro de árvore). Unidade cujo pai ficou fora do filtro entra como raiz local.
 
 ### DEP-02 — Buscar unidades para seleção (lookup)
 `GET /api/v1/departments/lookup` · **Permissão:** implícita · **Story:** US-102
@@ -657,11 +657,11 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Response:** `200 { data: { id: string, name: string, type: DepartmentType, path: string }[] }`
 - **Erros:** —
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** Só unidades **ativas** (RN-TEN-50), por nome, no máximo 50.
 
 ### DEP-03 — Criar unidade
 `POST /api/v1/departments` · **Permissão:** `DEPARTMENT_MANAGE` · **Story:** US-102
-- **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
+- **Cabeçalhos:** `Idempotency-Key` opcional (assistente de implantação — US-099 FA-09); `If-Match` —
 - **Parâmetros:** —
 - **Request:**
 ```ts
@@ -679,7 +679,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 422 | `VALIDATION_ERROR` | `REQUIRED`/`REFERENCE_NOT_FOUND` (`parentId`, `headUserId`, `deputyUserId`)/`INVALID_FORMAT` (nome ou sigla duplicados) |
 
 - **Efeitos:** Evento `DepartmentCreated` (`department.created`); auditoria `department.create` (`DATA_CHANGE`, campos iniciais).
-- **Notas:** RN-TEN-44/46/48.
+- **Notas:** RN-TEN-44/46/48. `acronym` é gravada em maiúsculas; órgão inexistente/inativo → `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `organizationId`; unidade superior inativa → `REFERENCE_INACTIVE` em `parentId`; titular = substituto → `NOT_ALLOWED` em `deputyUserId`; titular/substituto com vínculo não ativo → `REFERENCE_INACTIVE`.
 
 ### DEP-04 — Consultar unidade
 `GET /api/v1/departments/{id}` · **Permissão:** implícita · **Story:** US-102
@@ -700,7 +700,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 `PATCH /api/v1/departments/{id}` · **Permissão:** `DEPARTMENT_MANAGE` · **Story:** US-102
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` obrigatório
 - **Parâmetros:** path `id` (uuid, Sim)
-- **Request:** Campos de `DEP-03`, todos opcionais
+- **Request:** Campos de `DEP-03`, todos opcionais (+ `sortOrder`); `null` limpa um opcional. `organizationId`/`parentId` só iguais aos atuais (diferentes → `422 NOT_ALLOWED`: órgão não muda e a unidade superior muda pelo `DEP-06`)
 - **Response:** `200 { data: Department }`
 - **Erros:**
 
@@ -728,6 +728,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 404 | `NOT_FOUND` | Inexistente/outro tenant |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 | 422 | `DEPARTMENT_CYCLE` | Movimentação criaria ciclo |
+| 422 | `VALIDATION_ERROR` | `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `parentId` (outro órgão/tenant ou inativa); `INVALID_FORMAT` em `name` (nome já usado no destino) |
 
 - **Efeitos:** Evento `DepartmentMoved` (`department.moved`, `fromParentId?`, `toParentId?`); auditoria `department.move` (`DATA_CHANGE`, `fromParentId`, `toParentId`, qtde. de descendentes recalculados); consumidor `PermissionCacheInvalidator` invalida escopos `DEPARTMENT`/`OWN_DEPARTMENTS`.
 - **Notas:** Recalcula `path`/`depth` dos descendentes (RN-TEN-45).
@@ -783,7 +784,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Auditoria `department.delete` (`DATA_CHANGE`, `metadata`: dados da unidade removida). Sem evento de domínio listado na story.
-- **Notas:** Exclusão física só é permitida sem referências; caso contrário, usar `DEP-07`.
+- **Notas:** Exclusão física só é permitida sem referências; caso contrário, usar `DEP-07`. O 409 traz `references[]` (`SUBUNITS`, `ASSIGNMENTS`, `WORKFLOW_STAGES`, `OTHER`).
 
 ### SET-01 — Consultar configurações do tenant
 `GET /api/v1/settings` · **Permissão:** `SETTINGS_MANAGE` · **Story:** US-103

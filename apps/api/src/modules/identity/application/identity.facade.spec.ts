@@ -55,6 +55,27 @@ describe('IdentityFacade', () => {
     expect(members.find((m) => m.userId === FAKE_USERS.ana.id)?.roleKeys).toEqual(['REQUISITANTE']);
   });
 
+  it('lotações na unidade (US-102): quem está lotado, só no tenant da transação', async () => {
+    const repository = new InMemoryIdentityRepository();
+    const custom = new IdentityFacade(repository, new InMemoryTenantMfaPolicy());
+    const unit = '0192a000-0000-7000-8000-0000000200a1';
+    const ana = FAKE_MEMBERSHIPS.find((m) => m.userId === FAKE_USERS.ana.id && m.tenantId === A);
+    await expect(inTenant(A, () => custom.hasDepartmentAssignments(tx, unit))).resolves.toBe(false);
+    repository.assignDepartment(ana?.id ?? '', unit);
+    const ids = [FAKE_USERS.ana.id, FAKE_USERS.marta.id];
+    await expect(
+      inTenant(A, () => custom.usersAssignedToDepartment(tx, unit, ids)),
+    ).resolves.toEqual(new Set([FAKE_USERS.ana.id]));
+    await expect(
+      inTenant(A, () => custom.usersAssignedToDepartment(tx, unit, [])),
+    ).resolves.toEqual(new Set());
+    await expect(inTenant(A, () => custom.hasDepartmentAssignments(tx, unit))).resolves.toBe(true);
+    await expect(inTenant(B, () => custom.hasDepartmentAssignments(tx, unit))).resolves.toBe(false);
+    await expect(
+      inTenant(B, () => custom.usersAssignedToDepartment(tx, unit, ids)),
+    ).resolves.toEqual(new Set());
+  });
+
   it('mfaPolicy: política do tenant da requisição (padrão ADMINS)', async () => {
     const policies = new InMemoryTenantMfaPolicy({ [B]: 'ALL' });
     const custom = new IdentityFacade(new InMemoryIdentityRepository(), policies);

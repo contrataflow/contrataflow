@@ -177,6 +177,16 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     detail:
       'Não é possível desativar o perfil Administrador do órgão: mantenha ao menos um administrador ativo.',
   },
+  DEPARTMENT_CYCLE: {
+    status: 422,
+    title: 'Movimentação inválida',
+    detail: 'Não é possível mover uma unidade para dentro dela mesma ou de uma subunidade.',
+  },
+  DEPARTMENT_HAS_REFERENCES: {
+    status: 409,
+    title: 'Unidade em uso',
+    detail: 'Esta unidade está em uso e não pode ser excluída. Desative-a.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

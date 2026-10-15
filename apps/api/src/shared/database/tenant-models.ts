@@ -10,6 +10,7 @@
 export const TENANT_SCOPED_MODELS = [
   'AuditLog',
   'CatalogItem',
+  'Department',
   'DocumentType',
   'Holiday',
   'MembershipDepartment',

@@ -43,7 +43,8 @@ export const SUGGESTED_STRUCTURE: readonly SuggestedUnit[] = [
   },
 ];
 
-export const UNIT_NAME_MIN = 2;
+/** RN-TEN-44 · DEP-03: nome com 3 a 200 caracteres (`DEPARTMENT_NAME_MIN`/`MAX`). */
+export const UNIT_NAME_MIN = 3;
 export const UNIT_NAME_MAX = 200;
 
 /** RN-TEN-18: só para quem tem `DEPARTMENT_MANAGE` e com o órgão selecionado sem unidades. */

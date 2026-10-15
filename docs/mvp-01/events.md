@@ -58,7 +58,7 @@ Consumidores assíncronos do MVP 1:
 |---|---|---|---|
 | `NotificationDispatcher` | `notifications` | eventos da §6 | `UNIQUE (tenant_id, recipient_id, source_event_id, type)` em `notifications` |
 | `EmailSender` | `email` | notificações com canal e-mail | `Notification.emailStatus` (só envia se `PENDING`) |
-| `PermissionCacheInvalidator` | `domain-events` (handler leve) | `role.*`, `membership.*`, `department.moved` | Operação idempotente (DEL de chave) |
+| `PermissionCacheInvalidator` | `domain-events` (handler leve) | `role.*`, `membership.*`, `department.moved`, `department.updated` (titular/substituto — US-102), `department.deactivated` | Operação idempotente (DEL de chave) |
 | `BusinessMetricsCollector` | `domain-events` | `process.*`, `document.*`, `approval.*` | Contadores tolerantes a reentrega (deduplicação por `eventId` em Redis, 24 h) |
 
 ---

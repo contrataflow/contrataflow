@@ -329,7 +329,7 @@ Unidade administrativa em árvore (secretaria, diretoria, setor…).
 
 - **Unique:** `(tenant_id, organization_id, acronym) WHERE acronym IS NOT NULL`; `(tenant_id, organization_id, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'), lower(name))`.
 - **Índices:** `(tenant_id, path text_pattern_ops)`; `(tenant_id, organization_id, parent_id)`; `(tenant_id, head_user_id)`; `(tenant_id, deputy_user_id)`.
-- **Check:** `head_user_id IS DISTINCT FROM deputy_user_id`; `parent_id <> id`.
+- **Check:** `head_user_id <> deputy_user_id` (nulos permitidos; `IS DISTINCT FROM` recusaria titular e substituto ambos vazios); `parent_id <> id`.
 - **Regras:** proibido ciclo (validação pelo `path`); mover unidade recalcula `path`/`depth` da subárvore na mesma transação; exclusão física só sem referências — caso contrário, desativação.
 
 ### 4.2 Identidade e acesso

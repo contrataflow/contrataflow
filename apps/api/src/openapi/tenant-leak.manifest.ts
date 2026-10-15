@@ -55,6 +55,9 @@ const CALENDAR_ROUTE =
 const ROLE_ROUTE =
   'Perfis (US-095): exige ROLE_VIEW/ROLE_MANAGE (que o usuário comum da suíte não tem) e a suíte genérica ainda não tem fixture de perfil do tenant B; o isolamento (404 ROLE_NOT_FOUND em ROL-04..08 com ids de B, lista sem perfis de B e RLS de roles/role_permissions) é coberto em test/tenant-leak/role-management.spec.ts, com administradores nos dois tenants.';
 
+const DEPARTMENT_ROUTE =
+  'Secretarias e setores (US-102): a fixture genérica de unidade do tenant B não é um registro de departments; o isolamento (404 em DEP-04..09, lista/lookup sem vazamento de B e REFERENCE_NOT_FOUND em parentId/organizationId/headUserId de B) é coberto em test/tenant-leak/departments.spec.ts, com administradores nos dois tenants.';
+
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
@@ -74,6 +77,15 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
     kind: 'exempt',
     reason: DOCUMENT_TYPE_ADMIN_ROUTE,
   },
+  'DEP-01': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-02': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-03': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-04': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-05': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-06': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-07': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-08': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'DEP-09': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
   'ORG-01': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-03': { kind: 'exempt', reason: ORGANIZATION_ROUTE },

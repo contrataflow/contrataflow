@@ -268,6 +268,23 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
     }));
   }
 
+  async usersAssignedToDepartment(
+    tx: TenantTx,
+    departmentId: string,
+    userIds: readonly string[],
+  ): Promise<Set<string>> {
+    // A extensão de isolamento injeta o tenant nas duas tabelas; a RLS confirma.
+    const rows = await tx.membershipDepartment.findMany({
+      where: { departmentId, membership: { userId: { in: [...userIds] } } },
+      select: { membership: { select: { userId: true } } },
+    });
+    return new Set(rows.map((row) => row.membership.userId));
+  }
+
+  countDepartmentAssignments(tx: TenantTx, departmentId: string): Promise<number> {
+    return tx.membershipDepartment.count({ where: { departmentId } });
+  }
+
   async touchMembershipAccess(tenantId: string, membershipId: string, at: Date): Promise<void> {
     const last = this.lastTouched.get(membershipId);
     if (last !== undefined && at.getTime() - last < LAST_ACCESS_INTERVAL_MS) return;

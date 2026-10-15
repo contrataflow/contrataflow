@@ -60,6 +60,17 @@ export interface IdentityRepository {
    * sem vínculo no tenant não é devolvido), para validar aprovadores designados (US-061).
    */
   membersInTenant(tx: TenantTx, userIds: readonly string[]): Promise<TenantMember[]>;
+  /**
+   * Quais dos usuários têm lotação (`membership_departments`) na unidade, no tenant da transação
+   * (US-102 · RN-TEN-48: titular/substituto elegíveis).
+   */
+  usersAssignedToDepartment(
+    tx: TenantTx,
+    departmentId: string,
+    userIds: readonly string[],
+  ): Promise<Set<string>>;
+  /** Lotações (de qualquer vínculo) na unidade — impedem a exclusão física (US-102 · RN-TEN-51). */
+  countDepartmentAssignments(tx: TenantTx, departmentId: string): Promise<number>;
 }
 
 export const IDENTITY_REPOSITORY = Symbol('IdentityRepository');
