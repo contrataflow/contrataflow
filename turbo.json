@@ -6,8 +6,8 @@
   "globalPassThroughEnv": ["CI", "DOCKER_HOST", "TESTCONTAINERS_*", "NEXT_TELEMETRY_DISABLED"],
   "tasks": {
     "db:generate": {
-      "inputs": ["prisma/schema.prisma"],
-      "outputs": ["node_modules/.prisma/**"]
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
+      "outputs": ["src/shared/database/generated/**"]
     },
     "openapi:generate": {
       "dependsOn": ["^build"],
@@ -45,6 +45,10 @@
     },
     "test:integration": {
       "dependsOn": ["build"],
+      "cache": false
+    },
+    "@contrataflow/web#test:integration": {
+      "dependsOn": ["^build"],
       "cache": false
     },
     "test:e2e": {

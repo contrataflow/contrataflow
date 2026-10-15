@@ -3,7 +3,24 @@
   "extends": ["//"],
   "tasks": {
     "test": {
+      "dependsOn": ["^build", "db:generate"],
       "outputs": ["coverage/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build", "//#lint:repo", "db:generate"]
+    },
+    "test:tenant-leak": {
+      "dependsOn": ["^build", "db:generate"],
+      "cache": false
+    },
+    "openapi:generate": {
+      "dependsOn": ["^build", "db:generate"],
+      "outputs": ["openapi/**"]
+    },
+    "dev": {
+      "dependsOn": ["^build", "db:generate"],
+      "cache": false,
+      "persistent": true
     }
   }
 }

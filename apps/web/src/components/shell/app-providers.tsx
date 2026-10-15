@@ -8,8 +8,11 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { ConflictDialog } from '@/components/errors/conflict-dialog';
+import { LogoutGuard } from '@/components/session/logout-guard';
+import { SessionWatcher } from '@/components/session/session-watcher';
 import { applyErrorEffect } from '@/lib/api/error-effects';
 import type { ErrorEffectDeps } from '@/lib/api/error-effects';
+import { localDrafts } from '@/lib/drafts/local-drafts';
 import { makeQueryClient, subscribeToErrors } from '@/lib/query/query-client';
 import { ShellSessionProvider } from '@/lib/session/session-context';
 import { SessionSync } from '@/lib/session/session-sync';
@@ -17,7 +20,8 @@ import type { ActiveShellSession } from '@/lib/session/types';
 
 /**
  * Providers do shell autenticado: QueryClient (um por aba), sessão, sincronização entre abas,
- * política global de erros, diálogo de conflito e toasts.
+ * contador de sessão e "Sair" com confirmação (US-088), política global de erros, diálogo de
+ * conflito e toasts.
  */
 export function AppProviders({
   session,
@@ -56,6 +60,13 @@ export function AppProviders({
     [t],
   );
 
+  // Outro usuário neste navegador: rascunhos locais de terceiros são apagados (RN-IAM-30).
+  useEffect(() => {
+    void localDrafts()
+      .purgeForeign(session.user.id)
+      .catch(() => undefined);
+  }, [session.user.id]);
+
   useEffect(
     () =>
       subscribeToErrors(queryClient, (error, source) => {
@@ -67,18 +78,21 @@ export function AppProviders({
   return (
     <QueryClientProvider client={queryClient}>
       <ShellSessionProvider session={session}>
-        <SessionSync />
-        {children}
-        <ConflictDialog
-          open={conflictOpen}
-          onOpenChange={setConflictOpen}
-          onReload={() => {
-            setConflictOpen(false);
-            void queryClient.invalidateQueries();
-            router.refresh();
-          }}
-        />
-        <Toaster label="Notificações ({hotkey})" closeLabel="Fechar" />
+        <LogoutGuard>
+          <SessionSync />
+          <SessionWatcher />
+          {children}
+          <ConflictDialog
+            open={conflictOpen}
+            onOpenChange={setConflictOpen}
+            onReload={() => {
+              setConflictOpen(false);
+              void queryClient.invalidateQueries();
+              router.refresh();
+            }}
+          />
+          <Toaster label="Notificações ({hotkey})" closeLabel="Fechar" />
+        </LogoutGuard>
       </ShellSessionProvider>
     </QueryClientProvider>
   );

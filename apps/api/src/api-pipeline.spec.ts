@@ -204,7 +204,7 @@ describe('Feature: Esqueleto da API modular (US-080)', () => {
   });
 
   it('[Concorrência] o contexto de AsyncLocalStorage não vaza entre requisições concorrentes', async () => {
-    const ids = Array.from({ length: 150 }, (_, index) => `load-${index}`);
+    const ids = Array.from({ length: 150 }, (_, index) => `load-${String(index).padStart(4, '0')}`);
     const responses = await Promise.all(
       ids.map((id) =>
         request(api.server)
@@ -441,7 +441,12 @@ describe('Erros genéricos do filtro RFC 9457', () => {
     expect(body.detail).toBe(`Ocorreu um erro inesperado. Código: ${body.correlationId}.`);
     expect(JSON.stringify(body)).not.toContain('segredo');
     expect(error).toHaveBeenCalledWith(
-      expect.stringContaining(`http.unhandled_exception correlationId=${body.correlationId}`),
+      expect.objectContaining({
+        event: 'http.unhandled_exception',
+        correlationId: body.correlationId,
+        errorCode: 'INTERNAL_ERROR',
+      }),
+      'unhandled exception',
     );
     // Erro 5xx libera a chave: a nova tentativa é processada (e falha de novo), não reproduzida.
     expectProblem(await send(), 500, 'INTERNAL_ERROR');

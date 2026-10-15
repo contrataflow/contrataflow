@@ -20,6 +20,7 @@ export function isPublicRoute(request: Pick<HttpRequest, 'originalUrl'>): boolea
 
 export const WITHOUT_TENANT_METADATA = 'cf:auth:without-tenant';
 export const REQUIRE_MFA_METADATA = 'cf:auth:require-mfa';
+export const ALLOW_UNBOUND_SUBJECT_METADATA = 'cf:auth:allow-unbound-subject';
 
 /**
  * Rota autenticada sem tenant ativo (ex.: `GET /me/memberships`, `/platform/*`): pula os guards
@@ -27,6 +28,15 @@ export const REQUIRE_MFA_METADATA = 'cf:auth:require-mfa';
  */
 export const WithoutTenant = (): MethodDecorator & ClassDecorator =>
   SetMetadata(WITHOUT_TENANT_METADATA, true);
+
+/**
+ * Início de sessão (US-087): o JWT é validado normalmente, mas o `sub` ainda pode não estar
+ * vinculado a um `User` (primeiro login — RN-IAM-06). A rota recebe o token verificado
+ * (`@VerifiedTokenParam()`) e resolve o usuário ela mesma. Uso exclusivo de
+ * `POST /internal/session-events`.
+ */
+export const AllowUnboundSubject = (): MethodDecorator & ClassDecorator =>
+  SetMetadata(ALLOW_UNBOUND_SUBJECT_METADATA, true);
 
 /** Rota que exige sessão com MFA (POL-14 — ponto de extensão; nenhuma rota usa na US-080). */
 export const RequireMfa = (): MethodDecorator & ClassDecorator =>

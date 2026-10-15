@@ -20,7 +20,7 @@ export const BFF_PROBLEMS = {
   SESSION_EXPIRED: {
     status: 401,
     title: 'Sessão expirada',
-    detail: 'Sua sessão expirou. Entre novamente.',
+    detail: 'Sua sessão expirou. Entre novamente para continuar.',
   },
   CSRF_REJECTED: {
     status: 403,
@@ -30,7 +30,27 @@ export const BFF_PROBLEMS = {
   MEMBERSHIP_INACTIVE: {
     status: 403,
     title: 'Vínculo inativo',
-    detail: 'Seu acesso a este órgão não está ativo.',
+    detail: 'Seu acesso a esta instituição não está ativo.',
+  },
+  TENANT_SUSPENDED: {
+    status: 403,
+    title: 'Instituição indisponível',
+    detail: 'Esta instituição está temporariamente indisponível.',
+  },
+  PERMISSION_DENIED: {
+    status: 403,
+    title: 'Acesso bloqueado',
+    detail: 'Seu acesso ao ContrataFlow está bloqueado.',
+  },
+  MFA_REQUIRED: {
+    status: 403,
+    title: 'Confirmação de identidade necessária',
+    detail: 'Confirme sua identidade para continuar.',
+  },
+  VALIDATION_ERROR: {
+    status: 422,
+    title: 'Dados inválidos',
+    detail: 'Verifique os dados informados.',
   },
   NOT_FOUND: {
     status: 404,
@@ -52,10 +72,15 @@ export const BFF_PROBLEMS = {
     title: 'Requisição malformada',
     detail: 'Não foi possível interpretar a requisição.',
   },
+  RATE_LIMITED: {
+    status: 429,
+    title: 'Muitas tentativas',
+    detail: 'Muitas tentativas. Aguarde alguns instantes.',
+  },
   DEPENDENCY_UNAVAILABLE: {
     status: 503,
     title: 'Serviço indisponível',
-    detail: 'O serviço está temporariamente indisponível. Tente novamente.',
+    detail: 'Serviço temporariamente indisponível. Seu trabalho foi preservado.',
   },
   INTERNAL_ERROR: {
     status: 500,
@@ -70,12 +95,22 @@ export function problemType(code: string): string {
   return `https://docs.contrataflow.com.br/errors/${code.toLowerCase().replaceAll('_', '-')}`;
 }
 
+/** Erro de campo do problem+json (api.md §2.1.1). */
+export interface BffFieldError {
+  readonly field: string;
+  readonly code: string;
+  readonly message: string;
+}
+
 export function problemResponse(
   code: BffProblemCode,
   context: {
     readonly correlationId: string;
     readonly instance: string;
     readonly headers?: HeadersInit;
+    readonly errors?: readonly BffFieldError[];
+    /** Membros de extensão (RFC 9457 §3.2), ex.: `stepUpUrl` do `MFA_REQUIRED`. */
+    readonly extensions?: Readonly<Record<string, unknown>>;
   },
 ): Response {
   const spec = BFF_PROBLEMS[code];
@@ -92,8 +127,9 @@ export function problemResponse(
       instance: context.instance,
       code,
       correlationId: context.correlationId,
-      errors: [],
+      errors: context.errors ?? [],
       violations: [],
+      ...context.extensions,
     }),
     { status: spec.status, headers },
   );

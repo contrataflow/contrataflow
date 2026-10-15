@@ -274,7 +274,8 @@ Feature: Contexto de tenant e isolamento de dados
 - **Acessibilidade:** páginas de erro com título, explicação e ação primária focável; anúncio por `aria-live`.
 
 ## Banco de dados
-- **Migração `tenancy_foundation`:** tabela `tenants` (entities.md §4.1); funções `cf_apply_tenant_rls(regclass)` (ENABLE + FORCE + política `tenant_isolation` para `cf_app`), `cf_user_memberships`, `cf_find_invitation`, `cf_set_primary_organization` (donas: `cf_definer`, `SET search_path = pg_catalog, public`); `GRANT`s por papel; `cf_app` com `SELECT` apenas nas colunas não sensíveis de `tenants`.
+- **Já entregue pela US-087 (2026-10-14 · DEC-070):** tabela `tenants` (entities.md §4.1, sem a FK de `primary_organization_id`, que vem com organizations), papel `cf_definer` e a função `cf_user_memberships` (só responde ao `app.user_id` da transação; `EXECUTE` para `cf_app`/`cf_worker`), além do `PlatformTransaction` para leituras de plataforma da identidade. Esta story não as recria: acrescenta o restante abaixo e pode mover `cf_user_memberships` para o `SystemDbService`.
+- **Migração `tenancy_foundation`:** tabela `tenants` (entities.md §4.1 — já criada pela US-087); funções `cf_apply_tenant_rls(regclass)` (ENABLE + FORCE + política `tenant_isolation` para `cf_app`), `cf_user_memberships`, `cf_find_invitation`, `cf_set_primary_organization` (donas: `cf_definer`, `SET search_path = pg_catalog, public`); `GRANT`s por papel; `cf_app` com `SELECT` apenas nas colunas não sensíveis de `tenants`.
 - **Política padrão** (aplicada por `cf_apply_tenant_rls` em toda tabela nova):
   ```sql
   CREATE POLICY tenant_isolation ON processes TO cf_app

@@ -1,10 +1,19 @@
+import { CORRELATION_HEADER, uuidv7 } from '@contrataflow/observability/correlation';
+
+import { isPollingRequest } from '@/lib/session/polling';
+import { emitSessionSignal } from '@/lib/session/session-signals';
+
 import { ApiError, apiErrorFromResponse } from './api-error';
 
 /*
  * Cliente same-origin dos Client Components (architecture.md §8.4/§8.5 · RN-FND-89/90): único
  * caminho de leitura e mutação do browser, sempre via proxy `/api/v1/*` do BFF (sem Server
- * Actions). Envia `X-CF-Request` (CSRF), `If-Match` e `Idempotency-Key`; expõe `ETag` em
- * `meta.etag` e converte problem+json em `ApiError`.
+ * Actions). Envia `X-CF-Request` (CSRF), `If-Match`, `Idempotency-Key` e o `X-Correlation-Id` da
+ * ação do usuário (reutilizado nas retentativas — observability.md §3); expõe `ETag` em
+ * `meta.etag` e converte problem+json em `ApiError`. Interceptador da sessão (US-088): toda ação do
+ * usuário atendida reinicia o contador de ociosidade do shell (sondagens não), 401
+ * `SESSION_EXPIRED` abre o modal e 503 de um comando, o banner de indisponibilidade (consultas com 5xx
+ * já vão ao `error.tsx` do segmento, que mostra a indisponibilidade com "Tentar novamente").
  */
 
 export const API_PROXY_PREFIX = '/api/v1';
@@ -32,6 +41,8 @@ export interface ApiRequestOptions {
   readonly body?: unknown;
   readonly ifMatch?: string | null | undefined;
   readonly idempotencyKey?: string | undefined;
+  /** Um por ação do usuário; o BFF gera um se ausente. */
+  readonly correlationId?: string | undefined;
   readonly signal?: AbortSignal | undefined;
   readonly fetchImpl?: typeof fetch | undefined;
 }
@@ -73,6 +84,7 @@ export async function apiRequest<T>(
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.ifMatch) headers.set('If-Match', options.ifMatch);
   if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey);
+  if (options.correlationId) headers.set(CORRELATION_HEADER, options.correlationId);
 
   let response: Response;
   try {
@@ -86,11 +98,21 @@ export async function apiRequest<T>(
     });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+    if (method !== 'GET') emitSessionSignal({ type: 'unavailable' });
     throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'Falha de rede.' });
   }
 
   const body = await readJson(response);
-  if (!response.ok) throw apiErrorFromResponse(response.status, response.headers, body);
+  if (!response.ok) {
+    const error = apiErrorFromResponse(response.status, response.headers, body);
+    if (error.status === 401 && error.code === 'SESSION_EXPIRED') {
+      emitSessionSignal({ type: 'expired' });
+    } else if (error.status === 503 && method !== 'GET') {
+      emitSessionSignal({ type: 'unavailable' });
+    }
+    throw error;
+  }
+  if (!isPollingRequest(method, path)) emitSessionSignal({ type: 'activity' });
 
   const data = (
     typeof body === 'object' && body !== null && 'data' in body ? body.data : undefined
@@ -155,4 +177,9 @@ export async function retryIdempotent<T>(
 /** Nova chave de idempotência (UUID v4). */
 export function newIdempotencyKey(): string {
   return crypto.randomUUID();
+}
+
+/** Novo `correlationId` de uma ação do usuário (UUIDv7, aceito pelo BFF — RN-FND-74). */
+export function newCorrelationId(): string {
+  return uuidv7();
 }

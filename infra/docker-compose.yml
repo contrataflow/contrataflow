@@ -49,6 +49,8 @@ x-authentik: &authentik
     - authentik-data:/data
     # Blueprints declarativos (RN-FND-17): reaplicados a cada start e a cada mudança (FA-04).
     - ./authentik/blueprints:/blueprints/contrataflow:ro
+    # Templates de e-mail próprios (recuperação de senha — US-089), validados pelo blueprint 12.
+    - ./authentik/templates:/templates:ro
 
 services:
   postgres:

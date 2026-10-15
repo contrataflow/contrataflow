@@ -5,12 +5,15 @@ import { cookies, headers } from 'next/headers';
 import { ApiError, apiErrorFromResponse } from '@/lib/api/api-error';
 import type { ApiResult } from '@/lib/api/client';
 
+import { LOGIN_TRANSACTION_COOKIE, openTransactions } from './auth/login-transaction';
+import { pendingReturnTo, RECOVERY_RETURN_COOKIE } from './auth/password-recovery';
 import { clientIpFrom } from './client-ip';
 import { resolveCorrelationId } from './correlation';
 import { NONCE_HEADER, PATHNAME_HEADER } from './edge';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import type { SessionLookup } from './session/session-service';
+import { SessionStoreUnavailableError } from './session/types';
 import { toShellSession } from './session/view';
 import { buildUpstreamHeaders, callUpstream } from './upstream';
 
@@ -34,6 +37,39 @@ export async function currentSession(runtime: BffRuntime = bffRuntime()): Promis
   return runtime.sessions.lookup(cookieStore.get(runtime.config.sessionCookieName)?.value);
 }
 
+/**
+ * Sessão para páginas: o Redis de sessões fora do ar vira `unavailable` (a página leva a SCR-111
+ * "manutenção"), nunca "sem sessão" — a sessão continua válida quando ele voltar (DEC-131).
+ */
+export async function currentSessionOrUnavailable(
+  runtime: BffRuntime = bffRuntime(),
+): Promise<SessionLookup | { readonly status: 'unavailable' }> {
+  try {
+    return await currentSession(runtime);
+  } catch (error) {
+    if (error instanceof SessionStoreUnavailableError) return { status: 'unavailable' };
+    throw error;
+  }
+}
+
+/**
+ * Destino a preservar em `/entrar?motivo=senha-redefinida` (FA-05 da US-089): o `returnTo` da
+ * recuperação pedida pelo ContrataFlow ou o do login em curso quando ela partiu do Authentik.
+ */
+export async function pendingRecoveryReturnTo(
+  runtime: BffRuntime = bffRuntime(),
+): Promise<string | null> {
+  const cookieStore = await cookies();
+  return pendingReturnTo({
+    recoveryCookie: cookieStore.get(RECOVERY_RETURN_COOKIE)?.value ?? null,
+    transactions: openTransactions(
+      runtime.transactionKey,
+      cookieStore.get(LOGIN_TRANSACTION_COOKIE)?.value ?? null,
+      runtime.now(),
+    ),
+  });
+}
+
 export async function currentShellSession(runtime: BffRuntime = bffRuntime()) {
   const lookup = await currentSession(runtime);
   return lookup.status === 'active' ? toShellSession(lookup.record) : null;
@@ -55,7 +91,13 @@ export const apiServerClient = {
   ): Promise<ApiResult<T>> {
     const requestHeaders = await headers();
     const correlationId = resolveCorrelationId(requestHeaders.get('X-Correlation-Id'));
-    const lookup = await currentSession(runtime);
+    const lookup = await currentSessionOrUnavailable(runtime);
+    if (lookup.status === 'unavailable') {
+      throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
+    }
+    if (lookup.status === 'membership_ended') {
+      throw new ApiError({ status: 403, code: 'MEMBERSHIP_INACTIVE', correlationId });
+    }
     if (lookup.status !== 'active') {
       throw new ApiError({
         status: 401,
@@ -64,10 +106,14 @@ export const apiServerClient = {
       });
     }
     const fresh = await runtime.sessions.ensureFreshToken(lookup.record);
-    if (fresh.status !== 'ok') {
-      throw fresh.status === 'expired'
-        ? new ApiError({ status: 401, code: 'SESSION_EXPIRED', correlationId })
-        : new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
+    if (fresh.status === 'expired') {
+      throw new ApiError({ status: 401, code: 'SESSION_EXPIRED', correlationId });
+    }
+    if (fresh.status === 'ended') {
+      throw new ApiError({ status: 401, code: 'UNAUTHENTICATED', correlationId });
+    }
+    if (fresh.status === 'unavailable') {
+      throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId });
     }
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(options.query ?? {})) {
@@ -86,6 +132,8 @@ export const apiServerClient = {
           requestHeaders.get('X-Forwarded-For'),
           runtime.config.trustedProxies,
         ),
+        userAgent: requestHeaders.get('user-agent'),
+        sessionIdHash: fresh.record.key,
       }),
       body: null,
     });

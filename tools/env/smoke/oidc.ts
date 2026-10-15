@@ -84,6 +84,9 @@ export interface OidcLoginResult {
   readonly claims: Readonly<Record<string, unknown>>;
   readonly scopes: readonly string[];
   readonly hasRefreshToken: boolean;
+  /** Para conferir revogação (US-089: a redefinição de senha revoga os refresh tokens). */
+  readonly refreshToken: string | null;
+  readonly tokenEndpoint: string;
 }
 
 interface Discovery {
@@ -259,5 +262,7 @@ export async function oidcLogin(options: OidcLoginOptions): Promise<OidcLoginRes
     claims,
     scopes: (tokens.scope ?? '').split(' ').filter(Boolean),
     hasRefreshToken: Boolean(tokens.refresh_token),
+    refreshToken: tokens.refresh_token ?? null,
+    tokenEndpoint: discovery.token_endpoint,
   };
 }

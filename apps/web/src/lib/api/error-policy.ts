@@ -3,11 +3,15 @@ import type { ApiError } from './api-error';
 /*
  * Política transversal de erros da UI (architecture.md §8.12 · RN-FND-93). Ordem de prioridade:
  * sessão → MFA → tenant/vínculo → CSRF → 404 → conflito → validação/política → limite → 5xx.
- * Função pura: quem a aplica (boundaries, cliente de API) só executa a ação devolvida.
+ * Função pura: quem a aplica (boundaries, cliente de API) só executa a ação devolvida. Sessão
+ * expirada e indisponibilidade não navegam: o `SessionWatcher` abre o modal ou o banner e preserva
+ * o que está na tela (US-088 · CA-T-09 · RN-IAM-33).
  */
 
 export type ErrorAction =
   | { readonly kind: 'redirect'; readonly href: string }
+  | { readonly kind: 'session-expired' }
+  | { readonly kind: 'unavailable' }
   | { readonly kind: 'not-found' }
   | { readonly kind: 'conflict' }
   | { readonly kind: 'rate-limited'; readonly retryAfterSeconds: number | null }
@@ -15,9 +19,16 @@ export type ErrorAction =
   | { readonly kind: 'inline' }
   | { readonly kind: 'boundary' };
 
-/** Caminho interno seguro para `returnTo` (só caminho relativo da própria aplicação). */
-export function loginHref(returnTo: string): string {
-  return `/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
+/** SCR-111 "sem acesso a esta instituição" (FA-08 da US-088). */
+export const MEMBERSHIP_INACTIVE_HREF = '/erro/vinculo-inativo';
+
+/** Login com `returnTo` (caminho interno); após expiração, com reautenticação (RN-IAM-32). */
+export function loginHref(
+  returnTo: string,
+  options: { readonly reauthenticate?: boolean } = {},
+): string {
+  const reauth = options.reauthenticate === true ? '&reauth=1' : '';
+  return `/api/auth/login?returnTo=${encodeURIComponent(returnTo)}${reauth}`;
 }
 
 export function stepUpHref(returnTo: string): string {
@@ -29,12 +40,13 @@ export function resolveErrorAction(
   currentPath: string,
 ): ErrorAction {
   const { status, code } = error;
+  if (status === 401 && code === 'SESSION_EXPIRED') return { kind: 'session-expired' };
   if (status === 401) return { kind: 'redirect', href: loginHref(currentPath) };
   if (status === 403 && code === 'MFA_REQUIRED') {
     return { kind: 'redirect', href: stepUpHref(currentPath) };
   }
   if (status === 403 && code === 'MEMBERSHIP_INACTIVE') {
-    return { kind: 'redirect', href: '/selecionar-orgao' };
+    return { kind: 'redirect', href: MEMBERSHIP_INACTIVE_HREF };
   }
   if (status === 403 && code === 'TENANT_SUSPENDED') {
     return { kind: 'redirect', href: '/erro/acesso-indisponivel' };
@@ -50,5 +62,6 @@ export function resolveErrorAction(
   if (status === 429) return { kind: 'rate-limited', retryAfterSeconds: error.retryAfterSeconds };
   // 403 de política (DEC-181), 422 de validação/regra e demais 4xx: mensagem na própria tela.
   if (status >= 400 && status < 500) return { kind: 'inline' };
+  if (status === 503 && code === 'DEPENDENCY_UNAVAILABLE') return { kind: 'unavailable' };
   return { kind: 'boundary' };
 }

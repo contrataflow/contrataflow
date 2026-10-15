@@ -5,6 +5,7 @@ import {
   apiRequest,
   apiUrl,
   isRetryableMutationError,
+  newCorrelationId,
   newIdempotencyKey,
   retryIdempotent,
 } from './client';
@@ -140,5 +141,40 @@ describe('Idempotency-Key por intenção (DEC-105)', () => {
       .mockRejectedValueOnce(new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE' }))
       .mockResolvedValueOnce(1);
     await expect(retryIdempotent(run, { baseDelayMs: 1 })).resolves.toBe(1);
+  });
+});
+
+describe('correlationId por ação do usuário (US-084 — cenário "Duplicidade")', () => {
+  it('a retentativa automática após falha de rede reenvia o mesmo X-Correlation-Id', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(Response.json({ data: { id: 1 } }, { status: 201 }));
+    const correlationId = newCorrelationId();
+    const result = await retryIdempotent(
+      () =>
+        apiRequest('/processes', {
+          method: 'POST',
+          body: {},
+          idempotencyKey: 'k-retry',
+          correlationId,
+          fetchImpl,
+        }),
+      { sleep: () => Promise.resolve() },
+    );
+    expect(result.status).toBe(201);
+    const sent = fetchImpl.mock.calls.map(([, init]) =>
+      new Headers(init?.headers).get('X-Correlation-Id'),
+    );
+    expect(sent).toEqual([correlationId, correlationId]);
+  });
+
+  it('gera UUIDv7 aceito pelo BFF e omite o cabeçalho quando não há ação', async () => {
+    expect(newCorrelationId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    const fetchImpl = fetchReturning(Response.json({ data: null }));
+    await apiRequest('/x', { fetchImpl });
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).has('X-Correlation-Id')).toBe(false);
   });
 });

@@ -5,13 +5,20 @@ import { CORRELATION_HEADER } from './correlation';
 /*
  * Chamada do BFF à API interna (architecture.md §8.4 · RN-FND-89). Os cabeçalhos são
  * reconstruídos do zero: só a allowlist de entrada vem do browser; `Authorization`,
- * `X-Tenant-Id`, `X-Correlation-Id` e `X-Forwarded-For` vêm da sessão/BFF. `Cookie` e qualquer
- * `Authorization`/`X-Tenant-Id`/`X-Forwarded-*` do browser são descartados.
+ * `X-Tenant-Id`, `X-Correlation-Id`, `X-Forwarded-For` e `X-CF-Session-Id-Hash` vêm da sessão/BFF.
+ * `Cookie` e qualquer `Authorization`/`X-Tenant-Id`/`X-Forwarded-*` do browser são descartados.
+ * O `User-Agent` do navegador segue para a auditoria da API (US-073 · RN-AUD-05).
  */
 
 export const API_PREFIX = '/api/v1';
 export const UPSTREAM_TIMEOUT_MS = 30_000;
 export const MAX_BODY_BYTES = 2 * 1024 * 1024;
+
+/** SHA-256 do id da sessão (`AuditLog.sessionIdHash`), aceito pela API só vindo do BFF. */
+export const SESSION_HASH_HEADER = 'X-CF-Session-Id-Hash';
+
+/** Tamanho de `AuditLog.userAgent` (entities.md §4). */
+const MAX_USER_AGENT_LENGTH = 512;
 
 export const INBOUND_HEADER_ALLOWLIST = [
   'content-type',
@@ -47,6 +54,10 @@ export interface UpstreamIdentity {
   readonly tenantId: string | null;
   readonly correlationId: string;
   readonly clientIp: string | null;
+  /** User-agent do navegador; ausente → o do próprio BFF. */
+  readonly userAgent?: string | null;
+  /** `SessionRecord.key` (SHA-256 do id da sessão). */
+  readonly sessionIdHash?: string | null;
 }
 
 export function buildUpstreamHeaders(inbound: Headers | null, identity: UpstreamIdentity): Headers {
@@ -62,6 +73,9 @@ export function buildUpstreamHeaders(inbound: Headers | null, identity: Upstream
   if (identity.tenantId) headers.set('X-Tenant-Id', identity.tenantId);
   headers.set(CORRELATION_HEADER, identity.correlationId);
   if (identity.clientIp) headers.set('X-Forwarded-For', identity.clientIp);
+  if (identity.userAgent)
+    headers.set('User-Agent', identity.userAgent.slice(0, MAX_USER_AGENT_LENGTH));
+  if (identity.sessionIdHash) headers.set(SESSION_HASH_HEADER, identity.sessionIdHash);
   return headers;
 }
 

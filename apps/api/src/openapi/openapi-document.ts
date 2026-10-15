@@ -158,6 +158,10 @@ export function buildOpenApiDocument(
       summary: operation.spec.summary,
       ...(operation.spec.tags ? { tags: [...operation.spec.tags] } : {}),
       security: [{ bearerAuth: [] }],
+      ...(operation.spec.auditActions
+        ? { 'x-audit-actions': [...operation.spec.auditActions] }
+        : {}),
+      ...(operation.spec.auditExempt ? { 'x-audit-exempt': operation.spec.auditExempt } : {}),
       request: {
         headers: z.object(headers),
         ...(body

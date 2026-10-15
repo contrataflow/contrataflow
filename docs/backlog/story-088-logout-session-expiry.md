@@ -64,7 +64,7 @@ Garantir que 100% das sessões terminem no máximo no limite configurado (toler�
 - **FA-08 — Vínculo suspenso enquanto o usuário trabalha:** a próxima requisição recebe 403 `MEMBERSHIP_INACTIVE`; o shell mostra SCR-111 ("Seu acesso a esta instituição foi suspenso.") e, se houver outros vínculos utilizáveis, oferece a seleção (US-093).
 
 ## Regras de negócio
-- **RN-IAM-20** — Logout (`POST /api/auth/logout`, exige `X-CF-Request: 1` e origem própria): revoga o refresh token no endpoint de revogação do Authentik (RFC 7009; tempo-limite 2 s; melhor esforço), apaga os tokens, marca a sessão como encerrada (`LOGOUT`), remove o `sid` do índice do usuário, expira o cookie e devolve a URL do *RP-initiated logout* (`end_session_endpoint` com `id_token_hint` e `post_logout_redirect_uri` = `https://<app>/entrar?motivo=saiu`). É idempotente: sem sessão, responde 200 com `logoutUrl` para SCR-001.
+- **RN-IAM-20** — Logout (`POST /api/auth/logout`, exige `X-CF-Request: 1` e origem própria): revoga o refresh token no endpoint de revogação do Authentik (RFC 7009; tempo-limite 2 s; melhor esforço), apaga os tokens, marca a sessão como encerrada (`LOGOUT`), remove o `sid` do índice do usuário, expira o cookie e devolve a URL do *RP-initiated logout* (`end_session_endpoint` com `client_id` e `post_logout_redirect_uri` = `https://<app>/entrar?motivo=saiu`; sem `id_token_hint`, que ficaria no histórico do navegador — DEC-070/DEC-073). É idempotente: sem sessão, responde 200 com `logoutUrl` para SCR-001.
 - **RN-IAM-21** — Ociosidade deslizante: `idleExpiresAt = lastSeenAt + security.sessionIdleMinutes` da instituição ativa. Só requisições iniciadas pelo usuário renovam; não renovam `GET /api/auth/session` sem `keepalive`, `NTF-02` (contador de notificações) e `TSK-02` (contadores da caixa), que são consultas de sondagem.
 - **RN-IAM-22** — Duração absoluta: `absoluteExpiresAt = createdAt + security.sessionAbsoluteHours`, nunca estendida (nem por "Continuar conectado"); depois dela, somente novo login.
 - **RN-IAM-23** — Avisos: diálogo de ociosidade 2 min antes; aviso de término absoluto 5 min antes; ambos anunciados por `aria-live` e operáveis por teclado.
@@ -91,7 +91,7 @@ Garantir que 100% das sessões terminem no máximo no limite configurado (toler�
 ## Validações
 | # | Validação | Camada | Mensagem ao usuário | Código de erro |
 |---|---|---|---|---|
-| V-01 | Logout sem `X-CF-Request` ou com origem externa | BFF | "Requisição não permitida. Recarregue a página." | `PERMISSION_DENIED` |
+| V-01 | Logout sem `X-CF-Request` ou com origem externa | BFF | "Não foi possível confirmar a origem da solicitação." | `CSRF_REJECTED` (padrão do BFF — US-086, DEC-073) |
 | V-02 | Sessão inexistente | BFF | "Entre para continuar." | `UNAUTHENTICATED` |
 | V-03 | Sessão vencida por ociosidade/absoluta ou renovação recusada | BFF | "Sua sessão expirou. Entre novamente para continuar." | `SESSION_EXPIRED` |
 | V-04 | Vínculo suspenso/revogado/expirado durante o uso | API | "Seu acesso a esta instituição não está ativo." | `MEMBERSHIP_INACTIVE` |
@@ -126,7 +126,7 @@ Feature: Logout, expiração e renovação de sessão
     When "Cláudia" clicar em "Sair" em uma das abas
     Then o refresh token deve ser revogado no Authentik e a sessão encerrada no Redis
     And o cookie "__Host-cf_session" deve ser expirado
-    And o navegador deve passar pelo encerramento de sessão do Authentik com "id_token_hint" e voltar a "/entrar?motivo=saiu"
+    And o navegador deve passar pelo encerramento de sessão do Authentik com "client_id" e voltar a "/entrar?motivo=saiu"
     And a outra aba deve ser levada à página de entrada
     And deve gerar registro de auditoria "auth.session_end" com motivo "LOGOUT"
 
@@ -210,18 +210,19 @@ Feature: Logout, expiração e renovação de sessão
 | Sem sessão | 401 | `UNAUTHENTICATED` | "Entre para continuar." | Vai a SCR-001 com `returnTo` |
 | Sessão expirada / renovação recusada | 401 | `SESSION_EXPIRED` | "Sua sessão expirou. Entre novamente para continuar." | Modal; preserva rascunhos; retorna ao ponto |
 | Vínculo inativo durante o uso | 403 | `MEMBERSHIP_INACTIVE` | "Seu acesso a esta instituição não está ativo." | SCR-111; oferece outra instituição se houver |
-| CSRF no logout | 403 | `PERMISSION_DENIED` | "Requisição não permitida. Recarregue a página." | Recarrega |
+| CSRF no logout | 403 | `CSRF_REJECTED` | "Não foi possível confirmar a origem da solicitação." | Recarrega |
 | Authentik ou Redis de sessões indisponíveis | 503 | `DEPENDENCY_UNAVAILABLE` | "Serviço temporariamente indisponível. Seu trabalho foi preservado." | Mantém a tela; "Tentar novamente"; correlationId |
 
 ## Dependências
 - **Stories:** US-087 (sessão). Indiretas: US-073 (auditoria), US-082/US-083 (eventos e worker), US-086 (shell e modal), US-092 (eventos de vínculo), US-093 (recalcular limites na troca), DEC-182/autosave (US-015).
 - **Decisões/ADRs:** DEC-131, DEC-132, DEC-135, DEC-138, DEC-161, DEC-163, DEC-182; ADR-003.
 - **Configurações:** `security.sessionIdleMinutes`, `security.sessionAbsoluteHours`.
-- **Lacunas nas fontes canônicas:**
+- **Lacunas nas fontes canônicas** (resolvidas na implementação — DEC-073, authentication.md §4.1):
   1. O parâmetro `keepalive` de `GET /api/auth/session` e a lista de rotas de sondagem que não renovam a ociosidade não estão em authentication.md (em redação).
   2. DEC-163 não prevê job de plataforma por minuto para varredura de sessões; proposto job recorrente `session-sweep` em fila de plataforma (DEC-164).
   3. A auditoria de encerramento é gravada pelo worker após o fato (o logout não tem transação de banco), divergindo do padrão "mesma transação" de DEC-161; adotado `occurredAt` = horário real.
   4. O BFF precisa dos limites de sessão da instituição ativa; a lista de chaves expostas por `SET-03 /settings/public` não está definida (US-103).
+  - **Resolução:** (1) `keepalive=true` renova e as sondagens NTF-02/TSK-02 não; (2) a varredura roda no processo da API a cada 1 min até a US-083 (só a API grava auditoria); (3) `occurredAt` = horário real, com `oncePerSession` contra duplicata; (4) a sessão guarda `idleMinutes` e recalcula os prazos na ativação — padrão 30 min / 12 h até a US-103. O worker encontra as sessões pelo índice `cf:{env}:sess:membership:{membershipId}`, não por `tenant_memberships`.
 
 ## Impacto técnico
 - Trava de renovação por sessão no Redis de sessões (`SET NX PX 10000`) evita tempestade de renovações e reutilização de refresh token rotacionado (que o Authentik trataria como roubo).

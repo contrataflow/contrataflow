@@ -14,6 +14,8 @@ export const GLOBAL_IGNORES = [
   '**/.turbo/**',
   '**/coverage/**',
   '**/next-env.d.ts',
+  // Cliente Prisma gerado (`prisma generate` — US-081).
+  '**/shared/database/generated/**',
 ];
 
 /** Arquivos de teste e de configuração (podem importar devDependencies). */

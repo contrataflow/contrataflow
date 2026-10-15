@@ -29,6 +29,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   'violations/apps/api/src/modules/process/domain/process-prisma.ts': [
     'contrataflow/no-prisma-outside-infrastructure',
   ],
+  'violations/apps/api/src/modules/process/infrastructure/prisma-client-direct.ts': [
+    'contrataflow/no-prisma-client-outside-database',
+  ],
   'violations/apps/web/src/bff/session-store.ts': ['contrataflow/require-server-only'],
   'violations/packages/types/src/explicit-any.ts': ['@typescript-eslint/no-explicit-any'],
   'violations/packages/types/src/ts-ignore.ts': ['@typescript-eslint/ban-ts-comment'],

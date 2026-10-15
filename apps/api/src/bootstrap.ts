@@ -1,7 +1,9 @@
-import { Logger } from '@nestjs/common';
+import type { Logger as PinoLogger } from '@contrataflow/observability';
+import { Logger, RequestMethod } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { Logger as NestPinoLogger } from 'nestjs-pino';
 
 import type { AppConfig } from '#config/env.js';
 
@@ -12,6 +14,12 @@ import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
 /** Prefixo de todas as rotas de negócio (api.md §1.1); `/health/*` e `/metrics` ficam fora (US-085). */
 export const API_PREFIX = 'api/v1';
 
+/**
+ * Rotas internas BFF → API (`/internal/*` — US-087) ficam fora de `/api/v1`: o proxy do BFF só
+ * encaminha `/api/v1/*`, então o navegador nunca as alcança.
+ */
+export const INTERNAL_ROUTES = { path: 'internal/{*path}', method: RequestMethod.ALL };
+
 export interface StartApiOptions {
   readonly config: AppConfig;
   /** Sobrescreve a porta da configuração (`0` = porta livre, nos testes). */
@@ -20,6 +28,8 @@ export interface StartApiOptions {
   readonly proc?: ShutdownProcess;
   /** `false` silencia o logger do Nest (testes). */
   readonly logger?: false;
+  /** Logger pino raiz (padrão: stdout, conforme a configuração — RN-FND-71). */
+  readonly rootLogger?: PinoLogger;
 }
 
 export interface RunningApi {
@@ -30,8 +40,8 @@ export interface RunningApi {
 
 /** Ajustes da aplicação HTTP comuns ao bootstrap e aos testes. */
 export function configureApiApp(app: INestApplication): INestApplication {
-  app.setGlobalPrefix(API_PREFIX);
-  // Express: sem `X-Powered-By`; `req.ip` direto do socket até a US-084 tratar proxies confiáveis.
+  app.setGlobalPrefix(API_PREFIX, { exclude: [INTERNAL_ROUTES] });
+  // Express: sem `X-Powered-By`; `req.ip` direto do socket (o BFF repassa o IP do cliente).
   (app as NestExpressApplication).disable('x-powered-by');
   return app;
 }
@@ -40,11 +50,16 @@ export function configureApiApp(app: INestApplication): INestApplication {
  * Cria a aplicação HTTP. O body parser do Express fica desligado: o corpo é lido pelo
  * `JsonBodyMiddleware`, dentro do pipeline e do filtro RFC 9457.
  */
-export async function createApiApp(options: Pick<StartApiOptions, 'config' | 'logger'>) {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(options.config), {
-    bodyParser: false,
-    ...(options.logger === false ? { logger: false } : {}),
-  });
+export async function createApiApp(
+  options: Pick<StartApiOptions, 'config' | 'logger' | 'rootLogger'>,
+) {
+  const silent = options.logger === false;
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule.forRoot(options.config, options.rootLogger ? { logger: options.rootLogger } : {}),
+    { bodyParser: false, ...(silent ? { logger: false } : { bufferLogs: true }) },
+  );
+  // Todo `Logger` do Nest passa a escrever pelo pino (JSON em stdout, campos de §2.2).
+  if (!silent) app.useLogger(app.get(NestPinoLogger));
   return configureApiApp(app);
 }
 
@@ -54,7 +69,7 @@ export async function startApi(options: StartApiOptions): Promise<RunningApi> {
   const port = options.port ?? options.config.port;
   await app.listen(port);
   const logger = new Logger('Bootstrap');
-  logger.log(`api.started port=${port}`);
+  logger.log({ event: 'api.started', port }, 'api started');
   const stopped = registerGracefulShutdown(app, {
     name: 'api',
     logger,

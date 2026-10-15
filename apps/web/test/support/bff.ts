@@ -1,12 +1,20 @@
 // Fábricas dos testes do BFF: configuração válida, runtime com API simulada e sessões prontas.
 import { vi } from 'vitest';
 
+import type { PasswordRecovery } from '@/bff/auth/password-recovery';
+import { MemoryRateLimitCounter } from '@/bff/auth/rate-limit';
 import { createBffRuntime } from '@/bff/runtime';
 import type { BffRuntime } from '@/bff/runtime';
 import { FAKE_PERSONAS, FakeIdentityProvider } from '@/bff/session/fake-identity';
-import type { FakePersonaName } from '@/bff/session/fake-identity';
+import type { FakePersona, FakePersonaName } from '@/bff/session/fake-identity';
 import { MemorySessionStore } from '@/bff/session/memory-store';
-import type { IdentityProvider, SessionRecord } from '@/bff/session/types';
+import { newSessionId } from '@/bff/session/session-service';
+import type {
+  IdentityProvider,
+  SessionDirectory,
+  SessionRecord,
+  SessionStore,
+} from '@/bff/session/types';
 import { loadWebConfig } from '@/config/env';
 import type { EnvSource, WebConfig } from '@/config/env';
 
@@ -41,6 +49,11 @@ export interface TestRuntime {
 export function createTestRuntime(
   options: {
     readonly identity?: IdentityProvider;
+    readonly directory?: SessionDirectory;
+    /** *Flow* de recuperação de senha (padrão: o fake, que volta direto a SCR-001). */
+    readonly recovery?: PasswordRecovery;
+    /** Store alternativo (ex.: um que falha); o `store` devolvido continua o em memória. */
+    readonly sessionStore?: SessionStore;
     readonly upstreamTimeoutMs?: number;
     readonly env?: EnvSource;
   } = {},
@@ -50,10 +63,13 @@ export function createTestRuntime(
   const api = vi.fn<typeof fetch>(() => Promise.resolve(Response.json({ data: { ok: true } })));
   const config = testConfig(options.env);
   const runtime = createBffRuntime(config, {
-    store,
+    store: options.sessionStore ?? store,
+    rateLimitCounter: new MemoryRateLimitCounter(),
     fetch: api,
     now: () => clock.now,
     ...(options.identity ? { identity: options.identity } : {}),
+    ...(options.directory ? { directory: options.directory } : {}),
+    ...(options.recovery ? { recovery: options.recovery } : {}),
     ...(options.upstreamTimeoutMs ? { upstreamTimeoutMs: options.upstreamTimeoutMs } : {}),
   });
   return { runtime, store, api, clock };
@@ -68,21 +84,37 @@ export function fakeIdentity(clock: { now: number }): FakeIdentityProvider {
   });
 }
 
-/** Cria uma sessão ativa para a pessoa e devolve o cabeçalho `Cookie` correspondente. */
+/**
+ * Cria uma sessão ativa para a pessoa (instituição ativa = a primeira utilizável) e devolve o
+ * cabeçalho `Cookie` correspondente.
+ */
 export async function signIn(
   test: TestRuntime,
   persona: FakePersonaName = 'ana',
 ): Promise<{ cookie: string; record: SessionRecord }> {
   const identity = fakeIdentity(test.clock);
-  const data = FAKE_PERSONAS[persona];
-  const { sessionId, record } = await test.runtime.sessions.create({
-    userId: data.userId,
-    subject: data.subject,
-    displayName: data.displayName,
+  const data: FakePersona = FAKE_PERSONAS[persona];
+  const sessionId = newSessionId();
+  const created = await test.runtime.sessions.create(sessionId, {
+    login: {
+      subject: data.subject,
+      tokens: identity.signAccessToken(data.subject, ['pwd']),
+      amr: ['pwd'],
+      authTime: test.clock.now,
+    },
+    user: { id: data.userId, displayName: data.displayName },
+    firstLogin: false,
     memberships: data.memberships,
-    tokens: identity.signAccessToken(data.subject, ['pwd']),
-    amr: ['pwd'],
+    ip: null,
+    userAgent: null,
   });
+  const first = data.memberships.find((membership) => membership.usable);
+  const record = first
+    ? await test.runtime.sessions.activateTenant(created.record, {
+        tenantId: first.tenant.id,
+        membershipId: first.membershipId,
+      })
+    : created.record;
   return { cookie: `${test.runtime.config.sessionCookieName}=${sessionId}`, record };
 }
 

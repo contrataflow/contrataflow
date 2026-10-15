@@ -28,6 +28,7 @@
     "ci:contract": "pnpm --filter @contrataflow/tools run ci:contract",
     "ci:coverage": "pnpm --filter @contrataflow/tools run ci:coverage",
     "ci:migrations": "pnpm --filter @contrataflow/tools run ci:migrations",
+    "ci:sql-lint": "pnpm --filter @contrataflow/tools run ci:sql-lint",
     "ci:github-settings": "pnpm --filter @contrataflow/tools run ci:github-settings",
     "env:up": "pnpm --filter @contrataflow/tools run env:up",
     "env:up:full": "pnpm --filter @contrataflow/tools run env:up:full",
@@ -36,6 +37,7 @@
     "env:check": "pnpm --filter @contrataflow/tools run env:check",
     "env:smoke": "pnpm --filter @contrataflow/tools run env:smoke",
     "env:blueprint": "pnpm --filter @contrataflow/tools run env:blueprint",
+    "db:migrate": "pnpm --filter @contrataflow/tools run db:migrate",
     "prepare": "husky"
   },
   "devDependencies": {

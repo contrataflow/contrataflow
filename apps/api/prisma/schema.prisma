@@ -1,0 +1,308 @@
+// Schema único da API (US-081 · DEC-001/002/003/083). Convenções:
+// - modelo PascalCase singular e campo camelCase no código; tabela snake_case plural e coluna
+//   snake_case no banco, sempre por @map/@@map (DEC-001 · RN-FND-40);
+// - chave primária UUIDv7 gerada pela aplicação (`newId()`), nunca pelo banco (DEC-002 · RN-FND-39);
+// - datas em timestamptz; dinheiro Decimal(18,2), preço unitário/quantidade Decimal(18,4) e
+//   percentual Decimal(9,4), convertidos para decimal.js nos mapeadores (DEC-003 · RN-FND-41);
+// - colunas padrão de DEC-083 e `version` em agregados mutáveis (DEC-055 · RN-FND-42);
+// - RLS, papéis, GRANTs e triggers vivem em SQL bruto nas migrações (RN-FND-45/47).
+// Guia: apps/api/prisma/README.md.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/shared/database/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+  generatedFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// entities.md §1 — situação de um evento do outbox (DEC-161 · ADR-004).
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+
+  @@map("outbox_status")
+}
+
+/// entities.md `OutboxEvent` (módulo platform). Escrito na transação do caso de uso (US-082);
+/// `tenantId` nulo só para eventos de plataforma (DEC-080). Imutável para a aplicação: só o relay
+/// (`cf_relay`) atualiza status/tentativas.
+model OutboxEvent {
+  id            String       @id @db.Uuid
+  tenantId      String?      @map("tenant_id") @db.Uuid
+  eventType     String       @map("event_type") @db.VarChar(80)
+  routingKey    String       @map("routing_key") @db.VarChar(120)
+  eventVersion  Int          @default(1) @map("event_version")
+  aggregateType String       @map("aggregate_type") @db.VarChar(60)
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  processId     String?      @map("process_id") @db.Uuid
+  payload       Json         @db.JsonB
+  metadata      Json         @db.JsonB
+  occurredAt    DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  nextAttemptAt DateTime?    @map("next_attempt_at") @db.Timestamptz(6)
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(6)
+  lastError     String?      @map("last_error")
+
+  @@index([status, occurredAt], map: "outbox_events_pending_idx")
+  @@index([tenantId, aggregateType, aggregateId, occurredAt], map: "outbox_events_aggregate_idx")
+  @@map("outbox_events")
+}
+
+/// entities.md §2 — `TenantType`.
+enum TenantType {
+  MUNICIPALITY
+  CITY_COUNCIL
+  AUTARCHY
+  PUBLIC_CONSORTIUM
+  FOUNDATION
+  PUBLIC_COMPANY
+  OTHER
+
+  @@map("tenant_type")
+}
+
+/// entities.md §2 — `TenantStatus` (DEC-132: requisições de usuários só com `ACTIVE`;
+/// `OFFBOARDING` em leitura para `ADMIN_ORGAO`/`AUDITOR`).
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  OFFBOARDING
+  DEACTIVATED
+
+  @@map("tenant_status")
+}
+
+/// entities.md §2 — `UserStatus` (`BLOCKED` = bloqueio de plataforma).
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  DEACTIVATED
+
+  @@map("user_status")
+}
+
+/// entities.md §2 — `MembershipType`.
+enum MembershipType {
+  INTERNAL
+  EXTERNAL
+  SERVICE
+
+  @@map("membership_type")
+}
+
+/// entities.md §2 — `MembershipStatus`.
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  EXPIRED
+
+  @@map("membership_status")
+}
+
+/// entities.md `Tenant` (módulo tenancy) · tabela de plataforma, sem RLS (DEC-080). Criada na
+/// US-087; a FK de `primaryOrganizationId` → `organizations` entra com a US-101.
+model Tenant {
+  id                    String       @id @db.Uuid
+  slug                  String       @unique(map: "tenants_slug_key") @db.VarChar(63)
+  name                  String       @db.VarChar(200)
+  legalName             String?      @map("legal_name") @db.VarChar(250)
+  type                  TenantType
+  status                TenantStatus @default(PROVISIONING)
+  stateCode             String       @map("state_code") @db.Char(2)
+  ibgeCityCode          String?      @map("ibge_city_code") @db.Char(7)
+  timezone              String       @default("America/Sao_Paulo") @db.VarChar(64)
+  locale                String       @default("pt-BR") @db.VarChar(10)
+  plan                  String       @default("STANDARD") @db.VarChar(40)
+  primaryOrganizationId String?      @map("primary_organization_id") @db.Uuid
+  activatedAt           DateTime?    @map("activated_at") @db.Timestamptz(6)
+  suspendedAt           DateTime?    @map("suspended_at") @db.Timestamptz(6)
+  suspensionReason      String?      @map("suspension_reason")
+  deactivatedAt         DateTime?    @map("deactivated_at") @db.Timestamptz(6)
+  offboardingStartedAt  DateTime?    @map("offboarding_started_at") @db.Timestamptz(6)
+  offboardingEndsAt     DateTime?    @map("offboarding_ends_at") @db.Timestamptz(6)
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int          @default(1)
+
+  memberships TenantMembership[]
+
+  @@index([status], map: "tenants_status_idx")
+  @@map("tenants")
+}
+
+/// entities.md `User` (módulo identity) · identidade global, tabela de plataforma (DEC-012).
+model User {
+  id                 String     @id @db.Uuid
+  externalSubject    String?    @unique(map: "users_external_subject_key") @map("external_subject") @db.VarChar(255)
+  authentikUserId    String?    @unique(map: "users_authentik_user_id_key") @map("authentik_user_id") @db.VarChar(64)
+  email              String     @unique(map: "users_email_key") @db.Citext
+  emailVerified      Boolean    @default(false) @map("email_verified")
+  name               String     @db.VarChar(200)
+  socialName         String?    @map("social_name") @db.VarChar(200)
+  cpfEncrypted       Bytes?     @map("cpf_encrypted")
+  cpfHash            String?    @unique(map: "users_cpf_hash_key") @map("cpf_hash") @db.VarChar(64)
+  phone              String?    @db.VarChar(20)
+  status             UserStatus @default(ACTIVE)
+  isPlatformOperator Boolean    @default(false) @map("is_platform_operator")
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  preferences        Json       @default("{}") @db.JsonB
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int        @default(1)
+
+  memberships            TenantMembership[]     @relation("MembershipUser")
+  invitedMemberships     TenantMembership[]     @relation("MembershipInvitedBy")
+  revokedMemberships     TenantMembership[]     @relation("MembershipRevokedBy")
+  createdMemberships     TenantMembership[]     @relation("MembershipCreatedBy")
+  updatedMemberships     TenantMembership[]     @relation("MembershipUpdatedBy")
+  createdDepartmentLinks MembershipDepartment[] @relation("MembershipDepartmentCreatedBy")
+
+  @@map("users")
+}
+
+/// entities.md `TenantMembership` (módulo identity) · vínculo do usuário com o tenant; RLS
+/// ENABLE + FORCE. Leitura entre tenants só pela função `cf_user_memberships` (US-087).
+model TenantMembership {
+  id                 String           @id @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  userId             String           @map("user_id") @db.Uuid
+  type               MembershipType   @default(INTERNAL)
+  status             MembershipStatus @default(INVITED)
+  jobTitle           String?          @map("job_title") @db.VarChar(150)
+  registrationNumber String?          @map("registration_number") @db.VarChar(40)
+  invitedById        String?          @map("invited_by_id") @db.Uuid
+  invitedAt          DateTime?        @map("invited_at") @db.Timestamptz(6)
+  inviteTokenHash    String?          @map("invite_token_hash") @db.VarChar(64)
+  inviteExpiresAt    DateTime?        @map("invite_expires_at") @db.Timestamptz(6)
+  activatedAt        DateTime?        @map("activated_at") @db.Timestamptz(6)
+  expiresAt          DateTime?        @map("expires_at") @db.Timestamptz(6)
+  suspendedAt        DateTime?        @map("suspended_at") @db.Timestamptz(6)
+  suspensionReason   String?          @map("suspension_reason")
+  revokedAt          DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  revokedById        String?          @map("revoked_by_id") @db.Uuid
+  revocationReason   String?          @map("revocation_reason")
+  lastAccessAt       DateTime?        @map("last_access_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?          @map("created_by_id") @db.Uuid
+  updatedById        String?          @map("updated_by_id") @db.Uuid
+  version            Int              @default(1)
+
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user        User                   @relation("MembershipUser", fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy   User?                  @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+  revokedBy   User?                  @relation("MembershipRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+  createdBy   User?                  @relation("MembershipCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?                  @relation("MembershipUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  departments MembershipDepartment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@index([tenantId, status])
+  // Parcial na migração (`WHERE type = 'EXTERNAL'`).
+  @@index([tenantId, expiresAt], map: "tenant_memberships_external_expiry_idx")
+  @@index([userId])
+  @@map("tenant_memberships")
+}
+
+/// entities.md `MembershipDepartment` (módulo identity) · lotação do vínculo; RLS ENABLE + FORCE.
+/// A FK de `departmentId` → `departments` entra com a US-102.
+model MembershipDepartment {
+  id           String   @id @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  membershipId String   @map("membership_id") @db.Uuid
+  departmentId String   @map("department_id") @db.Uuid
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by_id") @db.Uuid
+
+  membership TenantMembership @relation(fields: [tenantId, membershipId], references: [tenantId, id], onDelete: Cascade)
+  createdBy  User?            @relation("MembershipDepartmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, membershipId, departmentId])
+  // Parcial na migração (`WHERE is_primary`): uma lotação principal por vínculo.
+  @@unique([tenantId, membershipId], map: "membership_departments_primary_key")
+  @@index([tenantId, departmentId])
+  @@map("membership_departments")
+}
+
+/// entities.md §2 — `ActorType`.
+enum ActorType {
+  USER
+  SYSTEM
+  PLATFORM_OPERATOR
+  INTEGRATION
+
+  @@map("actor_type")
+}
+
+/// entities.md §2 — `AuditCategory` (fixa por ação: `AUDIT_ACTIONS` em packages/types).
+enum AuditCategory {
+  DATA_CHANGE
+  WORKFLOW
+  ACCESS
+  SECURITY
+  EXPORT
+  CONFIGURATION
+  SYSTEM
+
+  @@map("audit_category")
+}
+
+/// entities.md §2 — `AuditResult`.
+enum AuditResult {
+  SUCCESS
+  DENIED
+  FAILURE
+
+  @@map("audit_result")
+}
+
+/// entities.md `AuditLog` (módulo audit · US-073): append-only (trigger + só INSERT/SELECT),
+/// particionada por mês em `occurred_at` na migração (o Prisma não expressa partições), RLS por
+/// tenant e `tenantId` nulo só para registros de plataforma. Escrita exclusiva do `AuditService`
+/// por SQL bruto (sem RETURNING — DEC-071); `id` e `occurredAt` vêm da aplicação (entram no hash).
+model AuditLog {
+  id                String        @db.Uuid
+  occurredAt        DateTime      @map("occurred_at") @db.Timestamptz(6)
+  tenantId          String?       @map("tenant_id") @db.Uuid
+  actorType         ActorType     @map("actor_type")
+  actorUserId       String?       @map("actor_user_id") @db.Uuid
+  actorName         String?       @map("actor_name") @db.VarChar(200)
+  actorMembershipId String?       @map("actor_membership_id") @db.Uuid
+  onBehalfOfUserId  String?       @map("on_behalf_of_user_id") @db.Uuid
+  action            String        @db.VarChar(80)
+  category          AuditCategory
+  result            AuditResult
+  entityType        String?       @map("entity_type") @db.VarChar(60)
+  entityId          String?       @map("entity_id") @db.Uuid
+  processId         String?       @map("process_id") @db.Uuid
+  changes           Json?         @db.JsonB
+  metadata          Json          @default("{}") @db.JsonB
+  reasonCode        String?       @map("reason_code") @db.VarChar(80)
+  ip                String?       @db.Inet
+  userAgent         String?       @map("user_agent") @db.VarChar(512)
+  correlationId     String?       @map("correlation_id") @db.VarChar(64)
+  requestId         String?       @map("request_id") @db.VarChar(64)
+  sessionIdHash     String?       @map("session_id_hash") @db.VarChar(64)
+  rowHash           String        @map("row_hash") @db.VarChar(64)
+
+  @@id([id, occurredAt], map: "audit_logs_pkey")
+  @@index([tenantId, occurredAt(sort: Desc)], map: "audit_logs_tenant_occurred_idx")
+  @@index([tenantId, entityType, entityId, occurredAt(sort: Desc)], map: "audit_logs_entity_idx")
+  @@index([tenantId, processId, occurredAt(sort: Desc)], map: "audit_logs_process_idx")
+  @@index([tenantId, actorUserId, occurredAt(sort: Desc)], map: "audit_logs_actor_idx")
+  @@index([tenantId, action, occurredAt(sort: Desc)], map: "audit_logs_action_idx")
+  @@map("audit_logs")
+}

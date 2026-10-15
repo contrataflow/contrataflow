@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="232" height="40" viewBox="0 0 232 40" font-family="Inter, 'Segoe UI', Roboto, Arial, sans-serif">
+  <!-- Marca do ContrataFlow para o Authentik (US-087): três faixas + nome. -->
+  <path d="M8 6 L22 6 L32 16 L18 16 Z" fill="#3b82f6"/><path d="M8 17 L22 17 L32 27 L18 27 Z" fill="#60a5fa"/><path d="M8 28 L18 28 L22 34 L12 34 Z" fill="#2563eb"/>
+  <text x="44" y="29" font-size="26" font-weight="600" fill="#0f172a">ContrataFlow</text>
+</svg>

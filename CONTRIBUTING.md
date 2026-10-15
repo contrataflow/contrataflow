@@ -23,10 +23,11 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 11. [Segurança](#segurança)
 12. [Fronteiras de dependência](#fronteiras-de-dependência)
 13. [API: pipeline de requisição](#api-pipeline-de-requisição)
-14. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
-15. [Testes](#testes)
-16. [Geradores](#geradores)
-17. [Decisões e ADRs](#decisões-e-adrs)
+14. [Observabilidade: logs, correlação e traces](#observabilidade-logs-correlação-e-traces)
+15. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
+16. [Testes](#testes)
+17. [Geradores](#geradores)
+18. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
@@ -52,7 +53,8 @@ pnpm install --frozen-lockfile   # valida engines, instala pelo lockfile e insta
 pnpm build                        # types → validation → editor/ui → apps (cache do Turborepo)
 cp .env.example .env              # valores de desenvolvimento; funcionam sem edição
 pnpm env:up && pnpm env:seed      # infraestrutura local + tenants "Prefeitura A" e "Prefeitura B"
-pnpm dev                          # web :3000, api :4000 e worker
+pnpm db:migrate                   # migrações do Prisma + senha local dos papéis cf_* (US-081)
+pnpm dev                          # web :3000, api :4000 e worker — entre com requisitante.a
 ```
 
 `pnpm install` só executa scripts de instalação dos pacotes em `onlyBuiltDependencies`
@@ -73,6 +75,7 @@ em `tools/env/`. A primeira subida baixa as imagens e leva até ~10 min; depois,
 cp .env.example .env     # uma vez; nada a editar (FA-03 abaixo se uma porta estiver ocupada)
 pnpm env:up              # sobe e espera todos os serviços ficarem healthy
 pnpm env:seed            # idempotente: tenants, unidades, 15 perfis, catálogos, workflows, usuários
+pnpm db:migrate          # idempotente: migrações do Prisma e senha local dos papéis cf_*
 pnpm dev                 # web/api/worker no host, com hot-reload, usando os serviços abaixo
 docker compose stop      # fim do dia: para tudo e preserva os volumes
 pnpm env:reset           # recomeça do zero: down -v + env:up + env:seed
@@ -88,6 +91,7 @@ pnpm env:reset           # recomeça do zero: down -v + env:up + env:seed
 | `pnpm env:check`                      | Confere se a infraestrutura padrão está saudável (usado por `pnpm dev`)                                       |
 | `pnpm env:smoke`                      | Smoke test do ambiente: bancos, Redis, buckets, login OIDC, e-mail, PDF, antivírus, isolamento e idempotência |
 | `pnpm env:blueprint`                  | Regenera o blueprint de usuários do Authentik a partir do dataset do seed                                     |
+| `pnpm db:migrate`                     | `prisma migrate deploy` com `DATABASE_MIGRATION_URL` e senha local (`POSTGRES_PASSWORD`) dos papéis `cf_*`    |
 
 Com o `.env` copiado, `docker compose ps|logs <serviço>|stop` funcionam direto na raiz
 (`COMPOSE_FILE`). Perfis opcionais também podem ficar fixos em `COMPOSE_PROFILES` no `.env`.
@@ -118,8 +122,11 @@ minúsculas e `-` no lugar de `_` — por exemplo `requisitante.a` (Ana Ribeiro,
 do Authentik são só informativos: perfis e vínculos por tenant ficam no banco (o Authentik
 autentica, o ContrataFlow autoriza).
 
-Até a US-081 criar o schema real, os dados do seed ficam no schema provisório `dev_seed` do banco
-`contrataflow` (DEC-065), com RLS e o papel `dev_seed_reader` para testar isolamento:
+Os dados do seed ficam no schema provisório `dev_seed` do banco `contrataflow` (DEC-065), com RLS e
+o papel `dev_seed_reader` para testar isolamento. Desde a US-087, `tenants`, `users` (com o `sub` do
+Authentik) e `tenant_memberships` também são espelhados nas tabelas reais — no fim do `env:seed` e
+do `db:migrate`, em qualquer ordem — para o login local funcionar ponta a ponta; as demais tabelas
+migram com as stories donas:
 
 ```sql
 BEGIN;
@@ -161,6 +168,7 @@ packages/types        constantes e tipos puros (permissões, eventos, erros, fil
 packages/validation   schemas Zod de contrato (DEC-054)
 packages/editor       schema do editor rico (DEC-056)
 packages/ui           design system (Tailwind CSS 4)
+packages/observability  logger pino com redação, correlationId e tracing OpenTelemetry (US-084)
 packages/eslint-config, packages/tsconfig   padrões compartilhados
 tools/          scripts de engenharia, fixtures de regras e geradores  @contrataflow/tools
 ```
@@ -223,16 +231,16 @@ Enquanto o projeto tiver um único mantenedor (DEC-067), a _ruleset_ não exige 
 porque o GitHub não deixa ninguém aprovar o próprio PR. Quando entrar a segunda pessoa, religue a
 aprovação dos donos de cada caminho no CODEOWNERS como manda a DEC-067.
 
-| Check                  | O que roda                                                                                                                                          | Rodar localmente                                                                          |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `1. Higiene`           | `pnpm install --frozen-lockfile`, título do PR (commitlint), gitleaks nos commits do PR, licenças de runtime, `check:versions`                      | `pnpm secrets:scan`, `pnpm ci:licenses`, `pnpm check:versions`                            |
-| `2. Estático`          | `turbo run lint typecheck` (erros viram anotação no arquivo e na linha), `depcruise`, actionlint, Semgrep (`.semgrep/rules/`, com `semgrep --test`) | `pnpm turbo run lint typecheck`, `pnpm depcruise`                                         |
-| `2. Estático (CodeQL)` | CodeQL `security-extended`; achado alto ou crítico bloqueia pela regra `code_scanning`                                                              | —                                                                                         |
-| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                    | `pnpm ci:contract --base origin/main`                                                     |
-| `4. Testes`            | unitários (com cobertura) → cobertura do código novo → integração (Testcontainers) → `test:tenant-leak` → `test:authz`                              | `pnpm turbo run test`, `pnpm ci:coverage`, `pnpm turbo run test:tenant-leak`              |
-| `5. Migrações`         | lint expand/contract, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de RLS e FK composta        | `pnpm ci:migrations --base origin/main`                                                   |
-| `6. Imagens`           | `infra/docker/prod.Dockerfile` por app, SBOM (Syft), Trivy + gate de CVE, assinatura cosign                                                         | `docker build -f infra/docker/prod.Dockerfile --build-arg APP=api --target runtime-api .` |
-| `7. E2E`               | Compose da US-078 num projeto próprio, `env:seed`, Playwright + axe-core (`apps/web/test/e2e`)                                                      | `pnpm env:up && pnpm env:seed && pnpm turbo run test:e2e`                                 |
+| Check                  | O que roda                                                                                                                                                                                                                                           | Rodar localmente                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `1. Higiene`           | `pnpm install --frozen-lockfile`, título do PR (commitlint), gitleaks nos commits do PR, licenças de runtime, `check:versions`                                                                                                                       | `pnpm secrets:scan`, `pnpm ci:licenses`, `pnpm check:versions`                            |
+| `2. Estático`          | `turbo run lint typecheck` (erros viram anotação no arquivo e na linha), `depcruise`, lint de SQL (`set_config` de sessão), actionlint, Semgrep (`.semgrep/rules/`, com `semgrep --test`)                                                            | `pnpm turbo run lint typecheck`, `pnpm depcruise`, `pnpm ci:sql-lint`                     |
+| `2. Estático (CodeQL)` | CodeQL `security-extended`; achado alto ou crítico bloqueia pela regra `code_scanning`                                                                                                                                                               | —                                                                                         |
+| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                                                                                                                     | `pnpm ci:contract --base origin/main`                                                     |
+| `4. Testes`            | unitários (com cobertura) → cobertura do código novo → integração (Testcontainers) → `test:tenant-leak` → `test:authz`                                                                                                                               | `pnpm turbo run test`, `pnpm ci:coverage`, `pnpm turbo run test:tenant-leak`              |
+| `5. Migrações`         | lint expand/contract e de contexto de sessão, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de catálogo (RLS, FK composta, unicidade, `tenant_id` nulo, tabela sem `tenant_id`, dono `cf_owner`) | `pnpm ci:migrations --base origin/main`                                                   |
+| `6. Imagens`           | `infra/docker/prod.Dockerfile` por app, SBOM (Syft), Trivy + gate de CVE, assinatura cosign                                                                                                                                                          | `docker build -f infra/docker/prod.Dockerfile --build-arg APP=api --target runtime-api .` |
+| `7. E2E`               | Compose da US-078 num projeto próprio, `env:seed`, Playwright + axe-core (`apps/web/test/e2e`)                                                                                                                                                       | `pnpm env:up && pnpm env:seed && pnpm turbo run test:e2e`                                 |
 
 - **Só `docs/**`:** os estágios 4–7 são pulados (aparecem como _skipped_, que conta como aprovado).
 - **Falhas:** o PR recebe um comentário com os estágios que falharam (PR do próprio repositório);
@@ -329,17 +337,18 @@ Toda story só fecha com:
 Proibições verificadas pelo ESLint como **erro** (RN-FND-06), com _fixtures_ de violação em
 `tools/fixtures/lint/**`:
 
-| Proibido                                                            | Use em vez disso                                                         | Regra                                           |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| `$queryRawUnsafe` / `$executeRawUnsafe`                             | `$queryRaw`/`$executeRaw` parametrizado (tagged template) no repositório | `contrataflow/no-unsafe-raw-query`              |
-| `dangerouslySetInnerHTML`                                           | o componente `sanitized-html-preview.tsx`                                | `contrataflow/no-dangerous-html`                |
-| `console.*`                                                         | o logger (Logger do NestJS / pino, com redação — DEC-138)                | `contrataflow/no-console`                       |
-| `process.env` fora de `src/config/**`                               | a configuração validada e injetada (US-080)                              | `contrataflow/no-process-env`                   |
-| `eval`, `new Function`, timers com string                           | código estático                                                          | `contrataflow/no-dynamic-code`                  |
-| `ioredis`/`redis` fora de `shared/cache/**` e `modules/platform/**` | o `TenantCache`, que isola as chaves por tenant (RM-03)                  | `contrataflow/no-direct-redis`                  |
-| `@prisma/client` fora de `infrastructure/**` e `shared/database/**` | o repositório do módulo                                                  | `contrataflow/no-prisma-outside-infrastructure` |
-| arquivo de `apps/web/src/bff/**` sem `import 'server-only'`         | `import 'server-only';` na primeira linha                                | `contrataflow/require-server-only`              |
-| `any` explícito, `@ts-ignore`, `@ts-nocheck`                        | tipos corretos; `@ts-expect-error` com descrição de 10+ caracteres       | `@typescript-eslint/*`                          |
+| Proibido                                                              | Use em vez disso                                                         | Regra                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| `$queryRawUnsafe` / `$executeRawUnsafe`                               | `$queryRaw`/`$executeRaw` parametrizado (tagged template) no repositório | `contrataflow/no-unsafe-raw-query`               |
+| `dangerouslySetInnerHTML`                                             | o componente `sanitized-html-preview.tsx`                                | `contrataflow/no-dangerous-html`                 |
+| `console.*`                                                           | o logger (Logger do NestJS / pino, com redação — DEC-138)                | `contrataflow/no-console`                        |
+| `process.env` fora de `src/config/**`                                 | a configuração validada e injetada (US-080)                              | `contrataflow/no-process-env`                    |
+| `eval`, `new Function`, timers com string                             | código estático                                                          | `contrataflow/no-dynamic-code`                   |
+| `ioredis`/`redis` fora de `shared/cache/**` e `modules/platform/**`   | o `TenantCache`, que isola as chaves por tenant (RM-03)                  | `contrataflow/no-direct-redis`                   |
+| `@prisma/client` fora de `infrastructure/**` e `shared/database/**`   | o repositório do módulo                                                  | `contrataflow/no-prisma-outside-infrastructure`  |
+| `PrismaClient`/`@prisma/adapter-pg`/`pg` fora de `shared/database/**` | o `tx` da `TenantTransaction` e os tipos de `#shared/database/prisma.js` | `contrataflow/no-prisma-client-outside-database` |
+| arquivo de `apps/web/src/bff/**` sem `import 'server-only'`           | `import 'server-only';` na primeira linha                                | `contrataflow/require-server-only`               |
+| `any` explícito, `@ts-ignore`, `@ts-nocheck`                          | tipos corretos; `@ts-expect-error` com descrição de 10+ caracteres       | `@typescript-eslint/*`                           |
 
 - **Segredos (DEC-137):** nunca no repositório. `.env` só local (ignorado pelo Git); use
   `pnpm secrets:scan` antes de abrir o PR. Logs nunca contêm tokens, cookies, senhas, CPF,
@@ -380,7 +389,13 @@ exceção vira `application/problem+json` (api.md §2). Numa rota nova:
 - marque `@Idempotent()` nas rotas "Idem." do catálogo, `@RequireIfMatch()` nas mutações de recurso
   versionado e `@RateLimit('autosave' | 'export' | 'upload')` quando a classe não for leitura/escrita;
 - `@WithoutTenant()` só nas rotas que o catálogo define sem tenant; rotas públicas ficam na
-  _allowlist_ `PUBLIC_ROUTE_PREFIXES` (`/health/*`, `/metrics`).
+  _allowlist_ `PUBLIC_ROUTE_PREFIXES` (`/health/*`, `/metrics`);
+- **auditoria (US-073):** todo caso de uso mutável grava `AuditService.record(tx, …)` — porta
+  `AUDIT_TRAIL` de `#shared/audit/audit-trail.js` — no mesmo `tx` da mudança, antes do commit, e a
+  rota `POST`/`PUT`/`PATCH`/`DELETE` declara `auditActions` no `@ApiOperation` (o meta-teste
+  `audit-coverage.spec.ts` reprova o build sem isso). Negações de acesso já são gravadas pelo
+  filtro: num `PERMISSION_DENIED`, informe a permissão ausente em `auditReasonCode`. Padrão completo
+  em `apps/api/src/modules/audit/README.md`.
 
 **`AsyncLocalStorage`:** o `RequestContext` (`requireRequestContext()`) acompanha a cadeia
 assíncrona da requisição (inclusive `await` e timers criados dentro dela). Callbacks registrados
@@ -391,9 +406,44 @@ os valores antes (`const { tenantId } = requireRequestContext()`) e passe-os exp
 um contexto próprio com `runWithRequestContext`. Jobs do worker abrem o contexto a partir do
 envelope (DEC-164).
 
-**Ambiente:** `pnpm dev` carrega o `.env` da raiz (`--env-file-if-exists`). Até a US-087 os tokens
-são verificados pelo `FakeJwksProvider` (HS256 com `OIDC_FAKE_SIGNING_KEY`; sem a chave, nenhum
-token é aceito) e usuários/vínculos/tenants vêm de adaptadores em memória até a US-081.
+**Ambiente:** `pnpm dev` carrega o `.env` da raiz (`--env-file-if-exists`). Desde a US-087 o access
+token do Authentik é verificado pelo JWKS (`JwksTokenVerifier`) e usuários, vínculos e tenants vêm
+do PostgreSQL (`users`, `tenants`, `cf_user_memberships`). Com `OIDC_FAKE_SIGNING_KEY` (só
+local/dev/test) a API volta ao modo fake: `FakeJwksProvider` HS256 e diretório em memória
+(`shared/testing/fake-directory.ts`) — é o modo dos testes de unidade.
+
+## Observabilidade: logs, correlação e traces
+
+Padrão da US-084 ([`observability.md`](docs/architecture/observability.md) §2–§4), comum a web, api e
+worker via `@contrataflow/observability`:
+
+- **Logs:** use o `Logger` do NestJS (api/worker — escreve pelo pino) ou `log()` de
+  `apps/web/src/bff/logger.ts` (BFF), sempre com um `event` estável e campos escalares:
+  `logger.log({ event: 'process.forwarded', processId }, 'process forwarded')`. Toda linha sai em
+  JSON com `service`, `env`, `version`, `correlationId`, `tenantId`/`userId`/`membershipId` (quando
+  houver) e `traceId`/`spanId` do span ativo — não os repita. O formato antigo
+  `'evento chave=valor'` ainda é convertido em campos, mas não o use em código novo.
+- **Níveis:** `error` para 5xx/falha final, `warn` para degradação recuperável, `info` para fatos
+  (inclusive 4xx); `debug`/`trace` nunca em produção (`LOG_LEVEL` é recusado no boot).
+- **Nunca logar** (DEC-138): tokens, cookies, senhas, CPF, conteúdo de documento, corpos, nomes de
+  arquivo, URLs pré-assinadas, valores sigilosos. A redação automática cobre os nomes de
+  `SENSITIVE_KEYS` (`packages/observability/src/redaction.ts`) em qualquer nível do objeto e
+  padrões de texto (JWT, `Bearer`, CPF, e-mail mascarado). **Campo sensível novo em DTO** entra em
+  `SENSITIVE_KEYS` com teste de redação no mesmo PR.
+- **Spans de negócio:** operação cara ou central abre um span manual com `withSpan`, só com
+  atributos `cf.*` permitidos (UUIDs, códigos, enums, contagens) — o que sair da _allowlist_ é
+  descartado e contado em `cf.attributes.dropped`:
+  `await withSpan('process.forward', { 'cf.process.id': id, 'cf.stage.to': to }, () => …)`.
+  Referência: `InternalExampleController.ping` (`apps/api/src/modules/platform/presentation`).
+- **Assíncrono:** o produtor de job grava `correlationId`/`traceparent` com `captureJobTraceMeta()`
+  e o consumidor roda em `runInJobContext()` (span `<fila> process`, filho da requisição). Assim
+  como o `AsyncLocalStorage`, o contexto de trace só segue a cadeia assíncrona: `Promise` criada
+  fora dela (listeners do bootstrap, _fire-and-forget_) gera span órfão — capture o contexto antes
+  (`injectTraceCarrier()`) e restaure-o (`withSpan(…, { parent: extractTraceContext(carrier) })`).
+- **Execução:** `api` e `worker` sobem com `node --import ./dist/otel.js dist/main.js` (scripts
+  `dev`/`start`); o web, pelo `src/instrumentation.ts`. Sem `OTEL_EXPORTER_OTLP_ENDPOINT` (permitido
+  só fora de staging/produção) o tracing fica desligado com o aviso `tracing.disabled`; com o
+  Collector fora do ar, a resposta segue normal e sai `warn tracing.export_failed` (no máximo 1/min).
 
 ## Web: shell, BFF e design system
 
@@ -415,10 +465,14 @@ cabeçalhos de segurança/CSP com nonce aplicados no `src/proxy.ts`. Numa tela n
 - ações por permissão com `<Can permission="…">` (oculta sem permissão; desabilita com motivo
   quando `allowedActions` não traz a ação).
 
-**Ambiente:** `pnpm dev` carrega o `.env` da raiz. Com `OIDC_FAKE_SIGNING_KEY`, o BFF usa o
-provedor de identidade fake (FA-06) até o OIDC da US-087: entre por
-`http://localhost:3000/api/auth/login?as=ana` (pessoas `ana`, `bruno`, `davi`, `gil`, espelhando o
-diretório em memória da API). A página `/exemplo` exercita sessão, cache, permissões e erros.
+**Ambiente:** `pnpm dev` carrega o `.env` da raiz. Login real (US-087): `http://localhost:3000`
+leva à tela do Authentik com o tema do ContrataFlow; entre com um usuário semeado
+(`requisitante.a` / `CF_DEV_USER_PASSWORD`). Sessões no Redis de sessões (`REDIS_SESSION_URL`) com
+tokens cifrados; sem `SESSION_ENCRYPTION_KEY`, a chave é aleatória por processo (reiniciar o web
+encerra as sessões). Com `OIDC_FAKE_SIGNING_KEY` descomentada no `.env`, BFF e API usam a
+identidade fake (FA-06, sem Authentik): entre por `http://localhost:3000/api/auth/login?as=ana`
+(pessoas `ana`, `bruno`, `davi`, `eva`, `gil`). A página `/exemplo` exercita sessão, cache,
+permissões e erros.
 
 **Design system:** componente novo em `packages/ui/src/components/` exige `<nome>.stories.tsx`;
 `src/stories.a11y.test.tsx` audita toda história com axe (V-05). `pnpm --filter @contrataflow/ui
@@ -431,7 +485,11 @@ storybook` abre o Storybook com o painel de acessibilidade.
 - **Integração:** `apps/api/test/**` com Testcontainers — `pnpm test:integration` (Docker). Na API,
   `pnpm test` gera `coverage/lcov.info`, que alimenta o gate de cobertura do CI.
 - **Tenant leak e autorização:** tarefas `test:tenant-leak` e `test:authz` do Turborepo (estágio
-  Testes do CI); a suíte de banco fica em `tools/ci/tenant-leak.ts` (Docker).
+  Testes do CI); a suíte de banco fica em `tools/ci/tenant-leak.ts` (catálogo + seed A/B) e em
+  `apps/api/test/database/tenant-isolation.spec.ts` (`TenantTransaction` como `cf_app` contra
+  PostgreSQL real; ambas exigem Docker).
+- **Persistência:** padrão de repositório, migração e concorrência em
+  [`apps/api/prisma/README.md`](apps/api/prisma/README.md); testes em `apps/api/test/database/**`.
 - **Web:** Vitest com jsdom e Testing Library (`// @vitest-environment jsdom` no arquivo) e axe
   nos testes de componente; BFF testado em `apps/web/test/bff/**` com a API simulada.
 - **E2E:** Playwright + axe-core em `apps/web/test/e2e` (`pnpm turbo run test:e2e`, com o Compose de

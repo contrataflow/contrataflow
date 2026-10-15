@@ -15,5 +15,13 @@ export default defineConfig({
   test: {
     include: ['src/**/*.spec.ts'],
     environment: 'node',
+    // lcov alimenta o gate de cobertura do código novo do CI (US-079 — RN-FND-24).
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/main.ts', 'src/otel.ts'],
+      reporter: ['text-summary', 'lcov'],
+      reportsDirectory: 'coverage',
+    },
   },
 });

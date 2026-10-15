@@ -1,7 +1,7 @@
 import type { TenantStatus, TenantStatusPort } from '#shared/auth/ports.js';
 import { FAKE_TENANTS } from '#shared/testing/fake-directory.js';
 
-/** `TenantStatusPort` em memória (FA-03) — substituído pelo repositório Prisma na US-081. */
+/** `TenantStatusPort` em memória — testes e modo de identidade fake (local/dev/test). */
 export class InMemoryTenantRepository implements TenantStatusPort {
   constructor(
     private readonly tenants: readonly { id: string; status: TenantStatus }[] = Object.values(

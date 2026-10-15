@@ -29,6 +29,7 @@ export const SCOPES = [
   'types',
   'validation',
   'editor',
+  'observability',
   'eslint-config',
   'tsconfig',
   'tools',

@@ -94,7 +94,7 @@ sequenceDiagram
 | `OFFBOARDING` | **Somente leitura e exportação** para vínculos com `ADMIN_ORGAO` ou `AUDITOR`; todos os comandos bloqueados (`TENANT_SUSPENDED`) | Rotas `/platform/*` |
 | `DEACTIVATED` | Sem acesso | Rotas `/platform/*` |
 
-- **Troca de tenant ativo** (`POST /api/auth/switch-tenant` — [`authentication.md`](authentication.md#9-troca-de-tenant-ativo)): o BFF valida o vínculo via `GET /api/v1/me/memberships` (ME-04), atualiza a sessão, rotaciona o id de sessão e o frontend descarta todo o cache (chaves de query começam pelo tenant — [`architecture.md`](architecture.md#85-dados-com-tanstack-query)).
+- **Troca de tenant ativo** (`POST /api/auth/switch-tenant` — [`authentication.md`](authentication.md#9-troca-de-tenant-ativo)): a API revalida o vínculo no banco (`POST /internal/session-events`, `TENANT_SWITCHED`), o BFF atualiza `activeTenantId`/`membershipId` na mesma sessão — sem novo id de sessão nem cookie (RN-IAM-66 · DEC-075) — e o frontend descarta todo o cache (chaves de query começam pelo tenant — [`architecture.md`](architecture.md#85-dados-com-tanstack-query)).
 - Rotas sem tenant (ME-04, `/platform/*`, health) são declaradas explicitamente (`@TenantOptional()`†); nelas a transação usa `app.tenant_id` = UUID nulo (`00000000-0000-0000-0000-000000000000`), que não corresponde a nenhum tenant.
 
 ## 5. Isolamento em consultas
@@ -147,7 +147,7 @@ GRANT SELECT, INSERT, UPDATE ON processes TO cf_app, cf_worker;
 GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 ```
 
-- **Contexto por transação:** a UoW executa `SELECT set_config('app.tenant_id', $1, true)` (terceiro argumento `true` = escopo da transação). Sem contexto, `current_setting('app.tenant_id')` gera erro (variável inexistente) ou falha no *cast* de string vazia — a consulta **falha fechada**, nunca retorna dados de outro tenant.
+- **Contexto por transação** (implementação: `TenantTransaction`, US-081 · ADR-012): a UoW executa `SELECT set_config('app.tenant_id', $1, true)` (terceiro argumento `true` = escopo da transação). Sem contexto, `current_setting('app.tenant_id')` gera erro (variável inexistente) ou falha no *cast* de string vazia — a consulta **falha fechada**, nunca retorna dados de outro tenant.
 - Toda leitura também roda em transação (somente leitura), pois `set_config(..., true)` só vale dentro dela.
 - **Papéis de banco:**
 
@@ -158,15 +158,19 @@ GRANT SELECT, INSERT ON audit_logs TO cf_app, cf_worker;
 | `cf_app` | Sim | Não | Não | API (`apps/api`) |
 | `cf_worker` | Sim | Não | Não | Handlers do worker (com contexto de tenant por job) |
 | `cf_relay` | Sim | Não | **Sim**, mas com `SELECT`/`UPDATE` **somente** em `outbox_events` | Relay do outbox (entities.md `OutboxEvent`) |
+| `cf_maintenance` | Sim | Não | **Sim**, mas com `SELECT`/`DELETE` **somente** em `outbox_events` | Purga dos eventos publicados há mais de 7 dias (DEC-085, DEC-072) |
 | `cf_platform` | Sim | Não | Não | `systemPrisma` (§5.3): DML em `tenants`; políticas explícitas `TO cf_platform` para auditoria de plataforma (`tenant_id IS NULL`); demais tabelas só com contexto de um tenant |
+| `cf_definer` | Não | Só das funções `SECURITY DEFINER` | **Sim** | Dono das funções de leitura entre tenants com colunas mínimas (`cf_user_memberships` — US-087, DEC-070); `SELECT` só em `tenants` e `tenant_memberships`; ninguém faz login com ele |
 | `cf_readonly_report` | Sim | Não | Não | `SELECT` apenas em *views* `report_*`†, sempre com contexto de tenant (exportações pesadas; réplica futura) |
 | `cf_purge`† | Sim (desabilitado por padrão) | Não | Não | Expurgo físico no *offboarding* (§13.3), habilitado só durante o runbook com dupla aprovação |
 
 - **Tabelas particionadas** (`audit_logs`): privilégios concedidos só na tabela-mãe (acesso direto a partições negado) e RLS também habilitada em cada partição criada pelo job `maintenance` (`audit-partitions-ensure`).
-- **Pooling:** PgBouncer em modo transação (ou RDS Proxy) é compatível porque o contexto é por transação. É proibido `SET`/`set_config(..., false)` de sessão (vazaria contexto entre clientes do pool) — verificado por lint de SQL e por teste que reutiliza a mesma conexão para dois tenants. O comportamento de *pinning* do RDS Proxy com `set_config` deve ser validado antes de adotá-lo.
+- **Pooling:** PgBouncer em modo transação (ou RDS Proxy) é compatível porque o contexto é por transação. É proibido `SET`/`set_config(..., false)` de sessão (vazaria contexto entre clientes do pool) — verificado por lint de SQL (`pnpm ci:sql-lint`, DEC-069) e por teste que reutiliza a mesma conexão para dois tenants (`apps/api/test/database/tenant-isolation.spec.ts`). O comportamento de *pinning* do RDS Proxy com `set_config` deve ser validado antes de adotá-lo.
 - **Performance:** todo índice de tabela de negócio começa por `tenant_id`; o predicado da política é *stable* e usa esses índices. Para planos estáveis, a forma `(SELECT current_setting('app.tenant_id')::uuid)` é equivalente e avaliada uma vez por consulta.
 
 ### 5.3 Acesso de plataforma (`systemPrisma`)
+
+**`PlatformTransaction` (US-087 · DEC-070):** transação do mesmo pool do `cf_app` **sem** `app.tenant_id` (só `app.user_id` e `statement_timeout`), para `users`, `tenants` (leitura) e as funções de leitura entre tenants; qualquer consulta a tabela com RLS dentro dela falha fechada. Uso restrito por dependency-cruiser (`platform-transaction-allowlist`) aos adaptadores de `identity`/`tenancy` do pipeline de autenticação e do início de sessão; não substitui o `SystemDbService`.
 
 `SystemDbService` (US-100) é um segundo `PrismaClient` conectado com `cf_platform` (`DATABASE_URL_PLATFORM`), **sem** a extensão de tenant, usado somente por: provisionamento e mudança de status de tenants (`/platform/tenants`, CLI de US-099), *ticks* de jobs de plataforma que listam tenants (`deadlines`, `audit-seal`, `maintenance` — queues.md §9.3) e auditoria de plataforma. Regras: importação restrita por `dependency-cruiser` ([`architecture.md`](architecture.md#43-regras-de-dependência)); toda chamada exige um `reason` de lista fechada (DEC-082) e gera log estruturado `platform_db.access`†; ações com efeito em um tenant são auditadas no próprio tenant com `actorType = SYSTEM` ou `PLATFORM_OPERATOR`. Trabalho sobre dados de um tenant **sempre** reabre uma UoW com o contexto daquele tenant.
 
@@ -216,6 +220,7 @@ Toda unicidade de negócio inclui `tenant_id` (ex.: `(tenant_id, internal_code) 
 |---|---|---|---|
 | `tenants` | — | Não | `cf_app`: `SELECT` (via `TenantContextService`); escrita só `cf_platform` |
 | `users` | — | Não | `cf_app`: leitura/escrita apenas pelo módulo `identity`; dados expostos a um tenant somente para usuários com vínculo nele (entities.md `User`) |
+| `tenant_memberships` (vínculos do próprio usuário em todos os tenants) | Sim | Sim | Só pela função `cf_user_memberships(user_id)` (`SECURITY DEFINER`, dona `cf_definer`, `search_path` fixo): devolve vínculo + nome, status e fuso da instituição **apenas** quando `user_id = app.user_id` da transação; `EXECUTE` para `cf_app`/`cf_worker` (ME-04, início de sessão, troca de instituição — US-087) |
 | `permissions` | — | Não | Catálogo global somente leitura (sincronizado por migração) |
 | `audit_logs` | Nulo só para eventos de plataforma (DEC-080) | Sim | Registros de plataforma visíveis apenas a `cf_platform` |
 | `outbox_events` | Nulo só para eventos de plataforma | Sim | Aplicação insere no próprio tenant; `cf_relay` lê/atualiza todos |
@@ -223,7 +228,7 @@ Toda unicidade de negócio inclui `tenant_id` (ex.: `(tenant_id, internal_code) 
 
 ## 7. Cache
 
-- **Convenção de chaves:** `cf:{env}:t:{tenantId}:{módulo}:{chave}` para dados de tenant (ex.: `cf:prod:t:0192…:access:eff:{membershipId}` — permissions.md §1.2); `cf:{env}:p:{módulo}:{chave}`† para dados de plataforma; sessões em `cf:{env}:session:{sha256(sid)}`† no Redis de sessões.
+- **Convenção de chaves:** `cf:{env}:t:{tenantId}:{módulo}:{chave}` para dados de tenant (ex.: `cf:prod:t:0192…:access:eff:{membershipId}` — permissions.md §1.2); `cf:{env}:p:{módulo}:{chave}`† para dados de plataforma; no Redis de sessões (DEC-070): `cf:{env}:sess:{sha256(sid)}` (registro), `cf:{env}:sess:user:{userId}` (índice por usuário) e `cf:{env}:rl:auth:{ip}:{janela}` (limite de login por IP).
 - **Wrapper `TenantCache`†:** monta a chave a partir do `RequestContext` (o chamador não informa `tenantId`), exige TTL, serializa com schema Zod e registra métricas sem label de tenant.
 
 ```ts

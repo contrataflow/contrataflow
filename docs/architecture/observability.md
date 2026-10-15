@@ -51,6 +51,7 @@ As metas consolidam a proposta do produto ([product-overview.md](../product/prod
 ### 2.1 Biblioteca e formato
 - **pino** em todos os processos Node: `nestjs-pino` na API e no worker; pino nos *route handlers* do BFF (runtime Node do Next.js). Saída **JSON em stdout** (12-factor); o transporte para o backend é responsabilidade da plataforma (§11).
 - Timestamp ISO 8601 UTC, nível como texto, uma linha por evento, `event` com nome estável (`http.request.completed`, `job.completed`, `outbox.relay.batch`, `security.malware_detected`).
+- **Implementação (US-084):** o pacote `packages/observability` (`@contrataflow/observability`) concentra o que web, api e worker compartilham — `createLogger` (pino com os campos de §2.2 e a redação de §2.4), `correlationId` (§3), `withSpan`/propagação W3C (§4) e o bootstrap do SDK (`createTelemetrySdk`). Na API, `ObservabilityModule` (`apps/api/src/shared/observability/`, no *shared kernel* porque o middleware de contexto e o filtro RFC 9457 o usam) liga o pino ao Nest via `nestjs-pino`; o `pino-http` só cria o logger da requisição com o `requestId`, e o `http.request.completed` é do `RequestContextMiddleware` (template da rota, `statusCode`, `durationMs`, `reason` nos 4xx; `error` nos 5xx). Linhas sem `event` (mensagens internas do Nest) saem com `event: "app.log"`; o formato legado `"evento chave=valor"` (US-080/US-081) é convertido em campos.
 
 ### 2.2 Campos obrigatórios
 
@@ -98,8 +99,10 @@ As metas consolidam a proposta do produto ([product-overview.md](../product/prod
 ### 2.4 Redação e dados proibidos (DEC-138)
 Proibido logar: tokens, cookies, senhas, `Authorization`, CPF, conteúdo de documentos (`draftContent`, seções, snapshots), corpos de requisição e de upload, **URLs pré-assinadas** (credenciais ao portador), **nomes de arquivo** (podem conter dados pessoais), valores de orçamento sigiloso (POL-09), segredos de integração. E-mails sempre mascarados (`j***@dominio.gov.br`).
 
+Implementado em `packages/observability/src/redaction.ts` em duas camadas, aplicadas a todo objeto logado (inclusive aninhado e nos *bindings* de `child()`): **por nome de campo** (`SENSITIVE_KEYS`, comparados sem caixa nem separadores; e-mail mascarado) e **por padrão de texto** em qualquer string, inclusive `msg` e mensagens de erro (JWT, `Bearer`/`Basic`, CPF formatado, URL pré-assinada, e-mail). O bloco abaixo é o desenho original, mantido como referência:
+
 ```ts
-// apps/api/src/modules/platform/observability/logger.module.ts (ilustrativo)
+// apps/api/src/modules/platform/observability/logger.module.ts (ilustrativo — ver texto acima)
 LoggerModule.forRoot({
   pinoHttp: {
     level: process.env.LOG_LEVEL ?? 'info',
@@ -154,7 +157,7 @@ Logs **não** são trilha de auditoria (§13, [ADR-009](../adr/adr-009-audit-tra
 
 **Regras:**
 - O BFF aceita `X-Correlation-Id` do browser **somente** se casar `^[A-Za-z0-9._:-]{8,64}$`; caso contrário descarta o valor recebido (evita *log injection*) e gera um UUIDv7. O cliente de API do frontend gera um id por ação do usuário e o reutiliza nas re-tentativas da mesma ação (ex.: autosave).
-- A API sempre recebe o id do BFF (gera um se faltar, para chamadores internos) e o devolve no header de **toda** resposta e no `problem+json`.
+- A API sempre recebe o id do BFF (gera um se faltar, para chamadores internos — com a mesma regra de validação do BFF) e o devolve no header de **toda** resposta e no `problem+json`.
 - A UI mostra o `correlationId` copiável em mensagens de erro ("Código para o suporte") e nenhum outro detalhe técnico (DEC-181, DEC-184).
 - Assíncrono: copiado para o envelope do evento e para `JobMeta`; jobs filhos herdam; e-mails levam `X-Correlation-Id` como header técnico; o Gotenberg recebe `Gotenberg-Trace: <correlationId>`; integrações do MVP 3 enviam `X-Correlation-Id` quando o provedor aceitar.
 - **Atendimento:** usuário informa o código → operador busca nos logs (`{service=~"web|api|worker"} | json | correlationId="…"`) → segue o `traceId` até o trace → o administrador do órgão consulta a auditoria por `correlationId` (`AUDIT_VIEW`); a plataforma só acessa dados do tenant pelo fluxo de DEC-139.
@@ -177,7 +180,7 @@ flowchart LR
 ## 4. Tracing distribuído
 
 ### 4.1 SDK e instrumentações
-OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do código da aplicação (`node --import ./otel.mjs` na API e no worker; `instrumentation.ts` no Next.js). Atributos de recurso: `service.name` (`contrataflow-web`, `contrataflow-api`, `contrataflow-worker`), `service.version`, `deployment.environment.name`, `service.instance.id`, `cloud.region`.
+OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do código da aplicação (`node --import ./dist/otel.js` na API e no worker, que também registra o *hook* ESM `@opentelemetry/instrumentation/hook.mjs`; `instrumentation.ts` no Next.js, onde o próprio Next abre o span raiz). Falha de exportação nunca chega à requisição: o exportador registra `warn` `tracing.export_failed` (no máximo 1/min, com a contagem de lotes suprimidos). Sem `OTEL_EXPORTER_OTLP_ENDPOINT` — permitido só fora de staging/produção — o SDK não sobe e sai `warn` `tracing.disabled`. Atributos de recurso: `service.name` (`contrataflow-web`, `contrataflow-api`, `contrataflow-worker`), `service.version`, `deployment.environment.name`, `service.instance.id`, `cloud.region`.
 
 | Instrumentação | Pacote | Configuração obrigatória |
 |---|---|---|
@@ -187,8 +190,8 @@ OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do códig
 | Prisma | `@prisma/instrumentation` | Spans de consulta sem parâmetros |
 | Driver PostgreSQL | `@opentelemetry/instrumentation-pg` | Quando o *driver adapter* `pg` estiver em uso (US-077); sem valores |
 | ioredis | `@opentelemetry/instrumentation-ioredis` | `dbStatementSerializer` devolve **só o nome do comando** — chaves de sessão são credenciais |
-| AWS SDK | `@opentelemetry/instrumentation-aws-sdk` | S3, KMS, SES; sem payload |
-| pino | `@opentelemetry/instrumentation-pino` | Injeta `traceId`/`spanId` nos logs |
+| AWS SDK | `@opentelemetry/instrumentation-aws-sdk` | S3, KMS, SES; sem payload — entra com a primeira story que usar o AWS SDK (ainda não é dependência) |
+| pino | `mixin` do logger de `packages/observability` (US-084) | Injeta `traceId`/`spanId` do span ativo nos logs; substitui a `instrumentation-pino`, que depende de *monkey-patch* do módulo e também enviaria logs pelo SDK (aqui os logs saem só por stdout) |
 | BullMQ | Propagação explícita via `JobMeta.traceparent` ([queues.md](queues.md) §9) | Spans `PRODUCER` (`<fila> publish`) e `CONSUMER` (`<fila> process`) |
 
 ### 4.2 Propagação

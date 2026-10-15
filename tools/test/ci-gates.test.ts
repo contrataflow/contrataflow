@@ -34,6 +34,7 @@ import { parsePolicy, PolicyError, readPolicy } from '../ci/lib/policy.js';
 import { squashMessage } from '../ci/lib/pr-title.js';
 import { parseGitleaksReport, secretMessage } from '../ci/lib/secrets.js';
 import { parseSemgrepJson } from '../ci/lib/semgrep.js';
+import { SESSION_CONTEXT_MESSAGE } from '../ci/lib/sql-lint.js';
 import { hasSpans, newTraceContext, traceQueryUrl, waitForTrace } from '../ci/lib/traces.js';
 
 const ALLOWED = ['MIT', 'Apache-2.0', 'BSD-3-Clause', 'ISC'];
@@ -440,6 +441,24 @@ describe('lint de migrações (RN-FND-25)', () => {
     );
   });
 
+  it('[Falha de integração] set_config de sessão bloqueia a migração (RN-FND-44)', () => {
+    const findings = lintMigration(
+      migration(
+        'm',
+        "-- set_config('app.tenant_id', x, false) em comentário não conta\nSELECT set_config('app.tenant_id', '1', false);",
+      ),
+    );
+    expect(findings).toEqual([
+      {
+        level: 'error',
+        file: 'apps/api/prisma/migrations/m/migration.sql',
+        line: 2,
+        rule: 'tenant/session-context',
+        message: SESSION_CONTEXT_MESSAGE,
+      },
+    ]);
+  });
+
   it('migração publicada não muda nem some; novas são as que a base não tem', () => {
     const published = [migration('001', 'a'), migration('002', 'b')];
     const current = [migration('001', 'a'), { ...migration('003', 'c') }];
@@ -462,7 +481,8 @@ describe('lint de migrações (RN-FND-25)', () => {
       {
         kind: 'rls',
         table: 'public.a',
-        message: 'Tabela public.a tem tenant_id sem RLS ENABLE + FORCE e política.',
+        message:
+          'Migração bloqueada: tabela sem RLS — public.a tem tenant_id sem RLS ENABLE + FORCE e política.',
       },
       {
         kind: 'fk',
@@ -476,6 +496,27 @@ describe('lint de migrações (RN-FND-25)', () => {
         object: 'c_key',
         message: 'Unicidade c_key em public.c não inclui tenant_id.',
       },
+    ]);
+  });
+
+  it('V-02: tenant_id nulo, tabela sem tenant_id e dono errado também são violações', () => {
+    const sql = catalogChecksSql(['public']);
+    // Partição herda a exceção da raiz (audit_logs_2026_10 — US-073).
+    expect(sql).toContain("t.root_relname NOT IN ('audit_logs', 'outbox_events')");
+    expect(sql).toContain('pg_partition_root(c.oid)');
+    expect(sql).toContain(
+      "c.relname NOT IN ('tenants', 'users', 'permissions', '_prisma_migrations')",
+    );
+    expect(sql).toContain("pg_get_userbyid(c.relowner) <> 'cf_owner'");
+    expect(catalogChecksSql(['dev_seed'])).not.toContain('owner|');
+    expect(
+      parseCatalogViolations(
+        'nullable|public.processes\nplatform|public.logs\nowner|public.processes|cf_app',
+      ).map((violation) => violation.message),
+    ).toEqual([
+      'Tabela public.processes aceita tenant_id nulo fora da lista fechada de DEC-080 (V-02).',
+      'Tabela public.logs sem tenant_id fora da lista fechada de tabelas de plataforma (DEC-080 · V-02).',
+      'Tabela public.processes pertence a cf_app, não a cf_owner: crie os objetos depois de SET ROLE cf_owner (RN-FND-46).',
     ]);
   });
 });

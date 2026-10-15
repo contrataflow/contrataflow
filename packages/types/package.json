@@ -2,7 +2,7 @@
   "name": "@contrataflow/types",
   "version": "0.0.0",
   "private": true,
-  "description": "Constantes e tipos puros: permissões, eventos, códigos de erro e filas (fonte única).",
+  "description": "Constantes e tipos puros: permissões, eventos, códigos de erro, filas e sessão (fonte única).",
   "type": "module",
   "sideEffects": false,
   "exports": {

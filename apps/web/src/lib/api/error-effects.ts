@@ -38,6 +38,11 @@ export function applyErrorEffect(error: unknown, source: ErrorSource, deps: Erro
     case 'redirect':
       deps.navigate(action.href);
       return;
+    case 'session-expired':
+    case 'unavailable':
+      // Modal "Sua sessão expirou" ou banner de indisponibilidade: o interceptador do cliente de
+      // API já avisou o `SessionWatcher`; a tela e o que foi digitado continuam (US-088).
+      return;
     case 'reload':
       deps.notify({
         title: deps.messages.csrf,

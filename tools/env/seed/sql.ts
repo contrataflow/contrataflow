@@ -499,9 +499,45 @@ export function buildSeedSql(identities: ReadonlyMap<string, AuthentikIdentity>)
   }
 
   for (const tenant of TENANTS) statements.push(...tenantSql(tenant));
+  statements.push(identityMirrorSql());
 
   statements.push('COMMIT;', `SELECT pg_advisory_unlock(hashtext('contrataflow.dev_seed'));`);
   return `${statements.join('\n')}\n`;
+}
+
+/**
+ * Espelho da identidade do seed nas tabelas reais (US-087): `tenants`, `users` (com o `sub` do
+ * Authentik) e `tenant_memberships` do `dev_seed` vão para o schema da aplicação, para o login
+ * local funcionar ponta a ponta. Só age quando as duas pontas existem — roda no fim do
+ * `env:seed` e do `db:migrate`, em qualquer ordem. Idempotente; o `sub` se corrige se o volume do
+ * Authentik for recriado. As demais tabelas do seed migram com as stories donas.
+ */
+export function identityMirrorSql(): string {
+  const s = SEED_SCHEMA;
+  return `DO $identity_mirror$
+BEGIN
+  IF to_regclass('${s}.tenant_memberships') IS NULL
+     OR to_regclass('public.tenant_memberships') IS NULL THEN
+    RETURN;
+  END IF;
+  INSERT INTO public.tenants (id, slug, name, legal_name, type, status, state_code, timezone, locale, plan, activated_at)
+    SELECT id, slug, name, legal_name, type::public.tenant_type, status::public.tenant_status, state_code,
+           timezone, locale, plan, activated_at
+      FROM ${s}.tenants
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.users (id, external_subject, authentik_user_id, email, email_verified, name)
+    SELECT id, external_subject, authentik_user_id, email, email_verified, name FROM ${s}.users
+  ON CONFLICT (id) DO UPDATE SET external_subject = EXCLUDED.external_subject,
+    authentik_user_id = EXCLUDED.authentik_user_id, updated_at = now()
+    WHERE public.users.external_subject IS DISTINCT FROM EXCLUDED.external_subject
+       OR public.users.authentik_user_id IS DISTINCT FROM EXCLUDED.authentik_user_id;
+  INSERT INTO public.tenant_memberships (id, tenant_id, user_id, type, status, job_title, activated_at, expires_at)
+    SELECT id, tenant_id, user_id, type::public.membership_type, status::public.membership_status,
+           job_title, activated_at, expires_at
+      FROM ${s}.tenant_memberships
+  ON CONFLICT (id) DO NOTHING;
+END
+$identity_mirror$;`;
 }
 
 /** `t` quando o schema do seed já existe por completo. */

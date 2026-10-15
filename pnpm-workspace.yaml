@@ -25,7 +25,12 @@ onlyBuiltDependencies:
 # Scripts revisados e dispensáveis (binários nativos já chegam por optionalDependencies).
 ignoredBuiltDependencies:
   - '@parcel/watcher'
+  # A CLI do Prisma baixa o schema-engine sob demanda no primeiro uso (US-081).
+  - '@prisma/engines'
   - cpu-features
+  # Acelerador nativo opcional do msgpackr (BullMQ — US-082); sem ele o msgpackr usa JS puro.
+  - msgpackr-extract
+  - prisma
   - protobufjs
   - ssh2
   - unrs-resolver
@@ -74,9 +79,24 @@ catalog:
   '@prisma/client': 7.10.0
   '@prisma/adapter-pg': 7.10.0
   pg: 8.23.1
+  '@types/pg': 8.23.1
+  decimal.js: 10.6.0
   bullmq: 5.81.5
   ioredis: 5.11.1
+  jose: 6.2.12
+  '@opentelemetry/api': 1.9.1
   '@opentelemetry/sdk-node': 0.222.0
+  '@opentelemetry/sdk-trace': 2.11.0
+  '@opentelemetry/core': 2.11.0
+  '@opentelemetry/context-async-hooks': 2.11.0
+  '@opentelemetry/instrumentation': 0.222.0
+  '@opentelemetry/exporter-trace-otlp-http': 0.222.0
+  '@opentelemetry/instrumentation-http': 0.222.0
+  '@opentelemetry/instrumentation-undici': 0.32.0
+  '@opentelemetry/instrumentation-nestjs-core': 0.68.0
+  '@opentelemetry/instrumentation-pg': 0.74.0
+  '@opentelemetry/instrumentation-ioredis': 0.70.0
+  '@prisma/instrumentation': 7.10.0
   pino: 10.4.0
   nestjs-pino: 4.6.1
   pino-http: 11.0.0

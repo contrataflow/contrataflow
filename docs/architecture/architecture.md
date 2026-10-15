@@ -298,6 +298,7 @@ contrataflow/
 │   ├── types/              # enums, permissões, eventos, códigos de erro, chaves de configuração, allowlist de upload
 │   ├── validation/         # schemas Zod (DTOs, eventos, RuleContext, settings) + geração OpenAPI 3.1
 │   ├── editor/             # extensões TipTap, schema ProseMirror, validador e serializador HTML (DEC-051, DEC-056)
+│   ├── observability/      # logger pino com redação (DEC-138), correlationId e tracing OpenTelemetry (US-084)
 │   ├── eslint-config/      # regras compartilhadas (inclui proibições de segurança — §4.4)
 │   └── tsconfig/           # bases strict (node, next, library)
 ├── infra/
@@ -320,18 +321,20 @@ contrataflow/
 | `packages/validation` | Schemas Zod de contrato (request/response, eventos, `RuleContext`, settings). | Regras dependentes de estado (DEC-054). |
 | `packages/editor` | Schema TipTap/ProseMirror, validação de conteúdo, `generateHTML` no servidor. | Componentes React de página. |
 | `packages/ui` | Componentes acessíveis, tokens, temas. | Chamadas de API, conhecimento de domínio. |
+| `packages/observability` | Logger pino comum (campos e redação de DEC-138), `correlationId`, helpers de tracing (`withSpan`, propagação W3C até o job) e bootstrap do OpenTelemetry Node SDK (US-084). | Conhecimento de domínio; leitura de `process.env` (cada app passa a configuração). |
 
 ### 4.3 Regras de dependência
 
-| De ↓ / Para → | `types` | `validation` | `editor` | `ui` | `apps/api` | `apps/web` | `apps/worker` |
-|---|---|---|---|---|---|---|---|
-| `packages/types` | — | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ |
-| `packages/validation` | ✔ | — | ✘ | ✘ | ✘ | ✘ | ✘ |
-| `packages/editor` | ✔ | ✔ | — | ✘ | ✘ | ✘ | ✘ |
-| `packages/ui` | ✔ | ✘ | ✘ | — | ✘ | ✘ | ✘ |
-| `apps/web` | ✔ | ✔ | ✔ | ✔ | ✘ (só HTTP) | — | ✘ |
-| `apps/api` | ✔ | ✔ | ✔ | ✘ | — | ✘ | ✘ |
-| `apps/worker` | ✔ | ✔ | ✔ | ✘ | ✔ (somente `src/modules/*/{application,infrastructure,domain}`, `*.module.ts` e `src/shared`) | ✘ | — |
+| De ↓ / Para → | `types` | `validation` | `editor` | `ui` | `observability` | `apps/api` | `apps/web` | `apps/worker` |
+|---|---|---|---|---|---|---|---|---|
+| `packages/types` | — | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ |
+| `packages/validation` | ✔ | — | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ |
+| `packages/editor` | ✔ | ✔ | — | ✘ | ✘ | ✘ | ✘ | ✘ |
+| `packages/ui` | ✔ | ✘ | ✘ | — | ✘ | ✘ | ✘ | ✘ |
+| `packages/observability` | ✔ | ✘ | ✘ | ✘ | — | ✘ | ✘ | ✘ |
+| `apps/web` | ✔ | ✔ | ✔ | ✔ | ✔ | ✘ (só HTTP) | — | ✘ |
+| `apps/api` | ✔ | ✔ | ✔ | ✘ | ✔ | — | ✘ | ✘ |
+| `apps/worker` | ✔ | ✔ | ✔ | ✘ | ✔ | ✔ (somente `src/modules/*/{application,infrastructure,domain}`, `*.module.ts` e `src/shared`) | ✘ | — |
 
 Regras adicionais dentro de `apps/api` (DEC-041):
 1. `modules/<m>/domain/**` não importa `@nestjs/*`, `@prisma/*`, `ioredis`, SDKs de nuvem nem outro módulo.
@@ -618,7 +621,7 @@ Implementação de DEC-105 e api.md §1.3 por um interceptor nas rotas marcadas 
 | Calendário de dias úteis | `cf:{env}:t:{tenantId}:catalog:holidays:{year}`† | 24 h | `HolidayChanged` |
 | JWKS do Authentik | memória do processo | 10 min | Refresh forçado em `kid` desconhecido (no máximo 1× a cada 30 s) — RN-IAM-05 (US-087) |
 
-Regras: acesso somente pelo wrapper `TenantCache`† (monta a chave a partir do contexto — o chamador não informa `tenantId`); **todo valor com TTL**; sem dados sigilosos em cache (orçamento sigiloso, CPF, conteúdo de documentos); sem agregados entre tenants; dados de autorização só no Redis (sem cache L1 em memória, para que a revogação seja imediata em todas as réplicas). **Topologia Redis (DEC-131):** (1) **Redis de sessões** — cluster próprio, Multi-AZ com failover automático, `noeviction`, usado só pelo BFF (`REDIS_SESSION_URL`†); (2) **Redis principal** — `noeviction` (exigência do BullMQ), atende filas, idempotência, rate limit, locks e cache (todo valor de cache com TTL); (3) o cache migra para cluster próprio (`allkeys-lru`, `REDIS_CACHE_URL`) quando passar de 40% da memória do principal ou houver pressão de memória. Em `local`/`dev` as três URLs podem apontar para a mesma instância (bancos lógicos distintos). Degradação de cada um no §12.3.
+Regras: acesso somente pelo wrapper `TenantCache`† (monta a chave a partir do contexto — o chamador não informa `tenantId`); **todo valor com TTL**; sem dados sigilosos em cache (orçamento sigiloso, CPF, conteúdo de documentos); sem agregados entre tenants; dados de autorização só no Redis (sem cache L1 em memória, para que a revogação seja imediata em todas as réplicas). **Topologia Redis (DEC-131):** (1) **Redis de sessões** — cluster próprio, Multi-AZ com failover automático, `noeviction`, escrito pelo BFF e lido também pela varredura de sessões da API e pelo encerramento por vínculo do worker (`REDIS_SESSION_URL`† — US-088); (2) **Redis principal** — `noeviction` (exigência do BullMQ), atende filas, idempotência, rate limit, locks e cache (todo valor de cache com TTL); (3) o cache migra para cluster próprio (`allkeys-lru`, `REDIS_CACHE_URL`) quando passar de 40% da memória do principal ou houver pressão de memória. Em `local`/`dev` as três URLs podem apontar para a mesma instância (bancos lógicos distintos). Degradação de cada um no §12.3.
 
 ### 6.13 Rate limiting
 
@@ -963,31 +966,36 @@ export const envSchema = z.object({
 
 | Variável | web | api | worker | Descrição |
 |---|:-:|:-:|:-:|---|
-| `APP_ENV`, `LOG_LEVEL` | ✔ | ✔ | ✔ | Ambiente lógico e nível de log |
+| `APP_ENV`, `LOG_LEVEL` | ✔ | ✔ | ✔ | Ambiente lógico e nível de log (`info` padrão; `debug`/`trace` recusados em produção — US-084 V-03) |
+| `APP_VERSION` | ✔ | ✔ | ✔ | `<versão>+g<commit>` injetado no build (US-079); campo `version` dos logs e `service.version` dos traces |
 | `APP_BASE_URL` | ✔ | ✔ | ✔ | URL pública da aplicação (CSP, Origin, links de e-mail) |
 | `API_INTERNAL_URL` | ✔ | | | URL privada da API (Cloud Map / service connect) |
 | `OIDC_ISSUER_URL` | ✔ | ✔ | | Issuer do provider Authentik (`…/application/o/<slug>/`) |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | ✔ | | | Cliente confidencial do BFF (DEC-130) — segredo |
 | `OIDC_REDIRECT_URI`, `OIDC_POST_LOGOUT_REDIRECT_URI` | ✔ | | | Callback e retorno de logout |
 | `OIDC_AUDIENCE`, `OIDC_CLOCK_TOLERANCE_SECONDS` | | ✔ | | Validação do JWT (DEC-132) |
-| `OIDC_FAKE_SIGNING_KEY` | ✔ | ✔ | | Chave HS256 do `FakeJwksProvider` — temporária, até o verificador JWKS real (US-087); ausente = nenhum token aceito. No web liga o provedor de identidade fake do BFF (US-086 FA-06), recusado fora de `local`/`dev`/`test` |
+| `OIDC_SCOPES`, `AUTH_RATE_LIMIT_PER_MIN` | ✔ | | | Escopos pedidos ao Authentik (`openid profile email offline_access`) e limite por IP de `/api/auth/login|callback|step-up` (20 — RN-IAM-15) — US-087 |
+| `OIDC_FAKE_SIGNING_KEY` | ✔ | ✔ | | Modo de identidade fake, só `local`/`dev`/`test` (recusado nos demais): na API, `FakeJwksProvider` HS256 + diretório em memória; no BFF, provedor e diretório fake (US-086 FA-06). Ausente (padrão): JWKS do Authentik e tabelas reais (US-087) |
+| `INTERNAL_SERVICE_TOKEN` | ✔ | ✔ | | Credencial de serviço do BFF nas rotas `/internal/*` da API (`X-CF-Service-Token`, comparada em tempo constante) — segredo; obrigatória fora de `local`/`dev`/`test` (US-087) |
 | `SESSION_COOKIE_NAME`, `CSP_REPORT_URI` | ✔ | | | Cookie de sessão (`__Host-cf_session` — DEC-131) e endpoint interno de relatório de CSP (`/api/csp-report`) — US-086 |
 | `NEXT_PUBLIC_APP_NAME` | ✔ | | | Única variável exposta ao browser (lista fechada — §8.3; `NEXT_PUBLIC_*` fora dela falha o build) |
 | `PORT`, `CORRELATION_HEADER_NAME`, `PAGINATION_MAX_PAGE_SIZE`, `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN`, `IDEMPOTENCY_TTL_HOURS` | | ✔ | | Pipeline HTTP (US-080 — tabela "Campos") |
-| `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM dos tokens no registro de sessão — segredo ([`authentication.md`](authentication.md)) |
+| `AUDIT_COALESCE_WINDOW_MINUTES`, `AUDIT_COALESCE_MAX_REVISION_GAP`, `AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT`, `AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS`, `AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW` | | ✔ | | Parâmetros de **plataforma** da auditoria (padrões 10 min, 20 revisões, 30%, 60 s, 20): coalescência do autosave e amostragem de `access.denied` (RN-AUD-06/07 · DEC-071). Nenhuma variável desliga a gravação — US-073 |
+| `SESSION_ENCRYPTION_KEY` | ✔ | | | Chave AES-256-GCM (32 bytes em base64) dos tokens no registro de sessão e do cookie de transação do login (subchaves HKDF por finalidade) — segredo, obrigatória fora de `local`/`dev`/`test` ([`authentication.md`](authentication.md)) |
 | `AUTHENTIK_API_URL`, `AUTHENTIK_API_TOKEN` | | ✔ | ✔ | API de administração (convites, desativação) — segredo, token de conta de serviço com permissões mínimas |
 | `DATABASE_URL` | | ✔ | ✔ | Papel `cf_app` (API) / `cf_worker` (worker) |
 | `DATABASE_URL_PLATFORM` | | ✔ | ✔ | Papel `cf_platform` (`systemPrisma`) — usado só por código na allowlist |
 | `DATABASE_URL_RELAY` | | | ✔ | Papel `cf_relay` (relay do outbox) |
+| `DATABASE_URL_MAINTENANCE` | | | ✔ | Papel `cf_maintenance` (purga de `outbox_events` — DEC-072) |
 | `DATABASE_POOL_SIZE` | | ✔ | ✔ | Conexões por réplica (orçamento no §12.1) |
-| `REDIS_SESSION_URL`† | ✔ | | | Redis de sessões (crítico, HA — DEC-131) |
+| `REDIS_SESSION_URL` | ✔ | ✔ | ✔ | Redis de sessões (crítico, HA — DEC-131); chaves `cf:{env}:sess:*` e `cf:{env}:rl:auth:*`. Obrigatória fora de `local`/`dev`/`test` (sem ela, sessões em memória do processo — US-087). A API lê para a varredura de sessões e o worker para o encerramento por vínculo (US-088 · DEC-073) |
 | `REDIS_URL`, `REDIS_CACHE_URL` | ✔ | ✔ | ✔ | Redis principal (filas, idempotência, rate limit, locks); cache opcional separado |
 | `S3_*`, `UPLOADS_MAX_FILE_SIZE_MB_CEILING` | | ✔ | ✔ | Ver [`storage.md`](storage.md#22-configuração) |
 | `KMS_APP_FIELDS_KEY_ID`, `BLIND_INDEX_KEY` | | ✔ | ✔ | Criptografia de campos e *blind index* (DEC-086) — segredo |
 | `GOTENBERG_URL`, `CLAMAV_HOST`, `CLAMAV_PORT` | | | ✔ | Serviços internos |
 | `EMAIL_TRANSPORT` (`smtp`\|`ses`), `SMTP_URL`, `SES_REGION`, `EMAIL_FROM` | | | ✔ | Envio de e-mail (Mailpit em dev) |
 | `WORKER_QUEUES`, `WORKER_ADMIN_PORT`, `SHUTDOWN_GRACE_MS` | | | ✔ | Perfil do worker e Bull Board interno ([`queues.md`](queues.md)) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER_ARG` | ✔ | ✔ | ✔ | Telemetria ([`observability.md`](observability.md)) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER_ARG` | ✔ | ✔ | ✔ | Telemetria ([`observability.md`](observability.md)): endpoint obrigatório em staging/produção (ausente fora deles = tracing desligado); `OTEL_SERVICE_NAME`, se informado, deve ser o fixo do app; razão de amostragem 0–1 (padrão 1) |
 | `TRUSTED_PROXY_CIDRS` | ✔ | ✔ | | Origem confiável de `X-Forwarded-For` (ALB → web; web → api) |
 
 Variáveis exclusivas de dev (ex.: `AUTHENTIK_BOOTSTRAP_*`, credenciais do MinIO) ficam em `.env` local, ignorado pelo git e verificado pelo `gitleaks`.
@@ -1236,5 +1244,5 @@ Princípios já fixados para o MVP 5: (1) habilitação por tenant (`features.<f
 ## Referências
 
 - Decisões: DEC-010 a DEC-015, DEC-022 a DEC-026, DEC-040, DEC-041, DEC-050 a DEC-060, DEC-080 a DEC-086, DEC-100 a DEC-108, DEC-130 a DEC-140, DEC-160 a DEC-164, DEC-180 a DEC-184 ([`decisions.md`](decisions.md)).
-- ADRs: [ADR-001](../adr/adr-001-modular-monolith.md), [ADR-002](../adr/adr-002-multi-tenancy.md), [ADR-003](../adr/adr-003-authentication.md), ADR-004 a ADR-011.
+- ADRs: [ADR-001](../adr/adr-001-modular-monolith.md), [ADR-002](../adr/adr-002-multi-tenancy.md), [ADR-003](../adr/adr-003-authentication.md), ADR-004 a ADR-012.
 - MVP 1: [`entities.md`](../mvp-01/entities.md), [`permissions.md`](../mvp-01/permissions.md), [`api.md`](../mvp-01/api.md), [`events.md`](../mvp-01/events.md), [`features.md`](../mvp-01/features.md), [`acceptance-criteria.md`](../mvp-01/acceptance-criteria.md), [`delivery-plan.md`](../mvp-01/delivery-plan.md).

@@ -50,6 +50,11 @@ entries:
         - matching_mode: strict
           url: !Format ['%s/api/auth/callback', !Env CF_APP_BASE_URL]
           redirect_uri_type: authorization
+        # RP-initiated logout (US-088): volta à SCR-001 com "Você saiu com segurança.". A raiz
+        # continua aceita para .env antigos (OIDC_POST_LOGOUT_REDIRECT_URI anterior à US-088).
+        - matching_mode: strict
+          url: !Format ['%s/entrar?motivo=saiu', !Env CF_APP_BASE_URL]
+          redirect_uri_type: logout
         - matching_mode: strict
           url: !Format ['%s/', !Env CF_APP_BASE_URL]
           redirect_uri_type: logout
@@ -60,8 +65,10 @@ entries:
       include_claims_in_id_token: true
       access_code_validity: minutes=1
       access_token_validity: minutes=5
-      # Teto absoluto da sessão (DEC-131: 12 h).
-      refresh_token_validity: hours=12
+      # Teto absoluto da plataforma (`security.sessionAbsoluteHours` até 24 h — DEC-131 · US-088):
+      # a sessão do BFF dura o limite da instituição, e o refresh precisa valer até lá. A rotação
+      # (refresh novo a cada renovação, o anterior revogado) é do Authentik.
+      refresh_token_validity: hours=24
       signing_key:
         !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       property_mappings:

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 
-import { currentPathname, currentSession } from '@/bff/server-session';
+import { currentPathname, currentSessionOrUnavailable } from '@/bff/server-session';
 import { toShellSession } from '@/bff/session/view';
 import { AppProviders } from '@/components/shell/app-providers';
 import { AppShell } from '@/components/shell/app-shell';
@@ -18,10 +18,20 @@ export const dynamic = 'force-dynamic';
  * qualquer filho — sem sessão → login com `returnTo`; sem instituição → seleção de órgão.
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
-  const lookup = await currentSession();
-  if (lookup.status !== 'active') redirect(loginHref(await currentPathname()));
+  const lookup = await currentSessionOrUnavailable();
+  const pathname = await currentPathname();
+  // Redis de sessões fora do ar: indisponibilidade, nunca "sessão expirada" (DEC-131).
+  if (lookup.status === 'unavailable') {
+    redirect(`/erro/manutencao?retorno=${encodeURIComponent(pathname)}`);
+  }
+  // Vínculo encerrado pelo worker (FA-08) → SCR-111; vencida → nova entrada com senha (RN-IAM-32).
+  if (lookup.status === 'membership_ended') redirect('/erro/vinculo-inativo');
+  if (lookup.status === 'expired') redirect(loginHref(pathname, { reauthenticate: true }));
+  if (lookup.status !== 'active') redirect(loginHref(pathname));
   const session = toShellSession(lookup.record);
-  if (!session.activeTenant) redirect('/selecionar-orgao');
+  if (!session.activeTenant) {
+    redirect(`/selecionar-orgao?returnTo=${encodeURIComponent(pathname)}`);
+  }
   const active: ActiveShellSession = { ...session, activeTenant: session.activeTenant };
 
   return (

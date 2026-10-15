@@ -9,11 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@contrataflow/ui';
-import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
-import { logout } from '@/lib/session/session-actions';
+import { useLogout } from '@/components/session/logout-guard';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { Icon } from './icons';
@@ -27,11 +26,14 @@ function initials(name: string): string {
     .join('');
 }
 
-/** Menu do usuário: perfil e logout por POST com CSRF (DEC-131 · security.md §7). */
+/**
+ * Menu do usuário: perfil e "Sair" — logout por POST com CSRF (DEC-131 · security.md §7), com
+ * confirmação quando há rascunho local não sincronizado (`LogoutGuard` — US-088).
+ */
 export function UserMenu() {
   const t = useTranslations('shell.user');
   const { user } = useShellSession();
-  const queryClient = useQueryClient();
+  const { requestLogout } = useLogout();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,12 +59,7 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => {
-            void logout({
-              queryClient,
-              navigate: (href) => {
-                window.location.assign(href);
-              },
-            });
+            requestLogout();
           }}
         >
           <Icon name="logout" />

@@ -13,6 +13,17 @@ export const REDIS_MODULES = Object.freeze(['ioredis', 'redis', '@redis/*', 'iov
 /** Cliente Prisma: só em infrastructure/** e shared/database/**. */
 export const PRISMA_MODULES = Object.freeze(['@prisma/client', '.prisma/client']);
 
+/**
+ * Construção do `PrismaClient` e conexões diretas: só em shared/database/** (RN-FND-43). Os
+ * repositórios recebem o `tx` da `TenantTransaction` e importam tipos de `#shared/database/prisma.js`.
+ */
+export const PRISMA_CLIENT_MODULES = Object.freeze([
+  '#shared/database/generated/*',
+  '#shared/database/prisma-client.js',
+  '@prisma/adapter-pg',
+  'pg',
+]);
+
 /** Plugin local `contrataflow` — proibições de segurança da RN-FND-06. */
 export const plugin = {
   meta: { name: '@contrataflow/eslint-plugin', version: '0.0.0' },
@@ -32,6 +43,12 @@ export const plugin = {
       description: 'Proíbe @prisma/client fora de infrastructure/** e shared/database/**.',
       modules: PRISMA_MODULES,
       message: `Uso proibido: import de {{module}} fora de infrastructure/** e shared/database/**. Acesse os dados pelo repositório do módulo (interface no domain, implementação Prisma no infrastructure). ${GUIDE}`,
+    }),
+    'no-prisma-client-outside-database': createRestrictedModuleRule({
+      description:
+        'Proíbe instanciar o PrismaClient ou abrir conexão fora de shared/database/** (RN-FND-43).',
+      modules: PRISMA_CLIENT_MODULES,
+      message: `Uso proibido: import de {{module}} fora de shared/database/**. Todo acesso a dados passa pela TenantTransaction (app.tenant_id por transação); o repositório recebe o tx e importa tipos de #shared/database/prisma.js. ${GUIDE}`,
     }),
   },
 };

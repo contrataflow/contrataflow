@@ -197,7 +197,7 @@ O scheduler `maintenance-daily` gera `daily`, que enfileira jobs de plataforma e
 
 | Job | Escopo | Papel de banco | O que faz | Base |
 |---|---|---|---|---|
-| `outbox-purge` | Plataforma | `cf_maintenance` **(proposta)**: `DELETE` só em `outbox_events` | Remove `PUBLISHED` com `published_at` > 7 dias, em lotes de 5.000 | DEC-085 |
+| `outbox-purge` | Plataforma | `cf_maintenance` (DEC-072): `SELECT`/`DELETE` só em `outbox_events` | Remove `PUBLISHED` com `published_at` > 7 dias, em lotes de 5.000 | DEC-085 |
 | `processed-events-purge` | Plataforma | `cf_maintenance` | Remove registros de idempotência > 30 dias (§8) | — |
 | `audit-partitions-ensure` | Plataforma | Papel de migração | Garante partições mensais de `audit_logs` para os próximos 3 meses | DEC-085 |
 | `uploads-expire` | Tenant | Aplicação | `PENDING_UPLOAD` > 24 h → `DELETED` (sistema) | DEC-136 |
@@ -221,9 +221,9 @@ Fila de **estacionamento**, sem consumidor automático. Contrato e operação em
 ### 5.1 Tabela
 `OutboxEvent` (`outbox_events`, módulo `platform`) está definida em [entities.md](../mvp-01/entities.md) §4.10: `id` (= `eventId`), `tenantId` (nulo só para eventos de plataforma), `eventType`, `routingKey`, `eventVersion`, `aggregateType`, `aggregateId`, `processId`, `payload`, `metadata` (`actor`, `correlationId`, `causationId`, `traceparent`), `occurredAt`, `status` (`PENDING`, `PUBLISHED`, `FAILED`), `attempts`, `nextAttemptAt`, `publishedAt`, `lastError`; índice parcial `(status, occurred_at) WHERE status = 'PENDING'`. A aplicação só insere no próprio tenant; o relay usa o papel `cf_relay` (`SELECT`/`UPDATE` apenas nesta tabela, com `BYPASSRLS`).
 
-Ajustes **(proposta)**:
+Ajustes adotados na US-082 (DEC-072):
 - Gravar `occurred_at` com `clock_timestamp()` no `INSERT` (após o lock do agregado), em vez do *default* `now()` — `now()` é o instante de **início** da transação e pode inverter a ordem entre duas transações concorrentes sobre o mesmo agregado.
-- Papel `cf_maintenance` com `DELETE` apenas em `outbox_events` (e `processed_events`) para a purga de 7 dias, já que `cf_relay` não tem `DELETE`.
+- Papel `cf_maintenance` com `SELECT`/`DELETE` apenas em `outbox_events` (e `processed_events`, quando existir) para a purga de 7 dias, já que `cf_relay` não tem `DELETE`.
 
 ### 5.2 Escrita (mesma transação)
 
