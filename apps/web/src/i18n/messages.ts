@@ -11,6 +11,7 @@ import organizations from '../../messages/pt-BR/organizations.json';
 import permissions from '../../messages/pt-BR/permissions.json';
 import processActions from '../../messages/pt-BR/processActions.json';
 import processes from '../../messages/pt-BR/processes.json';
+import processList from '../../messages/pt-BR/processList.json';
 import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
@@ -38,6 +39,7 @@ export const messages = {
   organizations,
   permissions,
   processActions,
+  processList,
   processes,
   roles,
   settings,

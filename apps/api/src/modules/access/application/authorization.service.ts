@@ -13,7 +13,7 @@ import type {
 import type { EffectivePermissionsSnapshot } from '#shared/auth/effective-permissions.js';
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
 import { isProcessVisible, ProcessAccessRegistry } from '#shared/auth/process-access.js';
-import type { ProcessAccessTarget } from '#shared/auth/process-access.js';
+import type { ProcessAccessTarget, ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { requireRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 import { DatabaseUnavailableError, isTransientDatabaseError } from '#shared/database/errors.js';
 import { ApiError } from '#shared/errors/api-error.js';
@@ -22,7 +22,7 @@ import { EffectivePermissionsService } from './effective-permissions.service.js'
 import { ACCESS_CLOCK, ACCESS_TRANSACTIONS } from './ports.js';
 import type { AccessClock, AccessTransactions } from './ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
-import { decide, mfaPolicyNeeded } from '../domain/authorization-decision.js';
+import { decide, mfaPolicyNeeded, requiresMfa } from '../domain/authorization-decision.js';
 import { EffectivePermissionSet } from '../domain/effective-permissions.js';
 import { PERMISSION_RISKS } from '../domain/permission-grants.js';
 
@@ -45,6 +45,20 @@ const EMPTY_SNAPSHOT = (membershipId: string, userId: string): EffectivePermissi
 });
 
 const processIdSchema = z.uuid();
+
+/**
+ * Quem desmascara o valor estimado sigiloso, linha a linha (POL-09 · RN-PROC-25 · US-002): os
+ * escopos de `PROCESS_VIEW_CONFIDENTIAL_BUDGET` e a custódia atual (responsável, ou fila de uma
+ * lotação do vínculo).
+ */
+export interface ConfidentialBudgetAccess {
+  /** Escopos expandidos da permissão; vazios quando ela não vale nesta sessão (MFA — FA-12). */
+  readonly scope: ProcessVisibilityScope;
+  /** Lotações ativas do vínculo (custódia de processo na fila da unidade, sem responsável). */
+  readonly custodyDepartmentIds: readonly string[];
+  /** A permissão existe, mas a sessão sem 2º fator não a usa: o step-up desmascararia (FA-12). */
+  readonly stepUpAvailable: boolean;
+}
 
 /** Inexistente, de outro tenant e não visível respondem igual (RN-IAM-104 · FA-05). */
 export function processNotFound(): ApiError {
@@ -105,6 +119,32 @@ export class AuthorizationService implements AuthorizationPort {
     });
     updateRequestContext({ permissions: snapshot });
     return new EffectivePermissionSet(snapshot);
+  }
+
+  /**
+   * POL-09 para listas (US-002 · FA-12): a permissão é `HIGH`; sem o 2º fator exigido por
+   * `security.mfaPolicy`, ela NÃO é considerada para desmascarar — valores mascarados, sem 403.
+   */
+  async confidentialBudgetAccess(): Promise<ConfidentialBudgetAccess> {
+    const permission = 'PROCESS_VIEW_CONFIDENTIAL_BUDGET';
+    const permissions = await this.current();
+    const scope = permissions.processScopeOf(permission);
+    const custodyDepartmentIds = permissions.snapshot.ownDepartmentIds;
+    const granted =
+      scope.tenantWide || scope.organizationIds.length > 0 || scope.departmentIds.length > 0;
+    const riskLevel = PERMISSION_RISKS[permission];
+    if (
+      granted &&
+      mfaPolicyNeeded(riskLevel, hasSecondFactor(requireRequestContext().amr)) &&
+      requiresMfa(riskLevel, await this.identity.mfaPolicy())
+    ) {
+      return {
+        scope: { userId: scope.userId, tenantWide: false, organizationIds: [], departmentIds: [] },
+        custodyDepartmentIds,
+        stepUpAvailable: true,
+      };
+    }
+    return { scope, custodyDepartmentIds, stepUpAvailable: false };
   }
 
   async authorize(request: AuthorizationRequest): Promise<void> {

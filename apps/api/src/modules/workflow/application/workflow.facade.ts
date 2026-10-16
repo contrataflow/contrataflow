@@ -8,6 +8,7 @@ import { Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { ReleasedStage } from './ports.js';
 import { RuleContextContributorRegistry } from './rule-context.js';
 import type { RuleContextContributor } from './rule-context.js';
 import { WorkflowApplicabilityService } from './workflow-applicability.service.js';
@@ -35,6 +36,7 @@ export type {
   RuleContextContributor,
   RuleContextRequest,
 } from './rule-context.js';
+export type { ReleasedStage } from './ports.js';
 export type { ProcessExecutionState } from './workflow-engine.service.js';
 export type {
   PublishWorkflowVersionInput,
@@ -107,6 +109,15 @@ export class WorkflowFacade {
    */
   publishedDefinitionIn(tx: TenantTx, versionId: string): Promise<WorkflowSnapshot | null> {
     return this.definitions.publishedDefinitionIn(tx, versionId);
+  }
+
+  /**
+   * Etapas das versões publicadas e aposentadas do tenant (US-002): o filtro "Etapa" por chave em
+   * qualquer versão (RN-PROC-22), as opções do filtro sem `WORKFLOW_VIEW` e os nomes da etapa atual.
+   * Somente leitura; a autorização é de quem chama.
+   */
+  releasedStages(tx: TenantTx): Promise<ReleasedStage[]> {
+    return this.definitions.releasedStages(tx);
   }
 
   /** Nome do workflow e número da versão fixada no processo (`null` = inexistente no tenant). */

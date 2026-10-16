@@ -308,7 +308,7 @@ Regras complementares:
 | POL-11 | **Reabrir documento** | `DOCUMENT_REOPEN` + custódia + processo em status editável + tipo permitido na etapa; justificativa obrigatória; não reabre documento coberto por aprovação `PENDING` |
 | POL-12 | **Anti-bloqueio** | O tenant deve manter ≥ 1 vínculo `ACTIVE` com `ADMIN_ORGAO` vigente; operações que violem isso retornam `LAST_ADMIN_REQUIRED` (409) |
 | POL-13 | **Anti-escalonamento** | `ROLE_ASSIGN`/`ROLE_MANAGE`: um usuário só pode atribuir perfis (ou adicionar a perfis permissões) que já possua com escopo igual ou mais amplo — exceto `ADMIN_ORGAO`. Erro `PRIVILEGE_ESCALATION_FORBIDDEN` (403) |
-| POL-14 | **MFA** | Permissão `HIGH` + `security.mfaPolicy` `ADMINS` (perfis com alguma permissão `HIGH`) ou `ALL` → exige sessão com MFA; senão `MFA_REQUIRED` (403) |
+| POL-14 | **MFA** | Permissão `HIGH` + `security.mfaPolicy` `ADMINS` (perfis com alguma permissão `HIGH`) ou `ALL` → exige sessão com MFA; senão `MFA_REQUIRED` (403). **Exceção — desmascaramento em leituras (US-002 · FA-12):** `PROCESS_VIEW_CONFIDENTIAL_BUDGET` usada só para desmascarar valores em listas/consultas sem MFA exigido **não é considerada** (valores mascarados, sem 403); a resposta sinaliza `meta.confidentialStepUpAvailable` e a UI oferece o step-up |
 | POL-15 | **Externos** | Vínculos `EXTERNAL` só recebem perfis com `allowExternalAssignment = true` (semeado em `AUDITOR` e `CONSULTOR_EXTERNO`); fora desses, perfis com permissões `HIGH` não podem ser atribuídos a externos (`EXTERNAL_HIGH_RISK_ROLE`). O caso típico de `AUDITOR` externo é o **órgão de controle externo** (TCE), a quem o sigilo do orçamento não se aplica (Lei 14.133, art. 24, I). Acesso expira automaticamente em `expiresAt` |
 | POL-16 | **Autoproteção** | Usuário não pode suspender/revogar o próprio vínculo nem remover de si o último perfil administrativo |
 | POL-17 | **Retirar solicitação de aprovação** | `APV-04`: `PROCESS_FORWARD` + ser o solicitante (`Approval.requestedById`) **ou** pertencer à unidade de origem do movimento que levou o processo à etapa `APPROVAL` atual (custódia anterior), com escopo sobre essa unidade; `Approval` em `PENDING`. Retirada de submissão avulsa (`DOC-11`): permissão de submissão do tipo do documento (US-053) |
@@ -321,7 +321,7 @@ Não dependem de perfil (somente de vínculo ativo):
 - Ver e editar o próprio perfil e preferências (`/me`), ver as próprias notificações, sessões e permissões.
 - Titular (`headUserId`) e substituto (`deputyUserId`) de uma unidade podem **atribuir/reatribuir** processos sob custódia da sua unidade (POL-05) e veem a fila da unidade na caixa de tarefas.
 - Buscar usuários e unidades para seletores (`GET /users/lookup`, `GET /departments/lookup`) — retorna apenas nome, cargo, unidade e id de vínculos ativos.
-- Ver processos em que possui concessão `USER` (criador, responsável, aprovador, participante).
+- Ver processos em que possui concessão `USER` (criador, responsável, aprovador, participante). Na lista (PRC-01 · US-002), basta `PROCESS_VIEW` em algum escopo **ou** ao menos uma concessão `USER` ativa; sem nenhum dos dois → 403 `PERMISSION_DENIED` (`access.denied`, `reasonCode = PROCESS_VIEW`).
 
 ---
 

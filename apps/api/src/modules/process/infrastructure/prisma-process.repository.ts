@@ -16,10 +16,14 @@ import { Prisma } from '#shared/database/prisma.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { buildVisibilityPredicate } from '#shared/database/process-visibility.js';
 
+import { buildProcessListSql, toProcessListRow } from './process-list.sql.js';
+import type { ProcessListDbRow } from './process-list.sql.js';
 import { InternalCodeTakenError } from '../application/ports.js';
 import type {
   DuplicateCandidateRow,
   DuplicateSearch,
+  ProcessListPage,
+  ProcessListSearch,
   ProcessAccessRow,
   ProcessAggregateRows,
   ProcessCreation,
@@ -359,6 +363,30 @@ export class PrismaProcessRepository implements ProcessRepository {
       createdAt: row.created_at,
       createdById: row.created_by_id,
     }));
+  }
+
+  async listProcesses(tx: TenantTx, search: ProcessListSearch): Promise<ProcessListPage> {
+    // US-002: tempo limite próprio da consulta (escopo da transação, como o `set_config` inicial).
+    await tx.$executeRaw`SELECT set_config('statement_timeout', ${String(search.statementTimeoutMs)}, true)`;
+    const rows = await tx.$queryRaw<ProcessListDbRow[]>(buildProcessListSql(search));
+    return {
+      totalItems: rows[0]?.total ?? 0,
+      rows: rows
+        .filter((row): row is ProcessListDbRow & { id: string } => row.id !== null)
+        .map(toProcessListRow),
+    };
+  }
+
+  async hasUserGrant(tx: TenantTx, userId: string): Promise<boolean> {
+    const [row] = await tx.$queryRaw<{ granted: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM process_access pa
+          JOIN processes p ON p.tenant_id = pa.tenant_id AND p.id = pa.process_id
+         WHERE pa.tenant_id = current_setting('app.tenant_id')::uuid
+           AND pa.principal_type = 'USER' AND pa.user_id = ${userId}::uuid
+           AND pa.revoked_at IS NULL AND p.deleted_at IS NULL
+      ) AS granted`;
+    return row?.granted === true;
   }
 
   async loadAggregate(tx: TenantTx, processId: string): Promise<ProcessAggregateRows | null> {

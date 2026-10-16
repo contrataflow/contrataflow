@@ -623,7 +623,7 @@ Acesso explícito por processo (DEC-036).
 - **Unique:** `(tenant_id, lower(name))`.
 
 #### ProcessTag (`process_tags`) — módulo `process`
-`tenantId`, `processId` (FK, `CASCADE`), `tagId` (FK), `createdAt`, `createdById`. **PK:** `(tenant_id, process_id, tag_id)`. Máx. 10 etiquetas por processo (regra de aplicação).
+`tenantId`, `processId` (FK, `CASCADE`), `tagId` (FK), `createdAt`, `createdById`. **PK:** `(tenant_id, process_id, tag_id)`. **Índice:** `(tenant_id, tag_id, process_id)` — filtro por etiqueta da lista de processos (US-002, lacuna 2; criado junto com a tabela na US-007). Máx. 10 etiquetas por processo (regra de aplicação).
 
 #### ProcessStage (`process_stages`) — módulo `process`
 Instância de etapa do workflow no processo (cada passagem cria uma nova linha).

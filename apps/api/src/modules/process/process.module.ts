@@ -9,6 +9,7 @@ import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.
 
 import { CreateProcessCommand } from './application/create-process.command.js';
 import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
+import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
   PROCESS_REPOSITORY,
@@ -50,7 +51,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `process` (DEC-040, nível 3 — agregado central): outros módulos usam somente a fachada
- * exportada. US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`),
+ * exportada. US-002: lista de processos (PRC-01 — `ListProcessesHandler`). US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`),
  * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
  * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
  * sobre a `WorkflowFacade`. US-097: leitor do processo na porta de autorização.
@@ -77,6 +78,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateProcessCommand,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,
+    ListProcessesHandler,
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,
     PrismaProcessRepository,

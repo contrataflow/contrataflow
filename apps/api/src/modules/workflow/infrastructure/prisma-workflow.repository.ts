@@ -18,6 +18,7 @@ import type {
   DefaultSwitch,
   PageWindow,
   PublishVersionData,
+  ReleasedStage,
   WorkflowListFilter,
   WorkflowRepository,
   WorkflowTransactions,
@@ -554,6 +555,27 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
   async findStage(tx: TenantTx, id: string): Promise<WorkflowStage | null> {
     const row = await tx.workflowStage.findFirst({ where: { id } });
     return row === null ? null : toStage(row);
+  }
+
+  async listReleasedStages(tx: TenantTx): Promise<ReleasedStage[]> {
+    // Consultas em sequência: o `tx` interativo é uma única conexão.
+    const versions = await tx.workflowVersion.findMany({
+      where: { status: { in: ['PUBLISHED', 'RETIRED'] } },
+      select: { id: true },
+    });
+    if (versions.length === 0) return [];
+    return tx.workflowStage.findMany({
+      where: { workflowVersionId: { in: versions.map((version) => version.id) } },
+      select: {
+        id: true,
+        workflowVersionId: true,
+        key: true,
+        name: true,
+        groupLabel: true,
+        displayOrder: true,
+      },
+      orderBy: [{ displayOrder: 'asc' }, { key: 'asc' }],
+    });
   }
 
   async insertStage(tx: TenantTx, stage: WorkflowStage): Promise<void> {

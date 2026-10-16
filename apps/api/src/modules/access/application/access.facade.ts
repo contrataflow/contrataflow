@@ -9,6 +9,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { AuthorizationService } from './authorization.service.js';
+import type { ConfidentialBudgetAccess } from './authorization.service.js';
 import { ROLE_REPOSITORY } from './ports.js';
 import type { RoleRepository } from './ports.js';
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
@@ -17,6 +18,8 @@ import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import { EffectivePermissionSet } from '../domain/effective-permissions.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
 import type { Role } from '../domain/role.js';
+
+export type { ConfidentialBudgetAccess } from './authorization.service.js';
 
 /** Perfis padrão atribuídos com escopo `TENANT` (permissions.md §3.1). */
 const TENANT_WIDE_ROLE_KEYS: ReadonlySet<string> = new Set(
@@ -113,6 +116,15 @@ export class AccessFacade {
    */
   async processVisibilityScope(): Promise<ProcessVisibilityScope> {
     return (await this.authorization.current()).visibilityScope();
+  }
+
+  /**
+   * Desmascaramento do valor estimado sigiloso por linha nas listas de processos (POL-09 ·
+   * RN-PROC-25 · FA-12 da US-002): escopos de `PROCESS_VIEW_CONFIDENTIAL_BUDGET` (vazios sem o MFA
+   * exigido) e as lotações para a custódia.
+   */
+  confidentialBudgetAccess(): Promise<ConfidentialBudgetAccess> {
+    return this.authorization.confidentialBudgetAccess();
   }
 
   /** Algum dos perfis (`Role.key`) concede a permissão — vínculos de terceiros (aprovadores). */

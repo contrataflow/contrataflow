@@ -114,6 +114,22 @@ export function isTransientDatabaseError(error: unknown): boolean {
   );
 }
 
+/**
+ * A instrução foi cancelada pelo `statement_timeout` (SQLSTATE `57014` — US-002: consulta acima do
+ * tempo limite responde 503 `DEPENDENCY_UNAVAILABLE`, como o banco fora do ar).
+ */
+export function isStatementTimeout(error: unknown): boolean {
+  if (error instanceof ApiError) return false;
+  return (
+    codesOf(error).includes('57014') ||
+    [...chain(error)].some(
+      (item) =>
+        typeof item.message === 'string' &&
+        /canceling statement due to statement timeout/i.test(item.message),
+    )
+  );
+}
+
 /** Falha de serialização ou deadlock: retentável pela `TenantTransaction`. */
 export function isRetryableTransactionError(error: unknown): boolean {
   return codesOf(error).some((code) => RETRYABLE.has(code));

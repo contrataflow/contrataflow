@@ -16,6 +16,7 @@ import type {
   DefaultSwitch,
   PageWindow,
   PublishVersionData,
+  ReleasedStage,
   WorkflowListFilter,
   WorkflowRepository,
   WorkflowTransactions,
@@ -320,6 +321,27 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
 
   findStage(_tx: TenantTx, id: string): Promise<WorkflowStage | null> {
     return Promise.resolve(this.visible(this.stages, id));
+  }
+
+  listReleasedStages(_tx: TenantTx): Promise<ReleasedStage[]> {
+    const released = new Set(
+      this.rowsOf(this.versions)
+        .filter((version) => version.status === 'PUBLISHED' || version.status === 'RETIRED')
+        .map((version) => version.id),
+    );
+    return Promise.resolve(
+      this.rowsOf(this.stages)
+        .filter((stage) => released.has(stage.workflowVersionId))
+        .sort((a, b) => a.displayOrder - b.displayOrder || a.key.localeCompare(b.key))
+        .map(({ id, workflowVersionId, key, name, groupLabel, displayOrder }) => ({
+          id,
+          workflowVersionId,
+          key,
+          name,
+          groupLabel,
+          displayOrder,
+        })),
+    );
   }
 
   insertStage(_tx: TenantTx, stage: WorkflowStage): Promise<void> {

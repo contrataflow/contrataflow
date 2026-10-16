@@ -88,6 +88,9 @@ const TEMPLATE_ROUTE =
 const PROCESS_ACTIONS_ROUTE =
   'Ações e checklist do processo (US-041): a tabela processes nasce com a US-001, então a suíte genérica ainda não tem fixture de processo do tenant B. O isolamento (processo de outro tenant → 404 NOT_FOUND sem revelar nada, mesmo corpo do inexistente, e RLS de workflow_versions/workflow_rules impedindo ler a definição de B) é coberto em test/tenant-leak/process-actions.spec.ts.';
 
+const PROCESS_LIST_ROUTE =
+  'Lista de processos (US-002): a suíte genérica não tem processos do tenant B. O isolamento (filtros com unidade/órgão/ids de B → 200 com data vazio sem revelar nada, RLS com app.tenant_id diferente retornando vazio e X-Tenant-Id sem vínculo → 403) é coberto em test/tenant-leak/process-list.spec.ts, com PostgreSQL real.';
+
 const PROCESS_ROUTE =
   'Processos (US-001): a suíte genérica não tem fixtures de catálogo, workflow publicado nem processo do tenant B. O isolamento (unidade/catálogo de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, PRC-04 com id de B → 404 PROCESS_NOT_FOUND, PRC-03 nunca lista processo de B, RLS e FKs compostas das tabelas do processo) é coberto em test/tenant-leak/processes.spec.ts, com PostgreSQL real.';
 
@@ -163,6 +166,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-16': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-17': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-18': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'PRC-01': { kind: 'exempt', reason: PROCESS_LIST_ROUTE },
   'PRC-02': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-03': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-04': { kind: 'exempt', reason: PROCESS_ROUTE },

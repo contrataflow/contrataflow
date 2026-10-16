@@ -14,6 +14,7 @@ import { InMemoryOrganizationRepository } from '#modules/tenancy/infrastructure/
 import type { InMemoryTenantSettingsRepository } from '#modules/tenancy/infrastructure/in-memory-tenant-settings.repository.js';
 import { TIMELINE_ENTRY_STORE } from '#modules/timeline/application/ports.js';
 import type { InMemoryTimelineEntryStore } from '#modules/timeline/infrastructure/in-memory-timeline-entry.store.js';
+import { InMemoryWorkflowRepository } from '#modules/workflow/infrastructure/in-memory-workflow.repository.js';
 import { runAsSystem } from '#shared/context/request-context.js';
 import { TenantSeederRegistry } from '#shared/tenancy/tenant-seeding.js';
 
@@ -102,6 +103,22 @@ export function catalogItemId(
 
 export function processRepositoryOf(api: TestApi): InMemoryProcessRepository {
   return api.app.get(InMemoryProcessRepository, { strict: false });
+}
+
+/** Etapas das versões publicadas do tenant (workflow padrão do seeder — US-042). */
+export function workflowStagesOf(
+  api: TestApi,
+  tenantId: string,
+): { readonly id: string; readonly key: string; readonly workflowVersionId: string }[] {
+  const repository = api.app.get(InMemoryWorkflowRepository, { strict: false });
+  const published = new Set(
+    [...repository.versions.values()]
+      .filter((version) => version.tenantId === tenantId && version.status === 'PUBLISHED')
+      .map((version) => version.id),
+  );
+  return [...repository.stages.values()]
+    .filter((stage) => stage.tenantId === tenantId && published.has(stage.workflowVersionId))
+    .map((stage) => ({ id: stage.id, key: stage.key, workflowVersionId: stage.workflowVersionId }));
 }
 
 export function numberSequencesOf(api: TestApi): InMemoryNumberSequenceRepository {

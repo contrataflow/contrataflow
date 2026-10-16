@@ -1,8 +1,13 @@
-import type { ProcessStageStatus, ProcessStatus } from '@contrataflow/validation';
+import type { DayCountType, ProcessStageStatus, ProcessStatus } from '@contrataflow/validation';
 
 import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type {
+  ProcessListCriteria,
+  ProcessListFacts,
+  ProcessListOrder,
+} from '../domain/process-list.js';
 import type {
   AccessGrant,
   ProcessAssignmentRecord,
@@ -108,6 +113,57 @@ export interface ProcessAggregateRows {
   readonly access: readonly ProcessAccessRow[];
 }
 
+/**
+ * Quem desmascara o valor sigiloso por linha (POL-09 · RN-PROC-25): escopos de
+ * `PROCESS_VIEW_CONFIDENTIAL_BUDGET` (vazios sem o MFA exigido) e a custódia atual.
+ */
+export interface BudgetVisibility {
+  readonly userId: string;
+  readonly tenantWide: boolean;
+  readonly organizationIds: readonly string[];
+  readonly departmentIds: readonly string[];
+  /** Lotações ativas do vínculo: custódia do processo na fila da unidade (sem responsável). */
+  readonly custodyDepartmentIds: readonly string[];
+}
+
+/** Consulta da lista de processos (US-002 · PRC-01), com os critérios já resolvidos. */
+export interface ProcessListSearch {
+  readonly criteria: ProcessListCriteria;
+  readonly order: ProcessListOrder;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly now: Date;
+  /** Fuso IANA do tenant e o "hoje" local (RN-PROC-23/31). */
+  readonly timezone: string;
+  readonly today: string;
+  /** Predicado de visibilidade (DEC-024 · RN-PROC-19). */
+  readonly visibility: ProcessVisibilityScope;
+  readonly historicalDepartmentsCanView: boolean;
+  readonly budget: BudgetVisibility;
+  /** `statement_timeout` da consulta (US-002: 3 s). */
+  readonly statementTimeoutMs: number;
+}
+
+/** Linha da lista: fatos desnormalizados (RN-PROC-29), sigilo resolvido e a etapa ativa. */
+export interface ProcessListRow extends Omit<
+  ProcessListFacts,
+  'object' | 'description' | 'estimatedValue'
+> {
+  /** `null` quando não informado OU mascarado (`canViewBudget = false` em processo sigiloso). */
+  readonly estimatedValue: string | null;
+  /** POL-09 para a linha (permissão com escopo que a cubra ou custódia atual). */
+  readonly canViewBudget: boolean;
+  readonly slaType: DayCountType | null;
+  /** `pausedAt` da passagem ativa (processo suspenso). */
+  readonly stagePausedAt: Date | null;
+}
+
+export interface ProcessListPage {
+  readonly rows: readonly ProcessListRow[];
+  /** Total do mesmo snapshot da página (uma única instrução). */
+  readonly totalItems: number;
+}
+
 export interface ProcessRepository {
   /**
    * Grava processo, passagem nº 1, responsabilidade e tramitação nº 1 no `tx` (a FK circular
@@ -125,6 +181,10 @@ export interface ProcessRepository {
   internalCodeExists(tx: TenantTx, internalCode: string): Promise<boolean>;
   /** RN-PROC-13: candidatos visíveis, mais recentes primeiro. */
   findDuplicateCandidates(tx: TenantTx, search: DuplicateSearch): Promise<DuplicateCandidateRow[]>;
+  /** US-002 · PRC-01: página e total, visíveis e filtrados, num único snapshot. */
+  listProcesses(tx: TenantTx, search: ProcessListSearch): Promise<ProcessListPage>;
+  /** DEC-024 cond. 4: o usuário tem alguma concessão `USER` ativa em processo não descartado. */
+  hasUserGrant(tx: TenantTx, userId: string): Promise<boolean>;
   /** O agregado com passagens e concessões, ou `null` (outro tenant, inexistente, descartado). */
   loadAggregate(tx: TenantTx, processId: string): Promise<ProcessAggregateRows | null>;
   /** Códigos e sigilo dos processos (fonte `PROCESS` da timeline — nomes congelados). */

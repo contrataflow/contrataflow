@@ -6,7 +6,12 @@ import { currentRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { WORKFLOW_CLOCK, WORKFLOW_REPOSITORY, WORKFLOW_TRANSACTIONS } from './ports.js';
-import type { WorkflowClock, WorkflowRepository, WorkflowTransactions } from './ports.js';
+import type {
+  ReleasedStage,
+  WorkflowClock,
+  WorkflowRepository,
+  WorkflowTransactions,
+} from './ports.js';
 import { WorkflowReferenceService } from './workflow-references.js';
 import { recordDefinitionCache, recordValidation } from './workflow-telemetry.js';
 import { workflowVersionNotFound } from './workflow.errors.js';
@@ -98,6 +103,11 @@ export class WorkflowDefinitionService {
   }
 
   /** Workflow e número da versão (US-001: cartão "fluxo" do processo), ou `null` no tenant. */
+  /** Etapas das versões publicadas/aposentadas (imutáveis — RN-WF-08), no `tx` do chamador. */
+  releasedStages(tx: TenantTx): Promise<ReleasedStage[]> {
+    return this.workflows.listReleasedStages(tx);
+  }
+
   async describeVersion(
     tx: TenantTx,
     versionId: string,

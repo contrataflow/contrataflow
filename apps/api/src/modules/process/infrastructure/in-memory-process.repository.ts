@@ -1,3 +1,4 @@
+import { localDateOf } from '@contrataflow/types';
 import { Injectable } from '@nestjs/common';
 
 import { isProcessVisible } from '#shared/auth/process-access.js';
@@ -8,12 +9,21 @@ import { InternalCodeTakenError } from '../application/ports.js';
 import type {
   DuplicateCandidateRow,
   DuplicateSearch,
+  ProcessListPage,
+  ProcessListRow,
+  ProcessListSearch,
   ProcessAccessRow,
   ProcessAggregateRows,
   ProcessCreation,
   ProcessRepository,
 } from '../application/ports.js';
 import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
+import {
+  canViewConfidentialBudget,
+  compareForOrder,
+  matchesCriteria,
+} from '../domain/process-list.js';
+import type { ProcessListFacts } from '../domain/process-list.js';
 import type {
   AccessGrant,
   ProcessAssignmentRecord,
@@ -27,6 +37,15 @@ interface StoredAccess extends ProcessAccessRow {
   readonly tenantId: string;
   readonly grantedAt: Date;
 }
+
+/** Fatos do runtime que a criação ainda não produz (US-055/US-008/US-007) — carga de teste. */
+export interface ProcessListExtras {
+  readonly overdueSince: Date | null;
+  readonly stagePausedAt: Date | null;
+  readonly tagIds: readonly string[];
+}
+
+const NO_EXTRAS: ProcessListExtras = { overdueSince: null, stagePausedAt: null, tagIds: [] };
 
 function tenantOfContext(): string {
   return requireRequestContext().tenantId ?? '';
@@ -45,6 +64,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
   private readonly assignments: ProcessAssignmentRecord[] = [];
   private readonly movements: ProcessMovementRecord[] = [];
   private readonly access: StoredAccess[] = [];
+  private readonly extras = new Map<string, ProcessListExtras>();
 
   insertCreation(_tx: TenantTx, creation: ProcessCreation): Promise<void> {
     const { process } = creation;
@@ -121,6 +141,103 @@ export class InMemoryProcessRepository implements ProcessRepository {
         createdById: process.createdById,
       }));
     return Promise.resolve(rows);
+  }
+
+  listProcesses(_tx: TenantTx, search: ProcessListSearch): Promise<ProcessListPage> {
+    const clock = {
+      now: search.now,
+      today: search.today,
+      localDate: (instant: Date) => localDateOf(instant, search.timezone),
+    };
+    const reasons = new Set(
+      search.historicalDepartmentsCanView
+        ? ['REQUESTING', 'CURRENT', 'HISTORICAL']
+        : ['REQUESTING', 'CURRENT'],
+    );
+    const canView = new Map<string, boolean>();
+    const facts: ProcessListFacts[] = [];
+    for (const process of this.owned()) {
+      const rows = this.access.filter((row) => row.processId === process.id);
+      const departmentIds = rows.flatMap((row) =>
+        row.principalType === 'DEPARTMENT' && row.departmentId !== null && reasons.has(row.reason)
+          ? [row.departmentId]
+          : [],
+      );
+      const userIds = rows.flatMap((row) => (row.userId === null ? [] : [row.userId]));
+      if (
+        !isProcessVisible(search.visibility, {
+          organizationId: process.organizationId,
+          departmentIds,
+          userIds,
+        })
+      ) {
+        continue;
+      }
+      const extras = this.extras.get(process.id) ?? NO_EXTRAS;
+      const fact: ProcessListFacts = {
+        ...process,
+        overdueSince: extras.overdueSince,
+        tagIds: extras.tagIds,
+      };
+      const visible = canViewConfidentialBudget(fact, search.budget, departmentIds);
+      if (!matchesCriteria(fact, search.criteria, clock, visible)) continue;
+      canView.set(process.id, visible);
+      facts.push(fact);
+    }
+    facts.sort(
+      compareForOrder(
+        search.order,
+        search.criteria.search,
+        (fact) => canView.get(fact.id) ?? false,
+      ),
+    );
+    const start = (search.page - 1) * search.pageSize;
+    const rows = facts.slice(start, start + search.pageSize).map((fact): ProcessListRow => {
+      const visible = canView.get(fact.id) ?? false;
+      // A passagem gravada pela criação é sempre a ativa (as demais vêm com a US-047).
+      const stage = [...this.stages.values()].find((candidate) => candidate.processId === fact.id);
+      return {
+        id: fact.id,
+        organizationId: fact.organizationId,
+        number: fact.number,
+        year: fact.year,
+        code: fact.code,
+        internalCode: fact.internalCode,
+        title: fact.title,
+        status: fact.status,
+        priority: fact.priority,
+        requestingSecretariatId: fact.requestingSecretariatId,
+        requestingDepartmentId: fact.requestingDepartmentId,
+        currentDepartmentId: fact.currentDepartmentId,
+        currentResponsibleId: fact.currentResponsibleId,
+        currentWorkflowStageId: fact.currentWorkflowStageId,
+        currentStageDueAt: fact.currentStageDueAt,
+        overdueSince: fact.overdueSince,
+        contractingTypeId: fact.contractingTypeId,
+        modalityId: fact.modalityId,
+        originId: fact.originId,
+        isBudgetConfidential: fact.isBudgetConfidential,
+        canViewBudget: visible,
+        estimatedValue: visible ? fact.estimatedValue : null,
+        targetDate: fact.targetDate,
+        openedAt: fact.openedAt,
+        createdAt: fact.createdAt,
+        updatedAt: fact.updatedAt,
+        tagIds: fact.tagIds,
+        slaType: stage?.slaType ?? null,
+        stagePausedAt: this.extras.get(fact.id)?.stagePausedAt ?? null,
+      };
+    });
+    return Promise.resolve(structuredClone({ rows, totalItems: facts.length }));
+  }
+
+  hasUserGrant(_tx: TenantTx, userId: string): Promise<boolean> {
+    const owned = new Set(this.owned().map((process) => process.id));
+    return Promise.resolve(
+      this.access.some(
+        (row) => row.principalType === 'USER' && row.userId === userId && owned.has(row.processId),
+      ),
+    );
   }
 
   loadAggregate(_tx: TenantTx, processId: string): Promise<ProcessAggregateRows | null> {
@@ -218,7 +335,18 @@ export class InMemoryProcessRepository implements ProcessRepository {
     }
   }
 
+  /** Carga de teste: atraso, pausa e etiquetas que as stories donas ainda vão gravar. */
+  setListExtras(processId: string, extras: Partial<ProcessListExtras>): void {
+    this.extras.set(processId, { ...(this.extras.get(processId) ?? NO_EXTRAS), ...extras });
+  }
+
+  /** Carga de teste: a passagem ativa do processo (SLA da etapa). */
+  seedStage(stage: ProcessStageRecord): void {
+    this.stages.set(stage.id, stage);
+  }
+
   clear(): void {
+    this.extras.clear();
     this.processes.clear();
     this.stages.clear();
     this.assignments.length = 0;

@@ -68,6 +68,16 @@ export interface DefaultSwitch {
   readonly userId: string | null;
 }
 
+/** Etapa de versão publicada/aposentada (imutável — RN-WF-08). */
+export interface ReleasedStage {
+  readonly id: string;
+  readonly workflowVersionId: string;
+  readonly key: string;
+  readonly name: string;
+  readonly groupLabel: string | null;
+  readonly displayOrder: number;
+}
+
 export interface WorkflowRepository {
   // Workflow --------------------------------------------------------------------------------
   findWorkflow(tx: TenantTx, id: string): Promise<Workflow | null>;
@@ -147,6 +157,11 @@ export interface WorkflowRepository {
   insertDefinition(tx: TenantTx, definition: WorkflowDefinition): Promise<void>;
 
   findStage(tx: TenantTx, id: string): Promise<WorkflowStage | null>;
+  /**
+   * Etapas das versões publicadas e aposentadas do tenant (US-002: filtro "Etapa" por chave em
+   * qualquer versão — RN-PROC-22 — e nomes da etapa atual na lista de processos).
+   */
+  listReleasedStages(tx: TenantTx): Promise<ReleasedStage[]>;
   insertStage(tx: TenantTx, stage: WorkflowStage): Promise<void>;
   /** @throws VersionConflictError */
   updateStage(tx: TenantTx, stage: WorkflowStage, expectedVersion: number): Promise<void>;

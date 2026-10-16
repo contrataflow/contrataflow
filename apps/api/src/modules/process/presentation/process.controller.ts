@@ -4,6 +4,8 @@ import {
   dataEnvelope,
   duplicateCheckResultSchema,
   processIdParamsSchema,
+  processListQuerySchema,
+  processListResponseSchema,
   processSchema,
 } from '@contrataflow/validation';
 import type {
@@ -11,17 +13,21 @@ import type {
   CreateProcess,
   DuplicateCheckResult,
   ProcessDto,
+  ProcessListItemDto,
+  ProcessListQuery,
 } from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Param, Post, Res } from '@nestjs/common';
 
-import { RequirePermission } from '#shared/auth/authorization.js';
+import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
+import { PageResult } from '#shared/http/pagination.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
-import { ZodBody } from '#shared/validation/zod-validation.pipe.js';
+import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateProcessCommand } from '../application/create-process.command.js';
+import { ListProcessesHandler } from '../application/list-processes.query.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
 
 const TAGS = ['Processos'];
@@ -37,7 +43,7 @@ function ProcessId(): ParameterDecorator {
 }
 
 /**
- * Processos de contratação (api/02-processes.md · US-001): PRC-02 (criar), PRC-03 (verificar
+ * Processos de contratação (api/02-processes.md · US-001/US-002): PRC-01 (listar), PRC-02 (criar), PRC-03 (verificar
  * duplicidade) e PRC-04 (detalhe mínimo para o painel SCR-006 — completado pela US-004).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
@@ -49,7 +55,32 @@ export class ProcessController {
     private readonly create: CreateProcessCommand,
     private readonly duplicates: CheckDuplicateProcessesQuery,
     private readonly detail: GetProcessQuery,
+    private readonly list: ListProcessesHandler,
   ) {}
+
+  @Get()
+  @ImplicitAccess(
+    'Lista de processos (US-002 · DEC-024 cond. 4): PROCESS_VIEW em algum escopo OU concessão USER ativa, conferido no caso de uso (403 + access.denied); o resultado é sempre restrito pelo predicado de visibilidade.',
+  )
+  @ApiOperation({
+    operationId: 'PRC-01',
+    summary: 'Listar, pesquisar e filtrar processos',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Processos visíveis (DEC-024) que casam os filtros (E entre filtros, OU dentro de cada um), com o valor sigiloso mascarado por linha (POL-09) e o DTO calculado `deadline`. Página e total do mesmo snapshot; página além do total = `data: []`.',
+        schema: processListResponseSchema,
+      },
+    },
+  })
+  async listProcesses(
+    @ZodQuery(processListQuerySchema) query: ProcessListQuery,
+  ): Promise<PageResult<ProcessListItemDto>> {
+    const result = await this.list.execute(query);
+    // `meta` com os extras da lista (`stageOptions`, notas de sigilo) — envelope `{ data, meta }`.
+    return new PageResult(result.items, result.meta);
+  }
 
   @Post()
   @Idempotent()

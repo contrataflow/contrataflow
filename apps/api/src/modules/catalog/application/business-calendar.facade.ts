@@ -48,6 +48,11 @@ export class BusinessCalendarFacade {
     return nonBusinessDatesOf(holidays, settings.optionalHolidaysAreNonBusiness);
   }
 
+  /** Fuso IANA do tenant (`tenants.timezone`): datas locais de filtros e prazos (US-002). */
+  async timezone(tx: TenantTx): Promise<string> {
+    return (await this.settingsOf(tx)).timezone;
+  }
+
   /** RN-TEN-74: a data `YYYY-MM-DD` é dia útil no calendário do tenant? */
   async isBusinessDay(tx: TenantTx, date: string): Promise<boolean> {
     const nonBusiness = await this.nonBusinessBetween(tx, await this.settingsOf(tx), date, date);

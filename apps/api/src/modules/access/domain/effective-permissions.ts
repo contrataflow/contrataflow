@@ -248,7 +248,15 @@ export class EffectivePermissionSet {
 
   /** Escopos de `PROCESS_VIEW` expandidos — entrada do predicado de visibilidade (DEC-024). */
   visibilityScope(): ProcessVisibilityScope {
-    const scopes = this.scopesOf('PROCESS_VIEW');
+    return this.processScopeOf('PROCESS_VIEW');
+  }
+
+  /**
+   * Escopos expandidos de uma permissão sobre processos, na forma do predicado de visibilidade
+   * (ex.: `PROCESS_VIEW_CONFIDENTIAL_BUDGET` — POL-09, desmascaramento por linha na US-002).
+   */
+  processScopeOf(permission: PermissionCode): ProcessVisibilityScope {
+    const scopes = this.scopesOf(permission);
     return {
       userId: this.snapshot.userId,
       tenantWide: scopes.some((scope) => scope.type === 'TENANT'),
