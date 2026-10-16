@@ -11,6 +11,8 @@ import type { SessionsRuntimeConfig } from '#config/sessions.js';
 import { registerGracefulShutdown } from './graceful-shutdown.js';
 import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
 import { createWorkerLogger } from './observability/worker-logger.js';
+import { startWorkerOps } from './observability/worker-ops.js';
+import type { RunningWorkerOps, WorkerOpsOptions } from './observability/worker-ops.js';
 import { WorkerModule } from './worker.module.js';
 
 export interface StartWorkerOptions {
@@ -26,10 +28,17 @@ export interface StartWorkerOptions {
   readonly sessions?: SessionsRuntimeConfig | null;
   /** Filas, schedulers e Bull Board (US-083); ausente = derivado do outbox ou desligado. */
   readonly queues?: QueueRuntimeConfig | null;
+  /**
+   * Porta interna `/health/*` + `/metrics` (US-085); ausente = não sobe (testes). O logger das
+   * transições de saúde é o `rootLogger`.
+   */
+  readonly ops?: Omit<WorkerOpsOptions, 'logger'> | null;
 }
 
 export interface RunningWorker {
   readonly context: INestApplicationContext;
+  /** Porta interna de administração (`null` sem `ops`). */
+  readonly ops: RunningWorkerOps | null;
   /** Resolvida após o encerramento limpo disparado por sinal. */
   readonly stopped: Promise<ShutdownSignal>;
 }
@@ -54,16 +63,22 @@ export async function startWorker(options: StartWorkerOptions = {}): Promise<Run
   if (!silent) context.useLogger(context.get(NestPinoLogger));
   const logger = new Logger('Bootstrap');
   const keepAlive = setInterval(() => undefined, 60_000);
-  logger.log({ event: 'worker.started' }, 'worker started');
+  // Readiness só depois do startup (observability.md §6.1): a porta sobe com o contexto pronto.
+  const ops = options.ops ? await startWorkerOps({ ...options.ops, logger: rootLogger }) : null;
+  logger.log(
+    { event: 'worker.started', ...(ops ? { metricsPort: ops.port } : {}) },
+    'worker started',
+  );
 
   const stopped = registerGracefulShutdown(
     {
       close: async () => {
         clearInterval(keepAlive);
+        await ops?.close();
         await context.close();
       },
     },
     { name: 'worker', logger, ...(options.proc ? { proc: options.proc } : {}) },
   );
-  return { context, stopped };
+  return { context, ops, stopped };
 }

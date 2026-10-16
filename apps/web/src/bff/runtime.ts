@@ -43,6 +43,8 @@ export interface BffRuntime {
   readonly now: () => number;
   /** Timeout de cada chamada à API (30 s — architecture.md §8.4). */
   readonly upstreamTimeoutMs: number;
+  /** Redis de sessões para o `PING` do `/health/ready` (US-085); `null` = sessões em memória. */
+  readonly sessionRedis: { ping(): Promise<unknown> } | null;
 }
 
 /**
@@ -118,6 +120,7 @@ export interface RuntimeOverrides {
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
   readonly upstreamTimeoutMs?: number;
+  readonly sessionRedis?: { ping(): Promise<unknown> } | null;
 }
 
 export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides = {}): BffRuntime {
@@ -170,6 +173,7 @@ export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides 
     fetch: fetchImpl,
     now,
     upstreamTimeoutMs: overrides.upstreamTimeoutMs ?? UPSTREAM_TIMEOUT_MS,
+    sessionRedis: overrides.sessionRedis !== undefined ? overrides.sessionRedis : redis,
   };
 }
 

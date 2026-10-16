@@ -4,3 +4,4 @@ export * from './logger.js';
 export * from './tracing.js';
 export * from './job-context.js';
 export * from './telemetry-config.js';
+export * from './health.js';

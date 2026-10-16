@@ -4,6 +4,7 @@ import { TelemetryConfigError, createLogger } from '@contrataflow/observability'
 
 import { startWorker } from './bootstrap.js';
 import { EmailConfigError, loadEmailConfigFromProcess } from './config/email.js';
+import { HealthConfigError, loadHealthConfigFromProcess } from './config/health.js';
 import { OutboxConfigError, loadOutboxConfigFromProcess } from './config/outbox.js';
 import { QueuesConfigError, loadQueuesConfigFromProcess } from './config/queues.js';
 import type { QueueRuntimeConfig } from './config/queues.js';
@@ -17,21 +18,35 @@ function withEmail(queues: QueueRuntimeConfig | null): QueueRuntimeConfig | null
 }
 
 try {
+  const telemetry = loadTelemetryConfigFromProcess();
+  const outbox = loadOutboxConfigFromProcess();
+  const queues = withEmail(loadQueuesConfigFromProcess());
   await startWorker({
-    rootLogger: createWorkerLogger(loadTelemetryConfigFromProcess()),
-    outbox: loadOutboxConfigFromProcess(),
+    rootLogger: createWorkerLogger(telemetry),
+    outbox,
     sessions: loadSessionsConfigFromProcess(),
-    queues: withEmail(loadQueuesConfigFromProcess()),
+    queues,
+    // `/health/*` e `/metrics` na porta interna (US-085): dependências da matriz de §6.2.
+    ops: {
+      health: loadHealthConfigFromProcess(),
+      appVersion: telemetry.version,
+      environment: telemetry.environment,
+      databaseUrl: queues?.workerDatabaseUrl ?? outbox?.relayDatabaseUrl ?? null,
+      redisUrl: queues?.redisUrl ?? outbox?.redisUrl ?? null,
+      smtpUrl: queues?.email?.smtpUrl ?? null,
+    },
   });
 } catch (error) {
-  // V-03: configuração inválida (observabilidade, outbox, filas, e-mail ou Redis de sessões) impede o
+  // V-03: configuração inválida (observabilidade, outbox, filas, e-mail, Redis de sessões ou
+  // health/métricas) impede o
   // processo de subir (só as chaves).
   if (
     !(error instanceof TelemetryConfigError) &&
     !(error instanceof OutboxConfigError) &&
     !(error instanceof QueuesConfigError) &&
     !(error instanceof SessionsConfigError) &&
-    !(error instanceof EmailConfigError)
+    !(error instanceof EmailConfigError) &&
+    !(error instanceof HealthConfigError)
   )
     throw error;
   createLogger({ service: 'worker', env: 'unknown', version: 'unknown', level: 'info' }).fatal(

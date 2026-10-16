@@ -577,7 +577,7 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | PLT-06 | POST | `/platform/tenants/{id}/offboard` | `PLATFORM_TENANT_MANAGE` (IM) | 200 | `TenantOffboarded` | US-099 |
 | PLT-07 | POST | `/platform/tenants/{id}/deactivate` | `PLATFORM_TENANT_MANAGE` (IM) | 200 | `TenantDeactivated` | US-099 |
 | PLT-08 | PATCH | `/platform/tenants/{id}` | `PLATFORM_TENANT_MANAGE` (IM) | 200 | — (auditoria `tenant.update`) | US-099 |
-| HLT-01 | GET | `/health/live` (fora de `/api/v1`) | público (rede interna/ALB) | 200 | — | US-085 |
+| HLT-01 | GET | `/health/live` (fora de `/api/v1`) | público (rede interna/ALB) | 200/503 | — | US-085 |
 | HLT-02 | GET | `/health/ready` (fora de `/api/v1`) | público (rede interna/ALB) | 200/503 | — | US-085 |
 | HLT-03 | GET | `/metrics` (fora de `/api/v1`) | rede interna | 200 | — | US-085 |
 

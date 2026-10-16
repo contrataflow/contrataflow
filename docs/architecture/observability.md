@@ -227,7 +227,7 @@ OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do códig
 ## 5. Métricas
 
 ### 5.1 Convenções
-- OpenTelemetry Metrics SDK com exposição em formato Prometheus em `/metrics` (HLT-03), **somente em porta interna**, na API, no worker e no BFF; coletado pelo Collector/Prometheus a cada 15 s.
+- OpenTelemetry Metrics SDK com exposição em formato Prometheus em `/metrics` (HLT-03), **somente em porta interna** (`METRICS_PORT`: api 9464, worker 9465, web 9466 por padrão — a porta pública não tem rota `/metrics`), na API, no worker e no BFF; coletado pelo Collector/Prometheus a cada 15 s. Um *view* do SDK descarta rótulos proibidos (`tenantId`, `userId`, e-mail…) de qualquer instrumento, como defesa em profundidade (US-085).
 - Nomes: convenções semânticas do OpenTelemetry quando existirem (`http.server.request.duration` → `http_server_request_duration_seconds`); métricas próprias com prefixo `cf_` e sufixo de unidade.
 - **Labels só de conjuntos fechados:** template de rota, método, status, fila, job, resultado, classe de erro, dependência, provedor, permissão (catálogo fechado), tipo de documento de sistema (demais → `OTHER`). **Nunca** `tenantId`, `userId`, `processId`, `eventId`, e-mail ou caminho bruto.
 - Buckets alinhados aos SLOs: HTTP `[0.05, 0.1, 0.25, 0.5, 0.8, 1, 1.5, 2.5, 5, 10]` s; PDF `[1, 2.5, 5, 10, 15, 20, 30, 45, 60]` s.
@@ -236,10 +236,11 @@ OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do códig
 
 | Grupo | Métricas | Labels |
 |---|---|---|
-| HTTP (RED) — API e BFF | `http_server_request_duration_seconds` (taxa = contagem; erros = status) | `service`, `http_request_method`, `http_route`, `http_response_status_code` |
-| Classes de SLO | *Recording rules* `cf:slo_latency_p95` | `class` (`read`, `search`, `summary`, `command`, `write`, `dashboard`, `upload`) — mapa rota → classe em código |
+| HTTP (RED) — API e BFF | `http_server_request_duration_seconds` (taxa = contagem; erros = status) | `service`, `http_request_method`, `http_route`, `http_response_status_code`; na API também `slo_class` (mapa rota → classe em `apps/api/src/shared/observability/http-metrics.ts`); no BFF, `http_route` agregado pelo recurso (`/api/v1/{recurso}/*`) — o caminho vem do navegador |
+| Classes de SLO | *Recording rules* `cf:slo_latency_p95`/`p99` e `cf:slo_availability_errors:ratio_rate{5m,30m,1h,6h,3d}` (`infra/observability/rules/slo.rules.yml`) | `class` (`read`, `search`, `summary`, `command`, `write`, `dashboard`, `upload`) — mapa rota → classe em código (`slo_class`; fora dos SLOs: `export`, `internal`, `other`) |
+| Saúde e versão (US-085) | `cf_health_ready` (1 pronta / 0 `fail`), `cf_health_check_status` (0 pass, 1 warn, 2 fail), `cf_build_info` (= 1; base das anotações de deploy) | `dependency` (nome fechado da matriz §6.2), `version` |
 | BFF → API | `http_client_request_duration_seconds` | `http_response_status_code` |
-| Runtime Node (USE) | `nodejs_eventloop_delay_*`, CPU, memória residente, heap V8, duração de GC | `service` |
+| Runtime Node (USE) | `nodejs_eventloop_delay_{p50,p99,max}_seconds`, `process_cpu_seconds_total{mode}`, `process_resident_memory_bytes`, `nodejs_heap_size_bytes{state}`, `nodejs_gc_duration_seconds`, `process_start_time_seconds` | `service` |
 | Infraestrutura | ECS (CPU/memória por serviço), ALB (5xx, latência, alvos saudáveis), RDS (CPU, conexões, IOPS, réplica), ElastiCache (memória, *evictions*, CPU) | Via CloudWatch/exporters |
 | Pool do banco | `db_client_connections_usage{state}`, `db_client_connections_pending_requests`, tempo de espera por conexão | `pool_name` |
 | Banco | Duração por operação do Prisma; top N de `pg_stat_statements`; *deadlocks*; falhas de serialização; transações longas | `db_operation_name`, `db_collection_name` |
@@ -270,6 +271,8 @@ Label de tenant multiplicaria séries (tenants × rotas × status), elevaria cus
 | `/health/live` | O processo está vivo? | Processo respondendo e *event loop* sem travamento (atraso < 2 s); **nenhuma** dependência | Reinício do contêiner |
 | `/health/ready` | Esta instância pode receber tráfego/trabalho? | Dependências **críticas** da aplicação; degradáveis aparecem como `warn` | Retirada do balanceador (api/web) ou alerta (worker) |
 | *Startup* | Terminou de iniciar? | Conexões abertas, JWKS carregado ao menos uma vez (api/web), OTel inicializado | Readiness só fica `pass` depois disso |
+
+`/health/live` responde 200 (`pass`) ou 503 (`fail`, *event loop* com atraso ≥ 2 s). No worker, as duas rotas e o `/metrics` ficam na porta interna `METRICS_PORT`; na api e no web, `/health/*` fica na porta da aplicação (alvo do ALB) e é montado fora do pipeline (sem autenticação, rate limit nem log). Os *checks* de S3, Gotenberg e ClamAV entram com as stories que trazem os respectivos clientes (US-068, renderização e verificação de upload) — a US-085 entrega PostgreSQL, Redis (sessões, filas/cache), JWKS/descoberta do Authentik, SMTP e a API vista pelo BFF.
 
 ### 6.2 Dependências por aplicação (alinhado a CA-T-07 e DEC-131)
 
@@ -348,7 +351,7 @@ Preparação para o MVP 3 (PNCP, Diário Oficial, assinatura eletrônica, webhoo
 
 ## 9. Dashboards técnicos
 
-Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provisionados em todos os ambientes, com anotações de deploy.
+Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provisionados em todos os ambientes, com anotações de deploy (nova `version` em `cf_build_info`). A US-085 entrega D1 (`d1-api-overview.json`), D2 (`d2-database.json`) e D3 (`d3-queues-outbox.json`); D4–D7 chegam com os respectivos domínios. Painéis de D2/D3 que dependem de *exporters* de infraestrutura (`postgres_exporter`, CloudWatch do RDS/ElastiCache) ficam sem dados no ambiente local.
 
 | # | Dashboard | Painéis |
 |---|---|---|
@@ -364,11 +367,13 @@ Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provi
 
 ## 10. Alertas
 
+Regras como código: `infra/observability/rules/alerts.rules.yml` (A01, A02, A04 — US-085; labels `alert_id`, `severity`, `channel`, `owner` e `runbook_url`) e roteamento/inibições em `infra/observability/alertmanager.yml` (destinos reais injetados por ambiente). O A04 tem duas formas: `CfReadinessFailing` (por serviço) e `CfCriticalDependencyDown` (por dependência crítica em `fail`, origem da inibição "PostgreSQL fora inibe A05..A10").
+
 **Severidades e canais:** **Crítico** → plantão 24×7 (ferramenta de *on-call* a definir: PagerDuty, Opsgenie ou Grafana OnCall); **Alto** → plantão no horário estendido (07h–22h) e chat; **Médio** → chat `#cf-alertas` + ticket; **Informativo** → chat. Eventos de segurança também vão para `#cf-seguranca`. Todo alerta tem dono, runbook e teste em homologação; alertas que acordam pessoas são de **sintoma** (SLO); causas viram tickets. Regras de inibição evitam cascata (ex.: PostgreSQL fora inibe alertas de fila).
 
 | # | Alerta | Condição | Severidade | Canal | Runbook |
 |---|---|---|---|---|---|
-| A01 | Queima rápida do SLO de disponibilidade | Taxa de queima ≥ 14,4× em 1 h **e** 5 min | Crítico | Plantão | RB-06 *(a criar)* |
+| A01 | Queima rápida do SLO de disponibilidade | Taxa de queima ≥ 14,4× em 1 h **e** 5 min | Crítico | Plantão | [RB-06](#rb-06--indisponibilidade-ou-5xx-da-api) |
 | A02 | Queima lenta do SLO de disponibilidade | ≥ 6× em 6 h e 30 min | Alto | Plantão | RB-06 |
 | A03 | Latência acima do SLO | p95 da classe > meta por 15 min | Médio | `#cf-alertas` | RB-06 |
 | A04 | Readiness falhando | < 50% das tarefas prontas por 3 min | Crítico | Plantão | RB-06 |
@@ -456,7 +461,21 @@ service:
 
 ## 12. Runbooks iniciais
 
-Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-06 indisponibilidade/5xx da API, RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants.
+Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants.
+
+### RB-06 — Indisponibilidade ou 5xx da API
+*Mínimo da US-085; aprofundar após o primeiro exercício em homologação.*
+- **Alertas:** A01, A02, A03, A04.
+- **Impacto:** usuários recebem erro (5xx) ou lentidão em `/api/v1`; com A04, instâncias fora do balanceador (api/web) ou worker parado.
+- **Diagnóstico:**
+  1. D1: taxa de queima, 5xx por rota, tarefas prontas e dependências no `/health/ready` (`cf_health_check_status`).
+  2. `CfCriticalDependencyDown` indica a dependência crítica: `postgresql` → D2 e RB-07; `redis-sessions`/`redis-queues` → RB-08; `authentik-jwks` (só no *startup*) → RB-04.
+  3. `GET /health/ready` direto numa instância (rede interna): `checks` com `status` e `output` fixos; o detalhe do erro está no log `health.dependency_critical_down`/`health.dependency_degraded` (Loki, `service` + `dependency`).
+  4. 5xx sem dependência em `fail`: Loki `{service="api"} | json | event="http.request.completed" | statusCode >= 500` agrupado por `route`; trace pelo `correlationId`.
+  5. Deploy recente? Anotação de deploy no D1 (`cf_build_info`).
+- **Mitigação:** dependência fora → restaurar/failover conforme o runbook dela; regressão de deploy → rollback para a versão anterior; saturação → escalar tarefas (CPU/memória no D1) e revisar o pool (D2).
+- **Validação:** taxa de queima < 1× por 30 min; `cf:health_ready:ratio` = 1; p95 por classe dentro da meta.
+- **Pós-incidente:** registrar o consumo do orçamento de erro; post-mortem se A01 disparou.
 
 ### RB-01 — Lag do outbox
 - **Alertas:** A05, A06, A07.

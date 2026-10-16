@@ -40,6 +40,7 @@
 | Observabilidade | `@opentelemetry/api` · `sdk-node` · `sdk-trace` · `core` · `context-async-hooks` | 1.9.1 · 0.222.0 · 2.11.0 · 2.11.0 · 2.11.0 | `packages/observability` — SDK 2.x, sampler, propagador W3C e testes em memória (US-084) |
 | Observabilidade | `@opentelemetry/exporter-trace-otlp-http` · `instrumentation` | 0.222.0 | exportador OTLP/HTTP e *hook* ESM (`hook.mjs`) da api e do worker (US-084) |
 | Observabilidade | `@opentelemetry/instrumentation-http` · `-undici` · `-nestjs-core` · `-pg` · `-ioredis` · `@prisma/instrumentation` | 0.222.0 · 0.32.0 · 0.68.0 · 0.74.0 · 0.70.0 · 7.10.0 | instrumentações de observability.md §4.1, alinhadas ao `@opentelemetry/instrumentation` 0.222 (US-084) |
+| Observabilidade | `@opentelemetry/sdk-metrics` · `exporter-prometheus` | 2.11.0 · 0.222.0 | `MeterProvider` e leitor *pull* de `/metrics` (HLT-03) em porta interna; já vinham no lockfile como dependências do `sdk-node` — nenhuma versão nova baixada (US-085) |
 | Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | logs JSON de web, api e worker (US-084) |
 | Contratos | `zod` · `@asteasolutions/zod-to-openapi` | 4.6.5 · 8.5.0 | `packages/validation`; OpenAPI 3.1 (DEC-063) |
 | Front-end | `next` | 16.3.8 | web (App Router, Turbopack) |

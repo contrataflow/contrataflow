@@ -2,7 +2,7 @@
   "name": "@contrataflow/observability",
   "version": "0.0.0",
   "private": true,
-  "description": "Observabilidade comum a web, api e worker: logs pino com redação (DEC-138), correlationId e tracing OpenTelemetry (US-084).",
+  "description": "Observabilidade comum a web, api e worker: logs pino com redação (DEC-138), correlationId e tracing OpenTelemetry (US-084); health checks e métricas Prometheus (US-085).",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -17,6 +17,10 @@
     "./telemetry": {
       "types": "./dist/telemetry.d.ts",
       "default": "./dist/telemetry.js"
+    },
+    "./metrics": {
+      "types": "./dist/metrics.d.ts",
+      "default": "./dist/metrics.js"
     },
     "./testing": {
       "types": "./dist/testing.d.ts",
@@ -36,7 +40,9 @@
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/context-async-hooks": "catalog:",
     "@opentelemetry/core": "catalog:",
+    "@opentelemetry/exporter-prometheus": "catalog:",
     "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/sdk-metrics": "catalog:",
     "@opentelemetry/sdk-node": "catalog:",
     "@opentelemetry/sdk-trace": "catalog:",
     "pino": "catalog:"

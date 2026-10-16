@@ -21,7 +21,13 @@ class FakeProcess extends EventEmitter implements ShutdownProcess {
 describe('startApi', { timeout: 30_000 }, () => {
   it('sobe com todos os módulos e encerra com código 0 ao receber SIGTERM', async () => {
     const proc = new FakeProcess();
-    const { app, stopped } = await startApi({ config: testConfig(), port: 0, proc, logger: false });
+    const { app, stopped } = await startApi({
+      config: testConfig(),
+      port: 0,
+      metricsPort: 0,
+      proc,
+      logger: false,
+    });
     const server = app.getHttpServer() as Server;
 
     expect(server.listening).toBe(true);
@@ -41,6 +47,7 @@ describe('startApi', { timeout: 30_000 }, () => {
     const { stopped } = await startApi({
       config,
       port: 0,
+      metricsPort: 0,
       proc,
       rootLogger: createApiLogger(config, logs.destination),
     });

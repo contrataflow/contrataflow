@@ -27,6 +27,15 @@ export const envSchema = z
     /** Ambiente lógico; compõe o prefixo das chaves Redis `cf:{env}:…` (multi-tenancy.md §7). */
     APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
     PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+    /**
+     * Porta INTERNA de `/metrics` (HLT-03 · US-085), separada da pública — nunca atrás do ALB
+     * público (V-03). Padrão 9464 (porta de referência do exportador Prometheus do OpenTelemetry).
+     */
+    METRICS_PORT: z.coerce.number().int().min(1).max(65_535).default(9464),
+    /** Validade do resultado de `/health/ready` no processo (RN-FND-80 · FA-03). */
+    HEALTH_CACHE_TTL_MS: z.coerce.number().int().positive().default(5_000),
+    /** Timeout de cada *check*; ausente = 1 000 ms PostgreSQL e 500 ms Redis (observability.md §6.2). */
+    HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
     /** Papel `cf_app` (multi-tenancy.md §5.2): sem BYPASSRLS e sem DDL (US-081 · RN-FND-46). */
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     /** Conexões por réplica (architecture.md §12.1). */
@@ -161,6 +170,14 @@ export interface AppConfig {
   readonly nodeEnv: Env['NODE_ENV'];
   readonly appEnv: Env['APP_ENV'];
   readonly port: number;
+  /** `/metrics` na porta interna (HLT-03 · US-085). */
+  readonly metrics: { readonly port: number };
+  /** `/health/ready` (HLT-02 · US-085). */
+  readonly health: {
+    readonly cacheTtlMs: number;
+    /** `null` = timeout padrão de cada dependência (1 s PostgreSQL, 500 ms Redis). */
+    readonly checkTimeoutMs: number | null;
+  };
   readonly database: {
     readonly url: string;
     readonly poolSize: number;
@@ -232,6 +249,11 @@ function toAppConfig(env: Env): AppConfig {
     nodeEnv: env.NODE_ENV,
     appEnv: env.APP_ENV,
     port: env.PORT,
+    metrics: { port: env.METRICS_PORT },
+    health: {
+      cacheTtlMs: env.HEALTH_CACHE_TTL_MS,
+      checkTimeoutMs: env.HEALTH_CHECK_TIMEOUT_MS ?? null,
+    },
     database: {
       url: env.DATABASE_URL,
       poolSize: env.DATABASE_POOL_SIZE,

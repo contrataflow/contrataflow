@@ -23,4 +23,28 @@ describe('worker em estado hello', () => {
     await expect(stopped).resolves.toBe('SIGTERM');
     expect(proc.exitCode).toBe(0);
   });
+
+  it('com ops, sobe /health/* e /metrics na porta interna e os fecha no encerramento', async () => {
+    const proc = new FakeProcess();
+    const { ops, stopped } = await startWorker({
+      proc,
+      logger: false,
+      ops: {
+        health: { metricsPort: 0, cacheTtlMs: 5_000, checkTimeoutMs: null },
+        appVersion: '0.0.0+local',
+        environment: 'test',
+        databaseUrl: null,
+        redisUrl: null,
+        smtpUrl: null,
+        host: '127.0.0.1',
+      },
+    });
+    expect(ops).not.toBeNull();
+    const live = await fetch(`http://127.0.0.1:${String(ops?.port)}/health/live`);
+    expect(live.status).toBe(200);
+
+    proc.emit('SIGTERM');
+    await expect(stopped).resolves.toBe('SIGTERM');
+    await expect(fetch(`http://127.0.0.1:${String(ops?.port)}/health/live`)).rejects.toThrow();
+  });
 });

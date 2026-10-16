@@ -1,0 +1,70 @@
+# Recording rules dos SLOs (US-085 · RN-FND-83 · observability.md §1 e §5.2). Mesmos arquivos em
+# todos os ambientes; nenhuma regra agrega por tenant (RN-FND-85 — investigação por tenant é por
+# Loki/Tempo, nunca por métrica).
+groups:
+  - name: contrataflow-slo-latency
+    interval: 30s
+    rules:
+      # p95 por classe de SLO (SLO-02..08): a classe vem do mapa rota → classe em código
+      # (`apps/api/src/shared/observability/http-metrics.ts`, label `slo_class`).
+      - record: cf:slo_latency_p95
+        expr: |
+          label_replace(
+            histogram_quantile(0.95,
+              sum by (le, slo_class) (
+                rate(http_server_request_duration_seconds_bucket{service="api", slo_class=~"read|search|summary|command|write|dashboard|upload"}[5m])
+              )
+            ),
+            "class", "$1", "slo_class", "(.*)"
+          )
+      - record: cf:slo_latency_p99
+        expr: |
+          label_replace(
+            histogram_quantile(0.99,
+              sum by (le, slo_class) (
+                rate(http_server_request_duration_seconds_bucket{service="api", slo_class=~"read|search|summary|command|write|dashboard|upload"}[5m])
+              )
+            ),
+            "class", "$1", "slo_class", "(.*)"
+          )
+
+  # SLO-01 (disponibilidade ≥ 99,5%): proporção de 5xx nas requisições a /api/v1 vistas pelo BFF.
+  # Uma série por janela, base dos alertas multi-janela de taxa de queima (§1.2).
+  - name: contrataflow-slo-availability
+    interval: 30s
+    rules:
+      - record: cf:slo_availability_errors:ratio_rate5m
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{service="web", http_response_status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{service="web"}[5m])), 1e-9)
+      - record: cf:slo_availability_errors:ratio_rate30m
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{service="web", http_response_status_code=~"5.."}[30m]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{service="web"}[30m])), 1e-9)
+      - record: cf:slo_availability_errors:ratio_rate1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{service="web", http_response_status_code=~"5.."}[1h]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{service="web"}[1h])), 1e-9)
+      - record: cf:slo_availability_errors:ratio_rate6h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{service="web", http_response_status_code=~"5.."}[6h]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{service="web"}[6h])), 1e-9)
+      - record: cf:slo_availability_errors:ratio_rate3d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{service="web", http_response_status_code=~"5.."}[3d]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{service="web"}[3d])), 1e-9)
+
+  # Prontidão por serviço (A04): instâncias prontas ÷ instâncias esperadas (alvos do scrape).
+  - name: contrataflow-readiness
+    interval: 30s
+    rules:
+      - record: cf:health_ready:ratio
+        expr: |
+          sum by (service) (cf_health_ready)
+          /
+          clamp_min(count by (service) (up{service=~"api|web|worker"}), 1)

@@ -1,6 +1,7 @@
 import { register } from 'node:module';
 
 import { TelemetryConfigError, createLogger } from '@contrataflow/observability';
+import { installMetrics } from '@contrataflow/observability/metrics';
 import { createTelemetrySdk, isIgnoredHttpPath } from '@contrataflow/observability/telemetry';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
@@ -36,6 +37,13 @@ function start(): void {
     env: config.environment,
     version: config.version,
     level: config.logLevel,
+  });
+  // Métricas (US-085) independem do Collector: o provedor global existe antes de qualquer
+  // `metrics.getMeter()` da aplicação e é servido em `/metrics` na porta interna pelo bootstrap.
+  installMetrics({
+    serviceName: config.serviceName,
+    serviceVersion: config.version,
+    environment: config.environment,
   });
   if (!config.endpoint) {
     logger.warn({ event: 'tracing.disabled', reason: 'endpoint_missing' }, 'tracing disabled');

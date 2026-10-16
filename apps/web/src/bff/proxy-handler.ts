@@ -8,6 +8,7 @@ import { CORRELATION_HEADER, resolveCorrelationId } from './correlation';
 import { checkCsrf, isMutatingMethod } from './csrf';
 import { problemResponse } from './http';
 import { log } from './logger';
+import { recordProxyRequest } from './metrics';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import { applyApiSecurityHeaders } from './security-headers';
@@ -166,6 +167,7 @@ export async function handleProxyRequest(
         signal: request.signal,
       });
 
+    let upstreamStarted = runtime.now();
     let outcome = await send(record);
     if (outcome.kind === 'response' && outcome.response.status === 401) {
       // Token recusado pela API: uma renovação forçada e uma nova tentativa (corpo já em memória).
@@ -179,6 +181,7 @@ export async function handleProxyRequest(
         return problemResponse('DEPENDENCY_UNAVAILABLE', context);
       }
       record = retry.record;
+      upstreamStarted = runtime.now();
       outcome = await send(record);
       if (outcome.kind === 'response' && outcome.response.status === 401) {
         // Token recém-renovado também recusado: a sessão não tem como continuar.
@@ -190,6 +193,12 @@ export async function handleProxyRequest(
     }
 
     if (outcome.kind !== 'response') {
+      recordProxyRequest({
+        method: request.method,
+        path,
+        status: 503,
+        durationSeconds: (runtime.now() - started) / 1_000,
+      });
       log('info', 'bff.proxy_request_completed', {
         route: routeTemplate(path),
         method: request.method,
@@ -205,6 +214,13 @@ export async function handleProxyRequest(
     const headers = filterOutboundHeaders(response.headers, config.apiInternalUrl);
     if (!headers.has(CORRELATION_HEADER)) headers.set(CORRELATION_HEADER, correlationId);
     applyApiSecurityHeaders(headers, config.cspReportUri);
+    recordProxyRequest({
+      method: request.method,
+      path,
+      status: response.status,
+      durationSeconds: (runtime.now() - started) / 1_000,
+      upstreamSeconds: (runtime.now() - upstreamStarted) / 1_000,
+    });
     log('info', 'bff.proxy_request_completed', {
       route: routeTemplate(path),
       method: request.method,

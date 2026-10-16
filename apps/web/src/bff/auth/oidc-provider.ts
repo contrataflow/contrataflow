@@ -95,10 +95,29 @@ export class OidcIdentityProvider implements IdentityProvider {
   } | null = null;
   /** Status do IdP na última falha de troca (lido pelo handler para o log). */
   lastFailure: OidcFailureDetail | null = null;
+  private discoveryFailed = false;
 
   constructor(private readonly options: OidcProviderOptions) {
     this.fetch = options.fetch ?? ((input, init) => fetch(input, init));
     this.now = options.now ?? Date.now;
+  }
+
+  /**
+   * Idade da descoberta OIDC em cache para o `/health/ready` (US-085 · observability.md §6.2) e se
+   * a última tentativa de carregá-la falhou.
+   */
+  discoveryState(): { readonly ageSeconds: number | null; readonly lastRefreshFailed: boolean } {
+    return {
+      ageSeconds: this.discovery
+        ? Math.floor((this.now() - this.discovery.fetchedAt) / 1_000)
+        : null,
+      lastRefreshFailed: this.discoveryFailed,
+    };
+  }
+
+  /** Carrega (ou renova, se vencida) a descoberta; falha só marca o estado. */
+  async warmUp(timeoutMs?: number): Promise<void> {
+    await this.discover(timeoutMs).catch(() => undefined);
   }
 
   async beginLogin(input: {
@@ -312,20 +331,26 @@ export class OidcIdentityProvider implements IdentityProvider {
     const base = this.options.issuer.endsWith('/')
       ? this.options.issuer
       : `${this.options.issuer}/`;
-    const response = await this.fetch(new URL('.well-known/openid-configuration', base), {
-      headers: { accept: 'application/json' },
-      redirect: 'error',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!response.ok) throw new Error(`Descoberta OIDC: HTTP ${response.status}`);
-    const doc: unknown = await response.json();
-    // O documento precisa ser do mesmo emissor configurado (mix-up).
-    if (!isDiscovery(doc) || doc.issuer !== this.options.issuer) {
-      throw new Error('Documento de descoberta OIDC inválido');
+    try {
+      const response = await this.fetch(new URL('.well-known/openid-configuration', base), {
+        headers: { accept: 'application/json' },
+        redirect: 'error',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) throw new Error(`Descoberta OIDC: HTTP ${response.status}`);
+      const doc: unknown = await response.json();
+      // O documento precisa ser do mesmo emissor configurado (mix-up).
+      if (!isDiscovery(doc) || doc.issuer !== this.options.issuer) {
+        throw new Error('Documento de descoberta OIDC inválido');
+      }
+      this.discovery = { doc, fetchedAt: this.now() };
+      this.discoveryFailed = false;
+      return doc;
+    } catch (error) {
+      this.discoveryFailed = true;
+      throw error;
     }
-    this.discovery = { doc, fetchedAt: this.now() };
-    return doc;
   }
 
   /** `client_secret_basic` (RFC 6749 §2.3.1). */

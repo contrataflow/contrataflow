@@ -1,9 +1,14 @@
 # Prometheus do ambiente local (observability.md §11.1). As aplicações rodam no host via
-# `pnpm dev`; os endpoints /metrics nascem na US-084 e os dashboards na US-085 — até lá os alvos
-# web/api aparecem como DOWN, sem afetar nada.
+# `pnpm dev` e expõem /metrics SOMENTE na porta interna METRICS_PORT (US-085 · HLT-03): api 9464,
+# worker 9465, web 9466 — nunca na porta pública. Alvo fora do ar aparece como DOWN, sem afetar
+# nada. Coleta a cada 15 s (METRICS_SCRAPE_INTERVAL_SECONDS).
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+
+# Recording rules dos SLOs e alertas A01/A02/A04 (US-085) — os mesmos de todos os ambientes.
+rule_files:
+  - /etc/prometheus/rules/*.yml
 
 scrape_configs:
   - job_name: prometheus
@@ -13,13 +18,20 @@ scrape_configs:
   - job_name: contrataflow-api
     metrics_path: /metrics
     static_configs:
-      - targets: ['host.docker.internal:4000']
+      - targets: ['host.docker.internal:9464']
         labels:
           service: api
+
+  - job_name: contrataflow-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:9465']
+        labels:
+          service: worker
 
   - job_name: contrataflow-web
     metrics_path: /metrics
     static_configs:
-      - targets: ['host.docker.internal:3000']
+      - targets: ['host.docker.internal:9466']
         labels:
           service: web

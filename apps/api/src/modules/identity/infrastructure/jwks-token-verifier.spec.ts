@@ -256,3 +256,22 @@ describe('JwksTokenVerifier — rotação e indisponibilidade do JWKS', () => {
     expect(fetchMock).toHaveBeenCalledWith(JWKS_URI, expect.anything());
   });
 });
+
+describe('JwksTokenVerifier — estado do cache para o /health/ready (US-085 · FA-04)', () => {
+  it('sem chaves: idade nula; warmUp carrega; refresh falhando marca o cache como velho', async () => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const clock = { now: NOW };
+    const idp = fakeIdp([rs]);
+    const subject = verifier(idp, clock);
+    expect(subject.cacheState()).toEqual({ ageSeconds: null, lastRefreshFailed: false });
+
+    await subject.warmUp();
+    clock.now += 90_000;
+    expect(subject.cacheState()).toEqual({ ageSeconds: 90, lastRefreshFailed: false });
+
+    idp.state.down = true;
+    clock.now += 11 * 60_000;
+    await subject.warmUp();
+    expect(subject.cacheState()).toMatchObject({ ageSeconds: 750, lastRefreshFailed: true });
+  });
+});

@@ -1,0 +1,88 @@
+# Alertas de maior severidade da US-085 (RN-FND-86 · observability.md §10): A01, A02 e A04.
+# Todo alerta tem `alert_id`, severidade, canal, dono e runbook; as rotas e as inibições ficam em
+# `../alertmanager.yml`. Alertas que acordam pessoas são de SINTOMA (SLO/readiness). Os demais
+# (A03, A05..A27) chegam com as stories dos respectivos domínios.
+groups:
+  - name: contrataflow-availability
+    rules:
+      # A01 — queima rápida: ≥ 14,4× o orçamento (0,5%) em 1 h E em 5 min (2% do orçamento em 1 h).
+      - alert: CfSloAvailabilityFastBurn
+        expr: |
+          cf:slo_availability_errors:ratio_rate1h > (14.4 * 0.005)
+          and
+          cf:slo_availability_errors:ratio_rate5m > (14.4 * 0.005)
+        for: 2m
+        labels:
+          alert_id: A01
+          severity: critical
+          channel: oncall
+          owner: plataforma
+          slo: SLO-01
+        annotations:
+          summary: Queima rápida do SLO de disponibilidade (≥ 14,4× em 1 h e 5 min)
+          description: >-
+            {{ $value | humanizePercentage }} das requisições a /api/v1 (vistas pelo BFF) com 5xx
+            na última hora. No ritmo atual o orçamento do mês acaba em ~2 dias.
+          runbook_url: docs/architecture/observability.md#rb-06--indisponibilidade-ou-5xx-da-api
+
+      # A02 — queima lenta: ≥ 6× em 6 h E em 30 min.
+      - alert: CfSloAvailabilitySlowBurn
+        expr: |
+          cf:slo_availability_errors:ratio_rate6h > (6 * 0.005)
+          and
+          cf:slo_availability_errors:ratio_rate30m > (6 * 0.005)
+        for: 15m
+        labels:
+          alert_id: A02
+          severity: high
+          channel: oncall
+          owner: plataforma
+          slo: SLO-01
+        annotations:
+          summary: Queima lenta do SLO de disponibilidade (≥ 6× em 6 h e 30 min)
+          description: >-
+            {{ $value | humanizePercentage }} de 5xx em /api/v1 nas últimas 6 h; o orçamento do mês
+            acaba em ~5 dias se nada mudar.
+          runbook_url: docs/architecture/observability.md#rb-06--indisponibilidade-ou-5xx-da-api
+
+  - name: contrataflow-readiness
+    rules:
+      # A04 — readiness: menos de 50% das tarefas prontas por 3 min (api/web saem do balanceador;
+      # o worker não tem balanceador e só é visto por este alerta). Em produção, a fonte
+      # complementar é o HealthyHostCount do ALB (CloudWatch).
+      - alert: CfReadinessFailing
+        expr: cf:health_ready:ratio < 0.5
+        for: 3m
+        labels:
+          alert_id: A04
+          severity: critical
+          channel: oncall
+          owner: plataforma
+        annotations:
+          summary: 'Readiness falhando em {{ $labels.service }} (< 50% das tarefas prontas)'
+          description: >-
+            Só {{ $value | humanizePercentage }} das instâncias de {{ $labels.service }} respondem
+            /health/ready diferente de "fail". Veja cf_health_check_status para a dependência
+            crítica indisponível.
+          runbook_url: docs/architecture/observability.md#rb-06--indisponibilidade-ou-5xx-da-api
+
+      # A04 — mesma condição, detalhada pela dependência crítica em `fail` (vira a origem das
+      # inibições: PostgreSQL fora cala os alertas de fila/outbox; e cala o A04 genérico).
+      - alert: CfCriticalDependencyDown
+        expr: |
+          max by (service, dependency) (cf_health_check_status == 2)
+          and on (service)
+          (cf:health_ready:ratio < 0.5)
+        for: 3m
+        labels:
+          alert_id: A04
+          severity: critical
+          channel: oncall
+          owner: plataforma
+        annotations:
+          summary: '{{ $labels.dependency }} indisponível em {{ $labels.service }} (readiness < 50%)'
+          description: >-
+            A dependência crítica {{ $labels.dependency }} responde "fail" no /health/ready de
+            {{ $labels.service }}; as instâncias saíram do balanceador (api/web) ou pararam de
+            processar (worker).
+          runbook_url: docs/architecture/observability.md#rb-06--indisponibilidade-ou-5xx-da-api

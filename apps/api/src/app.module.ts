@@ -21,6 +21,7 @@ import { EnvelopeInterceptor } from '#shared/http/envelope.interceptor.js';
 import { JsonBodyMiddleware } from '#shared/http/json-body.middleware.js';
 import { PreconditionGuard } from '#shared/http/precondition.js';
 import { IdempotencyInterceptor } from '#shared/idempotency/idempotency.interceptor.js';
+import { HealthModule } from '#shared/observability/health.module.js';
 import {
   ObservabilityModule,
   createApiLogger,
@@ -46,6 +47,7 @@ export class AppModule implements NestModule {
       imports: [
         ConfigModule.forRoot(config),
         ObservabilityModule.forRoot(options.logger ?? createApiLogger(config)),
+        HealthModule,
         DatabaseModule,
         ...API_MODULES,
       ],

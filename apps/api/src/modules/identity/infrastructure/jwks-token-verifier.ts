@@ -85,6 +85,22 @@ export class JwksTokenVerifier implements TokenVerifierPort {
     this.jwksUri = options.jwksUri ?? null;
   }
 
+  /**
+   * Estado do cache para o `/health/ready` (US-085 · FA-04): idade das chaves e resultado da última
+   * renovação.
+   */
+  cacheState(): { readonly ageSeconds: number | null; readonly lastRefreshFailed: boolean } {
+    return {
+      ageSeconds: this.cached ? Math.floor((this.now() - this.cached.fetchedAt) / 1_000) : null,
+      lastRefreshFailed: this.lastAttemptFailed,
+    };
+  }
+
+  /** Carrega as chaves se ainda não houver cache válido (respeita o intervalo entre tentativas). */
+  async warmUp(): Promise<void> {
+    await this.ensureKeys(null);
+  }
+
   async verify(token: string): Promise<VerifiedToken> {
     let header;
     try {

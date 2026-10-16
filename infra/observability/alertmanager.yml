@@ -1,0 +1,48 @@
+# Roteamento e inibição dos alertas técnicos (US-085 · RN-FND-86 · observability.md §10). Mesmo
+# arquivo em todos os ambientes; os destinos reais (ferramenta de on-call — PagerDuty, Opsgenie
+# ou Grafana OnCall — e os webhooks do chat) são injetados por ambiente, nunca versionados aqui.
+# Os receivers abaixo sem integração descartam o alerta (ambiente local).
+route:
+  receiver: chat-alertas
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Crítico → plantão 24×7.
+    - matchers: ['severity="critical"']
+      receiver: oncall-24x7
+      repeat_interval: 1h
+    # Alto → plantão no horário estendido (07h–22h) e chat.
+    - matchers: ['severity="high"']
+      receiver: oncall-horario-estendido
+      continue: true
+    - matchers: ['severity="high"']
+      receiver: chat-alertas
+    # Médio → chat #cf-alertas + ticket; informativo → chat.
+    - matchers: ['severity=~"medium|info"']
+      receiver: chat-alertas
+
+receivers:
+  - name: oncall-24x7
+  - name: oncall-horario-estendido
+  - name: chat-alertas
+  - name: chat-seguranca
+
+# Inibições contra cascata (observability.md §10).
+inhibit_rules:
+  # Queima rápida em curso: a lenta (mesma causa) não notifica de novo.
+  - source_matchers: ['alert_id="A01"']
+    target_matchers: ['alert_id="A02"']
+  # Readiness da api/web falhando: os 5xx vistos pelo SLO-01 são o mesmo incidente (A04 basta).
+  - source_matchers: ['alert_id="A04"', 'service=~"api|web"']
+    target_matchers: ['alert_id=~"A01|A02|A03"']
+  # A04 detalhado pela dependência substitui o A04 genérico do mesmo serviço.
+  - source_matchers: ['alertname="CfCriticalDependencyDown"']
+    target_matchers: ['alertname="CfReadinessFailing"']
+    equal: [service]
+  # PostgreSQL fora (dependência crítica) inibe os alertas de fila e outbox (A05..A10).
+  - source_matchers: ['alertname="CfCriticalDependencyDown"', 'dependency="postgresql"']
+    target_matchers: ['alert_id=~"A05|A06|A07|A08|A09|A10"']
+  - source_matchers: ['alert_id="A22"']
+    target_matchers: ['alert_id=~"A05|A06|A07|A08|A09|A10"']

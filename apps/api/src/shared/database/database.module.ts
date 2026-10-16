@@ -1,23 +1,39 @@
 import { Global, Inject, Injectable, Module } from '@nestjs/common';
-import type { OnModuleDestroy } from '@nestjs/common';
+import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import type pg from 'pg';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { HealthRegistry } from '#shared/observability/health.module.js';
 
 import { DATABASE_CLIENT } from './database-client.js';
+import { DATABASE_POOL, observeDatabasePool, postgresHealthCheck } from './database-health.js';
 import { PlatformTransaction } from './platform-transaction.js';
-import { createTenantPrismaClient } from './prisma-client.js';
+import { createDatabasePool, createTenantPrismaClient } from './prisma-client.js';
 import type { TenantPrismaClient } from './prisma-client.js';
 import { SystemDbService } from './system-db.service.js';
 import type { TenantTx } from './tenant-transaction.js';
 
-/** Encerra o pool no shutdown (o cliente é criado sob demanda, na primeira transação). */
+/**
+ * Registra o *health indicator* do PostgreSQL (crítico — US-085) e as métricas do pool; encerra o
+ * pool no shutdown (o cliente é criado sob demanda, na primeira transação).
+ */
 @Injectable()
-export class DatabaseLifecycle implements OnModuleDestroy {
-  constructor(@Inject(DATABASE_CLIENT) private readonly prisma: TenantPrismaClient) {}
+export class DatabaseLifecycle implements OnModuleInit, OnModuleDestroy {
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly prisma: TenantPrismaClient,
+    @Inject(DATABASE_POOL) private readonly pool: pg.Pool,
+    private readonly health: HealthRegistry,
+  ) {}
+
+  onModuleInit(): void {
+    this.health.register(postgresHealthCheck(this.pool, this.health.timeoutFor('postgresql')));
+    observeDatabasePool(this.pool, 'app');
+  }
 
   async onModuleDestroy(): Promise<void> {
     await this.prisma.$disconnect();
+    await this.pool.end();
   }
 }
 
@@ -60,9 +76,15 @@ export class TenantTransaction {
 @Module({
   providers: [
     {
-      provide: DATABASE_CLIENT,
+      provide: DATABASE_POOL,
       inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) => createTenantPrismaClient(config.database),
+      useFactory: (config: AppConfig) => createDatabasePool(config.database),
+    },
+    {
+      provide: DATABASE_CLIENT,
+      inject: [APP_CONFIG, DATABASE_POOL],
+      useFactory: (config: AppConfig, pool: pg.Pool) =>
+        createTenantPrismaClient(config.database, pool),
     },
     DatabaseLifecycle,
     TenantTransaction,

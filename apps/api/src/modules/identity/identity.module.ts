@@ -63,6 +63,7 @@ import {
   InMemoryAuthentikDirectory,
   InMemoryIdentityRepository,
 } from './infrastructure/in-memory-identity.repositories.js';
+import { JwksHealthIndicator } from './infrastructure/jwks-health.indicator.js';
 import { JwksTokenVerifier } from './infrastructure/jwks-token-verifier.js';
 import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repository.js';
 import {
@@ -216,6 +217,7 @@ function identityProviders(): Provider[] {
   providers: [
     IdentityFacade,
     ...identityProviders(),
+    JwksHealthIndicator,
     StartSessionCommand,
     RecordSessionTenantCommand,
     RecordSessionEndingsCommand,

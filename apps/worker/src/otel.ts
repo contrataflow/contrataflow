@@ -1,6 +1,7 @@
 import { register } from 'node:module';
 
 import { TelemetryConfigError } from '@contrataflow/observability';
+import { installMetrics } from '@contrataflow/observability/metrics';
 import { createTelemetrySdk } from '@contrataflow/observability/telemetry';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
@@ -26,6 +27,12 @@ function start(): void {
     throw error;
   }
   const logger = createWorkerLogger(config);
+  // Métricas (US-085) independem do Collector: provedor global antes de qualquer `getMeter()`.
+  installMetrics({
+    serviceName: config.serviceName,
+    serviceVersion: config.version,
+    environment: config.environment,
+  });
   if (!config.endpoint) {
     logger.warn({ event: 'tracing.disabled', reason: 'endpoint_missing' }, 'tracing disabled');
     return;

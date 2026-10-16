@@ -13,6 +13,7 @@ import { CORRELATION_HEADER, resolveCorrelationId } from './correlation.js';
 import { currentRequestContext, runWithRequestContext } from './request-context.js';
 import { headerValue, requestPath } from '../http/http-types.js';
 import type { HttpRequest, HttpResponse } from '../http/http-types.js';
+import { recordHttpRequest } from '../observability/http-metrics.js';
 
 /** Rota sem template (nenhum handler casou): nunca a URL real nos logs. */
 export const UNMATCHED_ROUTE = '(unmatched)';
@@ -91,12 +92,22 @@ export class RequestContextMiddleware implements NestMiddleware<HttpRequest, Htt
 
   private logCompletion(request: HttpRequest, response: HttpResponse, startedAt: bigint): void {
     const status = response.statusCode;
+    const elapsedNs = Number(process.hrtime.bigint() - startedAt);
+    const route = routeTemplate(request);
+    // Métrica RED (US-085): rota-template e classe de SLO, nunca o caminho bruto nem o tenant.
+    recordHttpRequest({
+      method: request.method ?? '',
+      route,
+      statusCode: status,
+      durationSeconds: elapsedNs / 1e9,
+      hasSearchQuery: /[?&]q=/.test(request.originalUrl),
+    });
     const fields = {
       event: 'http.request.completed',
       method: request.method ?? '',
-      route: routeTemplate(request),
+      route,
       statusCode: status,
-      durationMs: Math.round(Number(process.hrtime.bigint() - startedAt) / 1e5) / 10,
+      durationMs: Math.round(elapsedNs / 1e5) / 10,
       ...(status >= 400 ? { reason: problemCodes.get(response) ?? null } : {}),
       // Garante a correlação mesmo se o contexto já tiver sido descartado.
       ...(currentRequestContext() ? {} : { correlationId: response.getHeader(CORRELATION_HEADER) }),

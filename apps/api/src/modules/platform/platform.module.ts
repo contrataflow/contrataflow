@@ -23,6 +23,7 @@ import { InMemoryOutboxStore } from './infrastructure/outbox/in-memory-outbox.st
 import { PrismaOutboxStore } from './infrastructure/outbox/prisma-outbox.store.js';
 import { RedisAuditSamplingStore } from './infrastructure/redis/redis-audit-sampling.store.js';
 import { RedisCacheStore } from './infrastructure/redis/redis-cache.store.js';
+import { RedisHealthIndicator } from './infrastructure/redis/redis-health.indicator.js';
 import { RedisIdempotencyStore } from './infrastructure/redis/redis-idempotency.store.js';
 import { RedisSessionRegistry } from './infrastructure/redis/redis-session-registry.js';
 import { RedisThrottlerStorage } from './infrastructure/redis/redis-throttler.storage.js';
@@ -46,6 +47,7 @@ import { InternalExampleController } from './presentation/internal-example.contr
   providers: [
     PlatformFacade,
     RedisClient,
+    RedisHealthIndicator,
     { provide: RATE_LIMIT_STORE, useClass: RedisThrottlerStorage },
     { provide: IDEMPOTENCY_STORE, useClass: RedisIdempotencyStore },
     { provide: AUDIT_SAMPLING_STORE, useClass: RedisAuditSamplingStore },
