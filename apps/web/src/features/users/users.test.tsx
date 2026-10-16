@@ -115,7 +115,10 @@ function problemResponse(
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
 interface Routes {
+  /** USR-01 com `status=INVITED` (convites pendentes). */
   list?: Handler;
+  /** USR-01 da lista de usuários (os demais status). */
+  members?: Handler;
   invite?: Handler;
   resend?: Handler;
   cancel?: Handler;
@@ -131,6 +134,14 @@ function mockApi(routes: Routes = {}, permissions: readonly string[] = ADMIN_COD
     if (url.startsWith('/api/v1/me/permissions')) {
       return Promise.resolve(
         jsonResponse({ data: { permissions: permissions.map((code) => ({ code, scopes: [] })) } }),
+      );
+    }
+    if (method === 'GET' && url.startsWith('/api/v1/users?') && !url.includes('status=INVITED')) {
+      return respond(routes.members, () =>
+        jsonResponse({
+          data: [],
+          meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+        }),
       );
     }
     if (method === 'GET' && url.startsWith('/api/v1/users?')) {
@@ -238,7 +249,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
       within(carla).getByRole('button', { name: 'Cancelar convite de Carla Mendes' }),
     ).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Convidar usuário' })).toBeTruthy();
-    expect(callsOf(api, 'GET', '/api/v1/users?')[0]?.url).toBe(
+    expect(callsOf(api, 'GET', 'status=INVITED')[0]?.url).toBe(
       '/api/v1/users?status=INVITED&page=1&pageSize=20',
     );
     expect(await seriousA11yViolations()).toEqual([]);
@@ -247,7 +258,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
   it('carregando, vazio, erro com "Tentar novamente" e 403', async () => {
     mockApi({ list: () => new Promise<Response>(() => undefined) });
     const loading = renderWithShell(<UsersView />);
-    expect((await screen.findByRole('status')).textContent).toContain('Carregando os convites');
+    expect(await screen.findByText('Carregando os convites…')).toBeTruthy();
     loading.unmount();
 
     mockApi({
@@ -277,7 +288,9 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
     ).toBeTruthy();
     recovered = true;
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    expect(await screen.findByRole('table')).toBeTruthy();
+    expect(
+      await screen.findByRole('table', { name: 'Convites pendentes da instituição' }),
+    ).toBeTruthy();
     failing.unmount();
 
     mockApi({ list: () => problemResponse(403, 'PERMISSION_DENIED', 'x') });

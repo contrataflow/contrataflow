@@ -90,6 +90,11 @@ export interface InitialRoleAssignment {
 /** Escrita em `role_assignments` (a gestão contínua — ROL-09..12 — é da US-096). */
 export interface RoleAssignmentWriter {
   insertInitial(tx: TenantTx, assignment: InitialRoleAssignment): Promise<void>;
+  /**
+   * Vínculos com atribuição vigente do perfil (`validFrom ≤ now < validUntil`, não revogada) no
+   * tenant da transação — POL-12 da US-092 conta os `ADMIN_ORGAO`.
+   */
+  membershipIdsWithRole(tx: TenantTx, roleId: string, now: Date): Promise<string[]>;
 }
 
 export const ROLE_ASSIGNMENT_WRITER = Symbol('RoleAssignmentWriter');

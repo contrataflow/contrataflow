@@ -11,8 +11,8 @@ import type { InlineEventHandler } from './inline-handlers.js';
  * sessão em outra instituição continua nela. O efeito de acesso já é imediato (a API revalida o
  * vínculo em toda requisição — DEC-132); este consumidor tira a sessão do ar e deixa o registro de
  * encerramento para a varredura da api auditar (`auth.session_end`, RN-IAM-28) — o worker não
- * grava auditoria. As routing keys ainda não estão em `DOMAIN_EVENT_NAMES` (a US-092 produz os
- * eventos): a rota é inline por routing key, em `routes.ts`.
+ * grava auditoria. Os eventos são produzidos por USR-10/USR-12 (US-092) e pelo job `maintenance`;
+ * a rota é inline por routing key, em `routes.ts`.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

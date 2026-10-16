@@ -7,6 +7,7 @@ import type {
   RoleReference,
 } from '#shared/auth/membership-references.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { AccessFacade } from './access.facade.js';
@@ -14,6 +15,9 @@ import { ROLE_ASSIGNMENT_WRITER, ROLE_REPOSITORY } from './ports.js';
 import type { RoleAssignmentWriter, RoleRepository } from './ports.js';
 import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import type { ScopeType } from '../domain/role.js';
+
+/** POL-12: o perfil que o tenant nunca pode perder (permissions.md §4). */
+const ADMIN_ROLE_KEY = 'ADMIN_ORGAO';
 
 /** Escopo padrão por perfil padrão (permissions.md §3.1). */
 const DEFAULT_SCOPES: ReadonlyMap<string, ScopeType> = new Map(
@@ -38,6 +42,10 @@ export class MembershipAccessProvider implements AccessReferenceProvider {
     this.access.assertCan(permission, options);
   }
 
+  hasPermission(permission: PermissionCode): boolean {
+    return this.access.rolesGrant(requireRequestContext().roleKeys ?? [], permission);
+  }
+
   async roleById(tx: TenantTx, roleId: string): Promise<RoleReference | null> {
     const role = await this.roles.findById(tx, roleId);
     return role
@@ -47,6 +55,13 @@ export class MembershipAccessProvider implements AccessReferenceProvider {
           allowExternalAssignment: role.allowExternalAssignment,
         }
       : null;
+  }
+
+  /** POL-12 (US-092): vínculos com o `ADMIN_ORGAO` vigente — o identity confere status e trava. */
+  async adminMembershipIds(tx: TenantTx, now: Date): Promise<ReadonlySet<string>> {
+    const [admin] = await this.roles.findByKeys(tx, [ADMIN_ROLE_KEY]);
+    if (!admin?.isActive) return new Set();
+    return new Set(await this.assignments.membershipIdsWithRole(tx, admin.id, now));
   }
 
   async grantInitialRole(tx: TenantTx, grant: InitialRoleGrant): Promise<void> {

@@ -19,6 +19,16 @@ export interface DepartmentMultiSelectProps {
   readonly value: readonly string[];
   readonly onChange: (ids: string[]) => void;
   readonly error?: string | undefined;
+  /** Nomes de unidades já conhecidas (ex.: as lotações atuais do vínculo), por id. */
+  readonly names?: ReadonlyMap<string, string> | undefined;
+  /**
+   * Com `onPrimaryChange`, a lotação principal é escolhida de forma explícita (botão de opção em
+   * cada unidade selecionada); sem ele, a primeira selecionada é a principal (convite).
+   */
+  readonly primary?: string | null | undefined;
+  readonly onPrimaryChange?: ((departmentId: string) => void) | undefined;
+  /** Substitui a dica padrão ("A primeira selecionada é a lotação principal."). */
+  readonly hint?: string | undefined;
 }
 
 /**
@@ -26,7 +36,16 @@ export interface DepartmentMultiSelectProps {
  * seleção; as escolhidas aparecem como itens removíveis e a primeira é a lotação principal. Não
  * mostra a árvore: o `path` da unidade basta para distinguir homônimas.
  */
-export function DepartmentMultiSelect({ id, value, onChange, error }: DepartmentMultiSelectProps) {
+export function DepartmentMultiSelect({
+  id,
+  value,
+  onChange,
+  error,
+  names,
+  primary,
+  onPrimaryChange,
+  hint,
+}: DepartmentMultiSelectProps) {
   const t = useTranslations('users.form');
   const tenantId = useTenantId();
   const [search, setSearch] = useState('');
@@ -62,20 +81,34 @@ export function DepartmentMultiSelect({ id, value, onChange, error }: Department
     <fieldset className="flex flex-col gap-2">
       <legend className="text-sm font-medium">{t('departments')}</legend>
       <p id={hintId} className="text-sm text-muted-foreground">
-        {t('departmentsHint')}
+        {hint ?? t('departmentsHint')}
       </p>
 
       {value.length > 0 ? (
         <ul aria-label={t('departmentsSelected')} className="flex flex-wrap gap-2">
           {value.map((departmentId, index) => {
-            const name = known.get(departmentId)?.name ?? departmentId;
+            const name = known.get(departmentId)?.name ?? names?.get(departmentId) ?? departmentId;
             return (
               <li
                 key={departmentId}
                 className="inline-flex items-center gap-1 rounded-control bg-muted px-2 py-1 text-sm"
               >
                 <span>{name}</span>
-                {index === 0 ? (
+                {onPrimaryChange ? (
+                  <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <input
+                      type="radio"
+                      name={`${id}-primary`}
+                      className="h-4 w-4"
+                      checked={primary === departmentId}
+                      aria-label={t('setPrimary', { name })}
+                      onChange={() => {
+                        onPrimaryChange(departmentId);
+                      }}
+                    />
+                    {t('primaryChoice')}
+                  </label>
+                ) : index === 0 ? (
                   <span className="text-xs text-muted-foreground">({t('primary')})</span>
                 ) : null}
                 <Button

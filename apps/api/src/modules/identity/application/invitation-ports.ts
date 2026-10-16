@@ -72,6 +72,8 @@ export interface MembershipListFilter {
   readonly q?: string | undefined;
   readonly statuses?: readonly MembershipStatus[] | undefined;
   readonly type?: InvitationMembershipType | undefined;
+  /** US-092: vínculos lotados na unidade. */
+  readonly departmentId?: string | undefined;
   readonly offset: number;
   readonly limit: number;
 }

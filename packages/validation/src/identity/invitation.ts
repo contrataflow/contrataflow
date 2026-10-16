@@ -198,5 +198,7 @@ export const membershipListQuerySchema = pageQuerySchema.extend({
     .pipe(z.array(z.enum(MEMBERSHIP_STATUSES, { error: INVITE_SELECT_MESSAGE })).min(1))
     .optional(),
   type: z.enum(INVITATION_MEMBERSHIP_TYPES, { error: INVITE_SELECT_MESSAGE }).optional(),
+  /** US-092: vínculos lotados na unidade. */
+  departmentId: z.uuid({ error: INVITE_SELECT_MESSAGE }).optional(),
 });
 export type MembershipListQuery = z.infer<typeof membershipListQuerySchema>;

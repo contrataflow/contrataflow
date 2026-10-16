@@ -95,3 +95,21 @@ export function seedDepartment(
 export function roleAssignmentsOf(api: TestApi): readonly InitialRoleAssignment[] {
   return api.app.get(InMemoryRoleAssignmentWriter, { strict: false }).assignments;
 }
+
+/**
+ * Atribuição vigente de perfil (`role_assignments` em memória) — US-092: POL-12 conta os vínculos
+ * com o `ADMIN_ORGAO` atribuído.
+ */
+export function assignRole(
+  api: TestApi,
+  assignment: { readonly tenantId: string; readonly membershipId: string; readonly roleId: string },
+): void {
+  const writer = api.app.get(InMemoryRoleAssignmentWriter, { strict: false });
+  writer.assignments.push({
+    id: newId(),
+    scopeType: 'TENANT',
+    grantedById: '0192a000-0000-7000-8000-0000000000a4',
+    now: new Date('2026-01-01T00:00:00.000Z'),
+    ...assignment,
+  });
+}

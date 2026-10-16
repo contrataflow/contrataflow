@@ -150,7 +150,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 403 | `PERMISSION_DENIED` | Sem `USER_VIEW` |
 
 - **Efeitos:** —
-- **Notas:** RN-IAM-54. Base entregue na US-091 (lista de convites pendentes do SCR-029, `status=INVITED`): filtros `q` (nome ou e-mail), `status` e `type`, ordenação por nome; `departmentId` e o restante ficam com a US-092.
+- **Notas:** RN-IAM-54/62. Filtros `q` (nome ou e-mail), `status`, `type` (US-091) e `departmentId` (vínculos lotados na unidade — US-092); ordenação por nome. `EXTERNAL` com `expiresAt` vencido ainda `ACTIVE` é exibido como "Expirado" pelo cliente (RN-IAM-64).
 
 ### USR-02 — Buscar usuários para seleção (lookup)
 `GET /api/v1/users/lookup` · **Permissão:** implícita (vínculo ativo no tenant) · **Story:** US-092
@@ -251,7 +251,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` — (GET retorna `ETag`)
 - **Parâmetros:** path `userId` (uuid, Sim)
 - **Request:** —
-- **Response:** `200 { data: TenantMembership }` com `ETag`
+- **Response:** `200 { data: TenantMembershipDetail, meta: { allowedActions, isSelf } }` com `ETag` — `TenantMembershipDetail` = `TenantMembership` + `departments[] { id, name, isActive, isPrimary }` (principal primeiro), `suspendedAt`, `suspensionReason`, `revokedAt`, `revocationReason`; `allowedActions` ⊂ `UPDATE`, `UPDATE_DEPARTMENTS`, `SUSPEND`, `REACTIVATE`, `REVOKE` (vazio sem `USER_MANAGE`; sem `SUSPEND`/`REVOKE` quando `isSelf` — POL-16). USR-08..12 respondem no mesmo formato.
 - **Erros:**
 
 | HTTP | code | Quando |
@@ -260,7 +260,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 404 | `USER_NOT_FOUND` | Inexistente/outro tenant |
 
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** api.md §1.5 (`meta.allowedActions`).
 
 ### USR-08 — Atualizar dados do vínculo
 `PATCH /api/v1/users/{userId}` · **Permissão:** `USER_MANAGE` · **Story:** US-092

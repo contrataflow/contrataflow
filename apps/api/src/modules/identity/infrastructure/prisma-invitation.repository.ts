@@ -30,7 +30,7 @@ const MEMBERSHIP_SELECT = {
   version: true,
 } as const;
 
-const VIEW_SELECT = {
+export const VIEW_SELECT = {
   id: true,
   tenantId: true,
   userId: true,
@@ -47,7 +47,7 @@ const VIEW_SELECT = {
   departments: { select: { departmentId: true, isPrimary: true, id: true } },
 } as const;
 
-interface ViewRow {
+export interface ViewRow {
   readonly id: string;
   readonly tenantId: string;
   readonly userId: string;
@@ -72,7 +72,7 @@ interface ViewRow {
   }[];
 }
 
-function toView(row: ViewRow): MembershipView {
+export function toView(row: ViewRow): MembershipView {
   const departments = [...row.departments].sort(
     (left, right) =>
       Number(right.isPrimary) - Number(left.isPrimary) || left.id.localeCompare(right.id),
@@ -339,6 +339,9 @@ export class PrismaInvitationRepository implements InvitationRepository {
     const where = {
       ...(filter.statuses ? { status: { in: [...filter.statuses] } } : {}),
       ...(filter.type ? { type: filter.type } : {}),
+      ...(filter.departmentId
+        ? { departments: { some: { departmentId: filter.departmentId } } }
+        : {}),
       ...(filter.q
         ? {
             OR: [

@@ -7,7 +7,14 @@ import {
   TemplateVersionPublished,
   TemplateVersionRetired,
 } from '../document/events.js';
-import { MembershipActivated, UserInvited } from '../identity/events.js';
+import {
+  MembershipActivated,
+  MembershipReactivated,
+  MembershipRevoked,
+  MembershipSuspended,
+  MembershipUpdated,
+  UserInvited,
+} from '../identity/events.js';
 import {
   DepartmentCreated,
   DepartmentDeactivated,
@@ -46,6 +53,10 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   HolidayChanged,
   DocumentTypeChanged,
   MembershipActivated,
+  MembershipUpdated,
+  MembershipSuspended,
+  MembershipReactivated,
+  MembershipRevoked,
   OrganizationCreated,
   OrganizationUpdated,
   RoleCreated,

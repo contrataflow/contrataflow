@@ -28,6 +28,13 @@ import {
   ResendInvitationCommand,
 } from './application/invitation.commands.js';
 import { GetMyProfileQuery, ListMyMembershipsQuery } from './application/me.queries.js';
+import { MEMBERSHIP_REPOSITORY } from './application/membership-ports.js';
+import {
+  ChangeMembershipStatusCommand,
+  GetMembershipQuery,
+  UpdateMembershipCommand,
+  UpdateMembershipDepartmentsCommand,
+} from './application/membership.commands.js';
 import {
   AUTHENTIK_DIRECTORY,
   FIRST_ADMIN_STORE,
@@ -62,6 +69,7 @@ import {
   PrismaInvitationRepository,
   PrismaMembershipSettings,
 } from './infrastructure/prisma-invitation.repository.js';
+import { PrismaMembershipRepository } from './infrastructure/prisma-membership.repository.js';
 import { SessionSweepScheduler } from './infrastructure/session-sweep.scheduler.js';
 import {
   InMemoryTenantMfaPolicy,
@@ -73,6 +81,7 @@ import {
 } from './presentation/invitation.controller.js';
 import { MeController } from './presentation/me.controller.js';
 import { SessionEventsController } from './presentation/session-events.controller.js';
+import { UserMembershipController } from './presentation/user-membership.controller.js';
 
 /** Repositório de identidade efetivo (Prisma, ou em memória no modo de identidade fake). */
 const IDENTITY_STORE = Symbol('IdentityStore');
@@ -135,6 +144,17 @@ function identityProviders(): Provider[] {
       ) => (config.oidc.fakeSigningKey ? memory : prisma),
     },
     { provide: AUTHENTIK_PROVISIONING, useExisting: AUTHENTIK_DIRECTORY },
+    // Gestão de vínculos (US-092): mesma escolha Prisma/memória do convite.
+    PrismaMembershipRepository,
+    {
+      provide: MEMBERSHIP_REPOSITORY,
+      inject: [APP_CONFIG, IDENTITY_STORE, PrismaMembershipRepository],
+      useFactory: (
+        config: AppConfig,
+        memory: InMemoryIdentityRepository,
+        prisma: PrismaMembershipRepository,
+      ) => (config.oidc.fakeSigningKey ? memory : prisma),
+    },
     PrismaMembershipSettings,
     {
       provide: MEMBERSHIP_SETTINGS,
@@ -180,7 +200,8 @@ function identityProviders(): Provider[] {
  * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`). Desde a US-099: a
  * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`. Desde a
  * US-091: convite e aceite (USR-01/03..06/14), com a autorização, o perfil inicial e as unidades
- * da lotação pela porta `MembershipReferences` (implementada por `access` e `organization`).
+ * da lotação pela porta `MembershipReferences` (implementada por `access` e `organization`). Desde
+ * a US-092: detalhe e ciclo de vida do vínculo (USR-07..12), com POL-12/16.
  */
 @Module({
   imports: [TenantSeedingModule, MembershipReferencesModule],
@@ -188,6 +209,7 @@ function identityProviders(): Provider[] {
     MeController,
     SessionEventsController,
     UserInvitationController,
+    UserMembershipController,
     InvitationAcceptController,
   ],
   providers: [
@@ -206,6 +228,10 @@ function identityProviders(): Provider[] {
     AcceptInvitationCommand,
     PreviewInvitationQuery,
     ListMembershipsQuery,
+    GetMembershipQuery,
+    UpdateMembershipCommand,
+    UpdateMembershipDepartmentsCommand,
+    ChangeMembershipStatusCommand,
   ],
   exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT, PLATFORM_OPERATOR_PORT],
 })

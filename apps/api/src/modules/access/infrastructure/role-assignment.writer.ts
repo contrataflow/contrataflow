@@ -34,6 +34,20 @@ export class PrismaRoleAssignmentWriter implements RoleAssignmentWriter {
       skipDuplicates: true,
     });
   }
+
+  async membershipIdsWithRole(tx: TenantTx, roleId: string, now: Date): Promise<string[]> {
+    // A extensão de isolamento injeta o tenant; a RLS confirma.
+    const rows = await tx.roleAssignment.findMany({
+      where: {
+        roleId,
+        revokedAt: null,
+        validFrom: { lte: now },
+        OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+      },
+      select: { membershipId: true },
+    });
+    return [...new Set(rows.map((row) => row.membershipId))];
+  }
 }
 
 /** Atribuições em memória (testes e modo de identidade fake), isoladas pelo tenant do contexto. */
@@ -53,5 +67,21 @@ export class InMemoryRoleAssignmentWriter implements RoleAssignmentWriter {
     );
     if (!duplicate) this.assignments.push(assignment);
     return Promise.resolve();
+  }
+
+  membershipIdsWithRole(_tx: TenantTx, roleId: string, now: Date): Promise<string[]> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    return Promise.resolve([
+      ...new Set(
+        this.assignments
+          .filter(
+            (item) =>
+              item.tenantId === tenantId &&
+              item.roleId === roleId &&
+              item.now.getTime() <= now.getTime(),
+          )
+          .map((item) => item.membershipId),
+      ),
+    ]);
   }
 }

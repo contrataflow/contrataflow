@@ -72,3 +72,22 @@ Desde a US-091 (RN-IAM-46..53 · DEC-012/130):
   `deliverInvitation` para simular o e-mail nos testes), `AUTHENTIK_PROVISIONING` (= diretório do
   Authentik), `MEMBERSHIP_SETTINGS`; autorização, perfil e unidades pela `MembershipReferences`
   (`#shared/auth/membership-references.js`), registrada por `access` e `organization`.
+
+Desde a US-092 (RN-IAM-54..64 · POL-12/16):
+
+- **Gestão de vínculos (USR-07..12):** `GetMembershipQuery`, `UpdateMembershipCommand`,
+  `UpdateMembershipDepartmentsCommand` e `ChangeMembershipStatusCommand` (suspender, reativar,
+  revogar) sobre a porta `MEMBERSHIP_REPOSITORY` (`PrismaMembershipRepository` ou o
+  `InMemoryIdentityRepository`). Toda gravação é condicional à `version` do `If-Match` (412) e as
+  respostas trazem `meta.allowedActions`/`isSelf` (`DataResult` do envelope). Regras puras em
+  `domain/membership-lifecycle.ts`.
+- **POL-16** (próprio vínculo → 403, `access.denied` `POL-16`) e **POL-12**: a porta
+  `MembershipReferences.adminMembershipIds` (lado `access`: atribuições vigentes do `ADMIN_ORGAO`)
+  e `lockActiveMemberships` (`FOR UPDATE` em ordem de id, só `ACTIVE` não vencidos) — de duas
+  remoções simultâneas de administradores, só uma passa (409 `LAST_ADMIN_REQUIRED`).
+- **Efeitos:** `MembershipUpdated`/`Suspended`/`Reactivated`/`Revoked` no outbox (o worker invalida
+  o cache de permissões e, na suspensão/revogação, encerra as sessões); depois do commit, `DEL` do
+  cache `access:eff:{membershipId}` (Redis fora → `warn access.cache_invalidation_failed`). Logs
+  `membership.mutation`/`membership.mutation_failed` e o histograma
+  `cf_membership_mutation_duration_ms{action}`. Motivos de suspensão/revogação nunca vão para
+  logs, eventos ou auditoria (só `hasReason`).

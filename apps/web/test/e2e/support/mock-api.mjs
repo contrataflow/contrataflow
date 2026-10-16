@@ -162,6 +162,10 @@ departments.push({
   ...newDepartment(organizations[0].id, null, { type: 'SECRETARIAT', name: 'Gabinete' }),
   inUse: true,
 });
+// Segunda secretaria, destino da troca de lotação do SCR-029 (US-092).
+departments.push(
+  newDepartment(organizations[0].id, null, { type: 'SECRETARIAT', name: 'Licitações' }),
+);
 /** Lista plana na ordem da árvore (pais antes dos filhos; irmãos por ordem e nome). */
 function departmentTree(organizationId) {
   const units = departments.filter((unit) => unit.organizationId === organizationId);
@@ -392,6 +396,55 @@ function newInvitation(email, body) {
     version: 1,
   };
 }
+// Vínculos já ativados do tenant (US-092 · USR-01/07..12): Diego, lotado no Gabinete.
+const members = [
+  {
+    ...newInvitation('diego@exemplo.gov.br', {
+      name: 'Diego Ramos',
+      type: 'INTERNAL',
+      jobTitle: 'Analista de Compras',
+      departmentIds: [departments[0].id],
+    }),
+    status: 'ACTIVE',
+    registrationNumber: '12345',
+    inviteExpiresAt: null,
+    activatedAt: '2026-10-02T12:00:00.000Z',
+    suspendedAt: null,
+    suspensionReason: null,
+    revokedAt: null,
+    revocationReason: null,
+  },
+];
+const MEMBER_ACTIONS = {
+  ACTIVE: ['UPDATE', 'UPDATE_DEPARTMENTS', 'SUSPEND', 'REVOKE'],
+  SUSPENDED: ['UPDATE', 'UPDATE_DEPARTMENTS', 'REACTIVATE', 'REVOKE'],
+  REVOKED: [],
+};
+function memberDetail(member) {
+  const unit = (id) => departments.find((item) => item.id === id);
+  return {
+    ...member,
+    departments: member.departmentIds
+      .map((id) => ({
+        id,
+        name: unit(id)?.name ?? id,
+        isActive: unit(id)?.isActive ?? false,
+        isPrimary: id === member.primaryDepartmentId,
+      }))
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary)),
+  };
+}
+function sendMember(response, member) {
+  return send(
+    response,
+    200,
+    {
+      data: memberDetail(member),
+      meta: { allowedActions: MEMBER_ACTIONS[member.status] ?? [], isSelf: false },
+    },
+    { ETag: `"${member.version}"` },
+  );
+}
 function templateTypeOf(template) {
   const type = documentTypes.find((item) => item.id === template.documentTypeId);
   return {
@@ -562,6 +615,7 @@ createServer(async (request, response) => {
             { code: 'ROLE_MANAGE', scopes: [] },
             { code: 'USER_VIEW', scopes: [] },
             { code: 'USER_INVITE', scopes: [] },
+            { code: 'USER_MANAGE', scopes: [] },
             { code: 'DEPARTMENT_MANAGE', scopes: [] },
             { code: 'TEMPLATE_VIEW', scopes: [] },
             { code: 'TEMPLATE_MANAGE', scopes: [] },
@@ -855,12 +909,19 @@ createServer(async (request, response) => {
     return send(response, 200, { data: found });
   }
   if (url.pathname === '/api/v1/users' && request.method === 'GET') {
-    const pending = invitations.filter(
-      (item) => url.searchParams.get('status') !== 'INVITED' || item.status === 'INVITED',
-    );
+    const statuses = (url.searchParams.get('status') ?? '').split(',').filter(Boolean);
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const type = url.searchParams.get('type');
+    const departmentId = url.searchParams.get('departmentId');
+    const found = [...members, ...invitations]
+      .filter((item) => statuses.length === 0 || statuses.includes(item.status))
+      .filter((item) => !type || item.type === type)
+      .filter((item) => !departmentId || item.departmentIds.includes(departmentId))
+      .filter((item) => !q || `${item.name} ${item.email}`.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     return send(response, 200, {
-      data: pending,
-      meta: { page: 1, pageSize: 20, totalItems: pending.length, totalPages: 1 },
+      data: found,
+      meta: { page: 1, pageSize: 20, totalItems: found.length, totalPages: 1 },
     });
   }
   if (url.pathname === '/api/v1/users/invitations' && request.method === 'POST') {
@@ -889,6 +950,57 @@ createServer(async (request, response) => {
       invitations.splice(invitations.indexOf(invited), 1);
       return send(response, 204);
     }
+  }
+  const memberRoute =
+    /^\/api\/v1\/users\/([0-9a-f-]{36})(\/(departments|suspend|reactivate|revoke))?$/.exec(
+      url.pathname,
+    );
+  if (memberRoute) {
+    const member = members.find((item) => item.userId === memberRoute[1]);
+    if (!member) return problem(response, 404, 'USER_NOT_FOUND', String(correlationId));
+    const action = memberRoute[3];
+    if (request.method === 'GET' && !action) return sendMember(response, member);
+    if (String(request.headers['if-match'] ?? '') !== `"${member.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const allowed = MEMBER_ACTIONS[member.status] ?? [];
+    if (request.method === 'PATCH' && !action) {
+      for (const field of ['jobTitle', 'registrationNumber']) {
+        if (field in body) member[field] = body[field];
+      }
+    } else if (request.method === 'PUT' && action === 'departments') {
+      if (!Array.isArray(body.departmentIds) || body.departmentIds.length === 0) {
+        return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+      }
+      member.departmentIds = body.departmentIds;
+      member.primaryDepartmentId = body.primaryDepartmentId;
+    } else if (request.method === 'POST' && action) {
+      const required = { suspend: 'SUSPEND', reactivate: 'REACTIVATE', revoke: 'REVOKE' }[action];
+      if (!required || !allowed.includes(required)) {
+        return problem(response, 409, 'INVALID_STATE', String(correlationId));
+      }
+      const now = new Date().toISOString();
+      if (action === 'suspend') {
+        Object.assign(member, {
+          status: 'SUSPENDED',
+          suspendedAt: now,
+          suspensionReason: body.reason ?? null,
+        });
+      } else if (action === 'reactivate') {
+        Object.assign(member, { status: 'ACTIVE', suspendedAt: null, suspensionReason: null });
+      } else {
+        Object.assign(member, {
+          status: 'REVOKED',
+          revokedAt: now,
+          revocationReason: body.reason ?? null,
+        });
+      }
+    } else {
+      return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    }
+    member.version += 1;
+    return sendMember(response, member);
   }
   if (url.pathname === '/api/v1/invitations/preview' && request.method === 'POST') {
     const body = JSON.parse((await readBody(request)) || '{}');

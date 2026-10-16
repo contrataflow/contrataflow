@@ -48,6 +48,8 @@ export interface InitialRoleGrant {
 export interface AccessReferenceProvider {
   /** `AccessFacade.assertCan` (403 `PERMISSION_DENIED` · POL-14 → 403 `MFA_REQUIRED`). */
   assertCan(permission: PermissionCode, options: { readonly mfaPolicy: MfaPolicy }): void;
+  /** O vínculo da requisição tem a permissão (sem MFA nem auditoria) — ações exibidas na tela. */
+  hasPermission(permission: PermissionCode): boolean;
   /** `null` se o perfil não existe no tenant da transação. */
   roleById(tx: TenantTx, roleId: string): Promise<RoleReference | null>;
   /**
@@ -55,6 +57,11 @@ export interface AccessReferenceProvider {
    * do convite. Só produz efeito de acesso quando o vínculo estiver `ACTIVE`.
    */
   grantInitialRole(tx: TenantTx, grant: InitialRoleGrant): Promise<void>;
+  /**
+   * POL-12 (US-092): vínculos do tenant da transação com atribuição vigente do `ADMIN_ORGAO`
+   * (sem olhar o status do vínculo — quem decide e trava é o `identity`).
+   */
+  adminMembershipIds(tx: TenantTx, now: Date): Promise<ReadonlySet<string>>;
 }
 
 @Injectable()
@@ -75,6 +82,10 @@ export class MembershipReferences {
     this.access.assertCan(permission, options);
   }
 
+  hasPermission(permission: PermissionCode): boolean {
+    return this.access?.hasPermission(permission) ?? false;
+  }
+
   departmentsByIds(
     tx: TenantTx,
     ids: readonly string[],
@@ -90,6 +101,12 @@ export class MembershipReferences {
   grantInitialRole(tx: TenantTx, grant: InitialRoleGrant): Promise<void> {
     if (!this.access) throw new Error('MembershipReferences sem o provedor do módulo access.');
     return this.access.grantInitialRole(tx, grant);
+  }
+
+  /** Sem o provedor do `access`, falha fechado: POL-12 não pode ser avaliada. */
+  adminMembershipIds(tx: TenantTx, now: Date): Promise<ReadonlySet<string>> {
+    if (!this.access) throw new Error('MembershipReferences sem o provedor do módulo access.');
+    return this.access.adminMembershipIds(tx, now);
   }
 }
 

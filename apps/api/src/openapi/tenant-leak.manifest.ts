@@ -64,6 +64,9 @@ const DEPARTMENT_ROUTE =
 const USER_ADMIN_ROUTE =
   'Usuários e convites (US-091): exige USER_VIEW/USER_INVITE (que o usuário comum da suíte não tem); o isolamento (404 USER_NOT_FOUND em USR-04/05 com usuário só do tenant B, lista sem vínculos de B, REFERENCE_NOT_FOUND em departmentIds/roleId de B e RLS de tenant_memberships/membership_departments/role_assignments) é coberto em test/tenant-leak/invitations.spec.ts, com administradores nos dois tenants.';
 
+const USER_MEMBERSHIP_ROUTE =
+  'Gestão de vínculos (US-092): exige USER_VIEW/USER_MANAGE (que o usuário comum da suíte não tem); o isolamento (404 USER_NOT_FOUND em USR-07..12 com usuário só do tenant B sem alterar o vínculo dele, REFERENCE_NOT_FOUND em departmentIds de B, filtro por lotação sem vínculos de B e RLS de tenant_memberships/membership_departments) é coberto em test/tenant-leak/memberships.spec.ts, com administradores nos dois tenants.';
+
 const INVITATION_TOKEN_ROUTE =
   'Aceite/consulta de convite (US-091): sem tenant ativo (CROSS_TENANT_LOOKUP) e sem ID no caminho — o convite vem do token, pelo cf_find_invitation; convite de outra pessoa → 404 INVITATION_INVALID e ativação só no tenant do convite, cobertos em test/tenant-leak/invitations.spec.ts.';
 
@@ -180,6 +183,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'USR-04': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
   'USR-05': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
   'USR-06': { kind: 'exempt', reason: INVITATION_TOKEN_ROUTE },
+  'USR-07': { kind: 'exempt', reason: USER_MEMBERSHIP_ROUTE },
+  'USR-08': { kind: 'exempt', reason: USER_MEMBERSHIP_ROUTE },
+  'USR-09': { kind: 'exempt', reason: USER_MEMBERSHIP_ROUTE },
+  'USR-10': { kind: 'exempt', reason: USER_MEMBERSHIP_ROUTE },
+  'USR-11': { kind: 'exempt', reason: USER_MEMBERSHIP_ROUTE },
+  'USR-12': { kind: 'exempt', reason: USER_MEMBERSHIP_ROUTE },
   'USR-14': { kind: 'exempt', reason: INVITATION_TOKEN_ROUTE },
   'INTERNAL-SESSION-EVENTS': {
     kind: 'exempt',

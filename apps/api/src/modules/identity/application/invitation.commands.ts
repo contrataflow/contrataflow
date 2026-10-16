@@ -56,7 +56,7 @@ import { maskEmail } from '../domain/user.js';
 const AUTHENTIK_UNAVAILABLE_DETAIL =
   'Não foi possível enviar o convite agora. Tente novamente em instantes.';
 
-function tenantOf(): string {
+export function tenantOf(): string {
   const { tenantId } = requireRequestContext();
   if (tenantId === null) throw new Error('Caso de uso de vínculo exige o tenant do contexto.');
   return tenantId;
@@ -75,7 +75,7 @@ function userNotFound(): ApiError {
  * (`MembershipReferences.assertCan` — permissão e, para risco alto, MFA conforme
  * `security.mfaPolicy`, POL-14) e lê o relógio.
  */
-abstract class MembershipCommand {
+export abstract class MembershipCommand {
   protected readonly logger = new Logger('Identity');
 
   constructor(
@@ -652,8 +652,8 @@ export class PreviewInvitationQuery {
 
 /**
  * `ListMembershipsQuery` — USR-01 (`USER_VIEW`): vínculos do tenant com filtros `status` (lista =
- * OU), `type` e `q` (nome ou e-mail). Base da lista de convites pendentes do SCR-029
- * (`status=INVITED`); a US-092 completa filtros (lotação) e o detalhe.
+ * OU), `type`, `q` (nome ou e-mail) e, desde a US-092, `departmentId` (lotação). Base da lista de
+ * usuários e da de convites pendentes do SCR-029 (`status=INVITED`).
  */
 @Injectable()
 export class ListMembershipsQuery extends MembershipCommand {
@@ -676,6 +676,7 @@ export class ListMembershipsQuery extends MembershipCommand {
         q: query.q,
         statuses: query.status,
         type: query.type,
+        departmentId: query.departmentId,
         offset: (query.page - 1) * query.pageSize,
         limit: query.pageSize,
       }),

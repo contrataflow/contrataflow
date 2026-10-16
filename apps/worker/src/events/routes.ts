@@ -81,8 +81,7 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
     },
     {
       // RN-IAM-27 — encerra as sessões da instituição do evento. Por routing key (sem
-      // `membership.*`): `membership.activated` etc. não encerram nada. Os eventos entram em
-      // `DOMAIN_EVENT_NAMES` com a US-092.
+      // `membership.*`): `membership.activated` etc. não encerram nada.
       match: ['membership.suspended', 'membership.revoked', 'membership.expired'],
       handler: 'SessionTerminationHandler',
     },
@@ -168,4 +167,10 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // como `membership.*`, invalida o cache de permissões; `membership.activated` só o segundo.
     UserInvited: ['membership.invited'],
     MembershipActivated: ['membership.activated'],
+    // US-092: todos invalidam o cache de permissões do vínculo (`membership.*`); suspensão e
+    // revogação também encerram as sessões da instituição (`SessionTerminationHandler`).
+    MembershipUpdated: ['membership.updated'],
+    MembershipSuspended: ['membership.suspended'],
+    MembershipReactivated: ['membership.reactivated'],
+    MembershipRevoked: ['membership.revoked'],
   };

@@ -1,6 +1,6 @@
 {
   "title": "Usuários",
-  "description": "Convide pessoas para a instituição e acompanhe os convites pendentes. O convite vale por 7 dias e pode ser reenviado ou cancelado.",
+  "description": "Consulte e administre os vínculos das pessoas da instituição: cargo, lotação e acesso. Convide novas pessoas e acompanhe os convites pendentes (o convite vale por 7 dias).",
   "forbidden": {
     "title": "Você não tem acesso a esta área",
     "description": "Peça a quem administra a instituição a permissão para visualizar usuários."
@@ -79,12 +79,124 @@
     "submit": "Enviar convite",
     "submitting": "Enviando…",
     "alreadyMember": "Esta pessoa já tem um vínculo com esta instituição.",
-    "alreadyMemberHint": "Se o convite ainda está pendente, use \"Reenviar\" na lista de convites em vez de convidar de novo."
+    "alreadyMemberHint": "Se o convite ainda está pendente, use \"Reenviar\" na lista de convites em vez de convidar de novo.",
+    "setPrimary": "Lotação principal: {name}",
+    "primaryChoice": "Principal",
+    "primaryGroup": "Lotação principal"
   },
   "cancelDialog": {
     "title": "Cancelar o convite de {name}?",
     "description": "O link enviado para {email} deixa de funcionar. Você poderá convidar a pessoa de novo depois.",
     "keep": "Manter convite",
     "confirm": "Cancelar convite"
+  },
+  "directory": {
+    "title": "Usuários",
+    "caption": "Usuários da instituição",
+    "search": "Buscar por nome ou e-mail",
+    "searchHint": "Digite ao menos 2 letras.",
+    "status": "Status",
+    "allStatuses": "Todos os status",
+    "type": "Tipo de vínculo",
+    "allTypes": "Todos os tipos",
+    "department": "Lotação",
+    "allDepartments": "Todas as lotações",
+    "loading": "Carregando os usuários…",
+    "loadFailed": "Não foi possível carregar os usuários.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum usuário encontrado",
+    "emptyHint": "Ajuste a busca ou os filtros para ver outros resultados.",
+    "name": "Nome",
+    "email": "E-mail",
+    "jobTitle": "Cargo",
+    "primaryDepartment": "Lotação principal",
+    "typeColumn": "Vínculo",
+    "statusColumn": "Status",
+    "pager": "Paginação dos usuários",
+    "total": "{count, plural, =1 {1 usuário} other {# usuários}}"
+  },
+  "statuses": {
+    "INVITED": "Convidado",
+    "ACTIVE": "Ativo",
+    "SUSPENDED": "Suspenso",
+    "REVOKED": "Revogado",
+    "EXPIRED": "Expirado"
+  },
+  "detail": {
+    "back": "Voltar para usuários",
+    "loading": "Carregando o usuário…",
+    "loadFailed": "Não foi possível carregar o usuário.",
+    "notFound": "Usuário não encontrado.",
+    "retry": "Tentar novamente",
+    "identityTitle": "Dados da pessoa",
+    "identityHint": "Nome, nome social e e-mail pertencem à conta da pessoa e não são editados aqui.",
+    "name": "Nome",
+    "socialName": "Nome social",
+    "email": "E-mail",
+    "none": "—",
+    "membershipTitle": "Dados do vínculo",
+    "jobTitle": "Cargo ou função",
+    "registrationNumber": "Matrícula",
+    "type": "Tipo de vínculo",
+    "expiresAt": "Validade do vínculo",
+    "expiresAtHint": "O vínculo externo termina sozinho nesta data, ao fim do dia.",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "departmentsTitle": "Lotações",
+    "departmentsSave": "Salvar lotações",
+    "departmentsHint": "Selecione uma ou mais unidades e escolha a lotação principal.",
+    "departmentsReadonly": "Lotações do vínculo",
+    "primaryBadge": "principal",
+    "inactiveBadge": "inativa",
+    "noDepartments": "Sem lotação.",
+    "statusTitle": "Acesso",
+    "since": {
+      "suspended": "Suspenso em {date}.",
+      "revoked": "Revogado em {date}."
+    },
+    "reason": "Motivo: {reason}",
+    "actions": {
+      "suspend": "Suspender acesso",
+      "reactivate": "Reativar",
+      "revoke": "Revogar vínculo",
+      "selfProtected": "Você não pode remover o próprio acesso."
+    },
+    "toast": {
+      "saved": "Dados do vínculo de {name} atualizados.",
+      "departmentsSaved": "Lotações de {name} atualizadas.",
+      "suspended": "Acesso de {name} suspenso.",
+      "reactivated": "Acesso de {name} reativado.",
+      "revoked": "Vínculo de {name} revogado."
+    },
+    "dialog": {
+      "suspendTitle": "Suspender o acesso de {name}?",
+      "suspendDescription": "A pessoa deixa de acessar a instituição até você reativar o vínculo.",
+      "revokeTitle": "Revogar o vínculo de {name}?",
+      "revokeDescription": "As sessões ativas da pessoa nesta instituição são encerradas.",
+      "revokeWarning": "Esta ação é irreversível: para devolver o acesso será preciso enviar um novo convite.",
+      "reason": "Motivo (opcional)",
+      "reasonHint": "Até {max} caracteres.",
+      "cancel": "Cancelar",
+      "confirmSuspend": "Suspender acesso",
+      "confirmRevoke": "Revogar vínculo",
+      "working": "Enviando…"
+    },
+    "errors": {
+      "generic": "Não foi possível concluir a ação. Tente novamente.",
+      "permission": "Você não tem permissão para esta ação.",
+      "selfProtected": "Você não pode remover o próprio acesso.",
+      "mfa": "Esta ação exige a confirmação da sua identidade (segundo fator).",
+      "stepUp": "Confirmar identidade",
+      "notFound": "Usuário não encontrado.",
+      "lastAdmin": "É preciso manter ao menos um administrador ativo.",
+      "lastAdminHint": "Promova outro usuário a administrador antes de repetir esta ação.",
+      "invalidState": "Esta ação não é válida para o status atual do vínculo.",
+      "invalidStateHint": "Os dados foram atualizados com o status real.",
+      "conflict": "Os dados foram alterados por outra pessoa. Recarregue.",
+      "conflictHint": "Os dados atuais foram recarregados; confira e tente novamente.",
+      "reloading": "Recarregando os dados atuais…",
+      "unavailable": "Não foi possível concluir agora. Tente novamente.",
+      "retry": "Tentar novamente"
+    }
   }
 }

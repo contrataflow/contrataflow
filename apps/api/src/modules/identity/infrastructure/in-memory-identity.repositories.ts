@@ -2,6 +2,7 @@ import type {
   AuthenticatedUser,
   MembershipPort,
   MembershipRecord,
+  MembershipStatus,
   UserPort,
 } from '#shared/auth/ports.js';
 import { currentRequestContext } from '#shared/context/request-context.js';
@@ -24,6 +25,11 @@ import type {
   MembershipView,
 } from '../application/invitation-ports.js';
 import type {
+  MembershipDetailView,
+  MembershipRepository,
+  MembershipState,
+} from '../application/membership-ports.js';
+import type {
   AuthentikDirectoryPort,
   IdentityRepository,
   LoginRecord,
@@ -44,15 +50,28 @@ interface StoredUser extends FakeUser {
 interface StoredMembership extends FakeMembership {
   readonly lastAccessAt: Date | null;
   readonly jobTitle: string | null;
+  readonly registrationNumber: string | null;
   readonly invitedAt: Date | null;
   readonly inviteExpiresAt: Date | null;
   readonly inviteTokenHash: string | null;
   readonly inviteResendCount: number;
   readonly activatedAt: Date | null;
+  readonly suspendedAt: Date | null;
+  readonly suspensionReason: string | null;
+  readonly revokedAt: Date | null;
+  readonly revocationReason: string | null;
   readonly version: number;
 }
 
 type TenantData = (typeof FAKE_TENANTS)[keyof typeof FAKE_TENANTS];
+
+/** Vínculo sem suspensão nem revogação registradas. */
+const NO_STATUS_DETAILS = {
+  suspendedAt: null,
+  suspensionReason: null,
+  revokedAt: null,
+  revocationReason: null,
+} as const;
 
 /**
  * Identidade em memória (testes e modo de identidade fake de local/dev/test): implementa as portas
@@ -60,7 +79,12 @@ type TenantData = (typeof FAKE_TENANTS)[keyof typeof FAKE_TENANTS];
  * diretório fixo (`fake-directory.ts`). Mutável: registra vínculos de `sub`, logins e acessos.
  */
 export class InMemoryIdentityRepository
-  implements IdentityRepository, InvitationRepository, UserPort, MembershipPort
+  implements
+    IdentityRepository,
+    InvitationRepository,
+    MembershipRepository,
+    UserPort,
+    MembershipPort
 {
   private readonly users: Map<string, StoredUser>;
   private readonly memberships: StoredMembership[];
@@ -80,11 +104,13 @@ export class InMemoryIdentityRepository
       ...membership,
       lastAccessAt: null,
       jobTitle: null,
+      registrationNumber: null,
       invitedAt: null,
       inviteExpiresAt: null,
       inviteTokenHash: null,
       inviteResendCount: 0,
       activatedAt: null,
+      ...NO_STATUS_DETAILS,
       version: 1,
     }));
     this.tenants = new Map(tenants.map((tenant) => [tenant.id, tenant]));
@@ -344,11 +370,13 @@ export class InMemoryIdentityRepository
       roleKeys: [],
       lastAccessAt: null,
       jobTitle: draft.jobTitle,
+      registrationNumber: null,
       invitedAt: draft.now,
       inviteExpiresAt: draft.inviteExpiresAt,
       inviteTokenHash: null,
       inviteResendCount: 0,
       activatedAt: null,
+      ...NO_STATUS_DETAILS,
       version: 1,
     });
     return Promise.resolve();
@@ -370,6 +398,7 @@ export class InMemoryIdentityRepository
           inviteTokenHash: null,
           inviteResendCount: 0,
           activatedAt: null,
+          ...NO_STATUS_DETAILS,
         }),
       ),
     );
@@ -472,6 +501,7 @@ export class InMemoryIdentityRepository
         (view) =>
           (!filter.statuses || filter.statuses.includes(view.status)) &&
           (!filter.type || view.type === filter.type) &&
+          (!filter.departmentId || view.departmentIds.includes(filter.departmentId)) &&
           (!q || view.name.toLowerCase().includes(q) || view.email.toLowerCase().includes(q)),
       )
       .sort(
@@ -499,6 +529,142 @@ export class InMemoryIdentityRepository
       status: membership.status,
       inviteExpiresAt: membership.inviteExpiresAt,
     });
+  }
+
+  // --- MembershipRepository (US-092) -----------------------------------------------------------
+
+  findStateByUser(_tx: TenantTx, userId: string): Promise<MembershipState | null> {
+    const membership = this.inContext((candidate) => candidate.userId === userId);
+    if (!membership) return Promise.resolve(null);
+    const view = this.toView(membership);
+    return Promise.resolve({
+      id: membership.id,
+      tenantId: membership.tenantId,
+      userId: membership.userId,
+      type: membership.type,
+      status: membership.status,
+      jobTitle: membership.jobTitle,
+      registrationNumber: membership.registrationNumber,
+      expiresAt: membership.expiresAt,
+      departmentIds: view.departmentIds,
+      version: membership.version,
+    });
+  }
+
+  detail(_tx: TenantTx, membershipId: string): Promise<MembershipDetailView | null> {
+    const membership = this.inContext((candidate) => candidate.id === membershipId);
+    return Promise.resolve(
+      membership
+        ? {
+            ...this.toView(membership),
+            suspendedAt: membership.suspendedAt,
+            suspensionReason: membership.suspensionReason,
+            revokedAt: membership.revokedAt,
+            revocationReason: membership.revocationReason,
+          }
+        : null,
+    );
+  }
+
+  updateProfile(
+    _tx: TenantTx,
+    input: {
+      membershipId: string;
+      expectedVersion: number;
+      jobTitle?: string | null;
+      registrationNumber?: string | null;
+      expiresAt?: Date;
+    },
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        input.membershipId,
+        (current) => current.version === input.expectedVersion,
+        (current) => ({
+          ...current,
+          ...(input.jobTitle === undefined ? {} : { jobTitle: input.jobTitle }),
+          ...(input.registrationNumber === undefined
+            ? {}
+            : { registrationNumber: input.registrationNumber }),
+          ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
+        }),
+      ),
+    );
+  }
+
+  bumpVersion(
+    _tx: TenantTx,
+    input: { membershipId: string; expectedVersion: number },
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        input.membershipId,
+        (current) => current.version === input.expectedVersion,
+        (current) => current,
+      ),
+    );
+  }
+
+  changeStatus(
+    _tx: TenantTx,
+    input: {
+      membershipId: string;
+      expectedVersion: number;
+      now: Date;
+      actorId: string | null;
+      from: readonly MembershipStatus[];
+      to: MembershipStatus;
+      reason: string | null;
+    },
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        input.membershipId,
+        (current) =>
+          current.version === input.expectedVersion && input.from.includes(current.status),
+        (current) => {
+          if (input.to === 'SUSPENDED') {
+            return {
+              ...current,
+              status: 'SUSPENDED',
+              suspendedAt: input.now,
+              suspensionReason: input.reason,
+            };
+          }
+          if (input.to === 'REVOKED') {
+            return {
+              ...current,
+              status: 'REVOKED',
+              revokedAt: input.now,
+              revocationReason: input.reason,
+              inviteTokenHash: null,
+              inviteExpiresAt: null,
+            };
+          }
+          return { ...current, status: input.to, suspendedAt: null, suspensionReason: null };
+        },
+      ),
+    );
+  }
+
+  lockActiveMemberships(
+    _tx: TenantTx,
+    membershipIds: readonly string[],
+    now: Date,
+  ): Promise<string[]> {
+    const tenantId = contextTenant();
+    return Promise.resolve(
+      this.memberships
+        .filter(
+          (membership) =>
+            membership.tenantId === tenantId &&
+            membershipIds.includes(membership.id) &&
+            membership.status === 'ACTIVE' &&
+            (membership.expiresAt === null || membership.expiresAt.getTime() > now.getTime()),
+        )
+        .map((membership) => membership.id)
+        .sort(),
+    );
   }
 
   /**
@@ -577,7 +743,7 @@ export class InMemoryIdentityRepository
       type: membership.type,
       status: membership.status,
       jobTitle: membership.jobTitle,
-      registrationNumber: null,
+      registrationNumber: membership.registrationNumber,
       expiresAt: membership.expiresAt,
       departmentIds: this.assignments
         .filter((item) => item.membershipId === membership.id)
