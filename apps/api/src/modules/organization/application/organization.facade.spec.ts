@@ -43,4 +43,10 @@ describe('OrganizationFacade (US-102)', () => {
     await expect(inTenant(B, () => facade.findDepartmentForApproval(tx, UNIT))).resolves.toBeNull();
     await expect(inTenant(A, () => facade.findDepartmentForApproval(tx, ORG))).resolves.toBeNull();
   });
+
+  it('departmentsHeadedBy: unidades ativas do tenant em que o usuário é titular (US-041)', async () => {
+    await expect(inTenant(A, () => facade.departmentsHeadedBy(tx, HEAD))).resolves.toEqual([UNIT]);
+    await expect(inTenant(B, () => facade.departmentsHeadedBy(tx, HEAD))).resolves.toEqual([]);
+    await expect(inTenant(A, () => facade.departmentsHeadedBy(tx, ORG))).resolves.toEqual([]);
+  });
 });

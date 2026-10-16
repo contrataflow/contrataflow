@@ -82,4 +82,25 @@ describe('IdentityFacade', () => {
     await expect(inTenant(A, () => custom.mfaPolicy())).resolves.toBe('ADMINS');
     await expect(inTenant(B, () => custom.mfaPolicy())).resolves.toBe('ALL');
   });
+
+  it('departmentsOfUser (US-041): lotações do vínculo ativo, só no tenant da transação', async () => {
+    const repository = new InMemoryIdentityRepository();
+    const custom = new IdentityFacade(repository, new InMemoryTenantMfaPolicy());
+    const unit = '0192a000-0000-7000-8000-0000000200b1';
+    const ana = FAKE_MEMBERSHIPS.find((m) => m.userId === FAKE_USERS.ana.id && m.tenantId === A);
+    const bruno = FAKE_MEMBERSHIPS.find((m) => m.userId === FAKE_USERS.bruno.id);
+    repository.assignDepartment(ana?.id ?? '', unit);
+    repository.assignDepartment(ana?.id ?? '', unit);
+    repository.assignDepartment(bruno?.id ?? '', unit);
+    await expect(
+      inTenant(A, () => custom.departmentsOfUser(tx, FAKE_USERS.ana.id)),
+    ).resolves.toEqual([unit]);
+    // Vínculo suspenso não conta; outro tenant não vê.
+    await expect(
+      inTenant(A, () => custom.departmentsOfUser(tx, FAKE_USERS.bruno.id)),
+    ).resolves.toEqual([]);
+    await expect(
+      inTenant(B, () => custom.departmentsOfUser(tx, FAKE_USERS.ana.id)),
+    ).resolves.toEqual([]);
+  });
 });

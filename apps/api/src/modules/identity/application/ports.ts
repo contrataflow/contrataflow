@@ -71,6 +71,11 @@ export interface IdentityRepository {
   ): Promise<Set<string>>;
   /** Lotações (de qualquer vínculo) na unidade — impedem a exclusão física (US-102 · RN-TEN-51). */
   countDepartmentAssignments(tx: TenantTx, departmentId: string): Promise<number>;
+  /**
+   * Unidades de lotação do vínculo ATIVO do usuário no tenant da transação (US-041: custódia —
+   * POL-01/POL-04 — e visibilidade por unidade — DEC-024).
+   */
+  departmentsOfUser(tx: TenantTx, userId: string): Promise<string[]>;
 }
 
 export const IDENTITY_REPOSITORY = Symbol('IdentityRepository');

@@ -478,6 +478,260 @@
           "hasMore"
         ]
       },
+      "ActionEntry": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "FORWARD",
+              "RETURN",
+              "CLAIM",
+              "ASSIGN",
+              "SUSPEND",
+              "RESUME",
+              "CANCEL",
+              "DISCARD",
+              "COMPLETE",
+              "DECIDE_APPROVAL",
+              "EDIT",
+              "MANAGE_ITEMS",
+              "MANAGE_TAGS",
+              "DUPLICATE",
+              "MANAGE_PARTICIPANTS",
+              "FOLLOW",
+              "UNFOLLOW",
+              "SET_CONFIDENTIALITY"
+            ]
+          },
+          "transitionKey": {
+            "type": "string"
+          },
+          "toStageKey": {
+            "type": "string"
+          },
+          "approvalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActionReason"
+            }
+          },
+          "departmentResolution": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "FIXED",
+                  "REQUESTING_DEPARTMENT",
+                  "REQUESTING_SECRETARIAT",
+                  "CHOSEN_ON_FORWARD"
+                ]
+              },
+              "departmentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "departmentName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "requiresComment": {
+            "type": "boolean"
+          },
+          "allowDueDateOverride": {
+            "type": "boolean"
+          },
+          "dueAtPreview": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approverPreview": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "USER",
+                  "ROLE",
+                  "DEPARTMENT_HEAD"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "roleId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "departmentId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "type",
+              "label"
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "label",
+          "enabled",
+          "reasons"
+        ]
+      },
+      "ActionReason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "ProcessChecklist": {
+        "type": "object",
+        "properties": {
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistViolation"
+            }
+          }
+        },
+        "required": [
+          "violations"
+        ]
+      },
+      "ChecklistViolation": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "WORKFLOW_RULE"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "BLOCKING",
+              "WARNING"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sectionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "itemId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "REQUIRED_DOCUMENT",
+              "REQUIRED_FIELD",
+              "REQUIRED_APPROVAL",
+              "CONDITION"
+            ]
+          },
+          "satisfied": {
+            "type": "boolean"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "STAGE_EXIT",
+              "TRANSITION"
+            ]
+          },
+          "transitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transitionKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message",
+          "ruleId",
+          "sectionKey",
+          "field",
+          "itemId",
+          "params",
+          "name",
+          "type",
+          "satisfied",
+          "scope"
+        ]
+      },
       "TemplateVersion": {
         "type": "object",
         "properties": {
@@ -11542,6 +11796,243 @@
                         "updatedAt",
                         "version"
                       ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/available-actions": {
+      "get": {
+        "operationId": "PRC-08",
+        "summary": "Listar ações disponíveis do processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ações da etapa atual (avanço, devolução e ciclo de vida) com `enabled` e `reasons[]`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ActionEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/checklist": {
+      "get": {
+        "operationId": "PRC-09",
+        "summary": "Obter checklist de pendências do processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Regras não satisfeitas da etapa atual (`violations[]`, bloqueantes antes dos avisos).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ProcessChecklist"
                     }
                   },
                   "required": [

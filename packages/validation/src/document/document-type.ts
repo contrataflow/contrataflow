@@ -38,6 +38,18 @@ export type DepartmentResolution = (typeof DEPARTMENT_RESOLUTIONS)[number];
 export const DAY_COUNT_TYPES = ['BUSINESS', 'CALENDAR'] as const;
 export type DayCountType = (typeof DAY_COUNT_TYPES)[number];
 
+/** `DocumentStatus` — ciclo de vida único de documento (DEC-018). */
+export const DOCUMENT_STATUSES = [
+  'DRAFT',
+  'IN_REVIEW',
+  'RETURNED',
+  'FINALIZED',
+  'APPROVED',
+  'REJECTED',
+  'CANCELED',
+] as const;
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
+
 /** RN-DOC-02. */
 export const DOCUMENT_TYPE_CODE_PATTERN = /^[A-Z][A-Z0-9_]{1,39}$/;
 

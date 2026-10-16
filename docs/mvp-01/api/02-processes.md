@@ -266,7 +266,7 @@ ActionEntry {
   transitionKey?: string; toStageKey?: string;   // uma entrada FORWARD por transição disponível
   approvalId?: string;                            // em DECIDE_APPROVAL
   label: string; enabled: boolean; primary?: boolean;
-  reasons: Array<{ code: string; message: string }>; // motivos de indisponibilidade quando enabled=false
+  reasons: Array<{ code: string; message: string; ruleId?: string }>; // motivos de indisponibilidade quando enabled=false (ruleId em TRANSITION_BLOCKED)
 
   // Prévia de transição (obrigatória nesta especificação) — apenas em entradas action="FORWARD" (US-047):
   departmentResolution?: { mode: DepartmentResolution; departmentId?: string; departmentName?: string };
@@ -283,7 +283,7 @@ ActionEntry {
 | 404 | `NOT_FOUND` | Processo inexistente, de outro tenant, não visível, ou usuário sem `PROCESS_VIEW` (DEC-024 não distingue os dois casos) |
 
 - **Efeitos:** — (motor somente leitura; não gera eventos nem `AuditLog`).
-- **Notas:** `reasons[].code` cobre, conforme a ação, `TRANSITION_NOT_AVAILABLE`, `TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKNOWLEDGED`, `NOT_PROCESS_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `MFA_REQUIRED`, `DEPARTMENT_REQUIRED`, `ASSIGNEE_NOT_ELIGIBLE`, `DUE_DATE_OVERRIDE_NOT_ALLOWED`, `APPROVER_UNRESOLVED`, `DOCUMENT_INCOMPLETE`, `PROCESS_ALREADY_ASSIGNED` (ver PRC-19..33). `departmentResolution.mode` usa o enum `DepartmentResolution`; quando `CHOSEN_ON_FORWARD`, `departmentId`/`departmentName` ficam ausentes e a unidade é escolhida no próprio `POST /forward` (omissão → `DEPARTMENT_REQUIRED`). `approverPreview.type` usa `ApproverType`; é `null` quando a transição não leva a etapa `APPROVAL` ou quando não resolvido (razão em `reasons[]` = `APPROVER_UNRESOLVED`). `dueAtPreview` calculado por RN-TRAM-09/10; pode ser `null` quando depende de dado ainda não informado (ex.: unidade de destino). Este bloco de prévia consolida US-041 (schema-base de `available-actions`) com as regras de encaminhamento de US-047; nenhuma das duas stories fixa isoladamente o formato exato dos 5 campos de prévia — confirmar na implementação.
+- **Notas:** `reasons[].code` cobre, conforme a ação, `TRANSITION_NOT_AVAILABLE`, `TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKNOWLEDGED`, `NOT_PROCESS_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `MFA_REQUIRED`, `DEPARTMENT_REQUIRED`, `ASSIGNEE_NOT_ELIGIBLE`, `DUE_DATE_OVERRIDE_NOT_ALLOWED`, `APPROVER_UNRESOLVED`, `DOCUMENT_INCOMPLETE`, `PROCESS_ALREADY_ASSIGNED` (ver PRC-19..33). `departmentResolution.mode` usa o enum `DepartmentResolution`; quando `CHOSEN_ON_FORWARD`, `departmentId`/`departmentName` ficam ausentes e a unidade é escolhida no próprio `POST /forward` (omissão → `DEPARTMENT_REQUIRED`). `approverPreview.type` usa `ApproverType`; é `null` quando a transição não leva a etapa `APPROVAL` ou quando não resolvido (razão em `reasons[]` = `APPROVER_UNRESOLVED`). `dueAtPreview` calculado por RN-TRAM-09/10; pode ser `null` quando depende de dado ainda não informado (ex.: unidade de destino). Este bloco de prévia consolida US-041 (schema-base de `available-actions`) com as regras de encaminhamento de US-047: a US-041 preenche `departmentResolution` (`mode` + `departmentId` quando resolvida), `requiresComment` e `allowDueDateOverride` em `FORWARD`/`COMPLETE` (e os dois últimos em `RETURN`); `dueAtPreview` e `approverPreview` ficam com a US-047. Ordem: avanços (principal primeiro, depois `displayOrder`), `RETURN` por etapa percorrida, ciclo de vida (`CLAIM`, `ASSIGN`, `SUSPEND`/`RESUME`, `CANCEL`); ação sem a permissão em nenhum escopo é omitida.
 
 ### PRC-09 — Obter checklist de pendências do processo
 `GET /api/v1/processes/{id}/checklist` · **Permissão:** `PROCESS_VIEW` · **Story:** US-004, US-041
@@ -291,7 +291,7 @@ ActionEntry {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`
 - **Request:** —
-- **Response:** `200 { data: { violations: Violation[] } }` — `Violation` no formato único de api.md §2.1.2 (`code: "WORKFLOW_RULE"`, `ruleId`, `severity: "BLOCKING"|"WARNING"`, `message`, `sectionKey?`, `field?`, `itemId?`, `params?`); campos adicionais vistos no painel (US-004): `name?`, `type?`, `satisfied?`, `scope?`, `transitionId?`, `link?`.
+- **Response:** `200 { data: { violations: Violation[] } }` — `Violation` no formato único de api.md §2.1.2 (`code: "WORKFLOW_RULE"`, `ruleId`, `severity: "BLOCKING"|"WARNING"`, `message`, `sectionKey?`, `field?`, `itemId?`, `params?`); campos adicionais vistos no painel (US-004): `name?`, `type?`, `satisfied?`, `scope?`, `transitionId?`, `transitionKey?`, `link?`. Só regras ativas NÃO satisfeitas (`satisfied: false`): `STAGE_EXIT` da etapa atual e `TRANSITION` das saídas `FORWARD`/`COMPLETE`, bloqueantes antes dos avisos; `params` traz `documentTypeCode`/`minStatus`/`minCount?` (`REQUIRED_DOCUMENT`) ou `stageKey` (`REQUIRED_APPROVAL`) para o atalho; `field` é o caminho do `REQUIRED_FIELD`.
 - **Erros:**
 
 | HTTP | `code` | Quando |

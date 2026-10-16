@@ -81,7 +81,7 @@ Nota: esta story não tem formulário de entrada; a tabela documenta os campos d
 | Rótulo do botão | `label` | texto | Sim | nome da transição ou rótulo fixo da ação de ciclo de vida | `WorkflowTransition.name` |
 | Etapa/transição destino | `toStageKey` / `transitionKey` | texto | Condicional | presente em `FORWARD`/`COMPLETE`/`RETURN` | `WorkflowStage.key` / `WorkflowTransition.key` |
 | Habilitada | `enabled` | booleano | Sim | RN-WF-24/32 | calculado |
-| Motivos de bloqueio | `reasons[]` | lista de texto | Não | preenchido quando `enabled = false` | regras/políticas |
+| Motivos de bloqueio | `reasons[]` | lista de `{ code, message, ruleId? }` | Sim (vazia quando habilitada) | preenchido quando `enabled = false`; `ruleId` em `TRANSITION_BLOCKED` | regras/políticas |
 | Pendência (checklist) | `violations[].code/severity/message` | lista | Não | `BLOCKING`\|`WARNING` (api.md §2.1.2) | RN-WF-24..29 |
 
 ## Validações
@@ -95,7 +95,7 @@ Nota: esta story não tem formulário de entrada; a tabela documenta os campos d
 - **Permissão:** `PROCESS_VIEW` com escopo que cubra o processo (DEC-024).
 - **Políticas:** nenhuma política contextual adicional (leitura); a titularidade (POL-04/POL-05) influencia apenas `enabled`/`reasons[]` das ações de ciclo de vida, não o acesso à consulta.
 - **MFA:** não exigido (consulta, risco L).
-- **Sem permissão:** processo não visível → 404 (DEC-024); visível sem `PROCESS_VIEW` → 403 `PERMISSION_DENIED`.
+- **Sem permissão:** processo não visível — inclusive sem `PROCESS_VIEW` em escopo que cubra o processo — → 404 `NOT_FOUND`, com o mesmo corpo do inexistente (DEC-024 · api.md PRC-08: a consulta é a própria visibilidade). Concessão própria (`ProcessAccess` do usuário — criador, responsável, participante, aprovador) basta para consultar (permissions.md §7).
 
 ## Eventos gerados
 | Evento | Routing key | Quando | Observação |
@@ -177,7 +177,7 @@ Feature: Motor de execução — ações disponíveis e avaliação de regras
 - **Stories:** US-040 (modelo de definição de workflow versionado — fornece `WorkflowVersion`/`WorkflowStage`/`WorkflowTransition`/`WorkflowRule` que este motor lê). Indiretas: US-106 (cálculo de dias úteis/SLA usado em `stage.businessDaysInStage`).
 - **Decisões/ADRs:** DEC-013, DEC-014, DEC-016, DEC-018, DEC-022, DEC-024, DEC-031; ADR-005, ADR-008.
 - **Configurações:** nenhuma chave própria.
-- **Lacunas nas fontes canônicas:** nenhuma.
+- **Lacunas nas fontes canônicas (resolvidas na implementação, 2026-10-15):** (1) o agregado `Process` (tabelas `processes`/`process_stages`/`process_access`) nasce na US-001, posterior a esta story no sprint 6: o módulo `process` lê o runtime pela porta `PROCESS_RUNTIME_READER` (em produção, `PendingProcessRuntimeReader` → 404 até a US-001 entregar o leitor Prisma); (2) `reasons[]` segue o formato de objetos de api.md (`{ code, message, ruleId? }`), não lista de texto; (3) o checklist (PRC-09) traz as regras ativas NÃO satisfeitas de `STAGE_EXIT` da etapa e de `TRANSITION` das saídas `FORWARD`/`COMPLETE` (RN-PROC-51), bloqueantes antes dos avisos; (4) da prévia de `FORWARD`, esta story preenche `departmentResolution`, `requiresComment` e `allowDueDateOverride`; `dueAtPreview` e `approverPreview` ficam com a US-047; (5) avanços também exigem custódia (POL-01) e status `DRAFT`/`IN_PROGRESS`/`RETURNED` — motivos `NOT_PROCESS_CUSTODIAN`/`INVALID_PROCESS_STATUS` antes dos `TRANSITION_BLOCKED`; ações sem a permissão em nenhum escopo são omitidas (permissions.md §9); suspenso mostra `RESUME`, os demais `SUSPEND`; (6) FA-03: caminho fora do schema, operação fora da whitelist, `config` inválido ou expressão que lança no `json-logic-js` → `error workflow.rule_evaluation_failed`; `warn workflow.rule_context_missing_path` fica para caminho do schema ausente no contexto montado.
 
 ## Impacto técnico
 - O motor deve ser **puro** (sem I/O além de ler o agregado já carregado) para permitir testes de propriedade (fast-check) exaustivos sobre combinações de regras/etapas.

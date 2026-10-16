@@ -70,6 +70,9 @@ const WORKFLOW_ROUTE =
 const TEMPLATE_ROUTE =
   'Templates (US-107): exige TEMPLATE_VIEW/TEMPLATE_MANAGE e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/07/08 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
 
+const PROCESS_ACTIONS_ROUTE =
+  'Ações e checklist do processo (US-041): a tabela processes nasce com a US-001, então a suíte genérica ainda não tem fixture de processo do tenant B. O isolamento (processo de outro tenant → 404 NOT_FOUND sem revelar nada, mesmo corpo do inexistente, e RLS de workflow_versions/workflow_rules impedindo ler a definição de B) é coberto em test/tenant-leak/process-actions.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -135,6 +138,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-16': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-17': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-18': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'PRC-08': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
+  'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'TPL-01': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-02': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-03': { kind: 'exempt', reason: TEMPLATE_ROUTE },

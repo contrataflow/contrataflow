@@ -5,6 +5,8 @@ interface WorkflowInstruments {
   readonly validationDuration: Histogram;
   readonly publications: Counter;
   readonly definitionCache: Counter;
+  readonly engineDuration: Histogram;
+  readonly ruleFailures: Counter;
 }
 
 let instruments: WorkflowInstruments | undefined;
@@ -24,8 +26,25 @@ function workflowInstruments(): WorkflowInstruments {
     definitionCache: meter.createCounter('cf_workflow_definition_cache_total', {
       description: 'Leituras da definição publicada por resultado do cache (hit/miss/unavailable).',
     }),
+    engineDuration: meter.createHistogram('cf_workflow_engine_duration_ms', {
+      description:
+        'Duração do motor de workflow por operação (actions/checklist — US-041, meta p95 < 150 ms).',
+      unit: 'ms',
+    }),
+    ruleFailures: meter.createCounter('cf_workflow_rule_failures_total', {
+      description:
+        'Regras não avaliáveis em runtime por tipo e causa (tratadas como não satisfeitas).',
+    }),
   };
   return instruments;
+}
+
+export function recordEngine(operation: 'actions' | 'checklist', durationMs: number): void {
+  workflowInstruments().engineDuration.record(durationMs, { operation });
+}
+
+export function recordRuleFailure(ruleType: string, cause: string): void {
+  workflowInstruments().ruleFailures.add(1, { rule_type: ruleType, cause });
 }
 
 export function recordValidation(durationMs: number, valid: boolean): void {

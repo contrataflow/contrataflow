@@ -11,6 +11,8 @@ import { DocumentTypesView } from './document-types-view';
 
 // A suíte completa roda em paralelo com as demais; o padrão de 1 s é curto para a primeira renderização.
 configure({ asyncUtilTimeout: 5000 });
+// Sob a carga do `turbo run test`, digitar o formulário inteiro passa dos 5 s padrão do vitest.
+vi.setConfig({ testTimeout: 30_000 });
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),

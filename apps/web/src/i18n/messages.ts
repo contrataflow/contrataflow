@@ -9,6 +9,7 @@ import implementationAssistant from '../../messages/pt-BR/implementationAssistan
 import notifications from '../../messages/pt-BR/notifications.json';
 import organizations from '../../messages/pt-BR/organizations.json';
 import permissions from '../../messages/pt-BR/permissions.json';
+import processActions from '../../messages/pt-BR/processActions.json';
 import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
@@ -33,6 +34,7 @@ export const messages = {
   notifications,
   organizations,
   permissions,
+  processActions,
   roles,
   settings,
   shell,

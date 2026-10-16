@@ -160,6 +160,14 @@ export class PrismaDepartmentRepository implements DepartmentRepository {
     return tx.department.count({ where: { parentId: id } });
   }
 
+  async idsHeadedBy(tx: TenantTx, userId: string): Promise<string[]> {
+    const rows = await tx.department.findMany({
+      where: { isActive: true, OR: [{ headUserId: userId }, { deputyUserId: userId }] },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
   async insert(tx: TenantTx, department: Department): Promise<void> {
     try {
       await tx.department.create({

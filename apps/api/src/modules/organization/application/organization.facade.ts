@@ -25,6 +25,14 @@ export class OrganizationFacade {
    * Unidade do tenant da transação (US-102), lida no `tx` do chamador, ou `null` se não existir
    * nele (outro tenant = inexistente).
    */
+  /**
+   * Unidades ativas de que o usuário é titular ou substituto, no tenant da transação (US-041:
+   * atribuir responsável sem `PROCESS_ASSIGN` amplo — POL-05 · permissions.md §7).
+   */
+  departmentsHeadedBy(tx: TenantTx, userId: string): Promise<string[]> {
+    return this.departments.idsHeadedBy(tx, userId);
+  }
+
   async findDepartmentForApproval(
     tx: TenantTx,
     departmentId: string,

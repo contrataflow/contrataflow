@@ -105,6 +105,14 @@ export class InMemoryDepartmentRepository implements DepartmentRepository {
     return Promise.resolve(this.inTenant().filter((d) => d.parentId === id).length);
   }
 
+  idsHeadedBy(_tx: TenantTx, userId: string): Promise<string[]> {
+    return Promise.resolve(
+      this.inTenant()
+        .filter((d) => d.isActive && (d.headUserId === userId || d.deputyUserId === userId))
+        .map((d) => d.id),
+    );
+  }
+
   insert(_tx: TenantTx, department: Department): Promise<void> {
     const taken = this.takenBy(department);
     if (taken) return Promise.reject(taken);

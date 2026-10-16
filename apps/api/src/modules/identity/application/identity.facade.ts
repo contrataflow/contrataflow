@@ -49,6 +49,14 @@ export class IdentityFacade {
     return this.identity.usersAssignedToDepartment(tx, departmentId, userIds);
   }
 
+  /**
+   * Unidades em que o usuário é lotado pelo vínculo ativo no tenant da transação (US-041: custódia
+   * e visibilidade de processos por unidade).
+   */
+  departmentsOfUser(tx: TenantTx, userId: string): Promise<string[]> {
+    return this.identity.departmentsOfUser(tx, userId);
+  }
+
   /** A unidade tem lotações? (impede a exclusão física — US-102 · RN-TEN-51). */
   async hasDepartmentAssignments(tx: TenantTx, departmentId: string): Promise<boolean> {
     return (await this.identity.countDepartmentAssignments(tx, departmentId)) > 0;

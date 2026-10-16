@@ -134,4 +134,18 @@ describe('BusinessCalendarFacade (US-106 · DEC-031)', () => {
     expect(counted.at(-1)).toBe(dueDate);
     expect(due.getTime()).toBeGreaterThan(without.getTime());
   });
+
+  it('businessDaysElapsed (US-041): dias úteis depois do dia de entrada até hoje, no fuso do tenant', async () => {
+    const { repository, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-12'));
+    // Entrou na sexta 09/10; hoje é quinta 15/10: 13, 14 e 15 (12 é feriado; 10/11 fim de semana).
+    await expect(
+      inTenant(A, (tx) => facade.businessDaysElapsed(tx, new Date('2026-10-09T15:00:00Z'), NOW)),
+    ).resolves.toBe(3);
+    // No mesmo dia (ou antes): 0.
+    await expect(inTenant(A, (tx) => facade.businessDaysElapsed(tx, NOW, NOW))).resolves.toBe(0);
+    await expect(
+      inTenant(A, (tx) => facade.businessDaysElapsed(tx, NOW, new Date('2026-10-01T12:00:00Z'))),
+    ).resolves.toBe(0);
+  });
 });

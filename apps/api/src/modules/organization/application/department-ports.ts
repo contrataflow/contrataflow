@@ -64,6 +64,8 @@ export interface DepartmentRepository {
     name: string,
   ): Promise<Department | null>;
   countChildren(tx: TenantTx, id: string): Promise<number>;
+  /** Unidades ATIVAS de que o usuário é titular ou substituto (US-041 · POL-05 · permissions.md §7). */
+  idsHeadedBy(tx: TenantTx, userId: string): Promise<string[]>;
   /** @throws DepartmentAcronymTakenError @throws DepartmentNameTakenError */
   insert(tx: TenantTx, department: Department): Promise<void>;
   /**

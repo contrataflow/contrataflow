@@ -61,6 +61,20 @@ export class BusinessCalendarFacade {
   }
 
   /**
+   * Dias úteis decorridos entre dois instantes (US-041 · `RuleContext.stage.businessDaysInStage`):
+   * os dias úteis DEPOIS do dia local de `from` até o dia local de `to`, inclusive, no fuso do
+   * tenant — quem entrou na etapa hoje está há 0 dia útil nela.
+   */
+  async businessDaysElapsed(tx: TenantTx, from: Date, to: Date): Promise<number> {
+    const settings = await this.settingsOf(tx);
+    const start = addCalendarDays(localDateOf(from, settings.timezone), 1);
+    const end = localDateOf(to, settings.timezone);
+    if (start > end) return 0;
+    const nonBusiness = await this.nonBusinessBetween(tx, settings, start, end);
+    return listBusinessDaysBetween(start, end, nonBusiness).length;
+  }
+
+  /**
    * RN-TEN-78: soma `days` dias úteis (ou corridos) ao DIA LOCAL de `from` e devolve o fim desse
    * dia (`23:59:59.999`) no fuso do tenant, como instante UTC. Quem calcula `dueAt` guarda esse
    * valor e não o recalcula quando o calendário muda.

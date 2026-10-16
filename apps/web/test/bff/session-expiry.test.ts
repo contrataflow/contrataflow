@@ -122,6 +122,12 @@ describe('ociosidade (RN-IAM-21/24)', () => {
     expect(isPollingRequest('get', '/tasks/counters')).toBe(true);
     expect(isPollingRequest('POST', '/tasks/counters')).toBe(false);
     expect(isPollingRequest('GET', '/notifications')).toBe(false);
+    // Painel situacional (US-041): ações e checklist do processo, com o id no caminho.
+    const process = '/processes/0192a000-0000-7000-8000-0000000000f1';
+    expect(isPollingRequest('GET', `${process}/available-actions`)).toBe(true);
+    expect(isPollingRequest('GET', `${process}/checklist`)).toBe(true);
+    expect(isPollingRequest('POST', `${process}/forward`)).toBe(false);
+    expect(isPollingRequest('GET', process)).toBe(false);
   });
 });
 

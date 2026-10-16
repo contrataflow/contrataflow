@@ -222,6 +222,27 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
     );
   }
 
+  departmentsOfUser(_tx: TenantTx, userId: string): Promise<string[]> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const memberships = new Set(
+      this.memberships
+        .filter(
+          (membership) =>
+            membership.tenantId === tenantId &&
+            membership.userId === userId &&
+            membership.status === 'ACTIVE',
+        )
+        .map((membership) => membership.id),
+    );
+    return Promise.resolve([
+      ...new Set(
+        this.assignments
+          .filter((item) => memberships.has(item.membershipId))
+          .map((item) => item.departmentId),
+      ),
+    ]);
+  }
+
   // --- Inspeção (testes) -----------------------------------------------------------------------
 
   /** Carga de testes: lota o vínculo na unidade (no banco, `membership_departments`). */

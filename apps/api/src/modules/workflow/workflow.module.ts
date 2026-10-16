@@ -6,9 +6,11 @@ import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalo
 import { DocumentTypeUsageModule } from '#shared/document/document-type-usage.js';
 
 import { WORKFLOW_CLOCK, WORKFLOW_REPOSITORY, WORKFLOW_TRANSACTIONS } from './application/ports.js';
+import { RuleContextBuilder, RuleContextContributorRegistry } from './application/rule-context.js';
 import { WorkflowDefinitionService } from './application/workflow-definition.service.js';
 import { WorkflowDocumentTypeUsageProvider } from './application/workflow-document-type-usage.provider.js';
 import { WorkflowDraftEditor } from './application/workflow-draft-editor.js';
+import { WorkflowEngineService } from './application/workflow-engine.service.js';
 import { WorkflowReferenceService } from './application/workflow-references.js';
 import {
   CreateWorkflowRuleCommand,
@@ -47,6 +49,7 @@ import {
 } from './infrastructure/prisma-workflow.repository.js';
 import { WorkflowController } from './presentation/workflow.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 
@@ -58,11 +61,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * modelo de definição versionado (WF-02..04, WF-07..18), validador do grafo, snapshot canônico com
  * `definitionHash` e o publicador interno. Lê os tipos de documento pela porta
  * `DocumentTypeCatalog` e implementa a porta de uso de tipos (`DocumentTypeUsageProvider` —
- * US-061); unidades, usuários e perfis vêm das fachadas de nível 1.
+ * US-061); unidades, usuários e perfis vêm das fachadas de nível 1. US-041: o motor de execução
+ * (`WorkflowEngineService` + `RuleContextBuilder` com os contribuidores registrados), exposto pela
+ * fachada; dias úteis na etapa vêm do calendário do `catalog`.
  */
 @Module({
   imports: [
     AccessModule,
+    CatalogModule,
     IdentityModule,
     OrganizationModule,
     DocumentTypeUsageModule,
@@ -76,6 +82,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     WorkflowDraftEditor,
     WorkflowDefinitionService,
     WorkflowVersionPublisher,
+    WorkflowEngineService,
+    RuleContextBuilder,
+    RuleContextContributorRegistry,
     CreateWorkflowCommand,
     UpdateWorkflowCommand,
     CreateWorkflowVersionCommand,
