@@ -17,3 +17,30 @@ export const DocumentTypeChanged = defineDomainEvent({
   }),
   routingKey: 'document_type.changed',
 });
+
+/**
+ * `TemplateVersionPublished` (events.md §4.5 · US-108): commit da publicação (TPL-10). A versão
+ * passa a corrente do template; o conteúdo é imutável e identificado por `contentHash`.
+ */
+export const TemplateVersionPublished = defineDomainEvent({
+  eventType: 'TemplateVersionPublished',
+  eventVersion: 1,
+  aggregateType: 'DocumentTemplate',
+  payload: z.strictObject({
+    templateId: z.uuid(),
+    templateVersionId: z.uuid(),
+    versionNumber: z.number().int().min(1),
+    documentTypeCode: z.string().min(1).max(40),
+    contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
+  routingKey: 'template.version_published',
+});
+
+/** `TemplateVersionRetired` (events.md §4.5 · US-108): commit da aposentadoria (TPL-11). */
+export const TemplateVersionRetired = defineDomainEvent({
+  eventType: 'TemplateVersionRetired',
+  eventVersion: 1,
+  aggregateType: 'DocumentTemplate',
+  payload: z.strictObject({ templateId: z.uuid(), templateVersionId: z.uuid() }),
+  routingKey: 'template.version_retired',
+});

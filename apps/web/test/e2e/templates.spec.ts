@@ -74,3 +74,60 @@ test('no celular (360 px) o editor fica em coluna única e acessível', async ({
   expect(overflow).toBe(false);
   await expectNoSeriousA11yViolations(page, 'editor de template em 360 px');
 });
+
+// US-108: publicar o rascunho, iniciar nova versão, definir o padrão do tipo e aposentar.
+test('publica a versão, inicia nova versão, define o padrão do tipo e aposenta a versão antiga', async ({
+  page,
+}) => {
+  await openList(page);
+  await page.getByRole('link', { name: 'Versões de Despacho padrão' }).click();
+  await expect(page).toHaveURL(/\/admin\/templates\/[0-9a-f-]+$/);
+  await expect(page.getByRole('heading', { level: 2, name: 'Versões' })).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'histórico de versões');
+
+  await page.getByRole('button', { name: 'Publicar versão 1' }).click();
+  const publish = page.getByRole('dialog', { name: 'Publicar a versão 1?' });
+  await expect(publish.getByRole('button', { name: 'Publicar' })).toBeEnabled();
+  // O botão é habilitado quando o rascunho é conferido: o axe avalia depois da transição de
+  // opacidade (com o ponteiro fora dele — o hover também a reduz).
+  await page.mouse.move(0, 0);
+  await expect(publish.getByRole('button', { name: 'Publicar' })).toHaveCSS('opacity', '1');
+  await expectNoSeriousA11yViolations(page, 'diálogo de publicação');
+  await publish.getByRole('button', { name: 'Publicar' }).click();
+  const v1 = page.getByRole('row', { name: /^v1/ });
+  await expect(v1.getByText('Publicada')).toBeVisible();
+  await expect(v1.getByText('Corrente')).toBeVisible();
+  const hash = await v1.locator('td.font-mono').innerText();
+
+  await page.getByRole('button', { name: 'Iniciar nova versão' }).click();
+  await expect(page).toHaveURL(/\/admin\/templates\/[0-9a-f-]+\/versoes\/[0-9a-f-]+$/);
+  await page.goBack();
+  await expect(page.getByRole('row', { name: /^v2/ }).getByText('Rascunho')).toBeVisible();
+  // Sem efeito retroativo: a versão 1 segue publicada com o mesmo hash.
+  await expect(page.getByRole('row', { name: /^v1/ }).locator('td.font-mono')).toHaveText(hash);
+
+  await page.goto('/admin/tipos-documento');
+  const select = page.getByRole('combobox', { name: 'Template padrão de Ofício' });
+  await select.selectOption({ label: 'Despacho padrão — v1' });
+  await expect(
+    page.getByText('Template padrão de "Ofício" definido: Despacho padrão.').first(),
+  ).toBeVisible();
+
+  await page.goBack();
+  await expect(page.getByText('Padrão do tipo')).toBeVisible();
+  // Única publicada do template padrão: aposentar fica bloqueado (FA-03).
+  await expect(page.getByRole('button', { name: 'Aposentar versão 1' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Publicar versão 2' }).click();
+  await page
+    .getByRole('dialog', { name: 'Publicar a versão 2?' })
+    .getByRole('button', { name: 'Publicar' })
+    .click();
+  await expect(page.getByRole('row', { name: /^v2/ }).getByText('Corrente')).toBeVisible();
+  await page.getByRole('button', { name: 'Aposentar versão 1' }).click();
+  const retire = page.getByRole('dialog', { name: 'Aposentar a versão 1?' });
+  await page.mouse.move(0, 0);
+  await expect(retire.getByRole('button', { name: 'Aposentar' })).toHaveCSS('opacity', '1');
+  await expectNoSeriousA11yViolations(page, 'diálogo de aposentadoria');
+  await retire.getByRole('button', { name: 'Aposentar' }).click();
+  await expect(page.getByRole('row', { name: /^v1/ }).getByText('Aposentada')).toBeVisible();
+});

@@ -510,4 +510,4 @@
   | 422 | `BUSINESS_RULE_VIOLATION` (`TEMPLATE_NOT_PUBLISHED`) | Template sem versão publicada |
   | 422 | `VALIDATION_ERROR` | Template de outro tipo de documento |
 - **Efeitos:** Evento `DocumentTypeChanged` (`changedFields: ["defaultTemplateId"]`). Auditoria `document_type.update`: `changes.defaultTemplateId` (anterior → novo).
-- **Notas:** Especificação completa do ciclo de publicação de templates em [04-templates.md](04-templates.md) (US-108); este endpoint pertence ao catálogo de `document-types`.
+- **Notas:** Especificação completa do ciclo de publicação de templates em [04-templates.md](04-templates.md) (US-108); este endpoint pertence ao catálogo de `document-types`. **Implementação (US-108):** template de outro tipo → `VALIDATION_ERROR` com `errors[] = { field: 'templateId', code: 'NOT_ALLOWED' }`; template inativo conta como sem versão publicada (`TEMPLATE_NOT_PUBLISHED`, `field = templateId`). O mesmo template já padrão → 200 sem nova versão, auditoria nem evento. `DocumentType.defaultTemplate` (DTY-01..04) = `{ id, name, versionNumber }` da versão publicada corrente do template padrão, ou `null`.

@@ -28,8 +28,15 @@ export function nextNumberPreview(type: DocumentType, now: Date): string | null 
   });
 }
 
-/** `DocumentType` da resposta de DTY-01..03. */
-export function toDocumentTypeDto(type: DocumentType, now: Date): DocumentTypeDto {
+/**
+ * `DocumentType` da resposta de DTY-01..04; `defaultTemplate` é o template padrão com a versão
+ * publicada corrente (US-108), resolvido por quem chama.
+ */
+export function toDocumentTypeDto(
+  type: DocumentType,
+  now: Date,
+  defaultTemplate: DocumentTypeDto['defaultTemplate'] = null,
+): DocumentTypeDto {
   return {
     id: type.id,
     code: type.code,
@@ -46,8 +53,7 @@ export function toDocumentTypeDto(type: DocumentType, now: Date): DocumentTypeDt
     requiresApproval: type.requiresApproval,
     approvalPolicy: type.approvalPolicy,
     defaultConfidentiality: type.defaultConfidentiality,
-    // O template padrão como objeto (nome e versão) vem com a US-107/US-108.
-    defaultTemplate: null,
+    defaultTemplate,
     sortOrder: type.sortOrder,
     editableFields: [...editableFieldsOf(type)],
     version: type.version,

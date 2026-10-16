@@ -17,6 +17,7 @@ import {
   templateEditorHref,
   templateKeys,
   TEMPLATES_STALE_TIME_MS,
+  templateVersionsHref,
 } from './templates.api';
 
 const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
@@ -236,6 +237,11 @@ function TemplateTable({
                       <Badge tone="muted">{t('badges.system')}</Badge>
                     </span>
                   ) : null}
+                  {template.isDefault ? (
+                    <span className="ml-2">
+                      <Badge tone="ok">{t('badges.default')}</Badge>
+                    </span>
+                  ) : null}
                   {template.description ? (
                     <span className="block text-xs font-normal text-muted-foreground">
                       {template.description}
@@ -270,6 +276,13 @@ function TemplateTable({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={templateVersionsHref(template.id)}
+                      className="inline-flex h-8 items-center rounded-control border border-border px-3 text-sm font-medium hover:bg-muted"
+                      aria-label={t('actions.versions', { name: template.name })}
+                    >
+                      {t('actions.versionsLabel')}
+                    </Link>
                     {target ? (
                       <Link
                         href={templateEditorHref(template.id, target.id)}

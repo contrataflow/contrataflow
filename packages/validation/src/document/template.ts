@@ -439,6 +439,18 @@ export const templateListQuerySchema = z.strictObject({
 });
 export type TemplateListQuery = z.output<typeof templateListQuerySchema>;
 
+/** TPL-05 (query — US-108): histórico de versões, da mais recente para a mais antiga. */
+export const templateVersionListQuerySchema = z.strictObject({
+  status: z.enum(TEMPLATE_VERSION_STATUSES).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type TemplateVersionListQuery = z.output<typeof templateVersionListQuerySchema>;
+
+/** DTY-04 (corpo — US-108): template padrão do tipo de documento. */
+export const defaultTemplateSetSchema = z.strictObject({ templateId: uuidV7Schema });
+export type DefaultTemplateSet = z.infer<typeof defaultTemplateSetSchema>;
+
 export const templateIdParamsSchema = z.strictObject({ id: uuidV7Schema });
 export const templateVersionIdParamsSchema = z.strictObject({ versionId: uuidV7Schema });
 
@@ -473,6 +485,8 @@ export const templateSchema = z
     documentType: templateDocumentTypeSchema,
     isActive: z.boolean(),
     isSystem: z.boolean(),
+    /** É o `defaultTemplateId` do seu tipo de documento ativo (DTY-04 · US-108). */
+    isDefault: z.boolean(),
     /** Rascunho em edição (no máximo um — RN-TPL-10). */
     draftVersion: templateVersionSummarySchema.nullable(),
     currentPublishedVersion: templateVersionSummarySchema.nullable(),
@@ -506,9 +520,35 @@ export const templateVersionSchema = z
       .nullable(),
     publishedAt: z.iso.datetime().nullable(),
     retiredAt: z.iso.datetime().nullable(),
+    /** SHA-256 do conteúdo canonicalizado (RFC 8785), definido na publicação (US-108). */
+    contentHash: z.string().nullable(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     version: z.number().int(),
   })
   .meta({ id: 'TemplateVersion' });
 export type TemplateVersionDto = z.infer<typeof templateVersionSchema>;
+
+/**
+ * Item do histórico de versões (TPL-05 · US-108): a versão sem o conteúdo (seções, layout,
+ * mapeamentos), que é lido por TPL-07. `version` é o `If-Match` de publicar/aposentar.
+ */
+export const templateVersionHistoryItemSchema = z
+  .object({
+    id: z.uuid(),
+    templateId: z.uuid(),
+    versionNumber: z.number().int(),
+    status: z.enum(TEMPLATE_VERSION_STATUSES),
+    sectionCount: z.number().int(),
+    changeNotes: z.string().nullable(),
+    /** É a `currentPublishedVersionId` do template. */
+    isCurrent: z.boolean(),
+    publishedAt: z.iso.datetime().nullable(),
+    retiredAt: z.iso.datetime().nullable(),
+    contentHash: z.string().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    version: z.number().int(),
+  })
+  .meta({ id: 'TemplateVersionHistoryItem' });
+export type TemplateVersionHistoryItem = z.infer<typeof templateVersionHistoryItemSchema>;

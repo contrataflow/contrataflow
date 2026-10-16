@@ -117,6 +117,7 @@ export class PrismaDocumentTypeRepository implements DocumentTypeRepository {
             requiresApproval: type.requiresApproval,
             approvalPolicy: type.approvalPolicy ?? Prisma.DbNull,
             defaultConfidentiality: type.defaultConfidentiality,
+            defaultTemplateId: type.defaultTemplateId,
             sortOrder: type.sortOrder,
             isActive: type.isActive,
             updatedAt: type.updatedAt,

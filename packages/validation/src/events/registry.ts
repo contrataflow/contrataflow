@@ -2,7 +2,11 @@ import type { AnyDomainEventDefinition } from './define.js';
 import { RoleCreated, RoleUpdated } from '../access/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
-import { DocumentTypeChanged } from '../document/events.js';
+import {
+  DocumentTypeChanged,
+  TemplateVersionPublished,
+  TemplateVersionRetired,
+} from '../document/events.js';
 import { MembershipActivated, UserInvited } from '../identity/events.js';
 import {
   DepartmentCreated,
@@ -55,4 +59,6 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   WorkflowCreated,
   WorkflowVersionPublished,
   WorkflowVersionRetired,
+  TemplateVersionPublished,
+  TemplateVersionRetired,
 };

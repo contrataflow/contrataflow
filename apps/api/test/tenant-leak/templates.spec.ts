@@ -1,4 +1,4 @@
-// Templates de documento na API inteira sobre PostgreSQL real (US-107 · Sucesso, Tenant incorreto,
+// Templates de documento na API inteira sobre PostgreSQL real (US-107/US-108 · Sucesso, Tenant incorreto,
 // Permissão, Duplicidade, Concorrência, Falha de banco): administradores nos tenants A e B,
 // auditoria real na mesma transação, RLS e extensão de isolamento, índices únicos (nome por tipo
 // sem maiúsculas, um rascunho por template), criação atômica (template + versão 1) e o gatilho que
@@ -505,6 +505,248 @@ describe('Feature: templates de documento isolados por tenant sobre PostgreSQL (
       `UPDATE document_template_versions SET status = 'RETIRED', retired_at = now() WHERE id = $1`,
       [versionId],
     );
+  });
+
+  // ─── US-108: publicar, aposentar, nova versão e padrão do tipo ─────────────────────────────
+  const MFA = ['pwd', 'otp'];
+  const authMfa = (test: request.Test, subject: string, tenant: string) =>
+    test.set('Authorization', api.bearer(subject, { amr: MFA })).set('X-Tenant-Id', tenant);
+  const publishPath = (subject: string, tenant: string, versionId: string, ifMatch: string) =>
+    authMfa(
+      request(api.server).post(`/api/v1/template-versions/${versionId}/publish`),
+      subject,
+      tenant,
+    )
+      .set('If-Match', ifMatch)
+      .set('Idempotency-Key', randomUUID())
+      .send();
+  const retirePath = (subject: string, tenant: string, versionId: string, ifMatch: string) =>
+    authMfa(
+      request(api.server).post(`/api/v1/template-versions/${versionId}/retire`),
+      subject,
+      tenant,
+    )
+      .set('If-Match', ifMatch)
+      .send();
+  const newVersionPath = (subject: string, tenant: string, templateId: string) =>
+    authMfa(request(api.server).post(`/api/v1/templates/${templateId}/versions`), subject, tenant)
+      .set('Idempotency-Key', randomUUID())
+      .send();
+  const setDefaultPath = (
+    subject: string,
+    tenant: string,
+    typeId: string,
+    templateId: string,
+    ifMatch: string,
+  ) =>
+    authMfa(
+      request(api.server).put(`/api/v1/document-types/${typeId}/default-template`),
+      subject,
+      tenant,
+    )
+      .set('If-Match', ifMatch)
+      .send({ templateId });
+  const outbox = (aggregateId: string) =>
+    db.admin<Row>(
+      `SELECT tenant_id, event_type, routing_key, status, payload FROM outbox_events
+        WHERE aggregate_id = $1 ORDER BY occurred_at, id`,
+      [aggregateId],
+    );
+  const typeVersion = async (typeId: string) => {
+    const [row] = await db.admin<{ version: number }>(
+      'SELECT version FROM document_types WHERE id = $1',
+      [typeId],
+    );
+    return row?.version ?? 0;
+  };
+
+  let oficioPadrao: TemplateDto;
+  let oficioV1: string;
+  let oficioTypeA: string;
+
+  it('[Sucesso] publicar (US-108): versão PUBLISHED com hash e corrente do template na mesma transação; evento PENDING', async () => {
+    oficioTypeA = await typeIdOf(A, 'OFICIO');
+    const created = await post('sub-diego-tpl', A, {
+      name: 'Ofício padrão',
+      documentTypeId: oficioTypeA,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    oficioPadrao = (created.body as { data: TemplateDto }).data;
+    oficioV1 = oficioPadrao.draftVersion?.id ?? '';
+    const patched = await patchPath(
+      'sub-diego-tpl',
+      A,
+      `/template-versions/${oficioV1}`,
+      { sections: [section('OBJETO', 1), section('FUNDAMENTACAO', 2)] },
+      '"1"',
+    );
+    expect(patched.status, JSON.stringify(patched.body)).toBe(200);
+
+    const response = await publishPath('sub-diego-tpl', A, oficioV1, '"2"');
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.headers.etag).toBe('"3"');
+    const published = (response.body as { data: TemplateVersionDto }).data;
+    const [version] = await db.admin<Row>(
+      'SELECT status, content_hash, published_by_id, published_at FROM document_template_versions WHERE id = $1',
+      [oficioV1],
+    );
+    expect(version).toMatchObject({
+      status: 'PUBLISHED',
+      content_hash: published.contentHash,
+      published_by_id: DIEGO,
+    });
+    expect(version?.published_at).not.toBeNull();
+    const [template] = await db.admin<Row>(
+      'SELECT current_published_version_id, version FROM document_templates WHERE id = $1',
+      [oficioPadrao.id],
+    );
+    expect(template).toEqual({ current_published_version_id: oficioV1, version: 2 });
+    expect((await audits(oficioPadrao.id)).map((row) => row.action)).toEqual([
+      'template.create',
+      'template.update',
+      'template.version_publish',
+    ]);
+    // [Falha de integração] o relay não roda aqui: o evento fica PENDING até ele voltar.
+    expect(await outbox(oficioPadrao.id)).toEqual([
+      expect.objectContaining({
+        tenant_id: A,
+        event_type: 'TemplateVersionPublished',
+        routing_key: 'template.version_published',
+        status: 'PENDING',
+        payload: expect.objectContaining({
+          templateVersionId: oficioV1,
+          documentTypeCode: 'OFICIO',
+          contentHash: published.contentHash,
+        }) as unknown,
+      }),
+    ]);
+    // A versão publicada é imutável no banco (gatilho), inclusive o hash.
+    await expect(
+      db.admin(`UPDATE document_template_versions SET content_hash = $2 WHERE id = $1`, [
+        oficioV1,
+        'b'.repeat(64),
+      ]),
+    ).rejects.toThrow(/cf_template_version_not_draft/);
+  });
+
+  it('[Sucesso] definir padrão (DTY-04): default_template_id com FK válida, auditoria e DocumentTypeChanged', async () => {
+    const response = await setDefaultPath(
+      'sub-diego-tpl',
+      A,
+      oficioTypeA,
+      oficioPadrao.id,
+      `"${await typeVersion(oficioTypeA)}"`,
+    );
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect((response.body as { data: { defaultTemplate: unknown } }).data.defaultTemplate).toEqual({
+      id: oficioPadrao.id,
+      name: 'Ofício padrão',
+      versionNumber: 1,
+    });
+    const [type] = await db.admin<Row>(
+      'SELECT default_template_id FROM document_types WHERE id = $1',
+      [oficioTypeA],
+    );
+    expect(type).toEqual({ default_template_id: oficioPadrao.id });
+    expect(await outbox(oficioTypeA)).toEqual([
+      expect.objectContaining({
+        event_type: 'DocumentTypeChanged',
+        status: 'PENDING',
+        payload: {
+          documentTypeId: oficioTypeA,
+          code: 'OFICIO',
+          changedFields: ['defaultTemplateId'],
+        },
+      }),
+    ]);
+    const [audit] = await db.admin<Row>(
+      `SELECT changes FROM audit_logs WHERE entity_id = $1 AND action = 'document_type.update'`,
+      [oficioTypeA],
+    );
+    expect(audit?.changes).toEqual([
+      { path: 'defaultTemplateId', old: null, new: oficioPadrao.id },
+    ]);
+  });
+
+  it('[Validação] aposentar a única publicada do padrão → 409 TEMPLATE_IN_USE; com a v2 publicada, a v1 assume', async () => {
+    const blocked = await retirePath('sub-diego-tpl', A, oficioV1, '"3"');
+    expect(blocked.status, JSON.stringify(blocked.body)).toBe(409);
+    expect(problemCode(blocked)).toBe('TEMPLATE_IN_USE');
+
+    const v2 = await newVersionPath('sub-diego-tpl', A, oficioPadrao.id);
+    expect(v2.status, JSON.stringify(v2.body)).toBe(201);
+    const v2Id = (v2.body as { data: TemplateVersionDto }).data.id;
+    expect((await publishPath('sub-diego-tpl', A, v2Id, '"1"')).status).toBe(200);
+    const retired = await retirePath('sub-diego-tpl', A, v2Id, '"2"');
+    expect(retired.status, JSON.stringify(retired.body)).toBe(200);
+    const [template] = await db.admin<Row>(
+      'SELECT current_published_version_id FROM document_templates WHERE id = $1',
+      [oficioPadrao.id],
+    );
+    expect(template).toEqual({ current_published_version_id: oficioV1 });
+    const [row] = await db.admin<Row>(
+      'SELECT status, retired_by_id FROM document_template_versions WHERE id = $1',
+      [v2Id],
+    );
+    expect(row).toEqual({ status: 'RETIRED', retired_by_id: DIEGO });
+  });
+
+  it('[Concorrência] duas "Iniciar nova versão" simultâneas: uma 201 e outra 409 TEMPLATE_DRAFT_EXISTS; um só rascunho', async () => {
+    const [one, two] = await Promise.all([
+      newVersionPath('sub-diego-tpl', A, oficioPadrao.id),
+      newVersionPath('sub-carla-tpl', A, oficioPadrao.id),
+    ]);
+    expect([one.status, two.status].sort()).toEqual([201, 409]);
+    const conflict = one.status === 409 ? one : two;
+    expect(problemCode(conflict)).toBe('TEMPLATE_DRAFT_EXISTS');
+    const drafts = await db.admin<Row>(
+      `SELECT version_number FROM document_template_versions WHERE template_id = $1 AND status = 'DRAFT'`,
+      [oficioPadrao.id],
+    );
+    expect(drafts).toEqual([{ version_number: 3 }]);
+  });
+
+  it('[Tenant incorreto] US-108: publicar, aposentar, histórico, nova versão e padrão com ids de B → 404 e B intacto', async () => {
+    const digestOfB = await digestOf(B);
+    const versionB = templateB.draftVersion?.id ?? '';
+    for (const response of [
+      await publishPath('sub-diego-tpl', A, versionB, '"1"'),
+      await retirePath('sub-diego-tpl', A, versionB, '"1"'),
+      await getPath('sub-diego-tpl', A, `/templates/${templateB.id}/versions`),
+      await newVersionPath('sub-diego-tpl', A, templateB.id),
+      await setDefaultPath(
+        'sub-diego-tpl',
+        A,
+        oficioTypeA,
+        templateB.id,
+        `"${await typeVersion(oficioTypeA)}"`,
+      ),
+      await setDefaultPath('sub-diego-tpl', A, await typeIdOf(B, 'OFICIO'), templateB.id, '"1"'),
+    ]) {
+      expect(response.status, JSON.stringify(response.body)).toBe(404);
+      expect(problemCode(response)).toBe('NOT_FOUND');
+      expect(JSON.stringify(response.body)).not.toContain('LEAK-B');
+    }
+    expect(await digestOf(B)).toBe(digestOfB);
+  });
+
+  it('[Permissão] US-108: só TEMPLATE_VIEW lê o histórico, mas não publica (access.denied TEMPLATE_PUBLISH)', async () => {
+    const list = await authMfa(
+      request(api.server).get(`/api/v1/templates/${oficioPadrao.id}/versions`),
+      'sub-bruno-tpl',
+      A,
+    );
+    expect(list.status).toBe(200);
+    const denied = await publishPath('sub-bruno-tpl', A, oficioV1, '"3"');
+    expect(denied.status).toBe(403);
+    expect(problemCode(denied)).toBe('PERMISSION_DENIED');
+    const [record] = await db.admin<Row>(
+      `SELECT reason_code FROM audit_logs WHERE action = 'access.denied' AND actor_user_id = $1
+        ORDER BY occurred_at DESC LIMIT 1`,
+      [BRUNO],
+    );
+    expect(record).toEqual({ reason_code: 'TEMPLATE_PUBLISH' });
   });
 
   it('[Falha de banco] banco indisponível ao salvar → 503 com Retry-After', async () => {

@@ -207,6 +207,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Rascunho já existente',
     detail: 'Já existe um rascunho em edição para este template.',
   },
+  TEMPLATE_IN_USE: {
+    status: 409,
+    title: 'Template em uso',
+    detail: 'Publique outra versão antes de aposentar esta.',
+  },
   NOTIFICATION_NOT_FOUND: {
     status: 404,
     title: 'Notificação não encontrada',

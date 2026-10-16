@@ -20,8 +20,14 @@ import {
   DOCUMENT_TYPE_REPOSITORY,
 } from './application/ports.js';
 import { PreviewDocumentTypeImpactQuery } from './application/preview-document-type-impact.query.js';
+import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { TemplateContext } from './application/template-context.js';
+import {
+  CreateTemplateVersionCommand,
+  PublishTemplateVersionCommand,
+  RetireTemplateVersionCommand,
+} from './application/template-lifecycle.commands.js';
 import {
   CreateTemplateCommand,
   UpdateTemplateCommand,
@@ -53,8 +59,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 /**
  * Módulo `document` (DEC-040, nível 2): outros módulos usam somente as fachadas exportadas. Dono de
  * `DocumentType` (US-061: DTY-01..03, cache por tenant e semeadura dos tipos de sistema) e dos
- * templates (US-107: TPL-01..04/07/08 e o `TemplateContentValidator`); publicação de templates,
- * documentos e versões chegam com as stories seguintes. Autorização e MFA vêm de `access`/`identity`;
+ * templates (US-107: TPL-01..04/07/08 e o `TemplateContentValidator`; US-108: TPL-05/06/10/11 e o
+ * template padrão do tipo, DTY-04); documentos e versões chegam com as stories seguintes. Autorização e MFA vêm de `access`/`identity`;
  * a verificação de uso em fluxos publicados, da porta `DocumentTypeUsageProvider` (implementada
  * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040).
  */
@@ -87,6 +93,10 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateTemplateCommand,
     UpdateTemplateCommand,
     UpdateTemplateVersionContentCommand,
+    CreateTemplateVersionCommand,
+    PublishTemplateVersionCommand,
+    RetireTemplateVersionCommand,
+    SetDefaultTemplateCommand,
     PrismaTemplateRepository,
     InMemoryTemplateRepository,
     {

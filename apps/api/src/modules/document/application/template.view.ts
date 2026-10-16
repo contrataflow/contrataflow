@@ -1,6 +1,8 @@
 import type {
+  DocumentTypeDto,
   TemplateDto,
   TemplateVersionDto,
+  TemplateVersionHistoryItem,
   TemplateVersionSummary,
 } from '@contrataflow/validation';
 
@@ -35,11 +37,15 @@ function summaryOf(version: DocumentTemplateVersion): TemplateVersionSummary {
   };
 }
 
-/** `Template` de TPL-01..04: metadados, tipo e os resumos do rascunho e da versão publicada. */
+/**
+ * `Template` de TPL-01..04: metadados, tipo, se é o padrão do tipo (`isDefault` — DTY-04) e os
+ * resumos do rascunho e da versão publicada.
+ */
 export function toTemplateDto(
   template: DocumentTemplate,
   type: TemplateDocumentType,
   versions: readonly DocumentTemplateVersion[],
+  isDefault: boolean,
 ): TemplateDto {
   const own = versions.filter((version) => version.templateId === template.id);
   const draft = own.find((version) => version.status === 'DRAFT');
@@ -52,6 +58,7 @@ export function toTemplateDto(
     documentType: type,
     isActive: template.isActive,
     isSystem: template.isSystem,
+    isDefault,
     draftVersion: draft ? summaryOf(draft) : null,
     currentPublishedVersion: published ? summaryOf(published) : null,
     createdAt: template.createdAt.toISOString(),
@@ -84,8 +91,43 @@ export function toTemplateVersionDto(
       : null,
     publishedAt: version.publishedAt?.toISOString() ?? null,
     retiredAt: version.retiredAt?.toISOString() ?? null,
+    contentHash: version.contentHash,
     createdAt: version.createdAt.toISOString(),
     updatedAt: version.updatedAt.toISOString(),
     version: version.version,
   };
+}
+
+/** Item do histórico (TPL-05): a versão sem o conteúdo. */
+export function toTemplateVersionHistoryItem(
+  version: DocumentTemplateVersion,
+  template: DocumentTemplate,
+): TemplateVersionHistoryItem {
+  return {
+    id: version.id,
+    templateId: version.templateId,
+    versionNumber: version.versionNumber,
+    status: version.status,
+    sectionCount: version.sections.length,
+    changeNotes: version.changeNotes,
+    isCurrent: template.currentPublishedVersionId === version.id,
+    publishedAt: version.publishedAt?.toISOString() ?? null,
+    retiredAt: version.retiredAt?.toISOString() ?? null,
+    contentHash: version.contentHash,
+    createdAt: version.createdAt.toISOString(),
+    updatedAt: version.updatedAt.toISOString(),
+    version: version.version,
+  };
+}
+
+/** `DocumentType.defaultTemplate` (DTY-01..04): template padrão e a versão publicada corrente. */
+export type DefaultTemplateView = DocumentTypeDto['defaultTemplate'];
+
+export function toDefaultTemplateView(
+  template: DocumentTemplate,
+  published: DocumentTemplateVersion | null,
+): DefaultTemplateView {
+  return published
+    ? { id: template.id, name: template.name, versionNumber: published.versionNumber }
+    : null;
 }

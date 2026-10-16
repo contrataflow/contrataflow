@@ -27,6 +27,7 @@ import type {
   DocumentTransactions,
   DocumentTypeRepository,
 } from './ports.js';
+import { TemplateContext } from './template-context.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { DocumentTypeRuleError, updateDocumentType } from '../domain/document-type.js';
@@ -65,6 +66,7 @@ export class UpdateDocumentTypeCommand {
     private readonly policies: ApprovalPolicyValidator,
     private readonly usage: DocumentTypeUsageRegistry,
     private readonly facade: DocumentTypeFacade,
+    private readonly templateContext: TemplateContext,
   ) {}
 
   async execute(input: UpdateDocumentTypeInput): Promise<UpdateDocumentTypeResult> {
@@ -165,6 +167,10 @@ export class UpdateDocumentTypeCommand {
       );
       await this.facade.invalidate();
     }
-    return { type: toDocumentTypeDto(outcome.type, now) };
+    const defaults = await this.templateContext.defaultTemplatesOf([outcome.type]);
+    const defaultTemplate = outcome.type.defaultTemplateId
+      ? (defaults.get(outcome.type.defaultTemplateId) ?? null)
+      : null;
+    return { type: toDocumentTypeDto(outcome.type, now, defaultTemplate) };
   }
 }

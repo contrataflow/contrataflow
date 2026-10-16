@@ -1,3 +1,5 @@
+import type { TemplateVersionStatus } from '@contrataflow/validation';
+
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { DocumentTemplate, DocumentTemplateVersion } from '../domain/document-template.js';
@@ -29,6 +31,12 @@ export interface TemplateListFilter {
   /** Trecho do nome (sem diferenciar maiúsculas). */
   readonly q?: string | undefined;
   readonly isActive?: boolean | undefined;
+  readonly skip: number;
+  readonly take: number;
+}
+
+export interface TemplateVersionListFilter {
+  readonly status?: TemplateVersionStatus | undefined;
   readonly skip: number;
   readonly take: number;
 }
@@ -68,6 +76,47 @@ export interface TemplateRepository {
   updateVersionContent(
     tx: TenantTx,
     version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void>;
+  /** Página do histórico do template (TPL-05), da versão mais recente para a mais antiga. */
+  listVersions(
+    tx: TenantTx,
+    templateId: string,
+    filter: TemplateVersionListFilter,
+  ): Promise<{ readonly items: DocumentTemplateVersion[]; readonly totalItems: number }>;
+  /** Todas as versões do template, por número (RN-TPL-13/18). */
+  findAllVersions(tx: TenantTx, templateId: string): Promise<DocumentTemplateVersion[]>;
+  /**
+   * Novo rascunho (TPL-06).
+   * @throws TemplateDraftExistsError — índice parcial de rascunho único ou número já usado
+   */
+  insertVersion(tx: TenantTx, version: DocumentTemplateVersion): Promise<void>;
+  /**
+   * `DRAFT → PUBLISHED` (status, `publishedAt`/`publishedById`, `contentHash`) num `UPDATE` único
+   * condicionado a `expectedVersion` e ao estado `DRAFT` (DEC-055).
+   * @throws VersionConflictError
+   */
+  publishVersion(
+    tx: TenantTx,
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void>;
+  /**
+   * `PUBLISHED → RETIRED` (status, `retiredAt`/`retiredById`) condicionado a `expectedVersion`.
+   * @throws VersionConflictError
+   */
+  retireVersion(
+    tx: TenantTx,
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void>;
+  /**
+   * `currentPublishedVersionId` do template com `version = version + 1` (DEC-055).
+   * @throws VersionConflictError
+   */
+  updateCurrentPublishedVersion(
+    tx: TenantTx,
+    template: DocumentTemplate,
     expectedVersion: number,
   ): Promise<void>;
 }

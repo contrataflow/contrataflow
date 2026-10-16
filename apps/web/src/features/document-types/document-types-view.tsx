@@ -11,12 +11,19 @@ import {
   Skeleton,
   toast,
 } from '@contrataflow/ui';
-import type { DocumentKind, DocumentTypeDto } from '@contrataflow/validation';
+import type { DocumentKind, DocumentTypeDto, TemplateDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
+import { DefaultTemplateSelect } from '@/features/templates/default-template-select';
+import {
+  fetchTemplates,
+  templateKeys,
+  TEMPLATES_STALE_TIME_MS,
+} from '@/features/templates/templates.api';
 import { isApiError } from '@/lib/api/api-error';
+import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { DocumentTypeForm } from './document-type-form';
@@ -33,7 +40,8 @@ const GROUP_ORDER: readonly DocumentKind[] = ['STRUCTURED', 'FREE_TEXT', 'UPLOAD
  * SCR-108 (`/admin/tipos-documento` — US-061): tipos do tenant agrupados por natureza, com situação,
  * numeração, aprovação avulsa e template padrão. Quem chega aqui já passou pelo `DTY-01` com
  * `includeInactive` — a API só responde a quem tem `DOCUMENT_TYPE_MANAGE` —, então as ações de
- * gestão aparecem junto com a lista; 403 mostra "Acesso negado" no lugar da tela.
+ * gestão aparecem junto com a lista; 403 mostra "Acesso negado" no lugar da tela. Quem tem
+ * `TEMPLATE_PUBLISH` escolhe o template padrão de cada tipo (`DefaultTemplateSelect` — US-108).
  */
 export function DocumentTypesView() {
   const t = useTranslations('documentTypes');
@@ -48,6 +56,14 @@ export function DocumentTypesView() {
     queryKey: documentTypeKeys.list(tenantId),
     queryFn: async ({ signal }) => (await fetchDocumentTypes(signal)).data,
     staleTime: DOCUMENT_TYPES_STALE_TIME_MS,
+  });
+  const canPublish = usePermission('TEMPLATE_PUBLISH').allowed;
+  const templates = useQuery({
+    queryKey: templateKeys.list(tenantId),
+    queryFn: async ({ signal }) => (await fetchTemplates(signal)).data,
+    staleTime: TEMPLATES_STALE_TIME_MS,
+    enabled: canPublish,
+    throwOnError: false,
   });
 
   const setActive = useMutation({
@@ -127,6 +143,7 @@ export function DocumentTypesView() {
                 key={kind}
                 kind={kind}
                 types={group}
+                templates={canPublish ? (templates.data ?? null) : null}
                 onEdit={setEditing}
                 onDeactivate={(type) => {
                   setDeactivationError(null);
@@ -188,12 +205,15 @@ export function DocumentTypesView() {
 function TypeGroup({
   kind,
   types,
+  templates,
   onEdit,
   onDeactivate,
   onReactivate,
 }: {
   readonly kind: DocumentKind;
   readonly types: readonly DocumentTypeDto[];
+  /** Templates do tenant para o `DefaultTemplateSelect`; `null` = sem `TEMPLATE_PUBLISH`. */
+  readonly templates: readonly TemplateDto[] | null;
   readonly onEdit: (type: DocumentTypeDto) => void;
   readonly onDeactivate: (type: DocumentTypeDto) => void;
   readonly onReactivate: (type: DocumentTypeDto) => void;
@@ -240,6 +260,7 @@ function TypeGroup({
               <TypeRow
                 key={type.id}
                 type={type}
+                templates={templates}
                 onEdit={onEdit}
                 onDeactivate={onDeactivate}
                 onReactivate={onReactivate}
@@ -266,11 +287,13 @@ function Badge({ children, tone }: { readonly children: string; readonly tone: '
 
 function TypeRow({
   type,
+  templates,
   onEdit,
   onDeactivate,
   onReactivate,
 }: {
   readonly type: DocumentTypeDto;
+  readonly templates: readonly TemplateDto[] | null;
   readonly onEdit: (type: DocumentTypeDto) => void;
   readonly onDeactivate: (type: DocumentTypeDto) => void;
   readonly onReactivate: (type: DocumentTypeDto) => void;
@@ -303,7 +326,13 @@ function TypeRow({
       </td>
       <td className="px-3 py-2">{type.requiresApproval ? t('values.yes') : t('values.no')}</td>
       <td className="px-3 py-2">{t(`confidentiality.${type.defaultConfidentiality}`)}</td>
-      <td className="px-3 py-2 text-muted-foreground">{template}</td>
+      <td className="px-3 py-2 text-muted-foreground">
+        {templates && type.kind !== 'UPLOADED' ? (
+          <DefaultTemplateSelect type={type} templates={templates} />
+        ) : (
+          template
+        )}
+      </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-2">
           <Button

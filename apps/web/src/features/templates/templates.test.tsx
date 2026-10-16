@@ -50,6 +50,7 @@ function template(overrides: Partial<TemplateDto> = {}): TemplateDto {
     documentType: DESPACHO_TYPE,
     isActive: true,
     isSystem: false,
+    isDefault: false,
     draftVersion: {
       id: VERSION_ID,
       versionNumber: 1,
@@ -82,6 +83,7 @@ function version(overrides: Partial<TemplateVersionDto> = {}): TemplateVersionDt
     importSources: null,
     publishedAt: null,
     retiredAt: null,
+    contentHash: null,
     createdAt: NOW,
     updatedAt: NOW,
     version: 3,

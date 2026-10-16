@@ -14,8 +14,9 @@ import type {
 } from '@contrataflow/validation';
 
 import type { AuditChange } from '#shared/audit/audit-trail.js';
+import { canonicalJson, sha256Hex } from '#shared/integrity/canonical-json.js';
 
-import { validateTemplateContent } from './template-content.validator.js';
+import { FULL_VALIDATION, validateTemplateContent } from './template-content.validator.js';
 import type { TemplateValidationContext } from './template-content.validator.js';
 
 /*
@@ -85,6 +86,33 @@ export class TemplateContentInvalidError extends Error {
   constructor(readonly violations: readonly Violation[]) {
     super(`Conteúdo de template inválido: ${violations.map((v) => v.code).join(', ')}`);
     this.name = 'TemplateContentInvalidError';
+  }
+}
+
+/** RN-TPL-17: só a versão `PUBLISHED` é aposentada (`INVALID_STATE`). */
+export class TemplateVersionNotPublishedError extends Error {
+  constructor(readonly status: TemplateVersionStatus) {
+    super(`Versão de template em ${status} não pode ser aposentada.`);
+    this.name = 'TemplateVersionNotPublishedError';
+  }
+}
+
+/** RN-TPL-14: template inativo não publica versão. */
+export class TemplateInactiveError extends Error {
+  constructor(readonly templateId: string) {
+    super('Template inativo não publica versão.');
+    this.name = 'TemplateInactiveError';
+  }
+}
+
+/**
+ * RN-TPL-18: aposentar a versão corrente sem outra publicada para assumir, sendo o template padrão
+ * de um tipo de documento ativo (`TEMPLATE_IN_USE`).
+ */
+export class TemplateInUseError extends Error {
+  constructor(readonly documentTypeName: string) {
+    super('Template padrão de tipo ativo sem versão substituta.');
+    this.name = 'TemplateInUseError';
   }
 }
 
@@ -314,5 +342,157 @@ export function updateTemplateVersionContent(
     importMappingsChanged,
     changeNotesChanged,
     fieldsChanged,
+  };
+}
+
+/** Conteúdo que identifica a versão publicada (RN-TPL-15). */
+export interface TemplateHashedContent {
+  readonly sections: readonly SectionDefinition[];
+  readonly layout: LayoutDefinition;
+  readonly fieldConfig: FieldConfig;
+  readonly importMappings: ImportMappings | null;
+}
+
+/**
+ * `contentHash` (RN-TPL-15 · DEC-017): SHA-256 (hex minúsculo) do JSON canonicalizado (RFC 8785)
+ * de `{ sections, layout, fieldConfig, importMappings }` — a mesma rotina do `definitionHash` dos
+ * workflows e do `rowHash` da auditoria. Opcionais ausentes (`undefined`) não entram no hash.
+ */
+export function templateContentHash(content: TemplateHashedContent): string {
+  const plain: unknown = JSON.parse(
+    JSON.stringify({
+      sections: content.sections,
+      layout: content.layout,
+      fieldConfig: content.fieldConfig,
+      importMappings: content.importMappings,
+    }),
+  );
+  return sha256Hex(canonicalJson(plain));
+}
+
+export interface TemplatePublication {
+  readonly version: DocumentTemplateVersion;
+  readonly template: DocumentTemplate;
+}
+
+/**
+ * `DocumentTemplateVersion.publish()` (TPL-10 · RN-TPL-14/15): só o rascunho de template ativo;
+ * reexecuta o `TemplateContentValidator` com o escopo completo; a versão passa a `PUBLISHED` com
+ * `contentHash` e vira a `currentPublishedVersionId` do template. A versão anterior continua
+ * publicada (sem efeito retroativo — RN-TPL-16).
+ * @throws TemplateVersionNotDraftError
+ * @throws TemplateInactiveError
+ * @throws TemplateContentInvalidError
+ */
+export function publishTemplateVersion(
+  template: DocumentTemplate,
+  draft: DocumentTemplateVersion,
+  validation: TemplateValidationContext,
+  context: UpdateContext,
+): TemplatePublication {
+  if (draft.status !== 'DRAFT') throw new TemplateVersionNotDraftError(draft.status);
+  if (!template.isActive) throw new TemplateInactiveError(template.id);
+  const violations = validateTemplateContent(draft, validation, FULL_VALIDATION);
+  if (violations.length > 0) throw new TemplateContentInvalidError(violations);
+  return {
+    version: {
+      ...draft,
+      status: 'PUBLISHED',
+      publishedAt: context.now,
+      publishedById: context.userId,
+      contentHash: templateContentHash(draft),
+      updatedAt: context.now,
+      updatedById: context.userId,
+    },
+    template: {
+      ...template,
+      currentPublishedVersionId: draft.id,
+      updatedAt: context.now,
+      updatedById: context.userId,
+    },
+  };
+}
+
+export interface TemplateRetirement {
+  readonly version: DocumentTemplateVersion;
+  /** O template com a nova `currentPublishedVersionId`; `null` se ela não muda. */
+  readonly template: DocumentTemplate | null;
+}
+
+/**
+ * `DocumentTemplateVersion.retire()` (TPL-11 · RN-TPL-17/18): só a versão `PUBLISHED`. Se for a
+ * corrente do template, a publicada de maior número entre as demais assume; sem nenhuma, a
+ * corrente fica nula — salvo quando o template é padrão de um tipo ativo (`TEMPLATE_IN_USE`).
+ * @throws TemplateVersionNotPublishedError
+ * @throws TemplateInUseError
+ */
+export function retireTemplateVersion(
+  template: DocumentTemplate,
+  version: DocumentTemplateVersion,
+  otherPublished: readonly DocumentTemplateVersion[],
+  defaultOfActiveType: { readonly name: string } | null,
+  context: UpdateContext,
+): TemplateRetirement {
+  if (version.status !== 'PUBLISHED') throw new TemplateVersionNotPublishedError(version.status);
+  const retired: DocumentTemplateVersion = {
+    ...version,
+    status: 'RETIRED',
+    retiredAt: context.now,
+    retiredById: context.userId,
+    updatedAt: context.now,
+    updatedById: context.userId,
+  };
+  if (template.currentPublishedVersionId !== version.id)
+    return { version: retired, template: null };
+
+  const successor = otherPublished
+    .filter((other) => other.id !== version.id && other.status === 'PUBLISHED')
+    .sort((a, b) => b.versionNumber - a.versionNumber)[0];
+  if (!successor && defaultOfActiveType) throw new TemplateInUseError(defaultOfActiveType.name);
+  return {
+    version: retired,
+    template: {
+      ...template,
+      currentPublishedVersionId: successor?.id ?? null,
+      updatedAt: context.now,
+      updatedById: context.userId,
+    },
+  };
+}
+
+export interface NewVersionContext extends UpdateContext {
+  readonly versionId: string;
+}
+
+/**
+ * Nova versão (TPL-06 · RN-TPL-13): rascunho que clona `sections`/`layout`/`fieldConfig`/
+ * `importMappings` da versão de maior número (publicada ou aposentada), com o número seguinte.
+ * A unicidade do rascunho é garantida pelo índice parcial (`TEMPLATE_DRAFT_EXISTS`).
+ */
+export function newTemplateVersionFrom(
+  latest: DocumentTemplateVersion,
+  context: NewVersionContext,
+): DocumentTemplateVersion {
+  return {
+    id: context.versionId,
+    tenantId: latest.tenantId,
+    templateId: latest.templateId,
+    versionNumber: latest.versionNumber + 1,
+    status: 'DRAFT',
+    sections: structuredClone(latest.sections),
+    layout: structuredClone(latest.layout),
+    fieldConfig: structuredClone(latest.fieldConfig),
+    importMappings: latest.importMappings === null ? null : structuredClone(latest.importMappings),
+    changeNotes: null,
+    publishedAt: null,
+    publishedById: null,
+    retiredAt: null,
+    retiredById: null,
+    contentHash: null,
+    createdAt: context.now,
+    updatedAt: context.now,
+    createdById: context.userId,
+    updatedById: context.userId,
+    version: 1,
   };
 }

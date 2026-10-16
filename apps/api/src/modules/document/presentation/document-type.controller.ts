@@ -1,5 +1,6 @@
 import {
   dataEnvelope,
+  defaultTemplateSetSchema,
   documentTypeCreateSchema,
   documentTypeIdParamsSchema,
   documentTypeListQuerySchema,
@@ -7,12 +8,13 @@ import {
   documentTypeUpdateSchema,
 } from '@contrataflow/validation';
 import type {
+  DefaultTemplateSet,
   DocumentTypeCreate,
   DocumentTypeDto,
   DocumentTypeListQuery,
   DocumentTypeUpdate,
 } from '@contrataflow/validation';
-import { Controller, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
+import { Controller, Get, Headers, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
 
 import type { HttpResponse } from '#shared/http/http-types.js';
@@ -25,11 +27,15 @@ import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.
 
 import { CreateDocumentTypeCommand } from '../application/create-document-type.command.js';
 import { ListDocumentTypesQuery } from '../application/list-document-types.query.js';
+import { SetDefaultTemplateCommand } from '../application/set-default-template.command.js';
 import { UpdateDocumentTypeCommand } from '../application/update-document-type.command.js';
 
 const TAGS = ['Tipos de documento'];
 
-/** DTY-01..03 (api/03-documents.md · US-061): catálogo de tipos de documento do tenant. */
+/**
+ * DTY-01..04 (api/03-documents.md · US-061/US-108): catálogo de tipos de documento do tenant e o
+ * template padrão de cada tipo.
+ */
 @Controller('document-types')
 @TenantScope('TENANT')
 export class DocumentTypeController {
@@ -37,6 +43,7 @@ export class DocumentTypeController {
     private readonly list: ListDocumentTypesQuery,
     private readonly create: CreateDocumentTypeCommand,
     private readonly update: UpdateDocumentTypeCommand,
+    private readonly setDefault: SetDefaultTemplateCommand,
   ) {}
 
   @Get()
@@ -106,6 +113,37 @@ export class DocumentTypeController {
     const { type } = await this.update.execute({
       id: params.id,
       patch: body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${type.version}"`);
+    return type;
+  }
+
+  @Put(':id/default-template')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ApiOperation({
+    operationId: 'DTY-04',
+    summary: 'Definir template padrão do tipo',
+    tags: TAGS,
+    auditActions: ['document_type.update'],
+    responses: {
+      200: {
+        description:
+          'Tipo com o novo `defaultTemplate` (novo `ETag`); template de outro tipo → 422 `VALIDATION_ERROR`; sem versão publicada → 422 `BUSINESS_RULE_VIOLATION` (`TEMPLATE_NOT_PUBLISHED`).',
+        schema: dataEnvelope(documentTypeSchema),
+      },
+    },
+  })
+  async setDefaultTemplate(
+    @ZodParams(documentTypeIdParamsSchema) params: { id: string },
+    @ZodBody(defaultTemplateSetSchema) body: DefaultTemplateSet,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentTypeDto> {
+    const type = await this.setDefault.execute({
+      documentTypeId: params.id,
+      templateId: body.templateId,
       expectedVersion: ifMatch?.value ?? 0,
     });
     response.setHeader('ETag', `"${type.version}"`);

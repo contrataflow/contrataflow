@@ -5,7 +5,11 @@ import { VersionConflictError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { TemplateDraftExistsError, TemplateNameTakenError } from '../application/template.ports.js';
-import type { TemplateListFilter, TemplateRepository } from '../application/template.ports.js';
+import type {
+  TemplateListFilter,
+  TemplateRepository,
+  TemplateVersionListFilter,
+} from '../application/template.ports.js';
 import { templateNameKey } from '../domain/document-template.js';
 import type { DocumentTemplate, DocumentTemplateVersion } from '../domain/document-template.js';
 
@@ -126,6 +130,96 @@ export class InMemoryTemplateRepository implements TemplateRepository {
   ): Promise<void> {
     const current = this.versionsInTenant().find((existing) => existing.id === version.id);
     if (current?.version !== expectedVersion || current.status !== 'DRAFT') {
+      return Promise.reject(
+        new VersionConflictError({
+          aggregateType: 'DocumentTemplateVersion',
+          aggregateId: version.id,
+          expectedVersion,
+        }),
+      );
+    }
+    this.versions.set(version.id, { ...version, version: expectedVersion + 1 });
+    return Promise.resolve();
+  }
+
+  listVersions(_tx: TenantTx, templateId: string, filter: TemplateVersionListFilter) {
+    const all = this.versionsInTenant()
+      .filter((version) => version.templateId === templateId)
+      .filter((version) => !filter.status || version.status === filter.status)
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+    return Promise.resolve({
+      items: all.slice(filter.skip, filter.skip + filter.take),
+      totalItems: all.length,
+    });
+  }
+
+  findAllVersions(_tx: TenantTx, templateId: string): Promise<DocumentTemplateVersion[]> {
+    return Promise.resolve(
+      this.versionsInTenant()
+        .filter((version) => version.templateId === templateId)
+        .sort((a, b) => a.versionNumber - b.versionNumber),
+    );
+  }
+
+  insertVersion(_tx: TenantTx, version: DocumentTemplateVersion): Promise<void> {
+    const taken = this.versionsInTenant().some(
+      (other) =>
+        other.templateId === version.templateId &&
+        (other.status === 'DRAFT' || other.versionNumber === version.versionNumber),
+    );
+    if (taken) return Promise.reject(new TemplateDraftExistsError(version.templateId));
+    this.versions.set(version.id, version);
+    return Promise.resolve();
+  }
+
+  publishVersion(
+    _tx: TenantTx,
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void> {
+    return this.transitionVersion(version, expectedVersion, 'DRAFT');
+  }
+
+  retireVersion(
+    _tx: TenantTx,
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void> {
+    return this.transitionVersion(version, expectedVersion, 'PUBLISHED');
+  }
+
+  updateCurrentPublishedVersion(
+    _tx: TenantTx,
+    template: DocumentTemplate,
+    expectedVersion: number,
+  ): Promise<void> {
+    const current = this.templatesInTenant().find((existing) => existing.id === template.id);
+    if (current?.version !== expectedVersion) {
+      return Promise.reject(
+        new VersionConflictError({
+          aggregateType: 'DocumentTemplate',
+          aggregateId: template.id,
+          expectedVersion,
+        }),
+      );
+    }
+    this.templates.set(template.id, {
+      ...current,
+      currentPublishedVersionId: template.currentPublishedVersionId,
+      updatedAt: template.updatedAt,
+      updatedById: template.updatedById,
+      version: expectedVersion + 1,
+    });
+    return Promise.resolve();
+  }
+
+  private transitionVersion(
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+    from: DocumentTemplateVersion['status'],
+  ): Promise<void> {
+    const current = this.versionsInTenant().find((existing) => existing.id === version.id);
+    if (current?.version !== expectedVersion || current.status !== from) {
       return Promise.reject(
         new VersionConflictError({
           aggregateType: 'DocumentTemplateVersion',

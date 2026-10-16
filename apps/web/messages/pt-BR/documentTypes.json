@@ -123,5 +123,15 @@
     "blocked": "Este tipo não pode ser desativado agora.",
     "confirm": "Desativar",
     "cancel": "Cancelar"
+  },
+  "defaultTemplate": {
+    "label": "Template padrão de {name}",
+    "placeholder": "Sem template padrão",
+    "notPublished": "{name} (sem versão publicada)",
+    "inactive": "{name} (inativo)",
+    "version": "{name} — v{number}",
+    "saved": "Template padrão de \"{type}\" definido: {template}.",
+    "conflict": "O tipo foi alterado por outra pessoa. A lista foi recarregada; tente novamente.",
+    "generic": "Não foi possível definir o template padrão."
   }
 }

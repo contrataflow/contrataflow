@@ -6,7 +6,9 @@ import {
   templateListQuerySchema,
   templateSchema,
   templateUpdateSchema,
+  templateVersionHistoryItemSchema,
   templateVersionIdParamsSchema,
+  templateVersionListQuerySchema,
   templateVersionSchema,
   templateVersionUpdateSchema,
 } from '@contrataflow/validation';
@@ -16,6 +18,8 @@ import type {
   TemplateListQuery,
   TemplateUpdate,
   TemplateVersionDto,
+  TemplateVersionHistoryItem,
+  TemplateVersionListQuery,
   TemplateVersionUpdate,
 } from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
@@ -31,6 +35,11 @@ import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import {
+  CreateTemplateVersionCommand,
+  PublishTemplateVersionCommand,
+  RetireTemplateVersionCommand,
+} from '../application/template-lifecycle.commands.js';
+import {
   CreateTemplateCommand,
   UpdateTemplateCommand,
   UpdateTemplateVersionContentCommand,
@@ -39,7 +48,10 @@ import { TemplateQueries } from '../application/template.queries.js';
 
 const TAGS = ['Templates'];
 
-/** TPL-01..04/07/08 (api/04-templates.md · US-107): templates de documento e rascunho de versão. */
+/**
+ * TPL-01..08/10/11 (api/04-templates.md · US-107/US-108): templates de documento, rascunho de versão
+ * e ciclo de vida das versões (nova versão, publicar, aposentar).
+ */
 @Controller()
 @TenantScope('TENANT')
 export class TemplateController {
@@ -48,6 +60,9 @@ export class TemplateController {
     private readonly create: CreateTemplateCommand,
     private readonly update: UpdateTemplateCommand,
     private readonly updateContent: UpdateTemplateVersionContentCommand,
+    private readonly createVersion: CreateTemplateVersionCommand,
+    private readonly publish: PublishTemplateVersionCommand,
+    private readonly retire: RetireTemplateVersionCommand,
   ) {}
 
   @Get('templates')
@@ -191,6 +206,119 @@ export class TemplateController {
     const version = await this.updateContent.execute({
       versionId: params.versionId,
       patch: body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${version.version}"`);
+    return version;
+  }
+
+  @Get('templates/:id/versions')
+  @ApiOperation({
+    operationId: 'TPL-05',
+    summary: 'Listar versões do template',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Histórico de versões (filtro `status`), da mais recente para a mais antiga, sem o conteúdo (lido por TPL-07).',
+        schema: pageEnvelope(templateVersionHistoryItemSchema),
+      },
+    },
+  })
+  async listTemplateVersions(
+    @ZodParams(templateIdParamsSchema) params: { id: string },
+    @ZodQuery(templateVersionListQuerySchema) query: TemplateVersionListQuery,
+  ): Promise<PageResult<TemplateVersionHistoryItem>> {
+    const page = await this.queries.listVersions(params.id, query);
+    return pageResult(page.items, query, page.totalItems);
+  }
+
+  @Post('templates/:id/versions')
+  @Idempotent()
+  @ApiOperation({
+    operationId: 'TPL-06',
+    summary: 'Criar nova versão do template (rascunho)',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['template.version_create'],
+    responses: {
+      201: {
+        description:
+          'Rascunho que clona a versão mais recente (`Location` e `ETag` = versão); rascunho existente → 409 `TEMPLATE_DRAFT_EXISTS`.',
+        schema: dataEnvelope(templateVersionSchema),
+      },
+    },
+  })
+  async createTemplateVersion(
+    @ZodParams(templateIdParamsSchema) params: { id: string },
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<TemplateVersionDto> {
+    const version = await this.createVersion.execute({
+      templateId: params.id,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('Location', `/api/v1/template-versions/${version.id}`);
+    response.setHeader('ETag', `"${version.version}"`);
+    return version;
+  }
+
+  @Post('template-versions/:versionId/publish')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ApiOperation({
+    operationId: 'TPL-10',
+    summary: 'Publicar versão do template',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['template.version_publish'],
+    responses: {
+      200: {
+        description:
+          'Versão publicada (imutável, com `contentHash`) e corrente do template (novo `ETag`); pendências → 422 `TEMPLATE_INVALID` com `violations[]`.',
+        schema: dataEnvelope(templateVersionSchema),
+      },
+    },
+  })
+  async publishTemplateVersion(
+    @ZodParams(templateVersionIdParamsSchema) params: { versionId: string },
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<TemplateVersionDto> {
+    const version = await this.publish.execute({
+      versionId: params.versionId,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${version.version}"`);
+    return version;
+  }
+
+  @Post('template-versions/:versionId/retire')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ApiOperation({
+    operationId: 'TPL-11',
+    summary: 'Aposentar versão do template',
+    tags: TAGS,
+    auditActions: ['template.version_retire'],
+    responses: {
+      200: {
+        description:
+          'Versão aposentada (novo `ETag`); versão corrente sem substituta e padrão de tipo ativo → 409 `TEMPLATE_IN_USE`.',
+        schema: dataEnvelope(templateVersionSchema),
+      },
+    },
+  })
+  async retireTemplateVersion(
+    @ZodParams(templateVersionIdParamsSchema) params: { versionId: string },
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<TemplateVersionDto> {
+    const version = await this.retire.execute({
+      versionId: params.versionId,
       expectedVersion: ifMatch?.value ?? 0,
     });
     response.setHeader('ETag', `"${version.version}"`);

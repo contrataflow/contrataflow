@@ -19,6 +19,8 @@ export const DOMAIN_EVENT_NAMES = [
   'WorkflowCreated',
   'WorkflowVersionPublished',
   'WorkflowVersionRetired',
+  'TemplateVersionPublished',
+  'TemplateVersionRetired',
   'RoleCreated',
   'RoleUpdated',
   'DepartmentCreated',

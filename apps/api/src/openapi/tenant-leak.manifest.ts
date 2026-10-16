@@ -74,7 +74,7 @@ const WORKFLOW_ROUTE =
   'Workflows (US-040): exige WORKFLOW_VIEW/WORKFLOW_MANAGE e a suíte genérica ainda não tem fixture de workflow do tenant B; o isolamento (404 em WF-03/04/07..18 com ids de B, 422 REFERENCE_NOT_FOUND em toStageId/copyFromVersionId de B e RLS das 5 tabelas) é coberto em test/tenant-leak/workflows.spec.ts, com administradores nos dois tenants.';
 
 const TEMPLATE_ROUTE =
-  'Templates (US-107): exige TEMPLATE_VIEW/TEMPLATE_MANAGE e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/07/08 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
+  'Templates (US-107/US-108): exige TEMPLATE_VIEW/TEMPLATE_MANAGE/TEMPLATE_PUBLISH e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/05/06/07/08/10/11 e DTY-04 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
 
 const PROCESS_ACTIONS_ROUTE =
   'Ações e checklist do processo (US-041): a tabela processes nasce com a US-001, então a suíte genérica ainda não tem fixture de processo do tenant B. O isolamento (processo de outro tenant → 404 NOT_FOUND sem revelar nada, mesmo corpo do inexistente, e RLS de workflow_versions/workflow_rules impedindo ler a definição de B) é coberto em test/tenant-leak/process-actions.spec.ts.';
@@ -100,6 +100,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
     kind: 'exempt',
     reason: DOCUMENT_TYPE_ADMIN_ROUTE,
   },
+  'DTY-04': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'DEP-01': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
   'DEP-02': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
   'DEP-03': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
@@ -150,8 +151,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'TPL-02': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-03': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-04': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-05': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-06': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-07': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-08': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-10': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-11': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'ROL-01': {
     kind: 'exempt',
     reason:

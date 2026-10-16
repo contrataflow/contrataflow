@@ -193,7 +193,20 @@ function previewOf(type) {
 }
 
 function documentTypeView(type) {
-  return { ...type, nextNumberPreview: previewOf(type) };
+  // US-108: o padrão do tipo com a versão publicada corrente do template.
+  const template = templates.find((item) => item.id === type.defaultTemplateId);
+  const published = templateVersions.find(
+    (version) => version.id === template?.currentPublishedVersionId,
+  );
+  const { defaultTemplateId: _defaultTemplateId, ...rest } = type;
+  return {
+    ...rest,
+    nextNumberPreview: previewOf(type),
+    defaultTemplate:
+      template && published
+        ? { id: template.id, name: template.name, versionNumber: published.versionNumber }
+        : null,
+  };
 }
 
 // Perfis (US-095 · ROL-01..08): catálogo reduzido e perfis em memória, só o necessário para a
@@ -341,13 +354,29 @@ function templateTypeOf(template) {
     defaultConfidentiality: type.defaultConfidentiality,
   };
 }
+function versionSummary(version) {
+  return {
+    id: version.id,
+    versionNumber: version.versionNumber,
+    status: version.status,
+    sectionCount: version.sections.length,
+    updatedAt: version.updatedAt,
+    publishedAt: version.publishedAt,
+  };
+}
 function templateView(template) {
   const draft = templateVersions.find(
     (version) => version.templateId === template.id && version.status === 'DRAFT',
   );
+  const published = templateVersions.find(
+    (version) => version.id === template.currentPublishedVersionId,
+  );
   return {
     ...template,
     documentType: templateTypeOf(template),
+    isDefault: documentTypes.some(
+      (type) => type.isActive && type.defaultTemplateId === template.id,
+    ),
     draftVersion: draft
       ? {
           id: draft.id,
@@ -358,7 +387,26 @@ function templateView(template) {
           publishedAt: null,
         }
       : null,
-    currentPublishedVersion: null,
+    currentPublishedVersion: published ? versionSummary(published) : null,
+  };
+}
+// US-108 (TPL-05): histórico sem o conteúdo.
+function versionHistoryItem(version) {
+  const template = templates.find((item) => item.id === version.templateId);
+  return {
+    id: version.id,
+    templateId: version.templateId,
+    versionNumber: version.versionNumber,
+    status: version.status,
+    sectionCount: version.sections.length,
+    changeNotes: version.changeNotes,
+    isCurrent: template.currentPublishedVersionId === version.id,
+    publishedAt: version.publishedAt,
+    retiredAt: version.retiredAt,
+    contentHash: version.contentHash,
+    createdAt: version.createdAt,
+    updatedAt: version.updatedAt,
+    version: version.version,
   };
 }
 function templateVersionView(version) {
@@ -468,6 +516,7 @@ createServer(async (request, response) => {
             { code: 'DEPARTMENT_MANAGE', scopes: [] },
             { code: 'TEMPLATE_VIEW', scopes: [] },
             { code: 'TEMPLATE_MANAGE', scopes: [] },
+            { code: 'TEMPLATE_PUBLISH', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -1006,6 +1055,7 @@ createServer(async (request, response) => {
       documentTypeId: body.documentTypeId,
       isActive: true,
       isSystem: false,
+      currentPublishedVersionId: null,
       createdAt: now,
       updatedAt: now,
       version: 1,
@@ -1024,6 +1074,7 @@ createServer(async (request, response) => {
       importSources: null,
       publishedAt: null,
       retiredAt: null,
+      contentHash: null,
       createdAt: now,
       updatedAt: now,
       version: 1,
@@ -1034,6 +1085,115 @@ createServer(async (request, response) => {
       { data: templateView(template) },
       { Location: `/api/v1/templates/${template.id}`, ETag: '"1"' },
     );
+  }
+  // US-108: publicar (TPL-10) e aposentar (TPL-11) com If-Match; nova versão (TPL-06) e histórico
+  // (TPL-05); padrão do tipo (DTY-04). O conteúdo é conferido pela API real, não aqui.
+  const lifecycleRoute = /^\/api\/v1\/template-versions\/([0-9a-f-]{36})\/(publish|retire)$/.exec(
+    url.pathname,
+  );
+  if (lifecycleRoute && request.method === 'POST') {
+    const version = templateVersions.find((item) => item.id === lifecycleRoute[1]);
+    if (!version) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const template = templates.find((item) => item.id === version.templateId);
+    if (String(request.headers['if-match'] ?? '') !== `"${version.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const now = new Date().toISOString();
+    if (lifecycleRoute[2] === 'publish') {
+      if (version.status !== 'DRAFT') {
+        return problem(response, 409, 'TEMPLATE_VERSION_NOT_DRAFT', String(correlationId));
+      }
+      Object.assign(version, {
+        status: 'PUBLISHED',
+        publishedAt: now,
+        contentHash: randomUUID().replaceAll('-', '').repeat(2),
+      });
+      template.currentPublishedVersionId = version.id;
+    } else {
+      if (version.status !== 'PUBLISHED') {
+        return problem(response, 409, 'INVALID_STATE', String(correlationId));
+      }
+      const others = templateVersions
+        .filter((item) => item.templateId === template.id && item.status === 'PUBLISHED')
+        .filter((item) => item.id !== version.id)
+        .sort((a, b) => b.versionNumber - a.versionNumber);
+      const isDefault = documentTypes.some(
+        (type) => type.isActive && type.defaultTemplateId === template.id,
+      );
+      if (template.currentPublishedVersionId === version.id) {
+        if (others.length === 0 && isDefault) {
+          return problem(response, 409, 'TEMPLATE_IN_USE', String(correlationId));
+        }
+        template.currentPublishedVersionId = others[0]?.id ?? null;
+      }
+      Object.assign(version, { status: 'RETIRED', retiredAt: now });
+    }
+    Object.assign(version, { version: version.version + 1, updatedAt: now });
+    return send(
+      response,
+      200,
+      { data: templateVersionView(version) },
+      { ETag: `"${version.version}"` },
+    );
+  }
+  const versionsRoute = /^\/api\/v1\/templates\/([0-9a-f-]{36})\/versions$/.exec(url.pathname);
+  if (versionsRoute) {
+    const template = templates.find((item) => item.id === versionsRoute[1]);
+    if (!template) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const own = templateVersions
+      .filter((item) => item.templateId === template.id)
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+    if (request.method === 'GET') {
+      return send(response, 200, {
+        data: own.map(versionHistoryItem),
+        meta: { page: 1, pageSize: 100, totalItems: own.length, totalPages: 1 },
+      });
+    }
+    if (request.method === 'POST') {
+      const draft = own.find((item) => item.status === 'DRAFT');
+      if (draft) return problem(response, 409, 'TEMPLATE_DRAFT_EXISTS', String(correlationId));
+      const latest = own[0];
+      const now = new Date().toISOString();
+      const created = {
+        ...structuredClone(latest),
+        id: mockUuid(),
+        versionNumber: latest.versionNumber + 1,
+        status: 'DRAFT',
+        changeNotes: null,
+        publishedAt: null,
+        retiredAt: null,
+        contentHash: null,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      };
+      templateVersions.push(created);
+      return send(
+        response,
+        201,
+        { data: templateVersionView(created) },
+        { Location: `/api/v1/template-versions/${created.id}`, ETag: '"1"' },
+      );
+    }
+  }
+  const defaultTemplateRoute =
+    /^\/api\/v1\/document-types\/([0-9a-f-]{36})\/default-template$/.exec(url.pathname);
+  if (defaultTemplateRoute && request.method === 'PUT') {
+    const type = documentTypes.find((item) => item.id === defaultTemplateRoute[1]);
+    if (!type) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${type.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const template = templates.find((item) => item.id === body.templateId);
+    if (!template) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (!template.currentPublishedVersionId) {
+      return problem(response, 422, 'BUSINESS_RULE_VIOLATION', String(correlationId));
+    }
+    if (type.defaultTemplateId !== template.id) {
+      Object.assign(type, { defaultTemplateId: template.id, version: type.version + 1 });
+    }
+    return send(response, 200, { data: documentTypeView(type) }, { ETag: `"${type.version}"` });
   }
   const templateVersionRoute = /^\/api\/v1\/template-versions\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (templateVersionRoute) {

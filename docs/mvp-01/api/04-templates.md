@@ -30,7 +30,7 @@
 - **Response:** `200 { data: Template[], meta }`.
 - **Erros:** — (apenas `200` documentado na fonte; erros genéricos de acesso seguem api.md §2 quando aplicável).
 - **Efeitos:** —
-- **Notas:** Lista usada para seleção de template em `DOC-02`/wizards tipados e para a tela de administração de templates. **Implementação (US-107):** filtros `documentTypeId`, `q` (trecho do nome, sem maiúsculas) e `isActive`; `pageSize` padrão 50 (máx. 100); ordenação por nome. `Template` = `{ id, name, description, documentTypeId, documentType: { id, code, name, kind, systemModule, defaultConfidentiality }, isActive, isSystem, draftVersion, currentPublishedVersion, createdAt, updatedAt, version }`, com `draftVersion`/`currentPublishedVersion` = `{ id, versionNumber, status, sectionCount, updatedAt, publishedAt } | null`.
+- **Notas:** Lista usada para seleção de template em `DOC-02`/wizards tipados e para a tela de administração de templates. **Implementação (US-108):** `Template` ganha `isDefault` (é o `defaultTemplateId` do seu tipo ativo — DTY-04). **Implementação (US-107):** filtros `documentTypeId`, `q` (trecho do nome, sem maiúsculas) e `isActive`; `pageSize` padrão 50 (máx. 100); ordenação por nome. `Template` = `{ id, name, description, documentTypeId, documentType: { id, code, name, kind, systemModule, defaultConfidentiality }, isActive, isSystem, draftVersion, currentPublishedVersion, createdAt, updatedAt, version }`, com `draftVersion`/`currentPublishedVersion` = `{ id, versionNumber, status, sectionCount, updatedAt, publishedAt } | null`.
 
 ### TPL-02 — Criar template
 `POST /api/v1/templates` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-107
@@ -88,7 +88,7 @@
   |---|---|---|
   | 404 | `NOT_FOUND` | Template inexistente/outro tenant |
 - **Efeitos:** —
-- **Notas:** Histórico de versões, inclusive `changeNotes` de cada uma.
+- **Notas:** Histórico de versões, inclusive `changeNotes` de cada uma. **Implementação (US-108):** ordem da versão mais recente para a mais antiga; `pageSize` padrão 50 (máx. 100). Cada item é o `TemplateVersionHistoryItem` — a versão sem o conteúdo (lido por `TPL-07`): `{ id, templateId, versionNumber, status, sectionCount, changeNotes, isCurrent, publishedAt, retiredAt, contentHash, createdAt, updatedAt, version }`, com `isCurrent` = é a `currentPublishedVersionId` do template e `version` = `If-Match` de `TPL-10`/`TPL-11`.
 
 ### TPL-06 — Criar nova versão do template (rascunho)
 `POST /api/v1/templates/{id}/versions` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-108
@@ -103,7 +103,7 @@
   | 404 | `NOT_FOUND` | Template inexistente/outro tenant |
   | 409 | `TEMPLATE_DRAFT_EXISTS` | Já existe uma versão `DRAFT` em edição para este template |
 - **Efeitos:** Nenhum evento de domínio (criação de rascunho gera só auditoria `template.version_create` (events.md §7)).
-- **Notas:** Apenas um rascunho por template (RN implícita — `TEMPLATE_DRAFT_EXISTS`); publicar (`TPL-10`) ou aposentar (`TPL-11`) libera a criação de um novo.
+- **Notas:** Apenas um rascunho por template (RN implícita — `TEMPLATE_DRAFT_EXISTS`); publicar (`TPL-10`) ou aposentar (`TPL-11`) libera a criação de um novo. **Implementação (US-108):** clona `sections`/`layout`/`fieldConfig`/`importMappings` da versão de maior número (publicada ou aposentada; `changeNotes` começa vazio) com `versionNumber = max + 1`; `Location` e `ETag` = `"1"`. O 409 traz `meta.draftVersionId` (o rascunho existente); na corrida de duas solicitações, o índice parcial decide e a segunda recebe `meta.draftVersionId = null` (a UI recarrega o template). Auditoria `template.version_create`: `metadata.templateVersionId`, `versionNumber`, `clonedFromVersionId`, `idempotencyKey`.
 
 ### TPL-07 — Consultar versão do template
 `GET /api/v1/template-versions/{versionId}` · **Permissão:** `TEMPLATE_VIEW` (versão publicada: critério de visibilidade simplificado, impl.) · **Story:** US-107
@@ -172,7 +172,7 @@
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `TEMPLATE_INVALID` | Violações bloqueantes impedem a publicação |
 - **Efeitos:** Evento `TemplateVersionPublished` (`template.version_published`) — payload `templateId`, `templateVersionId`, `versionNumber`, `documentTypeCode`, `contentHash`. Auditoria `template.version_publish` (`CONFIGURATION`): `metadata.templateVersionId`, `versionNumber`, `contentHash`, `idempotencyKey`.
-- **Notas:** Publicação é definitiva (versão passa a imutável); nova edição exige `TPL-06` (novo rascunho).
+- **Notas:** Publicação é definitiva (versão passa a imutável); nova edição exige `TPL-06` (novo rascunho). **Implementação (US-108):** template inativo não publica → 409 `INVALID_STATE` (RN-TPL-14). A versão anterior continua `PUBLISHED` (sem efeito retroativo — RN-TPL-16); `currentPublishedVersionId` passa à recém-publicada na mesma transação. `contentHash` = SHA-256 do JCS (RFC 8785) de `{ sections, layout, fieldConfig, importMappings }` (rotina compartilhada `canonicalJson`/`sha256Hex`, a mesma do `definitionHash` dos workflows). A resposta (`TemplateVersion`) passa a trazer `contentHash`. Auditoria com `changes.currentPublishedVersionId` (anterior → nova). `TemplateVersionPublished` não tem consumidor assíncrono no MVP 1 (templates não têm cache).
 
 ### TPL-11 — Aposentar versão do template
 `POST /api/v1/template-versions/{versionId}/retire` · **Permissão:** `TEMPLATE_PUBLISH` · **Story:** US-108
@@ -189,7 +189,7 @@
   | 409 | `TEMPLATE_IN_USE` | É a versão corrente, sem substituta publicada, e é padrão de algum tipo de documento (`DTY-04`) |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 - **Efeitos:** Evento `TemplateVersionRetired` (`template.version_retired`) — payload `templateId`, `templateVersionId`. Auditoria `template.version_retire`: `metadata.templateVersionId`.
-- **Notas:** Para trocar o padrão de um tipo de documento antes de aposentar, usar `DTY-04` ([03-documents.md](03-documents.md)).
+- **Notas:** Para trocar o padrão de um tipo de documento antes de aposentar, usar `DTY-04` ([03-documents.md](03-documents.md)). **Implementação (US-108):** aposentar a versão corrente com outra `PUBLISHED` → a de maior número assume `currentPublishedVersionId`; sem nenhuma e sem ser padrão de tipo ativo → `currentPublishedVersionId = null`. O padrão é lido na transação (não do cache). Auditoria com `changes.currentPublishedVersionId` quando a corrente muda.
 
 ### TPL-12 — Consultar prévia efêmera do template
 `GET /api/v1/template-versions/{versionId}/preview/{renditionId}` · **Permissão:** `TEMPLATE_VIEW` · **Story:** US-109

@@ -27,7 +27,8 @@
   "badges": {
     "active": "Ativo",
     "inactive": "Inativo",
-    "system": "Modelo padrão da plataforma"
+    "system": "Modelo padrão da plataforma",
+    "default": "Padrão do tipo"
   },
   "values": {
     "draft": "Rascunho v{number} ({sections, plural, =0 {sem seções} one {# seção} other {# seções}})",
@@ -40,7 +41,9 @@
     "viewContent": "Ver conteúdo de {name}",
     "viewContentLabel": "Ver",
     "editData": "Editar dados de {name}",
-    "editDataLabel": "Editar dados"
+    "editDataLabel": "Editar dados",
+    "versions": "Versões de {name}",
+    "versionsLabel": "Versões"
   },
   "form": {
     "createTitle": "Novo template",
@@ -200,5 +203,77 @@
   },
   "violations": {
     "general": "Problemas no template"
+  },
+  "versions": {
+    "back": "Voltar para templates",
+    "loading": "Carregando o histórico de versões…",
+    "loadFailed": "Não foi possível carregar o histórico de versões.",
+    "heading": "Versões",
+    "subtitle": "Tipo: {type}",
+    "newVersion": "Iniciar nova versão",
+    "creating": "Criando…",
+    "draftExists": "Já existe um rascunho em edição para este template.",
+    "openDraft": "Abrir rascunho",
+    "caption": "Histórico de versões do template",
+    "empty": "Nenhuma versão.",
+    "table": {
+      "number": "Versão",
+      "status": "Situação",
+      "publishedAt": "Publicada em",
+      "retiredAt": "Aposentada em",
+      "hash": "Hash do conteúdo",
+      "notes": "Notas da versão",
+      "actions": "Ações"
+    },
+    "status": {
+      "DRAFT": "Rascunho",
+      "PUBLISHED": "Publicada",
+      "RETIRED": "Aposentada"
+    },
+    "current": "Corrente",
+    "number": "v{number}",
+    "noValue": "—",
+    "actions": {
+      "edit": "Editar rascunho v{number}",
+      "editLabel": "Editar",
+      "view": "Ver versão {number}",
+      "viewLabel": "Ver",
+      "publish": "Publicar versão {number}",
+      "publishLabel": "Publicar versão",
+      "retire": "Aposentar versão {number}",
+      "retireLabel": "Aposentar"
+    },
+    "publishBlocked": "Resolva as pendências do rascunho no editor antes de publicar.",
+    "retireBlocked": "Única versão publicada de um template padrão: publique outra versão antes de aposentar esta.",
+    "publish": {
+      "title": "Publicar a versão {number}?",
+      "description": "A versão publicada fica imutável e passa a ser usada nos documentos novos. Documentos já criados continuam com a versão da sua criação.",
+      "checking": "Conferindo o conteúdo do rascunho…",
+      "violationsTitle": "O template tem pendências que impedem a publicação.",
+      "confirm": "Publicar",
+      "publishing": "Publicando…",
+      "cancel": "Cancelar",
+      "openEditor": "Abrir no editor"
+    },
+    "retire": {
+      "title": "Aposentar a versão {number}?",
+      "description": "A versão aposentada não poderá ser usada em novos documentos. Os documentos existentes continuam a referenciá-la.",
+      "inUse": "Publique outra versão antes de aposentar esta, pois ela é a versão padrão do tipo \"{type}\".",
+      "confirm": "Aposentar",
+      "retiring": "Aposentando…",
+      "cancel": "Cancelar"
+    },
+    "errors": {
+      "conflict": "O recurso foi alterado por outra pessoa. Recarregue e tente novamente.",
+      "state": "Esta ação não é permitida no estado atual da versão.",
+      "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "generic": "Não foi possível concluir a ação."
+    },
+    "toast": {
+      "published": "Versão {number} publicada (hash {hash}).",
+      "retired": "Versão {number} aposentada.",
+      "created": "Versão {number} criada em rascunho."
+    }
   }
 }

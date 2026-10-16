@@ -339,3 +339,50 @@ export function updateDocumentType(
       (changedFields.includes('approvalPolicy') || changedFields.includes('requiresApproval')),
   };
 }
+
+/** O que DTY-04 confere do template escolhido como padrão (RN-TPL-19). */
+export interface DefaultTemplateCandidate {
+  readonly id: string;
+  readonly documentTypeId: string;
+  readonly isActive: boolean;
+  readonly currentPublishedVersionId: string | null;
+}
+
+/** RN-TPL-19: o template é de outro tipo (`VALIDATION_ERROR`) ou não tem versão publicada. */
+export class DefaultTemplateRuleError extends Error {
+  constructor(readonly reason: 'OTHER_TYPE' | 'NOT_PUBLISHED') {
+    super(`Template padrão recusado: ${reason}.`);
+    this.name = 'DefaultTemplateRuleError';
+  }
+}
+
+/**
+ * `DocumentType.setDefaultTemplate` (DTY-04 · RN-TPL-19/20): template do mesmo tipo, ativo e com
+ * versão publicada. Substitui o padrão anterior sem tocá-lo (ele segue disponível para ser
+ * escolhido de novo). O mesmo template já padrão → `changed = false`.
+ * @throws DefaultTemplateRuleError
+ */
+export function setDefaultTemplate(
+  current: DocumentType,
+  template: DefaultTemplateCandidate,
+  context: { readonly now: Date; readonly userId: string | null },
+): { readonly next: DocumentType; readonly changed: boolean; readonly changes: AuditChange[] } {
+  if (template.documentTypeId !== current.id) throw new DefaultTemplateRuleError('OTHER_TYPE');
+  if (!template.isActive || template.currentPublishedVersionId === null) {
+    throw new DefaultTemplateRuleError('NOT_PUBLISHED');
+  }
+  if (current.defaultTemplateId === template.id) {
+    return { next: current, changed: false, changes: [] };
+  }
+  return {
+    next: {
+      ...current,
+      defaultTemplateId: template.id,
+      updatedAt: context.now,
+      updatedById: context.userId,
+      version: current.version + 1,
+    },
+    changed: true,
+    changes: [{ path: 'defaultTemplateId', old: current.defaultTemplateId, new: template.id }],
+  };
+}

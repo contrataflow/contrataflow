@@ -13,7 +13,11 @@ import { Prisma } from '#shared/database/prisma.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { TemplateDraftExistsError, TemplateNameTakenError } from '../application/template.ports.js';
-import type { TemplateListFilter, TemplateRepository } from '../application/template.ports.js';
+import type {
+  TemplateListFilter,
+  TemplateRepository,
+  TemplateVersionListFilter,
+} from '../application/template.ports.js';
 import { templateNameKey } from '../domain/document-template.js';
 import type { DocumentTemplate, DocumentTemplateVersion } from '../domain/document-template.js';
 
@@ -227,6 +231,130 @@ export class PrismaTemplateRepository implements TemplateRepository {
             changeNotes: version.changeNotes,
             updatedAt: version.updatedAt,
             updatedById: version.updatedById,
+            version: { increment: 1 },
+          },
+        }),
+    );
+  }
+
+  async listVersions(
+    tx: TenantTx,
+    templateId: string,
+    filter: TemplateVersionListFilter,
+  ): Promise<{ items: DocumentTemplateVersion[]; totalItems: number }> {
+    const where: Prisma.DocumentTemplateVersionWhereInput = {
+      templateId,
+      ...(filter.status ? { status: filter.status } : {}),
+    };
+    const [rows, totalItems] = await Promise.all([
+      tx.documentTemplateVersion.findMany({
+        where,
+        orderBy: { versionNumber: 'desc' },
+        skip: filter.skip,
+        take: filter.take,
+      }),
+      tx.documentTemplateVersion.count({ where }),
+    ]);
+    return { items: rows.map(toVersion), totalItems };
+  }
+
+  async findAllVersions(tx: TenantTx, templateId: string): Promise<DocumentTemplateVersion[]> {
+    const rows = await tx.documentTemplateVersion.findMany({
+      where: { templateId },
+      orderBy: { versionNumber: 'asc' },
+    });
+    return rows.map(toVersion);
+  }
+
+  async insertVersion(tx: TenantTx, version: DocumentTemplateVersion): Promise<void> {
+    try {
+      await tx.documentTemplateVersion.create({
+        data: {
+          id: version.id,
+          tenantId: version.tenantId,
+          templateId: version.templateId,
+          versionNumber: version.versionNumber,
+          status: version.status,
+          sections: json(version.sections),
+          layout: json(version.layout),
+          fieldConfig: json(version.fieldConfig),
+          importMappings:
+            version.importMappings === null ? Prisma.DbNull : json(version.importMappings),
+          changeNotes: version.changeNotes,
+          createdAt: version.createdAt,
+          updatedAt: version.updatedAt,
+          createdById: version.createdById,
+          updatedById: version.updatedById,
+          version: version.version,
+        },
+      });
+    } catch (error) {
+      // Rascunho único ou número já usado: os dois são a corrida de duas "novas versões".
+      if (isUniqueViolation(error)) throw new TemplateDraftExistsError(version.templateId);
+      throw error;
+    }
+  }
+
+  async publishVersion(
+    tx: TenantTx,
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void> {
+    await updateVersioned(
+      { aggregateType: 'DocumentTemplateVersion', aggregateId: version.id, expectedVersion },
+      () =>
+        tx.documentTemplateVersion.updateMany({
+          where: { id: version.id, version: expectedVersion, status: 'DRAFT' },
+          data: {
+            status: 'PUBLISHED',
+            publishedAt: version.publishedAt,
+            publishedById: version.publishedById,
+            contentHash: version.contentHash,
+            updatedAt: version.updatedAt,
+            updatedById: version.updatedById,
+            version: { increment: 1 },
+          },
+        }),
+    );
+  }
+
+  async retireVersion(
+    tx: TenantTx,
+    version: DocumentTemplateVersion,
+    expectedVersion: number,
+  ): Promise<void> {
+    // Só as colunas que o gatilho de imutabilidade deixa mudar em `PUBLISHED → RETIRED`.
+    await updateVersioned(
+      { aggregateType: 'DocumentTemplateVersion', aggregateId: version.id, expectedVersion },
+      () =>
+        tx.documentTemplateVersion.updateMany({
+          where: { id: version.id, version: expectedVersion, status: 'PUBLISHED' },
+          data: {
+            status: 'RETIRED',
+            retiredAt: version.retiredAt,
+            retiredById: version.retiredById,
+            updatedAt: version.updatedAt,
+            updatedById: version.updatedById,
+            version: { increment: 1 },
+          },
+        }),
+    );
+  }
+
+  async updateCurrentPublishedVersion(
+    tx: TenantTx,
+    template: DocumentTemplate,
+    expectedVersion: number,
+  ): Promise<void> {
+    await updateVersioned(
+      { aggregateType: 'DocumentTemplate', aggregateId: template.id, expectedVersion },
+      () =>
+        tx.documentTemplate.updateMany({
+          where: { id: template.id, version: expectedVersion },
+          data: {
+            currentPublishedVersionId: template.currentPublishedVersionId,
+            updatedAt: template.updatedAt,
+            updatedById: template.updatedById,
             version: { increment: 1 },
           },
         }),

@@ -6,10 +6,14 @@ import type { Counter } from '@opentelemetry/api';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { DocumentTypeFacade } from './document-type.facade.js';
+import { DOCUMENT_TRANSACTIONS } from './ports.js';
+import type { DocumentTransactions } from './ports.js';
 import { TEMPLATE_REPOSITORY } from './template.ports.js';
 import type { TemplateRepository } from './template.ports.js';
-import { templateDocumentTypeOf } from './template.view.js';
+import { templateDocumentTypeOf, toDefaultTemplateView } from './template.view.js';
+import type { DefaultTemplateView } from './template.view.js';
 import type { DocumentTemplate, TemplateDocumentType } from '../domain/document-template.js';
+import type { DocumentType } from '../domain/document-type.js';
 import type { TemplateValidationContext } from '../domain/template-content.validator.js';
 
 /** Tipos do tenant como os templates os veem, lidos uma vez (do cache) antes da transação. */
@@ -17,6 +21,8 @@ export interface TemplateTypeCatalog {
   readonly byId: ReadonlyMap<string, TemplateDocumentType>;
   /** Template padrão do tipo ETP (origem do mapeamento TR ← ETP — RN-TPL-08). */
   readonly etpDefaultTemplateId: string | null;
+  /** Templates padrão de tipos ativos (`isDefault` — DTY-04). */
+  readonly defaultTemplateIds: ReadonlySet<string>;
 }
 
 /**
@@ -27,6 +33,7 @@ export interface TemplateTypeCatalog {
 export class TemplateContext {
   constructor(
     @Inject(TEMPLATE_REPOSITORY) private readonly templates: TemplateRepository,
+    @Inject(DOCUMENT_TRANSACTIONS) private readonly transactions: DocumentTransactions,
     private readonly documentTypes: DocumentTypeFacade,
   ) {}
 
@@ -37,7 +44,39 @@ export class TemplateContext {
     return {
       byId: new Map(types.map((type) => [type.id, templateDocumentTypeOf(type)])),
       etpDefaultTemplateId: etp?.defaultTemplateId ?? null,
+      defaultTemplateIds: new Set(
+        types.flatMap((type) =>
+          type.isActive && type.defaultTemplateId ? [type.defaultTemplateId] : [],
+        ),
+      ),
     };
+  }
+
+  /** O template é o padrão do seu tipo ativo. */
+  isDefault(catalog: TemplateTypeCatalog, template: DocumentTemplate): boolean {
+    return catalog.defaultTemplateIds.has(template.id);
+  }
+
+  /** `defaultTemplate` de cada tipo com template padrão (DTY-01/03/04), numa leitura. */
+  async defaultTemplatesOf(
+    types: readonly DocumentType[],
+  ): Promise<ReadonlyMap<string, DefaultTemplateView>> {
+    const ids = [
+      ...new Set(types.flatMap((type) => (type.defaultTemplateId ? [type.defaultTemplateId] : []))),
+    ];
+    if (ids.length === 0) return new Map();
+    return this.transactions.read(async (tx) => {
+      const views = new Map<string, DefaultTemplateView>();
+      for (const id of ids) {
+        const template = await this.templates.findById(tx, id);
+        if (!template) continue;
+        const published = template.currentPublishedVersionId
+          ? await this.templates.findVersionById(tx, template.currentPublishedVersionId)
+          : null;
+        views.set(id, toDefaultTemplateView(template, published));
+      }
+      return views;
+    });
   }
 
   /** Tipo do template no catálogo (a FK composta garante o tipo no mesmo tenant). */
@@ -77,6 +116,7 @@ export class TemplateContext {
 interface TemplateInstruments {
   readonly created: Counter;
   readonly contentUpdates: Counter;
+  readonly lifecycle: Counter;
 }
 
 let instruments: TemplateInstruments | undefined;
@@ -93,6 +133,10 @@ function templateInstruments(): TemplateInstruments {
       description:
         'Atualizações de conteúdo de rascunho de template por resultado (updated/invalid).',
     }),
+    lifecycle: meter.createCounter('cf_template_version_lifecycle_total', {
+      description:
+        'Ciclo de vida de versões de template por ação (created/published/publish_invalid/retired).',
+    }),
   };
   return instruments;
 }
@@ -103,4 +147,11 @@ export function recordTemplateCreated(): void {
 
 export function recordTemplateContentUpdate(result: 'updated' | 'invalid'): void {
   templateInstruments().contentUpdates.add(1, { result });
+}
+
+/** Métrica de publicação/aposentadoria (US-108 · DoD). */
+export function recordTemplateVersionLifecycle(
+  action: 'created' | 'published' | 'publish_invalid' | 'retired',
+): void {
+  templateInstruments().lifecycle.add(1, { action });
 }

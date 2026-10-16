@@ -156,6 +156,10 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // aplicáveis do tenant (`workflow:applicable` — US-042).
     WorkflowVersionPublished: ['workflow.version_published'],
     WorkflowVersionRetired: ['workflow.version_retired'],
+    // US-108: templates não têm cache (cada leitura vai ao banco) e a versão publicada é imutável;
+    // o padrão do tipo muda por `DocumentTypeChanged`, que invalida o cache de tipos.
+    TemplateVersionPublished: 'NO_ASYNC_CONSUMER',
+    TemplateVersionRetired: 'NO_ASYNC_CONSUMER',
     // US-091: `membership.invited` enfileira o e-mail do convite (`InvitationEmailEnqueuer`) e,
     // como `membership.*`, invalida o cache de permissões; `membership.activated` só o segundo.
     UserInvited: ['membership.invited'],

@@ -126,7 +126,7 @@ export class CreateTemplateCommand {
       },
       'template.created',
     );
-    return toTemplateDto(template, type, [draft]);
+    return toTemplateDto(template, type, [draft], false);
   }
 }
 
@@ -221,7 +221,12 @@ export class UpdateTemplateCommand {
       );
     }
     const type = this.templateContext.typeOf(catalog, outcome.template);
-    return toTemplateDto(outcome.template, type, outcome.versions);
+    return toTemplateDto(
+      outcome.template,
+      type,
+      outcome.versions,
+      this.templateContext.isDefault(catalog, outcome.template),
+    );
   }
 }
 

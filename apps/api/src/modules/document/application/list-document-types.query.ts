@@ -5,6 +5,7 @@ import { DocumentTypeFacade } from './document-type.facade.js';
 import { toDocumentTypeDto } from './document-type.view.js';
 import { DOCUMENT_CLOCK } from './ports.js';
 import type { DocumentClock } from './ports.js';
+import { TemplateContext } from './template-context.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import type { DocumentType } from '../domain/document-type.js';
@@ -31,6 +32,7 @@ export class ListDocumentTypesQuery {
     private readonly access: AccessFacade,
     private readonly identity: IdentityFacade,
     private readonly facade: DocumentTypeFacade,
+    private readonly templateContext: TemplateContext,
   ) {}
 
   async execute(query: DocumentTypeListQuery): Promise<DocumentTypeDto[]> {
@@ -41,10 +43,17 @@ export class ListDocumentTypesQuery {
       });
     }
     const now = this.clock();
-    return (await this.facade.listAll())
+    const types = (await this.facade.listAll())
       .filter((type) => includeInactive || type.isActive)
       .filter((type) => query.kind === undefined || query.kind.includes(type.kind))
-      .filter((type) => !query.q || matches(type, query.q))
-      .map((type) => toDocumentTypeDto(type, now));
+      .filter((type) => !query.q || matches(type, query.q));
+    const defaults = await this.templateContext.defaultTemplatesOf(types);
+    return types.map((type) =>
+      toDocumentTypeDto(
+        type,
+        now,
+        type.defaultTemplateId ? (defaults.get(type.defaultTemplateId) ?? null) : null,
+      ),
+    );
   }
 }
