@@ -1372,7 +1372,7 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 - **FK:** `(tenant_id, recipient_id)` → `tenant_memberships (tenant_id, user_id)`. A API (`cf_app`) só tem `SELECT` e `UPDATE (read_at, archived_at)`; quem grava é o worker (US-111).
 
 #### NotificationPreference (`notification_preferences`) — módulo `notification`
-`id`, `tenantId`, `userId`, `notificationType` (varchar(60)), `channel` (NotificationChannel), `enabled` (boolean), `createdAt`, `updatedAt`. **Unique:** `(tenant_id, user_id, notification_type, channel)`. Ausência de linha = padrão do registro; tipos obrigatórios (ex.: `APPROVAL_REQUESTED` in-app) não podem ser desativados.
+`id`, `tenantId`, `userId`, `notificationType` (varchar(60)), `channel` (NotificationChannel), `enabled` (boolean), `createdAt`, `updatedAt`. **Unique:** `(tenant_id, user_id, notification_type, channel)`. Ausência de linha = padrão do registro; tipos obrigatórios (ex.: `APPROVAL_REQUESTED` in-app) não podem ser desativados. **FK:** `(tenant_id, user_id)` → `tenant_memberships (tenant_id, user_id)`. A API (`cf_app`) tem `SELECT`, `INSERT`, `DELETE` e `UPDATE (enabled, updated_at)` ("usar padrão" apaga a linha); o worker (`cf_worker`) só lê, a cada despacho (US-113).
 
 #### AuditLog (`audit_logs`) — módulo `audit` · Imutável · particionada por mês (`occurred_at`)
 | Campo | Tipo | Null | Default | Regras |

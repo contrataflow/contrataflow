@@ -1143,6 +1143,31 @@ model Notification {
   @@map("notifications")
 }
 
+/// entities.md §2 — `NotificationChannel`.
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+
+  @@map("notification_channel")
+}
+
+/// entities.md §4 `NotificationPreference` (módulo notification · US-113): preferência por
+/// (usuário, tipo, canal); ausência de linha = padrão do registro `NotificationType`.
+model NotificationPreference {
+  id               String              @id @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  notificationType String              @map("notification_type") @db.VarChar(60)
+  channel          NotificationChannel
+  enabled          Boolean
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "notification_preferences_tenant_id_id_key")
+  @@unique([tenantId, userId, notificationType, channel], map: "notification_preferences_key")
+  @@map("notification_preferences")
+}
+
 /// entities.md §2 — enums do processo (US-001 · DEC-013).
 enum Priority {
   LOW

@@ -133,6 +133,11 @@ function NotificationPanel() {
           {t('panel.seeAll')}
         </Link>
       </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <Link href="/perfil?aba=notificacoes" className="justify-center text-muted-foreground">
+          {t('panel.managePreferences')}
+        </Link>
+      </DropdownMenuItem>
     </>
   );
 }

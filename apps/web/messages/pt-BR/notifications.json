@@ -10,6 +10,7 @@
   "panel": {
     "heading": "Notificações recentes",
     "seeAll": "Ver todas as notificações",
+    "managePreferences": "Gerenciar preferências",
     "empty": "Nenhuma notificação por aqui ainda",
     "loading": "Carregando notificações…",
     "failed": "Não foi possível carregar as notificações."

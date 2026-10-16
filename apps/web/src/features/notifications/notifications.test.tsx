@@ -133,6 +133,10 @@ describe('NotificationBell (SCR-036 · sininho global)', () => {
         .getByRole('menuitem', { name: 'Ver todas as notificações' })
         .getAttribute('href'),
     ).toBe('/notificacoes');
+    // US-113: atalho para a aba de preferências do perfil.
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Gerenciar preferências' }).getAttribute('href'),
+    ).toBe('/perfil?aba=notificacoes');
     expect(calls(api, 'GET', '/api/v1/notifications?')).toEqual(['/api/v1/notifications?limit=5']);
     expect(await seriousA11yViolations()).toEqual([]);
   });

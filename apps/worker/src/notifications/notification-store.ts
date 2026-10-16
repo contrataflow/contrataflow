@@ -26,6 +26,8 @@ export interface NotificationWrite {
   readonly content: (groupCount: number) => NotificationContent;
   /** `emailStatus` de uma notificação NOVA (a agrupada mantém o seu — RN-NTF-04/05). */
   readonly emailStatus: EmailDeliveryStatus;
+  /** Preferência in-app desligada (US-113): grava arquivada, sem agrupar com notificações visíveis. */
+  readonly hiddenInApp: boolean;
   readonly now: Date;
 }
 
@@ -60,7 +62,8 @@ export class NotificationStore {
     client: SqlClient,
     write: NotificationWrite,
   ): Promise<NotificationWriteOutcome> {
-    if (write.groupKey !== null) {
+    const groupable = write.groupKey !== null && !write.hiddenInApp;
+    if (groupable) {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
         `notifications:${write.tenantId}:${write.recipientId}:${write.groupKey}`,
       ]);
@@ -68,7 +71,7 @@ export class NotificationStore {
     const existing = await this.findDelivered(client, write);
     if (existing) return existing;
 
-    if (write.groupKey !== null) {
+    if (groupable) {
       const { rows } = await client.query<CandidateRow>(
         `SELECT id, source_event_id, grouped_event_ids, created_at, archived_at, email_status
            FROM notifications
@@ -144,9 +147,9 @@ export class NotificationStore {
     const { rows } = await client.query<{ id: string; email_status: EmailDeliveryStatus }>(
       `INSERT INTO notifications
          (id, tenant_id, recipient_id, type, priority, title, body, link, process_id, entity_type,
-          entity_id, source_event_id, group_key, email_status, created_at)
+          entity_id, source_event_id, group_key, email_status, created_at, archived_at)
        VALUES ($1, $2, $3, $4, $5::notification_priority, $6, $7, $8, $9, $10, $11, $12, $13,
-               $14::email_delivery_status, $15)
+               $14::email_delivery_status, $15, $16)
        ON CONFLICT (tenant_id, recipient_id, source_event_id, type) DO NOTHING
        RETURNING id, email_status`,
       [
@@ -165,6 +168,7 @@ export class NotificationStore {
         write.groupKey,
         write.emailStatus,
         write.now,
+        write.hiddenInApp ? write.now : null,
       ],
     );
     const inserted = rows[0];

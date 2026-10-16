@@ -189,12 +189,63 @@ describe('NotificationDispatcher (US-111)', () => {
 
   it('[RN-NTF-05] a preferência do usuário (US-113) prevalece sobre o padrão do registro', async () => {
     const preferences: NotificationPreferences = {
-      emailPreferences: () => Promise.resolve(new Map([[CARLA, false]])),
+      preferences: () => Promise.resolve(new Map([[CARLA, { email: false }]])),
     };
     const { dispatcher, store, emails, context } = setup({ preferences });
     await dispatcher.handle({ envelope: devolvido() }, context);
     expect(store.rows[0]?.emailStatus).toBe('NOT_APPLICABLE');
     expect(emails).toEqual([]);
+  });
+
+  it('[US-113] in-app desligado com e-mail por enviar: grava arquivada só para portar o e-mail', async () => {
+    const preferences: NotificationPreferences = {
+      preferences: () => Promise.resolve(new Map([[CARLA, { inApp: false }]])),
+    };
+    const { dispatcher, store, emails, context } = setup({ preferences });
+    await dispatcher.handle({ envelope: devolvido() }, context);
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0]).toMatchObject({ archived: true, emailStatus: 'PENDING' });
+    expect(emails).toEqual([store.rows[0]?.id]);
+  });
+
+  it('[US-113] in-app e e-mail desligados: nada é gravado nem enfileirado', async () => {
+    const preferences: NotificationPreferences = {
+      preferences: () => Promise.resolve(new Map([[CARLA, { inApp: false, email: false }]])),
+    };
+    const { dispatcher, store, emails, context } = setup({ preferences });
+    await dispatcher.handle({ envelope: devolvido() }, context);
+    expect(store.rows).toEqual([]);
+    expect(emails).toEqual([]);
+  });
+
+  it('[US-113] in-app desligado com o e-mail do tenant desligado: nada a entregar, nada é gravado', async () => {
+    const preferences: NotificationPreferences = {
+      preferences: () => Promise.resolve(new Map([[CARLA, { inApp: false }]])),
+    };
+    const { dispatcher, store, context } = setup({ preferences, emailEnabled: false });
+    await dispatcher.handle({ envelope: devolvido() }, context);
+    expect(store.rows).toEqual([]);
+  });
+
+  it('[US-113 · RN-NTF-23] tipo obrigatório ignora in-app desligado (linha antiga ou chamada direta)', async () => {
+    const MEMBERSHIP = testId();
+    const preferences: NotificationPreferences = {
+      preferences: () => Promise.resolve(new Map([[CARLA, { inApp: false, email: false }]])),
+    };
+    const { dispatcher, store, directory, context } = setup({ preferences });
+    directory.memberships.set(MEMBERSHIP, CARLA);
+    await dispatcher.handle(
+      {
+        envelope: envelope(
+          'RoleAssigned',
+          { membershipId: MEMBERSHIP, roleAssignmentId: testId() },
+          { processId: null },
+        ),
+      },
+      context,
+    );
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0]).toMatchObject({ type: 'ROLE_CHANGED', archived: false });
   });
 
   it('[FA-01] sem responsável, avisa os membros da unidade (exceto o ator)', async () => {

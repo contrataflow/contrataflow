@@ -51,6 +51,7 @@ import { InvitationEmailSource } from '../notifications/email/invitation-email-s
 import { NotificationEmailSource } from '../notifications/email/notification-email-source.js';
 import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
 import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
+import { SqlNotificationPreferences } from '../notifications/sql-notification-preferences.js';
 import { OutboxPurgeJob } from '../outbox/outbox-purge.job.js';
 
 export const QUEUE_RUNTIME_CONFIG = Symbol('QueueRuntimeConfig');
@@ -166,6 +167,7 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
       this.registry.register(
         new NotificationDispatcher({
           directory: new SqlNotificationDirectory(),
+          preferences: new SqlNotificationPreferences(),
           email: {
             enqueue: (notificationId) =>
               producer.enqueue(

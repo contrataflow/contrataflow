@@ -1,4 +1,8 @@
-import { decideEmailStatus, notificationGroupKey } from '@contrataflow/types';
+import {
+  NOTIFICATION_REGISTRY,
+  decideEmailStatus,
+  notificationGroupKey,
+} from '@contrataflow/types';
 import type { DomainEventEnvelope } from '@contrataflow/types';
 import { domainEventEnvelopeSchema } from '@contrataflow/validation';
 import { z } from 'zod';
@@ -145,15 +149,20 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       return [];
     }
     const tenantEmailEnabled = await this.deps.directory.tenantEmailEnabled(client);
-    const preferences = await this.preferences.emailPreferences(client, plan.type, recipients);
+    const preferences = await this.preferences.preferences(client, plan.type, recipients);
+    const inAppLocked = NOTIFICATION_REGISTRY[plan.type].mandatory;
     const groupKey = notificationGroupKey(plan.type, plan.processId);
     const written: NotificationWriteOutcome[] = [];
     for (const recipientId of recipients) {
       const emailStatus = decideEmailStatus({
         type: plan.type,
-        emailPreference: preferences.get(recipientId),
+        emailPreference: preferences.get(recipientId)?.email,
         tenantEmailEnabled,
       });
+      // RN-NTF-23: o in-app obrigatório ignora a preferência. Desligado, a notificação só existe
+      // como portadora do e-mail (nasce arquivada); sem e-mail a enviar, não há o que gravar.
+      const hiddenInApp = !inAppLocked && preferences.get(recipientId)?.inApp === false;
+      if (hiddenInApp && emailStatus !== 'PENDING') continue;
       const result = await this.store.upsertGrouped(client, {
         tenantId,
         recipientId,
@@ -167,6 +176,7 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
         groupKey,
         content: plan.content,
         emailStatus,
+        hiddenInApp,
         now,
       });
       written.push(result);

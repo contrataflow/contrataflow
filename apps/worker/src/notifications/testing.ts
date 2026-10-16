@@ -94,6 +94,8 @@ export interface StoredNotification {
   readonly title: string;
   readonly body: string;
   readonly emailStatus: EmailDeliveryStatus;
+  /** Preferência in-app desligada: a notificação existe só como portadora do e-mail. */
+  readonly archived: boolean;
   readonly createdAt: Date;
 }
 
@@ -117,7 +119,7 @@ export class MemoryNotificationStore implements Pick<NotificationStore, 'upsertG
       });
     }
     const candidate =
-      write.groupKey === null
+      write.groupKey === null || write.hiddenInApp
         ? undefined
         : this.rows
             .filter(
@@ -155,6 +157,7 @@ export class MemoryNotificationStore implements Pick<NotificationStore, 'upsertG
       groupedEventIds: [],
       ...write.content(1),
       emailStatus: write.emailStatus,
+      archived: write.hiddenInApp,
       createdAt: write.now,
     };
     this.rows.push(row);

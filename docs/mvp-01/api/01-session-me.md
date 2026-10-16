@@ -100,18 +100,18 @@ User {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean, editable: boolean }] }`
+- **Response:** `200 { data: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean, editable: boolean }], meta: { emailEnabled: boolean } }`
 - **Erros:** —
 - **Efeitos:** —
-- **Notas:** `notificationType` é o registro `NotificationType` (events.md §6); `editable = false` para combinações obrigatórias (RN-NTF-23).
+- **Notas:** `notificationType` é o registro `NotificationType` (events.md §6); a lista traz toda combinação tipo × canal, na ordem do registro, com o valor salvo ou o padrão do registro (RN-NTF-22). `editable = false` para combinações obrigatórias (RN-NTF-23). `meta.emailEnabled` é `notifications.emailEnabled` do tenant (RN-NTF-24): a tela desabilita a coluna `EMAIL` quando falso (a chave não é pública em `SET-03`; o dado vem por aqui).
 
 ### ME-06 — Atualizar preferências de notificação
 `PUT /api/v1/me/notification-preferences` · **Permissão:** implícita (qualquer usuário autenticado) · **Story:** US-113
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
-- **Request:** `{ preferences: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean }] }` — não vazio
-- **Response:** `200 { data: [{ notificationType, channel, enabled, editable }] }` (schema de ME-05)
+- **Request:** `{ preferences: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean | null }] }` — não vazio, sem repetir a mesma combinação (`DUPLICATE_IN_LIST`); `enabled: null` = "usar padrão" (FA-01 da US-113): apaga a preferência salva da combinação
+- **Response:** `200 { data: [{ notificationType, channel, enabled, editable }], meta: { emailEnabled } }` (estado completo, schema de ME-05)
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -121,4 +121,4 @@ User {
 | 422 | `VALIDATION_ERROR` | Corpo vazio ou malformado |
 
 - **Efeitos:** Eventos: — (lido diretamente pelo `NotificationDispatcher` no próximo despacho — US-111). Auditoria: `notification.preferences_update` (`SECURITY`) no commit — `changes`: combinações alteradas (tipo, canal, de/para); `metadata`: quantidade total.
-- **Notas:** sem `If-Match` (preferência pessoal sem controle de versão exposto).
+- **Notas:** sem `If-Match` (preferência pessoal sem controle de versão exposto). Merge (RN-NTF-25): só as combinações enviadas mudam; tudo ou nada — a trava dos obrigatórios é conferida antes de qualquer escrita. Reenviar valores já salvos não grava nem audita. `NOT_ALLOWED` aponta `preferences[i].enabled`.

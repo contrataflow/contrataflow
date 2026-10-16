@@ -141,6 +141,25 @@ export const NOTIFICATION_REGISTRY: Readonly<Record<NotificationType, Notificati
 export const NOTIFICATION_CHANNELS = ['IN_APP', 'EMAIL'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
+/**
+ * Valor de um canal quando o usuário não tem preferência salva (RN-NTF-22): o in-app é sempre o
+ * padrão; o e-mail segue a coluna "E-mail padrão" do registro.
+ */
+export function defaultChannelEnabled(
+  type: NotificationType,
+  channel: NotificationChannel,
+): boolean {
+  return channel === 'IN_APP' ? true : NOTIFICATION_REGISTRY[type].emailByDefault;
+}
+
+/** RN-NTF-23: o in-app de um tipo obrigatório não pode ser desligado (`editable = false`). */
+export function isNotificationChannelEditable(
+  type: NotificationType,
+  channel: NotificationChannel,
+): boolean {
+  return !(channel === 'IN_APP' && NOTIFICATION_REGISTRY[type].mandatory);
+}
+
 /** entities.md §2 — `NotificationPriority`. */
 export const NOTIFICATION_PRIORITIES = ['NORMAL', 'HIGH'] as const;
 export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[number];

@@ -110,6 +110,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'NTF-03': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
   'NTF-04': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
   'NTF-05': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
+  'ME-05': { kind: 'covered' },
+  'ME-06': {
+    kind: 'exempt',
+    reason:
+      'Preferências de notificação (US-113): sem ID no caminho nem referência de outro recurso no corpo — só tipo/canal do registro e o próprio usuário do token; o isolamento (preferência de A nunca vale em B, outro usuário nunca lida, RLS e GRANTs de notification_preferences) é coberto em test/tenant-leak/notification-preferences.spec.ts.',
+  },
   'ME-01': { kind: 'covered' },
   'ME-04': { kind: 'covered' },
   'ME-02': {

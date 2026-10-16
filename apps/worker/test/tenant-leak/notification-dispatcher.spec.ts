@@ -2,7 +2,8 @@
 // idempotência por (tenant, destinatário, evento, tipo) na reentrega, agrupamento de 5 min com
 // trava, concorrência real (eventos quase simultâneos do mesmo grupo → uma notificação), RLS de
 // `notifications` (nada da Prefeitura B é lido nem gravado), transação única (falha no meio não
-// deixa notificação parcial), `notifications.emailEnabled` do tenant e os GRANTs da migração.
+// deixa notificação parcial), `notifications.emailEnabled` do tenant, as preferências do usuário
+// (US-113: e-mail e in-app, lidas a cada despacho, isoladas por tenant) e os GRANTs da migração.
 import type { DomainEventEnvelope, JobMeta } from '@contrataflow/types';
 import { Logger } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -12,6 +13,7 @@ import { NotificationStore } from '../../src/notifications/notification-store.js
 import type { NotificationContent } from '../../src/notifications/notification-templates.js';
 import type { ProcessVisibility } from '../../src/notifications/recipient-resolver.js';
 import { SqlNotificationDirectory } from '../../src/notifications/sql-notification-directory.js';
+import { SqlNotificationPreferences } from '../../src/notifications/sql-notification-preferences.js';
 import type { JobHandlerContext } from '../../src/queues/run-job.js';
 import { createWorkerDatabase } from '../../src/shared/database/worker-database.js';
 import type { WorkerDatabase } from '../../src/shared/database/worker-database.js';
@@ -109,6 +111,7 @@ function dispatcherWith(
 ) {
   return new NotificationDispatcher({
     directory: new SqlNotificationDirectory(),
+    preferences: new SqlNotificationPreferences(),
     visibility: seeAll,
     email: {
       enqueue: (notificationId) => {
@@ -126,7 +129,8 @@ type Row = Record<string, unknown>;
 const rowsOf = (tenantId: string, recipientId?: string) =>
   db.admin<Row>(
     `SELECT id, recipient_id, type, title, body, link, process_id, source_event_id, group_key,
-            group_count, grouped_event_ids, email_status::text AS email_status, read_at, created_at
+            group_count, grouped_event_ids, email_status::text AS email_status, read_at, archived_at,
+            created_at
        FROM notifications
       WHERE tenant_id = $1 AND ($2::uuid IS NULL OR recipient_id = $2)
       ORDER BY created_at, id`,
@@ -300,6 +304,133 @@ describe('NotificationDispatcher sobre PostgreSQL (US-111)', () => {
     }
   });
 
+  describe('preferências de notificação (US-113)', () => {
+    const preference = (
+      id: string,
+      tenantId: string,
+      userId: string,
+      type: string,
+      channel: string,
+      enabled: boolean,
+    ) =>
+      db.admin(
+        `INSERT INTO notification_preferences (id, tenant_id, user_id, notification_type, channel, enabled)
+         VALUES ($1, $2, $3, $4, $5::notification_channel, $6)`,
+        [id, tenantId, userId, type, channel, enabled],
+      );
+    const clearPreferences = () => db.admin('DELETE FROM notification_preferences');
+
+    it('[Sucesso] e-mail desligado pelo usuário: a próxima notificação não enfileira e-mail', async () => {
+      await preference(
+        '0192f0a0-0000-7000-8000-0000000c6001',
+        TENANT_A,
+        BRUNO,
+        'PROCESS_RETURNED',
+        'EMAIL',
+        false,
+      );
+      try {
+        const emails: string[] = [];
+        const event = devolvido(BRUNO, '0192f0a0-0000-7000-8000-0000000c0f11');
+        await dispatcherWith({ emails }).handle({ envelope: event }, contextFor(TENANT_A));
+        const [row] = (await rowsOf(TENANT_A)).filter((r) => r.source_event_id === event.eventId);
+        expect(row).toMatchObject({
+          recipient_id: BRUNO,
+          email_status: 'NOT_APPLICABLE',
+          archived_at: null,
+        });
+        expect(emails).toEqual([]);
+
+        // Quem não desligou continua com o padrão do registro (e-mail PENDING).
+        const other = devolvido(CARLA, '0192f0a0-0000-7000-8000-0000000c0f12');
+        await dispatcherWith({ emails }).handle({ envelope: other }, contextFor(TENANT_A));
+        const [carla] = (await rowsOf(TENANT_A)).filter((r) => r.source_event_id === other.eventId);
+        expect(carla?.email_status).toBe('PENDING');
+        expect(emails).toEqual([carla?.id]);
+      } finally {
+        await clearPreferences();
+      }
+    });
+
+    it('[Sucesso] in-app desligado com e-mail por enviar: a linha nasce arquivada e o e-mail segue', async () => {
+      await preference(
+        '0192f0a0-0000-7000-8000-0000000c6002',
+        TENANT_A,
+        BRUNO,
+        'PROCESS_RETURNED',
+        'IN_APP',
+        false,
+      );
+      try {
+        const emails: string[] = [];
+        const event = devolvido(BRUNO, '0192f0a0-0000-7000-8000-0000000c0f13');
+        await dispatcherWith({ emails }).handle({ envelope: event }, contextFor(TENANT_A));
+        const [row] = (await rowsOf(TENANT_A)).filter((r) => r.source_event_id === event.eventId);
+        expect(row?.archived_at).not.toBeNull();
+        expect(row?.email_status).toBe('PENDING');
+        expect(emails).toEqual([row?.id]);
+      } finally {
+        await clearPreferences();
+      }
+    });
+
+    it('[Sucesso] in-app e e-mail desligados: nenhuma linha é gravada', async () => {
+      await preference(
+        '0192f0a0-0000-7000-8000-0000000c6003',
+        TENANT_A,
+        BRUNO,
+        'PROCESS_RETURNED',
+        'IN_APP',
+        false,
+      );
+      await preference(
+        '0192f0a0-0000-7000-8000-0000000c6004',
+        TENANT_A,
+        BRUNO,
+        'PROCESS_RETURNED',
+        'EMAIL',
+        false,
+      );
+      try {
+        const event = devolvido(BRUNO, '0192f0a0-0000-7000-8000-0000000c0f14');
+        await dispatcherWith().handle({ envelope: event }, contextFor(TENANT_A));
+        expect((await rowsOf(TENANT_A)).filter((r) => r.source_event_id === event.eventId)).toEqual(
+          [],
+        );
+      } finally {
+        await clearPreferences();
+      }
+    });
+
+    it('[Tenant incorreto] preferência de B nunca vale em A; o worker só lê (SELECT)', async () => {
+      await preference(
+        '0192f0a0-0000-7000-8000-0000000c6005',
+        TENANT_B,
+        BETO_B,
+        'PROCESS_RETURNED',
+        'EMAIL',
+        false,
+      );
+      try {
+        const seenFromA = await worker.tenantTransaction(TENANT_A, (client) =>
+          new SqlNotificationPreferences().preferences(client, 'PROCESS_RETURNED', [BETO_B, CARLA]),
+        );
+        expect(seenFromA.size).toBe(0);
+        const seenFromB = await worker.tenantTransaction(TENANT_B, (client) =>
+          new SqlNotificationPreferences().preferences(client, 'PROCESS_RETURNED', [BETO_B]),
+        );
+        expect(seenFromB.get(BETO_B)).toEqual({ email: false });
+        await expect(
+          worker.tenantTransaction(TENANT_B, (client) =>
+            client.query('UPDATE notification_preferences SET enabled = true'),
+          ),
+        ).rejects.toThrow(/permission denied/i);
+      } finally {
+        await clearPreferences();
+      }
+    });
+  });
+
   it('[Falha de banco] erro no meio da transação: nenhuma notificação parcial e o job falha', async () => {
     const event = devolvido(null, '0192f0a0-0000-7000-8000-0000000c0f05');
     let calls = 0;
@@ -363,6 +494,7 @@ describe('NotificationDispatcher sobre PostgreSQL (US-111)', () => {
       groupKey: null,
       content: (): NotificationContent => ({ title: 'x', body: 'y' }),
       emailStatus: 'NOT_APPLICABLE' as const,
+      hiddenInApp: false,
       now: T0,
     };
     await expect(

@@ -5,6 +5,40 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 
 const PORT = Number(process.argv[2] ?? 4010);
+// Preferências de notificação (US-113 · ME-05/ME-06): registro NotificationType reduzido a
+// [tipo, e-mail padrão, in-app obrigatório]; o estado salvo é por usuário.
+const NOTIFICATION_TYPE_DEFAULTS = [
+  ['PROCESS_RECEIVED', true, false],
+  ['PROCESS_RETURNED', true, false],
+  ['PROCESS_ASSIGNED', true, false],
+  ['PROCESS_STATUS_CHANGED', false, false],
+  ['APPROVAL_REQUESTED', true, true],
+  ['APPROVAL_DECIDED', true, false],
+  ['APPROVAL_REASSIGNED', true, false],
+  ['MENTIONED', true, false],
+  ['COMMENT_REPLY', false, false],
+  ['STAGE_DUE_SOON', false, false],
+  ['STAGE_OVERDUE', true, false],
+  ['PARTICIPANT_ADDED', true, false],
+  ['ATTACHMENT_REJECTED', false, true],
+  ['DOCUMENT_RENDER_FAILED', false, false],
+  ['ROLE_CHANGED', true, true],
+];
+const notificationPreferences = new Map();
+
+function notificationPreferencesView(user) {
+  const saved = notificationPreferences.get(user) ?? new Map();
+  return NOTIFICATION_TYPE_DEFAULTS.flatMap(([notificationType, emailDefault, mandatory]) => [
+    { notificationType, channel: 'IN_APP', enabled: true, editable: !mandatory },
+    {
+      notificationType,
+      channel: 'EMAIL',
+      enabled: saved.get(`${notificationType}:EMAIL`) ?? emailDefault,
+      editable: true,
+    },
+  ]);
+}
+
 const failures = new Map();
 const replays = new Map();
 
@@ -2092,6 +2126,28 @@ createServer(async (request, response) => {
     Object.assign(type, body, { version: type.version + 1 });
     return send(response, 200, { data: documentTypeView(type) }, { ETag: `"${type.version}"` });
   }
+  if (url.pathname === '/api/v1/me/notification-preferences') {
+    const meta = { emailEnabled: settings.get('notifications.emailEnabled')?.value !== false };
+    if (request.method === 'GET') {
+      return send(response, 200, { data: notificationPreferencesView(sub), meta });
+    }
+    if (request.method === 'PUT') {
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const saved = notificationPreferences.get(sub) ?? new Map();
+      for (const item of body.preferences ?? []) {
+        const known = NOTIFICATION_TYPE_DEFAULTS.find(([type]) => type === item.notificationType);
+        if (!known) return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+        if (item.channel === 'IN_APP' && known[2] && item.enabled === false) {
+          return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+        }
+        const key = `${item.notificationType}:${item.channel}`;
+        if (item.enabled === null) saved.delete(key);
+        else saved.set(key, item.enabled);
+      }
+      notificationPreferences.set(sub, saved);
+      return send(response, 200, { data: notificationPreferencesView(sub), meta });
+    }
+  }
   if (url.pathname === '/api/v1/me' && request.method === 'GET') {
     // ME-01 (US-098): perfil do usuário (as lotações do wizard vêm do ME-03).
     return send(
@@ -2102,7 +2158,9 @@ createServer(async (request, response) => {
           id: sub,
           name: sub === 'sub-ana' ? 'Ana Souza' : 'Usuário',
           socialName: null,
+          email: sub === 'sub-ana' ? 'ana@prefeitura-a.test' : 'usuario@prefeitura-a.test',
           phone: null,
+          membership: { jobTitle: null, departments: [] },
           preferences: { density: 'comfortable', theme: 'light' },
           version: 1,
         },

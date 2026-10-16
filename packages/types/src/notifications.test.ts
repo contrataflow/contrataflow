@@ -9,7 +9,9 @@ import {
   NOTIFICATION_REGISTRY,
   NOTIFICATION_TYPES,
   decideEmailStatus,
+  defaultChannelEnabled,
   decideNotificationGrouping,
+  isNotificationChannelEditable,
   isNotificationType,
   isRelativeNotificationLink,
   notificationGroupKey,
@@ -227,5 +229,25 @@ describe('conteúdo (RN-NTF-07/08)', () => {
     expect(isRelativeNotificationLink('//evil.test')).toBe(false);
     expect(isRelativeNotificationLink('/processos/1?token=abc')).toBe(false);
     expect(isRelativeNotificationLink(`/${'a'.repeat(600)}`)).toBe(false);
+  });
+});
+
+describe('preferências por canal (RN-NTF-22/23 · US-113)', () => {
+  it('sem preferência: in-app sempre ligado e e-mail pela coluna "E-mail padrão" do registro', () => {
+    for (const type of NOTIFICATION_TYPES) {
+      expect(defaultChannelEnabled(type, 'IN_APP')).toBe(true);
+      expect(defaultChannelEnabled(type, 'EMAIL')).toBe(NOTIFICATION_REGISTRY[type].emailByDefault);
+    }
+    expect(defaultChannelEnabled('PROCESS_RECEIVED', 'EMAIL')).toBe(true);
+    expect(defaultChannelEnabled('COMMENT_REPLY', 'EMAIL')).toBe(false);
+  });
+
+  it('só o in-app dos tipos obrigatórios é travado; o e-mail é sempre editável', () => {
+    const mandatory = NOTIFICATION_TYPES.filter((type) => NOTIFICATION_REGISTRY[type].mandatory);
+    expect(mandatory).toEqual(['APPROVAL_REQUESTED', 'ATTACHMENT_REJECTED', 'ROLE_CHANGED']);
+    for (const type of NOTIFICATION_TYPES) {
+      expect(isNotificationChannelEditable(type, 'EMAIL')).toBe(true);
+      expect(isNotificationChannelEditable(type, 'IN_APP')).toBe(!mandatory.includes(type));
+    }
   });
 });

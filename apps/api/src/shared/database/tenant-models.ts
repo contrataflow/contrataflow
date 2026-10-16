@@ -20,6 +20,7 @@ export const TENANT_SCOPED_MODELS = [
   'NumberSequence',
   'Organization',
   'Notification',
+  'NotificationPreference',
   'OutboxEvent',
   'Process',
   'ProcessAccess',

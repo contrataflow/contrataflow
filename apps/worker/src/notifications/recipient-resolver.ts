@@ -197,16 +197,22 @@ export class RecipientResolver {
   }
 }
 
-/** Preferência de e-mail por destinatário (US-113); ausência = padrão do registro. */
+/** Preferências salvas de um destinatário para o tipo (US-113); campo ausente = padrão do registro. */
+export interface RecipientPreference {
+  readonly email?: boolean;
+  readonly inApp?: boolean;
+}
+
+/** Preferências por destinatário (US-113); quem não consta segue o padrão do registro. */
 export interface NotificationPreferences {
-  emailPreferences(
+  preferences(
     client: SqlClient,
     type: NotificationType,
     userIds: readonly string[],
-  ): Promise<ReadonlyMap<string, boolean>>;
+  ): Promise<ReadonlyMap<string, RecipientPreference>>;
 }
 
-/** Sem a tabela de preferências (US-113): todos seguem o padrão do registro. */
+/** Sem preferências salvas (US-113): todos seguem o padrão do registro. */
 export const REGISTRY_DEFAULT_PREFERENCES: NotificationPreferences = {
-  emailPreferences: () => Promise.resolve(new Map()),
+  preferences: () => Promise.resolve(new Map()),
 };

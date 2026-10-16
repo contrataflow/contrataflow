@@ -5,12 +5,13 @@ import type { MyProfileDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useId, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { NotificationPreferencesGrid } from './notification-preferences-grid';
 import {
   PROFILE_DENSITIES,
   PROFILE_THEMES,
@@ -32,14 +33,31 @@ export interface AuthentikLinks {
   readonly mfa: string | null;
 }
 
+/** Abas de SCR-039; `/perfil?aba=notificacoes` abre a segunda (atalho do sininho — US-113). */
+export const PROFILE_TABS = ['general', 'notifications'] as const;
+export type ProfileTab = (typeof PROFILE_TABS)[number];
+
+/** Valor de `?aba=` → aba; qualquer outro valor cai na primeira. */
+export function profileTabFromParam(param: string | undefined): ProfileTab {
+  return param === 'notificacoes' ? 'notifications' : 'general';
+}
+
 /**
  * SCR-039 — Meu perfil (`/perfil` · US-098): lê `GET /me` (ME-01), edita nome, nome social,
  * telefone e preferências de interface e salva só o que mudou em `PATCH /me` (ME-02) com `If-Match`.
- * E-mail e dados do vínculo são somente leitura; senha e MFA são atalhos para o Authentik.
+ * E-mail e dados do vínculo são somente leitura; senha e MFA são atalhos para o Authentik. A aba
+ * "Notificações" traz as preferências de aviso por canal (US-113 · ME-05/ME-06).
  */
-export function ProfileView({ links }: { readonly links: AuthentikLinks }) {
+export function ProfileView({
+  links,
+  initialTab = 'general',
+}: {
+  readonly links: AuthentikLinks;
+  readonly initialTab?: ProfileTab;
+}) {
   const t = useTranslations('profile');
   const tenantId = useTenantId();
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
   const profile = useQuery({
     queryKey: profileKeys.me(tenantId),
     queryFn: async ({ signal }) => (await fetchMyProfile(signal)).data,
@@ -55,35 +73,117 @@ export function ProfileView({ links }: { readonly links: AuthentikLinks }) {
         <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
       </header>
 
-      {profile.isPending ? (
-        <div role="status" className="flex max-w-xl flex-col gap-3">
-          <span className="sr-only">{t('loading')}</span>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-2/3" />
-        </div>
-      ) : null}
+      <ProfileTabs tab={tab} onChange={setTab} />
 
-      {profile.isError ? (
-        <Alert tone="error" title={t('loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void profile.refetch();
-            }}
-          >
-            {t('retry')}
-          </Button>
-        </Alert>
-      ) : null}
+      <div
+        role="tabpanel"
+        id="profile-panel-notifications"
+        aria-labelledby="profile-tab-notifications"
+        hidden={tab !== 'notifications'}
+      >
+        {/* `key` por instituição: o rascunho nunca atravessa a troca de tenant. */}
+        {tab === 'notifications' ? <NotificationPreferencesGrid key={tenantId} /> : null}
+      </div>
 
-      {profile.data ? (
-        // A chave é a versão: salvar ou recarregar depois de um conflito recomeça o rascunho.
-        <ProfileForm key={profile.data.version} profile={profile.data} links={links} />
-      ) : null}
+      <div
+        role="tabpanel"
+        id="profile-panel-general"
+        aria-labelledby="profile-tab-general"
+        hidden={tab !== 'general'}
+        className="flex flex-col gap-6"
+      >
+        {profile.isPending ? (
+          <div role="status" className="flex max-w-xl flex-col gap-3">
+            <span className="sr-only">{t('loading')}</span>
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-2/3" />
+          </div>
+        ) : null}
+
+        {profile.isError ? (
+          <Alert tone="error" title={t('loadFailed')}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void profile.refetch();
+              }}
+            >
+              {t('retry')}
+            </Button>
+          </Alert>
+        ) : null}
+
+        {profile.data ? (
+          // A chave é a versão: salvar ou recarregar depois de um conflito recomeça o rascunho.
+          <ProfileForm key={profile.data.version} profile={profile.data} links={links} />
+        ) : null}
+      </div>
     </section>
+  );
+}
+
+/** `tablist` de SCR-039: setas, Home e End movem o foco e a seleção entre as abas. */
+function ProfileTabs({
+  tab,
+  onChange,
+}: {
+  readonly tab: ProfileTab;
+  readonly onChange: (tab: ProfileTab) => void;
+}) {
+  const t = useTranslations('profile.tabs');
+  const refs = useRef<Record<ProfileTab, HTMLButtonElement | null>>({
+    general: null,
+    notifications: null,
+  });
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const index = PROFILE_TABS.indexOf(tab);
+    const last = PROFILE_TABS.length - 1;
+    const target =
+      event.key === 'ArrowRight'
+        ? (index + 1) % PROFILE_TABS.length
+        : event.key === 'ArrowLeft'
+          ? (index + last) % PROFILE_TABS.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : null;
+    if (target === null) return;
+    event.preventDefault();
+    const next = PROFILE_TABS[target];
+    if (!next) return;
+    onChange(next);
+    refs.current[next]?.focus();
+  };
+  return (
+    <div role="tablist" aria-label={t('label')} className="flex gap-2 border-b border-border">
+      {PROFILE_TABS.map((value) => (
+        <button
+          key={value}
+          ref={(element) => {
+            refs.current[value] = element;
+          }}
+          type="button"
+          role="tab"
+          id={`profile-tab-${value}`}
+          aria-selected={tab === value}
+          aria-controls={`profile-panel-${value}`}
+          tabIndex={tab === value ? 0 : -1}
+          onClick={() => {
+            onChange(value);
+          }}
+          onKeyDown={onKeyDown}
+          className={`border-b-2 px-3 py-2 text-sm font-medium ${
+            tab === value ? 'border-primary' : 'border-transparent text-muted-foreground'
+          }`}
+        >
+          {t(value)}
+        </button>
+      ))}
+    </div>
   );
 }
 

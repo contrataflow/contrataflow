@@ -155,7 +155,7 @@ Feature: Preferências de notificação
 - **Stories:** US-111 (central de notificações — consome estas preferências a cada despacho; é pré-requisito funcional).
 - **Decisões/ADRs:** nenhuma decisão específica além das já citadas em US-111 (DEC-024 não se aplica aqui).
 - **Configurações:** `notifications.emailEnabled` (tenant; condiciona a coluna `EMAIL` da tela).
-- **Lacunas nas fontes canônicas:** nenhuma.
+- **Lacunas nas fontes canônicas:** nenhuma. Decisões da implementação: `meta.emailEnabled` em ME-05/ME-06 (a chave `notifications.emailEnabled` não é pública em `SET-03`) e `enabled: null` em ME-06 para "Usar padrão"; o in-app desligado de um tipo opcional faz o dispatcher gravar a notificação já arquivada só para portar o e-mail (ou nada, se não há e-mail a enviar).
 
 ## Impacto técnico
 - Tabela `NotificationPreference` já é prevista em entities.md; esta story só adiciona a camada de API/UI e a regra de trava de tipos obrigatórios.
@@ -182,8 +182,8 @@ Feature: Preferências de notificação
 ## API
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |
 |---|---|---|---|---|---|
-| ME-05 | GET | `/api/v1/me/notification-preferences` | — | `200 { data: [{ notificationType, channel, enabled, editable }] }` | 200, 401 |
-| ME-06 | PUT | `/api/v1/me/notification-preferences` | `{ preferences: [{ notificationType, channel, enabled }] }` | `200 { data: [...] }` | 200, 401, 422, 503 |
+| ME-05 | GET | `/api/v1/me/notification-preferences` | — | `200 { data: [{ notificationType, channel, enabled, editable }], meta: { emailEnabled } }` | 200, 401 |
+| ME-06 | PUT | `/api/v1/me/notification-preferences` | `{ preferences: [{ notificationType, channel, enabled }] }` (`enabled: null` = usar padrão — FA-01) | `200 { data: [...], meta: { emailEnabled } }` | 200, 401, 422, 503 |
 
 ## Logs
 - `info` `notification_preferences.updated` — quantidade de combinações alteradas, `correlationId`.
