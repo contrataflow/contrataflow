@@ -37,6 +37,11 @@ export const myPermissionsSchema = z
     implicit: z.object({
       /** Unidades ativas de que o usuário é titular ou substituto (POL-05 · §7). */
       headOfDepartmentIds: z.array(z.uuid()),
+      /**
+       * Lotações do vínculo (base do escopo `OWN_DEPARTMENTS`) — US-001: pré-preenchimento e
+       * destaque do setor solicitante no wizard. Ausente em respostas antigas = nenhuma.
+       */
+      ownDepartmentIds: z.array(z.uuid()).default([]),
     }),
   })
   .meta({ id: 'MyPermissions' });

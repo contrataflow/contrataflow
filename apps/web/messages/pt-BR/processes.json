@@ -1,0 +1,207 @@
+{
+  "newButton": {
+    "label": "Novo processo"
+  },
+  "wizard": {
+    "title": "Novo processo",
+    "description": "Informe os dados essenciais para abrir o processo. O restante você completa depois, no painel do processo.",
+    "stepperLabel": "Passos para criar o processo",
+    "progress": "Passo {current} de {total}",
+    "stepDone": "concluído",
+    "steps": {
+      "identification": "Identificação",
+      "origin": "Origem e planejamento",
+      "review": "Revisão"
+    },
+    "stepHints": {
+      "identification": "Diga o que será contratado e o tipo de contratação.",
+      "origin": "Informe quem solicita, a origem da demanda e a situação no PCA.",
+      "review": "Confira os dados antes de criar o processo."
+    },
+    "actions": {
+      "back": "Voltar",
+      "next": "Continuar",
+      "cancel": "Cancelar",
+      "create": "Criar processo",
+      "creating": "Criando processo…",
+      "retry": "Tentar novamente",
+      "edit": "Editar"
+    },
+    "footerLabel": "Ações do formulário",
+    "required": "obrigatório",
+    "optional": "opcional",
+    "formErrors": "Revise os campos destacados.",
+    "stepInvalid": "Há campos a corrigir em “{step}”. Volte a esse passo para continuar.",
+    "goToStep": "Ir para “{step}”"
+  },
+  "fields": {
+    "title": "Título *",
+    "titleHint": "Resuma a demanda em uma frase (de 5 a 200 caracteres).",
+    "object": "Objeto *",
+    "objectHint": "Descreva o que será contratado (de 10 a 2.000 caracteres).",
+    "description": "Descrição",
+    "descriptionHint": "Contexto adicional, se houver.",
+    "contractingTypeId": "Tipo de contratação *",
+    "modalityId": "Modalidade prevista",
+    "modalityUndefined": "A definir",
+    "isPriceRegistration": "Registro de preços (SRP)",
+    "isPriceRegistrationHint": "Marque se a contratação será feita por sistema de registro de preços.",
+    "organizationId": "Órgão/entidade *",
+    "requestingSecretariatId": "{secretariat} solicitante *",
+    "requestingDepartmentId": "{department} solicitante *",
+    "ownDepartments": "Suas lotações",
+    "otherDepartments": "Demais unidades",
+    "priority": "Prioridade *",
+    "targetDate": "Prazo alvo",
+    "targetDateHint": "Opcional. Não pode ser anterior a hoje.",
+    "estimatedValue": "Valor estimado",
+    "estimatedValueHint": "Opcional. Em reais, com até 2 casas decimais.",
+    "originId": "Origem *",
+    "select": "Selecione",
+    "pcaStatus": "Situação no PCA *",
+    "pcaYear": "Exercício do PCA *",
+    "pcaItemCode": "Item do PCA",
+    "pcaItemCodeHint": "Código do item no plano, se houver.",
+    "pcaJustification": "Justificativa *",
+    "pcaJustificationHint": "Explique por que a contratação não está prevista no PCA (mín. 20 caracteres).",
+    "internalCode": "Código interno",
+    "internalCodeRequired": "Código interno *",
+    "internalCodeHint": "Número do protocolo ou de controle do órgão.",
+    "notes": "Observações"
+  },
+  "priorities": {
+    "LOW": "Baixa",
+    "MEDIUM": "Média",
+    "HIGH": "Alta",
+    "URGENT": "Urgente"
+  },
+  "pcaStatuses": {
+    "PLANNED": "Previsto no PCA",
+    "NOT_PLANNED": "Não previsto no PCA",
+    "NOT_APPLICABLE": "Não se aplica"
+  },
+  "statuses": {
+    "DRAFT": "Rascunho",
+    "IN_PROGRESS": "Em andamento",
+    "AWAITING_APPROVAL": "Aguardando aprovação",
+    "RETURNED": "Devolvido",
+    "SUSPENDED": "Suspenso",
+    "CANCELED": "Cancelado",
+    "COMPLETED": "Concluído",
+    "PUBLISHED": "Publicado"
+  },
+  "loading": {
+    "label": "Carregando as opções do formulário…",
+    "options": "Carregando…",
+    "failed": "Não foi possível carregar as opções do formulário.",
+    "retry": "Tentar novamente"
+  },
+  "empty": {
+    "contractingType": "Nenhum tipo de contratação ativo. Fale com o administrador.",
+    "origin": "Nenhuma origem ativa. Fale com o administrador.",
+    "organization": "Nenhum órgão ativo. Fale com o administrador.",
+    "departments": "Nenhuma unidade disponível para você abrir processos. Fale com o administrador.",
+    "noOptions": "Sem opções disponíveis."
+  },
+  "review": {
+    "summary": "Resumo",
+    "moreInfo": "Mais informações",
+    "moreInfoHint": "Código interno e observações (opcional).",
+    "numberingByOrganization": "A numeração deste processo é por órgão.",
+    "values": {
+      "none": "Não informado",
+      "yes": "Sim",
+      "no": "Não"
+    },
+    "pcaDetail": {
+      "PLANNED": "Previsto no PCA — exercício {year}",
+      "PLANNED_ITEM": "Previsto no PCA — exercício {year}, item {item}",
+      "NOT_PLANNED": "Não previsto no PCA — {justification}",
+      "NOT_APPLICABLE": "Não se aplica"
+    }
+  },
+  "duplicates": {
+    "title": "Encontramos processos parecidos criados recentemente.",
+    "description": "Confira se algum deles já é a demanda que você quer abrir.",
+    "listLabel": "Processos parecidos",
+    "noNumber": "Rascunho (sem número)",
+    "meta": "{status} · criado por {name} em {date}",
+    "open": "Abrir processo existente",
+    "openNamed": "Abrir processo existente {code}",
+    "createAnyway": "Criar mesmo assim",
+    "checking": "Verificando processos parecidos…"
+  },
+  "workflow": {
+    "title": "Fluxo do processo",
+    "loading": "Verificando o fluxo aplicável…",
+    "preview": "Este processo seguirá o fluxo <strong>{name}</strong>, começando em <strong>{stage}</strong>.",
+    "none": "Não há fluxo configurado para este tipo de contratação. Fale com o administrador do órgão.",
+    "unavailable": "Não foi possível verificar o fluxo agora. Você ainda pode criar o processo; o sistema escolherá o fluxo na criação.",
+    "retry": "Tentar novamente"
+  },
+  "draft": {
+    "recovered": "Recuperamos o que você estava preenchendo",
+    "recoveredHint": "Revise os dados antes de continuar.",
+    "discard": "Começar do zero",
+    "dismiss": "Entendi"
+  },
+  "cancel": {
+    "title": "Descartar o que você preencheu?",
+    "description": "Os dados digitados serão apagados deste navegador e nenhum processo será criado.",
+    "keep": "Continuar preenchendo",
+    "discard": "Descartar e sair"
+  },
+  "errors": {
+    "generic": "Não foi possível criar o processo. Tente novamente.",
+    "unavailable": "Não foi possível criar o processo agora. Tente novamente em instantes.",
+    "unexpected": "Ocorreu um erro inesperado.",
+    "permission": "Você não tem permissão para abrir processos para este setor.",
+    "permissionHint": "Volte ao passo “Origem e planejamento” e escolha outro setor.",
+    "keyReused": "Esta solicitação já foi enviada com outros dados. Revise os dados e confirme novamente.",
+    "inProgress": "Estamos concluindo a criação. Aguarde.",
+    "internalCodeDuplicate": "Já existe um processo com o código interno {code}.",
+    "noWorkflow": "Não há fluxo configurado para este tipo de contratação. Fale com o administrador do órgão.",
+    "referenceInvalid": "Alguma opção escolhida não está mais disponível. As opções foram recarregadas; revise a seleção."
+  },
+  "toast": {
+    "created": "Processo {code} criado",
+    "createdNoNumber": "Processo criado (sem número)"
+  },
+  "panel": {
+    "loading": "Carregando o processo…",
+    "noNumber": "Rascunho (sem número)",
+    "backToList": "Processos",
+    "priority": "Prioridade {priority}",
+    "where": {
+      "title": "Onde está",
+      "stage": "Etapa atual",
+      "department": "Unidade",
+      "responsible": "Responsável",
+      "dueAt": "Prazo da etapa",
+      "targetDate": "Prazo alvo",
+      "noStage": "O processo ainda não tem uma etapa ativa.",
+      "noResponsible": "Sem responsável definido",
+      "noDueAt": "Sem prazo definido"
+    },
+    "next": {
+      "title": "Próximo passo",
+      "documents": {
+        "DFD": "Elabore o DFD para formalizar a demanda."
+      },
+      "none": "Nenhuma orientação cadastrada para esta etapa."
+    },
+    "data": {
+      "title": "Dados do processo",
+      "object": "Objeto",
+      "contractingType": "Tipo de contratação",
+      "modality": "Modalidade",
+      "origin": "Origem",
+      "workflow": "Fluxo",
+      "workflowValue": "{name} (versão {version})",
+      "estimatedValue": "Valor estimado",
+      "masked": "Valor restrito",
+      "none": "Não informado",
+      "undefinedModality": "A definir"
+    }
+  }
+}

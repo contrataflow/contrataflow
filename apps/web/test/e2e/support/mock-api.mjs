@@ -187,6 +187,108 @@ function departmentView(unit) {
   return view;
 }
 
+// Catálogos do wizard "Novo processo" (US-001 · CAT-01): tipos de contratação e origens ativos. O
+// tipo "Serviços comuns" não tem workflow aplicável (WF-06 → NO_APPLICABLE_WORKFLOW — FA-06).
+for (const [type, code, label] of [
+  ['CONTRACTING_TYPE', 'AQUISICAO_BENS', 'Aquisição de bens'],
+  ['CONTRACTING_TYPE', 'SERVICOS', 'Serviços comuns'],
+  ['PROCESS_ORIGIN', 'DEMANDA_NAO_PREVISTA', 'Demanda não prevista'],
+  ['PROCESS_ORIGIN', 'PLANO_ANUAL', 'Plano anual'],
+]) {
+  catalogItems.push({
+    id: `0192a000-0000-7000-8000-00000000c5${String(catalogItems.length).padStart(2, '0')}`,
+    catalogType: type,
+    code,
+    label,
+    description: null,
+    isSystem: true,
+    isActive: true,
+    sortOrder: catalogItems.filter((item) => item.catalogType === type).length + 1,
+    parentId: null,
+    metadata: {},
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z',
+    version: 1,
+  });
+}
+
+// Processos (US-001 · PRC-02/03/04 e WF-06): criação numerada em sequência, aviso de duplicidade
+// por título parecido (mesmo usuário, últimos 10 min) e idempotência por `Idempotency-Key`.
+const processes = [];
+const processReplays = new Map();
+let processSequence = 10;
+const WORKFLOW_RESOLUTION = {
+  workflowId: randomUUID(),
+  workflowVersionId: randomUUID(),
+  name: 'Fase preparatória — Lei 14.133/2021',
+  versionNumber: 1,
+  initialStage: { id: randomUUID(), key: 'ABERTURA', name: 'Formalização da demanda' },
+};
+const DUPLICATE_WINDOW_MS = 10 * 60_000;
+function titleTokens(text) {
+  return new Set(
+    String(text ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean),
+  );
+}
+/** Semelhança por palavras (Jaccard ≥ 0,6), no lugar do trigram do PostgreSQL. */
+function similarTitles(a, b) {
+  const x = titleTokens(a);
+  const y = titleTokens(b);
+  const shared = [...x].filter((token) => y.has(token)).length;
+  const total = new Set([...x, ...y]).size;
+  return total > 0 && shared / total >= 0.6;
+}
+function duplicateCandidates(subjectId, title) {
+  return processes
+    .filter(
+      (item) =>
+        item.subject === subjectId &&
+        Date.now() - item.createdAtMs < DUPLICATE_WINDOW_MS &&
+        similarTitles(item.view.title, title),
+    )
+    .map(({ view }) => ({
+      id: view.id,
+      code: view.code,
+      title: view.title,
+      status: view.status,
+      createdAt: view.createdAt,
+      createdBy: view.createdBy,
+    }));
+}
+function catalogRef(id) {
+  const item = catalogItems.find((entry) => entry.id === id);
+  return item ? { id: item.id, code: item.code, label: item.label } : null;
+}
+function departmentRef(id) {
+  const unit = departments.find((entry) => entry.id === id);
+  return unit ? { id: unit.id, name: unit.name } : null;
+}
+function processBodyErrors(body) {
+  const errors = [];
+  const required = (field, message) => {
+    if (!body[field]) errors.push({ field, code: 'REQUIRED', message });
+  };
+  if (String(body.title ?? '').trim().length < 5) {
+    errors.push({
+      field: 'title',
+      code: body.title ? 'TOO_SHORT' : 'REQUIRED',
+      message: 'Informe o título.',
+    });
+  }
+  required('object', 'Informe o objeto.');
+  required('contractingTypeId', 'Informe o tipo de contratação.');
+  required('requestingSecretariatId', 'Informe a secretaria solicitante.');
+  required('requestingDepartmentId', 'Informe o setor solicitante.');
+  required('originId', 'Informe a origem.');
+  required('pcaStatus', 'Informe a situação no PCA.');
+  return errors;
+}
+
 function previewOf(type) {
   if (!type.numberingEnabled) return null;
   const mask = type.numberingMask ?? '{type} {seq:4}/{year}';
@@ -589,6 +691,27 @@ function problem(response, status, code, correlationId) {
   );
 }
 
+/** problem+json com `errors[]` e/ou membros de extensão (ex.: `candidates` do 409 de duplicidade). */
+function problemWith(response, status, code, correlationId, extra = {}) {
+  send(
+    response,
+    status,
+    {
+      type: `https://docs.contrataflow.com.br/errors/${code.toLowerCase().replaceAll('_', '-')}`,
+      title: code,
+      status,
+      detail: code,
+      instance: '/api/v1',
+      code,
+      correlationId,
+      errors: extra.errors ?? [],
+      violations: [],
+      ...extra.members,
+    },
+    { 'Content-Type': 'application/problem+json', 'X-Correlation-Id': correlationId },
+  );
+}
+
 function readBody(request) {
   return new Promise((resolve) => {
     let raw = '';
@@ -668,7 +791,11 @@ createServer(async (request, response) => {
     return send(response, 200, {
       data: {
         permissions: permissions.map((permission) => ({ ...permission, scopes: TENANT_WIDE })),
-        implicit: { headOfDepartmentIds: [] },
+        // US-001: lotações do vínculo (a Ana é lotada no Gabinete) — pré-preenchimento do wizard.
+        implicit: {
+          headOfDepartmentIds: [],
+          ownDepartmentIds: sub === 'sub-ana' ? [departments[0].id] : [],
+        },
       },
     });
   }
@@ -1596,6 +1723,142 @@ createServer(async (request, response) => {
     const body = JSON.parse((await readBody(request)) || '{}');
     Object.assign(type, body, { version: type.version + 1 });
     return send(response, 200, { data: documentTypeView(type) }, { ETag: `"${type.version}"` });
+  }
+  if (url.pathname === '/api/v1/me' && request.method === 'GET') {
+    // ME-01 (US-098): perfil do usuário (as lotações do wizard vêm do ME-03).
+    return send(
+      response,
+      200,
+      {
+        data: {
+          id: sub,
+          name: sub === 'sub-ana' ? 'Ana Souza' : 'Usuário',
+          socialName: null,
+          phone: null,
+          preferences: { density: 'comfortable', theme: 'light' },
+          version: 1,
+        },
+      },
+      { ETag: '"1"' },
+    );
+  }
+  if (url.pathname === '/api/v1/workflows/resolve' && request.method === 'POST') {
+    // WF-06 (US-042): "Serviços comuns" não tem fluxo aplicável (FA-06).
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const type = catalogItems.find((item) => item.id === body.contractingTypeId);
+    if (type?.code === 'SERVICOS') {
+      return problem(response, 422, 'NO_APPLICABLE_WORKFLOW', String(correlationId));
+    }
+    return send(response, 200, { data: WORKFLOW_RESOLUTION });
+  }
+  if (url.pathname === '/api/v1/processes/check-duplicates' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    return send(response, 200, { data: { candidates: duplicateCandidates(sub, body.title) } });
+  }
+  if (url.pathname === '/api/v1/processes' && request.method === 'POST') {
+    // PRC-02 (US-001): idempotente por chave (corpo diferente com a mesma chave → 422), 409 de
+    // duplicidade até `confirmDuplicate`, numeração sequencial `{seq:4}/{year}`.
+    const raw = await readBody(request);
+    const body = JSON.parse(raw || '{}');
+    const key = String(request.headers['idempotency-key'] ?? '');
+    const replay = key ? processReplays.get(key) : undefined;
+    if (replay) {
+      if (replay.raw !== raw) {
+        return problem(response, 422, 'IDEMPOTENCY_KEY_REUSED', String(correlationId));
+      }
+      return send(
+        response,
+        201,
+        { data: replay.view },
+        {
+          'Idempotent-Replayed': 'true',
+          Location: `/api/v1/processes/${replay.view.id}`,
+          ETag: '"1"',
+        },
+      );
+    }
+    const errors = processBodyErrors(body);
+    if (errors.length > 0) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), { errors });
+    }
+    const candidates = duplicateCandidates(sub, body.title);
+    if (candidates.length > 0 && body.confirmDuplicate !== true) {
+      return problemWith(response, 409, 'POSSIBLE_DUPLICATE_PROCESS', String(correlationId), {
+        members: { candidates },
+      });
+    }
+    processSequence += 1;
+    const year = new Date().getFullYear();
+    const now = new Date().toISOString();
+    const department = departmentRef(body.requestingDepartmentId);
+    const author = { id: sub, name: sub === 'sub-ana' ? 'Ana Souza' : 'Usuário' };
+    const view = {
+      id: randomUUID(),
+      code: `${String(processSequence).padStart(4, '0')}/${String(year)}`,
+      number: processSequence,
+      year,
+      internalCode: body.internalCode ?? null,
+      title: String(body.title).trim(),
+      object: String(body.object).trim(),
+      description: body.description ?? null,
+      status: 'DRAFT',
+      priority: body.priority ?? 'MEDIUM',
+      organization: { id: body.organizationId ?? organizations[0].id, shortName: 'PMSJ' },
+      requestingSecretariat: departmentRef(body.requestingSecretariatId),
+      requestingDepartment: department,
+      contractingType: catalogRef(body.contractingTypeId),
+      modality: body.modalityId ? catalogRef(body.modalityId) : null,
+      origin: catalogRef(body.originId),
+      isPriceRegistration: body.isPriceRegistration === true,
+      currentStage: {
+        id: WORKFLOW_RESOLUTION.initialStage.id,
+        key: 'ABERTURA',
+        name: WORKFLOW_RESOLUTION.initialStage.name,
+        dueAt: null,
+        instructions: null,
+        documentTypeCodes: ['DFD'],
+      },
+      currentDepartment: department,
+      currentResponsible: author,
+      workflow: {
+        id: WORKFLOW_RESOLUTION.workflowId,
+        name: WORKFLOW_RESOLUTION.name,
+        versionNumber: 1,
+      },
+      targetDate: body.targetDate ?? null,
+      estimatedValue: body.estimatedValue ?? null,
+      estimatedValueMasked: false,
+      estimatedValueSource: body.estimatedValue ? 'MANUAL' : null,
+      isBudgetConfidential: false,
+      pcaStatus: body.pcaStatus,
+      pcaYear: body.pcaYear ?? null,
+      pcaItemCode: body.pcaItemCode ?? null,
+      pcaJustification: body.pcaJustification ?? null,
+      notes: body.notes ?? null,
+      creationChannel: 'WEB',
+      openedAt: now,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: author,
+      version: 1,
+    };
+    processes.push({ view, subject: sub, createdAtMs: Date.now() });
+    if (key) processReplays.set(key, { raw, view });
+    return send(
+      response,
+      201,
+      { data: view },
+      { Location: `/api/v1/processes/${view.id}`, ETag: '"1"' },
+    );
+  }
+  const processRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/available-actions)?$/.exec(
+    url.pathname,
+  );
+  if (processRoute && request.method === 'GET') {
+    // PRC-04 e PRC-08 (US-004/US-041): o processo criado e as ações do painel (nenhuma no mock).
+    const found = processes.find((item) => item.view.id === processRoute[1]);
+    if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    return send(response, 200, { data: processRoute[2] ? [] : found.view });
   }
   return problem(response, 404, 'NOT_FOUND', String(correlationId));
 }).listen(PORT, () => {

@@ -287,7 +287,10 @@ export class EffectivePermissionSet {
         code,
         scopes: [...(scopesByCode.get(code)?.values() ?? [])],
       })),
-      implicit: { headOfDepartmentIds: [...this.snapshot.headOfDepartmentIds] },
+      implicit: {
+        headOfDepartmentIds: [...this.snapshot.headOfDepartmentIds],
+        ownDepartmentIds: [...this.snapshot.ownDepartmentIds],
+      },
     };
   }
 }

@@ -1,3 +1,4 @@
+import type { DepartmentType } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -14,12 +15,60 @@ export interface DepartmentForApproval {
 }
 
 /**
+ * Unidade vista por quem a referencia num cadastro (US-001: secretaria/setor solicitante — RN-PROC-02
+ * — e unidade da etapa inicial).
+ */
+export interface DepartmentReference {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly parentId: string | null;
+  readonly type: DepartmentType;
+  readonly name: string;
+  /** Caminho materializado `/<idRaiz>/…/<id>/` (RN-TEN-45): subárvore = prefixo. */
+  readonly path: string;
+  readonly isActive: boolean;
+  readonly headUserId: string | null;
+}
+
+/**
  * API pública do módulo `organization` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório.
  */
 @Injectable()
 export class OrganizationFacade {
   constructor(@Inject(DEPARTMENT_REPOSITORY) private readonly departments: DepartmentRepository) {}
+
+  /**
+   * Unidades do tenant da transação por id (ativas ou não — quem chama decide), lidas no `tx` do
+   * chamador. Id inexistente no tenant (inclusive de outro tenant) fica fora do mapa.
+   */
+  async departmentReferences(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, DepartmentReference>> {
+    const references = new Map<string, DepartmentReference>();
+    for (const id of new Set(ids)) {
+      const department = await this.departments.findById(tx, id);
+      if (!department) continue;
+      references.set(id, {
+        id: department.id,
+        organizationId: department.organizationId,
+        parentId: department.parentId,
+        type: department.type,
+        name: department.name,
+        path: department.path,
+        isActive: department.isActive,
+        headUserId: department.headUserId,
+      });
+    }
+    return references;
+  }
+
+  /** Nomes das unidades do tenant da transação (timeline e apresentação de processos — US-001). */
+  async departmentNames(tx: TenantTx, ids: readonly string[]): Promise<Map<string, string>> {
+    const references = await this.departmentReferences(tx, ids);
+    return new Map([...references].map(([id, reference]) => [id, reference.name]));
+  }
 
   /**
    * Unidade do tenant da transação (US-102), lida no `tx` do chamador, ou `null` se não existir

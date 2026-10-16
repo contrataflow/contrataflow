@@ -49,4 +49,24 @@ describe('OrganizationFacade (US-102)', () => {
     await expect(inTenant(B, () => facade.departmentsHeadedBy(tx, HEAD))).resolves.toEqual([]);
     await expect(inTenant(A, () => facade.departmentsHeadedBy(tx, ORG))).resolves.toEqual([]);
   });
+
+  it('departmentReferences e departmentNames (US-001): só unidades do tenant da transação', async () => {
+    const references = await inTenant(A, () => facade.departmentReferences(tx, [UNIT, ORG, UNIT]));
+    expect([...references.values()]).toEqual([
+      {
+        id: UNIT,
+        organizationId: ORG,
+        parentId: null,
+        type: 'SECRETARIAT',
+        name: 'Secretaria de Obras',
+        path: `/${UNIT}/`,
+        isActive: true,
+        headUserId: HEAD,
+      },
+    ]);
+    await expect(inTenant(B, () => facade.departmentNames(tx, [UNIT]))).resolves.toEqual(new Map());
+    await expect(inTenant(A, () => facade.departmentNames(tx, [UNIT]))).resolves.toEqual(
+      new Map([[UNIT, 'Secretaria de Obras']]),
+    );
+  });
 });

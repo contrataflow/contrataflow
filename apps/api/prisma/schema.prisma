@@ -1115,3 +1115,305 @@ model Notification {
   @@index([tenantId, recipientId, readAt, createdAt(sort: Desc)], map: "notifications_recipient_idx")
   @@map("notifications")
 }
+
+/// entities.md §2 — enums do processo (US-001 · DEC-013).
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+
+  @@map("priority")
+}
+
+enum PcaStatus {
+  PLANNED
+  NOT_PLANNED
+  NOT_APPLICABLE
+
+  @@map("pca_status")
+}
+
+enum EstimatedValueSource {
+  MANUAL
+  DFD
+  ETP
+  PRICE_RESEARCH
+  TERM
+
+  @@map("estimated_value_source")
+}
+
+enum CreationChannel {
+  WEB
+  DUPLICATION
+  IMPORT
+  API
+
+  @@map("creation_channel")
+}
+
+enum ProcessStatus {
+  DRAFT
+  IN_PROGRESS
+  AWAITING_APPROVAL
+  RETURNED
+  SUSPENDED
+  CANCELED
+  COMPLETED
+  PUBLISHED
+
+  @@map("process_status")
+}
+
+enum ProcessStageStatus {
+  ACTIVE
+  COMPLETED
+  RETURNED
+  CANCELED
+
+  @@map("process_stage_status")
+}
+
+enum AssignmentType {
+  STAGE_ENTRY
+  CLAIM
+  MANUAL
+  RETURN
+
+  @@map("assignment_type")
+}
+
+enum MovementAction {
+  CREATE
+  FORWARD
+  RETURN
+  CLAIM
+  ASSIGN
+  APPROVE
+  REJECT
+  COMPLETE
+  CANCEL
+  SUSPEND
+  RESUME
+
+  @@map("movement_action")
+}
+
+enum PrincipalType {
+  DEPARTMENT
+  USER
+
+  @@map("principal_type")
+}
+
+enum ProcessAccessReason {
+  REQUESTING
+  CURRENT
+  HISTORICAL
+  CREATOR
+  RESPONSIBLE
+  PARTICIPANT
+  APPROVER
+
+  @@map("process_access_reason")
+}
+
+/// entities.md §4.4 `Process` (US-001 · DEC-010): agregado central. FKs compostas, checks, RLS,
+/// `search_vector` (coluna gerada) e índices parciais/trigram ficam em SQL bruto na migração
+/// `20261016100000_processes`; `current_stage_id` → `process_stages` é DEFERRABLE.
+model Process {
+  id                      String                   @id @db.Uuid
+  tenantId                String                   @map("tenant_id") @db.Uuid
+  organizationId          String                   @map("organization_id") @db.Uuid
+  number                  Int?
+  year                    Int
+  code                    String?                  @db.VarChar(40)
+  internalCode            String?                  @map("internal_code") @db.VarChar(60)
+  title                   String                   @db.VarChar(200)
+  object                  String
+  description             String?
+  contractingTypeId       String                   @map("contracting_type_id") @db.Uuid
+  modalityId              String?                  @map("modality_id") @db.Uuid
+  isPriceRegistration     Boolean                  @default(false) @map("is_price_registration")
+  requestingSecretariatId String                   @map("requesting_secretariat_id") @db.Uuid
+  requestingDepartmentId  String                   @map("requesting_department_id") @db.Uuid
+  currentDepartmentId     String                   @map("current_department_id") @db.Uuid
+  currentResponsibleId    String?                  @map("current_responsible_id") @db.Uuid
+  priority                Priority                 @default(MEDIUM)
+  status                  ProcessStatus            @default(DRAFT)
+  statusBeforeSuspension  ProcessStatus?           @map("status_before_suspension")
+  workflowVersionId       String                   @map("workflow_version_id") @db.Uuid
+  currentStageId          String?                  @map("current_stage_id") @db.Uuid
+  currentWorkflowStageId  String?                  @map("current_workflow_stage_id") @db.Uuid
+  currentStageDueAt       DateTime?                @map("current_stage_due_at") @db.Timestamptz(6)
+  overdueSince            DateTime?                @map("overdue_since") @db.Timestamptz(6)
+  openedAt                DateTime?                @map("opened_at") @db.Timestamptz(6)
+  targetDate              DateTime?                @map("target_date") @db.Date
+  estimatedValue          Decimal?                 @map("estimated_value") @db.Decimal(18, 2)
+  estimatedValueSource    EstimatedValueSource?    @map("estimated_value_source")
+  isBudgetConfidential    Boolean                  @default(false) @map("is_budget_confidential")
+  originId                String                   @map("origin_id") @db.Uuid
+  creationChannel         CreationChannel          @default(WEB) @map("creation_channel")
+  pcaStatus               PcaStatus                @map("pca_status")
+  pcaYear                 Int?                     @map("pca_year")
+  pcaItemCode             String?                  @map("pca_item_code") @db.VarChar(60)
+  pcaJustification        String?                  @map("pca_justification")
+  notes                   String?
+  duplicatedFromId        String?                  @map("duplicated_from_id") @db.Uuid
+  completedAt             DateTime?                @map("completed_at") @db.Timestamptz(6)
+  completedById           String?                  @map("completed_by_id") @db.Uuid
+  canceledAt              DateTime?                @map("canceled_at") @db.Timestamptz(6)
+  canceledById            String?                  @map("canceled_by_id") @db.Uuid
+  cancellationReason      String?                  @map("cancellation_reason")
+  suspendedAt             DateTime?                @map("suspended_at") @db.Timestamptz(6)
+  suspendedById           String?                  @map("suspended_by_id") @db.Uuid
+  suspensionReason        String?                  @map("suspension_reason")
+  /// Coluna GERADA (`to_tsvector('portuguese', cf_unaccent(...))`) — nunca escrita pela aplicação.
+  searchVector            Unsupported("tsvector")? @map("search_vector")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String                   @map("created_by_id") @db.Uuid
+  updatedById             String?                  @map("updated_by_id") @db.Uuid
+  version                 Int                      @default(1)
+  deletedAt               DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  deletedById             String?                  @map("deleted_by_id") @db.Uuid
+
+  @@unique([tenantId, id], map: "processes_tenant_id_id_key")
+  // Parciais na migração (`WHERE code IS NOT NULL` · `WHERE internal_code IS NOT NULL AND deleted_at IS NULL`).
+  @@index([tenantId, code], map: "processes_code_key")
+  @@index([tenantId, internalCode], map: "processes_internal_code_key")
+  @@index([tenantId, status, updatedAt(sort: Desc)], map: "processes_status_idx")
+  @@index([tenantId, currentDepartmentId, status], map: "processes_current_department_idx")
+  @@index([tenantId, currentResponsibleId, status], map: "processes_current_responsible_idx")
+  @@index([tenantId, requestingSecretariatId, status], map: "processes_requesting_secretariat_idx")
+  @@index([tenantId, organizationId, year, number], map: "processes_organization_year_number_idx")
+  @@index([tenantId, currentStageDueAt], map: "processes_current_stage_due_idx")
+  @@index([tenantId, overdueSince], map: "processes_overdue_idx")
+  @@index([tenantId, targetDate], map: "processes_target_date_idx")
+  @@index([tenantId, createdAt(sort: Desc)], map: "processes_created_at_idx")
+  @@map("processes")
+}
+
+/// entities.md §4.4 `ProcessStage`: cada passagem por uma etapa do workflow (uma ACTIVE por processo).
+model ProcessStage {
+  id                    String             @id @db.Uuid
+  tenantId              String             @map("tenant_id") @db.Uuid
+  processId             String             @map("process_id") @db.Uuid
+  workflowStageId       String             @map("workflow_stage_id") @db.Uuid
+  sequence              Int
+  status                ProcessStageStatus @default(ACTIVE)
+  departmentId          String             @map("department_id") @db.Uuid
+  assigneeId            String?            @map("assignee_id") @db.Uuid
+  enteredAt             DateTime           @default(now()) @map("entered_at") @db.Timestamptz(6)
+  exitedAt              DateTime?          @map("exited_at") @db.Timestamptz(6)
+  dueAt                 DateTime?          @map("due_at") @db.Timestamptz(6)
+  slaDays               Int?               @map("sla_days")
+  slaType               DayCountType?      @map("sla_type")
+  dueDateOverridden     Boolean            @default(false) @map("due_date_overridden")
+  dueDateOverrideReason String?            @map("due_date_override_reason")
+  pausedAt              DateTime?          @map("paused_at") @db.Timestamptz(6)
+  pausedTotalSeconds    Int                @default(0) @map("paused_total_seconds")
+  overdueSince          DateTime?          @map("overdue_since") @db.Timestamptz(6)
+  dueSoonNotifiedAt     DateTime?          @map("due_soon_notified_at") @db.Timestamptz(6)
+  overdueNotifiedAt     DateTime?          @map("overdue_notified_at") @db.Timestamptz(6)
+  enteredViaMovementId  String?            @map("entered_via_movement_id") @db.Uuid
+  exitedViaMovementId   String?            @map("exited_via_movement_id") @db.Uuid
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                @default(1)
+
+  @@unique([tenantId, id], map: "process_stages_tenant_id_id_key")
+  @@unique([tenantId, processId, sequence], map: "process_stages_sequence_key")
+  // Parciais na migração (`WHERE status = 'ACTIVE'`).
+  @@index([tenantId, processId], map: "process_stages_single_active_key")
+  @@index([tenantId, departmentId], map: "process_stages_department_idx")
+  @@index([tenantId, assigneeId], map: "process_stages_assignee_idx")
+  @@index([tenantId, dueAt], map: "process_stages_due_idx")
+  @@map("process_stages")
+}
+
+/// entities.md §4.4 `ProcessAssignment`: histórico de responsabilidade (um ativo por processo).
+model ProcessAssignment {
+  id             String         @id @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  processId      String         @map("process_id") @db.Uuid
+  processStageId String         @map("process_stage_id") @db.Uuid
+  departmentId   String         @map("department_id") @db.Uuid
+  assigneeId     String?        @map("assignee_id") @db.Uuid
+  type           AssignmentType
+  assignedById   String?        @map("assigned_by_id") @db.Uuid
+  reason         String?
+  startedAt      DateTime       @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt        DateTime?      @map("ended_at") @db.Timestamptz(6)
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_assignments_tenant_id_id_key")
+  // Parciais na migração (`WHERE is_active` …).
+  @@index([tenantId, processId], map: "process_assignments_single_active_key")
+  @@index([tenantId, assigneeId], map: "process_assignments_assignee_idx")
+  @@index([tenantId, departmentId], map: "process_assignments_queue_idx")
+  @@map("process_assignments")
+}
+
+/// entities.md §4.4 `ProcessMovement`: tramitação, imutável (gatilho na migração).
+model ProcessMovement {
+  id                   String         @id @db.Uuid
+  tenantId             String         @map("tenant_id") @db.Uuid
+  processId            String         @map("process_id") @db.Uuid
+  sequence             Int
+  action               MovementAction
+  workflowTransitionId String?        @map("workflow_transition_id") @db.Uuid
+  fromProcessStageId   String?        @map("from_process_stage_id") @db.Uuid
+  toProcessStageId     String?        @map("to_process_stage_id") @db.Uuid
+  fromWorkflowStageId  String?        @map("from_workflow_stage_id") @db.Uuid
+  toWorkflowStageId    String?        @map("to_workflow_stage_id") @db.Uuid
+  fromDepartmentId     String?        @map("from_department_id") @db.Uuid
+  toDepartmentId       String?        @map("to_department_id") @db.Uuid
+  fromUserId           String?        @map("from_user_id") @db.Uuid
+  toUserId             String?        @map("to_user_id") @db.Uuid
+  statusFrom           ProcessStatus? @map("status_from")
+  statusTo             ProcessStatus? @map("status_to")
+  actorType            ActorType      @default(USER) @map("actor_type")
+  actorId              String?        @map("actor_id") @db.Uuid
+  actorDepartmentId    String?        @map("actor_department_id") @db.Uuid
+  comment              String?
+  dueAt                DateTime?      @map("due_at") @db.Timestamptz(6)
+  documents            Json           @default("[]") @db.JsonB
+  approvalId           String?        @map("approval_id") @db.Uuid
+  ip                   String?        @db.Inet
+  userAgent            String?        @map("user_agent") @db.VarChar(512)
+  correlationId        String         @map("correlation_id") @db.VarChar(64)
+  metadata             Json           @default("{}") @db.JsonB
+  occurredAt           DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_movements_tenant_id_id_key")
+  @@unique([tenantId, processId, sequence], map: "process_movements_sequence_key")
+  @@index([tenantId, processId, occurredAt(sort: Desc)], map: "process_movements_process_idx")
+  @@index([tenantId, toDepartmentId, occurredAt(sort: Desc)], map: "process_movements_to_department_idx")
+  @@index([tenantId, actorId, occurredAt(sort: Desc)], map: "process_movements_actor_idx")
+  @@map("process_movements")
+}
+
+/// entities.md §4.4 `ProcessAccess`: concessões de visibilidade (DEC-024), mantidas pelo
+/// `ProcessAccessProjector` no mesmo `tx` do fato.
+model ProcessAccess {
+  id            String              @id @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  processId     String              @map("process_id") @db.Uuid
+  principalType PrincipalType       @map("principal_type")
+  departmentId  String?             @map("department_id") @db.Uuid
+  userId        String?             @map("user_id") @db.Uuid
+  reason        ProcessAccessReason
+  sourceId      String?             @map("source_id") @db.Uuid
+  grantedAt     DateTime            @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt     DateTime?           @map("revoked_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_access_tenant_id_id_key")
+  // Parciais na migração (`WHERE revoked_at IS NULL`).
+  @@index([tenantId, departmentId, processId], map: "process_access_department_idx")
+  @@index([tenantId, userId, processId], map: "process_access_user_idx")
+  @@index([tenantId, processId], map: "process_access_process_idx")
+  @@map("process_access")
+}

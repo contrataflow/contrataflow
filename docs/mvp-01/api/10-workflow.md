@@ -9,7 +9,7 @@
 | WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | US-040, US-043 |
 | WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` | US-040, US-042, US-043 |
 | WF-05 | POST | `/workflows/{id}/set-default` | `WORKFLOW_PUBLISH` | US-042 |
-| WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` | US-042 |
+| WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` ou `PROCESS_CREATE` | US-042, US-001 |
 | WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | US-040, US-045, US-046 |
 | WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | US-040, US-043, US-045 |
 | WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | US-040, US-043, US-046 |
@@ -102,7 +102,7 @@
 - **Notas:** exige workflow ativo e com versão publicada (RN-WF-41). Trava todos os workflows do tenant e incrementa a `version` de todos (RN-WF-42): trocas concorrentes a partir da mesma leitura → uma 200 e uma 412. Workflow que já é o padrão → 200 sem alteração, auditoria nem evento.
 
 ### WF-06 — Resolver workflow aplicável
-`POST /api/v1/workflows/resolve` · **Permissão:** `WORKFLOW_VIEW` · **Story:** US-042
+`POST /api/v1/workflows/resolve` · **Permissão:** `WORKFLOW_VIEW` ou `PROCESS_CREATE` (prévia do fluxo no wizard de criação — o REQUISITANTE não tem `WORKFLOW_VIEW`) · **Story:** US-042, US-001
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** `{ contractingTypeId: uuid; modalityId?: uuid; originId: uuid; estimatedValue?: string (decimal); organizationId: uuid; isPriceRegistration: boolean }`
@@ -110,7 +110,7 @@
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_VIEW` |
+  | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_VIEW` nem `PROCESS_CREATE` |
   | 422 | `VALIDATION_ERROR` | Item de catálogo inexistente, de outro tenant ou inativo (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
   | 422 | `NO_APPLICABLE_WORKFLOW` | Nenhum workflow publicado aplicável e sem padrão |
 - **Efeitos:** —

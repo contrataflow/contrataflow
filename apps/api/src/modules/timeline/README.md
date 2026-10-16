@@ -36,10 +36,10 @@ casos de uso.
 | Tipo                  | Dono (fachada)   | Registro devolvido                | Fonte (story que registra) |
 | --------------------- | ---------------- | --------------------------------- | -------------------------- |
 | `USER`                | `identity`       | `{ name }` (nome social ou civil) | US-059 (já registrada)     |
-| `DEPARTMENT`          | `organization`   | `{ name }`                        | US-102                     |
+| `DEPARTMENT`          | `organization`   | `{ name }`                        | US-001 (registrada)        |
 | `ROLE`                | `access`         | `{ name }`                        | US-095                     |
-| `PROCESS`             | `process`        | `{ code, isBudgetConfidential }`  | US-001                     |
-| `PROCESS_STAGE`       | `process`        | `{ name }`                        | US-001/US-047              |
+| `PROCESS`             | `process`        | `{ code, isBudgetConfidential }`  | US-001 (registrada)        |
+| `PROCESS_STAGE`       | `process`        | `{ name }`                        | US-001 (registrada)        |
 | `PROCESS_PARTICIPANT` | `process`        | `{ name, role }`                  | US-012                     |
 | `DOCUMENT`            | `document`       | `{ code, title, typeName }`       | US-014/US-065              |
 | `DOCUMENT_VERSION`    | `document`       | `{ versionNumber }`               | US-066                     |

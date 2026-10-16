@@ -83,7 +83,37 @@ export class WorkflowDefinitionService {
    * Snapshot da versão publicada/aposentada (o que o motor lê — US-041), ou `null` para rascunho
    * ou versão inexistente no tenant.
    */
-  async publishedDefinition(versionId: string): Promise<WorkflowSnapshot | null> {
+  publishedDefinition(versionId: string): Promise<WorkflowSnapshot | null> {
+    return this.cachedSnapshot(versionId, () =>
+      this.transactions.read((tx) => this.snapshotIn(tx, versionId)),
+    );
+  }
+
+  /**
+   * Como `publishedDefinition`, mas o banco é lido no `tx` do chamador (US-001: a criação do
+   * processo não abre uma segunda conexão por requisição — o pool aguenta criações simultâneas).
+   */
+  publishedDefinitionIn(tx: TenantTx, versionId: string): Promise<WorkflowSnapshot | null> {
+    return this.cachedSnapshot(versionId, () => this.snapshotIn(tx, versionId));
+  }
+
+  /** Workflow e número da versão (US-001: cartão "fluxo" do processo), ou `null` no tenant. */
+  async describeVersion(
+    tx: TenantTx,
+    versionId: string,
+  ): Promise<{ workflowId: string; name: string; versionNumber: number } | null> {
+    const version = await this.workflows.findVersion(tx, versionId);
+    if (!version) return null;
+    const workflow = await this.workflows.findWorkflow(tx, version.workflowId);
+    return workflow
+      ? { workflowId: workflow.id, name: workflow.name, versionNumber: version.versionNumber }
+      : null;
+  }
+
+  private async cachedSnapshot(
+    versionId: string,
+    load: () => Promise<WorkflowSnapshot | null>,
+  ): Promise<WorkflowSnapshot | null> {
     const key = definitionCacheKey(versionId);
     try {
       const cached = await this.cache.get(WORKFLOW_CACHE_MODULE, key, workflowSnapshotSchema);
@@ -94,10 +124,10 @@ export class WorkflowDefinitionService {
     } catch (error) {
       recordDefinitionCache('unavailable');
       this.cacheUnavailable(versionId, error);
-      return this.loadSnapshot(versionId);
+      return load();
     }
     recordDefinitionCache('miss');
-    const snapshot = await this.loadSnapshot(versionId);
+    const snapshot = await load();
     if (snapshot === null) return null;
     try {
       await this.cache.set(WORKFLOW_CACHE_MODULE, key, snapshot, {
@@ -109,8 +139,8 @@ export class WorkflowDefinitionService {
     return snapshot;
   }
 
-  private async loadSnapshot(versionId: string): Promise<WorkflowSnapshot | null> {
-    const version = await this.transactions.read((tx) => this.workflows.findVersion(tx, versionId));
+  private async snapshotIn(tx: TenantTx, versionId: string): Promise<WorkflowSnapshot | null> {
+    const version = await this.workflows.findVersion(tx, versionId);
     return version?.status === 'DRAFT' ? null : (version?.definitionSnapshot ?? null);
   }
 

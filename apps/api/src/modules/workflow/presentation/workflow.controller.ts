@@ -48,7 +48,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 
-import { RequirePermission } from '#shared/auth/authorization.js';
+import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
@@ -141,7 +141,9 @@ export class WorkflowController {
 
   @Post('workflows/resolve')
   @HttpCode(200)
-  @RequirePermission('WORKFLOW_VIEW')
+  @ImplicitAccess(
+    'WF-06 aceita WORKFLOW_VIEW ou PROCESS_CREATE (wizard da US-001); o ResolveWorkflowQuery confere uma das duas.',
+  )
   @ApiOperation({
     operationId: 'WF-06',
     summary: 'Resolver workflow aplicável',

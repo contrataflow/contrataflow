@@ -49,7 +49,7 @@ export type {
 } from '../domain/stage-destination.js';
 export type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
 export type { EngineViewer, ProcessActionPermission } from '../domain/workflow-engine.js';
-export type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
+export type { WorkflowSnapshot, WorkflowSnapshotStage } from '../domain/workflow-snapshot.js';
 
 /**
  * API pública do módulo `workflow` para os demais módulos (DEC-041): métodos de intenção,
@@ -99,6 +99,22 @@ export class WorkflowFacade {
   /** Snapshot da versão publicada/aposentada (cache imutável; Redis fora → banco). */
   publishedDefinition(versionId: string): Promise<WorkflowSnapshot | null> {
     return this.definitions.publishedDefinition(versionId);
+  }
+
+  /**
+   * Como `publishedDefinition`, lendo o banco no `tx` do chamador (US-001: etapa inicial, SLA e
+   * políticas de destino na transação da criação — sem segunda conexão por requisição).
+   */
+  publishedDefinitionIn(tx: TenantTx, versionId: string): Promise<WorkflowSnapshot | null> {
+    return this.definitions.publishedDefinitionIn(tx, versionId);
+  }
+
+  /** Nome do workflow e número da versão fixada no processo (`null` = inexistente no tenant). */
+  describeVersion(
+    tx: TenantTx,
+    versionId: string,
+  ): Promise<{ workflowId: string; name: string; versionNumber: number } | null> {
+    return this.definitions.describeVersion(tx, versionId);
   }
 
   /**

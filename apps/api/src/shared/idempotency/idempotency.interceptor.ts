@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { metrics } from '@opentelemetry/api';
+import type { Counter } from '@opentelemetry/api';
 import { catchError, from, mergeMap, of, throwError } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { z } from 'zod';
@@ -31,6 +33,9 @@ export const IN_PROGRESS_TTL_MS = 60_000;
 
 const REPLAYED_HEADERS = ['location', 'etag'] as const;
 const keySchema = z.uuid();
+
+/** `cf_idempotency_store_unavailable_total` (US-001 · Falha de integração — Redis fora). */
+let storeUnavailable: Counter | undefined;
 
 /** JSON com chaves ordenadas: o mesmo corpo gera o mesmo hash independentemente da ordem. */
 export function canonicalJson(value: unknown): string {
@@ -175,6 +180,13 @@ export class IdempotencyInterceptor implements NestInterceptor {
   }
 
   private unavailable(error: unknown): void {
+    storeUnavailable ??= metrics
+      .getMeter('contrataflow-api')
+      .createCounter('cf_idempotency_store_unavailable_total', {
+        description:
+          'Requisições que seguiram sem idempotência por falha do armazenamento (Redis).',
+      });
+    storeUnavailable.add(1);
     this.logger.warn(
       `idempotency.store_unavailable cause=${error instanceof Error ? error.name : 'unknown'}`,
     );

@@ -176,4 +176,7 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     MembershipSuspended: ['membership.suspended'],
     MembershipReactivated: ['membership.reactivated'],
     MembershipRevoked: ['membership.revoked'],
+    // US-001: timeline e `ProcessAccess` são projetados no mesmo `tx` (síncronos); no worker só o
+    // `BusinessMetricsCollector` (`process.*`). Sem notificação na criação (RN-PROC-17).
+    ProcessCreated: ['process.created'],
   };

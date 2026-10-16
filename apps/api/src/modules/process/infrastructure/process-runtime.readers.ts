@@ -2,23 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
-import { TenantTransaction } from '#shared/database/database.module.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { ProcessRuntimeReader, ProcessTransactions } from '../application/ports.js';
+import { ProcessRuntimeLoader } from '../application/process-runtime.loader.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
-
-/**
- * Leitor de produção ATÉ a US-001: as tabelas `processes`/`process_stages`/`process_access` ainda
- * não existem, então nenhum processo existe e PRC-08/PRC-09 respondem 404. A US-001 o substitui
- * pelo leitor Prisma (uma consulta: processo + passagens + concessões, sob a RLS do tenant).
- */
-@Injectable()
-export class PendingProcessRuntimeReader implements ProcessRuntimeReader {
-  load(_tx: TenantTx, _processId: string): Promise<ProcessRuntime | null> {
-    return Promise.resolve(null);
-  }
-}
 
 /**
  * Runtime de processos em memória (testes e modo de identidade fake): isolado pelo tenant do
@@ -55,17 +43,28 @@ export class InMemoryProcessRuntimeStore implements ProcessRuntimeReader {
   }
 }
 
+/**
+ * Leitor do modo em memória: o runtime carregado nos testes (`InMemoryProcessRuntimeStore.save`)
+ * ou, se não houver, o dos processos criados pelo PRC-02 (repositório em memória — US-001).
+ */
 @Injectable()
-export class PrismaProcessTransactions implements ProcessTransactions {
-  constructor(private readonly transaction: TenantTransaction) {}
+export class InMemoryProcessRuntimeReader implements ProcessRuntimeReader {
+  constructor(
+    private readonly store: InMemoryProcessRuntimeStore,
+    private readonly loader: ProcessRuntimeLoader,
+  ) {}
 
-  read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
-    return this.transaction.read(work);
+  async load(tx: TenantTx, processId: string): Promise<ProcessRuntime | null> {
+    return (await this.store.load(tx, processId)) ?? this.loader.load(tx, processId);
   }
 }
 
 @Injectable()
 export class InMemoryProcessTransactions implements ProcessTransactions {
+  run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return runSimulatedTransaction(work);
+  }
+
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return runSimulatedTransaction(work);
   }

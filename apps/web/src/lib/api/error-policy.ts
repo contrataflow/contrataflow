@@ -29,6 +29,9 @@ const INLINE_CONFLICT_CODES: ReadonlySet<string> = new Set([
   'LAST_ADMIN_REQUIRED',
   // RN-IAM-94: a tela destaca a atribuição existente.
   'ROLE_ASSIGNMENT_ALREADY_EXISTS',
+  // US-001 (FA-02 e V-10): o wizard mostra os candidatos com "Criar mesmo assim" ou o erro no campo.
+  'POSSIBLE_DUPLICATE_PROCESS',
+  'DUPLICATE_INTERNAL_CODE',
 ]);
 
 /** SCR-111 "sem acesso a esta instituição" (FA-08 da US-088). */

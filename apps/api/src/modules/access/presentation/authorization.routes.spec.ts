@@ -354,7 +354,11 @@ describe('Feature: Autorização na API e no frontend (US-097)', () => {
         scopes: [{ type: 'OWN_DEPARTMENTS', includeSubtree: true }],
       });
       expect(body.permissions.map((permission) => permission.code)).not.toContain('PROCESS_CANCEL');
-      expect(body.implicit).toEqual({ headOfDepartmentIds: [] });
+      // US-001: as lotações do vínculo (escopo OWN_DEPARTMENTS) para o wizard de criação.
+      expect(body.implicit).toEqual({
+        headOfDepartmentIds: [],
+        ownDepartmentIds: [expect.any(String)],
+      });
       const codes = body.permissions.map((permission) => permission.code);
       expect(codes).toEqual([...codes].sort());
     });

@@ -27,6 +27,8 @@ export { Skeleton } from './components/skeleton.js';
 export type { SkeletonProps } from './components/skeleton.js';
 export { SkipLink } from './components/skip-link.js';
 export type { SkipLinkProps } from './components/skip-link.js';
+export { Stepper } from './components/stepper.js';
+export type { StepperProps, StepperStep } from './components/stepper.js';
 export { Toaster, clearToasts, dismissToast, toast } from './components/toast.js';
 export type { ToastInput, ToastMessage, ToastTone, ToasterProps } from './components/toast.js';
 export { VisuallyHidden } from './components/visually-hidden.js';

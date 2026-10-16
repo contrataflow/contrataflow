@@ -70,7 +70,7 @@ Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = 
 ### 4.1 Processo (módulo `process`)
 | Evento | Routing key | Produtor (story) | Payload (além do envelope) | Cons. |
 |---|---|---|---|---|
-| `ProcessCreated` | `process.created` | Criar processo (US-001); duplicar (US-011) | `code?`, `number?`, `year`, `title`, `organizationId`, `requestingSecretariatId`, `requestingDepartmentId`, `contractingTypeCode`, `modalityCode?`, `priority`, `workflowId`, `workflowVersionId`, `initialStageKey`, `creationChannel`, `duplicatedFromId?` | T A M |
+| `ProcessCreated` | `process.created` | Criar processo (US-001); duplicar (US-011) | `code?`, `number?`, `year`, `title`, `organizationId`, `requestingSecretariatId`, `requestingDepartmentId`, `contractingTypeCode`, `modalityCode?`, `priority`, `workflowId`, `workflowVersionId`, `initialStageKey`, `initialDepartmentId`, `initialResponsibleId?`, `creationChannel`, `duplicatedFromId?` (unidade e responsável da etapa inicial — concessões `CURRENT`/`RESPONSIBLE` do `ProcessAccessProjector`; US-001) | T A M |
 | `ProcessUpdated` | `process.updated` | Editar processo (US-005), etiquetas (US-007) | `changedFields: string[]` (sem valores sigilosos), `version` | T |
 | `ProcessNumberAssigned` | `process.number_assigned` | 1º encaminhamento com `assignOn = START` (US-047) | `number`, `year`, `code` | T |
 | `ProcessItemsChanged` | `process.items_changed` | Gerenciar itens (US-006) | `added: id[]`, `updated: id[]`, `removed: id[]`, `itemsCount` | T |

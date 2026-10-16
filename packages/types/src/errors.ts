@@ -57,6 +57,9 @@ export const ERROR_CODES = [
   'INVITATION_EXPIRED',
   // US-097: processo inexistente, de outro tenant ou não visível (RN-IAM-104 · api/02-processes.md).
   'PROCESS_NOT_FOUND',
+  // US-001: criação de processo (api.md §2.2).
+  'POSSIBLE_DUPLICATE_PROCESS',
+  'DUPLICATE_INTERNAL_CODE',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -293,7 +293,7 @@ describe('EffectivePermissionSet — cobertura (permissions.md §1.1)', () => {
           ],
         },
       ],
-      implicit: { headOfDepartmentIds: ['obras'] },
+      implicit: { headOfDepartmentIds: ['obras'], ownDepartmentIds: ['obras'] },
     });
   });
 });

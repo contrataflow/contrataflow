@@ -27,15 +27,16 @@ describe('SettingsRegistry (RN-TEN-52/53)', () => {
     }
   });
 
-  it('só labels.* e branding.* são públicas (RN-TEN-56)', () => {
+  it('só labels.*, branding.* e process.requireInternalCode são públicas (RN-TEN-56)', () => {
     const publicKeys = registry.publicDefinitions().map((item) => item.key);
     expect(publicKeys).toEqual([
       'labels.secretariat',
       'labels.department',
       'branding.primaryColor',
       'branding.logoAttachmentId',
+      'process.requireInternalCode',
     ]);
-    expect(registry.definitions().filter((item) => !item.isPublic)).toHaveLength(28);
+    expect(registry.definitions().filter((item) => !item.isPublic)).toHaveLength(27);
   });
 
   it('chave duplicada entre módulos impede o boot', () => {

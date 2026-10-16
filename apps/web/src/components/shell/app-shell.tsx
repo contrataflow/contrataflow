@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { CSSProperties, ReactNode } from 'react';
 
 import { NotificationBell } from '@/features/notifications/notification-bell';
+import { NewProcessButton } from '@/features/processes/new-process-button';
 import type { ActiveShellSession } from '@/lib/session/types';
 
 import { Icon } from './icons';
@@ -72,6 +73,7 @@ export function AppShell({
               </label>
             </form>
             <div className="ml-auto flex flex-none items-center gap-2">
+              <NewProcessButton />
               <TenantSwitcher />
               <NotificationBell />
               <UserMenu />

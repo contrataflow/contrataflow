@@ -56,6 +56,10 @@ class FlakyProcessTransactions implements ProcessTransactions {
     if (this.down) return Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED')));
     return runSimulatedTransaction(work);
   }
+
+  run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.read(work);
+  }
 }
 
 const actionsSchema = z.array(actionEntrySchema);

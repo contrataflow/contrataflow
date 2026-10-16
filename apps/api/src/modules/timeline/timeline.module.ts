@@ -11,7 +11,14 @@ import { TimelineFacade } from './application/timeline.facade.js';
 import { IdentityUserLookupSource } from './infrastructure/identity-user.lookup-source.js';
 import { InMemoryTimelineEntryStore } from './infrastructure/in-memory-timeline-entry.store.js';
 import { PrismaTimelineEntryStore } from './infrastructure/prisma-timeline-entry.store.js';
+import {
+  DepartmentLookupSource,
+  ProcessLookupSource,
+  ProcessStageLookupSource,
+} from './infrastructure/process-lookup.sources.js';
 import { IdentityModule } from '../identity/identity.module.js';
+import { OrganizationModule } from '../organization/organization.module.js';
+import { ProcessModule } from '../process/process.module.js';
 
 /**
  * Módulo `timeline` (DEC-040, nível 5): outros módulos usam somente a fachada exportada. Dono de
@@ -21,7 +28,7 @@ import { IdentityModule } from '../identity/identity.module.js';
  * a story que passa a publicar um evento mapeado registra aqui a fonte das referências dele.
  */
 @Module({
-  imports: [IdentityModule],
+  imports: [IdentityModule, OrganizationModule, ProcessModule],
   providers: [
     TimelineFacade,
     TimelineProjector,
@@ -35,9 +42,18 @@ import { IdentityModule } from '../identity/identity.module.js';
         config.oidc.fakeSigningKey === null ? prisma : new InMemoryTimelineEntryStore(),
     },
     IdentityUserLookupSource,
+    DepartmentLookupSource,
+    ProcessLookupSource,
+    ProcessStageLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
-      inject: [IdentityUserLookupSource],
+      // US-001: unidade, processo e etapa das referências de `ProcessCreated`.
+      inject: [
+        IdentityUserLookupSource,
+        DepartmentLookupSource,
+        ProcessLookupSource,
+        ProcessStageLookupSource,
+      ],
       useFactory: (...sources: AnyTimelineLookupSource[]): AnyTimelineLookupSource[] => sources,
     },
   ],

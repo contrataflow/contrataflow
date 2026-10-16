@@ -1,61 +1,107 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { ProcessAccessModule, ProcessAccessRegistry } from '#shared/auth/process-access.js';
+import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
+import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
 
-import { PROCESS_RUNTIME_READER, PROCESS_TRANSACTIONS } from './application/ports.js';
+import { CreateProcessCommand } from './application/create-process.command.js';
+import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
+import {
+  PROCESS_CLOCK,
+  PROCESS_REPOSITORY,
+  PROCESS_RUNTIME_READER,
+  PROCESS_TRANSACTIONS,
+} from './application/ports.js';
+import { ProcessAccessProjector } from './application/process-access.projector.js';
 import { ProcessRuntimeAccessReader } from './application/process-access.reader.js';
 import {
   EvaluateStageRulesHandler,
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
+import { ProcessRuntimeLoader } from './application/process-runtime.loader.js';
 import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
+import { ProcessPresenter } from './application/process.presenter.js';
+import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
+import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
 import {
+  PrismaProcessRepository,
+  PrismaProcessTransactions,
+} from './infrastructure/prisma-process.repository.js';
+import {
+  InMemoryProcessRuntimeReader,
   InMemoryProcessRuntimeStore,
   InMemoryProcessTransactions,
-  PendingProcessRuntimeReader,
-  PrismaProcessTransactions,
 } from './infrastructure/process-runtime.readers.js';
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
+import { ProcessController } from './presentation/process.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
+import { TenancyModule } from '../tenancy/tenancy.module.js';
 import { WorkflowModule } from '../workflow/workflow.module.js';
 
-/** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): runtime em memória. */
+/** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): processos em memória. */
 const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
- * Módulo `process` (DEC-040, nível 3): outros módulos usam somente a fachada exportada. US-041:
- * PRC-08/PRC-09 sobre a `WorkflowFacade` (motor de workflow), com a visibilidade da DEC-024. O
- * runtime do processo vem da porta `PROCESS_RUNTIME_READER` — em produção, `PendingProcessRuntimeReader`
- * até a US-001 criar as tabelas do agregado. US-097: registra o leitor do processo na porta de
- * autorização (`ProcessAccessRegistry` — `@RequirePermission(…, { scope: { processParam } })`).
+ * Módulo `process` (DEC-040, nível 3 — agregado central): outros módulos usam somente a fachada
+ * exportada. US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`),
+ * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
+ * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
+ * sobre a `WorkflowFacade`. US-097: leitor do processo na porta de autorização.
  */
 @Module({
-  imports: [AccessModule, IdentityModule, OrganizationModule, WorkflowModule, ProcessAccessModule],
-  controllers: [ProcessActionsController],
+  imports: [
+    AccessModule,
+    CatalogModule,
+    IdentityModule,
+    OrganizationModule,
+    TenancyModule,
+    WorkflowModule,
+    ProcessAccessModule,
+  ],
+  controllers: [ProcessController, ProcessActionsController],
   providers: [
     ProcessFacade,
+    ProcessPresenter,
     ProcessViewerResolver,
     ProcessRuntimeAccessReader,
+    ProcessRuntimeLoader,
+    ProcessAccessProjector,
+    DuplicateCandidatesFinder,
+    CreateProcessCommand,
+    CheckDuplicateProcessesQuery,
+    GetProcessQuery,
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,
-    PendingProcessRuntimeReader,
+    PrismaProcessRepository,
+    InMemoryProcessRepository,
     InMemoryProcessRuntimeStore,
+    InMemoryProcessRuntimeReader,
     PrismaProcessTransactions,
     InMemoryProcessTransactions,
     {
-      provide: PROCESS_RUNTIME_READER,
-      inject: [APP_CONFIG, PendingProcessRuntimeReader, InMemoryProcessRuntimeStore],
+      provide: PROCESS_REPOSITORY,
+      inject: [APP_CONFIG, PrismaProcessRepository, InMemoryProcessRepository],
       useFactory: (
         config: AppConfig,
-        pending: PendingProcessRuntimeReader,
-        memory: InMemoryProcessRuntimeStore,
-      ) => (inMemory(config) ? memory : pending),
+        prisma: PrismaProcessRepository,
+        memory: InMemoryProcessRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PROCESS_RUNTIME_READER,
+      inject: [APP_CONFIG, ProcessRuntimeLoader, InMemoryProcessRuntimeReader],
+      useFactory: (
+        config: AppConfig,
+        loader: ProcessRuntimeLoader,
+        memory: InMemoryProcessRuntimeReader,
+      ) => (inMemory(config) ? memory : loader),
     },
     {
       provide: PROCESS_TRANSACTIONS,
@@ -66,6 +112,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         memory: InMemoryProcessTransactions,
       ) => (inMemory(config) ? memory : prisma),
     },
+    { provide: PROCESS_CLOCK, useValue: () => new Date() },
   ],
   exports: [ProcessFacade],
 })
@@ -73,9 +120,13 @@ export class ProcessModule implements OnModuleInit {
   constructor(
     private readonly registry: ProcessAccessRegistry,
     private readonly reader: ProcessRuntimeAccessReader,
+    @Inject(SYNC_EVENT_HANDLERS) private readonly syncHandlers: SyncEventHandlerRegistryPort,
+    private readonly accessProjector: ProcessAccessProjector,
   ) {}
 
   onModuleInit(): void {
     this.registry.register(this.reader);
+    // DEC-024 · DEC-161: concessões `ProcessAccess` no mesmo `tx` do fato.
+    this.syncHandlers.register(this.accessProjector);
   }
 }

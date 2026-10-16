@@ -499,6 +499,9 @@ describe('padrão de persistência (PostgreSQL real)', () => {
       await bootstrap.connect();
       try {
         await bootstrap.query('CREATE EXTENSION IF NOT EXISTS citext');
+        // US-001: `processes` usa trigram e FTS sem acento (DEC-057).
+        await bootstrap.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+        await bootstrap.query('CREATE EXTENSION IF NOT EXISTS unaccent');
       } finally {
         await bootstrap.end();
       }

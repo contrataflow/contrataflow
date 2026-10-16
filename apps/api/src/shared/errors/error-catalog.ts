@@ -237,6 +237,16 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Processo não encontrado',
     detail: 'Não encontramos o recurso solicitado.',
   },
+  POSSIBLE_DUPLICATE_PROCESS: {
+    status: 409,
+    title: 'Possível processo duplicado',
+    detail: 'Encontramos processos parecidos criados recentemente.',
+  },
+  DUPLICATE_INTERNAL_CODE: {
+    status: 409,
+    title: 'Código interno já utilizado',
+    detail: 'Já existe um processo com este código interno.',
+  },
   NOTIFICATION_NOT_FOUND: {
     status: 404,
     title: 'Notificação não encontrada',

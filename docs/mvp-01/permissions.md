@@ -340,7 +340,7 @@ Não fazem parte de perfis de tenant; concedidas a `User.isPlatformOperator` com
 
 ## 9. Uso no frontend
 
-- `GET /api/v1/me/permissions` retorna `{ permissions: [{ code, scopes: [{ type, organizationId?, departmentId?, includeSubtree }] }], implicit: { headOfDepartmentIds: [] } }`.
+- `GET /api/v1/me/permissions` retorna `{ permissions: [{ code, scopes: [{ type, organizationId?, departmentId?, includeSubtree }] }], implicit: { headOfDepartmentIds: [], ownDepartmentIds: [] } }` (`ownDepartmentIds` = lotações do vínculo, base do escopo `OWN_DEPARTMENTS` — US-001).
 - Hooks `usePermission(code)` (tem em algum escopo) e `useProcessCapabilities(processId)` (usa `GET /processes/{id}/available-actions`, que já aplica escopo + políticas e retorna os motivos de indisponibilidade para tooltip).
 - Itens de menu/rotas protegidos:
 

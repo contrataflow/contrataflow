@@ -31,7 +31,12 @@ describe('TimelineModule (US-059)', () => {
     };
     try {
       await moduleRef.init();
-      expect(registered).toEqual([projector]);
+      expect(registered).toContain(projector);
+      // US-001: o `process` registra o outro handler síncrono permitido (RN-FND-52).
+      expect(registered.map((handler) => (handler as { name: string }).name).sort()).toEqual([
+        'ProcessAccessProjector',
+        'TimelineProjector',
+      ]);
       // Modo de identidade fake: timeline em memória.
       expect(moduleRef.get(TIMELINE_ENTRY_STORE)).toBeInstanceOf(InMemoryTimelineEntryStore);
     } finally {

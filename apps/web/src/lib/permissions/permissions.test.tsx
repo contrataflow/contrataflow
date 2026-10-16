@@ -45,7 +45,7 @@ const ME: MyPermissionsDto = {
       ],
     },
   ],
-  implicit: { headOfDepartmentIds: [] },
+  implicit: { headOfDepartmentIds: [], ownDepartmentIds: [] },
 };
 
 function mockApi(handler: (url: string) => Response | Promise<Response>) {
@@ -105,7 +105,7 @@ describe('PermissionProvider + usePermission (ME-03)', () => {
           <button type="button">Novo processo</button>
         </Gate>
         <Can permission="PROCESS_VIEW">
-          <a href="/processos">Processos</a>
+          <a href="/aprovacoes">Processos</a>
         </Can>
         <Gate permission="PROCESS_CANCEL">
           <button type="button">Cancelar</button>
@@ -180,7 +180,7 @@ describe('PermissionProvider + usePermission (ME-03)', () => {
       </PermissionProvider>,
     );
     await screen.findByRole('button', { name: 'Novo processo' });
-    current = { permissions: [], implicit: { headOfDepartmentIds: [] } };
+    current = { permissions: [], implicit: { headOfDepartmentIds: [], ownDepartmentIds: [] } };
     await act(async () => {
       await queryClient.invalidateQueries();
     });

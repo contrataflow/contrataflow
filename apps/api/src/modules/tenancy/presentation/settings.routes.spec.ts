@@ -222,7 +222,7 @@ describe('Feature: Configurações gerais do tenant (US-103)', () => {
       expect(eventsOf()).toHaveLength(events);
     });
 
-    it('SET-03: só chaves públicas (labels.*, branding.*) do tenant da requisição', async () => {
+    it('SET-03: só chaves públicas (labels.*, branding.*, process.requireInternalCode) do tenant da requisição', async () => {
       const response = await getPublic();
 
       expect(response.status, JSON.stringify(response.body)).toBe(200);
@@ -232,6 +232,7 @@ describe('Feature: Configurações gerais do tenant (US-103)', () => {
         'branding.primaryColor',
         'labels.department',
         'labels.secretariat',
+        'process.requireInternalCode',
       ]);
       expect(data['branding.primaryColor']).toBe('#1D4ED8');
       expect(data['labels.secretariat']).toBe('Diretoria');

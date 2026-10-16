@@ -69,6 +69,9 @@ CREATE POLICY tenant_isolation ON test_departments
   USING (tenant_id = current_setting('app.tenant_id')::uuid)
   WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
 GRANT SELECT, INSERT, UPDATE ON test_processes, test_departments TO cf_app;
+-- US-001 criou a FK da timeline para \`processes\`; este contêiner exercita só o projetor sobre o
+-- agregado de teste, então a FK sai daqui (a projeção real com processos: tenant-leak/processes).
+ALTER TABLE process_timeline_entries DROP CONSTRAINT process_timeline_entries_process_fkey;
 RESET ROLE;
 INSERT INTO test_departments (id, tenant_id, name) VALUES
   ('${MANUTENCAO}', '${SAO_JOSE}', 'Setor de Manutenção'),

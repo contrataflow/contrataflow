@@ -427,7 +427,7 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | 200 | — | US-040, US-043 |
 | WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-042, US-043 |
 | WF-05 | POST | `/workflows/{id}/set-default` | `WORKFLOW_PUBLISH` (IM) | 200 | `WorkflowDefaultChanged` | US-042 |
-| WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` | 200 | — | US-042 |
+| WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` ou `PROCESS_CREATE` | 200 | — | US-042, US-001 |
 | WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | 200 | — | US-040, US-045 |
 | WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043, US-045 |
 | WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | 200 | — | US-040, US-043, US-046 |

@@ -73,7 +73,8 @@ export class WorkflowApplicabilityService {
 }
 
 /**
- * `ResolveWorkflowQuery` — WF-06 (US-042 · fluxo principal, passo 5 · FA-04): `WORKFLOW_VIEW`;
+ * `ResolveWorkflowQuery` — WF-06 (US-042 · fluxo principal, passo 5 · FA-04): `WORKFLOW_VIEW` ou
+ * `PROCESS_CREATE` (US-001);
  * traduz os itens de catálogo do tenant (inexistente, de outro tenant ou inativo → 422
  * `VALIDATION_ERROR`) nos códigos do `RuleContext.process` e resolve. `modalityId` ausente = "A
  * definir" (`modalityCode = null`): nenhuma regra que exija modalidade casa e vale o padrão.
@@ -89,7 +90,11 @@ export class ResolveWorkflowQuery {
   ) {}
 
   async execute(body: WorkflowResolve): Promise<WorkflowResolutionDto> {
-    this.access.assertCan('WORKFLOW_VIEW', { mfaPolicy: await this.identity.mfaPolicy() });
+    // US-001: o wizard de criação mostra o fluxo a quem pode abrir processo (o REQUISITANTE não
+    // tem `WORKFLOW_VIEW` — api/10-workflow.md WF-06).
+    this.access.assertCan(this.access.can('PROCESS_CREATE') ? 'PROCESS_CREATE' : 'WORKFLOW_VIEW', {
+      mfaPolicy: await this.identity.mfaPolicy(),
+    });
     return this.transactions.read(async (tx) => {
       const contractingType = await this.catalog.assertActive(
         tx,

@@ -68,7 +68,7 @@ User {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: { permissions: [{ code: string, scopes: [{ type: "TENANT" | "ORGANIZATION" | "DEPARTMENT" | "OWN_DEPARTMENTS", organizationId?: uuid, departmentId?: uuid, includeSubtree: boolean }] }], implicit: { headOfDepartmentIds: uuid[] } } }` — permissões em ordem alfabética, escopos sem repetição (permissions.md §9 · RN-IAM-106).
+- **Response:** `200 { data: { permissions: [{ code: string, scopes: [{ type: "TENANT" | "ORGANIZATION" | "DEPARTMENT" | "OWN_DEPARTMENTS", organizationId?: uuid, departmentId?: uuid, includeSubtree: boolean }] }], implicit: { headOfDepartmentIds: uuid[], ownDepartmentIds: uuid[] } } }` — permissões em ordem alfabética, escopos sem repetição (permissions.md §9 · RN-IAM-106); `ownDepartmentIds` = lotações do vínculo (US-001: pré-preenchimento e destaque do setor solicitante no wizard SCR-005).
 - **Erros:**
 
 | HTTP | `code` | Quando |

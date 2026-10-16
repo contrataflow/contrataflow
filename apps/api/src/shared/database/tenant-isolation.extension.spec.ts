@@ -223,7 +223,7 @@ describe('extensão tenant-isolation (RN-TEN-23)', () => {
 
   it('modelo fora das listas e operação não classificada falham fechadas', async () => {
     await inTenant(() => {
-      expect(() => isolateOperation('Process', 'findMany', {})).toThrow(
+      expect(() => isolateOperation('ModeloDesconhecido', 'findMany', {})).toThrow(
         TenantIsolationViolationError,
       );
     });

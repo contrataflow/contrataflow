@@ -229,7 +229,8 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
     module: 'process',
     schema: z.boolean(),
     defaultValue: false,
-    isPublic: false,
+    // RN-TEN-56: o wizard de criação (US-001 FA-09) torna o campo obrigatório no passo 3.
+    isPublic: true,
   }),
   define({
     key: 'access.historicalDepartmentsCanView',
