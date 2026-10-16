@@ -15,8 +15,10 @@ import { describeApplicability } from './workflows.api';
 configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
+const push = vi.hoisted(() => vi.fn());
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push, refresh: vi.fn() }),
   usePathname: () => '/admin/workflows',
 }));
 
@@ -80,7 +82,7 @@ function problemResponse(status: number, code: string): Response {
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
 function mockApi(
-  routes: { list?: Handler; setDefault?: Handler } = {},
+  routes: { list?: Handler; setDefault?: Handler; create?: Handler } = {},
   permissions: readonly string[] = ['WORKFLOW_VIEW', 'WORKFLOW_MANAGE', 'WORKFLOW_PUBLISH'],
 ) {
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
@@ -90,6 +92,9 @@ function mockApi(
       return Promise.resolve(
         jsonResponse({ data: { permissions: permissions.map((code) => ({ code, scopes: [] })) } }),
       );
+    }
+    if (method === 'POST' && url === '/api/v1/workflows' && routes.create) {
+      return Promise.resolve(routes.create(url, init));
     }
     if (method === 'GET' && url.startsWith('/api/v1/workflows')) {
       return Promise.resolve(
@@ -292,5 +297,68 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
     expect(
       await screen.findByText('Você não tem permissão para consultar os workflows.'),
     ).toBeTruthy();
+  });
+});
+
+describe('SCR-034 · novo workflow e acesso ao editor (US-043)', () => {
+  it('[Sucesso] "Novo workflow" sugere a chave pelo nome, envia WF-02 e abre o editor', async () => {
+    const created = workflow({
+      id: '0192a000-0000-7000-8000-000000000043',
+      key: 'OBRAS_RITO_SIMPLIFICADO',
+      name: 'Obras — rito simplificado',
+      currentPublishedVersion: null,
+      draftVersion: { id: '0192a000-0000-7000-8000-0000000000d1', versionNumber: 1 },
+      version: 1,
+    });
+    const fetchMock = mockApi({
+      list: () => jsonResponse({ data: [STANDARD, PILOTO] }),
+      create: () => jsonResponse({ data: created }, { status: 201 }),
+    });
+    renderWithShell(
+      <WithToaster>
+        <WorkflowsView />
+      </WithToaster>,
+    );
+
+    // A versão em edição aparece na lista (FA-07: sem rascunho nem publicada não há edição).
+    await screen.findByText('Piloto de obras');
+    expect(within(card(/Piloto de obras/)).getByText('Rascunho v1')).toBeTruthy();
+    expect(within(card(/Fase preparatória/)).getByText('Sem rascunho')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Piloto de obras' }).getAttribute('href')).toBe(
+      `/admin/workflows/${PILOTO.id}`,
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Novo workflow' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Novo workflow' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Criar e abrir o editor' }));
+    expect(within(dialog).getByText('Preencha o campo "Nome".')).toBeTruthy();
+    await userEvent.type(within(dialog).getByLabelText('Nome'), 'Obras — rito simplificado');
+    expect(within(dialog).getByLabelText<HTMLInputElement>('Chave técnica').value).toBe(
+      'OBRAS_RITO_SIMPLIFICADO',
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Criar e abrir o editor' }));
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith(`/admin/workflows/${created.id}`);
+    });
+    const [, init] =
+      fetchMock.mock.calls.find(
+        ([input, options]) =>
+          options?.method === 'POST' && requestUrl(input) === '/api/v1/workflows',
+      ) ?? [];
+    expect(JSON.parse(init?.body as string)).toEqual({
+      key: 'OBRAS_RITO_SIMPLIFICADO',
+      name: 'Obras — rito simplificado',
+    });
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toBeTruthy();
+  });
+
+  it('[Permissão] sem WORKFLOW_MANAGE não há "Novo workflow"', async () => {
+    mockApi({}, ['WORKFLOW_VIEW']);
+    renderWithShell(<WorkflowsView />);
+    await screen.findByText('Piloto de obras');
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Novo workflow' })).toBeNull();
+    });
   });
 });

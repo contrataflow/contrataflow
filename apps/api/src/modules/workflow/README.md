@@ -68,3 +68,21 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
   do tenant e sobe a `version` de todos — duas trocas sobre a mesma leitura dão 200 + 412. O índice
   único parcial `(tenant_id) WHERE is_default` é a rede de segurança. Já padrão → 200 sem efeito.
 - **Lista (WF-01):** ordem da aplicabilidade; filtros e ordenações do editor chegam com a US-043.
+
+## Editor de workflow (US-043)
+
+- **Exclusão restritiva (RN-WF-50 · FA-01):** WF-12/WF-15 não removem mais em cascata — etapa com
+  transições (origem/destino) ou regras, ou transição com regras → 422 `BUSINESS_RULE_VIOLATION`
+  com uma `violation` por item (`itemId`, `params.{kind,key,name}`; puro em
+  `domain/workflow-delete-guard.ts`). As FKs `ON DELETE CASCADE` ficam só como rede do banco.
+- **"Criar rascunho" (WF-08 · RN-WF-47):** sem `sourceVersionId` exige versão publicada (senão 422
+  `BUSINESS_RULE_VIOLATION`/`WORKFLOW_NOT_PUBLISHED`); `sourceVersionId` explícito (inclusive
+  aposentada) continua valendo. Segundo rascunho → `warn workflow.draft_conflict`.
+- **WF-01:** filtro `status` (`ACTIVE`/`INACTIVE` = `isActive`) além de `q`.
+- **Logs:** o `WorkflowDraftEditor` registra `info workflow.stage_saved`/`transition_saved`/
+  `rule_saved` (operação CREATE/UPDATE/DELETE) depois do commit e `error workflow.write_failed`
+  em falha de infraestrutura (5xx).
+- **Front (SCR-034):** `apps/web/src/features/workflows` — `workflow-editor.tsx` (tabela ordenável,
+  avisos do grafo, "Criar rascunho"), `stage-properties-panel.tsx` (salva por campo ao perder o
+  foco, com os mesmos condicionais da API), `workflow-transitions.tsx` e o modelo puro
+  `workflow-editor-model.ts`.

@@ -1,18 +1,44 @@
-import type { WorkflowDto } from '@contrataflow/validation';
+import type {
+  DepartmentLookupItem,
+  DocumentTypeDto,
+  RoleDto,
+  TenantMembershipDto,
+  WorkflowDto,
+  WorkflowStageCreate,
+  WorkflowStageDto,
+  WorkflowStageUpdate,
+  WorkflowTransitionCreate,
+  WorkflowTransitionDto,
+  WorkflowTransitionUpdate,
+  WorkflowVersionDetailDto,
+} from '@contrataflow/validation';
 
 import { apiRequest } from '@/lib/api/client';
 import type { ApiResult } from '@/lib/api/client';
+import type { IdempotentContext } from '@/lib/api/use-idempotent-mutation';
 import { tenantKey } from '@/lib/query/keys';
 
 /*
- * Workflows (US-042 · SCR-034): WF-01 (lista) e WF-05 (tornar padrão) de api/10-workflow.md. As
- * chaves seguem a convenção `['t', tenantId, …]` (RN-FND-90).
+ * Workflows (US-042/US-043 · SCR-034): WF-01..05 e WF-08..15 de api/10-workflow.md — lista, padrão,
+ * criação, "Criar rascunho" e a edição de etapas e transições do rascunho (cada item com o seu
+ * `If-Match`). As chaves seguem a convenção `['t', tenantId, …]` (RN-FND-90).
  */
 
 export const workflowKeys = {
   all: (tenantId: string) => tenantKey(tenantId, 'workflows'),
   list: (tenantId: string) => tenantKey(tenantId, 'workflows', 'list'),
+  detail: (tenantId: string, id: string) => tenantKey(tenantId, 'workflows', 'detail', id),
+  version: (tenantId: string, versionId: string) =>
+    tenantKey(tenantId, 'workflows', 'version', versionId),
+  lookups: (tenantId: string, kind: 'departments' | 'roles' | 'users' | 'documentTypes') =>
+    tenantKey(tenantId, 'workflows', 'lookups', kind),
 };
+
+export const WORKFLOWS_PATH = '/admin/workflows';
+
+export function workflowEditorHref(id: string): string {
+  return `${WORKFLOWS_PATH}/${id}`;
+}
 
 /** Staleness das telas de configuração (architecture.md §8.5). */
 export const WORKFLOWS_STALE_TIME_MS = 60_000;
@@ -28,6 +54,150 @@ export function setDefaultWorkflow(id: string, version: number): Promise<ApiResu
     method: 'POST',
     ifMatch: `"${version}"`,
   });
+}
+
+/** WF-03. */
+export function fetchWorkflow(id: string, signal?: AbortSignal): Promise<ApiResult<WorkflowDto>> {
+  return apiRequest<WorkflowDto>(`/workflows/${id}`, { signal });
+}
+
+export interface WorkflowCreateInput {
+  readonly key: string;
+  readonly name: string;
+  readonly description?: string;
+}
+
+/** WF-02 (cria também a v1 em rascunho); `Idempotency-Key` da intenção do usuário. */
+export function createWorkflow(
+  body: WorkflowCreateInput,
+  context: IdempotentContext,
+): Promise<ApiResult<WorkflowDto>> {
+  return apiRequest<WorkflowDto>('/workflows', {
+    method: 'POST',
+    body,
+    idempotencyKey: context.idempotencyKey,
+    correlationId: context.correlationId,
+  });
+}
+
+/** WF-08 ("Criar rascunho"): cópia da versão publicada corrente. */
+export function createWorkflowDraft(
+  workflowId: string,
+): Promise<ApiResult<WorkflowVersionDetailDto>> {
+  return apiRequest<WorkflowVersionDetailDto>(`/workflows/${workflowId}/versions`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+/** WF-09: versão com etapas, transições e regras (`ETag` = versão). */
+export function fetchWorkflowVersion(
+  versionId: string,
+  signal?: AbortSignal,
+): Promise<ApiResult<WorkflowVersionDetailDto>> {
+  return apiRequest<WorkflowVersionDetailDto>(`/workflow-versions/${versionId}`, { signal });
+}
+
+const ifMatchOf = (version: number | undefined) => `"${String(version ?? 1)}"`;
+
+/** WF-10. */
+export function createStage(
+  versionId: string,
+  body: WorkflowStageCreate,
+): Promise<ApiResult<WorkflowStageDto>> {
+  return apiRequest<WorkflowStageDto>(`/workflow-versions/${versionId}/stages`, {
+    method: 'POST',
+    body,
+  });
+}
+
+/** WF-11 com o `If-Match` da etapa. */
+export function updateStage(
+  stage: Pick<WorkflowStageDto, 'id' | 'version'>,
+  patch: WorkflowStageUpdate,
+): Promise<ApiResult<WorkflowStageDto>> {
+  return apiRequest<WorkflowStageDto>(`/workflow-stages/${stage.id}`, {
+    method: 'PATCH',
+    body: patch,
+    ifMatch: ifMatchOf(stage.version),
+  });
+}
+
+/** WF-12. */
+export function deleteStage(
+  stage: Pick<WorkflowStageDto, 'id' | 'version'>,
+): Promise<ApiResult<unknown>> {
+  return apiRequest<unknown>(`/workflow-stages/${stage.id}`, {
+    method: 'DELETE',
+    ifMatch: ifMatchOf(stage.version),
+  });
+}
+
+/** WF-13. */
+export function createTransition(
+  versionId: string,
+  body: WorkflowTransitionCreate,
+): Promise<ApiResult<WorkflowTransitionDto>> {
+  return apiRequest<WorkflowTransitionDto>(`/workflow-versions/${versionId}/transitions`, {
+    method: 'POST',
+    body,
+  });
+}
+
+/** WF-14 com o `If-Match` da transição. */
+export function updateTransition(
+  transition: Pick<WorkflowTransitionDto, 'id' | 'version'>,
+  patch: WorkflowTransitionUpdate,
+): Promise<ApiResult<WorkflowTransitionDto>> {
+  return apiRequest<WorkflowTransitionDto>(`/workflow-transitions/${transition.id}`, {
+    method: 'PATCH',
+    body: patch,
+    ifMatch: ifMatchOf(transition.version),
+  });
+}
+
+/** WF-15. */
+export function deleteTransition(
+  transition: Pick<WorkflowTransitionDto, 'id' | 'version'>,
+): Promise<ApiResult<unknown>> {
+  return apiRequest<unknown>(`/workflow-transitions/${transition.id}`, {
+    method: 'DELETE',
+    ifMatch: ifMatchOf(transition.version),
+  });
+}
+
+/*
+ * Catálogos do painel de propriedades: só leitura, carregados sob demanda. Sem a permissão de
+ * leitura correspondente (403), o seletor fica vazio com o aviso — a API valida a referência.
+ */
+
+/** DEP-02: até 50 unidades ativas. */
+export function fetchActiveDepartments(
+  signal?: AbortSignal,
+): Promise<ApiResult<DepartmentLookupItem[]>> {
+  return apiRequest<DepartmentLookupItem[]>('/departments/lookup', { signal });
+}
+
+/** ROL-02 só com perfis ativos. */
+export function fetchApproverRoles(signal?: AbortSignal): Promise<ApiResult<RoleDto[]>> {
+  return apiRequest<RoleDto[]>('/roles', { query: { isActive: true }, signal });
+}
+
+/** USR-01 com os vínculos ativos (até 100). */
+export function fetchApproverUsers(
+  signal?: AbortSignal,
+): Promise<ApiResult<TenantMembershipDto[]>> {
+  return apiRequest<TenantMembershipDto[]>('/users', {
+    query: { status: 'ACTIVE', pageSize: 100 },
+    signal,
+  });
+}
+
+/** DTY-01: tipos de documento (o painel mostra só os ativos). */
+export function fetchWorkflowDocumentTypes(
+  signal?: AbortSignal,
+): Promise<ApiResult<DocumentTypeDto[]>> {
+  return apiRequest<DocumentTypeDto[]>('/document-types', { signal });
 }
 
 /** RN-WF-41: só workflow ativo e com versão publicada pode ser o padrão. */

@@ -2,6 +2,8 @@ import type { WorkflowValidationResult } from '@contrataflow/validation';
 
 import { ApiError, businessRuleViolation } from '#shared/errors/api-error.js';
 
+import type { DeleteBlocker } from '../domain/workflow-delete-guard.js';
+
 /** 404 de workflow inexistente ou de outro tenant (indistinguíveis — RN-TEN). */
 export function workflowNotFound(): ApiError {
   return new ApiError('NOT_FOUND', { detail: 'Workflow não encontrado.' });
@@ -36,6 +38,51 @@ export function workflowKeyTaken(key: string): ApiError {
 /** 409 `WORKFLOW_DRAFT_EXISTS` com `meta.draftVersionId` (FA-02 · V-09). */
 export function workflowDraftExists(draftVersionId: string): ApiError {
   return new ApiError('WORKFLOW_DRAFT_EXISTS', { extensions: { meta: { draftVersionId } } });
+}
+
+/**
+ * 422 `BUSINESS_RULE_VIOLATION` (US-043 · RN-WF-47): "Criar rascunho" sem versão publicada e sem
+ * origem informada — nada para copiar.
+ */
+export function workflowNothingToCopy(): ApiError {
+  return businessRuleViolation([
+    {
+      code: 'WORKFLOW_NOT_PUBLISHED',
+      severity: 'BLOCKING',
+      message: 'Este workflow não tem versão publicada para copiar.',
+      ruleId: 'RN-WF-47',
+      sectionKey: null,
+      field: null,
+      itemId: null,
+      params: {},
+    },
+  ]);
+}
+
+/**
+ * 422 `BUSINESS_RULE_VIOLATION` (US-043 · RN-WF-50 · FA-01 · V-08): exclusão sempre restritiva —
+ * uma violação por transição/regra que ainda referencia a etapa (ou a transição), para a UI listar.
+ */
+export function workflowDeleteBlocked(
+  item: 'etapa' | 'transição',
+  blockers: readonly DeleteBlocker[],
+): ApiError {
+  const message =
+    item === 'etapa'
+      ? 'Remova primeiro as transições que usam esta etapa.'
+      : 'Remova primeiro as regras que usam esta transição.';
+  return businessRuleViolation(
+    blockers.map((blocker) => ({
+      code: blocker.kind === 'TRANSITION' ? 'REFERENCED_BY_TRANSITION' : 'REFERENCED_BY_RULE',
+      severity: 'BLOCKING' as const,
+      message,
+      ruleId: 'RN-WF-50',
+      sectionKey: null,
+      field: null,
+      itemId: blocker.id,
+      params: { kind: blocker.kind, key: blocker.key, name: blocker.name },
+    })),
+  );
 }
 
 /**

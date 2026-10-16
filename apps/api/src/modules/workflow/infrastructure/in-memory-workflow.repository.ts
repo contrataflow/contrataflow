@@ -106,12 +106,13 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
   ): Promise<{ items: Workflow[]; total: number }> {
     const search = filter.search?.toLowerCase();
     return this.listAllWorkflows(tx).then((rows) => {
-      const matching = search
-        ? rows.filter(
-            (row) =>
-              row.name.toLowerCase().includes(search) || row.key.toLowerCase().includes(search),
-          )
-        : rows;
+      const matching = rows.filter(
+        (row) =>
+          (filter.isActive === undefined || row.isActive === filter.isActive) &&
+          (!search ||
+            row.name.toLowerCase().includes(search) ||
+            row.key.toLowerCase().includes(search)),
+      );
       return {
         items: matching.slice(window.skip, window.skip + window.take),
         total: matching.length,

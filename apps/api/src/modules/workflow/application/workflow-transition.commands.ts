@@ -18,6 +18,7 @@ import { changedFields, WorkflowDraftEditor } from './workflow-draft-editor.js';
 import type { DraftContext } from './workflow-draft-editor.js';
 import { definedEntries, limitExceeded } from './workflow-stage.commands.js';
 import {
+  workflowDeleteBlocked,
   workflowItemNotFound,
   workflowKeyTaken,
   workflowVersionConflict,
@@ -30,6 +31,7 @@ import {
   stageTypeLabel,
 } from '../domain/workflow-definition.js';
 import type { WorkflowDefinition, WorkflowTransition } from '../domain/workflow-definition.js';
+import { transitionDeleteBlockers } from '../domain/workflow-delete-guard.js';
 
 export const TRANSITION_FIELDS = [
   'key',
@@ -237,7 +239,10 @@ export class UpdateWorkflowTransitionCommand {
   }
 }
 
-/** `DeleteWorkflowTransitionCommand` — WF-15: remove em cascata as regras da transição. */
+/**
+ * `DeleteWorkflowTransitionCommand` — WF-15: sempre restritiva (US-043 · RN-WF-50): com regras ainda
+ * apontando para a transição → 422 `BUSINESS_RULE_VIOLATION`, uma violação por regra.
+ */
 @Injectable()
 export class DeleteWorkflowTransitionCommand {
   constructor(
@@ -255,6 +260,11 @@ export class DeleteWorkflowTransitionCommand {
           input.transitionId,
           input.expectedVersion,
         );
+        const blockers = transitionDeleteBlockers(
+          await this.workflows.loadDefinition(context.tx, current.workflowVersionId),
+          current.id,
+        );
+        if (blockers.length > 0) throw workflowDeleteBlocked('transição', blockers);
         await this.workflows.deleteTransition(context.tx, current.id, input.expectedVersion);
         return {
           result: undefined,

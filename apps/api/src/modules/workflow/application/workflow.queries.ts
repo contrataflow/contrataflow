@@ -56,7 +56,7 @@ export class GetWorkflowQuery {
 /**
  * `ListWorkflowsQuery` — WF-01 (US-042 · SCR-034): workflows do tenant na ordem da aplicabilidade
  * (RN-WF-39), com o selo de padrão, a publicada corrente (sem ela, "Tornar padrão" fica
- * desabilitado — RN-WF-41) e o rascunho. Filtros e ordenações do editor chegam com a US-043.
+ * desabilitado — RN-WF-41) e o rascunho; filtros `q` e `status` (`ACTIVE`/`INACTIVE` — US-043).
  */
 @Injectable()
 export class ListWorkflowsQuery {
@@ -73,7 +73,10 @@ export class ListWorkflowsQuery {
     return this.transactions.read(async (tx) => {
       const { items, total } = await this.workflows.listWorkflows(
         tx,
-        query.q ? { search: query.q } : {},
+        {
+          ...(query.q ? { search: query.q } : {}),
+          ...(query.status ? { isActive: query.status === 'ACTIVE' } : {}),
+        },
         window,
       );
       const dtos: WorkflowDto[] = [];

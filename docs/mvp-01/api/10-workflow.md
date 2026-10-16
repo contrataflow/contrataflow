@@ -31,7 +31,7 @@
 ### WF-01 — Listar workflows
 `GET /api/v1/workflows` · **Permissão:** `WORKFLOW_VIEW` · **Story:** US-043
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Parâmetros:** query `status` (texto, opcional — valores não detalhados na story de origem: chega com a US-043); `q` (texto, opcional, busca ≥2 caracteres no nome ou na chave, api.md §1.2); paginação padrão (api.md §1.2); ordem de avaliação da aplicabilidade (`applicabilityPriority` crescente, depois `createdAt` crescente — US-042)
+- **Parâmetros:** query `status` (`ACTIVE`|`INACTIVE`, opcional — situação `isActive` do workflow; US-043); `q` (texto, opcional, busca ≥2 caracteres no nome ou na chave, api.md §1.2); paginação padrão (api.md §1.2); ordem de avaliação da aplicabilidade (`applicabilityPriority` crescente, depois `createdAt` crescente — US-042)
 - **Request:** —
 - **Response:** `200 { data: Workflow[], meta }`; `Workflow { id, key, name, description, isDefault, applicabilityPriority, applicabilityRule, isActive, currentPublishedVersion, draftVersion, version }` (o mesmo `Workflow` do WF-03; `currentPublishedVersion` nulo desabilita "Tornar padrão" — RN-WF-41)
 - **Erros:**
@@ -135,7 +135,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório)
 - **Request:** `{ sourceVersionId?: uuid }` (opcional; versão do próprio workflow) — o corpo pode ser omitido
-- **Response:** `201 { data: WorkflowVersion }` (com `stages`, `transitions`, `rules`) — cópia da versão de origem (padrão: a publicada corrente; sem publicada, a última — RN-WF-22) em `DRAFT` nº máx + 1, com ids novos · `Location` · `ETag`
+- **Response:** `201 { data: WorkflowVersion }` (com `stages`, `transitions`, `rules`) — cópia da versão de origem (padrão: a publicada corrente — RN-WF-22; sem publicada e sem `sourceVersionId` → 422, RN-WF-47 da US-043) em `DRAFT` nº máx + 1, com ids novos · `Location` · `ETag`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -143,6 +143,7 @@
   | 404 | `NOT_FOUND` | Workflow inexistente/outro tenant |
   | 409 | `WORKFLOW_DRAFT_EXISTS` | Já existe um rascunho deste workflow (uma por workflow); `meta.draftVersionId` |
   | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`) | `sourceVersionId` de outro workflow/tenant |
+  | 422 | `BUSINESS_RULE_VIOLATION` (`WORKFLOW_NOT_PUBLISHED`) | Sem `sourceVersionId` e sem versão publicada — nada para copiar (RN-WF-47) |
 - **Efeitos:** Auditoria `workflow.version_create` (`metadata`: `sourceVersionId`, `newVersionId`)
 - **Notas:** usado tanto para iniciar a edição de etapas/transições (US-043) quanto para abrir uma nova versão a partir da publicada (US-045); nenhum evento de domínio é gerado na criação do rascunho.
 
@@ -206,8 +207,9 @@
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
   | 409 | `WORKFLOW_VERSION_NOT_DRAFT` | Versão não está em `DRAFT` |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+  | 422 | `BUSINESS_RULE_VIOLATION` (`REFERENCED_BY_TRANSITION`/`REFERENCED_BY_RULE`) | Transições (origem ou destino) ou regras ainda referenciam a etapa — uma violação por item (`itemId`, `params.{kind,key,name}`) (RN-WF-50) |
 - **Efeitos:** Auditoria `workflow.update` (`metadata.stageId`)
-- **Notas:** remove em cascata as transições e regras da etapa (US-040, fluxo principal passo 6); regra `REQUIRED_APPROVAL` de outra etapa que a referencie por chave fica e o validador acusa `WF_RULE_SCOPE_INVALID` (FA-04).
+- **Notas:** exclusão sempre restritiva, sem cascata (US-043 · RN-WF-50 · FA-01 — substitui a cascata do passo 6 da US-040; as FKs `ON DELETE CASCADE` ficam só como rede do banco); regra `REQUIRED_APPROVAL` de outra etapa que a referencie por chave não bloqueia e o validador acusa `WF_RULE_SCOPE_INVALID` (FA-04 da US-040).
 
 ### WF-13 — Criar transição
 `POST /api/v1/workflow-versions/{versionId}/transitions` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-043
@@ -253,8 +255,9 @@
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
   | 409 | `WORKFLOW_VERSION_NOT_DRAFT` | Versão não está em `DRAFT` |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+  | 422 | `BUSINESS_RULE_VIOLATION` (`REFERENCED_BY_RULE`) | Regras ainda referenciam a transição — uma violação por regra (RN-WF-50) |
 - **Efeitos:** Auditoria `workflow.update` (`metadata.transitionId`)
-- **Notas:** —
+- **Notas:** exclusão sempre restritiva, sem cascata das regras (US-043 · RN-WF-50).
 
 ### WF-16 — Criar regra
 `POST /api/v1/workflow-versions/{versionId}/rules` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-044

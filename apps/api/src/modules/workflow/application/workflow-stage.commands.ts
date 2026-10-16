@@ -17,12 +17,14 @@ import { changedFields, WorkflowDraftEditor } from './workflow-draft-editor.js';
 import type { DraftContext } from './workflow-draft-editor.js';
 import { WorkflowReferenceService } from './workflow-references.js';
 import {
+  workflowDeleteBlocked,
   workflowItemNotFound,
   workflowKeyTaken,
   workflowVersionConflict,
 } from './workflow.errors.js';
 import { toStageDto } from './workflow.view.js';
 import type { WorkflowStage } from '../domain/workflow-definition.js';
+import { stageDeleteBlockers } from '../domain/workflow-delete-guard.js';
 
 /** Campos de definição da etapa (auditoria campo a campo). */
 export const STAGE_FIELDS = [
@@ -238,9 +240,11 @@ export class UpdateWorkflowStageCommand {
 }
 
 /**
- * `DeleteWorkflowStageCommand` — WF-12: só em rascunho; remove em cascata as transições e regras da
- * etapa (FKs `ON DELETE CASCADE`). Regra `REQUIRED_APPROVAL` de outra etapa que a referencie por
- * chave continua e o validador acusa `WF_RULE_SCOPE_INVALID` (FA-04).
+ * `DeleteWorkflowStageCommand` — WF-12: só em rascunho e sempre restritiva (US-043 · RN-WF-50 ·
+ * FA-01): com transições ou regras ainda apontando para a etapa → 422 `BUSINESS_RULE_VIOLATION`,
+ * uma violação por item (a UI lista). As FKs `ON DELETE CASCADE` ficam só como rede do banco. Regra
+ * `REQUIRED_APPROVAL` de outra etapa que a referencie por chave não bloqueia e o validador acusa
+ * `WF_RULE_SCOPE_INVALID` (FA-04 da US-040).
  */
 @Injectable()
 export class DeleteWorkflowStageCommand {
@@ -257,6 +261,11 @@ export class DeleteWorkflowStageCommand {
         input.stageId,
         input.expectedVersion,
       );
+      const blockers = stageDeleteBlockers(
+        await this.workflows.loadDefinition(context.tx, current.workflowVersionId),
+        current.id,
+      );
+      if (blockers.length > 0) throw workflowDeleteBlocked('etapa', blockers);
       await this.workflows.deleteStage(context.tx, current.id, input.expectedVersion);
       return {
         result: undefined,

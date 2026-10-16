@@ -59,6 +59,8 @@ export interface PublishVersionData {
 export interface WorkflowListFilter {
   /** Contém, no nome ou na chave, sem diferenciar maiúsculas (WF-01). */
   readonly search?: string;
+  /** Situação do workflow (`isActive`); ausente = todos (WF-01 · US-043). */
+  readonly isActive?: boolean;
 }
 
 export interface DefaultSwitch {

@@ -13,6 +13,7 @@ import {
 } from '@contrataflow/ui';
 import type { WorkflowDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
@@ -20,11 +21,13 @@ import { isApiError } from '@/lib/api/api-error';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { WorkflowFormDialog } from './workflow-form-dialog';
 import {
   canBecomeDefault,
   describeApplicability,
   fetchWorkflows,
   setDefaultWorkflow,
+  workflowEditorHref,
   workflowKeys,
   WORKFLOWS_STALE_TIME_MS,
 } from './workflows.api';
@@ -33,13 +36,16 @@ import {
  * SCR-034 (`/admin/workflows` — US-042): `WorkflowList` com os workflows do tenant na ordem em que a
  * aplicabilidade é avaliada, o `DefaultBadge` e o `SetDefaultButton` (com confirmação) para quem
  * tem `WORKFLOW_PUBLISH` — oculto sem a permissão e desabilitado, com o motivo, para workflow
- * inativo ou sem versão publicada (RN-WF-41). A API decide (RN-FND-92).
+ * inativo ou sem versão publicada (RN-WF-41). Com `WORKFLOW_MANAGE`, "Novo workflow" (US-043 ·
+ * WF-02); cada workflow abre o editor. A API decide (RN-FND-92).
  */
 export function WorkflowsView() {
   const t = useTranslations('workflows');
   const tenantId = useTenantId();
   const canPublish = usePermission('WORKFLOW_PUBLISH').allowed;
+  const canManage = usePermission('WORKFLOW_MANAGE').allowed;
   const [confirming, setConfirming] = useState<WorkflowDto | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const workflows = useQuery({
     queryKey: workflowKeys.list(tenantId),
@@ -59,9 +65,20 @@ export function WorkflowsView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+          <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
+        </div>
+        {canManage ? (
+          <Button
+            onClick={() => {
+              setCreating(true);
+            }}
+          >
+            {t('form.open')}
+          </Button>
+        ) : null}
       </header>
 
       {workflows.isPending ? (
@@ -99,6 +116,8 @@ export function WorkflowsView() {
           />
         )
       ) : null}
+
+      <WorkflowFormDialog open={creating} onOpenChange={setCreating} />
 
       <SetDefaultDialog
         workflow={confirming}
@@ -175,11 +194,18 @@ function WorkflowList({
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-medium">{workflow.name}</h3>
+                  <h3 className="font-medium">
+                    <Link
+                      href={workflowEditorHref(workflow.id)}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {workflow.name}
+                    </Link>
+                  </h3>
                   {workflow.isDefault ? <DefaultBadge /> : null}
                   <StatusBadge active={workflow.isActive} />
                 </div>
-                <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-3">
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-4">
                   <div>
                     <dt className="sr-only">{t('columns.applicability')}</dt>
                     <dd>
@@ -198,6 +224,16 @@ function WorkflowList({
                             number: workflow.currentPublishedVersion.versionNumber,
                           })
                         : t('values.noPublished')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="sr-only">{t('columns.draft')}</dt>
+                    <dd>
+                      {workflow.draftVersion
+                        ? t('values.draft', { number: workflow.draftVersion.versionNumber })
+                        : workflow.currentPublishedVersion
+                          ? t('values.noDraft')
+                          : t('values.noEditableVersion')}
                     </dd>
                   </div>
                 </dl>

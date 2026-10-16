@@ -806,20 +806,35 @@ describe('Feature: Modelo de definição de workflow versionado (US-040)', () =>
       expect.objectContaining({ field: 'action', code: 'NOT_ALLOWED' }),
     ]);
 
-    // Excluir a etapa remove em cascata as transições e regras dela.
-    const analise = (await versionOf(v2)).stages.find(
-      (s) => s.key === 'ANALISE',
-    ) as WorkflowStageDto;
+    // Excluir a etapa é restritivo (US-043 · RN-WF-50): bloqueado enquanto houver transições e
+    // regras apontando para ela — uma violação por item; removidas, a exclusão passa.
+    const before = await versionOf(v2);
+    const analise = before.stages.find((s) => s.key === 'ANALISE') as WorkflowStageDto;
+    const linked = before.transitions.filter(
+      (t) => t.fromStageId === analise.id || t.toStageId === analise.id,
+    );
+    const linkedRules = before.rules.filter((r) => r.stageId === analise.id);
+    const blocked = expectProblem(
+      await del(`/workflow-stages/${analise.id}`, analise.version ?? 1),
+      422,
+      'BUSINESS_RULE_VIOLATION',
+    );
+    expect(blocked.violations.map((v) => v.itemId).sort()).toEqual(
+      [...linked.map((t) => t.id), ...linkedRules.map((r) => r.id)].sort(),
+    );
+    for (const rule of before.rules.filter(
+      (r) => linkedRules.includes(r) || linked.some((t) => t.id === r.transitionId),
+    )) {
+      expect((await del(`/workflow-rules/${rule.id}`, rule.version ?? 1)).status).toBe(204);
+    }
+    for (const transition of linked) {
+      expect(
+        (await del(`/workflow-transitions/${transition.id}`, transition.version ?? 1)).status,
+      ).toBe(204);
+    }
     expect((await del(`/workflow-stages/${analise.id}`, analise.version ?? 1)).status).toBe(204);
     const after = await versionOf(v2);
-    expect(
-      after.transitions.some((t) => t.fromStageId === analise.id || t.toStageId === analise.id),
-    ).toBe(false);
-    expect(after.rules.some((r) => r.stageId === analise.id)).toBe(false);
-    expect(
-      (await del(`/workflow-rules/${after.rules[0]?.id ?? ''}`, after.rules[0]?.version ?? 1))
-        .status,
-    ).toBe(204);
+    expect(after.stages.some((s) => s.id === analise.id)).toBe(false);
   });
 
   it('[Falha de integração] Redis indisponível: definição publicada lida do banco com warn', async () => {

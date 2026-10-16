@@ -29,6 +29,7 @@ import { changedFields, WorkflowDraftEditor } from './workflow-draft-editor.js';
 import {
   workflowDraftExists,
   workflowKeyTaken,
+  workflowNothingToCopy,
   workflowNotFound,
   workflowVersionConflict,
 } from './workflow.errors.js';
@@ -253,10 +254,12 @@ export class UpdateWorkflowCommand {
 }
 
 /**
- * `CreateWorkflowVersionCommand` — WF-08 (US-040 · fluxo principal, passo 9 · FA-02 · RN-WF-22):
- * com o workflow travado, recusa um segundo rascunho (409 `WORKFLOW_DRAFT_EXISTS` com
- * `meta.draftVersionId`) e clona a versão de origem (padrão: a publicada corrente; sem publicada, a
- * última) em `DRAFT` nº máx + 1, com ids novos. Processos em andamento não são afetados.
+ * `CreateWorkflowVersionCommand` — WF-08 (US-040 · fluxo principal, passo 9 · FA-02 · RN-WF-22 ·
+ * US-043 "Criar rascunho"): com o workflow travado, recusa um segundo rascunho (409
+ * `WORKFLOW_DRAFT_EXISTS` com `meta.draftVersionId`, `warn workflow.draft_conflict`) e clona a
+ * versão de origem (padrão: a publicada corrente; sem publicada nem origem informada → 422
+ * `BUSINESS_RULE_VIOLATION` — RN-WF-47) em `DRAFT` nº máx + 1, com ids novos. Processos em
+ * andamento não são afetados.
  */
 @Injectable()
 export class CreateWorkflowVersionCommand {
@@ -283,7 +286,20 @@ export class CreateWorkflowVersionCommand {
       const workflow = await this.workflows.lockWorkflow(tx, input.workflowId);
       if (!workflow) throw workflowNotFound();
       const draft = await this.workflows.findDraft(tx, workflow.id);
-      if (draft) throw workflowDraftExists(draft.id);
+      if (draft) {
+        this.logger.warn(
+          {
+            event: 'workflow.draft_conflict',
+            workflowId: workflow.id,
+            draftVersionId: draft.id,
+            tenantId: context.tenantId,
+            userId,
+            correlationId: context.correlationId,
+          },
+          'workflow.draft_conflict',
+        );
+        throw workflowDraftExists(draft.id);
+      }
       const last = await this.workflows.lastVersion(tx, workflow.id);
       let source: WorkflowVersion | null;
       if (input.body.sourceVersionId) {
@@ -298,9 +314,9 @@ export class CreateWorkflowVersionCommand {
           ]);
         }
       } else {
-        source = workflow.currentPublishedVersionId
-          ? await this.workflows.findVersion(tx, workflow.currentPublishedVersionId)
-          : last;
+        // RN-WF-47: sem origem informada, só a publicada corrente serve de base.
+        if (!workflow.currentPublishedVersionId) throw workflowNothingToCopy();
+        source = await this.workflows.findVersion(tx, workflow.currentPublishedVersionId);
       }
       let inserted;
       try {

@@ -22301,7 +22301,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Etapa excluída com as suas transições e regras."
+            "description": "Etapa excluída; com transições ou regras que a referenciam → 422 `BUSINESS_RULE_VIOLATION` (uma violação por item — RN-WF-50)."
           },
           "400": {
             "description": "MALFORMED_REQUEST",
@@ -22681,7 +22681,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Transição excluída com as suas regras."
+            "description": "Transição excluída; com regras que a referenciam → 422 `BUSINESS_RULE_VIOLATION` (RN-WF-50)."
           },
           "400": {
             "description": "MALFORMED_REQUEST",
@@ -23779,6 +23779,18 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "minLength": 2,
               "maxLength": 150
             },
@@ -23800,7 +23812,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Workflows do tenant na ordem da aplicabilidade (prioridade, depois criação), com o padrão, a publicada corrente e o rascunho.",
+            "description": "Workflows do tenant na ordem da aplicabilidade (prioridade, depois criação), com o padrão, a publicada corrente e o rascunho; filtros `q` e `status` (`ACTIVE`/`INACTIVE`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -24798,7 +24810,7 @@
         },
         "responses": {
           "201": {
-            "description": "Rascunho nº máx + 1 clonado da versão de origem (padrão: a publicada corrente), com ids novos.",
+            "description": "Rascunho nº máx + 1 clonado da versão de origem (padrão: a publicada corrente; sem ela → 422 `BUSINESS_RULE_VIOLATION`), com ids novos.",
             "content": {
               "application/json": {
                 "schema": {

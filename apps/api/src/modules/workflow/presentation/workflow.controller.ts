@@ -130,7 +130,7 @@ export class WorkflowController {
     responses: {
       200: {
         description:
-          'Workflows do tenant na ordem da aplicabilidade (prioridade, depois criação), com o padrão, a publicada corrente e o rascunho.',
+          'Workflows do tenant na ordem da aplicabilidade (prioridade, depois criação), com o padrão, a publicada corrente e o rascunho; filtros `q` e `status` (`ACTIVE`/`INACTIVE`).',
         schema: pageEnvelope(workflowSchema),
       },
     },
@@ -307,7 +307,7 @@ export class WorkflowController {
     responses: {
       201: {
         description:
-          'Rascunho nº máx + 1 clonado da versão de origem (padrão: a publicada corrente), com ids novos.',
+          'Rascunho nº máx + 1 clonado da versão de origem (padrão: a publicada corrente; sem ela → 422 `BUSINESS_RULE_VIOLATION`), com ids novos.',
         schema: dataEnvelope(workflowVersionDetailSchema),
       },
     },
@@ -411,7 +411,12 @@ export class WorkflowController {
     summary: 'Excluir etapa',
     tags: TAGS,
     auditActions: [...AUDIT_UPDATE],
-    responses: { 204: { description: 'Etapa excluída com as suas transições e regras.' } },
+    responses: {
+      204: {
+        description:
+          'Etapa excluída; com transições ou regras que a referenciam → 422 `BUSINESS_RULE_VIOLATION` (uma violação por item — RN-WF-50).',
+      },
+    },
   })
   async removeStage(
     @ZodParams(workflowStageIdParamsSchema) params: { stageId: string },
@@ -488,7 +493,12 @@ export class WorkflowController {
     summary: 'Excluir transição',
     tags: TAGS,
     auditActions: [...AUDIT_UPDATE],
-    responses: { 204: { description: 'Transição excluída com as suas regras.' } },
+    responses: {
+      204: {
+        description:
+          'Transição excluída; com regras que a referenciam → 422 `BUSINESS_RULE_VIOLATION` (RN-WF-50).',
+      },
+    },
   })
   async removeTransition(
     @ZodParams(workflowTransitionIdParamsSchema) params: { transitionId: string },

@@ -190,7 +190,10 @@ export const workflowStageIdParamsSchema = z.strictObject({ stageId: uuidV7Schem
 export const workflowTransitionIdParamsSchema = z.strictObject({ transitionId: uuidV7Schema });
 export const workflowRuleIdParamsSchema = z.strictObject({ ruleId: uuidV7Schema });
 
-/** WF-08: versão de origem (padrão: a publicada corrente; sem publicada, a última). */
+/**
+ * WF-08: versão de origem (padrão: a publicada corrente; sem publicada e sem origem informada →
+ * 422 `BUSINESS_RULE_VIOLATION` — RN-WF-47).
+ */
 export const workflowVersionCreateSchema = z
   .strictObject({ sourceVersionId: uuidV7Schema.nullish() })
   .default({});
@@ -239,7 +242,7 @@ const notAllowed = (field: string, message: string): WorkflowFieldIssue => ({
 export function workflowStageIssues(stage: WorkflowStageFields): WorkflowFieldIssue[] {
   const issues: WorkflowFieldIssue[] = [];
   if (stage.departmentResolution === 'FIXED' && !stage.fixedDepartmentId) {
-    issues.push(required('fixedDepartmentId', 'Informe a unidade responsável pela etapa.'));
+    issues.push(required('fixedDepartmentId', 'Selecione a unidade responsável.'));
   }
   if (stage.departmentResolution !== 'FIXED' && stage.fixedDepartmentId) {
     issues.push(notAllowed('fixedDepartmentId', 'A unidade fixa só vale para a resolução FIXED.'));
@@ -278,7 +281,7 @@ export function workflowStageIssues(stage: WorkflowStageFields): WorkflowFieldIs
     return issues;
   }
   if (!stage.approverType) {
-    issues.push(required('approverType', 'Informe o aprovador da etapa de aprovação.'));
+    issues.push(required('approverType', 'Selecione quem aprova esta etapa.'));
     return issues;
   }
   const expectsUser = stage.approverType === 'USER';
@@ -739,8 +742,11 @@ export type WorkflowDto = z.infer<typeof workflowSchema>;
 // Lista, padrão e aplicabilidade (WF-01/05/06 · US-042)
 // ---------------------------------------------------------------------------------------------
 
-/** WF-01 (query): `q` (≥ 2 caracteres) no nome ou na chave. */
+export const WORKFLOW_LIST_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
+
+/** WF-01 (query): `q` (≥ 2 caracteres) no nome ou na chave; `status` = situação (US-043). */
 export const workflowListQuerySchema = pageQuerySchema.extend({
+  status: z.enum(WORKFLOW_LIST_STATUSES).optional(),
   q: z
     .string()
     .trim()

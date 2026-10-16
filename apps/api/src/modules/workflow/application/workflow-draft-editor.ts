@@ -4,6 +4,7 @@ import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditChange, AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
+import { ApiError } from '#shared/errors/api-error.js';
 import { canonicalJson, sha256Hex } from '#shared/integrity/canonical-json.js';
 
 import {
@@ -19,6 +20,13 @@ import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import type { WorkflowVersion } from '../domain/workflow-definition.js';
 
 export type DraftEntityType = 'WorkflowStage' | 'WorkflowTransition' | 'WorkflowRule';
+
+/** Evento de log `info` por item salvo no rascunho (US-043 · Logs). */
+const SAVED_EVENT: Readonly<Record<DraftEntityType, string>> = {
+  WorkflowStage: 'workflow.stage_saved',
+  WorkflowTransition: 'workflow.transition_saved',
+  WorkflowRule: 'workflow.rule_saved',
+};
 export type DraftOperation = 'CREATE' | 'UPDATE' | 'DELETE';
 
 export interface DraftEdit<T> {
@@ -107,8 +115,11 @@ export class WorkflowDraftEditor {
     const context = requireRequestContext();
     const now = this.clock();
     let versionId = typeof locator === 'string' ? locator : null;
+    const saved: {
+      current: { entityType: DraftEntityType; entityId: string; operation: DraftOperation } | null;
+    } = { current: null };
     try {
-      return await this.transactions.run(async (tx) => {
+      const result = await this.transactions.run(async (tx) => {
         versionId = typeof locator === 'string' ? locator : await locator(tx);
         const version = await this.workflows.lockVersion(tx, versionId);
         if (!version) throw workflowVersionNotFound();
@@ -134,8 +145,30 @@ export class WorkflowDraftEditor {
             operation: edit.operation,
           },
         });
+        saved.current = {
+          entityType: edit.entityType,
+          entityId: edit.entityId,
+          operation: edit.operation,
+        };
         return edit.result;
       });
+      if (saved.current) {
+        const { entityType, entityId, operation } = saved.current;
+        this.logger.log(
+          {
+            event: SAVED_EVENT[entityType],
+            workflowVersionId: versionId,
+            entityType,
+            entityId,
+            operation,
+            tenantId: context.tenantId,
+            userId: context.actor.userId,
+            correlationId: context.correlationId,
+          },
+          SAVED_EVENT[entityType],
+        );
+      }
+      return result;
     } catch (error) {
       if (error instanceof WorkflowImmutableError) {
         this.logger.error(
@@ -149,6 +182,24 @@ export class WorkflowDraftEditor {
           'workflow.immutability_violation_attempt',
         );
         throw workflowVersionNotDraft(versionId ?? '');
+      }
+      if (!(error instanceof ApiError) || error.status >= 500) {
+        // Falha de infraestrutura (banco, bug): a resposta sai pelo filtro; aqui só a causa.
+        this.logger.error(
+          {
+            event: 'workflow.write_failed',
+            workflowVersionId: versionId,
+            cause:
+              error instanceof ApiError
+                ? error.code
+                : error instanceof Error
+                  ? error.name
+                  : 'unknown',
+            tenantId: context.tenantId,
+            correlationId: context.correlationId,
+          },
+          'workflow.write_failed',
+        );
       }
       throw error;
     }

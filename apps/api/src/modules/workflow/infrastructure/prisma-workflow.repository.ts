@@ -262,14 +262,17 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     filter: WorkflowListFilter,
     window: PageWindow,
   ): Promise<{ items: Workflow[]; total: number }> {
-    const where: Prisma.WorkflowWhereInput = filter.search
-      ? {
-          OR: [
-            { name: { contains: filter.search, mode: 'insensitive' } },
-            { key: { contains: filter.search, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+    const where: Prisma.WorkflowWhereInput = {
+      ...(filter.search
+        ? {
+            OR: [
+              { name: { contains: filter.search, mode: 'insensitive' } },
+              { key: { contains: filter.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(filter.isActive === undefined ? {} : { isActive: filter.isActive }),
+    };
     const rows = await tx.workflow.findMany({
       where,
       orderBy: APPLICABILITY_ORDER,

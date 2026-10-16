@@ -522,6 +522,71 @@ const workflows = [
   version: 2,
 }));
 
+// Editor de workflow (US-043 · WF-02/03/08/09/10..15): versões em memória (a publicada é só
+// leitura); cada etapa/transição tem a sua `version` (If-Match) e a etapa referenciada por transição
+// não é excluída (RN-WF-50). As regras de grafo e os condicionais são da API.
+const workflowVersions = new Map();
+function emptyWorkflowVersion(id, workflowId, versionNumber, status) {
+  return {
+    id,
+    workflowId,
+    versionNumber,
+    status,
+    changeNotes: null,
+    publishedAt: null,
+    publishedById: null,
+    retiredAt: null,
+    retiredById: null,
+    definitionHash: null,
+    createdAt: '2026-10-15T12:00:00.000Z',
+    createdById: null,
+    version: 1,
+    initialStageId: null,
+    stages: [],
+    transitions: [],
+    rules: [],
+  };
+}
+for (const workflow of workflows) {
+  if (workflow.currentPublishedVersion) {
+    workflowVersions.set(
+      workflow.currentPublishedVersion.id,
+      emptyWorkflowVersion(workflow.currentPublishedVersion.id, workflow.id, 1, 'PUBLISHED'),
+    );
+  }
+  if (workflow.draftVersion) {
+    workflowVersions.set(
+      workflow.draftVersion.id,
+      emptyWorkflowVersion(workflow.draftVersion.id, workflow.id, 1, 'DRAFT'),
+    );
+  }
+}
+const STAGE_DEFAULTS = {
+  instructions: null,
+  groupLabel: null,
+  departmentResolution: 'REQUESTING_DEPARTMENT',
+  fixedDepartmentId: null,
+  assignmentPolicy: 'UNASSIGNED',
+  approverType: null,
+  approverUserId: null,
+  approverRoleId: null,
+  approverDepartmentResolution: null,
+  approverFixedDepartmentId: null,
+  allowDeputy: true,
+  approvalDocumentTypeCodes: [],
+  documentTypeCodes: [],
+  slaDays: null,
+  slaType: 'BUSINESS',
+  color: null,
+};
+function workflowItemOwner(kind, id) {
+  for (const version of workflowVersions.values()) {
+    const item = version[kind].find((entry) => entry.id === id);
+    if (item) return { version, item };
+  }
+  return null;
+}
+
 // Templates (US-107 · TPL-01..04/07/08): template + versão 1 em rascunho; o PATCH da versão
 // recusa variável desconhecida com 422 TEMPLATE_INVALID na seção (o resto das regras é da API).
 const templates = [];
@@ -925,6 +990,7 @@ createServer(async (request, response) => {
             { code: 'TEMPLATE_MANAGE', scopes: [] },
             { code: 'TEMPLATE_PUBLISH', scopes: [] },
             { code: 'WORKFLOW_VIEW', scopes: [] },
+            { code: 'WORKFLOW_MANAGE', scopes: [] },
             { code: 'WORKFLOW_PUBLISH', scopes: [] },
             { code: 'AUDIT_VIEW', scopes: [] },
           ]
@@ -1813,6 +1879,167 @@ createServer(async (request, response) => {
         { ETag: `"${version.version}"` },
       );
     }
+  }
+  if (url.pathname === '/api/v1/workflows' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (workflows.some((item) => item.key === body.key)) {
+      return problem(response, 409, 'CONFLICT', String(correlationId));
+    }
+    const draftId = mockUuid();
+    const workflow = {
+      id: mockUuid(),
+      key: body.key,
+      name: body.name,
+      description: body.description ?? null,
+      applicabilityRule: null,
+      applicabilityPriority: 100,
+      isDefault: false,
+      isActive: true,
+      currentPublishedVersion: null,
+      draftVersion: { id: draftId, versionNumber: 1 },
+      version: 1,
+    };
+    workflows.push(workflow);
+    workflowVersions.set(draftId, emptyWorkflowVersion(draftId, workflow.id, 1, 'DRAFT'));
+    return send(response, 201, { data: workflow }, { ETag: '"1"' });
+  }
+  const workflowRoute = /^\/api\/v1\/workflows\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (workflowRoute && request.method === 'GET') {
+    const workflow = workflows.find((item) => item.id === workflowRoute[1]);
+    if (!workflow) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    return send(response, 200, { data: workflow }, { ETag: `"${workflow.version}"` });
+  }
+  const draftRoute = /^\/api\/v1\/workflows\/([0-9a-f-]{36})\/versions$/.exec(url.pathname);
+  if (draftRoute && request.method === 'POST') {
+    const workflow = workflows.find((item) => item.id === draftRoute[1]);
+    if (!workflow) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (workflow.draftVersion) {
+      return problemWith(response, 409, 'WORKFLOW_DRAFT_EXISTS', String(correlationId), {
+        members: { meta: { draftVersionId: workflow.draftVersion.id } },
+      });
+    }
+    const source = workflowVersions.get(workflow.currentPublishedVersion?.id ?? '');
+    if (!source) return problem(response, 422, 'BUSINESS_RULE_VIOLATION', String(correlationId));
+    const draftId = mockUuid();
+    const ids = new Map(source.stages.map((stage) => [stage.id, mockUuid()]));
+    const draft = {
+      ...emptyWorkflowVersion(draftId, workflow.id, source.versionNumber + 1, 'DRAFT'),
+      stages: source.stages.map((stage) => ({
+        ...stage,
+        id: ids.get(stage.id),
+        workflowVersionId: draftId,
+        version: 1,
+      })),
+      transitions: source.transitions.map((transition) => ({
+        ...transition,
+        id: mockUuid(),
+        workflowVersionId: draftId,
+        fromStageId: ids.get(transition.fromStageId),
+        toStageId: ids.get(transition.toStageId),
+        version: 1,
+      })),
+    };
+    workflowVersions.set(draftId, draft);
+    Object.assign(workflow, {
+      draftVersion: { id: draftId, versionNumber: draft.versionNumber },
+      version: workflow.version + 1,
+    });
+    return send(response, 201, { data: draft });
+  }
+  const versionRoute =
+    /^\/api\/v1\/workflow-versions\/([0-9a-f-]{36})(\/stages|\/transitions)?$/.exec(url.pathname);
+  if (versionRoute) {
+    const version = workflowVersions.get(versionRoute[1]);
+    if (!version) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (!versionRoute[2] && request.method === 'GET') {
+      return send(response, 200, { data: version }, { ETag: `"${version.version}"` });
+    }
+    if (versionRoute[2] && request.method === 'POST') {
+      if (version.status !== 'DRAFT') {
+        return problem(response, 409, 'WORKFLOW_VERSION_NOT_DRAFT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const kind = versionRoute[2] === '/stages' ? 'stages' : 'transitions';
+      if (version[kind].some((item) => item.key === body.key)) {
+        return problem(response, 409, 'CONFLICT', String(correlationId));
+      }
+      const created =
+        kind === 'stages'
+          ? {
+              ...STAGE_DEFAULTS,
+              ...body,
+              displayOrder: body.displayOrder ?? version.stages.length,
+              id: mockUuid(),
+              workflowVersionId: version.id,
+              version: 1,
+            }
+          : {
+              description: null,
+              ...body,
+              id: mockUuid(),
+              workflowVersionId: version.id,
+              version: 1,
+            };
+      version[kind].push(created);
+      version.version += 1;
+      return send(response, 201, { data: created }, { ETag: '"1"' });
+    }
+  }
+  const itemRoute = /^\/api\/v1\/workflow-(stages|transitions)\/([0-9a-f-]{36})$/.exec(
+    url.pathname,
+  );
+  if (itemRoute && (request.method === 'PATCH' || request.method === 'DELETE')) {
+    const kind = itemRoute[1];
+    const owner = workflowItemOwner(kind, itemRoute[2]);
+    if (!owner) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const { version, item } = owner;
+    if (version.status !== 'DRAFT') {
+      return problem(response, 409, 'WORKFLOW_VERSION_NOT_DRAFT', String(correlationId));
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"${item.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (request.method === 'DELETE') {
+      const linked =
+        kind === 'stages'
+          ? version.transitions.filter((t) => t.fromStageId === item.id || t.toStageId === item.id)
+          : [];
+      if (linked.length > 0) {
+        return send(
+          response,
+          422,
+          {
+            type: 'https://docs.contrataflow.com.br/errors/business-rule-violation',
+            title: 'BUSINESS_RULE_VIOLATION',
+            status: 422,
+            detail: 'BUSINESS_RULE_VIOLATION',
+            instance: '/api/v1',
+            code: 'BUSINESS_RULE_VIOLATION',
+            correlationId: String(correlationId),
+            errors: [],
+            violations: linked.map((transition) => ({
+              code: 'REFERENCED_BY_TRANSITION',
+              severity: 'BLOCKING',
+              message: 'Remova primeiro as transições que usam esta etapa.',
+              ruleId: 'RN-WF-50',
+              sectionKey: null,
+              field: null,
+              itemId: transition.id,
+              params: { kind: 'TRANSITION', key: transition.key, name: transition.name },
+            })),
+          },
+          { 'Content-Type': 'application/problem+json' },
+        );
+      }
+      version[kind] = version[kind].filter((entry) => entry !== item);
+      version.version += 1;
+      response.writeHead(204);
+      return response.end();
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    Object.assign(item, body, { version: item.version + 1 });
+    version.version += 1;
+    return send(response, 200, { data: item }, { ETag: `"${item.version}"` });
   }
   if (url.pathname === '/api/v1/workflows' && request.method === 'GET') {
     return send(response, 200, {
