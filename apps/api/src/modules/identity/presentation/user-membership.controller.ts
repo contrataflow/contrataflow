@@ -17,6 +17,7 @@ import type {
 import { Controller, Get, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
 
+import { Policy, RequirePermission } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
@@ -62,6 +63,7 @@ export class UserMembershipController {
   ) {}
 
   @Get(':userId')
+  @RequirePermission('USER_VIEW')
   @ApiOperation({
     operationId: 'USR-07',
     summary: 'Consultar usuário/vínculo',
@@ -84,6 +86,7 @@ export class UserMembershipController {
   @Patch(':userId')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('USER_MANAGE')
   @ApiOperation({
     operationId: 'USR-08',
     summary: 'Atualizar dados do vínculo',
@@ -114,6 +117,7 @@ export class UserMembershipController {
   @Put(':userId/departments')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('USER_MANAGE')
   @ApiOperation({
     operationId: 'USR-09',
     summary: 'Atualizar lotações do vínculo',
@@ -144,6 +148,8 @@ export class UserMembershipController {
   @Post(':userId/suspend')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('USER_MANAGE')
+  @Policy('POL-12', 'POL-16')
   @ApiOperation({
     operationId: 'USR-10',
     summary: 'Suspender vínculo',
@@ -169,6 +175,7 @@ export class UserMembershipController {
   @Post(':userId/reactivate')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('USER_MANAGE')
   @ApiOperation({
     operationId: 'USR-11',
     summary: 'Reativar vínculo',
@@ -194,6 +201,8 @@ export class UserMembershipController {
   @Post(':userId/revoke')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('USER_MANAGE')
+  @Policy('POL-12', 'POL-16')
   @ApiOperation({
     operationId: 'USR-12',
     summary: 'Revogar vínculo',

@@ -13,7 +13,9 @@ import { InMemoryRoleAssignmentRepository } from '#modules/access/infrastructure
 import { IDENTITY_REPOSITORY } from '#modules/identity/application/ports.js';
 import type { InMemoryIdentityRepository } from '#modules/identity/infrastructure/in-memory-identity.repositories.js';
 import { createDepartment } from '#modules/organization/domain/department.js';
+import type { Department } from '#modules/organization/domain/department.js';
 import { InMemoryDepartmentRepository } from '#modules/organization/infrastructure/in-memory-department.repository.js';
+import { InMemoryProcessRuntimeStore } from '#modules/process/infrastructure/process-runtime.readers.js';
 import { createOrganization } from '#modules/tenancy/domain/organization.js';
 import { InMemoryOrganizationRepository } from '#modules/tenancy/infrastructure/in-memory-organization.repository.js';
 import { newId } from '#shared/database/ids.js';
@@ -73,22 +75,26 @@ export function seedDepartment(
     readonly organizationId: string;
     readonly name: string;
     readonly isActive?: boolean;
+    /** Unidade-mãe já semeada (US-097: escopos com subárvore); padrão = raiz do órgão. */
+    readonly parent?: Pick<Department, 'id' | 'path' | 'depth'>;
   },
-): void {
+): Department {
   const repository = api.app.get(InMemoryDepartmentRepository, { strict: false });
-  repository.seed({
+  const seeded: Department = {
     ...createDepartment(
       { organizationId: department.organizationId, type: 'SECTOR', name: department.name },
       {
         id: department.id,
         tenantId: department.tenantId,
-        parent: null,
+        parent: department.parent ?? null,
         now: new Date('2026-10-15T12:00:00.000Z'),
         userId: null,
       },
     ),
     isActive: department.isActive ?? true,
-  });
+  };
+  repository.seed(seeded);
+  return seeded;
 }
 
 /** Atribuições gravadas (`role_assignments` em memória): a inicial do convite e as da US-096. */
@@ -130,4 +136,9 @@ export function assignRole(
   };
   repository.assignments.push(record);
   return record;
+}
+
+/** Runtime de processos em memória (US-041/US-097): o agregado real chega com a US-001. */
+export function processRuntimeStore(api: TestApi): InMemoryProcessRuntimeStore {
+  return api.app.get(InMemoryProcessRuntimeStore, { strict: false });
 }

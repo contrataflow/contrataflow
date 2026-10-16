@@ -22,6 +22,7 @@ import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { MembershipReferences } from '#shared/auth/membership-references.js';
 import type { DepartmentReference } from '#shared/auth/membership-references.js';
+import { invalidateEffectivePermissions } from '#shared/auth/permission-cache.js';
 import { TenantCache } from '#shared/cache/tenant-cache.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { newId } from '#shared/database/ids.js';
@@ -196,10 +197,13 @@ export class RoleAssignmentSupport {
     }
   }
 
-  /** RN-IAM-99: `DEL cf:{env}:t:{tenantId}:access:eff:{membershipId}` já no commit. */
+  /**
+   * RN-IAM-99: `DEL cf:{env}:t:{tenantId}:access:eff:{membershipId}` já no commit, com troca do
+   * token de geração do vínculo (US-097 — um cálculo concorrente não regrava o retrato antigo).
+   */
   async invalidatePermissions(membershipId: string): Promise<void> {
     try {
-      await this.cache.delete('access', `eff:${membershipId}`);
+      await invalidateEffectivePermissions(this.cache, membershipId);
     } catch (error) {
       this.logger.warn(
         {

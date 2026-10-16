@@ -17,6 +17,7 @@ import type {
 import { Controller, Get, Headers, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
@@ -65,6 +66,7 @@ export class DocumentTypeController {
 
   @Post()
   @Idempotent()
+  @RequirePermission('DOCUMENT_TYPE_MANAGE')
   @ApiOperation({
     operationId: 'DTY-02',
     summary: 'Criar tipo de documento',
@@ -92,6 +94,7 @@ export class DocumentTypeController {
   @Patch(':id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('DOCUMENT_TYPE_MANAGE')
   @ApiOperation({
     operationId: 'DTY-03',
     summary: 'Atualizar tipo de documento (inclui ativar e desativar)',
@@ -122,6 +125,7 @@ export class DocumentTypeController {
   @Put(':id/default-template')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('TEMPLATE_PUBLISH')
   @ApiOperation({
     operationId: 'DTY-04',
     summary: 'Definir template padrão do tipo',

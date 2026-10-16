@@ -312,6 +312,7 @@ describe('DomainEventsProcessor com o encerramento de sessões', () => {
   }
 
   const cache = {
+    set: () => Promise.resolve(),
     delete: () => Promise.resolve(1),
     deleteByPrefix: () => Promise.resolve(1),
   } as unknown as TenantRedisCache;

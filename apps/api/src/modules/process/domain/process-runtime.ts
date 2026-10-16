@@ -6,6 +6,8 @@ import type {
   RuleContextV1,
 } from '@contrataflow/validation';
 
+import type { ProcessParticipation } from '#shared/auth/process-access.js';
+
 /*
  * Runtime do processo para as leituras do painel (US-041 · PRC-08/PRC-09): o agregado `Process`,
  * TODAS as passagens (`ProcessStage`), as decisões das aprovações de etapa, os documentos e as
@@ -44,6 +46,11 @@ export interface ProcessAccessGrants {
   readonly departmentIds: readonly string[];
   /** Usuários com acesso (`CREATOR`, `RESPONSIBLE`, `PARTICIPANT`, `APPROVER`). */
   readonly userIds: readonly string[];
+  /**
+   * Participações ativas (`ProcessParticipant` — permissions.md §4 · US-097): permissões fixas do
+   * papel naquele processo. Ausente até o agregado de participantes existir.
+   */
+  readonly participations?: readonly ProcessParticipation[];
 }
 
 export interface ProcessRuntime {
@@ -55,6 +62,8 @@ export interface ProcessRuntime {
   readonly createdById: string;
   readonly currentDepartmentId: string;
   readonly currentResponsibleId: string | null;
+  /** Órgão do processo (escopo `ORGANIZATION` — US-097); ausente até a US-001 expô-lo. */
+  readonly organizationId?: string | null;
   /** `process.*` do RuleContext v1 (entities.md §5.4). */
   readonly ruleProcess: RuleContextV1['process'];
   readonly passes: readonly ProcessStagePass[];

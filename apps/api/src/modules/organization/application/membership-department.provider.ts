@@ -17,7 +17,8 @@ import { pathIds } from '../domain/department-tree.js';
  * Lado `organization` da porta `MembershipReferences` (US-091): as unidades da lotação do convite
  * e, na atribuição de perfis (US-096), as do escopo com órgão e caminho na árvore e os órgãos —
  * lidos no `tx` do caso de uso (RLS — unidade de outro tenant não volta). Ativa = a unidade e o
- * órgão dela ativos (pré-condição da story: órgão, secretaria e setor ativos).
+ * órgão dela ativos (pré-condição da story: órgão, secretaria e setor ativos). Nas permissões
+ * efetivas (US-097), as subárvores dos escopos e as chefias do usuário.
  */
 @Injectable()
 export class MembershipDepartmentProvider implements DepartmentReferenceProvider {
@@ -50,6 +51,17 @@ export class MembershipDepartmentProvider implements DepartmentReferenceProvider
       });
     }
     return found;
+  }
+
+  subtreeIds(
+    tx: TenantTx,
+    rootIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly string[]>> {
+    return this.departments.subtreeIds(tx, rootIds);
+  }
+
+  departmentsHeadedBy(tx: TenantTx, userId: string): Promise<string[]> {
+    return this.departments.idsHeadedBy(tx, userId);
   }
 
   async organizationsByIds(

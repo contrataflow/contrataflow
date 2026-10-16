@@ -17,6 +17,7 @@ import type {
 import { Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
 
+import { Policy, RequirePermission } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
@@ -51,6 +52,7 @@ export class RoleAssignmentController {
   ) {}
 
   @Get('roles/:id/assignments')
+  @RequirePermission('ROLE_VIEW', { detail: 'Você não tem permissão para gerenciar perfis.' })
   @ApiOperation({
     operationId: 'ROL-09',
     summary: 'Listar atribuições de um perfil',
@@ -94,6 +96,8 @@ export class RoleAssignmentController {
 
   @Post('users/:userId/role-assignments')
   @Idempotent()
+  @RequirePermission('ROLE_ASSIGN', { detail: 'Você não tem permissão para atribuir perfis.' })
+  @Policy('POL-13', 'POL-15')
   @ApiOperation({
     operationId: 'ROL-11',
     summary: 'Atribuir perfil a um vínculo',
@@ -121,6 +125,8 @@ export class RoleAssignmentController {
   @Post('role-assignments/:id/revoke')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('ROLE_ASSIGN', { detail: 'Você não tem permissão para revogar perfis.' })
+  @Policy('POL-12', 'POL-16')
   @ApiOperation({
     operationId: 'ROL-12',
     summary: 'Revogar atribuição de perfil',

@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { uuidv7 } from '@contrataflow/observability';
 
+import type { EffectivePermissionsSnapshot } from '../auth/effective-permissions.js';
+
 /**
  * Quem age: `ANONYMOUS` até a autenticação; `USER` (pessoa autenticada); `SYSTEM` (job — FA-01 da
  * US-073); `PLATFORM_OPERATOR`/`INTEGRATION` reservados (DEC-139, MVP 3).
@@ -45,10 +47,16 @@ export interface RequestContext {
   /** Métodos de autenticação do token (`amr`) — usados pelo guard de MFA (POL-14). */
   readonly amr: readonly string[];
   /**
-   * Perfis vigentes (`Role.key`) do vínculo ativo, resolvidos pelo guard de tenant. Ponte até a
-   * autorização por permissões efetivas (US-097): `AccessFacade.assertCan` lê daqui.
+   * Chaves de perfil (`Role.key`) do registro do vínculo, resolvidas pelo guard de tenant. Ponte do
+   * modo fake/vínculos sem atribuição gravada: as permissões efetivas (US-097) as usam só quando o
+   * vínculo não tem nenhuma `RoleAssignment`.
    */
   readonly roleKeys?: readonly string[];
+  /**
+   * Permissões efetivas do vínculo (US-097 · DEC-134), carregadas pelo `AuthorizationGuard` em toda
+   * rota `TENANT` com vínculo ativo; `AccessFacade.assertCan` decide por elas.
+   */
+  readonly permissions?: EffectivePermissionsSnapshot;
   readonly authTime: Date | null;
 }
 

@@ -40,6 +40,16 @@ export interface DepartmentReferenceProvider {
     tx: TenantTx,
     ids: readonly string[],
   ): Promise<ReadonlyMap<string, OrganizationReference>>;
+  /**
+   * Cada unidade de `rootIds` (do tenant da transação) com ela mesma e todas as descendentes
+   * (US-097: escopos `DEPARTMENT`/`OWN_DEPARTMENTS` com subárvore). Raiz de outro tenant não volta.
+   */
+  subtreeIds(
+    tx: TenantTx,
+    rootIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly string[]>>;
+  /** Unidades ativas de que o usuário é titular ou substituto (US-097 · ME-03 · §7). */
+  departmentsHeadedBy(tx: TenantTx, userId: string): Promise<string[]>;
 }
 
 /** Perfil do tenant da transação (convite com perfil inicial). */
@@ -114,6 +124,22 @@ export class MembershipReferences {
   ): Promise<ReadonlyMap<string, OrganizationReference>> {
     if (ids.length === 0 || !this.departments) return Promise.resolve(new Map());
     return this.departments.organizationsByIds(tx, ids);
+  }
+
+  /** Sem o provedor do `organization`, cada raiz cobre só ela mesma (nunca amplia o escopo). */
+  subtreeIds(
+    tx: TenantTx,
+    rootIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly string[]>> {
+    if (rootIds.length === 0) return Promise.resolve(new Map());
+    if (!this.departments) return Promise.resolve(new Map(rootIds.map((id) => [id, [id]])));
+    return this.departments.subtreeIds(tx, rootIds);
+  }
+
+  departmentsHeadedBy(tx: TenantTx, userId: string): Promise<string[]> {
+    return this.departments
+      ? this.departments.departmentsHeadedBy(tx, userId)
+      : Promise.resolve([]);
   }
 
   roleById(tx: TenantTx, roleId: string): Promise<RoleReference | null> {

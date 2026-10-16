@@ -80,9 +80,51 @@ O escopo padrão de atribuição de cada perfil (§3.1) fica em `DEFAULT_ROLES[]
 cache.invalidation_unavailable`, sem desfazer nada); o `PermissionCacheInvalidator` repete pelo
   `RoleAssigned`/`RoleRevoked` (routing `role.*`).
 
-## Ponte até a US-097
+## Autorização (US-097 · DEC-134 · RN-IAM-100..108)
 
-`AccessFacade.assertCan` (usado pelos demais módulos) ainda decide pelos `roleKeys` do contexto contra
-a matriz padrão (`domain/permission-grants.ts`, derivada de `DEFAULT_ROLE_GRANTS`) — não enxerga as
-matrizes editadas pela US-095. A US-097 troca isso pelas permissões efetivas (perfis do tenant,
-escopos e cache) sem mudar os chamadores, e absorve o `RoleActorResolver`.
+Mecanismo único: o `AuthorizationGuard` global (`#shared/auth/authorization.guard.js`, depois de
+autenticação → tenant → vínculo → MFA) chama o `AuthorizationService` (porta `AUTHORIZATION_PORT`)
+em toda rota `@TenantScope('TENANT')` com vínculo ativo.
+
+- **Declare na rota** (`#shared/auth/authorization.js`) — meta-teste
+  `src/openapi/authorization-coverage.spec.ts` reprova rota mutável sem declaração:
+  - `@RequirePermission('PROCESS_CANCEL', { scope: { processParam: 'id' } })` — a permissão precisa
+    cobrir o processo do caminho (perfil com escopo ∪ participação §4); não visível = 404
+    `PROCESS_NOT_FOUND`, visível sem permissão = 403 `PERMISSION_DENIED`. Sem `scope`, basta a
+    permissão em algum escopo (o caso de uso confere o recurso do corpo, ex.:
+    `access.assertCanInDepartment('PROCESS_CREATE', unidade, …)`). `detail` troca a mensagem do 403.
+  - `@Policy(ProcessCustodyPolicy)` — provider com `static policyId` que implementa
+    `ContextualPolicy`; o guard o avalia depois da permissão (recebe usuário, parâmetros, processo e
+    `has(code)`). `@Policy('POL-13')` só declara uma política que o caso de uso aplica.
+  - `@ImplicitAccess('motivo')` — capacidade implícita (permissions.md §7).
+- **Recusas:** 403 com `PERMISSION_DENIED`, `MFA_REQUIRED` (permissão `HIGH` + `security.mfaPolicy`
+  ≠ `NONE`; grava também `auth.mfa_required`) ou o código da política (`CONTEXTUAL_POLICIES` em
+  `@contrataflow/types`; `ApiError({ auditDenial: true })`). Toda recusa vira `access.denied` com a
+  permissão ou o ID da política em `reasonCode` (filtro RFC 9457, amostragem da US-073).
+- **Permissões efetivas** (`domain/effective-permissions.ts` · `EffectivePermissionSet`): pares
+  `(permissão, escopo)` das atribuições vigentes de perfis ativos, com as unidades expandidas
+  (subárvore pela porta `MembershipReferences.subtreeIds`, lotações do `identity`) e as chefias.
+  Permissão não escopável (`scopable: false`) vale em qualquer escopo. O retrato vai para o contexto
+  (`RequestContext.permissions`): `AccessFacade.assertCan`/`can` dos casos de uso decidem por ele
+  sem nova leitura; `effectivePermissions()`/`processVisibilityScope()` para os assíncronos.
+- **Cache** (`application/effective-permissions.service.ts`): `cf:{env}:t:{tenantId}:access:eff:{m}`
+  por 5 min, com os tokens de geração (`#shared/auth/permission-cache.js`). Invalide com
+  `invalidateEffectivePermissions(cache, membershipId)` / `invalidateTenantPermissions(cache)` logo
+  após o commit (atribuição, vínculo e perfil já fazem); o `PermissionCacheInvalidator` do worker
+  repete pelos eventos `role.*`, `membership.*`, `department.*`. Redis fora → calcula sem cache
+  (`warn authorization.cache_unavailable`); banco fora com cache frio → 503
+  (`error authorization.decision_failed`). Log `info authorization.cache_rebuilt`, métrica
+  `authorization_cache_lookups_total{result}`.
+- **Ponte do modo fake:** vínculo SEM nenhuma `RoleAssignment` (nem revogada) usa as chaves do
+  registro do vínculo com o escopo padrão do perfil (`TENANT` ou lotações). Em produção o registro
+  não traz chaves: sem atribuição, nenhuma permissão.
+- **Visibilidade (DEC-024):** `buildVisibilityPredicate(scope)` (`#shared/database/process-visibility.js`)
+  nas listagens e `isProcessVisible` na consulta por id — a mesma regra. O módulo `process` registra
+  o leitor do processo em `ProcessAccessRegistry` (`#shared/auth/process-access.js`).
+- **ME-03** `GET /me/permissions`: `MyPermissionsController` → `GetMyPermissionsHandler`
+  (`myPermissionsSchema` em `@contrataflow/validation`), fonte única dos hooks do web
+  (`PermissionProvider`, `usePermission`, `useProcessCapabilities`, `<Can>`, `<Gate>`).
+- **Ainda nas chaves do contexto:** `rolesGrant`/`rolesCoverAllDepartments` (perfis de TERCEIROS —
+  aprovadores e titulares) e os resolvedores de ator da gestão de perfis/atribuições
+  (`RoleActorResolver`/`AssignmentActorResolver`, que leem as concessões ATUAIS na transação do
+  comando para POL-13).

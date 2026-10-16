@@ -113,6 +113,20 @@ export class InMemoryDepartmentRepository implements DepartmentRepository {
     );
   }
 
+  subtreeIds(_tx: TenantTx, rootIds: readonly string[]): Promise<Map<string, string[]>> {
+    const rows = this.inTenant();
+    const result = new Map<string, string[]>();
+    for (const rootId of new Set(rootIds)) {
+      const root = rows.find((d) => d.id === rootId);
+      if (!root) continue;
+      result.set(
+        rootId,
+        rows.filter((d) => d.path.startsWith(root.path)).map((d) => d.id),
+      );
+    }
+    return Promise.resolve(result);
+  }
+
   insert(_tx: TenantTx, department: Department): Promise<void> {
     const taken = this.takenBy(department);
     if (taken) return Promise.reject(taken);

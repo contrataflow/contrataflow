@@ -24,6 +24,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { pageResult } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
@@ -66,6 +67,7 @@ export class TemplateController {
   ) {}
 
   @Get('templates')
+  @RequirePermission('TEMPLATE_VIEW')
   @ApiOperation({
     operationId: 'TPL-01',
     summary: 'Listar templates',
@@ -87,6 +89,7 @@ export class TemplateController {
 
   @Post('templates')
   @Idempotent()
+  @RequirePermission('TEMPLATE_MANAGE')
   @ApiOperation({
     operationId: 'TPL-02',
     summary: 'Criar template',
@@ -112,6 +115,7 @@ export class TemplateController {
   }
 
   @Get('templates/:id')
+  @RequirePermission('TEMPLATE_VIEW')
   @ApiOperation({
     operationId: 'TPL-03',
     summary: 'Consultar template',
@@ -132,6 +136,7 @@ export class TemplateController {
   @Patch('templates/:id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('TEMPLATE_MANAGE')
   @ApiOperation({
     operationId: 'TPL-04',
     summary: 'Atualizar dados do template',
@@ -160,6 +165,7 @@ export class TemplateController {
   }
 
   @Get('template-versions/:versionId')
+  @RequirePermission('TEMPLATE_VIEW')
   @ApiOperation({
     operationId: 'TPL-07',
     summary: 'Consultar versão do template',
@@ -184,6 +190,7 @@ export class TemplateController {
   @Patch('template-versions/:versionId')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('TEMPLATE_MANAGE')
   @ApiOperation({
     operationId: 'TPL-08',
     summary: 'Atualizar conteúdo da versão do template (rascunho)',
@@ -213,6 +220,7 @@ export class TemplateController {
   }
 
   @Get('templates/:id/versions')
+  @RequirePermission('TEMPLATE_VIEW')
   @ApiOperation({
     operationId: 'TPL-05',
     summary: 'Listar versões do template',
@@ -235,6 +243,7 @@ export class TemplateController {
 
   @Post('templates/:id/versions')
   @Idempotent()
+  @RequirePermission('TEMPLATE_MANAGE')
   @ApiOperation({
     operationId: 'TPL-06',
     summary: 'Criar nova versão do template (rascunho)',
@@ -267,6 +276,7 @@ export class TemplateController {
   @HttpCode(200)
   @Idempotent()
   @RequireIfMatch()
+  @RequirePermission('TEMPLATE_PUBLISH')
   @ApiOperation({
     operationId: 'TPL-10',
     summary: 'Publicar versão do template',
@@ -299,6 +309,7 @@ export class TemplateController {
   @Post('template-versions/:versionId/retire')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('TEMPLATE_PUBLISH')
   @ApiOperation({
     operationId: 'TPL-11',
     summary: 'Aposentar versão do template',

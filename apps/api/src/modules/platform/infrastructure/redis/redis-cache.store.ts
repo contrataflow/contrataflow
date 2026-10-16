@@ -24,4 +24,8 @@ export class RedisCacheStore implements CacheStore {
   async delete(key: string): Promise<void> {
     await this.client.redis.del(key);
   }
+
+  getMany(keys: readonly string[]): Promise<(string | null)[]> {
+    return keys.length === 0 ? Promise.resolve([]) : this.client.redis.mget(...keys);
+  }
 }

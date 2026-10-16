@@ -140,6 +140,14 @@ export class PrismaRoleAssignmentRepository implements RoleAssignmentRepository 
     });
   }
 
+  async hasAnyAssignment(tx: TenantTx, membershipId: string): Promise<boolean> {
+    const found = await tx.roleAssignment.findFirst({
+      where: { membershipId },
+      select: { id: true },
+    });
+    return found !== null;
+  }
+
   listByRole(tx: TenantTx, roleId: string): Promise<RoleAssignment[]> {
     return tx.roleAssignment.findMany({
       where: { roleId, revokedAt: null },
@@ -260,6 +268,10 @@ export class InMemoryRoleAssignmentRepository implements RoleAssignmentRepositor
     return Promise.resolve(
       this.activeOfTenant().filter((item) => item.membershipId === membershipId),
     );
+  }
+
+  hasAnyAssignment(_tx: TenantTx, membershipId: string): Promise<boolean> {
+    return Promise.resolve(this.ofTenant().some((item) => item.membershipId === membershipId));
   }
 
   listByRole(_tx: TenantTx, roleId: string): Promise<RoleAssignment[]> {

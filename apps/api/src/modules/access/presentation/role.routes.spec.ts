@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 import { DatabaseUnavailableError } from '#shared/database/errors.js';
 import { newId } from '#shared/database/ids.js';
 import { FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
@@ -724,9 +725,10 @@ describe('Feature: Gerenciar perfis e matriz de permissões (US-095)', () => {
     it('Banco indisponível ao desativar perfil: 503 DEPENDENCY_UNAVAILABLE e o perfil segue ativo', async () => {
       const spies = silence();
       const role = await createRole('Fiscal de Escolas');
+      // A leitura segue de pé (o guard calcula as permissões efetivas — US-097); cai a gravação.
       const failing: AccessTransactions = {
         run: () => Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED'))),
-        read: () => Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED'))),
+        read: (work) => runSimulatedTransaction(work),
       };
       const down = await createTestApi({
         providers: [{ token: ACCESS_TRANSACTIONS, value: failing }],

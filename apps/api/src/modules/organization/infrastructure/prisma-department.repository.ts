@@ -168,6 +168,23 @@ export class PrismaDepartmentRepository implements DepartmentRepository {
     return rows.map((row) => row.id);
   }
 
+  async subtreeIds(tx: TenantTx, rootIds: readonly string[]): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (rootIds.length === 0) return result;
+    // RLS restringe ao tenant da transação; o `path` é `/<uuid>/…/` (sem `%` nem `_`).
+    const rows = await tx.$queryRaw<{ root_id: string; id: string }[]>`
+      SELECT r.id AS root_id, d.id AS id
+        FROM departments r
+        JOIN departments d ON d.tenant_id = r.tenant_id AND d.path LIKE r.path || '%'
+       WHERE r.id = ANY(${[...new Set(rootIds)]}::uuid[])`;
+    for (const row of rows) {
+      const ids = result.get(row.root_id) ?? [];
+      ids.push(row.id);
+      result.set(row.root_id, ids);
+    }
+    return result;
+  }
+
   async insert(tx: TenantTx, department: Department): Promise<void> {
     try {
       await tx.department.create({

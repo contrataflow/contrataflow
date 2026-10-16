@@ -8,6 +8,7 @@ import {
 import type { SettingsMapDto, UpdateSettings } from '@contrataflow/validation';
 import { Controller, Get, HttpCode, Patch, Res } from '@nestjs/common';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
@@ -41,6 +42,7 @@ export class SettingsController {
   ) {}
 
   @Get()
+  @RequirePermission('SETTINGS_MANAGE')
   @ApiOperation({
     operationId: 'SET-01',
     summary: 'Consultar configurações do tenant',
@@ -63,6 +65,7 @@ export class SettingsController {
   @Patch()
   @HttpCode(200)
   @Idempotent()
+  @RequirePermission('SETTINGS_MANAGE')
   @ApiOperation({
     operationId: 'SET-02',
     summary: 'Atualizar configurações do tenant (lote, tudo ou nada)',

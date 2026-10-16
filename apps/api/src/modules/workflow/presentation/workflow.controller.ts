@@ -48,6 +48,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
@@ -121,6 +122,7 @@ export class WorkflowController {
   ) {}
 
   @Get('workflows')
+  @RequirePermission('WORKFLOW_VIEW')
   @ApiOperation({
     operationId: 'WF-01',
     summary: 'Listar workflows',
@@ -139,6 +141,7 @@ export class WorkflowController {
 
   @Post('workflows/resolve')
   @HttpCode(200)
+  @RequirePermission('WORKFLOW_VIEW')
   @ApiOperation({
     operationId: 'WF-06',
     summary: 'Resolver workflow aplicável',
@@ -162,6 +165,7 @@ export class WorkflowController {
   @Post('workflows/:id/set-default')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_PUBLISH')
   @ApiOperation({
     operationId: 'WF-05',
     summary: 'Definir workflow padrão',
@@ -190,6 +194,7 @@ export class WorkflowController {
 
   @Post('workflows')
   @Idempotent()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-02',
     summary: 'Criar workflow',
@@ -218,6 +223,7 @@ export class WorkflowController {
   }
 
   @Get('workflows/:id')
+  @RequirePermission('WORKFLOW_VIEW')
   @ApiOperation({
     operationId: 'WF-03',
     summary: 'Obter workflow',
@@ -241,6 +247,7 @@ export class WorkflowController {
   @Patch('workflows/:id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-04',
     summary: 'Atualizar workflow',
@@ -269,6 +276,7 @@ export class WorkflowController {
   }
 
   @Get('workflows/:id/versions')
+  @RequirePermission('WORKFLOW_VIEW')
   @ApiOperation({
     operationId: 'WF-07',
     summary: 'Listar versões do workflow',
@@ -288,6 +296,7 @@ export class WorkflowController {
   }
 
   @Post('workflows/:id/versions')
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-08',
     summary: 'Criar nova versão do workflow',
@@ -313,6 +322,7 @@ export class WorkflowController {
   }
 
   @Get('workflow-versions/:versionId')
+  @RequirePermission('WORKFLOW_VIEW')
   @ApiOperation({
     operationId: 'WF-09',
     summary: 'Obter versão do workflow',
@@ -335,6 +345,7 @@ export class WorkflowController {
   }
 
   @Post('workflow-versions/:versionId/stages')
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-10',
     summary: 'Criar etapa',
@@ -361,6 +372,7 @@ export class WorkflowController {
   @Patch('workflow-stages/:stageId')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-11',
     summary: 'Atualizar etapa',
@@ -391,6 +403,7 @@ export class WorkflowController {
   @Delete('workflow-stages/:stageId')
   @HttpCode(204)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-12',
     summary: 'Excluir etapa',
@@ -409,6 +422,7 @@ export class WorkflowController {
   }
 
   @Post('workflow-versions/:versionId/transitions')
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-13',
     summary: 'Criar transição',
@@ -435,6 +449,7 @@ export class WorkflowController {
   @Patch('workflow-transitions/:transitionId')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-14',
     summary: 'Atualizar transição',
@@ -465,6 +480,7 @@ export class WorkflowController {
   @Delete('workflow-transitions/:transitionId')
   @HttpCode(204)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-15',
     summary: 'Excluir transição',
@@ -483,6 +499,7 @@ export class WorkflowController {
   }
 
   @Post('workflow-versions/:versionId/rules')
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-16',
     summary: 'Criar regra',
@@ -509,6 +526,7 @@ export class WorkflowController {
   @Patch('workflow-rules/:ruleId')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-17',
     summary: 'Atualizar regra',
@@ -539,6 +557,7 @@ export class WorkflowController {
   @Delete('workflow-rules/:ruleId')
   @HttpCode(204)
   @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
   @ApiOperation({
     operationId: 'WF-18',
     summary: 'Excluir regra',

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { DomainEventEnvelope } from '@contrataflow/types';
 import { UserInvited } from '@contrataflow/validation';
 import { Logger } from '@nestjs/common';
@@ -20,10 +22,15 @@ export const DEDUPE_TTL_SECONDS = 24 * 3_600;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Os tokens de geração vivem mais que qualquer retrato do cache (5 min) — US-097. */
+const PERMISSION_GENERATION_TTL_SECONDS = 24 * 3_600;
+
 /**
- * Invalida o cache de permissões efetivas (permissions.md §1.2): `DEL` da chave do vínculo do
- * payload (`membershipId`) ou, sem ele (perfil alterado, unidade movida), de todas as chaves do
- * tenant. Idempotente por natureza — reentrega só repete o DEL.
+ * Invalida o cache de permissões efetivas (permissions.md §1.2 · RN-IAM-102): troca o token de
+ * geração e faz `DEL` da chave do vínculo do payload (`membershipId`) ou, sem ele (perfil alterado,
+ * unidade movida), troca o token do tenant e apaga todas as chaves do tenant. O token faz a API
+ * descartar retrato calculado antes da mudança e gravado depois do `DEL` (US-097 · Concorrência).
+ * Idempotente — reentrega só repete a troca e o `DEL`.
  */
 export class PermissionCacheInvalidator implements InlineEventHandler {
   readonly name = 'PermissionCacheInvalidator';
@@ -34,9 +41,21 @@ export class PermissionCacheInvalidator implements InlineEventHandler {
     if (event.tenantId === null) return;
     const membershipId = event.payload.membershipId;
     if (typeof membershipId === 'string' && UUID.test(membershipId)) {
+      await this.cache.set(
+        event.tenantId,
+        ['access', 'eff-gen', membershipId],
+        randomUUID(),
+        PERMISSION_GENERATION_TTL_SECONDS,
+      );
       await this.cache.delete(event.tenantId, ['access', 'eff', membershipId]);
       return;
     }
+    await this.cache.set(
+      event.tenantId,
+      ['access', 'eff-gen'],
+      randomUUID(),
+      PERMISSION_GENERATION_TTL_SECONDS,
+    );
     await this.cache.deleteByPrefix(event.tenantId, ['access', 'eff']);
   }
 }

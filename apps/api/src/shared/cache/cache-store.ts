@@ -7,6 +7,8 @@ export interface CacheStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ttlSeconds: number): Promise<void>;
   delete(key: string): Promise<void>;
+  /** Várias chaves numa ida (`MGET`); sem implementação, o `TenantCache` lê uma a uma. */
+  getMany?(keys: readonly string[]): Promise<(string | null)[]>;
 }
 
 export const CACHE_STORE = Symbol('CacheStore');
@@ -35,5 +37,11 @@ export class InMemoryCacheStore implements CacheStore {
   delete(key: string): Promise<void> {
     this.entries.delete(key);
     return Promise.resolve();
+  }
+
+  async getMany(keys: readonly string[]): Promise<(string | null)[]> {
+    const values: (string | null)[] = [];
+    for (const key of keys) values.push(await this.get(key));
+    return values;
   }
 }

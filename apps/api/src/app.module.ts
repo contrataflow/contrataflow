@@ -6,6 +6,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { API_MODULES } from '#modules/index.js';
+import { AuthorizationGuard } from '#shared/auth/authorization.guard.js';
 import {
   AuthenticationGuard,
   MembershipGuard,
@@ -33,7 +34,7 @@ export interface AppModuleOptions {
 
 /**
  * Módulo raiz (fluxo principal, passo 2 da US-080). Pipeline de toda requisição (RN-FND-33/34):
- * logger da requisição (`nestjs-pino`, US-084) → middleware de contexto → corpo JSON → autenticação → tenant → vínculo → operador de plataforma → MFA → rate limit →
+ * logger da requisição (`nestjs-pino`, US-084) → middleware de contexto → corpo JSON → autenticação → tenant → vínculo → operador de plataforma → MFA → autorização (US-097) → rate limit →
  * If-Match → idempotência → `ZodValidationPipe` → handler → envelope; qualquer exceção → filtro
  * RFC 9457. Os guards e interceptors globais executam na ordem em que são registrados aqui.
  */
@@ -55,6 +56,8 @@ export class AppModule implements NestModule {
         { provide: APP_GUARD, useClass: MembershipGuard },
         { provide: APP_GUARD, useClass: PlatformOperatorGuard },
         { provide: APP_GUARD, useClass: MfaGuard },
+        // US-097: permissões efetivas no contexto + `@RequirePermission`/`@Policy` da rota.
+        { provide: APP_GUARD, useClass: AuthorizationGuard },
         { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_GUARD, useClass: PreconditionGuard },
         // O primeiro interceptor é o mais externo: a idempotência guarda e reproduz a resposta já

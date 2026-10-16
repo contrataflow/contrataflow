@@ -541,6 +541,83 @@
           "readOnly"
         ]
       },
+      "MyPermissions": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectivePermission"
+            }
+          },
+          "implicit": {
+            "type": "object",
+            "properties": {
+              "headOfDepartmentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "required": [
+              "headOfDepartmentIds"
+            ]
+          }
+        },
+        "required": [
+          "permissions",
+          "implicit"
+        ]
+      },
+      "EffectivePermission": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionScope"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "scopes"
+        ]
+      },
+      "PermissionScope": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TENANT",
+              "ORGANIZATION",
+              "DEPARTMENT",
+              "OWN_DEPARTMENTS"
+            ]
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "departmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "includeSubtree": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "includeSubtree"
+        ]
+      },
       "Notification": {
         "type": "object",
         "properties": {
@@ -9474,6 +9551,114 @@
                       "items": {
                         "$ref": "#/components/schemas/MembershipSummary"
                       }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/permissions": {
+      "get": {
+        "operationId": "ME-03",
+        "summary": "Obter permissões efetivas do usuário",
+        "tags": [
+          "Sessão e perfil"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Permissões efetivas do vínculo ativo por escopo (`TENANT`/`ORGANIZATION`/`DEPARTMENT`/`OWN_DEPARTMENTS`, com subárvore) e as capacidades implícitas (`headOfDepartmentIds`). Fonte única dos hooks de permissão do frontend — a decisão continua sendo da API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MyPermissions"
                     }
                   },
                   "required": [

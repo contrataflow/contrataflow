@@ -19,6 +19,11 @@ export interface ApiErrorOptions {
    * resposta. Padrão: o próprio código do erro.
    */
   readonly auditReasonCode?: string;
+  /**
+   * Negação de acesso por política contextual (US-097 · RN-IAM-105): grava `access.denied` mesmo
+   * com código fora de `AUDITED_DENIAL_CODES` (ex.: `NOT_PROCESS_CUSTODIAN`).
+   */
+  readonly auditDenial?: boolean;
   readonly cause?: unknown;
 }
 
@@ -35,6 +40,7 @@ export class ApiError extends Error {
   readonly headers: Readonly<Record<string, string>>;
   readonly extensions: Readonly<Record<string, unknown>>;
   readonly auditReasonCode: string;
+  readonly auditDenial: boolean;
 
   constructor(
     readonly code: ErrorCode | (string & {}),
@@ -53,6 +59,7 @@ export class ApiError extends Error {
     this.headers = options.headers ?? {};
     this.extensions = options.extensions ?? {};
     this.auditReasonCode = options.auditReasonCode ?? code;
+    this.auditDenial = options.auditDenial ?? false;
   }
 }
 

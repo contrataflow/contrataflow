@@ -100,6 +100,9 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'NTF-05': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
   'ME-01': { kind: 'covered' },
   'ME-04': { kind: 'covered' },
+  // US-097: permissões do próprio vínculo, sem ID no caminho; o isolamento com PostgreSQL e Redis
+  // reais está em test/tenant-leak/authorization.spec.ts.
+  'ME-03': { kind: 'covered' },
   'DTY-01': { kind: 'covered' },
   'DTY-02': {
     kind: 'exempt',

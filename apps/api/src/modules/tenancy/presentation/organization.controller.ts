@@ -15,6 +15,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Get, HttpCode, Patch, Post, Res } from '@nestjs/common';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { pageResult } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
@@ -68,6 +69,7 @@ export class OrganizationController {
   }
 
   @Post()
+  @RequirePermission('ORGANIZATION_MANAGE')
   @ApiOperation({
     operationId: 'ORG-02',
     summary: 'Criar órgão',
@@ -111,6 +113,7 @@ export class OrganizationController {
   @Patch(':id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('ORGANIZATION_MANAGE')
   @ApiOperation({
     operationId: 'ORG-04',
     summary: 'Atualizar órgão (inclui inativar e reativar)',

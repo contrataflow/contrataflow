@@ -22,6 +22,7 @@ import type { Histogram } from '@opentelemetry/api';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { MembershipReferences } from '#shared/auth/membership-references.js';
+import { invalidateEffectivePermissions } from '#shared/auth/permission-cache.js';
 import { TenantCache } from '#shared/cache/tenant-cache.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { newId } from '#shared/database/ids.js';
@@ -194,10 +195,13 @@ abstract class MembershipAdministration extends MembershipCommand {
     return { data: result.data, meta: result.meta };
   }
 
-  /** RN-IAM-61: `DEL cf:{env}:t:{tenantId}:access:eff:{membershipId}`; Redis fora não desfaz nada. */
+  /**
+   * RN-IAM-61: `DEL cf:{env}:t:{tenantId}:access:eff:{membershipId}` com troca do token de geração
+   * (US-097); Redis fora não desfaz nada.
+   */
   private async invalidatePermissions(membershipId: string): Promise<void> {
     try {
-      await this.cache.delete('access', `eff:${membershipId}`);
+      await invalidateEffectivePermissions(this.cache, membershipId);
     } catch (error) {
       this.logger.warn(
         {

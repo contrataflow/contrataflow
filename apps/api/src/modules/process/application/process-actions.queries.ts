@@ -51,7 +51,9 @@ async function loadVisible(
   const runtime = await reader.load(tx, processId);
   if (runtime === null) throw processNotFound();
   const viewer = await viewers.resolve(tx);
-  if (!canViewProcess(runtime.access, viewer.visibility)) throw processNotFound();
+  if (!canViewProcess(runtime.access, viewer.visibility, runtime.organizationId ?? null)) {
+    throw processNotFound();
+  }
   return { runtime, viewer };
 }
 

@@ -7,7 +7,6 @@ import type {
   RoleReference,
 } from '#shared/auth/membership-references.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
-import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { AccessFacade } from './access.facade.js';
@@ -43,7 +42,7 @@ export class MembershipAccessProvider implements AccessReferenceProvider {
   }
 
   hasPermission(permission: PermissionCode): boolean {
-    return this.access.rolesGrant(requireRequestContext().roleKeys ?? [], permission);
+    return this.access.can(permission);
   }
 
   async roleById(tx: TenantTx, roleId: string): Promise<RoleReference | null> {

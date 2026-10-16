@@ -64,7 +64,7 @@ export function Can({ permission, action, allowedActions, unavailableReason, chi
       children({ disabled, describedBy })
     ) : disabled ? (
       // Sem render-prop, um fieldset desabilitado bloqueia todos os controles de dentro.
-      <fieldset disabled aria-describedby={reasonId} className="contents">
+      <fieldset disabled aria-disabled="true" aria-describedby={reasonId} className="contents">
         {children}
       </fieldset>
     ) : (
@@ -80,4 +80,20 @@ export function Can({ permission, action, allowedActions, unavailableReason, chi
       ) : null}
     </>
   );
+}
+
+export interface GateProps {
+  readonly permission: string;
+  /** Exibido sem a permissão (padrão: nada). Enquanto ME-03 carrega, também é o que aparece. */
+  readonly fallback?: ReactNode;
+  readonly children: ReactNode;
+}
+
+/**
+ * `<Gate permission="…">` (US-097): mostra uma área inteira (menu, seção, rota) só a quem tem a
+ * permissão em algum escopo; carregando ou sem ela, o `fallback`. Ações contextuais usam `<Can>`.
+ */
+export function Gate({ permission, fallback = null, children }: GateProps) {
+  const { allowed } = usePermission(permission);
+  return <>{allowed ? children : fallback}</>;
 }

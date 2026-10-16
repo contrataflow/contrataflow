@@ -33,11 +33,11 @@ Um escopo cobre o processo P quando:
 - `DEPARTMENT = D` (`includeSubtree`): existe `ProcessAccess` ativo de P para alguma unidade em `{D}` ∪ subárvore(D) com motivo `REQUESTING`, `CURRENT` ou `HISTORICAL` (este último somente se `access.historicalDepartmentsCanView = true`).
 - `OWN_DEPARTMENTS`: igual a `DEPARTMENT`, usando as unidades de lotação (`MembershipDepartment`) do usuário (com subárvore se `includeSubtree`).
 
-Para permissões não ligadas a processo (ex.: `USER_MANAGE`), apenas os escopos `TENANT` e `ORGANIZATION` são considerados.
+Para permissões não ligadas a processo (ex.: `USER_MANAGE`), apenas os escopos `TENANT` e `ORGANIZATION` são considerados quando a ação recai sobre um recurso de um órgão. Permissões **não escopáveis** do catálogo (`scopable = false` — administração, catálogos, `INBOX_VIEW`, `SUPPLIER_VIEW`, `TEMPLATE_VIEW`…) não são restringidas pelo escopo da atribuição: valem em qualquer atribuição vigente (é o que a matriz §3.2 pressupõe para perfis com escopo `OWN_DEPARTMENTS`, como `REQUISITANTE` com `INBOX_VIEW`) — US-097.
 
 ### 1.2 Cálculo e cache
 - `EffectivePermissions(membership)` = lista de pares `(permission, scope)` das atribuições válidas (`validFrom ≤ now < validUntil`, não revogadas, perfil ativo).
-- Cache Redis `cf:{env}:t:{tenantId}:access:eff:{membershipId}` (TTL 5 min), invalidado pelos eventos `RoleUpdated`, `RoleAssigned`, `RoleRevoked`, `MembershipUpdated`, `MembershipSuspended`, `MembershipRevoked`, `DepartmentMoved`.
+- Cache Redis `cf:{env}:t:{tenantId}:access:eff:{membershipId}` (TTL 5 min), invalidado pelos eventos `RoleUpdated`, `RoleAssigned`, `RoleRevoked`, `MembershipUpdated`, `MembershipSuspended`, `MembershipRevoked`, `DepartmentMoved`. O retrato guarda os tokens de geração lidos antes do cálculo (`access:eff-gen` do tenant e `access:eff-gen:{membershipId}` do vínculo); toda invalidação troca o token, e retrato com token antigo é descartado — um cálculo concorrente a uma revogação nunca volta a conceder o acesso revogado (US-097). Os casos de uso de atribuição, vínculo e perfil invalidam já no commit; o `PermissionCacheInvalidator` repete pelo evento.
 - Toda negação gera auditoria `access.denied` (`result = DENIED`, `reasonCode = <permissão ou política>`), com amostragem de no máximo 1 registro por usuário/rota/minuto para evitar inundação.
 
 ---

@@ -22,6 +22,7 @@ import type {
 import { Controller, Get, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
 
+import { Policy, RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
@@ -59,6 +60,7 @@ export class RoleController {
   ) {}
 
   @Get()
+  @RequirePermission('ROLE_VIEW', { detail: 'Você não tem permissão para gerenciar perfis.' })
   @ApiOperation({
     operationId: 'ROL-02',
     summary: 'Listar perfis',
@@ -76,6 +78,8 @@ export class RoleController {
   }
 
   @Post()
+  @RequirePermission('ROLE_MANAGE', { detail: 'Você não tem permissão para gerenciar perfis.' })
+  @Policy('POL-13')
   @ApiOperation({
     operationId: 'ROL-03',
     summary: 'Criar perfil',
@@ -96,6 +100,7 @@ export class RoleController {
   }
 
   @Get(':id')
+  @RequirePermission('ROLE_VIEW', { detail: 'Você não tem permissão para gerenciar perfis.' })
   @ApiOperation({
     operationId: 'ROL-04',
     summary: 'Consultar perfil',
@@ -117,6 +122,7 @@ export class RoleController {
   @Patch(':id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('ROLE_MANAGE', { detail: 'Você não tem permissão para gerenciar perfis.' })
   @ApiOperation({
     operationId: 'ROL-05',
     summary: 'Atualizar perfil',
@@ -146,6 +152,8 @@ export class RoleController {
   @Put(':id/permissions')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('ROLE_MANAGE', { detail: 'Você não tem permissão para gerenciar perfis.' })
+  @Policy('POL-13')
   @ApiOperation({
     operationId: 'ROL-06',
     summary: 'Atualizar permissões do perfil',
@@ -174,6 +182,7 @@ export class RoleController {
   }
 
   @Post(':id/duplicate')
+  @RequirePermission('ROLE_MANAGE', { detail: 'Você não tem permissão para gerenciar perfis.' })
   @ApiOperation({
     operationId: 'ROL-07',
     summary: 'Duplicar perfil',
@@ -197,6 +206,8 @@ export class RoleController {
   @Post(':id/deactivate')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('ROLE_MANAGE', { detail: 'Você não tem permissão para gerenciar perfis.' })
+  @Policy('POL-12')
   @ApiOperation({
     operationId: 'ROL-08',
     summary: 'Desativar perfil',

@@ -89,7 +89,7 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
       );
     }
     annotateProblemCode(response, error.code);
-    if (!AUDITED_DENIAL_CODES.has(error.code)) {
+    if (!AUDITED_DENIAL_CODES.has(error.code) && !error.auditDenial) {
       this.send(request, response, error, correlationId);
       return;
     }

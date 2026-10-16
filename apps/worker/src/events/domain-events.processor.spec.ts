@@ -1,7 +1,7 @@
 import { DOMAIN_EVENT_NAMES } from '@contrataflow/types';
 import type { DomainEventEnvelope } from '@contrataflow/types';
 import { UnrecoverableError } from 'bullmq';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TenantRedisCache } from '#shared/cache/tenant-redis.js';
 
@@ -72,6 +72,15 @@ class MemoryQueues implements FanOutQueues {
 class MemoryCache {
   readonly keys = new Set<string>();
   readonly deleted: string[] = [];
+  /** Chaves gravadas com `set` (tokens de geração — US-097) → último valor. */
+  readonly values = new Map<string, string>();
+  /** Chaves de verdade (para `DEL` idempotente): a primeira remoção conta 1, as demais 0. */
+  readonly stored = new Set<string>();
+
+  set(tenantId: string, segments: readonly string[], value: string): Promise<void> {
+    this.values.set(`${tenantId}:${segments.join(':')}`, value);
+    return Promise.resolve();
+  }
 
   setOnce(tenantId: string | null, segments: readonly string[]): Promise<boolean> {
     const key = `${tenantId ?? 'p'}:${segments.join(':')}`;
@@ -81,8 +90,9 @@ class MemoryCache {
   }
 
   delete(tenantId: string, segments: readonly string[]): Promise<number> {
-    this.deleted.push(`${tenantId}:${segments.join(':')}`);
-    return Promise.resolve(1);
+    const key = `${tenantId}:${segments.join(':')}`;
+    this.deleted.push(key);
+    return Promise.resolve(this.stored.delete(key) ? 1 : 0);
   }
 
   deleteByPrefix(tenantId: string, segments: readonly string[]): Promise<number> {
@@ -173,6 +183,59 @@ describe('DomainEventsProcessor — fan-out por routing key (RN-FND-58)', () => 
 });
 
 describe('handlers leves', () => {
+  it('PermissionCacheInvalidator troca o token de geração do vínculo e apaga o retrato (US-097)', async () => {
+    const { cache, processor } = setup();
+    await processor.process(job('role.revoked', { membershipId: MEMBERSHIP }), EVENT);
+    expect(cache.values.get(`${TENANT}:access:eff-gen:${MEMBERSHIP}`)).toMatch(/^[0-9a-f-]{36}$/);
+    expect(cache.deleted).toEqual([`${TENANT}:access:eff:${MEMBERSHIP}`]);
+  });
+
+  it('[Duplicidade] RoleRevoked entregue duas vezes: a chave sai uma vez e a 2ª entrega não falha', async () => {
+    const { cache, processor } = setup();
+    const key = `${TENANT}:access:eff:${MEMBERSHIP}`;
+    cache.stored.add(key);
+    const handler = new PermissionCacheInvalidator(cache as unknown as TenantRedisCache);
+    const removed = vi.spyOn(cache, 'delete');
+    const data = job('role.revoked', { membershipId: MEMBERSHIP });
+
+    await processor.process(data, EVENT);
+    await expect(processor.process(data, EVENT)).resolves.toMatchObject({
+      inline: ['PermissionCacheInvalidator'],
+    });
+    await expect(
+      handler.handle(envelope('role.revoked', { membershipId: MEMBERSHIP })),
+    ).resolves.toBeUndefined();
+
+    const results = await Promise.all(
+      removed.mock.results.map((result) => result.value as Promise<number>),
+    );
+    expect(results).toEqual([1, 0, 0]);
+    expect(cache.stored.has(key)).toBe(false);
+  });
+
+  it('sem vínculo no payload, troca o token do tenant e apaga todos os retratos', async () => {
+    const { cache, processor } = setup();
+    await processor.process(job('role.updated'), EVENT);
+    expect(cache.values.has(`${TENANT}:access:eff-gen`)).toBe(true);
+    expect(cache.deleted).toEqual([`${TENANT}:access:eff:*`]);
+  });
+
+  it.each([
+    'RoleUpdated',
+    'RoleAssigned',
+    'RoleRevoked',
+    'MembershipUpdated',
+    'MembershipSuspended',
+    'MembershipRevoked',
+    'DepartmentMoved',
+  ])('%s aciona o PermissionCacheInvalidator (RN-IAM-102)', (eventType) => {
+    const routingKeys = ROUTING_DECISIONS[eventType];
+    expect(Array.isArray(routingKeys)).toBe(true);
+    for (const routingKey of routingKeys as readonly string[]) {
+      expect(resolveRoutes(routingKey).inline).toContain('PermissionCacheInvalidator');
+    }
+  });
+
   it('PermissionCacheInvalidator ignora evento de plataforma', async () => {
     const cache = new MemoryCache();
     const handler: InlineEventHandler = new PermissionCacheInvalidator(

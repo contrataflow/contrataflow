@@ -21,6 +21,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, HttpCode, Post, Res } from '@nestjs/common';
 
+import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { pageResult } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
@@ -56,6 +57,7 @@ export class UserInvitationController {
   ) {}
 
   @Get()
+  @RequirePermission('USER_VIEW')
   @ApiOperation({
     operationId: 'USR-01',
     summary: 'Listar usuários e vínculos',
@@ -77,6 +79,7 @@ export class UserInvitationController {
 
   @Post('invitations')
   @Idempotent()
+  @RequirePermission('USER_INVITE')
   @ApiOperation({
     operationId: 'USR-03',
     summary: 'Convidar usuário',
@@ -102,6 +105,7 @@ export class UserInvitationController {
 
   @Post('invitations/:userId/resend')
   @HttpCode(200)
+  @RequirePermission('USER_INVITE')
   @ApiOperation({
     operationId: 'USR-04',
     summary: 'Reenviar convite',
@@ -123,6 +127,7 @@ export class UserInvitationController {
 
   @Delete('invitations/:userId')
   @HttpCode(204)
+  @RequirePermission('USER_INVITE')
   @ApiOperation({
     operationId: 'USR-05',
     summary: 'Cancelar convite',
@@ -157,6 +162,9 @@ export class InvitationAcceptController {
 
   @Post('accept')
   @HttpCode(200)
+  @ImplicitAccess(
+    'Aceite do convite (US-091): o vínculo ainda não está ativo; autoriza o token do convite.',
+  )
   @ApiOperation({
     operationId: 'USR-06',
     summary: 'Aceitar convite',
@@ -178,6 +186,9 @@ export class InvitationAcceptController {
 
   @Post('preview')
   @HttpCode(200)
+  @ImplicitAccess(
+    'Prévia do convite (US-091): autoriza o token do convite, antes de existir vínculo ativo.',
+  )
   @ApiOperation({
     operationId: 'USR-14',
     summary: 'Consultar convite antes do aceite',

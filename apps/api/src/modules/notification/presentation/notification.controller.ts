@@ -15,6 +15,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Get, HttpCode, Post } from '@nestjs/common';
 
+import { ImplicitAccess } from '#shared/auth/authorization.js';
 import type { CursorResult } from '#shared/http/pagination.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
@@ -90,6 +91,9 @@ export class NotificationController {
   // Antes de `:id/read`: `read-all` não é um id.
   @Post('read-all')
   @HttpCode(200)
+  @ImplicitAccess(
+    'Notificações do próprio destinatário (US-111 · permissions.md §7): capacidade implícita.',
+  )
   @ApiOperation({
     operationId: 'NTF-04',
     summary: 'Marcar todas como lidas',
@@ -108,6 +112,9 @@ export class NotificationController {
 
   @Post(':id/read')
   @HttpCode(200)
+  @ImplicitAccess(
+    'Notificações do próprio destinatário (US-111 · permissions.md §7): capacidade implícita.',
+  )
   @ApiOperation({
     operationId: 'NTF-03',
     summary: 'Marcar notificação como lida',
@@ -126,6 +133,9 @@ export class NotificationController {
 
   @Post(':id/archive')
   @HttpCode(200)
+  @ImplicitAccess(
+    'Notificações do próprio destinatário (US-111 · permissions.md §7): capacidade implícita.',
+  )
   @ApiOperation({
     operationId: 'NTF-05',
     summary: 'Arquivar notificação',

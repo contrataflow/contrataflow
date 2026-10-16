@@ -121,6 +121,11 @@ export interface RoleAssignmentRepository extends RoleAssignmentCounter {
   findById(tx: TenantTx, id: string): Promise<RoleAssignment | null>;
   /** Não revogadas do vínculo (vigentes, futuras e vencidas), por concessão. */
   listByMembership(tx: TenantTx, membershipId: string): Promise<RoleAssignment[]>;
+  /**
+   * O vínculo já teve alguma atribuição (inclusive revogada). Sem nenhuma, as permissões efetivas
+   * usam a ponte das chaves do registro do vínculo (modo fake — US-097).
+   */
+  hasAnyAssignment(tx: TenantTx, membershipId: string): Promise<boolean>;
   /** Não revogadas do perfil, por concessão. */
   listByRole(tx: TenantTx, roleId: string): Promise<RoleAssignment[]>;
   /**

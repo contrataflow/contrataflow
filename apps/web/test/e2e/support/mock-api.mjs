@@ -640,10 +640,13 @@ createServer(async (request, response) => {
   const tenantId = request.headers['x-tenant-id'] ?? null;
 
   if (url.pathname === '/api/v1/me/permissions') {
+    // ME-03 (US-097): escopos como objetos; na Prefeitura B a Ana não tem perfil administrativo
+    // (o menu muda ao trocar de instituição — e2e permissions.spec.ts).
+    const TENANT_WIDE = [{ type: 'TENANT', includeSubtree: false }];
     const permissions =
-      sub === 'sub-ana'
+      sub === 'sub-ana' && tenantId !== '0192a000-0000-7000-8000-00000000000b'
         ? [
-            { code: 'PROCESS_CREATE', scopes: ['TENANT'] },
+            { code: 'PROCESS_CREATE', scopes: TENANT_WIDE },
             { code: 'DOCUMENT_TYPE_MANAGE', scopes: [] },
             { code: 'ORGANIZATION_MANAGE', scopes: [] },
             { code: 'SETTINGS_MANAGE', scopes: [] },
@@ -662,7 +665,12 @@ createServer(async (request, response) => {
             { code: 'WORKFLOW_PUBLISH', scopes: [] },
           ]
         : [];
-    return send(response, 200, { data: { permissions, implicit: {} } });
+    return send(response, 200, {
+      data: {
+        permissions: permissions.map((permission) => ({ ...permission, scopes: TENANT_WIDE })),
+        implicit: { headOfDepartmentIds: [] },
+      },
+    });
   }
   if (url.pathname === '/api/v1/_internal/ping') {
     return send(

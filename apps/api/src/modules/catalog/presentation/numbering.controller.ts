@@ -2,6 +2,7 @@ import { numberingPreviewResponseSchema, numberingPreviewSchema } from '@contrat
 import type { NumberingPreview, NumberingPreviewResult } from '@contrataflow/validation';
 import { Controller, HttpCode, Post } from '@nestjs/common';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody } from '#shared/validation/zod-validation.pipe.js';
@@ -20,6 +21,7 @@ export class NumberingController {
 
   @Post('preview')
   @HttpCode(200)
+  @RequirePermission('SETTINGS_MANAGE')
   @ApiOperation({
     operationId: 'SET-04',
     summary: 'Pré-visualizar máscara de numeração',

@@ -27,6 +27,8 @@ export class ProcessesController {
 
 Toda operação também entra no manifesto da suíte "tenant leak" (`apps/api/src/openapi/tenant-leak.manifest.ts`): `covered` com as fixtures de B para cada `{param}` do caminho (`pathParams`) e para as referências do corpo (`body` + `referenceFields`), ou `exempt` com o motivo. Sem isso o build falha.
 
+Toda rota mutável também declara a autorização (US-097 · RN-IAM-101 — meta-teste `src/openapi/authorization-coverage.spec.ts`): `@RequirePermission(code)` (com `{ scope: { processParam: 'id' } }` quando a permissão precisa cobrir o processo do caminho — não visível = 404 `PROCESS_NOT_FOUND`), `@Policy('POL-xx' | ClasseDaPolitica)` quando houver política contextual, ou `@ImplicitAccess('motivo')` para capacidade implícita (permissions.md §7). Rotas `PLATFORM` ficam com o `PlatformOperatorGuard`. Listagens de processos e de recursos filhos filtram com `buildVisibilityPredicate(await access.processVisibilityScope())` (`#shared/database/process-visibility.js` — DEC-024, a única implementação); a consulta por id usa a mesma regra (`isProcessVisible`). Guia do mecanismo: `apps/api/src/modules/access/README.md`.
+
 ## 2. Contexto
 
 - `TenantContext.getOrThrow()` (`#shared/tenancy/tenant-context.js`) devolve `tenantId`, `userId`, `membershipId`, `actorType`, `correlationId` e `accessMode`; sem contexto lança `TenantContextMissingError` (500 + alerta). Use-o para gravar `tenantId` nas criações e para auditoria — nunca o `X-Tenant-Id` cru.

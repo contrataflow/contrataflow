@@ -19,6 +19,7 @@ import { z } from 'zod';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { ImplicitAccess } from '#shared/auth/authorization.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { cursorResult, decodeCursor, pageResult, pageWindow } from '#shared/http/pagination.js';
 import type { CursorQueryDto, PageQueryDto } from '#shared/http/pagination.js';
@@ -80,6 +81,9 @@ export class InternalExampleController {
 
   @Post('jobs/trace-demo')
   @HttpCode(202)
+  @ImplicitAccess(
+    'Rota interna de exemplo do pipeline (US-080/US-084): fora do contrato, sem dados de tenant.',
+  )
   @ApiOperation({
     operationId: 'INTERNAL-TRACE-DEMO-JOB',
     summary: 'Dispara o job de teste da propagação de trace',
@@ -139,6 +143,9 @@ export class InternalExampleController {
   @Post('echo')
   @HttpCode(201)
   @Idempotent()
+  @ImplicitAccess(
+    'Rota interna de exemplo do pipeline (US-080/US-084): fora do contrato, sem dados de tenant.',
+  )
   @ApiOperation({
     operationId: 'INTERNAL-ECHO',
     summary: 'Ecoa o corpo validado',

@@ -7,6 +7,7 @@ import type { PermissionDto, PermissionListQuery } from '@contrataflow/validatio
 import { Controller, Get } from '@nestjs/common';
 import { z } from 'zod';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodQuery } from '#shared/validation/zod-validation.pipe.js';
@@ -20,6 +21,7 @@ export class PermissionController {
   constructor(private readonly list: ListPermissionsQuery) {}
 
   @Get()
+  @RequirePermission('ROLE_VIEW')
   @ApiOperation({
     operationId: 'ROL-01',
     summary: 'Listar o catálogo de permissões',

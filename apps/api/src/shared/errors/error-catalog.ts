@@ -232,6 +232,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Template em uso',
     detail: 'Publique outra versão antes de aposentar esta.',
   },
+  PROCESS_NOT_FOUND: {
+    status: 404,
+    title: 'Processo não encontrado',
+    detail: 'Não encontramos o recurso solicitado.',
+  },
   NOTIFICATION_NOT_FOUND: {
     status: 404,
     title: 'Notificação não encontrada',

@@ -22,6 +22,7 @@ import type {
 import { Controller, Delete, Get, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { pageResult } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
@@ -108,6 +109,7 @@ export class DepartmentController {
 
   @Post()
   @Idempotent()
+  @RequirePermission('DEPARTMENT_MANAGE')
   @ApiOperation({
     operationId: 'DEP-03',
     summary: 'Criar unidade',
@@ -152,6 +154,7 @@ export class DepartmentController {
   @Patch(':id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('DEPARTMENT_MANAGE')
   @ApiOperation({
     operationId: 'DEP-05',
     summary: 'Atualizar unidade',
@@ -182,6 +185,7 @@ export class DepartmentController {
   @Post(':id/move')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('DEPARTMENT_MANAGE')
   @ApiOperation({
     operationId: 'DEP-06',
     summary: 'Mover unidade na hierarquia',
@@ -212,6 +216,7 @@ export class DepartmentController {
   @Post(':id/deactivate')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('DEPARTMENT_MANAGE')
   @ApiOperation({
     operationId: 'DEP-07',
     summary: 'Desativar unidade',
@@ -240,6 +245,7 @@ export class DepartmentController {
   @Post(':id/activate')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('DEPARTMENT_MANAGE')
   @ApiOperation({
     operationId: 'DEP-08',
     summary: 'Ativar unidade',
@@ -265,6 +271,7 @@ export class DepartmentController {
   @Delete(':id')
   @HttpCode(204)
   @RequireIfMatch()
+  @RequirePermission('DEPARTMENT_MANAGE')
   @ApiOperation({
     operationId: 'DEP-09',
     summary: 'Excluir unidade',

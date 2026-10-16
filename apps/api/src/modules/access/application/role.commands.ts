@@ -12,6 +12,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditChange, AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
+import { invalidateTenantPermissions } from '#shared/auth/permission-cache.js';
+import { TenantCache } from '#shared/cache/tenant-cache.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { RequestContext } from '#shared/context/request-context.js';
 import { VersionConflictError } from '#shared/database/errors.js';
@@ -90,6 +92,7 @@ export class RoleCommandSupport {
     @Inject(OUTBOX_WRITER) readonly outbox: OutboxWriterPort,
     private readonly actors: RoleActorResolver,
     private readonly identity: IdentityFacade,
+    private readonly cache: TenantCache,
   ) {}
 
   /**
@@ -129,8 +132,27 @@ export class RoleCommandSupport {
         event,
       );
       countRoleChange(operation);
+      // US-097: matriz/estado do perfil mudou → retratos de permissões do tenant caem já no commit
+      // (o `PermissionCacheInvalidator` repete pelo `RoleUpdated`). Perfil novo não tem vínculos.
+      if (!result.log.created) await this.invalidateTenantPermissions(context.correlationId);
     }
     return result;
+  }
+
+  /** Redis fora não desfaz nada: o evento e o TTL de 5 min cobrem (`warn`). */
+  private async invalidateTenantPermissions(correlationId: string): Promise<void> {
+    try {
+      await invalidateTenantPermissions(this.cache);
+    } catch (error) {
+      this.logger.warn(
+        {
+          event: 'cache.invalidation_unavailable',
+          cause: error instanceof Error ? error.name : 'unknown',
+          correlationId,
+        },
+        'cache.invalidation_unavailable',
+      );
+    }
   }
 
   async load(tx: TenantTx, id: string, expectedVersion?: number): Promise<Role> {

@@ -10,6 +10,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
 
+import { ImplicitAccess } from '#shared/auth/authorization.js';
 import { VerifiedTokenParam } from '#shared/auth/pipeline.guards.js';
 import type { VerifiedToken } from '#shared/auth/ports.js';
 import { AllowUnboundSubject } from '#shared/auth/route-access.js';
@@ -51,6 +52,9 @@ export class SessionEventsController {
   @HttpCode(200)
   @TenantScope('CROSS_TENANT_LOOKUP')
   @AllowUnboundSubject()
+  @ImplicitAccess(
+    'Contrato BFF → API de sessão (US-087): token de serviço + token do usuário, sem vínculo ativo.',
+  )
   @ApiOperation({
     operationId: 'INTERNAL-SESSION-EVENTS',
     summary: 'Registra o início de sessão, a ativação ou a troca de instituição (BFF → API)',

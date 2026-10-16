@@ -68,16 +68,18 @@ User {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: { permissions: [{ code: string, scopes: string[] }], implicit } }`
+- **Response:** `200 { data: { permissions: [{ code: string, scopes: [{ type: "TENANT" | "ORGANIZATION" | "DEPARTMENT" | "OWN_DEPARTMENTS", organizationId?: uuid, departmentId?: uuid, includeSubtree: boolean }] }], implicit: { headOfDepartmentIds: uuid[] } } }` — permissões em ordem alfabética, escopos sem repetição (permissions.md §9 · RN-IAM-106).
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
+| 401 | `UNAUTHENTICATED` / `SESSION_EXPIRED` | Sem token válido / sessão expirada |
 | 403 | `MEMBERSHIP_INACTIVE` | Vínculo com o tenant ativo (`X-Tenant-Id`) não está `ACTIVE` |
 | 403 | `TENANT_SUSPENDED` | Tenant ativo não está `ACTIVE` |
+| 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível com o cache de permissões vazio/expirado |
 
 - **Efeitos:** Consulta somente leitura — não gera `AuditLog`. Cache de permissões é invalidado por eventos `role.*`, `membership.*` e `department.moved` (consumidos, não gerados por esta rota).
-- **Notas:** escopos de `permissions[].scopes` conforme permissions.md (`TENANT`/`ORGANIZATION`/`DEPARTMENT`, vigência) e `implicit` conforme as capacidades implícitas de permissions.md §7.
+- **Notas:** escopos de `permissions[].scopes` das atribuições vigentes (permissions.md §1) e `implicit` conforme as capacidades implícitas de permissions.md §7. Servido do mesmo retrato em cache que o guard de autorização usa (US-097). Conveniência de UI: a API decide cada requisição (RN-IAM-107).
 
 ### ME-04 — Listar vínculos (instituições) do usuário
 `GET /api/v1/me/memberships` · **Permissão:** implícita (qualquer usuário autenticado) · **Story:** US-093

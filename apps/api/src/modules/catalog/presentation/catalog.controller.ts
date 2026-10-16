@@ -20,6 +20,7 @@ import type {
 import { Controller, Get, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
 
+import { RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { pageResult } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
@@ -80,6 +81,7 @@ export class CatalogController {
   }
 
   @Post('catalogs/:catalogType/items')
+  @RequirePermission('CATALOG_MANAGE')
   @ApiOperation({
     operationId: 'CAT-02',
     summary: 'Criar item de catálogo',
@@ -106,6 +108,7 @@ export class CatalogController {
   @Patch('catalog-items/:id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('CATALOG_MANAGE')
   @ApiOperation({
     operationId: 'CAT-03',
     summary: 'Atualizar item de catálogo',
@@ -136,6 +139,7 @@ export class CatalogController {
   @Post('catalog-items/:id/activate')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('CATALOG_MANAGE')
   @ApiOperation({
     operationId: 'CAT-04',
     summary: 'Ativar item de catálogo',
@@ -164,6 +168,7 @@ export class CatalogController {
   @Post('catalog-items/:id/deactivate')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('CATALOG_MANAGE')
   @ApiOperation({
     operationId: 'CAT-05',
     summary: 'Desativar item de catálogo',
@@ -191,6 +196,7 @@ export class CatalogController {
 
   @Put('catalogs/:catalogType/order')
   @HttpCode(200)
+  @RequirePermission('CATALOG_MANAGE')
   @ApiOperation({
     operationId: 'CAT-06',
     summary: 'Reordenar itens de catálogo',

@@ -66,6 +66,11 @@ export interface DepartmentRepository {
   countChildren(tx: TenantTx, id: string): Promise<number>;
   /** Unidades ATIVAS de que o usuário é titular ou substituto (US-041 · POL-05 · permissions.md §7). */
   idsHeadedBy(tx: TenantTx, userId: string): Promise<string[]>;
+  /**
+   * Cada raiz de `rootIds` existente no tenant com ela e as descendentes (`path LIKE '<path>%'` —
+   * US-097: escopos com subárvore).
+   */
+  subtreeIds(tx: TenantTx, rootIds: readonly string[]): Promise<Map<string, string[]>>;
   /** @throws DepartmentAcronymTakenError @throws DepartmentNameTakenError */
   insert(tx: TenantTx, department: Department): Promise<void>;
   /**

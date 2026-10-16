@@ -6,8 +6,6 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { AccessFacade } from '../../access/application/access.facade.js';
-import { IdentityFacade } from '../../identity/application/identity.facade.js';
-import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import type {
   EngineViewer,
   ProcessActionPermission,
@@ -32,40 +30,27 @@ export interface ResolvedViewer {
 }
 
 /**
- * Resolve o usuário da requisição no `tx` da consulta: perfis do contexto (ponte até as permissões
- * efetivas — US-097), lotações (`identity`) e chefias (`organization`).
+ * Resolve o usuário da requisição pelas permissões efetivas (US-097 — perfis com escopo e
+ * vigência, em cache): escopo de visibilidade, lotações e chefias (custódia e POL-05) e as
+ * permissões de ação. O `tx` é o da consulta (o retrato já está no contexto, carregado pelo guard).
  */
 @Injectable()
 export class ProcessViewerResolver {
-  constructor(
-    private readonly access: AccessFacade,
-    private readonly identity: IdentityFacade,
-    private readonly organization: OrganizationFacade,
-  ) {}
+  constructor(private readonly access: AccessFacade) {}
 
-  async resolve(tx: TenantTx): Promise<ResolvedViewer> {
-    const context = requireRequestContext();
-    const userId = context.actor.userId;
+  async resolve(_tx: TenantTx): Promise<ResolvedViewer> {
+    const userId = requireRequestContext().actor.userId;
     if (userId === null) throw new ApiError('UNAUTHENTICATED');
-    const roleKeys = context.roleKeys ?? [];
-    const grants = (permission: PermissionCode) => this.access.rolesGrant(roleKeys, permission);
-    const wholeTenant = this.access.rolesCoverAllDepartments(roleKeys);
-    // Em sequência: a transação interativa executa uma consulta por vez.
-    const departmentIds = await this.identity.departmentsOfUser(tx, userId);
-    const headOfDepartmentIds = await this.organization.departmentsHeadedBy(tx, userId);
+    const permissions = await this.access.effectivePermissions();
+    const grants = (permission: PermissionCode) => permissions.has(permission);
     return {
-      visibility: {
-        userId,
-        hasProcessView: grants('PROCESS_VIEW'),
-        viewsWholeTenant: wholeTenant,
-        departmentIds,
-      },
+      visibility: permissions.visibilityScope(),
       engine: {
         userId,
-        departmentIds,
-        headOfDepartmentIds,
+        departmentIds: [...permissions.snapshot.ownDepartmentIds],
+        headOfDepartmentIds: [...permissions.snapshot.headOfDepartmentIds],
         permissions: new Set(ACTION_PERMISSIONS.filter(grants)),
-        canAssignAnywhere: wholeTenant && grants('PROCESS_ASSIGN'),
+        canAssignAnywhere: permissions.coversTenantWide('PROCESS_ASSIGN'),
       },
     };
   }

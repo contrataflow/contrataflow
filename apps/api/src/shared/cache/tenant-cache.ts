@@ -74,6 +74,30 @@ abstract class ScopedCache {
     }
   }
 
+  /**
+   * Valores crus (JSON) de várias chaves do módulo numa ida ao Redis (`MGET`) — leituras que
+   * precisam de um retrato coerente de chaves relacionadas (ex.: permissões efetivas e os tokens
+   * de geração — US-097). Erro do Redis propaga (quem chama degrada).
+   */
+  async getMany(module: string, keys: readonly string[]): Promise<(string | null)[]> {
+    const fullKeys = keys.map((key) => this.keyFor(module, key));
+    if (this.store.getMany) return this.store.getMany(fullKeys);
+    const values: (string | null)[] = [];
+    for (const key of fullKeys) values.push(await this.store.get(key));
+    return values;
+  }
+
+  /** Grava um valor cru (string), sem serialização — tokens de geração (US-097). */
+  async setRaw(
+    module: string,
+    key: string,
+    value: string,
+    options: CacheWriteOptions,
+  ): Promise<void> {
+    assertTtl(options.ttlSeconds);
+    await this.store.set(this.keyFor(module, key), value, options.ttlSeconds);
+  }
+
   async set(
     module: string,
     key: string,

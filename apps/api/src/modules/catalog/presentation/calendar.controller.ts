@@ -23,6 +23,7 @@ import type {
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, HttpCode, Patch, Post, Res } from '@nestjs/common';
 
+import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { pageResult } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
@@ -82,6 +83,7 @@ export class CalendarController {
   }
 
   @Post('holidays')
+  @RequirePermission('CALENDAR_MANAGE')
   @ApiOperation({
     operationId: 'CAL-02',
     summary: 'Criar feriado',
@@ -107,6 +109,7 @@ export class CalendarController {
   @Patch('holidays/:id')
   @HttpCode(200)
   @RequireIfMatch()
+  @RequirePermission('CALENDAR_MANAGE')
   @ApiOperation({
     operationId: 'CAL-03',
     summary: 'Atualizar feriado',
@@ -137,6 +140,7 @@ export class CalendarController {
   @Delete('holidays/:id')
   @HttpCode(204)
   @RequireIfMatch()
+  @RequirePermission('CALENDAR_MANAGE')
   @ApiOperation({
     operationId: 'CAL-04',
     summary: 'Excluir feriado',
@@ -171,6 +175,9 @@ export class CalendarController {
 
   @Post('calendar/add-business-days')
   @HttpCode(200)
+  @ImplicitAccess(
+    'Cálculo de dias úteis (CAL-06 · US-106): capacidade implícita de todo vínculo ativo; não grava nada.',
+  )
   @ApiOperation({
     operationId: 'CAL-06',
     summary: 'Somar dias úteis a uma data/hora',

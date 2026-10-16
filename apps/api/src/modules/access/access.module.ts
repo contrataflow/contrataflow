@@ -3,14 +3,19 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { AUTHORIZATION_PORT } from '#shared/auth/authorization.js';
 import {
   MembershipReferences,
   MembershipReferencesModule,
 } from '#shared/auth/membership-references.js';
+import { ProcessAccessModule } from '#shared/auth/process-access.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { AccessFacade } from './application/access.facade.js';
+import { AuthorizationService } from './application/authorization.service.js';
 import { DefaultRolesSeeder } from './application/default-roles.seeder.js';
+import { EffectivePermissionsService } from './application/effective-permissions.service.js';
+import { GetMyPermissionsHandler } from './application/get-my-permissions.query.js';
 import { ListPermissionsQuery } from './application/list-permissions.query.js';
 import { MembershipAccessProvider } from './application/membership-access.provider.js';
 import {
@@ -49,6 +54,7 @@ import {
   InMemoryRoleAssignmentRepository,
   PrismaRoleAssignmentRepository,
 } from './infrastructure/role-assignment.repository.js';
+import { MyPermissionsController } from './presentation/my-permissions.controller.js';
 import { PermissionController } from './presentation/permission.controller.js';
 import { RoleAssignmentController } from './presentation/role-assignment.controller.js';
 import { RoleController } from './presentation/role.controller.js';
@@ -61,14 +67,26 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * Módulo `access` (DEC-040): outros módulos usam somente a fachada exportada. Dono do catálogo de
  * permissões (ROL-01) e dos perfis do tenant — seeder `access.defaultRoles` dos 15 perfis padrão
  * (US-094), registrado no checklist de provisionamento (US-099), e gestão de perfis e matriz
- * (ROL-02..08 · US-095; MFA via `IdentityFacade.mfaPolicy` — exceção de nível em DEC-041) e
- * atribuição de perfis com escopo e vigência (ROL-09..12 · US-096).
+ * (ROL-02..08 · US-095; MFA via `IdentityFacade.mfaPolicy` — exceção de nível em DEC-041),
+ * atribuição de perfis com escopo e vigência (ROL-09..12 · US-096) e o mecanismo único de
+ * autorização (US-097): permissões efetivas com cache, `AuthorizationService` exportado como
+ * `AUTHORIZATION_PORT` para o `AuthorizationGuard` global e ME-03.
  */
 @Module({
-  imports: [TenantSeedingModule, IdentityModule, MembershipReferencesModule],
-  controllers: [PermissionController, RoleController, RoleAssignmentController],
+  imports: [TenantSeedingModule, IdentityModule, MembershipReferencesModule, ProcessAccessModule],
+  controllers: [
+    PermissionController,
+    RoleController,
+    RoleAssignmentController,
+    MyPermissionsController,
+  ],
   providers: [
     AccessFacade,
+    // US-097: permissões efetivas (cache Redis), decisão única e ME-03.
+    EffectivePermissionsService,
+    AuthorizationService,
+    { provide: AUTHORIZATION_PORT, useExisting: AuthorizationService },
+    GetMyPermissionsHandler,
     ListPermissionsQuery,
     RoleActorResolver,
     RoleCommandSupport,
@@ -127,7 +145,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     { provide: ROLE_ASSIGNMENT_COUNTER, useExisting: ROLE_ASSIGNMENT_REPOSITORY },
     MembershipAccessProvider,
   ],
-  exports: [AccessFacade],
+  exports: [AccessFacade, AUTHORIZATION_PORT],
 })
 export class AccessModule implements OnModuleInit {
   constructor(

@@ -3,15 +3,18 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
+import { AuthorizationService } from './authorization.service.js';
 import { ROLE_REPOSITORY } from './ports.js';
 import type { RoleRepository } from './ports.js';
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 import type { SeedDefaultRolesResult } from './seed-default-roles.handler.js';
 import { DEFAULT_ROLES } from '../domain/default-roles.js';
+import { EffectivePermissionSet } from '../domain/effective-permissions.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
 import type { Role } from '../domain/role.js';
 
@@ -37,6 +40,7 @@ export class AccessFacade {
   constructor(
     private readonly defaultRoles: SeedDefaultRolesHandler,
     @Inject(ROLE_REPOSITORY) private readonly roles: RoleRepository,
+    private readonly authorization: AuthorizationService,
   ) {}
 
   /**
@@ -50,14 +54,16 @@ export class AccessFacade {
   }
 
   /**
-   * Exige a permissão para o vínculo da requisição (RN-AUD-10: a recusa vira `access.denied` com
-   * a permissão em `reasonCode`) e, para permissão de risco alto, o segundo fator quando
-   * `security.mfaPolicy` ≠ `NONE` (POL-14 → 403 `MFA_REQUIRED`). A permissão vem antes do MFA:
-   * quem não pode a ação não é convidado a confirmar a identidade.
+   * Exige a permissão (em algum escopo) para o vínculo da requisição (RN-AUD-10: a recusa vira
+   * `access.denied` com a permissão em `reasonCode`) e, para permissão de risco alto, o segundo
+   * fator quando `security.mfaPolicy` ≠ `NONE` (POL-14 → 403 `MFA_REQUIRED`). A permissão vem antes
+   * do MFA: quem não pode a ação não é convidado a confirmar a identidade. Decide pelas permissões
+   * efetivas que o `AuthorizationGuard` pôs no contexto (US-097); fora dele (casos de uso chamados
+   * sem o pipeline HTTP), pela ponte das chaves do contexto contra a matriz padrão.
    */
   assertCan(permission: PermissionCode, options: { readonly mfaPolicy: MfaPolicy }): void {
     const context = requireRequestContext();
-    if (!rolesGrant(context.roleKeys ?? [], permission)) {
+    if (!this.can(permission)) {
       throw new ApiError('PERMISSION_DENIED', { auditReasonCode: permission });
     }
     if (
@@ -67,6 +73,46 @@ export class AccessFacade {
     ) {
       throw new ApiError('MFA_REQUIRED', { auditReasonCode: 'MFA_REQUIRED' });
     }
+  }
+
+  /**
+   * O vínculo da requisição tem a permissão em algum escopo (sem MFA nem auditoria) — ações
+   * exibidas na tela e decisões que não negam a requisição.
+   */
+  can(permission: PermissionCode): boolean {
+    const context = requireRequestContext();
+    if (context.permissions) return new EffectivePermissionSet(context.permissions).has(permission);
+    return rolesGrant(context.roleKeys ?? [], permission);
+  }
+
+  /**
+   * Como `assertCan`, mas a permissão precisa cobrir a unidade (permissions.md §1.1 — ex.: unidade
+   * solicitante do `PROCESS_CREATE`): `TENANT`, o órgão da unidade ou escopo de unidade que a
+   * contenha (lotação, no `OWN_DEPARTMENTS`).
+   */
+  async assertCanInDepartment(
+    permission: PermissionCode,
+    department: { readonly id: string; readonly organizationId: string | null },
+    options: { readonly mfaPolicy: MfaPolicy },
+  ): Promise<void> {
+    const permissions = await this.authorization.current();
+    if (!permissions.coversDepartment(permission, department)) {
+      throw new ApiError('PERMISSION_DENIED', { auditReasonCode: permission });
+    }
+    this.assertCan(permission, options);
+  }
+
+  /** Permissões efetivas do vínculo da requisição (contexto, cache ou banco — US-097). */
+  effectivePermissions(): Promise<EffectivePermissionSet> {
+    return this.authorization.current();
+  }
+
+  /**
+   * Escopo de visibilidade de processos do usuário (DEC-024): entrada de
+   * `buildVisibilityPredicate` (listagens) e de `isProcessVisible` (consulta por id).
+   */
+  async processVisibilityScope(): Promise<ProcessVisibilityScope> {
+    return (await this.authorization.current()).visibilityScope();
   }
 
   /** Algum dos perfis (`Role.key`) concede a permissão — vínculos de terceiros (aprovadores). */

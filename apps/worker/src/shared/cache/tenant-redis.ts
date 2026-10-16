@@ -65,6 +65,16 @@ export class TenantRedisCache {
     return result === 'OK';
   }
 
+  /** `SET … EX`: grava (ou troca) o valor da chave — tokens de geração do cache (US-097). */
+  async set(
+    tenantId: string,
+    segments: readonly string[],
+    value: string,
+    ttlSeconds: number,
+  ): Promise<void> {
+    await this.redis.set(this.key(tenantId, segments), value, 'EX', ttlSeconds);
+  }
+
   async delete(tenantId: string, segments: readonly string[]): Promise<number> {
     return this.redis.del(this.key(tenantId, segments));
   }
