@@ -196,14 +196,15 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** `{ periodStart: timestamptz (obrigatório); periodEnd: timestamptz (obrigatório, posterior a periodStart; intervalo limitado a `audit.sealVerification.maxPeriods` = 720 selos) }`
-- **Response:** `200 { data: { results: [{ periodStart, status: 'VALID'|'INVALID', brokenAt?: 'digest'|'chain' }] } }`
+- **Response:** `200 { data: { brokenAtPeriodStart: timestamptz | null, results: [{ periodStart, periodEnd, recordCount, status: 'VALID'|'INVALID', brokenAt?: 'digest'|'chain' }] } }` — `results` em ordem de `periodStart`; `brokenAtPeriodStart` = primeira quebra (RN-AUD-16)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `AUDIT_VIEW` |
   | 403 | `MFA_REQUIRED` | Ação exige verificação adicional |
-  | 404 | `NOT_FOUND` | Selo referenciado de outro tenant |
-  | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | Intervalo acima de 720 selos (`audit.sealVerification.maxPeriods`) |
+  | 404 | `NOT_FOUND` | Nenhum selo do tenant no intervalo (selo de outro tenant ou inexistente) |
+  | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | Intervalo acima de 720 selos (`audit.sealVerification.maxPeriods`) — contado em horas cheias do intervalo |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível durante a verificação |
   | 422 | `VALIDATION_ERROR` | `periodEnd` anterior a `periodStart` |
 - **Efeitos:** — (nenhum evento de domínio; observável via `AuditLog` `audit.seal` registrado no período seguinte — RN-AUD-14, via AUD-04 e via métricas/logs)
 - **Notas:** reduzir o intervalo quando exceder `audit.sealVerification.maxPeriods` (720); reexecução do job de selagem para período já selado é no-op silencioso no backend.

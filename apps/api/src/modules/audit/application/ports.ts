@@ -3,7 +3,8 @@ import type { AuditAction } from '@contrataflow/types';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { CoalesceState } from '../domain/audit-coalescer.js';
-import type { SealedAuditRecord } from '../domain/audit-record.js';
+import type { AuditRecord, SealedAuditRecord } from '../domain/audit-record.js';
+import type { AuditSeal, SealPeriod } from '../domain/audit-seal.js';
 
 /*
  * Portas da aplicação do módulo `audit` (US-073): Prisma em `infrastructure/`, em memória no modo
@@ -48,6 +49,8 @@ export interface AuditTransactions {
   inTenant<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
   /** Sem `app.tenant_id`: só aceita registro com `tenantId` nulo (política `platform_insert`). */
   inPlatform<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  /** Leitura no tenant do contexto (transação somente leitura — AUD-04/AUD-05). */
+  read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
 }
 
 export const AUDIT_TRANSACTIONS = Symbol('AuditTransactions');
@@ -75,3 +78,44 @@ export class AuditPartitionMissingError extends Error {
     this.name = 'AuditPartitionMissingError';
   }
 }
+
+/** Filtro de AUD-04: `periodStart` dentro de `[periodFrom, periodTo]` (extremos opcionais). */
+export interface AuditSealListCriteria {
+  readonly tenantId: string;
+  readonly periodFrom: Date | null;
+  readonly periodTo: Date | null;
+  readonly skip: number;
+  readonly take: number;
+}
+
+/**
+ * Selos de `audit_seals` (US-074): gravados só pelo worker (`AuditSealer`); a API lista e
+ * recalcula. Toda consulta filtra `tenant_id` explicitamente, além da RLS.
+ */
+export interface AuditSealStore {
+  /** Mais recente primeiro (`period_start DESC`) e o total do filtro. */
+  list(
+    tx: TenantTx,
+    criteria: AuditSealListCriteria,
+  ): Promise<{ readonly items: readonly AuditSeal[]; readonly total: number }>;
+  /** Selos com `periodStart` em `[from, to]`, em ordem de período — no máximo `limit`. */
+  findInRange(
+    tx: TenantTx,
+    query: {
+      readonly tenantId: string;
+      readonly from: Date;
+      readonly to: Date;
+      readonly limit: number;
+    },
+  ): Promise<readonly AuditSeal[]>;
+  /** O selo do tenant imediatamente anterior a `before` (antecessor real na cadeia). */
+  findPredecessor(tx: TenantTx, tenantId: string, before: Date): Promise<AuditSeal | null>;
+  /** Registros ATUAIS do período, por `(occurredAt, id)`, com os campos do `rowHash`. */
+  periodRecords(
+    tx: TenantTx,
+    tenantId: string,
+    period: SealPeriod,
+  ): Promise<readonly AuditRecord[]>;
+}
+
+export const AUDIT_SEAL_STORE = Symbol('AuditSealStore');

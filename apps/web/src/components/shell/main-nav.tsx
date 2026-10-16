@@ -9,7 +9,7 @@ import { usePermission } from '@/lib/permissions/use-permission';
 
 import { Icon } from './icons';
 import { ADMIN_NAV, MAIN_NAV, isActivePath } from './navigation';
-import type { AdminNavItem } from './navigation';
+import type { AdminNavItem, NavItem } from './navigation';
 
 /** Menu principal (barra lateral e gaveta móvel): página atual com `aria-current`. */
 export function MainNav({ onNavigate }: { readonly onNavigate?: (() => void) | undefined }) {
@@ -18,24 +18,13 @@ export function MainNav({ onNavigate }: { readonly onNavigate?: (() => void) | u
   const pathname = usePathname();
   return (
     <nav aria-label={t('nav.label')} className="flex-1 space-y-1 overflow-y-auto p-3">
-      {MAIN_NAV.map((item) => {
-        const active = isActivePath(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={handleClick}
-            aria-current={active ? 'page' : undefined}
-            className={cx(
-              'flex min-h-10 items-center gap-3 rounded-control px-3 text-sm font-medium',
-              active ? 'bg-primary-soft text-primary' : 'text-foreground hover:bg-muted',
-            )}
-          >
-            <Icon name={item.icon} className="size-4 text-muted-foreground" />
-            {t(`nav.${item.labelKey}`)}
-          </Link>
-        );
-      })}
+      {MAIN_NAV.map((item) =>
+        item.permission ? (
+          <GatedMainLink key={item.href} item={item} pathname={pathname} onNavigate={handleClick} />
+        ) : (
+          <MainLink key={item.href} item={item} pathname={pathname} onNavigate={handleClick} />
+        ),
+      )}
       <p className="mt-6 px-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
         {t('nav.administration')}
       </p>
@@ -55,6 +44,44 @@ export function MainNav({ onNavigate }: { readonly onNavigate?: (() => void) | u
       </Link>
     </nav>
   );
+}
+
+function MainLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  readonly item: NavItem;
+  readonly pathname: string;
+  readonly onNavigate: () => void;
+}) {
+  const t = useTranslations('shell');
+  const active = isActivePath(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'flex min-h-10 items-center gap-3 rounded-control px-3 text-sm font-medium',
+        active ? 'bg-primary-soft text-primary' : 'text-foreground hover:bg-muted',
+      )}
+    >
+      <Icon name={item.icon} className="size-4 text-muted-foreground" />
+      {t(`nav.${item.labelKey}`)}
+    </Link>
+  );
+}
+
+/** Item do menu principal que exige permissão: oculto quando a API confirma que falta (RN-FND-92). */
+function GatedMainLink(props: {
+  readonly item: NavItem;
+  readonly pathname: string;
+  readonly onNavigate: () => void;
+}) {
+  const { allowed, status } = usePermission(props.item.permission ?? '');
+  if (status === 'success' && !allowed) return null;
+  return <MainLink {...props} />;
 }
 
 /** Navegação secundária de `(app)/admin`. */

@@ -25,6 +25,10 @@ export class PrismaAuditTransactions implements AuditTransactions {
   inPlatform<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.platform.run(work);
   }
+
+  read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.tenant.read(work);
+  }
 }
 
 /**

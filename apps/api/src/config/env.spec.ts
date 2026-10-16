@@ -119,6 +119,7 @@ describe('loadConfig', () => {
       coalesce: { windowMs: 600_000, maxRevisionGap: 20, maxSizeVariationPct: 30 },
       accessDeniedSampling: { windowSeconds: 60, maxPerWindow: 20 },
       partitionMonthsAhead: 2,
+      sealVerificationMaxPeriods: 720,
     });
     expect(
       loadConfig({

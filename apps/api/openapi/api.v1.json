@@ -19,6 +19,76 @@
       }
     },
     "schemas": {
+      "AuditSeal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "chainHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sealedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "periodStart",
+          "periodEnd",
+          "recordCount",
+          "digest",
+          "chainHash",
+          "sealedAt"
+        ]
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "totalItems",
+          "totalPages"
+        ]
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -166,33 +236,82 @@
           "params"
         ]
       },
-      "PageMeta": {
+      "AuditSealVerification": {
         "type": "object",
         "properties": {
-          "page": {
-            "type": "integer",
-            "minimum": 1
+          "brokenAtPeriodStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
-          "pageSize": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
-          },
-          "totalItems": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "totalPages": {
-            "type": "integer",
-            "minimum": 0
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditSealVerificationItem"
+            }
           }
         },
         "required": [
-          "page",
-          "pageSize",
-          "totalItems",
-          "totalPages"
+          "brokenAtPeriodStart",
+          "results"
         ]
+      },
+      "AuditSealVerificationItem": {
+        "type": "object",
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "INVALID"
+            ]
+          },
+          "brokenAt": {
+            "type": "string",
+            "enum": [
+              "digest",
+              "chain"
+            ]
+          }
+        },
+        "required": [
+          "periodStart",
+          "periodEnd",
+          "recordCount",
+          "status"
+        ]
+      },
+      "VerifyAuditSeals": {
+        "type": "object",
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "periodStart",
+          "periodEnd"
+        ],
+        "additionalProperties": false
       },
       "AcceptedInvitation": {
         "type": "object",
@@ -4333,6 +4452,279 @@
     "parameters": {}
   },
   "paths": {
+    "/audit/seals": {
+      "get": {
+        "operationId": "AUD-04",
+        "summary": "Listar selos de integridade",
+        "tags": [
+          "Auditoria"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "periodFrom",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "periodTo",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Selos do tenant, mais recentes primeiro (`periodStart DESC`), por página; `periodFrom`/`periodTo` filtram `periodStart` (inclusivo, UTC). Cada selo cobre uma hora cheia com atividade (`recordCount ≥ 1` — RN-AUD-12). A consulta é auditada como `audit.search`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditSeal"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit/seals/verify": {
+      "post": {
+        "operationId": "AUD-05",
+        "summary": "Verificar integridade dos selos",
+        "tags": [
+          "Auditoria"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-exempt": "Verificação somente de leitura (US-074): recalcula os selos do intervalo e não grava nada; o POST só carrega o intervalo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyAuditSeals"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado por selo do intervalo, em ordem de período (RN-AUD-15/16): `VALID` ou `INVALID` com a quebra em `digest` (registro do período alterado, removido ou inserido) ou `chain` (selo anterior alterado ou ausente); `brokenAtPeriodStart` = primeira quebra. Intervalo acima de `audit.sealVerification.maxPeriods` horas = 422 `VALIDATION_ERROR` (`OUT_OF_RANGE`); nenhum selo do tenant no intervalo = 404 `NOT_FOUND`; banco fora do ar = 503 `DEPENDENCY_UNAVAILABLE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AuditSealVerification"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/calendar/add-business-days": {
       "post": {
         "operationId": "CAL-06",

@@ -1,3 +1,4 @@
+import audit from '../../messages/pt-BR/audit.json';
 import auth from '../../messages/pt-BR/auth.json';
 import calendar from '../../messages/pt-BR/calendar.json';
 import catalogs from '../../messages/pt-BR/catalogs.json';
@@ -29,6 +30,7 @@ export const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
 
 /** Mensagens por namespace de feature (`messages/pt-BR/<namespace>.json`). */
 export const messages = {
+  audit,
   auth,
   calendar,
   catalogs,

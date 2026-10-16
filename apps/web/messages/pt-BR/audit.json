@@ -1,0 +1,81 @@
+{
+  "title": "Auditoria",
+  "description": "Consulte a trilha de auditoria da instituição e verifique a integridade dos selos periódicos.",
+  "loadingPermission": "Verificando suas permissões…",
+  "forbidden": {
+    "title": "Você não tem acesso a esta área",
+    "description": "Peça a quem administra a instituição a permissão para consultar a auditoria."
+  },
+  "tabs": {
+    "label": "Seções da auditoria",
+    "seals": "Selos"
+  },
+  "seals": {
+    "title": "Selos de integridade",
+    "description": "Cada selo cobre uma hora da trilha de auditoria e se encadeia ao anterior. Verifique um intervalo para confirmar que nenhum registro foi alterado, removido ou inserido.",
+    "list": {
+      "title": "Selos gerados",
+      "caption": "Selos de integridade da trilha de auditoria",
+      "loading": "Carregando os selos…",
+      "loadFailed": "Não foi possível carregar os selos agora.",
+      "forbidden": "Você não tem permissão para consultar os selos.",
+      "retry": "Tentar novamente",
+      "empty": "Nenhum selo gerado ainda para este período",
+      "emptyHint": "Os selos são gerados a cada hora, para as horas com atividade.",
+      "period": "Período",
+      "records": "Registros",
+      "status": "Status",
+      "select": "Selecionar",
+      "selectRow": "Selecionar o selo de {period}",
+      "selectedCount": "{count, plural, one {# selo selecionado} other {# selos selecionados}}",
+      "clearSelection": "Limpar seleção",
+      "selectionHint": "Selecione selos para preencher o intervalo da verificação.",
+      "pager": "Paginação dos selos",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "pageOf": "Página {page} de {total}",
+      "periodRange": "{start} a {end}"
+    },
+    "status": {
+      "unverified": "Não verificado",
+      "valid": "Íntegro",
+      "broken": "Quebrado"
+    },
+    "panel": {
+      "title": "Verificar integridade",
+      "description": "Informe o intervalo (no fuso da instituição: {timeZone}) ou selecione selos na lista.",
+      "start": "Início do período",
+      "end": "Fim do período",
+      "required": "Informe a data e a hora.",
+      "submit": "Verificar integridade",
+      "submitting": "Verificando…"
+    },
+    "result": {
+      "title": "Resultado da verificação",
+      "loading": "Verificando a integridade dos selos. Em intervalos longos isso pode levar alguns segundos…",
+      "allValid": "{count, plural, one {O selo do intervalo está íntegro} other {Todos os # selos do intervalo estão íntegros}}.",
+      "someBroken": "{count, plural, one {# selo do intervalo está quebrado} other {# selos do intervalo estão quebrados}}.",
+      "chainBroken": "Cadeia comprometida a partir de {date}.",
+      "caption": "Resultado da verificação por selo",
+      "period": "Período",
+      "records": "Registros",
+      "status": "Status",
+      "detail": "Detalhe",
+      "validDetail": "Sem alterações detectadas.",
+      "break": {
+        "digest": "Registro do período alterado, removido ou inserido",
+        "chain": "Selo anterior alterado ou ausente"
+      }
+    },
+    "errors": {
+      "notFound": "Selo não encontrado.",
+      "backToList": "Voltar à lista",
+      "unavailableCode": "Código de suporte: {correlationId}.",
+      "mfa": "Esta ação exige a confirmação da sua identidade (segundo fator).",
+      "stepUp": "Confirmar identidade",
+      "forbidden": "Você não tem permissão para verificar a integridade da auditoria.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente"
+    }
+  }
+}

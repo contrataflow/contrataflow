@@ -114,6 +114,8 @@ export const envSchema = z
       .min(1)
       .max(10_000)
       .default(20),
+    /** `audit.sealVerification.maxPeriods` (US-074 · FA-04): selos por verificação (AUD-05). */
+    AUDIT_SEAL_VERIFICATION_MAX_PERIODS: z.coerce.number().int().min(1).max(8_760).default(720),
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
@@ -212,6 +214,8 @@ export interface AppConfig {
     };
     /** Meses de folga das partições mensais de `audit_logs` (job diário — FA-03). */
     readonly partitionMonthsAhead: number;
+    /** Teto de selos recalculados por verificação (AUD-05 · US-074 FA-04). */
+    readonly sealVerificationMaxPeriods: number;
   };
 }
 
@@ -283,6 +287,7 @@ function toAppConfig(env: Env): AppConfig {
         maxPerWindow: env.AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW,
       },
       partitionMonthsAhead: 2,
+      sealVerificationMaxPeriods: env.AUDIT_SEAL_VERIFICATION_MAX_PERIODS,
     },
   };
 }

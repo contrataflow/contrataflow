@@ -750,6 +750,57 @@ function unknownVariables(section) {
     .filter((name) => !KNOWN_VARIABLES.has(name));
 }
 
+// Selos de integridade da auditoria (US-074 · AUD-04/AUD-05): três horas seladas (08h às 11h em São
+// Paulo). Com `auditTampered`, a verificação acusa o 2º selo (digest) e o 3º (cadeia).
+const AUDIT_SEAL_HOURS = [11, 12, 13];
+const AUDIT_SEAL_MAX_PERIODS = 720;
+const HOUR_MS = 3_600_000;
+const auditSeals = AUDIT_SEAL_HOURS.map((hour, index) => {
+  const start = Date.UTC(2026, 9, 15, hour);
+  return {
+    id: `0192a000-0000-7000-8000-00000000740${index}`,
+    periodStart: new Date(start).toISOString(),
+    periodEnd: new Date(start + HOUR_MS).toISOString(),
+    recordCount: 12 - index * 4,
+    digest: 'a'.repeat(64),
+    chainHash: 'b'.repeat(64),
+    sealedAt: new Date(start + HOUR_MS + 5 * 60_000).toISOString(),
+  };
+});
+let auditTampered = false;
+
+function verifyAuditSeals(body) {
+  const start = Date.parse(body.periodStart);
+  const end = Date.parse(body.periodEnd);
+  const periods = Math.floor(end / HOUR_MS) - Math.floor(start / HOUR_MS) + 1;
+  if (periods > AUDIT_SEAL_MAX_PERIODS) {
+    return {
+      status: 422,
+      errors: [
+        {
+          field: 'periodEnd',
+          code: 'OUT_OF_RANGE',
+          message: `Reduza o intervalo para verificar a integridade (máximo de ${AUDIT_SEAL_MAX_PERIODS} selos).`,
+        },
+      ],
+    };
+  }
+  const covered = auditSeals.filter(
+    (seal) => Date.parse(seal.periodStart) <= end && Date.parse(seal.periodEnd) > start,
+  );
+  if (covered.length === 0) return { status: 404 };
+  const results = covered.map((seal, index) => ({
+    periodStart: seal.periodStart,
+    periodEnd: seal.periodEnd,
+    recordCount: seal.recordCount,
+    status: auditTampered && index > 0 ? 'INVALID' : 'VALID',
+    ...(auditTampered && index === 1 ? { brokenAt: 'digest' } : {}),
+    ...(auditTampered && index > 1 ? { brokenAt: 'chain' } : {}),
+  }));
+  const broken = results.find((result) => result.status === 'INVALID');
+  return { status: 200, data: { brokenAtPeriodStart: broken?.periodStart ?? null, results } };
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   response.end(body === undefined ? '' : JSON.stringify(body));
@@ -838,6 +889,12 @@ createServer(async (request, response) => {
     else failures.delete(body.path);
     return send(response, 204);
   }
+  if (url.pathname === '/__mock/audit-tamper') {
+    // US-074: simula dado alterado no banco — a verificação passa a devolver selos INVALID.
+    const body = JSON.parse((await readBody(request)) || '{}');
+    auditTampered = body.tampered === true;
+    return send(response, 204);
+  }
   const forced = failures.get(url.pathname);
   if (forced) return problem(response, forced.status, forced.code, String(correlationId));
 
@@ -869,6 +926,7 @@ createServer(async (request, response) => {
             { code: 'TEMPLATE_PUBLISH', scopes: [] },
             { code: 'WORKFLOW_VIEW', scopes: [] },
             { code: 'WORKFLOW_PUBLISH', scopes: [] },
+            { code: 'AUDIT_VIEW', scopes: [] },
           ]
         : [];
     return send(response, 200, {
@@ -1933,6 +1991,31 @@ createServer(async (request, response) => {
       { data: view },
       { Location: `/api/v1/processes/${view.id}`, ETag: '"1"' },
     );
+  }
+  if (url.pathname === '/api/v1/audit/seals' && request.method === 'GET') {
+    // AUD-04 (US-074): a permissão AUDIT_VIEW é conferida pelo front via ME-03 (a API real decide).
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const items = auditSeals.slice((page - 1) * pageSize, page * pageSize);
+    return send(response, 200, {
+      data: items,
+      meta: {
+        page,
+        pageSize,
+        totalItems: auditSeals.length,
+        totalPages: Math.max(1, Math.ceil(auditSeals.length / pageSize)),
+      },
+    });
+  }
+  if (url.pathname === '/api/v1/audit/seals/verify' && request.method === 'POST') {
+    const outcome = verifyAuditSeals(JSON.parse((await readBody(request)) || '{}'));
+    if (outcome.status === 404) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (outcome.status === 422) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: outcome.errors,
+      });
+    }
+    return send(response, 200, { data: outcome.data });
   }
   const timelineRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
   if (timelineRoute && request.method === 'GET') {

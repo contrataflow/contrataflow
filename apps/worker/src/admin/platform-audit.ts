@@ -60,17 +60,20 @@ export function canonicalJson(value: unknown): string {
   throw new Error(`JSON canônico: tipo ${typeof value}`);
 }
 
-/** Registro na forma gravada: todo campo de `HASHED_FIELDS` explícito. */
+/**
+ * Registro na forma gravada: todo campo de `HASHED_FIELDS` explícito. Gravado pelo worker como
+ * operador de plataforma (filas) ou como `SYSTEM` (`audit.seal` — US-074).
+ */
 export interface AuditRow {
   readonly id: string;
   readonly occurredAt: Date;
   readonly tenantId: string | null;
-  readonly actorType: 'PLATFORM_OPERATOR';
+  readonly actorType: 'PLATFORM_OPERATOR' | 'SYSTEM';
   readonly actorUserId: string | null;
   readonly actorName: string | null;
   readonly actorMembershipId: null;
   readonly onBehalfOfUserId: null;
-  readonly action: QueueAuditAction;
+  readonly action: AuditAction;
   readonly category: string;
   readonly result: AuditResult;
   readonly entityType: string | null;

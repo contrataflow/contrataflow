@@ -55,14 +55,14 @@ Um job agendado (horário) cria, por tenant, um `AuditSeal` que resume os `Audit
 10. A API recalcula `digest` e `chainHash` de cada selo do intervalo a partir dos `AuditLog` atuais e compara com os valores armazenados; responde com o resultado por selo (`VALID`/`INVALID`) e, em caso de `INVALID`, o primeiro ponto de quebra.
 
 ## Fluxos alternativos
-- **FA-01 — Job falha e é reprocessado:** falha transitória (ex.: banco momentaneamente indisponível) aciona retry do worker (US-083, backoff exponencial); após esgotar as tentativas, o job vai para a dead letter queue e é registrado `error` `audit.seal_failed` com alerta.
+- **FA-01 — Job falha e é reprocessado:** falha transitória (ex.: banco momentaneamente indisponível) aciona retry do worker (US-083, backoff exponencial); após esgotar as tentativas, o job vai para a dead letter queue e é registrado `error` `audit.seal_failed` com alerta. Nenhum período se perde: cada execução sela, **em ordem**, toda hora fechada com atividade posterior ao último selo do tenant (até 168 por execução), então a hora que falhou é selada na execução seguinte, antes das mais novas.
 - **FA-02 — Reexecução do mesmo período (idempotência):** se o job for reexecutado para um `periodStart` já selado (`unique (tenant_id, period_start)`), a tentativa de inserir é descartada sem erro visível ao operador (RN-AUD-13).
 - **FA-03 — Lacuna de período sem atividade:** um tenant sem nenhum `AuditLog` por várias horas não gera selos vazios; quando a atividade retomar, o próximo selo referencia normalmente o `chainHash` do último selo existente, preservando a cadeia (RN-AUD-12).
 - **FA-04 — Verificação de intervalo muito longo:** `AUD-05` limita o intervalo verificável por request (`audit.sealVerification.maxPeriods`, padrão 720 selos ≈ 30 dias); acima disso, a API responde `422` pedindo um intervalo menor.
 
 ## Regras de negócio
 - **RN-AUD-11** — A cada hora, para cada tenant com ao menos um `AuditLog` não selado no período, o worker cria um `AuditSeal` com `periodStart`/`periodEnd` = hora cheia anterior, `firstAuditId`/`lastAuditId` = primeiro/último `AuditLog.id` do período (ordenados por `occurredAt, id`), `recordCount`, `digest` = SHA-256 dos `rowHash` ordenados concatenados, `chainHash` = SHA-256(`chainHash` do `AuditSeal` anterior do mesmo tenant ∥ `digest`); o primeiro selo do tenant usa uma constante (64 zeros) no lugar do `chainHash` anterior.
-- **RN-AUD-12** — Períodos sem nenhum `AuditLog` não geram `AuditSeal` (sem registro vazio); o próximo selo não vazio referencia o `chainHash` do último selo existente, preservando a continuidade da cadeia mesmo com lacunas.
+- **RN-AUD-12** — Períodos sem nenhum `AuditLog` não geram `AuditSeal` (sem registro vazio); o próximo selo não vazio referencia o `chainHash` do último selo existente, preservando a continuidade da cadeia mesmo com lacunas. Registros `audit.seal` sozinhos não contam como atividade (senão cada selo geraria o seguinte para sempre); quando o período tem outra atividade, eles entram no `digest` como qualquer registro. *(esclarecido na implementação, 2026-10-16)*
 - **RN-AUD-13** — A selagem de um tenant é idempotente por `periodStart` (`unique (tenant_id, period_start)`); reexecutar o job para o mesmo período é no-op silencioso, sem duplicar nem falhar visivelmente.
 - **RN-AUD-14** — A ação `audit.seal` é registrada no `AuditLog` do período **seguinte** ao selado, nunca no período que está sendo selado (evita mover o próprio alvo do hash depois de calculado).
 - **RN-AUD-15** — `AUD-05` recalcula, para cada selo do intervalo pedido, o `digest` a partir dos `rowHash` atuais dos `AuditLog` do período e o `chainHash` a partir do `chainHash` do selo anterior e do `digest` recalculado; qualquer divergência marca o selo como `INVALID` e identifica se a quebra é em `digest` (linha alterada/removida/inserida no período) ou em `chainHash` (selo anterior alterado ou ausente).
@@ -193,7 +193,7 @@ Feature: Selagem de integridade da trilha de auditoria
 - **Módulo(s):** `audit` (dono); usa a fachada de `platform` (worker/fila de US-083).
 - **Casos de uso:** `SealAuditPeriodJob` (worker, disparado pelo agendador); `GetAuditSealsQuery` → `GetAuditSealsHandler` (`AUD-04`); `VerifyAuditSealsCommand` → `VerifyAuditSealsHandler` (`AUD-05`, somente leitura/cálculo — não grava nada).
 - **Domínio:** `AuditSeal.create(period, previousSeal, rowHashes)` (fábrica que aplica RN-AUD-11/12); `SealChainVerifier` (RN-AUD-15/16).
-- **Transação:** a criação do selo (passo 6 do fluxo principal) e o registro de `audit.seal` (passo 7, via `AuditService` de US-073) ocorrem em transações distintas e consecutivas (o selo do período N só pode referenciar `audit.seal` no período N+1, que ainda não existe no momento da selagem).
+- **Transação:** a criação do selo (passo 6 do fluxo principal) e o registro de `audit.seal` (passo 7) ocorrem na **mesma** transação, como manda RN-AUD-01/DEC-161 — o `audit.seal` leva `occurredAt = now()`, já no período seguinte ao selado, então não altera o `digest` calculado; falhou um, falham os dois. Uma transação por período selado, sob trava consultiva por tenant (cadeia sequencial). *(ajustado na implementação, 2026-10-16: a redação anterior pedia transações distintas, o que deixaria selo sem auditoria numa falha entre as duas)*
 - **Agendamento:** cron horário (ex.: `5 * * * *`, 5 min de margem) enfileira um job por tenant ativo; retries com backoff exponencial e dead letter queue (US-083).
 
 ## Frontend
@@ -211,7 +211,7 @@ Feature: Selagem de integridade da trilha de auditoria
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |
 |---|---|---|---|---|---|
 | AUD-04 | GET | `/api/v1/audit/seals` | `?periodFrom&periodTo&page&pageSize` | `200 { data: [{ id, periodStart, periodEnd, recordCount, digest, chainHash, sealedAt }], meta }` | 200, 401, 403, 429 |
-| AUD-05 | POST | `/api/v1/audit/seals/verify` | `{ periodStart, periodEnd }` | `200 { data: { results: [{ periodStart, status: "VALID"\|"INVALID", brokenAt?: "digest"\|"chain" }] } }` | 200, 403, 422, 503 |
+| AUD-05 | POST | `/api/v1/audit/seals/verify` | `{ periodStart, periodEnd }` | `200 { data: { brokenAtPeriodStart, results: [{ periodStart, status: "VALID"\|"INVALID", brokenAt?: "digest"\|"chain" }] } }` | 200, 403, 404, 422, 503 |
 
 ## Logs
 - `info` `audit.seal_created` — `tenantId`, `periodStart`, `recordCount`, `durationMs`.

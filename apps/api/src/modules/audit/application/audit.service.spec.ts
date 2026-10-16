@@ -247,7 +247,12 @@ describe('AuditService.record (US-073)', () => {
 
   it('não existe configuração que desligue a gravação (nem de tenant, nem de perfil)', () => {
     const keys = Object.keys(config().audit).sort();
-    expect(keys).toEqual(['accessDeniedSampling', 'coalesce', 'partitionMonthsAhead']);
+    expect(keys).toEqual([
+      'accessDeniedSampling',
+      'coalesce',
+      'partitionMonthsAhead',
+      'sealVerificationMaxPeriods',
+    ]);
   });
 });
 
@@ -608,6 +613,7 @@ describe('recordStandalone', () => {
         opened.push('platform');
         return runSimulatedTransaction(work);
       },
+      read: (work) => runSimulatedTransaction(work),
     };
     const { service, store } = setup({ transactions });
 
@@ -635,6 +641,7 @@ describe('recordStandalone', () => {
       transactions: {
         inTenant: () => Promise.reject(down),
         inPlatform: () => Promise.reject(down),
+        read: () => Promise.reject(down),
       },
     });
     await expect(

@@ -42,6 +42,7 @@ import {
 import { PlatformAuditWriter } from '../admin/platform-audit.js';
 import type { RunningDashboard } from '../admin/queue-dashboard.js';
 import { startQueueDashboard } from '../admin/queue-dashboard.js';
+import { AuditSealer } from '../audit/audit-sealer.js';
 import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
 import { EmailSender } from '../notifications/email/email-sender.js';
@@ -152,6 +153,8 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
       .register(new DeadlinesTick(tickDeps))
       .register(new AuditSealTick(tickDeps))
       .register(new MaintenanceDaily(tickDeps))
+      // US-074: selagem horária por tenant (`audit-seal.tick` → `seal-tenant`).
+      .register(new AuditSealer())
       // Tarefas diárias por tenant: cada módulo dono acrescenta a sua (US-106: calendário).
       .register(new TenantHousekeepingJob([new HolidayYearGeneratorTask()]));
     const producer = this.producerInstance;

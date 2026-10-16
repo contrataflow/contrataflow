@@ -41,3 +41,21 @@ export function auditMetrics(): AuditInstruments {
   };
   return instruments;
 }
+
+interface AuditSealInstruments {
+  readonly verifications: Counter;
+}
+
+let sealInstruments: AuditSealInstruments | undefined;
+
+/** Verificações de integridade (AUD-05 · US-074), por resultado (`VALID`/`INVALID`). */
+export function auditSealMetrics(): AuditSealInstruments {
+  if (sealInstruments) return sealInstruments;
+  const meter = metrics.getMeter('contrataflow-api');
+  sealInstruments = {
+    verifications: meter.createCounter('audit_seal_verifications_total', {
+      description: 'Verificações de selos de auditoria, por resultado (US-074 · alerta A21).',
+    }),
+  };
+  return sealInstruments;
+}

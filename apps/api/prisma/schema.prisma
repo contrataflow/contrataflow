@@ -334,6 +334,33 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// entities.md §4 `AuditSeal` (módulo audit · US-074 · ADR-009): selo horário encadeado da trilha
+/// de um tenant — `digest` = SHA-256 dos `rowHash` do período ordenados por `(occurredAt, id)`;
+/// `chainHash` = SHA-256(`chainHash` anterior ∥ `digest`). Imutável (trigger + só INSERT/SELECT),
+/// RLS por tenant, idempotente por `(tenantId, periodStart)` (RN-AUD-13). Gravado só pelo worker
+/// (`AuditSealer`); a API lê (AUD-04) e recalcula (AUD-05). O selo de plataforma (tenant nulo)
+/// fica para quando houver leitura de plataforma da trilha.
+model AuditSeal {
+  id             String      @id @db.Uuid
+  tenantId       String      @map("tenant_id") @db.Uuid
+  periodStart    DateTime    @map("period_start") @db.Timestamptz(6)
+  periodEnd      DateTime    @map("period_end") @db.Timestamptz(6)
+  firstAuditId   String      @map("first_audit_id") @db.Uuid
+  lastAuditId    String      @map("last_audit_id") @db.Uuid
+  recordCount    Int         @map("record_count")
+  digest         String      @db.VarChar(64)
+  previousSealId String?     @map("previous_seal_id") @db.Uuid
+  chainHash      String      @map("chain_hash") @db.VarChar(64)
+  sealedAt       DateTime    @map("sealed_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  previousSeal   AuditSeal?  @relation("AuditSealChain", fields: [tenantId, previousSealId], references: [tenantId, id], onDelete: Restrict, onUpdate: Restrict)
+  nextSeals      AuditSeal[] @relation("AuditSealChain")
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, periodStart])
+  @@map("audit_seals")
+}
+
 /// entities.md §2 — `TimelineVisibility` (POL-09).
 enum TimelineVisibility {
   STANDARD

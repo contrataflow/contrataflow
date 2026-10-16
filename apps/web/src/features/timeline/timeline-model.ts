@@ -39,7 +39,7 @@ export function isPeriodInverted(filters: Pick<TimelineFilters, 'from' | 'to'>):
 }
 
 /** Diferença (ms) entre o relógio de parede do fuso e o UTC no instante. */
-function zoneOffsetMs(instant: Date, timeZone: string): number {
+export function zoneOffsetMs(instant: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     hourCycle: 'h23',

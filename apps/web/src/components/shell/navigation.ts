@@ -8,8 +8,14 @@ import type { IconName } from './icons';
 
 export interface NavItem {
   readonly href: string;
-  readonly labelKey: 'dashboard' | 'tasks' | 'approvals' | 'processes' | 'suppliers' | 'example';
+  readonly labelKey:
+    'dashboard' | 'tasks' | 'approvals' | 'processes' | 'suppliers' | 'audit' | 'example';
   readonly icon: IconName;
+  /**
+   * Permissão que dá acesso à área: o item só some quando a API confirma que o usuário NÃO a tem
+   * (ME-03); enquanto a resposta não existe, a própria rota decide (RN-FND-92).
+   */
+  readonly permission?: string;
 }
 
 export const MAIN_NAV: readonly NavItem[] = [
@@ -18,6 +24,7 @@ export const MAIN_NAV: readonly NavItem[] = [
   { href: '/aprovacoes', labelKey: 'approvals', icon: 'stamp' },
   { href: '/processos', labelKey: 'processes', icon: 'folder' },
   { href: '/fornecedores', labelKey: 'suppliers', icon: 'truck' },
+  { href: '/auditoria', labelKey: 'audit', icon: 'shield', permission: 'AUDIT_VIEW' },
   { href: '/exemplo', labelKey: 'example', icon: 'flask' },
 ];
 

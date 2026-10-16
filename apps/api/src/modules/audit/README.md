@@ -108,6 +108,35 @@ await this.audit.recordStandalone({
 ausente e `occurredAt` em ISO 8601 UTC com milissegundos. Para recalcular a partir do banco, leia
 `host(ip)` (o IP é normalizado na gravação como o `inet` o devolve) e os demais campos como estão.
 
+## Selagem de integridade (US-074)
+
+`AuditSeal` (`audit_seals`, migração `20261016110000_audit_seals`): um selo por tenant e hora cheia
+UTC com atividade — `digest` = `sha256_hex(rowHash₁ ∥ rowHash₂ ∥ …)` na ordem `(occurred_at, id)`;
+`chainHash` = `sha256_hex(chainHash anterior ∥ digest)`, com 64 zeros antes do primeiro selo
+(`domain/audit-seal.ts`; vetores fixos repetidos em `apps/worker/src/audit/audit-sealer.spec.ts`).
+Imutável (trigger + só INSERT/SELECT), RLS por tenant, `UNIQUE (tenant_id, period_start)`, FK
+composta `(tenant_id, previous_seal_id)`.
+
+- **Quem sela:** o worker — `AuditSealer` (`audit-seal.seal-tenant`, enfileirado pelo `audit-seal.tick`
+  no minuto 5 de toda hora). Sob trava consultiva por tenant e uma transação por período, sela EM
+  ORDEM toda hora fechada (2 min de folga) com atividade depois do último selo (até 168 por
+  execução); grava `audit.seal` (SYSTEM) no mesmo `tx`, com `occurredAt = agora`, já no período
+  seguinte (RN-AUD-14). Hora vazia — ou só com `audit.seal` — não gera selo (RN-AUD-12). Reexecução
+  e dois workers simultâneos: `ON CONFLICT DO NOTHING` + trava (RN-AUD-13).
+- **AUD-04** (`GetAuditSealsHandler`): lista paginada, mais recente primeiro; audita `audit.search`
+  (`metadata.target = 'seals'`).
+- **AUD-05** (`VerifyAuditSealsHandler` + `SealChainVerifier`): recalcula cada selo do intervalo com o
+  `rowHash` **recalculado do conteúdo** (não o da coluna) e o antecessor real na cadeia; quebra em
+  `digest` (registro alterado/removido/inserido) ou `chain` (selo removido/inserido/alterado). Teto:
+  `AUDIT_SEAL_VERIFICATION_MAX_PERIODS` (720) horas por intervalo → 422; sem selo do tenant no
+  intervalo → 404. Somente leitura.
+- **Cuidado — gravação posterior ao fato:** um registro gravado com `occurredAt` numa hora JÁ selada
+  (ex.: a varredura de sessões, US-088, audita o fim da sessão com o horário real) muda o `digest`
+  dela e a verificação acusa `INVALID`. Gravação tardia precisa cair antes da selagem (minuto 5 +
+  folga) ou ser repensada.
+- **Selo de plataforma** (`seal-platform`, `tenant_id` nulo): não implementado — a aplicação não lê
+  a trilha de plataforma; o `tick` só enfileira jobs com handler.
+
 ## Logs e métricas
 
 `info audit.recorded` · `warn audit.coalesced` (agregado por minuto) · `warn
@@ -115,7 +144,11 @@ audit.sampling_unavailable` · `error audit.write_failed` (stack só em `debug`)
 audit.partition_missing` · `error audit.partition_ensure_failed`. Métricas (OpenTelemetry):
 `audit_recorded_total{category,result}`, `audit_write_failed_total{reason}`,
 `audit_coalesced_total`, `audit_sampled_out_total`, `audit_record_duration_ms`. Nunca conteúdo de
-`changes`.
+`changes`. Selagem (US-074): `info audit.seal_created`, `info audit.seal_skipped_empty`, `warn
+audit.seal_retry`, `error audit.seal_failed` (alerta), `warn audit.seal_verification_broken` (alerta),
+`info audit.seal_verified`; `audit_seals_created_total`, `audit_seal_failed_total`,
+`audit_seal_duration_ms` (worker) e `audit_seal_verifications_total{result}` (API); o atraso da
+selagem é a vivacidade do scheduler `audit-seal-tick` (> 3 h — `worker.scheduler_missed_sla`).
 
 ## Banco
 
