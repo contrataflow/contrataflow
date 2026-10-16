@@ -93,9 +93,16 @@ Role {
 RoleAssignment {
   id: string; membershipId: string; roleId: string;
   scopeType: "TENANT" | "ORGANIZATION" | "DEPARTMENT" | "OWN_DEPARTMENTS";
-  scopeOrganizationId?: string; scopeDepartmentId?: string;
-  includeSubtree?: boolean; validFrom: string; validUntil?: string;
+  scopeOrganizationId: string | null; scopeDepartmentId: string | null;
+  includeSubtree: boolean; validFrom: string; validUntil: string | null;
   status: "ACTIVE" | "REVOKED"; version: number;
+  // US-096 — dados para a aba "Perfis e acessos" (SCR-029) sem consultas extras:
+  userId: string; userName: string;
+  roleKey: string; roleName: string;
+  isAdministrative: boolean;               // perfil concede ROLE_ASSIGN/ROLE_MANAGE/USER_MANAGE (POL-16)
+  scopeName: string | null;                // nome do órgão/unidade do escopo
+  grantedBy: { id: string; name: string } | null; grantedAt: string;
+  revokedAt: string | null;
 }
 
 // Item do catálogo de permissões, somente leitura (ROL-01)
@@ -528,7 +535,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** path `userId` (uuid, Sim)
 - **Request:** —
-- **Response:** `200 { data: RoleAssignment[] }`
+- **Response:** `200 { data: RoleAssignment[], meta: { canAssign: boolean, isSelf: boolean } }` — atribuições não revogadas (vigentes, futuras e vencidas), inclusive a do convite; `canAssign` = o ator tem `ROLE_ASSIGN`; `isSelf` = o vínculo é o do ator (POL-16 na tela)
 - **Erros:**
 
 | HTTP | code | Quando |
@@ -557,6 +564,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 |---|---|---|
 | 403 | `PRIVILEGE_ESCALATION_FORBIDDEN` | Perfil com permissões que o ator não possui (POL-13) |
 | 403 | `MFA_REQUIRED` | MFA não satisfeito (POL-14) |
+| 403 | `MEMBERSHIP_INACTIVE` | Vínculo de destino fora de `ACTIVE` ou vencido (RN-IAM-90) |
 | 404 | `USER_NOT_FOUND` | Vínculo inexistente/outro tenant |
 | 409 | `ROLE_ASSIGNMENT_ALREADY_EXISTS` | Atribuição ativa do mesmo perfil no mesmo escopo |
 | 422 | `EXTERNAL_HIGH_RISK_ROLE` | Perfil de risco para vínculo `EXTERNAL` (POL-15) |
@@ -578,6 +586,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 403 | `PERMISSION_DENIED` | Autoproteção: remover o próprio último perfil administrativo (POL-16) |
 | 404 | `ROLE_ASSIGNMENT_NOT_FOUND` | Inexistente/outro tenant (padrão `<RESOURCE>_NOT_FOUND`, api.md §2.1) |
 | 409 | `LAST_ADMIN_REQUIRED` | Revogar último `ADMIN_ORGAO` (POL-12) |
+| 409 | `INVALID_STATE` | Atribuição já revogada |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Evento `RoleRevoked` (`role.revoked`); auditoria `role.revoke` (`ACCESS`, `metadata.hasReason`).

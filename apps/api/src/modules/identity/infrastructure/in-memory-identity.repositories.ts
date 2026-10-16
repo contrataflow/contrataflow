@@ -667,6 +667,20 @@ export class InMemoryIdentityRepository
     );
   }
 
+  userIdsOf(_tx: TenantTx, membershipIds: readonly string[]): Promise<Map<string, string>> {
+    const tenantId = contextTenant();
+    return Promise.resolve(
+      new Map(
+        this.memberships
+          .filter(
+            (membership) =>
+              membership.tenantId === tenantId && membershipIds.includes(membership.id),
+          )
+          .map((membership) => [membership.id, membership.userId]),
+      ),
+    );
+  }
+
   /**
    * Simula o `EmailSender` (worker): gera o token do convite pendente e grava só o hash, como o
    * envio do e-mail faz (queues.md §4.3). Devolve o token em claro — o "link do e-mail".

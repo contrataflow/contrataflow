@@ -908,7 +908,7 @@ next-intl com um único locale (`pt-BR`) e mensagens por *namespace* de feature 
 | 403 `MEMBERSHIP_INACTIVE` / `TENANT_SUSPENDED` | `/selecionar-orgao` ou `/erro/sem-vinculo` (SCR-111) |
 | 403 com `code` de política | Mensagem contextual (causa + ação de recuperação — DEC-181) |
 | 404 | `not-found.tsx` do segmento ("Processo não encontrado ou sem acesso" — nunca distingue as duas causas) |
-| 409/412 | Diálogo de conflito (recarregar, ver diferenças) |
+| 409/412 | Diálogo de conflito (recarregar, ver diferenças); exceto 409 de regra de negócio que a própria tela explica — `IDEMPOTENCY_IN_PROGRESS`, `LAST_ADMIN_REQUIRED`, `ROLE_ASSIGNMENT_ALREADY_EXISTS` (US-096) —, exibidos como mensagem contextual |
 | 422 | Erros de campo e checklist de violações |
 | 429 | Aviso com tempo de espera (`Retry-After`) |
 | 5xx/503 | `error.tsx` do segmento com `correlationId` copiável e botão "Tentar novamente"; `global-error.tsx` como última barreira |

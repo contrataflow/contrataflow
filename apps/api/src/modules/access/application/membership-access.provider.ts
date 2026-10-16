@@ -11,8 +11,8 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { AccessFacade } from './access.facade.js';
-import { ROLE_ASSIGNMENT_WRITER, ROLE_REPOSITORY } from './ports.js';
-import type { RoleAssignmentWriter, RoleRepository } from './ports.js';
+import { ROLE_ASSIGNMENT_REPOSITORY, ROLE_REPOSITORY } from './ports.js';
+import type { RoleAssignmentRepository, RoleRepository } from './ports.js';
 import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import type { ScopeType } from '../domain/role.js';
 
@@ -35,7 +35,7 @@ export class MembershipAccessProvider implements AccessReferenceProvider {
   constructor(
     private readonly access: AccessFacade,
     @Inject(ROLE_REPOSITORY) private readonly roles: RoleRepository,
-    @Inject(ROLE_ASSIGNMENT_WRITER) private readonly assignments: RoleAssignmentWriter,
+    @Inject(ROLE_ASSIGNMENT_REPOSITORY) private readonly assignments: RoleAssignmentRepository,
   ) {}
 
   assertCan(permission: PermissionCode, options: { readonly mfaPolicy: MfaPolicy }): void {

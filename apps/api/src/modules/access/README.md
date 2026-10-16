@@ -52,10 +52,33 @@ O escopo padrão de atribuição de cada perfil (§3.1) fica em `DEFAULT_ROLES[]
   conferidas com o mesmo conjunto (`authorizeActor`), com MFA por `security.mfaPolicy`.
 - **Protegidas do `ADMIN_ORGAO`:** `ADMIN_ORGAO_SEEDED_PERMISSIONS` (`@contrataflow/validation`, usada
   também pela UI); um teste confere a igualdade com a coluna `ADMIN_ORGAO` de `DEFAULT_ROLE_GRANTS`.
-- **Vínculos ativos:** porta `RoleAssignmentCounter` — 0 até a US-096 trocar o adaptador
-  `NoRoleAssignmentsCounter` pela contagem em `role_assignments`.
+- **Vínculos ativos:** porta `RoleAssignmentCounter`, implementada pelo repositório de atribuições
+  (vínculos distintos com atribuição vigente do perfil).
 - **Cache:** `RoleCreated`/`RoleUpdated` (routing `role.*`) → `PermissionCacheInvalidator` do worker
   apaga as permissões efetivas do tenant; sem relay, vale o TTL de 5 min (DEC-134).
+
+## Atribuição de perfis (US-096 · ROL-09..12 · SCR-029 "Perfis e acessos")
+
+- Casos de uso em `application/role-assignment.commands.ts` (`RoleAssignmentSupport`: transação,
+  nomes da resposta, invalidação do cache); regras puras em `domain/role-assignment.ts` (escopo e
+  vigência — RN-IAM-89/93, `scopeCovers` do POL-13, POL-15/16). Repositório único
+  `ROLE_ASSIGNMENT_REPOSITORY` (Prisma/memória) — também atende o convite (US-091), o POL-12 da
+  US-092 e a contagem por perfil (US-095).
+- **Ator (POL-13):** `AssignmentActorResolver` lê as atribuições VIGENTES do vínculo da requisição com
+  as concessões atuais de cada perfil ativo e o escopo de cada uma; `ADMIN_ORGAO`/`TENANT` é isento.
+  Sem nenhuma atribuição gravada (modo fake, vínculo antigo), vale a ponte das chaves do contexto
+  com escopo `TENANT`.
+- **Escopo "igual ou mais amplo":** `TENANT` cobre tudo; órgão cobre a si e as unidades dele;
+  unidade cobre a si e, com subárvore, as descendentes (pedir subárvore exige tê-la);
+  `OWN_DEPARTMENTS` só cobre `OWN_DEPARTMENTS`. Órgãos/unidades (nome, situação, órgão e caminho)
+  vêm pela porta `MembershipReferences` (lado `organization`).
+- **POL-12 na revogação:** só para `ADMIN_ORGAO`/`TENANT` vigente — trava os vínculos administradores
+  (`IdentityFacade.lockActiveMemberships`), relê as atribuições e exige outro vínculo `ACTIVE`.
+  **POL-16:** "administrativo" = perfil com `ROLE_ASSIGN`/`ROLE_MANAGE`/`USER_MANAGE`
+  (`ADMINISTRATIVE_PERMISSIONS` em `@contrataflow/validation`, usado também pela tela).
+- **Cache:** `DEL access:eff:{membershipId}` logo após o commit (Redis fora → `warn
+cache.invalidation_unavailable`, sem desfazer nada); o `PermissionCacheInvalidator` repete pelo
+  `RoleAssigned`/`RoleRevoked` (routing `role.*`).
 
 ## Ponte até a US-097
 

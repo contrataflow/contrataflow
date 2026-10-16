@@ -35,6 +35,18 @@ export class TenancyFacade {
   }
 
   /**
+   * Órgão do tenant da transação com nome e situação (US-096: escopo `ORGANIZATION` da atribuição
+   * de perfil), ou `null` se não existir nele (outro tenant = inexistente).
+   */
+  async organizationReference(
+    tx: TenantTx,
+    organizationId: string,
+  ): Promise<{ readonly name: string; readonly isActive: boolean } | null> {
+    const organization = await this.organizations.findById(tx, organizationId);
+    return organization ? { name: organization.name, isActive: organization.isActive } : null;
+  }
+
+  /**
    * Descarta o status em cache depois de uma mudança de status do tenant (US-099:
    * `TenantActivated`/`TenantSuspended`) — o guard relê do banco na próxima requisição.
    */

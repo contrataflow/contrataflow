@@ -14,8 +14,17 @@ import { ApiError } from '../errors/api-error.js';
  * `DocumentTypeCatalog`). Sem provedor registrado, tudo falha fechado.
  */
 
-/** Unidade lida no `tx` do chamador (RLS do tenant): nome e situação. */
+/** Unidade lida no `tx` do chamador (RLS do tenant): nome, situação e posição na árvore. */
 export interface DepartmentReference {
+  readonly name: string;
+  readonly isActive: boolean;
+  readonly organizationId: string;
+  /** Caminho da raiz até a unidade, inclusive (escopo com subárvore — US-096 · POL-13). */
+  readonly pathIds: readonly string[];
+}
+
+/** Órgão lido no `tx` do chamador (RLS do tenant): nome e situação. */
+export interface OrganizationReference {
   readonly name: string;
   readonly isActive: boolean;
 }
@@ -26,6 +35,11 @@ export interface DepartmentReferenceProvider {
     tx: TenantTx,
     ids: readonly string[],
   ): Promise<ReadonlyMap<string, DepartmentReference>>;
+  /** Órgãos do tenant da transação entre `ids` (US-096: escopo `ORGANIZATION`). */
+  organizationsByIds(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, OrganizationReference>>;
 }
 
 /** Perfil do tenant da transação (convite com perfil inicial). */
@@ -92,6 +106,14 @@ export class MembershipReferences {
   ): Promise<ReadonlyMap<string, DepartmentReference>> {
     if (ids.length === 0 || !this.departments) return Promise.resolve(new Map());
     return this.departments.departmentsByIds(tx, ids);
+  }
+
+  organizationsByIds(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, OrganizationReference>> {
+    if (ids.length === 0 || !this.departments) return Promise.resolve(new Map());
+    return this.departments.organizationsByIds(tx, ids);
   }
 
   roleById(tx: TenantTx, roleId: string): Promise<RoleReference | null> {

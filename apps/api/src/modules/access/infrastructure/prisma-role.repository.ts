@@ -7,12 +7,7 @@ import { updateVersioned } from '#shared/database/optimistic-concurrency.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
 import { RoleAlreadyExistsError } from '../application/ports.js';
-import type {
-  RoleAssignmentCounter,
-  RoleGrants,
-  RoleListFilter,
-  RoleRepository,
-} from '../application/ports.js';
+import type { RoleGrants, RoleListFilter, RoleRepository } from '../application/ports.js';
 import type { Role, RolePermission } from '../domain/role.js';
 
 type Row = Prisma.RoleGetPayload<object>;
@@ -177,17 +172,5 @@ export class PrismaRoleRepository implements RoleRepository {
       isActive: row.isActive,
       permissions: codes(row.permissions),
     }));
-  }
-}
-
-/**
- * Contagem de vínculos com atribuição ativa (SCR-030 · RN-IAM-84): `role_assignments` nasce com a
- * US-096, que troca este adaptador pela contagem real (índice `(tenant_id, role_id) WHERE
- * revoked_at IS NULL`). Até lá nenhum perfil tem vínculos.
- */
-@Injectable()
-export class NoRoleAssignmentsCounter implements RoleAssignmentCounter {
-  countActive(_tx: TenantTx, roleIds: readonly string[]): Promise<ReadonlyMap<string, number>> {
-    return Promise.resolve(new Map(roleIds.map((id) => [id, 0])));
   }
 }

@@ -2,6 +2,7 @@ import type { PermissionCode } from '@contrataflow/types';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { RoleAssignment } from '../domain/role-assignment.js';
 import type { Role, RolePermission, ScopeType } from '../domain/role.js';
 
 /*
@@ -67,8 +68,8 @@ export class RoleAlreadyExistsError extends Error {
 }
 
 /**
- * Vínculos com atribuição ativa por perfil (RN-IAM-84 · SCR-030). As atribuições (`role_assignments`)
- * chegam com a US-096, que implementa esta porta; até lá a contagem é 0.
+ * Vínculos com atribuição vigente por perfil (RN-IAM-84 · SCR-030): implementada pelo repositório
+ * de atribuições (US-096).
  */
 export interface RoleAssignmentCounter {
   countActive(tx: TenantTx, roleIds: readonly string[]): Promise<ReadonlyMap<string, number>>;
@@ -87,17 +88,57 @@ export interface InitialRoleAssignment {
   readonly now: Date;
 }
 
-/** Escrita em `role_assignments` (a gestão contínua — ROL-09..12 — é da US-096). */
-export interface RoleAssignmentWriter {
+/**
+ * `role_assignments` (US-091 grava a inicial do convite; US-096 faz a gestão contínua — ROL-09..12).
+ * Toda leitura é do tenant da transação (RLS): id de outro tenant = inexistente.
+ */
+export interface RoleAssignmentRepository extends RoleAssignmentCounter {
   insertInitial(tx: TenantTx, assignment: InitialRoleAssignment): Promise<void>;
   /**
    * Vínculos com atribuição vigente do perfil (`validFrom ≤ now < validUntil`, não revogada) no
-   * tenant da transação — POL-12 da US-092 conta os `ADMIN_ORGAO`.
+   * tenant da transação — POL-12 conta os `ADMIN_ORGAO` (com `scopeType`, só os desse escopo).
    */
-  membershipIdsWithRole(tx: TenantTx, roleId: string, now: Date): Promise<string[]>;
+  membershipIdsWithRole(
+    tx: TenantTx,
+    roleId: string,
+    now: Date,
+    scopeType?: ScopeType,
+  ): Promise<string[]>;
+  /**
+   * ROL-11 (RN-IAM-94): grava a atribuição; o índice parcial `role_assignments_active_key` decide
+   * a corrida de duas atribuições idênticas.
+   * @throws RoleAssignmentAlreadyExistsError
+   */
+  insert(tx: TenantTx, assignment: RoleAssignment): Promise<void>;
+  /** Atribuição ativa (não revogada) idêntica (RN-IAM-94), ou `null`. */
+  findActiveDuplicate(
+    tx: TenantTx,
+    key: Pick<
+      RoleAssignment,
+      'membershipId' | 'roleId' | 'scopeType' | 'scopeOrganizationId' | 'scopeDepartmentId'
+    >,
+  ): Promise<RoleAssignment | null>;
+  findById(tx: TenantTx, id: string): Promise<RoleAssignment | null>;
+  /** Não revogadas do vínculo (vigentes, futuras e vencidas), por concessão. */
+  listByMembership(tx: TenantTx, membershipId: string): Promise<RoleAssignment[]>;
+  /** Não revogadas do perfil, por concessão. */
+  listByRole(tx: TenantTx, roleId: string): Promise<RoleAssignment[]>;
+  /**
+   * ROL-12: grava a revogação condicionada a `expectedVersion` (`version + 1`); `false` se a versão
+   * mudou ou a atribuição já foi revogada.
+   */
+  revoke(tx: TenantTx, revoked: RoleAssignment, expectedVersion: number): Promise<boolean>;
 }
 
-export const ROLE_ASSIGNMENT_WRITER = Symbol('RoleAssignmentWriter');
+/** Corrida de duas atribuições idênticas: o índice único parcial recusou a segunda (RN-IAM-94). */
+export class RoleAssignmentAlreadyExistsError extends Error {
+  constructor() {
+    super('Atribuição ativa idêntica já existe.');
+    this.name = 'RoleAssignmentAlreadyExistsError';
+  }
+}
+
+export const ROLE_ASSIGNMENT_REPOSITORY = Symbol('RoleAssignmentRepository');
 
 export const ROLE_REPOSITORY = Symbol('RoleRepository');
 

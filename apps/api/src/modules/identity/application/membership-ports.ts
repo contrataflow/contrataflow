@@ -80,6 +80,8 @@ export interface MembershipRepository {
     membershipIds: readonly string[],
     now: Date,
   ): Promise<string[]>;
+  /** Usuário de cada vínculo do tenant da transação entre `membershipIds` (US-096: ROL-09). */
+  userIdsOf(tx: TenantTx, membershipIds: readonly string[]): Promise<Map<string, string>>;
 }
 
 export const MEMBERSHIP_REPOSITORY = Symbol('MembershipRepository');

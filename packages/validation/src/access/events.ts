@@ -38,3 +38,39 @@ export const RoleUpdated = defineDomainEvent({
   }),
   routingKey: 'role.updated',
 });
+
+const scopeType = z.enum(['TENANT', 'ORGANIZATION', 'DEPARTMENT', 'OWN_DEPARTMENTS']);
+
+/*
+ * Eventos do agregado `RoleAssignment` (events.md §4 · US-096): gravados no commit de ROL-11
+ * (atribuição) e ROL-12 (revogação). Consumidores: `PermissionCacheInvalidator` (routing `role.*`,
+ * apaga o cache do vínculo do `membershipId`) e o `NotificationDispatcher` (`ROLE_CHANGED`).
+ */
+
+export const RoleAssigned = defineDomainEvent({
+  eventType: 'RoleAssigned',
+  eventVersion: 1,
+  aggregateType: 'RoleAssignment',
+  payload: z.strictObject({
+    roleAssignmentId: z.uuid(),
+    membershipId: z.uuid(),
+    roleId: z.uuid(),
+    scopeType,
+    /** Órgão (`ORGANIZATION`) ou unidade (`DEPARTMENT`) do escopo; ausente nos demais. */
+    scopeId: z.uuid().optional(),
+    validUntil: z.iso.datetime().optional(),
+  }),
+  routingKey: 'role.assigned',
+});
+
+export const RoleRevoked = defineDomainEvent({
+  eventType: 'RoleRevoked',
+  eventVersion: 1,
+  aggregateType: 'RoleAssignment',
+  payload: z.strictObject({
+    roleAssignmentId: z.uuid(),
+    membershipId: z.uuid(),
+    roleId: z.uuid(),
+  }),
+  routingKey: 'role.revoked',
+});

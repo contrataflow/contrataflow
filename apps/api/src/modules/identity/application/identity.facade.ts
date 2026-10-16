@@ -1,13 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import type { MembershipStatus } from '#shared/auth/ports.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { MEMBERSHIP_REPOSITORY } from './membership-ports.js';
+import type { MembershipRepository } from './membership-ports.js';
 import { IDENTITY_REPOSITORY, TENANT_MFA_POLICY } from './ports.js';
 import type { IdentityRepository, TenantMember, TenantMfaPolicyPort } from './ports.js';
+import type { MembershipType } from '../domain/tenant-membership.js';
 
 export type { TenantMember } from './ports.js';
+
+/** Vínculo de destino de uma atribuição de perfil (US-096 · RN-IAM-90/92/93). */
+export interface MembershipForAssignment {
+  readonly id: string;
+  readonly userId: string;
+  readonly type: MembershipType;
+  readonly status: MembershipStatus;
+  readonly expiresAt: Date | null;
+}
 
 /**
  * API pública do módulo `identity` para os demais módulos (DEC-041): métodos de intenção,
@@ -18,7 +31,43 @@ export class IdentityFacade {
   constructor(
     @Inject(IDENTITY_REPOSITORY) private readonly identity: IdentityRepository,
     @Inject(TENANT_MFA_POLICY) private readonly mfaPolicies: TenantMfaPolicyPort,
+    @Inject(MEMBERSHIP_REPOSITORY) private readonly memberships: MembershipRepository,
   ) {}
+
+  /**
+   * Vínculo do usuário no tenant da transação (US-096: ROL-10/11), ou `null` se o usuário não tem
+   * vínculo nele — vínculo de outro tenant não é revelado (RLS).
+   */
+  async membershipOfUser(tx: TenantTx, userId: string): Promise<MembershipForAssignment | null> {
+    const state = await this.memberships.findStateByUser(tx, userId);
+    return state
+      ? {
+          id: state.id,
+          userId: state.userId,
+          type: state.type,
+          status: state.status,
+          expiresAt: state.expiresAt,
+        }
+      : null;
+  }
+
+  /** Usuário de cada vínculo do tenant da transação (US-096: quem tem o perfil — ROL-09). */
+  membershipUserIds(tx: TenantTx, membershipIds: readonly string[]): Promise<Map<string, string>> {
+    return this.memberships.userIdsOf(tx, membershipIds);
+  }
+
+  /**
+   * POL-12 (US-096 · ROL-12): entre `membershipIds`, os vínculos `ACTIVE` e não vencidos, travados
+   * (`FOR UPDATE`, em ordem de id) até o fim da transação — duas revogações simultâneas do
+   * `ADMIN_ORGAO` não passam as duas.
+   */
+  lockActiveMemberships(
+    tx: TenantTx,
+    membershipIds: readonly string[],
+    now: Date,
+  ): Promise<string[]> {
+    return this.memberships.lockActiveMemberships(tx, membershipIds, now);
+  }
 
   /**
    * Nome exibido (social, se houver) dos usuários com vínculo no tenant da transação, lidos no `tx`

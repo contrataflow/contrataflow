@@ -165,6 +165,15 @@ export class PrismaMembershipRepository implements MembershipRepository {
          FOR UPDATE`;
     return rows.map((row) => row.id);
   }
+
+  async userIdsOf(tx: TenantTx, membershipIds: readonly string[]): Promise<Map<string, string>> {
+    if (membershipIds.length === 0) return new Map();
+    const rows = await tx.tenantMembership.findMany({
+      where: { id: { in: [...membershipIds] } },
+      select: { id: true, userId: true },
+    });
+    return new Map(rows.map((row) => [row.id, row.userId]));
+  }
 }
 
 /** Colunas de cada status de destino (RN-IAM-57..59). */

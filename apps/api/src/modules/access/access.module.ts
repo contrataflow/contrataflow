@@ -17,10 +17,18 @@ import {
   ACCESS_CLOCK,
   ACCESS_TRANSACTIONS,
   ROLE_ASSIGNMENT_COUNTER,
-  ROLE_ASSIGNMENT_WRITER,
+  ROLE_ASSIGNMENT_REPOSITORY,
   ROLE_REPOSITORY,
 } from './application/ports.js';
 import { RoleActorResolver } from './application/role-actor.js';
+import {
+  AssignmentActorResolver,
+  AssignRoleCommand,
+  ListRoleAssignmentsQuery,
+  ListUserRoleAssignmentsQuery,
+  RevokeRoleAssignmentCommand,
+  RoleAssignmentSupport,
+} from './application/role-assignment.commands.js';
 import {
   CreateRoleCommand,
   DeactivateRoleCommand,
@@ -36,15 +44,13 @@ import {
   PrismaAccessTransactions,
 } from './infrastructure/access-transactions.js';
 import { InMemoryRoleRepository } from './infrastructure/in-memory-role.repository.js';
+import { PrismaRoleRepository } from './infrastructure/prisma-role.repository.js';
 import {
-  NoRoleAssignmentsCounter,
-  PrismaRoleRepository,
-} from './infrastructure/prisma-role.repository.js';
-import {
-  InMemoryRoleAssignmentWriter,
-  PrismaRoleAssignmentWriter,
-} from './infrastructure/role-assignment.writer.js';
+  InMemoryRoleAssignmentRepository,
+  PrismaRoleAssignmentRepository,
+} from './infrastructure/role-assignment.repository.js';
 import { PermissionController } from './presentation/permission.controller.js';
+import { RoleAssignmentController } from './presentation/role-assignment.controller.js';
 import { RoleController } from './presentation/role.controller.js';
 import { IdentityModule } from '../identity/identity.module.js';
 
@@ -55,11 +61,12 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * Módulo `access` (DEC-040): outros módulos usam somente a fachada exportada. Dono do catálogo de
  * permissões (ROL-01) e dos perfis do tenant — seeder `access.defaultRoles` dos 15 perfis padrão
  * (US-094), registrado no checklist de provisionamento (US-099), e gestão de perfis e matriz
- * (ROL-02..08 · US-095; MFA via `IdentityFacade.mfaPolicy` — exceção de nível em DEC-041).
+ * (ROL-02..08 · US-095; MFA via `IdentityFacade.mfaPolicy` — exceção de nível em DEC-041) e
+ * atribuição de perfis com escopo e vigência (ROL-09..12 · US-096).
  */
 @Module({
   imports: [TenantSeedingModule, IdentityModule, MembershipReferencesModule],
-  controllers: [PermissionController, RoleController],
+  controllers: [PermissionController, RoleController, RoleAssignmentController],
   providers: [
     AccessFacade,
     ListPermissionsQuery,
@@ -72,8 +79,13 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     UpdateRolePermissionsCommand,
     DuplicateRoleCommand,
     DeactivateRoleCommand,
-    // `role_assignments` nasce com a US-096, que troca este adaptador pela contagem real.
-    { provide: ROLE_ASSIGNMENT_COUNTER, useClass: NoRoleAssignmentsCounter },
+    // US-096: atribuições com escopo e vigência (ROL-09..12).
+    AssignmentActorResolver,
+    RoleAssignmentSupport,
+    ListRoleAssignmentsQuery,
+    ListUserRoleAssignmentsQuery,
+    AssignRoleCommand,
+    RevokeRoleAssignmentCommand,
     SeedDefaultRolesHandler,
     DefaultRolesSeeder,
     PrismaRoleRepository,
@@ -99,18 +111,20 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
       ) => (inMemory(config) ? memory : prisma),
     },
     { provide: ACCESS_CLOCK, useValue: () => new Date() },
-    // US-091: autorização e perfil inicial do convite pela porta `MembershipReferences`.
-    PrismaRoleAssignmentWriter,
-    InMemoryRoleAssignmentWriter,
+    // `role_assignments`: perfil inicial do convite (US-091, pela porta `MembershipReferences`),
+    // POL-12 da US-092, contagem por perfil (US-095) e a gestão contínua (US-096).
+    PrismaRoleAssignmentRepository,
+    InMemoryRoleAssignmentRepository,
     {
-      provide: ROLE_ASSIGNMENT_WRITER,
-      inject: [APP_CONFIG, PrismaRoleAssignmentWriter, InMemoryRoleAssignmentWriter],
+      provide: ROLE_ASSIGNMENT_REPOSITORY,
+      inject: [APP_CONFIG, PrismaRoleAssignmentRepository, InMemoryRoleAssignmentRepository],
       useFactory: (
         config: AppConfig,
-        prisma: PrismaRoleAssignmentWriter,
-        memory: InMemoryRoleAssignmentWriter,
+        prisma: PrismaRoleAssignmentRepository,
+        memory: InMemoryRoleAssignmentRepository,
       ) => (inMemory(config) ? memory : prisma),
     },
+    { provide: ROLE_ASSIGNMENT_COUNTER, useExisting: ROLE_ASSIGNMENT_REPOSITORY },
     MembershipAccessProvider,
   ],
   exports: [AccessFacade],

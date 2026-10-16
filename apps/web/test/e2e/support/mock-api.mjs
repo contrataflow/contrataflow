@@ -445,6 +445,44 @@ function sendMember(response, member) {
     { ETag: `"${member.version}"` },
   );
 }
+// Perfis e acessos (US-096 · ROL-10..12): Diego é o único com o ADMIN_ORGAO no tenant — revogá-lo
+// responde 409 LAST_ADMIN_REQUIRED (POL-12); os demais perfis entram e saem livremente.
+const roleAssignments = [
+  {
+    id: '0192a000-0000-7000-8000-0000000096a1',
+    userId: members[0].userId,
+    roleId: roles[0].id,
+    scopeType: 'TENANT',
+    scopeOrganizationId: null,
+    scopeDepartmentId: null,
+    includeSubtree: true,
+    validFrom: '2026-10-02T12:00:00.000Z',
+    validUntil: null,
+    status: 'ACTIVE',
+    grantedAt: '2026-10-02T12:00:00.000Z',
+    revokedAt: null,
+    version: 1,
+  },
+];
+function assignmentDto(assignment) {
+  const member = members.find((item) => item.userId === assignment.userId);
+  const role = roles.find((item) => item.id === assignment.roleId);
+  const { userId, ...rest } = assignment;
+  return {
+    ...rest,
+    membershipId: member?.id ?? userId,
+    userId,
+    userName: member?.name ?? '',
+    roleKey: role?.key ?? '',
+    roleName: role?.name ?? '',
+    isAdministrative: (role?.permissions ?? []).some((code) =>
+      ['ROLE_ASSIGN', 'ROLE_MANAGE', 'USER_MANAGE'].includes(code),
+    ),
+    scopeName: null,
+    grantedBy: { id: '0192a000-0000-7000-8000-0000000000a1', name: 'Ana Souza' },
+  };
+}
+
 function templateTypeOf(template) {
   const type = documentTypes.find((item) => item.id === template.documentTypeId);
   return {
@@ -950,6 +988,89 @@ createServer(async (request, response) => {
       invitations.splice(invitations.indexOf(invited), 1);
       return send(response, 204);
     }
+  }
+  const assignmentsRoute = /^\/api\/v1\/users\/([0-9a-f-]{36})\/role-assignments$/.exec(
+    url.pathname,
+  );
+  if (assignmentsRoute) {
+    const member = members.find((item) => item.userId === assignmentsRoute[1]);
+    if (!member) return problem(response, 404, 'USER_NOT_FOUND', String(correlationId));
+    if (request.method === 'GET') {
+      return send(response, 200, {
+        data: roleAssignments
+          .filter((item) => item.userId === member.userId && item.status === 'ACTIVE')
+          .map(assignmentDto),
+        meta: { canAssign: true, isSelf: false },
+      });
+    }
+    if (request.method === 'POST') {
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const duplicate = roleAssignments.some(
+        (item) =>
+          item.userId === member.userId &&
+          item.status === 'ACTIVE' &&
+          item.roleId === body.roleId &&
+          item.scopeType === body.scopeType,
+      );
+      if (duplicate) {
+        return problem(response, 409, 'ROLE_ASSIGNMENT_ALREADY_EXISTS', String(correlationId));
+      }
+      const now = new Date().toISOString();
+      const created = {
+        id: randomUUID(),
+        userId: member.userId,
+        roleId: body.roleId,
+        scopeType: body.scopeType,
+        scopeOrganizationId: body.scopeOrganizationId ?? null,
+        scopeDepartmentId: body.scopeDepartmentId ?? null,
+        includeSubtree: body.includeSubtree ?? true,
+        validFrom: body.validFrom ?? now,
+        validUntil: body.validUntil ?? null,
+        status: 'ACTIVE',
+        grantedAt: now,
+        revokedAt: null,
+        version: 1,
+      };
+      roleAssignments.push(created);
+      return send(response, 201, { data: assignmentDto(created) }, { ETag: '"1"' });
+    }
+  }
+  const revokeRoute = /^\/api\/v1\/role-assignments\/([0-9a-f-]{36})\/revoke$/.exec(url.pathname);
+  if (revokeRoute && request.method === 'POST') {
+    const assignment = roleAssignments.find((item) => item.id === revokeRoute[1]);
+    if (!assignment)
+      return problem(response, 404, 'ROLE_ASSIGNMENT_NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${assignment.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const admins = roleAssignments.filter(
+      (item) =>
+        item.status === 'ACTIVE' && item.roleId === roles[0].id && item.scopeType === 'TENANT',
+    );
+    if (assignment.roleId === roles[0].id && admins.length <= 1) {
+      return send(
+        response,
+        409,
+        {
+          type: 'https://docs.contrataflow.com.br/errors/last-admin-required',
+          title: 'Administrador obrigatório',
+          status: 409,
+          detail: 'É preciso manter ao menos um administrador ativo.',
+          instance: url.pathname,
+          code: 'LAST_ADMIN_REQUIRED',
+          correlationId: String(correlationId),
+          errors: [],
+          violations: [],
+        },
+        { 'Content-Type': 'application/problem+json' },
+      );
+    }
+    Object.assign(assignment, {
+      status: 'REVOKED',
+      revokedAt: new Date().toISOString(),
+      version: assignment.version + 1,
+    });
+    return send(response, 200, { data: assignmentDto(assignment) });
   }
   const memberRoute =
     /^\/api\/v1\/users\/([0-9a-f-]{36})(\/(departments|suspend|reactivate|revoke))?$/.exec(

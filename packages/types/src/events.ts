@@ -24,6 +24,8 @@ export const DOMAIN_EVENT_NAMES = [
   'TemplateVersionRetired',
   'RoleCreated',
   'RoleUpdated',
+  'RoleAssigned',
+  'RoleRevoked',
   'DepartmentCreated',
   'DepartmentUpdated',
   'DepartmentMoved',

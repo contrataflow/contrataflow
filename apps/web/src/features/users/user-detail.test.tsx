@@ -121,6 +121,10 @@ function mockApi(routes: Routes = {}, permissions: readonly string[] = MANAGER) 
       );
     }
     const base = `/api/v1/users/${USER_ID}`;
+    // US-096: aba "Perfis e acessos" (coberta em role-assignments.test.tsx).
+    if (method === 'GET' && url === `${base}/role-assignments`) {
+      return Promise.resolve(jsonResponse({ data: [], meta: { canAssign: false, isSelf: false } }));
+    }
     if (method === 'GET' && url === base)
       return respond(routes.get, () => detailResponse(member()));
     if (method === 'PATCH' && url === base) {

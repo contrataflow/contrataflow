@@ -197,6 +197,76 @@
       "reloading": "Recarregando os dados atuais…",
       "unavailable": "Não foi possível concluir agora. Tente novamente.",
       "retry": "Tentar novamente"
+    },
+    "roles": {
+      "title": "Perfis e acessos",
+      "loading": "Carregando os perfis…",
+      "loadFailed": "Não foi possível carregar os perfis.",
+      "forbidden": "Você não tem permissão para ver os perfis deste usuário.",
+      "retry": "Tentar novamente",
+      "empty": "Nenhum perfil atribuído.",
+      "listLabel": "Perfis atribuídos",
+      "assign": "Atribuir perfil",
+      "revoke": "Revogar",
+      "revokeLabel": "Revogar o perfil {role}",
+      "scope": "Escopo",
+      "validity": "Vigência",
+      "validityOpen": "a partir de {from}",
+      "validityRange": "de {from} até {until}",
+      "grantedBy": "Concedido por",
+      "grantedByValue": "{name} em {date}",
+      "system": "Sistema",
+      "withSubtree": "com subunidades",
+      "withoutSubtree": "sem subunidades",
+      "phase": {
+        "SCHEDULED": "Agendado",
+        "ENDED": "Encerrado",
+        "EFFECTIVE": "Vigente"
+      },
+      "scopes": {
+        "TENANT": "Toda a instituição",
+        "ORGANIZATION": "Órgão",
+        "DEPARTMENT": "Unidade",
+        "OWN_DEPARTMENTS": "Unidades de lotação"
+      },
+      "selfProtected": "Você não pode remover seu próprio último perfil administrativo.",
+      "assignTitle": "Atribuir perfil a {name}",
+      "assignDescription": "Defina o perfil, o escopo de atuação e, se necessário, a vigência.",
+      "role": "Perfil",
+      "selectRole": "Selecione o perfil",
+      "loadingOptions": "Carregando…",
+      "externalHint": "Vínculo externo: só perfis permitidos para externos podem ser atribuídos.",
+      "externalBlocked": "Este perfil não pode ser atribuído a um vínculo externo.",
+      "externalBlockedShort": "não permitido para externos",
+      "organization": "Órgão",
+      "selectOrganization": "Selecione o órgão",
+      "department": "Unidade",
+      "selectDepartment": "Selecione a unidade",
+      "includeSubtree": "Incluir subárvore (subunidades)",
+      "validFrom": "Vigência início",
+      "validFromHint": "Vazio = a partir de agora.",
+      "validUntil": "Vigência término",
+      "validUntilHint": "Opcional.",
+      "validUntilExternalHint": "Opcional; não pode passar da validade do vínculo externo.",
+      "cancel": "Cancelar",
+      "confirmAssign": "Atribuir",
+      "assigning": "Atribuindo…",
+      "revokeTitle": "Revogar o perfil {role}?",
+      "revokeDescription": "{name} perde as permissões deste perfil imediatamente. A atribuição fica no histórico.",
+      "reason": "Motivo (opcional)",
+      "reasonHint": "Até {max} caracteres.",
+      "confirmRevoke": "Revogar perfil",
+      "revoking": "Revogando…",
+      "toast": {
+        "assigned": "Perfil atribuído: {role}.",
+        "revoked": "Perfil revogado: {role}."
+      },
+      "errors": {
+        "generic": "Não foi possível concluir agora. Tente novamente.",
+        "stale": "A lista de perfis mudou. Recarregamos os dados atuais.",
+        "lastAdminHint": "Atribua o perfil Administrador do órgão a outra pessoa antes de revogar este.",
+        "stepUp": "Confirmar identidade"
+      }
     }
   }
 }

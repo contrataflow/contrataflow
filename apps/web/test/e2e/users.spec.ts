@@ -1,7 +1,8 @@
 // E2E do SCR-029 (US-091/US-092): convidar usuário → convite pendente listado → reenviar → cancelar,
 // a sugestão de reenvio quando a pessoa já tem vínculo e, no detalhe de um usuário de teste
-// (Diego), editar o cargo, trocar a lotação principal, suspender e reativar, com axe-core nas
-// telas e na largura de 360 px. A API é simulada (support/mock-api.mjs): Ana tem USER_VIEW/
+// (Diego), editar o cargo, trocar a lotação principal, suspender e reativar e — US-096 — atribuir
+// e revogar perfis (com o bloqueio do último administrador), com axe-core nas telas e na largura
+// de 360 px. A API é simulada (support/mock-api.mjs): Ana tem USER_VIEW/
 // USER_INVITE/USER_MANAGE/ROLE_VIEW. Regras de vínculo (POL-12/16) e isolamento por tenant:
 // testes da API (módulo `identity` e suíte tenant leak).
 import { expect, test } from '@playwright/test';
@@ -173,6 +174,50 @@ test('suspende e reativa o usuário (com confirmação e motivo)', async ({ page
   await page.getByRole('button', { name: 'Reativar' }).click();
   await expect(page.getByText('Acesso de Diego Ramos reativado.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Suspender acesso' })).toBeVisible();
+});
+
+test('perfis e acessos: atribui e revoga um perfil; o último administrador fica protegido', async ({
+  page,
+}) => {
+  await openDetail(page);
+  const list = page.getByRole('list', { name: 'Perfis atribuídos' });
+  await expect(list).toContainText('Administrador do órgão');
+
+  // US-096 · POL-12: Diego é o único administrador — a revogação é recusada com a sugestão.
+  await page.getByRole('button', { name: 'Revogar o perfil Administrador do órgão' }).click();
+  const blocked = page.getByRole('alertdialog', {
+    name: 'Revogar o perfil Administrador do órgão?',
+  });
+  await expect(blocked.getByRole('textbox', { name: 'Motivo (opcional)' })).toBeFocused();
+  await blocked.getByRole('button', { name: 'Revogar perfil' }).click();
+  await expect(
+    blocked.getByText('É preciso manter ao menos um administrador ativo.'),
+  ).toBeVisible();
+  await expect(
+    blocked.getByText(/Atribua o perfil Administrador do órgão a outra pessoa/),
+  ).toBeVisible();
+  await blocked.getByRole('button', { name: 'Cancelar' }).click();
+
+  // Atribui o Auditor (escopo de toda a instituição) e o revoga.
+  await page.getByRole('button', { name: 'Atribuir perfil' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Atribuir perfil a Diego Ramos' });
+  const perfil = dialog.getByRole('combobox', { name: 'Perfil' });
+  await expect(perfil).toBeFocused();
+  await dialog.getByRole('button', { name: 'Atribuir', exact: true }).click();
+  await expect(dialog.getByText('Selecione o perfil e o escopo.')).toBeVisible();
+  await perfil.selectOption({ label: 'Auditor' });
+  await expectNoSeriousA11yViolations(page, 'atribuir perfil');
+  await dialog.getByRole('button', { name: 'Atribuir', exact: true }).click();
+  await expect(page.getByText('Perfil atribuído: Auditor.', { exact: true })).toBeVisible();
+  await expect(list).toContainText('Auditor');
+
+  await page.getByRole('button', { name: 'Revogar o perfil Auditor' }).click();
+  const confirm = page.getByRole('alertdialog', { name: 'Revogar o perfil Auditor?' });
+  await confirm.getByRole('textbox', { name: 'Motivo (opcional)' }).fill('Fim da auditoria');
+  await confirm.getByRole('button', { name: 'Revogar perfil' }).click();
+  await expect(page.getByText('Perfil revogado: Auditor.', { exact: true })).toBeVisible();
+  await expect(list).not.toContainText('Auditor');
+  await expectNoSeriousA11yViolations(page, 'perfis e acessos');
 });
 
 test('no celular (360 px) a lista vira cartões e o detalhe é acessível', async ({ page }) => {

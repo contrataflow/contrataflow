@@ -141,6 +141,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // do tenant (o payload não traz `membershipId`); até lá vale o TTL de 5 min (DEC-134).
     RoleCreated: ['role.created'],
     RoleUpdated: ['role.updated'],
+    // US-096: cache do vínculo (`PermissionCacheInvalidator`) e aviso `ROLE_CHANGED` (notificações).
+    RoleAssigned: ['role.assigned'],
+    RoleRevoked: ['role.revoked'],
     // US-099: o caso de uso remove o status do cache logo após o commit (TTL de 30 s como rede de
     // segurança). Sessões não são encerradas: cada requisição é recusada pelo guard (RN-TEN-11).
     TenantProvisioned: 'NO_ASYNC_CONSUMER',

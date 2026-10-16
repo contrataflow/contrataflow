@@ -19,6 +19,18 @@ export type ErrorAction =
   | { readonly kind: 'inline' }
   | { readonly kind: 'boundary' };
 
+/**
+ * 409 de regra de negócio que a própria tela explica e resolve (US-096): não são edição concorrente
+ * do mesmo registro, então não abrem o diálogo de conflito ("alterado por outra pessoa").
+ */
+const INLINE_CONFLICT_CODES: ReadonlySet<string> = new Set([
+  'IDEMPOTENCY_IN_PROGRESS',
+  // POL-12: "mantenha ao menos um administrador" — a tela sugere atribuir outro antes.
+  'LAST_ADMIN_REQUIRED',
+  // RN-IAM-94: a tela destaca a atribuição existente.
+  'ROLE_ASSIGNMENT_ALREADY_EXISTS',
+]);
+
 /** SCR-111 "sem acesso a esta instituição" (FA-08 da US-088). */
 export const MEMBERSHIP_INACTIVE_HREF = '/erro/vinculo-inativo';
 
@@ -70,7 +82,7 @@ export function resolveErrorAction(
   }
   if (status === 403 && code === 'CSRF_REJECTED') return { kind: 'reload' };
   if (status === 404) return { kind: 'not-found' };
-  if (status === 412 || (status === 409 && code !== 'IDEMPOTENCY_IN_PROGRESS')) {
+  if (status === 412 || (status === 409 && !INLINE_CONFLICT_CODES.has(code))) {
     return { kind: 'conflict' };
   }
   if (status === 429) return { kind: 'rate-limited', retryAfterSeconds: error.retryAfterSeconds };

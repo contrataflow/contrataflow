@@ -19,10 +19,8 @@ function inTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
 }
 
 describe('IdentityFacade', () => {
-  const facade = new IdentityFacade(
-    new InMemoryIdentityRepository(),
-    new InMemoryTenantMfaPolicy(),
-  );
+  const repository = new InMemoryIdentityRepository();
+  const facade = new IdentityFacade(repository, new InMemoryTenantMfaPolicy(), repository);
   const tx = {} as TenantTx;
   const memberOfA = FAKE_MEMBERSHIPS.filter((m) => m.tenantId === A).map((m) => m.userId);
   const [first] = memberOfA;
@@ -57,7 +55,7 @@ describe('IdentityFacade', () => {
 
   it('lotações na unidade (US-102): quem está lotado, só no tenant da transação', async () => {
     const repository = new InMemoryIdentityRepository();
-    const custom = new IdentityFacade(repository, new InMemoryTenantMfaPolicy());
+    const custom = new IdentityFacade(repository, new InMemoryTenantMfaPolicy(), repository);
     const unit = '0192a000-0000-7000-8000-0000000200a1';
     const ana = FAKE_MEMBERSHIPS.find((m) => m.userId === FAKE_USERS.ana.id && m.tenantId === A);
     await expect(inTenant(A, () => custom.hasDepartmentAssignments(tx, unit))).resolves.toBe(false);
@@ -78,14 +76,14 @@ describe('IdentityFacade', () => {
 
   it('mfaPolicy: política do tenant da requisição (padrão ADMINS)', async () => {
     const policies = new InMemoryTenantMfaPolicy({ [B]: 'ALL' });
-    const custom = new IdentityFacade(new InMemoryIdentityRepository(), policies);
+    const custom = new IdentityFacade(repository, policies, repository);
     await expect(inTenant(A, () => custom.mfaPolicy())).resolves.toBe('ADMINS');
     await expect(inTenant(B, () => custom.mfaPolicy())).resolves.toBe('ALL');
   });
 
   it('departmentsOfUser (US-041): lotações do vínculo ativo, só no tenant da transação', async () => {
     const repository = new InMemoryIdentityRepository();
-    const custom = new IdentityFacade(repository, new InMemoryTenantMfaPolicy());
+    const custom = new IdentityFacade(repository, new InMemoryTenantMfaPolicy(), repository);
     const unit = '0192a000-0000-7000-8000-0000000200b1';
     const ana = FAKE_MEMBERSHIPS.find((m) => m.userId === FAKE_USERS.ana.id && m.tenantId === A);
     const bruno = FAKE_MEMBERSHIPS.find((m) => m.userId === FAKE_USERS.bruno.id);

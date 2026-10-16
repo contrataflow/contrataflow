@@ -55,13 +55,14 @@ export class RoleActorResolver {
  * (POL-14). A permissão vem antes do MFA, como em `AccessFacade.assertCan`.
  */
 export function authorizeActor(
-  actor: ActorGrants,
+  actor: Pick<ActorGrants, 'permissions'>,
   permission: PermissionCode,
   mfaPolicy: MfaPolicy,
+  detail = 'Você não tem permissão para gerenciar perfis.',
 ): void {
   if (!actor.permissions.has(permission)) {
     throw new ApiError('PERMISSION_DENIED', {
-      detail: 'Você não tem permissão para gerenciar perfis.',
+      detail,
       auditReasonCode: permission,
     });
   }

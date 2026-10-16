@@ -107,4 +107,6 @@ export const AUDITED_DENIAL_CODES: ReadonlySet<string> = new Set([
   // US-095: violações de POL-13 (anti-escalonamento) e POL-12 (anti-bloqueio) na gestão de perfis.
   'PRIVILEGE_ESCALATION_FORBIDDEN',
   'LAST_ADMIN_REQUIRED',
+  // US-096: POL-15 (perfil não permitido para vínculo externo) na atribuição de perfis.
+  'EXTERNAL_HIGH_RISK_ROLE',
 ]);

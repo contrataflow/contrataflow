@@ -267,7 +267,11 @@ describe('TimelineProjector no PostgreSQL (US-059)', () => {
     app = db.client('cf_app');
     const registry = new SyncEventHandlerRegistry();
     const users = new IdentityUserLookupSource(
-      new IdentityFacade(new PrismaIdentityRepository({} as never, {} as never), {} as never),
+      new IdentityFacade(
+        new PrismaIdentityRepository({} as never, {} as never),
+        {} as never,
+        {} as never,
+      ),
     );
     projector = new TimelineProjector(
       registry,
@@ -427,7 +431,11 @@ describe('TimelineProjector no PostgreSQL (US-059)', () => {
 
       // Replay do evento com ator de outro tenant: o nome do usuário não é resolvido.
       const users = new IdentityUserLookupSource(
-        new IdentityFacade(new PrismaIdentityRepository({} as never, {} as never), {} as never),
+        new IdentityFacade(
+          new PrismaIdentityRepository({} as never, {} as never),
+          {} as never,
+          {} as never,
+        ),
       );
       const names = await asUser(PREF_B, bruno, () =>
         app.$tenantTransaction((tx) => users.lookup(tx, [ANA, BRUNO])),

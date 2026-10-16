@@ -1,15 +1,15 @@
 // Carga de estrutura para os testes de rota em memória (US-102): órgãos (`tenancy`) e lotações
 // (`identity`) dos adaptadores em memória da API de teste. Fica fora de `src/modules` porque os
 // specs de um módulo não importam internos de outro (DEC-041 · dependency-cruiser).
-import type { InitialRoleAssignment } from '#modules/access/application/ports.js';
 import {
   DEFAULT_ROLES,
   defaultGrants,
   seedDefaultRoles,
 } from '#modules/access/domain/default-roles.js';
+import type { RoleAssignment } from '#modules/access/domain/role-assignment.js';
 import type { Role } from '#modules/access/domain/role.js';
 import { InMemoryRoleRepository } from '#modules/access/infrastructure/in-memory-role.repository.js';
-import { InMemoryRoleAssignmentWriter } from '#modules/access/infrastructure/role-assignment.writer.js';
+import { InMemoryRoleAssignmentRepository } from '#modules/access/infrastructure/role-assignment.repository.js';
 import { IDENTITY_REPOSITORY } from '#modules/identity/application/ports.js';
 import type { InMemoryIdentityRepository } from '#modules/identity/infrastructure/in-memory-identity.repositories.js';
 import { createDepartment } from '#modules/organization/domain/department.js';
@@ -91,25 +91,43 @@ export function seedDepartment(
   });
 }
 
-/** Atribuições iniciais gravadas pelo convite (`role_assignments` em memória). */
-export function roleAssignmentsOf(api: TestApi): readonly InitialRoleAssignment[] {
-  return api.app.get(InMemoryRoleAssignmentWriter, { strict: false }).assignments;
+/** Atribuições gravadas (`role_assignments` em memória): a inicial do convite e as da US-096. */
+export function roleAssignmentsOf(api: TestApi): readonly RoleAssignment[] {
+  return api.app.get(InMemoryRoleAssignmentRepository, { strict: false }).assignments;
 }
 
 /**
  * Atribuição vigente de perfil (`role_assignments` em memória) — US-092: POL-12 conta os vínculos
- * com o `ADMIN_ORGAO` atribuído.
+ * com o `ADMIN_ORGAO` atribuído; US-096: escopo e vigência informáveis.
  */
 export function assignRole(
   api: TestApi,
-  assignment: { readonly tenantId: string; readonly membershipId: string; readonly roleId: string },
-): void {
-  const writer = api.app.get(InMemoryRoleAssignmentWriter, { strict: false });
-  writer.assignments.push({
+  assignment: {
+    readonly tenantId: string;
+    readonly membershipId: string;
+    readonly roleId: string;
+  } & Partial<RoleAssignment>,
+): RoleAssignment {
+  const repository = api.app.get(InMemoryRoleAssignmentRepository, { strict: false });
+  const at = new Date('2026-01-01T00:00:00.000Z');
+  const record: RoleAssignment = {
     id: newId(),
     scopeType: 'TENANT',
+    scopeOrganizationId: null,
+    scopeDepartmentId: null,
+    includeSubtree: true,
+    validFrom: at,
+    validUntil: null,
     grantedById: '0192a000-0000-7000-8000-0000000000a4',
-    now: new Date('2026-01-01T00:00:00.000Z'),
+    reason: null,
+    revokedAt: null,
+    revokedById: null,
+    revocationReason: null,
+    createdAt: at,
+    updatedAt: at,
+    version: 1,
     ...assignment,
-  });
+  };
+  repository.assignments.push(record);
+  return record;
 }

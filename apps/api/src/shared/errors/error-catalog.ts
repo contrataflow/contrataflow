@@ -182,6 +182,21 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     detail:
       'Não é possível desativar o perfil Administrador do órgão: mantenha ao menos um administrador ativo.',
   },
+  ROLE_ASSIGNMENT_NOT_FOUND: {
+    status: 404,
+    title: 'Atribuição não encontrada',
+    detail: 'Atribuição de perfil não encontrada.',
+  },
+  ROLE_ASSIGNMENT_ALREADY_EXISTS: {
+    status: 409,
+    title: 'Atribuição já existente',
+    detail: 'Este perfil já está atribuído neste escopo.',
+  },
+  EXTERNAL_HIGH_RISK_ROLE: {
+    status: 422,
+    title: 'Perfil não permitido para externo',
+    detail: 'Este perfil não pode ser atribuído a um vínculo externo.',
+  },
   DEPARTMENT_CYCLE: {
     status: 422,
     title: 'Movimentação inválida',

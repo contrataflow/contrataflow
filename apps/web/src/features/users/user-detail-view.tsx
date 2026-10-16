@@ -13,6 +13,7 @@ import { useTenantId } from '@/lib/session/session-context';
 
 import { MembershipActionDialog } from './membership-action-dialog';
 import type { MembershipDialogAction } from './membership-action-dialog';
+import { RoleAssignmentsSection } from './role-assignments-section';
 import { StatusBadge } from './status-badge';
 import { UserDepartmentsForm } from './user-departments-form';
 import { UserDetailForm } from './user-detail-form';
@@ -33,7 +34,8 @@ interface FeedbackState {
 /**
  * Detalhe do vínculo (SCR-029 `/admin/usuarios/[userId]` · US-092): dados globais somente leitura,
  * `UserDetailForm` (USR-08), lotações com principal explícita (USR-09) e as ações de acesso
- * (suspender, reativar, revogar — USR-10..12) conforme `meta.allowedActions`. Toda mutação envia
+ * (suspender, reativar, revogar — USR-10..12) conforme `meta.allowedActions` e a aba "Perfis e
+ * acessos" (US-096 · ROL-10..12). Toda mutação envia
  * `If-Match`; a resposta (mesmo formato do detalhe, novo `ETag`) substitui o detalhe em cache e
  * invalida a lista, sem recarregar a página. 412/409 recarregam o detalhe antes de nova tentativa;
  * 404 devolve à lista.
@@ -288,6 +290,12 @@ export function UserDetailView({ userId }: { readonly userId: string }) {
           onFailed={failed}
         />
       </section>
+
+      <RoleAssignmentsSection
+        key={`roles:${membership.id}`}
+        membership={membership}
+        returnTo={detailPath}
+      />
 
       {hasActions ? (
         <section aria-labelledby={`${selfNoteId}-access`} className="flex flex-col gap-3">
