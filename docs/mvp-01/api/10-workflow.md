@@ -121,7 +121,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório)
 - **Request:** —
-- **Response:** `200 { data: WorkflowVersion[] }` ordenado por `versionNumber` desc; `WorkflowVersion { id, workflowId, versionNumber, status, changeNotes, publishedAt?, publishedById?, retiredAt?, retiredById? }`
+- **Response:** `200 { data: WorkflowVersion[] }` ordenado por `versionNumber` desc; `WorkflowVersion { id, workflowId, versionNumber, status, changeNotes, publishedAt?, publishedById?, publishedByName?, retiredAt?, retiredById?, retiredByName?, definitionHash?, version }` (nomes de quem publicou/aposentou — aba "Versões" da US-045)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -321,7 +321,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `versionId` (uuid, obrigatório)
 - **Request:** —
-- **Response:** `200 { data: { errors: [{ code, stageKey?, transitionKey?, ruleId? }], warnings: [{ code, stageKey?, transitionKey?, ruleId? }] } }` (catálogo `WF_*` — api.md §2.3)
+- **Response:** `200 { data: { valid, errors: [{ code, message, stageKey?, transitionKey?, ruleId? }], warnings: [{ code, message, stageKey?, transitionKey?, ruleId? }] } }` (catálogo `WF_*` — api.md §2.3; `valid` ⇔ `errors` vazio)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -339,12 +339,14 @@
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_PUBLISH` |
-  | 409 | `INVALID_STATE` | Versão não está no status esperado para publicar |
-  | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-  | 422 | `WORKFLOW_INVALID` | `errors[]` de WF-20 pendentes |
+  | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
+  | 409 | `INVALID_STATE` | Versão não está em `DRAFT` (`meta.status`) |
+  | 412 | `VERSION_CONFLICT` | `If-Match` divergente (conferido antes do status: a segunda publicação simultânea recebe 412) |
+  | 422 | `WORKFLOW_INVALID` | `errors[]` de WF-20 pendentes (em `validation.errors`/`validation.warnings`) |
+  | 428 | `PRECONDITION_REQUIRED` | Sem `If-Match` |
   | 422 | `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`) | `changeNotes` ausente a partir da v2 |
 - **Efeitos:** Evento `WorkflowVersionPublished` (`workflow.version_published`; payload `workflowId`, `workflowVersionId`, `versionNumber`, `definitionHash`); auditoria `workflow.version_publish` (`metadata`: `versionNumber`, `definitionHash`, `changeNotes`)
-- **Notas:** publicação exige zero `errors[]` de WF-20.
+- **Notas:** publicação exige zero `errors[]` de WF-20 — a mesma validação roda de novo dentro da transação (`WorkflowVersionPublisher`, RN-WF-20); a publicada anterior é aposentada (supersedida) na mesma transação. `ETag` da resposta = nova `version`.
 
 ### WF-22 — Aposentar versão do workflow
 `POST /api/v1/workflow-versions/{versionId}/retire` · **Permissão:** `WORKFLOW_PUBLISH` · **Story:** US-045
@@ -356,11 +358,13 @@
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_PUBLISH` |
-  | 409 | `INVALID_STATE` | Versão não está no status esperado para aposentar |
-  | 409 | `WORKFLOW_IN_USE` | É a única versão aplicável do workflow |
+  | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
+  | 409 | `INVALID_STATE` | Versão não está em `PUBLISHED` (`meta.status`) |
+  | 409 | `WORKFLOW_IN_USE` | É a corrente, sem outra `PUBLISHED`, de workflow ativo ou padrão (RN-WF-66) |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+  | 428 | `PRECONDITION_REQUIRED` | Sem `If-Match` |
 - **Efeitos:** Evento `WorkflowVersionRetired` (`workflow.version_retired`; payload `workflowId`, `workflowVersionId`); auditoria `workflow.version_retire` (`metadata.versionNumber`)
-- **Notas:** publicar uma nova versão antes de aposentar a corrente quando for a única aplicável.
+- **Notas:** publicar uma nova versão antes de aposentar a corrente quando for a única aplicável. Aposentando a corrente, a outra `PUBLISHED` de maior número assume; num workflow inativo e não padrão (FA-04), `currentPublishedVersionId` fica `null`. Processos que fixaram a versão continuam nela (RN-WF-67).
 
 ### WF-23 — Testar regra
 `POST /api/v1/workflow-versions/{versionId}/rules/test` · **Permissão:** `WORKFLOW_MANAGE` + `PROCESS_VIEW` (do processo informado) · **Story:** US-044

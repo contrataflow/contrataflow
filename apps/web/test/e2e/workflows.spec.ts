@@ -2,7 +2,8 @@
 // padrão" com confirmação e toast, a ação desabilitada para workflow sem versão publicada; o editor
 // (criar workflow, adicionar etapas e transição, recarregar e confirmar a persistência, "Criar
 // rascunho" a partir da publicada, reordenação pelo teclado), as regras do SCR-035 (US-044: criar
-// `REQUIRED_DOCUMENT`, testá-la contra um processo e salvar), axe-core em cada estado e a largura
+// `REQUIRED_DOCUMENT`, testá-la contra um processo e salvar), a aba "Versões" (US-045: validar →
+// corrigir → publicar; a corrente única não é aposentada), axe-core em cada estado e a largura
 // de 360 px. A API é simulada (support/mock-api.mjs); seeder, aplicabilidade
 // (WF-06), concorrência e isolamento por tenant são cobertos nos testes da API (módulo `workflow`
 // e suíte tenant leak). A criação de processo de dispensa resolvendo o workflow chega com a US-001.
@@ -146,6 +147,45 @@ test('"Criar rascunho" a partir da versão publicada libera a edição', async (
   await expect(page.getByText('Rascunho v2 criado.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar etapa' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'rascunho criado a partir da publicada');
+});
+
+test('versões (US-045): validar → corrigir → publicar; a corrente única não é aposentada', async ({
+  page,
+}) => {
+  await openList(page);
+  await page.getByRole('link', { name: STANDARD }).click();
+  await page.getByRole('tab', { name: 'Versões' }).click();
+  const versions = page.getByRole('tabpanel', { name: 'Versões' });
+  await expect(versions.getByRole('button', { name: 'Publicar' })).toBeDisabled();
+
+  // FA-05: sem etapa inicial, a validação bloqueia e leva à aba "Etapas".
+  await versions.getByRole('button', { name: 'Validar' }).click();
+  await expect(versions.getByText(/precisa de exatamente uma etapa inicial/)).toBeVisible();
+  await expect(versions.getByRole('button', { name: 'Publicar' })).toBeDisabled();
+  await expectNoSeriousA11yViolations(page, 'validação com erro');
+  await versions.getByRole('button', { name: 'Ir para as etapas' }).click();
+  await addStage(page, 'Abertura', 'START');
+
+  await page.getByRole('tab', { name: 'Versões' }).click();
+  await versions.getByRole('button', { name: 'Validar' }).click();
+  await expect(
+    versions.getByText('Nenhum erro bloqueante. A versão pode ser publicada.'),
+  ).toBeVisible();
+  await versions.getByRole('button', { name: 'Publicar' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Publicar a versão 2' });
+  await dialog.getByRole('button', { name: 'Publicar' }).click();
+  await expect(dialog.getByText('Descreva o que mudou nesta versão.')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'diálogo de publicação');
+  await dialog.getByLabel('Notas da versão (obrigatório)').fill('Inclui a etapa de abertura.');
+  await dialog.getByRole('button', { name: 'Publicar' }).click();
+  await expect(page.getByText('Versão 2 publicada')).toBeVisible();
+
+  await expect(versions.getByText('Inclui a etapa de abertura.').first()).toBeVisible();
+  await expect(versions.getByText('Aposentada').first()).toBeVisible();
+  await expect(
+    versions.getByRole('button', { name: 'Aposentar a versão 2' }).first(),
+  ).toBeDisabled();
+  await expectNoSeriousA11yViolations(page, 'histórico de versões');
 });
 
 test('no celular (360 px) o painel da etapa vira modal, sem rolagem horizontal', async ({

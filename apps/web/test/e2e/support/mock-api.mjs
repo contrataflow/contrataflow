@@ -1961,6 +1961,116 @@ createServer(async (request, response) => {
     return send(response, 200, { data: workflow }, { ETag: `"${workflow.version}"` });
   }
   const draftRoute = /^\/api\/v1\/workflows\/([0-9a-f-]{36})\/versions$/.exec(url.pathname);
+  // US-045 · WF-07: histórico por número decrescente (sem etapas/transições/regras).
+  if (draftRoute && request.method === 'GET') {
+    const workflow = workflows.find((item) => item.id === draftRoute[1]);
+    if (!workflow) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const data = [...workflowVersions.values()]
+      .filter((version) => version.workflowId === workflow.id)
+      .sort((a, b) => b.versionNumber - a.versionNumber)
+      .map(({ stages: _s, transitions: _t, rules: _r, initialStageId: _i, ...summary }) => ({
+        ...summary,
+        publishedByName: summary.publishedAt ? 'Ana Souza' : null,
+        retiredByName: summary.retiredAt ? 'Ana Souza' : null,
+      }));
+    return send(response, 200, {
+      data,
+      meta: { page: 1, pageSize: 100, totalItems: data.length, totalPages: 1 },
+    });
+  }
+  // US-045 · WF-20/21/22: validar (só a etapa inicial bloqueia), publicar com If-Match e notas a
+  // partir da v2 (supersede a publicada anterior) e aposentar (corrente única → WORKFLOW_IN_USE).
+  const workflowLifecycleRoute =
+    /^\/api\/v1\/workflow-versions\/([0-9a-f-]{36})\/(validate|publish|retire)$/.exec(url.pathname);
+  if (workflowLifecycleRoute && request.method === 'POST') {
+    const version = workflowVersions.get(workflowLifecycleRoute[1]);
+    if (!version) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const workflow = workflows.find((item) => item.id === version.workflowId);
+    const issue = (code, message, stageKey = null) => ({
+      code,
+      message,
+      stageKey,
+      transitionKey: null,
+      ruleId: null,
+    });
+    const validation = () => {
+      const errors = [];
+      if (version.stages.filter((stage) => stage.type === 'START').length !== 1) {
+        errors.push(
+          issue('WF_START_STAGE_COUNT', 'O fluxo precisa de exatamente uma etapa inicial.'),
+        );
+      }
+      const warnings = version.stages
+        .filter((stage) => stage.slaDays === null)
+        .map((stage) =>
+          issue('WF_STAGE_NO_SLA', `A etapa ${stage.name} não tem prazo.`, stage.key),
+        );
+      return { valid: errors.length === 0, errors, warnings };
+    };
+    if (workflowLifecycleRoute[2] === 'validate')
+      return send(response, 200, { data: validation() });
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (String(request.headers['if-match'] ?? '') !== `"${version.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const summaryOf = ({ stages: _s, transitions: _t, rules: _r, ...summary }) => summary;
+    const now = new Date().toISOString();
+    if (workflowLifecycleRoute[2] === 'publish') {
+      if (version.status !== 'DRAFT') {
+        return problem(response, 409, 'INVALID_STATE', String(correlationId));
+      }
+      if (version.versionNumber >= 2 && !String(body.changeNotes ?? '').trim()) {
+        return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+          errors: [
+            {
+              field: 'changeNotes',
+              code: 'CONDITIONAL_REQUIRED',
+              message: 'Descreva o que mudou nesta versão.',
+            },
+          ],
+        });
+      }
+      const result = validation();
+      if (!result.valid) {
+        return problemWith(response, 422, 'WORKFLOW_INVALID', String(correlationId), {
+          members: { validation: result },
+        });
+      }
+      const previous = workflowVersions.get(workflow.currentPublishedVersion?.id ?? '');
+      if (previous) {
+        Object.assign(previous, {
+          status: 'RETIRED',
+          retiredAt: now,
+          version: previous.version + 1,
+        });
+      }
+      Object.assign(version, {
+        status: 'PUBLISHED',
+        publishedAt: now,
+        changeNotes: body.changeNotes ?? null,
+        definitionHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        version: version.version + 1,
+      });
+      Object.assign(workflow, {
+        currentPublishedVersion: {
+          id: version.id,
+          versionNumber: version.versionNumber,
+          publishedAt: now,
+        },
+        draftVersion: null,
+        version: workflow.version + 1,
+      });
+      return send(response, 200, { data: summaryOf(version) }, { ETag: `"${version.version}"` });
+    }
+    if (version.status !== 'PUBLISHED') {
+      return problem(response, 409, 'INVALID_STATE', String(correlationId));
+    }
+    if (workflow.currentPublishedVersion?.id === version.id && workflow.isActive) {
+      return problem(response, 409, 'WORKFLOW_IN_USE', String(correlationId));
+    }
+    Object.assign(version, { status: 'RETIRED', retiredAt: now, version: version.version + 1 });
+    return send(response, 200, { data: summaryOf(version) }, { ETag: `"${version.version}"` });
+  }
   if (draftRoute && request.method === 'POST') {
     const workflow = workflows.find((item) => item.id === draftRoute[1]);
     if (!workflow) return problem(response, 404, 'NOT_FOUND', String(correlationId));

@@ -94,10 +94,11 @@ export class WorkflowVersionPublisher {
     if (workflow.currentPublishedVersionId) {
       previous = await this.workflows.lockVersion(tx, workflow.currentPublishedVersionId);
     }
+    const changeNotes = input.changeNotes ?? version.changeNotes;
     await this.workflows.publishVersion(tx, {
       id: version.id,
       initialStageId,
-      changeNotes: input.changeNotes ?? version.changeNotes,
+      changeNotes,
       snapshot,
       hash: definitionHash,
       publishedAt: now,
@@ -116,6 +117,7 @@ export class WorkflowVersionPublisher {
         workflowId: workflow.id,
         definitionHash,
         versionNumber: version.versionNumber,
+        changeNotes,
         warningsCount: result.warnings.length,
       },
     });

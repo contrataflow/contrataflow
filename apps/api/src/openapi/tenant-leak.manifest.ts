@@ -40,6 +40,9 @@ const WORKFLOW_RULE_SCHEMA_ROUTE =
 const WORKFLOW_RULE_TEST_ROUTE =
   'Testar regra (US-044 · WF-23): exige WORKFLOW_MANAGE (que o usuário comum da suíte não tem) e a suíte genérica não tem fixture de workflow nem de processo do tenant B; o isolamento (versão e processo de B → 404 igual ao inexistente, nada gravado) é coberto em test/tenant-leak/workflow-rules.spec.ts, com administradores nos dois tenants.';
 
+const WORKFLOW_PUBLISHING_ROUTE =
+  'Validar, publicar e aposentar versão (US-045 · WF-20/21/22): publicar e aposentar exigem WORKFLOW_PUBLISH e If-Match, e a suíte genérica não tem fixture de workflow do tenant B; o isolamento (versão de B → 404 igual ao inexistente, nada alterado) é coberto em test/tenant-leak/workflow-publishing.spec.ts, com administradores nos dois tenants.';
+
 const EXAMPLE_ROUTE =
   'Rota interna de exemplo do pipeline (US-080/US-084): não lê nem grava dados de tenant e fica fora do contrato público.';
 
@@ -190,6 +193,9 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-17': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-18': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-19': { kind: 'exempt', reason: WORKFLOW_RULE_SCHEMA_ROUTE },
+  'WF-20': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
+  'WF-21': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
+  'WF-22': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
   'WF-23': { kind: 'exempt', reason: WORKFLOW_RULE_TEST_ROUTE },
   'PRC-01': { kind: 'exempt', reason: PROCESS_LIST_ROUTE },
   'PRC-02': { kind: 'exempt', reason: PROCESS_ROUTE },

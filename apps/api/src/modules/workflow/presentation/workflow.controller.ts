@@ -6,6 +6,7 @@ import {
   workflowCreateSchema,
   workflowIdParamsSchema,
   workflowListQuerySchema,
+  workflowPublishSchema,
   workflowResolutionSchema,
   workflowResolveSchema,
   workflowRuleDtoSchema,
@@ -24,6 +25,7 @@ import {
   workflowTransitionSchema,
   workflowTransitionUpdateSchema,
   workflowUpdateSchema,
+  workflowValidationResultSchema,
   workflowVersionCreateSchema,
   workflowVersionDetailSchema,
   workflowVersionIdParamsSchema,
@@ -35,6 +37,7 @@ import type {
   WorkflowCreate,
   WorkflowDto,
   WorkflowListQuery,
+  WorkflowPublish,
   WorkflowResolutionDto,
   WorkflowResolve,
   WorkflowRuleCreate,
@@ -49,8 +52,10 @@ import type {
   WorkflowTransitionDto,
   WorkflowTransitionUpdate,
   WorkflowUpdate,
+  WorkflowValidationResult,
   WorkflowVersionCreate,
   WorkflowVersionDetailDto,
+  WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 
@@ -65,6 +70,11 @@ import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.
 
 import { ResolveWorkflowQuery } from '../application/workflow-applicability.service.js';
 import { SetDefaultWorkflowCommand } from '../application/workflow-default.command.js';
+import {
+  PublishWorkflowVersionCommand,
+  RetireWorkflowVersionCommand,
+  ValidateWorkflowVersionQuery,
+} from '../application/workflow-publication.commands.js';
 import {
   GetRuleContextSchemaQuery,
   TestWorkflowRuleQuery,
@@ -107,6 +117,8 @@ const ifMatchVersion = (ifMatch: IfMatchValue | null) => ifMatch?.value ?? 0;
  * transições, regras). Leitura exige `WORKFLOW_VIEW`; escrita, `WORKFLOW_MANAGE` + MFA (POL-14);
  * tornar padrão, `WORKFLOW_PUBLISH` + MFA. Alterar, excluir e tornar padrão exigem `If-Match`.
  * US-044: schema do RuleContext (WF-19) e "Testar regra" (WF-23 — dry-run, sem MFA própria).
+ * US-045: validar (WF-20, `WORKFLOW_VIEW`), publicar e aposentar (WF-21/22, `WORKFLOW_PUBLISH` + MFA
+ * e `If-Match`).
  */
 @Controller()
 @TenantScope('TENANT')
@@ -132,6 +144,9 @@ export class WorkflowController {
     private readonly resolveWorkflow: ResolveWorkflowQuery,
     private readonly testRuleQuery: TestWorkflowRuleQuery,
     private readonly ruleContextSchema: GetRuleContextSchemaQuery,
+    private readonly validateVersionQuery: ValidateWorkflowVersionQuery,
+    private readonly publishVersionCommand: PublishWorkflowVersionCommand,
+    private readonly retireVersionCommand: RetireWorkflowVersionCommand,
   ) {}
 
   @Get('workflows')
@@ -298,7 +313,8 @@ export class WorkflowController {
     tags: TAGS,
     responses: {
       200: {
-        description: 'Versões por número decrescente (status, datas, autores e `definitionHash`).',
+        description:
+          'Versões por número decrescente (status, datas, autores com nome, notas e `definitionHash`).',
         schema: pageEnvelope(workflowVersionSummarySchema),
       },
     },
@@ -355,6 +371,90 @@ export class WorkflowController {
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<WorkflowVersionDetailDto> {
     const version = await this.getVersion.execute(params.versionId);
+    response.setHeader('ETag', `"${version.version}"`);
+    return version;
+  }
+
+  @Post('workflow-versions/:versionId/validate')
+  @HttpCode(200)
+  @RequirePermission('WORKFLOW_VIEW')
+  @ApiOperation({
+    operationId: 'WF-20',
+    summary: 'Validar versão do workflow',
+    tags: TAGS,
+    auditExempt: 'Validação somente de leitura: o POST não grava nada (a publicação é auditada).',
+    responses: {
+      200: {
+        description:
+          '`errors[]` (bloqueiam a publicação) e `warnings[]` (`WF_*` — api.md §2.3) com `stageKey`/`transitionKey`/`ruleId`. Nada é gravado.',
+        schema: dataEnvelope(workflowValidationResultSchema),
+      },
+    },
+  })
+  postValidateVersion(
+    @ZodParams(workflowVersionIdParamsSchema) params: { versionId: string },
+  ): Promise<WorkflowValidationResult> {
+    return this.validateVersionQuery.execute(params.versionId);
+  }
+
+  @Post('workflow-versions/:versionId/publish')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('WORKFLOW_PUBLISH')
+  @ApiOperation({
+    operationId: 'WF-21',
+    summary: 'Publicar versão do workflow',
+    tags: TAGS,
+    auditActions: ['workflow.version_publish'],
+    responses: {
+      200: {
+        description:
+          'Versão `PUBLISHED` (snapshot e `definitionHash` gravados, corrente do workflow; novo `ETag`). Erros de validação → 422 `WORKFLOW_INVALID`; notas ausentes a partir da v2 → 422 `VALIDATION_ERROR`; fora de `DRAFT` → 409 `INVALID_STATE`.',
+        schema: dataEnvelope(workflowVersionSummarySchema),
+      },
+    },
+  })
+  async postPublishVersion(
+    @ZodParams(workflowVersionIdParamsSchema) params: { versionId: string },
+    @ZodBody(workflowPublishSchema) body: WorkflowPublish,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<WorkflowVersionSummaryDto> {
+    const version = await this.publishVersionCommand.execute({
+      versionId: params.versionId,
+      body,
+      expectedVersion: ifMatchVersion(ifMatch),
+    });
+    response.setHeader('ETag', `"${version.version}"`);
+    return version;
+  }
+
+  @Post('workflow-versions/:versionId/retire')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('WORKFLOW_PUBLISH')
+  @ApiOperation({
+    operationId: 'WF-22',
+    summary: 'Aposentar versão do workflow',
+    tags: TAGS,
+    auditActions: ['workflow.version_retire'],
+    responses: {
+      200: {
+        description:
+          'Versão `RETIRED` (novo `ETag`). Fora de `PUBLISHED` → 409 `INVALID_STATE`; corrente sem outra publicada num workflow em uso → 409 `WORKFLOW_IN_USE`.',
+        schema: dataEnvelope(workflowVersionSummarySchema),
+      },
+    },
+  })
+  async postRetireVersion(
+    @ZodParams(workflowVersionIdParamsSchema) params: { versionId: string },
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<WorkflowVersionSummaryDto> {
+    const version = await this.retireVersionCommand.execute({
+      versionId: params.versionId,
+      expectedVersion: ifMatchVersion(ifMatch),
+    });
     response.setHeader('ETag', `"${version.version}"`);
     return version;
   }

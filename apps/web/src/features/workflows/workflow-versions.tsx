@@ -1,0 +1,695 @@
+'use client';
+
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+  Skeleton,
+  toast,
+} from '@contrataflow/ui';
+import {
+  CHANGE_NOTES_REQUIRED_FROM_VERSION,
+  workflowValidationResultSchema,
+} from '@contrataflow/validation';
+import type {
+  WorkflowDto,
+  WorkflowValidationIssue,
+  WorkflowValidationResult,
+  WorkflowVersionSummaryDto,
+} from '@contrataflow/validation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
+import { useEffect, useId, useRef, useState } from 'react';
+
+import { isApiError } from '@/lib/api/api-error';
+import { usePermission } from '@/lib/permissions/use-permission';
+import { useTenantId } from '@/lib/session/session-context';
+
+import {
+  changeNotesProblem,
+  formatDateTime,
+  isCurrentVersion,
+  issueTarget,
+  retireBlocked,
+  shortHash,
+} from './workflow-versions-model';
+import type { IssueTarget } from './workflow-versions-model';
+import {
+  fetchWorkflowVersions,
+  publishWorkflowVersion,
+  retireWorkflowVersion,
+  validateWorkflowVersion,
+  workflowKeys,
+  WORKFLOWS_STALE_TIME_MS,
+} from './workflows.api';
+
+type Translate = ReturnType<typeof useTranslations>;
+
+/** Mensagem da falha de publicar/aposentar/validar (Casos de erro da US-045). */
+function actionErrorMessage(error: unknown, t: Translate): string {
+  if (!isApiError(error)) return t('errors.generic');
+  if (error.status === 412 || error.status === 428) return t('errors.conflict');
+  if (error.code === 'INVALID_STATE' || error.code === 'WORKFLOW_VERSION_NOT_DRAFT') {
+    return t('errors.state');
+  }
+  if (error.code === 'WORKFLOW_IN_USE') return t('errors.inUse');
+  if (error.code === 'MFA_REQUIRED') return t('errors.mfa');
+  if (error.status === 403) return t('errors.forbidden');
+  if (error.status === 503) return t('errors.unavailable');
+  return error.message || t('errors.generic');
+}
+
+/** `errors[]`/`warnings[]` do 422 `WORKFLOW_INVALID` (extensão `validation` — api.md §2.3). */
+function validationOf(error: unknown): WorkflowValidationResult | null {
+  if (!isApiError(error) || error.code !== 'WORKFLOW_INVALID') return null;
+  const parsed = workflowValidationResultSchema
+    .partial({ valid: true })
+    .safeParse(error.problem?.validation);
+  return parsed.success ? { ...parsed.data, valid: false } : null;
+}
+
+/**
+ * Aba "Versões" do SCR-034 (US-045): histórico (WF-07), "Validar" o rascunho (WF-20) com a lista
+ * de problemas, "Publicar" (WF-21, desabilitado enquanto houver `errors[]`) com as notas da versão
+ * e "Aposentar" (WF-22). Sem `WORKFLOW_PUBLISH`, publicar/aposentar ficam visíveis e desabilitados
+ * para quem tem `WORKFLOW_MANAGE` e ocultos para quem só consulta. A API decide (RN-FND-92).
+ */
+export function WorkflowVersionsSection({
+  workflow,
+  onGoTo,
+}: {
+  readonly workflow: WorkflowDto;
+  /** Leva à aba onde o problema se corrige (FA-05). */
+  readonly onGoTo: (target: IssueTarget) => void;
+}) {
+  const t = useTranslations('workflows.versions');
+  const tenantId = useTenantId();
+  const queryClient = useQueryClient();
+  const ids = useId();
+  const canPublish = usePermission('WORKFLOW_PUBLISH').allowed;
+  const canManage = usePermission('WORKFLOW_MANAGE').allowed;
+  const [validation, setValidation] = useState<WorkflowValidationResult | null>(null);
+  const [publishing, setPublishing] = useState<WorkflowVersionSummaryDto | null>(null);
+  const [retiring, setRetiring] = useState<WorkflowVersionSummaryDto | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const history = useQuery({
+    queryKey: workflowKeys.versions(tenantId, workflow.id),
+    queryFn: async ({ signal }) => (await fetchWorkflowVersions(workflow.id, signal)).data,
+    staleTime: WORKFLOWS_STALE_TIME_MS,
+    throwOnError: false,
+  });
+  const items = history.data ?? [];
+  const draft = items.find((item) => item.status === 'DRAFT') ?? null;
+
+  // Workflow, versão aberta no editor e histórico: a publicação/aposentadoria muda os três.
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: workflowKeys.all(tenantId) });
+  };
+
+  const validate = useMutation({
+    mutationFn: (versionId: string) => validateWorkflowVersion(versionId),
+    onSuccess: (result) => {
+      setMessage(null);
+      setValidation(result.data);
+    },
+    onError: (error) => {
+      setMessage(actionErrorMessage(error, t));
+    },
+  });
+
+  // Só "Publicar" (com permissão) quando a última validação do rascunho não tem erros (RN-WF-61).
+  const publishDisabledReason = !canPublish
+    ? t('publishForbidden')
+    : validation === null
+      ? t('validateFirst')
+      : validation.errors.length > 0
+        ? t('publishBlocked')
+        : null;
+
+  return (
+    <section aria-labelledby={`${ids}-title`} className="flex flex-col gap-4">
+      <h2 id={`${ids}-title`} className="text-lg font-semibold">
+        {t('title')}
+      </h2>
+      <div aria-live="assertive">{message ? <Alert tone="error" title={message} /> : null}</div>
+
+      {draft ? (
+        <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+          <p className="text-sm">{t('draftHint', { number: draft.versionNumber })}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              disabled={validate.isPending}
+              aria-busy={validate.isPending}
+              onClick={() => {
+                validate.mutate(draft.id);
+              }}
+            >
+              {validate.isPending ? t('validating') : t('validate')}
+            </Button>
+            {canPublish || canManage ? (
+              <>
+                <Button
+                  disabled={publishDisabledReason !== null}
+                  aria-describedby={
+                    publishDisabledReason !== null ? `${ids}-publish-reason` : undefined
+                  }
+                  title={publishDisabledReason ?? undefined}
+                  onClick={() => {
+                    setPublishing(draft);
+                  }}
+                >
+                  {t('publish')}
+                </Button>
+                {publishDisabledReason !== null ? (
+                  <span id={`${ids}-publish-reason`} className="sr-only">
+                    {publishDisabledReason}
+                  </span>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          {validation ? <ValidationResultPanel result={validation} onGoTo={onGoTo} /> : null}
+        </div>
+      ) : null}
+
+      {history.isPending ? (
+        <div role="status" className="flex flex-col gap-2">
+          <span className="sr-only">{t('loading')}</span>
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : history.isError ? (
+        <Alert tone="error" title={t('loadFailed')}>
+          <Button variant="secondary" size="sm" onClick={() => void history.refetch()}>
+            {t('retry')}
+          </Button>
+        </Alert>
+      ) : (
+        <VersionList
+          workflow={workflow}
+          items={items}
+          canRetire={canPublish}
+          showRetire={canPublish || canManage}
+          onRetire={setRetiring}
+        />
+      )}
+
+      <PublishDialog
+        item={publishing}
+        warnings={validation?.warnings ?? []}
+        onClose={() => {
+          setPublishing(null);
+        }}
+        onPublished={(published) => {
+          setValidation(null);
+          refresh();
+          toast({
+            title: t('toast.published', { number: published.versionNumber }),
+            tone: 'success',
+          });
+        }}
+        onInvalid={(result) => {
+          setValidation(result);
+          refresh();
+        }}
+      />
+      <RetireConfirmDialog
+        item={retiring}
+        blocked={retiring !== null && retireBlocked(workflow, retiring, items)}
+        onClose={() => {
+          setRetiring(null);
+        }}
+        onDone={(retired) => {
+          refresh();
+          if (retired) {
+            toast({
+              title: t('toast.retired', { number: retired.versionNumber }),
+              tone: 'success',
+            });
+          }
+        }}
+      />
+    </section>
+  );
+}
+
+/**
+ * `ValidationResultPanel` (passo 3 · FA-01/FA-05): `errors[]` bloqueantes e `warnings[]`
+ * informativos, navegáveis por teclado, com o foco no primeiro item e link para onde corrigir.
+ */
+function ValidationResultPanel({
+  result,
+  onGoTo,
+}: {
+  readonly result: WorkflowValidationResult;
+  readonly onGoTo: (target: IssueTarget) => void;
+}) {
+  const t = useTranslations('workflows.versions');
+  const ids = useId();
+  const firstRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    firstRef.current?.focus();
+  }, [result]);
+
+  if (result.errors.length === 0 && result.warnings.length === 0) {
+    return <Alert tone="success" title={t('validation.ok')} />;
+  }
+  const list = (issues: readonly WorkflowValidationIssue[], first: boolean) => (
+    <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
+      {issues.map((issue, index) => {
+        const target = issueTarget(issue);
+        return (
+          <li
+            key={`${issue.code}-${String(index)}`}
+            ref={first && index === 0 ? firstRef : undefined}
+            tabIndex={first && index === 0 ? -1 : undefined}
+          >
+            {issue.message}{' '}
+            {target.kind !== 'none' ? (
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => {
+                  onGoTo(target);
+                }}
+              >
+                {t(`validation.goTo.${target.kind}`)}
+              </button>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  return (
+    <div className="flex flex-col gap-3">
+      {result.errors.length > 0 ? (
+        <section
+          aria-labelledby={`${ids}-errors`}
+          className="rounded-card border border-border bg-destructive-soft p-3"
+        >
+          <h3 id={`${ids}-errors`} className="font-medium">
+            {t('validation.errorsTitle', { count: result.errors.length })}
+          </h3>
+          {list(result.errors, true)}
+        </section>
+      ) : (
+        <Alert tone="success" title={t('validation.noErrors')} />
+      )}
+      {result.warnings.length > 0 ? (
+        <section
+          aria-labelledby={`${ids}-warnings`}
+          className="rounded-card border border-border bg-warning-soft p-3"
+        >
+          <h3 id={`${ids}-warnings`} className="font-medium">
+            {t('validation.warningsTitle', { count: result.warnings.length })}
+          </h3>
+          {list(result.warnings, result.errors.length === 0)}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function Badge({ children, tone }: { readonly children: string; readonly tone: 'muted' | 'ok' }) {
+  return (
+    <span
+      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${
+        tone === 'ok' ? 'bg-success-soft text-foreground' : 'bg-muted text-muted-foreground'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * `VersionList` (RN-WF-69): tabela a partir de 768 px e cartões abaixo disso, com situação,
+ * datas e autores, notas, hash resumido e "Aposentar" nas publicadas.
+ */
+function VersionList({
+  workflow,
+  items,
+  canRetire,
+  showRetire,
+  onRetire,
+}: {
+  readonly workflow: WorkflowDto;
+  readonly items: readonly WorkflowVersionSummaryDto[];
+  readonly canRetire: boolean;
+  readonly showRetire: boolean;
+  readonly onRetire: (item: WorkflowVersionSummaryDto) => void;
+}) {
+  const t = useTranslations('workflows.versions');
+  const ids = useId();
+  if (items.length === 0) return <p className="text-muted-foreground">{t('empty')}</p>;
+
+  const empty = t('noValue');
+  const statusOf = (item: WorkflowVersionSummaryDto) => (
+    <span className="flex flex-wrap gap-1">
+      <Badge tone={item.status === 'PUBLISHED' ? 'ok' : 'muted'}>
+        {t(`status.${item.status}`)}
+      </Badge>
+      {isCurrentVersion(workflow, item) ? <Badge tone="ok">{t('current')}</Badge> : null}
+    </span>
+  );
+  const when = (iso: string | null, name: string | null | undefined) => {
+    const date = formatDateTime(iso);
+    if (!date) return empty;
+    return name ? t('byWhom', { date, name }) : date;
+  };
+  const retireAction = (item: WorkflowVersionSummaryDto) => {
+    if (!showRetire || item.status !== 'PUBLISHED') return null;
+    const blocked = retireBlocked(workflow, item, items);
+    const reason = !canRetire ? t('retireForbidden') : blocked ? t('retireBlocked') : null;
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={reason !== null}
+          aria-label={t('retireLabel', { number: item.versionNumber })}
+          aria-describedby={reason ? `${ids}-${item.id}-reason` : undefined}
+          title={reason ?? undefined}
+          onClick={() => {
+            onRetire(item);
+          }}
+        >
+          {t('retire')}
+        </Button>
+        {reason ? (
+          <span id={`${ids}-${item.id}-reason`} className="sr-only">
+            {reason}
+          </span>
+        ) : null}
+      </>
+    );
+  };
+
+  return (
+    <>
+      <div className="hidden overflow-x-auto rounded-card border border-border bg-surface shadow-card md:block">
+        <table className="w-full text-left text-sm">
+          <caption className="sr-only">{t('caption')}</caption>
+          <thead className="bg-muted text-xs text-muted-foreground uppercase">
+            <tr>
+              {(
+                [
+                  'number',
+                  'status',
+                  'publishedAt',
+                  'retiredAt',
+                  'notes',
+                  'hash',
+                  'actions',
+                ] as const
+              ).map((column) => (
+                <th key={column} scope="col" className="px-3 py-2">
+                  {t(`columns.${column}`)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id} className="border-t border-border align-top">
+                <th scope="row" className="px-3 py-2 font-medium">
+                  {t('number', { number: item.versionNumber })}
+                </th>
+                <td className="px-3 py-2">{statusOf(item)}</td>
+                <td className="px-3 py-2">{when(item.publishedAt, item.publishedByName)}</td>
+                <td className="px-3 py-2">{when(item.retiredAt, item.retiredByName)}</td>
+                <td className="max-w-xs px-3 py-2 text-muted-foreground">
+                  {item.changeNotes ?? empty}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs">
+                  {item.definitionHash ? (
+                    <span title={item.definitionHash}>{shortHash(item.definitionHash)}</span>
+                  ) : (
+                    empty
+                  )}
+                </td>
+                <td className="px-3 py-2">{retireAction(item)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="flex flex-col gap-3 md:hidden" aria-label={t('caption')}>
+        {items.map((item) => (
+          <li
+            key={item.id}
+            className="flex flex-col gap-1 rounded-card border border-border bg-surface p-3"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{t('number', { number: item.versionNumber })}</span>
+              {statusOf(item)}
+            </div>
+            <p className="text-sm">
+              {t('columns.publishedAt')}: {when(item.publishedAt, item.publishedByName)}
+            </p>
+            {item.retiredAt ? (
+              <p className="text-sm">
+                {t('columns.retiredAt')}: {when(item.retiredAt, item.retiredByName)}
+              </p>
+            ) : null}
+            {item.changeNotes ? (
+              <p className="text-sm text-muted-foreground">{item.changeNotes}</p>
+            ) : null}
+            <div>{retireAction(item)}</div>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * `PublishDialog` (passos 4–5 · FA-02): notas da versão (obrigatórias a partir da v2 — RN-WF-63) e
+ * os avisos da última validação; a API revalida — erros novos voltam ao painel (`onInvalid`).
+ */
+function PublishDialog({
+  item,
+  warnings,
+  onClose,
+  onPublished,
+  onInvalid,
+}: {
+  readonly item: WorkflowVersionSummaryDto | null;
+  readonly warnings: readonly WorkflowValidationIssue[];
+  readonly onClose: () => void;
+  readonly onPublished: (published: WorkflowVersionSummaryDto) => void;
+  readonly onInvalid: (result: WorkflowValidationResult) => void;
+}) {
+  return (
+    <Dialog
+      open={item !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      {item ? (
+        <PublishBody
+          key={item.id}
+          item={item}
+          warnings={warnings}
+          onClose={onClose}
+          onPublished={onPublished}
+          onInvalid={onInvalid}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+function PublishBody({
+  item,
+  warnings,
+  onClose,
+  onPublished,
+  onInvalid,
+}: {
+  readonly item: WorkflowVersionSummaryDto;
+  readonly warnings: readonly WorkflowValidationIssue[];
+  readonly onClose: () => void;
+  readonly onPublished: (published: WorkflowVersionSummaryDto) => void;
+  readonly onInvalid: (result: WorkflowValidationResult) => void;
+}) {
+  const t = useTranslations('workflows.versions');
+  const ids = useId();
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+  const [notes, setNotes] = useState('');
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const required = item.versionNumber >= CHANGE_NOTES_REQUIRED_FROM_VERSION;
+
+  const publish = useMutation({
+    mutationFn: () => publishWorkflowVersion(item, notes),
+    onSuccess: (result) => {
+      onPublished(result.data);
+      onClose();
+    },
+    onError: (failure) => {
+      const invalid = validationOf(failure);
+      if (invalid) {
+        onInvalid(invalid);
+        onClose();
+        return;
+      }
+      const field = isApiError(failure)
+        ? failure.errors.find((fieldError) => fieldError.field === 'changeNotes')
+        : undefined;
+      if (field) {
+        setNotesError(field.message);
+        notesRef.current?.focus();
+        return;
+      }
+      setError(actionErrorMessage(failure, t));
+    },
+  });
+
+  const onConfirm = () => {
+    setError(null);
+    const problem = changeNotesProblem(item.versionNumber, notes);
+    setNotesError(problem);
+    if (problem) {
+      notesRef.current?.focus();
+      return;
+    }
+    publish.mutate();
+  };
+
+  return (
+    <DialogContent
+      aria-describedby={`${ids}-description`}
+      onOpenAutoFocus={(event) => {
+        event.preventDefault();
+        notesRef.current?.focus();
+      }}
+    >
+      <DialogTitle>{t('publishDialog.title', { number: item.versionNumber })}</DialogTitle>
+      <DialogDescription id={`${ids}-description`}>
+        {t('publishDialog.description')}
+      </DialogDescription>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${ids}-notes`} className="text-sm font-medium">
+          {required ? t('publishDialog.notesRequired') : t('publishDialog.notesOptional')}
+        </label>
+        <textarea
+          id={`${ids}-notes`}
+          ref={notesRef}
+          className="min-h-24 w-full rounded-control border border-border bg-surface px-3 py-2 text-sm"
+          value={notes}
+          maxLength={5000}
+          required={required}
+          aria-invalid={notesError !== null}
+          aria-describedby={notesError ? `${ids}-notes-error` : undefined}
+          onChange={(event) => {
+            setNotes(event.target.value);
+          }}
+        />
+        {notesError ? (
+          <p id={`${ids}-notes-error`} className="text-sm text-destructive">
+            {notesError}
+          </p>
+        ) : null}
+      </div>
+      {warnings.length > 0 ? (
+        <Alert tone="warning" title={t('publishDialog.warnings', { count: warnings.length })} />
+      ) : null}
+      {error ? <Alert tone="error" title={error} /> : null}
+      <DialogFooter>
+        <Button variant="secondary" onClick={onClose}>
+          {t('publishDialog.cancel')}
+        </Button>
+        <Button disabled={publish.isPending} aria-busy={publish.isPending} onClick={onConfirm}>
+          {publish.isPending ? t('publishDialog.publishing') : t('publishDialog.confirm')}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+/**
+ * `RetireConfirmDialog` (passo 7 · FA-03): confirma a aposentadoria; a corrente sem substituta num
+ * workflow em uso fica bloqueada com a explicação ("Publique uma nova versão antes…").
+ */
+function RetireConfirmDialog({
+  item,
+  blocked,
+  onClose,
+  onDone,
+}: {
+  readonly item: WorkflowVersionSummaryDto | null;
+  readonly blocked: boolean;
+  readonly onClose: () => void;
+  readonly onDone: (retired: WorkflowVersionSummaryDto | null) => void;
+}) {
+  const t = useTranslations('workflows.versions');
+  const ids = useId();
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const retire = useMutation({
+    mutationFn: (target: WorkflowVersionSummaryDto) => retireWorkflowVersion(target),
+    onSuccess: (result) => {
+      onDone(result.data);
+      onClose();
+    },
+    onError: (error) => {
+      setMessage(actionErrorMessage(error, t));
+      onDone(null);
+    },
+  });
+
+  const close = () => {
+    setMessage(null);
+    onClose();
+  };
+  return (
+    <Dialog
+      open={item !== null}
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
+      {item ? (
+        <DialogContent
+          aria-describedby={`${ids}-description`}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            confirmRef.current?.focus();
+          }}
+        >
+          <DialogTitle>{t('retireDialog.title', { number: item.versionNumber })}</DialogTitle>
+          <DialogDescription id={`${ids}-description`}>
+            {blocked ? t('errors.inUse') : t('retireDialog.description')}
+          </DialogDescription>
+          {message ? <Alert tone="error" title={message} /> : null}
+          <DialogFooter>
+            <Button variant="secondary" onClick={close}>
+              {t('retireDialog.cancel')}
+            </Button>
+            <Button
+              ref={confirmRef}
+              variant="destructive"
+              disabled={blocked || message !== null || retire.isPending}
+              aria-busy={retire.isPending}
+              onClick={() => {
+                retire.mutate(item);
+              }}
+            >
+              {retire.isPending ? t('retireDialog.retiring') : t('retireDialog.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+}

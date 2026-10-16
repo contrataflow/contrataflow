@@ -87,6 +87,26 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
   foco, com os mesmos condicionais da API), `workflow-transitions.tsx` e o modelo puro
   `workflow-editor-model.ts`.
 
+## Publicar, versionar e aposentar (US-045)
+
+- **WF-20 (`ValidateWorkflowVersionQuery`):** `WORKFLOW_VIEW`; o MESMO `validateIn` que a publicação
+  roda dentro da transação — "Publicar" nunca aceita o que "Validar" não sinalizou. Nada é gravado.
+- **WF-21 (`PublishWorkflowVersionCommand`):** `WORKFLOW_PUBLISH` + MFA; trava a versão, confere o
+  `If-Match` ANTES do status (corrida → 412), `DRAFT` (409 `INVALID_STATE`), notas a partir da v2
+  (`workflowPublishIssues` do pacote de validação, compartilhado com o SCR-034 — 422
+  `VALIDATION_ERROR`) e delega ao `WorkflowVersionPublisher.publishIn` (auditoria agora com
+  `changeNotes`). Logs `warn workflow.publish_blocked` (422 `WORKFLOW_INVALID`) e
+  `error workflow.publish_failed` (5xx).
+- **WF-22 (`RetireWorkflowVersionCommand`):** `WORKFLOW_PUBLISH` + MFA; trava versão e workflow (a
+  ordem do publicador), `If-Match`, e a decisão pura `domain/workflow-version-lifecycle.ts`
+  (`decideRetirement` — RN-WF-66): corrente sem outra `PUBLISHED` num workflow ativo ou padrão →
+  409 `WORKFLOW_IN_USE`; outra `PUBLISHED` assume; fora de uso, `currentPublishedVersionId = null`.
+  Grava `workflow.version_retire` (`reason: MANUAL`) e `WorkflowVersionRetired`; métrica
+  `cf_workflow_retirements_total`.
+- **WF-07:** traz `publishedByName`/`retiredByName` (`IdentityFacade.userDisplayNames`).
+- **Front:** aba "Versões" do editor (`apps/web/src/features/workflows/workflow-versions.tsx` e o
+  modelo puro `workflow-versions-model.ts`).
+
 ## Regras de etapa e de transição (US-044)
 
 - **CRUD (WF-16/17/18):** os comandos da US-040 (`workflow-rule.commands.ts`). RN-WF-56:

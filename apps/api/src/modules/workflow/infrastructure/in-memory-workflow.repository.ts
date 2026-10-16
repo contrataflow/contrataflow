@@ -168,7 +168,7 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
   setCurrentPublished(
     _tx: TenantTx,
     workflowId: string,
-    versionId: string,
+    versionId: string | null,
     change: { readonly now: Date; readonly userId: string | null },
   ): Promise<void> {
     const current = this.visible(this.workflows, workflowId);
@@ -204,6 +204,14 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       items: all.slice(window.skip, window.skip + window.take),
       total: all.length,
     });
+  }
+
+  listPublishedVersions(_tx: TenantTx, workflowId: string): Promise<WorkflowVersion[]> {
+    return Promise.resolve(
+      this.rowsOf(this.versions)
+        .filter((row) => row.workflowId === workflowId && row.status === 'PUBLISHED')
+        .sort((a, b) => b.versionNumber - a.versionNumber),
+    );
   }
 
   findDraft(_tx: TenantTx, workflowId: string): Promise<WorkflowVersion | null> {

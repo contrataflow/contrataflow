@@ -94,7 +94,10 @@ export class ListWorkflowsQuery {
   }
 }
 
-/** `ListWorkflowVersionsQuery` — WF-07: versões por número decrescente, paginadas. */
+/**
+ * `ListWorkflowVersionsQuery` — WF-07 (RN-WF-69): versões por número decrescente, paginadas, com o
+ * nome de quem publicou/aposentou (aba "Versões" do SCR-034 — US-045).
+ */
 @Injectable()
 export class ListWorkflowVersionsQuery {
   constructor(
@@ -114,7 +117,25 @@ export class ListWorkflowVersionsQuery {
       const workflow = await this.workflows.findWorkflow(tx, workflowId);
       if (!workflow) throw workflowNotFound();
       const { items, total } = await this.workflows.listVersions(tx, workflowId, window);
-      return pageResult(items.map(toVersionSummaryDto), window, total);
+      const authorIds = new Set<string>();
+      for (const item of items) {
+        if (item.publishedById) authorIds.add(item.publishedById);
+        if (item.retiredById) authorIds.add(item.retiredById);
+      }
+      const names =
+        authorIds.size > 0
+          ? await this.identity.userDisplayNames(tx, [...authorIds])
+          : new Map<string, string>();
+      const nameOf = (id: string | null) => (id ? (names.get(id) ?? null) : null);
+      return pageResult(
+        items.map((item) => ({
+          ...toVersionSummaryDto(item),
+          publishedByName: nameOf(item.publishedById),
+          retiredByName: nameOf(item.retiredById),
+        })),
+        window,
+        total,
+      );
     });
   }
 }

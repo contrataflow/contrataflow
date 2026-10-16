@@ -19,6 +19,11 @@ import { WorkflowDefinitionService } from './application/workflow-definition.ser
 import { WorkflowDocumentTypeUsageProvider } from './application/workflow-document-type-usage.provider.js';
 import { WorkflowDraftEditor } from './application/workflow-draft-editor.js';
 import { WorkflowEngineService } from './application/workflow-engine.service.js';
+import {
+  PublishWorkflowVersionCommand,
+  RetireWorkflowVersionCommand,
+  ValidateWorkflowVersionQuery,
+} from './application/workflow-publication.commands.js';
 import { WorkflowReferenceService } from './application/workflow-references.js';
 import {
   GetRuleContextSchemaQuery,
@@ -126,6 +131,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     RuleTestProcessSourceRegistry,
     TestWorkflowRuleQuery,
     GetRuleContextSchemaQuery,
+    ValidateWorkflowVersionQuery,
+    PublishWorkflowVersionCommand,
+    RetireWorkflowVersionCommand,
     PrismaWorkflowRepository,
     PrismaWorkflowTransactions,
     InMemoryWorkflowRepository,

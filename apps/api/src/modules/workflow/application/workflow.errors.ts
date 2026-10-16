@@ -27,6 +27,28 @@ export function workflowVersionNotDraft(versionId: string): ApiError {
   });
 }
 
+/**
+ * 409 `INVALID_STATE` (US-045 · V-03): publicar exige `DRAFT`; aposentar, `PUBLISHED`. `meta.status`
+ * traz o status atual para a UI atualizar a lista de versões.
+ */
+export function workflowVersionInvalidState(
+  operation: 'publish' | 'retire',
+  version: { readonly id: string; readonly status: string },
+): ApiError {
+  return new ApiError('INVALID_STATE', {
+    detail: `Esta versão não pode mais ser ${operation === 'publish' ? 'publicada' : 'aposentada'}.`,
+    extensions: { meta: { workflowVersionId: version.id, status: version.status } },
+  });
+}
+
+/** 409 `WORKFLOW_IN_USE` (US-045 · RN-WF-66 · V-04 · FA-03). */
+export function workflowInUse(versionId: string): ApiError {
+  return new ApiError('WORKFLOW_IN_USE', {
+    detail: 'Publique uma nova versão antes de aposentar esta.',
+    extensions: { meta: { workflowVersionId: versionId } },
+  });
+}
+
 /** 409 `CONFLICT` da chave já usada (V-04). */
 export function workflowKeyTaken(key: string): ApiError {
   return new ApiError('CONFLICT', {

@@ -12,6 +12,8 @@ import {
   restrictedMarkdownProblem,
   ruleConfigProblems,
   workflowCreateSchema,
+  workflowPublishIssues,
+  workflowPublishSchema,
   workflowRuleSchema,
   workflowRuleTestSchema,
   workflowStageIssues,
@@ -389,5 +391,28 @@ describe('eventos de workflow (events.md §4)', () => {
         definitionHash: 'xyz',
       }),
     ).toThrow();
+  });
+});
+
+describe('workflowPublish (US-045 · RN-WF-63)', () => {
+  it('notas opcionais na v1 e obrigatórias a partir da v2', () => {
+    expect(workflowPublishIssues(1, undefined)).toEqual([]);
+    expect(workflowPublishIssues(2, ' ')).toEqual([
+      {
+        field: 'changeNotes',
+        code: 'CONDITIONAL_REQUIRED',
+        message: 'Descreva o que mudou nesta versão.',
+      },
+    ]);
+    expect(workflowPublishIssues(3, 'Mudou o TR.')).toEqual([]);
+  });
+
+  it('corpo opcional, apara as notas e recusa campos extras', () => {
+    expect(workflowPublishSchema.parse(undefined)).toEqual({});
+    expect(workflowPublishSchema.parse({ changeNotes: '  Notas  ' })).toEqual({
+      changeNotes: 'Notas',
+    });
+    expect(workflowPublishSchema.safeParse({ outro: 1 }).success).toBe(false);
+    expect(workflowPublishSchema.safeParse({ changeNotes: 'x'.repeat(5001) }).success).toBe(false);
   });
 });

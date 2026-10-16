@@ -81,6 +81,7 @@ export const WORKFLOW_LIMITS = Object.freeze({
   instructionsLength: 5000,
   approvalDocumentTypeCodes: 20,
   documentTypeCodes: 30,
+  changeNotesLength: 5000,
 });
 
 /** RN-WF-02. */
@@ -198,6 +199,36 @@ export const workflowVersionCreateSchema = z
   .strictObject({ sourceVersionId: uuidV7Schema.nullish() })
   .default({});
 export type WorkflowVersionCreate = z.infer<typeof workflowVersionCreateSchema>;
+
+/** Primeira versão em que as notas são obrigatórias para publicar (RN-WF-63 · US-045). */
+export const CHANGE_NOTES_REQUIRED_FROM_VERSION = 2;
+export const CHANGE_NOTES_REQUIRED_MESSAGE = 'Descreva o que mudou nesta versão.';
+
+/** WF-21 (corpo): notas da versão — obrigatórias a partir da v2 (RN-WF-63, conferido na API). */
+export const workflowPublishSchema = z
+  .strictObject({ changeNotes: longText(WORKFLOW_LIMITS.changeNotesLength).nullish() })
+  .default({});
+export type WorkflowPublish = z.infer<typeof workflowPublishSchema>;
+
+/**
+ * RN-WF-63 (V-02): problema de campo das notas ao publicar a versão `versionNumber` — o mesmo
+ * cálculo no diálogo "Publicar" (SCR-034) e no WF-21.
+ */
+export function workflowPublishIssues(
+  versionNumber: number,
+  changeNotes: string | null | undefined,
+): WorkflowFieldIssue[] {
+  if (versionNumber < CHANGE_NOTES_REQUIRED_FROM_VERSION) return [];
+  return (changeNotes ?? '').trim() === ''
+    ? [
+        {
+          field: 'changeNotes',
+          code: 'CONDITIONAL_REQUIRED',
+          message: CHANGE_NOTES_REQUIRED_MESSAGE,
+        },
+      ]
+    : [];
+}
 
 // ---------------------------------------------------------------------------------------------
 // Etapa (WF-10/11/12)
@@ -738,6 +769,9 @@ export const workflowVersionSummarySchema = z
     publishedById: z.uuid().nullable(),
     retiredAt: iso.nullable(),
     retiredById: z.uuid().nullable(),
+    /** Nome de quem publicou/aposentou — só no histórico (WF-07 · US-045). */
+    publishedByName: z.string().nullable().optional(),
+    retiredByName: z.string().nullable().optional(),
     definitionHash: z.string().nullable(),
     createdAt: iso,
     createdById: z.uuid().nullable(),

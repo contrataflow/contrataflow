@@ -111,11 +111,14 @@ export interface WorkflowRepository {
   insertWorkflow(tx: TenantTx, workflow: Workflow): Promise<void>;
   /** Nome/descrição com `version + 1` condicionado a `expectedVersion`. @throws VersionConflictError */
   updateWorkflow(tx: TenantTx, workflow: Workflow, expectedVersion: number): Promise<void>;
-  /** Aponta a versão publicada corrente (RN-WF-20); `version + 1`. */
+  /**
+   * Aponta a versão publicada corrente (RN-WF-20); `null` = sem publicada (aposentadoria da última
+   * de um workflow fora de uso — RN-WF-66). `version + 1`.
+   */
   setCurrentPublished(
     tx: TenantTx,
     workflowId: string,
-    versionId: string,
+    versionId: string | null,
     change: { readonly now: Date; readonly userId: string | null },
   ): Promise<void>;
 
@@ -130,6 +133,8 @@ export interface WorkflowRepository {
     window: PageWindow,
   ): Promise<{ readonly items: WorkflowVersion[]; readonly total: number }>;
   findDraft(tx: TenantTx, workflowId: string): Promise<WorkflowVersion | null>;
+  /** Versões `PUBLISHED` do workflow (sucessora na aposentadoria — RN-WF-66). */
+  listPublishedVersions(tx: TenantTx, workflowId: string): Promise<WorkflowVersion[]>;
   /** Maior `versionNumber` do workflow (sem reaproveitamento — RN-WF-04). */
   lastVersion(tx: TenantTx, workflowId: string): Promise<WorkflowVersion | null>;
   /** @throws WorkflowDraftExistsError */

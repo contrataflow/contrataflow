@@ -18,6 +18,7 @@ import type {
 } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -31,6 +32,8 @@ import { outcomeOf } from './workflow-editor-errors';
 import type { EditorProblem } from './workflow-editor-errors';
 import { graphWarnings, reorderPatches, sortStages } from './workflow-editor-model';
 import { TransitionsSection } from './workflow-transitions';
+import { WorkflowVersionsSection } from './workflow-versions';
+import type { IssueTarget } from './workflow-versions-model';
 import {
   createWorkflowDraft,
   fetchWorkflow,
@@ -149,6 +152,7 @@ export function WorkflowEditorView({ workflowId }: { readonly workflowId: string
           {version.data ? (
             <DraftEditor
               key={`${version.data.id}:${String(generation)}`}
+              workflow={workflow.data}
               version={version.data}
               readOnly={version.data.status !== 'DRAFT' || !canManage}
               onReload={reload}
@@ -264,14 +268,19 @@ function CreateDraftButton({
   );
 }
 
-type Tab = 'stages' | 'transitions';
+type Tab = 'stages' | 'transitions' | 'versions';
 
-/** Tabela de etapas + painel lateral, transições e avisos do grafo da versão carregada. */
+/**
+ * Tabela de etapas + painel lateral, transições, avisos do grafo da versão carregada e a aba
+ * "Versões" (US-045: validar, publicar e aposentar).
+ */
 function DraftEditor({
+  workflow,
   version,
   readOnly,
   onReload,
 }: {
+  readonly workflow: WorkflowDto;
   readonly version: WorkflowVersionDetailDto;
   readonly readOnly: boolean;
   readonly onReload: () => void;
@@ -279,6 +288,7 @@ function DraftEditor({
   const t = useTranslations('workflows.editor');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const ids = useId();
   const desktop = useIsDesktop();
   const [tab, setTab] = useState<Tab>('stages');
@@ -336,6 +346,19 @@ function DraftEditor({
       setProblem(outcome.kind === 'screen' ? outcome.problem : { kind: 'generic', message: null });
     } finally {
       setMoving(false);
+    }
+  };
+
+  /** FA-05: do painel de validação para onde o problema se corrige. */
+  const goTo = (target: IssueTarget) => {
+    if (target.kind === 'rule') {
+      router.push(workflowRulesHref(workflow.id));
+    } else if (target.kind === 'transition') {
+      setTab('transitions');
+    } else if (target.kind === 'stage') {
+      setTab('stages');
+      const stage = stages.find((item) => item.key === target.key);
+      if (stage) setSelected(stage.id);
     }
   };
 
@@ -412,7 +435,7 @@ function DraftEditor({
         aria-label={t('tabs.label')}
         className="flex gap-2 border-b border-border"
       >
-        {(['stages', 'transitions'] as const).map((value) => (
+        {(['stages', 'transitions', 'versions'] as const).map((value) => (
           <button
             key={value}
             type="button"
@@ -491,6 +514,10 @@ function DraftEditor({
               </DialogContent>
             </Dialog>
           ) : null}
+        </div>
+      ) : tab === 'versions' ? (
+        <div role="tabpanel" id={`${ids}-panel-versions`} aria-labelledby={`${ids}-tab-versions`}>
+          <WorkflowVersionsSection workflow={workflow} onGoTo={goTo} />
         </div>
       ) : (
         <div

@@ -99,7 +99,8 @@
     "tabs": {
       "label": "Partes do workflow",
       "stages": "Etapas",
-      "transitions": "Transições"
+      "transitions": "Transições",
+      "versions": "Versões"
     },
     "warnings": {
       "title": "Avisos do fluxo",
@@ -438,6 +439,84 @@
       "forbidden": "Você não tem permissão para editar regras.",
       "mfa": "Confirme sua identidade com o segundo fator para editar regras.",
       "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "generic": "Não foi possível concluir a operação."
+    }
+  },
+  "versions": {
+    "title": "Versões",
+    "loading": "Carregando versões…",
+    "loadFailed": "Não foi possível carregar as versões.",
+    "retry": "Tentar novamente",
+    "empty": "Este workflow ainda não tem versões.",
+    "caption": "Histórico de versões do workflow",
+    "draftHint": "Versão {number} em rascunho. Valide antes de publicar: a versão publicada passa a valer para novos processos; os processos em andamento continuam na versão em que começaram.",
+    "validate": "Validar",
+    "validating": "Validando…",
+    "publish": "Publicar",
+    "validateFirst": "Valide a versão antes de publicar.",
+    "publishBlocked": "Corrija os problemas indicados antes de publicar.",
+    "publishForbidden": "Você não tem permissão para publicar workflows.",
+    "retire": "Aposentar",
+    "retireLabel": "Aposentar a versão {number}",
+    "retireBlocked": "Publique uma nova versão antes de aposentar esta.",
+    "retireForbidden": "Você não tem permissão para aposentar versões de workflow.",
+    "number": "Versão {number}",
+    "current": "Corrente",
+    "noValue": "—",
+    "byWhom": "{date} por {name}",
+    "status": {
+      "DRAFT": "Rascunho",
+      "PUBLISHED": "Publicada",
+      "RETIRED": "Aposentada"
+    },
+    "columns": {
+      "number": "Versão",
+      "status": "Situação",
+      "publishedAt": "Publicada em",
+      "retiredAt": "Aposentada em",
+      "notes": "Notas da versão",
+      "hash": "Hash",
+      "actions": "Ações"
+    },
+    "validation": {
+      "ok": "Nenhum problema encontrado. A versão pode ser publicada.",
+      "noErrors": "Nenhum erro bloqueante. A versão pode ser publicada.",
+      "errorsTitle": "{count, plural, one {# problema impede} other {# problemas impedem}} a publicação",
+      "warningsTitle": "{count, plural, one {# aviso} other {# avisos}} (não impedem a publicação)",
+      "goTo": {
+        "stage": "Ir para as etapas",
+        "transition": "Ir para as transições",
+        "rule": "Ir para as regras"
+      }
+    },
+    "publishDialog": {
+      "title": "Publicar a versão {number}",
+      "description": "A versão publicada fica somente leitura e passa a valer para novos processos. A versão publicada anterior é aposentada.",
+      "notesRequired": "Notas da versão (obrigatório)",
+      "notesOptional": "Notas da versão (opcional na primeira versão)",
+      "warnings": "A validação apontou {count, plural, one {# aviso} other {# avisos}}. Eles não impedem a publicação.",
+      "cancel": "Cancelar",
+      "confirm": "Publicar",
+      "publishing": "Publicando…"
+    },
+    "retireDialog": {
+      "title": "Aposentar a versão {number}",
+      "description": "A versão deixa de ser oferecida. Os processos que já a usam continuam nela.",
+      "cancel": "Cancelar",
+      "confirm": "Aposentar",
+      "retiring": "Aposentando…"
+    },
+    "toast": {
+      "published": "Versão {number} publicada",
+      "retired": "Versão {number} aposentada"
+    },
+    "errors": {
+      "conflict": "Os dados foram alterados. Recarregue e tente novamente.",
+      "state": "Esta versão não pode mais ser publicada/aposentada.",
+      "inUse": "Publique uma nova versão antes de aposentar esta.",
+      "forbidden": "Você não tem permissão para publicar workflows.",
+      "mfa": "Confirme sua identidade com o segundo fator para publicar workflows.",
+      "unavailable": "Serviço temporariamente indisponível. Tente novamente em instantes.",
       "generic": "Não foi possível concluir a operação."
     }
   }

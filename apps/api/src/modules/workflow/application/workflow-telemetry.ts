@@ -4,6 +4,7 @@ import type { Counter, Histogram } from '@opentelemetry/api';
 interface WorkflowInstruments {
   readonly validationDuration: Histogram;
   readonly publications: Counter;
+  readonly retirements: Counter;
   readonly definitionCache: Counter;
   readonly engineDuration: Histogram;
   readonly ruleFailures: Counter;
@@ -23,6 +24,9 @@ function workflowInstruments(): WorkflowInstruments {
     }),
     publications: meter.createCounter('cf_workflow_publications_total', {
       description: 'Publicações de versão de workflow por resultado (published/invalid).',
+    }),
+    retirements: meter.createCounter('cf_workflow_retirements_total', {
+      description: 'Versões de workflow aposentadas pelo WF-22 (US-045).',
     }),
     definitionCache: meter.createCounter('cf_workflow_definition_cache_total', {
       description: 'Leituras da definição publicada por resultado do cache (hit/miss/unavailable).',
@@ -59,6 +63,10 @@ export function recordValidation(durationMs: number, valid: boolean): void {
 
 export function recordPublication(result: 'published' | 'invalid'): void {
   workflowInstruments().publications.add(1, { result });
+}
+
+export function recordRetirement(): void {
+  workflowInstruments().retirements.add(1);
 }
 
 export function recordDefinitionCache(result: 'hit' | 'miss' | 'unavailable'): void {

@@ -378,7 +378,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
   async setCurrentPublished(
     tx: TenantTx,
     workflowId: string,
-    versionId: string,
+    versionId: string | null,
     change: { readonly now: Date; readonly userId: string | null },
   ): Promise<void> {
     await tx.workflow.updateMany({
@@ -426,6 +426,14 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
   async findDraft(tx: TenantTx, workflowId: string): Promise<WorkflowVersion | null> {
     const row = await tx.workflowVersion.findFirst({ where: { workflowId, status: 'DRAFT' } });
     return row === null ? null : toVersion(row);
+  }
+
+  async listPublishedVersions(tx: TenantTx, workflowId: string): Promise<WorkflowVersion[]> {
+    const rows = await tx.workflowVersion.findMany({
+      where: { workflowId, status: 'PUBLISHED' },
+      orderBy: { versionNumber: 'desc' },
+    });
+    return rows.map(toVersion);
   }
 
   async lastVersion(tx: TenantTx, workflowId: string): Promise<WorkflowVersion | null> {

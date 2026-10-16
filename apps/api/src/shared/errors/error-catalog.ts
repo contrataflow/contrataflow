@@ -156,6 +156,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Workflow inválido',
     detail: 'O fluxo tem problemas que impedem a publicação.',
   },
+  WORKFLOW_IN_USE: {
+    status: 409,
+    title: 'Versão do workflow em uso',
+    detail: 'Publique uma nova versão antes de aposentar esta.',
+  },
   NO_APPLICABLE_WORKFLOW: {
     status: 422,
     title: 'Nenhum workflow aplicável',

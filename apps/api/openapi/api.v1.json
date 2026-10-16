@@ -4239,6 +4239,18 @@
             ],
             "format": "uuid"
           },
+          "publishedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retiredByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "definitionHash": {
             "type": [
               "string",
@@ -4305,6 +4317,111 @@
           "rules"
         ]
       },
+      "WorkflowVersionSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "RETIRED"
+            ]
+          },
+          "changeNotes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "publishedById": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "retiredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "retiredById": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "publishedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retiredByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "definitionHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdById": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "workflowId",
+          "versionNumber",
+          "status",
+          "changeNotes",
+          "publishedAt",
+          "publishedById",
+          "retiredAt",
+          "retiredById",
+          "definitionHash",
+          "createdAt",
+          "createdById",
+          "version"
+        ]
+      },
       "WorkflowRuleTestResult": {
         "type": "object",
         "properties": {
@@ -4356,6 +4473,89 @@
           "message",
           "contextUsed",
           "warnings"
+        ]
+      },
+      "WorkflowValidationResult": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowValidationIssue"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowValidationIssue"
+            }
+          }
+        },
+        "required": [
+          "valid",
+          "errors",
+          "warnings"
+        ]
+      },
+      "WorkflowValidationIssue": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "WF_START_STAGE_COUNT",
+              "WF_END_STAGE_MISSING",
+              "WF_STAGE_UNREACHABLE",
+              "WF_END_UNREACHABLE",
+              "WF_APPROVAL_TRANSITIONS",
+              "WF_ACTION_NOT_ALLOWED_FROM_STAGE",
+              "WF_TRANSITION_TARGET_INVALID",
+              "WF_PRIMARY_DUPLICATED",
+              "WF_DOCUMENT_TYPE_UNKNOWN",
+              "WF_APPROVER_UNRESOLVABLE",
+              "WF_DEPARTMENT_INVALID",
+              "WF_RULE_CONFIG_INVALID",
+              "WF_RULE_PATH_UNKNOWN",
+              "WF_RULE_OPERATOR_FORBIDDEN",
+              "WF_RULE_SCOPE_INVALID",
+              "WF_LIMIT_EXCEEDED",
+              "WF_STAGE_NO_SLA",
+              "WF_APPROVER_HEAD_MISSING",
+              "WF_STAGE_NO_INSTRUCTIONS",
+              "WF_RULE_INACTIVE"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "stageKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transitionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ruleId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "stageKey",
+          "transitionKey",
+          "ruleId"
         ]
       },
       "Workflow": {
@@ -4494,99 +4694,6 @@
           "name",
           "versionNumber",
           "initialStage"
-        ]
-      },
-      "WorkflowVersionSummary": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "workflowId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "versionNumber": {
-            "type": "integer"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "PUBLISHED",
-              "RETIRED"
-            ]
-          },
-          "changeNotes": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "publishedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "publishedById": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "retiredAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "retiredById": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "definitionHash": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "createdById": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "version": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "workflowId",
-          "versionNumber",
-          "status",
-          "changeNotes",
-          "publishedAt",
-          "publishedById",
-          "retiredAt",
-          "retiredById",
-          "definitionHash",
-          "createdAt",
-          "createdById",
-          "version"
         ]
       }
     },
@@ -23599,6 +23706,267 @@
         }
       }
     },
+    "/workflow-versions/{versionId}/publish": {
+      "post": {
+        "operationId": "WF-21",
+        "summary": "Publicar versão do workflow",
+        "tags": [
+          "Workflows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "workflow.version_publish"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changeNotes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 5000
+                  }
+                },
+                "default": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Versão `PUBLISHED` (snapshot e `definitionHash` gravados, corrente do workflow; novo `ETag`). Erros de validação → 422 `WORKFLOW_INVALID`; notas ausentes a partir da v2 → 422 `VALIDATION_ERROR`; fora de `DRAFT` → 409 `INVALID_STATE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowVersionSummary"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workflow-versions/{versionId}/retire": {
+      "post": {
+        "operationId": "WF-22",
+        "summary": "Aposentar versão do workflow",
+        "tags": [
+          "Workflows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "workflow.version_retire"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Versão `RETIRED` (novo `ETag`). Fora de `PUBLISHED` → 409 `INVALID_STATE`; corrente sem outra publicada num workflow em uso → 409 `WORKFLOW_IN_USE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowVersionSummary"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workflow-versions/{versionId}/rules": {
       "post": {
         "operationId": "WF-16",
@@ -24395,6 +24763,124 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/WorkflowTransition"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workflow-versions/{versionId}/validate": {
+      "post": {
+        "operationId": "WF-20",
+        "summary": "Validar versão do workflow",
+        "tags": [
+          "Workflows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-exempt": "Validação somente de leitura: o POST não grava nada (a publicação é auditada).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`errors[]` (bloqueiam a publicação) e `warnings[]` (`WF_*` — api.md §2.3) com `stageKey`/`transitionKey`/`ruleId`. Nada é gravado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowValidationResult"
                     }
                   },
                   "required": [
@@ -25390,7 +25876,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Versões por número decrescente (status, datas, autores e `definitionHash`).",
+            "description": "Versões por número decrescente (status, datas, autores com nome, notas e `definitionHash`).",
             "content": {
               "application/json": {
                 "schema": {

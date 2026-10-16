@@ -16,7 +16,9 @@ import type {
   WorkflowTransitionCreate,
   WorkflowTransitionDto,
   WorkflowTransitionUpdate,
+  WorkflowValidationResult,
   WorkflowVersionDetailDto,
+  WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
 
 import { apiRequest } from '@/lib/api/client';
@@ -27,7 +29,8 @@ import { tenantKey } from '@/lib/query/keys';
 /*
  * Workflows (US-042/US-043 · SCR-034): WF-01..05 e WF-08..15 de api/10-workflow.md — lista, padrão,
  * criação, "Criar rascunho" e a edição de etapas e transições do rascunho (cada item com o seu
- * `If-Match`). As chaves seguem a convenção `['t', tenantId, …]` (RN-FND-90).
+ * `If-Match`). US-045: histórico de versões (WF-07), validar (WF-20), publicar (WF-21) e aposentar
+ * (WF-22). As chaves seguem a convenção `['t', tenantId, …]` (RN-FND-90).
  */
 
 export const workflowKeys = {
@@ -36,6 +39,8 @@ export const workflowKeys = {
   detail: (tenantId: string, id: string) => tenantKey(tenantId, 'workflows', 'detail', id),
   version: (tenantId: string, versionId: string) =>
     tenantKey(tenantId, 'workflows', 'version', versionId),
+  versions: (tenantId: string, workflowId: string) =>
+    tenantKey(tenantId, 'workflows', 'versions', workflowId),
   lookups: (tenantId: string, kind: 'departments' | 'roles' | 'users' | 'documentTypes') =>
     tenantKey(tenantId, 'workflows', 'lookups', kind),
   ruleContextSchema: (tenantId: string) => tenantKey(tenantId, 'workflows', 'rule-context-schema'),
@@ -113,6 +118,49 @@ export function fetchWorkflowVersion(
 }
 
 const ifMatchOf = (version: number | undefined) => `"${String(version ?? 1)}"`;
+
+/** WF-07 (RN-WF-69): histórico de versões por número decrescente (até 100). */
+export function fetchWorkflowVersions(
+  workflowId: string,
+  signal?: AbortSignal,
+): Promise<ApiResult<WorkflowVersionSummaryDto[]>> {
+  return apiRequest<WorkflowVersionSummaryDto[]>(`/workflows/${workflowId}/versions`, {
+    query: { pageSize: 100 },
+    signal,
+  });
+}
+
+/** WF-20: `errors[]` (bloqueiam "Publicar") e `warnings[]` da versão. */
+export function validateWorkflowVersion(
+  versionId: string,
+): Promise<ApiResult<WorkflowValidationResult>> {
+  return apiRequest<WorkflowValidationResult>(`/workflow-versions/${versionId}/validate`, {
+    method: 'POST',
+  });
+}
+
+/** WF-21 com o `If-Match` da versão; notas obrigatórias a partir da v2 (RN-WF-63). */
+export function publishWorkflowVersion(
+  version: Pick<WorkflowVersionSummaryDto, 'id' | 'version'>,
+  changeNotes: string,
+): Promise<ApiResult<WorkflowVersionSummaryDto>> {
+  const notes = changeNotes.trim();
+  return apiRequest<WorkflowVersionSummaryDto>(`/workflow-versions/${version.id}/publish`, {
+    method: 'POST',
+    body: notes === '' ? {} : { changeNotes: notes },
+    ifMatch: ifMatchOf(version.version),
+  });
+}
+
+/** WF-22 com o `If-Match` da versão. */
+export function retireWorkflowVersion(
+  version: Pick<WorkflowVersionSummaryDto, 'id' | 'version'>,
+): Promise<ApiResult<WorkflowVersionSummaryDto>> {
+  return apiRequest<WorkflowVersionSummaryDto>(`/workflow-versions/${version.id}/retire`, {
+    method: 'POST',
+    ifMatch: ifMatchOf(version.version),
+  });
+}
 
 /** WF-10. */
 export function createStage(
