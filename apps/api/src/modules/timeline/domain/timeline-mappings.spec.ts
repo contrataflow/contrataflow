@@ -296,6 +296,17 @@ const EVENTS_DOC = fileURLToPath(
   new URL('../../../../../../docs/mvp-01/events.md', import.meta.url),
 );
 
+/**
+ * Eventos de origem de events.md §5 já especificados cujas stories produtoras ainda não foram
+ * implementadas (EP-020 — IA). A story que implementar o produtor registra o tipo, a linha do
+ * mapeamento e remove o evento daqui.
+ */
+const PENDING_SOURCE_EVENTS: Readonly<Record<string, string>> = {
+  AiGenerationCompleted: 'US-115',
+  AiContentApplied: 'US-117',
+  AiContentReviewed: 'US-122',
+};
+
 /** Eventos de origem citados na tabela de events.md §5. */
 function documentedSourceEvents(): string[] {
   const doc = readFileSync(EVENTS_DOC, 'utf8');
@@ -310,7 +321,8 @@ function documentedSourceEvents(): string[] {
       [...(line.split('|')[2] ?? '').matchAll(/`([A-Z][A-Za-z]+)\*?`/g)].map((m) => m[1]),
     )
     // Nome de evento: agregado + fato (≥ 2 palavras); `FORWARD`, `Returned` etc. são abreviações.
-    .filter((name): name is string => name !== undefined && /^[A-Z][a-z]+[A-Z]/.test(name));
+    .filter((name): name is string => name !== undefined && /^[A-Z][a-z]+[A-Z]/.test(name))
+    .filter((name) => !(name in PENDING_SOURCE_EVENTS));
   return [...new Set(names)];
 }
 

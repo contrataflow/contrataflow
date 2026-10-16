@@ -94,6 +94,9 @@ const PROCESS_LIST_ROUTE =
 const PROCESS_ROUTE =
   'Processos (US-001): a suíte genérica não tem fixtures de catálogo, workflow publicado nem processo do tenant B. O isolamento (unidade/catálogo de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, PRC-04 com id de B → 404 PROCESS_NOT_FOUND, PRC-03 nunca lista processo de B, RLS e FKs compostas das tabelas do processo) é coberto em test/tenant-leak/processes.spec.ts, com PostgreSQL real.';
 
+const PROCESS_TIMELINE_ROUTE =
+  'Timeline do processo (US-060): a suíte genérica não tem processo nem entradas de timeline do tenant B. O isolamento (PRC-12 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_timeline_entries com app.tenant_id diferente retornando vazio e cursor forjado com posição de B sem efeito) é coberto em test/tenant-leak/process-timeline.spec.ts, com PostgreSQL real.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -177,6 +180,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-04': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-08': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
+  'PRC-12': { kind: 'exempt', reason: PROCESS_TIMELINE_ROUTE },
   'TPL-01': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-02': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-03': { kind: 'exempt', reason: TEMPLATE_ROUTE },

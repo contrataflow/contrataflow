@@ -3,7 +3,12 @@ import { Module } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 
-import { TIMELINE_ENTRY_STORE, TIMELINE_LOOKUP_SOURCES } from './application/ports.js';
+import { GetProcessTimelineHandler } from './application/get-process-timeline.query.js';
+import {
+  TIMELINE_ENTRY_STORE,
+  TIMELINE_LOOKUP_SOURCES,
+  TIMELINE_TRANSACTIONS,
+} from './application/ports.js';
 import type { AnyTimelineLookupSource } from './application/ports.js';
 import { TimelineLookupResolver } from './application/timeline-lookup.resolver.js';
 import { TimelineProjector } from './application/timeline-projector.js';
@@ -16,6 +21,11 @@ import {
   ProcessLookupSource,
   ProcessStageLookupSource,
 } from './infrastructure/process-lookup.sources.js';
+import {
+  InMemoryTimelineTransactions,
+  PrismaTimelineTransactions,
+} from './infrastructure/timeline-transactions.js';
+import { TimelineController } from './presentation/timeline.controller.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { ProcessModule } from '../process/process.module.js';
@@ -26,11 +36,21 @@ import { ProcessModule } from '../process/process.module.js';
  * `platform` e projeta, na transação do caso de uso, os eventos de events.md §5. Os nomes
  * congelados vêm das fontes de `TIMELINE_LOOKUP_SOURCES`, pelas fachadas dos módulos donos —
  * a story que passa a publicar um evento mapeado registra aqui a fonte das referências dele.
+ * US-060: a leitura da timeline (PRC-12 — `TimelineController`/`GetProcessTimelineHandler`).
  */
 @Module({
   imports: [IdentityModule, OrganizationModule, ProcessModule],
+  controllers: [TimelineController],
   providers: [
     TimelineFacade,
+    GetProcessTimelineHandler,
+    PrismaTimelineTransactions,
+    {
+      provide: TIMELINE_TRANSACTIONS,
+      inject: [APP_CONFIG, PrismaTimelineTransactions],
+      useFactory: (config: AppConfig, prisma: PrismaTimelineTransactions) =>
+        config.oidc.fakeSigningKey === null ? prisma : new InMemoryTimelineTransactions(),
+    },
     TimelineProjector,
     TimelineLookupResolver,
     PrismaTimelineEntryStore,

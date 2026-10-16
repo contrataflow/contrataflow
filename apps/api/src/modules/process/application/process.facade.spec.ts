@@ -4,6 +4,8 @@ import { runWithRequestContext, updateRequestContext } from '#shared/context/req
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { ProcessFacade } from './process.facade.js';
+import type { AccessFacade } from '../../access/application/access.facade.js';
+import type { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import type { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import {
   enterStage,
@@ -12,6 +14,8 @@ import {
 } from '../domain/process-runtime-records.js';
 import { createProcess, draftProcess } from '../domain/process.js';
 import { InMemoryProcessRepository } from '../infrastructure/in-memory-process.repository.js';
+
+type ConfidentialBudgetAccess = Awaited<ReturnType<AccessFacade['confidentialBudgetAccess']>>;
 
 const A = '0192f000-0000-7000-8000-00000000000a';
 const B = '0192f000-0000-7000-8000-00000000000b';
@@ -37,7 +41,29 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
     publishedDefinitionIn: () =>
       Promise.resolve({ stages: [{ id: WF_STAGE, name: 'Formalização da demanda' }] }),
   } as unknown as WorkflowFacade;
-  const facade = new ProcessFacade(repository, workflow);
+  let budget: ConfidentialBudgetAccess = {
+    scope: { userId: ANA, tenantWide: false, organizationIds: [], departmentIds: [] },
+    custodyDepartmentIds: [],
+    stepUpAvailable: false,
+  };
+  const access = {
+    confidentialBudgetAccess: () => Promise.resolve(budget),
+  } as unknown as AccessFacade;
+  const tenancy = {
+    settingValues: () => Promise.resolve(new Map<string, unknown>()),
+  } as unknown as TenancyFacade;
+  const facade = new ProcessFacade(repository, workflow, access, tenancy);
+  const viewer = (
+    userId: string,
+    scope: Partial<ConfidentialBudgetAccess['scope']> = {},
+    custodyDepartmentIds: string[] = [],
+  ) => {
+    budget = {
+      scope: { userId, tenantWide: false, organizationIds: [], departmentIds: [], ...scope },
+      custodyDepartmentIds,
+      stepUpAvailable: false,
+    };
+  };
 
   const seed = () => {
     const draft = draftProcess(
@@ -119,5 +145,38 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
       new Map([[STAGE, 'Formalização da demanda']]),
     );
     await expect(inTenant(B, () => facade.stageNames(tx, [STAGE]))).resolves.toEqual(new Map());
+  });
+
+  describe('POL-09 de um processo (US-060 · RN-TML-13)', () => {
+    const OTHER = '0192f000-0000-7000-8000-0000000000a2';
+    const can = (tenantId = A) =>
+      inTenant(tenantId, () => facade.canViewConfidentialBudget(tx, PROCESS));
+
+    it('custódia atual: o responsável vê', async () => {
+      viewer(ANA);
+      await expect(can()).resolves.toBe(true);
+    });
+
+    it('sem permissão nem custódia: não vê (mesmo com o orçamento hoje público)', async () => {
+      viewer(OTHER);
+      await expect(can()).resolves.toBe(false);
+    });
+
+    it('PROCESS_VIEW_CONFIDENTIAL_BUDGET no tenant ou no órgão do processo: vê', async () => {
+      viewer(OTHER, { tenantWide: true });
+      await expect(can()).resolves.toBe(true);
+      viewer(OTHER, { organizationIds: [UNIT] });
+      await expect(can()).resolves.toBe(true);
+    });
+
+    it('fila da unidade só vale sem responsável', async () => {
+      viewer(OTHER, {}, [UNIT]);
+      await expect(can()).resolves.toBe(false);
+    });
+
+    it('processo de outro tenant: falha fechada', async () => {
+      viewer(OTHER, { tenantWide: true });
+      await expect(can(B)).resolves.toBe(false);
+    });
   });
 });

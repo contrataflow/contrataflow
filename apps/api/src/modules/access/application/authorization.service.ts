@@ -60,9 +60,17 @@ export interface ConfidentialBudgetAccess {
   readonly stepUpAvailable: boolean;
 }
 
-/** Inexistente, de outro tenant e não visível respondem igual (RN-IAM-104 · FA-05). */
+/**
+ * Inexistente, de outro tenant e não visível respondem igual (RN-IAM-104 · FA-05). É uma negação
+ * de `PROCESS_VIEW` (DEC-024): auditada como `access.denied` (permissions.md §1 — US-060), com o
+ * mesmo corpo nos três casos.
+ */
 export function processNotFound(): ApiError {
-  return new ApiError('PROCESS_NOT_FOUND', { detail: 'Não encontramos o recurso solicitado.' });
+  return new ApiError('PROCESS_NOT_FOUND', {
+    detail: 'Não encontramos o recurso solicitado.',
+    auditReasonCode: 'PROCESS_VIEW',
+    auditDenial: true,
+  });
 }
 
 const POLICY_DENIALS: ReadonlyMap<string, { readonly code: string; readonly status: number }> =

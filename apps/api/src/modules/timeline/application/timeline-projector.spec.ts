@@ -359,7 +359,9 @@ describe('TimelineProjector (US-059)', () => {
   it('[Falha de banco] erro transitório propaga, logado como DEPENDENCY_UNAVAILABLE', async () => {
     const spies = logs();
     const dropped = new Error('Connection terminated unexpectedly');
-    const { projector } = setup({ store: { insert: () => Promise.reject(dropped) } });
+    const { projector } = setup({
+      store: { insert: () => Promise.reject(dropped), list: () => Promise.resolve([]) },
+    });
     await expect(projector.project(tx, recorded())).rejects.toBe(dropped);
     expect(spies.error).toHaveBeenCalledWith(
       expect.objectContaining({ errorCode: 'DEPENDENCY_UNAVAILABLE', cause: 'Error' }),
@@ -370,7 +372,9 @@ describe('TimelineProjector (US-059)', () => {
   it('deadlock/serialização propaga sem log de erro (a TenantTransaction refaz tudo)', async () => {
     const spies = logs();
     const conflict = Object.assign(new Error('could not serialize access'), { code: '40001' });
-    const { projector } = setup({ store: { insert: () => Promise.reject(conflict) } });
+    const { projector } = setup({
+      store: { insert: () => Promise.reject(conflict), list: () => Promise.resolve([]) },
+    });
     await expect(projector.project(tx, recorded())).rejects.toBe(conflict);
     expect(spies.error).not.toHaveBeenCalled();
   });

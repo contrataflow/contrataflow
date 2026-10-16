@@ -212,6 +212,89 @@ for (const [type, code, label] of [
   });
 }
 
+// Timeline do processo (US-060 · PRC-12): a abertura pelo criador mais 59 eventos fixos a cada
+// 2 h para trás (cruza "Hoje", "Ontem" e dias anteriores), filtros por grupo/autor/período e
+// cursor opaco por posição — o suficiente para a aba "Timeline" (filtros e scroll infinito).
+const TIMELINE_GROUPS = {
+  PROCESS_CREATED: 'PROCESSO',
+  PROCESS_FORWARDED: 'TRAMITACAO',
+  APPROVAL_DECIDED: 'APROVACOES',
+  COMMENT_ADDED: 'COMENTARIOS',
+};
+const TIMELINE_ACTORS = [
+  { id: '0192e060-0000-7000-8000-00000000c001', name: 'Carlos Lima' },
+  { id: '0192e060-0000-7000-8000-00000000c002', name: 'Paula Reis' },
+];
+const timelines = new Map();
+function timelineOf(found) {
+  const cached = timelines.get(found.view.id);
+  if (cached) return cached;
+  const base = found.createdAtMs;
+  const entries = [
+    {
+      id: randomUUID(),
+      occurredAt: new Date(base).toISOString(),
+      type: 'PROCESS_CREATED',
+      actorType: 'USER',
+      actorId: found.view.createdBy.id,
+      actorName: found.view.createdBy.name,
+      actorDepartmentName: found.view.requestingDepartment?.name ?? null,
+      entityType: 'Process',
+      entityId: found.view.id,
+      movementId: null,
+      params: { code: found.view.code, title: found.view.title },
+      visibility: 'STANDARD',
+    },
+  ];
+  const kinds = [
+    ['APPROVAL_DECIDED', (n) => ({ decision: 'APPROVED', title: `Aprovação ${n}` })],
+    [
+      'PROCESS_FORWARDED',
+      () => ({ toStageName: 'Pesquisa de preços', toDepartmentName: 'Setor de Cotações' }),
+    ],
+    ['COMMENT_ADDED', (n) => ({ excerpt: `Comentário ${n}` })],
+  ];
+  for (let index = 1; index < 60; index += 1) {
+    const [type, params] = kinds[index % kinds.length];
+    const actor = TIMELINE_ACTORS[index % TIMELINE_ACTORS.length];
+    entries.push({
+      id: randomUUID(),
+      occurredAt: new Date(base - index * 2 * 3_600_000).toISOString(),
+      type,
+      actorType: 'USER',
+      actorId: actor.id,
+      actorName: actor.name,
+      actorDepartmentName: 'Setor de Cotações',
+      entityType: 'Process',
+      entityId: found.view.id,
+      movementId: null,
+      params: params(index),
+      visibility: 'STANDARD',
+    });
+  }
+  timelines.set(found.view.id, entries);
+  return entries;
+}
+function listTimeline(found, query) {
+  const split = (name) => (query.get(name) ?? '').split(',').filter(Boolean);
+  const groups = split('group');
+  const actors = split('actorId');
+  const from = query.get('occurredFrom');
+  const to = query.get('occurredTo');
+  const limit = Math.min(Number(query.get('limit') ?? 50), 100);
+  const offset = query.get('cursor') ? Number(query.get('cursor').slice(1)) : 0;
+  const matching = timelineOf(found).filter(
+    (entry) =>
+      (groups.length === 0 || groups.includes(TIMELINE_GROUPS[entry.type])) &&
+      (actors.length === 0 || actors.includes(entry.actorId)) &&
+      (!from || entry.occurredAt >= new Date(from).toISOString()) &&
+      (!to || entry.occurredAt <= new Date(to).toISOString()),
+  );
+  const data = matching.slice(offset, offset + limit);
+  const hasMore = offset + limit < matching.length;
+  return { data, meta: { nextCursor: hasMore ? `p${offset + limit}` : null, hasMore } };
+}
+
 // Processos (US-001 · PRC-02/03/04 e WF-06): criação numerada em sequência, aviso de duplicidade
 // por título parecido (mesmo usuário, últimos 10 min) e idempotência por `Idempotency-Key`.
 const processes = [];
@@ -1850,6 +1933,12 @@ createServer(async (request, response) => {
       { data: view },
       { Location: `/api/v1/processes/${view.id}`, ETag: '"1"' },
     );
+  }
+  const timelineRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
+  if (timelineRoute && request.method === 'GET') {
+    const found = processes.find((item) => item.view.id === timelineRoute[1]);
+    if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    return send(response, 200, listTimeline(found, url.searchParams));
   }
   const processRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/available-actions)?$/.exec(
     url.pathname,

@@ -7,6 +7,12 @@ import { AUDIT_ACTION_NAMES, AUDIT_ACTIONS, AUDIT_CATEGORIES, isAuditAction } fr
 
 const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', import.meta.url));
 
+/**
+ * Linhas de events.md §7 já especificadas cujas stories ainda não foram implementadas: as ações
+ * entram no catálogo com elas, que removem a área daqui (EP-020 — IA: US-115/US-117/US-122).
+ */
+const PENDING_AREAS: readonly string[] = ['| IA (EP-020)'];
+
 /** Ações `resource.action` citadas na tabela de events.md §7 (fonte canônica do catálogo). */
 function documentedActions(): string[] {
   const doc = readFileSync(EVENTS_DOC, 'utf8');
@@ -16,7 +22,8 @@ function documentedActions(): string[] {
   );
   const rows = section
     .split('\n')
-    .filter((line) => /^\| [A-Z]/.test(line) && !line.startsWith('| Área'));
+    .filter((line) => /^\| [A-Z]/.test(line) && !line.startsWith('| Área'))
+    .filter((line) => !PENDING_AREAS.some((area) => line.startsWith(area)));
   return [
     ...new Set(rows.flatMap((row) => [...row.matchAll(/`([a-z_]+\.[a-z_]+)`/g)].map((m) => m[1]))),
   ]

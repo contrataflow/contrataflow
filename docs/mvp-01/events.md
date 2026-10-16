@@ -248,6 +248,8 @@ O ator do envelope de `AiGenerationCompleted`/`AiGenerationFailed` é o solicita
 
 Os nomes e rótulos dos `params` são resolvidos pelo projetor no momento do fato, por fontes dos módulos donos lidas na mesma transação, e nunca refeitos depois (DEC-077); `{documentLabel}` é gravado como `documentCode`, `documentTitle` e `typeName`. Um evento pode gerar mais de uma entrada (`PROCESS_CREATED` e `PROCESS_DUPLICATED_FROM`): a unicidade é por (`sourceEventId`, `type`). Evento ou discriminador sem linha nesta tabela é ignorado.
 
+A coluna "Mensagem" é o dicionário `type` → texto compartilhado pela API e pelo web em `packages/types/src/timeline-messages.ts` (`TIMELINE_MESSAGE_TEMPLATES` e `renderTimelineEntry` — placeholders derivados como `{actor}`, `{documentLabel}`, `{fieldsLabel}`, `{roleLabel}`, `{decisionLabel}` e `{levelLabel}`); os grupos de apresentação do filtro de PRC-12 (RN-TML-12 da US-060) ficam em `TIMELINE_GROUP_TYPES` (`packages/types/src/timeline.ts`). Tipo novo entra nesta tabela, no registro, no dicionário e em um grupo.
+
 ---
 
 ## 6. Notificações derivadas de eventos

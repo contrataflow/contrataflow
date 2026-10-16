@@ -26,6 +26,16 @@ interface DocumentedType {
   readonly mandatory: boolean;
 }
 
+/**
+ * Tipos de events.md §6 já especificados cujas stories produtoras ainda não foram implementadas
+ * (EP-020 — IA): entram no registro com elas, que removem o tipo daqui.
+ */
+const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {
+  AI_GENERATION_READY: 'US-115',
+  AI_GENERATION_FAILED: 'US-115',
+  AI_USAGE_LIMIT_WARNING: 'US-116',
+};
+
 /** Linhas da tabela de events.md §6 (fonte canônica do registro `NotificationType`). */
 function documentedTypes(): DocumentedType[] {
   const doc = readFileSync(EVENTS_DOC, 'utf8');
@@ -45,7 +55,7 @@ function documentedTypes(): DocumentedType[] {
         mandatory: (cells[5] ?? '').includes('sim'),
       };
     })
-    .filter((row) => /^[A-Z_]+$/.test(row.type));
+    .filter((row) => /^[A-Z_]+$/.test(row.type) && !(row.type in PENDING_DOCUMENTED_TYPES));
 }
 
 const EVENT = '0192f111-0000-7000-8000-00000000e001';

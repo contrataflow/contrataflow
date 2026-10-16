@@ -58,6 +58,24 @@ casos de uso.
 - Eventos gerados no **worker** (`AttachmentUploaded`, `ProcessStageOverdue`) precisam do outbox e
   deste projetor no worker (US-083/US-055/US-068).
 
+## Leitura — PRC-12 (US-060)
+
+`GET /processes/{id}/timeline` (`TimelineController` → `GetProcessTimelineHandler`):
+
+- `PROCESS_VIEW` sobre o processo no guard (não visível/inexistente/outro tenant = 404
+  `PROCESS_NOT_FOUND` + `access.denied`).
+- POL-09 (RN-TML-13) avaliada uma vez por consulta pela `ProcessFacade.canViewConfidentialBudget`
+  (permissão `PROCESS_VIEW_CONFIDENTIAL_BUDGET` cobrindo o processo ou custódia atual — avaliada
+  como se o processo fosse sigiloso, para o orçamento tornado público não revelar o passado) e
+  aplicada no `WHERE` (`visibility = 'STANDARD'`), nunca depois de paginar.
+- Filtros: grupo → `type = ANY(...)` (`TIMELINE_GROUP_TYPES` em `packages/types`), `actor_id`,
+  período inclusivo; cursor opaco `{ o: occurredAt, i: id }` com `(occurred_at, id) < (...)` na
+  direção do índice `process_timeline_entries_process_idx`.
+- A resposta traz `type` + `params`; a mensagem é renderizada no web pelo dicionário
+  `renderTimelineEntry` (`packages/types/src/timeline-messages.ts`).
+- Logs: `info timeline.listed` (chaves e hash dos filtros, contagem, duração), `error
+timeline.query_failed`; métrica `timeline_list_duration_ms{filtered}`.
+
 ## Testes
 
 - Unitários: `domain/*.spec.ts` (todas as linhas de events.md §5, POL-09, V-01) e
@@ -65,3 +83,6 @@ casos de uso.
 - Integração: `test/timeline/timeline-projection.spec.ts` — PostgreSQL real com RLS, mesma
   transação, rollback, reprocessamento, concorrência e falha de banco (também na suíte
   `test:tenant-leak`).
+- Leitura (US-060): `presentation/timeline.routes.spec.ts` (8 categorias do Gherkin pelo pipeline
+  HTTP), `test/tenant-leak/process-timeline.spec.ts` (SQL, POL-09, cursor sob inserções
+  concorrentes, RLS) e `test/timeline/timeline-view.perf.ts` (p95 < 300 ms — `test:perf`).

@@ -72,3 +72,87 @@ export function isTimelineEntryType(value: unknown): value is TimelineEntryType 
 export const TIMELINE_VISIBILITIES = ['STANDARD', 'BUDGET_RESTRICTED'] as const;
 
 export type TimelineVisibility = (typeof TIMELINE_VISIBILITIES)[number];
+
+/**
+ * Grupos de apresentação da timeline (US-060 · RN-TML-12): filtro `group` de PRC-12 e ícone da
+ * entrada no frontend. Não é coluna no banco — a API traduz os grupos em `type IN (…)`. Todo tipo
+ * novo do registro entra em exatamente um grupo (teste em `timeline.test.ts`).
+ */
+export const TIMELINE_GROUPS = [
+  'PROCESSO',
+  'TRAMITACAO',
+  'DOCUMENTOS',
+  'APROVACOES',
+  'COMENTARIOS',
+] as const;
+
+export type TimelineGroup = (typeof TIMELINE_GROUPS)[number];
+
+export const TIMELINE_GROUP_TYPES: Readonly<Record<TimelineGroup, readonly TimelineEntryType[]>> = {
+  PROCESSO: [
+    'PROCESS_CREATED',
+    'PROCESS_DUPLICATED_FROM',
+    'PROCESS_UPDATED',
+    'PROCESS_NUMBER_ASSIGNED',
+    'ITEMS_CHANGED',
+    'PROCESS_SUSPENDED',
+    'PROCESS_RESUMED',
+    'PROCESS_CANCELED',
+    'PROCESS_COMPLETED',
+    'CONFIDENTIALITY_CHANGED',
+    'PARTICIPANT_ADDED',
+    'PARTICIPANT_REMOVED',
+  ],
+  TRAMITACAO: [
+    'PROCESS_FORWARDED',
+    'PROCESS_RETURNED',
+    'PROCESS_STAGE_CHANGED',
+    'PROCESS_CLAIMED',
+    'PROCESS_ASSIGNED',
+    'STAGE_OVERDUE',
+  ],
+  DOCUMENTOS: [
+    'DOCUMENT_CREATED',
+    'DOCUMENT_VERSION_CREATED',
+    'DOCUMENT_SUBMITTED',
+    'DOCUMENT_FINALIZED',
+    'DOCUMENT_APPROVED',
+    'DOCUMENT_RETURNED',
+    'DOCUMENT_REJECTED',
+    'DOCUMENT_REOPENED',
+    'DOCUMENT_CANCELED',
+    'DOCUMENT_WITHDRAWN',
+    'ETP_ALTERNATIVE_RECOMMENDED',
+    'QUOTATION_EXCLUDED',
+    'QUOTATION_RESTORED',
+    'RISK_ADDED',
+    'RISK_LEVEL_CHANGED',
+    'RISK_REMOVED',
+    'TERM_IMPORTED_FROM_ETP',
+  ],
+  APROVACOES: [
+    'APPROVAL_REQUESTED',
+    'APPROVAL_DECIDED',
+    'APPROVAL_CANCELED',
+    'APPROVAL_REASSIGNED',
+  ],
+  COMENTARIOS: ['COMMENT_ADDED', 'COMMENT_REMOVED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED'],
+};
+
+const GROUP_OF: ReadonlyMap<string, TimelineGroup> = new Map(
+  TIMELINE_GROUPS.flatMap((group) => TIMELINE_GROUP_TYPES[group].map((type) => [type, group])),
+);
+
+export function isTimelineGroup(value: unknown): value is TimelineGroup {
+  return typeof value === 'string' && (TIMELINE_GROUPS as readonly string[]).includes(value);
+}
+
+/** Grupo do tipo; tipo fora do registro (entrada antiga de tipo removido) = `PROCESSO`. */
+export function timelineGroupOf(type: string): TimelineGroup {
+  return GROUP_OF.get(type) ?? 'PROCESSO';
+}
+
+/** Tipos dos grupos selecionados (OU — RN-TML-12), sem repetição. */
+export function timelineTypesOfGroups(groups: readonly TimelineGroup[]): TimelineEntryType[] {
+  return [...new Set(groups.flatMap((group) => TIMELINE_GROUP_TYPES[group]))];
+}

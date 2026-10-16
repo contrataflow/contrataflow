@@ -38,6 +38,12 @@ const ROLE_COLUMNS: Readonly<Record<string, string>> = {
   EXT: 'CONSULTOR_EXTERNO',
 };
 
+/**
+ * Linhas da matriz §3.2 já especificadas cujas permissões entram no catálogo com stories ainda
+ * não implementadas (EP-020 — `AI_GENERATE` na US-115); a story remove a permissão daqui.
+ */
+const PENDING_PERMISSIONS: ReadonlySet<string> = new Set(['AI_GENERATE']);
+
 /** Matriz §3.2 lida do documento canônico: perfil → permissões marcadas, na ordem das linhas. */
 function matrixFromDocs(): Record<string, string[]> {
   const path = fileURLToPath(
@@ -57,6 +63,7 @@ function matrixFromDocs(): Record<string, string[]> {
     const row = /^\| `([A-Z_]+)` \|(.*)\|\s*$/.exec(line);
     if (!row) continue;
     const [, code = '', rest = ''] = row;
+    if (PENDING_PERMISSIONS.has(code)) continue;
     rest.split('|').forEach((cell, index) => {
       const role = columns[index];
       if (cell.trim() === '✔' && role) matrix[role]?.push(code);

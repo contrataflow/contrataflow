@@ -5,8 +5,8 @@ import type { ProcessDto } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
-import type { ReactNode } from 'react';
+import { useId, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import { formatDateTime, formatMoney } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
@@ -14,6 +14,76 @@ import { useShellSession } from '@/lib/session/session-context';
 import { ProcessStatusBadge } from './process-status-badge';
 import { fetchProcess, processKeys } from './processes.api';
 import { AvailableActionsPanel } from '../process-actions/available-actions-panel';
+import { TimelineFeed } from '../timeline/timeline-feed';
+
+const TABS = ['summary', 'timeline'] as const;
+type PanelTab = (typeof TABS)[number];
+
+/**
+ * Abas do painel (SCR-006): por ora "Resumo" e "Timeline" (US-060); as demais (Documentos, Itens,
+ * Tramitação, Comentários, Participantes) chegam com as stories do painel (US-004). Padrão WAI-ARIA
+ * de abas: setas e Home/End movem o foco e ativam a aba.
+ */
+function PanelTabs({
+  active,
+  onChange,
+  idPrefix,
+}: {
+  readonly active: PanelTab;
+  readonly onChange: (tab: PanelTab) => void;
+  readonly idPrefix: string;
+}) {
+  const t = useTranslations('processes.panel.tabs');
+  const refs = useRef<Partial<Record<PanelTab, HTMLButtonElement | null>>>({});
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const index = TABS.indexOf(active);
+    const moves: Record<string, number> = {
+      ArrowRight: (index + 1) % TABS.length,
+      ArrowLeft: (index - 1 + TABS.length) % TABS.length,
+      Home: 0,
+      End: TABS.length - 1,
+    };
+    const next = moves[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const tab = TABS[next] ?? 'summary';
+    onChange(tab);
+    refs.current[tab]?.focus();
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label={t('label')}
+      className="flex gap-1 overflow-x-auto border-b border-border"
+    >
+      {TABS.map((tab) => (
+        <button
+          key={tab}
+          ref={(element) => {
+            refs.current[tab] = element;
+          }}
+          type="button"
+          role="tab"
+          id={`${idPrefix}-tab-${tab}`}
+          aria-selected={active === tab}
+          aria-controls={`${idPrefix}-panel-${tab}`}
+          tabIndex={active === tab ? 0 : -1}
+          className={
+            active === tab
+              ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary'
+              : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
+          }
+          onKeyDown={onKeyDown}
+          onClick={() => {
+            onChange(tab);
+          }}
+        >
+          {t(tab)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Tipos de documento da etapa que têm texto próprio de "próximo passo" (mensagens `panel.next`). */
 const NEXT_STEP_DOCUMENTS = ['DFD'] as const;
@@ -71,14 +141,16 @@ function isoDate(value: string): string {
 /**
  * Painel mínimo do processo (SCR-006 · US-001): cabeçalho com código (ou "Rascunho (sem número)"),
  * título e situação; "Onde está", "Próximo passo" (ex.: "Elabore o DFD para formalizar a demanda.")
- * e as ações disponíveis da US-041. As demais abas/cartões chegam com as stories do painel (US-004).
- * 404/5xx vão ao `error.tsx` do segmento.
+ * e as ações disponíveis da US-041, na aba "Resumo"; a aba "Timeline" é a da US-060. As demais
+ * abas/cartões chegam com as stories do painel (US-004). 404/5xx vão ao `error.tsx` do segmento.
  */
 export function ProcessPanel({ processId }: { readonly processId: string }) {
   const t = useTranslations('processes');
   const session = useShellSession();
   const tenantId = session.activeTenant.id;
   const timeZone = session.activeTenant.timezone;
+  const tabsId = useId();
+  const [tab, setTab] = useState<PanelTab>('summary');
   const query = useQuery({
     queryKey: processKeys.detail(tenantId, processId),
     queryFn: ({ signal }) => fetchProcess(processId, signal),
@@ -131,65 +203,85 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card title={t('panel.where.title')}>
-          {stage ? (
+      <PanelTabs active={tab} onChange={setTab} idPrefix={tabsId} />
+
+      {tab === 'timeline' ? (
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-timeline`}
+          aria-labelledby={`${tabsId}-tab-timeline`}
+          className="min-w-0"
+        >
+          <TimelineFeed processId={processId} />
+        </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-summary`}
+          aria-labelledby={`${tabsId}-tab-summary`}
+          className="flex min-w-0 flex-col gap-6"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card title={t('panel.where.title')}>
+              {stage ? (
+                <Rows
+                  rows={[
+                    { label: t('panel.where.stage'), value: stage.name },
+                    { label: t('panel.where.department'), value: process.currentDepartment.name },
+                    {
+                      label: t('panel.where.responsible'),
+                      value: process.currentResponsible?.name ?? t('panel.where.noResponsible'),
+                    },
+                    {
+                      label: t('panel.where.dueAt'),
+                      value: stage.dueAt
+                        ? formatDateTime(stage.dueAt, timeZone)
+                        : t('panel.where.noDueAt'),
+                    },
+                    ...(process.targetDate
+                      ? [{ label: t('panel.where.targetDate'), value: isoDate(process.targetDate) }]
+                      : []),
+                  ]}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('panel.where.noStage')}</p>
+              )}
+            </Card>
+            <Card title={t('panel.next.title')}>{nextBody}</Card>
+          </div>
+
+          <AvailableActionsPanel processId={processId} />
+
+          <Card title={t('panel.data.title')}>
             <Rows
               rows={[
-                { label: t('panel.where.stage'), value: stage.name },
-                { label: t('panel.where.department'), value: process.currentDepartment.name },
+                { label: t('panel.data.object'), value: process.object },
+                { label: t('panel.data.contractingType'), value: process.contractingType.label },
                 {
-                  label: t('panel.where.responsible'),
-                  value: process.currentResponsible?.name ?? t('panel.where.noResponsible'),
+                  label: t('panel.data.modality'),
+                  value: process.modality?.label ?? t('panel.data.undefinedModality'),
+                },
+                { label: t('panel.data.origin'), value: process.origin.label },
+                {
+                  label: t('panel.data.workflow'),
+                  value: t('panel.data.workflowValue', {
+                    name: process.workflow.name,
+                    version: process.workflow.versionNumber,
+                  }),
                 },
                 {
-                  label: t('panel.where.dueAt'),
-                  value: stage.dueAt
-                    ? formatDateTime(stage.dueAt, timeZone)
-                    : t('panel.where.noDueAt'),
+                  label: t('panel.data.estimatedValue'),
+                  value: process.estimatedValueMasked
+                    ? t('panel.data.masked')
+                    : process.estimatedValue
+                      ? formatMoney(process.estimatedValue)
+                      : none,
                 },
-                ...(process.targetDate
-                  ? [{ label: t('panel.where.targetDate'), value: isoDate(process.targetDate) }]
-                  : []),
               ]}
             />
-          ) : (
-            <p className="text-sm text-muted-foreground">{t('panel.where.noStage')}</p>
-          )}
-        </Card>
-        <Card title={t('panel.next.title')}>{nextBody}</Card>
-      </div>
-
-      <AvailableActionsPanel processId={processId} />
-
-      <Card title={t('panel.data.title')}>
-        <Rows
-          rows={[
-            { label: t('panel.data.object'), value: process.object },
-            { label: t('panel.data.contractingType'), value: process.contractingType.label },
-            {
-              label: t('panel.data.modality'),
-              value: process.modality?.label ?? t('panel.data.undefinedModality'),
-            },
-            { label: t('panel.data.origin'), value: process.origin.label },
-            {
-              label: t('panel.data.workflow'),
-              value: t('panel.data.workflowValue', {
-                name: process.workflow.name,
-                version: process.workflow.versionNumber,
-              }),
-            },
-            {
-              label: t('panel.data.estimatedValue'),
-              value: process.estimatedValueMasked
-                ? t('panel.data.masked')
-                : process.estimatedValue
-                  ? formatMoney(process.estimatedValue)
-                  : none,
-            },
-          ]}
-        />
-      </Card>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

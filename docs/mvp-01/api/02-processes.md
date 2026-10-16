@@ -360,9 +360,10 @@ MovementItem {
 - **Request:** —
 - **Response:** `200 { data: TimelineEntry[], meta: { nextCursor, hasMore } }`:
 ```ts
-TimelineEntry { id: string; occurredAt: string; type: string; actorType: string; actorId?: string; actorName: string;
-  actorDepartmentName?: string; entityType: string; entityId: string; movementId?: string; params?: object;
-  visibility: "STANDARD" | "BUDGET_RESTRICTED" }
+TimelineEntry { id: string; occurredAt: string; type: string; actorType: ActorType; actorId: string | null;
+  actorName: string | null; // null em actorType = SYSTEM (o front exibe "Sistema")
+  actorDepartmentName: string | null; entityType: string | null; entityId: string | null; movementId: string | null;
+  params: object; visibility: "STANDARD" | "BUDGET_RESTRICTED" }
 ```
 - **Erros:**
 
@@ -372,7 +373,7 @@ TimelineEntry { id: string; occurredAt: string; type: string; actorType: string;
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
 
 - **Efeitos:** — (leitura).
-- **Notas:** catálogo de `type`/`params` por tipo de entrada em events.md §5 (projeção na timeline) e regras de visibilidade `BUDGET_RESTRICTED` em US-060 (RN-TML-13).
+- **Notas:** catálogo de `type`/`params` por tipo de entrada em events.md §5 (projeção na timeline) e regras de visibilidade `BUDGET_RESTRICTED` em US-060 (RN-TML-13). Multivalorados (`group`, `actorId`) por vírgula ou repetição (OU); filtros distintos combinam por E; período inclusivo em ISO 8601 UTC. As entradas `BUDGET_RESTRICTED` sem POL-09 saem no `WHERE` (paginação só do visível, sem indicação). Cursor inválido → 422 `INVALID_FORMAT` em `cursor`; grupo fora da tabela → `INVALID_ENUM` em `group`; período invertido → `OUT_OF_RANGE` em `occurredTo`. Processo não visível também grava `access.denied` (`reasonCode = PROCESS_VIEW`).
 
 ### PRC-13 — Listar itens do processo
 `GET /api/v1/processes/{id}/items` · **Permissão:** `PROCESS_VIEW` · **Story:** US-006

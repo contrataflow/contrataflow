@@ -227,7 +227,7 @@ Feature: Visualizar timeline com filtros
 
 ## Logs
 - `info` `timeline.listed` — `processId`, hash dos filtros aplicados, quantidade de resultados, `durationMs`.
-- `warn` `permission_cache.unavailable` — quando o Redis falhar na checagem de permissões/políticas.
+- `warn` `authorization.cache_unavailable` — quando o Redis falhar na checagem de permissões/políticas (nome do evento adotado pela US-097; esta story o citava como `permission_cache.unavailable`).
 - `error` `timeline.query_failed` — `errorCode`, `correlationId`.
 - **Nunca logar:** conteúdo de `params` sensíveis, trechos de comentários.
 

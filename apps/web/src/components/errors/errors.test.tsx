@@ -175,15 +175,17 @@ describe('FA-05 — diálogo de conflito padrão (412)', () => {
   it('429 em mutação vira aviso com o tempo de espera', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>((input) =>
+      vi.fn<typeof fetch>((input, init) =>
         Promise.resolve(
-          // O `PermissionProvider` do shell lê ME-03 ao montar (US-097); só a mutação é limitada.
+          // O shell lê ME-03 (US-097) e o perfil (US-098) ao montar; só a mutação é limitada.
           requestUrl(input).startsWith('/api/v1/me/permissions')
             ? jsonResponse({ data: { permissions: [], implicit: { headOfDepartmentIds: [] } } })
-            : jsonResponse(
-                { code: 'RATE_LIMITED' },
-                { status: 429, headers: { 'Retry-After': '12' } },
-              ),
+            : init?.method === 'POST'
+              ? jsonResponse(
+                  { code: 'RATE_LIMITED' },
+                  { status: 429, headers: { 'Retry-After': '12' } },
+                )
+              : jsonResponse({ data: {} }),
         ),
       ),
     );

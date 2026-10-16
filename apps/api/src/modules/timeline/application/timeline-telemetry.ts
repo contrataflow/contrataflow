@@ -38,3 +38,25 @@ export function timelineMetrics(): TimelineInstruments {
   };
   return instruments;
 }
+
+interface TimelineReadInstruments {
+  readonly listDuration: Histogram;
+}
+
+let readInstruments: TimelineReadInstruments | undefined;
+
+/**
+ * Leitura da timeline (US-060 · DoD): `timeline_list_duration_ms{filtered}` — latência de PRC-12
+ * no caso de uso (meta p95 < 300 ms para páginas de até 50 itens — RN-TML-16).
+ */
+export function timelineReadMetrics(): TimelineReadInstruments {
+  if (readInstruments) return readInstruments;
+  const meter = metrics.getMeter('contrataflow-api');
+  readInstruments = {
+    listDuration: meter.createHistogram('timeline_list_duration_ms', {
+      description: 'Duração da leitura paginada da timeline do processo (PRC-12).',
+      unit: 'ms',
+    }),
+  };
+  return readInstruments;
+}
