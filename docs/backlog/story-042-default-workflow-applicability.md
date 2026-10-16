@@ -68,7 +68,7 @@ Ao provisionar o tenant (US-099), o sistema semeia dois workflows já publicados
 - **RN-WF-39** — Resolução de aplicabilidade (`WF-06`, consumida também por RN-PROC-06): considera apenas `Workflow.isActive = true` com `currentPublishedVersionId` preenchido; avalia em ordem de `applicabilityPriority` crescente e, em empate, `createdAt` crescente; o primeiro cuja `applicabilityRule` for nula ou avaliar verdadeira no `RuleContext.process` vence; sem correspondência, usa o único `isDefault = true`; sem nenhum dos dois, `NO_APPLICABLE_WORKFLOW`.
 - **RN-WF-40** — Exatamente um workflow é `isDefault = true` por tenant a qualquer momento (`UNIQUE (tenant_id) WHERE is_default`); `set-default` troca atomicamente o padrão anterior pelo novo.
 - **RN-WF-41** — Somente workflow `isActive = true` com versão publicada pode se tornar `isDefault`.
-- **RN-WF-42** — `set-default` exige `If-Match` com a `version` do workflow a tornar padrão (DEC-104); divergência → `VERSION_CONFLICT`.
+- **RN-WF-42** — `set-default` exige `If-Match` com a `version` do workflow a tornar padrão (DEC-104); divergência → `VERSION_CONFLICT`. A troca trava todos os workflows do tenant e incrementa a `version` de **todos** eles (o conjunto "qual é o padrão" mudou), de modo que duas trocas feitas a partir da mesma leitura da lista resultam em uma 200 e uma 412.
 
 ## Campos
 Nota: não há formulário de entrada nesta story (os workflows nascem semeados; a troca de padrão é só uma seleção). A tabela documenta os atributos expostos na lista de workflows (SCR-034).
@@ -151,7 +151,7 @@ Feature: Workflow padrão e seleção por aplicabilidade
 
   Scenario: [Concorrência] Duas trocas de padrão simultâneas
     Given que o workflow "A" é o padrão atual
-    When dois administradores tentarem tornar "B" e "C" padrão ao mesmo tempo, cada um com o "If-Match" de "A"
+    When dois administradores tentarem tornar "B" e "C" padrão ao mesmo tempo, cada um com o "If-Match" lido na mesma listagem (em que "A" era o padrão)
     Then exatamente uma requisição deve ser aceita com 200
     And a outra deve responder 412 com código "VERSION_CONFLICT"
     And ao final deve existir exatamente um workflow com "isDefault: true"

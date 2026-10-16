@@ -156,6 +156,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Workflow inválido',
     detail: 'O fluxo tem problemas que impedem a publicação.',
   },
+  NO_APPLICABLE_WORKFLOW: {
+    status: 422,
+    title: 'Nenhum workflow aplicável',
+    detail: 'Não há fluxo configurado para este tipo de contratação.',
+  },
   ROLE_NOT_FOUND: {
     status: 404,
     title: 'Perfil não encontrado',

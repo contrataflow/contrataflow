@@ -1,6 +1,6 @@
 import type { WorkflowValidationResult } from '@contrataflow/validation';
 
-import { ApiError } from '#shared/errors/api-error.js';
+import { ApiError, businessRuleViolation } from '#shared/errors/api-error.js';
 
 /** 404 de workflow inexistente ou de outro tenant (indistinguíveis — RN-TEN). */
 export function workflowNotFound(): ApiError {
@@ -55,5 +55,39 @@ export function workflowVersionConflict(currentVersion: number): ApiError {
   return new ApiError('VERSION_CONFLICT', {
     detail: 'Outra pessoa alterou este item. Recarregue para continuar.',
     extensions: { currentVersion },
+  });
+}
+
+/**
+ * 422 `BUSINESS_RULE_VIOLATION` (RN-WF-41 · V-03): só workflow ativo e com versão publicada pode ser
+ * o padrão.
+ */
+export function workflowNotEligibleForDefault(reason: 'INACTIVE' | 'NOT_PUBLISHED'): ApiError {
+  return businessRuleViolation([
+    {
+      code: reason === 'INACTIVE' ? 'WORKFLOW_INACTIVE' : 'WORKFLOW_NOT_PUBLISHED',
+      severity: 'BLOCKING',
+      message: 'Publique uma versão e ative o workflow antes de torná-lo padrão.',
+      ruleId: 'RN-WF-41',
+      sectionKey: null,
+      field: null,
+      itemId: null,
+      params: {},
+    },
+  ]);
+}
+
+/** 412 `VERSION_CONFLICT` da troca do padrão (RN-WF-42 · V-02). */
+export function defaultVersionConflict(currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: 'Este workflow foi alterado por outra pessoa. Atualize a página.',
+    extensions: { currentVersion },
+  });
+}
+
+/** 422 `NO_APPLICABLE_WORKFLOW` (RN-WF-39 · RN-PROC-06 · V-04). */
+export function noApplicableWorkflow(): ApiError {
+  return new ApiError('NO_APPLICABLE_WORKFLOW', {
+    detail: 'Não há fluxo configurado para este tipo de contratação.',
   });
 }

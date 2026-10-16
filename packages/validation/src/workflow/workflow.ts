@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { inspectJsonLogic } from './json-logic.js';
 import { isRuleContextPath } from './rule-context.js';
+import { decimalString } from '../common/decimal.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 import { trimmedString } from '../common/text.js';
 import {
@@ -11,6 +12,7 @@ import {
   DEPARTMENT_RESOLUTIONS,
   DOCUMENT_TYPE_CODE_PATTERN,
 } from '../document/document-type.js';
+import { pageQuerySchema } from '../http/pagination.js';
 
 /*
  * Definição de workflow versionada (US-040 · DEC-014 · entities.md §4.5/§5.5 · api/10-workflow.md
@@ -732,6 +734,48 @@ export const workflowSchema = z
   })
   .meta({ id: 'Workflow' });
 export type WorkflowDto = z.infer<typeof workflowSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Lista, padrão e aplicabilidade (WF-01/05/06 · US-042)
+// ---------------------------------------------------------------------------------------------
+
+/** WF-01 (query): `q` (≥ 2 caracteres) no nome ou na chave. */
+export const workflowListQuerySchema = pageQuerySchema.extend({
+  q: z
+    .string()
+    .trim()
+    .min(2, { error: 'Informe ao menos 2 caracteres para buscar.' })
+    .max(150, { error: 'Informe no máximo 150 caracteres.' })
+    .optional(),
+});
+export type WorkflowListQuery = z.infer<typeof workflowListQuerySchema>;
+
+/**
+ * WF-06 (corpo): os dados do processo que a aplicabilidade lê (RN-WF-39). Os ids de catálogo
+ * viram `contractingTypeCode`/`modalityCode`/`originCode` do `RuleContext.process`; `modalityId`
+ * ausente = "A definir" (FA-04).
+ */
+export const workflowResolveSchema = z.strictObject({
+  contractingTypeId: uuidV7Schema,
+  modalityId: uuidV7Schema.nullish(),
+  originId: uuidV7Schema,
+  estimatedValue: decimalString({ precision: 18, scale: 2 }).nullish(),
+  organizationId: uuidV7Schema,
+  isPriceRegistration: z.boolean(),
+});
+export type WorkflowResolve = z.infer<typeof workflowResolveSchema>;
+
+/** WF-06 (resposta): workflow, versão publicada fixada e etapa inicial. */
+export const workflowResolutionSchema = z
+  .object({
+    workflowId: z.uuid(),
+    workflowVersionId: z.uuid(),
+    name: z.string(),
+    versionNumber: z.number().int(),
+    initialStage: z.object({ id: z.uuid(), key: z.string(), name: z.string() }),
+  })
+  .meta({ id: 'WorkflowResolution' });
+export type WorkflowResolutionDto = z.infer<typeof workflowResolutionSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Validação completa do grafo (`WORKFLOW_INVALID` — api.md §2.3)

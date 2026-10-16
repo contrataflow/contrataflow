@@ -1,0 +1,53 @@
+{
+  "title": "Workflows",
+  "description": "Fluxos de tramitação do órgão. O sistema escolhe o fluxo de cada processo pela regra de aplicabilidade, na ordem de prioridade; o workflow padrão vale quando nenhuma regra se aplica.",
+  "loading": "Carregando os workflows…",
+  "loadFailed": "Não foi possível carregar os workflows.",
+  "retry": "Tentar novamente",
+  "empty": "Nenhum workflow cadastrado ainda.",
+  "caption": "Workflows do órgão, na ordem em que a aplicabilidade é avaliada",
+  "forbidden": {
+    "title": "Acesso restrito",
+    "description": "Você não tem permissão para consultar os workflows."
+  },
+  "columns": {
+    "name": "Workflow",
+    "applicability": "Aplica-se a",
+    "priority": "Prioridade",
+    "version": "Versão publicada",
+    "status": "Situação",
+    "actions": "Ações"
+  },
+  "badges": {
+    "default": "Padrão",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "values": {
+    "anyProcess": "Qualquer processo",
+    "customRule": "Regra personalizada",
+    "modalities": "Modalidade: {modalities}",
+    "noPublished": "Nenhuma versão publicada",
+    "published": "v{number}",
+    "priority": "Prioridade {value}"
+  },
+  "setDefault": {
+    "action": "Tornar padrão",
+    "actionFor": "Tornar {name} o workflow padrão",
+    "ineligible": "Publique uma versão e ative o workflow antes de torná-lo padrão.",
+    "title": "Tornar \"{name}\" o workflow padrão?",
+    "description": "O padrão é usado nos processos para os quais nenhuma regra de aplicabilidade se aplica. Processos já criados não mudam de fluxo.",
+    "current": "Hoje o padrão é \"{name}\".",
+    "confirm": "Tornar padrão",
+    "cancel": "Cancelar",
+    "success": "Workflow {name} agora é o padrão."
+  },
+  "errors": {
+    "conflict": "Este workflow foi alterado por outra pessoa. Atualize a página.",
+    "permission": "Você não tem permissão para alterar o workflow padrão.",
+    "ineligible": "Publique uma versão e ative o workflow antes de torná-lo padrão.",
+    "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+    "mfa": "Confirme sua identidade com o segundo fator para alterar o workflow padrão.",
+    "generic": "Não foi possível tornar o workflow padrão."
+  }
+}

@@ -41,6 +41,8 @@ const TENANT_TABLES = [
   'organizations',
   'tenant_settings',
   'tenant_memberships',
+  'workflows',
+  'workflow_versions',
   'audit_logs',
   'outbox_events',
 ] as const;
@@ -170,6 +172,9 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
         organizations: 1,
         tenant_settings: SETTING_DEFINITIONS.length,
         tenant_memberships: 1,
+        // US-042: os dois workflows de DEC-015, cada um com a v1 publicada.
+        workflows: 2,
+        workflow_versions: 2,
       });
       const [admin] = await db.admin<{ protected: boolean }>(
         `SELECT is_protected AS protected FROM roles WHERE tenant_id = $1 AND key = 'ADMIN_ORGAO'`,
@@ -242,9 +247,18 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
         `SELECT event_type, aggregate_type FROM outbox_events WHERE tenant_id = $1 ORDER BY occurred_at`,
         [tenant.id],
       );
-      expect(events).toEqual([
+      expect(events.filter((event) => event.aggregate_type === 'Tenant')).toEqual([
         { event_type: 'TenantProvisioned', aggregate_type: 'Tenant' },
         { event_type: 'TenantActivated', aggregate_type: 'Tenant' },
+      ]);
+      // US-042: a carga dos workflows grava criação e publicação, nunca WorkflowDefaultChanged.
+      expect(
+        events.filter((event) => event.aggregate_type === 'Workflow').map((e) => e.event_type),
+      ).toEqual([
+        'WorkflowCreated',
+        'WorkflowVersionPublished',
+        'WorkflowCreated',
+        'WorkflowVersionPublished',
       ]);
     });
 
@@ -316,13 +330,20 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
       expect(problem.code).toBe('DEPENDENCY_UNAVAILABLE');
       expect(
         problem.provisioning.steps.filter((step) => step.status === 'PENDING').map((s) => s.key),
-      ).toEqual(['document.systemTypes', 'identity.firstAdmin', 'tenancy.complete']);
+      ).toEqual([
+        'document.systemTypes',
+        // A execução para na etapa que falhou: as seguintes ficam pendentes (US-042/US-106).
+        'workflow.seedWorkflows',
+        'catalog.holidays',
+        'identity.firstAdmin',
+        'tenancy.complete',
+      ]);
       const [tenant] = await db.admin<{ id: string; status: string }>(
         `SELECT id, status FROM tenants WHERE slug = 'biguacu'`,
       );
       expect(tenant?.status).toBe('PROVISIONING');
       const id = tenant?.id ?? '';
-      expect(await countsOf(id)).toMatchObject({ roles: 15, document_types: 0 });
+      expect(await countsOf(id)).toMatchObject({ roles: 15, document_types: 0, workflows: 0 });
 
       const resumed = await provision(payload);
       expect(resumed.status, JSON.stringify(resumed.body)).toBe(201);
@@ -332,6 +353,7 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
         roles: 15,
         document_types: 11,
         tenant_memberships: 1,
+        workflows: 2,
       });
       spy.mockRestore();
     });

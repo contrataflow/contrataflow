@@ -1,5 +1,5 @@
 import type { PermissionCode } from '@contrataflow/types';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
@@ -7,10 +7,13 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
+import { ROLE_REPOSITORY } from './ports.js';
+import type { RoleRepository } from './ports.js';
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 import type { SeedDefaultRolesResult } from './seed-default-roles.handler.js';
 import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
+import type { Role } from '../domain/role.js';
 
 /** Perfis padrão atribuídos com escopo `TENANT` (permissions.md §3.1). */
 const TENANT_WIDE_ROLE_KEYS: ReadonlySet<string> = new Set(
@@ -31,7 +34,10 @@ export interface RoleForApproval {
  */
 @Injectable()
 export class AccessFacade {
-  constructor(private readonly defaultRoles: SeedDefaultRolesHandler) {}
+  constructor(
+    private readonly defaultRoles: SeedDefaultRolesHandler,
+    @Inject(ROLE_REPOSITORY) private readonly roles: RoleRepository,
+  ) {}
 
   /**
    * Seeder `access.defaultRoles` (US-094 · RN-IAM-74..77) para o checklist de provisionamento
@@ -79,11 +85,27 @@ export class AccessFacade {
   }
 
   /**
-   * Perfil do tenant da transação, ou `null` se não existir nele. A tabela `roles` existe desde a
-   * US-094, mas a designação de perfis como aprovadores chega com a US-095/US-096; até lá a
-   * consulta devolve `null`.
+   * Perfil do tenant da transação designável como aprovador (US-061 · RN-DOC-07 · RN-WF-16), ou
+   * `null` se não existir nele (outro tenant = inexistente). `canDecideApprovals` vem das concessões
+   * gravadas (`APPROVAL_DECIDE` — a matriz é editável desde a US-095).
    */
-  findRoleForApproval(_tx: TenantTx, _roleId: string): Promise<RoleForApproval | null> {
-    return Promise.resolve(null);
+  async findRoleForApproval(tx: TenantTx, roleId: string): Promise<RoleForApproval | null> {
+    const role = await this.roles.findById(tx, roleId);
+    return role === null ? null : this.forApproval(tx, role);
+  }
+
+  /** Perfil pela chave estável (`AUTORIDADE_COMPETENTE`…) — seeders de outros módulos (US-042). */
+  async findRoleByKey(tx: TenantTx, key: string): Promise<RoleForApproval | null> {
+    const [role] = await this.roles.findByKeys(tx, [key]);
+    return role === undefined ? null : this.forApproval(tx, role);
+  }
+
+  private async forApproval(tx: TenantTx, role: Role): Promise<RoleForApproval> {
+    const permissions = await this.roles.permissionsOf(tx, role.id);
+    return {
+      id: role.id,
+      isActive: role.isActive,
+      canDecideApprovals: permissions.includes('APPROVAL_DECIDE'),
+    };
   }
 }

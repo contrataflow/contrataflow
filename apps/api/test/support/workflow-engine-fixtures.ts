@@ -361,7 +361,8 @@ export async function seedPublishedInMemory(
         name: 'Fase preparatória — Lei 14.133/2021',
         description: null,
         isActive: true,
-        isDefault: true,
+        // Vários por tenant nos testes: o índice único parcial admite um único padrão.
+        isDefault: false,
         applicabilityRule: null,
         applicabilityPriority: 0,
         currentPublishedVersionId: builder.versionId,

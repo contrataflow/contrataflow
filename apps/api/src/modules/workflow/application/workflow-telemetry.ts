@@ -7,6 +7,7 @@ interface WorkflowInstruments {
   readonly definitionCache: Counter;
   readonly engineDuration: Histogram;
   readonly ruleFailures: Counter;
+  readonly resolutionDuration: Histogram;
 }
 
 let instruments: WorkflowInstruments | undefined;
@@ -35,6 +36,11 @@ function workflowInstruments(): WorkflowInstruments {
       description:
         'Regras não avaliáveis em runtime por tipo e causa (tratadas como não satisfeitas).',
     }),
+    resolutionDuration: meter.createHistogram('cf_workflow_resolution_duration_ms', {
+      description:
+        'Duração da resolução do workflow aplicável por desfecho (WF-06 — US-042, meta p95 < 100 ms).',
+      unit: 'ms',
+    }),
   };
   return instruments;
 }
@@ -57,4 +63,11 @@ export function recordPublication(result: 'published' | 'invalid'): void {
 
 export function recordDefinitionCache(result: 'hit' | 'miss' | 'unavailable'): void {
   workflowInstruments().definitionCache.add(1, { result });
+}
+
+export function recordResolution(
+  via: 'RULE' | 'UNCONDITIONAL' | 'DEFAULT' | 'NONE',
+  durationMs: number,
+): void {
+  workflowInstruments().resolutionDuration.record(durationMs, { via });
 }

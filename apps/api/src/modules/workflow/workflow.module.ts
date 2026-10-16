@@ -1,12 +1,20 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalog.js';
 import { DocumentTypeUsageModule } from '#shared/document/document-type-usage.js';
+import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
+import { DefaultWorkflowsSeeder } from './application/default-workflows.seeder.js';
 import { WORKFLOW_CLOCK, WORKFLOW_REPOSITORY, WORKFLOW_TRANSACTIONS } from './application/ports.js';
 import { RuleContextBuilder, RuleContextContributorRegistry } from './application/rule-context.js';
+import {
+  ResolveWorkflowQuery,
+  WorkflowApplicabilityService,
+} from './application/workflow-applicability.service.js';
+import { SetDefaultWorkflowCommand } from './application/workflow-default.command.js';
 import { WorkflowDefinitionService } from './application/workflow-definition.service.js';
 import { WorkflowDocumentTypeUsageProvider } from './application/workflow-document-type-usage.provider.js';
 import { WorkflowDraftEditor } from './application/workflow-draft-editor.js';
@@ -37,6 +45,7 @@ import { WorkflowFacade } from './application/workflow.facade.js';
 import {
   GetWorkflowQuery,
   GetWorkflowVersionQuery,
+  ListWorkflowsQuery,
   ListWorkflowVersionsQuery,
 } from './application/workflow.queries.js';
 import {
@@ -63,7 +72,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * `DocumentTypeCatalog` e implementa a porta de uso de tipos (`DocumentTypeUsageProvider` —
  * US-061); unidades, usuários e perfis vêm das fachadas de nível 1. US-041: o motor de execução
  * (`WorkflowEngineService` + `RuleContextBuilder` com os contribuidores registrados), exposto pela
- * fachada; dias úteis na etapa vêm do calendário do `catalog`.
+ * fachada; dias úteis na etapa vêm do calendário do `catalog`. US-042: os workflows semeados
+ * (`workflow.seedWorkflows`), a troca do padrão (WF-05) e a resolução da aplicabilidade (WF-06).
  */
 @Module({
   imports: [
@@ -73,6 +83,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     OrganizationModule,
     DocumentTypeUsageModule,
     DocumentTypeCatalogModule,
+    TenantSeedingModule,
   ],
   controllers: [WorkflowController],
   providers: [
@@ -89,8 +100,13 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     UpdateWorkflowCommand,
     CreateWorkflowVersionCommand,
     GetWorkflowQuery,
+    ListWorkflowsQuery,
     ListWorkflowVersionsQuery,
     GetWorkflowVersionQuery,
+    WorkflowApplicabilityService,
+    ResolveWorkflowQuery,
+    SetDefaultWorkflowCommand,
+    DefaultWorkflowsSeeder,
     CreateWorkflowStageCommand,
     UpdateWorkflowStageCommand,
     DeleteWorkflowStageCommand,
@@ -126,4 +142,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   ],
   exports: [WorkflowFacade],
 })
-export class WorkflowModule {}
+export class WorkflowModule implements OnModuleInit {
+  constructor(
+    private readonly seeders: TenantSeederRegistry,
+    private readonly defaultWorkflows: DefaultWorkflowsSeeder,
+  ) {}
+
+  /** Seeder `workflow.seedWorkflows` no checklist de provisionamento (US-099 · US-042). */
+  onModuleInit(): void {
+    this.seeders.register(this.defaultWorkflows);
+  }
+}

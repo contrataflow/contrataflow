@@ -91,3 +91,11 @@ const DOCUMENT_PATH = new RegExp(
 export function isRuleContextPath(path: string): boolean {
   return STATIC_PATHS.has(path) || DOCUMENT_PATH.test(path);
 }
+
+/**
+ * Caminho aceito na `applicabilityRule` do workflow (RN-WF-35/39): só `process.*` — na resolução
+ * o processo ainda não existe, não há documentos, pesquisa, riscos nem etapa.
+ */
+export function isApplicabilityPath(path: string): boolean {
+  return path.startsWith('process.') && STATIC_PATHS.has(path);
+}

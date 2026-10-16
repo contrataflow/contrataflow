@@ -45,3 +45,26 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
   `warn workflow.rule_context_missing_path`; `error workflow.pinned_version_unavailable`/
   `workflow.stage_not_in_version`. Métricas `cf_workflow_engine_duration_ms` e
   `cf_workflow_rule_failures_total`; spans `workflow.available_actions`/`evaluate_rules`.
+
+## Workflow padrão e aplicabilidade (US-042)
+
+- **Seeder `workflow.seedWorkflows`** (`application/default-workflows.seeder.ts`, conteúdo em
+  `domain/default-workflows.ts` — DEC-015): `DEFAULT_PREPARATORY` (padrão, prioridade 100, sem
+  regra, 7 etapas) e `DIRECT_CONTRACTING_ART72` (prioridade 50, regra
+  `process.modalityCode ∈ {DISPENSA, INEXIGIBILIDADE}`, 5 etapas). Um workflow por
+  `TenantTransaction`, v1 publicada pela MESMA rotina do editor (`publishIn` — validação, snapshot,
+  hash). Depende de `document.systemTypes`, `access.defaultRoles` (perfil `AUTORIDADE_COMPETENTE`,
+  lido por `AccessFacade.findRoleByKey`) e `catalog.items`. Idempotente pela chave; corrida entre
+  execuções resolvida pelo índice único. `PESQUISA_PRECOS` nasce `CHOSEN_ON_FORWARD` (o tenant novo
+  não tem unidade de Compras). Mudou o conteúdo → nova `DEFAULT_WORKFLOWS_VERSION` (o seeder nunca
+  sobrescreve: tenants existentes só ganham o que falta).
+- **Resolução (WF-06 · RN-WF-39):** `domain/workflow-applicability.ts` (puro) +
+  `WorkflowApplicabilityService.resolveIn(tx, process)`, exposto em
+  `WorkflowFacade.resolveApplicable` para a criação de processo (US-001). Só caminhos `process.*`;
+  regra quebrada não casa (fail-closed, `error workflow.applicability_rule_failed`). Sem cache: lê
+  os workflows do tenant a cada chamada (poucas linhas); o prefixo `workflow:applicable` já é
+  invalidado pelo worker se um cache vier a existir.
+- **Troca do padrão (WF-05 · RN-WF-40..42):** `SetDefaultWorkflowCommand` trava TODOS os workflows
+  do tenant e sobe a `version` de todos — duas trocas sobre a mesma leitura dão 200 + 412. O índice
+  único parcial `(tenant_id) WHERE is_default` é a rede de segurança. Já padrão → 200 sem efeito.
+- **Lista (WF-01):** ordem da aplicabilidade; filtros e ordenações do editor chegam com a US-043.

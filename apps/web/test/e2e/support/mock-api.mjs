@@ -284,6 +284,55 @@ function roleSummary(role) {
   return summary;
 }
 
+// Workflows (US-042 · WF-01/WF-05): os dois semeados (DEC-015) e um piloto sem versão publicada. A
+// troca do padrão confere o If-Match do alvo e sobe a versão de todos (RN-WF-42).
+const workflows = [
+  {
+    id: '0192a000-0000-7000-8000-00000000e042',
+    key: 'DIRECT_CONTRACTING_ART72',
+    name: 'Contratação direta — Lei 14.133/2021, art. 72',
+    applicabilityRule: {
+      in: [{ var: 'process.modalityCode' }, ['DISPENSA', 'INEXIGIBILIDADE']],
+    },
+    applicabilityPriority: 50,
+    isDefault: false,
+    published: true,
+  },
+  {
+    id: '0192a000-0000-7000-8000-00000000e041',
+    key: 'DEFAULT_PREPARATORY',
+    name: 'Fase preparatória — Lei 14.133/2021',
+    applicabilityRule: null,
+    applicabilityPriority: 100,
+    isDefault: true,
+    published: true,
+  },
+  {
+    id: '0192a000-0000-7000-8000-00000000e043',
+    key: 'PILOTO_OBRAS',
+    name: 'Piloto de obras',
+    applicabilityRule: null,
+    applicabilityPriority: 100,
+    isDefault: false,
+    published: false,
+  },
+].map(({ published, ...workflow }, index) => ({
+  ...workflow,
+  description: null,
+  isActive: true,
+  currentPublishedVersion: published
+    ? {
+        id: `0192a000-0000-7000-8000-00000000f04${index}`,
+        versionNumber: 1,
+        publishedAt: '2026-10-15T12:00:00.000Z',
+      }
+    : null,
+  draftVersion: published
+    ? null
+    : { id: `0192a000-0000-7000-8000-00000000f05${index}`, versionNumber: 1 },
+  version: 2,
+}));
+
 // Templates (US-107 · TPL-01..04/07/08): template + versão 1 em rascunho; o PATCH da versão
 // recusa variável desconhecida com 422 TEMPLATE_INVALID na seção (o resto das regras é da API).
 const templates = [];
@@ -517,6 +566,8 @@ createServer(async (request, response) => {
             { code: 'TEMPLATE_VIEW', scopes: [] },
             { code: 'TEMPLATE_MANAGE', scopes: [] },
             { code: 'TEMPLATE_PUBLISH', scopes: [] },
+            { code: 'WORKFLOW_VIEW', scopes: [] },
+            { code: 'WORKFLOW_PUBLISH', scopes: [] },
           ]
         : [];
     return send(response, 200, { data: { permissions, implicit: {} } });
@@ -1253,6 +1304,27 @@ createServer(async (request, response) => {
         { ETag: `"${version.version}"` },
       );
     }
+  }
+  if (url.pathname === '/api/v1/workflows' && request.method === 'GET') {
+    return send(response, 200, {
+      data: workflows,
+      meta: { page: 1, pageSize: 100, totalItems: workflows.length, totalPages: 1 },
+    });
+  }
+  const setDefaultRoute = /^\/api\/v1\/workflows\/([0-9a-f-]{36})\/set-default$/.exec(url.pathname);
+  if (setDefaultRoute && request.method === 'POST') {
+    const workflow = workflows.find((item) => item.id === setDefaultRoute[1]);
+    if (!workflow) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${workflow.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (!workflow.isActive || workflow.currentPublishedVersion === null) {
+      return problem(response, 422, 'BUSINESS_RULE_VIOLATION', String(correlationId));
+    }
+    for (const item of workflows) {
+      Object.assign(item, { isDefault: item.id === workflow.id, version: item.version + 1 });
+    }
+    return send(response, 200, { data: workflow }, { ETag: `"${workflow.version}"` });
   }
   const templateRoute = /^\/api\/v1\/templates\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (templateRoute) {

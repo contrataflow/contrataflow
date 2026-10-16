@@ -4,7 +4,7 @@
 
 | ID | Método | Rota | Permissão | Story |
 |---|---|---|---|---|
-| WF-01 | GET | `/workflows` | `WORKFLOW_VIEW` | US-043 |
+| WF-01 | GET | `/workflows` | `WORKFLOW_VIEW` | US-042, US-043 |
 | WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` | US-040, US-043 |
 | WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | US-040, US-043 |
 | WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` | US-040, US-042, US-043 |
@@ -31,9 +31,9 @@
 ### WF-01 — Listar workflows
 `GET /api/v1/workflows` · **Permissão:** `WORKFLOW_VIEW` · **Story:** US-043
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Parâmetros:** query `status` (texto, opcional — valores não detalhados na story de origem: a definir na implementação); `q` (texto, opcional, busca ≥2 caracteres, api.md §1.2); paginação padrão (api.md §1.2); ordenação não especificada na story (a definir na implementação)
+- **Parâmetros:** query `status` (texto, opcional — valores não detalhados na story de origem: chega com a US-043); `q` (texto, opcional, busca ≥2 caracteres no nome ou na chave, api.md §1.2); paginação padrão (api.md §1.2); ordem de avaliação da aplicabilidade (`applicabilityPriority` crescente, depois `createdAt` crescente — US-042)
 - **Request:** —
-- **Response:** `200 { data: Workflow[], meta }`; `Workflow { id, key, name, description, isDefault, applicabilityPriority, applicabilityRule, isActive, version }`
+- **Response:** `200 { data: Workflow[], meta }`; `Workflow { id, key, name, description, isDefault, applicabilityPriority, applicabilityRule, isActive, currentPublishedVersion, draftVersion, version }` (o mesmo `Workflow` do WF-03; `currentPublishedVersion` nulo desabilita "Tornar padrão" — RN-WF-41)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -99,20 +99,22 @@
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `BUSINESS_RULE_VIOLATION` | Workflow inativo ou sem versão publicada |
 - **Efeitos:** Evento `WorkflowDefaultChanged` (`workflow.default_changed`) — não disparado pelo seeder inicial (RN-WF-36); auditoria `workflow.set_default` (`changes`: `isDefault` do antigo e do novo; `metadata.previousWorkflowId`)
-- **Notas:** exige workflow ativo e com versão publicada (RN-WF-41).
+- **Notas:** exige workflow ativo e com versão publicada (RN-WF-41). Trava todos os workflows do tenant e incrementa a `version` de todos (RN-WF-42): trocas concorrentes a partir da mesma leitura → uma 200 e uma 412. Workflow que já é o padrão → 200 sem alteração, auditoria nem evento.
 
 ### WF-06 — Resolver workflow aplicável
 `POST /api/v1/workflows/resolve` · **Permissão:** `WORKFLOW_VIEW` · **Story:** US-042
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** `{ contractingTypeId: uuid; modalityId?: uuid; originId: uuid; estimatedValue?: string (decimal); organizationId: uuid; isPriceRegistration: boolean }`
-- **Response:** `200 { data: { workflowId, name, versionNumber, initialStage } }`
+- **Response:** `200 { data: { workflowId, workflowVersionId, name, versionNumber, initialStage: { id, key, name } } }`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
+  | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_VIEW` |
+  | 422 | `VALIDATION_ERROR` | Item de catálogo inexistente, de outro tenant ou inativo (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
   | 422 | `NO_APPLICABLE_WORKFLOW` | Nenhum workflow publicado aplicável e sem padrão |
 - **Efeitos:** —
-- **Notas:** avaliação por `applicabilityRule` (JSON Logic) em ordem de `applicabilityPriority` (RN-WF-35/39); usado na criação de processo (US-001 FA-06).
+- **Notas:** avaliação por `applicabilityRule` (JSON Logic sobre `RuleContext.process` — só caminhos `process.*`; os ids viram `contractingTypeCode`/`modalityCode`/`originCode`) em ordem de `applicabilityPriority` crescente e, no empate, `createdAt` crescente (RN-WF-35/39); regra que falha na avaliação não casa (fail-closed). Usado na criação de processo (US-001 FA-06) pela fachada `WorkflowFacade.resolveApplicable`.
 
 ### WF-07 — Listar versões do workflow
 `GET /api/v1/workflows/{id}/versions` · **Permissão:** `WORKFLOW_VIEW` · **Story:** US-045, US-046

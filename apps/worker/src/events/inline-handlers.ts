@@ -63,6 +63,8 @@ const CONFIG_CACHE_PREFIXES: Readonly<Record<string, readonly (readonly string[]
   // o que muda na publicação/aposentadoria é o conjunto de versões vigentes do tenant.
   'workflow.version_published': [['workflow', 'applicable']],
   'workflow.version_retired': [['workflow', 'applicable']],
+  // US-042: a troca do padrão (WF-05) muda qual workflow a resolução devolve.
+  'workflow.default_changed': [['workflow', 'applicable']],
 };
 
 /**

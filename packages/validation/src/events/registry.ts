@@ -26,6 +26,7 @@ import {
 } from '../tenancy/events.js';
 import {
   WorkflowCreated,
+  WorkflowDefaultChanged,
   WorkflowVersionPublished,
   WorkflowVersionRetired,
 } from '../workflow/events.js';
@@ -59,6 +60,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   WorkflowCreated,
   WorkflowVersionPublished,
   WorkflowVersionRetired,
+  WorkflowDefaultChanged,
   TemplateVersionPublished,
   TemplateVersionRetired,
 };

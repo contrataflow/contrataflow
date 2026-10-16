@@ -67,13 +67,15 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
     {
       // events.md §3 (legenda C) — invalidadores de cache de configuração. Entram aqui os eventos
       // de configuração à medida que as stories donas os publicam (US-061: document_type.changed;
-      // US-104: catalog.item_changed; US-106: catalog.holiday_changed; US-040: workflow.version_*).
+      // US-104: catalog.item_changed; US-106: catalog.holiday_changed; US-040: workflow.version_*;
+      // US-042: workflow.default_changed).
       match: [
         'document_type.changed',
         'catalog.item_changed',
         'catalog.holiday_changed',
         'workflow.version_published',
         'workflow.version_retired',
+        'workflow.default_changed',
       ],
       handler: 'ConfigCacheInvalidator',
     },
@@ -156,6 +158,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // aplicáveis do tenant (`workflow:applicable` — US-042).
     WorkflowVersionPublished: ['workflow.version_published'],
     WorkflowVersionRetired: ['workflow.version_retired'],
+    // US-042: a troca do padrão muda o conjunto aplicável do tenant (mesmo prefixo de cache).
+    WorkflowDefaultChanged: ['workflow.default_changed'],
     // US-108: templates não têm cache (cada leitura vai ao banco) e a versão publicada é imutável;
     // o padrão do tipo muda por `DocumentTypeChanged`, que invalida o cache de tipos.
     TemplateVersionPublished: 'NO_ASYNC_CONSUMER',

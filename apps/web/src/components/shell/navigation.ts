@@ -45,7 +45,7 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin/perfis', labelKey: 'roles', permission: 'ROLE_VIEW' },
   { href: '/admin/estrutura', labelKey: 'structure' },
   { href: '/admin/templates', labelKey: 'templates', permission: 'TEMPLATE_VIEW' },
-  { href: '/admin/workflows', labelKey: 'workflows' },
+  { href: '/admin/workflows', labelKey: 'workflows', permission: 'WORKFLOW_VIEW' },
   { href: '/admin/tipos-documento', labelKey: 'documentTypes', permission: 'DOCUMENT_TYPE_MANAGE' },
   { href: '/admin/catalogos', labelKey: 'catalogs' },
   { href: '/admin/calendario', labelKey: 'calendar' },

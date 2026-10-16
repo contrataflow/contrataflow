@@ -15,8 +15,10 @@ import {
   WorkflowKeyTakenError,
 } from '../application/ports.js';
 import type {
+  DefaultSwitch,
   PageWindow,
   PublishVersionData,
+  WorkflowListFilter,
   WorkflowRepository,
   WorkflowTransactions,
 } from '../application/ports.js';
@@ -234,6 +236,12 @@ function tenantOf(): string {
 }
 
 const STAGE_ORDER = [{ displayOrder: 'asc' as const }, { key: 'asc' as const }];
+/** Ordem da aplicabilidade (RN-WF-39 · FA-03). */
+const APPLICABILITY_ORDER = [
+  { applicabilityPriority: 'asc' as const },
+  { createdAt: 'asc' as const },
+  { id: 'asc' as const },
+];
 
 /**
  * Tabelas de definição de workflow no PostgreSQL (US-040): leituras e escritas no `tx` do caso de
@@ -246,6 +254,58 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
   async findWorkflow(tx: TenantTx, id: string): Promise<Workflow | null> {
     const row = await tx.workflow.findFirst({ where: { id } });
     return row === null ? null : toWorkflow(row);
+  }
+
+  async listWorkflows(
+    tx: TenantTx,
+    filter: WorkflowListFilter,
+    window: PageWindow,
+  ): Promise<{ items: Workflow[]; total: number }> {
+    const where: Prisma.WorkflowWhereInput = filter.search
+      ? {
+          OR: [
+            { name: { contains: filter.search, mode: 'insensitive' } },
+            { key: { contains: filter.search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const rows = await tx.workflow.findMany({
+      where,
+      orderBy: APPLICABILITY_ORDER,
+      skip: window.skip,
+      take: window.take,
+    });
+    const total = await tx.workflow.count({ where });
+    return { items: rows.map(toWorkflow), total };
+  }
+
+  async listAllWorkflows(tx: TenantTx): Promise<Workflow[]> {
+    const rows = await tx.workflow.findMany({ orderBy: APPLICABILITY_ORDER });
+    return rows.map(toWorkflow);
+  }
+
+  async lockAllWorkflows(tx: TenantTx): Promise<Workflow[]> {
+    const tenantId = tenantOf();
+    await withLockTiming(
+      { lockType: 'FOR UPDATE', tableName: 'workflows' },
+      () =>
+        tx.$queryRaw`SELECT id FROM workflows WHERE tenant_id = ${tenantId}::uuid ORDER BY id FOR UPDATE`,
+    );
+    return this.listAllWorkflows(tx);
+  }
+
+  async switchDefault(tx: TenantTx, change: DefaultSwitch): Promise<void> {
+    const tenantId = tenantOf();
+    const stamp = { updatedAt: change.now, updatedById: change.userId };
+    await tx.workflow.updateMany({
+      where: { tenantId, isDefault: true, NOT: { id: change.workflowId } },
+      data: { isDefault: false, ...stamp },
+    });
+    await tx.workflow.updateMany({
+      where: { tenantId, id: change.workflowId },
+      data: { isDefault: true, ...stamp },
+    });
+    await tx.workflow.updateMany({ where: { tenantId }, data: { version: { increment: 1 } } });
   }
 
   async lockWorkflow(tx: TenantTx, id: string): Promise<Workflow | null> {

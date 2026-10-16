@@ -1,6 +1,7 @@
 import type {
   PageQuery,
   WorkflowDto,
+  WorkflowListQuery,
   WorkflowVersionDetailDto,
   WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
@@ -48,6 +49,44 @@ export class GetWorkflowQuery {
         ? await this.workflows.findVersion(tx, workflow.currentPublishedVersionId)
         : null;
       return toWorkflowDto(workflow, published, await this.workflows.findDraft(tx, workflow.id));
+    });
+  }
+}
+
+/**
+ * `ListWorkflowsQuery` — WF-01 (US-042 · SCR-034): workflows do tenant na ordem da aplicabilidade
+ * (RN-WF-39), com o selo de padrão, a publicada corrente (sem ela, "Tornar padrão" fica
+ * desabilitado — RN-WF-41) e o rascunho. Filtros e ordenações do editor chegam com a US-043.
+ */
+@Injectable()
+export class ListWorkflowsQuery {
+  constructor(
+    @Inject(WORKFLOW_REPOSITORY) private readonly workflows: WorkflowRepository,
+    @Inject(WORKFLOW_TRANSACTIONS) private readonly transactions: WorkflowTransactions,
+    private readonly access: AccessFacade,
+    private readonly identity: IdentityFacade,
+  ) {}
+
+  async execute(query: WorkflowListQuery): Promise<PageResult<WorkflowDto>> {
+    await authorizeView(this.access, this.identity);
+    const window = pageWindow(query, MAX_PAGE_SIZE);
+    return this.transactions.read(async (tx) => {
+      const { items, total } = await this.workflows.listWorkflows(
+        tx,
+        query.q ? { search: query.q } : {},
+        window,
+      );
+      const dtos: WorkflowDto[] = [];
+      // Consultas em sequência: o `tx` interativo é uma única conexão.
+      for (const workflow of items) {
+        const published = workflow.currentPublishedVersionId
+          ? await this.workflows.findVersion(tx, workflow.currentPublishedVersionId)
+          : null;
+        dtos.push(
+          toWorkflowDto(workflow, published, await this.workflows.findDraft(tx, workflow.id)),
+        );
+      }
+      return pageResult(dtos, window, total);
     });
   }
 }

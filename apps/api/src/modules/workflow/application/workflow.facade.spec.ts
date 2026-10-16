@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { RuleContextContributorRegistry } from './rule-context.js';
+import type { WorkflowApplicabilityService } from './workflow-applicability.service.js';
 import type { WorkflowDefinitionService } from './workflow-definition.service.js';
 import type { WorkflowEngineService } from './workflow-engine.service.js';
 import type { WorkflowVersionPublisher } from './workflow-version.publisher.js';
@@ -10,11 +11,13 @@ import { WorkflowFacade } from './workflow.facade.js';
 
 describe('WorkflowFacade (US-041)', () => {
   const registry = new RuleContextContributorRegistry();
+  const resolveIn = vi.fn(() => Promise.resolve({ workflowId: 'w' }));
   const facade = new WorkflowFacade(
     {} as WorkflowDefinitionService,
     {} as WorkflowVersionPublisher,
     {} as WorkflowEngineService,
     registry,
+    { resolveIn } as unknown as WorkflowApplicabilityService,
   );
   const stage = {
     id: 'etapa',
@@ -46,5 +49,13 @@ describe('WorkflowFacade (US-041)', () => {
     const contributor = { name: 'risk', contribute: vi.fn() };
     facade.registerRuleContextContributor(contributor);
     expect(registry.all()).toEqual([contributor]);
+  });
+
+  it('resolveApplicable delega ao serviço de aplicabilidade no tx do chamador (US-042)', async () => {
+    const tx = {} as Parameters<WorkflowFacade['resolveApplicable']>[0];
+    await expect(facade.resolveApplicable(tx, { modalityCode: 'DISPENSA' })).resolves.toEqual({
+      workflowId: 'w',
+    });
+    expect(resolveIn).toHaveBeenCalledWith(tx, { modalityCode: 'DISPENSA' });
   });
 });

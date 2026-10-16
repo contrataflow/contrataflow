@@ -13,11 +13,14 @@ import {
   WorkflowKeyTakenError,
 } from '../application/ports.js';
 import type {
+  DefaultSwitch,
   PageWindow,
   PublishVersionData,
+  WorkflowListFilter,
   WorkflowRepository,
   WorkflowTransactions,
 } from '../application/ports.js';
+import { compareApplicability } from '../domain/workflow-applicability.js';
 import type {
   Audited,
   Workflow,
@@ -95,6 +98,48 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
     return Promise.resolve(this.visible(this.workflows, id));
   }
 
+  listWorkflows(
+    tx: TenantTx,
+    filter: WorkflowListFilter,
+    window: PageWindow,
+  ): Promise<{ items: Workflow[]; total: number }> {
+    const search = filter.search?.toLowerCase();
+    return this.listAllWorkflows(tx).then((rows) => {
+      const matching = search
+        ? rows.filter(
+            (row) =>
+              row.name.toLowerCase().includes(search) || row.key.toLowerCase().includes(search),
+          )
+        : rows;
+      return {
+        items: matching.slice(window.skip, window.skip + window.take),
+        total: matching.length,
+      };
+    });
+  }
+
+  listAllWorkflows(_tx: TenantTx): Promise<Workflow[]> {
+    return Promise.resolve(this.rowsOf(this.workflows).sort(compareApplicability));
+  }
+
+  lockAllWorkflows(tx: TenantTx): Promise<Workflow[]> {
+    return this.listAllWorkflows(tx);
+  }
+
+  switchDefault(_tx: TenantTx, change: DefaultSwitch): Promise<void> {
+    for (const row of this.rowsOf(this.workflows)) {
+      const isDefault = row.id === change.workflowId;
+      const changed = row.isDefault !== isDefault;
+      this.workflows.set(row.id, {
+        ...row,
+        isDefault,
+        ...(changed ? { updatedAt: change.now, updatedById: change.userId } : {}),
+        version: row.version + 1,
+      });
+    }
+    return Promise.resolve();
+  }
+
   lockWorkflow(tx: TenantTx, id: string): Promise<Workflow | null> {
     return this.findWorkflow(tx, id);
   }
@@ -104,7 +149,9 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
   }
 
   insertWorkflow(_tx: TenantTx, workflow: Workflow): Promise<void> {
-    if (this.rowsOf(this.workflows).some((row) => row.key === workflow.key)) {
+    const rows = this.rowsOf(this.workflows);
+    // Índices únicos `(tenant_id, key)` e `(tenant_id) WHERE is_default` (ambos violação única).
+    if (rows.some((row) => row.key === workflow.key || (workflow.isDefault && row.isDefault))) {
       return Promise.reject(new WorkflowKeyTakenError(workflow.key));
     }
     this.workflows.set(workflow.id, workflow);

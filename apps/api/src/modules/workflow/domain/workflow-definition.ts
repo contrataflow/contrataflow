@@ -130,3 +130,30 @@ const STAGE_TYPE_LABELS: Readonly<Record<StageType, string>> = {
 export function stageTypeLabel(type: StageType): string {
   return STAGE_TYPE_LABELS[type];
 }
+
+/** RN-WF-41: por que o workflow não pode ser o padrão (`null` = pode). */
+export function defaultIneligibility(
+  workflow: Pick<Workflow, 'isActive' | 'currentPublishedVersionId'>,
+): 'INACTIVE' | 'NOT_PUBLISHED' | null {
+  if (!workflow.isActive) return 'INACTIVE';
+  if (workflow.currentPublishedVersionId === null) return 'NOT_PUBLISHED';
+  return null;
+}
+
+interface DefaultChange {
+  readonly now: Date;
+  readonly userId: string | null;
+}
+
+/** `Workflow.markAsDefault()` (RN-WF-40/41): só ativo e publicado. @throws Error se inelegível */
+export function markAsDefault(workflow: Workflow, change: DefaultChange): Workflow {
+  const reason = defaultIneligibility(workflow);
+  if (reason !== null)
+    throw new Error(`Workflow ${workflow.key} não pode ser o padrão (${reason}).`);
+  return { ...workflow, isDefault: true, updatedAt: change.now, updatedById: change.userId };
+}
+
+/** `Workflow.unmarkAsDefault()`: o padrão anterior na troca (RN-WF-40). */
+export function unmarkAsDefault(workflow: Workflow, change: DefaultChange): Workflow {
+  return { ...workflow, isDefault: false, updatedAt: change.now, updatedById: change.userId };
+}

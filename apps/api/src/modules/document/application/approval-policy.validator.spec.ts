@@ -42,7 +42,10 @@ function validator(options: {
       ),
   } as unknown as IdentityFacade;
   const access = Object.assign(
-    new AccessFacade({} as ConstructorParameters<typeof AccessFacade>[0]),
+    new AccessFacade(
+      {} as ConstructorParameters<typeof AccessFacade>[0],
+      {} as ConstructorParameters<typeof AccessFacade>[1],
+    ),
     {
       findRoleForApproval: () => Promise.resolve(options.role ?? null),
     },

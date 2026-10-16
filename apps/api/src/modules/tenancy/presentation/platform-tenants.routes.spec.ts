@@ -119,13 +119,14 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
         ['catalog.items', 'DONE'],
         ['access.defaultRoles', 'DONE'],
         ['document.systemTypes', 'DONE'],
+        ['workflow.seedWorkflows', 'DONE'],
         ['catalog.holidays', 'DONE'],
         ['identity.firstAdmin', 'DONE'],
         ['tenancy.complete', 'DONE'],
       ]);
     });
 
-    it('semeia 84 itens de catálogo, 15 perfis padrão, os feriados dos 2 anos, 11 tipos de documento e o vínculo do administrador', () => {
+    it('semeia 84 itens de catálogo, 15 perfis padrão, os feriados dos 2 anos, 11 tipos de documento, os 2 workflows e o vínculo do administrador', () => {
       const details = Object.fromEntries(
         tenant.provisioning.steps.map((step) => [step.key, step.details]),
       );
@@ -138,6 +139,8 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
         holidays: seedHolidaysOf(year).length + seedHolidaysOf(year + 1).length,
       });
       expect(details['document.systemTypes']).toEqual({ documentTypes: 11 });
+      // US-042: os dois workflows de DEC-015 publicados.
+      expect(details['workflow.seedWorkflows']).toEqual({ workflows: 2 });
       expect(details['identity.firstAdmin']).toEqual({ memberships: 1 });
     });
 

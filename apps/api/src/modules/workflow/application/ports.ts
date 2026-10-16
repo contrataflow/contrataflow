@@ -56,9 +56,42 @@ export interface PublishVersionData {
   readonly publishedById: string | null;
 }
 
+export interface WorkflowListFilter {
+  /** Contém, no nome ou na chave, sem diferenciar maiúsculas (WF-01). */
+  readonly search?: string;
+}
+
+export interface DefaultSwitch {
+  /** Workflow que passa a ser o padrão (RN-WF-40). */
+  readonly workflowId: string;
+  readonly now: Date;
+  readonly userId: string | null;
+}
+
 export interface WorkflowRepository {
   // Workflow --------------------------------------------------------------------------------
   findWorkflow(tx: TenantTx, id: string): Promise<Workflow | null>;
+  /**
+   * WF-01: workflows do tenant na ordem da aplicabilidade (`applicabilityPriority`, `createdAt`,
+   * id — RN-WF-39), paginados.
+   */
+  listWorkflows(
+    tx: TenantTx,
+    filter: WorkflowListFilter,
+    window: PageWindow,
+  ): Promise<{ readonly items: Workflow[]; readonly total: number }>;
+  /** Todos os workflows do tenant na ordem da aplicabilidade (resolução — WF-06). */
+  listAllWorkflows(tx: TenantTx): Promise<Workflow[]>;
+  /**
+   * `SELECT … FOR UPDATE` de TODOS os workflows do tenant, por id (troca do padrão — RN-WF-40/42):
+   * serializa trocas concorrentes; a leitura devolvida é posterior à trava.
+   */
+  lockAllWorkflows(tx: TenantTx): Promise<Workflow[]>;
+  /**
+   * Troca atômica do padrão (RN-WF-40): desmarca o anterior, marca o novo (nessa ordem, por causa
+   * do índice único parcial) e incrementa a `version` de todos os workflows do tenant (RN-WF-42).
+   */
+  switchDefault(tx: TenantTx, change: DefaultSwitch): Promise<void>;
   /** `SELECT … FOR UPDATE` (nova versão e publicação). */
   lockWorkflow(tx: TenantTx, id: string): Promise<Workflow | null>;
   findWorkflowByKey(tx: TenantTx, key: string): Promise<Workflow | null>;

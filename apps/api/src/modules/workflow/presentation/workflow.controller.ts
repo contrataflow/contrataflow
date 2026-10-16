@@ -4,6 +4,9 @@ import {
   pageQuerySchema,
   workflowCreateSchema,
   workflowIdParamsSchema,
+  workflowListQuerySchema,
+  workflowResolutionSchema,
+  workflowResolveSchema,
   workflowRuleDtoSchema,
   workflowRuleIdParamsSchema,
   workflowRuleSchema,
@@ -27,6 +30,9 @@ import type {
   PageQuery,
   WorkflowCreate,
   WorkflowDto,
+  WorkflowListQuery,
+  WorkflowResolutionDto,
+  WorkflowResolve,
   WorkflowRuleCreate,
   WorkflowRuleDto,
   WorkflowRuleUpdate,
@@ -50,6 +56,8 @@ import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
+import { ResolveWorkflowQuery } from '../application/workflow-applicability.service.js';
+import { SetDefaultWorkflowCommand } from '../application/workflow-default.command.js';
 import {
   CreateWorkflowRuleCommand,
   DeleteWorkflowRuleCommand,
@@ -73,6 +81,7 @@ import {
 import {
   GetWorkflowQuery,
   GetWorkflowVersionQuery,
+  ListWorkflowsQuery,
   ListWorkflowVersionsQuery,
 } from '../application/workflow.queries.js';
 
@@ -82,9 +91,10 @@ const AUDIT_UPDATE = ['workflow.update'] as const;
 const ifMatchVersion = (ifMatch: IfMatchValue | null) => ifMatch?.value ?? 0;
 
 /**
- * Definição de workflow versionada (api/10-workflow.md WF-02..04, WF-07..18 · US-040): metadados
- * do workflow, versões e manutenção do rascunho (etapas, transições, regras). Leitura exige
- * `WORKFLOW_VIEW`; escrita, `WORKFLOW_MANAGE` + MFA (POL-14). Alterar e excluir exigem `If-Match`.
+ * Definição de workflow versionada (api/10-workflow.md WF-01..18 · US-040/US-042): lista,
+ * metadados do workflow, padrão e aplicabilidade, versões e manutenção do rascunho (etapas,
+ * transições, regras). Leitura exige `WORKFLOW_VIEW`; escrita, `WORKFLOW_MANAGE` + MFA (POL-14);
+ * tornar padrão, `WORKFLOW_PUBLISH` + MFA. Alterar, excluir e tornar padrão exigem `If-Match`.
  */
 @Controller()
 @TenantScope('TENANT')
@@ -105,7 +115,78 @@ export class WorkflowController {
     private readonly createRule: CreateWorkflowRuleCommand,
     private readonly updateRule: UpdateWorkflowRuleCommand,
     private readonly deleteRule: DeleteWorkflowRuleCommand,
+    private readonly listWorkflows: ListWorkflowsQuery,
+    private readonly setDefault: SetDefaultWorkflowCommand,
+    private readonly resolveWorkflow: ResolveWorkflowQuery,
   ) {}
+
+  @Get('workflows')
+  @ApiOperation({
+    operationId: 'WF-01',
+    summary: 'Listar workflows',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Workflows do tenant na ordem da aplicabilidade (prioridade, depois criação), com o padrão, a publicada corrente e o rascunho.',
+        schema: pageEnvelope(workflowSchema),
+      },
+    },
+  })
+  getWorkflows(@ZodQuery(workflowListQuerySchema) query: WorkflowListQuery) {
+    return this.listWorkflows.execute(query);
+  }
+
+  @Post('workflows/resolve')
+  @HttpCode(200)
+  @ApiOperation({
+    operationId: 'WF-06',
+    summary: 'Resolver workflow aplicável',
+    tags: TAGS,
+    auditExempt:
+      'Resolução somente de leitura: o POST apenas carrega os dados do processo, sem efeito colateral.',
+    responses: {
+      200: {
+        description:
+          'Workflow aplicável (regra de aplicabilidade por prioridade; sem correspondência, o padrão), a versão publicada e a etapa inicial; nenhum → 422 `NO_APPLICABLE_WORKFLOW`.',
+        schema: dataEnvelope(workflowResolutionSchema),
+      },
+    },
+  })
+  postResolve(
+    @ZodBody(workflowResolveSchema) body: WorkflowResolve,
+  ): Promise<WorkflowResolutionDto> {
+    return this.resolveWorkflow.execute(body);
+  }
+
+  @Post('workflows/:id/set-default')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ApiOperation({
+    operationId: 'WF-05',
+    summary: 'Definir workflow padrão',
+    tags: TAGS,
+    auditActions: ['workflow.set_default'],
+    responses: {
+      200: {
+        description:
+          'Workflow com `isDefault: true` (novo `ETag`); inativo ou sem versão publicada → 422 `BUSINESS_RULE_VIOLATION`.',
+        schema: dataEnvelope(workflowSchema),
+      },
+    },
+  })
+  async postSetDefault(
+    @ZodParams(workflowIdParamsSchema) params: { id: string },
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<WorkflowDto> {
+    const workflow = await this.setDefault.execute({
+      id: params.id,
+      expectedVersion: ifMatchVersion(ifMatch),
+    });
+    response.setHeader('ETag', `"${workflow.version}"`);
+    return workflow;
+  }
 
   @Post('workflows')
   @Idempotent()

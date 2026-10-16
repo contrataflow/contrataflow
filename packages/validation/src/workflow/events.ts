@@ -36,3 +36,15 @@ export const WorkflowVersionRetired = defineDomainEvent({
   payload: z.strictObject({ workflowId: z.uuid(), workflowVersionId: z.uuid() }),
   routingKey: 'workflow.version_retired',
 });
+
+/**
+ * `WorkflowDefaultChanged` (events.md §4.5 · US-042): commit do WF-05 (troca do padrão). Não é
+ * emitido pelo seeder (carga inicial — RN-WF-36). Consumidor: invalidação dos caches de configuração.
+ */
+export const WorkflowDefaultChanged = defineDomainEvent({
+  eventType: 'WorkflowDefaultChanged',
+  eventVersion: 1,
+  aggregateType: 'Workflow',
+  payload: z.strictObject({ workflowId: z.uuid() }),
+  routingKey: 'workflow.default_changed',
+});

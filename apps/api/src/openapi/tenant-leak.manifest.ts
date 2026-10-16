@@ -73,6 +73,9 @@ const PLATFORM_ROUTE =
 const WORKFLOW_ROUTE =
   'Workflows (US-040): exige WORKFLOW_VIEW/WORKFLOW_MANAGE e a suíte genérica ainda não tem fixture de workflow do tenant B; o isolamento (404 em WF-03/04/07..18 com ids de B, 422 REFERENCE_NOT_FOUND em toStageId/copyFromVersionId de B e RLS das 5 tabelas) é coberto em test/tenant-leak/workflows.spec.ts, com administradores nos dois tenants.';
 
+const DEFAULT_WORKFLOW_ROUTE =
+  'Workflow padrão e aplicabilidade (US-042): a suíte genérica não tem fixture de workflow nem de catálogo do tenant B; o isolamento (WF-01 só com linhas de A, 404 em WF-05 com id de B, WF-06 nunca resolve workflow de B e recusa item de catálogo de B com 422) é coberto em test/tenant-leak/default-workflows.spec.ts, com os seeders reais nos dois tenants.';
+
 const TEMPLATE_ROUTE =
   'Templates (US-107/US-108): exige TEMPLATE_VIEW/TEMPLATE_MANAGE/TEMPLATE_PUBLISH e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/05/06/07/08/10/11 e DTY-04 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
 
@@ -130,7 +133,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'SET-02': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-03': { kind: 'exempt', reason: SETTINGS_ROUTE },
   'SET-04': { kind: 'exempt', reason: NUMBERING_ROUTE },
+  'WF-01': { kind: 'exempt', reason: DEFAULT_WORKFLOW_ROUTE },
   'WF-02': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-05': { kind: 'exempt', reason: DEFAULT_WORKFLOW_ROUTE },
+  'WF-06': { kind: 'exempt', reason: DEFAULT_WORKFLOW_ROUTE },
   'WF-03': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-04': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-07': { kind: 'exempt', reason: WORKFLOW_ROUTE },
