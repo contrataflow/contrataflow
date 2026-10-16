@@ -95,3 +95,34 @@ export async function startRedis(): Promise<TestRedis> {
     },
   };
 }
+
+export interface TestMailpit {
+  /** `smtp://host:porta` do Mailpit (sem autenticação). */
+  readonly smtpUrl: string;
+  /** API HTTP do Mailpit (`/api/v1/...`). */
+  readonly apiUrl: string;
+  stop(): Promise<void>;
+}
+
+function mailpitImage(): string {
+  const compose = readFileSync(`${REPO_ROOT}infra/docker-compose.yml`, 'utf8');
+  const image = /^\s+image:\s*(axllent\/mailpit:\S+)\s*$/m.exec(compose)?.[1];
+  if (!image) throw new Error('infra/docker-compose.yml sem a imagem do mailpit');
+  return image;
+}
+
+/** Mailpit do Compose local: captura os e-mails do `MailProvider` SMTP (US-112). */
+export async function startMailpit(): Promise<TestMailpit> {
+  const container = await new GenericContainer(mailpitImage())
+    .withExposedPorts(1025, 8025)
+    .withWaitStrategy(Wait.forHttp('/readyz', 8025))
+    .start();
+  const host = container.getHost();
+  return {
+    smtpUrl: `smtp://${host}:${String(container.getMappedPort(1025))}`,
+    apiUrl: `http://${host}:${String(container.getMappedPort(8025))}`,
+    stop: async () => {
+      await container.stop();
+    },
+  };
+}

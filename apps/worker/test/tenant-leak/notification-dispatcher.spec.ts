@@ -96,6 +96,7 @@ function contextFor(tenantId: string): JobHandlerContext {
     jobName: 'event',
     jobId: 'job',
     attempt: 1,
+    maxAttempts: 5,
     signal: new AbortController().signal,
     logger: new Logger('NotificationDispatcherIT'),
     tenantTransaction: (work) => worker.tenantTransaction(tenantId, work),

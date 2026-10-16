@@ -47,6 +47,8 @@ export interface JobHandlerContext {
   readonly jobId: string;
   /** Tentativa atual, começando em 1. */
   readonly attempt: number;
+  /** Tentativas permitidas ao job (`opts.attempts`): `attempt === maxAttempts` é a última. */
+  readonly maxAttempts: number;
   /** Abortado no timeout da fila: repasse a `fetch`/SDKs. */
   readonly signal: AbortSignal;
   readonly logger: Logger;
@@ -188,6 +190,7 @@ function contextFor(
     jobName: job.name,
     jobId,
     attempt: job.attemptsMade + 1,
+    maxAttempts: job.opts.attempts ?? 1,
     signal,
     logger: new Logger(`${job.queueName}:${job.name}`),
     tenantTransaction: (work) => {

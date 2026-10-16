@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { EmailRuntimeConfig } from './email.js';
+
 /*
  * Variáveis das filas do worker (US-083 · architecture.md §10.2): `REDIS_URL` (Redis das filas,
  * o mesmo do outbox), `DATABASE_URL_WORKER` (papel `cf_worker`, RLS), `DATABASE_URL_MAINTENANCE`
@@ -40,6 +42,11 @@ export interface QueueRuntimeConfig {
   readonly maintenanceDatabaseUrl?: string | null;
   /** `null` = Bull Board desligado. */
   readonly admin: QueueAdminConfig | null;
+  /**
+   * E-mail transacional (US-112 — `loadEmailConfig`, acrescentado pelo `main`); ausente/`null` =
+   * `EmailSender` não registrado (os jobs de `email` esperam na fila).
+   */
+  readonly email?: EmailRuntimeConfig | null;
 }
 
 export class QueuesConfigError extends Error {

@@ -17,3 +17,8 @@
 - `sessions.ts` — `REDIS_SESSION_URL` (Redis de sessões) do consumidor que encerra sessões quando o
   vínculo é suspenso, revogado ou expirado (US-088 · RN-IAM-27). Obrigatória em `staging`/`production`;
   em `local`/`dev`/`test`, ausente, o evento é descartado com o aviso `auth.session_termination_disabled`.
+- `email.ts` — e-mail transacional do `EmailSender` (US-112 · DEC-050): `EMAIL_TRANSPORT` (`smtp`),
+  `SMTP_URL` (`smtp://`/`smtps://`, credenciais na URL — Mailpit em dev, interface SMTP do SES em
+  produção), `EMAIL_FROM`, `APP_BASE_URL` (base dos links) e `EMAIL_RATE_PER_SECOND` (padrão 10/s,
+  `limiter` da fila `email`). Lida pelo `main` só quando as filas estão ligadas; obrigatória fora de
+  `local`/`dev`/`test` (lá, sem `SMTP_URL`, o `EmailSender` não é registrado e os jobs esperam na fila).

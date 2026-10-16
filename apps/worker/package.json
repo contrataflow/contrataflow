@@ -27,6 +27,7 @@
     "test": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
     "test:tenant-leak": "vitest run --config vitest.integration.config.ts test/tenant-leak",
+    "test:perf": "vitest run --config vitest.perf.config.ts",
     "cli": "node --enable-source-maps dist/cli.js"
   },
   "dependencies": {
@@ -48,6 +49,7 @@
     "express": "catalog:",
     "ioredis": "catalog:",
     "jose": "catalog:",
+    "nodemailer": "catalog:",
     "nestjs-pino": "catalog:",
     "pg": "catalog:",
     "pino": "catalog:",

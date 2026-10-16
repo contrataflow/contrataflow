@@ -11,6 +11,8 @@ import { createOutboxDatabase } from '#shared/database/outbox-database.js';
 import type { OutboxDatabase } from '#shared/database/outbox-database.js';
 import { createWorkerDatabase } from '#shared/database/worker-database.js';
 import type { WorkerDatabase } from '#shared/database/worker-database.js';
+import type { MailProvider } from '#shared/mail/mail-provider.js';
+import { SmtpMailProvider } from '#shared/mail/smtp-mail-provider.js';
 
 import { BullQueues } from './bull-queues.js';
 import { CIRCUIT_STATE_VALUE, CircuitBreaker } from './circuit-breaker.js';
@@ -42,6 +44,9 @@ import type { RunningDashboard } from '../admin/queue-dashboard.js';
 import { startQueueDashboard } from '../admin/queue-dashboard.js';
 import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
+import { EmailSender } from '../notifications/email/email-sender.js';
+import { EmailTemplateRegistry } from '../notifications/email/email-templates.js';
+import { NotificationEmailSource } from '../notifications/email/notification-email-source.js';
 import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
 import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
 import { OutboxPurgeJob } from '../outbox/outbox-purge.job.js';
@@ -96,6 +101,7 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
   private maintenance: OutboxDatabase | undefined;
   private dashboard: RunningDashboard | undefined;
   private producerInstance: JobProducer | undefined;
+  private mailProvider: MailProvider | undefined;
 
   constructor(
     @Inject(QUEUE_RUNTIME_CONFIG) private readonly config: QueueRuntimeConfig,
@@ -158,11 +164,17 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
           directory: new SqlNotificationDirectory(),
           email: {
             enqueue: (notificationId) =>
-              producer.enqueue('email', 'send', { notificationId }, { jobId: notificationId }),
+              producer.enqueue(
+                'email',
+                'send',
+                { kind: 'NOTIFICATION', notificationId },
+                { jobId: notificationId },
+              ),
           },
         }),
       );
     }
+    this.registerEmailSender(this.database);
     const { maintenanceDatabaseUrl } = this.config;
     if (maintenanceDatabaseUrl) {
       this.maintenance = createOutboxDatabase({
@@ -173,6 +185,31 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
       });
       this.registry.register(new OutboxPurgeJob(this.maintenance, this.database));
     }
+  }
+
+  /**
+   * US-112: o `EmailSender` (fila `email`) sobe só com o e-mail configurado — sem ele, os jobs
+   * esperam na fila. O convite (US-091) acrescenta a sua origem quando existir.
+   */
+  private registerEmailSender(database: WorkerDatabase): void {
+    const { email } = this.config;
+    if (this.registry.isHandled('email', 'send')) return;
+    if (!email) {
+      this.logger.warn({ event: 'email.disabled' }, 'SMTP_URL ausente: e-mails não serão enviados');
+      return;
+    }
+    this.mailProvider = new SmtpMailProvider({ url: email.smtpUrl });
+    this.registry.register(
+      new EmailSender({
+        provider: this.mailProvider,
+        lock: database,
+        from: email.from,
+        notifications: new NotificationEmailSource(
+          new EmailTemplateRegistry(email.appBaseUrl),
+          new SqlNotificationDirectory(),
+        ),
+      }),
+    );
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -223,6 +260,11 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
 
   private startWorker(queue: ConsumedQueue): void {
     const policy = QUEUE_POLICIES[queue];
+    // RN-NTF-21: a cota do provedor de e-mail vem de `EMAIL_RATE_PER_SECOND` (plataforma).
+    const emailRate = queue === 'email' ? this.config.email?.ratePerSecond : undefined;
+    const limiter = emailRate
+      ? { max: emailRate, duration: 1_000 }
+      : policy.limiter && { ...policy.limiter };
     const tenants = this.database ? new DatabaseTenantStatusReader(this.database) : undefined;
     const databaseBreaker = this.database ? this.breaker('postgres') : undefined;
     const deps = {
@@ -244,7 +286,7 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
         connection: consumerConnection(this.config.redisUrl),
         prefix: queuePrefix(this.config.appEnv),
         concurrency: policy.concurrency,
-        ...(policy.limiter ? { limiter: { ...policy.limiter } } : {}),
+        ...(limiter ? { limiter } : {}),
         ...WORKER_DEFAULTS,
         settings: { backoffStrategy },
       },
@@ -302,6 +344,7 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
     await this.dashboard?.close();
     await Promise.all(this.workers.map((worker) => worker.close()));
     await this.bull?.close();
+    await this.mailProvider?.close?.();
     await this.maintenance?.close();
     await this.database?.close();
   }

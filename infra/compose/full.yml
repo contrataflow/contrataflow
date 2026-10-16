@@ -28,6 +28,7 @@ x-app-env: &app-env
   CLAMAV_PORT: '3310'
   EMAIL_TRANSPORT: smtp
   SMTP_URL: smtp://mailpit:1025
+  EMAIL_FROM: 'ContrataFlow (dev) <nao-responda@contrataflow.test>'
 
 x-app: &app
   build:

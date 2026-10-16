@@ -34,6 +34,7 @@
 | Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.0 · 7.10.0 · 7.10.0 · 8.23.1 | api — persistência e `TenantTransaction` (US-081, DEC-064); gerador `prisma-client` em ESM; `pg` e `@types/pg` 8.23.1 só nos testes de integração |
 | Back-end | `decimal.js` | 10.6.0 | api — cálculos e mapeamento de colunas `Decimal` (DEC-003, US-081) |
 | Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | `ioredis`: cache/idempotência/rate limit da api (US-080) e Redis de sessões do BFF (US-087); `bullmq` reservado — filas (DEC-163) |
+| Back-end | `nodemailer` | 10.1.0 | worker — `MailProvider` SMTP do `EmailSender` (US-112 · DEC-050): Mailpit em dev e a interface SMTP do Amazon SES em produção; pool, STARTTLS/TLS, `Message-ID` e cabeçalhos próprios. Sem dependências, MIT-0, tipos embutidos; escolhido em vez de um cliente SMTP próprio sobre `node:net` |
 | Segurança | `jose` | 6.2.12 | api e web — verificação de JWT (RS256/ES256) com JWKS em cache próprio: access token na API e `id_token` no BFF (US-087, RN-IAM-04/05). Sem dependências, MIT; escolhido em vez de verificar assinatura à mão com `node:crypto` |
 | Observabilidade | `@opentelemetry/api` · `sdk-node` · `sdk-trace` · `core` · `context-async-hooks` | 1.9.1 · 0.222.0 · 2.11.0 · 2.11.0 · 2.11.0 | `packages/observability` — SDK 2.x, sampler, propagador W3C e testes em memória (US-084) |
 | Observabilidade | `@opentelemetry/exporter-trace-otlp-http` · `instrumentation` | 0.222.0 | exportador OTLP/HTTP e *hook* ESM (`hook.mjs`) da api e do worker (US-084) |
