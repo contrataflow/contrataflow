@@ -84,6 +84,7 @@ Entregar o núcleo operacional: um órgão formaliza a demanda, elabora ETP, map
 - Prazos por etapa com calendário de dias úteis, prazo alvo e dashboard operacional.
 - Auditoria append-only com selagem e tela de consulta.
 - Identidade (Authentik, MFA), RBAC com escopo, tenants, órgãos, unidades, catálogos, numeração, calendário e configurações gerais.
+- **Geração assistida por IA** de DFD, ETP, mapa de riscos e TR (rascunho completo em cadeia e ajuste por seção), com revisão humana obrigatória e governança por órgão — antecipada do MVP 5 por decisão de 2026-10-14 (EP-020, DEC-037).
 
 **Não inclui**
 
@@ -128,6 +129,7 @@ Entregar o núcleo operacional: um órgão formaliza a demanda, elabora ETP, map
 | EP-017 | Tenant e estrutura organizacional | Provisionamento, isolamento, órgãos, secretarias e setores, configurações, catálogos, numeração, calendário | `tenancy`, `organization`, `catalog` | SCR-032, SCR-041 |
 | EP-018 | Templates de documentos | Templates versionados por tipo, seções e layout de PDF | `document` | SCR-033 |
 | EP-019 | Notificações | In-app e e-mail, preferências, alertas de prazo | `notification` | SCR-036, SCR-039 |
+| EP-020 | IA para documentos do planejamento | Rascunho completo em cadeia e ajuste por seção de DFD, ETP, mapa de riscos e TR; marcações e revisão humana; rastreabilidade; ativação e limites por órgão | `ai` (+ `document`, `risk`) | SCR-117 (painel nos editores), SCR-041 |
 
 ### 3.4 Telas (26)
 
@@ -487,7 +489,7 @@ Usar os dados estruturados acumulados nos MVPs anteriores para reduzir erros, an
 
 | Épico | Escopo |
 |---|---|
-| Assistente contextual | Perguntas sobre o processo aberto, explicação da lei com fontes, rascunho de seções para revisão humana (SCR-040); respeita permissões e sigilo |
+| Assistente contextual | Perguntas sobre o processo aberto e explicação da lei com fontes (SCR-040); respeita permissões e sigilo. A geração de rascunhos e o ajuste de seções de DFD, ETP, mapa de riscos e TR já estão no MVP 1 (EP-020, DEC-037) |
 | Validação automática | Validações cruzadas **determinísticas** sobre `DocumentItem` e campos tipados — ex.: ETP com 150 unidades e TR com 140 → "Quantidade divergente entre ETP e TR"; garantia do objeto de 36 meses no ETP e de 12 meses no TR → "Garantia divergente" — e verificações assistidas por IA, sempre como alerta |
 | Saúde do processo | Indicador explicável a partir de prazo, completude, devoluções e riscos |
 | Recomendações | Próximas ações, fontes de preço e cláusulas a revisar |
@@ -496,7 +498,7 @@ Usar os dados estruturados acumulados nos MVPs anteriores para reduzir erros, an
 | Detecção de gargalos | Detecção automática de anomalias e causas prováveis — evolução da análise descritiva do MVP 2 |
 | Previsão de atraso | Probabilidade de atraso por processo, com fatores explicativos |
 
-Módulo reservado `ai` (DEC-040); fila `ai` (DEC-161); camada `AiProvider` (DEC-050).
+Módulo `ai`, camada `AiProvider` e fila `ai-generation` já existem desde o MVP 1 (DEC-079); este MVP acrescenta a fila de eventos `ai` (DEC-161) e as entidades de análise.
 
 ### 7.3 Telas
 
@@ -660,9 +662,9 @@ gantt
     M3 Demanda formalizada               :milestone, k3, 2027-04-19, 0d
     Sprints 12-14 - fase preparatória    :m1d, after m1c, 42d
     M4 Planejamento concluído            :milestone, k4, 2027-05-31, 0d
-    Sprints 15-17 - P1 e endurecimento   :m1e, after m1d, 42d
-    Sprint 18 - release                  :m1f, after m1e, 14d
-    M5 Release MVP 1                     :milestone, k5, 2027-07-26, 0d
+    Sprints 15-18 - IA, P1 e endurecimento :m1e, after m1d, 56d
+    Sprint 19 - release                  :m1f, after m1e, 14d
+    M5 Release MVP 1                     :milestone, k5, 2027-08-09, 0d
     Piloto - alfa, beta e hypercare      :p1, 2027-03-08, 182d
     section MVP 2
     Gate e detalhamento                  :g2, 2027-06-28, 28d
@@ -685,7 +687,7 @@ gantt
 
 ### 9.3 Marcos
 
-M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md#6-marcos-e-entregas-incrementais), que prevalece em caso de divergência; R2 a R5 são os releases dos MVPs seguintes, a detalhar em cada gate.
+M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md#6-marcos-e-entregas-incrementais), que prevalece em caso de divergência; R2 a R5 são os releases dos MVPs seguintes, a detalhar em cada gate. Com o EP-020, o M5 passou da sprint 18 para a 19 (+2 semanas); R2 a R5 deslocam-se na mesma medida se o plano não for recomprimido — revisar no gate de cada MVP.
 
 | Marco | Quando | Critério | Uso |
 |---|---|---|---|
@@ -693,7 +695,7 @@ M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md
 | M2 — Tramitação digital | Fim da sprint 8 (T0 + 18 sem.) | Processo criado, encaminhado, devolvido e atribuído, com prazos, timeline e caixa de unidade | Alfa com o piloto (dados sintéticos) |
 | M3 — Demanda formalizada | Fim da sprint 11 (T0 + 24 sem.) | DFD fim a fim com aprovação e PDF; comentários; auditoria consultável | Beta fechado com 1 secretaria do piloto |
 | M4 — Planejamento da contratação concluído | Fim da sprint 14 (T0 + 30 sem.) | ETP, pesquisa de preços, riscos, TR e aprovação da autoridade até `COMPLETED` | Beta ampliado no piloto |
-| M5 — Release do MVP 1 | Fim da sprint 18 (T0 + 38 sem.) | Todos os P0 e P1; checklist de release completo; DoD do §3.9 | Produção para os pilotos (até 3 órgãos) |
+| M5 — Release do MVP 1 | Fim da sprint 19 (T0 + 40 sem.; +2 semanas com o EP-020 — IA para documentos) | Todos os P0 e P1; checklist de release completo; DoD do §3.9 | Produção para os pilotos (até 3 órgãos) |
 | R2 — Release do MVP 2 | T0 + 58 sem. | Critérios do §4.8 | — |
 | R3 — Release do MVP 3 | T0 + 74 sem. | Critérios do §5.8 | — |
 | R4 — Release do MVP 4 | T0 + 94 sem. | Critérios do §6.8 | — |

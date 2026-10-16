@@ -31,6 +31,8 @@
 | DOC-23 | GET | `/document-renditions/{renditionId}/download` | `PROCESS_VIEW` (+POL-09) | US-067 |
 | DOC-24 | PUT | `/documents/{id}/presence` | permissão de edição do tipo + POL-02 | US-070 |
 | DOC-25 | DELETE | `/documents/{id}/presence` | sessão autenticada (própria presença) | US-070 |
+| DOC-26 | POST | `/documents/{id}/ai-apply` | permissão de edição do tipo + POL-02 (solicitante da geração) | US-117, US-121 |
+| DOC-27 | POST | `/documents/{id}/ai-review` | permissão de edição do tipo + POL-02 | US-122 |
 | DTY-01 | GET | `/document-types` | impl. | US-061 |
 | DTY-02 | POST | `/document-types` | `DOCUMENT_TYPE_MANAGE` | US-061 |
 | DTY-03 | PATCH | `/document-types/{id}` | `DOCUMENT_TYPE_MANAGE` (IM) | US-061 |
@@ -445,6 +447,79 @@
   | 404 | `NOT_FOUND` | Documento inexistente/outro tenant (heartbeat encerra silenciosamente) |
 - **Efeitos:** Nenhum evento de domínio nem auditoria (RN-DOC-93).
 - **Notas:** Chamado ao fechar o editor/sair da seção; complementa o TTL de 60 s de `DOC-24`.
+
+### DOC-26 — Aplicar conteúdo gerado por IA nas seções
+`POST /api/v1/documents/{id}/ai-apply` · **Permissão:** permissão de edição do tipo (`DFD_UPDATE`, `ETP_UPDATE`, `RISK_MANAGE` para o `RISK_MAP`, `TERM_UPDATE`) + POL-02 · só o solicitante da geração (RN-AI-13) · **Story:** US-117 (rascunho completo); US-118, US-119, US-120 (demais documentos); US-121 (ajuste de seção)
+
+- **Cabeçalhos:** `If-Match` obrigatório (versão do documento) · `Idempotency-Key` obrigatório
+- **Parâmetros:** `id` (path, uuid) — documento alvo da geração
+- **Request:**
+```ts
+{
+  generationId: string;            // AiGeneration SUCCEEDED deste documento
+  sectionKeys: string[];           // ≥ 1; subconjunto das seções da proposta
+  confirmReplaceFilled?: boolean;  // obrigatório (true) se alguma seção escolhida estiver FILLED/NOT_APPLICABLE
+}
+```
+- **Response:** `200 { data: { document: Document, appliedSectionKeys: string[], versionCreated: { id: string, versionNumber: number } | null } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem a permissão de edição do tipo |
+| 403 | `NOT_PROCESS_CUSTODIAN` | POL-02 |
+| 403 | `AI_GENERATION_NOT_OWNED` | Usuário não é o solicitante da geração |
+| 404 | `NOT_FOUND` / `AI_GENERATION_NOT_FOUND` | Documento ou geração inexistente/de outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
+| 409 | `AI_GENERATION_NOT_APPLICABLE` | Geração não `SUCCEEDED`, expirada ou de outro documento |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 410 | `AI_SUGGESTION_STALE` | Ajuste de seção (`SECTION`) com a seção em revisão diferente de `baseRevision` |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` | `sectionKeys` vazio ou fora da proposta (`NOT_ALLOWED`); substituir seção preenchida sem `confirmReplaceFilled` (`CONDITIONAL_REQUIRED`) |
+| 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
+| 428 | `PRECONDITION_REQUIRED` | `If-Match` ausente |
+
+- **Efeitos:** numa transação:
+  1. Se um rascunho completo (`DRAFT`) substitui alguma seção `FILLED`, cria antes uma `DocumentVersion` (`reason = SYSTEM`, `changeSummary` "Antes de aplicar conteúdo gerado por IA") → `DocumentVersionCreated`.
+  2. Cada seção escolhida recebe o conteúdo da proposta, fica `FILLED`, ganha `revision + 1` e a proveniência `ai` (`reviewedAt = null`).
+  3. O documento ganha `draftRevision + 1`.
+  4. A geração vira `APPLIED` (`appliedTargets`, pela porta `AiSuggestionSource.markApplied`).
+  5. Auditoria `ai.content_apply` (`DATA_CHANGE`; `metadata`: `generationId`, `sectionKeys`, `replacedFilledSections`, `versionCreated`).
+  6. Evento `AiContentApplied` (`document.ai_content_applied.<type>`) → timeline `AI_CONTENT_APPLIED`.
+  Sem notificação.
+- **Notas:**
+  - Campos tipados, itens (`DocumentItem`), alternativas e valores nunca são alterados (RN-AI-27).
+  - Ajuste de seção (`SECTION`) não cria versão: o painel guarda o texto anterior e oferece "Desfazer" via DOC-05 (RN-AI-50).
+  - **Uma aplicação por geração:** aplicar parte das seções encerra a proposta (`APPLIED`); para usar as demais, gerar de novo. Exceção: a proposta do `RISK_MAP` tem duas partes (riscos por RSK-11 e seções aqui), cada uma aplicada uma vez enquanto a proposta não expirar.
+  - O `If-Match` é o `ETag` de DOC-03 (`document.version`), que também muda a cada autosave (DOC-05). Em 412, o painel recarrega o documento, mostra o que mudou e repete a aplicação com o `ETag` novo.
+
+### DOC-27 — Marcar seções geradas por IA como revisadas
+`POST /api/v1/documents/{id}/ai-review` · **Permissão:** permissão de edição do tipo + POL-02 · **Story:** US-122
+
+- **Cabeçalhos:** — (a concorrência é controlada por seção, no corpo)
+- **Parâmetros:** `id` (path, uuid)
+- **Request:**
+```ts
+{
+  sectionKeys: string[];                      // ≥ 1
+  expectedRevisions: Record<string, number>;  // revisão atual de cada seção
+  confirmAll?: boolean;                        // true quando vem de "Revisar todas" (confirmação explícita na UI)
+}
+```
+- **Response:** `200 { data: { document: Document, reviewedSectionKeys: string[] } }`. Seções sem proveniência pendente são ignoradas (idempotente).
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` / `NOT_PROCESS_CUSTODIAN` | Sem permissão de edição / POL-02 |
+| 404 | `NOT_FOUND` | Documento inexistente/de outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
+| 412 | `VERSION_CONFLICT` | Alguma seção com revisão diferente de `expectedRevisions` (`meta.current` traz as revisões atuais) |
+| 422 | `VALIDATION_ERROR` | `sectionKeys` vazio ou chave fora do template (`NOT_ALLOWED`) |
+
+- **Efeitos:** `ai.reviewedAt`/`reviewedById` preenchidos e `revision + 1` em cada seção revisada; auditoria `ai.content_review` (`DATA_CHANGE`; `metadata`: `sectionKeys`, `generationIds`, `confirmAll`); evento `AiContentReviewed` (`document.ai_content_reviewed.<type>`) → timeline `AI_CONTENT_REVIEWED`.
+- **Notas:** revisar não exige que as marcações [a confirmar] estejam resolvidas. Ambas são violações bloqueantes independentes em DOC-08 (`SECTION_AI_REVIEW_PENDING`, `SECTION_PLACEHOLDER_PENDING` — RN-AI-57).
 
 ### DTY-01 — Listar tipos de documento
 `GET /api/v1/document-types` · **Permissão:** acesso autenticado ao tenant (impl.); `includeInactive=true` exige `DOCUMENT_TYPE_MANAGE` · **Story:** US-061

@@ -127,6 +127,9 @@ Marcadores adicionais:
 | `AuditCategory` | `DATA_CHANGE`, `WORKFLOW`, `ACCESS`, `SECURITY`, `EXPORT`, `CONFIGURATION`, `SYSTEM` |
 | `AuditResult` | `SUCCESS`, `DENIED`, `FAILURE` |
 | `OutboxStatus` | `PENDING`, `PUBLISHED`, `FAILED` |
+| `AiGenerationKind` | `DRAFT`, `SECTION` (US-115) |
+| `AiSectionAction` | `REWRITE`, `COMPLETE`, `SUMMARIZE` (US-121) |
+| `AiGenerationStatus` | `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED`, `APPLIED`, `DISCARDED`, `EXPIRED` (US-115) |
 | `NotificationType` *(registro)* | ver [events.md §6](events.md#6-notificações-derivadas-de-eventos) |
 | `TimelineEntryType` *(registro)* | ver [events.md §5](events.md#5-projeção-na-timeline) |
 | `DashboardWidgetKey` *(registro)* | `PENDING_ITEMS`, `BY_STATUS`, `BY_STAGE`, `OVERDUE`, `DUE_SOON`, `AVG_STAGE_DURATION`, `OPENED_BY_MONTH`, `VALUE_BY_SECRETARIAT`, `RECENT_ACTIVITY` (US-076; `DSH-02`) |
@@ -1211,6 +1214,8 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `residualScore` | smallint | sim | — | |
 | `residualLevel` | RiskLevel | sim | — | |
 | `sortOrder` | int | não | `0` | |
+| `aiGenerationId` | uuid | sim | — | FK composta → `ai_generations`; risco criado a partir de proposta de IA (US-119) |
+| `aiReviewedAt` / `aiReviewedById` | timestamptz / uuid | sim | — | Revisão humana do risco gerado por IA (RSK-12); nulo com `aiGenerationId` preenchido = "gerado por IA — revisão pendente" |
 
 - **Unique:** `(tenant_id, process_id, code)`.
 - **Índices:** `(tenant_id, process_id, level)`.
@@ -1230,6 +1235,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `completedAt` | timestamptz | sim | — | Obrigatório se `DONE` |
 | `notes` | text | sim | — | |
 | `sortOrder` | int | não | `0` | |
+| `aiGenerationId` | uuid | sim | — | FK composta → `ai_generations`; tratamento proposto pela IA (US-119), revisado junto com o risco |
 
 - **Índices:** `(tenant_id, risk_id)`; `(tenant_id, responsible_id, status)`.
 
@@ -1425,6 +1431,52 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 - **Índices:** `(status, occurred_at) WHERE status = 'PENDING'`; `(tenant_id, aggregate_type, aggregate_id, occurred_at)`.
 - **RLS:** a aplicação só insere no próprio tenant; o relay usa papel `cf_relay` (apenas `SELECT`/`UPDATE` nesta tabela, com `BYPASSRLS`).
 
+### 4.11 Inteligência artificial
+
+#### AiGeneration (`ai_generations`) — módulo `ai` · Padrão
+Registro de cada geração com IA (rascunho completo ou ajuste de seção) — DEC-037, DEC-079, US-115. `createdById` = solicitante (obrigatório). Nunca é excluído; só o status muda (RN-AI-03).
+
+| Campo | Tipo | Null | Default | Regras |
+|---|---|---|---|---|
+| `processId` | uuid | não | — | |
+| `documentId` | uuid | sim | — | Documento alvo; nulo só para `RISK_MAP` sem documento emitido |
+| `targetModule` | SystemDocumentModule | não | — | `DFD`, `ETP`, `RISK_MAP`, `TERM_OF_REFERENCE` |
+| `kind` | AiGenerationKind | não | — | |
+| `action` | AiSectionAction | sim | — | Obrigatório se `SECTION` |
+| `sectionKey` | varchar(60) | sim | — | Obrigatório se `SECTION` |
+| `baseRevision` | int | sim | — | Revisão da seção no pedido de ajuste (`SECTION`); diferente na aplicação → `AI_SUGGESTION_STALE` |
+| `status` | AiGenerationStatus | não | `QUEUED` | Transições condicionais (RN-AI-03) |
+| `needSummary` | text | sim | — | Resumo da necessidade: obrigatório no rascunho do DFD; opcional nos demais; quando informado, 20..2.000 caracteres |
+| `instruction` | varchar(500) | sim | — | Orientação opcional do usuário |
+| `provider` | varchar(30) | não | — | `fake`, `anthropic`, `bedrock`, `openai`, `azure-openai` |
+| `model` | varchar(100) | sim | — | Preenchido na execução |
+| `promptKey` | varchar(60) | não | — | `draft.dfd`, `draft.etp`, `draft.risk_map`, `draft.tr`, `section.rewrite`, `section.complete`, `section.summarize` |
+| `promptVersion` | varchar(20) | não | — | Versão semântica do prompt (`1.0.0`) |
+| `inputRefs` | jsonb | não | `[]` | `AiInputRef[]` (§5.10) — entradas usadas, sem conteúdo |
+| `contextHash` | varchar(64) | sim | — | SHA-256 do contexto canônico enviado ao provedor |
+| `output` | jsonb | sim | — | `AiGenerationOutput` (§5.10) — a proposta |
+| `outputHash` | varchar(64) | sim | — | |
+| `placeholdersCount` | int | não | `0` | Marcações `toConfirm` na proposta |
+| `groundingReplacements` | int | não | `0` | Números/valores/prazos trocados por `toConfirm` (RN-AI-54) |
+| `reservedTokens` | int | não | — | Estimativa reservada no pedido (RN-AI-18) |
+| `inputTokens` / `outputTokens` / `totalTokens` | int | sim | — | Somatório das tentativas |
+| `costUsd` | numeric(12,6) | sim | — | Pela tabela de preços (`pricingVersion`) — RN-AI-09 |
+| `pricingVersion` | varchar(20) | sim | — | |
+| `latencyMs` | int | sim | — | |
+| `attempts` | smallint | não | `0` | |
+| `providerRequestId` | varchar(200) | sim | — | Identificador da chamada no provedor |
+| `errorCode` | varchar(40) | sim | — | `PROVIDER_UNAVAILABLE`, `PROVIDER_RATE_LIMITED`, `TIMEOUT`, `CONTENT_FILTERED`, `CONTEXT_TOO_LARGE`, `OUTPUT_INVALID`; em `CANCELED`, `CANCELED_BY_POLICY` quando a revalidação no worker falha (IA desligada, permissão, limites ou pré-requisito da cadeia perdido — ex.: DFD cancelado depois do pedido) |
+| `startedAt` / `completedAt` | timestamptz | sim | — | |
+| `expiresAt` | timestamptz | sim | — | `completedAt` + 7 dias (RN-AI-11) |
+| `appliedAt` / `appliedById` | timestamptz / uuid | sim | — | |
+| `appliedTargets` | jsonb | sim | — | `{ sectionKeys: string[], riskIds: uuid[] }`; uma aplicação por geração, exceto `RISK_MAP` (riscos por RSK-11 e seções por DOC-26, cada parte uma vez — acumula) |
+| `discardedAt` / `discardedById` | timestamptz / uuid | sim | — | |
+
+- **Unique (parciais):** `(tenant_id, process_id, target_module) WHERE kind = 'DRAFT' AND status IN ('QUEUED','RUNNING')`; `(tenant_id, document_id, section_key) WHERE kind = 'SECTION' AND status IN ('QUEUED','RUNNING')` (RN-AI-12).
+- **Índices:** `(tenant_id, process_id, created_at DESC)`; `(tenant_id, created_by_id, created_at)`; `(tenant_id, created_at)` (consumo do mês — RN-AI-18); `(tenant_id, status, expires_at)`.
+- **Check:** `kind <> 'SECTION' OR (action IS NOT NULL AND section_key IS NOT NULL AND document_id IS NOT NULL)`; `status <> 'FAILED' OR error_code IS NOT NULL`; `document_id IS NOT NULL OR target_module = 'RISK_MAP'`; `target_module IN ('DFD','ETP','RISK_MAP','TERM_OF_REFERENCE')`.
+- **Conteúdo:** `needSummary`, `instruction` e `output` são conteúdo de documento — nunca vão para logs, eventos ou auditoria (só hashes); valores de orçamento sigiloso nunca entram no contexto (RN-AI-05).
+
 ---
 
 ## 5. Estruturas JSON canônicas
@@ -1445,7 +1497,7 @@ type SectionDefinition = {
   maxChars?: number;           // padrão 50.000
   render?: 'TEXT' | 'ITEMS_TABLE' | 'ALTERNATIVES_TABLE' | 'RISK_MATRIX' | 'RISK_LIST' | 'PRICE_SUMMARY' | 'ESTIMATED_VALUE';
   allowNarrative?: boolean;    // seções com render ≠ TEXT podem ter texto complementar (padrão true)
-  aiHints?: string;            // reservado MVP 5
+  aiHints?: string;            // orientação extra ao prompt de IA (opcional; uso pleno no MVP 5)
 };
 ```
 
@@ -1479,8 +1531,15 @@ type DraftContent = {
     revision: number;                // concorrência por seção
     updatedAt: string;               // ISO
     updatedById: string;
+    ai?: SectionAiProvenance;        // conteúdo aplicado de uma geração de IA (US-122); ausente/null = sem IA
   }>;
 };
+type SectionAiProvenance = {
+  generationId: string;            // AiGeneration aplicada
+  appliedAt: string; appliedById: string;
+  reviewedAt: string | null;       // null = "Gerado por IA — revisão pendente" (bloqueia a conclusão — RN-AI-57)
+  reviewedById: string | null;
+} | null;
 ```
 #### 5.3.2 Snapshot de `DocumentVersion.content` (`documentSnapshotSchema`)
 ```ts
@@ -1490,7 +1549,7 @@ type DocumentSnapshot = {
   template: { templateId; versionId; versionNumber } | null;
   process: { id; code; title; object; organizationName; organizationCnpj; requestingSecretariatName; requestingDepartmentName; isBudgetConfidential };
   header: Record<string, unknown>;   // campos do cabeçalho tipado (Dfd/Etp/TermOfReference/PriceResearch)
-  sections: DraftContent['sections']; // sem revision/updatedBy
+  sections: DraftContent['sections']; // sem revision/updatedBy; mantém `ai` (proveniência revisada)
   collections: {
     items?: Array<{ processItemId; sequence; lotNumber; description; unit; quantity; specification?; acceptanceCriteria?; calculationMemo? }>;
     alternatives?: Array<EtpAlternativeSnapshot>;
@@ -1582,6 +1641,46 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `PROCESS_ORIGIN` | `{ requiresPcaStatus?: PcaStatus }` |
 | `ATTACHMENT_CATEGORY` | `{}` |
 
+### 5.10 Geração com IA (`aiInputRefSchema`, `aiGenerationOutputSchema`, nó `toConfirm`)
+```ts
+type AiInputRef = {
+  kind: 'USER_SUMMARY' | 'USER_INSTRUCTION' | 'PROCESS' | 'PROCESS_ITEMS' | 'ORGANIZATION' | 'TEMPLATE_VERSION'
+      | 'DOCUMENT_VERSION' | 'DOCUMENT_DRAFT' | 'SECTION' | 'ETP_ALTERNATIVES' | 'PRICE_RESEARCH' | 'RISKS'
+      | 'TERM_CONDITIONS' | 'CATALOG';
+  id: string | null;               // id do recurso (nulo para USER_*)
+  documentTypeCode?: string;       // DFD, ETP, TR, RISK_MAP
+  versionNumber?: number;          // DOCUMENT_VERSION / TEMPLATE_VERSION
+  revision?: number;               // DOCUMENT_DRAFT (draftRevision) / SECTION (revision)
+  contentHash: string;             // SHA-256 da parte do contexto derivada desta entrada
+};
+type AiGenerationOutput = {
+  sections: Array<{ sectionKey: string; title: string; content: TipTapDoc; placeholdersCount: number; groundingReplacements: number }>;
+  risks?: Array<{                  // só RISK_MAP (US-119)
+    proposalKey: string; title: string; description: string; categoryCode: string; phase: RiskPhase;
+    cause: string; consequence: string; probability: number; impact: number; rationale: string;
+    similarToRiskId?: string;
+    treatments: Array<{ proposalKey: string; type: TreatmentType; description: string }>;
+  }>;
+  warnings: Array<{ code: 'USED_DRAFT_INPUTS' | 'MISSING_PRICE_RESEARCH' | 'BUDGET_CONFIDENTIAL_VALUES_OMITTED'
+                        | 'MISSING_OPTIONAL_INPUT' | 'CONTEXT_TRUNCATED'; params?: Record<string, string> }>;
+};
+// Nó inline do editor (packages/editor — DEC-056): "[a confirmar: label]" (US-122)
+type ToConfirmNode = { type: 'toConfirm'; attrs: {
+  label: string;                   // 1..120
+  category: 'QUANTITY' | 'VALUE' | 'DEADLINE' | 'DATE' | 'DATA' | 'DECISION' | 'OTHER';
+  origin: 'AI' | 'USER';
+} };
+```
+Seções com `toConfirm` ou com `ai.reviewedAt = null` geram violações bloqueantes em DOC-08 (`SECTION_PLACEHOLDER_PENDING`, `SECTION_AI_REVIEW_PENDING` — RN-AI-57).
+
+Regras de conservação da proveniência (US-122):
+- **Cópias:** duplicar DFD (DFD-05) e importar do ETP para o TR (TRM-06) levam a proveniência pendente (`reviewedAt = null`, mesmo `generationId`) e mantêm os `toConfirm`. Conteúdo já revisado na origem chega sem pendência (`ai = null`). Assim, nenhuma cópia "lava" conteúdo de IA não revisado.
+- **Riscos:** os campos de texto de `Risk`/`RiskTreatment` não são TipTap; neles a marcação é o texto literal "[a confirmar: …]", detectado por `RISK_PLACEHOLDER_PENDING` (US-119).
+- **Importação do ETP no TR (TRM-06):** `REPLACE` leva a proveniência da seção de origem (pendente) ou nenhuma, se a origem estiver revisada; `APPEND` mantém a proveniência do destino e deixa a seção pendente se a origem estiver pendente.
+- **Limpeza:** salvar a seção vazia (`EMPTY`) ou marcá-la `NOT_APPLICABLE` (DOC-05) limpa `ai`; editar o texto mantém a proveniência e não conta como revisão.
+
+Categoria do `toConfirm` gerada pelo *GroundingGuard* e rótulo padrão: valor monetário e percentual → `VALUE` ("valor"); quantidade → `QUANTITY` ("quantidade"); prazo ou duração → `DEADLINE` ("prazo"); data → `DATE` ("data"); dado do órgão ou do processo → `DATA` ("dado do órgão"); decisão da equipe → `DECISION` ("decisão da equipe"); demais casos → `OTHER` ("informação").
+
 ---
 
 ## 6. Registro de configurações do tenant (`TenantSetting`)
@@ -1622,6 +1721,10 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `uploads.allowedExtensions` | string[] | `pdf, docx, xlsx, odt, ods, csv, txt, png, jpg, jpeg` | Subconjunto da allowlist da plataforma |
 | `notifications.emailEnabled` | boolean | `true` | |
 | `features.<flag>` | boolean | por flag | DEC-059 |
+| `ai.enabled` | boolean | `false` | Liga a geração assistida por IA no órgão (opt-in — DEC-037, US-116); ligar exige `ai.termsAcceptedVersion` vigente; não pública |
+| `ai.termsAcceptedVersion` | string \| null | `null` | Versão dos termos de uso da IA aceita (`AI_TERMS_VERSION` da plataforma); quem e quando ficam na auditoria `settings.update` |
+| `ai.monthlyTokenLimit` | int | `2000000` | 50.000..`AI_TENANT_MAX_MONTHLY_TOKENS` (plataforma, padrão 20.000.000); mês civil no fuso do tenant (RN-AI-18; PEND-22) |
+| `ai.userDailyRequestLimit` | int | `40` | 1..500 gerações por usuário por dia (RN-AI-19) |
 
 ---
 
@@ -1665,7 +1768,7 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `ContractMeasurement` | 4 | Medições | `Contract`, `ContractItem` |
 | `ContractOccurrence` | 4 | Ocorrências da fiscalização | `Contract` |
 | `ContractAmendment` | 4 | Aditivos, reajustes, renovações | `Contract` |
-| `AIAnalysis` | 5 | Execução de análise de IA (prompt versionado, modelo, custo, resultado) | `Process`, `DocumentVersion` |
+| `AIAnalysis` | 5 | Execução de análise de IA (prompt versionado, modelo, custo, resultado). A geração de documentos já usa `AiGeneration` no MVP 1 (§4.11); no MVP 5, avaliar estender `AiGeneration` em vez de criar entidade paralela (e alinhar o nome — DOM-01 em domains.md) | `Process`, `DocumentVersion`, `AiGeneration` |
 | `ValidationResult` | 5 | Resultado de validação automática (ex.: divergência de quantidade ETP × TR por `processItemId`) | `Process`, `DocumentItem` |
 | `Embedding` | 5 | Vetores (pgvector) de documentos/itens para similaridade | `DocumentVersion`, `ProcessItem` |
 
@@ -1680,4 +1783,4 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | 2 | `Approval.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`) com padrão `ANY` | Compatível |
 | 3 | Habilitar transição `COMPLETED → PUBLISHED`; `RenditionKind.SIGNED` passa a ser usado; `MembershipType.SERVICE` | Enums já existem |
 | 4 | `Supplier` ganha vínculos com `Contract`; `ProcessItem` → `ContractItem` | Nenhum |
-| 5 | `CREATE EXTENSION vector` já instalada; tabelas de embeddings; `SectionDefinition.aiHints` passa a ser usado | Nenhum |
+| 5 | `CREATE EXTENSION vector` já instalada; tabelas de embeddings; `SectionDefinition.aiHints` passa a ser usado (os prompts do MVP 1 já podem lê-lo, se preenchido) | `ai_generations` reaproveitada |

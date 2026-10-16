@@ -58,6 +58,7 @@ Campos monetários de processos com orçamento sigiloso são retornados como `nu
 | Escrita/comandos | 120 req/min | usuário + tenant |
 | Autosave de seção | 60 req/min por documento | usuário + documento |
 | Exportações e renderização | 20 req/min | usuário + tenant |
+| Geração com IA (`AI-01`) | 10 req/min | usuário + tenant (além dos limites de uso do órgão — US-116) |
 | Upload (intenção) | 60 req/min | usuário + tenant |
 | Global por tenant | 6.000 req/min | tenant |
 | Auth (BFF) | 20 req/min | IP |
@@ -136,7 +137,7 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
   "ruleId": null, "sectionKey": null, "field": null, "itemId": null, "params": {} }
 ```
 - Regras de workflow: `code = "WORKFLOW_RULE"`, `ruleId` preenchido e `message` = mensagem configurada na regra.
-- Completude genérica (módulo `document`): `SECTION_REQUIRED` (`sectionKey`), `SECTION_JUSTIFICATION_REQUIRED` (`sectionKey`), `SECTION_TOO_SHORT`, `FIELD_REQUIRED` (`field`), `ITEMS_REQUIRED`.
+- Completude genérica (módulo `document`): `SECTION_REQUIRED` (`sectionKey`), `SECTION_JUSTIFICATION_REQUIRED` (`sectionKey`), `SECTION_TOO_SHORT`, `FIELD_REQUIRED` (`field`), `ITEMS_REQUIRED`; conteúdo gerado por IA (US-122, bloqueantes): `SECTION_AI_REVIEW_PENDING` (`sectionKey`) e `SECTION_PLACEHOLDER_PENDING` (`sectionKey`, `params.count`); no mapa de riscos (US-119): `RISK_AI_REVIEW_PENDING` e `RISK_PLACEHOLDER_PENDING` (`itemId` = risco).
 - Completude específica de cada tipo: códigos com prefixo do módulo — `DFD_*`, `ETP_*`, `PRICE_*`, `RISK_*`, `TR_*` — definidos na tabela de validações da story dona (US-014/US-016, US-023, US-029/US-032, US-035, US-039). São estáveis e documentados no card; a UI usa `code` para ícones/links e `message` para exibição.
 
 ### 2.2 Códigos de domínio
@@ -179,6 +180,18 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `SUPPLIER_IN_USE` | 409 | Exclusão de fornecedor referenciado por fonte de preço não excluída (oferecer "Inativar") |
 | `ETP_REQUIRED_FOR_IMPORT` | 422 | Sem ETP no processo |
 | `IMPORT_PREVIEW_EXPIRED` | 410 | Token de prévia expirado (15 min) ou origem alterada desde a prévia (ex.: ETP editado — US-037); refazer a prévia |
+| `AI_DISABLED` | 403 | IA desligada no órgão (`ai.enabled = false` — US-116) |
+| `AI_PROVIDER_UNAVAILABLE` | 503 | Provedor de IA não configurado (`AI_PROVIDER=none`) ou circuito aberto; `Retry-After` (US-115) |
+| `AI_USAGE_LIMIT_REACHED` | 422 | Limite mensal de tokens do órgão atingido (`ai.monthlyTokenLimit` — US-116) |
+| `AI_USER_DAILY_LIMIT_REACHED` | 422 | Limite diário de gerações do usuário atingido (`ai.userDailyRequestLimit` — US-116) |
+| `AI_GENERATION_IN_PROGRESS` | 409 | Já existe geração ativa para o mesmo alvo; `meta.generationId` (US-115) |
+| `AI_PREREQUISITE_MISSING` | 422 | Documento antecessor da cadeia DFD → ETP → mapa de riscos → TR ausente; `meta.missing[]` (US-118..US-120) |
+| `AI_GENERATION_NOT_APPLICABLE` | 409 | Geração não está `SUCCEEDED`, expirou ou pertence a outro documento (DOC-26, RSK-11) |
+| `AI_GENERATION_NOT_OWNED` | 403 | Só o solicitante aplica, descarta ou cancela a geração (US-115) |
+| `AI_SUGGESTION_STALE` | 410 | A seção mudou desde a solicitação do ajuste; refazer (US-121) |
+| `AI_SECTION_EMPTY` | 422 | Reescrever/resumir seção sem conteúdo suficiente (US-121) |
+| `AI_SECTION_NOT_SUPPORTED` | 422 | Seção fora do template, sem texto narrativo (`render` ≠ `TEXT` e `allowNarrative = false`) ou marcada `NOT_APPLICABLE` (US-121) |
+| `AI_TERMS_NOT_ACCEPTED` | 422 | Ligar a IA sem aceitar a versão vigente dos termos de uso (US-116) |
 | `FILE_TYPE_NOT_ALLOWED` | 415 | Extensão/MIME fora da allowlist |
 | `FILE_TOO_LARGE` | 413 | Acima de `uploads.maxFileSizeMb` |
 | `UPLOAD_NOT_RECEIVED` | 409 | Confirmação sem objeto na quarentena |
@@ -311,6 +324,8 @@ Rotas do BFF (não fazem parte da API NestJS; especificadas em [authentication.m
 | DOC-23 | GET | `/document-renditions/{renditionId}/download` | `PROCESS_VIEW` (+POL-09) | 200 (`{ url, expiresAt }`) | — (auditoria `document.download`) | US-067 |
 | DOC-24 | PUT | `/documents/{id}/presence` | permissão de edição do tipo + POL-02 | 200 | — (Redis, TTL 60 s) | US-070 |
 | DOC-25 | DELETE | `/documents/{id}/presence` | sessão autenticada (própria presença) | 204 | — | US-070 |
+| DOC-26 | POST | `/documents/{id}/ai-apply` | permissão de edição do tipo + POL-02 (IM, Idem.) | 200 | `AiContentApplied`, `DocumentVersionCreated` (se substituir seção preenchida) | US-117, US-121 |
+| DOC-27 | POST | `/documents/{id}/ai-review` | permissão de edição do tipo + POL-02 (revisão por seção no corpo) | 200 | `AiContentReviewed` | US-122 |
 | DTY-01 | GET | `/document-types` | impl. | 200 | — | US-061 |
 | DTY-02 | POST | `/document-types` | `DOCUMENT_TYPE_MANAGE` | 201 | `DocumentTypeChanged` | US-061 |
 | DTY-03 | PATCH | `/document-types/{id}` | `DOCUMENT_TYPE_MANAGE` (IM) | 200 | `DocumentTypeChanged` | US-061 |
@@ -406,6 +421,8 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | RSK-08 | DELETE | `/risk-treatments/{treatmentId}` | `RISK_MANAGE` + POL-02 (IM) | 204 | `RiskTreatmentChanged` | US-034 |
 | RSK-09 | GET | `/processes/{id}/risk-matrix` | `PROCESS_VIEW` | 200 | — | US-035 |
 | RSK-10 | POST | `/processes/{id}/risk-map` | `RISK_MANAGE` + POL-02 (Idem.) | 201 | `DocumentCreated` | US-035 |
+| RSK-11 | POST | `/processes/{id}/risks/ai-apply` | `RISK_MANAGE` + POL-02 (Idem.) | 201 | `RiskCreated`, `AiContentApplied` | US-119 |
+| RSK-12 | POST | `/processes/{id}/risks/ai-review` | `RISK_MANAGE` + POL-02 (versão por risco no corpo) | 200 | `AiContentReviewed` | US-119 |
 
 > Edição de riscos (POL-02) considera o documento `RISK_MAP`: se existir e estiver em `FINALIZED`/`APPROVED`/`IN_REVIEW`, riscos ficam bloqueados até reabertura. Sem documento, riscos são editáveis sob custódia.
 
@@ -564,7 +581,19 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | HLT-02 | GET | `/health/ready` (fora de `/api/v1`) | público (rede interna/ALB) | 200/503 | — | US-085 |
 | HLT-03 | GET | `/metrics` (fora de `/api/v1`) | rede interna | 200 | — | US-085 |
 
-**Total MVP 1:** 269 operações na API (as rotas do BFF não estão incluídas na contagem; recontagem de 2026-10-07, após WF-23, DOC-24/25, TPL-12/13, USR-13, PRS-24 e demais inclusões).
+### 3.16 Inteligência artificial (`ai`)
+Geração assistida de documentos do planejamento (EP-020, DEC-037, DEC-079). A geração é assíncrona (fila `ai-generation`); a aplicação do conteúdo e a revisão humana são comandos dos módulos donos (DOC-26/27, RSK-11/12).
+
+| # | Método | Rota | Perm. | Sucesso | Eventos | Story |
+|---|---|---|---|---|---|---|
+| AI-01 | POST | `/processes/{id}/ai-generations` | `AI_GENERATE` + POL-18 (Idem.) | 202 | `AiGenerationRequested` | US-115, US-117..US-121 |
+| AI-02 | GET | `/ai-generations/{generationId}` | `PROCESS_VIEW` | 200 | — | US-115 |
+| AI-03 | GET | `/processes/{id}/ai-generations` | `PROCESS_VIEW` | 200 | — | US-115 |
+| AI-04 | POST | `/ai-generations/{generationId}/discard` | solicitante da geração (RN-AI-13) | 200 | — (auditoria `ai.generation_discard`) | US-115, US-117 |
+| AI-05 | GET | `/ai/availability?processId=&documentId=` | impl. | 200 | — | US-116 |
+| AI-06 | GET | `/ai/usage?month=` | `SETTINGS_MANAGE` | 200 | — | US-116 |
+
+**Total MVP 1:** 279 operações na API (as rotas do BFF não estão incluídas na contagem; recontagem de 2026-10-07, após WF-23, DOC-24/25, TPL-12/13, USR-13, PRS-24 e demais inclusões; +10 em 2026-10-16 com o EP-020: AI-01..06, DOC-26/27, RSK-11/12).
 
 ---
 
@@ -576,12 +605,12 @@ O detalhe de cada operação (cabeçalhos, parâmetros, request, response, erros
 |---|---|---|---|
 | [01-session-me.md](api/01-session-me.md) | 3.1 Sessão e usuário corrente | ME | 6 |
 | [02-processes.md](api/02-processes.md) | 3.2 Processos | PRC, TAG | 41 |
-| [03-documents.md](api/03-documents.md) | 3.3 Documentos genéricos, versões e renderização | DOC, DTY | 29 |
+| [03-documents.md](api/03-documents.md) | 3.3 Documentos genéricos, versões e renderização | DOC, DTY | 31 |
 | [04-templates.md](api/04-templates.md) | 3.4 Templates | TPL | 13 |
 | [05-dfd.md](api/05-dfd.md) | 3.5 DFD | DFD | 5 |
 | [06-etp.md](api/06-etp.md) | 3.6 ETP | ETP | 9 |
 | [07-price-research-suppliers.md](api/07-price-research-suppliers.md) | 3.7 Pesquisa de preços e fornecedores | PRS, SUP | 30 |
-| [08-risks.md](api/08-risks.md) | 3.8 Riscos | RSK | 10 |
+| [08-risks.md](api/08-risks.md) | 3.8 Riscos | RSK | 12 |
 | [09-term-of-reference.md](api/09-term-of-reference.md) | 3.9 Termo de Referência | TRM | 6 |
 | [10-workflow.md](api/10-workflow.md) | 3.10 Workflow | WF | 23 |
 | [11-approvals-inbox.md](api/11-approvals-inbox.md) | 3.11 Aprovações e caixa de tarefas | APV, TSK | 9 |
@@ -589,6 +618,7 @@ O detalhe de cada operação (cabeçalhos, parâmetros, request, response, erros
 | [13-dashboard-notifications-audit.md](api/13-dashboard-notifications-audit.md) | 3.13 Dashboard, notificações e auditoria | DSH, NTF, AUD | 12 |
 | [14-tenant-administration.md](api/14-tenant-administration.md) | 3.14 Administração do tenant | USR, ROL, ORG, DEP, SET, CAT, CAL | 54 |
 | [15-platform-health.md](api/15-platform-health.md) | 3.15 Plataforma e saúde | PLT, HLT | 11 |
-| **Total** | | | **269** |
+| [16-ai.md](api/16-ai.md) | 3.16 Inteligência artificial | AI | 6 |
+| **Total** | | | **279** |
 
 Itens marcados "a definir na implementação" nesses arquivos são detalhes que as stories não fixam (ex.: campos de ordenação de algumas listas); decidir no refinamento da sprint e atualizar o arquivo correspondente.

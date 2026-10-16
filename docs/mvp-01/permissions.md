@@ -136,9 +136,14 @@ Legenda: **Risco** `L`/`M`/`H` (`H` exige MFA quando `security.mfaPolicy ∈ {AD
 | `DEPARTMENT_MANAGE` | Gerenciar secretarias e setores | M | — | |
 | `CATALOG_MANAGE` | Gerenciar catálogos | M | — | |
 | `CALENDAR_MANAGE` | Gerenciar calendário | M | — | |
-| `SETTINGS_MANAGE` | Gerenciar configurações gerais | H | — | |
+| `SETTINGS_MANAGE` | Gerenciar configurações gerais | H | — | Inclui ligar/desligar a IA, limites e consumo (US-116) |
 
-**Total MVP 1: 68 permissões** (a contagem anterior, 67, estava errada — corrigida na US-094). Fonte em código: `packages/types/src/permissions.ts` (constante `PERMISSIONS` com `code`, `module`, `riskLevel`, `scopable`, `introducedIn`), sincronizada com a tabela `permissions` por migração.
+### 2.7 Inteligência artificial (`ai`)
+| Código | Nome | Risco | Esc. | Descrição |
+|---|---|---|---|---|
+| `AI_GENERATE` | Gerar conteúdo com IA | M | ✔ | Pedir rascunho completo ou ajuste de seção de DFD, ETP, mapa de riscos e TR (POL-18). Aplicar e revisar o conteúdo usam a permissão de edição do tipo (US-115..US-122) |
+
+**Total MVP 1: 69 permissões** (a contagem anterior, 67, estava errada — corrigida na US-094; `AI_GENERATE` entrou com o EP-020 em 2026-10-16). Fonte em código: `packages/types/src/permissions.ts` (constante `PERMISSIONS` com `code`, `module`, `riskLevel`, `scopable`, `introducedIn`), sincronizada com a tabela `permissions` por migração.
 
 ---
 
@@ -235,8 +240,11 @@ Legenda: **Risco** `L`/`M`/`H` (`H` exige MFA quando `security.mfaPolicy ∈ {AD
 | `CATALOG_MANAGE` | ✔ | ✔ | | | | | | | | | | | | | |
 | `CALENDAR_MANAGE` | ✔ | | | | | | | | | | | | | | |
 | `SETTINGS_MANAGE` | ✔ | | | | | | | | | | | | | | |
+| `AI_GENERATE` | | ✔ | ✔ | ✔ | ✔ | | | | | | | ✔ | | | |
 
 > Para o `CONSULTOR_EXTERNO`, as permissões marcadas só têm efeito em processos onde ele é participante ativo (o escopo `OWN_DEPARTMENTS` sem lotação não cobre nenhum processo). Vínculos `EXTERNAL` só recebem perfis com `allowExternalAssignment` (POL-15), por isso o EXT não recebe `*_SUBMIT`, `APPROVAL_DECIDE` etc.
+>
+> `AI_GENERATE` acompanha os perfis que elaboram DFD, ETP, riscos e TR; não é concedida ao `CONSULTOR_EXTERNO` nem pela participação no processo (§4), e só tem efeito com a IA ligada no órgão (`ai.enabled` — US-116).
 >
 > `PROCESS_VIEW_CONFIDENTIAL_BUDGET` está em `CONTROLE_INTERNO` e `AUDITOR` por padrão porque o sigilo do orçamento não prevalece para os órgãos de controle interno e externo (Lei 14.133, art. 24, I).
 
@@ -252,7 +260,7 @@ Participantes ativos (`ProcessParticipant`, não revogados e não expirados) rec
 | `COLLABORATOR` | `OBSERVER` + `ATTACHMENT_UPLOAD`, `DOCUMENT_UPDATE`, `DFD_UPDATE`, `ETP_UPDATE`, `PRICE_RESEARCH_UPDATE`, `RISK_MANAGE`, `TERM_UPDATE` (somente documentos em `DRAFT`/`RETURNED`, POL-02) |
 | `CONSULTANT` | Igual a `COLLABORATOR`, obrigatoriamente com `expiresAt` (≤ validade do vínculo) |
 
-Participantes **nunca** encaminham, devolvem, assumem, concluem, cancelam, decidem aprovações ou veem orçamento sigiloso por força da participação.
+Participantes **nunca** encaminham, devolvem, assumem, concluem, cancelam, decidem aprovações, geram conteúdo com IA (`AI_GENERATE`) ou veem orçamento sigiloso por força da participação. Aplicar conteúdo de IA é exclusivo de quem o gerou (RN-AI-13); revisar conteúdo de IA já aplicado segue a permissão de edição do tipo + POL-02, que a participação `COLLABORATOR`/`CONSULTANT` concede (US-122).
 
 ---
 
@@ -312,6 +320,7 @@ Regras complementares:
 | POL-15 | **Externos** | Vínculos `EXTERNAL` só recebem perfis com `allowExternalAssignment = true` (semeado em `AUDITOR` e `CONSULTOR_EXTERNO`); fora desses, perfis com permissões `HIGH` não podem ser atribuídos a externos (`EXTERNAL_HIGH_RISK_ROLE`). O caso típico de `AUDITOR` externo é o **órgão de controle externo** (TCE), a quem o sigilo do orçamento não se aplica (Lei 14.133, art. 24, I). Acesso expira automaticamente em `expiresAt` |
 | POL-16 | **Autoproteção** | Usuário não pode suspender/revogar o próprio vínculo nem remover de si o último perfil administrativo |
 | POL-17 | **Retirar solicitação de aprovação** | `APV-04`: `PROCESS_FORWARD` + ser o solicitante (`Approval.requestedById`) **ou** pertencer à unidade de origem do movimento que levou o processo à etapa `APPROVAL` atual (custódia anterior), com escopo sobre essa unidade; `Approval` em `PENDING`. Retirada de submissão avulsa (`DOC-11`): permissão de submissão do tipo do documento (US-053) |
+| POL-18 | **Gerar com IA** | `AI-01`: `AI_GENERATE` cobrindo o processo + permissão de edição do tipo do documento alvo (`DFD_UPDATE`, `ETP_UPDATE`, `RISK_MANAGE`, `TERM_UPDATE`) + POL-02 sobre o alvo + IA ligada no órgão (`ai.enabled`) + provedor disponível + limites mensal do órgão e diário do usuário (US-116). Revalidada no worker antes da chamada ao provedor (falhou → geração `CANCELED`). Aplicar (`DOC-26`, `RSK-11`) e descartar (`AI-04`) são exclusivos do solicitante; revisar (`DOC-27`, `RSK-12`) exige a permissão de edição do tipo + POL-02. Erros: `AI_DISABLED` (403), `AI_PROVIDER_UNAVAILABLE` (503), `AI_USAGE_LIMIT_REACHED` / `AI_USER_DAILY_LIMIT_REACHED` (422), `AI_GENERATION_NOT_OWNED` (403) |
 
 ---
 

@@ -141,6 +141,7 @@ Concorrência é **por réplica do worker**; limites por tenant em §13; timeout
 | `email` | Trabalho (padrão B) | `NotificationDispatcher`; casos de uso com e-mail transacional (convite) | `EmailSender` | 5 | 10 envios/s global | 5 · 5 s + pausa por breaker | 30 s | `jobId = notificationId`; só envia se `emailStatus = PENDING` | Falha > 5% em 15 min |
 | `document-render` | Trabalho (padrão B) | Módulo `document` (DOC-20, DOC-21) | `RenderDocumentHandler` | 4 | 2 simultâneos por tenant | 5 · 5 s | 60 s | `jobId = renditionId`; transição condicional de `RenditionStatus` | p95 acima do SLO; falhas |
 | `file-scan` | Trabalho (padrão B) | Módulo `files` (ATT-03) | `ScanFileHandler` | 4 | 3 simultâneos por tenant | 5 · 5 s + pausa por breaker | 90 s | `jobId = attachmentId`; transição condicional de `AttachmentStatus` | Anexo preso > 30 min |
+| `ai-generation` | Trabalho (padrão B) | Módulo `ai` (AI-01) | `AiGenerationHandler` | 4 | 2 simultâneos por tenant; disjuntor do provedor | 3 · 10 s | 120 s por chamada ao provedor (job: 300 s) | `jobId = generationId`; transição condicional `QUEUED → RUNNING` | p95 do rascunho > 90 s; falhas do provedor > 5% em 15 min; circuito aberto |
 | `deadlines` | Agendada (15 min) | Scheduler `deadlines-tick` | `DeadlineScanner` | 5 | — | 5 · 5 s | 5 min | `UPDATE` condicionais em `ProcessStage` | Scheduler sem sucesso > 45 min |
 | `audit-seal` | Agendada (1 h) | Scheduler `audit-seal-tick` | `AuditSealer` | 2 | — | 5 · 5 s | 10 min | UNIQUE `(tenant_id, period_start)` em `audit_seals` | Selo atrasado > 3 h; verificação falhou |
 | `maintenance` | Agendada (diária) | Scheduler `maintenance-daily` | `MaintenanceRunner` | 2 | — | 5 · 5 s | 30 min | Operações condicionais/idempotentes | Execução ausente > 26 h |
@@ -182,6 +183,21 @@ Os nomes de consumidores `NotificationDispatcher`, `EmailSender`, `PermissionCac
 - **Disponibilidade do ClamAV:** breaker com *health check* `PING`/`PONG`; aberto → *rate limit* manual da fila (§10.3), anexos permanecem `UPLOADED`/`SCANNING` e **nunca** são liberados sem scan.
 - Timeout de 90 s (100 MB em clamd leva poucos segundos; a folga cobre a leitura do S3) e menor que o `stopTimeout` do contêiner (§14).
 
+### 4.5.1 `ai-generation` (DEC-079, EP-020)
+- **Produtor (padrão B):** o módulo `ai` grava `AiGeneration` (`QUEUED`, `reservedTokens`) na transação de AI-01 e enfileira após o commit com `jobId = generationId`. **Payload:** `JobData<{ generationId: string }>`, com ator = solicitante (DEC-164).
+- **Consumidor:** `AiGenerationHandler`, em 4 passos:
+  1. **Claim e revalidação:** `UPDATE … SET status = 'RUNNING', started_at = now(), attempts = attempts + 1 WHERE id = $1 AND status IN ('QUEUED','RUNNING')`. Em seguida revalida a POL-18 (IA ligada, permissão, limites), em transação curta de leitura; se falhar, `CANCELED`/`CANCELED_BY_POLICY` sem chamar o provedor.
+  2. **Montagem do contexto:** monta o contexto pelas fachadas de leitura, também em transação curta de leitura (`ContextSanitizer`, prompt versionado).
+  3. **Chamada ao provedor:** **fora de transação**, com timeout de 120 s.
+  4. **Gravação:** valida a saída, converte para TipTap e aplica o *GroundingGuard*; grava `SUCCEEDED` com `AiGenerationCompleted`, auditoria e timeline na mesma transação curta.
+- **Erros:**
+  - Transitórios (429, 5xx, *timeout*, rede): retentativa (3 tentativas, base 10 s); com o disjuntor aberto, o job pausa sem consumir tentativas (§10.3).
+  - Permanentes (`CONTENT_FILTERED`, `CONTEXT_TOO_LARGE`, saída inválida após 1 reparo): `FAILED`.
+  - Ao esgotar as tentativas ou falhar de forma permanente: `FAILED` + `errorCode` + `AiGenerationFailed` (notificação `AI_GENERATION_FAILED`). Não há cópia na DLQ para erro do provedor, só para exceção técnica.
+- **Cancelamento:** AI-04 em `RUNNING` faz o handler descartar a resposta ao terminar (o status já é `CANCELED`); os tokens contam no uso.
+- **Estado do disjuntor:** chave de plataforma `cf:{env}:ai:circuit`, compartilhada com a API (AI-01 → 503 `AI_PROVIDER_UNAVAILABLE` com o circuito aberto).
+- **SLO:** rascunho completo p95 ≤ 90 s; ajuste de seção p95 ≤ 20 s, do pedido ao `SUCCEEDED`.
+
 ### 4.6 `deadlines` (a cada 15 min)
 - **Scheduler** `deadlines-tick` (`*/15 * * * *`, UTC) gera o job de plataforma `tick`, que lista tenants `ACTIVE` (tabela de plataforma `tenants`) e enfileira um `scan-tenant` por tenant com `jobId = deadlines.{tenantId}.{slot}` (slot = início do intervalo de 15 min em epoch).
 - **`scan-tenant`** (`DeadlineScanner`, US-055/US-114), no contexto do tenant (RLS):
@@ -203,6 +219,8 @@ O scheduler `maintenance-daily` gera `daily`, que enfileira jobs de plataforma e
 | `audit-partitions-ensure` | Plataforma | Papel de migração | Garante partições mensais de `audit_logs` para os próximos 3 meses | DEC-085 |
 | `uploads-expire` | Tenant | Aplicação | `PENDING_UPLOAD` > 24 h → `DELETED` (sistema) | DEC-136 |
 | `previews-expire` | Tenant | Aplicação | `PREVIEW` com `expiresAt` vencido → `EXPIRED` | DEC-060, DEC-085 |
+| `ai-proposals-expire` | Tenant | Aplicação | `AiGeneration` `SUCCEEDED` com `expiresAt` vencido → `EXPIRED` (conteúdo mantido para rastreabilidade) | DEC-079, RN-AI-11 |
+| `ai-generations-timeout` | Tenant | Aplicação | `AiGeneration` `RUNNING` há mais de 10 min → `FAILED` (`TIMEOUT`) + `AiGenerationFailed`; libera a reserva de tokens | DEC-079, RN-AI-08 |
 | `notifications-archive` | Tenant | Aplicação | Notificações lidas há > 180 dias → `archivedAt` | DEC-085 |
 | `memberships-expire` | Tenant | Aplicação | Vínculos `EXTERNAL` vencidos → `EXPIRED` + `MembershipExpired` + auditoria `membership.expire` + invalidação de cache e encerramento de sessões | DEC-012, DEC-139, POL-15 |
 | `participants-expire` | Tenant | Aplicação | `CONSULTANT` com `expiresAt` vencido → remoção + `ProcessAccess.revokedAt` na mesma transação + `ProcessParticipantRemoved` (`reason = EXPIRED`) + auditoria `process.participant_remove` | DEC-024, DEC-036 |

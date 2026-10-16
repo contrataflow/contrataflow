@@ -289,7 +289,7 @@ Backups do RDS (aplicação e Authentik) e do S3 criptografados com CMK, copiado
 
 ## 21. LGPD
 
-**Papéis:** cada **instituição contratante (tenant) é controladora** dos dados pessoais tratados nos seus processos; o **ContrataFlow é operador** (trata por conta e conforme instruções do controlador, em contrato com cláusulas de proteção de dados). O ContrataFlow é controlador apenas dos dados dos próprios operadores da plataforma e de contatos comerciais. Suboperadores (AWS, provedor de e-mail, observabilidade) listados em anexo contratual.
+**Papéis:** cada **instituição contratante (tenant) é controladora** dos dados pessoais tratados nos seus processos; o **ContrataFlow é operador** (trata por conta e conforme instruções do controlador, em contrato com cláusulas de proteção de dados). O ContrataFlow é controlador apenas dos dados dos próprios operadores da plataforma e de contatos comerciais. Suboperadores (AWS, provedor de e-mail, observabilidade e, com a IA ligada pelo órgão, o provedor de IA — ADR-013) listados em anexo contratual.
 
 **Bases legais (DEC-140):** execução de políticas públicas e cumprimento de obrigação legal — art. 7º, II e III, e art. 23 (tratamento pelo poder público).
 
@@ -305,6 +305,7 @@ Backups do RDS (aplicação e Authentik) e do S3 criptografados com CMK, copiado
 | `AuditLog` | Ator, IP, user-agent, hash da sessão, alterações mascaradas | Usuários | Segurança, responsabilização, conformidade | Imutável; acesso `AUDIT_VIEW` |
 | `Notification` | Destinatário, conteúdo resumido | Usuários | Comunicação | Arquivamento após 180 dias (DEC-085) |
 | Sessão (Redis) | `userId`, IP, user-agent | Usuários | Segurança da sessão | Expira (ociosidade/absoluta); sem backup |
+| `AiGeneration` e contexto enviado ao provedor de IA (EP-020) | Nome do solicitante (só no registro, nunca no contexto); textos livres de documentos já redigidos (CPF, e-mail, telefone e CEP); resumo e orientações digitados pelo usuário | Servidores e terceiros eventualmente citados | Geração assistida de documentos (DEC-037) | Opt-in do órgão com termos; minimização pelo `ContextSanitizer`; sem nomes de pessoas nem valores sigilosos no contexto; provedor sem uso para treinamento e com cláusulas-padrão da ANPD (transferência internacional — ADR-013); nada de conteúdo em logs, eventos ou auditoria (só hashes) |
 
 **Direitos dos titulares (art. 18):** solicitações são recebidas e decididas pelo **controlador** (administrador da instituição/encarregado do órgão); a plataforma fornece meios: exportação dos dados do titular no tenant, correção pelo próprio usuário (`/perfil`) ou pelo administrador, anonimização/bloqueio quando cabível. Eliminação é limitada pelo dever de guarda de documentos públicos e pela temporalidade do órgão (PEND-07); a negativa fundamentada é registrada.
 

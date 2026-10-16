@@ -813,7 +813,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: { [chave: string]: { value: unknown, version: number } } }` — todas as chaves do registro (catálogo completo de chaves/tipos/limites: `entities.md` §6)
+- **Response:** `200 { data: { [chave: string]: { value: unknown, version: number } }, meta: { aiTerms: { currentVersion: string, provider: string } } }` — todas as chaves do registro (catálogo completo de chaves/tipos/limites: `entities.md` §6); `meta.aiTerms` alimenta o diálogo de aceite dos termos de uso da IA (US-116, DEC-079)
 - **Erros:**
 
 | HTTP | code | Quando |
@@ -821,7 +821,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 403 | `PERMISSION_DENIED` | Sem `SETTINGS_MANAGE` |
 
 - **Efeitos:** —
-- **Notas:** Grupos exibidos por prefixo de chave: `labels.*`, `branding.*`, `numbering.*`, `process.*`, `access.*`, `approval.*`, `security.*`, `deadlines.*`, `calendar.*`, `priceResearch.*`, `risk.*`, `uploads.*`, `notifications.*`, `features.*`. Chave sem linha persistida (RN-TEN-57) vem com o valor padrão e `version: 0`; `features.<flag>` só aparece quando gravada. A resposta traz `Cache-Control: private, max-age=0, must-revalidate` e `ETag` fraco do conteúdo. A leitura exige `SETTINGS_MANAGE` e, com `security.mfaPolicy` ≠ `NONE`, MFA na sessão (POL-14: permissão de risco `H`) — `403 MFA_REQUIRED`.
+- **Notas:** Grupos exibidos por prefixo de chave: `labels.*`, `branding.*`, `numbering.*`, `process.*`, `access.*`, `approval.*`, `security.*`, `deadlines.*`, `calendar.*`, `priceResearch.*`, `risk.*`, `uploads.*`, `notifications.*`, `features.*`, `ai.*` (US-116). Chave sem linha persistida (RN-TEN-57) vem com o valor padrão e `version: 0`; `features.<flag>` só aparece quando gravada. A resposta traz `Cache-Control: private, max-age=0, must-revalidate` e `ETag` fraco do conteúdo. A leitura exige `SETTINGS_MANAGE` e, com `security.mfaPolicy` ≠ `NONE`, MFA na sessão (POL-14: permissão de risco `H`) — `403 MFA_REQUIRED`.
 
 ### SET-02 — Atualizar configurações do tenant
 `PATCH /api/v1/settings` · **Permissão:** `SETTINGS_MANAGE` · **Story:** US-103, US-105

@@ -2,7 +2,7 @@
 
 > Três níveis de critérios, todos em **Gherkin** (palavras-chave em inglês, texto em pt-BR):
 > 1. **Transversais (CA-T)** — valem para **toda** story e são verificados por suítes genéricas (tenant leak, RBAC, contrato de API, auditoria).
-> 2. **Jornadas do MVP (J-01…J-10)** — aceite de ponta a ponta do release; correspondem às jornadas E2E de [tests.md](tests.md).
+> 2. **Jornadas do MVP (J-01…J-11)** — aceite de ponta a ponta do release; correspondem às jornadas E2E de [tests.md](tests.md).
 > 3. **Por story** — critérios específicos em cada card de [`../backlog/`](../backlog/README.md) (8 categorias obrigatórias: sucesso, validação, permissão, tenant incorreto, duplicidade, concorrência, falha de banco, falha de integração). Índice na §3.
 
 ---
@@ -362,6 +362,25 @@ Feature: Consultor externo com acesso restrito e temporário
     Then "Eva" deve perder o acesso ao processo automaticamente
 ```
 
+### J-11 — Rascunhos com IA em cadeia e revisão humana (EP-020)
+```gherkin
+Feature: Documentos do planejamento gerados com IA e revisados por pessoas
+
+  Scenario: Do resumo da necessidade ao TR, sem números inventados e sem pular a revisão
+    Given o administrador ligou a IA no órgão aceitando os termos de uso (US-116)
+    And o provedor de IA de teste (FakeAiProvider) responde com as fixtures da jornada
+    When "Ana" gerar o rascunho do DFD a partir de um resumo de três linhas e aplicar todas as seções
+    Then as seções devem aparecer como "Gerado por IA — revisão pendente" e a timeline deve mostrar "AI_CONTENT_GENERATED" e "AI_CONTENT_APPLIED"
+    And quantidades, valores e prazos ausentes das entradas devem aparecer apenas como "[a confirmar]"
+    When "Ana" tentar enviar o DFD para aprovação sem revisar
+    Then o envio deve ser recusado com "DOCUMENT_INCOMPLETE" listando "SECTION_AI_REVIEW_PENDING" e "SECTION_PLACEHOLDER_PENDING"
+    When "Ana" resolver as marcações, marcar as seções como revisadas e enviar
+    Then o fluxo de aprovação deve seguir como na J-02
+    When "Paula" gerar e aplicar os rascunhos do ETP, do mapa de riscos e do TR, revisá-los e concluí-los
+    Then cada geração deve estar registrada com solicitante, modelo, versão do prompt, entradas, tokens e custo, e auditada
+    And nenhum dado de outro tenant, dado pessoal ou valor de orçamento sigiloso deve ter sido enviado ao provedor
+```
+
 ---
 
 ## 3. Índice de critérios por story
@@ -486,4 +505,12 @@ Feature: Consultor externo com acesso restrito e temporário
 | [US-112](../backlog/story-112-transactional-emails.md) | E-mails transacionais | EP-019 | P0 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 8 |
 | [US-113](../backlog/story-113-notification-preferences.md) | Preferências de notificação | EP-019 | P2 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 8 |
 | [US-114](../backlog/story-114-deadline-reminders.md) | Lembretes de prazo e alertas de atraso | EP-019 | P1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 8 |
-| **Total** | 114 stories | | | **194** | **156** | **143** | **120** | **124** | **129** | **116** | **128** | **1110** |
+| [US-115](../backlog/story-115-ai-provider-layer.md) | Camada de IA com registro e rastreabilidade das gerações | EP-020 | P1 | 4 | 3 | 2 | 1 | 2 | 2 | 2 | 4 | 20 |
+| [US-116](../backlog/story-116-ai-tenant-settings.md) | Configurar a IA no órgão: ativação, limites e consumo | EP-020 | P1 | 5 | 3 | 2 | 1 | 1 | 2 | 1 | 1 | 16 |
+| [US-117](../backlog/story-117-ai-draft-dfd.md) | Gerar o rascunho do DFD com IA a partir do resumo da necessidade | EP-020 | P1 | 6 | 3 | 2 | 1 | 2 | 2 | 1 | 2 | 19 |
+| [US-118](../backlog/story-118-ai-draft-etp.md) | Gerar o rascunho do ETP com IA a partir do DFD | EP-020 | P1 | 4 | 2 | 1 | 1 | 1 | 1 | 1 | 2 | 13 |
+| [US-119](../backlog/story-119-ai-draft-risk-map.md) | Gerar a proposta do mapa de riscos com IA | EP-020 | P1 | 3 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 11 |
+| [US-120](../backlog/story-120-ai-draft-tr.md) | Gerar o rascunho do TR com IA a partir do ETP | EP-020 | P1 | 4 | 2 | 1 | 1 | 1 | 1 | 1 | 2 | 13 |
+| [US-121](../backlog/story-121-ai-section-adjust.md) | Ajustar seção com IA: reescrever, completar e resumir | EP-020 | P1 | 3 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 11 |
+| [US-122](../backlog/story-122-ai-review-markers.md) | Marcar conteúdo gerado por IA e pendências \"[a confirmar]\" e exigir revisão humana | EP-020 | P1 | 5 | 2 | 1 | 1 | 1 | 1 | 1 | 2 | 14 |
+| **Total** | 122 stories | | | **228** | **175** | **154** | **128** | **134** | **140** | **125** | **143** | **1227** |

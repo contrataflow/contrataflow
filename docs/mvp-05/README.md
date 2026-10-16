@@ -6,13 +6,16 @@
 
 Assistente contextual; Validação automática (ex.: "Quantidade divergente entre ETP e TR"; "Garantia divergente"); Saúde do processo; Recomendações; Busca de contratações similares; Benchmark de preços; Detecção de gargalos; Previsão de atraso.
 
+**Saiu do escopo deste MVP (2026-10-16, DEC-037):** a **geração** de documentos com IA — rascunho completo e ajuste por seção de DFD, ETP, mapa de riscos e TR — foi antecipada para o MVP 1 (EP-020, US-115..US-122). Continuam aqui: validações cruzadas, saúde do processo, recomendações, benchmark, busca semântica, detecção de gargalos, previsão de atraso e o assistente conversacional.
+
 ## Telas previstas
 
 Assistente IA (40)
 
 ## Impactos já identificados no modelo do MVP 1
 
-- Camada `AiProvider` (OpenAI, Anthropic, Azure OpenAI), entidades `AIAnalysis`, `ValidationResult`, `Embedding` (pgvector)
+- Camada `AiProvider`, módulo `ai`, fila `ai-generation` e registro `AiGeneration` **já existem desde o MVP 1** (DEC-079; provedor em ADR-013). Este MVP acrescenta `AIAnalysis` (avaliar estender `AiGeneration` e alinhar o nome — DOM-01), `ValidationResult` e `Embedding` (pgvector)
+- Reaproveitar do MVP 1: rastreabilidade (modelo, versão do prompt, entradas, tokens, custo), limites por órgão (`ai.*`), `AI_GENERATE`/POL-18, marcações "gerado por IA"/[a confirmar] e revisão humana (US-122), conjunto de avaliação `pnpm ai:eval`
 - Validações cruzadas sobre `DocumentItem` por `processItemId` (DEC-019) e campos tipados (ex.: `productWarrantyMonths`)
 - IA sempre assistiva: nenhuma decisão sem aprovação humana (princípio 16); registro de prompts/versões e custos
 

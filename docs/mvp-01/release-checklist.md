@@ -31,7 +31,7 @@
 
 ### 1.3 MVP 1
 - [ ] 100% das stories P0 e P1 concluídas (DoD de card).
-- [ ] Jornadas E2E J-01 a J-10 de [tests.md](tests.md) passando em staging.
+- [ ] Jornadas E2E J-01 a J-11 de [tests.md](tests.md) passando em staging.
 - [ ] Suíte "tenant leak" 100% verde; matriz RBAC 100% verde.
 - [ ] Testes de carga atendendo às metas (SLOs de observability.md §1: leituras/listas p95 ≤ 500 ms e lista com 100 mil processos p95 < 800 ms; painel situacional ≤ 800 ms; comandos ≤ 1 s; PDF p95 < 30 s; lag do outbox p95 < 5 s).
 - [ ] Pentest externo concluído sem achados críticos/altos abertos; ZAP baseline limpo.

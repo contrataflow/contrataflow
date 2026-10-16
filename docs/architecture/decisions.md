@@ -286,6 +286,19 @@ Matriz completa em [`mvp-01/permissions.md`](../mvp-01/permissions.md).
 ### DEC-036 — Participantes do processo · `Aceita`
 `ProcessParticipant` concede acesso explícito por processo a usuários ou unidades: `OBSERVER` (vê e recebe notificações; inclui "seguir processo"), `COLLABORATOR` (vê, comenta, edita documentos em rascunho, anexa), `CONSULTANT` (como colaborador, obrigatoriamente com `expiresAt`; padrão para vínculos `EXTERNAL`). Participantes nunca tramitam nem aprovam.
 
+### DEC-037 — IA geradora dos documentos do planejamento no MVP 1 · `Aceita` · antecipa parte do MVP 5 · [ADR-013](../adr/adr-013-ai-provider.md) (provedor pendente — PEND-21)
+- **Contexto:** elaborar DFD, ETP, mapa de riscos e TR é o trabalho mais demorado da fase preparatória, e os órgãos pequenos têm pouco tempo e prática nisso; o principal concorrente vende a geração desses documentos com IA. O plano anterior só trazia IA no MVP 5, para assistir e validar (prd-3).
+- **Decisão do usuário (2026-10-14):** geração assistida **no MVP 1, antes do lançamento**, logo depois dos editores dos quatro documentos (EP-020; impacto no prazo em [delivery-plan.md](../mvp-01/delivery-plan.md) §5). Documentos: DFD, ETP, Mapa de riscos e TR. Modo: **rascunho completo** a partir de um resumo da necessidade e dos dados do processo, em cadeia (DFD → ETP → mapa de riscos → TR), com os templates do órgão e a base legal da Lei 14.133/2021, e **ajuste por seção** (reescrever, completar, resumir). A pessoa sempre revisa e aprova.
+- **Regras que valem para toda a capacidade:**
+  1. **Princípio 16:** a IA nunca aprova, encaminha, publica nem decide; o documento só avança por ação humana. O conteúdo gerado fica identificado como "gerado por IA" até ser revisado por uma pessoa, e documento com conteúdo não revisado não pode ser finalizado, submetido nem encaminhado (US-122).
+  2. **Nada inventado:** quantidades, valores, prazos e dados do órgão vêm do processo (DFD, itens, pesquisa de preços, cadastro); o que faltar sai marcado **[a confirmar]**; a IA não cria preço — o valor estimado vem da pesquisa de preços. A IA escreve só texto narrativo; campos tipados, itens, alternativas e decisões continuam com as pessoas.
+  3. **Rastreabilidade:** cada geração registra quem pediu, documento e seção, modelo, versão do prompt, entradas usadas, tokens e custo (`AiGeneration`); vai para a auditoria e para a timeline do processo.
+  4. **Isolamento e LGPD:** só dados do próprio tenant entram no contexto; dados pessoais desnecessários ficam de fora (minimização — DEC-140); valores de orçamento sigiloso nunca são enviados ao provedor (DEC-030).
+  5. **Governança do órgão:** a IA é **opt-in** — o administrador liga (`ai.enabled`, padrão desligado) aceitando os termos de uso, pode desligá-la a qualquer momento e tem limite de uso mensal (tokens) e diário por usuário; quem pode gerar é definido pela permissão `AI_GENERATE` na matriz de perfis.
+- **Fora de escopo agora:** parecer jurídico e edital ganham geração por IA no MVP 2, quando esses documentos existirem; validações cruzadas entre documentos, saúde do processo, recomendações, benchmark e busca semântica continuam no MVP 5; qualquer IA que decida ou aprove.
+- **Pendentes do usuário:** provedor e modelo (PEND-21, ADR-013) e modelo de custo (PEND-22). Nenhuma decisão de provedor foi tomada na especificação.
+- Registrado em 2026-10-16 (spec-473, prd-3).
+
 ---
 
 ## 3. Módulos (bounded contexts) e propriedade de entidades
@@ -317,9 +330,10 @@ Cada entidade tem **um único módulo dono**. Outros módulos a acessam somente 
 | `dashboard` | Indicadores operacionais (somente consultas) | — |
 | `notification` | Notificações in-app e e-mail, preferências | `Notification`, `NotificationPreference` |
 | `audit` | Trilha de auditoria e selagem | `AuditLog`, `AuditSeal` |
+| `ai` | Geração assistida de documentos do planejamento (DEC-037, DEC-079); somente fachadas de leitura de outros módulos | `AiGeneration` |
 | `platform` (infra compartilhada) | Outbox, filas, storage, cache, PDF, e-mail, observabilidade, health | `OutboxEvent` |
 
-Módulos futuros (reservados): `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `analytics`, `rules`, `publication`, `signature`, `integration`, `public-api`, `webhook`, `contract`, `ai`.
+Módulos futuros (reservados): `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `analytics`, `rules`, `publication`, `signature`, `integration`, `public-api`, `webhook`, `contract`. O `ai` foi antecipado para o MVP 1 (DEC-079); o MVP 5 amplia o mesmo módulo.
 
 ### DEC-041 — Camadas por módulo · `Aceita` · [ADR-001](../adr/adr-001-modular-monolith.md)
 ```
@@ -357,7 +371,7 @@ modules/<modulo>/
 | PDF | Gotenberg (Chromium) |
 | Antivírus | ClamAV (clamd) |
 | E-mail | SMTP (Mailpit em dev) / Amazon SES em produção, via abstração |
-| IA (MVP 5) | Camada própria `AiProvider` (OpenAI, Anthropic, Azure OpenAI) + pgvector |
+| IA | Camada própria `AiProvider` (OpenAI, Anthropic, Azure OpenAI): geração de documentos no MVP 1 (DEC-037, DEC-079; provedor em ADR-013 — PEND-21); assistente, validações e pgvector no MVP 5 |
 | Observabilidade | pino, OpenTelemetry, Prometheus, Grafana, Loki, Tempo (dev); coletor OTel → backend gerenciado em produção |
 | Testes | Vitest, Testcontainers, Supertest, Playwright, k6, axe-core, OWASP ZAP |
 | Infra | Docker, Docker Compose (dev), AWS (ECS Fargate, RDS, ElastiCache, S3, ALB + WAF, SES, Secrets Manager, KMS), Terraform |
@@ -594,6 +608,24 @@ Decisões de implementação da US-099 (detalhes em [multi-tenancy.md](multi-ten
 - **Pendente (stories donas):** papel `ADMIN_ORGAO` no escopo `TENANT` do primeiro administrador (US-096 — `role_assignments`); token e e-mail do convite (US-091/US-112 — até lá `invitationDispatched = false` e `tenant:resend-invite` sai com 2); órgão principal e `cf_set_primary_organization` (US-101); fixtures da suíte "tenant leak" geradas por este provisionamento.
 - Registrado em 2026-10-15 (US-099).
 
+### DEC-079 — Módulo `ai` e camada `AiProvider` no MVP 1 · `Aceita` · complementa DEC-037, DEC-040, DEC-052, DEC-163 e a regra D9 de [domains.md](domains.md) · provedor em [ADR-013](../adr/adr-013-ai-provider.md) (PEND-21)
+- **Módulo:** `ai` sai da lista de reservados e entra no MVP 1 no **nível 5** de `tools/module-levels.json` ("leitura e efeitos colaterais", com `timeline`, `inbox`, `dashboard` e `notification`). Importa apenas **fachadas de leitura** dos níveis 0–4; nunca chama comando de outro módulo (regra D9 — dependency-cruiser `ai-read-only`). Dono de `AiGeneration`.
+- **Aplicação pelo módulo dono:** aplicar o conteúdo gerado e marcar a revisão são comandos de `document` (seções — DOC-26/27) e `risk` (riscos — RSK-11/12), executados por uma pessoa. Esses módulos leem a proposta pela porta **`AiSuggestionSource`** do shared kernel (`apps/api/src/shared/ai/ai-suggestion-source.ts`: `loadForApply` e `markApplied`, na mesma transação), implementada pelo `ai` no `onModuleInit` — mesmo arranjo de `DocumentTypeCatalog` e `MembershipReferences`; sem implementação registrada, falha fechada.
+- **Porta `AiProvider` (ACL):** `generate({ model, system, messages, responseSchema, maxOutputTokens, temperature, timeoutMs })` → `{ output, usage: { inputTokens, outputTokens }, model, finishReason, providerRequestId }`. Adaptadores: `FakeAiProvider` (dev/test/CI, determinístico por fixture) e o do provedor escolhido na ADR-013. O modelo não recebe ferramentas: não há como a IA acionar ações do sistema.
+- **Execução:** assíncrona, na fila nova **`ai-generation`** (padrão B de [queues.md](queues.md): enfileirada após o commit, `jobId = generationId`; concorrência 4 por worker e 2 simultâneas por tenant; timeout de 120 s; 3 tentativas com backoff exponencial base 10 s; disjuntor). Nenhuma chamada de IA dentro de transação ou da requisição HTTP. Propostas não aplicadas expiram em 7 dias (`ai-proposals-expire`, fila `maintenance`).
+- **Contexto e saída:** `ContextSanitizer` (minimização LGPD e sigilo), prompts versionados em código (`apps/api/src/modules/ai/prompts/<promptKey>/`, `promptKey` + `promptVersion`), saída estruturada validada por Zod e convertida para TipTap com o nó `toConfirm`; `GroundingGuard` determinístico troca por **[a confirmar]** todo número, valor, prazo, data ou percentual que não esteja nas entradas.
+- **Configuração de plataforma:** `AI_PROVIDER` (`fake`|`anthropic`|`bedrock`|`openai`|`azure-openai`|`none`), `AI_MODEL_DRAFT`, `AI_MODEL_SECTION`, `AI_TENANT_MAX_MONTHLY_TOKENS`, `AI_REQUEST_TIMEOUT_MS`, `AI_TERMS_VERSION` e a tabela de preços versionada por modelo; segredos no Secrets Manager (DEC-137). Por tenant: `ai.enabled`, `ai.termsAcceptedVersion`, `ai.monthlyTokenLimit`, `ai.userDailyRequestLimit` (entities.md §6).
+- **Detalhes operacionais (lacunas das US-115/US-116, decididos em 2026-10-16):**
+  - **Disjuntor:** estado compartilhado entre API e worker numa chave Redis de plataforma, sem dado de tenant (`cf:{env}:ai:circuit`).
+  - **Tabela de preços:** arquivo versionado em código no módulo `ai` (`pricingVersion` = versão do arquivo), com preço de entrada e de saída por milhão de tokens e por modelo. Os valores são preenchidos com a decisão da ADR-013.
+  - **Reserva de tokens por pedido** (RN-AI-18): DFD 15 mil, ETP 40 mil, mapa de riscos 25 mil, TR 40 mil e ajuste de seção 6 mil; calibrar com as métricas do primeiro mês.
+  - **Consumo do mês:** atribuído pelo `createdAt` da geração, no fuso do tenant. Reduzir `ai.monthlyTokenLimit` abaixo do já consumido bloqueia só novos pedidos (`AI_USAGE_LIMIT_REACHED`), até o mês seguinte ou até o aumento do limite.
+  - **Avisos de consumo:** `AiUsageThresholdReached` usa `eventId` determinístico (UUID v5 de tenant + mês + faixa), gravado no outbox com `ON CONFLICT DO NOTHING` sob a trava consultiva do tenant. Quem já recebeu o aviso não o recebe de novo, mesmo após a limpeza do outbox, pela unicidade `(tenant_id, recipient_id, source_event_id, type)` de `notifications`. O aviso é publicado quando o consumo atinge 80% ou 100% e ainda não houve aviso daquela faixa no mês.
+  - **Termos de uso:** o texto fica versionado no repositório junto com `AI_TERMS_VERSION`. SET-01 devolve `meta.aiTerms = { currentVersion, provider }` para o diálogo de aceite. Uma versão nova dos termos não desliga a IA já ligada; só religar exige o aceite da versão vigente.
+  - **Portas internas:** o `ai` consulta flag, termos e limites pela porta `AiTenantGate` (implementada na US-116; sem ela, AI-01 falha fechado com `AI_DISABLED`). Sem implementação de `AiSuggestionSource`, DOC-26 e RSK-11 respondem 503 `DEPENDENCY_UNAVAILABLE`.
+- **Consequências:** o MVP 1 ganha um subprocessador externo (provedor de IA) — inventário de dados e termos de uso atualizados; a suíte "tenant leak" e os testes de autorização cobrem AI-01..06, DOC-26/27 e RSK-11/12; o MVP 5 reutiliza a camada, o módulo e o registro de gerações.
+- Registrado em 2026-10-16 (spec-473, prd-3).
+
 
 ---
 
@@ -746,7 +778,7 @@ Eventos de fatos exclusivos de um módulo (fora do ciclo de vida do documento) s
 O mesmo padrão vale para o processo: `ProcessStageChanged` (com `cause`) é o fato canônico de mudança de etapa e `ProcessForwarded` (`process.stage_changed.forward`) e `ProcessReturned` (`process.stage_changed.return`) são seus nomes especializados; `ProcessStatusChanged` é o fato canônico de mudança de status e `ProcessSuspended`, `ProcessResumed`, `ProcessCanceled`, `ProcessCompleted` são especializações. Catálogo completo em [`mvp-01/events.md`](../mvp-01/events.md).
 
 ### DEC-163 — Filas do MVP 1 · `Aceita`
-`domain-events`, `notifications`, `email`, `document-render`, `file-scan`, `deadlines` (agendada, 15 min), `audit-seal` (agendada, 1 h), `maintenance` (agendada, diária). Política padrão: 5 tentativas, backoff exponencial com jitter (base 5 s), `removeOnComplete` com retenção de 24 h, falhas finais movidas para `dead-letter` com alerta. Detalhes em [`queues.md`](queues.md).
+`domain-events`, `notifications`, `email`, `document-render`, `file-scan`, `ai-generation` (DEC-079), `deadlines` (agendada, 15 min), `audit-seal` (agendada, 1 h), `maintenance` (agendada, diária). Política padrão: 5 tentativas, backoff exponencial com jitter (base 5 s), `removeOnComplete` com retenção de 24 h, falhas finais movidas para `dead-letter` com alerta. Detalhes em [`queues.md`](queues.md).
 
 ### DEC-164 — Contexto de tenant em jobs · `Aceita`
 Todo job carrega `tenantId`, `actor`, `correlationId` e `traceparent`. O worker abre o contexto (AsyncLocalStorage + `app.tenant_id` no banco) antes do handler; job sem `tenantId` só é aceito em filas de plataforma explicitamente marcadas.
@@ -793,6 +825,8 @@ Itens que exigem decisão de produto, jurídico ou cliente-piloto. A especifica�
 | PEND-18 | Login gov.br via Authentik | Fora do MVP 1 | Produto |
 | PEND-19 | Prioridade do processo após a aprovação do DFD | `Process.priority` passa a `Dfd.priority` na aprovação (RN-DFD-66, US-017); ajustes posteriores por US-005 | Produto |
 | PEND-20 | Organização e times do GitHub (CODEOWNERS, proteção de branch) | Times provisórios de DEC-062 (`@contrataflow/tech-lead`, `security`, `platform`, `frontend`, `design`, `product`, `engineering`) | Tech Lead |
+| PEND-21 | Provedor e modelo de IA para a geração de documentos ([ADR-013](../adr/adr-013-ai-provider.md)) | Camada agnóstica (`AiProvider`) com `FakeAiProvider` em dev/test; a ADR recomenda Anthropic Claude via Amazon Bedrock (região de origem `sa-east-1`), com um modelo intermediário no rascunho completo e um modelo econômico nos ajustes — **sem decisão até o usuário escolher** | Usuário (produto) + jurídico/DPO |
+| PEND-22 | Modelo de custo da IA (incluído no plano × cobrado por uso) e limites padrão por órgão | Sem cobrança; limite técnico `ai.monthlyTokenLimit` = 2.000.000 tokens/mês e `ai.userDailyRequestLimit` = 40; custo registrado por geração para o relatório de consumo (AI-06) | Usuário (produto/comercial) — relaciona-se com a PEND-17 |
 
 **Decididas em 2026-10-07 (sprint 0 — padrão confirmado pelo produto):** PEND-01 → DEC-028 · PEND-04 → DEC-020 · PEND-06 → DEC-141 · PEND-10 → DEC-061 · PEND-15 → DEC-021.
 
@@ -815,3 +849,4 @@ Itens que exigem decisão de produto, jurídico ou cliente-piloto. A especifica�
 | [ADR-010](../adr/adr-010-shared-validation.md) | Validação compartilhada com Zod e contrato OpenAPI gerado | Aceito |
 | [ADR-011](../adr/adr-011-identifiers-numbering.md) | UUIDv7 e numeração de negócio por sequência transacional | Aceito |
 | [ADR-012](../adr/adr-012-prisma-tenant-transaction.md) | Prisma 7 com *driver adapter* e contexto de tenant por transação | Aceito |
+| [ADR-013](../adr/adr-013-ai-provider.md) | Provedor e modelo de IA para a geração de documentos do planejamento | Proposto — pendente de decisão do usuário (PEND-21) |

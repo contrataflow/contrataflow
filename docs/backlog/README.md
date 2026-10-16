@@ -32,7 +32,8 @@
 | [EP-017](epic-017-tenancy-organization.md) | Tenant e estrutura organizacional | `TEN` | 8 | 37 |
 | [EP-018](epic-018-document-templates.md) | Templates de documentos | `TPL` | 4 | 23 |
 | [EP-019](epic-019-notifications.md) | Notificações | `NTF` | 4 | 17 |
-| **Total** | | | **114** | **615** |
+| [EP-020](epic-020-ai-document-generation.md) | IA para documentos do planejamento | `AI` | 8 | 46 |
+| **Total** | | | **122** | **661** |
 
 ## Features
 
@@ -97,6 +98,9 @@
 | [FT-057](feature-057-tenant-configuration.md) | Parametrização | EP-017 | US-103, US-104, US-105, US-106 |
 | [FT-058](feature-058-document-templates.md) | Templates de documentos | EP-018 | US-107, US-108, US-109, US-110 |
 | [FT-059](feature-059-notifications.md) | Notificações | EP-019 | US-111, US-112, US-113, US-114 |
+| [FT-060](feature-060-ai-layer-governance.md) | Camada de IA e governança | EP-020 | US-115, US-116 |
+| [FT-061](feature-061-ai-document-drafts.md) | Rascunhos com IA | EP-020 | US-117, US-118, US-119, US-120 |
+| [FT-062](feature-062-ai-section-adjust-review.md) | Ajuste por seção e revisão | EP-020 | US-121, US-122 |
 
 ## Stories
 
@@ -216,5 +220,13 @@
 | [US-112](story-112-transactional-emails.md) | E-mails transacionais | EP-019 | FT-059 | P0 | M | US-078, US-083 |
 | [US-113](story-113-notification-preferences.md) | Preferências de notificação | EP-019 | FT-059 | P2 | S | US-111 |
 | [US-114](story-114-deadline-reminders.md) | Lembretes de prazo e alertas de atraso | EP-019 | FT-059 | P1 | M | US-055, US-111, US-112 |
+| [US-115](story-115-ai-provider-layer.md) | Camada de IA com registro e rastreabilidade das gerações | EP-020 | FT-060 | P1 | L | US-059, US-065, US-073, US-083, US-097 |
+| [US-116](story-116-ai-tenant-settings.md) | Configurar a IA no órgão: ativação, limites e consumo | EP-020 | FT-060 | P1 | M | US-094, US-103, US-111, US-115 |
+| [US-117](story-117-ai-draft-dfd.md) | Gerar o rascunho do DFD com IA a partir do resumo da necessidade | EP-020 | FT-061 | P1 | L | US-015, US-116, US-122 |
+| [US-118](story-118-ai-draft-etp.md) | Gerar o rascunho do ETP com IA a partir do DFD | EP-020 | FT-061 | P1 | M | US-020, US-022, US-117 |
+| [US-119](story-119-ai-draft-risk-map.md) | Gerar a proposta do mapa de riscos com IA | EP-020 | FT-061 | P1 | M | US-034, US-035, US-117 |
+| [US-120](story-120-ai-draft-tr.md) | Gerar o rascunho do TR com IA a partir do ETP | EP-020 | FT-061 | P1 | M | US-036, US-038, US-117 |
+| [US-121](story-121-ai-section-adjust.md) | Ajustar seção com IA: reescrever, completar e resumir | EP-020 | FT-062 | P1 | M | US-020, US-035, US-036, US-117 |
+| [US-122](story-122-ai-review-markers.md) | Marcar conteúdo gerado por IA e pendências "[a confirmar]" e exigir revisão humana | EP-020 | FT-062 | P1 | M | US-065, US-067, US-115 |
 
-Totais: 19 épicos · 59 features · 114 stories (114 escritas) · P0 84 · P1 22 · P2 8 · 615 pontos.
+Totais: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.

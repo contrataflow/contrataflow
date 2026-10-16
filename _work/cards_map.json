@@ -114,6 +114,25 @@
 "US-058": "spec-459",
 "US-076": "spec-460",
 "US-023": "spec-461",
-"US-039": "spec-462"
-}
+"US-039": "spec-462",
+"US-115": "spec-476",
+"US-116": "spec-477",
+"US-122": "spec-478",
+"US-117": "spec-479",
+"US-118": "spec-480",
+"US-119": "spec-481",
+"US-120": "spec-482",
+"US-121": "spec-483"
+},
+"prd_by_story": {
+"US-115": "prd-3",
+"US-116": "prd-3",
+"US-122": "prd-3",
+"US-117": "prd-3",
+"US-118": "prd-3",
+"US-119": "prd-3",
+"US-120": "prd-3",
+"US-121": "prd-3"
+},
+"_comment": "map = US→spec de todos os cards; prd padrão = prd-2 (MVP 1); exceções em prd_by_story (EP-020, prd-3, criados pelo spec-473 em 2026-10-16)."
 }

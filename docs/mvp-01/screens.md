@@ -62,6 +62,10 @@ flowchart TD
         SCR116["SCR-116 Suspender / retomar / cancelar / concluir"]
     end
 
+    subgraph IA["Painel de IA sobre os editores (EP-020)"]
+        SCR117["SCR-117 Assistente de redação com IA"]
+    end
+
     subgraph GRUPOB["Grupo B (detalhado no §3; nós citados a partir de stories do grupo A)"]
         SCR029["SCR-029 Usuários /admin/usuarios"]
         SCR032["SCR-032 Assistente de implantação"]
@@ -107,6 +111,10 @@ flowchart TD
     SCR004 -.-> SCR109
     SCR006 -.-> SCR112
     SCR111 -.->|"Trocar de instituição"| SCR101
+    SCR007 -.-> SCR117
+    SCR008 -.-> SCR117
+    SCR011 -.-> SCR117
+    SCR012 -.-> SCR117
 ```
 
 ### 1.4 Padrões globais
@@ -212,7 +220,8 @@ flowchart TD
 - **Estados:** *skeleton* por passo; vazio de itens; erro de carregamento com "Tentar novamente"; modo leitura com faixa de status; checklist "Sem pendências"; conflito de edição (412, `ConflictDialog`/`SectionDiffView`); recuperação de rascunho local após reconexão.
 - **Validações e mensagens:** pendências anunciadas em `aria-live="polite"`; "Ir para o campo" move o foco e descreve o erro; aviso de decisão (aprovado/devolvido/indeferido) com motivo via `DecisionBanner`.
 - **Acessibilidade e responsividade:** *stepper* com `aria-current="step"`; foco no título do passo a cada troca; indicador de autosave em `aria-live="polite"`; *desktop-first* (DEC-183) — abaixo de 768 px, passos em coluna única, tabela de itens em cartões, edição de texto rico com aviso para uso no desktop.
-- **Stories:** US-014 (principal), US-015, US-016, US-017, US-018; US-071/US-072 (comentários/menções); US-068 (anexos).
+- **IA (EP-020):** `AiDraftButton` no cabeçalho (rascunho a partir do resumo da necessidade — US-117), `AiSectionMenu` nas seções narrativas (US-121), `AiGeneratedBadge`/`ToConfirmChip` (US-122); painel em SCR-117.
+- **Stories:** US-014 (principal), US-015, US-016, US-017, US-018; US-071/US-072 (comentários/menções); US-068 (anexos); US-117, US-121, US-122 (IA).
 
 ### SCR-008 — ETP (editor por seções)
 - **Rota:** `/processos/[id]/etp/[etpId]` · **Acesso:** `PROCESS_VIEW`; criar `ETP_CREATE`; editar `ETP_UPDATE` + POL-02; concluir `ETP_SUBMIT` · **Personas:** mesmas de SCR-007, aplicadas ao ETP.
@@ -224,7 +233,8 @@ flowchart TD
 - **Estados:** *skeleton* no cartão de importação e nas seções; vazio (sem DFD elegível — cartão oculto; "Nenhuma alternativa cadastrada ainda"; "Nenhum item herdado do DFD"); erro com toast (`DOCUMENT_ALREADY_EXISTS` ao tentar recriar); somente leitura quando não editável ou vinculado à pesquisa (estimativas); botão de concluir desabilitado com contagem de pendências.
 - **Validações e mensagens:** "não se aplica" exige justificativa; status de salvamento em `aria-live="polite"`; lista de pendências com link para a seção/campo.
 - **Acessibilidade e responsividade:** navegação lateral operável por teclado, recolhe para menu "Seções" abaixo de 768 px; tabela comparativa com cabeçalhos associados às células; itens em cartões empilhados em telas estreitas; diálogo de aviso com *focus trap*.
-- **Stories:** US-019 (principal), US-020, US-021, US-022, US-023; US-071/US-072.
+- **IA (EP-020):** `AiDraftButton` (rascunho em cadeia a partir do DFD — US-118), `AiSectionMenu`, `AiGeneratedBadge`/`ToConfirmChip`; painel em SCR-117.
+- **Stories:** US-019 (principal), US-020, US-021, US-022, US-023; US-071/US-072; US-118, US-121, US-122 (IA).
 
 ### SCR-009 — Pesquisa de preços
 - **Rota:** `/processos/[id]/pesquisa-precos/[researchId]` (abas Itens, Fontes, Cotações/grade, Mapa → SCR-010, Documento) · **Acesso:** `PROCESS_VIEW`; criar `PRICE_RESEARCH_CREATE`; editar `PRICE_RESEARCH_UPDATE` + POL-02; excluir cotação `PRICE_RESEARCH_EXCLUDE_QUOTATION`; concluir `PRICE_RESEARCH_COMPLETE` · **Personas:** requisitante/gestor com custódia; consulta a `SUPPLIER_VIEW`/`SUPPLIER_MANAGE` para fornecedores.
@@ -260,7 +270,8 @@ flowchart TD
 - **Estados:** *skeleton* na lista/matriz; vazio ("Nenhum risco registrado. Comece identificando o primeiro risco."; por risco, "Nenhuma ação de tratamento."); erro com "Tentar novamente"; bloqueado quando o `RISK_MAP` existe e está `FINALIZED`/`APPROVED`/`IN_REVIEW` (com link para reabrir).
 - **Validações e mensagens:** exclusão de risco lista tratamentos vinculados antes de confirmar; pendências bloqueantes (`RISK_*`) destacadas antes de permitir finalizar.
 - **Acessibilidade e responsividade:** grade de probabilidade × impacto com `aria-label` por célula; cores de nível sempre acompanhadas de texto; grade rola horizontalmente em telas estreitas mantendo cabeçalhos fixos; layout em coluna única abaixo de 768 px.
-- **Stories:** US-033 (principal), US-034, US-035; US-071 (comentários).
+- **IA (EP-020):** "Propor riscos com IA" (`AiRiskProposalList` — US-119), badge "Gerado por IA" por risco com "Marcar como revisado" (RSK-12), menu de IA nas seções do `RISK_MAP` (US-121); painel em SCR-117.
+- **Stories:** US-033 (principal), US-034, US-035; US-071 (comentários); US-119, US-121, US-122 (IA).
 
 ### SCR-012 — TR (editor)
 - **Rota:** `/processos/[id]/tr/[termId]` · **Acesso:** `PROCESS_VIEW`; criar `TERM_CREATE`; editar `TERM_UPDATE` + POL-02; concluir `TERM_SUBMIT` · **Personas:** requisitante/gestor com custódia.
@@ -272,7 +283,8 @@ flowchart TD
 - **Estados:** *skeleton* do editor/importação; vazio (processo sem TR — "Crie o Termo de Referência a partir do modelo do órgão"; sem ETP, com link para criá-lo; "Nenhum item cadastrado no processo"); modo leitura; selo "Em aprovação"; erro com `correlationId`; prévia de importação expirada (recarrega automaticamente).
 - **Validações e mensagens:** lista de pendências com foco programático ao clicar; status anunciado via `aria-live`; diff "antes/depois" da importação.
 - **Acessibilidade e responsividade:** navegação lateral como `nav` com marcos e `aria-current`; atalhos para seção anterior/próxima; *desktop-first* (DEC-183) — abaixo de 768 px, leitura e comentários; diff "antes/depois" vira abas; tabela de itens em cartões; checklist em acordeão.
-- **Stories:** US-036 (principal), US-037, US-038, US-039; US-015 (autosave/conflito), US-071/US-072.
+- **IA (EP-020):** `AiDraftButton` (rascunho em cadeia a partir do ETP — US-120), `AiSectionMenu`, `AiGeneratedBadge`/`ToConfirmChip`; painel em SCR-117.
+- **Stories:** US-036 (principal), US-037, US-038, US-039; US-015 (autosave/conflito), US-071/US-072; US-120, US-121, US-122 (IA).
 
 ### SCR-013 — Caixa de tarefas
 - **Rota:** `/tarefas` · **Acesso:** `INBOX_VIEW`; ações em lote exigem `PROCESS_CLAIM`/`PROCESS_ASSIGN` por item · **Personas:** qualquer servidor lotado em unidade com fila; titular/substituto de unidade (atribuição em lote).
@@ -429,6 +441,75 @@ flowchart TD
 - **Validações e mensagens:** motivo obrigatório (suspender); justificativa ≥ 20 caracteres (cancelar); violações anunciadas via `aria-live` (concluir); aviso de impacto associado via `aria-describedby`.
 - **Acessibilidade e responsividade:** foco preso nos diálogos; foco inicial no campo de justificativa quando existir; diálogos em tela cheia abaixo de 768 px; utilizável em 360 px.
 - **Stories:** US-008 (principal, suspender/retomar), US-009 (principal, cancelar/descartar), US-010 (principal, concluir).
+
+### SCR-117 — Assistente de redação com IA (painel lateral)
+- **Rota:** painel lateral sobre SCR-007 (DFD), SCR-008 (ETP), SCR-011 (Riscos) e SCR-012 (TR); `?ia=<generationId>` abre o painel já na proposta, por exemplo a partir da notificação `AI_GENERATION_READY`.
+- **Acesso:**
+  - gerar e ajustar: `AI_GENERATE` + POL-18;
+  - aplicar: permissão de edição do tipo + POL-02 e ser o solicitante;
+  - revisar: permissão de edição do tipo + POL-02;
+  - histórico: `PROCESS_VIEW`.
+- **Personas:** redatores com custódia ou participação (`REQUISITANTE` no DFD; `PLANEJAMENTO`, `COMPRAS` e `GESTOR_CONTRATACOES` no ETP, nos riscos e no TR).
+- **Objetivo:**
+  - pedir à IA um rascunho completo do documento (a partir do resumo da necessidade, no DFD) ou um ajuste de seção;
+  - acompanhar a geração sem bloquear o editor;
+  - comparar e aplicar seletivamente o que interessa;
+  - revisar o conteúdo gerado antes de concluir (DEC-037).
+- **Layout e regiões:**
+  - painel à direita do editor, com três abas: "Gerar", "Proposta" e "Histórico de IA";
+  - aviso fixo `AiDisclaimer`: "Conteúdo gerado por IA pode conter erros. Revise antes de concluir.";
+  - no editor, por seção: badge de proveniência, menu de IA e chips [a confirmar].
+- **Componentes:**
+  - **Gerar:**
+    - `AiDraftButton` ("Gerar rascunho com IA", no cabeçalho do editor);
+    - `AiRequestForm` (no DFD, "Descreva a necessidade em poucas linhas", obrigatório, 20–2.000 caracteres com contador; nos demais, orientações opcionais; lista das entradas que serão usadas, como "DFD aprovado v2", "Pesquisa de preços concluída" ou "Riscos (8)", e avisos de entradas faltantes — montados pelo cliente com os dados já carregados no editor, enquanto os avisos definitivos vêm do servidor em `output.warnings`; consumo estimado);
+    - `AiGenerationProgress` ("Gerando… você pode continuar editando", com "Cancelar" → AI-04).
+  - **Proposta:**
+    - `AiProposalSectionList`: seções com prévia, contagem de [a confirmar] e checkbox; as `EMPTY` vêm marcadas; as `FILLED`/`NOT_APPLICABLE` vêm desmarcadas, com o aviso "substituirá o texto atual" e uma versão automática antes;
+    - `AiSectionDiffView` (atual × sugerido);
+    - `AiRiskProposalList` (US-119: riscos com categoria, fase, P×I sugeridos e justificativa; tratamentos escolhidos um a um; aviso "parecido com R03");
+    - botões "Aplicar selecionadas" e "Descartar".
+  - **Ajuste de seção (US-121):** `AiSectionMenu` ("IA ▸ Reescrever / Completar / Resumir", com orientação opcional), comparação lado a lado e "Desfazer" enquanto o painel estiver aberto.
+  - **Revisão (US-122):** `AiGeneratedBadge` ("Gerado por IA · revisão pendente"), `MarkReviewedButton`, `ReviewAllDialog` ("Li e revisei as N seções"), `ToConfirmChip` (nó `toConfirm` em destaque, com ação "Marcar como a confirmar" na barra do editor).
+  - **Histórico:** `AiHistoryTab` (AI-03: quem, quando, tipo, seção, modelo, versão do prompt, tokens, status).
+- **Dados e endpoints:**
+  - AI-05 (disponibilidade; mostra, oculta ou desabilita as ações);
+  - AI-01 (solicitar, Idem.);
+  - AI-02 (acompanhar: consulta a cada 2 s até 5 s; para após 3 min e passa a depender da notificação);
+  - AI-03 (histórico) e AI-04 (descartar/cancelar);
+  - DOC-26 (aplicar seções, IM + Idem.), DOC-27 (revisar seções);
+  - RSK-11/RSK-12 (riscos);
+  - DOC-08 (validação: `SECTION_AI_REVIEW_PENDING`, `SECTION_PLACEHOLDER_PENDING`, `RISK_AI_REVIEW_PENDING`, `RISK_PLACEHOLDER_PENDING`);
+  - chaves de consulta `['t', tenantId, 'ai', 'generations', generationId]`, `['t', tenantId, 'processes', processId, 'ai-generations']` e `['t', tenantId, 'ai', 'availability', documentId]`.
+- **Ações:**
+  - Gerar rascunho → AI-01 (`DRAFT`) → POL-18 → progresso → proposta;
+  - Aplicar → DOC-26 (ou RSK-11) → só o solicitante, POL-02 → seções marcadas "Gerado por IA" e toast "N seções aplicadas";
+  - Ajustar seção → AI-01 (`SECTION`) → comparação → DOC-26;
+  - Revisar → DOC-27 / RSK-12 → badge some e a pendência sai do checklist;
+  - Descartar → AI-04.
+- **Estados:**
+  - IA desligada no órgão: ações ocultas, com nota "A IA não está ativa neste órgão" só para quem tem `SETTINGS_MANAGE`, com link para SCR-041;
+  - sem `AI_GENERATE`: ações ocultas;
+  - limite atingido ou provedor indisponível: botão desabilitado com explicação (`AI_USAGE_LIMIT_REACHED`, `AI_USER_DAILY_LIMIT_REACHED`, `AI_PROVIDER_UNAVAILABLE`);
+  - gerando (skeleton + progresso);
+  - proposta pronta;
+  - falhou ("Não foi possível gerar agora" + "Tentar novamente");
+  - expirada ("Esta proposta expirou; gere novamente");
+  - conflito: `AI_SUGGESTION_STALE` (seção mudou — refazer o ajuste) e `VERSION_CONFLICT` (recarregar);
+  - antecessor ausente (`AI_PREREQUISITE_MISSING`, com link para criar o DFD ou o ETP).
+- **Validações e mensagens:**
+  - contador do resumo;
+  - aviso quando o antecessor ainda é rascunho (`USED_DRAFT_INPUTS`), quando falta a pesquisa de preços (`MISSING_PRICE_RESEARCH`) e quando há sigilo (`BUDGET_CONFIDENTIAL_VALUES_OMITTED`);
+  - confirmação obrigatória para substituir seções preenchidas;
+  - checklist de completude com "Gerado por IA — revisão pendente" e "[a confirmar] (N)", com link para a seção.
+- **Acessibilidade e responsividade:**
+  - painel como `complementary` com título;
+  - foco movido ao painel ao abrir e devolvido ao botão ao fechar;
+  - progresso e conclusão anunciados em `aria-live="polite"`;
+  - comparação com rótulos "Texto atual"/"Texto sugerido" e navegação por teclado;
+  - `ToConfirmChip` com texto, nunca só cor;
+  - *desktop-first* (DEC-183); abaixo de 768 px o painel ocupa a tela inteira e a comparação vira abas "Atual"/"Sugerido".
+- **Stories:** US-117 (principal: painel, solicitar, acompanhar e aplicar), US-118, US-119, US-120 (rascunhos por documento), US-121 (ajuste de seção), US-122 (marcações e revisão); US-115 (histórico, AI-02/AI-03/AI-04); US-116 (disponibilidade, AI-05).
 
 ---
 
@@ -659,7 +740,15 @@ flowchart TD
 - **Estados:** carregando (skeleton por grupo) · vazio (não se aplica — grupos sempre existem) · erro ("Tentar novamente") · sem permissão (tela inacessível sem `SETTINGS_MANAGE`) · indicador "salvando…"; aviso não bloqueante para chaves com efeito futuro (RN-TEN-58, inclusive mudança de escopo de numeração); erro de máscara inline.
 - **Validações e mensagens:** prévia de máscara anunciada via `aria-live`; aviso de efeito futuro não bloqueia o salvamento.
 - **Acessibilidade e responsividade:** cada campo com rótulo e descrição associados; contraste AA no seletor de cor (`branding.primaryColor`); abas em menu suspenso abaixo de 768 px.
-- **Stories:** US-103 (mecanismo geral de grupos/campos), US-105 (grupo Numeração).
+- **Grupo "Inteligência artificial" (US-116):**
+  - `AiSettingsSection`: interruptor `ai.enabled`. Ligar abre o `AiTermsDialog` (finalidade, provedor, dados enviados e omitidos, processamento possivelmente fora do Brasil, não uso para treinamento, responsabilidade humana pela revisão) com "Li e aceito", e o SET-02 envia `ai.enabled` + `ai.termsAcceptedVersion` (`AI_TERMS_NOT_ACCEPTED` se a versão divergir);
+  - `ai.monthlyTokenLimit`, com equivalência aproximada em rascunhos completos;
+  - `ai.userDailyRequestLimit`;
+  - `AiUsageCard` (AI-06: consumo do mês × limite, por tipo de documento, por tipo de geração e por usuário, com custo estimado);
+  - link para a auditoria filtrada por `ai.*` (SCR-037).
+  - Desligar pede confirmação ("gerações em fila serão canceladas").
+  - POL-14: MFA se a política exigir.
+- **Stories:** US-103 (mecanismo geral de grupos/campos), US-105 (grupo Numeração), US-116 (grupo Inteligência artificial).
 
 ### SCR-107 — Fornecedores
 

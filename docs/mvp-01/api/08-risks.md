@@ -14,6 +14,8 @@
 | RSK-08 | DELETE | `/risk-treatments/{treatmentId}` | `RISK_MANAGE` + POL-02 | US-034 |
 | RSK-09 | GET | `/processes/{id}/risk-matrix` | `PROCESS_VIEW` | US-035 |
 | RSK-10 | POST | `/processes/{id}/risk-map` | `RISK_MANAGE` + POL-02 | US-035 |
+| RSK-11 | POST | `/processes/{id}/risks/ai-apply` | `RISK_MANAGE` + POL-02 (solicitante da geração) | US-119 |
+| RSK-12 | POST | `/processes/{id}/risks/ai-review` | `RISK_MANAGE` + POL-02 | US-119 |
 
 Edição de riscos e tratamentos (POL-02) considera o documento `RISK_MAP`: se existir e estiver em `FINALIZED`/`APPROVED`/`IN_REVIEW`, ficam bloqueados até reabertura (RN-RISK-09/16); sem documento, são editáveis sob custódia. Submissão/finalização/reabertura do Mapa de Riscos usam os endpoints genéricos de documento (`DOC-08`/`DOC-09`/`DOC-10`/`DOC-12`, fora deste arquivo).
 
@@ -239,3 +241,48 @@ Risk {
 
 - **Efeitos:** Eventos: `DocumentCreated` (`document.created.risk_map`) — `documentId`, `documentTypeCode = RISK_MAP`, `kind = STRUCTURED`. Auditoria: `document.create` (`DATA_CHANGE`) — `metadata.documentTypeCode = RISK_MAP`. Timeline: `DOCUMENT_CREATED`.
 - **Notas:** submissão/finalização/reabertura usam `DOC-08`/`DOC-09`/`DOC-10`/`DOC-12` (fora deste arquivo), que emitem `DocumentVersionCreated`, `DocumentSubmitted`, `DocumentFinalized`, `DocumentReopened`, todos com projeção na timeline.
+
+### RSK-11 — Aplicar riscos propostos pela IA
+`POST /api/v1/processes/{id}/risks/ai-apply` · **Permissão:** `RISK_MANAGE` + POL-02 · só o solicitante da geração (RN-AI-13) · **Story:** US-119
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório
+- **Parâmetros:** `id` (path, uuid) — processo
+- **Request:**
+```ts
+{
+  generationId: string;                                  // AiGeneration RISK_MAP SUCCEEDED deste processo
+  risks: Array<{ proposalKey: string; treatments: string[] /* proposalKeys dos tratamentos escolhidos */ }>;  // ≥ 1
+}
+```
+- **Response:** `201 { data: { risks: Risk[] /* com treatments */ } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` / `NOT_PROCESS_CUSTODIAN` | Sem `RISK_MANAGE` / POL-02 |
+| 403 | `AI_GENERATION_NOT_OWNED` | Usuário não é o solicitante |
+| 404 | `NOT_FOUND` / `AI_GENERATION_NOT_FOUND` | Processo ou geração inexistente/de outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | `RISK_MAP` em `FINALIZED`/`APPROVED`/`IN_REVIEW` (riscos bloqueados até reabertura) |
+| 409 | `AI_GENERATION_NOT_APPLICABLE` | Geração não `SUCCEEDED`, expirada ou de outro processo/alvo |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 422 | `VALIDATION_ERROR` | `risks` vazio; `proposalKey` inexistente na proposta (`NOT_ALLOWED`); categoria inativa (`REFERENCE_INACTIVE`) |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
+
+- **Efeitos:** numa transação:
+  - cria cada `Risk` com código sequencial, `score`/`level` pelas faixas vigentes, `scaleSnapshot` e `aiGenerationId`;
+  - cria os `RiskTreatment` escolhidos com `aiGenerationId`, `status = PLANNED` e `dueDate`/responsáveis nulos;
+  - a geração vira `APPLIED` (`appliedTargets.riskIds`);
+  - auditoria `risk.create` por risco, `risk.treatment_create` por tratamento e `ai.content_apply`;
+  - eventos `RiskCreated` por risco (timeline `RISK_ADDED`), `RiskTreatmentChanged` (`CREATED`) por tratamento e `AiContentApplied` (`document.ai_content_applied.risk_map`) → timeline `AI_CONTENT_APPLIED`.
+- **Notas:** a proposta do `RISK_MAP` tem duas partes, riscos (este endpoint) e seções narrativas (DOC-26). Cada parte é aplicada uma única vez; a geração vai a `APPLIED` na primeira aplicação e aceita a outra parte enquanto não expirar (`appliedTargets` acumula). Riscos criados ficam "gerado por IA" até RSK-12 (RN-AI-42); seus textos podem conter o marcador literal "[a confirmar: …]".
+
+### RSK-12 — Marcar riscos gerados por IA como revisados
+`POST /api/v1/processes/{id}/risks/ai-review` · **Permissão:** `RISK_MANAGE` + POL-02 · **Story:** US-119
+
+- **Cabeçalhos:** — (concorrência por risco, no corpo)
+- **Parâmetros:** `id` (path, uuid) — processo
+- **Request:** `{ riskIds: string[] /* ≥ 1 */, expectedVersions: Record<string, number> }`
+- **Response:** `200 { data: { risks: Risk[], reviewedRiskIds: string[] } }`. Riscos sem `aiGenerationId` ou já revisados são ignorados (idempotente).
+- **Erros:** 403 `PERMISSION_DENIED`/`NOT_PROCESS_CUSTODIAN` · 404 `NOT_FOUND` · 409 `DOCUMENT_NOT_EDITABLE` (mapa bloqueado) · 412 `VERSION_CONFLICT` (versão divergente; `meta.current`) · 422 `VALIDATION_ERROR` (lista vazia; risco de outro processo — `REFERENCE_NOT_FOUND`)
+- **Efeitos:** `aiReviewedAt`/`aiReviewedById` e `version + 1` em cada risco; auditoria `ai.content_review`; evento `AiContentReviewed` (`document.ai_content_reviewed.risk_map`) → timeline `AI_CONTENT_REVIEWED`.
+- **Notas:** a validação do `RISK_MAP` (DOC-08) acrescenta `RISK_AI_REVIEW_PENDING` e `RISK_PLACEHOLDER_PENDING` (texto com "[a confirmar"), bloqueantes (RN-AI-42).

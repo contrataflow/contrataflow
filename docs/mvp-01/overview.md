@@ -1,6 +1,6 @@
 # MVP 1 — Planejamento e Tramitação
 
-> **Objetivo:** criar o núcleo operacional da plataforma — o **processo de contratação** com seus documentos de planejamento (DFD, ETP, pesquisa de preços, mapa de riscos, TR), tramitação por workflow configurável, aprovações, caixa de tarefas, timeline, comentários, auditoria e dashboard — sobre uma fundação multi-tenant segura.
+> **Objetivo:** criar o núcleo operacional da plataforma — o **processo de contratação** com seus documentos de planejamento (DFD, ETP, pesquisa de preços, mapa de riscos, TR), **geração assistida por IA desses documentos com revisão humana**, tramitação por workflow configurável, aprovações, caixa de tarefas, timeline, comentários, auditoria e dashboard — sobre uma fundação multi-tenant segura.
 
 Sumário: [1. Visão](#1-visão-do-mvp-1) · [2. Escopo](#2-escopo) · [3. Jornada coberta](#3-jornada-coberta) · [4. Personas](#4-personas-atendidas) · [5. Números](#5-números-do-mvp-1) · [6. Métricas de sucesso](#6-métricas-de-sucesso) · [7. Premissas e restrições](#7-premissas-e-restrições) · [8. Arquitetura](#8-arquitetura-em-uma-página) · [9. Mapa de documentos](#9-mapa-de-documentos-do-mvp-1) · [10. Fechamento](#10-fechamento-do-mvp-1)
 
@@ -14,7 +14,8 @@ Ao final do MVP 1, um órgão público consegue conduzir **todo o planejamento d
 2. a equipe de planejamento elabora o **ETP** (com alternativas, estimativas e conclusão), o **mapa de riscos** e o **TR** (importando dados do ETP);
 3. compras realiza a **pesquisa de preços** com fontes, cotações, exclusões justificadas, estatísticas e mapa comparativo;
 4. a **autoridade competente** aprova o conjunto de artefatos e o processo é **concluído**, pronto para a licitação/contratação direta (que chega nos MVPs seguintes);
-5. em todo o percurso, cada pessoa sabe **onde o processo está, quem é o responsável, o que falta, qual o próximo passo e se há atraso**, e tudo fica registrado em **versões imutáveis, timeline e trilha de auditoria**.
+5. DFD, ETP, mapa de riscos e TR podem nascer de um **rascunho gerado por IA** a partir de poucas linhas e dos dados do processo, ajustado seção a seção e sempre revisado por uma pessoa antes de seguir (EP-020, DEC-037);
+6. em todo o percurso, cada pessoa sabe **onde o processo está, quem é o responsável, o que falta, qual o próximo passo e se há atraso**, e tudo fica registrado em **versões imutáveis, timeline e trilha de auditoria**.
 
 ## 2. Escopo
 
@@ -25,6 +26,7 @@ Ao final do MVP 1, um órgão público consegue conduzir **todo o planejamento d
 | Fluxo e acompanhamento | EP-007 Workflow · EP-008 Tramitação (inclui aprovações) · EP-009 Caixa de tarefas · EP-010 Timeline · EP-014 Dashboard |
 | Documentos e colaboração | EP-011 Documentos · EP-018 Templates · EP-012 Comentários · EP-019 Notificações |
 | Governança e plataforma | EP-013 Auditoria · EP-015 Fundação técnica · EP-016 Identidade, acesso e RBAC · EP-017 Tenant e estrutura organizacional |
+| IA assistiva | EP-020 IA para documentos do planejamento — rascunho completo em cadeia e ajuste por seção de DFD, ETP, mapa de riscos e TR, com marcações "gerado por IA"/[a confirmar], revisão humana obrigatória, rastreabilidade e governança por órgão (prd-3, DEC-037, DEC-079; provedor pendente — ADR-013/PEND-21) |
 
 Detalhe de cada épico: [epics.md](epics.md). Features e stories: [features.md](features.md).
 
@@ -32,7 +34,7 @@ Detalhe de cada épico: [epics.md](epics.md). Features e stories: [features.md](
 - PCA como módulo (apenas referência — DEC-029), dotação orçamentária, análise jurídica e do controle interno, edital, SLA avançado, indicadores e gargalos (**MVP 2**).
 - Publicações (PNCP, Diário Oficial), assinatura eletrônica, API pública e webhooks (**MVP 3**).
 - Contratos, fiscalização, medições, aditivos e vencimentos (**MVP 4**).
-- Inteligência artificial, validação automática por IA, busca semântica e benchmark (**MVP 5**).
+- IA além da geração de documentos do planejamento: assistente contextual, validações cruzadas, saúde do processo, recomendações, busca semântica e benchmark (**MVP 5**); geração por IA de parecer jurídico e edital (**MVP 2**, junto com esses documentos).
 - Itens postergados do próprio MVP 1: [delivery-plan.md §9](delivery-plan.md#9-itens-postergados).
 
 ## 3. Jornada coberta
@@ -41,6 +43,9 @@ Detalhe de cada épico: [epics.md](epics.md). Features e stories: [features.md](
 flowchart LR
     A[Abertura do processo<br/>US-001] --> B[DFD<br/>US-014..017]
     B --> C{Aprovação da demanda<br/>US-051/052}
+    IA[Rascunhos com IA + revisão humana<br/>US-115..122] -.-> B
+    IA -.-> D
+    IA -.-> F
     C -- devolvido --> B
     C -- aprovado --> D[Estudos preliminares<br/>ETP US-019..023<br/>Riscos US-033..035]
     D --> E[Pesquisa de preços<br/>US-024..032]
@@ -81,16 +86,16 @@ Personas completas: [personas.md](../product/personas.md).
 
 | Item | Quantidade |
 |---|---|
-| Épicos / features / stories | 19 / 59 / 114 |
-| Pontos (P0 / P1 / P2) | 480 / 104 / 31 — total 615 |
-| Entidades (MVP 1) | 58 ([entities.md](entities.md)) |
-| Permissões / perfis padrão / políticas | 68 / 15 / 17 ([permissions.md](permissions.md)) |
-| Operações de API | 269 ([api.md](api.md) §3; detalhe em [api/](api/)) |
-| Eventos de domínio (canônicos) | 80, mais 12 nomes especializados ([events.md](events.md)) |
-| Telas especificadas | 26 do conjunto pedido + 16 complementares ([screens.md](screens.md)) |
-| Cenários de aceite (Gherkin) | 1.110 em 8 categorias ([acceptance-criteria.md](acceptance-criteria.md) §3) |
-| ADRs | 11 ([../adr/](../adr/)) |
-| Duração estimada (squad de referência) | Sprint 0 + 18 sprints ≈ 38 semanas ([delivery-plan.md](delivery-plan.md)) |
+| Épicos / features / stories | 20 / 62 / 122 |
+| Pontos (P0 / P1 / P2) | 480 / 150 / 31 — total 661 |
+| Entidades (MVP 1) | 59 ([entities.md](entities.md); `AiGeneration` com o EP-020) |
+| Permissões / perfis padrão / políticas | 69 / 15 / 18 ([permissions.md](permissions.md)) |
+| Operações de API | 279 ([api.md](api.md) §3; detalhe em [api/](api/)) |
+| Eventos de domínio (canônicos) | 86, mais 12 nomes especializados ([events.md](events.md)) |
+| Telas especificadas | 26 do conjunto pedido + 17 complementares ([screens.md](screens.md); SCR-117 com o EP-020) |
+| Cenários de aceite (Gherkin) | 1.227 em 8 categorias ([acceptance-criteria.md](acceptance-criteria.md) §3) |
+| ADRs | 13 ([../adr/](../adr/); ADR-013 proposto, pendente de decisão — PEND-21) |
+| Duração estimada (squad de referência) | Sprint 0 + 19 sprints ≈ 40 semanas ([delivery-plan.md](delivery-plan.md); +1 sprint com o EP-020) |
 
 ## 6. Métricas de sucesso
 
@@ -114,7 +119,7 @@ Personas completas: [personas.md](../product/personas.md).
 - Documentos do MVP 1 não são assinados eletronicamente na plataforma (RL-02).
 
 **Restrições**
-- Stack e arquitetura definidas ([decisions.md](../architecture/decisions.md)); dados no Brasil (`sa-east-1`).
+- Stack e arquitetura definidas ([decisions.md](../architecture/decisions.md)); dados no Brasil (`sa-east-1`). A inferência do provedor de IA pode ocorrer fora do país, com minimização de dados e decisão do usuário (ADR-013, PEND-21).
 - Nenhuma regra legal/administrativa fixa em código (princípio 17).
 - Conformidade com LGPD, WCAG 2.1 AA/eMAG e boas práticas OWASP ASVS nível 2.
 
@@ -123,6 +128,7 @@ Personas completas: [personas.md](../product/personas.md).
 - **Monólito modular** NestJS (23 módulos com fronteiras verificadas — DEC-040/041), **BFF** Next.js, **worker** BullMQ.
 - **PostgreSQL** compartilhado com `tenant_id`, RLS e FKs compostas; **Redis** para sessão, cache, idempotência e filas; **S3** para arquivos; **Gotenberg** para PDF; **ClamAV** para uploads; **Authentik** para identidade.
 - **Outbox transacional** para eventos; timeline e visibilidade como projeções síncronas; auditoria transacional com selagem.
+- **IA:** módulo `ai` só com fachadas de leitura, porta `AiProvider` (provedor em ADR-013) e fila `ai-generation`; aplicar e revisar o conteúdo são comandos humanos dos módulos donos (DEC-079).
 - Detalhes: [architecture.md](../architecture/architecture.md) · [domains.md](../architecture/domains.md) · [multi-tenancy.md](../architecture/multi-tenancy.md) · [security.md](../architecture/security.md) · [authentication.md](../architecture/authentication.md) · [storage.md](../architecture/storage.md) · [queues.md](../architecture/queues.md) · [observability.md](../architecture/observability.md).
 
 ## 9. Mapa de documentos do MVP 1

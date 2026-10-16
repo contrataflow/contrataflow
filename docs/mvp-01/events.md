@@ -50,7 +50,7 @@ Conforme DEC-160. Exemplo:
 | Tipo de consumidor | Onde roda | Garantia | Usado para |
 |---|---|---|---|
 | **Síncrono (in-process, mesma transação)** | API/worker, dentro do caso de uso | Atômico com a mudança | `TimelineProjector` (§5), `ProcessAccessProjector` (DEC-024) |
-| **Assíncrono** | Worker, via relay do outbox → fila `domain-events` → filas consumidoras | *At-least-once*, idempotente por `eventId` | `notifications`, `email`, métricas de negócio; MVP 3: `webhooks`; MVP 5: `ai` |
+| **Assíncrono** | Worker, via relay do outbox → fila `domain-events` → filas consumidoras | *At-least-once*, idempotente por `eventId` | `notifications`, `email`, métricas de negócio; MVP 3: `webhooks`; MVP 5: `ai` (reindexação e validações). No MVP 1 o `ai` não consome eventos: a geração roda na fila de trabalho `ai-generation` (DEC-079) |
 
 Consumidores assíncronos do MVP 1:
 
@@ -139,7 +139,7 @@ Eventos próprios de módulos tipados:
 | `QuotationRestored` | `price_research.quotation_restored` | US-027 | `priceResearchId`, `quotationId`, `priceItemId` | T |
 | `RiskCreated` | `risk.created` | US-033 | `riskId`, `code`, `level`, `phase`, `categoryCode` | T |
 | `RiskAssessed` | `risk.assessed` | US-033 (alteração de P×I) | `riskId`, `fromLevel`, `toLevel`, `score` | T |
-| `RiskTreatmentChanged` | `risk.treatment_changed` | US-034 | `riskId`, `treatmentId`, `change` (`CREATED`, `UPDATED`, `STATUS_CHANGED`, `DELETED`), `status` | — |
+| `RiskTreatmentChanged` | `risk.treatment_changed` | US-034, US-119 (RSK-11) | `riskId`, `treatmentId`, `change` (`CREATED`, `UPDATED`, `STATUS_CHANGED`, `DELETED`), `status` | — |
 | `RiskDeleted` | `risk.deleted` | US-033 | `riskId`, `code` | T |
 | `TermImportedFromEtp` | `term.imported_from_etp` | US-037 | `termId`, `etpId`, `etpVersionId`, `sectionsImported[]`, `itemsImported` | T |
 
@@ -189,6 +189,20 @@ Eventos próprios de módulos tipados:
 | `DepartmentMoved` | `department.moved` | US-102 | `departmentId`, `fromParentId?`, `toParentId?` | C |
 | `DepartmentDeactivated` | `department.deactivated` | US-102 | `departmentId` | C |
 
+### 4.7 Inteligência artificial (módulo `ai`; aplicação e revisão nos módulos `document` e `risk`)
+Geração assistida de documentos (EP-020, DEC-037, DEC-079). Payloads nunca levam o resumo, a instrução, o contexto, o texto gerado nem valores. Em `document.ai_content_*.<type>`, `<type>` = `dfd`, `etp`, `risk_map` ou `tr`.
+
+| Evento | Routing key | Produtor | Payload | Cons. |
+|---|---|---|---|---|
+| `AiGenerationRequested` | `ai.generation_requested` | US-115 (AI-01) | `generationId`, `processId`, `documentId?`, `targetModule`, `kind`, `action?`, `sectionKey?` | M |
+| `AiGenerationCompleted` | `ai.generation_completed` | US-115 (worker `ai-generation`) | `generationId`, `processId`, `documentId?`, `targetModule`, `kind`, `action?`, `sectionKey?`, `requestedById`, `model`, `promptKey`, `promptVersion`, `totalTokens`, `sectionsCount`, `risksCount`, `placeholdersCount` | T N M |
+| `AiGenerationFailed` | `ai.generation_failed` | US-115 (worker `ai-generation`) | `generationId`, `processId`, `documentId?`, `requestedById`, `errorCode`, `attempts` | N M |
+| `AiContentApplied` | `document.ai_content_applied.<type>` | US-117, US-121 (DOC-26); US-119 (RSK-11) | `generationId`, `documentId?`, `targetModule`, `sectionKeys[]`, `riskIds[]`, `replacedFilledSections` | T M |
+| `AiContentReviewed` | `document.ai_content_reviewed.<type>` | US-122 (DOC-27); US-119 (RSK-12) | `documentId?`, `targetModule`, `sectionKeys[]`, `riskIds[]`, `generationIds[]` | T |
+| `AiUsageThresholdReached` | `ai.usage_threshold_reached` | US-116 (no término da geração que cruza a faixa) | `month`, `threshold` (`80`/`100`), `usedTokens`, `limitTokens` | N |
+
+O ator do envelope de `AiGenerationCompleted`/`AiGenerationFailed` é o solicitante (o job carrega o ator — DEC-164); `AiUsageThresholdReached` é publicado uma vez por mês e faixa (chave natural `(tenant, month, threshold)`).
+
 ---
 
 ## 5. Projeção na timeline
@@ -228,6 +242,9 @@ Eventos próprios de módulos tipados:
 | `QUOTATION_EXCLUDED` / `QUOTATION_RESTORED` | `Quotation*` | "{actor} desconsiderou/restaurou cotação do item {itemSequence}" | `itemSequence`, `sourceLabel`, `reasonLabel` | `BUDGET_RESTRICTED` se sigiloso |
 | `RISK_ADDED` / `RISK_LEVEL_CHANGED` / `RISK_REMOVED` | `Risk*` | "{actor} registrou o risco {code} ({levelLabel})" | `code`, `title`, `level` | STANDARD |
 | `TERM_IMPORTED_FROM_ETP` | `TermImportedFromEtp` | "{actor} importou dados do ETP (v{etpVersion}) para o TR" | `etpVersion`, `sectionsCount` | STANDARD |
+| `AI_CONTENT_GENERATED` | `AiGenerationCompleted` | "{actor} gerou com IA {generationLabel} de {documentLabel}" (rascunho completo, proposta de riscos ou ajuste "{actionLabel}" da seção {sectionTitle}) | `kind`, `action?`, `sectionTitle?`, `targetModule`, `documentCode?`, `typeName`, `model`, `promptVersion` | STANDARD |
+| `AI_CONTENT_APPLIED` | `AiContentApplied` | "{actor} aplicou conteúdo gerado por IA em {documentLabel}" (+ "{sectionsCount} seções" / "{risksCount} riscos") | `sectionsCount`, `risksCount`, `replacedFilledSections` | STANDARD |
+| `AI_CONTENT_REVIEWED` | `AiContentReviewed` | "{actor} revisou o conteúdo gerado por IA em {documentLabel}" (+ contagens) | `sectionsCount`, `risksCount` | STANDARD |
 
 Os nomes e rótulos dos `params` são resolvidos pelo projetor no momento do fato, por fontes dos módulos donos lidas na mesma transação, e nunca refeitos depois (DEC-077); `{documentLabel}` é gravado como `documentCode`, `documentTitle` e `typeName`. Um evento pode gerar mais de uma entrada (`PROCESS_CREATED` e `PROCESS_DUPLICATED_FROM`): a unicidade é por (`sourceEventId`, `type`). Evento ou discriminador sem linha nesta tabela é ignorado.
 
@@ -254,9 +271,12 @@ Registro `NotificationType`. Canais padrão: in-app sempre; e-mail conforme colu
 | `ATTACHMENT_REJECTED` | `AttachmentRejected` | Quem enviou | não | **sim** |
 | `DOCUMENT_RENDER_FAILED` | `DocumentRenditionFailed` (após esgotar tentativas) | Quem solicitou a renderização | não | não |
 | `ROLE_CHANGED` | `RoleAssigned`/`RoleRevoked` | Usuário afetado (aviso de segurança) | ✔ | **sim** |
+| `AI_GENERATION_READY` | `AiGenerationCompleted` | Solicitante da geração (`requestedById`); link para o editor com `?ia=<generationId>` | não | não |
+| `AI_GENERATION_FAILED` | `AiGenerationFailed` | Solicitante da geração | não | não |
+| `AI_USAGE_LIMIT_WARNING` | `AiUsageThresholdReached` (80% e 100% do limite mensal) | Vínculos ativos com `SETTINGS_MANAGE` (máx. 50) | ✔ | não |
 
 Regras gerais:
-- Nunca notificar o próprio ator.
+- Nunca notificar o próprio ator. Exceção: avisos de conclusão de trabalho assíncrono pedido pelo próprio usuário — `AI_GENERATION_READY` e `AI_GENERATION_FAILED` (US-115) vão ao solicitante, que é o ator do envelope.
 - Agrupamento: notificações iguais (`type` + `processId` + destinatário) em 5 min são agrupadas em uma (`groupKey`) para evitar ruído.
 - Conteúdo sem dados sigilosos (POL-09); link direto (`/processos/{id}`, `/aprovacoes/{id}`).
 - E-mail somente se `notifications.emailEnabled` (tenant) e preferência do usuário permitirem: sem desejo de e-mail (preferência ou padrão do tipo) → `emailStatus = NOT_APPLICABLE`; desejado mas desligado no tenant → `SKIPPED`; senão `PENDING`. Notificação agrupada mantém o `emailStatus` que já tinha (sem novo e-mail por agrupamento).
@@ -281,6 +301,7 @@ Escritas pelo `AuditService` na mesma transação do caso de uso (DEC-161). `cat
 | Tipados | `etp.alternative_create`, `etp.alternative_update`, `etp.alternative_delete`, `etp.alternative_decide`, `price_research.source_create`, `price_research.source_update`, `price_research.source_delete`, `price_research.quotation_create`, `price_research.quotation_update`, `price_research.quotation_delete`, `price_research.quotation_exclude`, `price_research.quotation_restore`, `price_research.method_change`, `price_research.recalculate`, `price_research.import` , `price_research.export` (EXPORT), `risk.create`, `risk.update`, `risk.assess`, `risk.delete`, `risk.treatment_create`, `risk.treatment_update`, `risk.treatment_delete`, `term.import_etp` (DATA_CHANGE) |
 | Colaboração e arquivos | `comment.create`, `comment.update`, `comment.delete`, `comment.moderate`, `attachment.upload_intent`, `attachment.confirm`, `attachment.scan_result` (SYSTEM), `attachment.download` (EXPORT), `attachment.delete`, `supplier.create`, `supplier.update`, `supplier.deactivate`, `supplier.delete` (DATA_CHANGE) |
 | Auditoria | `audit.search` (ACCESS), `audit.export` (EXPORT), `audit.seal` (SYSTEM) |
+| IA (EP-020) | `ai.generation_request`, `ai.generation_discard`, `ai.content_apply`, `ai.content_review` (DATA_CHANGE); `ai.generation_complete`, `ai.generation_fail` (SYSTEM). `metadata`: `generationId`, `targetModule`, `kind`, `action`, `sectionKey(s)`/`riskIds`, `provider`, `model`, `promptKey`, `promptVersion`, `inputRefs` (ids, versões e hashes), `contextHash`, `outputHash`, tokens, `costUsd`, `errorCode` — nunca o texto do resumo, da instrução, do contexto ou da saída. Ligar/desligar a IA e alterar limites = `settings.update` (CONFIGURATION) |
 | Operação de filas (plataforma — US-083) | `queue_dashboard.access` (ACCESS — concedido ou negado); `outbox.republish`, `dead_letter.retry`, `dead_letter.discard` (SYSTEM). Sempre `actorType = PLATFORM_OPERATOR`; `tenantId` do job/evento afetado quando houver, senão de plataforma; ticket e motivo em `metadata` |
 
 Regras de conteúdo da auditoria:

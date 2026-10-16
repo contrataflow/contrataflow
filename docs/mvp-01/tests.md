@@ -16,7 +16,7 @@ Princípios:
 - **"Testes necessários" de cada card** (Definition of Done, [release-checklist.md §1.1](release-checklist.md#11-card-story)): critérios de aceite automatizados (API e, quando há tela, E2E) cobrindo as **8 categorias obrigatórias de cenário** — Sucesso, Validação, Permissão, Tenant incorreto, Duplicidade, Concorrência, Falha de banco, Falha de integração — mais teste de isolamento na suíte "tenant leak", permissões/políticas aplicadas, auditoria/eventos verificados, OpenAPI sem quebra de contrato não planejada e cobertura mínima atingida.
 - **Testável desde a infraestrutura:** o ambiente local (US-078) já nasce com dois tenants semeados para que qualquer story de negócio exercite isolamento multi-tenant desde o primeiro commit.
 - **Gate automatizado em vez de checklist manual:** sempre que uma regra pode ser verificada por um meta-teste que percorre todo o catálogo (rotas, permissões, modelos do Prisma, operações do OpenAPI), o MVP 1 prefere o meta-teste à revisão manual — exemplos na seção 3.
-- **Card, feature/épico e MVP têm DoD próprios e crescentes** ([release-checklist.md §1](release-checklist.md#1-definition-of-done)): o que passa no card não basta para o épico (jornada E2E do épico) nem para o MVP (jornadas J-01–J-10, suítes 100% verdes, UAT do piloto).
+- **Card, feature/épico e MVP têm DoD próprios e crescentes** ([release-checklist.md §1](release-checklist.md#1-definition-of-done)): o que passa no card não basta para o épico (jornada E2E do épico) nem para o MVP (jornadas J-01–J-11, suítes 100% verdes, UAT do piloto).
 
 ## 2. Níveis de teste e ferramentas
 
@@ -29,7 +29,7 @@ Ferramentas confirmadas nas fontes ([architecture.md §4](../architecture/archit
 | Contrato | Geração de OpenAPI (`packages/validation`, a partir dos schemas Zod) + diff contra o arquivo versionado | Zero quebra incompatível não planejada na v1 (DEC-108); mudanças aditivas passam | Estágio 3 Contrato |
 | Autorização (matriz gerada) | Teste *table-driven* rotas × perfis × escopos | 100% das rotas mutáveis com permissão/política declarada (meta-teste); fonte única `packages/types` | Estágio 4 Testes, após integração ([permissions.md §10](permissions.md#10-testes-de-autorização)) |
 | Isolamento ("tenant leak") | Testcontainers, iterando sobre toda operação do OpenAPI | 100% das operações classificadas; zero vazamento ([multi-tenancy.md §14](../architecture/multi-tenancy.md)) | Estágio 4 Testes |
-| E2E | Playwright + axe-core | Jornadas J-01 a J-10 e critérios de tela, contra Authentik real (sem *mocks* de autenticação) | Estágio 7 E2E, contra o Compose efêmero da US-078 |
+| E2E | Playwright + axe-core | Jornadas J-01 a J-11 e critérios de tela, contra Authentik real (sem *mocks* de autenticação) | Estágio 7 E2E, contra o Compose efêmero da US-078 |
 | Acessibilidade | axe-core (via Playwright) | Zero violação séria/crítica (CA-T-10); navegação por teclado; 360/768/1280 px | Estágio 7 E2E |
 | Performance/carga | k6 | SLOs de [observability.md §1.1](../architecture/observability.md#11-slos-do-mvp-1) | *Smoke* no estágio 8 Pós-deploy; carga completa em staging dedicado antes do release |
 | Segurança (SAST/segredos/IaC) | CodeQL + Semgrep, gitleaks, checkov/`trivy config`/tflint | Regras de [security.md §20](../architecture/security.md#20-sast-dast-e-testes-de-segurança) | Estágios 1 Higiene e 2 Estático |
@@ -51,6 +51,8 @@ As nove suítes abaixo cobrem os critérios transversais de [acceptance-criteria
 | CA-T-08 | Orçamento sigiloso (POL-09) |
 | CA-T-09 | Sessão, limites e formatos |
 | CA-T-10 | Acessibilidade e responsividade |
+
+A geração com IA (EP-020) não tem CA-T próprio: estende as suítes acima e acrescenta as verificações da §3.10.
 
 ### 3.1 CA-T-01 — Isolamento entre tenants ("tenant leak")
 - **Cobre:** recurso de outro tenant pela URL ou no corpo, listagens/buscas/agregados, cabeçalho `X-Tenant-Id` sem vínculo, defesa em profundidade via RLS, `tenantId` em cache/storage/filas/auditoria.
@@ -106,9 +108,29 @@ As nove suítes abaixo cobrem os critérios transversais de [acceptance-criteria
 - **Onde roda no CI:** estágio 7 E2E; falha de acessibilidade séria bloqueia no mesmo nível que falha funcional.
 - **Critério de aprovação:** zero violação séria/crítica; verificação manual pontual em 360/768/1280 px como parte do DoD do card.
 
+### 3.10 Geração com IA (EP-020)
+- **Cobre:**
+  - CA-T-01: `AiGeneration`, AI-02/AI-03 e DOC-26/27/RSK-11/12 de outro tenant → 404; o contexto montado só contém dados do tenant do job.
+  - CA-T-02: POL-18 e `AI_GENERATE` por perfil; só o solicitante aplica e descarta.
+  - CA-T-05: AI-01, DOC-26 e RSK-11 com `Idempotency-Key`; o job não executa duas vezes.
+  - CA-T-06: auditoria e eventos na mesma transação; nenhum texto em auditoria, evento ou log.
+  - CA-T-07: provedor indisponível, 429, *timeout*, saída inválida e disjuntor.
+  - CA-T-08: valores de orçamento sigiloso nunca entram no contexto.
+- **Testes específicos:**
+  - `GroundingGuard`: testes de propriedade com números, valores, prazos, datas e percentuais inventados × presentes nas entradas; exceções de citação legal.
+  - `ContextSanitizer`: CPF, e-mail, telefone e CEP redigidos; nomes de pessoas omitidos.
+  - Injeção de instruções: conteúdo de seção com "ignore as instruções…", tentativa de HTML/script na saída e pedido de dados de outro processo. A resposta continua estruturada e sanitizada, sem efeito no sistema; o modelo não tem ferramentas.
+  - Violações `SECTION_AI_REVIEW_PENDING`/`SECTION_PLACEHOLDER_PENDING` bloqueando finalizar, submeter e encaminhar.
+- **Como é implementada:**
+  - `FakeAiProvider` determinístico, com fixtures por `promptKey`, em todos os testes do CI. **Nenhuma chamada real ao provedor no CI.**
+  - O adaptador real, quando decidido (ADR-013), tem testes de contrato sobre respostas gravadas.
+  - A qualidade do texto é medida fora do CI pelo conjunto de avaliação `pnpm ai:eval` (10 processos sintéticos × 4 documentos, nota de especialista), executado a cada nova `promptVersion` e na escolha do provedor.
+- **Onde roda no CI:** estágio 4 (integração, tenant leak e autorização) e estágio 7 (E2E J-11).
+- **Critério de aprovação:** zero vazamento; zero texto de documento em logs, eventos e auditoria (varredura nos testes de integração); 100% de `GroundingGuard` e `ContextSanitizer` em cobertura de ramos.
+
 ## 4. Jornadas de aceite (E2E)
 
-As dez jornadas de [acceptance-criteria.md §2](acceptance-criteria.md#2-jornadas-de-aceite-do-mvp-1) usam, como cenário de negócio principal, o tenant **"Prefeitura de São José"** com o workflow padrão (DEC-015), feriados semeados e as unidades "Secretaria de Obras" › "Setor de Manutenção", "Secretaria de Administração" › "Departamento de Compras" e "Gabinete do Prefeito" — um seed mais narrativo do que o par genérico "Prefeitura A"/"Prefeitura B" semeado por `pnpm env:seed` (US-078) para exercitar isolamento (usado na suíte "tenant leak", §3.1). J-10 soma um segundo tenant, "Câmara de Vila Nova".
+As onze jornadas de [acceptance-criteria.md §2](acceptance-criteria.md#2-jornadas-de-aceite-do-mvp-1) usam, como cenário de negócio principal, o tenant **"Prefeitura de São José"** com o workflow padrão (DEC-015), feriados semeados e as unidades "Secretaria de Obras" › "Setor de Manutenção", "Secretaria de Administração" › "Departamento de Compras" e "Gabinete do Prefeito" — um seed mais narrativo do que o par genérico "Prefeitura A"/"Prefeitura B" semeado por `pnpm env:seed` (US-078) para exercitar isolamento (usado na suíte "tenant leak", §3.1). J-10 soma um segundo tenant, "Câmara de Vila Nova".
 
 | Jornada | Épicos/stories cobertos | Seed necessário | Automação | Ambiente |
 |---|---|---|---|---|
@@ -122,8 +144,9 @@ As dez jornadas de [acceptance-criteria.md §2](acceptance-criteria.md#2-jornada
 | J-08 — Caixa de tarefas e notificações | EP-009 (US-049 assumir, US-050 atribuir) + EP-008 (substituto, `allowDeputy`) | Processo sem responsável no "Departamento de Compras"; titular e substituto cadastrados | E2E | CI efêmero / Staging |
 | J-09 — Auditoria e integridade | EP-013 (auditoria: consulta, exportação, selos) | Processo da J-03; auditor com `AUDIT_VIEW`/`AUDIT_EXPORT` e MFA | E2E + verificação manual assistida (alteração direta simulada em registro selado, só em ambiente de teste) | Staging |
 | J-10 — Consultoria externa em mais de um órgão | EP-016/017 (vínculo `EXTERNAL`) + EP-001 (US-012 participantes) | "Prefeitura de São José" e "Câmara de Vila Nova"; Eva com vínculos `EXTERNAL` em ambos (60 dias) | E2E | Staging |
+| J-11 — Rascunhos com IA em cadeia e revisão humana | EP-020 (US-115..US-122) sobre EP-002/003/005/006 | Mesmo tenant com IA ligada; fixtures do `FakeAiProvider` para DFD, ETP, mapa de riscos e TR | E2E | CI efêmero / Staging |
 
-O Definition of Done do MVP 1 exige as dez jornadas passando em staging ([release-checklist.md §1.3](release-checklist.md#13-mvp-1)); nenhuma delas é considerada aprovada só pela execução em ambiente efêmero de PR. Passos sem suporte confirmado nas fontes (ex.: controle de relógio determinístico em J-06, endpoint de teste para violação simulada de selo em J-09) ficam como automação parcial até a Sprint que especificar o harness de teste correspondente.
+O Definition of Done do MVP 1 exige as onze jornadas passando em staging (J-11 com o `FakeAiProvider` no CI e com o provedor decidido em staging) ([release-checklist.md §1.3](release-checklist.md#13-mvp-1)); nenhuma delas é considerada aprovada só pela execução em ambiente efêmero de PR. Passos sem suporte confirmado nas fontes (ex.: controle de relógio determinístico em J-06, endpoint de teste para violação simulada de selo em J-09) ficam como automação parcial até a Sprint que especificar o harness de teste correspondente.
 
 ## 5. Dados de teste e ambientes
 
@@ -133,7 +156,9 @@ Os três ambientes compartilham a mesma topologia de serviços (US-078); o que m
 |---|---|---|---|
 | Local | Docker Compose (US-078): PostgreSQL 17 + pgvector/RLS real, dois Redis lógicos (sessão e cache/filas, DEC-131), MinIO com buckets `quarantine`/`documents`/`renditions`, Authentik por *blueprint*, Mailpit, Gotenberg, ClamAV — todos com *healthcheck* | `pnpm env:seed` idempotente cria exatamente os tenants **"Prefeitura A"** e **"Prefeitura B"** (RN-FND-18) | Desenvolvimento e testes manuais de isolamento desde o primeiro dia |
 | CI | Mesmo Compose em modo efêmero (RN-FND-27); Testcontainers sobe instâncias isoladas por execução para os testes de integração | Seed equivalente ao local, recriado por execução | Estágios 4 (integração, tenant leak, autorização) e 7 (E2E) do pipeline |
-| Staging | Infraestrutura próxima de produção (Terraform, `sa-east-1`) | Dados sintéticos das jornadas J-01–J-10 e, quando houver, cópia anonimizada do estado de produção para medir tempo de migração ([release-checklist.md §3.2](release-checklist.md#32-engenharia-e-qualidade)) | Demonstração ao PO (DoD de card), jornadas E2E, testes de carga, ZAP *baseline*, UAT do piloto |
+| Staging | Infraestrutura próxima de produção (Terraform, `sa-east-1`) | Dados sintéticos das jornadas J-01–J-11 e, quando houver, cópia anonimizada do estado de produção para medir tempo de migração ([release-checklist.md §3.2](release-checklist.md#32-engenharia-e-qualidade)) | Demonstração ao PO (DoD de card), jornadas E2E, testes de carga, ZAP *baseline*, UAT do piloto |
+
+**Fixtures de IA:** `AI_PROVIDER=fake` em local e CI; as respostas do `FakeAiProvider` ficam em `apps/api/test/fixtures/ai/<promptKey>/` e são escolhidas pelo `contextHash` (sem *match*, devolvem uma resposta genérica com marcações [a confirmar]). Staging usa o provedor decidido (ADR-013), com limite de tokens próprio do ambiente.
 
 **Fixtures de documentos/arquivos:** a verificação antivírus usa a *string* de teste **EICAR**, gerada em tempo de execução — nunca versionada no repositório, pois antivírus locais colocariam o arquivo em quarentena ([storage.md](../architecture/storage.md)). O `FakeScanner` existe só em testes unitários e o *bootstrap* falha se for configurado com `NODE_ENV=production`, para que nenhum ambiente real rode sem o ClamAV real.
 
@@ -156,7 +181,7 @@ Os três ambientes compartilham a mesma topologia de serviços (US-078); o que m
 
 **Critérios de saída do MVP 1** ([release-checklist.md §1.3](release-checklist.md#13-mvp-1)):
 - 100% das stories P0 e P1 concluídas (DoD de card).
-- Jornadas E2E J-01 a J-10 (seção 4) passando em staging.
+- Jornadas E2E J-01 a J-11 (seção 4) passando em staging.
 - Suíte "tenant leak" 100% verde; matriz de autorização (RBAC) 100% verde.
 - Testes de carga atendendo às metas da seção 7.1/7.2.
 - Pentest externo sem achados críticos/altos abertos; ZAP *baseline* limpo.
@@ -186,6 +211,10 @@ Fonte: [observability.md §1.1](../architecture/observability.md#11-slos-do-mvp-
 | Notificação in-app | < 10 s |
 | E-mail | < 2 min |
 | Verificação de upload (até 50 MB) | < 60 s |
+| IA — solicitar geração (AI-01, 202) | ≤ 1 s |
+| IA — rascunho completo (pedido → `SUCCEEDED`) | ≤ 90 s; falhas < 2% (excluídas as indisponibilidades do provedor) |
+| IA — ajuste de seção (pedido → `SUCCEEDED`) | ≤ 20 s |
+| IA — aplicar proposta (DOC-26/RSK-11) | ≤ 1 s |
 
 ### 7.2 Carga
 - **Ferramenta:** k6 (confirmada em `decisions.md`).
@@ -206,6 +235,7 @@ Fonte: [observability.md §6.2](../architecture/observability.md#62-dependência
 | Gotenberg | Degradável (worker) | Renderização pausada pelo *circuit breaker* | RB-03 |
 | ClamAV | Degradável (worker) | Scan pausado; nenhum arquivo liberado | RB-05 |
 | SMTP/SES | Degradável | E-mails ficam `PENDING` | — |
+| Provedor de IA | Degradável (worker) | Disjuntor aberto → AI-01 503 `AI_PROVIDER_UNAVAILABLE`; gerações `FAILED` com notificação; editores e demais fluxos intactos | RB a criar na US-115 |
 
 **Implementação:** Testcontainers interrompe ou pausa o contêiner da dependência durante o teste de integração; *health checks* `/health/live` (processo vivo) e `/health/ready` (dependências críticas) validam o comportamento, com resultado em cache de 5 s.
 
@@ -217,7 +247,7 @@ Fonte: [security.md §20](../architecture/security.md#20-sast-dast-e-testes-de-s
 - **IaC** — checkov / `trivy config` / tflint — PR de infraestrutura.
 - **Validação de conteúdo** — testes de propriedade (*fuzzing*) do validador TipTap e do sanitizador HTML com cargas XSS conhecidas — todo PR.
 - **DAST** — OWASP ZAP *baseline* (passivo) a cada *deploy* em staging; *full scan* autenticado semanal.
-- **Pentest** — externo, caixa-cinza, antes do *go-live* e anualmente.
+- **Pentest** — externo, caixa-cinza, antes do *go-live* e anualmente; o escopo inclui a geração com IA (injeção de instruções, exfiltração entre processos ou tenants e conteúdo malicioso na saída — §3.10).
 - **Padrão de referência:** OWASP ASVS nível 2, conforme [overview.md §7](overview.md#7-premissas-e-restrições). As fontes revisadas não citam um mapeamento formal a "OWASP Top 10" como checklist separado — tratado como **a definir**.
 
 ### 7.5 LGPD
@@ -226,6 +256,7 @@ Fonte: [security.md §21](../architecture/security.md#21-lgpd).
 - Cada instituição contratante (tenant) é **controladora**; o ContrataFlow é **operador**, controlador apenas dos dados de seus próprios operadores e contatos comerciais.
 - Teste de inventário: CPF cifrado com *blind index*, aviso de EXIF em anexos, auditoria com alterações mascaradas, sessão sem *backup* no Redis.
 - Teste de incidente: simulação do prazo contratual de comunicação ao controlador (até 24 h propostas) e verificação das evidências preservadas.
+- IA (EP-020): teste do `ContextSanitizer` (minimização) e da omissão de valores sigilosos; inventário de dados e termos de uso com o provedor de IA como suboperador e a transferência internacional (ADR-013); nenhum conteúdo de documento em logs.
 - Direitos do titular (art. 18): exportação/correção/anonimização — fluxo majoritariamente administrativo no MVP 1 (PEND-07 pendente sobre temporalidade); nível de automação do teste: **a definir**.
 
 ## 8. Rastreabilidade
@@ -249,4 +280,5 @@ Fonte: [security.md §21](../architecture/security.md#21-lgpd).
 | Geração de EICAR em runtime falha silenciosamente e o scan nunca é exercitado de fato | Meta-teste que falha se o ClamAV real não for efetivamente invocado no teste de integração de upload |
 | Pentest e ZAP *full scan* são periódicos, não por PR | SAST/Semgrep e ZAP *baseline* por PR/*deploy* funcionam como rede de segurança contínua entre execuções |
 | Convenção de *tags*/nomes de teste ainda não definida (seção 8) | Fixá-la na consolidação antes de crescer o número de suítes, para não exigir retrabalho de rotulagem |
+| Não determinismo da IA torna testes instáveis | `FakeAiProvider` determinístico no CI; qualidade medida à parte pelo `pnpm ai:eval`; asserções sobre estrutura, marcações e rastreabilidade, nunca sobre o texto livre |
 | Harness de teste para J-06 (relógio controlado) e J-09 (violação simulada de selo) não confirmado nas fontes | Especificar o mecanismo (ex.: endpoint de teste, injeção de clock) na Sprint que implementar essas jornadas, antes de declará-las automatizadas |

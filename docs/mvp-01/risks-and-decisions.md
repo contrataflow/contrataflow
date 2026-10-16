@@ -23,6 +23,8 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | RT-08 | Esforço de UI subestimado (wizards, editor TipTap, tabelas densas) | Alta | Média | Design system cedo (US-086), componentes reutilizáveis (Stepper, DataTable, AutosaveIndicator, DepartmentTreeSelect), protótipos 1–2 sprints à frente | Designer + Front |
 | RT-09 | Dependência de versões recentes (Next.js, NestJS, Prisma) com *breaking changes* | Média | Baixa | Versões fixadas em US-077; Renovate com janela de atualização; testes de contrato | Tech Lead |
 | RT-10 | Volume de documentação/especificação divergir do código ao longo do tempo | Alta | Média | Fontes canônicas versionadas no repositório; CI valida eventos/permissões/rotas contra registros; DoD exige atualização do card | PO + Tech Lead |
+| RT-11 | IA generativa produzir texto plausível mas errado (alucinação) ou inventar números nos documentos (EP-020) | Alta | Alta | Só fatos das entradas; *GroundingGuard* determinístico troca números, valores, prazos e datas sem origem por [a confirmar]; revisão humana obrigatória antes de finalizar (US-122); conjunto de avaliação `pnpm ai:eval` a cada versão de prompt | Tech Lead + Produto |
+| RT-12 | Dependência do provedor de IA: indisponibilidade, cota, mudança de preço ou de modelo (EP-020) | Média | Média | Porta `AiProvider` (troca por configuração), `FakeAiProvider`, disjuntor e retentativas, geração assíncrona que não bloqueia o trabalho manual, tabela de preços versionada (ADR-013) | Plataforma |
 
 ## 2. Riscos legais e regulatórios
 
@@ -35,8 +37,9 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | RL-05 | LGPD: dados pessoais de servidores, fornecedores pessoa física e conteúdo de comentários | Média | Média | Minimização, criptografia de CPF (DEC-086), logs sem PII (DEC-138), papéis controlador × operador em contrato, canal de titulares, inventário em security.md |
 | RL-06 | Retenção e eliminação de documentos públicos (Lei 8.159/1991, tabelas de temporalidade) × LGPD | Média | Média | Nada é excluído fisicamente no MVP 1 (DEC-034); PEND-07 com apoio arquivístico antes do MVP 3 |
 | RL-07 | Acessibilidade exigida para serviços públicos (Lei 13.146/2015 — LBI; eMAG) | Média | Média | WCAG 2.1 AA + eMAG 3.1 (DEC-183), axe no CI, testes com leitor de tela por marco |
-| RL-08 | Responsabilização do agente público por conteúdo gerado/sugerido pela plataforma | Baixa (MVP 1) | Alta | Plataforma não decide; decisões humanas registradas (aprovações, justificativas); textos padrão como sugestão editável; IA só no MVP 5 e sempre assistiva |
+| RL-08 | Responsabilização do agente público por conteúdo gerado/sugerido pela plataforma — agravado pela geração por IA (EP-020) | Média | Alta | Plataforma não decide (princípio 16); decisões humanas registradas (aprovações, justificativas); conteúdo de IA marcado e com revisão humana obrigatória e rastreável (quem revisou, quando, qual geração — DEC-037); termos de uso aceitos pelo órgão; textos padrão com base legal citada |
 | RL-09 | Prazo de adequação dos municípios até 20 mil habitantes (art. 176, até abr/2027) pressionar o cronograma comercial | Média | Média | Marcos incrementais (M3/M4) já utilizáveis por pilotos; priorização P0 estrita |
+| RL-10 | Transferência internacional de dados ao provedor de IA (LGPD, art. 33) e sigilo de documentos preparatórios (Lei 12.527/2011, art. 7º, §3º) | Média | Alta | Minimização (sem dados pessoais nem valores sigilosos — RN-AI-05); provedor sem uso para treinamento e com cláusulas-padrão da ANPD (Res. CD/ANPD 19/2024); IA opt-in com termos aceitos pelo órgão; decisão do provedor com o jurídico/DPO (ADR-013, PEND-21) |
 
 ## 3. Riscos de segurança
 
@@ -53,6 +56,7 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | RS-09 | Vazamento de segredos (repositório, logs, imagens) | Baixa | Alta | gitleaks no CI, Secrets Manager, redaction no pino, imagens sem segredos, rotação |
 | RS-10 | Insider (administrador do tenant ou operador da plataforma) abusar de acesso | Baixa | Alta | Auditoria append-only com selagem (ADR-009), acesso de suporte temporário e visível ao tenant (DEC-139), separação de papéis de banco |
 | RS-11 | Cadeia de suprimentos (dependências npm comprometidas) | Média | Alta | Lockfile, Renovate com revisão, `pnpm audit`, SBOM, scan de imagens, política de novas dependências |
+| RS-12 | Injeção de instruções no texto dos documentos para manipular a IA, extrair dados de outros processos ou gerar conteúdo malicioso (EP-020) | Média | Média | Contexto restrito ao processo e ao tenant (RLS); dados delimitados como material, nunca instrução; modelo sem ferramentas; saída só estruturada, validada e sanitizada (TipTap); aplicação sempre humana; teste de injeção no pentest (tests.md §3.10) |
 
 ## 4. Riscos de multi-tenancy
 
@@ -79,6 +83,7 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | RP-06 | Documentos grandes (JSONB de rascunho com várias seções de até 1 MB) | Média | Média | Autosave por seção (payload pequeno), limites por seção, compressão TOAST do PostgreSQL, carregamento sob demanda das seções no editor |
 | RP-07 | Dashboard com agregações custosas | Média | Média | Cache Redis 60 s por escopo; consultas agregadas com índices; materialized views avaliadas no MVP 2 (Indicadores) |
 | RP-08 | Recálculo da pesquisa de preços com muitas cotações | Baixa | Baixa | Recálculo incremental por item; recálculo total em lote assíncrono acima de um limiar |
+| RP-09 | Latência da geração com IA e fila `ai-generation` congestionada em picos | Média | Média | Geração assíncrona com progresso e notificação; concorrência por tenant (2); escala do worker pela profundidade da fila; metas p95 (90 s rascunho, 20 s ajuste) medidas no endurecimento |
 
 ## 6. Débitos técnicos assumidos
 
@@ -102,6 +107,8 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | DT-16 | Lote da caixa de tarefas fixo em 2–50 itens (não configurável por tenant) | Simplicidade (US-058) | Avaliar no MVP 2 |
 | DT-17 | `Approval.dueAt` nulo em submissões avulsas de documento | Escopo (US-051) | MVP 2 (prazo por `DocumentType`) |
 | DT-18 | Acesso de suporte da plataforma (DEC-139) sem tela no MVP 1 (operação pela CLI/API de plataforma, auditada) | Pilotos poucos (DT-07) | MVP 2 |
+| DT-19 | Um provedor de IA por ambiente (sem escolha por órgão) | Escopo (ADR-013) | Quando um cliente exigir inferência no Brasil ou outro provedor |
+| DT-20 | Qualidade do texto gerado medida fora do CI (`pnpm ai:eval`, avaliação humana) | Não determinismo do modelo | Automatizar uma avaliação com nota mínima no MVP 5 |
 
 ## 7. Pontos ambíguos do pedido e interpretação adotada
 
@@ -136,6 +143,10 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | A-27 | "Consultoria externa" | Vínculo `EXTERNAL` com validade + participação `CONSULTANT` por processo | DEC-036 |
 | A-28 | "Notificações" — canais | In-app e e-mail no MVP 1; WhatsApp/push avaliados depois | EP-019 |
 | A-29 | "Secretaria solicitante" em estruturas não municipais | Rótulo configurável; unidades de tipo `SECRETARIAT`/`BOARD` ou raízes | DEC-011, US-001 |
+| A-30 | "A IA preenche o documento inteiro" (prd-3) | Preenche as **seções narrativas** do template do órgão; campos tipados, itens, quantidades, alternativas, decisões e valores continuam com as pessoas e com a pesquisa de preços. No mapa de riscos, inclui riscos e tratamentos estruturados (sem responsável, prazo ou valor) | DEC-037, US-117..US-120 |
+| A-31 | "O órgão pode desligar a IA" | IA **opt-in**: padrão desligado, ligada pelo administrador com aceite dos termos de uso (LGPD e transferência internacional); pode ser desligada a qualquer momento | DEC-037, US-116 |
+| A-32 | "Identificado como gerado por IA até ser revisado" | Proveniência por seção (e por risco) com revisão humana explícita; documento não é finalizado, submetido nem encaminhado com conteúdo não revisado; a marca não é impressa na versão final (fica nos metadados da versão, na auditoria e na timeline) | US-122 |
+| A-33 | "Limite de uso" | Tokens por mês por órgão (com reserva no pedido) e gerações por dia por usuário; custo registrado por geração; cobrança em PEND-22 | US-116, PEND-22 |
 
 ## 8. Regras que precisam de decisão de produto
 
@@ -158,6 +169,8 @@ Lista viva baseada em [decisions.md §10](../architecture/decisions.md#10-decis�
 | PEND-18 | Login gov.br | Fora do MVP 1 | MVP 2 |
 | PEND-19 | Prioridade do processo após aprovação do DFD | `Dfd.priority` prevalece (RN-DFD-66) | Antes da sprint do EP-002 |
 | PEND-20 | Organização e times do GitHub (CODEOWNERS) | Times provisórios de DEC-062 | Antes da US-079 (proteção de branch) |
+| PEND-21 | Provedor e modelo de IA (ADR-013) | Camada agnóstica + `FakeAiProvider`; recomendação Anthropic Claude via Amazon Bedrock (`sa-east-1`) — sem decisão | Início da sprint 16 (US-115) |
+| PEND-22 | Modelo de custo da IA e limites padrão | Sem cobrança; 2.000.000 tokens/mês por órgão; 40 gerações/dia por usuário | Antes do go-live |
 
 **Decididas em 2026-10-07 (sprint 0 — padrão confirmado pelo produto):** PEND-01 → DEC-028 · PEND-04 → DEC-020 · PEND-06 → DEC-141 · PEND-10 → DEC-061 · PEND-15 → DEC-021.
 
@@ -177,6 +190,7 @@ Nenhuma regra legal ou administrativa está fixa em código (princípio 17). Pon
 | Tipos de documento | Tipos personalizados, numeração, aprovação avulsa e política | Admin | US-061 |
 | Catálogos | Tipos de contratação, modalidades, origens, unidades, categorias de risco, tipos de fonte de preço (com campos exigidos e validade), critérios de julgamento, categorias de anexo | Admin/gestor | DEC-027, US-104 |
 | Configurações do tenant | Numeração, segurança (MFA, sessão), segregação de funções, acesso histórico, duplicidade, prazos, calendário, pesquisa de preços, riscos, uploads, notificações, rótulos, feature flags | Admin (`SETTINGS_MANAGE`) | entities.md §6 |
+| IA generativa | Ligar/desligar (com termos), limite mensal de tokens, limite diário por usuário; quem pode gerar (`AI_GENERATE` na matriz de perfis) | Admin (`SETTINGS_MANAGE`, `ROLE_MANAGE`) | US-116, entities.md §6 |
 | Perfis e escopos | Permissões por perfil, escopos e vigências | Admin | EP-016 |
 | Calendário | Feriados e pontos facultativos | Admin | US-106 |
 | Estrutura organizacional | Órgãos, unidades, titulares e substitutos | Admin | EP-017 |
@@ -196,7 +210,7 @@ Nenhuma regra legal ou administrativa está fixa em código (princípio 17). Pon
 | Assinatura eletrônica (ICP-Brasil / gov.br) | 3 | Assinatura de documentos | Provedor | Custo e validade jurídica |
 | Compras.gov.br (painel de preços, CATMAT/CATSER) | 3/5 | Pesquisa de preços e catálogo | Dados abertos/API | Disponibilidade e formato |
 | Receita Federal / bases de CNPJ | 3 | Enriquecimento de fornecedores | API de terceiros | Custo e LGPD |
-| Provedores de IA (OpenAI, Anthropic, Azure OpenAI) | 5 | Assistente e validações | API | Privacidade e custo |
+| Provedores de IA (OpenAI, Anthropic, Azure OpenAI) | 1 e 5 | Geração de documentos do planejamento (MVP 1, EP-020); assistente e validações (MVP 5) | API (via `AiProvider`) | Privacidade/transferência internacional, custo e qualidade — ADR-013 (PEND-21) |
 | Login gov.br (via Authentik) | 2+ | Federação de identidade | OIDC | Homologação |
 
 ## 11. Decisões de arquitetura do MVP 1
@@ -215,6 +229,7 @@ Resumo das decisões estruturais (detalhe em [decisions.md](../architecture/deci
 | Auditoria transacional append-only com selagem periódica | DEC-025, ADR-009 |
 | Validação compartilhada com Zod e OpenAPI gerado | DEC-054, ADR-010 |
 | UUIDv7 + numeração por sequência transacional | DEC-002, DEC-028, ADR-011 |
+| Geração de documentos com IA: módulo `ai` só de leitura, porta `AiProvider`, fila `ai-generation`, aplicação e revisão pelos módulos donos | DEC-037, DEC-079, ADR-013 (proposto — PEND-21) |
 
 ## 12. Validação para iniciar o MVP 2
 
@@ -222,6 +237,7 @@ Checklist a executar **antes** de detalhar o MVP 2 (governança da especificaç�
 
 - [ ] **Dependências:** MVP 1 em produção nos pilotos; workflow, aprovações, documentos tipados e auditoria estáveis.
 - [ ] **Entidades existentes reutilizadas:** `Document`/`DocumentType` para parecer jurídico e edital; `Approval` para manifestações; `WorkflowStage` para Jurídico/Controle Interno/Dotação; `CatalogItem` para categorias do PCA; `Department` para secretarias do PCA.
+- [ ] **IA:** geração de parecer jurídico e de edital reutiliza a camada do EP-020 (DEC-037, DEC-079) — novos prompts e geradores, mesma rastreabilidade e revisão humana.
 - [ ] **Impactos:** nova versão do workflow padrão (Dotação, Jurídico, Controle Interno entre as etapas 6 e 7 de DEC-015); novos tipos de regra (SLA, notificação); indicadores sobre `ProcessStage`/`ProcessMovement`.
 - [ ] **Mudanças de arquitetura:** read model para indicadores (materialized views ou tabela de fatos); `Approval.decisionPolicy`; possível motor de regras com biblioteca reutilizável.
 - [ ] **Migrações necessárias:** entities.md §9 (PCA e `pcaItemId`, `decisionPolicy`, novas permissões e perfis ampliados — `JURIDICO`, `CONTROLE_INTERNO`, `CONTABILIDADE`).
