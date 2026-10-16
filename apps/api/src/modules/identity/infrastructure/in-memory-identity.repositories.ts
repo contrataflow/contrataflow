@@ -39,9 +39,10 @@ import { generateInvitationToken, hashInvitationToken } from '../domain/invitati
 import type { PendingInvitation } from '../domain/invitation.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
 import { displayName } from '../domain/user.js';
-import type { User } from '../domain/user.js';
+import type { ProfileUpdate, User } from '../domain/user.js';
 
 interface StoredUser extends FakeUser {
+  readonly phone: string | null;
   readonly lastLoginAt: Date | null;
   readonly version: number;
   readonly preferences: Readonly<Record<string, unknown>>;
@@ -98,7 +99,10 @@ export class InMemoryIdentityRepository
     tenants: readonly TenantData[] = Object.values(FAKE_TENANTS),
   ) {
     this.users = new Map(
-      users.map((user) => [user.id, { ...user, lastLoginAt: null, version: 1, preferences: {} }]),
+      users.map((user) => [
+        user.id,
+        { ...user, phone: null, lastLoginAt: null, version: 1, preferences: {} },
+      ]),
     );
     this.memberships = memberships.map((membership) => ({
       ...membership,
@@ -152,6 +156,29 @@ export class InMemoryIdentityRepository
   findUserById(userId: string): Promise<User | null> {
     const user = this.users.get(userId);
     return Promise.resolve(user ? toUser(user) : null);
+  }
+
+  findUserInTransaction(_tx: TenantTx, userId: string): Promise<User | null> {
+    return this.findUserById(userId);
+  }
+
+  saveProfile(
+    _tx: TenantTx,
+    userId: string,
+    expectedVersion: number,
+    update: Omit<ProfileUpdate, 'changes'>,
+  ): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (user?.version !== expectedVersion) return Promise.resolve(false);
+    this.users.set(userId, {
+      ...user,
+      name: update.name,
+      socialName: update.socialName,
+      phone: update.phone,
+      preferences: update.preferences,
+      version: user.version + 1,
+    });
+    return Promise.resolve(true);
   }
 
   findUserBySubject(subject: string): Promise<User | null> {
@@ -333,6 +360,7 @@ export class InMemoryIdentityRepository
       email: user.email,
       name: user.name,
       socialName: null,
+      phone: null,
       status: 'ACTIVE',
       lastLoginAt: null,
       version: 1,
@@ -815,7 +843,7 @@ function toUser(user: StoredUser): User {
     email: user.email,
     name: user.name,
     socialName: user.socialName,
-    phone: null,
+    phone: user.phone,
     status: user.status,
     preferences: user.preferences,
     version: user.version,

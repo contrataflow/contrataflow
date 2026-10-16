@@ -209,6 +209,15 @@ export class SessionService {
   }
 
   /**
+   * Nome exibido da sessão (US-098 · RN-IAM-110): depois de `PATCH /me`, o nome social (ou o civil)
+   * aparece no menu do usuário sem novo login. Sobre o registro mais recente, como o `touch`.
+   */
+  async setDisplayName(record: SessionRecord, displayName: string): Promise<SessionRecord> {
+    const apply = (current: SessionRecord): SessionRecord => ({ ...current, displayName });
+    return (await this.store.update(record.key, apply)) ?? apply(record);
+  }
+
+  /**
    * Executa `work` depois das demais operações exclusivas da mesma sessão neste processo — dois
    * cliques de troca de instituição não correm em paralelo (US-093 · Concorrência). Entre
    * réplicas, a gravação atômica do store mantém o registro íntegro.

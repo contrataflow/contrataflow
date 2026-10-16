@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { MembershipReferences } from '#shared/auth/membership-references.js';
 import type { VerifiedToken } from '#shared/auth/ports.js';
 import {
   currentRequestContext,
@@ -16,6 +17,7 @@ import type { LoginRecord, SessionAuditPort } from './ports.js';
 import { RecordSessionTenantCommand } from './record-session-tenant.command.js';
 import type { RecordSessionTenantInput } from './record-session-tenant.command.js';
 import { StartSessionCommand } from './start-session.command.js';
+import { InMemoryFirstAdminStore } from '../infrastructure/first-admin.store.js';
 import {
   InMemoryAuthentikDirectory,
   InMemoryIdentityRepository,
@@ -351,13 +353,21 @@ describe('ME-01 e ME-04', () => {
   });
 
   it('ME-01 devolve o perfil com preferências padrão e versão; sem usuário no contexto → 401', async () => {
-    const query = new GetMyProfileQuery(new InMemoryIdentityRepository());
+    const repository = new InMemoryIdentityRepository();
+    const query = new GetMyProfileQuery(
+      repository,
+      repository,
+      new InMemoryFirstAdminStore(),
+      new MembershipReferences(),
+    );
     await expect(inRequest(() => query.execute(), FAKE_USERS.fabio.id)).resolves.toEqual({
       id: FAKE_USERS.fabio.id,
       name: 'Fábio Nunes',
       socialName: 'Fabi Nunes',
+      email: FAKE_USERS.fabio.email,
       phone: null,
       preferences: { density: 'comfortable', theme: 'system' },
+      membership: { jobTitle: null, departments: [] },
       version: 1,
     });
     await expect(inRequest(() => query.execute())).rejects.toMatchObject({

@@ -180,7 +180,7 @@ Baixo risco: alteração restrita ao próprio `User`, sem novas tabelas; único 
 ## Auditoria
 | Ação | Categoria | Quando | `changes` / `metadata` |
 |---|---|---|---|
-| `profile.update` | `DATA_CHANGE` | Commit da atualização | `changes`: campos alterados (`name`, `socialName`, `phone`, `preferences`) |
+| `profile.update` | `SECURITY` | Commit da atualização | `changes`: campos alterados (`name`, `socialName`, `phone`, `preferences`) |
 
 ## Testes necessários
 - **Unitários e integração (Testcontainers):** RN-IAM-109..111 (campos editáveis, precedência do nome social, chaves de preferência); concorrência otimista (`If-Match`).

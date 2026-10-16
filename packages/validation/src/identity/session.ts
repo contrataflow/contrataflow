@@ -48,14 +48,22 @@ export const membershipSummarySchema = z
 
 export type MembershipSummaryDto = z.infer<typeof membershipSummarySchema>;
 
-/** ME-01 — perfil do usuário autenticado (api/01-session-me.md). */
+/** ME-01 — perfil do usuário autenticado (api/01-session-me.md), com `version` para o `ETag`. */
 export const myProfileSchema = z
   .object({
     id: z.uuid(),
+    /** Nome civil (registros formais); o nome exibido é `socialName ?? name` (RN-IAM-110). */
     name: z.string(),
     socialName: z.string().nullable(),
+    /** Somente leitura (RN-IAM-109). */
+    email: z.string(),
     phone: z.string().nullable(),
     preferences: z.object({ density: z.string(), theme: z.string() }),
+    /** Cargo e lotações do vínculo ativo na instituição do contexto (somente leitura). */
+    membership: z.object({
+      jobTitle: z.string().nullable(),
+      departments: z.array(z.string()),
+    }),
     version: z.int().min(1),
   })
   .meta({ id: 'MyProfile' });

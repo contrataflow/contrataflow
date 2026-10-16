@@ -11,12 +11,12 @@ import type {
 import { TenantTransaction } from '#shared/database/database.module.js';
 import { isUniqueViolation } from '#shared/database/errors.js';
 import { PlatformTransaction } from '#shared/database/platform-transaction.js';
-import type { TenantTx } from '#shared/database/prisma.js';
+import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
 import type { IdentityRepository, LoginRecord, TenantMember } from '../application/ports.js';
 import type { MembershipType, TenantMembership } from '../domain/tenant-membership.js';
 import { displayName } from '../domain/user.js';
-import type { User } from '../domain/user.js';
+import type { ProfileUpdate, User } from '../domain/user.js';
 
 /** Intervalo mínimo entre gravações de `lastAccessAt` do mesmo vínculo (RN-IAM-16). */
 export const LAST_ACCESS_INTERVAL_MS = 5 * 60_000;
@@ -159,6 +159,31 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
       tx.user.findUnique({ where: { id: userId }, select: USER_SELECT }),
     );
     return row ? toUser(row) : null;
+  }
+
+  async findUserInTransaction(tx: TenantTx, userId: string): Promise<User | null> {
+    const row = await tx.user.findUnique({ where: { id: userId }, select: USER_SELECT });
+    return row ? toUser(row) : null;
+  }
+
+  async saveProfile(
+    tx: TenantTx,
+    userId: string,
+    expectedVersion: number,
+    update: Omit<ProfileUpdate, 'changes'>,
+  ): Promise<boolean> {
+    // Só colunas editáveis por ME-02 (RN-IAM-109): e-mail, CPF, status e vínculos ficam de fora.
+    const { count } = await tx.user.updateMany({
+      where: { id: userId, version: expectedVersion },
+      data: {
+        name: update.name,
+        socialName: update.socialName,
+        phone: update.phone,
+        preferences: update.preferences as Prisma.InputJsonObject,
+        version: { increment: 1 },
+      },
+    });
+    return count === 1;
   }
 
   async findUserBySubject(subject: string): Promise<User | null> {

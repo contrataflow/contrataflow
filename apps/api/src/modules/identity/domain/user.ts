@@ -1,3 +1,6 @@
+import { isPreferenceKey, isPreferenceValue } from '@contrataflow/validation';
+import type { UpdateMyProfile } from '@contrataflow/validation';
+
 import type { UserStatus } from '#shared/auth/ports.js';
 
 /**
@@ -81,4 +84,83 @@ export function maskEmail(email: string): string {
   const at = email.indexOf('@');
   if (at <= 0) return '***';
   return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
+
+/** Chave fora do registro de preferências (RN-IAM-111 → 422 `SETTING_KEY_UNKNOWN`). */
+export class UnknownPreferenceKeysError extends Error {
+  constructor(readonly keys: readonly string[]) {
+    super(`Preferência não reconhecida: ${keys.join(', ')}.`);
+    this.name = 'UnknownPreferenceKeysError';
+  }
+}
+
+/** Valor de preferência conhecida fora do registro (→ 422 `VALIDATION_ERROR`). */
+export class InvalidPreferenceValueError extends Error {
+  constructor(readonly keys: readonly string[]) {
+    super(`Valor de preferência inválido: ${keys.join(', ')}.`);
+    this.name = 'InvalidPreferenceValueError';
+  }
+}
+
+/** Campo alterado por `updateProfile`; o telefone já sai mascarado (nunca completo em trilha). */
+export interface ProfileChange {
+  readonly path: string;
+  readonly old: unknown;
+  readonly new: unknown;
+}
+
+export interface ProfileUpdate {
+  readonly name: string;
+  readonly socialName: string | null;
+  readonly phone: string | null;
+  /** `User.preferences` completo: as chaves enviadas sobre as já gravadas (merge raso). */
+  readonly preferences: Readonly<Record<string, unknown>>;
+  readonly changes: readonly ProfileChange[];
+}
+
+/** `***5678`: só os 4 últimos dígitos (RN-IAM-113 · Logs da US-098). */
+export function maskPhone(phone: string | null): string | null {
+  if (phone === null) return null;
+  const digits = phone.replace(/\D/g, '');
+  return digits.length < 4 ? '***' : `***${digits.slice(-4)}`;
+}
+
+/**
+ * `User.updateProfile` (RN-IAM-109..111): aplica `name`, `socialName`, `phone` e `preferences`
+ * sobre o estado atual. Só o que difere entra em `changes` (RN-IAM-113); `changes` vazio = nada a
+ * gravar. As demais chaves de `preferences` (ex.: `defaultTenantId`, da US-093) são preservadas.
+ * @throws UnknownPreferenceKeysError chave fora do registro (nenhuma é aplicada).
+ * @throws InvalidPreferenceValueError valor fora do registro.
+ */
+export function updateProfile(
+  user: Pick<User, 'name' | 'socialName' | 'phone' | 'preferences'>,
+  patch: UpdateMyProfile,
+): ProfileUpdate {
+  const unknown = Object.keys(patch.preferences ?? {}).filter((key) => !isPreferenceKey(key));
+  if (unknown.length > 0) throw new UnknownPreferenceKeysError(unknown);
+  const invalid = Object.entries(patch.preferences ?? {})
+    .filter(([key, value]) => !isPreferenceValue(key, value))
+    .map(([key]) => key);
+  if (invalid.length > 0) throw new InvalidPreferenceValueError(invalid);
+
+  const changes: ProfileChange[] = [];
+  const name = patch.name ?? user.name;
+  if (name !== user.name) changes.push({ path: 'name', old: user.name, new: name });
+  const socialName = patch.socialName === undefined ? user.socialName : patch.socialName;
+  if (socialName !== user.socialName) {
+    changes.push({ path: 'socialName', old: user.socialName, new: socialName });
+  }
+  const phone = patch.phone === undefined ? user.phone : patch.phone;
+  if (phone !== user.phone) {
+    changes.push({ path: 'phone', old: maskPhone(user.phone), new: maskPhone(phone) });
+  }
+
+  const current = interfacePreferences(user);
+  const preferences: Record<string, unknown> = { ...user.preferences };
+  for (const [key, value] of Object.entries(patch.preferences ?? {})) {
+    preferences[key] = value;
+    const before = current[key as keyof typeof current];
+    if (before !== value) changes.push({ path: `preferences.${key}`, old: before, new: value });
+  }
+  return { name, socialName, phone, preferences, changes };
 }

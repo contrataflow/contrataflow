@@ -73,6 +73,33 @@ export async function readLimitedBody(request: Request, limit = MAX_BODY_BYTES):
   return { kind: 'ok', body: body.buffer };
 }
 
+/**
+ * `PATCH /me` aplicado (US-098 · RN-IAM-110): o nome exibido da sessão passa a ser o nome social,
+ * se houver, ou o civil — o menu do usuário reflete a mudança na próxima renderização do shell.
+ * Falha aqui nunca derruba a resposta já aplicada pela API.
+ */
+async function syncDisplayName(
+  runtime: BffRuntime,
+  record: SessionRecord,
+  response: Response,
+): Promise<void> {
+  try {
+    const body = (await response.json()) as {
+      data?: { name?: unknown; socialName?: unknown };
+    };
+    const social = typeof body.data?.socialName === 'string' ? body.data.socialName.trim() : '';
+    const name = typeof body.data?.name === 'string' ? body.data.name : '';
+    const displayName = social === '' ? name : social;
+    if (displayName !== '' && displayName !== record.displayName) {
+      await runtime.sessions.setDisplayName(record, displayName);
+    }
+  } catch (error) {
+    log('warn', 'bff.display_name_sync_failed', {
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+}
+
 export async function handleProxyRequest(
   request: Request,
   segments: readonly string[],
@@ -186,6 +213,9 @@ export async function handleProxyRequest(
       correlationId,
       mutating: isMutatingMethod(request.method),
     });
+    if (request.method === 'PATCH' && path === '/me' && response.status === 200) {
+      await syncDisplayName(runtime, record, response.clone());
+    }
     // Corpo repassado em *streaming* (exportações CSV), sem leitura no BFF.
     return new Response(response.body, { status: response.status, headers });
   } catch (error) {

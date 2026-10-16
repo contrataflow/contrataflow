@@ -106,6 +106,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'NTF-05': { kind: 'exempt', reason: NOTIFICATION_ROUTE },
   'ME-01': { kind: 'covered' },
   'ME-04': { kind: 'covered' },
+  'ME-02': {
+    kind: 'exempt',
+    reason:
+      'Meu perfil (US-098): exige If-Match (a suíte genérica não envia) e não há ID no caminho nem referência no corpo — só o próprio User do token; o isolamento (X-Tenant-Id sem vínculo → 403, auditoria só no tenant do contexto e nenhuma escrita em outro usuário) é coberto em test/tenant-leak/my-profile.spec.ts.',
+  },
   // US-097: permissões do próprio vínculo, sem ID no caminho; o isolamento com PostgreSQL e Redis
   // reais está em test/tenant-leak/authorization.spec.ts.
   'ME-03': { kind: 'covered' },

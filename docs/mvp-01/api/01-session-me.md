@@ -27,8 +27,10 @@ User {
   id: string;                    // uuid, somente leitura
   name: string;                  // 2–200
   socialName?: string | null;    // 2–200
+  email: string;                 // somente leitura (RN-IAM-109)
   phone?: string | null;         // formato BR
   preferences: { density: string; theme: string }; // registro RN-IAM-111
+  membership: { jobTitle: string | null; departments: string[] }; // vínculo ativo no tenant (somente leitura)
   version: number;
 }
 ```
@@ -59,7 +61,7 @@ User {
 | 422 | `VALIDATION_ERROR` | `name` ausente/curto; `phone` em formato inválido |
 | 422 | `SETTING_KEY_UNKNOWN` | Chave de `preferences` desconhecida |
 
-- **Efeitos:** Eventos: —. Auditoria: `profile.update` (`DATA_CHANGE`) no commit — `changes`: campos alterados (`name`, `socialName`, `phone`, `preferences`).
+- **Efeitos:** Eventos: —. Auditoria: `profile.update` (`SECURITY`) no commit — `changes`: campos alterados (`name`, `socialName`, `phone`, `preferences`).
 - **Notas:** `If-Match` ausente → 428 `PRECONDITION_REQUIRED` (genérico, api.md §1.3).
 
 ### ME-03 — Obter permissões efetivas do usuário

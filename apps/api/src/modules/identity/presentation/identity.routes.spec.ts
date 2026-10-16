@@ -72,8 +72,10 @@ describe('Feature: Login OIDC — API (US-087)', () => {
           id: FAKE_USERS.ana.id,
           name: 'Ana Souza',
           socialName: null,
+          email: FAKE_USERS.ana.email,
           phone: null,
           preferences: { density: 'comfortable', theme: 'system' },
+          membership: { jobTitle: null, departments: [] },
           version: 1,
         },
       });

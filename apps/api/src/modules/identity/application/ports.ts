@@ -5,7 +5,7 @@ import type { MembershipStatus } from '#shared/auth/ports.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { TenantMembership } from '../domain/tenant-membership.js';
-import type { User } from '../domain/user.js';
+import type { ProfileUpdate, User } from '../domain/user.js';
 
 /*
  * Portas da aplicação do módulo `identity` (US-087): implementadas em `infrastructure/` (Prisma,
@@ -49,6 +49,18 @@ export interface IdentityRepository {
    * `User.preferences` (jsonb livre, sem migração), preservando as demais preferências.
    */
   setDefaultTenant(userId: string, tenantId: string): Promise<void>;
+  /** Usuário lido no `tx` do caso de uso (ME-02: leitura e gravação na mesma transação). */
+  findUserInTransaction(tx: TenantTx, userId: string): Promise<User | null>;
+  /**
+   * ME-02: grava o perfil só se `version` ainda for `expectedVersion` e a incrementa
+   * (`UPDATE … WHERE version = @expected` — DEC-055); `false` = outra aba gravou antes.
+   */
+  saveProfile(
+    tx: TenantTx,
+    userId: string,
+    expectedVersion: number,
+    update: Omit<ProfileUpdate, 'changes'>,
+  ): Promise<boolean>;
   /**
    * Nomes exibidos dos usuários com vínculo no tenant da transação (a RLS de
    * `tenant_memberships` filtra — usuário de outro tenant não é encontrado), lidos no `tx` do caso

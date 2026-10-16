@@ -40,6 +40,58 @@
   --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 1px 3px 0 rgb(15 23 42 / 0.08);
 }
 
+/*
+ * Preferências do usuário (US-098 · RN-IAM-111): `data-theme` e `data-density` no `<html>` são
+ * aplicados pelo shell a partir de `GET /me`. Tema escuro troca só os tokens semânticos (pares
+ * texto/fundo ≥ 4,5:1); `system` segue `prefers-color-scheme`; densidade compacta reduz a escala
+ * do `rem`, e com ela espaçamentos e alturas de controles.
+ */
+:root[data-theme='dark'] {
+  --color-background: #0b1220;
+  --color-foreground: #e2e8f0;
+  --color-surface: #111827;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #a8b3c4;
+  --color-border: #334155;
+  --color-ring: #60a5fa;
+  --color-primary: #60a5fa;
+  --color-primary-foreground: #0b1220;
+  --color-primary-soft: #172554;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #0b1220;
+  --color-destructive-soft: #450a0a;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #422006;
+  --color-success: #4ade80;
+  --color-success-soft: #052e16;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] {
+    --color-background: #0b1220;
+    --color-foreground: #e2e8f0;
+    --color-surface: #111827;
+    --color-muted: #1e293b;
+    --color-muted-foreground: #a8b3c4;
+    --color-border: #334155;
+    --color-ring: #60a5fa;
+    --color-primary: #60a5fa;
+    --color-primary-foreground: #0b1220;
+    --color-primary-soft: #172554;
+    --color-destructive: #f87171;
+    --color-destructive-foreground: #0b1220;
+    --color-destructive-soft: #450a0a;
+    --color-warning: #fbbf24;
+    --color-warning-soft: #422006;
+    --color-success: #4ade80;
+    --color-success-soft: #052e16;
+  }
+}
+
+:root[data-density='compact'] {
+  font-size: 93.75%;
+}
+
 @layer base {
   :focus-visible {
     outline: 2px solid var(--color-ring);

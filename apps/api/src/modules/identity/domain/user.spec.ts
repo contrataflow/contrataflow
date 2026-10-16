@@ -7,9 +7,13 @@ import {
   canSignIn,
   defaultTenantOf,
   displayName,
+  InvalidPreferenceValueError,
   interfacePreferences,
   maskEmail,
+  maskPhone,
   SubjectAlreadyBoundError,
+  UnknownPreferenceKeysError,
+  updateProfile,
 } from './user.js';
 
 describe('User (entities.md §4.2)', () => {
@@ -82,5 +86,80 @@ describe('TenantMembership.isUsable', () => {
       usable: false,
       reason: 'TENANT_SUSPENDED',
     });
+  });
+});
+
+describe('User.updateProfile (US-098 · RN-IAM-109..113)', () => {
+  const user = {
+    name: 'Ana Souza',
+    socialName: null,
+    phone: null,
+    preferences: { defaultTenantId: '0192a000-0000-7000-8000-0000000000b1' },
+  };
+
+  it('aplica os campos enviados e lista só o que mudou, com o telefone mascarado', () => {
+    const update = updateProfile(user, {
+      name: 'Ana Maria Souza',
+      socialName: 'Aninha',
+      phone: '(11) 91234-5678',
+      preferences: { theme: 'dark' },
+    });
+    expect(update).toMatchObject({
+      name: 'Ana Maria Souza',
+      socialName: 'Aninha',
+      phone: '(11) 91234-5678',
+    });
+    expect(update.changes).toEqual([
+      { path: 'name', old: 'Ana Souza', new: 'Ana Maria Souza' },
+      { path: 'socialName', old: null, new: 'Aninha' },
+      { path: 'phone', old: null, new: '***5678' },
+      { path: 'preferences.theme', old: 'system', new: 'dark' },
+    ]);
+  });
+
+  it('preserva as chaves de preferência não enviadas (inclusive defaultTenantId da US-093)', () => {
+    const update = updateProfile(user, { preferences: { density: 'compact' } });
+    expect(update.preferences).toEqual({
+      defaultTenantId: '0192a000-0000-7000-8000-0000000000b1',
+      density: 'compact',
+    });
+  });
+
+  it('campos ausentes ficam como estão; null/vazio limpa o nome social e o telefone (FA-01)', () => {
+    const social = { ...user, socialName: 'Aninha', phone: '11912345678' };
+    expect(updateProfile(social, {}).changes).toEqual([]);
+    const cleared = updateProfile(social, { socialName: null, phone: null });
+    expect(cleared).toMatchObject({ name: 'Ana Souza', socialName: null, phone: null });
+    expect(cleared.changes).toEqual([
+      { path: 'socialName', old: 'Aninha', new: null },
+      { path: 'phone', old: '***5678', new: null },
+    ]);
+  });
+
+  it('valores iguais aos atuais (inclusive padrão de preferência) não geram mudança', () => {
+    expect(
+      updateProfile(user, { name: 'Ana Souza', preferences: { theme: 'system' } }).changes,
+    ).toEqual([]);
+  });
+
+  it('RN-IAM-111: chave fora do registro é recusada por inteiro; valor fora do registro também', () => {
+    expect(() => updateProfile(user, { name: 'Outra', preferences: { fontSize: 'xl' } })).toThrow(
+      UnknownPreferenceKeysError,
+    );
+    expect(() => updateProfile(user, { preferences: { defaultTenantId: 'x' } })).toThrow(
+      UnknownPreferenceKeysError,
+    );
+    expect(() => updateProfile(user, { preferences: { theme: 'neon' } })).toThrow(
+      InvalidPreferenceValueError,
+    );
+    expect(() => updateProfile(user, { preferences: { density: 3 } })).toThrow(
+      InvalidPreferenceValueError,
+    );
+  });
+
+  it('maskPhone mostra só os 4 últimos dígitos', () => {
+    expect(maskPhone('(11) 91234-5678')).toBe('***5678');
+    expect(maskPhone(null)).toBeNull();
+    expect(maskPhone('12')).toBe('***');
   });
 });

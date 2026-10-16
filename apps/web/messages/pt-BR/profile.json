@@ -1,0 +1,71 @@
+{
+  "title": "Meu perfil",
+  "description": "Seus dados e preferências de uso. As alterações valem na hora e não precisam de aprovação.",
+  "loading": "Carregando seu perfil…",
+  "loadFailed": "Não foi possível carregar seu perfil.",
+  "retry": "Tentar novamente",
+  "sections": {
+    "personal": "Dados pessoais",
+    "membership": "Vínculo nesta instituição",
+    "preferences": "Preferências",
+    "security": "Segurança"
+  },
+  "fields": {
+    "name": "Nome",
+    "nameHint": "Nome civil, usado em registros formais como auditoria e documentos.",
+    "socialName": "Nome social",
+    "socialNameHint": "Quando preenchido, é o nome exibido em toda a interface. Deixe em branco para exibir o nome civil.",
+    "email": "E-mail",
+    "emailHint": "Somente leitura. Para alterar, fale com o administrador da instituição.",
+    "phone": "Telefone",
+    "phoneHint": "Com DDD. Exemplo: (11) 91234-5678.",
+    "jobTitle": "Cargo",
+    "departments": "Lotação",
+    "none": "Não informado"
+  },
+  "preferences": {
+    "legend": "Preferências de interface",
+    "density": "Densidade",
+    "densityOptions": {
+      "comfortable": "Confortável",
+      "compact": "Compacta"
+    },
+    "theme": "Tema",
+    "themeOptions": {
+      "system": "Seguir o sistema",
+      "light": "Claro",
+      "dark": "Escuro"
+    }
+  },
+  "security": {
+    "description": "Senha e autenticação em duas etapas são gerenciadas no Authentik e abrem em uma nova aba.",
+    "password": "Alterar senha",
+    "mfa": "Autenticação em duas etapas",
+    "newTab": "(abre em nova aba)"
+  },
+  "validation": {
+    "name": "Informe seu nome (mín. 2 caracteres).",
+    "socialName": "O nome social deve ter ao menos 2 caracteres.",
+    "phone": "Informe um telefone válido."
+  },
+  "actions": {
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "discard": "Desfazer alterações"
+  },
+  "toast": {
+    "saved": "Perfil atualizado"
+  },
+  "conflict": {
+    "title": "Seus dados foram atualizados em outra aba. Recarregue.",
+    "description": "Carregamos a versão mais recente. Repita a sua edição para salvar.",
+    "reload": "Recarregar"
+  },
+  "errors": {
+    "precondition": "Não foi possível salvar. Recarregue a página.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente.",
+    "generic": "Não foi possível salvar o seu perfil. Tente novamente.",
+    "preferenceUnknown": "Preferência não reconhecida.",
+    "retry": "Tentar novamente"
+  }
+}

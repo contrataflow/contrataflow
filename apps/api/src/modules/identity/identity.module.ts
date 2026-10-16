@@ -47,6 +47,7 @@ import {
 import { RecordSessionEndingsCommand } from './application/record-session-endings.command.js';
 import { RecordSessionTenantCommand } from './application/record-session-tenant.command.js';
 import { StartSessionCommand } from './application/start-session.command.js';
+import { UpdateMyProfileCommand } from './application/update-my-profile.command.js';
 import { AuditTrailSessionRecorder } from './infrastructure/audit-trail-session.recorder.js';
 import {
   AuthentikAdminClient,
@@ -195,7 +196,7 @@ function identityProviders(): Provider[] {
  * Módulo `identity` (DEC-040): outros módulos usam somente a fachada exportada. Dono de `User`,
  * `TenantMembership` e `MembershipDepartment`; implementa as portas do pipeline de autenticação
  * (`TokenVerifierPort`, `UserPort`, `MembershipPort`), o início de sessão (`POST
- * /internal/session-events`) e ME-01/ME-04 (US-087). Desde a US-088 também roda a varredura de
+ * /internal/session-events`) e ME-01/ME-04 (US-087; ME-02 na US-098). Desde a US-088 também roda a varredura de
  * encerramentos de sessão (`SessionSweepScheduler`, 1 min), que audita logout e expiração a partir
  * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`). Desde a US-099: a
  * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`. Desde a
@@ -220,6 +221,7 @@ function identityProviders(): Provider[] {
     RecordSessionEndingsCommand,
     SessionSweepScheduler,
     GetMyProfileQuery,
+    UpdateMyProfileCommand,
     ListMyMembershipsQuery,
     FirstAdminSeeder,
     InviteUserCommand,

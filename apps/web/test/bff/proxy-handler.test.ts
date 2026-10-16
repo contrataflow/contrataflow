@@ -159,6 +159,91 @@ describe('[Sucesso] proxy autenticado', () => {
   });
 });
 
+describe('nome exibido da sessão após PATCH /me (US-098 · RN-IAM-110)', () => {
+  const patchMe = (cookie: string) =>
+    browserRequest('/api/v1/me', {
+      method: 'PATCH',
+      headers: { ...MUTATION_HEADERS, Cookie: cookie, 'If-Match': '"1"' },
+      body: JSON.stringify({ socialName: 'Eli' }),
+    });
+  const profileBody = (socialName: string | null) =>
+    JSON.stringify({ data: { name: 'Ana Souza', socialName, version: 2 } });
+
+  it('passa a exibir o nome social, e o corpo chega intacto ao navegador', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    test.api.mockResolvedValueOnce(
+      new Response(profileBody('Eli'), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"2"' },
+      }),
+    );
+    const response = await handleProxyRequest(patchMe(cookie), ['me'], test.runtime);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('ETag')).toBe('"2"');
+    expect(await response.json()).toEqual({
+      data: { name: 'Ana Souza', socialName: 'Eli', version: 2 },
+    });
+    expect((await test.store.get(record.key))?.displayName).toBe('Eli');
+  });
+
+  it('nome social removido volta a exibir o nome civil', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    await test.runtime.sessions.setDisplayName(record, 'Eli');
+    test.api.mockResolvedValueOnce(
+      new Response(profileBody(null), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await handleProxyRequest(patchMe(cookie), ['me'], test.runtime);
+    expect((await test.store.get(record.key))?.displayName).toBe('Ana Souza');
+  });
+
+  it('falha da API (412) ou outra rota não alteram o nome da sessão', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    const before = (await test.store.get(record.key))?.displayName;
+    test.api.mockResolvedValueOnce(
+      new Response('{"code":"VERSION_CONFLICT"}', {
+        status: 412,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    );
+    expect((await handleProxyRequest(patchMe(cookie), ['me'], test.runtime)).status).toBe(412);
+    test.api.mockResolvedValueOnce(
+      new Response(profileBody('Outro'), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await handleProxyRequest(
+      browserRequest('/api/v1/me', { headers: { Cookie: cookie } }),
+      ['me'],
+      test.runtime,
+    );
+    expect((await test.store.get(record.key))?.displayName).toBe(before);
+  });
+
+  it('corpo ilegível não derruba a resposta já aplicada pela API', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    const before = (await test.store.get(record.key))?.displayName;
+    test.api.mockResolvedValueOnce(
+      new Response('não é json', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const response = await handleProxyRequest(patchMe(cookie), ['me'], test.runtime);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('não é json');
+    expect((await test.store.get(record.key))?.displayName).toBe(before);
+    expect(logs.lines.some((line) => line.includes('bff.display_name_sync_failed'))).toBe(true);
+  });
+});
+
 describe('[Validação] CSRF, caminho e corpo', () => {
   it('V-01: mutação sem X-CF-Request é barrada antes da API', async () => {
     const test = createTestRuntime();

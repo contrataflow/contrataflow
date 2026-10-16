@@ -18,6 +18,7 @@ export type LogEvent =
   | 'bff.proxy_request_completed'
   | 'bff.session_refresh_failed'
   | 'bff.csrf_rejected'
+  | 'bff.display_name_sync_failed'
   | 'bff.unhandled_exception'
   | 'bff.csp_violation'
   | 'auth.session_store_unavailable'

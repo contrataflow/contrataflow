@@ -1,14 +1,17 @@
 import type { MembershipSummaryDto, MyProfileDto } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
+import { MembershipReferences } from '#shared/auth/membership-references.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
-import { IDENTITY_CLOCK, IDENTITY_REPOSITORY } from './ports.js';
-import type { Clock, IdentityRepository } from './ports.js';
+import { MEMBERSHIP_REPOSITORY } from './membership-ports.js';
+import type { MembershipRepository } from './membership-ports.js';
+import { toMyProfile } from './my-profile.view.js';
+import { IDENTITY_CLOCK, IDENTITY_REPOSITORY, IDENTITY_TENANT_TRANSACTIONS } from './ports.js';
+import type { Clock, IdentityRepository, IdentityTenantTransactions } from './ports.js';
 import { isUsable } from '../domain/tenant-membership.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
-import { interfacePreferences } from '../domain/user.js';
 
 /** Projeção de ME-04 de um vínculo (com `usable`/`readOnly` consolidados — RN-IAM-08). */
 export function toMembershipSummary(membership: TenantMembership, now: Date): MembershipSummaryDto {
@@ -52,18 +55,19 @@ export class ListMyMembershipsQuery {
 /** ME-01 — perfil do usuário autenticado (api/01-session-me.md), com `version` para o `ETag`. */
 @Injectable()
 export class GetMyProfileQuery {
-  constructor(@Inject(IDENTITY_REPOSITORY) private readonly identities: IdentityRepository) {}
+  constructor(
+    @Inject(IDENTITY_REPOSITORY) private readonly identities: IdentityRepository,
+    @Inject(MEMBERSHIP_REPOSITORY) private readonly memberships: MembershipRepository,
+    @Inject(IDENTITY_TENANT_TRANSACTIONS) private readonly transactions: IdentityTenantTransactions,
+    private readonly references: MembershipReferences,
+  ) {}
 
   async execute(): Promise<MyProfileDto> {
-    const user = await this.identities.findUserById(currentUserId());
-    if (!user) throw new ApiError('UNAUTHENTICATED');
-    return {
-      id: user.id,
-      name: user.name,
-      socialName: user.socialName,
-      phone: user.phone,
-      preferences: interfacePreferences(user),
-      version: user.version,
-    };
+    const userId = currentUserId();
+    return this.transactions.read(async (tx) => {
+      const user = await this.identities.findUserInTransaction(tx, userId);
+      if (!user) throw new ApiError('UNAUTHENTICATED');
+      return toMyProfile(tx, user, this.memberships, this.references);
+    });
   }
 }

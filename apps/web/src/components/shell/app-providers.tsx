@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import { ConflictDialog } from '@/components/errors/conflict-dialog';
 import { LogoutGuard } from '@/components/session/logout-guard';
 import { SessionWatcher } from '@/components/session/session-watcher';
+import { PreferencesApplier } from '@/features/profile/preferences-applier';
 import { applyErrorEffect } from '@/lib/api/error-effects';
 import type { ErrorEffectDeps } from '@/lib/api/error-effects';
 import { localDrafts } from '@/lib/drafts/local-drafts';
@@ -83,6 +84,7 @@ export function AppProviders({
           <LogoutGuard>
             <SessionSync />
             <SessionWatcher />
+            <PreferencesApplier />
             {children}
             <ConflictDialog
               open={conflictOpen}
