@@ -46,6 +46,7 @@ import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
 import { EmailSender } from '../notifications/email/email-sender.js';
 import { EmailTemplateRegistry } from '../notifications/email/email-templates.js';
+import { InvitationEmailSource } from '../notifications/email/invitation-email-source.js';
 import { NotificationEmailSource } from '../notifications/email/notification-email-source.js';
 import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
 import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
@@ -189,7 +190,7 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
 
   /**
    * US-112: o `EmailSender` (fila `email`) sobe só com o e-mail configurado — sem ele, os jobs
-   * esperam na fila. O convite (US-091) acrescenta a sua origem quando existir.
+   * esperam na fila. O convite (US-091) é a segunda origem de e-mail.
    */
   private registerEmailSender(database: WorkerDatabase): void {
     const { email } = this.config;
@@ -208,6 +209,8 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
           new EmailTemplateRegistry(email.appBaseUrl),
           new SqlNotificationDirectory(),
         ),
+        // US-091: o convite gera o link no envio e grava só o hash do token.
+        invitations: new InvitationEmailSource(email.appBaseUrl),
       }),
     );
   }

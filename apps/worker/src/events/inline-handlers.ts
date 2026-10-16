@@ -1,10 +1,13 @@
 import type { DomainEventEnvelope } from '@contrataflow/types';
+import { UserInvited } from '@contrataflow/validation';
+import { Logger } from '@nestjs/common';
 import { metrics } from '@opentelemetry/api';
 import type { Counter } from '@opentelemetry/api';
 
 import type { TenantRedisCache } from '#shared/cache/tenant-redis.js';
 
 import type { InlineHandlerName } from './routes.js';
+import type { JobProducer } from '../queues/job-producer.js';
 
 /** Handler leve e idempotente executado no job do `domain-events` (queues.md §4.1). */
 export interface InlineEventHandler {
@@ -107,5 +110,38 @@ export class BusinessMetricsCollector implements InlineEventHandler {
         description: 'Fatos de negócio publicados (uma vez por eventId), por tipo.',
       });
     businessEvents.add(1, { event_type: event.eventType, routing_key: event.routingKey });
+  }
+}
+
+/**
+ * Enfileirador do e-mail do convite (US-091 · queues.md §4.3): em `membership.invited`
+ * (`UserInvited` — convite, reenvio e convite do primeiro administrador), enfileira o job
+ * `email/send` com a referência do vínculo; o `EmailSender` gera o link e envia. O `jobId` é o
+ * `eventId` puro (o BullMQ não aceita ':' em jobId customizado): a reentrega do mesmo evento é
+ * deduplicada pela fila. O `meta` do job sai do job de `domain-events` em execução (tenant do
+ * evento, ator, correlação) pelo `JobProducer`.
+ */
+export class InvitationEmailEnqueuer implements InlineEventHandler {
+  readonly name = 'InvitationEmailEnqueuer';
+  private readonly logger = new Logger('InvitationEmailEnqueuer');
+
+  constructor(private readonly producer: Pick<JobProducer, 'enqueue'>) {}
+
+  async handle(event: DomainEventEnvelope<Record<string, unknown>>): Promise<void> {
+    if (event.tenantId === null) {
+      this.logger.warn({ event: 'invitation.email_no_tenant', eventId: event.eventId });
+      return;
+    }
+    const payload = UserInvited.payloadSchema.safeParse(event.payload);
+    if (!payload.success) {
+      this.logger.warn({ event: 'invitation.email_bad_payload', eventId: event.eventId });
+      return;
+    }
+    await this.producer.enqueue(
+      'email',
+      'send',
+      { kind: 'INVITATION', membershipId: payload.data.membershipId },
+      { jobId: event.eventId },
+    );
   }
 }

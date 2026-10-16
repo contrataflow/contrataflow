@@ -118,6 +118,9 @@ function membershipRecord(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** Token opaco válido (43 caracteres base64url — SCR-102). */
+const VALID_TOKEN = 'T'.repeat(43);
+
 const RECORD = {
   key: 'k',
   userId: 'u',
@@ -758,19 +761,48 @@ describe('grupo (auth): casca', () => {
   });
 
   it('rotas reservadas e layout mínimo sem shell', async () => {
+    server.lookup = { status: 'active', record: RECORD };
+    // Preview do convite pendente: só a moldura interessa aqui.
+    vi.stubGlobal('fetch', () => new Promise<Response>(() => undefined));
     renderIntl(
       <AuthLayout>
         <>
           {await PasswordRecoveryPage({
             searchParams: Promise.resolve({ motivo: 'indisponivel' }),
           })}
-          {await InvitePage()}
+          {await InvitePage({ params: Promise.resolve({ token: VALID_TOKEN }) })}
         </>
       </AuthLayout>,
     );
     expect(screen.getByRole('heading', { name: 'Recuperar senha' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Aceite de convite' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Você foi convidado' })).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();
+  });
+});
+
+describe('SCR-102 — /convite/[token] exige só sessão (US-091)', () => {
+  const props = { params: Promise.resolve({ token: VALID_TOKEN }) };
+
+  it('sem sessão → login com returnTo no convite', async () => {
+    expect(await redirectOf(InvitePage(props))).toBe(
+      `/api/auth/login?returnTo=${encodeURIComponent(`/convite/${VALID_TOKEN}`)}`,
+    );
+    server.lookup = { status: 'expired' };
+    expect(await redirectOf(InvitePage(props))).toContain('/api/auth/login?returnTo=');
+  });
+
+  it('Redis de sessões fora → /erro/manutencao (nunca "sem sessão")', async () => {
+    server.lookup = { status: 'unavailable' };
+    expect(await redirectOf(InvitePage(props))).toBe(
+      `/erro/manutencao?retorno=${encodeURIComponent(`/convite/${VALID_TOKEN}`)}`,
+    );
+  });
+
+  it('com sessão (e sem instituição ativa) mostra o cartão de aceite', async () => {
+    server.lookup = { status: 'active', record: { ...RECORD, activeTenantId: null } };
+    vi.stubGlobal('fetch', () => new Promise<Response>(() => undefined));
+    renderIntl(await InvitePage(props));
+    expect(screen.getByRole('heading', { name: 'Você foi convidado' })).toBeTruthy();
   });
 });
 

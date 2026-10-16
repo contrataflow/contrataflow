@@ -122,6 +122,14 @@ describe('login e callback', () => {
     expect(test.store.size).toBe(1);
   });
 
+  it('pessoa sem vínculo que veio de um convite → volta ao /convite/<token> para aceitar (US-091)', async () => {
+    const test = createTestRuntime();
+    const token = 'A'.repeat(43);
+    const { callback } = await login(test, `?returnTo=%2Fconvite%2F${token}&as=gil`);
+    expect(callback.headers.get('Location')).toBe(`/convite/${token}`);
+    expect(test.store.size).toBe(1);
+  });
+
   it('callback sem transação (login CSRF) → /entrar?motivo=erro, sem sessão', async () => {
     const test = createTestRuntime();
     const response = await handleAuthRequest(

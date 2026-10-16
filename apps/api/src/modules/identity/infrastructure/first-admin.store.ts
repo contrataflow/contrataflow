@@ -60,9 +60,16 @@ export class PrismaFirstAdminStore implements FirstAdminStore, PlatformOperatorP
   async internalMembers(tx: TenantTx): Promise<InternalMember[]> {
     // `users` é de plataforma (sem RLS): o vínculo, filtrado pela RLS, restringe ao tenant do tx.
     const rows = await tx.$queryRaw<
-      { membership_id: string; user_id: string; email: string; status: string }[]
+      {
+        membership_id: string;
+        user_id: string;
+        email: string;
+        status: string;
+        invited_at: Date | null;
+      }[]
     >`
-      SELECT m.id AS membership_id, m.user_id, u.email::text AS email, m.status::text AS status
+      SELECT m.id AS membership_id, m.user_id, u.email::text AS email, m.status::text AS status,
+             m.invited_at
         FROM tenant_memberships m
         JOIN users u ON u.id = m.user_id
        WHERE m.type = 'INTERNAL'
@@ -72,7 +79,25 @@ export class PrismaFirstAdminStore implements FirstAdminStore, PlatformOperatorP
       userId: row.user_id,
       email: row.email,
       status: row.status,
+      invitedAt: row.invited_at,
     }));
+  }
+
+  async renewInvitation(
+    tx: TenantTx,
+    input: { membershipId: string; now: Date; inviteExpiresAt: Date },
+  ): Promise<boolean> {
+    const updated = await tx.tenantMembership.updateMany({
+      where: { id: input.membershipId, status: 'INVITED' },
+      data: {
+        invitedAt: input.now,
+        inviteExpiresAt: input.inviteExpiresAt,
+        inviteTokenHash: null,
+        updatedAt: input.now,
+        version: { increment: 1 },
+      },
+    });
+    return updated.count === 1;
   }
 
   async insertInvitedMembership(
@@ -212,7 +237,19 @@ export class InMemoryFirstAdminStore
       userId: membership.userId,
       email: user?.email ?? '',
       status: 'INVITED',
+      invitedAt: null,
     });
+    return Promise.resolve(true);
+  }
+
+  renewInvitation(_tx: TenantTx, input: { membershipId: string; now: Date }): Promise<boolean> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const index = this.members.findIndex(
+      (member) => member.membershipId === input.membershipId && member.tenantId === tenantId,
+    );
+    const member = this.members[index];
+    if (member?.status !== 'INVITED') return Promise.resolve(false);
+    this.members[index] = { ...member, invitedAt: input.now };
     return Promise.resolve(true);
   }
 

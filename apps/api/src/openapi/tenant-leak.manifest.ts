@@ -61,6 +61,12 @@ const ROLE_ROUTE =
 const DEPARTMENT_ROUTE =
   'Secretarias e setores (US-102): a fixture genérica de unidade do tenant B não é um registro de departments; o isolamento (404 em DEP-04..09, lista/lookup sem vazamento de B e REFERENCE_NOT_FOUND em parentId/organizationId/headUserId de B) é coberto em test/tenant-leak/departments.spec.ts, com administradores nos dois tenants.';
 
+const USER_ADMIN_ROUTE =
+  'Usuários e convites (US-091): exige USER_VIEW/USER_INVITE (que o usuário comum da suíte não tem); o isolamento (404 USER_NOT_FOUND em USR-04/05 com usuário só do tenant B, lista sem vínculos de B, REFERENCE_NOT_FOUND em departmentIds/roleId de B e RLS de tenant_memberships/membership_departments/role_assignments) é coberto em test/tenant-leak/invitations.spec.ts, com administradores nos dois tenants.';
+
+const INVITATION_TOKEN_ROUTE =
+  'Aceite/consulta de convite (US-091): sem tenant ativo (CROSS_TENANT_LOOKUP) e sem ID no caminho — o convite vem do token, pelo cf_find_invitation; convite de outra pessoa → 404 INVITATION_INVALID e ativação só no tenant do convite, cobertos em test/tenant-leak/invitations.spec.ts.';
+
 const PLATFORM_ROUTE =
   'Rota de plataforma (US-099): sem X-Tenant-Id e só para operador da plataforma com MFA, que não tem vínculo com tenants (DEC-139); isolamento dos seeders e operador sem vínculo cobertos em test/tenant-leak/tenant-provisioning.spec.ts.';
 
@@ -158,6 +164,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'ROL-06': { kind: 'exempt', reason: ROLE_ROUTE },
   'ROL-07': { kind: 'exempt', reason: ROLE_ROUTE },
   'ROL-08': { kind: 'exempt', reason: ROLE_ROUTE },
+  'USR-01': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
+  'USR-03': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
+  'USR-04': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
+  'USR-05': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
+  'USR-06': { kind: 'exempt', reason: INVITATION_TOKEN_ROUTE },
+  'USR-14': { kind: 'exempt', reason: INVITATION_TOKEN_ROUTE },
   'INTERNAL-SESSION-EVENTS': {
     kind: 'exempt',
     reason:

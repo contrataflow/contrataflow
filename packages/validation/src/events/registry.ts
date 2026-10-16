@@ -3,6 +3,7 @@ import { RoleCreated, RoleUpdated } from '../access/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import { DocumentTypeChanged } from '../document/events.js';
+import { MembershipActivated, UserInvited } from '../identity/events.js';
 import {
   DepartmentCreated,
   DepartmentDeactivated,
@@ -39,6 +40,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   DepartmentUpdated,
   HolidayChanged,
   DocumentTypeChanged,
+  MembershipActivated,
   OrganizationCreated,
   OrganizationUpdated,
   RoleCreated,
@@ -49,6 +51,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   TenantOffboarded,
   TenantDeactivated,
   TenantSettingsChanged,
+  UserInvited,
   WorkflowCreated,
   WorkflowVersionPublished,
   WorkflowVersionRetired,

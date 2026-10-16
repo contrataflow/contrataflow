@@ -2,7 +2,7 @@ import type { PermissionCode } from '@contrataflow/types';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import type { Role, RolePermission } from '../domain/role.js';
+import type { Role, RolePermission, ScopeType } from '../domain/role.js';
 
 /*
  * Portas da aplicação do módulo `access` (US-094): implementadas em `infrastructure/` (Prisma) e
@@ -75,6 +75,24 @@ export interface RoleAssignmentCounter {
 }
 
 export const ROLE_ASSIGNMENT_COUNTER = Symbol('RoleAssignmentCounter');
+
+/** Atribuição inicial do convite (US-091 · RN-IAM-51), no escopo padrão do perfil. */
+export interface InitialRoleAssignment {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly membershipId: string;
+  readonly roleId: string;
+  readonly scopeType: ScopeType;
+  readonly grantedById: string;
+  readonly now: Date;
+}
+
+/** Escrita em `role_assignments` (a gestão contínua — ROL-09..12 — é da US-096). */
+export interface RoleAssignmentWriter {
+  insertInitial(tx: TenantTx, assignment: InitialRoleAssignment): Promise<void>;
+}
+
+export const ROLE_ASSIGNMENT_WRITER = Symbol('RoleAssignmentWriter');
 
 export const ROLE_REPOSITORY = Symbol('RoleRepository');
 

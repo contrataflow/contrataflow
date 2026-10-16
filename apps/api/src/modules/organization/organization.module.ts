@@ -1,7 +1,12 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import {
+  MembershipReferences,
+  MembershipReferencesModule,
+} from '#shared/auth/membership-references.js';
 
 import {
   DEPARTMENT_CLOCK,
@@ -22,6 +27,7 @@ import {
   ListDepartmentsQuery,
   LookupDepartmentsQuery,
 } from './application/department.queries.js';
+import { MembershipDepartmentProvider } from './application/membership-department.provider.js';
 import { OrganizationFacade } from './application/organization.facade.js';
 import {
   InMemoryDepartmentRepository,
@@ -46,7 +52,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * titular/substituto de `access`/`identity` — exceções registradas em `tools/module-levels.json`.
  */
 @Module({
-  imports: [AccessModule, IdentityModule, TenancyModule],
+  imports: [AccessModule, IdentityModule, TenancyModule, MembershipReferencesModule],
   controllers: [DepartmentController],
   providers: [
     OrganizationFacade,
@@ -83,7 +89,18 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
       ) => (inMemory(config) ? memory : prisma),
     },
     { provide: DEPARTMENT_CLOCK, useValue: () => new Date() },
+    MembershipDepartmentProvider,
   ],
   exports: [OrganizationFacade],
 })
-export class OrganizationModule {}
+export class OrganizationModule implements OnModuleInit {
+  constructor(
+    private readonly membershipReferences: MembershipReferences,
+    private readonly membershipDepartments: MembershipDepartmentProvider,
+  ) {}
+
+  /** US-091: unidades da lotação do convite pela porta `MembershipReferences`. */
+  onModuleInit(): void {
+    this.membershipReferences.registerDepartments(this.membershipDepartments);
+  }
+}

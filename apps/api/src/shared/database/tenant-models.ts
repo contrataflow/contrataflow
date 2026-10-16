@@ -22,6 +22,7 @@ export const TENANT_SCOPED_MODELS = [
   'OutboxEvent',
   'ProcessTimelineEntry',
   'Role',
+  'RoleAssignment',
   'RolePermission',
   'TenantMembership',
   'TenantSetting',

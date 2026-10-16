@@ -52,3 +52,23 @@ Desde a US-093 (DEC-075 · RN-IAM-65..72):
   `InMemoryTenantMfaPolicy`. A regra pura fica em `#shared/auth/mfa-policy.js`.
 - **Instituição padrão:** `setAsDefault` grava só `users.preferences.defaultTenantId` (sem
   `version`); o `session-events` devolve `defaultTenantId` para a seleção `DEFAULT` do login.
+
+Desde a US-091 (RN-IAM-46..53 · DEC-012/130):
+
+- **Convite (USR-03):** `InviteUserCommand` — `USER_INVITE` (+ MFA) e as referências (unidades e
+  perfil ativos do tenant, validade do `EXTERNAL` ≤ `security.externalMembershipMaxDays`) numa
+  leitura; sem conta no Authentik, `AuthentikAdminClient.provisionUser` (sem senha) ANTES da
+  transação; numa transação: `User` (pelo e-mail, citext), `TenantMembership` `INVITED`
+  (`REVOKED`/`EXPIRED` é reaproveitado), lotação, `RoleAssignment` inicial, `membership.invite` e
+  `UserInvited`. Falha depois do Authentik → `removeUser` (compensação).
+- **Token:** nunca na API. A transação deixa `invite_token_hash` nulo; o worker
+  (`InvitationEmailEnqueuer` → `InvitationEmailSource`) gera o token no envio e grava o SHA-256.
+- **Reenvio/cancelamento (USR-04/05):** reenvio zera o hash e renova 7 dias (até 5, 1 min entre
+  eles — `invite_resend_count`/`invited_at`); cancelamento é revogação lógica.
+- **Aceite/consulta (USR-06/14, `CROSS_TENANT_LOOKUP`):** `cf_find_invitation` pelo
+  `SystemDbService`; ativação condicional (hash + validade) no tenant do convite
+  (`runWithTenantScope`), `membership.activate` e `MembershipActivated`.
+- **Portas:** `INVITATION_REPOSITORY` (Prisma ou o `InMemoryIdentityRepository`, que tem
+  `deliverInvitation` para simular o e-mail nos testes), `AUTHENTIK_PROVISIONING` (= diretório do
+  Authentik), `MEMBERSHIP_SETTINGS`; autorização, perfil e unidades pela `MembershipReferences`
+  (`#shared/auth/membership-references.js`), registrada por `access` e `organization`.

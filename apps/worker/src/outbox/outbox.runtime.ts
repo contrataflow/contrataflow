@@ -17,6 +17,7 @@ import { DomainEventsProcessor } from '../events/domain-events.processor.js';
 import {
   BusinessMetricsCollector,
   ConfigCacheInvalidator,
+  InvitationEmailEnqueuer,
   PermissionCacheInvalidator,
 } from '../events/inline-handlers.js';
 import type { InlineEventHandler } from '../events/inline-handlers.js';
@@ -25,6 +26,7 @@ import {
   SessionTerminationHandler,
 } from '../events/session-termination.handler.js';
 import { JobHandlerRegistry } from '../queues/job-handler-registry.js';
+import { QueueRuntime } from '../queues/queue.runtime.js';
 
 export const OUTBOX_RUNTIME_CONFIG = Symbol('OutboxRuntimeConfig');
 /** Redis de sessões do encerramento por vínculo (US-088); `null` = consumidor desligado. */
@@ -53,6 +55,7 @@ export class OutboxRuntime implements OnModuleInit, OnApplicationBootstrap, OnMo
     @Inject(SESSION_TERMINATION_CONFIG)
     private readonly sessionsConfig: SessionsRuntimeConfig | null,
     private readonly registry: JobHandlerRegistry,
+    private readonly queueRuntime: QueueRuntime,
   ) {}
 
   get relayInstance(): OutboxRelay | undefined {
@@ -71,6 +74,12 @@ export class OutboxRuntime implements OnModuleInit, OnApplicationBootstrap, OnMo
         new PermissionCacheInvalidator(this.cache),
         new BusinessMetricsCollector(this.cache),
         new ConfigCacheInvalidator(this.cache),
+        // US-091: o produtor do `QueueRuntime` nasce no `onModuleInit` dele; só é lido ao tratar um
+        // evento, já com as filas no ar.
+        new InvitationEmailEnqueuer({
+          enqueue: (queue, name, payload, options) =>
+            this.queueRuntime.producer.enqueue(queue, name, payload, options),
+        }),
         this.createSessionTermination(),
       ],
     });

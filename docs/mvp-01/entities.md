@@ -371,6 +371,7 @@ Vínculo do usuário com o tenant.
 | `invitedAt` | timestamptz | sim | — | |
 | `inviteTokenHash` | varchar(64) | sim | — | SHA-256 do token do convite |
 | `inviteExpiresAt` | timestamptz | sim | — | Padrão 7 dias |
+| `inviteResendCount` | int | não | `0` | Reenvios do convite atual (RN-IAM-53: máx. 5; zerado a cada novo convite) — US-091 |
 | `activatedAt` | timestamptz | sim | — | |
 | `expiresAt` | timestamptz | sim | — | Obrigatório para `EXTERNAL` (≤ `security.externalMembershipMaxDays`) |
 | `suspendedAt` | timestamptz | sim | — | |
@@ -382,7 +383,8 @@ Vínculo do usuário com o tenant.
 
 - **Unique:** `(tenant_id, user_id)`.
 - **Índices:** `(tenant_id, status)`; `(tenant_id, expires_at) WHERE type = 'EXTERNAL'`.
-- **Check:** `type <> 'EXTERNAL' OR expires_at IS NOT NULL`; `status <> 'REVOKED' OR revoked_at IS NOT NULL`.
+- **Check:** `type <> 'EXTERNAL' OR expires_at IS NOT NULL`; `status <> 'REVOKED' OR revoked_at IS NOT NULL`; `invite_resend_count BETWEEN 0 AND 5`.
+- **Unique parcial (US-091):** `invite_token_hash WHERE invite_token_hash IS NOT NULL` (aceite por hash).
 
 #### MembershipDepartment (`membership_departments`) — módulo `identity`
 Lotação do vínculo em unidades (1 principal + N adicionais).
@@ -441,7 +443,7 @@ Catálogo global de permissões, definido em código (`packages/types/permission
 - **PK:** `(tenant_id, role_id, permission_code)`.
 
 #### RoleAssignment (`role_assignments`) — módulo `access` · Padrão
-Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
+Atribuição de perfil a um vínculo com escopo e vigência (DEC-134). Tabela criada na US-091 (migração `20261015330000_invitations_role_assignments`), com o perfil inicial do convite no escopo padrão do perfil (§3.1; personalizado → `TENANT`); a gestão é da US-096.
 
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|

@@ -13,6 +13,7 @@
 | USR-04 | POST | `/users/invitations/{userId}/resend` | `USER_INVITE` | US-091 |
 | USR-05 | DELETE | `/users/invitations/{userId}` | `USER_INVITE` | US-091 |
 | USR-06 | POST | `/invitations/accept` | autenticado + token | US-091 |
+| USR-14 | POST | `/invitations/preview` | autenticado + token | US-091 |
 | USR-07 | GET | `/users/{userId}` | `USER_VIEW` | US-092 |
 | USR-08 | PATCH | `/users/{userId}` | `USER_MANAGE` (IM) | US-092 |
 | USR-09 | PUT | `/users/{userId}/departments` | `USER_MANAGE` (IM) | US-092 |
@@ -149,7 +150,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 403 | `PERMISSION_DENIED` | Sem `USER_VIEW` |
 
 - **Efeitos:** —
-- **Notas:** RN-IAM-54.
+- **Notas:** RN-IAM-54. Base entregue na US-091 (lista de convites pendentes do SCR-029, `status=INVITED`): filtros `q` (nome ou e-mail), `status` e `type`, ordenação por nome; `departmentId` e o restante ficam com a US-092.
 
 ### USR-02 — Buscar usuários para seleção (lookup)
 `GET /api/v1/users/lookup` · **Permissão:** implícita (vínculo ativo no tenant) · **Story:** US-092
@@ -180,8 +181,8 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 409 | `MEMBERSHIP_ALREADY_EXISTS` | Vínculo já existente |
 | 422 | `VALIDATION_ERROR` | Campo inválido/ausente; `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `departmentIds`/`roleId` |
 
-- **Efeitos:** Evento `UserInvited` (`membership.invited`); auditoria `membership.invite` (`SECURITY`); notificação: e-mail de convite enviado pelo caso de uso (fila `email`), fora do evento de domínio.
-- **Notas:** RN-IAM-46/47/52.
+- **Efeitos:** Evento `UserInvited` (`membership.invited`); auditoria `membership.invite` (`SECURITY`); e-mail de convite pela fila `email` — o worker consome `UserInvited` (`InvitationEmailEnqueuer`) e o `EmailSender` gera o link no envio (queues.md §4.3).
+- **Notas:** RN-IAM-46/47/52. Também 503 `DEPENDENCY_UNAVAILABLE` (Authentik fora — nada é gravado; banco falha depois do Authentik → a conta criada é removida). `expiresAt` além de `security.externalMembershipMaxDays` → `OUT_OF_RANGE`; no passado → `DATE_IN_PAST`; `INTERNAL` com `expiresAt` → `NOT_ALLOWED`; perfil sem `allowExternalAssignment` em vínculo `EXTERNAL` → `NOT_ALLOWED` em `roleId` (POL-15). Vínculo `REVOKED`/`EXPIRED` da mesma pessoa é reaproveitado (`UNIQUE (tenant_id, user_id)`). `Location: /api/v1/users/{userId}`.
 
 ### USR-04 — Reenviar convite
 `POST /api/v1/users/invitations/{userId}/resend` · **Permissão:** `USER_INVITE` · **Story:** US-091
@@ -194,9 +195,10 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | HTTP | code | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem `USER_INVITE` |
-| 404 | `USER_NOT_FOUND` | Convite/vínculo inexistente |
+| 404 | `USER_NOT_FOUND` | Convite/vínculo inexistente, de outro tenant ou fora de `INVITED` |
+| 429 | `RATE_LIMITED` | RN-IAM-53: 5 reenvios por convite ou menos de 1 minuto desde o último envio (`Retry-After`) |
 
-- **Efeitos:** —
+- **Efeitos:** Evento `UserInvited` (`resend = true`); auditoria `membership.invite` (`metadata.resend`, `resendCount`). O hash do token é zerado no commit — o link anterior deixa de valer.
 - **Notas:** Sujeito ao limite de escrita (api.md §1.6).
 
 ### USR-05 — Cancelar convite
@@ -213,25 +215,36 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 404 | `USER_NOT_FOUND` | Convite inexistente |
 | 409 | `INVALID_STATE` | Vínculo não está mais `INVITED` |
 
-- **Efeitos:** —
-- **Notas:** —
+- **Efeitos:** Auditoria `membership.revoke` (`metadata.reason = INVITATION_CANCELLED`).
+- **Notas:** Revogação lógica (a aplicação não exclui vínculos — `cf_app` sem `DELETE` em `tenant_memberships`): o vínculo vai a `REVOKED` sem token; um novo convite reaproveita o registro.
 
 ### USR-06 — Aceitar convite
 `POST /api/v1/invitations/accept` · **Permissão:** autenticado (qualquer) + token de convite válido · **Story:** US-091
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** —
 - **Request:** `{ token: string }`
-- **Response:** `200 { data: TenantMembership }`
+- **Response:** `200 { data: TenantMembership & { tenant: { id, name } } }` — a instituição do convite, para a troca da instituição ativa
 - **Erros:**
 
 | HTTP | code | Quando |
 |---|---|---|
-| 404 | `INVITATION_INVALID` | Token inválido |
+| 403 | `TENANT_SUSPENDED` | Instituição do convite fora de `ACTIVE` |
+| 404 | `INVITATION_INVALID` | Token inválido, já aceito, cancelado ou de outra pessoa |
 | 410 | `INVITATION_EXPIRED` | Convite expirado |
-| 422 | `VALIDATION_ERROR` | `token` ausente |
+| 422 | `VALIDATION_ERROR` | `token` ausente ou fora do formato (43 caracteres base64url) |
 
 - **Efeitos:** Evento `MembershipActivated` (`membership.activated`); auditoria `membership.activate` (`SECURITY`).
-- **Notas:** RN-IAM-47.
+- **Notas:** RN-IAM-47/49/50. `@TenantScope('CROSS_TENANT_LOOKUP')`: o convite é achado pelo hash (`cf_find_invitation`, `SystemDbService`/`INVITATION_LOOKUP`) e ativado no tenant DO CONVITE, nunca no ativo da sessão. Token de uso único (o hash é apagado no aceite).
+
+### USR-14 — Consultar convite antes do aceite
+`POST /api/v1/invitations/preview` · **Permissão:** autenticado (qualquer) + token de convite válido · **Story:** US-091
+- **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
+- **Parâmetros:** —
+- **Request:** `{ token: string }` (no corpo, nunca na URL da API)
+- **Response:** `200 { data: { tenant: { id, name }, type, jobTitle?, departments: { id, name }[], expiresAt?, inviteExpiresAt } }`
+- **Erros:** os mesmos de USR-06.
+- **Efeitos:** —
+- **Notas:** Decisão da US-091 — o SCR-102 mostra instituição, cargo e lotação antes da confirmação (passo 6 do fluxo) e a story não tinha leitura do convite.
 
 ### USR-07 — Consultar usuário/vínculo
 `GET /api/v1/users/{userId}` · **Permissão:** `USER_VIEW` · **Story:** US-092

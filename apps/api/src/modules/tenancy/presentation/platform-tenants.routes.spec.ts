@@ -147,8 +147,8 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
       expect(tenant.firstAdmin).toEqual({
         email: 'r***@pmsj.exemplo.gov.br',
         membershipStatus: 'INVITED',
-        // Sem a fachada de convite (US-091/US-112) nada é enfileirado ainda.
-        invitationDispatched: false,
+        // A fachada de convite (US-091) enfileira o e-mail na ativação.
+        invitationDispatched: true,
       });
     });
 

@@ -305,6 +305,31 @@ const TEMPLATE_LAYOUT = {
 function mockUuid() {
   return `0192a000-0000-7000-8000-${randomUUID().replaceAll('-', '').slice(0, 12)}`;
 }
+// Usuários e convites (US-091 · USR-01/03..06/14): convites pendentes em memória; o token de
+// `/convite/<token>` válido e o expirado são fixos (43 caracteres base64url).
+const INVITE_TOKEN = 'A'.repeat(43);
+const INVITE_TOKEN_EXPIRED = 'E'.repeat(43);
+const invitations = [];
+function newInvitation(email, body) {
+  return {
+    id: mockUuid(),
+    userId: mockUuid(),
+    name: String(body.name ?? '').trim(),
+    socialName: null,
+    email,
+    type: body.type ?? 'INTERNAL',
+    status: 'INVITED',
+    jobTitle: body.jobTitle ?? null,
+    registrationNumber: null,
+    expiresAt: body.expiresAt ?? null,
+    departmentIds: body.departmentIds ?? [],
+    primaryDepartmentId: body.departmentIds?.[0] ?? null,
+    invitedAt: '2026-10-15T12:00:00.000Z',
+    inviteExpiresAt: '2026-10-22T12:00:00.000Z',
+    activatedAt: null,
+    version: 1,
+  };
+}
 function templateTypeOf(template) {
   const type = documentTypes.find((item) => item.id === template.documentTypeId);
   return {
@@ -438,6 +463,8 @@ createServer(async (request, response) => {
             { code: 'CALENDAR_MANAGE', scopes: [] },
             { code: 'ROLE_VIEW', scopes: [] },
             { code: 'ROLE_MANAGE', scopes: [] },
+            { code: 'USER_VIEW', scopes: [] },
+            { code: 'USER_INVITE', scopes: [] },
             { code: 'DEPARTMENT_MANAGE', scopes: [] },
             { code: 'TEMPLATE_VIEW', scopes: [] },
             { code: 'TEMPLATE_MANAGE', scopes: [] },
@@ -718,6 +745,84 @@ createServer(async (request, response) => {
   }
   if (url.pathname === '/api/v1/permissions' && request.method === 'GET') {
     return send(response, 200, { data: catalog });
+  }
+  if (url.pathname === '/api/v1/departments/lookup' && request.method === 'GET') {
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const found = departments
+      .filter((unit) => unit.isActive && unit.name.toLowerCase().includes(q))
+      .slice(0, 50)
+      .map((unit) => ({ id: unit.id, name: unit.name, type: unit.type, path: unit.name }));
+    return send(response, 200, { data: found });
+  }
+  if (url.pathname === '/api/v1/users' && request.method === 'GET') {
+    const pending = invitations.filter(
+      (item) => url.searchParams.get('status') !== 'INVITED' || item.status === 'INVITED',
+    );
+    return send(response, 200, {
+      data: pending,
+      meta: { page: 1, pageSize: 20, totalItems: pending.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/users/invitations' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const email = String(body.email ?? '')
+      .trim()
+      .toLowerCase();
+    if (email === 'existente@exemplo.gov.br' || invitations.some((item) => item.email === email)) {
+      return problem(response, 409, 'MEMBERSHIP_ALREADY_EXISTS', String(correlationId));
+    }
+    const created = newInvitation(email, body);
+    invitations.push(created);
+    return send(response, 201, { data: created }, { ETag: '"1"' });
+  }
+  const invitationRoute = /^\/api\/v1\/users\/invitations\/([0-9a-f-]{36})(\/resend)?$/.exec(
+    url.pathname,
+  );
+  if (invitationRoute) {
+    const invited = invitations.find((item) => item.userId === invitationRoute[1]);
+    if (!invited) return problem(response, 404, 'USER_NOT_FOUND', String(correlationId));
+    if (invitationRoute[2] === '/resend' && request.method === 'POST') {
+      invited.inviteExpiresAt = '2026-10-29T12:00:00.000Z';
+      return send(response, 200, { data: { inviteExpiresAt: invited.inviteExpiresAt } });
+    }
+    if (!invitationRoute[2] && request.method === 'DELETE') {
+      invitations.splice(invitations.indexOf(invited), 1);
+      return send(response, 204);
+    }
+  }
+  if (url.pathname === '/api/v1/invitations/preview' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (body.token === INVITE_TOKEN_EXPIRED) {
+      return problem(response, 410, 'INVITATION_EXPIRED', String(correlationId));
+    }
+    if (body.token !== INVITE_TOKEN) {
+      return problem(response, 404, 'INVITATION_INVALID', String(correlationId));
+    }
+    return send(response, 200, {
+      data: {
+        tenant: { id: '0192a000-0000-7000-8000-00000000000b', name: 'Prefeitura B' },
+        type: 'INTERNAL',
+        jobTitle: 'Analista de compras',
+        departments: [{ id: '0192a000-0000-7000-8000-0000000000d1', name: 'Gabinete' }],
+        expiresAt: null,
+        inviteExpiresAt: '2026-10-22T12:00:00.000Z',
+      },
+    });
+  }
+  if (url.pathname === '/api/v1/invitations/accept' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (body.token !== INVITE_TOKEN) {
+      return problem(response, 404, 'INVITATION_INVALID', String(correlationId));
+    }
+    // O vínculo ativado é o de Ana na Prefeitura B (o BFF simulado o conhece para a troca).
+    return send(response, 200, {
+      data: {
+        ...newInvitation('ana@exemplo.gov.br', { name: 'Ana Souza', type: 'INTERNAL' }),
+        id: '0192a000-0000-7000-8000-0000000002a1',
+        status: 'ACTIVE',
+        tenant: { id: '0192a000-0000-7000-8000-00000000000b', name: 'Prefeitura B' },
+      },
+    });
   }
   if (url.pathname === '/api/v1/roles' && request.method === 'GET') {
     return send(response, 200, { data: roles.map(roleSummary) });

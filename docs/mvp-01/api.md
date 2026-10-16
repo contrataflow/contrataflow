@@ -493,12 +493,13 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 ### 3.14 Administração do tenant (`identity`, `access`, `tenancy`, `organization`, `catalog`)
 | # | Método | Rota | Perm. | Sucesso | Eventos | Story |
 |---|---|---|---|---|---|---|
-| USR-01 | GET | `/users` | `USER_VIEW` | 200 | — | US-092 |
+| USR-01 | GET | `/users` | `USER_VIEW` | 200 | — | US-092 (base na US-091) |
 | USR-02 | GET | `/users/lookup` | impl. | 200 | — | US-092 |
 | USR-03 | POST | `/users/invitations` | `USER_INVITE` (Idem.) | 201 | `UserInvited` | US-091 |
-| USR-04 | POST | `/users/invitations/{userId}/resend` | `USER_INVITE` | 200 | — | US-091 |
+| USR-04 | POST | `/users/invitations/{userId}/resend` | `USER_INVITE` | 200 | `UserInvited` (`resend`) | US-091 |
 | USR-05 | DELETE | `/users/invitations/{userId}` | `USER_INVITE` | 204 | — | US-091 |
 | USR-06 | POST | `/invitations/accept` | usuário autenticado + token | 200 | `MembershipActivated` | US-091 |
+| USR-14 | POST | `/invitations/preview` | usuário autenticado + token | 200 | — | US-091 |
 | USR-07 | GET | `/users/{userId}` | `USER_VIEW` | 200 | — | US-092 |
 | USR-08 | PATCH | `/users/{userId}` | `USER_MANAGE` (IM) | 200 | `MembershipUpdated` | US-092 |
 | USR-09 | PUT | `/users/{userId}/departments` | `USER_MANAGE` (IM) | 200 | `MembershipUpdated` | US-092 |

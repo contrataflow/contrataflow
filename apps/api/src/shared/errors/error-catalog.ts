@@ -212,6 +212,26 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Notificação não encontrada',
     detail: 'Notificação não encontrada.',
   },
+  USER_NOT_FOUND: {
+    status: 404,
+    title: 'Usuário não encontrado',
+    detail: 'Usuário ou convite não encontrado nesta instituição.',
+  },
+  MEMBERSHIP_ALREADY_EXISTS: {
+    status: 409,
+    title: 'Vínculo já existente',
+    detail: 'Esta pessoa já tem um vínculo com esta instituição.',
+  },
+  INVITATION_INVALID: {
+    status: 404,
+    title: 'Convite inválido',
+    detail: 'Este convite não é válido.',
+  },
+  INVITATION_EXPIRED: {
+    status: 410,
+    title: 'Convite expirado',
+    detail: 'Este convite expirou. Peça para reenviarem.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

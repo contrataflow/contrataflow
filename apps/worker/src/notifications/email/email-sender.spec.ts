@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { JobMeta } from '@contrataflow/types';
 import type { Logger } from '@nestjs/common';
 import { UnrecoverableError } from 'bullmq';
@@ -12,6 +14,7 @@ import { EmailSender, emailJobPayloadSchema } from './email-sender.js';
 import type { EmailSenderDeps } from './email-sender.js';
 import type { EmailInstruments } from './email-telemetry.js';
 import { EmailTemplateRegistry } from './email-templates.js';
+import { InvitationEmailSource } from './invitation-email-source.js';
 import { MemoryEmailSendLock, MemoryEmailSource } from './testing.js';
 import { PermanentJobError } from '../../queues/job-errors.js';
 import { runJob } from '../../queues/run-job.js';
@@ -285,6 +288,48 @@ describe('EmailSender (US-112)', () => {
       headers: { 'X-CF-Membership-Id': MEMBERSHIP },
     });
     expect(invitations.rows.get(MEMBERSHIP)?.status).toBe('SENT');
+  });
+
+  it('[US-091] o recibo do prepare chega ao markSent da fonte do convite (hash do token enviado)', async () => {
+    const row = {
+      status: 'INVITED',
+      invite_token_hash: null,
+      invite_expires_at: new Date('2026-10-22T12:00:00.000Z'),
+      invite_expires_raw: '2026-10-22 12:00:00+00',
+      job_title: null,
+      type: 'INTERNAL',
+      email: 'novo@pmsj.gov.br',
+      name: 'Novo Usuário',
+      tenant_name: 'Prefeitura de São José',
+      tenant_status: 'ACTIVE',
+    };
+    const updates: (readonly unknown[])[] = [];
+    const sql = {
+      query: (text: string, params: readonly unknown[] = []) => {
+        if (text.startsWith('UPDATE')) {
+          updates.push(params);
+          return Promise.resolve({ rows: [], rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [row], rowCount: 1 });
+      },
+    } as unknown as SqlClient;
+    const { sender, provider } = setup({
+      invitations: new InvitationEmailSource('https://app.contrataflow.test', { now: () => T0 }),
+    });
+    const { ctx, logger } = context({ tenantTransaction: (work) => work(sql) });
+    await expect(
+      sender.handle({ kind: 'INVITATION', membershipId: MEMBERSHIP }, ctx),
+    ).resolves.toBe('completed');
+
+    const token = /\/convite\/([A-Za-z0-9_-]{43})/.exec(provider.sent[0]?.text ?? '')?.[1] ?? '';
+    expect(token).toHaveLength(43);
+    expect(updates).toHaveLength(1);
+    expect(updates[0]?.[0]).toBe(MEMBERSHIP);
+    expect(updates[0]?.[1]).toBe(createHash('sha256').update(token, 'utf8').digest('hex'));
+    // O log nunca traz o token, o link nem o endereço.
+    const logged = JSON.stringify(logger.log.mock.calls) + JSON.stringify(logger.warn.mock.calls);
+    expect(logged).not.toContain(token);
+    expect(logged).not.toMatch(/novo@|\/convite\//);
   });
 
   it('recusa job sem tenant (contexto de plataforma)', async () => {

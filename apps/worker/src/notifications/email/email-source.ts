@@ -29,12 +29,18 @@ export type EmailPreparation =
       readonly content: RenderedEmail;
       /** Rótulo de baixa cardinalidade para logs (`NotificationType` ou `INVITATION`). */
       readonly type: string;
+      /**
+       * Marcador opaco da geração do conteúdo enviado (ex.: o convite da US-091 guarda o hash do
+       * token e o `invite_expires_at` lidos): o `EmailSender` o devolve ao `markSent`, que só
+       * grava se a geração ainda for a mesma. Nunca vai para log nem para o e-mail.
+       */
+      readonly receipt?: string;
     };
 
 export interface EmailSource {
   /** Lê o registro, revalida tenant e `notifications.emailEnabled` e renderiza o conteúdo. */
   prepare(client: SqlClient, sourceId: string, tenantId: string): Promise<EmailPreparation>;
-  markSent(client: SqlClient, sourceId: string, sentAt: Date): Promise<boolean>;
+  markSent(client: SqlClient, sourceId: string, sentAt: Date, receipt?: string): Promise<boolean>;
   markFailed(client: SqlClient, sourceId: string, error: string): Promise<boolean>;
   markSkipped(client: SqlClient, sourceId: string): Promise<boolean>;
 }

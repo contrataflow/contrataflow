@@ -161,7 +161,7 @@ Os nomes de consumidores `NotificationDispatcher`, `EmailSender`, `PermissionCac
 
 ### 4.3 `email`
 - **Produtores:** `NotificationDispatcher` e casos de uso com e-mail transacional (convite de usuário — `UserInvited`, USR-03/USR-04). **Consumidor:** `EmailSender` via abstração `MailProvider` (SMTP/Mailpit em dev, Amazon SES em produção — DEC-050).
-- **Payload:** `JobData<{ kind: 'NOTIFICATION'; notificationId: string } | { kind: 'INVITATION'; membershipId: string }>`. O endereço é resolvido no envio (minimização). **Segredos não trafegam no payload:** o link de convite é gerado pelo `EmailSender` no momento do envio, que grava apenas o hash do token **(proposta)**.
+- **Payload:** `JobData<{ kind: 'NOTIFICATION'; notificationId: string } | { kind: 'INVITATION'; membershipId: string }>`. O endereço é resolvido no envio (minimização). **Segredos não trafegam no payload:** o link de convite é gerado pelo `EmailSender` no momento do envio, que grava apenas o hash do token (US-091: `InvitationEmailSource` — o convite pendente é `status = INVITED` com `invite_token_hash` nulo; o hash é gravado depois do aceite do provedor, condicionado à mesma `invite_expires_at` lida — um reenvio no meio invalida o envio antigo; convite é e-mail obrigatório, sem `notifications.emailEnabled`).
 - **Idempotência:** só envia se `Notification.emailStatus = 'PENDING'` (events.md §3); após aceite do provedor grava `SENT` + `emailSentAt`. Risco residual aceito: e-mail duplicado se o worker cair entre o aceite e a gravação.
 - **Erros:** SMTP 4xx (421/450/451/452), *throttling* do SES e falhas de rede → transitórios (política padrão de DEC-163); provedor fora do ar → breaker e pausa da fila sem consumir tentativas (§10.3). A re-tentativa de entrega ao servidor do destinatário (ex.: *greylisting*) é feita pelo próprio provedor (SES/relay SMTP), não pela fila. Tentativas esgotadas → `emailStatus = FAILED` + cópia na DLQ + alerta. SMTP 5xx (550/553), `MessageRejected` e endereço inválido → **falha de entrega tratada**: `emailStatus = FAILED` + `emailError` sanitizado e job concluído **sem** DLQ (resultado de negócio, não falha técnica).
 - **Cabeçalhos técnicos:** `Message-ID` derivado do `notificationId` (rastreio e deduplicação), `X-Correlation-Id`, `X-CF-Notification-Id`, `Auto-Submitted: auto-generated` (RFC 3834, evita respostas automáticas em laço).
@@ -396,7 +396,7 @@ Nomes especializados (DEC-162) **não** são mensagens extras: `DFDApproved` é 
 | subconjunto público (contratos estáveis) | fila `webhooks` | `WebhookDispatcher` (MVP 3) | DEC-161; events.md §8 |
 | a definir | `search-index` (futuro), `ai` (MVP 5) | — | DEC-161 |
 
-`UserInvited` não tem consumidor assíncrono: o e-mail de convite é enfileirado em `email` pelo próprio caso de uso (events.md §4.6), no padrão B.
+`UserInvited` (US-091): o handler inline `InvitationEmailEnqueuer` enfileira `email` (`{ kind: 'INVITATION', membershipId }`, `jobId = eventId`). Decisão da US-091: a API não tem produtor BullMQ, e o outbox garante o e-mail só com o convite comitado (e sempre com ele).
 
 ### 7.3 Comportamento do router
 - Calcula o **conjunto** de filas-destino (cada fila recebe no máximo um job por evento, mesmo que várias rotas casem) e enfileira com `addBulk` atômico e `jobId = eventId` — o `jobId` é único **por fila**.

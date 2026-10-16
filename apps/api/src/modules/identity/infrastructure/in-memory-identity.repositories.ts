@@ -9,12 +9,28 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { FAKE_MEMBERSHIPS, FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
 import type { FakeMembership, FakeUser } from '#shared/testing/fake-directory.js';
 
+import {
+  AuthentikUnavailableError,
+  MembershipTakenError,
+  UserEmailTakenError,
+} from '../application/invitation-ports.js';
+import type {
+  AuthentikProvisioningPort,
+  InvitationDraft,
+  InvitationRepository,
+  InviteeUser,
+  MembershipListFilter,
+  MembershipRecordRow,
+  MembershipView,
+} from '../application/invitation-ports.js';
 import type {
   AuthentikDirectoryPort,
   IdentityRepository,
   LoginRecord,
   TenantMember,
 } from '../application/ports.js';
+import { generateInvitationToken, hashInvitationToken } from '../domain/invitation.js';
+import type { PendingInvitation } from '../domain/invitation.js';
 import type { TenantMembership } from '../domain/tenant-membership.js';
 import { displayName } from '../domain/user.js';
 import type { User } from '../domain/user.js';
@@ -27,6 +43,13 @@ interface StoredUser extends FakeUser {
 
 interface StoredMembership extends FakeMembership {
   readonly lastAccessAt: Date | null;
+  readonly jobTitle: string | null;
+  readonly invitedAt: Date | null;
+  readonly inviteExpiresAt: Date | null;
+  readonly inviteTokenHash: string | null;
+  readonly inviteResendCount: number;
+  readonly activatedAt: Date | null;
+  readonly version: number;
 }
 
 type TenantData = (typeof FAKE_TENANTS)[keyof typeof FAKE_TENANTS];
@@ -36,7 +59,9 @@ type TenantData = (typeof FAKE_TENANTS)[keyof typeof FAKE_TENANTS];
  * do pipeline (`UserPort`, `MembershipPort`) e a `IdentityRepository` dos casos de uso sobre o
  * diretório fixo (`fake-directory.ts`). Mutável: registra vínculos de `sub`, logins e acessos.
  */
-export class InMemoryIdentityRepository implements IdentityRepository, UserPort, MembershipPort {
+export class InMemoryIdentityRepository
+  implements IdentityRepository, InvitationRepository, UserPort, MembershipPort
+{
   private readonly users: Map<string, StoredUser>;
   private readonly memberships: StoredMembership[];
   private readonly tenants: Map<string, TenantData>;
@@ -51,7 +76,17 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
     this.users = new Map(
       users.map((user) => [user.id, { ...user, lastLoginAt: null, version: 1, preferences: {} }]),
     );
-    this.memberships = memberships.map((membership) => ({ ...membership, lastAccessAt: null }));
+    this.memberships = memberships.map((membership) => ({
+      ...membership,
+      lastAccessAt: null,
+      jobTitle: null,
+      invitedAt: null,
+      inviteExpiresAt: null,
+      inviteTokenHash: null,
+      inviteResendCount: 0,
+      activatedAt: null,
+      version: 1,
+    }));
     this.tenants = new Map(tenants.map((tenant) => [tenant.id, tenant]));
   }
 
@@ -243,6 +278,317 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
     ]);
   }
 
+  // --- InvitationRepository (US-091) -----------------------------------------------------------
+
+  findUserByEmail(_tx: TenantTx, email: string): Promise<InviteeUser | null> {
+    const user = this.byEmail(email);
+    return Promise.resolve(
+      user
+        ? {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            externalSubject: user.subject,
+            authentikUserId: user.authentikUserId,
+          }
+        : null,
+    );
+  }
+
+  insertUser(
+    _tx: TenantTx,
+    user: { id: string; email: string; name: string; authentikUserId: string | null },
+  ): Promise<void> {
+    if (this.byEmail(user.email)) return Promise.reject(new UserEmailTakenError());
+    this.users.set(user.id, {
+      id: user.id,
+      subject: null,
+      authentikUserId: user.authentikUserId,
+      email: user.email,
+      name: user.name,
+      socialName: null,
+      status: 'ACTIVE',
+      lastLoginAt: null,
+      version: 1,
+      preferences: {},
+    });
+    return Promise.resolve();
+  }
+
+  setAuthentikUserId(_tx: TenantTx, userId: string, authentikUserId: string): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (user?.authentikUserId !== null) return Promise.resolve(false);
+    this.users.set(userId, { ...user, authentikUserId });
+    return Promise.resolve(true);
+  }
+
+  findMembershipByUser(_tx: TenantTx, userId: string): Promise<MembershipRecordRow | null> {
+    const membership = this.inContext((candidate) => candidate.userId === userId);
+    return Promise.resolve(membership ? toRecordRow(membership) : null);
+  }
+
+  insertInvitation(_tx: TenantTx, draft: InvitationDraft): Promise<void> {
+    if (draft.tenantId !== contextTenant()) {
+      return Promise.reject(new Error('Vínculo de outro tenant.'));
+    }
+    if (this.inContext((candidate) => candidate.userId === draft.userId)) {
+      return Promise.reject(new MembershipTakenError());
+    }
+    this.memberships.push({
+      id: draft.membershipId,
+      userId: draft.userId,
+      tenantId: draft.tenantId,
+      type: draft.type,
+      status: 'INVITED',
+      expiresAt: draft.expiresAt,
+      roleKeys: [],
+      lastAccessAt: null,
+      jobTitle: draft.jobTitle,
+      invitedAt: draft.now,
+      inviteExpiresAt: draft.inviteExpiresAt,
+      inviteTokenHash: null,
+      inviteResendCount: 0,
+      activatedAt: null,
+      version: 1,
+    });
+    return Promise.resolve();
+  }
+
+  reinvite(_tx: TenantTx, draft: InvitationDraft): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        draft.membershipId,
+        (current) => current.status === 'REVOKED' || current.status === 'EXPIRED',
+        (current) => ({
+          ...current,
+          status: 'INVITED',
+          type: draft.type,
+          jobTitle: draft.jobTitle,
+          expiresAt: draft.expiresAt,
+          invitedAt: draft.now,
+          inviteExpiresAt: draft.inviteExpiresAt,
+          inviteTokenHash: null,
+          inviteResendCount: 0,
+          activatedAt: null,
+        }),
+      ),
+    );
+  }
+
+  replaceDepartments(
+    _tx: TenantTx,
+    input: { membershipId: string; departmentIds: readonly string[] },
+  ): Promise<void> {
+    for (let index = this.assignments.length - 1; index >= 0; index -= 1) {
+      if (this.assignments[index]?.membershipId === input.membershipId) {
+        this.assignments.splice(index, 1);
+      }
+    }
+    for (const departmentId of input.departmentIds) {
+      this.assignments.push({ membershipId: input.membershipId, departmentId });
+    }
+    return Promise.resolve();
+  }
+
+  renewInvitation(
+    _tx: TenantTx,
+    input: {
+      membershipId: string;
+      now: Date;
+      inviteExpiresAt: Date;
+      expectedResendCount: number;
+      resendCount: number;
+    },
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        input.membershipId,
+        (current) =>
+          current.status === 'INVITED' && current.inviteResendCount === input.expectedResendCount,
+        (current) => ({
+          ...current,
+          invitedAt: input.now,
+          inviteExpiresAt: input.inviteExpiresAt,
+          inviteTokenHash: null,
+          inviteResendCount: input.resendCount,
+        }),
+      ),
+    );
+  }
+
+  cancelInvitation(_tx: TenantTx, input: { membershipId: string }): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        input.membershipId,
+        (current) => current.status === 'INVITED',
+        (current) => ({
+          ...current,
+          status: 'REVOKED',
+          inviteTokenHash: null,
+          inviteExpiresAt: null,
+        }),
+      ),
+    );
+  }
+
+  activate(
+    _tx: TenantTx,
+    input: { membershipId: string; tokenHash: string; now: Date; userId: string },
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.transition(
+        input.membershipId,
+        (current) =>
+          current.userId === input.userId &&
+          current.status === 'INVITED' &&
+          current.inviteTokenHash === input.tokenHash &&
+          current.inviteExpiresAt !== null &&
+          current.inviteExpiresAt.getTime() > input.now.getTime(),
+        (current) => ({
+          ...current,
+          status: 'ACTIVE',
+          activatedAt: input.now,
+          inviteTokenHash: null,
+        }),
+      ),
+    );
+  }
+
+  membershipView(_tx: TenantTx, membershipId: string): Promise<MembershipView | null> {
+    const membership = this.inContext((candidate) => candidate.id === membershipId);
+    return Promise.resolve(membership ? this.toView(membership) : null);
+  }
+
+  listTenantMemberships(
+    _tx: TenantTx,
+    filter: MembershipListFilter,
+  ): Promise<{ items: MembershipView[]; total: number }> {
+    const tenantId = contextTenant();
+    const q = filter.q?.toLowerCase();
+    const matching = this.memberships
+      .filter((membership) => membership.tenantId === tenantId)
+      .map((membership) => this.toView(membership))
+      .filter(
+        (view) =>
+          (!filter.statuses || filter.statuses.includes(view.status)) &&
+          (!filter.type || view.type === filter.type) &&
+          (!q || view.name.toLowerCase().includes(q) || view.email.toLowerCase().includes(q)),
+      )
+      .sort(
+        (left, right) =>
+          left.name.localeCompare(right.name, 'pt-BR') || left.id.localeCompare(right.id),
+      );
+    return Promise.resolve({
+      items: matching.slice(filter.offset, filter.offset + filter.limit),
+      total: matching.length,
+    });
+  }
+
+  findInvitationByTokenHash(tokenHash: string): Promise<PendingInvitation | null> {
+    const membership = this.memberships.find(
+      (candidate) => candidate.inviteTokenHash !== null && candidate.inviteTokenHash === tokenHash,
+    );
+    const tenant = membership ? this.tenants.get(membership.tenantId) : undefined;
+    if (!membership || !tenant) return Promise.resolve(null);
+    return Promise.resolve({
+      membershipId: membership.id,
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      tenantStatus: tenant.status,
+      userId: membership.userId,
+      status: membership.status,
+      inviteExpiresAt: membership.inviteExpiresAt,
+    });
+  }
+
+  /**
+   * Simula o `EmailSender` (worker): gera o token do convite pendente e grava só o hash, como o
+   * envio do e-mail faz (queues.md §4.3). Devolve o token em claro — o "link do e-mail".
+   */
+  deliverInvitation(membershipId: string): string {
+    const token = generateInvitationToken();
+    const index = this.memberships.findIndex((candidate) => candidate.id === membershipId);
+    const current = this.memberships[index];
+    if (current?.status !== 'INVITED') throw new Error('Sem convite pendente.');
+    this.memberships[index] = { ...current, inviteTokenHash: hashInvitationToken(token) };
+    return token;
+  }
+
+  /** Testes: força a validade do link (convite expirado — FA-03). */
+  setInviteExpiry(membershipId: string, inviteExpiresAt: Date): void {
+    const index = this.memberships.findIndex((candidate) => candidate.id === membershipId);
+    const current = this.memberships[index];
+    if (current) this.memberships[index] = { ...current, inviteExpiresAt };
+  }
+
+  /** Testes: vínculo do usuário no tenant (sem filtro de contexto). */
+  membershipOf(userId: string, tenantId: string): StoredMembership | undefined {
+    return this.memberships.find(
+      (candidate) => candidate.userId === userId && candidate.tenantId === tenantId,
+    );
+  }
+
+  /** Testes: usuário pelo e-mail. */
+  userByEmail(email: string): StoredUser | undefined {
+    return this.byEmail(email);
+  }
+
+  private byEmail(email: string): StoredUser | undefined {
+    return [...this.users.values()].find(
+      (user) => user.email.toLowerCase() === email.toLowerCase(),
+    );
+  }
+
+  /** Como a RLS: só vínculos do tenant do contexto. */
+  private inContext(
+    match: (membership: StoredMembership) => boolean,
+  ): StoredMembership | undefined {
+    const tenantId = contextTenant();
+    return this.memberships.find(
+      (candidate) => candidate.tenantId === tenantId && match(candidate),
+    );
+  }
+
+  /** `UPDATE … WHERE <estado esperado>` em memória, no tenant do contexto: `true` se aplicou. */
+  private transition(
+    membershipId: string,
+    expected: (membership: StoredMembership) => boolean,
+    next: (membership: StoredMembership) => StoredMembership,
+  ): boolean {
+    const tenantId = contextTenant();
+    const index = this.memberships.findIndex(
+      (candidate) => candidate.id === membershipId && candidate.tenantId === tenantId,
+    );
+    const current = this.memberships[index];
+    if (!current || !expected(current)) return false;
+    this.memberships[index] = { ...next(current), version: current.version + 1 };
+    return true;
+  }
+
+  private toView(membership: StoredMembership): MembershipView {
+    const user = this.users.get(membership.userId);
+    return {
+      id: membership.id,
+      tenantId: membership.tenantId,
+      userId: membership.userId,
+      name: user?.name ?? '',
+      socialName: user?.socialName ?? null,
+      email: user?.email ?? '',
+      type: membership.type,
+      status: membership.status,
+      jobTitle: membership.jobTitle,
+      registrationNumber: null,
+      expiresAt: membership.expiresAt,
+      departmentIds: this.assignments
+        .filter((item) => item.membershipId === membership.id)
+        .map((item) => item.departmentId),
+      invitedAt: membership.invitedAt,
+      inviteExpiresAt: membership.inviteExpiresAt,
+      activatedAt: membership.activatedAt,
+      version: membership.version,
+    };
+  }
+
   // --- Inspeção (testes) -----------------------------------------------------------------------
 
   /** Carga de testes: lota o vínculo na unidade (no banco, `membership_departments`). */
@@ -261,6 +607,24 @@ export class InMemoryIdentityRepository implements IdentityRepository, UserPort,
   private bySubject(subject: string): StoredUser | undefined {
     return [...this.users.values()].find((user) => user.subject === subject);
   }
+}
+
+function contextTenant(): string | null {
+  return currentRequestContext()?.tenantId ?? null;
+}
+
+function toRecordRow(membership: StoredMembership): MembershipRecordRow {
+  return {
+    id: membership.id,
+    tenantId: membership.tenantId,
+    userId: membership.userId,
+    type: membership.type,
+    status: membership.status,
+    invitedAt: membership.invitedAt,
+    inviteExpiresAt: membership.inviteExpiresAt,
+    inviteResendCount: membership.inviteResendCount,
+    version: membership.version,
+  };
 }
 
 function toUser(user: StoredUser): User {
@@ -289,11 +653,36 @@ function toTenantMembership(membership: StoredMembership, tenant: TenantData): T
   };
 }
 
-/** Diretório do Authentik em memória: o `sub` do modo fake é `sub-<nome>`; sem PK conhecida. */
-export class InMemoryAuthentikDirectory implements AuthentikDirectoryPort {
+/**
+ * Diretório do Authentik em memória: o `sub` do modo fake é `sub-<nome>`; sem PK conhecida. Também
+ * provisiona as contas do convite (US-091), com falha injetável (`unavailable`) e o registro das
+ * contas criadas e das removidas pela compensação.
+ */
+export class InMemoryAuthentikDirectory
+  implements AuthentikDirectoryPort, AuthentikProvisioningPort
+{
+  /** Authentik fora do ar: `provisionUser` falha (Gherkin "Falha de integração"). */
+  unavailable = false;
+  readonly provisioned: { readonly pk: string; readonly email: string }[] = [];
+  readonly removed: string[] = [];
+  private nextPk = 5_000;
+
   constructor(private readonly pks: Readonly<Record<string, string>> = {}) {}
 
   findUserPkBySubject(subject: string): Promise<string | null> {
     return Promise.resolve(this.pks[subject] ?? null);
+  }
+
+  provisionUser(user: { email: string; name: string }): Promise<{ pk: string; created: boolean }> {
+    if (this.unavailable) return Promise.reject(new AuthentikUnavailableError());
+    this.nextPk += 1;
+    const pk = String(this.nextPk);
+    this.provisioned.push({ pk, email: user.email });
+    return Promise.resolve({ pk, created: true });
+  }
+
+  removeUser(pk: string): Promise<void> {
+    this.removed.push(pk);
+    return Promise.resolve();
   }
 }

@@ -3,6 +3,7 @@ import type { OnModuleInit, Provider } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { MembershipReferencesModule } from '#shared/auth/membership-references.js';
 import {
   MEMBERSHIP_PORT,
   PLATFORM_OPERATOR_PORT,
@@ -13,6 +14,19 @@ import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenan
 
 import { FirstAdminSeeder } from './application/first-admin.seeder.js';
 import { IdentityFacade } from './application/identity.facade.js';
+import {
+  AUTHENTIK_PROVISIONING,
+  INVITATION_REPOSITORY,
+  MEMBERSHIP_SETTINGS,
+} from './application/invitation-ports.js';
+import {
+  AcceptInvitationCommand,
+  CancelInvitationCommand,
+  InviteUserCommand,
+  ListMembershipsQuery,
+  PreviewInvitationQuery,
+  ResendInvitationCommand,
+} from './application/invitation.commands.js';
 import { GetMyProfileQuery, ListMyMembershipsQuery } from './application/me.queries.js';
 import {
   AUTHENTIK_DIRECTORY,
@@ -43,11 +57,20 @@ import {
 } from './infrastructure/in-memory-identity.repositories.js';
 import { JwksTokenVerifier } from './infrastructure/jwks-token-verifier.js';
 import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repository.js';
+import {
+  InMemoryMembershipSettings,
+  PrismaInvitationRepository,
+  PrismaMembershipSettings,
+} from './infrastructure/prisma-invitation.repository.js';
 import { SessionSweepScheduler } from './infrastructure/session-sweep.scheduler.js';
 import {
   InMemoryTenantMfaPolicy,
   RegistryDefaultMfaPolicy,
 } from './infrastructure/tenant-mfa-policy.js';
+import {
+  InvitationAcceptController,
+  UserInvitationController,
+} from './presentation/invitation.controller.js';
 import { MeController } from './presentation/me.controller.js';
 import { SessionEventsController } from './presentation/session-events.controller.js';
 
@@ -100,6 +123,25 @@ function identityProviders(): Provider[] {
           : new DisabledAuthentikDirectory();
       },
     },
+    // Convite e vínculos (US-091): o diretório do Authentik também provisiona as contas.
+    PrismaInvitationRepository,
+    {
+      provide: INVITATION_REPOSITORY,
+      inject: [APP_CONFIG, IDENTITY_STORE, PrismaInvitationRepository],
+      useFactory: (
+        config: AppConfig,
+        memory: InMemoryIdentityRepository,
+        prisma: PrismaInvitationRepository,
+      ) => (config.oidc.fakeSigningKey ? memory : prisma),
+    },
+    { provide: AUTHENTIK_PROVISIONING, useExisting: AUTHENTIK_DIRECTORY },
+    PrismaMembershipSettings,
+    {
+      provide: MEMBERSHIP_SETTINGS,
+      inject: [APP_CONFIG, PrismaMembershipSettings],
+      useFactory: (config: AppConfig, prisma: PrismaMembershipSettings) =>
+        config.oidc.fakeSigningKey ? new InMemoryMembershipSettings() : prisma,
+    },
     PrismaFirstAdminStore,
     PrismaIdentityTenantTransactions,
     {
@@ -136,11 +178,18 @@ function identityProviders(): Provider[] {
  * /internal/session-events`) e ME-01/ME-04 (US-087). Desde a US-088 também roda a varredura de
  * encerramentos de sessão (`SessionSweepScheduler`, 1 min), que audita logout e expiração a partir
  * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`). Desde a US-099: a
- * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`.
+ * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`. Desde a
+ * US-091: convite e aceite (USR-01/03..06/14), com a autorização, o perfil inicial e as unidades
+ * da lotação pela porta `MembershipReferences` (implementada por `access` e `organization`).
  */
 @Module({
-  imports: [TenantSeedingModule],
-  controllers: [MeController, SessionEventsController],
+  imports: [TenantSeedingModule, MembershipReferencesModule],
+  controllers: [
+    MeController,
+    SessionEventsController,
+    UserInvitationController,
+    InvitationAcceptController,
+  ],
   providers: [
     IdentityFacade,
     ...identityProviders(),
@@ -151,6 +200,12 @@ function identityProviders(): Provider[] {
     GetMyProfileQuery,
     ListMyMembershipsQuery,
     FirstAdminSeeder,
+    InviteUserCommand,
+    ResendInvitationCommand,
+    CancelInvitationCommand,
+    AcceptInvitationCommand,
+    PreviewInvitationQuery,
+    ListMembershipsQuery,
   ],
   exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT, PLATFORM_OPERATOR_PORT],
 })

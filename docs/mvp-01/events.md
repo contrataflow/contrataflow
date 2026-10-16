@@ -171,7 +171,7 @@ Eventos próprios de módulos tipados:
 ### 4.6 Identidade, acesso e tenancy (módulos `identity`, `access`, `tenancy`, `organization`)
 | Evento | Routing key | Produtor | Payload | Cons. |
 |---|---|---|---|---|
-| `UserInvited` | `membership.invited` | US-091 | `membershipId`, `userId`, `type`, `expiresAt?` | — (e-mail de convite enviado pelo próprio caso de uso via fila `email`) |
+| `UserInvited` | `membership.invited` | US-091 (convite, reenvio e convite do primeiro administrador) | `membershipId`, `userId`, `type`, `expiresAt?`, `inviteExpiresAt`, `resend` | `InvitationEmailEnqueuer` (fila `email`, `kind = INVITATION`) + C |
 | `MembershipActivated` | `membership.activated` | US-091 | `membershipId`, `userId` | C |
 | `MembershipUpdated` | `membership.updated` | US-092 | `membershipId`, `changedFields[]` (inclui `departments`) | C |
 | `MembershipSuspended` / `MembershipReactivated` | `membership.suspended` / `.reactivated` | US-092 | `membershipId`, `hasReason` | C |

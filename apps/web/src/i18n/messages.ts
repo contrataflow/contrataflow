@@ -14,6 +14,7 @@ import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
 import templates from '../../messages/pt-BR/templates.json';
+import users from '../../messages/pt-BR/users.json';
 
 /** Locale único do MVP 1 (architecture.md §8.10 · RN-FND-95). */
 export const LOCALE = 'pt-BR';
@@ -39,6 +40,7 @@ export const messages = {
   settings,
   shell,
   templates,
+  users,
 };
 
 export type Messages = typeof messages;

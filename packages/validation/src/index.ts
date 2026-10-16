@@ -5,6 +5,8 @@ export * from './common/index.js';
 export * from './document/index.js';
 export * from './events/index.js';
 export * from './http/index.js';
+export * from './identity/events.js';
+export * from './identity/invitation.js';
 export * from './identity/session.js';
 export * from './identity/session-registry.js';
 export * from './internal/example.js';

@@ -94,6 +94,9 @@ const MAX_TRANSACTION_COOKIE_BYTES = 3_800;
 /** Segundos sugeridos ao navegador quando o Redis de sessões está fora (DEC-131). */
 const STORE_RETRY_AFTER_SECONDS = '5';
 
+/** `returnTo` do SCR-102: quem foi convidado ainda não tem vínculo e volta para aceitá-lo. */
+const INVITE_RETURN_PREFIX = '/convite/';
+
 /** SCR-101 com o aviso de troca não concluída depois do *step-up* (US-093 · FA-01). */
 export const SWITCH_NOT_COMPLETED_URL = '/selecionar-orgao?motivo=troca-nao-concluida';
 
@@ -508,7 +511,10 @@ async function callback(context: Context): Promise<Response> {
     ? transaction.returnTo
     : usable
       ? `/selecionar-orgao?${new URLSearchParams({ returnTo: transaction.returnTo }).toString()}`
-      : '/erro/sem-vinculo';
+      : transaction.returnTo.startsWith(INVITE_RETURN_PREFIX)
+        ? // US-091: a pessoa convidada ainda não tem vínculo ativo; o aceite do convite cria um.
+          transaction.returnTo
+        : '/erro/sem-vinculo';
   return redirectResponse(destination, { correlationId, headers });
 }
 

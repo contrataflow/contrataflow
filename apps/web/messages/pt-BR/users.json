@@ -1,0 +1,90 @@
+{
+  "title": "Usuários",
+  "description": "Convide pessoas para a instituição e acompanhe os convites pendentes. O convite vale por 7 dias e pode ser reenviado ou cancelado.",
+  "forbidden": {
+    "title": "Você não tem acesso a esta área",
+    "description": "Peça a quem administra a instituição a permissão para visualizar usuários."
+  },
+  "list": {
+    "title": "Convites pendentes",
+    "invite": "Convidar usuário",
+    "loading": "Carregando os convites…",
+    "loadFailed": "Não foi possível carregar os convites.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum convite pendente",
+    "emptyHint": "Os convites enviados e ainda não aceitos aparecem aqui.",
+    "caption": "Convites pendentes da instituição",
+    "name": "Nome",
+    "email": "E-mail",
+    "type": "Vínculo",
+    "inviteExpiresAt": "Convite vale até",
+    "actions": "Ações",
+    "pager": "Paginação dos convites",
+    "previous": "Anterior",
+    "next": "Próxima",
+    "pageOf": "Página {page} de {total}"
+  },
+  "types": {
+    "INTERNAL": "Interno",
+    "EXTERNAL": "Externo",
+    "SERVICE": "Serviço"
+  },
+  "actions": {
+    "resend": "Reenviar",
+    "resendLabel": "Reenviar convite para {name}",
+    "cancel": "Cancelar",
+    "cancelLabel": "Cancelar convite de {name}"
+  },
+  "toast": {
+    "invited": "Convite enviado para {email}.",
+    "resent": "Convite reenviado para {email}.",
+    "cancelled": "Convite de {name} cancelado."
+  },
+  "errors": {
+    "generic": "Não foi possível concluir a ação. Tente novamente.",
+    "permission": "Você não tem permissão para esta ação.",
+    "mfa": "Esta ação exige a confirmação da sua identidade (segundo fator).",
+    "stepUp": "Confirmar identidade",
+    "unavailable": "Não foi possível enviar o convite agora. Tente novamente em instantes.",
+    "actionUnavailable": "O serviço está indisponível agora. Tente novamente em instantes.",
+    "rateLimited": "Muitos reenvios. Aguarde um instante antes de tentar de novo.",
+    "notFound": "Este convite não existe mais. A lista foi atualizada.",
+    "invalidState": "Este convite já foi aceito ou cancelado. A lista foi atualizada."
+  },
+  "form": {
+    "title": "Convidar usuário",
+    "description": "A pessoa recebe um e-mail com o link para aceitar o convite e entrar na instituição.",
+    "email": "E-mail *",
+    "name": "Nome *",
+    "type": "Tipo de vínculo *",
+    "typeInternal": "Interno (servidor ou colaborador do órgão)",
+    "typeExternal": "Externo (com validade definida)",
+    "jobTitle": "Cargo ou função",
+    "expiresAt": "Validade do vínculo *",
+    "expiresAtHint": "Vínculos externos terminam sozinhos nesta data, ao fim do dia.",
+    "departments": "Lotação",
+    "departmentsHint": "Selecione uma ou mais unidades. A primeira selecionada é a lotação principal.",
+    "departmentSearch": "Buscar unidade",
+    "departmentSearchHint": "Digite ao menos 2 letras para filtrar a lista.",
+    "departmentOptions": "Unidades disponíveis",
+    "departmentsLoading": "Carregando as unidades…",
+    "departmentsEmpty": "Nenhuma unidade encontrada.",
+    "departmentsFailed": "Não foi possível carregar as unidades.",
+    "departmentsSelected": "Unidades selecionadas",
+    "primary": "principal",
+    "removeDepartment": "Remover {name}",
+    "role": "Perfil inicial",
+    "roleNone": "Nenhum (definir depois)",
+    "cancel": "Cancelar",
+    "submit": "Enviar convite",
+    "submitting": "Enviando…",
+    "alreadyMember": "Esta pessoa já tem um vínculo com esta instituição.",
+    "alreadyMemberHint": "Se o convite ainda está pendente, use \"Reenviar\" na lista de convites em vez de convidar de novo."
+  },
+  "cancelDialog": {
+    "title": "Cancelar o convite de {name}?",
+    "description": "O link enviado para {email} deixa de funcionar. Você poderá convidar a pessoa de novo depois.",
+    "keep": "Manter convite",
+    "confirm": "Cancelar convite"
+  }
+}

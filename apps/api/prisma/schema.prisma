@@ -208,6 +208,8 @@ model TenantMembership {
   invitedAt          DateTime?        @map("invited_at") @db.Timestamptz(6)
   inviteTokenHash    String?          @map("invite_token_hash") @db.VarChar(64)
   inviteExpiresAt    DateTime?        @map("invite_expires_at") @db.Timestamptz(6)
+  /// Reenvios do convite atual (RN-IAM-53: no máximo 5; zerado a cada novo convite).
+  inviteResendCount  Int              @default(0) @map("invite_resend_count")
   activatedAt        DateTime?        @map("activated_at") @db.Timestamptz(6)
   expiresAt          DateTime?        @map("expires_at") @db.Timestamptz(6)
   suspendedAt        DateTime?        @map("suspended_at") @db.Timestamptz(6)
@@ -222,13 +224,14 @@ model TenantMembership {
   updatedById        String?          @map("updated_by_id") @db.Uuid
   version            Int              @default(1)
 
-  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user        User                   @relation("MembershipUser", fields: [userId], references: [id], onDelete: Restrict)
-  invitedBy   User?                  @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
-  revokedBy   User?                  @relation("MembershipRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
-  createdBy   User?                  @relation("MembershipCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy   User?                  @relation("MembershipUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  departments MembershipDepartment[]
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user            User                   @relation("MembershipUser", fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy       User?                  @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+  revokedBy       User?                  @relation("MembershipRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+  createdBy       User?                  @relation("MembershipCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?                  @relation("MembershipUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  departments     MembershipDepartment[]
+  roleAssignments RoleAssignment[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, userId])
@@ -480,10 +483,54 @@ model Role {
   version                 Int      @default(1)
 
   permissions RolePermission[]
+  assignments RoleAssignment[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, key])
   @@map("roles")
+}
+
+/// entities.md §2 — `ScopeType` (DEC-134).
+enum ScopeType {
+  TENANT
+  ORGANIZATION
+  DEPARTMENT
+  OWN_DEPARTMENTS
+
+  @@map("scope_type")
+}
+
+/// entities.md `RoleAssignment` (módulo access): perfil atribuído a um vínculo com escopo e vigência.
+/// Criada na US-091 (perfil inicial do convite — RN-IAM-51); a gestão é da US-096. Checks de
+/// escopo, unicidade parcial das vigentes e as FKs de órgão/unidade/usuários vivem só na migração.
+model RoleAssignment {
+  id                  String    @id @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  membershipId        String    @map("membership_id") @db.Uuid
+  roleId              String    @map("role_id") @db.Uuid
+  scopeType           ScopeType @map("scope_type")
+  scopeOrganizationId String?   @map("scope_organization_id") @db.Uuid
+  scopeDepartmentId   String?   @map("scope_department_id") @db.Uuid
+  includeSubtree      Boolean   @default(true) @map("include_subtree")
+  validFrom           DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validUntil          DateTime? @map("valid_until") @db.Timestamptz(6)
+  grantedById         String    @map("granted_by_id") @db.Uuid
+  reason              String?
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedById         String?   @map("revoked_by_id") @db.Uuid
+  revocationReason    String?   @map("revocation_reason")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById         String?   @map("created_by_id") @db.Uuid
+  updatedById         String?   @map("updated_by_id") @db.Uuid
+  version             Int       @default(1)
+
+  membership TenantMembership @relation(fields: [tenantId, membershipId], references: [tenantId, id], onDelete: Restrict, map: "role_assignments_membership_fkey")
+  role       Role             @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Restrict, map: "role_assignments_role_fkey")
+
+  @@unique([tenantId, id])
+  @@index([tenantId, roleId], map: "role_assignments_role_idx")
+  @@map("role_assignments")
 }
 
 /// entities.md `RolePermission` (módulo access · US-094): concessão de uma permissão do catálogo a

@@ -14,7 +14,8 @@ export type InlineHandlerName =
   | 'PermissionCacheInvalidator'
   | 'BusinessMetricsCollector'
   | 'SessionTerminationHandler'
-  | 'ConfigCacheInvalidator';
+  | 'ConfigCacheInvalidator'
+  | 'InvitationEmailEnqueuer';
 
 export interface DomainEventRoutes {
   readonly queues: readonly { readonly match: readonly string[]; readonly queue: FanOutQueue }[];
@@ -83,6 +84,12 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
       match: ['membership.suspended', 'membership.revoked', 'membership.expired'],
       handler: 'SessionTerminationHandler',
     },
+    {
+      // US-091 — convite (USR-03), reenvio (USR-04) e convite do primeiro administrador: enfileira
+      // o e-mail do convite na fila `email`; o `EmailSender` gera o link no envio (queues.md §4.3).
+      match: ['membership.invited'],
+      handler: 'InvitationEmailEnqueuer',
+    },
   ],
 };
 
@@ -109,8 +116,8 @@ export function resolveRoutes(
 
 /**
  * Decisão de roteamento explícita de cada evento registrado (V-03 · queues.md §7.4): as routing
- * keys que ele usa (cobertas pelas rotas acima) ou `NO_ASYNC_CONSUMER` (ex.: `UserInvited`, cujo
- * e-mail é enfileirado pelo próprio caso de uso). Preenchido junto com `DOMAIN_EVENT_NAMES` pelas
+ * keys que ele usa (cobertas pelas rotas acima) ou `NO_ASYNC_CONSUMER` (ex.: `DepartmentCreated`,
+ * que nenhum consumidor assíncrono lê). Preenchido junto com `DOMAIN_EVENT_NAMES` pelas
  * stories donas; um teste reprova evento sem decisão e rota que não casa nenhuma routing key.
  */
 export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_ASYNC_CONSUMER'>> =
@@ -149,4 +156,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // aplicáveis do tenant (`workflow:applicable` — US-042).
     WorkflowVersionPublished: ['workflow.version_published'],
     WorkflowVersionRetired: ['workflow.version_retired'],
+    // US-091: `membership.invited` enfileira o e-mail do convite (`InvitationEmailEnqueuer`) e,
+    // como `membership.*`, invalida o cache de permissões; `membership.activated` só o segundo.
+    UserInvited: ['membership.invited'],
+    MembershipActivated: ['membership.activated'],
   };

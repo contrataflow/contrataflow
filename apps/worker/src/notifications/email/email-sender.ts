@@ -176,7 +176,7 @@ export class EmailSender implements JobHandler<EmailJobPayload> {
       return this.onSendFailure(error, target, context, base);
     }
     const updated = await context.tenantTransaction((client) =>
-      source.markSent(client, sourceId, this.now()),
+      source.markSent(client, sourceId, this.now(), preparation.receipt),
     );
     this.metrics.sent.add(1, { kind, provider });
     logger.log({

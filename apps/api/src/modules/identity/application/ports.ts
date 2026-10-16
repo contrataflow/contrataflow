@@ -151,6 +151,8 @@ export interface InternalMember {
   readonly userId: string;
   readonly email: string;
   readonly status: string;
+  /** Último envio do convite (`invitedAt`); `null` = nunca enviado. */
+  readonly invitedAt: Date | null;
 }
 
 /**
@@ -176,6 +178,14 @@ export interface FirstAdminStore {
       readonly userId: string;
       readonly now: Date;
     },
+  ): Promise<boolean>;
+  /**
+   * Envio do convite (US-091 · RN-TEN-08): validade de 7 dias a partir de agora e hash zerado (o
+   * `EmailSender` grava o do link novo). Condicional a `INVITED`; `false` se o vínculo mudou.
+   */
+  renewInvitation(
+    tx: TenantTx,
+    input: { readonly membershipId: string; readonly now: Date; readonly inviteExpiresAt: Date },
   ): Promise<boolean>;
 }
 
