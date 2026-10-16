@@ -21,6 +21,11 @@ import { WorkflowDraftEditor } from './application/workflow-draft-editor.js';
 import { WorkflowEngineService } from './application/workflow-engine.service.js';
 import { WorkflowReferenceService } from './application/workflow-references.js';
 import {
+  GetRuleContextSchemaQuery,
+  RuleTestProcessSourceRegistry,
+  TestWorkflowRuleQuery,
+} from './application/workflow-rule-test.js';
+import {
   CreateWorkflowRuleCommand,
   DeleteWorkflowRuleCommand,
   UpdateWorkflowRuleCommand,
@@ -74,6 +79,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * (`WorkflowEngineService` + `RuleContextBuilder` com os contribuidores registrados), exposto pela
  * fachada; dias úteis na etapa vêm do calendário do `catalog`. US-042: os workflows semeados
  * (`workflow.seedWorkflows`), a troca do padrão (WF-05) e a resolução da aplicabilidade (WF-06).
+ * US-044: schema do RuleContext (WF-19) e "Testar regra" (WF-23, processo pela porta
+ * `RuleTestProcessSource` que o `process` registra).
  */
 @Module({
   imports: [
@@ -116,6 +123,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateWorkflowRuleCommand,
     UpdateWorkflowRuleCommand,
     DeleteWorkflowRuleCommand,
+    RuleTestProcessSourceRegistry,
+    TestWorkflowRuleQuery,
+    GetRuleContextSchemaQuery,
     PrismaWorkflowRepository,
     PrismaWorkflowTransactions,
     InMemoryWorkflowRepository,

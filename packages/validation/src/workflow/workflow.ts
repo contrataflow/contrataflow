@@ -546,7 +546,11 @@ export interface WorkflowRuleFields {
 
 const CONFIG_MESSAGE = 'A condição usa um campo ou operação não permitidos.';
 
-/** RN-WF-17 (parte local) e o check de escopo de entities.md §4.5. */
+/**
+ * RN-WF-17 (parte local) e o check de escopo de entities.md §4.5. RN-WF-56 (US-044 · FA-04): o
+ * caminho de `REQUIRED_FIELD` fora do RuleContext v1 é aceito no rascunho — só a publicação o
+ * barra (`WF_RULE_PATH_UNKNOWN`, US-045).
+ */
 export function workflowRuleIssues(
   rule: Pick<WorkflowRuleFields, 'scope' | 'stageId' | 'transitionId' | 'type' | 'config'>,
 ): WorkflowFieldIssue[] {
@@ -560,18 +564,16 @@ export function workflowRuleIssues(
     if (!rule.transitionId) issues.push(required('transitionId', 'Informe a transição da regra.'));
     if (rule.stageId) issues.push(notAllowed('stageId', 'Regra de transição não tem etapa.'));
   }
-  const problems = ruleConfigProblems(rule.type, rule.config);
+  const problems = ruleConfigProblems(rule.type, rule.config).filter(
+    (problem) => rule.type !== 'REQUIRED_FIELD' || problem.code !== 'WF_RULE_PATH_UNKNOWN',
+  );
   if (problems.length > 0) {
-    const pathUnknown = problems.find((problem) => problem.code === 'WF_RULE_PATH_UNKNOWN');
     issues.push({
       field: 'config',
       code: problems.some((problem) => problem.code === 'WF_RULE_CONFIG_INVALID')
         ? 'INVALID_FORMAT'
         : 'NOT_ALLOWED',
-      message:
-        rule.type === 'REQUIRED_FIELD' && pathUnknown
-          ? 'O campo informado não pertence ao contexto de regras (RuleContext v1).'
-          : CONFIG_MESSAGE,
+      message: CONFIG_MESSAGE,
     });
   }
   return issues;
@@ -613,6 +615,42 @@ export type WorkflowRuleCreate = z.infer<typeof workflowRuleSchema>;
 
 export const workflowRuleUpdateSchema = z.strictObject(ruleBaseShape).partial();
 export type WorkflowRuleUpdate = z.infer<typeof workflowRuleUpdateSchema>;
+
+/**
+ * Corpo do WF-23 ("Testar regra" — US-044 · RN-WF-59): a `config` do formulário (salva ou não),
+ * sem `ruleId`. A forma do `config` é conferida pela API com o mesmo schema do tipo; `message` é a
+ * mensagem do formulário, devolvida quando a regra não é satisfeita.
+ */
+export const workflowRuleTestSchema = z.strictObject({
+  type: z.enum(RULE_TYPES),
+  config: z.record(z.string(), z.unknown()),
+  severity: z.enum(RULE_SEVERITIES).default('BLOCKING'),
+  message: z.string().trim().max(500).optional(),
+  processId: z.uuid({ error: 'Selecione um processo válido.' }),
+});
+export type WorkflowRuleTest = z.infer<typeof workflowRuleTestSchema>;
+
+/** Por que o teste não pôde avaliar normalmente (a regra conta como não satisfeita). */
+export const RULE_TEST_WARNING_CODES = [
+  'PATH_UNKNOWN',
+  'MISSING_PATH',
+  'CONFIG_INVALID',
+  'EVALUATION_FAILED',
+] as const;
+export type RuleTestWarningCode = (typeof RULE_TEST_WARNING_CODES)[number];
+
+/** Resposta do WF-23. */
+export const workflowRuleTestResultSchema = z
+  .object({
+    satisfied: z.boolean(),
+    severity: z.enum(RULE_SEVERITIES),
+    message: z.string(),
+    /** Valores do RuleContext usados na avaliação (caminho → valor; orçamento sigiloso mascarado). */
+    contextUsed: z.record(z.string(), z.unknown()),
+    warnings: z.array(z.object({ code: z.enum(RULE_TEST_WARNING_CODES), message: z.string() })),
+  })
+  .meta({ id: 'WorkflowRuleTestResult' });
+export type WorkflowRuleTestResult = z.infer<typeof workflowRuleTestResultSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Respostas

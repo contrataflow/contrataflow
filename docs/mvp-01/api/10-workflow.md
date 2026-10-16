@@ -273,7 +273,7 @@
   | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) | `stageId`/`transitionId`/`documentTypeCode`/`stageKey` inválidos |
   | 422 | `VALIDATION_ERROR` (`TOO_LONG`) | `name`/`message` acima do limite |
 - **Efeitos:** Auditoria `workflow.update` (`metadata`: `ruleId`, `type`, `scope`, `stageId`/`transitionId`)
-- **Notas:** regra usada em `WF-23` (teste) e avaliada no fluxo real de transição (api.md §2.1.2, `violations[]`).
+- **Notas:** regra usada em `WF-23` (teste) e avaliada no fluxo real de transição (api.md §2.1.2, `violations[]`). `REQUIRED_FIELD` com `config.field` fora do RuleContext v1 é aceito no rascunho (RN-WF-56 · US-044) — a validação da versão (WF-20/21) aponta `WF_RULE_PATH_UNKNOWN`.
 
 ### WF-17 — Atualizar regra
 `PATCH /api/v1/workflow-rules/{ruleId}` · **Permissão:** `WORKFLOW_MANAGE` · **Story:** US-044
@@ -311,7 +311,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: { version: 1, fields: [{ path, label, type }] } }`
+- **Response:** `200 { data: { version: 1, fields: [{ path, label, type }] } }` — `type` ∈ `string`|`number`|`boolean`|`date`|`list`; folhas estáticas do RuleContext v1 (sem `version`) e `documents.<CÓDIGO>.<campo>` para cada tipo de documento ATIVO do tenant (US-044)
 - **Erros:** — (leitura pública aos usuários com `WORKFLOW_VIEW`)
 - **Efeitos:** —
 - **Notas:** alimenta o seletor de `config.field` em regras `REQUIRED_FIELD` (WF-16/17) e o querybuilder de `CONDITION`.
@@ -366,13 +366,14 @@
 `POST /api/v1/workflow-versions/{versionId}/rules/test` · **Permissão:** `WORKFLOW_MANAGE` + `PROCESS_VIEW` (do processo informado) · **Story:** US-044
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `versionId` (uuid, obrigatório)
-- **Request:** `{ type: RuleType (obrigatório); config: object (mesmo formato de WF-16, conforme type); severity?: RuleSeverity ('BLOCKING'|'WARNING'); processId: uuid (obrigatório, visível ao usuário) }`
-- **Response:** `200 { data: { satisfied: boolean, severity, message, contextUsed: object } }`
+- **Request:** `{ type: RuleType (obrigatório); config: object (mesmo formato de WF-16, conforme type); severity?: RuleSeverity ('BLOCKING'|'WARNING', padrão 'BLOCKING'); message?: string (≤500 — a mensagem do formulário, devolvida quando a regra não é satisfeita); processId: uuid (obrigatório, visível ao usuário) }`
+- **Response:** `200 { data: { satisfied: boolean, severity, message, contextUsed: object, warnings: [{ code: 'PATH_UNKNOWN'|'MISSING_PATH'|'CONFIG_INVALID'|'EVALUATION_FAILED', message }] } }` — `message` = "Regra satisfeita." ou a `message` informada (padrão "Regra não satisfeita."); `contextUsed` = caminho → valor lido pela regra (só caminhos do RuleContext v1; `REQUIRED_DOCUMENT` traz `documents.<CÓDIGO>`, `matchingCount` e `requiredCount`; `REQUIRED_APPROVAL` traz `approval.<stageKey>` = `APPROVED`|`NOT_APPROVED`|`NOT_REACHED`); orçamento sigiloso sem `PROCESS_VIEW_CONFIDENTIAL_BUDGET` sai como `"[sigiloso]"` (POL-09); caminho fora do schema → não satisfeita com `warnings[PATH_UNKNOWN]` "Campo não reconhecido." (FA-04)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_MANAGE` |
-  | 404 | `NOT_FOUND` | Processo não encontrado ou não visível |
-  | 422 | `WORKFLOW_INVALID` (`WF_RULE_OPERATOR_FORBIDDEN`) | `CONDITION` usa operador fora da allowlist |
+  | 404 | `NOT_FOUND` | Processo não encontrado ou não visível; versão inexistente/outro tenant |
+  | 422 | `VALIDATION_ERROR` | `config` fora do schema do tipo (`config.<campo>`) ou expressão malformada/grande demais (`config.expression`) |
+  | 422 | `WORKFLOW_INVALID` (`WF_RULE_OPERATOR_FORBIDDEN`) | `CONDITION` usa operador fora da allowlist (em `validation.errors[]`) |
 - **Efeitos:** —
-- **Notas:** não persiste a regra; usa o processo apenas como fonte de contexto para a avaliação (JSON Logic); endpoint de apoio `GET /api/v1/processes?q=` (catálogo da seção de processos, fora do escopo deste documento) alimenta o seletor de processo de teste.
+- **Notas:** não persiste a regra nem audita (somente leitura); vale para qualquer versão do tenant (o rascunho não é exigido); o contexto é o do runtime (versão FIXADA no processo + contribuidores — o mesmo `RuleEvaluator` do PRC-09); não exige MFA própria (segue `security.mfaPolicy`); não persiste a regra; usa o processo apenas como fonte de contexto para a avaliação (JSON Logic); endpoint de apoio `GET /api/v1/processes?q=` (catálogo da seção de processos, fora do escopo deste documento) alimenta o seletor de processo de teste.

@@ -27,6 +27,7 @@ import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
 import { ProcessPresenter } from './application/process.presenter.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
+import { RuleTestProcessReader } from './application/rule-test-process.source.js';
 import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
 import {
   PrismaProcessRepository,
@@ -44,6 +45,7 @@ import { CatalogModule } from '../catalog/catalog.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
+import { WorkflowFacade } from '../workflow/application/workflow.facade.js';
 import { WorkflowModule } from '../workflow/workflow.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): processos em memória. */
@@ -54,7 +56,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * exportada. US-002: lista de processos (PRC-01 — `ListProcessesHandler`). US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`),
  * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
  * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
- * sobre a `WorkflowFacade`. US-097: leitor do processo na porta de autorização.
+ * sobre a `WorkflowFacade`. US-097: leitor do processo na porta de autorização. US-044: fonte do
+ * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`.
  */
 @Module({
   imports: [
@@ -81,6 +84,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ListProcessesHandler,
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,
+    RuleTestProcessReader,
     PrismaProcessRepository,
     InMemoryProcessRepository,
     InMemoryProcessRuntimeStore,
@@ -124,10 +128,14 @@ export class ProcessModule implements OnModuleInit {
     private readonly reader: ProcessRuntimeAccessReader,
     @Inject(SYNC_EVENT_HANDLERS) private readonly syncHandlers: SyncEventHandlerRegistryPort,
     private readonly accessProjector: ProcessAccessProjector,
+    private readonly workflow: WorkflowFacade,
+    private readonly ruleTestProcesses: RuleTestProcessReader,
   ) {}
 
   onModuleInit(): void {
     this.registry.register(this.reader);
+    // US-044: processo de referência de "Testar regra" (WF-23).
+    this.workflow.registerRuleTestProcessSource(this.ruleTestProcesses);
     // DEC-024 · DEC-161: concessões `ProcessAccess` no mesmo `tx` do fato.
     this.syncHandlers.register(this.accessProjector);
   }

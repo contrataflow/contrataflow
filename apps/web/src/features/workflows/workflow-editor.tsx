@@ -37,6 +37,7 @@ import {
   fetchWorkflowVersion,
   updateStage,
   workflowKeys,
+  workflowRulesHref,
   WORKFLOWS_PATH,
   WORKFLOWS_STALE_TIME_MS,
 } from './workflows.api';
@@ -129,6 +130,12 @@ export function WorkflowEditorView({ workflowId }: { readonly workflowId: string
       {workflow.data && !failure ? (
         <>
           <EditorHeader workflow={workflow.data} version={version.data ?? null} />
+          {version.data ? (
+            // SCR-035 (US-044): a aba "Regras" abre a tela própria das regras da versão.
+            <Link href={workflowRulesHref(workflowId)} className="text-sm font-medium underline">
+              {t('editor.rulesLink')}
+            </Link>
+          ) : null}
           {versionId === null ? (
             <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
               {t('editor.noVersion')}

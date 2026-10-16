@@ -559,6 +559,23 @@ const workflows = [
 // Editor de workflow (US-043 · WF-02/03/08/09/10..15): versões em memória (a publicada é só
 // leitura); cada etapa/transição tem a sua `version` (If-Match) e a etapa referenciada por transição
 // não é excluída (RN-WF-50). As regras de grafo e os condicionais são da API.
+// SCR-035 (US-044): campos do RuleContext (WF-19) e um processo de referência para o teste.
+const RULE_CONTEXT_SCHEMA = {
+  version: 1,
+  fields: [
+    { path: 'process.estimatedValue', label: 'Processo — valor estimado', type: 'number' },
+    { path: 'process.modalityCode', label: 'Processo — modalidade', type: 'string' },
+    { path: 'documents.ETP.isComplete', label: 'Documento ETP — completo', type: 'boolean' },
+  ],
+};
+const RULE_TEST_PROCESSES = [
+  {
+    id: '0192a000-0000-7000-8000-0000000044f1',
+    code: '0012/2026',
+    internalCode: null,
+    title: 'Aquisição de notebooks',
+  },
+];
 const workflowVersions = new Map();
 function emptyWorkflowVersion(id, workflowId, versionNumber, status) {
   return {
@@ -1979,6 +1996,88 @@ createServer(async (request, response) => {
       version: workflow.version + 1,
     });
     return send(response, 201, { data: draft });
+  }
+  // Regras (US-044 · WF-16..19 e WF-23): schema do contexto, CRUD no rascunho e o dry-run.
+  if (url.pathname === '/api/v1/rule-context/schema' && request.method === 'GET') {
+    return send(response, 200, { data: RULE_CONTEXT_SCHEMA });
+  }
+  if (url.pathname === '/api/v1/processes' && request.method === 'GET') {
+    const q = String(url.searchParams.get('q') ?? '').toLowerCase();
+    const data = [...RULE_TEST_PROCESSES, ...processes.map((item) => item.view)].filter((item) =>
+      `${item.code ?? ''} ${item.title}`.toLowerCase().includes(q),
+    );
+    return send(response, 200, {
+      data,
+      meta: { page: 1, pageSize: 10, totalItems: data.length, totalPages: 1 },
+    });
+  }
+  const rulesRoute = /^\/api\/v1\/workflow-versions\/([0-9a-f-]{36})\/rules(\/test)?$/.exec(
+    url.pathname,
+  );
+  if (rulesRoute && request.method === 'POST') {
+    const version = workflowVersions.get(rulesRoute[1]);
+    if (!version) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (rulesRoute[2]) {
+      // Sem documentos no processo de referência: REQUIRED_DOCUMENT nunca é satisfeita.
+      const satisfied = body.type !== 'REQUIRED_DOCUMENT';
+      return send(response, 200, {
+        data: {
+          satisfied,
+          severity: body.severity ?? 'BLOCKING',
+          message: satisfied ? 'Regra satisfeita.' : (body.message ?? 'Regra não satisfeita.'),
+          contextUsed:
+            body.type === 'REQUIRED_DOCUMENT'
+              ? {
+                  [`documents.${body.config?.documentTypeCode}`]: { exists: false, count: 0 },
+                  matchingCount: 0,
+                  requiredCount: 1,
+                }
+              : {},
+          warnings: [],
+        },
+      });
+    }
+    if (version.status !== 'DRAFT') {
+      return problem(response, 409, 'WORKFLOW_VERSION_NOT_DRAFT', String(correlationId));
+    }
+    const created = {
+      description: null,
+      stageId: null,
+      transitionId: null,
+      severity: 'BLOCKING',
+      isActive: true,
+      displayOrder: version.rules.length,
+      ...body,
+      id: mockUuid(),
+      workflowVersionId: version.id,
+      version: 1,
+    };
+    version.rules.push(created);
+    version.version += 1;
+    return send(response, 201, { data: created }, { ETag: '"1"' });
+  }
+  const ruleRoute = /^\/api\/v1\/workflow-rules\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (ruleRoute && (request.method === 'PATCH' || request.method === 'DELETE')) {
+    const owner = workflowItemOwner('rules', ruleRoute[1]);
+    if (!owner) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const { version, item } = owner;
+    if (version.status !== 'DRAFT') {
+      return problem(response, 409, 'WORKFLOW_VERSION_NOT_DRAFT', String(correlationId));
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"${item.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (request.method === 'DELETE') {
+      version.rules = version.rules.filter((entry) => entry !== item);
+      version.version += 1;
+      response.writeHead(204);
+      return response.end();
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    Object.assign(item, body, { version: item.version + 1 });
+    version.version += 1;
+    return send(response, 200, { data: item }, { ETag: `"${item.version}"` });
   }
   const versionRoute =
     /^\/api\/v1\/workflow-versions\/([0-9a-f-]{36})(\/stages|\/transitions)?$/.exec(url.pathname);

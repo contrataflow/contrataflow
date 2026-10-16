@@ -15,7 +15,14 @@ import type { WorkflowClock } from './ports.js';
 import { RuleContextBuilder } from './rule-context.js';
 import { WorkflowDefinitionService } from './workflow-definition.service.js';
 import { recordEngine, recordRuleFailure } from './workflow-telemetry.js';
-import type { RuleDocumentFact, StageApprovalFact, StagePassFact } from '../domain/rule-facts.js';
+import type {
+  RuleDocumentFact,
+  RuleFacts,
+  StageApprovalFact,
+  StagePassFact,
+} from '../domain/rule-facts.js';
+import { testRule } from '../domain/rule-test.js';
+import type { RuleTestInput, RuleTestOutcome } from '../domain/rule-test.js';
 import {
   activePassOf,
   availableActions,
@@ -28,6 +35,7 @@ import type {
   EngineViewer,
   StageEvaluation,
 } from '../domain/workflow-engine.js';
+import type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
 
 /*
  * Motor de execução (US-041 · RN-WF-23..33): o mesmo cálculo para PRC-08/PRC-09 e, antes de aceitar
@@ -140,9 +148,61 @@ export class WorkflowEngineService {
       );
       throw new PinnedWorkflowVersionUnavailableError(state.workflowVersionId);
     }
+    const facts = await this.factsOf(tx, state, definition);
+    const process: EngineProcess = {
+      status: state.status,
+      createdById: state.createdById,
+      currentDepartmentId: state.currentDepartmentId,
+      currentResponsibleId: state.currentResponsibleId,
+      requestingDepartmentId: state.ruleProcess.requestingDepartmentId,
+      requestingSecretariatId: state.ruleProcess.requestingSecretariatId,
+    };
+    const input: EngineInput = { definition, process, facts };
+    const evaluation = evaluateStage(input);
+    const active = activePassOf(state.passes);
+    if (active !== null && evaluation.stage === null) {
+      this.logger.error(
+        {
+          event: 'workflow.stage_not_in_version',
+          processId: state.processId,
+          workflowVersionId: state.workflowVersionId,
+          workflowStageId: active.workflowStageId,
+          correlationId: currentRequestContext()?.correlationId,
+        },
+        'workflow.stage_not_in_version',
+      );
+    }
+    this.reportProblems(state, evaluation);
+    return { input, evaluation };
+  }
+
+  /**
+   * "Testar regra" (US-044 · WF-23 · RN-WF-59): a regra avulsa sobre o RuleContext v1 do processo,
+   * montado como no runtime (semente + contribuidores, na versão FIXADA no processo). Somente
+   * leitura; quem chama autoriza e confere a forma da `config`.
+   */
+  testRule(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    rule: RuleTestInput['rule'],
+    budgetVisible: boolean,
+  ): Promise<RuleTestOutcome> {
+    return withSpan('workflow.test_rule', this.spanAttributes(state), async () => {
+      const definition = await this.definitions.publishedDefinition(state.workflowVersionId);
+      const facts = await this.factsOf(tx, state, definition);
+      return testRule({ definition, facts, rule, budgetVisible });
+    });
+  }
+
+  /** RuleContext v1 + listas do processo; a etapa ativa é resolvida na versão informada. */
+  private async factsOf(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    definition: WorkflowSnapshot | null,
+  ): Promise<RuleFacts> {
     const active = activePassOf(state.passes);
     const stage =
-      active === null
+      active === null || definition === null
         ? null
         : (definition.stages.find((candidate) => candidate.id === active.workflowStageId) ?? null);
     const built = await withSpan('workflow.build_rule_context', this.spanAttributes(state), () =>
@@ -157,39 +217,12 @@ export class WorkflowEngineService {
         documents: state.documents,
       }),
     );
-    const process: EngineProcess = {
-      status: state.status,
-      createdById: state.createdById,
-      currentDepartmentId: state.currentDepartmentId,
-      currentResponsibleId: state.currentResponsibleId,
-      requestingDepartmentId: state.ruleProcess.requestingDepartmentId,
-      requestingSecretariatId: state.ruleProcess.requestingSecretariatId,
+    return {
+      context: built.context,
+      documents: built.documents,
+      passes: state.passes,
+      approvals: state.approvals,
     };
-    const input: EngineInput = {
-      definition,
-      process,
-      facts: {
-        context: built.context,
-        documents: built.documents,
-        passes: state.passes,
-        approvals: state.approvals,
-      },
-    };
-    const evaluation = evaluateStage(input);
-    if (active !== null && stage === null) {
-      this.logger.error(
-        {
-          event: 'workflow.stage_not_in_version',
-          processId: state.processId,
-          workflowVersionId: state.workflowVersionId,
-          workflowStageId: active.workflowStageId,
-          correlationId: currentRequestContext()?.correlationId,
-        },
-        'workflow.stage_not_in_version',
-      );
-    }
-    this.reportProblems(state, evaluation);
-    return { input, evaluation };
   }
 
   /** FA-03: regra não avaliável = não satisfeita, com log (nunca o conteúdo nem valores). */

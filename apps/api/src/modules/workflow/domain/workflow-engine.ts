@@ -145,8 +145,11 @@ export function activePassOf(passes: readonly StagePassFact[]): StagePassFact | 
   );
 }
 
+/** O que basta de uma regra para saber quais caminhos ela lê. */
+type ReadingRule = Pick<WorkflowSnapshotRule, 'type' | 'config'>;
+
 /** Códigos de tipo citados em `documents.<CÓDIGO>.*` pelas regras `REQUIRED_FIELD`/`CONDITION`. */
-function referencedDocumentCodes(rules: readonly WorkflowSnapshotRule[]): Set<string> {
+function referencedDocumentCodes(rules: readonly ReadingRule[]): Set<string> {
   const paths: string[] = [];
   for (const rule of rules) {
     if (rule.type === 'REQUIRED_FIELD' && typeof rule.config.field === 'string') {
@@ -171,7 +174,7 @@ function referencedDocumentCodes(rules: readonly WorkflowSnapshotRule[]): Set<st
  */
 function withReferencedDocuments(
   context: RuleContextV1,
-  rules: readonly WorkflowSnapshotRule[],
+  rules: readonly ReadingRule[],
 ): RuleContextV1 {
   const missing = [...referencedDocumentCodes(rules)].filter(
     (code) => !Object.hasOwn(context.documents, code),
@@ -182,6 +185,30 @@ function withReferencedDocuments(
     documents: {
       ...context.documents,
       ...Object.fromEntries(missing.map((code) => [code, ABSENT_DOCUMENT])),
+    },
+  };
+}
+
+/**
+ * Fatos que o `RuleEvaluator` lê: documentos citados pelas regras e ausentes no processo viram
+ * `documents.<CÓDIGO>` "ausente"; as passagens de `REQUIRED_APPROVAL` são resolvidas pela chave da
+ * etapa nas etapas da versão FIXADA no processo (os `workflowStageId` das passagens são dela).
+ */
+export function evaluationFactsOf(
+  definition: Pick<WorkflowSnapshot, 'stages'>,
+  facts: RuleFacts,
+  rules: readonly ReadingRule[],
+): EvaluationFacts {
+  const stageIdsByKey = new Map<string, string[]>();
+  for (const candidate of definition.stages) {
+    stageIdsByKey.set(candidate.key, [...(stageIdsByKey.get(candidate.key) ?? []), candidate.id]);
+  }
+  return {
+    ...facts,
+    context: withReferencedDocuments(facts.context, rules),
+    passesOf: (stageKey) => {
+      const ids = stageIdsByKey.get(stageKey) ?? [];
+      return facts.passes.filter((pass) => ids.includes(pass.workflowStageId));
     },
   };
 }
@@ -218,21 +245,11 @@ export function evaluateStage(input: EngineInput): StageEvaluation {
   );
   const selected = [...exitRules, ...transitionRules];
 
-  const stageIdsByKey = new Map<string, string[]>();
-  for (const candidate of definition.stages) {
-    stageIdsByKey.set(candidate.key, [...(stageIdsByKey.get(candidate.key) ?? []), candidate.id]);
-  }
-  const evaluationFacts: EvaluationFacts = {
-    ...facts,
-    context: withReferencedDocuments(
-      facts.context,
-      selected.map(({ rule }) => rule),
-    ),
-    passesOf: (stageKey) => {
-      const ids = stageIdsByKey.get(stageKey) ?? [];
-      return facts.passes.filter((pass) => ids.includes(pass.workflowStageId));
-    },
-  };
+  const evaluationFacts = evaluationFactsOf(
+    definition,
+    facts,
+    selected.map(({ rule }) => rule),
+  );
   const results = selected.map(({ rule, transition }) => ({
     rule,
     transition,

@@ -666,7 +666,7 @@ flowchart TD
 - **Rota:** `/admin/workflows/[id]/regras` · **Acesso:** `WORKFLOW_MANAGE` (CRUD de regras), `WORKFLOW_VIEW` (schema/contexto); testar regras exige também `PROCESS_VIEW` do processo usado no teste · **Personas:** perfis com essas permissões, tipicamente Administrador do órgão.
 - **Objetivo:** configurar regras de obrigatoriedade/condição por etapa e transição da versão em edição do workflow, e testá-las contra um processo real.
 - **Layout e regiões:** lista de regras por etapa/transição (ordenável) com painel de teste.
-- **Componentes:** `RuleList` (`displayOrder` arrastável), `RuleTypeSelect`, `RequiredDocumentFields`, `RequiredFieldPicker` (opções de WF-19), `RequiredApprovalFields`, `ConditionBuilder` (react-querybuilder), `RuleTestPanel` (busca de processo + resultado).
+- **Componentes:** `RuleList` (`displayOrder` arrastável), `RuleTypeSelect`, `RequiredDocumentFields`, `RequiredFieldPicker` (opções de WF-19), `RequiredApprovalFields`, `ConditionBuilder` (construtor próprio que gera JSON Logic — combinador E/OU e linhas campo/operador/valor, com edição em JSON como alternativa; sem react-querybuilder, que exigiria dependência nova — RN-FND-11), `RuleTestPanel` (busca de processo + resultado).
 - **Dados e endpoints:** WF-16 (criar regra), WF-17 (atualizar, IM), WF-18 (excluir, IM), WF-19 (schema do contexto de regra), WF-23 (testar regras da versão).
 - **Ações:**
   - adicionar/reordenar regra → WF-16 → `WORKFLOW_MANAGE` → item na `RuleList`

@@ -99,3 +99,97 @@ export function isRuleContextPath(path: string): boolean {
 export function isApplicabilityPath(path: string): boolean {
   return path.startsWith('process.') && STATIC_PATHS.has(path);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Schema exposto ao editor de regras (WF-19 · US-044)
+// ---------------------------------------------------------------------------------------------
+
+export const RULE_CONTEXT_FIELD_TYPES = ['string', 'number', 'boolean', 'date', 'list'] as const;
+export type RuleContextFieldType = (typeof RULE_CONTEXT_FIELD_TYPES)[number];
+
+export interface RuleContextField {
+  readonly path: string;
+  readonly label: string;
+  readonly type: RuleContextFieldType;
+}
+
+type FieldSpec = readonly [label: string, type: RuleContextFieldType];
+
+/** Rótulo e tipo de cada folha estática (exceto `version`, que não interessa a uma regra). */
+const STATIC_FIELD_SPECS: Readonly<Record<string, FieldSpec>> = {
+  now: ['Data e hora da avaliação', 'date'],
+  'process.status': ['Processo — situação', 'string'],
+  'process.priority': ['Processo — prioridade', 'string'],
+  'process.estimatedValue': ['Processo — valor estimado', 'number'],
+  'process.contractingTypeCode': ['Processo — tipo de contratação', 'string'],
+  'process.modalityCode': ['Processo — modalidade', 'string'],
+  'process.originCode': ['Processo — origem', 'string'],
+  'process.isPriceRegistration': ['Processo — registro de preços', 'boolean'],
+  'process.isBudgetConfidential': ['Processo — orçamento sigiloso', 'boolean'],
+  'process.pcaStatus': ['Processo — situação no PCA', 'string'],
+  'process.organizationId': ['Processo — órgão', 'string'],
+  'process.requestingSecretariatId': ['Processo — secretaria requisitante', 'string'],
+  'process.requestingDepartmentId': ['Processo — unidade requisitante', 'string'],
+  'process.tags': ['Processo — etiquetas', 'list'],
+  'process.targetDate': ['Processo — data desejada', 'date'],
+  'process.year': ['Processo — ano', 'number'],
+  'process.itemsCount': ['Processo — quantidade de itens', 'number'],
+  'process.hasLots': ['Processo — possui lotes', 'boolean'],
+  'priceResearch.exists': ['Pesquisa de preços — existe', 'boolean'],
+  'priceResearch.completed': ['Pesquisa de preços — concluída', 'boolean'],
+  'priceResearch.totalEstimatedValue': ['Pesquisa de preços — valor total estimado', 'number'],
+  'priceResearch.itemsBelowMinimum': ['Pesquisa de preços — itens abaixo do mínimo', 'number'],
+  'priceResearch.itemsWithOutliers': ['Pesquisa de preços — itens com discrepantes', 'number'],
+  'priceResearch.itemsWithoutValidQuotes': [
+    'Pesquisa de preços — itens sem cotações válidas',
+    'number',
+  ],
+  'risks.count': ['Riscos — quantidade', 'number'],
+  'risks.highOrExtremeCount': ['Riscos — altos ou extremos', 'number'],
+  'risks.withoutTreatmentCount': ['Riscos — sem tratamento', 'number'],
+  'stage.key': ['Etapa atual — chave', 'string'],
+  'stage.enteredAt': ['Etapa atual — entrada', 'date'],
+  'stage.businessDaysInStage': ['Etapa atual — dias úteis na etapa', 'number'],
+};
+
+const DOCUMENT_FIELD_SPECS: Readonly<Record<string, FieldSpec>> = {
+  exists: ['existe', 'boolean'],
+  count: ['quantidade', 'number'],
+  status: ['situação', 'string'],
+  isComplete: ['completo', 'boolean'],
+  versionNumber: ['número da versão', 'number'],
+  approvedAt: ['data da aprovação', 'date'],
+};
+
+/**
+ * Campos do RuleContext v1 para o construtor de regras (WF-19): as folhas estáticas e, para cada
+ * tipo de documento informado, `documents.<CÓDIGO>.<campo>` — em ordem estável.
+ */
+export function ruleContextFields(documentTypeCodes: readonly string[]): RuleContextField[] {
+  const fields: RuleContextField[] = RULE_CONTEXT_V1_PATHS.filter((path) => path !== 'version').map(
+    (path) => {
+      const [label, type] = STATIC_FIELD_SPECS[path] ?? [path, 'string'];
+      return { path, label, type };
+    },
+  );
+  for (const code of [...new Set(documentTypeCodes)].sort()) {
+    for (const field of RULE_CONTEXT_DOCUMENT_FIELDS) {
+      const [label, type] = DOCUMENT_FIELD_SPECS[field] ?? [field, 'string'];
+      const path = `documents.${code}.${field}`;
+      if (isRuleContextPath(path))
+        fields.push({ path, label: `Documento ${code} — ${label}`, type });
+    }
+  }
+  return fields;
+}
+
+/** Resposta do WF-19. */
+export const ruleContextSchemaDtoSchema = z
+  .object({
+    version: z.literal(RULE_CONTEXT_VERSION),
+    fields: z.array(
+      z.object({ path: z.string(), label: z.string(), type: z.enum(RULE_CONTEXT_FIELD_TYPES) }),
+    ),
+  })
+  .meta({ id: 'RuleContextSchema' });
+export type RuleContextSchemaDto = z.infer<typeof ruleContextSchemaDtoSchema>;

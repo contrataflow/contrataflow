@@ -409,7 +409,7 @@ describe('Feature: Modelo de definição de workflow versionado (US-040)', () =>
     ]);
   });
 
-  it('[Validação] Condição com operação proibida e campo fora do contexto', async () => {
+  it('[Validação] Condição com operação proibida; campo fora do contexto só na publicação (RN-WF-56)', async () => {
     const stage = (
       await versionOf((await createWorkflow('REGRAS_INVALIDAS')).draftVersion?.id ?? '')
     ).id;
@@ -435,13 +435,12 @@ describe('Feature: Modelo de definição de workflow versionado (US-040)', () =>
       type: 'REQUIRED_FIELD',
       config: { field: 'process.internalCode' },
     });
-    expect(expectProblem(field, 422, 'VALIDATION_ERROR').errors).toEqual([
-      expect.objectContaining({
-        field: 'config',
-        message: expect.stringMatching(/RuleContext v1/) as unknown,
-      }),
-    ]);
-    expect((await versionOf(parked)).rules).toEqual([]);
+    // US-044 · RN-WF-56: o rascunho aceita; a validação da versão aponta WF_RULE_PATH_UNKNOWN.
+    expect(field.status, JSON.stringify(field.body)).toBe(201);
+    expect((await validate(parked)).errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'WF_RULE_PATH_UNKNOWN' })]),
+    );
+    expect((await versionOf(parked)).rules).toHaveLength(1);
   });
 
   it('[Sucesso] Publicação interna gera snapshot canônico e hash reprodutível', async () => {

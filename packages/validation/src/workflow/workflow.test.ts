@@ -2,12 +2,18 @@ import { describe, expect, it } from 'vitest';
 
 import { WorkflowCreated, WorkflowVersionPublished, WorkflowVersionRetired } from './events.js';
 import { inspectJsonLogic, JSON_LOGIC_MAX_DEPTH } from './json-logic.js';
-import { isRuleContextPath, RULE_CONTEXT_V1_PATHS } from './rule-context.js';
+import {
+  isRuleContextPath,
+  RULE_CONTEXT_V1_PATHS,
+  ruleContextFields,
+  ruleContextSchemaDtoSchema,
+} from './rule-context.js';
 import {
   restrictedMarkdownProblem,
   ruleConfigProblems,
   workflowCreateSchema,
   workflowRuleSchema,
+  workflowRuleTestSchema,
   workflowStageIssues,
   workflowStageSchema,
   workflowTransitionSchema,
@@ -223,7 +229,7 @@ describe('RuleContext v1 e regras (RN-WF-17)', () => {
     ).toEqual([]);
   });
 
-  it('workflowRuleSchema: erro no campo config para expressão proibida e campo fora do contexto', () => {
+  it('workflowRuleSchema: erro no campo config para expressão proibida; REQUIRED_FIELD fora do contexto é aceito no rascunho (RN-WF-56)', () => {
     const base = { scope: 'STAGE_EXIT', stageId: ID, name: 'Regra', message: 'Mensagem válida' };
     const forbidden = workflowRuleSchema.safeParse({
       ...base,
@@ -236,7 +242,13 @@ describe('RuleContext v1 e regras (RN-WF-17)', () => {
       type: 'REQUIRED_FIELD',
       config: { field: 'process.internalCode' },
     });
-    expect(unknownField.error?.issues[0]?.message).toMatch(/RuleContext v1/);
+    expect(unknownField.success).toBe(true);
+    const unknownVariable = workflowRuleSchema.safeParse({
+      ...base,
+      type: 'CONDITION',
+      config: { expression: { '==': [{ var: 'process.internalCode' }, 1] } },
+    });
+    expect(codesOf(unknownVariable)).toEqual(['config:NOT_ALLOWED']);
     const scope = workflowRuleSchema.safeParse({
       ...base,
       stageId: undefined,
@@ -246,6 +258,54 @@ describe('RuleContext v1 e regras (RN-WF-17)', () => {
     });
     expect(codesOf(scope)).toEqual(
       expect.arrayContaining(['stageId:CONDITIONAL_REQUIRED', 'transitionId:NOT_ALLOWED']),
+    );
+  });
+});
+
+describe('Schema do RuleContext (WF-19) e teste de regra (WF-23) — US-044', () => {
+  it('lista toda folha estática (menos `version`) com rótulo e tipo, e os documentos informados', () => {
+    const fields = ruleContextFields(['ETP', 'DFD', 'ETP']);
+    const paths = fields.map((field) => field.path);
+    expect(paths).not.toContain('version');
+    for (const path of RULE_CONTEXT_V1_PATHS.filter((item) => item !== 'version')) {
+      const field = fields.find((item) => item.path === path);
+      expect(field?.label, path).not.toBe(path);
+    }
+    expect(fields.find((field) => field.path === 'process.estimatedValue')).toEqual({
+      path: 'process.estimatedValue',
+      label: 'Processo — valor estimado',
+      type: 'number',
+    });
+    expect(paths.filter((path) => path.startsWith('documents.'))).toHaveLength(12);
+    expect(paths.indexOf('documents.DFD.exists')).toBeLessThan(
+      paths.indexOf('documents.ETP.exists'),
+    );
+    expect(fields.find((field) => field.path === 'documents.ETP.isComplete')?.label).toBe(
+      'Documento ETP — completo',
+    );
+    expect(paths.every((path) => isRuleContextPath(path))).toBe(true);
+    expect(ruleContextSchemaDtoSchema.safeParse({ version: 1, fields }).success).toBe(true);
+  });
+
+  it('código de documento fora do formato não vira campo', () => {
+    expect(ruleContextFields(['etp']).some((field) => field.path.startsWith('documents.'))).toBe(
+      false,
+    );
+  });
+
+  it('workflowRuleTestSchema: severidade padrão BLOCKING e processId obrigatório', () => {
+    const parsed = workflowRuleTestSchema.parse({
+      type: 'REQUIRED_FIELD',
+      config: { field: 'process.year' },
+      processId: ID,
+    });
+    expect(parsed.severity).toBe('BLOCKING');
+    expect(
+      workflowRuleTestSchema.safeParse({ type: 'REQUIRED_FIELD', config: {}, processId: 'x' })
+        .success,
+    ).toBe(false);
+    expect(workflowRuleTestSchema.safeParse({ type: 'X', config: {}, processId: ID }).success).toBe(
+      false,
     );
   });
 });

@@ -42,7 +42,7 @@ export function executionStateOf(runtime: ProcessRuntime): ProcessExecutionState
 }
 
 /** Carrega o runtime visível ao usuário ou 404. */
-async function loadVisible(
+export async function loadVisible(
   tx: TenantTx,
   reader: ProcessRuntimeReader,
   viewers: ProcessViewerResolver,

@@ -15,6 +15,8 @@ import { WorkflowApplicabilityService } from './workflow-applicability.service.j
 import { WorkflowDefinitionService } from './workflow-definition.service.js';
 import { WorkflowEngineService } from './workflow-engine.service.js';
 import type { ProcessExecutionState } from './workflow-engine.service.js';
+import { RuleTestProcessSourceRegistry } from './workflow-rule-test.js';
+import type { RuleTestProcessSource } from './workflow-rule-test.js';
 import { WorkflowVersionPublisher } from './workflow-version.publisher.js';
 import type {
   PublishWorkflowVersionInput,
@@ -37,6 +39,7 @@ export type {
   RuleContextRequest,
 } from './rule-context.js';
 export type { ReleasedStage } from './ports.js';
+export type { RuleTestProcess, RuleTestProcessSource } from './workflow-rule-test.js';
 export type { ProcessExecutionState } from './workflow-engine.service.js';
 export type {
   PublishWorkflowVersionInput,
@@ -69,6 +72,7 @@ export class WorkflowFacade {
     private readonly engine: WorkflowEngineService,
     private readonly contributors: RuleContextContributorRegistry,
     private readonly applicability: WorkflowApplicabilityService,
+    private readonly ruleTestProcesses: RuleTestProcessSourceRegistry,
   ) {}
 
   /**
@@ -168,5 +172,13 @@ export class WorkflowFacade {
    */
   registerRuleContextContributor(contributor: RuleContextContributor): void {
     this.contributors.register(contributor);
+  }
+
+  /**
+   * Registra a fonte do processo de referência de "Testar regra" (WF-23 · US-044): o módulo
+   * `process` carrega o runtime VISÍVEL ao usuário (DEC-024) no `tx` do teste.
+   */
+  registerRuleTestProcessSource(source: RuleTestProcessSource): void {
+    this.ruleTestProcesses.register(source);
   }
 }

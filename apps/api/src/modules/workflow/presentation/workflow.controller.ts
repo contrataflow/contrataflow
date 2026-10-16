@@ -2,6 +2,7 @@ import {
   dataEnvelope,
   pageEnvelope,
   pageQuerySchema,
+  ruleContextSchemaDtoSchema,
   workflowCreateSchema,
   workflowIdParamsSchema,
   workflowListQuerySchema,
@@ -10,6 +11,8 @@ import {
   workflowRuleDtoSchema,
   workflowRuleIdParamsSchema,
   workflowRuleSchema,
+  workflowRuleTestResultSchema,
+  workflowRuleTestSchema,
   workflowRuleUpdateSchema,
   workflowSchema,
   workflowStageDtoSchema,
@@ -28,6 +31,7 @@ import {
 } from '@contrataflow/validation';
 import type {
   PageQuery,
+  RuleContextSchemaDto,
   WorkflowCreate,
   WorkflowDto,
   WorkflowListQuery,
@@ -35,6 +39,8 @@ import type {
   WorkflowResolve,
   WorkflowRuleCreate,
   WorkflowRuleDto,
+  WorkflowRuleTest,
+  WorkflowRuleTestResult,
   WorkflowRuleUpdate,
   WorkflowStageCreate,
   WorkflowStageDto,
@@ -59,6 +65,10 @@ import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.
 
 import { ResolveWorkflowQuery } from '../application/workflow-applicability.service.js';
 import { SetDefaultWorkflowCommand } from '../application/workflow-default.command.js';
+import {
+  GetRuleContextSchemaQuery,
+  TestWorkflowRuleQuery,
+} from '../application/workflow-rule-test.js';
 import {
   CreateWorkflowRuleCommand,
   DeleteWorkflowRuleCommand,
@@ -96,6 +106,7 @@ const ifMatchVersion = (ifMatch: IfMatchValue | null) => ifMatch?.value ?? 0;
  * metadados do workflow, padrão e aplicabilidade, versões e manutenção do rascunho (etapas,
  * transições, regras). Leitura exige `WORKFLOW_VIEW`; escrita, `WORKFLOW_MANAGE` + MFA (POL-14);
  * tornar padrão, `WORKFLOW_PUBLISH` + MFA. Alterar, excluir e tornar padrão exigem `If-Match`.
+ * US-044: schema do RuleContext (WF-19) e "Testar regra" (WF-23 — dry-run, sem MFA própria).
  */
 @Controller()
 @TenantScope('TENANT')
@@ -119,6 +130,8 @@ export class WorkflowController {
     private readonly listWorkflows: ListWorkflowsQuery,
     private readonly setDefault: SetDefaultWorkflowCommand,
     private readonly resolveWorkflow: ResolveWorkflowQuery,
+    private readonly testRuleQuery: TestWorkflowRuleQuery,
+    private readonly ruleContextSchema: GetRuleContextSchemaQuery,
   ) {}
 
   @Get('workflows')
@@ -585,5 +598,47 @@ export class WorkflowController {
       ruleId: params.ruleId,
       expectedVersion: ifMatchVersion(ifMatch),
     });
+  }
+
+  @Get('rule-context/schema')
+  @RequirePermission('WORKFLOW_VIEW')
+  @ApiOperation({
+    operationId: 'WF-19',
+    summary: 'Obter schema do contexto de regras',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Campos do RuleContext v1 (`path`, `label`, `type`) para o construtor de regras, com `documents.<CÓDIGO>.*` dos tipos de documento ativos do tenant.',
+        schema: dataEnvelope(ruleContextSchemaDtoSchema),
+      },
+    },
+  })
+  getRuleContextSchema(): Promise<RuleContextSchemaDto> {
+    return this.ruleContextSchema.execute();
+  }
+
+  @Post('workflow-versions/:versionId/rules/test')
+  @HttpCode(200)
+  @RequirePermission('WORKFLOW_MANAGE')
+  @ApiOperation({
+    operationId: 'WF-23',
+    summary: 'Testar regra',
+    tags: TAGS,
+    auditExempt:
+      'Dry-run somente de leitura (RN-WF-59): avalia a configuração informada contra um processo visível, sem persistir regra, movimentação ou auditoria de domínio.',
+    responses: {
+      200: {
+        description:
+          'Resultado da avaliação (`satisfied`, `severity`, `message`) com os valores do RuleContext usados (orçamento sigiloso mascarado) e os avisos (ex.: campo não reconhecido); processo não visível → 404; operador fora da whitelist → 422 `WORKFLOW_INVALID`.',
+        schema: dataEnvelope(workflowRuleTestResultSchema),
+      },
+    },
+  })
+  postRuleTest(
+    @ZodParams(workflowVersionIdParamsSchema) params: { versionId: string },
+    @ZodBody(workflowRuleTestSchema) body: WorkflowRuleTest,
+  ): Promise<WorkflowRuleTestResult> {
+    return this.testRuleQuery.execute({ versionId: params.versionId, body });
   }
 }

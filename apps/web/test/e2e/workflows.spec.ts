@@ -1,7 +1,8 @@
 // E2E do SCR-034 (US-042/US-043): Administração › Workflows — a lista com o selo "Padrão", "Tornar
 // padrão" com confirmação e toast, a ação desabilitada para workflow sem versão publicada; o editor
 // (criar workflow, adicionar etapas e transição, recarregar e confirmar a persistência, "Criar
-// rascunho" a partir da publicada, reordenação pelo teclado), axe-core em cada estado e a largura
+// rascunho" a partir da publicada, reordenação pelo teclado), as regras do SCR-035 (US-044: criar
+// `REQUIRED_DOCUMENT`, testá-la contra um processo e salvar), axe-core em cada estado e a largura
 // de 360 px. A API é simulada (support/mock-api.mjs); seeder, aplicabilidade
 // (WF-06), concorrência e isolamento por tenant são cobertos nos testes da API (módulo `workflow`
 // e suíte tenant leak). A criação de processo de dispensa resolvendo o workflow chega com a US-001.
@@ -159,4 +160,49 @@ test('no celular (360 px) o painel da etapa vira modal, sem rolagem horizontal',
     await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
   ).toBe(false);
   await expectNoSeriousA11yViolations(page, 'editor de workflow em 360 px');
+});
+
+test('regras (SCR-035): cria REQUIRED_DOCUMENT, testa contra um processo e a recarga mantém', async ({
+  page,
+}) => {
+  await openList(page);
+  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('link', { name: 'Regras da versão' }).click();
+  await expect(page).toHaveURL(/\/admin\/workflows\/[0-9a-f-]+\/regras$/);
+  await expect(page.getByText('Nenhuma regra configurada para esta etapa.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Nova regra' }).click();
+  const form = page.getByRole('region', { name: 'Nova regra' });
+  await form.getByLabel('Tipo de documento').selectOption('ETP');
+  await form.getByLabel('Situação mínima').selectOption('COMPLETE');
+  await form.getByLabel('Nome', { exact: true }).fill('ETP completo');
+  await form.getByLabel('Mensagem ao usuário').fill('O ETP deve estar completo.');
+  await expectNoSeriousA11yViolations(page, 'formulário de regra');
+
+  // FA-03: o teste roda antes de salvar, sem gravar nada.
+  await form.getByLabel('Processo de referência').fill('0012');
+  await form.getByRole('button', { name: '0012/2026 — Aquisição de notebooks' }).click();
+  await form.getByRole('button', { name: 'Testar regra' }).click();
+  await expect(form.getByText('Não satisfeita — O ETP deve estar completo.')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'resultado do teste de regra');
+
+  await form.getByRole('button', { name: 'Criar regra' }).click();
+  await expect(page.getByText('O ETP deve estar completo.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Editar a regra ETP completo' })).toBeVisible();
+  await expect(page.getByText('ETP · COMPLETE')).toBeVisible();
+});
+
+test('no celular (360 px) as regras ficam em coluna única, sem rolagem horizontal', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await openList(page);
+  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('link', { name: 'Regras da versão' }).click();
+  await expect(page.getByRole('button', { name: 'Editar a regra ETP completo' })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+  ).toBe(false);
+  await expectNoSeriousA11yViolations(page, 'regras em 360 px');
 });

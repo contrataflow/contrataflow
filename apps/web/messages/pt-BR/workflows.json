@@ -275,6 +275,170 @@
       "isPrimary": "É a ação principal",
       "requiresComment": "Exige comentário",
       "allowDueDateOverride": "Permite alterar o prazo"
+    },
+    "rulesLink": "Regras da versão"
+  },
+  "rules": {
+    "title": "Regras — {name}",
+    "description": "Configure o que precisa estar pronto para o processo sair de uma etapa ou seguir por uma transição. Teste a regra contra um processo real antes de publicar a versão.",
+    "back": "Voltar ao editor do workflow",
+    "loading": "Carregando as regras…",
+    "loadFailed": "Não foi possível carregar as regras.",
+    "notFound": "Workflow não encontrado.",
+    "noVersion": "Este workflow ainda não tem versão em edição.",
+    "readOnly": "Esta versão está publicada: as regras ficam só para consulta. Crie um rascunho no editor para alterá-las.",
+    "targets": {
+      "label": "Etapas e transições",
+      "stages": "Saída de etapa",
+      "transitions": "Transições",
+      "count": "{count, plural, =0 {nenhuma regra} one {# regra} other {# regras}}",
+      "none": "Crie etapas e transições no editor antes de configurar regras."
+    },
+    "list": {
+      "title": "Regras de {name}",
+      "empty": "Nenhuma regra configurada para esta etapa.",
+      "emptyTransition": "Nenhuma regra configurada para esta transição.",
+      "add": "Nova regra",
+      "edit": "Editar",
+      "editFor": "Editar a regra {name}",
+      "delete": "Excluir",
+      "deleteFor": "Excluir a regra {name}",
+      "inactive": "Inativa",
+      "reorder": "Reordenar {name} (posição {position}). Use as setas para cima e para baixo.",
+      "reorderHint": "Arraste as regras ou use as setas ↑/↓ no ícone de reordenar para mudar a ordem.",
+      "moved": "{name} movida para a posição {position}.",
+      "created": "Regra {name} criada.",
+      "saved": "Regra {name} salva.",
+      "deleted": "Regra excluída.",
+      "caption": "Regras na ordem de avaliação",
+      "columns": {
+        "order": "Ordem",
+        "rule": "Regra",
+        "actions": "Ações"
+      }
+    },
+    "types": {
+      "REQUIRED_DOCUMENT": "Documento obrigatório",
+      "REQUIRED_FIELD": "Campo obrigatório",
+      "REQUIRED_APPROVAL": "Aprovação obrigatória",
+      "CONDITION": "Condição"
+    },
+    "severities": {
+      "BLOCKING": "Bloqueante",
+      "WARNING": "Aviso"
+    },
+    "minStatuses": {
+      "EXISTS": "Existe (qualquer situação)",
+      "COMPLETE": "Completo",
+      "SUBMITTED": "Enviado para revisão",
+      "FINAL": "Finalizado",
+      "APPROVED": "Aprovado"
+    },
+    "form": {
+      "newTitle": "Nova regra",
+      "editTitle": "Editar regra {name}",
+      "hint": "A regra é avaliada quando alguém tenta avançar o processo. Bloqueante impede o avanço; aviso só aparece no checklist.",
+      "type": "Tipo",
+      "name": "Nome",
+      "description": "Descrição",
+      "severity": "Severidade",
+      "message": "Mensagem ao usuário",
+      "messageHint": "Exibida no checklist do processo quando a regra não for satisfeita.",
+      "isActive": "Regra ativa",
+      "isActiveHint": "Desative para suspender a exigência sem perder a configuração.",
+      "documentTypeCode": "Tipo de documento",
+      "minStatus": "Situação mínima",
+      "minCount": "Quantidade mínima",
+      "minCountHint": "Deixe em branco para exigir 1.",
+      "field": "Campo obrigatório",
+      "fieldHint": "Só os campos do contexto de regras são listados.",
+      "stageKey": "Etapa de aprovação",
+      "noApprovalStages": "Esta versão não tem etapa de aprovação.",
+      "cancel": "Cancelar",
+      "create": "Criar regra",
+      "save": "Salvar regra",
+      "select": "Selecione"
+    },
+    "condition": {
+      "legend": "Condição",
+      "combinator": "Combinar as condições com",
+      "and": "E — todas devem ser verdadeiras",
+      "or": "OU — basta uma ser verdadeira",
+      "field": "Campo da condição {position}",
+      "operator": "Operador da condição {position}",
+      "value": "Valor da condição {position}",
+      "add": "Adicionar condição",
+      "remove": "Remover a condição {position}",
+      "empty": "Adicione ao menos uma condição.",
+      "jsonMode": "Editar como JSON",
+      "builderMode": "Voltar ao construtor",
+      "json": "Expressão JSON Logic",
+      "jsonHint": "Somente operações permitidas pelo sistema; a API confere a expressão.",
+      "notRepresentable": "Esta condição foi criada em formato avançado e é editada como JSON.",
+      "true": "Verdadeiro",
+      "false": "Falso",
+      "operators": {
+        "==": "é igual a",
+        "!=": "é diferente de",
+        ">": "é maior que",
+        ">=": "é maior ou igual a",
+        "<": "é menor que",
+        "<=": "é menor ou igual a",
+        "contains": "contém",
+        "filled": "está preenchido",
+        "empty": "está vazio"
+      }
+    },
+    "schema": {
+      "loading": "Carregando os campos disponíveis…",
+      "failed": "Não foi possível carregar os campos disponíveis. Tente novamente.",
+      "retry": "Tentar novamente"
+    },
+    "test": {
+      "title": "Testar regra",
+      "hint": "Avalia a regra do formulário contra um processo existente. Nada é salvo.",
+      "search": "Processo de referência",
+      "searchHint": "Busque pelo código ou pelo título (mínimo de 2 caracteres).",
+      "searching": "Buscando processos…",
+      "noResults": "Nenhum processo encontrado.",
+      "selected": "Processo selecionado: {label}",
+      "change": "Trocar processo",
+      "run": "Testar regra",
+      "satisfied": "Satisfeita",
+      "notSatisfied": "Não satisfeita — {message}",
+      "contextUsed": "Valores usados na avaliação",
+      "noContext": "Nenhum valor do processo foi lido.",
+      "warning": "Atenção: {message}",
+      "fixForm": "Preencha a configuração da regra antes de testar.",
+      "processNotFound": "Selecione um processo válido.",
+      "operatorForbidden": "Esta condição usa um operador não permitido.",
+      "invalidConfig": "Revise a configuração da regra.",
+      "failed": "Não foi possível testar a regra agora."
+    },
+    "validation": {
+      "nameLength": "O nome deve ter de 3 a 150 caracteres.",
+      "messageLength": "A mensagem deve ter de 5 a 500 caracteres.",
+      "minCount": "Informe um número inteiro maior ou igual a 1.",
+      "condition": "Complete a condição {position}.",
+      "json": "Informe uma expressão JSON válida.",
+      "invalid": "Valor inválido.",
+      "requiredFields": {
+        "name": "Informe o nome.",
+        "message": "Informe a mensagem ao usuário.",
+        "documentTypeCode": "Selecione o tipo de documento.",
+        "field": "Informe o campo.",
+        "stageKey": "Selecione a etapa de aprovação."
+      }
+    },
+    "problems": {
+      "conflict": "Os dados foram alterados. Recarregue e tente novamente.",
+      "notDraft": "Esta versão não pode mais ser editada.",
+      "createDraft": "Criar novo rascunho",
+      "reload": "Recarregar",
+      "forbidden": "Você não tem permissão para editar regras.",
+      "mfa": "Confirme sua identidade com o segundo fator para editar regras.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "generic": "Não foi possível concluir a operação."
     }
   }
 }

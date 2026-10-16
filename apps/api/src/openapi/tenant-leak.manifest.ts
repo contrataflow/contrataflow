@@ -34,6 +34,12 @@ export interface ExemptOperation {
 
 export type TenantLeakCase = CoveredOperation | ExemptOperation;
 
+const WORKFLOW_RULE_SCHEMA_ROUTE =
+  'Schema do RuleContext (US-044 · WF-19): sem ID no caminho nem corpo; os documentos listados vêm só dos tipos ativos do tenant do contexto (RLS de document_types), coberto em src/modules/workflow/presentation/workflow-rules.routes.spec.ts.';
+
+const WORKFLOW_RULE_TEST_ROUTE =
+  'Testar regra (US-044 · WF-23): exige WORKFLOW_MANAGE (que o usuário comum da suíte não tem) e a suíte genérica não tem fixture de workflow nem de processo do tenant B; o isolamento (versão e processo de B → 404 igual ao inexistente, nada gravado) é coberto em test/tenant-leak/workflow-rules.spec.ts, com administradores nos dois tenants.';
+
 const EXAMPLE_ROUTE =
   'Rota interna de exemplo do pipeline (US-080/US-084): não lê nem grava dados de tenant e fica fora do contrato público.';
 
@@ -183,6 +189,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-16': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-17': { kind: 'exempt', reason: WORKFLOW_ROUTE },
   'WF-18': { kind: 'exempt', reason: WORKFLOW_ROUTE },
+  'WF-19': { kind: 'exempt', reason: WORKFLOW_RULE_SCHEMA_ROUTE },
+  'WF-23': { kind: 'exempt', reason: WORKFLOW_RULE_TEST_ROUTE },
   'PRC-01': { kind: 'exempt', reason: PROCESS_LIST_ROUTE },
   'PRC-02': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-03': { kind: 'exempt', reason: PROCESS_ROUTE },

@@ -1,9 +1,15 @@
 import type {
   DepartmentLookupItem,
   DocumentTypeDto,
+  ProcessListItemDto,
   RoleDto,
+  RuleContextSchemaDto,
   TenantMembershipDto,
   WorkflowDto,
+  WorkflowRuleCreate,
+  WorkflowRuleDto,
+  WorkflowRuleTestResult,
+  WorkflowRuleUpdate,
   WorkflowStageCreate,
   WorkflowStageDto,
   WorkflowStageUpdate,
@@ -32,12 +38,20 @@ export const workflowKeys = {
     tenantKey(tenantId, 'workflows', 'version', versionId),
   lookups: (tenantId: string, kind: 'departments' | 'roles' | 'users' | 'documentTypes') =>
     tenantKey(tenantId, 'workflows', 'lookups', kind),
+  ruleContextSchema: (tenantId: string) => tenantKey(tenantId, 'workflows', 'rule-context-schema'),
+  ruleTestProcesses: (tenantId: string, q: string) =>
+    tenantKey(tenantId, 'workflows', 'rule-test-processes', q),
 };
 
 export const WORKFLOWS_PATH = '/admin/workflows';
 
 export function workflowEditorHref(id: string): string {
   return `${WORKFLOWS_PATH}/${id}`;
+}
+
+/** SCR-035 (US-044). */
+export function workflowRulesHref(id: string): string {
+  return `${WORKFLOWS_PATH}/${id}/regras`;
 }
 
 /** Staleness das telas de configuração (architecture.md §8.5). */
@@ -164,6 +178,73 @@ export function deleteTransition(
     method: 'DELETE',
     ifMatch: ifMatchOf(transition.version),
   });
+}
+
+/** WF-16. */
+export function createRule(
+  versionId: string,
+  body: WorkflowRuleCreate,
+): Promise<ApiResult<WorkflowRuleDto>> {
+  return apiRequest<WorkflowRuleDto>(`/workflow-versions/${versionId}/rules`, {
+    method: 'POST',
+    body,
+  });
+}
+
+/** WF-17 com o `If-Match` da regra. */
+export function updateRule(
+  rule: Pick<WorkflowRuleDto, 'id' | 'version'>,
+  patch: WorkflowRuleUpdate,
+): Promise<ApiResult<WorkflowRuleDto>> {
+  return apiRequest<WorkflowRuleDto>(`/workflow-rules/${rule.id}`, {
+    method: 'PATCH',
+    body: patch,
+    ifMatch: ifMatchOf(rule.version),
+  });
+}
+
+/** WF-18. */
+export function deleteRule(
+  rule: Pick<WorkflowRuleDto, 'id' | 'version'>,
+): Promise<ApiResult<unknown>> {
+  return apiRequest<unknown>(`/workflow-rules/${rule.id}`, {
+    method: 'DELETE',
+    ifMatch: ifMatchOf(rule.version),
+  });
+}
+
+/** WF-19: campos do RuleContext v1 para o construtor de regras. */
+export function fetchRuleContextSchema(
+  signal?: AbortSignal,
+): Promise<ApiResult<RuleContextSchemaDto>> {
+  return apiRequest<RuleContextSchemaDto>('/rule-context/schema', { signal });
+}
+
+export interface RuleTestInput {
+  readonly type: WorkflowRuleDto['type'];
+  readonly config: Record<string, unknown>;
+  readonly severity: WorkflowRuleDto['severity'];
+  readonly message?: string;
+  readonly processId: string;
+}
+
+/** WF-23: "Testar regra" (dry-run — nada é salvo). */
+export function testRule(
+  versionId: string,
+  body: RuleTestInput,
+): Promise<ApiResult<WorkflowRuleTestResult>> {
+  return apiRequest<WorkflowRuleTestResult>(`/workflow-versions/${versionId}/rules/test`, {
+    method: 'POST',
+    body,
+  });
+}
+
+/** PRC-01 (busca por código/título): processos visíveis para o teste de regra. */
+export function searchRuleTestProcesses(
+  q: string,
+  signal?: AbortSignal,
+): Promise<ApiResult<ProcessListItemDto[]>> {
+  return apiRequest<ProcessListItemDto[]>('/processes', { query: { q, pageSize: 10 }, signal });
 }
 
 /*

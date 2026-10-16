@@ -86,3 +86,22 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
   avisos do grafo, "Criar rascunho"), `stage-properties-panel.tsx` (salva por campo ao perder o
   foco, com os mesmos condicionais da API), `workflow-transitions.tsx` e o modelo puro
   `workflow-editor-model.ts`.
+
+## Regras de etapa e de transição (US-044)
+
+- **CRUD (WF-16/17/18):** os comandos da US-040 (`workflow-rule.commands.ts`). RN-WF-56:
+  `REQUIRED_FIELD` com caminho fora do RuleContext v1 é aceito no rascunho
+  (`workflowRuleIssues` ignora `WF_RULE_PATH_UNKNOWN` desse tipo); a validação/publicação o barra.
+  `CONDITION` continua recusando caminho e operação fora da whitelist já na escrita.
+- **Schema (WF-19):** `GetRuleContextSchemaQuery` — `ruleContextFields` do pacote de validação
+  (rótulo pt-BR e tipo por folha) com `documents.<CÓDIGO>.*` dos tipos ATIVOS do tenant
+  (`DocumentTypeCatalog`).
+- **"Testar regra" (WF-23 · RN-WF-59):** `TestWorkflowRuleQuery` → `WorkflowEngineService.testRule`
+  → `domain/rule-test.ts`: a `config` solta passa pelo MESMO `evaluateRule` e pelos mesmos fatos do
+  motor (`evaluationFactsOf`, contexto montado como no PRC-09, na versão FIXADA no processo — não na
+  versão testada). O processo vem da porta `RuleTestProcessSource`, registrada pelo `process`
+  (`RuleTestProcessReader`: mesma visibilidade do PRC-08/09; não visível = 404). Forma da `config`
+  → 422 `VALIDATION_ERROR`; operação fora da whitelist → 422 `WORKFLOW_INVALID`
+  (`WF_RULE_OPERATOR_FORBIDDEN`); caminho desconhecido → não satisfeita com aviso `PATH_UNKNOWN`.
+  `contextUsed` só traz caminhos do schema e mascara o orçamento sigiloso (`[sigiloso]`, POL-09).
+  Nada é gravado (sem auditoria); logs `info workflow.rule_tested` e `warn workflow.rule_path_unknown`.
