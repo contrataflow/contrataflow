@@ -9,6 +9,8 @@ export interface ApiResponseSpec {
   readonly description: string;
   /** Schema do corpo de sucesso (já com envelope — `dataEnvelope`, `pageEnvelope`…). */
   readonly schema?: z.ZodType;
+  /** Tipos de mídia do corpo quando não é JSON (arquivo — ex.: `text/csv` de AUD-03). */
+  readonly contentTypes?: readonly string[];
 }
 
 export interface ApiOperationSpec {

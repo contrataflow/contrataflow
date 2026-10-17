@@ -12,6 +12,12 @@ import type {
 } from '../application/ports.js';
 import { coalesceStateFrom } from '../domain/audit-coalescer.js';
 import type { CoalesceState } from '../domain/audit-coalescer.js';
+import {
+  compareAuditRecords,
+  isAfterAuditCursor,
+  matchesAuditCriteria,
+} from '../domain/audit-log-query.js';
+import type { AuditLogCriteria, AuditLogPageQuery } from '../domain/audit-log-query.js';
 import type { AuditRecord, SealedAuditRecord } from '../domain/audit-record.js';
 import { SEAL_PERIOD_MS } from '../domain/audit-seal.js';
 import type { AuditSeal, SealPeriod } from '../domain/audit-seal.js';
@@ -59,6 +65,31 @@ export class InMemoryAuditLogStore implements AuditLogStore {
           record.occurredAt.getTime() === query.occurredAt.getTime(),
       ),
     );
+  }
+
+  search(_tx: TenantTx, query: AuditLogPageQuery): Promise<SealedAuditRecord[]> {
+    return Promise.resolve(
+      this.records
+        .filter((record) => matchesAuditCriteria(record, query))
+        .filter((record) => isAfterAuditCursor(record, query.after))
+        .sort(compareAuditRecords)
+        .slice(0, query.take),
+    );
+  }
+
+  findById(_tx: TenantTx, tenantId: string, id: string): Promise<SealedAuditRecord | null> {
+    return Promise.resolve(
+      this.records.find((record) => record.id === id && record.tenantId === tenantId) ?? null,
+    );
+  }
+
+  count(_tx: TenantTx, criteria: AuditLogCriteria, cap: number): Promise<number> {
+    let total = 0;
+    for (const record of this.records) {
+      if (matchesAuditCriteria(record, criteria)) total += 1;
+      if (total >= cap) break;
+    }
+    return Promise.resolve(total);
   }
 }
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, StreamableFile } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
 import { map } from 'rxjs';
 import type { Observable } from 'rxjs';
@@ -41,6 +41,8 @@ export class WithHttpStatus<T> {
 /** Envelope de DEC-106 aplicado ao valor devolvido pelo handler. */
 export function toEnvelope(value: unknown): unknown {
   if (value === undefined) return undefined;
+  // Arquivo (exportação em *streaming* — AUD-03): o corpo é o próprio arquivo, sem envelope.
+  if (value instanceof StreamableFile) return value;
   if (value instanceof WithHttpStatus) return toEnvelope((value as WithHttpStatus<unknown>).value);
   if (value instanceof PageResult || value instanceof CursorResult) {
     return { data: value.items, meta: value.meta };
@@ -58,7 +60,8 @@ export function toEnvelope(value: unknown): unknown {
 
 /**
  * Handlers devolvem o recurso (`{ data }`), um `PageResult`/`CursorResult`/`DataResult`
- * (`{ data, meta }`), um `DataWithMembers` (`{ data, …membros }`) ou nada (204). Nenhuma rota monta o envelope à mão (RN-FND-37).
+ * (`{ data, meta }`), um `DataWithMembers` (`{ data, …membros }`), um `StreamableFile` (arquivo, sem
+ * envelope) ou nada (204). Nenhuma rota monta o envelope à mão (RN-FND-37).
  */
 @Injectable()
 export class EnvelopeInterceptor implements NestInterceptor {

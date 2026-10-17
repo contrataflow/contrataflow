@@ -1,13 +1,69 @@
 import { Injectable } from '@nestjs/common';
 
 import { isMissingPartitionError } from '#shared/database/errors.js';
+import { Prisma } from '#shared/database/prisma.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { AUDIT_LOG_COLUMNS, toSealedAuditRecord } from './audit-log-row.js';
+import type { SealedAuditLogRow } from './audit-log-row.js';
 import { AuditPartitionMissingError } from '../application/ports.js';
 import type { AuditLogStore, CoalesceQuery, SessionRecordQuery } from '../application/ports.js';
 import { coalesceStateFrom } from '../domain/audit-coalescer.js';
 import type { CoalesceState } from '../domain/audit-coalescer.js';
+import type { AuditLogCriteria, AuditLogPageQuery } from '../domain/audit-log-query.js';
 import type { SealedAuditRecord } from '../domain/audit-record.js';
+
+/**
+ * Predicado de AUD-01/AUD-03 (US-075 · RN-AUD-17): tenant explícito (além da RLS), período
+ * inclusivo SEMPRE presente — poda as partições mensais fora do intervalo — e os filtros
+ * opcionais por igualdade/`ANY`, cada um servido por um índice `(tenant_id, …, occurred_at DESC)`
+ * de entities.md §4. Todo valor é parâmetro, nunca texto interpolado.
+ */
+export function auditCriteriaSql(criteria: AuditLogCriteria): Prisma.Sql[] {
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`tenant_id = ${criteria.tenantId}::uuid`,
+    Prisma.sql`occurred_at >= ${criteria.occurredFrom}`,
+    Prisma.sql`occurred_at <= ${criteria.occurredTo}`,
+  ];
+  if (criteria.actorUserIds !== null) {
+    conditions.push(Prisma.sql`actor_user_id = ANY(${[...criteria.actorUserIds]}::uuid[])`);
+  }
+  if (criteria.actions !== null) {
+    conditions.push(Prisma.sql`action = ANY(${[...criteria.actions]}::text[])`);
+  }
+  if (criteria.categories !== null) {
+    conditions.push(Prisma.sql`category = ANY(${[...criteria.categories]}::audit_category[])`);
+  }
+  if (criteria.results !== null) {
+    conditions.push(Prisma.sql`result = ANY(${[...criteria.results]}::audit_result[])`);
+  }
+  if (criteria.entityType !== null) {
+    conditions.push(Prisma.sql`entity_type = ${criteria.entityType}`);
+  }
+  if (criteria.entityId !== null) {
+    conditions.push(Prisma.sql`entity_id = ${criteria.entityId}::uuid`);
+  }
+  if (criteria.processId !== null) {
+    conditions.push(Prisma.sql`process_id = ${criteria.processId}::uuid`);
+  }
+  return conditions;
+}
+
+/** Uma página por cursor: comparação de linha `(occurred_at, id) < (…)`, na direção dos índices. */
+export function buildAuditSearchSql(query: AuditLogPageQuery): Prisma.Sql {
+  const conditions = auditCriteriaSql(query);
+  if (query.after !== null) {
+    conditions.push(
+      Prisma.sql`(occurred_at, id) < (${query.after.occurredAt}, ${query.after.id}::uuid)`,
+    );
+  }
+  return Prisma.sql`
+    SELECT ${AUDIT_LOG_COLUMNS}, row_hash
+      FROM audit_logs
+     WHERE ${Prisma.join(conditions, ' AND ')}
+     ORDER BY occurred_at DESC, id DESC
+     LIMIT ${query.take}`;
+}
 
 /**
  * `audit_logs` no PostgreSQL (US-073): INSERT por SQL parametrizado no `tx` do caso de uso — sem
@@ -71,5 +127,34 @@ export class PrismaAuditLogStore implements AuditLogStore {
          AND session_id_hash = ${query.sessionIdHash}
        LIMIT 1`;
     return rows.length > 0;
+  }
+
+  /** AUD-01/AUD-03 (US-075): uma instrução, sob a RLS do tenant (`app.tenant_id` da transação). */
+  async search(tx: TenantTx, query: AuditLogPageQuery): Promise<SealedAuditRecord[]> {
+    const rows = await tx.$queryRaw<SealedAuditLogRow[]>(buildAuditSearchSql(query));
+    return rows.map(toSealedAuditRecord);
+  }
+
+  async findById(tx: TenantTx, tenantId: string, id: string): Promise<SealedAuditRecord | null> {
+    // Sem `occurred_at` não há poda: o índice da PK `(id, occurred_at)` de cada partição resolve.
+    const rows = await tx.$queryRaw<SealedAuditLogRow[]>`
+      SELECT ${AUDIT_LOG_COLUMNS}, row_hash
+        FROM audit_logs
+       WHERE tenant_id = ${tenantId}::uuid
+         AND id = ${id}::uuid
+       LIMIT 1`;
+    const [row] = rows;
+    return row ? toSealedAuditRecord(row) : null;
+  }
+
+  async count(tx: TenantTx, criteria: AuditLogCriteria, cap: number): Promise<number> {
+    // Contagem limitada ao teto: acima de `maxRows` o número exato não importa (RN-AUD-19).
+    const [row] = await tx.$queryRaw<{ total: number }[]>`
+      SELECT count(*)::int AS total
+        FROM (SELECT 1
+                FROM audit_logs
+               WHERE ${Prisma.join(auditCriteriaSql(criteria), ' AND ')}
+               LIMIT ${cap}) AS capped`;
+    return row?.total ?? 0;
   }
 }

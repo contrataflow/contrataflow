@@ -6,6 +6,11 @@ import { PlatformModule } from '#modules/platform/platform.module.js';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 
 import {
+  ExportAuditLogsHandler,
+  GetAuditLogHandler,
+  SearchAuditLogsHandler,
+} from './application/audit-logs.handlers.js';
+import {
   GetAuditSealsHandler,
   VerifyAuditSealsHandler,
 } from './application/audit-seals.handlers.js';
@@ -32,6 +37,7 @@ import {
   PrismaAuditPartitions,
   PrismaAuditTransactions,
 } from './infrastructure/prisma-audit-transactions.js';
+import { AuditLogsController } from './presentation/audit-logs.controller.js';
 import { AuditSealsController } from './presentation/audit-seals.controller.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): trilha em memória. */
@@ -42,11 +48,13 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * auditoria é transversal: todo módulo (inclusive os de nível 1, que não importam este) e o
  * pipeline HTTP injetam a porta `AUDIT_TRAIL` do shared kernel, nunca este módulo (DEC-071).
  * US-074: dono de `AuditSeal` — o worker sela; aqui, a listagem (AUD-04) e a verificação (AUD-05).
+ * US-075: consulta (AUD-01), detalhe (AUD-02) e exportação (AUD-03) da trilha. Os selos vêm antes
+ * na lista de controllers: `/audit/seals` precisa casar antes de `/audit/:id`.
  */
 @Global()
 @Module({
   imports: [PlatformModule],
-  controllers: [AuditSealsController],
+  controllers: [AuditSealsController, AuditLogsController],
   providers: [
     AuditFacade,
     AuditService,
@@ -83,6 +91,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     },
     GetAuditSealsHandler,
     VerifyAuditSealsHandler,
+    SearchAuditLogsHandler,
+    GetAuditLogHandler,
+    ExportAuditLogsHandler,
     { provide: AUDIT_CLOCK, useValue: () => new Date() },
     EnsureAuditPartitionsJob,
     AuditPartitionScheduler,

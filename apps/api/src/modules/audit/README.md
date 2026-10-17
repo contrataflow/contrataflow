@@ -137,6 +137,33 @@ composta `(tenant_id, previous_seal_id)`.
 - **Selo de plataforma** (`seal-platform`, `tenant_id` nulo): não implementado — a aplicação não lê
   a trilha de plataforma; o `tick` só enfileira jobs com handler.
 
+## Consulta e exportação (US-075)
+
+Somente leitura sobre `audit_logs` (nenhuma tabela nova). `AUDIT_VIEW`/`AUDIT_EXPORT` são `HIGH`: o
+guard aplica o MFA (POL-14); em `OFFBOARDING` só `ADMIN_ORGAO`/`AUDITOR` passam (pipeline — DEC-132).
+
+- **AUD-01** (`SearchAuditLogsHandler`): período obrigatório de até 90 dias (schema compartilhado
+  `auditLogSearchQuerySchema`) — garante a poda das partições mensais; filtros por igualdade/`ANY`
+  sobre os índices `(tenant_id, …, occurred_at DESC)`; cursor `(occurred_at, id) < (…)` em
+  `occurred_at DESC, id DESC` (`domain/audit-log-query.ts` + `buildAuditSearchSql`). `limit` acima
+  de 100 é ajustado. Grava `audit.search` (`metadata.target = 'logs'` + filtros).
+- **AUD-02** (`GetAuditLogHandler`): o registro como gravado (o mascaramento da US-073 é
+  definitivo); de outro tenant = 404 idêntico ao inexistente. Grava `audit.search`
+  (`target = 'record'`).
+- **AUD-03** (`ExportAuditLogsHandler` + `domain/audit-export-writer.ts`): conta (limitado a 10× o
+  teto) e recusa acima de `AUDIT_EXPORT_MAX_ROWS` (100 mil) com 422 `EXPORT_TOO_LARGE`; grava
+  `audit.export` (filtros, `format`, `rowCount`) ANTES do primeiro byte; fixa o fim do período no
+  instante anterior ao pedido (a própria auditoria nunca entra no arquivo); lê em lotes de 1.000
+  por cursor, cada lote numa transação curta, e envia em _streaming_ (`StreamableFile` — o
+  `EnvelopeInterceptor` deixa passar). Falha no meio derruba a conexão (arquivo nunca truncado como
+  completo). CSV: BOM UTF-8, CRLF, RFC 4180, `changes`/`metadata` em JSON e `'` antes de todo valor
+  iniciado por `=`, `+`, `-`, `@`, TAB ou CR (RN-AUD-20). NDJSON: um `AuditLog` por linha.
+- O gerador do arquivo roda depois de o handler devolver: cada passo usa o contexto da requisição
+  capturado (`AsyncLocalStorage.snapshot`) — tenant da transação, ator e `correlationId`.
+- Logs: `audit.search_executed`, `audit.export_executed`, `warn audit.export_too_large`, `error
+audit.query_failed` (nunca `changes`/`metadata` dos registros). Métricas: `audit_search_total`,
+  `audit_export_total{format,outcome}`, `audit_query_duration_ms{operation}`.
+
 ## Logs e métricas
 
 `info audit.recorded` · `warn audit.coalesced` (agregado por minuto) · `warn

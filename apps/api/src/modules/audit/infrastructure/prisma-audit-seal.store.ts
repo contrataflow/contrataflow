@@ -1,13 +1,13 @@
-import type { ActorType, AuditAction, AuditCategory, AuditResult } from '@contrataflow/types';
 import { Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { toAuditRecord } from './audit-log-row.js';
+import type { AuditLogRow } from './audit-log-row.js';
 import type { AuditSealListCriteria, AuditSealStore } from '../application/ports.js';
 import type { AuditRecord } from '../domain/audit-record.js';
 import { SEAL_PERIOD_MS } from '../domain/audit-seal.js';
 import type { AuditSeal, SealPeriod } from '../domain/audit-seal.js';
-import type { JsonObject, JsonValue } from '../domain/canonical-json.js';
 
 interface SealRow {
   readonly id: string;
@@ -23,31 +23,6 @@ interface SealRow {
   readonly sealed_at: Date;
 }
 
-interface AuditRow {
-  readonly id: string;
-  readonly occurred_at: Date;
-  readonly tenant_id: string | null;
-  readonly actor_type: string;
-  readonly actor_user_id: string | null;
-  readonly actor_name: string | null;
-  readonly actor_membership_id: string | null;
-  readonly on_behalf_of_user_id: string | null;
-  readonly action: string;
-  readonly category: string;
-  readonly result: string;
-  readonly entity_type: string | null;
-  readonly entity_id: string | null;
-  readonly process_id: string | null;
-  readonly changes: JsonValue[] | null;
-  readonly metadata: JsonObject;
-  readonly reason_code: string | null;
-  readonly ip: string | null;
-  readonly user_agent: string | null;
-  readonly correlation_id: string | null;
-  readonly request_id: string | null;
-  readonly session_id_hash: string | null;
-}
-
 function toSeal(row: SealRow): AuditSeal {
   return {
     id: row.id,
@@ -61,34 +36,6 @@ function toSeal(row: SealRow): AuditSeal {
     previousSealId: row.previous_seal_id,
     chainHash: row.chain_hash,
     sealedAt: row.sealed_at,
-  };
-}
-
-/** Registro lido do banco na forma do `rowHash` (README do módulo: `host(ip)`, enums em texto). */
-function toRecord(row: AuditRow): AuditRecord {
-  return {
-    id: row.id,
-    occurredAt: row.occurred_at,
-    tenantId: row.tenant_id,
-    actorType: row.actor_type as ActorType,
-    actorUserId: row.actor_user_id,
-    actorName: row.actor_name,
-    actorMembershipId: row.actor_membership_id,
-    onBehalfOfUserId: row.on_behalf_of_user_id,
-    action: row.action as AuditAction,
-    category: row.category as AuditCategory,
-    result: row.result as AuditResult,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
-    processId: row.process_id,
-    changes: row.changes,
-    metadata: row.metadata,
-    reasonCode: row.reason_code,
-    ip: row.ip,
-    userAgent: row.user_agent,
-    correlationId: row.correlation_id,
-    requestId: row.request_id,
-    sessionIdHash: row.session_id_hash,
   };
 }
 
@@ -170,7 +117,7 @@ export class PrismaAuditSealStore implements AuditSealStore {
     // Índice (tenant_id, occurred_at DESC), só na partição do mês do período. Limite superior
     // exclusivo na hora seguinte — o mesmo do worker, mesmo com microssegundos gravados.
     const next = new Date(period.start.getTime() + SEAL_PERIOD_MS);
-    const rows = await tx.$queryRaw<AuditRow[]>`
+    const rows = await tx.$queryRaw<AuditLogRow[]>`
       SELECT id::text, occurred_at, tenant_id::text, actor_type::text, actor_user_id::text,
              actor_name, actor_membership_id::text, on_behalf_of_user_id::text, action,
              category::text, result::text, entity_type, entity_id::text, process_id::text,
@@ -181,6 +128,6 @@ export class PrismaAuditSealStore implements AuditSealStore {
          AND occurred_at >= ${period.start}
          AND occurred_at < ${next}
        ORDER BY occurred_at, id`;
-    return rows.map(toRecord);
+    return rows.map(toAuditRecord);
   }
 }

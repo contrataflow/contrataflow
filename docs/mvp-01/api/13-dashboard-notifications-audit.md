@@ -144,7 +144,7 @@
   | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | Período ausente ou acima de 90 dias |
   | 422 | `VALIDATION_ERROR` | `occurredTo` anterior a `occurredFrom` |
 - **Efeitos:** — (consulta não gera evento de domínio; é registrada como `AuditLog`, não como evento de outbox); auditoria `audit.search` (`ACCESS`; `metadata`: filtros aplicados); `access.denied` (`reasonCode = AUDIT_VIEW`/`MFA_REQUIRED`)
-- **Notas:** `limit` acima de 100 é ajustado para o máximo pela API (sem erro).
+- **Notas:** `limit` acima de 100 é ajustado para o máximo pela API (sem erro). Cursor inválido ou corrompido → 422 `VALIDATION_ERROR` (`cursor`). Ordem `occurredAt DESC, id DESC`; período inclusivo nos dois extremos.
 
 ### AUD-02 — Obter registro de auditoria
 `GET /api/v1/audit/{id}` · **Permissão:** `AUDIT_VIEW` · **Story:** US-075
@@ -176,7 +176,7 @@
   | 422 | `VALIDATION_ERROR` (`INVALID_ENUM`) | `format` fora de `csv`/`ndjson` |
   | 422 | `EXPORT_TOO_LARGE` | Exportação acima de 100 mil linhas |
 - **Efeitos:** Auditoria `audit.export` (`EXPORT`; `metadata`: filtros aplicados, `format`, `rowCount`); `access.denied` (`reasonCode = AUDIT_EXPORT`/`MFA_REQUIRED`)
-- **Notas:** refinar período/filtros quando exceder o limite de linhas.
+- **Notas:** refinar período/filtros quando exceder o limite de linhas (`audit.export.maxRows` — `AUDIT_EXPORT_MAX_ROWS`, padrão 100.000; o problem+json traz `estimatedCount`). O fim do período é fixado no instante do pedido (a própria auditoria da exportação não entra no arquivo). Arquivo `auditoria-AAAAMMDD-AAAAMMDD.{csv,ndjson}`, ordem `occurredAt DESC, id DESC`. CSV: UTF-8 com BOM, CRLF, RFC 4180, uma coluna por campo de `AuditLog` (sem `tenantId`), `changes`/`metadata` em JSON, escape de fórmulas (RN-AUD-20) em toda coluna de texto. NDJSON: um `AuditLog` por linha. Classe de limite "Exportações e renderização" (429 `RATE_LIMITED`).
 
 ### AUD-04 — Listar selos de integridade
 `GET /api/v1/audit/seals` · **Permissão:** `AUDIT_VIEW` · **Story:** US-074

@@ -22,7 +22,8 @@ async function tamper(tampered: boolean): Promise<void> {
 async function openSeals(page: Page): Promise<void> {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/auditoria')}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Auditoria' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Selos' })).toBeVisible();
+  // "Registros" (US-075) é a aba padrão de SCR-037.
+  await page.getByRole('tab', { name: 'Selos' }).click();
   await expect(
     page.getByRole('table', { name: 'Selos de integridade da trilha de auditoria' }),
   ).toBeVisible();

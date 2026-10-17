@@ -127,6 +127,9 @@ const PROCESS_ITEMS_ROUTE =
 const AUDIT_SEAL_ROUTE =
   'Selos de integridade (US-074): a suíte genérica não tem trilha nem selos do tenant B. O isolamento (AUD-04 listando só os selos do tenant, AUD-05 sobre intervalo que só tem selo de B → 404 NOT_FOUND e RLS de audit_seals com app.tenant_id diferente) é coberto em test/tenant-leak/audit-seals.spec.ts, e a selagem só com os registros do tenant do job em apps/worker/test/tenant-leak/audit-sealer.spec.ts, com PostgreSQL real.';
 
+const AUDIT_LOG_ROUTE =
+  'Consulta e exportação da trilha (US-075): a suíte genérica não tem trilha do tenant B. O isolamento (AUD-01 e AUD-03 devolvendo só registros do tenant mesmo com filtros que casariam os de B, AUD-02 com id de registro de B → 404 NOT_FOUND com o corpo do inexistente, e a RLS de audit_logs com app.tenant_id diferente) é coberto em test/tenant-leak/audit-logs.spec.ts, com PostgreSQL real, e em src/modules/audit/presentation/audit-logs.routes.spec.ts.';
+
 const PROCESS_TIMELINE_ROUTE =
   'Timeline do processo (US-060): a suíte genérica não tem processo nem entradas de timeline do tenant B. O isolamento (PRC-12 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_timeline_entries com app.tenant_id diferente retornando vazio e cursor forjado com posição de B sem efeito) é coberto em test/tenant-leak/process-timeline.spec.ts, com PostgreSQL real.';
 
@@ -282,6 +285,9 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'AI-04': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-05': { kind: 'exempt', reason: AI_USAGE_ROUTE },
   'AI-06': { kind: 'exempt', reason: AI_USAGE_ROUTE },
+  'AUD-01': { kind: 'exempt', reason: AUDIT_LOG_ROUTE },
+  'AUD-02': { kind: 'exempt', reason: AUDIT_LOG_ROUTE },
+  'AUD-03': { kind: 'exempt', reason: AUDIT_LOG_ROUTE },
   'AUD-04': { kind: 'exempt', reason: AUDIT_SEAL_ROUTE },
   'AUD-05': { kind: 'exempt', reason: AUDIT_SEAL_ROUTE },
   'TPL-01': { kind: 'exempt', reason: TEMPLATE_ROUTE },

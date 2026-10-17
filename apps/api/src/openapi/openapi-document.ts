@@ -94,6 +94,14 @@ export function collectOperations(controllers: readonly Type[]): CollectedOperat
   );
 }
 
+/** Corpo de sucesso: JSON por padrão; arquivo nos tipos informados (ex.: CSV/NDJSON de AUD-03). */
+function contentOf(
+  schema: z.ZodType,
+  contentTypes: readonly string[] = ['application/json'],
+): NonNullable<ResponseConfig['content']> {
+  return Object.fromEntries(contentTypes.map((type) => [type, { schema }]));
+}
+
 const problem = (description: string): ResponseConfig => ({
   description,
   content: { 'application/problem+json': { schema: problemDetailsSchema } },
@@ -147,7 +155,7 @@ export function buildOpenApiDocument(
         {
           description: response.description,
           ...(response.schema
-            ? { content: { 'application/json': { schema: response.schema } } }
+            ? { content: contentOf(response.schema, response.contentTypes) }
             : {}),
         } satisfies ResponseConfig,
       ]),

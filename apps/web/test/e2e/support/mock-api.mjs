@@ -1036,6 +1036,70 @@ function verifyAuditSeals(body) {
   return { status: 200, data: { brokenAtPeriodStart: broken?.periodStart ?? null, results } };
 }
 
+// Trilha de auditoria (US-075 · AUD-01/02/03): três registros nas últimas horas (dentro do período
+// padrão de 7 dias), um com nome que seria fórmula numa planilha. A exportação aplica os mesmos
+// filtros e o escape de RN-AUD-20 (a API real o faz em `audit-export-writer.ts`).
+const AUDIT_PROCESS_ID = '0192a000-0000-7000-8000-0000000075f1';
+const auditLogs = [
+  ['process.create', 'DATA_CHANGE', 'SUCCESS', 'Ana Souza', null],
+  ['access.denied', 'ACCESS', 'DENIED', 'Ana Souza', 'PROCESS_CREATE'],
+  ['supplier.update', 'DATA_CHANGE', 'SUCCESS', '=SOMA(1;2)', null],
+].map(([action, category, result, actorName, reasonCode], index) => ({
+  id: `0192a000-0000-7000-8000-00000000750${index}`,
+  occurredAt: new Date(Date.now() - (index + 1) * HOUR_MS).toISOString(),
+  actorType: 'USER',
+  actorUserId: '0192a000-0000-7000-8000-0000000000a1',
+  actorName,
+  actorMembershipId: null,
+  onBehalfOfUserId: null,
+  action,
+  category,
+  result,
+  entityType: 'Process',
+  entityId: AUDIT_PROCESS_ID,
+  processId: AUDIT_PROCESS_ID,
+  changes:
+    action === 'process.create'
+      ? [
+          { path: 'contactCpf', old: '***.456.789-**', new: '***.654.321-**' },
+          { path: 'notes', old: null, new: { hash: 'ab12cd34ef56ab12', length: 800 } },
+        ]
+      : null,
+  metadata: { processCode: '0075/2026' },
+  reasonCode,
+  ip: '10.0.0.1',
+  userAgent: 'Playwright',
+  correlationId: `corr-75${index}`,
+  requestId: null,
+  sessionIdHash: null,
+  rowHash: 'f'.repeat(64),
+}));
+
+function filterAuditLogs(params) {
+  const from = Date.parse(params.get('occurredFrom') ?? '');
+  const to = Date.parse(params.get('occurredTo') ?? '');
+  const actions = params.get('action')?.split(',') ?? null;
+  return auditLogs.filter(
+    (item) =>
+      Date.parse(item.occurredAt) >= from &&
+      Date.parse(item.occurredAt) <= to &&
+      (actions === null || actions.includes(item.action)),
+  );
+}
+
+const csvCell = (value) => {
+  if (value === null || value === undefined) return '';
+  let text = typeof value === 'string' ? value : JSON.stringify(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
+function auditCsv(items) {
+  const columns = ['id', 'occurredAt', 'actorName', 'action', 'category', 'result'];
+  const lines = items.map((item) => columns.map((column) => csvCell(item[column])).join(','));
+  return `${String.fromCharCode(0xfeff)}${[columns.join(','), ...lines].join('\r\n')}\r\n`;
+}
+
 // Versões do documento (US-066 · DOC-03/15/16/18): um ETP em rascunho com a versão 1 já gravada;
 // "Salvar versão" grava a próxima com o texto atual do OBJETO, e a comparação diferencia essa seção.
 const VERSIONED_PROCESS_ID = '0192a000-0000-7000-8000-0000000d0c00';
@@ -1284,6 +1348,7 @@ createServer(async (request, response) => {
             { code: 'WORKFLOW_MANAGE', scopes: [] },
             { code: 'WORKFLOW_PUBLISH', scopes: [] },
             { code: 'AUDIT_VIEW', scopes: [] },
+            { code: 'AUDIT_EXPORT', scopes: [] },
             { code: 'SUPPLIER_VIEW', scopes: [] },
             { code: 'SUPPLIER_MANAGE', scopes: [] },
           ]
@@ -2856,6 +2921,32 @@ createServer(async (request, response) => {
       { data: view },
       { Location: `/api/v1/processes/${view.id}`, ETag: '"1"' },
     );
+  }
+  if (url.pathname === '/api/v1/audit' && request.method === 'GET') {
+    // AUD-01 (US-075): filtros por período e ação; uma página só (sem cursor).
+    return send(response, 200, {
+      data: filterAuditLogs(url.searchParams),
+      meta: { nextCursor: null, hasMore: false },
+    });
+  }
+  if (url.pathname === '/api/v1/audit/export' && request.method === 'GET') {
+    // AUD-03 (US-075): arquivo com os mesmos filtros (CSV com escape de fórmulas ou NDJSON).
+    const items = filterAuditLogs(url.searchParams);
+    const ndjson = url.searchParams.get('format') === 'ndjson';
+    response.writeHead(200, {
+      'Content-Type': ndjson ? 'application/x-ndjson; charset=utf-8' : 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="auditoria.${ndjson ? 'ndjson' : 'csv'}"`,
+    });
+    return response.end(
+      ndjson ? items.map((item) => `${JSON.stringify(item)}\n`).join('') : auditCsv(items),
+    );
+  }
+  const auditLogMatch = /^\/api\/v1\/audit\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (auditLogMatch && request.method === 'GET') {
+    // AUD-02 (US-075): registro como gravado (mascarado); inexistente → 404.
+    const found = auditLogs.find((item) => item.id === auditLogMatch[1]);
+    if (!found) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    return send(response, 200, { data: found });
   }
   if (url.pathname === '/api/v1/audit/seals' && request.method === 'GET') {
     // AUD-04 (US-074): a permissão AUDIT_VIEW é conferida pelo front via ME-03 (a API real decide).

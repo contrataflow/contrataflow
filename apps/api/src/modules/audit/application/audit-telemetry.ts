@@ -59,3 +59,33 @@ export function auditSealMetrics(): AuditSealInstruments {
   };
   return sealInstruments;
 }
+
+interface AuditQueryInstruments {
+  readonly searches: Counter;
+  readonly exports: Counter;
+  readonly duration: Histogram;
+}
+
+let queryInstruments: AuditQueryInstruments | undefined;
+
+/**
+ * Consulta e exportação da trilha (US-075 · DoD): `audit_search_total{operation}` (AUD-01 lista,
+ * AUD-02 detalhe), `audit_export_total{format,outcome}` e a latência por operação.
+ */
+export function auditQueryMetrics(): AuditQueryInstruments {
+  if (queryInstruments) return queryInstruments;
+  const meter = metrics.getMeter('contrataflow-api');
+  queryInstruments = {
+    searches: meter.createCounter('audit_search_total', {
+      description: 'Consultas à trilha de auditoria (AUD-01/AUD-02 · US-075).',
+    }),
+    exports: meter.createCounter('audit_export_total', {
+      description: 'Exportações da trilha de auditoria, por formato e resultado (AUD-03 · US-075).',
+    }),
+    duration: meter.createHistogram('audit_query_duration_ms', {
+      description: 'Latência da consulta e da exportação da trilha (US-075).',
+      unit: 'ms',
+    }),
+  };
+  return queryInstruments;
+}

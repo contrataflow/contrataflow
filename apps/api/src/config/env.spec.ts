@@ -205,6 +205,7 @@ describe('loadConfig', () => {
       accessDeniedSampling: { windowSeconds: 60, maxPerWindow: 20 },
       partitionMonthsAhead: 2,
       sealVerificationMaxPeriods: 720,
+      exportMaxRows: 100_000,
     });
     expect(
       loadConfig({

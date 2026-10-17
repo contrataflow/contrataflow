@@ -170,6 +170,8 @@ export const envSchema = z
       .default(20),
     /** `audit.sealVerification.maxPeriods` (US-074 · FA-04): selos por verificação (AUD-05). */
     AUDIT_SEAL_VERIFICATION_MAX_PERIODS: z.coerce.number().int().min(1).max(8_760).default(720),
+    /** `audit.export.maxRows` (US-075 · RN-AUD-19): linhas por exportação (AUD-03). */
+    AUDIT_EXPORT_MAX_ROWS: z.coerce.number().int().min(1).max(1_000_000).default(100_000),
     /*
      * IA (US-115 · RN-AI-14 · DEC-079): provedor e modelos são configuração de PLATAFORMA. `fake`
      * (padrão em local/dev/test) ou `none` (padrão nos demais: desliga para todos — 503). Os
@@ -361,6 +363,8 @@ export interface AppConfig {
     readonly partitionMonthsAhead: number;
     /** Teto de selos recalculados por verificação (AUD-05 · US-074 FA-04). */
     readonly sealVerificationMaxPeriods: number;
+    /** Teto de linhas por exportação (AUD-03 · US-075 RN-AUD-19) — acima, 422 `EXPORT_TOO_LARGE`. */
+    readonly exportMaxRows: number;
   };
   /** Camada de IA (US-115 · RN-AI-14): provedor de plataforma, modelos e timeout. */
   readonly ai: {
@@ -487,6 +491,7 @@ function toAppConfig(env: Env): AppConfig {
       },
       partitionMonthsAhead: 2,
       sealVerificationMaxPeriods: env.AUDIT_SEAL_VERIFICATION_MAX_PERIODS,
+      exportMaxRows: env.AUDIT_EXPORT_MAX_ROWS,
     },
     ai: {
       provider:

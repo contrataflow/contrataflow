@@ -3,6 +3,7 @@ import type { AuditAction } from '@contrataflow/types';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { CoalesceState } from '../domain/audit-coalescer.js';
+import type { AuditLogCriteria, AuditLogPageQuery } from '../domain/audit-log-query.js';
 import type { AuditRecord, SealedAuditRecord } from '../domain/audit-record.js';
 import type { AuditSeal, SealPeriod } from '../domain/audit-seal.js';
 
@@ -40,6 +41,18 @@ export interface AuditLogStore {
   findLastCoalesced(tx: TenantTx, query: CoalesceQuery): Promise<CoalesceState | null>;
   /** `oncePerSession`: já há registro desta ação, neste horário, para esta sessão no tenant? */
   existsForSession(tx: TenantTx, query: SessionRecordQuery): Promise<boolean>;
+  /**
+   * AUD-01/AUD-03 (US-075): uma página dos registros do tenant que atendem aos critérios, em
+   * `occurredAt DESC, id DESC`, depois do cursor — no máximo `take`.
+   */
+  search(tx: TenantTx, query: AuditLogPageQuery): Promise<SealedAuditRecord[]>;
+  /** AUD-02: o registro do tenant pelo id; o de outro tenant é `null` (como o inexistente). */
+  findById(tx: TenantTx, tenantId: string, id: string): Promise<SealedAuditRecord | null>;
+  /**
+   * AUD-03 (RN-AUD-19): quantos registros atendem aos critérios, contando no máximo `cap` — a
+   * contagem para no teto (`maxRows + 1` basta para recusar com `EXPORT_TOO_LARGE`).
+   */
+  count(tx: TenantTx, criteria: AuditLogCriteria, cap: number): Promise<number>;
 }
 
 export const AUDIT_LOG_STORE = Symbol('AuditLogStore');
@@ -49,7 +62,7 @@ export interface AuditTransactions {
   inTenant<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
   /** Sem `app.tenant_id`: só aceita registro com `tenantId` nulo (política `platform_insert`). */
   inPlatform<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
-  /** Leitura no tenant do contexto (transação somente leitura — AUD-04/AUD-05). */
+  /** Leitura no tenant do contexto (transação somente leitura — AUD-01..05). */
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
 }
 

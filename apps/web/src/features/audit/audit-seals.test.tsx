@@ -126,7 +126,7 @@ const validationProblem = (message: string) =>
   );
 
 async function renderTab() {
-  const view = renderWithShell(<AuditView />);
+  const view = renderWithShell(<AuditView defaultTab="seals" />);
   await screen.findByRole('table', { name: 'Selos de integridade da trilha de auditoria' });
   return view;
 }
@@ -146,7 +146,7 @@ afterEach(() => {
 describe('[Permissão] acesso por AUDIT_VIEW (SCR-037)', () => {
   it('sem a permissão a aba "Selos" não aparece e nenhum selo é pedido', async () => {
     const fetchMock = mockApi({ permissions: ['PROCESS_CREATE'] });
-    renderWithShell(<AuditView />);
+    renderWithShell(<AuditView defaultTab="seals" />);
     expect(await screen.findByText('Você não tem acesso a esta área')).toBeTruthy();
     expect(screen.queryByRole('tab', { name: 'Selos' })).toBeNull();
     expect(callsTo(fetchMock, '/api/v1/audit/seals')).toHaveLength(0);
@@ -179,7 +179,7 @@ describe('[Permissão] acesso por AUDIT_VIEW (SCR-037)', () => {
 describe('SealList (AUD-04)', () => {
   it('mostra skeleton ao carregar e depois período no fuso da instituição, registros e "Não verificado"', async () => {
     mockApi();
-    renderWithShell(<AuditView />);
+    renderWithShell(<AuditView defaultTab="seals" />);
     expect(await screen.findByText('Carregando os selos…')).toBeTruthy();
     const table = await screen.findByRole('table', {
       name: 'Selos de integridade da trilha de auditoria',
@@ -203,7 +203,7 @@ describe('SealList (AUD-04)', () => {
 
   it('estado vazio', async () => {
     mockApi({ seals: () => page([]) });
-    renderWithShell(<AuditView />);
+    renderWithShell(<AuditView defaultTab="seals" />);
     expect(await screen.findByText('Nenhum selo gerado ainda para este período')).toBeTruthy();
   });
 
@@ -215,7 +215,7 @@ describe('SealList (AUD-04)', () => {
         return attempts === 1 ? problem(500, 'INTERNAL_ERROR') : page([S1]);
       },
     });
-    renderWithShell(<AuditView />, {
+    renderWithShell(<AuditView defaultTab="seals" />, {
       queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
     });
     expect(await screen.findByText('Não foi possível carregar os selos agora.')).toBeTruthy();

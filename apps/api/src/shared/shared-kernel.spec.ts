@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { HttpException, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, Logger, NotFoundException, StreamableFile } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -250,6 +250,9 @@ describe('paginação, envelope e If-Match', () => {
       data: [1],
       meta: { page: 1, pageSize: 1, totalItems: 1, totalPages: 1 },
     });
+    // Arquivo em *streaming* (AUD-03 · US-075): o corpo é o arquivo, sem envelope.
+    const file = new StreamableFile(Buffer.from('a,b'));
+    expect(toEnvelope(file)).toBe(file);
   });
 
   it('If-Match: versão, revisão de seção, ETag fraca e valores inválidos', () => {

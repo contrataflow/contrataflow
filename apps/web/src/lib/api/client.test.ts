@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from './api-error';
 import {
+  apiDownload,
   apiRequest,
   apiUrl,
+  fileNameFromDisposition,
   isRetryableMutationError,
   newCorrelationId,
   newIdempotencyKey,
@@ -100,6 +102,56 @@ describe('apiRequest (same-origin via proxy)', () => {
 
   it('caminho sem barra inicial é erro de programação', () => {
     expect(() => apiUrl('processes')).toThrow(/começar com/);
+  });
+});
+
+describe('apiDownload (arquivo — AUD-03 · US-075)', () => {
+  it('GET com query e X-CF-Request; devolve o blob e o nome do Content-Disposition', async () => {
+    const fetchImpl = fetchReturning(
+      new Response('id,action;', {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="auditoria-20260901-20260907.csv"',
+          'X-Correlation-Id': 'c-9',
+        },
+      }),
+    );
+    const file = await apiDownload('/audit/export', {
+      query: { format: 'csv', action: undefined },
+      fetchImpl,
+    });
+    expect(await file.blob.text()).toBe('id,action;');
+    expect(file).toMatchObject({
+      fileName: 'auditoria-20260901-20260907.csv',
+      contentType: 'text/csv; charset=utf-8',
+      correlationId: 'c-9',
+    });
+    const [url, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(url).toBe('/api/v1/audit/export?format=csv');
+    expect(new Headers(init?.headers).get('X-CF-Request')).toBe('1');
+  });
+
+  it('erro → ApiError do problem+json; rede fora → 503', async () => {
+    const fetchImpl = fetchReturning(
+      new Response(JSON.stringify({ code: 'EXPORT_TOO_LARGE', detail: 'Muitos' }), {
+        status: 422,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    );
+    await expect(apiDownload('/audit/export', { fetchImpl })).rejects.toMatchObject({
+      status: 422,
+      code: 'EXPORT_TOO_LARGE',
+    });
+    const offline = vi.fn<typeof fetch>(() => Promise.reject(new TypeError('Failed to fetch')));
+    await expect(apiDownload('/x', { fetchImpl: offline })).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('nome do arquivo com e sem aspas; ausente → null', () => {
+    expect(fileNameFromDisposition('attachment; filename="a.csv"')).toBe('a.csv');
+    expect(fileNameFromDisposition('attachment; filename=b.ndjson')).toBe('b.ndjson');
+    expect(fileNameFromDisposition(null)).toBeNull();
+    expect(fileNameFromDisposition('inline')).toBeNull();
   });
 });
 

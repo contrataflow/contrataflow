@@ -143,6 +143,66 @@ export async function apiRequest<T>(
   };
 }
 
+export interface ApiDownload {
+  readonly blob: Blob;
+  /** Nome do `Content-Disposition` (`filename="…"`); `null` sem o cabeçalho. */
+  readonly fileName: string | null;
+  readonly contentType: string | null;
+  readonly correlationId: string | null;
+}
+
+/** `filename` de `Content-Disposition: attachment; filename="…"` (RFC 6266, forma simples). */
+export function fileNameFromDisposition(header: string | null): string | null {
+  const match = header === null ? null : /filename="?([^";]+)"?/i.exec(header);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Download de arquivo (GET) pelo proxy do BFF — ex.: exportação CSV/NDJSON da auditoria (AUD-03 ·
+ * US-075). Mesmos cabeçalhos e sinais de sessão de `apiRequest`; erro → `ApiError` (problem+json).
+ */
+export async function apiDownload(
+  path: string,
+  options: Pick<ApiRequestOptions, 'query' | 'correlationId' | 'signal' | 'fetchImpl'> = {},
+): Promise<ApiDownload> {
+  const headers = new Headers({ Accept: '*/*', 'X-CF-Request': '1' });
+  if (options.correlationId) headers.set(CORRELATION_HEADER, options.correlationId);
+  let response: Response;
+  try {
+    response = await (options.fetchImpl ?? fetch)(apiUrl(path, options.query), {
+      method: 'GET',
+      headers,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: options.signal ?? null,
+    });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+    throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'Falha de rede.' });
+  }
+  if (!response.ok) {
+    const error = apiErrorFromResponse(response.status, response.headers, await readJson(response));
+    if (error.status === 401 && error.code === 'SESSION_EXPIRED') {
+      emitSessionSignal({ type: 'expired' });
+    }
+    throw error;
+  }
+  let blob: Blob;
+  try {
+    blob = await response.blob();
+  } catch {
+    // Conexão interrompida no meio do envio: o arquivo não está completo (AUD-03).
+    throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'Falha de rede.' });
+  }
+  emitSessionSignal({ type: 'activity' });
+  return {
+    blob,
+    fileName: fileNameFromDisposition(response.headers.get('Content-Disposition')),
+    contentType: response.headers.get('Content-Type'),
+    correlationId: response.headers.get('X-Correlation-Id'),
+  };
+}
+
 /** Falhas transitórias em que a mesma `Idempotency-Key` pode ser reenviada com segurança. */
 export function isRetryableMutationError(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;

@@ -250,6 +250,7 @@ describe('AuditService.record (US-073)', () => {
     expect(keys).toEqual([
       'accessDeniedSampling',
       'coalesce',
+      'exportMaxRows',
       'partitionMonthsAhead',
       'sealVerificationMaxPeriods',
     ]);
