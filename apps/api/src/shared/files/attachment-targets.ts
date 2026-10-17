@@ -58,26 +58,40 @@ export interface AttachmentTargetReader {
   ): Promise<AttachmentConfidentiality | null>;
 }
 
-/** Registro dos leitores (um por tipo de alvo). */
+/**
+ * Registro dos leitores. Um tipo pode ter mais de um dono quando o `targetId` aponta para
+ * entidades diferentes — `TENANT_ASSET` é o ativo do tenant enviado a partir do rascunho de um
+ * template (US-109, `document`) ou do órgão (US-101): o primeiro leitor que reconhece o alvo o
+ * carrega, e é ele quem confere a regra de edição.
+ */
 @Injectable()
 export class AttachmentTargetRegistry {
-  private readonly readers = new Map<AttachmentTargetType, AttachmentTargetReader>();
+  private readonly readers = new Map<AttachmentTargetType, AttachmentTargetReader[]>();
+  private readonly owners = new WeakMap<AttachmentTarget, AttachmentTargetReader>();
 
   register(reader: AttachmentTargetReader): void {
-    for (const type of reader.targetTypes) this.readers.set(type, reader);
+    for (const type of reader.targetTypes) {
+      const current = this.readers.get(type) ?? [];
+      if (!current.includes(reader)) this.readers.set(type, [...current, reader]);
+    }
   }
 
   supports(targetType: AttachmentTargetType): boolean {
     return this.readers.has(targetType);
   }
 
-  load(tx: TenantTx, ref: AttachmentTargetRef): Promise<AttachmentTarget | null> {
-    const reader = this.readers.get(ref.targetType);
-    return reader ? reader.load(tx, ref) : Promise.resolve(null);
+  async load(tx: TenantTx, ref: AttachmentTargetRef): Promise<AttachmentTarget | null> {
+    for (const reader of this.readers.get(ref.targetType) ?? []) {
+      const target = await reader.load(tx, ref);
+      if (target === null) continue;
+      this.owners.set(target, reader);
+      return target;
+    }
+    return null;
   }
 
   async assertAttachable(tx: TenantTx, target: AttachmentTarget): Promise<void> {
-    const reader = this.readers.get(target.targetType);
+    const reader = this.owners.get(target) ?? this.readers.get(target.targetType)?.[0];
     if (!reader) throw new Error(`Alvo de anexo sem leitor: ${target.targetType}.`);
     await reader.assertAttachable(tx, target);
   }
@@ -90,7 +104,7 @@ export class AttachmentTargetRegistry {
     tx: TenantTx,
     ref: AttachmentTargetRef,
   ): Promise<AttachmentConfidentiality | null> {
-    const reader = this.readers.get(ref.targetType);
+    const reader = this.readers.get(ref.targetType)?.[0];
     if (!reader) return { restricted: true, allowed: false };
     if (!reader.confidentiality) return { restricted: false, allowed: true };
     return await reader.confidentiality(tx, ref);

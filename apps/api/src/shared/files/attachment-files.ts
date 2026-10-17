@@ -9,6 +9,8 @@ import type { TenantTx } from '../database/prisma.js';
  * Os dois módulos estão no mesmo nível (DEC-040): a dependência vira esta porta do shared kernel,
  * que `files` implementa e registra no `onModuleInit`. Sem leitor registrado, falha fechado — o
  * anexo não existe (422 `REFERENCE_NOT_FOUND` no chamador), nunca um arquivo sem varredura.
+ * O layout de impressão do template (US-109) lê por aqui os bytes do logo `TENANT_ASSET` para
+ * embutir no PDF (o Gotenberg não acessa o storage — storage.md §10).
  */
 
 export interface AttachmentFile {
@@ -27,6 +29,11 @@ export interface AttachmentFile {
 export interface AttachmentFileReader {
   /** Anexo não excluído NO TENANT da transação (RLS); `null` = inexistente/outro tenant/excluído. */
   find(tx: TenantTx, attachmentId: string): Promise<AttachmentFile | null>;
+  /**
+   * Bytes do arquivo `AVAILABLE` (bucket `documents`) de até `maxBytes`; `null` = inexistente, não
+   * disponível ou maior que o limite. Erro do storage propaga.
+   */
+  readContent(tx: TenantTx, attachmentId: string, maxBytes: number): Promise<Buffer | null>;
 }
 
 /** Registro do leitor (implementado pelo módulo `files`); instância única via `AttachmentTargetModule`. */
@@ -40,5 +47,11 @@ export class AttachmentFileRegistry {
 
   find(tx: TenantTx, attachmentId: string): Promise<AttachmentFile | null> {
     return this.reader ? this.reader.find(tx, attachmentId) : Promise.resolve(null);
+  }
+
+  readContent(tx: TenantTx, attachmentId: string, maxBytes: number): Promise<Buffer | null> {
+    return this.reader
+      ? this.reader.readContent(tx, attachmentId, maxBytes)
+      : Promise.resolve(null);
   }
 }

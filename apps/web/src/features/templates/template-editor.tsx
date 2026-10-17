@@ -43,6 +43,7 @@ import type {
   SectionDraft,
   TemplateTypeInfo,
 } from './template-editor-model';
+import { TemplateLayoutTab } from './template-layout-tab';
 import {
   fetchTemplateVersion,
   templateKeys,
@@ -58,7 +59,8 @@ const TEXTAREA =
 /**
  * SCR-114 (`/admin/templates/[id]/versoes/[versionId]` — US-107, aba "Conteúdo"): carrega a versão
  * (TPL-07) e abre o editor; versão não `DRAFT` ou usuário sem `TEMPLATE_MANAGE` → modo leitura com
- * `ReadOnlyBanner` (FA-04/FA-05). A aba "Layout" chega com a US-109.
+ * `ReadOnlyBanner` (FA-04/FA-05). A aba "Layout" (US-109) edita o layout de impressão e gera a prévia
+ * em PDF (`TemplateLayoutTab`), com o mesmo `If-Match` da aba "Conteúdo".
  */
 export function TemplateEditorView({ versionId }: { readonly versionId: string }) {
   const t = useTranslations('templates');
@@ -196,6 +198,7 @@ function TemplateEditor({
     dirty: CLEAN,
   }));
   const [revision, setRevision] = useState(version.version);
+  const [tab, setTab] = useState<EditorTab>('content');
   const [selectedUid, setSelectedUid] = useState<string | null>(state.drafts[0]?.uid ?? null);
   const [problem, setProblem] = useState<SaveProblem | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<LocalProblem[]>([]);
@@ -349,7 +352,7 @@ function TemplateEditor({
             {version.documentType.name} · {t(`editor.status.${version.status}`)}
           </p>
         </div>
-        {readOnly ? null : (
+        {readOnly || tab === 'layout' ? null : (
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground" aria-hidden="true">
               {saveLabel}
@@ -396,106 +399,126 @@ function TemplateEditor({
         </Alert>
       ) : null}
 
-      <EditorTabs />
+      <EditorTabs tab={tab} onChange={setTab} />
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(16rem,20rem)_1fr]">
-        <SectionList
-          drafts={state.drafts}
-          selectedUid={selectedUid}
-          readOnly={readOnly}
-          hasProblems={(draft) =>
-            sectionProblems(draft.uid).length > 0 || sectionViolations(draft).length > 0
-          }
-          onSelect={setSelectedUid}
-          onAdd={() => {
-            const draft = newSection();
-            change({ drafts: [...state.drafts, draft] }, 'sections');
-            setSelectedUid(draft.uid);
-          }}
-          onMove={(from, to) => {
-            const moved = state.drafts[from];
-            structural(moveSection(state.drafts, from, to));
-            if (moved) {
-              setAnnouncement(
-                t('sections.moved', { title: moved.title || moved.key, position: to + 1 }),
-              );
+      {tab === 'layout' ? (
+        <div role="tabpanel" id={`${ids}-panel-layout`} aria-labelledby={`${ids}-tab-layout`}>
+          <TemplateLayoutTab
+            version={version}
+            revision={revision}
+            readOnly={readOnly}
+            onReload={onReload}
+            onSaved={(saved) => {
+              setRevision(saved.version);
+              queryClient.setQueryData(templateKeys.version(tenantId, version.id), saved);
+            }}
+          />
+        </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id={`${ids}-panel-content`}
+          aria-labelledby={`${ids}-tab-content`}
+          className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(16rem,20rem)_1fr]"
+        >
+          <SectionList
+            drafts={state.drafts}
+            selectedUid={selectedUid}
+            readOnly={readOnly}
+            hasProblems={(draft) =>
+              sectionProblems(draft.uid).length > 0 || sectionViolations(draft).length > 0
             }
-          }}
-          onDuplicate={(uid) => {
-            const result = duplicateSection(state.drafts, uid);
-            change({ drafts: result.drafts }, 'sections');
-            setSelectedUid(result.copyUid);
-          }}
-          onRemove={(uid) => {
-            const remaining = state.drafts.filter((draft) => draft.uid !== uid);
-            structural(remaining);
-            if (selectedUid === uid) setSelectedUid(remaining[0]?.uid ?? null);
-          }}
-        />
-        <div ref={fieldsRef} className="flex flex-col gap-6">
-          {selected ? (
-            <SectionEditorPanel
-              key={selected.uid}
-              draft={selected}
-              position={selectedIndex + 1}
-              type={type}
-              readOnly={readOnly}
-              problems={sectionProblems(selected.uid)}
-              violations={sectionViolations(selected)}
-              onChange={(patch) => {
-                updateDraft(selected.uid, patch);
-              }}
-            />
-          ) : state.drafts.length > 0 ? (
-            <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-              {t('section.nonePanel')}
-            </p>
-          ) : null}
+            onSelect={setSelectedUid}
+            onAdd={() => {
+              const draft = newSection();
+              change({ drafts: [...state.drafts, draft] }, 'sections');
+              setSelectedUid(draft.uid);
+            }}
+            onMove={(from, to) => {
+              const moved = state.drafts[from];
+              structural(moveSection(state.drafts, from, to));
+              if (moved) {
+                setAnnouncement(
+                  t('sections.moved', { title: moved.title || moved.key, position: to + 1 }),
+                );
+              }
+            }}
+            onDuplicate={(uid) => {
+              const result = duplicateSection(state.drafts, uid);
+              change({ drafts: result.drafts }, 'sections');
+              setSelectedUid(result.copyUid);
+            }}
+            onRemove={(uid) => {
+              const remaining = state.drafts.filter((draft) => draft.uid !== uid);
+              structural(remaining);
+              if (selectedUid === uid) setSelectedUid(remaining[0]?.uid ?? null);
+            }}
+          />
+          <div ref={fieldsRef} className="flex flex-col gap-6">
+            {selected ? (
+              <SectionEditorPanel
+                key={selected.uid}
+                draft={selected}
+                position={selectedIndex + 1}
+                type={type}
+                readOnly={readOnly}
+                problems={sectionProblems(selected.uid)}
+                violations={sectionViolations(selected)}
+                onChange={(patch) => {
+                  updateDraft(selected.uid, patch);
+                }}
+              />
+            ) : state.drafts.length > 0 ? (
+              <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
+                {t('section.nonePanel')}
+              </p>
+            ) : null}
 
-          {type.kind === 'STRUCTURED' && type.systemModule ? (
-            <FieldConfigPanel
-              fields={TYPED_HEADER_FIELDS[type.systemModule]}
-              value={state.fieldConfig}
-              readOnly={readOnly}
-              onChange={(fieldConfig) => {
-                change({ fieldConfig }, 'fieldConfig');
-              }}
-            />
-          ) : null}
+            {type.kind === 'STRUCTURED' && type.systemModule ? (
+              <FieldConfigPanel
+                fields={TYPED_HEADER_FIELDS[type.systemModule]}
+                value={state.fieldConfig}
+                readOnly={readOnly}
+                onChange={(fieldConfig) => {
+                  change({ fieldConfig }, 'fieldConfig');
+                }}
+              />
+            ) : null}
 
-          {type.systemModule === 'TERM_OF_REFERENCE' ? (
-            <ImportMappingsPanel
-              value={state.importMappings}
-              targets={state.drafts.map((draft) => draft.key.trim()).filter((key) => key !== '')}
-              sources={version.importSources?.sectionKeys ?? []}
-              readOnly={readOnly}
-              onChange={(importMappings) => {
-                change({ importMappings }, 'importMappings');
-              }}
-            />
-          ) : null}
+            {type.systemModule === 'TERM_OF_REFERENCE' ? (
+              <ImportMappingsPanel
+                value={state.importMappings}
+                targets={state.drafts.map((draft) => draft.key.trim()).filter((key) => key !== '')}
+                sources={version.importSources?.sectionKeys ?? []}
+                readOnly={readOnly}
+                onChange={(importMappings) => {
+                  change({ importMappings }, 'importMappings');
+                }}
+              />
+            ) : null}
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor={`${ids}-notes`} className="text-sm font-medium">
-              {t('editor.changeNotes')}
-            </label>
-            <textarea
-              id={`${ids}-notes`}
-              className={TEXTAREA}
-              value={state.changeNotes}
-              maxLength={CHANGE_NOTES_MAX_LENGTH}
-              readOnly={readOnly}
-              aria-describedby={`${ids}-notes-hint`}
-              onChange={(event) => {
-                change({ changeNotes: event.target.value }, 'changeNotes');
-              }}
-            />
-            <p id={`${ids}-notes-hint`} className="text-xs text-muted-foreground">
-              {t('editor.changeNotesHint')}
-            </p>
+            <div className="flex flex-col gap-1">
+              <label htmlFor={`${ids}-notes`} className="text-sm font-medium">
+                {t('editor.changeNotes')}
+              </label>
+              <textarea
+                id={`${ids}-notes`}
+                className={TEXTAREA}
+                value={state.changeNotes}
+                maxLength={CHANGE_NOTES_MAX_LENGTH}
+                readOnly={readOnly}
+                aria-describedby={`${ids}-notes-hint`}
+                onChange={(event) => {
+                  change({ changeNotes: event.target.value }, 'changeNotes');
+                }}
+              />
+              <p id={`${ids}-notes-hint`} className="text-xs text-muted-foreground">
+                {t('editor.changeNotesHint')}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -538,9 +561,17 @@ function SaveProblemAlert({
   }
 }
 
-function EditorTabs() {
+type EditorTab = 'content' | 'layout';
+
+function EditorTabs({
+  tab,
+  onChange,
+}: {
+  readonly tab: EditorTab;
+  readonly onChange: (tab: EditorTab) => void;
+}) {
   const t = useTranslations('templates');
-  const [tab, setTab] = useState<'content' | 'layout'>('content');
+  const ids = useId();
   return (
     <div className="flex flex-col gap-3">
       <div
@@ -553,21 +584,19 @@ function EditorTabs() {
             key={value}
             type="button"
             role="tab"
+            id={`${ids}-tab-${value}`}
             aria-selected={tab === value}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
               tab === value ? 'border-primary' : 'border-transparent text-muted-foreground'
             }`}
             onClick={() => {
-              setTab(value);
+              onChange(value);
             }}
           >
             {t(`editor.tabs.${value}`)}
           </button>
         ))}
       </div>
-      {tab === 'layout' ? (
-        <p className="text-sm text-muted-foreground">{t('editor.layoutPending')}</p>
-      ) : null}
     </div>
   );
 }

@@ -193,13 +193,13 @@ export class TemplateController {
   @RequirePermission('TEMPLATE_MANAGE')
   @ApiOperation({
     operationId: 'TPL-08',
-    summary: 'Atualizar conteúdo da versão do template (rascunho)',
+    summary: 'Atualizar conteúdo/layout da versão do template (rascunho)',
     tags: TAGS,
     auditActions: ['template.update'],
     responses: {
       200: {
         description:
-          'Rascunho atualizado (novo `ETag`); conteúdo inválido → 422 `TEMPLATE_INVALID` com `violations[]`.',
+          'Rascunho atualizado (novo `ETag`); conteúdo inválido ou variável desconhecida no cabeçalho/rodapé → 422 `TEMPLATE_INVALID` com `violations[]`; layout fora das faixas ou logo inválido → 422 `VALIDATION_ERROR`; logo ainda não disponível → 409 `ATTACHMENT_NOT_AVAILABLE`.',
         schema: dataEnvelope(templateVersionSchema),
       },
     },

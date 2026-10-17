@@ -1,6 +1,7 @@
 import { jobQueueOf } from './ai-fixtures.js';
 import type { TestApi } from './api-test-app.js';
 import { RenderDocumentJob } from '../../src/modules/document/application/render-document.job.js';
+import { RenderTemplatePreviewJob } from '../../src/modules/document/application/render-template-preview.job.js';
 import {
   DOCUMENT_RENDITION_REPOSITORY,
   PdfRendererRejectedError,
@@ -69,6 +70,19 @@ export function runRender(api: TestApi, renditionId: string, attempt = 1) {
     queue: job.queue,
     name: job.name,
     attempt,
+    data: job.data,
+  });
+}
+
+/** Executa o `document-render/template-preview` como o worker (US-109): o job enfileirado no pedido. */
+export function runTemplatePreview(api: TestApi, renditionId: string) {
+  const job = jobQueueOf(api).find('document-render', renditionId);
+  if (job === undefined) throw new Error(`prévia de template ${renditionId} não enfileirada`);
+  return api.app.get(RenderTemplatePreviewJob).process({
+    id: job.jobId,
+    queue: job.queue,
+    name: job.name,
+    attempt: 1,
     data: job.data,
   });
 }

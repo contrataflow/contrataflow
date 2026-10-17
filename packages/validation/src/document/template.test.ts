@@ -257,12 +257,15 @@ describe('requisições TPL-01/02/04/08', () => {
     expect(templateUpdateSchema.safeParse({ documentTypeId: TYPE_ID }).success).toBe(false);
   });
 
-  it('TPL-08: corpo parcial com changeNotes até 1.000 e sem layout (US-109)', () => {
+  it('TPL-08: corpo parcial com changeNotes até 1.000 e o layout da US-109', () => {
     expect(templateVersionUpdateSchema.safeParse({}).success).toBe(true);
     expect(templateVersionUpdateSchema.safeParse({ changeNotes: 'x'.repeat(1001) }).success).toBe(
       false,
     );
-    expect(templateVersionUpdateSchema.safeParse({ layout: {} }).success).toBe(false);
+    expect(templateVersionUpdateSchema.safeParse({ layout: {} }).success).toBe(true);
+    expect(templateVersionUpdateSchema.safeParse({ layout: { fontSizePt: 20 } }).success).toBe(
+      false,
+    );
     expect(
       templateVersionUpdateSchema.safeParse({
         fieldConfig: { objectSummary: { label: 'Objeto', required: true } },

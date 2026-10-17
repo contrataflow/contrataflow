@@ -1,5 +1,6 @@
 import {
   isRenderAllowed,
+  LAYOUT_TEMPLATE_VARIABLES,
   richTextPlainText,
   SECTION_KEY_PATTERN,
   SECTION_TEMPLATE_VARIABLES,
@@ -11,6 +12,7 @@ import type {
   DocumentKind,
   FieldConfig,
   ImportMappings,
+  LayoutDefinition,
   SectionDefinition,
   SystemDocumentModule,
   Violation,
@@ -43,6 +45,8 @@ export interface TemplateContent {
   readonly sections: readonly SectionDefinition[];
   readonly fieldConfig: FieldConfig;
   readonly importMappings: ImportMappings | null;
+  /** Layout de impressão (US-109): variáveis de cabeçalho/rodapé — RN-TPL-22. */
+  readonly layout?: LayoutDefinition;
 }
 
 export interface TemplateValidationContext {
@@ -68,12 +72,15 @@ export interface TemplateValidationScope {
   readonly sections: boolean;
   readonly fieldConfig: boolean;
   readonly importMappings: boolean;
+  /** Cabeçalho/rodapé do layout (US-109); omitido = não confere. */
+  readonly layout?: boolean;
 }
 
 export const FULL_VALIDATION: TemplateValidationScope = {
   sections: true,
   fieldConfig: true,
   importMappings: true,
+  layout: true,
 };
 
 export const RENDER_NOT_ALLOWED_MESSAGE =
@@ -98,6 +105,28 @@ function violation(
 }
 
 const allowedVariables: ReadonlySet<string> = new Set(SECTION_TEMPLATE_VARIABLES);
+const layoutVariables: ReadonlySet<string> = new Set(LAYOUT_TEMPLATE_VARIABLES);
+
+/**
+ * RN-TPL-22: cabeçalho e rodapé aceitam o catálogo completo de §5.2 — inclusive `page`, `pages`,
+ * `document.hash` e `document.version`, resolvidas na renderização do PDF.
+ */
+function layoutViolations(layout: LayoutDefinition | undefined): Violation[] {
+  if (layout === undefined) return [];
+  const found: Violation[] = [];
+  for (const field of ['header', 'footer'] as const) {
+    for (const variable of templateVariablesIn(richTextPlainText(layout[field]))) {
+      if (layoutVariables.has(variable)) continue;
+      found.push(
+        violation('TEMPLATE_VARIABLE_UNKNOWN', unknownVariableMessage(variable), {
+          field: `layout.${field}`,
+          params: { variable },
+        }),
+      );
+    }
+  }
+  return found;
+}
 
 function sectionViolations(
   sections: readonly SectionDefinition[],
@@ -280,6 +309,7 @@ export function validateTemplateContent(
     ...(scope.importMappings
       ? importMappingViolations(content.importMappings, content.sections, context)
       : []),
+    ...(scope.layout === true ? layoutViolations(content.layout) : []),
   ];
 }
 

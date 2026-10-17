@@ -12,7 +12,7 @@ import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { VersionConflictError } from '#shared/database/errors.js';
 import { newId } from '#shared/database/ids.js';
-import { ApiError } from '#shared/errors/api-error.js';
+import { ApiError, validationError } from '#shared/errors/api-error.js';
 
 import { DocumentTypeFacade } from './document-type.facade.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS } from './ports.js';
@@ -22,6 +22,7 @@ import {
   recordTemplateCreated,
   TemplateContext,
 } from './template-context.js';
+import { TemplateLogoService } from './template-logo.js';
 import {
   templateInvalid,
   templateNameTaken,
@@ -42,6 +43,7 @@ import {
   updateTemplateMetadata,
   updateTemplateVersionContent,
 } from '../domain/document-template.js';
+import { LayoutInvalidError } from '../domain/layout-definition.js';
 
 export interface CreateTemplateInput {
   readonly body: TemplateCreate;
@@ -247,7 +249,10 @@ function errorCodeOf(error: unknown): string {
  * `TEMPLATE_VERSION_NOT_DRAFT`), versão do `If-Match` (412 com `currentVersion`), conteúdo
  * conferido pelo `TemplateContentValidator` (422 `TEMPLATE_INVALID` com `violations[]`) e um
  * `UPDATE` único com checagem de versão, mais a auditoria `template.update` com o resumo. O
- * conteúdo das seções nunca vai para log nem auditoria.
+ * layout de impressão (US-109 · RN-TPL-21..24) entra no mesmo `UPDATE`: faixas → 422
+ * `VALIDATION_ERROR`, variável desconhecida no cabeçalho/rodapé → 422 `TEMPLATE_INVALID`, logo
+ * conferido no `files` (RN-TPL-23) e `layoutChangedFields[]` na auditoria. O conteúdo das seções,
+ * do cabeçalho e do rodapé nunca vai para log nem auditoria.
  */
 @Injectable()
 export class UpdateTemplateVersionContentCommand {
@@ -261,9 +266,11 @@ export class UpdateTemplateVersionContentCommand {
     private readonly access: AccessFacade,
     private readonly identity: IdentityFacade,
     private readonly templateContext: TemplateContext,
+    private readonly logos: TemplateLogoService,
   ) {}
 
   async execute(input: UpdateTemplateVersionContentInput): Promise<TemplateVersionDto> {
+    const started = performance.now();
     this.access.assertCan('TEMPLATE_MANAGE', { mfaPolicy: await this.identity.mfaPolicy() });
     const context = requireRequestContext();
     const now = this.clock();
@@ -298,7 +305,12 @@ export class UpdateTemplateVersionContentCommand {
           if (error instanceof TemplateVersionNotDraftError) {
             throw templateVersionNotDraft(current.id, error.status);
           }
+          if (error instanceof LayoutInvalidError) throw validationError(error.errors);
           throw error;
+        }
+        const logo = result.next.layout.logo;
+        if (logo !== undefined && result.layoutChangedFields.includes('logo.attachmentId')) {
+          await this.logos.assertUsable(tx, logo.attachmentId);
         }
         if (result.fieldsChanged.length === 0) {
           return { version: current, template, type, importSources, result } as const;
@@ -330,6 +342,9 @@ export class UpdateTemplateVersionContentCommand {
             ...(result.changeNotesChanged
               ? [{ path: 'changeNotesChanged', old: null, new: true }]
               : []),
+            ...(result.layoutChangedFields.length > 0
+              ? [{ path: 'layoutChangedFields', old: null, new: [...result.layoutChangedFields] }]
+              : []),
           ],
           metadata: {
             templateId: template.id,
@@ -360,6 +375,20 @@ export class UpdateTemplateVersionContentCommand {
             correlationId: context.correlationId,
           },
           'template_version.content_updated',
+        );
+      }
+      if (outcome.result.layoutChangedFields.length > 0) {
+        this.logger.log(
+          {
+            event: 'template_version.layout_updated',
+            templateVersionId: outcome.version.id,
+            fieldsChanged: outcome.result.layoutChangedFields,
+            durationMs: Math.round(performance.now() - started),
+            tenantId: outcome.version.tenantId,
+            userId: context.actor.userId,
+            correlationId: context.correlationId,
+          },
+          'template_version.layout_updated',
         );
       }
       return toTemplateVersionDto(

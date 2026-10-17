@@ -1,3 +1,4 @@
+import { LAYOUT_MESSAGES } from '@contrataflow/validation';
 import type { TemplateVersionStatus, Violation } from '@contrataflow/validation';
 
 import { ApiError, businessRuleViolation, validationError } from '#shared/errors/api-error.js';
@@ -105,4 +106,56 @@ export function templateOfOtherType(): ApiError {
       message: 'Este template não pertence ao tipo selecionado.',
     },
   ]);
+}
+
+/** 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`): logo inexistente, de outro tenant ou de outro alvo (V-05). */
+export function templateLogoNotFound(): ApiError {
+  return validationError([
+    {
+      field: 'layout.logo.attachmentId',
+      code: 'REFERENCE_NOT_FOUND',
+      message: LAYOUT_MESSAGES.logoInvalid,
+    },
+  ]);
+}
+
+/** 422 `VALIDATION_ERROR` (`INVALID_FORMAT`): o anexo não é uma imagem aceita como logo (RN-TPL-23). */
+export function templateLogoNotImage(): ApiError {
+  return validationError([
+    {
+      field: 'layout.logo.attachmentId',
+      code: 'INVALID_FORMAT',
+      message: 'O logo deve ser uma imagem PNG, JPEG ou SVG.',
+    },
+  ]);
+}
+
+/** 409 `ATTACHMENT_NOT_AVAILABLE`: o logo existe mas ainda não está `AVAILABLE` (V-05). */
+export function templateLogoNotAvailable(): ApiError {
+  return new ApiError('ATTACHMENT_NOT_AVAILABLE', {
+    detail: LAYOUT_MESSAGES.logoInvalid,
+    extensions: { field: 'layout.logo.attachmentId' },
+  });
+}
+
+/** 404 da prévia efêmera inexistente, vencida (24 h) ou de outro tenant (TPL-12/13). */
+export function templatePreviewNotFound(): ApiError {
+  return new ApiError('NOT_FOUND', {
+    detail: 'Prévia não encontrada ou expirada. Gere novamente.',
+  });
+}
+
+/** 409 `RENDITION_NOT_READY`: download da prévia antes de pronta (TPL-13). */
+export function templatePreviewNotReady(): ApiError {
+  return new ApiError('RENDITION_NOT_READY', {
+    detail: 'A prévia ainda está sendo gerada. Aguarde.',
+  });
+}
+
+/** 503 `DEPENDENCY_UNAVAILABLE`: Redis/storage da prévia fora do ar. */
+export function templatePreviewUnavailable(cause: unknown): ApiError {
+  return new ApiError('DEPENDENCY_UNAVAILABLE', {
+    detail: 'Não foi possível processar a prévia agora. Tente novamente.',
+    cause,
+  });
 }

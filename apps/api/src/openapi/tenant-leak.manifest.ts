@@ -118,6 +118,9 @@ const DEFAULT_WORKFLOW_ROUTE =
 const TEMPLATE_ROUTE =
   'Templates (US-107/US-108): exige TEMPLATE_VIEW/TEMPLATE_MANAGE/TEMPLATE_PUBLISH e a suíte genérica ainda não tem fixture de template do tenant B; o isolamento (404 em TPL-03/04/05/06/07/08/10/11 e DTY-04 com ids de B, lista sem templates de B, 422 REFERENCE_NOT_FOUND em documentTypeId de B e RLS de document_templates/document_template_versions) é coberto em test/tenant-leak/templates.spec.ts, com administradores nos dois tenants.';
 
+const TEMPLATE_PREVIEW_ROUTE =
+  'Prévia efêmera do template (US-109): sem fixture de template do tenant B na suíte genérica; o isolamento (404 em TPL-09/12 com versão/prévia de B — estado no Redis com o tenant do contexto na chave) está em src/modules/document/presentation/template-layout.routes.spec.ts, e o logo de outro tenant em TPL-08 (422 REFERENCE_NOT_FOUND sobre a RLS de attachments) em test/tenant-leak/template-layout.spec.ts.';
+
 const PROCESS_ACTIONS_ROUTE =
   'Ações e checklist do processo (US-041): a tabela processes nasce com a US-001, então a suíte genérica ainda não tem fixture de processo do tenant B. O isolamento (processo de outro tenant → 404 NOT_FOUND sem revelar nada, mesmo corpo do inexistente, e RLS de workflow_versions/workflow_rules impedindo ler a definição de B) é coberto em test/tenant-leak/process-actions.spec.ts.';
 
@@ -342,8 +345,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'TPL-06': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-07': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-08': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-09': { kind: 'exempt', reason: TEMPLATE_PREVIEW_ROUTE },
   'TPL-10': { kind: 'exempt', reason: TEMPLATE_ROUTE },
   'TPL-11': { kind: 'exempt', reason: TEMPLATE_ROUTE },
+  'TPL-12': { kind: 'exempt', reason: TEMPLATE_PREVIEW_ROUTE },
+  'TPL-13': { kind: 'exempt', reason: TEMPLATE_PREVIEW_ROUTE },
   'ROL-01': {
     kind: 'exempt',
     reason:

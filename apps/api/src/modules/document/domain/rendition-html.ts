@@ -17,7 +17,8 @@ import type {
  * versão, o hash do conteúdo no rodapé (`showDocumentHashInFooter`). Na prévia, a seção com
  * conteúdo de IA não revisado ganha a nota "Conteúdo gerado por IA — revisão pendente" e as
  * marcações `toConfirm` saem destacadas (US-122 · RN-AI-58); a proveniência nunca é impressa nas
- * versões. Função pura: nunca loga nada.
+ * versões. O logo do layout (US-109 · RN-TPL-23) chega já como `data:` URI e sai no cabeçalho, na
+ * posição e altura máxima configuradas. Função pura: nunca loga nada.
  */
 
 /** Layout inválido no template (V-04): falha permanente, sem nova tentativa. */
@@ -26,6 +27,14 @@ export class InvalidLayoutError extends Error {
     super('Layout do template inválido para renderização.');
     this.name = 'InvalidLayoutError';
   }
+}
+
+/** Logo (timbre) do layout, já lido do storage (US-109). */
+export interface RenditionLogo {
+  /** `data:image/...;base64,...` — o Gotenberg não acessa o storage. */
+  readonly dataUri: string;
+  readonly position: 'left' | 'center' | 'right';
+  readonly maxHeightMm: number;
 }
 
 export interface RenditionHtmlInput {
@@ -44,6 +53,8 @@ export interface RenditionHtmlInput {
   /** Data de referência do documento (`{{document.date}}`/`{{today}}`), no fuso do tenant. */
   readonly now: Date;
   readonly timeZone: string;
+  /** Logo do layout (`null`/omitido = sem timbre). */
+  readonly logo?: RenditionLogo | null;
 }
 
 export interface RenditionHtml {
@@ -318,8 +329,23 @@ function footer(
   return page('Rodapé', style, parts.join(''));
 }
 
-function header(layout: LayoutDefinition, variables: Record<string, string>): string | null {
-  const custom = richText(layout.header, variables);
+const DATA_IMAGE_URI = /^data:image\/(?:png|jpeg|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
+
+function logoHtml(logo: RenditionLogo | null | undefined): string {
+  if (!logo || !DATA_IMAGE_URI.test(logo.dataUri)) return '';
+  return (
+    `<div style="text-align:${logo.position};margin:0 0 1mm;">` +
+    `<img src="${logo.dataUri}" alt="" style="max-height:${String(logo.maxHeightMm)}mm;` +
+    'max-width:100%;"></div>'
+  );
+}
+
+function header(
+  layout: LayoutDefinition,
+  variables: Record<string, string>,
+  logo: RenditionLogo | null | undefined,
+): string | null {
+  const custom = logoHtml(logo) + richText(layout.header, variables);
   if (custom === '') return null;
   const style =
     'html,body{margin:0;}body{font-family:Arial,sans-serif;font-size:8pt;color:#333;width:100%;' +
@@ -354,7 +380,7 @@ export function buildRenditionHtml(input: RenditionHtmlInput): RenditionHtml {
     collections;
   return {
     indexHtml: page(title, baseStyle(layout) + (isPreview ? WATERMARK_STYLE : ''), body),
-    headerHtml: header(layout, variables),
+    headerHtml: header(layout, variables, input.logo),
     footerHtml: footer(input, layout, variables),
     layout,
   };

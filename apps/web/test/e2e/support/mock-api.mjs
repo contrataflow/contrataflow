@@ -1054,6 +1054,18 @@ function versionHistoryItem(version) {
     version: version.version,
   };
 }
+/** PATCH do `layout` (US-109): só as partes enviadas; `null` remove cabeçalho/rodapé/logo. */
+function mergeLayout(current, patch) {
+  const next = {
+    ...current,
+    ...patch,
+    marginsMm: { ...current.marginsMm, ...(patch.marginsMm ?? {}) },
+  };
+  return Object.fromEntries(Object.entries(next).filter(([, value]) => value !== null));
+}
+
+const templatePreviews = new Map();
+
 function templateVersionView(version) {
   const template = templates.find((item) => item.id === version.templateId);
   return { ...version, templateName: template.name, documentType: templateTypeOf(template) };
@@ -2393,6 +2405,50 @@ createServer(async (request, response) => {
     }
     return send(response, 200, { data: documentTypeView(type) }, { ETag: `"${type.version}"` });
   }
+  // US-109: prévia efêmera do template (TPL-09/12/13) — pronta já na primeira consulta.
+  const templatePreviewRoute =
+    /^\/api\/v1\/template-versions\/([0-9a-f-]{36})\/preview(?:\/([0-9a-f-]{36})(\/download)?)?$/.exec(
+      url.pathname,
+    );
+  if (templatePreviewRoute) {
+    const [, versionId, renditionId, download] = templatePreviewRoute;
+    if (!templateVersions.some((item) => item.id === versionId)) {
+      return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    }
+    if (request.method === 'POST' && !renditionId) {
+      const id = mockUuid();
+      templatePreviews.set(id, versionId);
+      return send(response, 202, { data: { renditionId: id } });
+    }
+    if (
+      request.method === 'GET' &&
+      renditionId &&
+      templatePreviews.get(renditionId) === versionId
+    ) {
+      const now = new Date();
+      if (download) {
+        return send(response, 200, {
+          data: { url: `${url.origin}/mock-s3/previa.pdf`, expiresAt: now.toISOString() },
+        });
+      }
+      return send(response, 200, {
+        data: {
+          renditionId,
+          templateVersionId: versionId,
+          status: 'READY',
+          pageCount: 2,
+          sizeBytes: 2048,
+          sha256: null,
+          errorCode: null,
+          errorMessage: null,
+          requestedAt: now.toISOString(),
+          readyAt: now.toISOString(),
+          expiresAt: new Date(now.getTime() + 24 * HOUR_MS).toISOString(),
+        },
+      });
+    }
+    return problem(response, 404, 'NOT_FOUND', String(correlationId));
+  }
   const templateVersionRoute = /^\/api\/v1\/template-versions\/([0-9a-f-]{36})$/.exec(url.pathname);
   if (templateVersionRoute) {
     const version = templateVersions.find((item) => item.id === templateVersionRoute[1]);
@@ -2440,10 +2496,12 @@ createServer(async (request, response) => {
           { 'Content-Type': 'application/problem+json' },
         );
       }
-      Object.assign(version, body, {
+      const { layout: layoutPatch, ...content } = body;
+      Object.assign(version, content, {
         version: version.version + 1,
         updatedAt: new Date().toISOString(),
       });
+      if (layoutPatch) version.layout = mergeLayout(version.layout, layoutPatch);
       return send(
         response,
         200,

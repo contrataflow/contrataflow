@@ -88,7 +88,6 @@
       "content": "Conteúdo",
       "layout": "Layout"
     },
-    "layoutPending": "O layout de impressão (cabeçalho, rodapé e timbre) é configurado na aba Layout, disponível em breve.",
     "readOnly": {
       "published": "Esta versão está publicada. Para alterar, inicie uma nova versão.",
       "retired": "Esta versão foi aposentada e não pode ser alterada.",
@@ -275,6 +274,89 @@
       "published": "Versão {number} publicada (hash {hash}).",
       "retired": "Versão {number} aposentada.",
       "created": "Versão {number} criada em rascunho."
+    }
+  },
+  "layout": {
+    "saved": "Layout salvo.",
+    "reload": "Recarregar",
+    "tryAgain": "Tentar novamente",
+    "problems": {
+      "conflict": "O layout foi alterado por outra pessoa. Recarregue.",
+      "invalid": "Revise os valores destacados.",
+      "notDraft": "Esta versão está publicada e não pode ser alterada.",
+      "forbidden": "Você não tem permissão para editar o layout.",
+      "logoInvalid": "Selecione um logo válido.",
+      "unavailable": "Não foi possível salvar o layout agora.",
+      "generic": "Não foi possível salvar o layout."
+    },
+    "page": {
+      "title": "Página",
+      "orientation": "Orientação",
+      "orientations": {
+        "portrait": "Retrato",
+        "landscape": "Paisagem"
+      },
+      "size": "Tamanho da página: A4",
+      "margins": {
+        "top": "Margem superior (mm)",
+        "right": "Margem direita (mm)",
+        "bottom": "Margem inferior (mm)",
+        "left": "Margem esquerda (mm)"
+      }
+    },
+    "typography": {
+      "title": "Tipografia",
+      "fontFamily": "Fonte",
+      "fontSize": "Tamanho da fonte (pt)",
+      "lineHeight": "Entrelinha"
+    },
+    "headerFooter": {
+      "title": "Cabeçalho e rodapé",
+      "header": "Cabeçalho",
+      "footer": "Rodapé",
+      "hint": "Cada linha vira um parágrafo. Use as variáveis abaixo; page e pages numeram as páginas.",
+      "variables": "Variáveis do campo {field}",
+      "insertVariable": "Inserir a variável {variable} no campo {field}",
+      "showPageNumbers": "Numeração de página",
+      "showDocumentHashInFooter": "Hash da versão no rodapé",
+      "draftWatermark": "Marca d'água de rascunho nos documentos",
+      "hashHint": "O hash só aparece nos PDFs de versões de documento; a prévia do template sempre sai com a marca d'água \"RASCUNHO\"."
+    },
+    "logo": {
+      "title": "Timbre (logo)",
+      "none": "Sem logo: os documentos saem sem timbre.",
+      "current": "Logo definido para este template.",
+      "upload": "Enviar logo",
+      "replace": "Trocar logo",
+      "remove": "Remover logo",
+      "uploading": "Enviando e verificando o logo…",
+      "uploadFailed": "Não foi possível usar este arquivo como logo. Envie uma imagem PNG, JPEG ou SVG.",
+      "position": "Posição do logo",
+      "positions": {
+        "left": "Esquerda",
+        "center": "Centro",
+        "right": "Direita"
+      },
+      "maxHeight": "Altura máxima do logo (mm)"
+    },
+    "preview": {
+      "title": "Prévia em PDF",
+      "description": "Gera um PDF de exemplo com o layout e as seções deste rascunho. A prévia vale por {hours} h.",
+      "generate": "Gerar prévia",
+      "generating": "Gerando prévia…",
+      "retry": "Tentar novamente",
+      "ready": "Prévia pronta.",
+      "failed": "Não foi possível gerar a prévia agora. Tente novamente.",
+      "invalid": "Corrija as pendências do template antes de gerar a prévia.",
+      "rateLimited": "Muitas prévias solicitadas. Aguarde um pouco.",
+      "requestFailed": "Não foi possível solicitar a prévia agora. Tente novamente.",
+      "expired": "Esta prévia não está mais disponível. Gere novamente.",
+      "outdated": "O layout mudou depois desta prévia. Gere uma nova prévia para ver as alterações.",
+      "pages": "Páginas",
+      "validUntil": "Válida até",
+      "watermark": "A prévia sai com a marca d'água \"RASCUNHO\" e dados de exemplo do processo e do documento.",
+      "download": "Baixar prévia",
+      "downloadFailed": "Não foi possível baixar a prévia agora."
     }
   }
 }

@@ -25,6 +25,10 @@ export class RedisCacheStore implements CacheStore {
     await this.client.redis.del(key);
   }
 
+  async setIfAbsent(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    return (await this.client.redis.set(key, value, 'EX', ttlSeconds, 'NX')) === 'OK';
+  }
+
   getMany(keys: readonly string[]): Promise<(string | null)[]> {
     return keys.length === 0 ? Promise.resolve([]) : this.client.redis.mget(...keys);
   }

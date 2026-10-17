@@ -1,4 +1,4 @@
-// E2E do SCR-033/SCR-114 (US-107): Administração › Templates — criar template, adicionar seções,
+// E2E do SCR-033/SCR-114 (US-107/US-109): Administração › Templates — criar template, adicionar seções,
 // salvar, recarregar e confirmar a persistência, e ver o `TEMPLATE_INVALID` na seção certa, com
 // axe-core em cada estado e a largura de 360 px. A API é simulada (support/mock-api.mjs); as regras
 // de conteúdo e o isolamento por tenant são cobertos nos testes da API (módulo `document` e suíte
@@ -73,6 +73,32 @@ test('no celular (360 px) o editor fica em coluna única e acessível', async ({
   );
   expect(overflow).toBe(false);
   await expectNoSeriousA11yViolations(page, 'editor de template em 360 px');
+});
+
+// US-109: aba "Layout" — fonte, margem e cabeçalho com variável salvos; prévia pronta com download.
+test('configura o layout de impressão e gera a prévia em PDF', async ({ page }) => {
+  await openList(page);
+  await page.getByRole('link', { name: 'Editar conteúdo de Despacho padrão' }).click();
+  await page.getByRole('tab', { name: 'Layout' }).click();
+  await expect(page.getByLabel('Margem superior (mm)')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'aba Layout do template');
+
+  await page.getByLabel('Fonte').selectOption('Times New Roman');
+  await expect(page.getByText('Layout salvo.')).toBeAttached();
+  await page.getByLabel('Margem superior (mm)').fill('25');
+  await page
+    .getByRole('button', { name: 'Inserir a variável organization.name no campo Cabeçalho' })
+    .click();
+  await page.getByRole('button', { name: 'Gerar prévia' }).click();
+  await expect(page.getByText('Prévia pronta.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Baixar prévia' })).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'prévia do template pronta');
+
+  await page.reload();
+  await page.getByRole('tab', { name: 'Layout' }).click();
+  await expect(page.getByLabel('Fonte')).toHaveValue('Times New Roman');
+  await expect(page.getByLabel('Margem superior (mm)')).toHaveValue('25');
+  await expect(page.getByLabel('Cabeçalho')).toHaveValue('{{organization.name}}');
 });
 
 // US-108: publicar o rascunho, iniciar nova versão, definir o padrão do tipo e aposentar.

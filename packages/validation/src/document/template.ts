@@ -378,6 +378,99 @@ export const DEFAULT_TEMPLATE_LAYOUT: LayoutDefinition = {
   draftWatermark: true,
 };
 
+/** RN-TPL-21/23: faixas do layout de impressão (validação de domínio, não configuração). */
+export const LAYOUT_LIMITS = {
+  marginMm: { min: 10, max: 40 },
+  fontSizePt: { min: 9, max: 14 },
+  lineHeight: { min: 1, max: 2 },
+  /** Padrão de `logo.maxHeightMm` (§5.2). */
+  logoMaxHeightMm: 15,
+} as const;
+
+export const TEMPLATE_LAYOUT_ORIENTATIONS = ['portrait', 'landscape'] as const;
+export const TEMPLATE_LOGO_POSITIONS = ['left', 'center', 'right'] as const;
+export type TemplateLogoPosition = (typeof TEMPLATE_LOGO_POSITIONS)[number];
+
+/** RN-TPL-23: tipos de imagem aceitos como logo (timbre). */
+export const TEMPLATE_LOGO_MIME_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml'] as const;
+
+/** Mensagens pt-BR do layout (US-109 · V-01..V-08). */
+export const LAYOUT_MESSAGES = {
+  margin: 'A margem deve estar entre 10 e 40 mm.',
+  fontSize: 'O tamanho da fonte deve estar entre 9 e 14.',
+  lineHeight: 'A entrelinha deve estar entre 1,0 e 2,0.',
+  fontFamily: 'Selecione uma fonte válida.',
+  orientation: 'Selecione uma orientação válida.',
+  logoPosition: 'Selecione uma posição válida para o logo.',
+  logoHeight: 'A altura do logo deve ser maior que zero e caber na margem superior.',
+  logoInvalid: 'Selecione um logo válido.',
+  notDraft: 'Esta versão está publicada e não pode ser alterada.',
+  previewInvalid: 'Corrija as pendências do template antes de gerar a prévia.',
+} as const;
+
+/**
+ * RN-TPL-22: cabeçalho e rodapé usam o catálogo COMPLETO (inclusive `page`, `pages`,
+ * `document.hash` e `document.version`), resolvido na renderização do PDF.
+ */
+export const LAYOUT_TEMPLATE_VARIABLES: readonly TemplateVariable[] = TEMPLATE_VARIABLES;
+
+const marginSchema = z
+  .number({ error: LAYOUT_MESSAGES.margin })
+  .min(LAYOUT_LIMITS.marginMm.min, { error: LAYOUT_MESSAGES.margin })
+  .max(LAYOUT_LIMITS.marginMm.max, { error: LAYOUT_MESSAGES.margin });
+
+/** Logo do layout no PATCH: posição e altura com os padrões de §5.2. */
+export const layoutLogoUpdateSchema = z.strictObject({
+  attachmentId: z.uuid({ error: LAYOUT_MESSAGES.logoInvalid }),
+  position: z
+    .enum(TEMPLATE_LOGO_POSITIONS, { error: LAYOUT_MESSAGES.logoPosition })
+    .default('left'),
+  maxHeightMm: z
+    .number({ error: LAYOUT_MESSAGES.logoHeight })
+    .positive({ error: LAYOUT_MESSAGES.logoHeight })
+    .max(LAYOUT_LIMITS.marginMm.max, { error: LAYOUT_MESSAGES.logoHeight })
+    .default(LAYOUT_LIMITS.logoMaxHeightMm),
+});
+
+/**
+ * `layout` do TPL-08 (US-109 · RN-TPL-21..24): só as partes enviadas mudam — `marginsMm` campo a
+ * campo; `header`/`footer`/`logo` com `null` são removidos (FA-02). `pageSize` é fixo (`'A4'`).
+ * Faixas → `VALIDATION_ERROR` (`OUT_OF_RANGE`/`INVALID_ENUM`); variáveis e logo são conferidos no
+ * servidor (`TEMPLATE_INVALID` · RN-TPL-22; `REFERENCE_NOT_FOUND` · RN-TPL-23).
+ */
+export const layoutUpdateSchema = z
+  .strictObject({
+    pageSize: z.literal('A4', { error: 'O tamanho da página é fixo em A4.' }),
+    orientation: z.enum(TEMPLATE_LAYOUT_ORIENTATIONS, { error: LAYOUT_MESSAGES.orientation }),
+    marginsMm: z
+      .strictObject({
+        top: marginSchema,
+        right: marginSchema,
+        bottom: marginSchema,
+        left: marginSchema,
+      })
+      .partial(),
+    fontFamily: z.enum(TEMPLATE_FONT_FAMILIES, { error: LAYOUT_MESSAGES.fontFamily }),
+    fontSizePt: z
+      .number({ error: LAYOUT_MESSAGES.fontSize })
+      .min(LAYOUT_LIMITS.fontSizePt.min, { error: LAYOUT_MESSAGES.fontSize })
+      .max(LAYOUT_LIMITS.fontSizePt.max, { error: LAYOUT_MESSAGES.fontSize }),
+    lineHeight: z
+      .number({ error: LAYOUT_MESSAGES.lineHeight })
+      .min(LAYOUT_LIMITS.lineHeight.min, { error: LAYOUT_MESSAGES.lineHeight })
+      .max(LAYOUT_LIMITS.lineHeight.max, { error: LAYOUT_MESSAGES.lineHeight }),
+    header: richTextDocSchema.nullable(),
+    footer: richTextDocSchema.nullable(),
+    logo: layoutLogoUpdateSchema.nullable(),
+    showPageNumbers: z.boolean(),
+    showDocumentHashInFooter: z.boolean(),
+    draftWatermark: z.boolean(),
+  })
+  .partial()
+  .meta({ id: 'PrintLayoutUpdate' });
+export type LayoutUpdateInput = z.input<typeof layoutUpdateSchema>;
+export type LayoutUpdate = z.output<typeof layoutUpdateSchema>;
+
 // ─── Requisições (TPL-01/02/04/08) ───────────────────────────────────────────────────────────
 
 const templateNameSchema = trimmedString({ min: 3, max: 150 });
@@ -406,9 +499,10 @@ export type TemplateUpdate = z.infer<typeof templateUpdateSchema>;
 
 export const CHANGE_NOTES_MAX_LENGTH = 1000;
 
-/** TPL-08 (corpo, conteúdo — US-107). O layout (`layout`) entra com a US-109. */
+/** TPL-08 (corpo): conteúdo (US-107) e layout de impressão (US-109). */
 export const templateVersionUpdateSchema = z
   .strictObject({
+    layout: layoutUpdateSchema,
     sections: z
       .array(sectionDefinitionSchema)
       .max(MAX_TEMPLATE_SECTIONS, { error: `Informe no máximo ${MAX_TEMPLATE_SECTIONS} seções.` }),
@@ -552,3 +646,70 @@ export const templateVersionHistoryItemSchema = z
   })
   .meta({ id: 'TemplateVersionHistoryItem' });
 export type TemplateVersionHistoryItem = z.infer<typeof templateVersionHistoryItemSchema>;
+
+// ─── Prévia efêmera do template (TPL-09/12/13 · US-109) ──────────────────────────────────────
+
+/** RN-TPL-26: estados da prévia (sem `EXPIRED`: vencida some do Redis — 404). */
+export const TEMPLATE_PREVIEW_STATUSES = ['PENDING', 'PROCESSING', 'READY', 'FAILED'] as const;
+export type TemplatePreviewStatus = (typeof TEMPLATE_PREVIEW_STATUSES)[number];
+
+/** Estados em que a prévia ainda está sendo gerada (o front segue consultando). */
+export const TEMPLATE_PREVIEW_IN_PROGRESS: readonly TemplatePreviewStatus[] = [
+  'PENDING',
+  'PROCESSING',
+];
+
+/** `errorCode` da prévia que falhou (FA-03 · RN-TPL-26). */
+export const TEMPLATE_PREVIEW_ERROR_CODES = [
+  'DEPENDENCY_UNAVAILABLE',
+  'TEMPLATE_INVALID',
+  'RENDERER_REJECTED',
+  'INVALID_PDF',
+  'UNKNOWN',
+] as const;
+export type TemplatePreviewErrorCode = (typeof TEMPLATE_PREVIEW_ERROR_CODES)[number];
+
+export const TEMPLATE_PREVIEW_MESSAGES: Readonly<Record<TemplatePreviewErrorCode, string>> = {
+  DEPENDENCY_UNAVAILABLE: 'Não foi possível gerar a prévia agora. Tente novamente.',
+  TEMPLATE_INVALID: 'Corrija as pendências do template antes de gerar a prévia.',
+  RENDERER_REJECTED: 'Não foi possível gerar a prévia com este layout.',
+  INVALID_PDF: 'Não foi possível gerar a prévia agora. Tente novamente.',
+  UNKNOWN: 'Não foi possível gerar a prévia agora. Tente novamente.',
+};
+
+/** RN-TPL-26: validade da prévia (a mesma da prévia de documento — DEC-060). */
+export const TEMPLATE_PREVIEW_TTL_HOURS = 24;
+
+/** TPL-12/13 (path). */
+export const templatePreviewParamsSchema = z.strictObject({
+  versionId: uuidV7Schema,
+  renditionId: uuidV7Schema,
+});
+
+/** TPL-09 (resposta 202). */
+export const templatePreviewRequestedSchema = z
+  .object({ renditionId: z.uuid() })
+  .meta({ id: 'TemplatePreviewRequested' });
+export type TemplatePreviewRequestedDto = z.infer<typeof templatePreviewRequestedSchema>;
+
+/** TPL-12: estado efêmero da prévia (Redis, TTL 24 h), sem chave de storage. */
+export const templatePreviewSchema = z
+  .object({
+    renditionId: z.uuid(),
+    templateVersionId: z.uuid(),
+    status: z.enum(TEMPLATE_PREVIEW_STATUSES),
+    pageCount: z.int().nullable(),
+    sizeBytes: z.int().nullable(),
+    sha256: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .nullable(),
+    errorCode: z.enum(TEMPLATE_PREVIEW_ERROR_CODES).nullable(),
+    /** Mensagem pt-BR sanitizada da falha (nunca conteúdo nem stack). */
+    errorMessage: z.string().nullable(),
+    requestedAt: z.iso.datetime(),
+    readyAt: z.iso.datetime().nullable(),
+    expiresAt: z.iso.datetime(),
+  })
+  .meta({ id: 'TemplatePreview' });
+export type TemplatePreviewDto = z.infer<typeof templatePreviewSchema>;

@@ -10,22 +10,19 @@ import { StorageKeyBuilder } from '#shared/storage/storage-keys.js';
 import { StorageService } from '#shared/storage/storage.service.js';
 
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
+import { PdfRenderPipeline, RendererCircuitOpenError } from './pdf-render-pipeline.js';
 import { PdfRendererCircuit } from './pdf-renderer-circuit.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS } from './ports.js';
 import type { DocumentClock, DocumentTransactions } from './ports.js';
 import { recordRender } from './rendition-telemetry.js';
 import {
   DOCUMENT_RENDITION_REPOSITORY,
-  PDF_RENDERER,
   PdfRendererRejectedError,
   PdfRendererUnavailableError,
   RENDITION_SETTINGS,
 } from './rendition.ports.js';
-import type {
-  DocumentRenditionRepository,
-  PdfRendererPort,
-  RenditionSettings,
-} from './rendition.ports.js';
+import type { DocumentRenditionRepository, RenditionSettings } from './rendition.ports.js';
+import { TemplateLogoService } from './template-logo.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { maskConfidentialSnapshot } from '../domain/confidential-snapshot.js';
 import {
@@ -42,7 +39,6 @@ import type {
   RenderErrorClass,
   RenderErrorCode,
 } from '../domain/document-rendition.js';
-import { inspectPdf } from '../domain/pdf-inspection.js';
 import { buildRenditionHtml, InvalidLayoutError } from '../domain/rendition-html.js';
 import type { RenditionHtmlInput } from '../domain/rendition-html.js';
 
@@ -125,6 +121,9 @@ class RenderFailure extends Error {
 
 function classify(error: unknown): RenderFailure {
   if (error instanceof RenderFailure) return error;
+  if (error instanceof RendererCircuitOpenError) {
+    return new RenderFailure(RENDER_ERROR_CODES.RENDERER_UNAVAILABLE, 'DEPENDENCY_DOWN');
+  }
   if (error instanceof InvalidLayoutError) {
     return new RenderFailure(RENDER_ERROR_CODES.TEMPLATE_INVALID, 'PERMANENT');
   }
@@ -152,11 +151,12 @@ export class RenderDocumentProcessor {
     @Inject(DOCUMENT_CLOCK) private readonly clock: DocumentClock,
     @Inject(RENDITION_SETTINGS) private readonly settings: RenditionSettings,
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
-    @Inject(PDF_RENDERER) private readonly renderer: PdfRendererPort,
+    private readonly pipeline: PdfRenderPipeline,
     private readonly circuit: PdfRendererCircuit,
     private readonly storage: StorageService,
     private readonly lifecycle: DocumentLifecycleService,
     private readonly identity: IdentityFacade,
+    private readonly logos: TemplateLogoService,
   ) {}
 
   async process(input: RenderDocumentInput): Promise<RenderOutcome> {
@@ -223,24 +223,7 @@ export class RenderDocumentProcessor {
   private async render(claimed: DocumentRendition): Promise<RenderedPdf> {
     const source = await this.transactions.read((tx) => this.source(tx, claimed));
     const html = buildRenditionHtml(source.input);
-    if (!this.circuit.tryAcquire()) {
-      throw new RenderFailure(RENDER_ERROR_CODES.RENDERER_UNAVAILABLE, 'DEPENDENCY_DOWN');
-    }
-    let bytes: Buffer;
-    try {
-      bytes = await this.renderer.render({
-        indexHtml: html.indexHtml,
-        headerHtml: html.headerHtml,
-        footerHtml: html.footerHtml,
-        layout: html.layout,
-      });
-      this.circuit.recordSuccess();
-    } catch (error) {
-      if (error instanceof PdfRendererUnavailableError) this.circuit.recordFailure();
-      else this.circuit.recordSuccess();
-      throw error;
-    }
-    const facts = inspectPdf(bytes);
+    const { bytes, facts } = await this.pipeline.convert(html);
     if (facts === null) throw new RenderFailure(RENDER_ERROR_CODES.INVALID_PDF, 'PERMANENT');
     const storageKey = this.storageKeyOf(claimed, source.versionNumber);
     try {
@@ -304,9 +287,11 @@ export class RenderDocumentProcessor {
       claimed.requestedById === null
         ? new Map<string, string>()
         : await this.identity.userDisplayNames(tx, [claimed.requestedById]);
+    const logo = await this.logos.load(tx, template?.layout ?? null);
     return {
       versionNumber,
       input: {
+        logo,
         kind: claimed.kind,
         snapshot: claimed.masked ? maskConfidentialSnapshot(snapshot) : snapshot,
         template:

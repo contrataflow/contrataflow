@@ -37,6 +37,7 @@ import { DocumentFacade } from './application/document.facade.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './application/document.ports.js';
 import { DocumentQueries } from './application/document.queries.js';
 import { ListDocumentTypesQuery } from './application/list-document-types.query.js';
+import { PdfRenderPipeline } from './application/pdf-render-pipeline.js';
 import { PdfRendererCircuit } from './application/pdf-renderer-circuit.js';
 import {
   DOCUMENT_CLOCK,
@@ -48,6 +49,8 @@ import { PreviewDocumentTypeImpactQuery } from './application/preview-document-t
 import { GetProcessDocumentsHandler } from './application/process-documents.query.js';
 import { RenderDocumentJob } from './application/render-document.job.js';
 import { RenderDocumentProcessor } from './application/render-document.processor.js';
+import { RenderTemplatePreviewJob } from './application/render-template-preview.job.js';
+import { RenderTemplatePreviewProcessor } from './application/render-template-preview.processor.js';
 import { RenditionAccess } from './application/rendition-access.js';
 import {
   RequestPreviewCommand,
@@ -63,6 +66,7 @@ import { GetRenditionDownloadQuery, GetRenditionQuery } from './application/rend
 import { ReviewAiContentCommand } from './application/review-ai-content.command.js';
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
+import { TemplateAssetAttachmentTargets } from './application/template-asset-targets.js';
 import { TemplateContext } from './application/template-context.js';
 import { TemplateLibrarySeeder } from './application/template-library.seeder.js';
 import {
@@ -70,6 +74,10 @@ import {
   PublishTemplateVersionCommand,
   RetireTemplateVersionCommand,
 } from './application/template-lifecycle.commands.js';
+import { TemplateLogoService } from './application/template-logo.js';
+import { RenderTemplatePreviewCommand } from './application/template-preview.commands.js';
+import { TemplatePreviewQueries } from './application/template-preview.queries.js';
+import { TemplatePreviewStore } from './application/template-preview.store.js';
 import {
   CreateTemplateCommand,
   UpdateTemplateCommand,
@@ -108,6 +116,7 @@ import {
   DocumentRenditionController,
   DocumentVersionRenditionController,
 } from './presentation/rendition.controller.js';
+import { TemplatePreviewController } from './presentation/template-preview.controller.js';
 import { TemplateController } from './presentation/template.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
@@ -130,7 +139,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040). Dono das
  * renditions em PDF (US-067: DOC-20..23 e o `RenderDocumentJob` da fila `document-render`). O
  * documento externo (US-064: DOC-02/19) lê o arquivo do anexo pela porta `AttachmentFileRegistry`,
- * implementada por `files`.
+ * implementada por `files`. Layout de impressão (US-109): TPL-08 com `layout`, o logo `TENANT_ASSET`
+ * (alvo de anexo = rascunho do template) e a prévia efêmera TPL-09/12/13 (Redis + `document-render`).
  */
 @Module({
   imports: [
@@ -149,6 +159,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   controllers: [
     DocumentTypeController,
     TemplateController,
+    TemplatePreviewController,
     DocumentController,
     DocumentVersionController,
     ProcessDocumentsController,
@@ -179,6 +190,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     PublishTemplateVersionCommand,
     RetireTemplateVersionCommand,
     SetDefaultTemplateCommand,
+    // US-109: layout de impressão, logo do tenant e prévia efêmera do template.
+    TemplateLogoService,
+    TemplateAssetAttachmentTargets,
+    TemplatePreviewStore,
+    RenderTemplatePreviewCommand,
+    TemplatePreviewQueries,
+    RenderTemplatePreviewProcessor,
+    RenderTemplatePreviewJob,
     // US-110: biblioteca padrão semeada no provisionamento.
     TemplateLibrarySeeder,
     { provide: TEMPLATE_LIBRARY, useValue: TEMPLATE_LIBRARY_FIXTURE },
@@ -256,6 +275,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     GetRenditionQuery,
     GetRenditionDownloadQuery,
     PdfRendererCircuit,
+    PdfRenderPipeline,
     RenderDocumentProcessor,
     RenderDocumentJob,
     PrismaDocumentRenditionRepository,
@@ -298,15 +318,18 @@ export class DocumentModule implements OnModuleInit {
     private readonly templateLibrary: TemplateLibrarySeeder,
     private readonly attachmentTargets: AttachmentTargetRegistry,
     private readonly documentAttachmentTargets: DocumentAttachmentTargets,
+    private readonly templateAssetTargets: TemplateAssetAttachmentTargets,
   ) {}
 
   /**
    * Seeders `document.systemTypes` e `document.templateLibrary` (US-099 · US-110) e os alvos de
-   * anexo `DOCUMENT`/`DOCUMENT_VERSION` lidos pelo `files` (US-068).
+   * anexo `DOCUMENT`/`DOCUMENT_VERSION` lidos pelo `files` (US-068) e o `TENANT_ASSET` do logo do
+   * layout de impressão (US-109).
    */
   onModuleInit(): void {
     this.seeders.register(this.systemTypes);
     this.seeders.register(this.templateLibrary);
     this.attachmentTargets.register(this.documentAttachmentTargets);
+    this.attachmentTargets.register(this.templateAssetTargets);
   }
 }

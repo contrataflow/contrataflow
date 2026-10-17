@@ -16,6 +16,7 @@ import type {
 import type { AuditChange } from '#shared/audit/audit-trail.js';
 import { canonicalJson, sha256Hex } from '#shared/integrity/canonical-json.js';
 
+import { applyLayoutPatch, assertLayout, layoutChangedFields } from './layout-definition.js';
 import { FULL_VALIDATION, validateTemplateContent } from './template-content.validator.js';
 import type { TemplateValidationContext } from './template-content.validator.js';
 
@@ -272,16 +273,21 @@ export interface TemplateContentUpdate {
   readonly fieldConfigChanged: boolean;
   readonly importMappingsChanged: boolean;
   readonly changeNotesChanged: boolean;
-  /** Partes alteradas (`sections`, `fieldConfig`, `importMappings`, `changeNotes`). */
+  /** Campos do layout alterados (US-109 · auditoria `layoutChangedFields[]`). */
+  readonly layoutChangedFields: readonly string[];
+  /** Partes alteradas (`sections`, `fieldConfig`, `importMappings`, `changeNotes`, `layout`). */
   readonly fieldsChanged: readonly string[];
 }
 
 /**
  * `DocumentTemplateVersion.updateContent` (TPL-08 · RN-TPL-03..09, 12): só em `DRAFT`; aplica as
  * partes enviadas, confere o conteúdo resultante com o `TemplateContentValidator` (as partes
- * enviadas) e devolve a versão seguinte com o resumo do que mudou.
+ * enviadas) e devolve a versão seguinte com o resumo do que mudou. O layout (US-109 · RN-TPL-21..24)
+ * muda só nas partes enviadas e é conferido por inteiro (`LayoutInvalidError`); a referência do
+ * logo (RN-TPL-23) é conferida pelo caso de uso, que lê o anexo.
  * @throws TemplateVersionNotDraftError
  * @throws TemplateContentInvalidError
+ * @throws LayoutInvalidError
  */
 export function updateTemplateVersionContent(
   current: DocumentTemplateVersion,
@@ -301,28 +307,34 @@ export function updateTemplateVersionContent(
     patch.importMappings === undefined ? current.importMappings : patch.importMappings;
   const changeNotes =
     patch.changeNotes === undefined ? current.changeNotes : blankToNull(patch.changeNotes);
+  const layout =
+    patch.layout === undefined ? current.layout : applyLayoutPatch(current.layout, patch.layout);
 
   const violations = validateTemplateContent(
-    { sections, fieldConfig, importMappings },
+    { sections, fieldConfig, importMappings, layout },
     validation,
     {
       sections: patch.sections !== undefined,
       fieldConfig: patch.fieldConfig !== undefined,
       importMappings: patch.importMappings !== undefined,
+      layout: patch.layout !== undefined,
     },
   );
   if (violations.length > 0) throw new TemplateContentInvalidError(violations);
+  if (patch.layout !== undefined) assertLayout(layout);
 
   const sectionsChanged = changedSectionKeys(current.sections, sections);
   const sectionsReordered = sectionsChanged.length === 0 && !same(current.sections, sections);
   const fieldConfigChanged = !same(current.fieldConfig, fieldConfig);
   const importMappingsChanged = !same(current.importMappings, importMappings);
   const changeNotesChanged = current.changeNotes !== changeNotes;
+  const layoutChanged = layoutChangedFields(current.layout, layout);
   const fieldsChanged = [
     ...(sectionsChanged.length > 0 || sectionsReordered ? ['sections'] : []),
     ...(fieldConfigChanged ? ['fieldConfig'] : []),
     ...(importMappingsChanged ? ['importMappings'] : []),
     ...(changeNotesChanged ? ['changeNotes'] : []),
+    ...(layoutChanged.length > 0 ? ['layout'] : []),
   ];
   return {
     next:
@@ -334,6 +346,7 @@ export function updateTemplateVersionContent(
             fieldConfig,
             importMappings,
             changeNotes,
+            layout,
             updatedAt: context.now,
             updatedById: context.userId,
           },
@@ -341,6 +354,7 @@ export function updateTemplateVersionContent(
     fieldConfigChanged,
     importMappingsChanged,
     changeNotesChanged,
+    layoutChangedFields: layoutChanged,
     fieldsChanged,
   };
 }

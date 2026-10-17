@@ -8320,6 +8320,237 @@
           "draftWatermark"
         ]
       },
+      "PrintLayoutUpdate": {
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "type": "string",
+            "enum": [
+              "A4"
+            ]
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "portrait",
+              "landscape"
+            ]
+          },
+          "marginsMm": {
+            "type": "object",
+            "properties": {
+              "top": {
+                "type": "number",
+                "minimum": 10,
+                "maximum": 40
+              },
+              "right": {
+                "type": "number",
+                "minimum": 10,
+                "maximum": 40
+              },
+              "bottom": {
+                "type": "number",
+                "minimum": 10,
+                "maximum": 40
+              },
+              "left": {
+                "type": "number",
+                "minimum": 10,
+                "maximum": 40
+              }
+            },
+            "additionalProperties": false
+          },
+          "fontFamily": {
+            "type": "string",
+            "enum": [
+              "Inter",
+              "Arial",
+              "Times New Roman",
+              "Liberation Serif"
+            ]
+          },
+          "fontSizePt": {
+            "type": "number",
+            "minimum": 9,
+            "maximum": 14
+          },
+          "lineHeight": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "header": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TipTapDoc"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "footer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TipTapDoc"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "logo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "attachmentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "center",
+                  "right"
+                ],
+                "default": "left"
+              },
+              "maxHeightMm": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 40,
+                "default": 15
+              }
+            },
+            "required": [
+              "attachmentId"
+            ],
+            "additionalProperties": false
+          },
+          "showPageNumbers": {
+            "type": "boolean"
+          },
+          "showDocumentHashInFooter": {
+            "type": "boolean"
+          },
+          "draftWatermark": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TemplatePreviewRequested": {
+        "type": "object",
+        "properties": {
+          "renditionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "renditionId"
+        ]
+      },
+      "TemplatePreview": {
+        "type": "object",
+        "properties": {
+          "renditionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "READY",
+              "FAILED"
+            ]
+          },
+          "pageCount": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "errorCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "DEPENDENCY_UNAVAILABLE",
+              "TEMPLATE_INVALID",
+              "RENDERER_REJECTED",
+              "INVALID_PDF",
+              "UNKNOWN",
+              null
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readyAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "renditionId",
+          "templateVersionId",
+          "status",
+          "pageCount",
+          "sizeBytes",
+          "sha256",
+          "errorCode",
+          "errorMessage",
+          "requestedAt",
+          "readyAt",
+          "expiresAt"
+        ]
+      },
       "Template": {
         "type": "object",
         "properties": {
@@ -35584,7 +35815,7 @@
       },
       "patch": {
         "operationId": "TPL-08",
-        "summary": "Atualizar conteúdo da versão do template (rascunho)",
+        "summary": "Atualizar conteúdo/layout da versão do template (rascunho)",
         "tags": [
           "Templates"
         ],
@@ -35626,6 +35857,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "layout": {
+                    "$ref": "#/components/schemas/PrintLayoutUpdate"
+                  },
                   "sections": {
                     "type": "array",
                     "items": {
@@ -35738,7 +35972,7 @@
         },
         "responses": {
           "200": {
-            "description": "Rascunho atualizado (novo `ETag`); conteúdo inválido → 422 `TEMPLATE_INVALID` com `violations[]`.",
+            "description": "Rascunho atualizado (novo `ETag`); conteúdo inválido ou variável desconhecida no cabeçalho/rodapé → 422 `TEMPLATE_INVALID` com `violations[]`; layout fora das faixas ou logo inválido → 422 `VALIDATION_ERROR`; logo ainda não disponível → 409 `ATTACHMENT_NOT_AVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -35746,6 +35980,376 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TemplateVersion"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/template-versions/{versionId}/preview": {
+      "post": {
+        "operationId": "TPL-09",
+        "summary": "Solicitar prévia da versão do template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-exempt": "Visualização de configuração (US-109): a prévia efêmera não altera dados — apenas logs técnicos do worker de renderização.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Prévia enfileirada (`document-render`): o layout e as seções da versão com `defaultContent` (ou espaço reservado), marca d’água \"RASCUNHO\" e validade de 24 h. Cliques repetidos do mesmo usuário na mesma revisão devolvem a prévia em andamento. Template com pendências → 422 `TEMPLATE_INVALID`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TemplatePreviewRequested"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/template-versions/{versionId}/preview/{renditionId}": {
+      "get": {
+        "operationId": "TPL-12",
+        "summary": "Consultar prévia efêmera do template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "renditionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado para o *polling* (`PENDING`/`PROCESSING` → `READY`/`FAILED`, com `errorCode` e mensagem na falha). Vencida (24 h), de outra versão ou de outro tenant → 404.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TemplatePreview"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/template-versions/{versionId}/preview/{renditionId}/download": {
+      "get": {
+        "operationId": "TPL-13",
+        "summary": "Baixar prévia efêmera do template",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "renditionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL pré-assinada (≤ 300 s) do PDF da prévia `READY`. Antes de pronta → 409 `RENDITION_NOT_READY`; vencida → 404.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RenditionDownload"
                     }
                   },
                   "required": [

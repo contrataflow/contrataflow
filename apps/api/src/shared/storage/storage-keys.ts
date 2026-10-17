@@ -100,6 +100,11 @@ export const StorageKeyBuilder = {
   documentPreview(documentId: string, renditionId: string): string {
     return StorageKeyBuilder.build('previews', documentId, `${renditionId}.pdf`);
   },
+
+  /** Prévia do template (US-109): `tenants/{tenantId}/template-previews/{versionId}/{renditionId}.pdf`. */
+  templatePreview(templateVersionId: string, renditionId: string): string {
+    return StorageKeyBuilder.build('template-previews', templateVersionId, `${renditionId}.pdf`);
+  },
 } as const;
 
 /**

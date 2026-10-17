@@ -225,6 +225,7 @@ export class PrismaTemplateRepository implements TemplateRepository {
           where: { id: version.id, version: expectedVersion, status: 'DRAFT' },
           data: {
             sections: json(version.sections),
+            layout: json(version.layout),
             fieldConfig: json(version.fieldConfig),
             importMappings:
               version.importMappings === null ? Prisma.DbNull : json(version.importMappings),

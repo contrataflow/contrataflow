@@ -7,6 +7,12 @@ export interface CacheStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ttlSeconds: number): Promise<void>;
   delete(key: string): Promise<void>;
+  /**
+   * Grava só se a chave não existe (`SET NX EX`): `true` = gravou. Trava curta de deduplicação
+   * (ex.: a prévia do template em andamento — US-109). Sem implementação, o `TenantCache` lê e
+   * grava (sem atomicidade).
+   */
+  setIfAbsent?(key: string, value: string, ttlSeconds: number): Promise<boolean>;
   /** Várias chaves numa ida (`MGET`); sem implementação, o `TenantCache` lê uma a uma. */
   getMany?(keys: readonly string[]): Promise<(string | null)[]>;
 }
@@ -37,6 +43,12 @@ export class InMemoryCacheStore implements CacheStore {
   delete(key: string): Promise<void> {
     this.entries.delete(key);
     return Promise.resolve();
+  }
+
+  async setIfAbsent(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    if ((await this.get(key)) !== null) return false;
+    await this.set(key, value, ttlSeconds);
+    return true;
   }
 
   async getMany(keys: readonly string[]): Promise<(string | null)[]> {

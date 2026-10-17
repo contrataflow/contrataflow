@@ -108,6 +108,22 @@ abstract class ScopedCache {
     await this.store.set(this.keyFor(module, key), JSON.stringify(value), options.ttlSeconds);
   }
 
+  /** Grava o valor só se a chave não existe (`SET NX`): `true` = gravou. Erro do Redis propaga. */
+  async setIfAbsent(
+    module: string,
+    key: string,
+    value: unknown,
+    options: CacheWriteOptions,
+  ): Promise<boolean> {
+    assertTtl(options.ttlSeconds);
+    const fullKey = this.keyFor(module, key);
+    const raw = JSON.stringify(value);
+    if (this.store.setIfAbsent) return this.store.setIfAbsent(fullKey, raw, options.ttlSeconds);
+    if ((await this.store.get(fullKey)) !== null) return false;
+    await this.store.set(fullKey, raw, options.ttlSeconds);
+    return true;
+  }
+
   async delete(module: string, key: string): Promise<void> {
     await this.store.delete(this.keyFor(module, key));
   }

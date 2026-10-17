@@ -1,7 +1,10 @@
 import type {
   DocumentTypeDto,
+  RenditionDownloadDto,
   TemplateCreate,
   TemplateDto,
+  TemplatePreviewDto,
+  TemplatePreviewRequestedDto,
   TemplateUpdate,
   TemplateVersionDto,
   TemplateVersionHistoryItem,
@@ -38,7 +41,12 @@ export const templateKeys = {
     tenantKey(tenantId, 'templates', 'versions', templateId),
   version: (tenantId: string, versionId: string) =>
     tenantKey(tenantId, 'templates', 'version', versionId),
+  preview: (tenantId: string, versionId: string, renditionId: string) =>
+    tenantKey(tenantId, 'templates', 'preview', versionId, renditionId),
 };
+
+/** Intervalo do *polling* da prévia do template (TPL-12), como o do PDF do documento. */
+export const TEMPLATE_PREVIEW_POLL_MS = 2_000;
 
 /** Staleness das telas de configuração (architecture.md §8.5). */
 export const TEMPLATES_STALE_TIME_MS = 60_000;
@@ -93,6 +101,36 @@ export function updateTemplateVersion(
     body: patch,
     ifMatch: `"${version}"`,
   });
+}
+
+/** TPL-09 (US-109): pede a prévia efêmera em PDF (202 com o `renditionId`). */
+export function requestTemplatePreview(
+  versionId: string,
+): Promise<ApiResult<TemplatePreviewRequestedDto>> {
+  return apiRequest<TemplatePreviewRequestedDto>(`/template-versions/${versionId}/preview`, {
+    method: 'POST',
+  });
+}
+
+/** TPL-12: estado da prévia (*polling*). */
+export function fetchTemplatePreview(
+  versionId: string,
+  renditionId: string,
+  signal?: AbortSignal,
+): Promise<ApiResult<TemplatePreviewDto>> {
+  return apiRequest<TemplatePreviewDto>(`/template-versions/${versionId}/preview/${renditionId}`, {
+    signal,
+  });
+}
+
+/** TPL-13: URL assinada (≤ 300 s) do PDF da prévia pronta. */
+export function fetchTemplatePreviewDownload(
+  versionId: string,
+  renditionId: string,
+): Promise<ApiResult<RenditionDownloadDto>> {
+  return apiRequest<RenditionDownloadDto>(
+    `/template-versions/${versionId}/preview/${renditionId}/download`,
+  );
 }
 
 /** DTY-01 sem `includeInactive`: os tipos ativos que podem receber template (RN-DOC-12). */
