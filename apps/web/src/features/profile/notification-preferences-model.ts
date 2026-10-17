@@ -36,7 +36,7 @@ export const NOTIFICATION_TYPES_BY_AREA: Readonly<
   approvals: ['APPROVAL_REQUESTED', 'APPROVAL_DECIDED', 'APPROVAL_REASSIGNED'],
   collaboration: ['MENTIONED', 'COMMENT_REPLY', 'PARTICIPANT_ADDED'],
   deadlines: ['STAGE_DUE_SOON', 'STAGE_OVERDUE'],
-  security: ['ROLE_CHANGED'],
+  security: ['ROLE_CHANGED', 'AI_USAGE_LIMIT_WARNING'],
 };
 
 const keyOf = (type: NotificationType, channel: NotificationChannel) => `${type}:${channel}`;

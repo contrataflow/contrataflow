@@ -31,7 +31,8 @@
     "DOCUMENT_RENDER_FAILED": "Falha ao gerar o PDF de um documento",
     "ROLE_CHANGED": "Seus perfis de acesso mudaram",
     "AI_GENERATION_READY": "Conteúdo gerado por IA pronto para revisão",
-    "AI_GENERATION_FAILED": "Falha na geração com IA que você pediu"
+    "AI_GENERATION_FAILED": "Falha na geração com IA que você pediu",
+    "AI_USAGE_LIMIT_WARNING": "Consumo de IA do órgão perto do limite mensal"
   },
   "notes": {
     "mandatory": "Este aviso não pode ser desligado.",

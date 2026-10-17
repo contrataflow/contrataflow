@@ -86,6 +86,24 @@ describe('RecipientResolver (events.md §6 · US-111)', () => {
     expect((await resolver.resolve(NO_SQL, plan, event, NOW)).recipients).toEqual([ACTOR]);
   });
 
+  it('[US-116] o aviso de limite de IA vai a quem tem SETTINGS_MANAGE no tenant (máx. 50), inclusive o ator', async () => {
+    const fake = directory();
+    const admins = Array.from({ length: NOTIFICATION_MAX_UNIT_RECIPIENTS + 5 }, () => testId());
+    for (const userId of admins) fake.active.add(userId);
+    fake.holders.set('SETTINGS_MANAGE', [ACTOR, ...admins]);
+    const resolver = new RecipientResolver({ directory: fake, visibility: null, lookups: [] });
+    const event = envelope(
+      'AiUsageThresholdReached',
+      { month: '2026-10', threshold: 80, usedTokens: 41_000, limitTokens: 50_000 },
+      { processId: null, aggregateType: 'Tenant' },
+    );
+    const plan = planNotification(event);
+    if (plan.kind !== 'notify') throw new Error('plano esperado');
+    const { recipients } = await resolver.resolve(NO_SQL, plan, event, NOW);
+    expect(recipients).toHaveLength(NOTIFICATION_MAX_UNIT_RECIPIENTS);
+    expect(recipients).toContain(ACTOR);
+  });
+
   it('remove repetidos e quem não tem vínculo ativo; ordena para travar sempre na mesma ordem', async () => {
     const result = await resolve([
       { kind: 'USER', userId: BRUNO },

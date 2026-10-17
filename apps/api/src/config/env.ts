@@ -2,6 +2,12 @@ import { isIP } from 'node:net';
 
 import { LOG_LEVELS, PRODUCTION_FORBIDDEN_LEVELS } from '@contrataflow/observability';
 import type { LogLevel } from '@contrataflow/observability';
+import {
+  AI_MONTHLY_TOKEN_LIMIT_CEILING,
+  AI_MONTHLY_TOKEN_LIMIT_MIN,
+  AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT,
+} from '@contrataflow/types';
+import { AI_TERMS_CURRENT_VERSION } from '@contrataflow/validation';
 import { z } from 'zod';
 
 /** CIDR IPv4 (`10.0.0.0/8`) ou IPv6 (`fd00::/8`); IP sem prefixo vale como host único. */
@@ -138,6 +144,17 @@ export const envSchema = z
     AI_MODEL_SECTION: z.string().trim().min(1).max(100).default('fake-section-1'),
     /** Timeout de cada chamada ao provedor (RN-AI-08: 120 s). */
     AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+    /*
+     * IA no órgão (US-116 · DEC-079): versão vigente dos termos de uso (texto versionado em
+     * `@contrataflow/validation` — `AI_TERMS_DOCUMENTS`) e teto do `ai.monthlyTokenLimit` do tenant.
+     */
+    AI_TERMS_VERSION: z.string().trim().min(1).max(20).default(AI_TERMS_CURRENT_VERSION),
+    AI_TENANT_MAX_MONTHLY_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(AI_MONTHLY_TOKEN_LIMIT_MIN)
+      .max(AI_MONTHLY_TOKEN_LIMIT_CEILING)
+      .default(AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT),
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
@@ -267,6 +284,10 @@ export interface AppConfig {
     readonly provider: 'fake' | 'none';
     readonly models: { readonly draft: string; readonly section: string };
     readonly requestTimeoutMs: number;
+    /** Versão vigente dos termos de uso (`AI_TERMS_VERSION` — US-116). */
+    readonly termsVersion: string;
+    /** Teto do limite mensal de tokens por tenant (`AI_TENANT_MAX_MONTHLY_TOKENS`). */
+    readonly tenantMaxMonthlyTokens: number;
   };
 }
 
@@ -356,6 +377,8 @@ function toAppConfig(env: Env): AppConfig {
             : 'none',
       models: { draft: env.AI_MODEL_DRAFT, section: env.AI_MODEL_SECTION },
       requestTimeoutMs: env.AI_REQUEST_TIMEOUT_MS,
+      termsVersion: env.AI_TERMS_VERSION,
+      tenantMaxMonthlyTokens: env.AI_TENANT_MAX_MONTHLY_TOKENS,
     },
   };
 }

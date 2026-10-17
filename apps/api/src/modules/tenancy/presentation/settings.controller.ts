@@ -3,12 +3,16 @@ import { createHash } from 'node:crypto';
 import {
   publicSettingsResponseSchema,
   settingsResponseSchema,
+  settingsWithMetaResponseSchema,
   updateSettingsSchema,
 } from '@contrataflow/validation';
-import type { SettingsMapDto, UpdateSettings } from '@contrataflow/validation';
-import { Controller, Get, HttpCode, Patch, Res } from '@nestjs/common';
+import type { SettingsMapDto, SettingsMetaDto, UpdateSettings } from '@contrataflow/validation';
+import { Controller, Get, HttpCode, Inject, Patch, Res } from '@nestjs/common';
 
+import { APP_CONFIG } from '#config/config.module.js';
+import type { AppConfig } from '#config/env.js';
 import { RequirePermission } from '#shared/auth/authorization.js';
+import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
@@ -39,6 +43,7 @@ export class SettingsController {
     private readonly list: GetSettingsQuery,
     private readonly listPublic: GetPublicSettingsQuery,
     private readonly update: UpdateSettingsCommand,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   @Get()
@@ -50,16 +55,24 @@ export class SettingsController {
     responses: {
       200: {
         description:
-          'Todas as chaves do registro com `value` e `version` (0 = padrão ainda não gravado).',
-        schema: settingsResponseSchema,
+          'Todas as chaves do registro com `value` e `version` (0 = padrão ainda não gravado); `meta.aiTerms` traz a versão vigente dos termos de uso da IA, o provedor e o teto do limite mensal (US-116).',
+        schema: settingsWithMetaResponseSchema,
       },
     },
   })
-  async getSettings(@Res({ passthrough: true }) response: HttpResponse): Promise<SettingsMapDto> {
+  async getSettings(
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<SettingsMapDto, SettingsMetaDto>> {
     const settings = await this.list.execute();
     response.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
     response.setHeader('ETag', weakEtag(settings));
-    return settings;
+    return new DataResult(settings, {
+      aiTerms: {
+        currentVersion: this.config.ai.termsVersion,
+        provider: this.config.ai.provider,
+        maxMonthlyTokens: this.config.ai.tenantMaxMonthlyTokens,
+      },
+    });
   }
 
   @Patch()

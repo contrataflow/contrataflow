@@ -74,6 +74,8 @@ export const ERROR_CODES = [
   'AI_PROVIDER_UNAVAILABLE',
   'AI_USAGE_LIMIT_REACHED',
   'AI_USER_DAILY_LIMIT_REACHED',
+  // US-116: ligar a IA exige o aceite da versão vigente dos termos (RN-AI-16).
+  'AI_TERMS_NOT_ACCEPTED',
   'AI_GENERATION_IN_PROGRESS',
   'AI_PREREQUISITE_MISSING',
   'AI_SECTION_EMPTY',

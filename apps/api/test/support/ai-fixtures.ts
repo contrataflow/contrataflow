@@ -1,6 +1,7 @@
 import type { AiGenerationKind, AiTargetModule } from '@contrataflow/types';
 import type { AiGenerationOutput } from '@contrataflow/validation';
 
+import { DEFAULT_ROLES } from '#modules/access/domain/default-roles.js';
 import {
   AiPostProcessorRegistry,
   AiTenantGateRegistry,
@@ -68,7 +69,7 @@ export class TestAiGenerator implements AiGenerator {
     version: '1.0.0',
     instructions: 'Gere o rascunho de teste com as seções pedidas.',
   };
-  readonly reservedTokens = 15_000;
+  readonly reservedTokens: number = 15_000;
   readonly needSummary = 'REQUIRED' as const;
   readonly maxOutputTokens = 4_000;
   revoked = false;
@@ -194,4 +195,15 @@ export async function runAiJobWithRetries(
     }
   }
   return { attempts: maxAttempts, error: lastError };
+}
+
+/** Transações das configurações do tenant (US-116: Falha de banco no SET-02). */
+export { SETTINGS_TRANSACTIONS } from '#modules/tenancy/application/settings-ports.js';
+export type { SettingsTransactions } from '#modules/tenancy/application/settings-ports.js';
+
+/** Perfis padrão que concedem `AI_GENERATE` (RN-AI-21). */
+export function rolesGrantingAiGenerate(): string[] {
+  return DEFAULT_ROLES.filter((role) => role.permissions.includes('AI_GENERATE')).map(
+    (role) => role.key,
+  );
 }

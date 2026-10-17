@@ -49,6 +49,7 @@ export const DOMAIN_EVENT_NAMES = [
   'AiGenerationRequested',
   'AiGenerationCompleted',
   'AiGenerationFailed',
+  'AiUsageThresholdReached',
 ] as const satisfies readonly string[];
 
 export type DomainEventName = (typeof DOMAIN_EVENT_NAMES)[number];

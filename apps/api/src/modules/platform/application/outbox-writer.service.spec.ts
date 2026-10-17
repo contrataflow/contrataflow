@@ -125,6 +125,25 @@ describe('OutboxWriter (US-082)', () => {
     expect(access.seen).toEqual([]);
   });
 
+  it('[US-116] recordOnce: id determinístico grava uma vez; repetido não grava nem despacha', async () => {
+    const { store, registry, writer } = setup();
+    const timeline = handler('TimelineProjector', ['probe.*']);
+    registry.register(timeline);
+    const fixedId = '0192f000-0000-7000-8000-0000000000f1';
+
+    const [first, second] = await asUser(() =>
+      runSimulatedTransaction(async (tx) => [
+        await writer.recordOnce(tx, validEvent(), fixedId),
+        await writer.recordOnce(tx, validEvent(), fixedId),
+      ]),
+    );
+
+    expect(first?.eventId).toBe(fixedId);
+    expect(second).toBeNull();
+    expect(store.rows.map((row) => row.id)).toEqual([fixedId]);
+    expect(timeline.seen).toHaveLength(1);
+  });
+
   it('preserva o causationId e aceita ator SYSTEM (job originado por evento)', async () => {
     const { writer } = setup();
     const causation = '0192f3a0-5c1e-7a2b-9c3d-4e5f60718293';

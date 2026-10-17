@@ -21,7 +21,8 @@ function definition(overrides: Partial<SettingDefinition> = {}): SettingDefiniti
 
 describe('SettingsRegistry (RN-TEN-52/53)', () => {
   it('contém as chaves de entities.md §6, todas com padrão válido no próprio schema', () => {
-    expect(registry.definitions()).toHaveLength(32);
+    // 32 de entities.md §6 + 4 chaves ai.* da US-116.
+    expect(registry.definitions()).toHaveLength(36);
     for (const item of registry.definitions()) {
       expect(item.schema.safeParse(item.defaultValue).success, item.key).toBe(true);
     }
@@ -36,7 +37,7 @@ describe('SettingsRegistry (RN-TEN-52/53)', () => {
       'branding.logoAttachmentId',
       'process.requireInternalCode',
     ]);
-    expect(registry.definitions().filter((item) => !item.isPublic)).toHaveLength(27);
+    expect(registry.definitions().filter((item) => !item.isPublic)).toHaveLength(31);
   });
 
   it('chave duplicada entre módulos impede o boot', () => {

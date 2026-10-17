@@ -3,6 +3,7 @@ import type { AiGenerationKind, AiGenerationStatus, AiTargetModule } from '@cont
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { AiGeneration } from '../domain/ai-generation.js';
+import type { AiUsageRow } from '../domain/ai-usage.js';
 
 /*
  * Portas da aplicação do módulo `ai` (US-115): implementadas em `infrastructure/` (Prisma) e em
@@ -72,6 +73,16 @@ export interface AiGenerationRepository {
   expireDue(tx: TenantTx, now: Date): Promise<number>;
   /** RN-AI-08: `RUNNING` iniciadas antes de `before` (manutenção → `FAILED`/`TIMEOUT`). */
   findStaleRunning(tx: TenantTx, before: Date, limit: number): Promise<AiGeneration[]>;
+  /**
+   * US-116: recorte de consumo das gerações do tenant criadas em `[from, to)` (índice
+   * `(tenant_id, created_at)`), sem conteúdo.
+   */
+  usageRows(tx: TenantTx, from: Date, to: Date): Promise<AiUsageRow[]>;
+  /**
+   * US-116 (RN-AI-19 · DEC-079): serializa por tenant a verificação de limites + inserção do AI-01
+   * e o término da geração (`pg_advisory_xact_lock`, liberada no fim da transação).
+   */
+  lockTenantUsage(tx: TenantTx): Promise<void>;
 }
 
 export const AI_GENERATION_REPOSITORY = Symbol('AiGenerationRepository');

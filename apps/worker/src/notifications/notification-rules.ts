@@ -44,6 +44,11 @@ export type RecipientSpec =
       readonly departmentId: string | null;
       readonly includeDeputy: boolean;
     }
+  /**
+   * Vínculos ativos com a permissão em qualquer escopo do tenant, até 50 (US-116 — avisos de
+   * administração do órgão, ex.: `SETTINGS_MANAGE`). Acima disso, os 50 primeiros por id.
+   */
+  | { readonly kind: 'TENANT_PERMISSION_HOLDERS'; readonly permission: PermissionCode }
   /** Dono do vínculo (`membershipId` do payload). */
   | { readonly kind: 'MEMBERSHIP_USER'; readonly membershipId: string | null }
   | { readonly kind: 'LOOKUP'; readonly lookup: RecipientLookup }
@@ -321,6 +326,19 @@ const RULES: Readonly<Record<string, Rule>> = {
   RoleRevoked: (event) => roleChanged(event, 'revoked'),
   AiGenerationCompleted: (event) => aiGeneration('AI_GENERATION_READY', event),
   AiGenerationFailed: (event) => aiGeneration('AI_GENERATION_FAILED', event),
+  AiUsageThresholdReached: (event) => {
+    const threshold = event.payload.threshold;
+    const month = event.payload.month;
+    return plan('AI_USAGE_LIMIT_WARNING', event, {
+      recipients: [{ kind: 'TENANT_PERMISSION_HOLDERS', permission: 'SETTINGS_MANAGE' }],
+      entityType: 'Tenant',
+      entityId: event.aggregateId,
+      link: '/admin/configuracoes',
+      variant: `${typeof threshold === 'number' ? String(threshold) : ''}|${typeof month === 'string' ? month : ''}`,
+      // O solicitante da geração que cruzou a faixa também é avisado se administra o órgão.
+      includeActor: true,
+    });
+  },
 };
 
 /**

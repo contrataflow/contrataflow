@@ -23,6 +23,7 @@ export const NOTIFICATION_TYPES = [
   'ROLE_CHANGED',
   'AI_GENERATION_READY',
   'AI_GENERATION_FAILED',
+  'AI_USAGE_LIMIT_WARNING',
 ] as const satisfies readonly string[];
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -147,6 +148,13 @@ export const NOTIFICATION_REGISTRY: Readonly<Record<NotificationType, Notificati
     AI_GENERATION_FAILED: {
       sourceEvents: ['AiGenerationFailed'],
       emailByDefault: false,
+      mandatory: false,
+      dispatchedBy: 'US-111',
+    },
+    // US-116: consumo do mês cruzou 80%/100% do limite — a quem tem `SETTINGS_MANAGE` (máx. 50).
+    AI_USAGE_LIMIT_WARNING: {
+      sourceEvents: ['AiUsageThresholdReached'],
+      emailByDefault: true,
       mandatory: false,
       dispatchedBy: 'US-111',
     },

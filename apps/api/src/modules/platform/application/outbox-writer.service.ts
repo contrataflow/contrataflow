@@ -66,6 +66,25 @@ export class OutboxWriterService implements OutboxWriterPort {
   ) {}
 
   async record(tx: TenantTx, event: DomainEventDraft): Promise<RecordedDomainEvent> {
+    const recorded = await this.write(tx, event, newId(), false);
+    if (recorded === null) throw new Error('INSERT em outbox_events sem linha gravada.');
+    return recorded;
+  }
+
+  recordOnce(
+    tx: TenantTx,
+    event: DomainEventDraft,
+    eventId: string,
+  ): Promise<RecordedDomainEvent | null> {
+    return this.write(tx, event, eventId, true);
+  }
+
+  private async write(
+    tx: TenantTx,
+    event: DomainEventDraft,
+    eventId: string,
+    once: boolean,
+  ): Promise<RecordedDomainEvent | null> {
     if (!isActiveTransaction(tx)) {
       throw new OutboxContractError(
         'TRANSACTION',
@@ -78,7 +97,7 @@ export class OutboxWriterService implements OutboxWriterPort {
 
     // V-01: o envelope completo (com um instante provisório; o definitivo vem do banco).
     const draft = domainEventEnvelopeSchema.safeParse({
-      eventId: newId(),
+      eventId,
       eventType: resolved.eventType,
       routingKey: resolved.routingKey,
       eventVersion: resolved.eventVersion,
@@ -107,7 +126,7 @@ export class OutboxWriterService implements OutboxWriterPort {
       causationId: envelope.causationId,
       ...injectTraceCarrier(),
     };
-    const occurredAt = await this.store.insert(tx, {
+    const row = {
       id: envelope.eventId,
       tenantId,
       eventType: envelope.eventType,
@@ -118,7 +137,12 @@ export class OutboxWriterService implements OutboxWriterPort {
       processId: envelope.processId,
       payload: envelope.payload,
       metadata,
-    });
+    };
+    const occurredAt = once
+      ? await this.store.insertOnce(tx, row)
+      : await this.store.insert(tx, row);
+    // Fato com chave natural já gravado (`recordOnce`): nada a despachar.
+    if (occurredAt === null) return null;
     const recorded: RecordedDomainEvent = { ...envelope, occurredAt: occurredAt.toISOString() };
 
     await this.handlers.dispatch(tx, recorded);

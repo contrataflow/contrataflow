@@ -167,6 +167,7 @@ function build() {
       events.push(event);
       return Promise.resolve(event);
     },
+    recordOnce: () => Promise.reject(new Error('não usado no provisionamento')),
   };
   const statusCache = { invalidate: vi.fn(() => Promise.resolve()) };
   const clock = () => NOW;

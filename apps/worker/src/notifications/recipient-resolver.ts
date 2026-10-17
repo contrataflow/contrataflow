@@ -31,6 +31,16 @@ export interface NotificationDirectory {
     client: SqlClient,
     departmentId: string,
   ): Promise<{ readonly headUserId: string | null; readonly deputyUserId: string | null } | null>;
+  /**
+   * Usuários com vínculo ativo cuja atribuição de perfil vigente concede a permissão, em qualquer
+   * escopo, até `limit` (ordem estável por id — US-116).
+   */
+  tenantPermissionHolders(
+    client: SqlClient,
+    permission: PermissionCode,
+    limit: number,
+    now: Date,
+  ): Promise<string[]>;
   /** Dono do vínculo. */
   membershipUser(client: SqlClient, membershipId: string): Promise<string | null>;
   /** `notifications.emailEnabled` do tenant (padrão do registro de configurações se ausente). */
@@ -141,6 +151,13 @@ export class RecipientResolver {
       }
       case 'DEPARTMENT_MEMBERS':
         return this.departmentMembers(client, spec, now, unresolved);
+      case 'TENANT_PERMISSION_HOLDERS':
+        return directory.tenantPermissionHolders(
+          client,
+          spec.permission,
+          NOTIFICATION_MAX_UNIT_RECIPIENTS,
+          now,
+        );
       case 'LOOKUP': {
         const source = this.lookups.get(spec.lookup);
         if (!source) {

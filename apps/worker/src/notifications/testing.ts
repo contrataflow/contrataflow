@@ -1,5 +1,5 @@
 import { decideNotificationGrouping } from '@contrataflow/types';
-import type { DomainEventEnvelope, EmailDeliveryStatus } from '@contrataflow/types';
+import type { DomainEventEnvelope, EmailDeliveryStatus, PermissionCode } from '@contrataflow/types';
 
 import type { SqlClient } from '#shared/database/outbox-database.js';
 
@@ -58,6 +58,8 @@ export class FakeDirectory implements NotificationDirectory {
   readonly members = new Map<string, string[]>();
   readonly heads = new Map<string, { headUserId: string | null; deputyUserId: string | null }>();
   readonly memberships = new Map<string, string>();
+  /** Quem tem cada permissão em algum escopo do tenant (ordem de inserção). */
+  readonly holders = new Map<PermissionCode, string[]>();
   emailEnabled = true;
 
   activeMembers(_client: SqlClient, userIds: readonly string[]): Promise<Set<string>> {
@@ -73,6 +75,14 @@ export class FakeDirectory implements NotificationDirectory {
     departmentId: string,
   ): Promise<{ headUserId: string | null; deputyUserId: string | null } | null> {
     return Promise.resolve(this.heads.get(departmentId) ?? null);
+  }
+
+  tenantPermissionHolders(
+    _client: SqlClient,
+    permission: PermissionCode,
+    limit: number,
+  ): Promise<string[]> {
+    return Promise.resolve((this.holders.get(permission) ?? []).slice(0, limit));
   }
 
   membershipUser(_client: SqlClient, membershipId: string): Promise<string | null> {

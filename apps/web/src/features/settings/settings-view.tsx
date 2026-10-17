@@ -1,12 +1,14 @@
 'use client';
 
 import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
-import type { SettingGroup, SettingsMapDto } from '@contrataflow/validation';
+import { settingsMetaSchema } from '@contrataflow/validation';
+import type { SettingGroup, SettingsMapDto, SettingsMetaDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { AiSettingsSection } from '@/features/ai/ai-settings-section';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
 import { useTenantId } from '@/lib/session/session-context';
@@ -35,6 +37,17 @@ import {
 
 const FIELD_PREFIX = 'values.';
 
+/** SET-01 em cache: os valores e o `meta.aiTerms` (versão vigente dos termos — US-116). */
+interface SettingsSnapshot {
+  readonly values: SettingsMapDto;
+  readonly aiTerms: SettingsMetaDto['aiTerms'] | null;
+}
+
+function aiTermsOf(meta: Readonly<Record<string, unknown>>): SettingsMetaDto['aiTerms'] | null {
+  const parsed = settingsMetaSchema.safeParse(meta);
+  return parsed.success ? parsed.data.aiTerms : null;
+}
+
 /**
  * SCR-041 — Administração › Configurações (`/admin/configuracoes` · US-103): lê todas as chaves
  * (SET-01), agrupa pelo prefixo, edita com o tipo certo por chave e salva só o que mudou em UM
@@ -52,21 +65,29 @@ export function SettingsView() {
 
   const settings = useQuery({
     queryKey: settingsKeys.full(tenantId),
-    queryFn: async ({ signal }) => (await fetchSettings(signal)).data,
+    queryFn: async ({ signal }): Promise<SettingsSnapshot> => {
+      const result = await fetchSettings(signal);
+      return { values: result.data, aiTerms: aiTermsOf(result.meta) };
+    },
     staleTime: SETTINGS_STALE_TIME_MS,
   });
+  const values = settings.data?.values;
 
-  const groups = useMemo(
-    () => (settings.data ? groupSettings(settings.data) : []),
-    [settings.data],
-  );
+  const groups = useMemo(() => (values ? groupSettings(values) : []), [values]);
   const current: SettingGroup | null = activeGroup ?? groups[0]?.group ?? null;
   const evaluation = useMemo(
-    () => (settings.data ? evaluateDrafts(settings.data, drafts) : { changes: [], errors: {} }),
-    [settings.data, drafts],
+    () => (values ? evaluateDrafts(values, drafts) : { changes: [], errors: {} }),
+    [values, drafts],
   );
-  const needsOrg = settings.data ? maskNeedsOrganization(settings.data, drafts) : false;
+  const needsOrg = values ? maskNeedsOrganization(values, drafts) : false;
   const hasErrors = Object.keys(evaluation.errors).length > 0 || needsOrg;
+
+  /** Chaves salvas (SET-02 devolve só as alteradas) sobre o SET-01 em cache. */
+  const mergeSaved = (saved: SettingsMapDto) => {
+    queryClient.setQueryData<SettingsSnapshot>(settingsKeys.full(tenantId), (previous) =>
+      previous ? { ...previous, values: { ...previous.values, ...saved } } : previous,
+    );
+  };
 
   const reload = async () => {
     setBanner(null);
@@ -81,10 +102,7 @@ export function SettingsView() {
       return updateSettings(body.values, body.expectedVersions);
     },
     onSuccess: (result) => {
-      queryClient.setQueryData<SettingsMapDto>(settingsKeys.full(tenantId), (previous) => ({
-        ...previous,
-        ...result.data,
-      }));
+      mergeSaved(result.data);
       setDrafts({});
       setServerErrors({});
       setBanner(null);
@@ -144,8 +162,7 @@ export function SettingsView() {
     current === 'numbering' &&
     currentGroup?.keys.some((key) => key in drafts && hasFutureEffect(key));
   // DEC-028 · RN-TEN-68: o novo escopo só vale a partir do próximo exercício (aviso não bloqueante).
-  const showScopeWarning =
-    current === 'numbering' && settings.data ? scopeChanged(settings.data, drafts) : false;
+  const showScopeWarning = current === 'numbering' && values ? scopeChanged(values, drafts) : false;
 
   const errorOf = (key: string): string | undefined => {
     const server = serverErrors[key];
@@ -192,7 +209,7 @@ export function SettingsView() {
         </Alert>
       ) : null}
 
-      {settings.data && current ? (
+      {values && current ? (
         <>
           <div>
             <div
@@ -280,33 +297,47 @@ export function SettingsView() {
             aria-labelledby={`settings-tab-${current}`}
             className="flex max-w-3xl flex-col gap-5"
           >
-            {currentGroup?.keys.map((key) => {
-              const entry = settings.data[key];
-              if (!entry) return null;
-              return (
-                <SettingField
-                  key={key}
-                  settingKey={key}
-                  version={entry.version}
-                  draft={drafts[key] ?? toDraft(key, entry.value)}
-                  disabled={save.isPending}
-                  error={errorOf(key)}
-                  addon={
-                    fieldKindOf(key) === 'mask' ? (
-                      <MaskPreview request={maskPreviewRequest(key, settings.data, drafts)} />
-                    ) : undefined
-                  }
-                  onChange={(draft) => {
-                    setDrafts((previous) => ({ ...previous, [key]: draft }));
-                    setServerErrors(({ [key]: _removed, ...rest }) => rest);
-                  }}
-                />
-              );
-            })}
+            {current === 'ai' ? (
+              <AiSettingsSection
+                values={values}
+                aiTerms={settings.data?.aiTerms ?? null}
+                onSaved={mergeSaved}
+                onConflict={() => {
+                  setBanner('conflict');
+                }}
+              />
+            ) : null}
+            {current === 'ai'
+              ? null
+              : currentGroup?.keys.map((key) => {
+                  const entry = values[key];
+                  if (!entry) return null;
+                  return (
+                    <SettingField
+                      key={key}
+                      settingKey={key}
+                      version={entry.version}
+                      draft={drafts[key] ?? toDraft(key, entry.value)}
+                      disabled={save.isPending}
+                      error={errorOf(key)}
+                      addon={
+                        fieldKindOf(key) === 'mask' ? (
+                          <MaskPreview request={maskPreviewRequest(key, values, drafts)} />
+                        ) : undefined
+                      }
+                      onChange={(draft) => {
+                        setDrafts((previous) => ({ ...previous, [key]: draft }));
+                        setServerErrors(({ [key]: _removed, ...rest }) => rest);
+                      }}
+                    />
+                  );
+                })}
           </div>
 
+          {/* O grupo "Inteligência artificial" salva pela própria seção (termos e limites). */}
           <Can permission="SETTINGS_MANAGE">
             <div
+              hidden={current === 'ai'}
               role="region"
               aria-label={t('saveBar.region')}
               className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface py-3"

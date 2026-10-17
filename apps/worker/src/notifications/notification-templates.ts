@@ -133,6 +133,19 @@ const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
     title: 'Não foi possível gerar o conteúdo com IA',
     body: 'A geração que você pediu não foi concluída. Abra o documento para tentar novamente.',
   }),
+  // `variant` = `<faixa>|<YYYY-MM>` (US-116): o mês e a faixa, sem dados pessoais.
+  AI_USAGE_LIMIT_WARNING: ({ variant }) => {
+    const [threshold = '', month = ''] = (variant ?? '').split('|');
+    const reached = threshold === '100';
+    return {
+      title: reached
+        ? 'Limite mensal de IA do órgão atingido'
+        : 'Consumo de IA do órgão chegou a 80% do limite',
+      body: reached
+        ? `O consumo de IA de ${month} atingiu o limite mensal. Novos pedidos ficam bloqueados até o próximo mês ou até o limite ser aumentado.`
+        : `O consumo de IA de ${month} chegou a 80% do limite mensal. Revise o limite em Configurações.`,
+    };
+  },
 };
 
 /** Título e corpo do tipo, já mascarados e dentro dos limites das colunas (RN-NTF-07). */

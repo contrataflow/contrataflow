@@ -113,7 +113,7 @@ afterEach(() => {
 });
 
 describe('textos da SCR-041', () => {
-  it('toda chave do registro tem rótulo e descrição (32 caminhos) e todo grupo tem nome', () => {
+  it('toda chave do registro tem rótulo e descrição (36 caminhos) e todo grupo tem nome', () => {
     const fields = messages.settings.fields as unknown as Record<string, unknown>;
     for (const definition of SETTING_DEFINITIONS) {
       let node: unknown = fields;
@@ -155,6 +155,7 @@ describe('[Sucesso] SCR-041 · Configurações gerais', () => {
       'Riscos',
       'Arquivos',
       'Notificações',
+      'Inteligência artificial',
     ]);
     expect(tabs.getByRole('tab', { name: 'Identidade' }).getAttribute('aria-selected')).toBe(
       'true',

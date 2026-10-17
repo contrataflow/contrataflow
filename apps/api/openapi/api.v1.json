@@ -1630,7 +1630,8 @@
               "DOCUMENT_RENDER_FAILED",
               "ROLE_CHANGED",
               "AI_GENERATION_READY",
-              "AI_GENERATION_FAILED"
+              "AI_GENERATION_FAILED",
+              "AI_USAGE_LIMIT_WARNING"
             ]
           },
           "channel": {
@@ -1765,7 +1766,8 @@
               "DOCUMENT_RENDER_FAILED",
               "ROLE_CHANGED",
               "AI_GENERATION_READY",
-              "AI_GENERATION_FAILED"
+              "AI_GENERATION_FAILED",
+              "AI_USAGE_LIMIT_WARNING"
             ]
           },
           "priority": {
@@ -6101,6 +6103,510 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/AiGeneration"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/availability": {
+      "get": {
+        "operationId": "AI-05",
+        "summary": "Disponibilidade da IA para o usuário",
+        "tags": [
+          "Inteligência artificial"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "processId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "documentId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`canGenerate` e os motivos (`reasons[]`); percentual do mês e uso diário próprio. Tokens absolutos só para `SETTINGS_MANAGE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "providerAvailable": {
+                          "type": "boolean"
+                        },
+                        "canGenerate": {
+                          "type": "boolean"
+                        },
+                        "reasons": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "AI_DISABLED",
+                              "AI_PROVIDER_UNAVAILABLE",
+                              "AI_USAGE_LIMIT_REACHED",
+                              "AI_USER_DAILY_LIMIT_REACHED",
+                              "PERMISSION_DENIED",
+                              "DOCUMENT_NOT_EDITABLE"
+                            ]
+                          }
+                        },
+                        "monthly": {
+                          "type": "object",
+                          "properties": {
+                            "percentUsed": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "usedTokens": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "limitTokens": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "percentUsed"
+                          ]
+                        },
+                        "userDaily": {
+                          "type": "object",
+                          "properties": {
+                            "used": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "limit": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "used",
+                            "limit"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "providerAvailable",
+                        "canGenerate",
+                        "reasons",
+                        "monthly",
+                        "userDaily"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/usage": {
+      "get": {
+        "operationId": "AI-06",
+        "summary": "Consumo de IA do órgão",
+        "tags": [
+          "Inteligência artificial"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+            },
+            "required": false,
+            "name": "month",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consumo do mês (`month`, padrão: mês corrente no fuso do tenant): limite, tokens usados e reservados, custo (decimal em string; `null` se faltar preço) e a divisão por tipo de documento, tipo de geração e usuário.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "string"
+                        },
+                        "limitTokens": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "usedTokens": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "reservedTokens": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "costUsd": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generations": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "byStatus": {
+                              "type": "object",
+                              "properties": {
+                                "QUEUED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "RUNNING": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "SUCCEEDED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "FAILED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "CANCELED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "APPLIED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "DISCARDED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "EXPIRED": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "total",
+                            "byStatus"
+                          ]
+                        },
+                        "byDocumentType": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "targetModule": {
+                                "type": "string",
+                                "enum": [
+                                  "DFD",
+                                  "ETP",
+                                  "RISK_MAP",
+                                  "TERM_OF_REFERENCE"
+                                ]
+                              },
+                              "generations": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "totalTokens": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "costUsd": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "targetModule",
+                              "generations",
+                              "totalTokens",
+                              "costUsd"
+                            ]
+                          }
+                        },
+                        "byKind": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "DRAFT",
+                                  "SECTION"
+                                ]
+                              },
+                              "action": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "enum": [
+                                  "REWRITE",
+                                  "COMPLETE",
+                                  "SUMMARIZE",
+                                  null
+                                ]
+                              },
+                              "generations": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "totalTokens": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "action",
+                              "generations",
+                              "totalTokens"
+                            ]
+                          }
+                        },
+                        "byUser": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "generations": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "totalTokens": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "userId",
+                              "name",
+                              "generations",
+                              "totalTokens"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "limitTokens",
+                        "usedTokens",
+                        "reservedTokens",
+                        "costUsd",
+                        "generations",
+                        "byDocumentType",
+                        "byKind",
+                        "byUser"
+                      ]
                     }
                   },
                   "required": [
@@ -14390,7 +14896,8 @@
                             "DOCUMENT_RENDER_FAILED",
                             "ROLE_CHANGED",
                             "AI_GENERATION_READY",
-                            "AI_GENERATION_FAILED"
+                            "AI_GENERATION_FAILED",
+                            "AI_USAGE_LIMIT_WARNING"
                           ]
                         },
                         "channel": {
@@ -14415,7 +14922,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 34
+                    "maxItems": 36
                   }
                 },
                 "required": [
@@ -21961,7 +22468,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Todas as chaves do registro com `value` e `version` (0 = padrão ainda não gravado).",
+            "description": "Todas as chaves do registro com `value` e `version` (0 = padrão ainda não gravado); `meta.aiTerms` traz a versão vigente dos termos de uso da IA, o provedor e o teto do limite mensal (US-116).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21982,10 +22489,39 @@
                           "version"
                         ]
                       }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "aiTerms": {
+                          "type": "object",
+                          "properties": {
+                            "currentVersion": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "maxMonthlyTokens": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          },
+                          "required": [
+                            "currentVersion",
+                            "provider",
+                            "maxMonthlyTokens"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "aiTerms"
+                      ]
                     }
                   },
                   "required": [
-                    "data"
+                    "data",
+                    "meta"
                   ]
                 }
               }

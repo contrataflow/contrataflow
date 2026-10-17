@@ -4,11 +4,12 @@ import { AI_TARGET_MODULES } from '@contrataflow/types';
 import type { AiTargetModule } from '@contrataflow/types';
 import { Button } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 import { usePermission } from '@/lib/permissions/use-permission';
 
 import { AiAssistantPanel } from './ai-assistant-panel';
+import { useAiAvailability } from './use-ai-availability';
 
 /** O documento é alvo da IA (DFD, ETP, mapa de riscos e TR — DEC-037)? */
 export function isAiTarget(systemModule: string | null): systemModule is AiTargetModule {
@@ -29,7 +30,8 @@ export interface AiAssistantProps {
  * `AiDraftButton` + `AiAssistantPanel` (SCR-117 · US-115): o botão "Gerar rascunho com IA" só
  * aparece com `AI_GENERATE` (oculto sem a permissão — RN-FND-92) e documento editável; `?ia=`
  * abre o painel direto na geração (proposta e histórico valem para quem vê o processo). Fechar
- * devolve o foco ao botão.
+ * devolve o foco ao botão. US-116: com a IA desligada, o provedor fora ou um limite atingido
+ * (AI-05), o botão fica desabilitado com a explicação.
  */
 export function AiAssistant({
   processId,
@@ -41,24 +43,36 @@ export function AiAssistant({
   const t = useTranslations('ai');
   const { allowed } = usePermission('AI_GENERATE');
   const opener = useRef<HTMLButtonElement>(null);
+  const hintId = useId();
   const [open, setOpen] = useState(initialGenerationId !== null);
   const [startAt, setStartAt] = useState<string | null>(initialGenerationId);
-  const canGenerate = allowed && editable;
+  const visible = allowed && editable;
+  const availability = useAiAvailability(processId, documentId, visible);
+  const canGenerate = visible && availability.canGenerate;
 
   return (
     <>
-      {canGenerate ? (
-        <Button
-          ref={opener}
-          variant="secondary"
-          aria-expanded={open}
-          onClick={() => {
-            setStartAt(null);
-            setOpen(true);
-          }}
-        >
-          {t('draftButton')}
-        </Button>
+      {visible ? (
+        <span className="inline-flex flex-col gap-1">
+          <Button
+            ref={opener}
+            variant="secondary"
+            aria-expanded={open}
+            disabled={!availability.canGenerate}
+            aria-describedby={availability.message === null ? undefined : hintId}
+            onClick={() => {
+              setStartAt(null);
+              setOpen(true);
+            }}
+          >
+            {t('draftButton')}
+          </Button>
+          {availability.message === null ? null : (
+            <span id={hintId} className="text-xs text-muted-foreground">
+              {availability.message}
+            </span>
+          )}
+        </span>
       ) : null}
       {open ? (
         <AiAssistantPanel

@@ -31,6 +31,16 @@ export interface OutboxWriterPort {
    * síncronos no mesmo `tx` (RN-FND-52). Qualquer erro propaga e desfaz a transação inteira.
    */
   record(tx: TenantTx, event: DomainEventDraft): Promise<RecordedDomainEvent>;
+  /**
+   * Como `record`, com `eventId` determinístico (chave natural do fato — ex.: UUID v5 de
+   * `(tenant, mês, faixa)` do aviso de consumo de IA, US-116): se o id já existe no outbox, nada é
+   * gravado nem despachado e devolve `null` (`INSERT … ON CONFLICT (id) DO NOTHING`).
+   */
+  recordOnce(
+    tx: TenantTx,
+    event: DomainEventDraft,
+    eventId: string,
+  ): Promise<RecordedDomainEvent | null>;
 }
 
 export const OUTBOX_WRITER = Symbol('OutboxWriter');

@@ -78,6 +78,10 @@ export const EMAIL_TEMPLATES: Readonly<Record<NotificationType, EmailTemplate>> 
     action: 'Abrir o documento',
     reason: 'Você recebe este aviso porque pediu uma geração com IA.',
   },
+  AI_USAGE_LIMIT_WARNING: {
+    action: 'Abrir as configurações',
+    reason: 'Você recebe este aviso porque administra as configurações do órgão.',
+  },
   ROLE_CHANGED: {
     action: 'Acessar o ContrataFlow',
     reason:

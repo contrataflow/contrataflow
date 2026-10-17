@@ -2,6 +2,8 @@ import { TenantSettingsChanged } from '@contrataflow/validation';
 import type { SettingsMapDto, UpdateSettings } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { APP_CONFIG } from '#config/config.module.js';
+import type { AppConfig } from '#config/env.js';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
@@ -26,6 +28,7 @@ import type {
   TenantSettingsRepository,
 } from './settings-ports.js';
 import {
+  aiTermsNotAccepted,
   expectedVersionsMissing,
   invalidSettingValues,
   isNumberingMaskOnly,
@@ -38,13 +41,18 @@ import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { SettingsRegistry } from '../domain/settings-registry.js';
 import {
+  AiTermsNotAcceptedError,
   InvalidSettingValuesError,
   MissingExpectedVersionsError,
   planSettingsUpdate,
   SettingVersionConflictError,
   UnknownSettingKeysError,
 } from '../domain/settings-update.js';
-import type { PlannedSettingChange, StoredSetting } from '../domain/settings-update.js';
+import type {
+  AiPlatformLimits,
+  PlannedSettingChange,
+  StoredSetting,
+} from '../domain/settings-update.js';
 
 /** Chave do logotipo: referencia um anexo do tenant (RN-TEN-42, mesma regra do órgão). */
 const LOGO_KEY = 'branding.logoAttachmentId';
@@ -70,7 +78,16 @@ export class UpdateSettingsCommand {
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
     private readonly access: AccessFacade,
     private readonly identity: IdentityFacade,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /** Parâmetros de plataforma das chaves `ai.*` (US-116 · RN-AI-16 e V-02). */
+  private get aiLimits(): AiPlatformLimits {
+    return {
+      termsVersion: this.config.ai.termsVersion,
+      maxMonthlyTokens: this.config.ai.tenantMaxMonthlyTokens,
+    };
+  }
 
   async execute(input: UpdateSettings): Promise<SettingsMapDto> {
     this.access.assertCan('SETTINGS_MANAGE', { mfaPolicy: await this.identity.mfaPolicy() });
@@ -110,6 +127,20 @@ export class UpdateSettingsCommand {
         },
         'settings.updated',
       );
+      const aiKeys = keys.filter((key) => key.startsWith('ai.'));
+      if (aiKeys.length > 0) {
+        const terms = updated['ai.termsAcceptedVersion']?.value;
+        this.logger.log(
+          {
+            event: 'ai.settings_changed',
+            keys: aiKeys,
+            actorId: context.actor.userId,
+            termsVersion: typeof terms === 'string' ? terms : null,
+            correlationId: context.correlationId,
+          },
+          'ai.settings_changed',
+        );
+      }
     }
     return updated;
   }
@@ -175,15 +206,16 @@ export class UpdateSettingsCommand {
 
   private plan(current: ReadonlyMap<string, StoredSetting>, input: UpdateSettings) {
     try {
-      return planSettingsUpdate(this.registry, current, input);
+      return planSettingsUpdate(this.registry, current, input, this.aiLimits);
     } catch (error) {
       if (error instanceof UnknownSettingKeysError) throw settingKeyUnknown(error);
       if (error instanceof InvalidSettingValuesError) {
         if (isNumberingMaskOnly(error)) {
           logMaskInvalid(this.logger, error, input.values, requireRequestContext().correlationId);
         }
-        throw invalidSettingValues(error);
+        throw invalidSettingValues(error, this.aiLimits.maxMonthlyTokens);
       }
+      if (error instanceof AiTermsNotAcceptedError) throw aiTermsNotAccepted();
       if (error instanceof MissingExpectedVersionsError) throw expectedVersionsMissing(error);
       if (error instanceof SettingVersionConflictError) throw settingVersionConflict(error);
       throw error;

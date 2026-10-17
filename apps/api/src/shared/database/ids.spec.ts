@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isUuid, newId } from './ids.js';
+import { isUuid, naturalKeyId, newId } from './ids.js';
 
 const V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -46,5 +46,16 @@ describe('isUuid', () => {
     expect(isUuid(newId())).toBe(true);
     expect(isUuid("' OR 1=1 --")).toBe(false);
     expect(isUuid('')).toBe(false);
+  });
+});
+
+describe('naturalKeyId (UUIDv7 determinístico)', () => {
+  it('é UUIDv7 com o instante informado e determinístico pelo nome', () => {
+    const at = new Date('2026-10-01T03:00:00Z');
+    const id = naturalKeyId('tenant:2026-10:80', at);
+    expect(id).toMatch(V7);
+    expect(Number.parseInt(id.replaceAll('-', '').slice(0, 12), 16)).toBe(at.getTime());
+    expect(naturalKeyId('tenant:2026-10:80', at)).toBe(id);
+    expect(naturalKeyId('tenant:2026-10:100', at)).not.toBe(id);
   });
 });

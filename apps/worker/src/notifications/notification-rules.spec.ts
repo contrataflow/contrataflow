@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { NOTIFICATION_RULE_EVENTS, planNotification } from './notification-rules.js';
 import type { NotificationPlan, PlanOutcome } from './notification-rules.js';
 import { notificationContent } from './notification-templates.js';
-import { PROCESS, envelope, testId } from './testing.js';
+import { PROCESS, TENANT, envelope, testId } from './testing.js';
 import { resolveRoutes } from '../events/routes.js';
 
 const USER = testId();
@@ -45,6 +45,7 @@ const ROUTING_KEYS: Readonly<Record<string, string>> = {
   RoleRevoked: 'role.revoked',
   AiGenerationCompleted: 'ai.generation_completed',
   AiGenerationFailed: 'ai.generation_failed',
+  AiUsageThresholdReached: 'ai.usage_threshold_reached',
 };
 
 describe('cobertura do registro NotificationType (events.md §6 · DoD da US-111)', () => {
@@ -346,6 +347,39 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
         planNotification(envelope(eventType, { generationId }, { processId: null })),
       );
       expect(withoutProcess.link).toBeNull();
+    },
+  );
+
+  it.each([
+    [80, 'chegou a 80%'],
+    [100, 'atingido'],
+  ])(
+    'US-116: AiUsageThresholdReached (%i%%) → AI_USAGE_LIMIT_WARNING a quem tem SETTINGS_MANAGE no tenant',
+    (threshold, title) => {
+      const plan = notify(
+        planNotification(
+          envelope(
+            'AiUsageThresholdReached',
+            { month: '2026-10', threshold, usedTokens: 41_000, limitTokens: 50_000 },
+            { processId: null, aggregateType: 'Tenant', aggregateId: TENANT },
+          ),
+        ),
+      );
+      expect(plan).toMatchObject({
+        type: 'AI_USAGE_LIMIT_WARNING',
+        priority: 'NORMAL',
+        includeActor: true,
+        processId: null,
+        entityType: 'Tenant',
+        entityId: TENANT,
+        link: '/admin/configuracoes',
+      });
+      expect(plan.recipients).toEqual([
+        { kind: 'TENANT_PERMISSION_HOLDERS', permission: 'SETTINGS_MANAGE' },
+      ]);
+      const content = plan.content(1);
+      expect(content.title).toContain(title);
+      expect(content.body).toContain('2026-10');
     },
   );
 

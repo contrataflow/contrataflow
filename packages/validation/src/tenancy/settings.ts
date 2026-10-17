@@ -1,3 +1,11 @@
+import {
+  AI_MONTHLY_TOKEN_LIMIT_CEILING,
+  AI_MONTHLY_TOKEN_LIMIT_DEFAULT,
+  AI_MONTHLY_TOKEN_LIMIT_MIN,
+  AI_USER_DAILY_REQUEST_LIMIT_DEFAULT,
+  AI_USER_DAILY_REQUEST_LIMIT_MAX,
+  AI_USER_DAILY_REQUEST_LIMIT_MIN,
+} from '@contrataflow/types';
 import { z } from 'zod';
 
 import { DOCUMENT_TYPE_CODE_PATTERN } from '../document/document-type.js';
@@ -33,6 +41,7 @@ export const SETTING_GROUPS = [
   'uploads',
   'notifications',
   'features',
+  'ai',
 ] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
@@ -420,6 +429,41 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
     defaultValue: true,
     isPublic: false,
   }),
+  // US-116 (RN-AI-16..19 · DEC-079): IA opt-in do órgão, termos aceitos e limites de uso. O teto
+  // do limite mensal é o da plataforma (`AI_TENANT_MAX_MONTHLY_TOKENS`), conferido pela API; ligar
+  // exige o aceite da versão vigente dos termos (422 `AI_TERMS_NOT_ACCEPTED`). Nunca públicas.
+  define({
+    key: 'ai.enabled',
+    group: 'ai',
+    module: 'ai',
+    schema: z.boolean(),
+    defaultValue: false,
+    isPublic: false,
+  }),
+  define({
+    key: 'ai.termsAcceptedVersion',
+    group: 'ai',
+    module: 'ai',
+    schema: z.string().trim().min(1).max(20).nullable(),
+    defaultValue: null,
+    isPublic: false,
+  }),
+  define({
+    key: 'ai.monthlyTokenLimit',
+    group: 'ai',
+    module: 'ai',
+    schema: int(AI_MONTHLY_TOKEN_LIMIT_MIN, AI_MONTHLY_TOKEN_LIMIT_CEILING),
+    defaultValue: AI_MONTHLY_TOKEN_LIMIT_DEFAULT,
+    isPublic: false,
+  }),
+  define({
+    key: 'ai.userDailyRequestLimit',
+    group: 'ai',
+    module: 'ai',
+    schema: int(AI_USER_DAILY_REQUEST_LIMIT_MIN, AI_USER_DAILY_REQUEST_LIMIT_MAX),
+    defaultValue: AI_USER_DAILY_REQUEST_LIMIT_DEFAULT,
+    isPublic: false,
+  }),
 ];
 
 /** Esquema de uma flag `features.<nome>` (DEC-059): booleano, padrão desligada, nunca pública. */
@@ -473,6 +517,24 @@ export const settingsMapSchema = z.record(settingKey, settingEntrySchema);
 export type SettingsMapDto = z.infer<typeof settingsMapSchema>;
 
 export const settingsResponseSchema = dataEnvelope(settingsMapSchema);
+
+/**
+ * `meta` do SET-01 (US-116 · DEC-079): versão vigente dos termos de uso da IA (`AI_TERMS_VERSION`),
+ * provedor da plataforma e teto do limite mensal (`AI_TENANT_MAX_MONTHLY_TOKENS`).
+ */
+export const settingsMetaSchema = z.object({
+  aiTerms: z.object({
+    currentVersion: z.string(),
+    provider: z.string(),
+    maxMonthlyTokens: z.number().int().min(1),
+  }),
+});
+export type SettingsMetaDto = z.infer<typeof settingsMetaSchema>;
+
+export const settingsWithMetaResponseSchema = z.object({
+  data: settingsMapSchema,
+  meta: settingsMetaSchema,
+});
 
 /** SET-03: só valores das chaves públicas. */
 export const publicSettingsResponseSchema = dataEnvelope(z.record(settingKey, z.unknown()));

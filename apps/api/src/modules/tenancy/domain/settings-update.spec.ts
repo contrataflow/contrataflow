@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { SettingsRegistry } from './settings-registry.js';
 import {
+  AiTermsNotAcceptedError,
   InvalidSettingValuesError,
   MissingExpectedVersionsError,
   planSettingsUpdate,
@@ -179,5 +180,95 @@ describe('planSettingsUpdate (RN-TEN-52..54, tudo ou nada)', () => {
         }).changes,
       ).toHaveLength(1);
     });
+  });
+});
+
+describe('chaves ai.* (US-116 · RN-AI-16 · V-01..V-03)', () => {
+  const ai = { termsVersion: '2026-10', maxMonthlyTokens: 20_000_000 };
+  const versions = (keys: string[]) => Object.fromEntries(keys.map((key) => [key, 0]));
+
+  it('[Sucesso] liga com a versão vigente aceita no mesmo lote (padrão: desligada, sem termos)', () => {
+    const values = { 'ai.enabled': true, 'ai.termsAcceptedVersion': '2026-10' };
+    const plan = planSettingsUpdate(
+      registry,
+      stored(),
+      { values, expectedVersions: versions(Object.keys(values)) },
+      ai,
+    );
+    expect(plan.changes.map((change) => [change.key, change.previous, change.next])).toEqual([
+      ['ai.enabled', false, true],
+      ['ai.termsAcceptedVersion', null, '2026-10'],
+    ]);
+  });
+
+  it('[Sucesso] liga com os termos vigentes já gravados', () => {
+    const plan = planSettingsUpdate(
+      registry,
+      stored(['ai.termsAcceptedVersion', '2026-10', 1]),
+      { values: { 'ai.enabled': true }, expectedVersions: { 'ai.enabled': 0 } },
+      ai,
+    );
+    expect(plan.changes).toHaveLength(1);
+  });
+
+  it.each([
+    ['sem termos', {}, { 'ai.enabled': true }],
+    ['com termos antigos gravados (FA-02)', { old: true }, { 'ai.enabled': true }],
+    [
+      'aceitando versão que não é a vigente',
+      {},
+      { 'ai.enabled': true, 'ai.termsAcceptedVersion': '2025-01' },
+    ],
+  ])('[Validação] ligar %s → AI_TERMS_NOT_ACCEPTED', (_label, options, values) => {
+    const current = 'old' in options ? stored(['ai.termsAcceptedVersion', '2025-01', 1]) : stored();
+    expect(
+      capture(() =>
+        planSettingsUpdate(
+          registry,
+          current,
+          { values, expectedVersions: versions(Object.keys(values)) },
+          ai,
+        ),
+      ),
+    ).toBeInstanceOf(AiTermsNotAcceptedError);
+  });
+
+  it('FA-02: IA já ligada com termos antigos continua ligada e aceita ajuste de limites', () => {
+    const plan = planSettingsUpdate(
+      registry,
+      stored(['ai.enabled', true, 1], ['ai.termsAcceptedVersion', '2025-01', 1]),
+      {
+        values: { 'ai.monthlyTokenLimit': 100_000 },
+        expectedVersions: { 'ai.monthlyTokenLimit': 0 },
+      },
+      ai,
+    );
+    expect(plan.changes).toHaveLength(1);
+  });
+
+  it.each([
+    ['ai.monthlyTokenLimit', 49_999],
+    ['ai.monthlyTokenLimit', 20_000_001],
+    ['ai.userDailyRequestLimit', 0],
+    ['ai.userDailyRequestLimit', 501],
+  ])('[Validação] %s = %i fora da faixa → VALIDATION_ERROR', (key, value) => {
+    const error = capture(() =>
+      planSettingsUpdate(
+        registry,
+        stored(),
+        { values: { [key]: value }, expectedVersions: { [key]: 0 } },
+        ai,
+      ),
+    );
+    expect(error).toBeInstanceOf(InvalidSettingValuesError);
+    expect((error as InvalidSettingValuesError).violations).toEqual([
+      { key, code: 'VALIDATION_ERROR' },
+    ]);
+  });
+
+  it('nenhuma chave ai.* é pública (SET-03)', () => {
+    expect(registry.publicDefinitions().some((definition) => definition.group === 'ai')).toBe(
+      false,
+    );
   });
 });

@@ -29,4 +29,22 @@ export class PrismaOutboxStore implements OutboxStore {
     if (!occurredAt) throw new Error('INSERT em outbox_events sem linha devolvida.');
     return occurredAt;
   }
+
+  async insertOnce(tx: TenantTx, row: OutboxRow): Promise<Date | null> {
+    const inserted = await tx.$queryRaw<{ occurred_at: Date }[]>`
+      INSERT INTO outbox_events (
+        id, tenant_id, event_type, routing_key, event_version, aggregate_type, aggregate_id,
+        process_id, payload, metadata, occurred_at
+      ) VALUES (
+        ${row.id}::uuid, ${row.tenantId}::uuid, ${row.eventType}, ${row.routingKey},
+        ${row.eventVersion}, ${row.aggregateType}, ${row.aggregateId}::uuid,
+        ${row.processId}::uuid, ${JSON.stringify(row.payload)}::jsonb,
+        ${JSON.stringify(row.metadata)}::jsonb, clock_timestamp()
+      )
+      ON CONFLICT (id) DO NOTHING
+      RETURNING occurred_at`;
+    const occurredAt = inserted[0]?.occurred_at ?? null;
+    if (occurredAt !== null) await tx.$executeRaw`SELECT pg_notify(${OUTBOX_NOTIFY_CHANNEL}, '')`;
+    return occurredAt;
+  }
 }

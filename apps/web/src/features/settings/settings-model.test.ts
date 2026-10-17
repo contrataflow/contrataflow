@@ -35,7 +35,8 @@ describe('modelo da SCR-041', () => {
       ['security', ['security.mfaPolicy']],
       ['features', ['features.beta']],
     ]);
-    expect(groupSettings(settings)).toHaveLength(13);
+    // 13 grupos da US-103 + "Inteligência artificial" (US-116).
+    expect(groupSettings(settings)).toHaveLength(14);
   });
 
   it('escolhe o editor pelo tipo da chave', () => {

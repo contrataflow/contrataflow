@@ -50,6 +50,8 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
         // US-115: aviso ao solicitante do trabalho assíncrono de IA (AI_GENERATION_READY/FAILED).
         'ai.generation_completed',
         'ai.generation_failed',
+        // US-116: aviso de 80%/100% do limite mensal a quem tem SETTINGS_MANAGE.
+        'ai.usage_threshold_reached',
       ],
       queue: 'notifications',
     },
@@ -201,4 +203,6 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     AiGenerationRequested: ['ai.generation_requested'],
     AiGenerationCompleted: ['ai.generation_completed'],
     AiGenerationFailed: ['ai.generation_failed'],
+    // US-116: `AI_USAGE_LIMIT_WARNING` a quem tem SETTINGS_MANAGE (máx. 50) e métricas (`ai.*`).
+    AiUsageThresholdReached: ['ai.usage_threshold_reached'],
   };

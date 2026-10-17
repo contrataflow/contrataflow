@@ -91,7 +91,13 @@ const settings = new Map([
   ['branding.primaryColor', { value: '#1D4ED8', version: 1 }],
   ['numbering.process.mask', { value: '{seq:4}/{year}', version: 1 }],
   ['security.sessionIdleMinutes', { value: 30, version: 1 }],
+  // US-116: IA opt-in (desligada, sem termos aceitos) e limites padrão.
+  ['ai.enabled', { value: false, version: 1 }],
+  ['ai.termsAcceptedVersion', { value: null, version: 1 }],
+  ['ai.monthlyTokenLimit', { value: 2000000, version: 1 }],
+  ['ai.userDailyRequestLimit', { value: 40, version: 1 }],
 ]);
+const AI_TERMS = { currentVersion: '2026-10', provider: 'fake', maxMonthlyTokens: 20000000 };
 const PUBLIC_SETTINGS = ['labels.secretariat', 'labels.department', 'branding.primaryColor'];
 
 // Catálogos (US-104 · CAT-01..06): modalidades de sistema + um item próprio, só o necessário para o
@@ -1131,7 +1137,58 @@ createServer(async (request, response) => {
     );
   }
   if (url.pathname === '/api/v1/settings' && request.method === 'GET') {
-    return send(response, 200, { data: Object.fromEntries(settings) });
+    return send(response, 200, { data: Object.fromEntries(settings), meta: { aiTerms: AI_TERMS } });
+  }
+  if (url.pathname === '/api/v1/ai/usage' && request.method === 'GET') {
+    // AI-06 (US-116): consumo do mês com uma geração de DFD.
+    return send(response, 200, {
+      data: {
+        month: url.searchParams.get('month') ?? '2026-10',
+        limitTokens: settings.get('ai.monthlyTokenLimit')?.value ?? 2000000,
+        usedTokens: 12400,
+        reservedTokens: 0,
+        costUsd: '0.050000',
+        generations: {
+          total: 1,
+          byStatus: {
+            QUEUED: 0,
+            RUNNING: 0,
+            SUCCEEDED: 1,
+            FAILED: 0,
+            CANCELED: 0,
+            APPLIED: 0,
+            DISCARDED: 0,
+            EXPIRED: 0,
+          },
+        },
+        byDocumentType: [
+          { targetModule: 'DFD', generations: 1, totalTokens: 12400, costUsd: '0.050000' },
+        ],
+        byKind: [{ kind: 'DRAFT', action: null, generations: 1, totalTokens: 12400 }],
+        byUser: [
+          {
+            userId: '0192a000-0000-7000-8000-0000000000a1',
+            name: 'Ana Souza',
+            generations: 1,
+            totalTokens: 12400,
+          },
+        ],
+      },
+    });
+  }
+  if (url.pathname === '/api/v1/ai/availability' && request.method === 'GET') {
+    // AI-05 (US-116): disponibilidade conforme a IA do órgão.
+    const enabled = settings.get('ai.enabled')?.value === true;
+    return send(response, 200, {
+      data: {
+        enabled,
+        providerAvailable: true,
+        canGenerate: enabled,
+        reasons: enabled ? [] : ['AI_DISABLED'],
+        monthly: { percentUsed: 0.6 },
+        userDaily: { used: 0, limit: settings.get('ai.userDailyRequestLimit')?.value ?? 40 },
+      },
+    });
   }
   if (url.pathname === '/api/v1/settings/public' && request.method === 'GET') {
     return send(response, 200, {
@@ -1162,6 +1219,12 @@ createServer(async (request, response) => {
     }
     if (keys.some((key) => body.expectedVersions[key] !== settings.get(key).version)) {
       return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    // US-116 (RN-AI-16): ligar exige o aceite da versão vigente dos termos.
+    const terms =
+      body.values['ai.termsAcceptedVersion'] ?? settings.get('ai.termsAcceptedVersion')?.value;
+    if (body.values['ai.enabled'] === true && terms !== AI_TERMS.currentVersion) {
+      return problem(response, 422, 'AI_TERMS_NOT_ACCEPTED', String(correlationId));
     }
     const updated = {};
     for (const key of keys) {

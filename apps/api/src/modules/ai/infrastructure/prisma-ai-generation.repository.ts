@@ -3,9 +3,11 @@ import { aiGenerationOutputSchema, aiInputRefSchema } from '@contrataflow/valida
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 
+import { requireRequestContext } from '#shared/context/request-context.js';
 import { TenantTransaction } from '#shared/database/database.module.js';
 import { Prisma } from '#shared/database/prisma.js';
 import type { TenantTx } from '#shared/database/prisma.js';
+import { withLockTiming } from '#shared/database/row-lock.js';
 
 import { AiGenerationActiveError } from '../application/ports.js';
 import type {
@@ -17,6 +19,7 @@ import type {
   ExpectedState,
 } from '../application/ports.js';
 import type { AiGeneration } from '../domain/ai-generation.js';
+import type { AiUsageRow } from '../domain/ai-usage.js';
 
 type AiGenerationRow = Prisma.AiGenerationGetPayload<object>;
 
@@ -230,6 +233,45 @@ export class PrismaAiGenerationRepository implements AiGenerationRepository {
       take: limit,
     });
     return rows.map(toGeneration);
+  }
+
+  async usageRows(tx: TenantTx, from: Date, to: Date): Promise<AiUsageRow[]> {
+    const rows = await tx.aiGeneration.findMany({
+      where: { createdAt: { gte: from, lt: to } },
+      select: {
+        id: true,
+        status: true,
+        errorCode: true,
+        startedAt: true,
+        targetModule: true,
+        kind: true,
+        action: true,
+        createdById: true,
+        createdAt: true,
+        reservedTokens: true,
+        totalTokens: true,
+        costUsd: true,
+      },
+    });
+    return rows.map((row) => {
+      if (row.targetModule === 'PRICE_RESEARCH') {
+        throw new Error(`ai_generations ${row.id} com alvo inválido.`);
+      }
+      return {
+        ...row,
+        targetModule: row.targetModule,
+        errorCode: row.errorCode as AiGenerationErrorCode | null,
+        costUsd: row.costUsd === null ? null : row.costUsd.toFixed(6),
+      };
+    });
+  }
+
+  async lockTenantUsage(tx: TenantTx): Promise<void> {
+    const key = `ai-usage:${requireRequestContext().tenantId ?? ''}`;
+    await withLockTiming(
+      { lockType: 'advisory', tableName: 'ai_generations' },
+      () => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`,
+    );
   }
 }
 

@@ -1,3 +1,4 @@
+import type { PermissionCode } from '@contrataflow/types';
 import { SETTING_DEFINITIONS } from '@contrataflow/validation';
 
 import type { SqlClient } from '#shared/database/outbox-database.js';
@@ -67,6 +68,32 @@ export class SqlNotificationDirectory implements NotificationDirectory {
     ]);
     const row = rows[0];
     return row ? { headUserId: row.head_user_id, deputyUserId: row.deputy_user_id } : null;
+  }
+
+  async tenantPermissionHolders(
+    client: SqlClient,
+    permission: PermissionCode,
+    limit: number,
+    now: Date,
+  ): Promise<string[]> {
+    const { rows } = await client.query<{ user_id: string }>(
+      `SELECT DISTINCT m.user_id
+         FROM role_assignments ra
+         JOIN roles r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id AND r.is_active
+         JOIN role_permissions rp ON rp.tenant_id = r.tenant_id AND rp.role_id = r.id
+         JOIN tenant_memberships m ON m.tenant_id = ra.tenant_id AND m.id = ra.membership_id
+         JOIN users u ON u.id = m.user_id AND u.status = 'ACTIVE'
+        WHERE rp.permission_code = $1
+          AND ra.revoked_at IS NULL
+          AND ra.valid_from <= $2
+          AND (ra.valid_until IS NULL OR ra.valid_until > $2)
+          AND m.status = 'ACTIVE'
+          AND (m.expires_at IS NULL OR m.expires_at > $2)
+        ORDER BY m.user_id
+        LIMIT $3`,
+      [permission, now, limit],
+    );
+    return rows.map((row) => row.user_id);
   }
 
   async membershipUser(client: SqlClient, membershipId: string): Promise<string | null> {

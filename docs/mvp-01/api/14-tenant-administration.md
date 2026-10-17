@@ -813,7 +813,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: { [chave: string]: { value: unknown, version: number } }, meta: { aiTerms: { currentVersion: string, provider: string } } }` — todas as chaves do registro (catálogo completo de chaves/tipos/limites: `entities.md` §6); `meta.aiTerms` alimenta o diálogo de aceite dos termos de uso da IA (US-116, DEC-079)
+- **Response:** `200 { data: { [chave: string]: { value: unknown, version: number } }, meta: { aiTerms: { currentVersion: string, provider: string, maxMonthlyTokens: number } } }` — todas as chaves do registro (catálogo completo de chaves/tipos/limites: `entities.md` §6); `meta.aiTerms` alimenta o diálogo de aceite dos termos de uso da IA e a faixa do limite mensal (`maxMonthlyTokens` = `AI_TENANT_MAX_MONTHLY_TOKENS`) (US-116, DEC-079)
 - **Erros:**
 
 | HTTP | code | Quando |
@@ -838,6 +838,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | 412 | `VERSION_CONFLICT` | `expectedVersions[chave]` divergente do atual |
 | 422 | `SETTING_KEY_UNKNOWN` | Chave fora do registro |
 | 422 | `VALIDATION_ERROR` | Valor fora do schema da chave |
+| 422 | `AI_TERMS_NOT_ACCEPTED` | `ai.enabled` passa a `true` sem `ai.termsAcceptedVersion` igual à versão vigente (`AI_TERMS_VERSION`) no lote ou já gravada, ou o lote aceita versão que não é a vigente (US-116 · RN-AI-16) |
 | 422 | `NUMBERING_MASK_INVALID` | Máscara sem `{seq:N}`/`{year}`, token desconhecido (inclui `{seq}` sem `N`, `N` fora de 1–6 e `{type}` na máscara do processo), ou escopo `ORGANIZATION` sem `{org}` |
 | 428 | `PRECONDITION_REQUIRED` | `expectedVersions` ausente para chave alterada (incluído apesar de fora do conjunto padrão da seção, por ser mecanismo específico — versão por chave, não `If-Match`) |
 

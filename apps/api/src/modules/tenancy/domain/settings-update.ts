@@ -22,6 +22,23 @@ export interface SettingsUpdateInput {
   readonly expectedVersions: Readonly<Record<string, number>>;
 }
 
+/** Parâmetros de plataforma das chaves `ai.*` (US-116: `AI_TERMS_VERSION`, `AI_TENANT_MAX_MONTHLY_TOKENS`). */
+export interface AiPlatformLimits {
+  readonly termsVersion: string;
+  readonly maxMonthlyTokens: number;
+}
+
+/**
+ * RN-AI-16: ligar a IA (`ai.enabled` de `false` para `true`) sem a versão vigente dos termos
+ * aceita no lote ou já gravada; ou aceitar uma versão que não é a vigente.
+ */
+export class AiTermsNotAcceptedError extends Error {
+  constructor() {
+    super('Termos de uso da IA não aceitos na versão vigente.');
+    this.name = 'AiTermsNotAcceptedError';
+  }
+}
+
 /** RN-TEN-52: chave fora do registro. */
 export class UnknownSettingKeysError extends Error {
   constructor(readonly keys: readonly string[]) {
@@ -116,14 +133,47 @@ function scopeMaskViolation(
   };
 }
 
+const AI_ENABLED_KEY = 'ai.enabled';
+const AI_TERMS_KEY = 'ai.termsAcceptedVersion';
+const AI_MONTHLY_LIMIT_KEY = 'ai.monthlyTokenLimit';
+
+/** V-02 (US-116): o limite mensal acima do teto da plataforma. */
+function aiLimitViolation(
+  parsed: ReadonlyMap<string, unknown>,
+  ai: AiPlatformLimits | undefined,
+): SettingViolation | null {
+  const limit = parsed.get(AI_MONTHLY_LIMIT_KEY);
+  if (ai === undefined || typeof limit !== 'number' || limit <= ai.maxMonthlyTokens) return null;
+  return { key: AI_MONTHLY_LIMIT_KEY, code: 'VALIDATION_ERROR' };
+}
+
+/** RN-AI-16 (V-01 da US-116): ligar exige o aceite da versão vigente, no lote ou já gravado. */
+function assertAiTerms(
+  parsed: ReadonlyMap<string, unknown>,
+  effectiveOf: (key: string) => unknown,
+  ai: AiPlatformLimits | undefined,
+): void {
+  if (ai === undefined) return;
+  const accepted = parsed.get(AI_TERMS_KEY);
+  if (typeof accepted === 'string' && accepted !== ai.termsVersion) {
+    throw new AiTermsNotAcceptedError();
+  }
+  const turningOn = parsed.get(AI_ENABLED_KEY) === true && effectiveOf(AI_ENABLED_KEY) !== true;
+  if (!turningOn) return;
+  const terms = parsed.has(AI_TERMS_KEY) ? accepted : effectiveOf(AI_TERMS_KEY);
+  if (terms !== ai.termsVersion) throw new AiTermsNotAcceptedError();
+}
+
 /**
  * @throws UnknownSettingKeysError @throws InvalidSettingValuesError
+ * @throws AiTermsNotAcceptedError
  * @throws MissingExpectedVersionsError @throws SettingVersionConflictError
  */
 export function planSettingsUpdate(
   registry: SettingsRegistry,
   current: ReadonlyMap<string, StoredSetting>,
   input: SettingsUpdateInput,
+  ai?: AiPlatformLimits,
 ): SettingsUpdatePlan {
   const keys = Object.keys(input.values);
 
@@ -139,11 +189,15 @@ export function planSettingsUpdate(
       violations.push({ key, code: result.definition.violationCode ?? 'VALIDATION_ERROR' });
     }
   }
+  const effectiveOf = (key: string) => effective(registry, current, key).value;
   if (violations.length === 0) {
-    const crossKey = scopeMaskViolation(parsed, (key) => effective(registry, current, key).value);
+    const crossKey = scopeMaskViolation(parsed, effectiveOf);
     if (crossKey) violations.push(crossKey);
   }
+  const aiLimit = aiLimitViolation(parsed, ai);
+  if (aiLimit) violations.push(aiLimit);
   if (violations.length > 0) throw new InvalidSettingValuesError(violations);
+  assertAiTerms(parsed, effectiveOf, ai);
 
   const missing = keys.filter((key) => input.expectedVersions[key] === undefined);
   if (missing.length > 0) throw new MissingExpectedVersionsError(missing);

@@ -15,6 +15,47 @@ import type {
 } from '../application/ports.js';
 import { expireGeneration, isActive } from '../domain/ai-generation.js';
 import type { AiGeneration } from '../domain/ai-generation.js';
+import type { AiUsageRow } from '../domain/ai-usage.js';
+
+/*
+ * Trava por tenant das transações simuladas — o equivalente em memória do `pg_advisory_xact_lock`
+ * (US-116): adquirida em `lockTenantUsage` e liberada quando a transação aberta por
+ * `runWithTenantLocks` termina. Numa transação simulada sem esse suporte, a trava é no-op.
+ */
+const heldByTx = new WeakMap<object, { keys: Set<string>; releases: (() => void)[] }>();
+const lockTails = new Map<string, Promise<void>>();
+
+/** Transação simulada que libera as travas de tenant ao terminar (commit ou erro). */
+export function runWithTenantLocks<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+  return runSimulatedTransaction(async (tx) => {
+    const held = { keys: new Set<string>(), releases: [] as (() => void)[] };
+    heldByTx.set(tx, held);
+    try {
+      return await work(tx);
+    } finally {
+      heldByTx.delete(tx);
+      for (const release of held.releases) release();
+    }
+  });
+}
+
+function acquireTenantLock(tx: TenantTx, key: string): Promise<void> {
+  const held = heldByTx.get(tx);
+  if (held === undefined || held.keys.has(key)) return Promise.resolve();
+  held.keys.add(key);
+  const previous = lockTails.get(key) ?? Promise.resolve();
+  let release: () => void = () => undefined;
+  const mine = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => mine);
+  lockTails.set(key, tail);
+  held.releases.push(() => {
+    release();
+    if (lockTails.get(key) === tail) lockTails.delete(key);
+  });
+  return previous;
+}
 
 /** Mesmo alvo dos únicos parciais de `ai_generations` (RN-AI-12). */
 function sameTarget(a: AiGenerationTarget, b: AiGenerationTarget): boolean {
@@ -133,6 +174,34 @@ export class InMemoryAiGenerationRepository implements AiGenerationRepository {
     );
   }
 
+  usageRows(_tx: TenantTx, from: Date, to: Date): Promise<AiUsageRow[]> {
+    return Promise.resolve(
+      this.inTenant()
+        .filter(
+          (row) =>
+            row.createdAt.getTime() >= from.getTime() && row.createdAt.getTime() < to.getTime(),
+        )
+        .map((row) => ({
+          id: row.id,
+          status: row.status,
+          errorCode: row.errorCode,
+          startedAt: row.startedAt,
+          targetModule: row.targetModule,
+          kind: row.kind,
+          action: row.action,
+          createdById: row.createdById,
+          createdAt: row.createdAt,
+          reservedTokens: row.reservedTokens,
+          totalTokens: row.totalTokens,
+          costUsd: row.costUsd,
+        })),
+    );
+  }
+
+  lockTenantUsage(tx: TenantTx): Promise<void> {
+    return acquireTenantLock(tx, `ai-usage:${currentRequestContext()?.tenantId ?? ''}`);
+  }
+
   /** Testes: todas as linhas, de todos os tenants. */
   all(): AiGeneration[] {
     return [...this.rows.values()];
@@ -146,7 +215,7 @@ export class InMemoryAiGenerationRepository implements AiGenerationRepository {
 
 export class InMemoryAiTransactions implements AiTransactions {
   run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
-    return runSimulatedTransaction(work);
+    return runWithTenantLocks(work);
   }
 
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {

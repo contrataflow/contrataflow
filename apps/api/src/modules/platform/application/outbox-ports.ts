@@ -36,6 +36,8 @@ export interface OutboxStore {
    * do agregado — queues.md §5.4), e `pg_notify('cf_outbox')`. Devolve o `occurred_at` gravado.
    */
   insert(tx: TenantTx, row: OutboxRow): Promise<Date>;
+  /** Como `insert`, mas `ON CONFLICT (id) DO NOTHING`: `null` se o id já existe (US-116). */
+  insertOnce(tx: TenantTx, row: OutboxRow): Promise<Date | null>;
 }
 
 export const OUTBOX_STORE = Symbol('OutboxStore');

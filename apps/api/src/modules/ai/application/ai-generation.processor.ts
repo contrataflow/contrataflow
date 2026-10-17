@@ -254,6 +254,8 @@ export class AiGenerationProcessor {
       kind: generation.kind,
       reservedTokens: generation.reservedTokens,
       stage: 'EXECUTION',
+      generationId: generation.id,
+      createdAt: generation.createdAt,
     });
     if (!gate.allowed) throw new AiPolicyRevokedError(gate.code);
     // POL-02 do solicitante sobre o alvo, no tenant e com o ator do job (DEC-164).
@@ -564,6 +566,8 @@ export class AiGenerationProcessor {
           },
         }),
       );
+      // Sai de `RUNNING`: a reserva dá lugar ao consumo real inteiro da geração.
+      await this.gates.settle(tx, completed, completed.totalTokens ?? 0);
       this.completedTelemetry(completed);
       return 'SUCCEEDED';
     });
@@ -604,9 +608,11 @@ export class AiGenerationProcessor {
     current: AiGeneration,
     usage: AiTokenUsage,
   ): Promise<ProcessOutcome> {
-    await this.generations.update(tx, addUsage(current, usage, this.clock()), {
-      status: current.status,
-    });
+    const withUsage = addUsage(current, usage, this.clock());
+    if (await this.generations.update(tx, withUsage, { status: current.status })) {
+      // Já encerrada (cancelada): os tokens anteriores já contavam; só os desta resposta entram.
+      await this.gates.settle(tx, withUsage, usage.inputTokens + usage.outputTokens);
+    }
     this.logger.log({
       event: 'ai.response_discarded',
       generationId: current.id,
@@ -681,6 +687,7 @@ export class AiGenerationProcessor {
           },
         }),
       );
+      await this.gates.settle(tx, failed, failed.totalTokens ?? 0);
       return 'FAILED';
     });
     if (outcome === 'FAILED') {

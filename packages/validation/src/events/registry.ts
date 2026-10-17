@@ -1,6 +1,11 @@
 import type { AnyDomainEventDefinition } from './define.js';
 import { RoleAssigned, RoleCreated, RoleRevoked, RoleUpdated } from '../access/events.js';
-import { AiGenerationCompleted, AiGenerationFailed, AiGenerationRequested } from '../ai/events.js';
+import {
+  AiGenerationCompleted,
+  AiGenerationFailed,
+  AiGenerationRequested,
+  AiUsageThresholdReached,
+} from '../ai/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import {
@@ -59,6 +64,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   AiGenerationRequested,
   AiGenerationCompleted,
   AiGenerationFailed,
+  AiUsageThresholdReached,
   CatalogItemChanged,
   DepartmentCreated,
   DepartmentDeactivated,

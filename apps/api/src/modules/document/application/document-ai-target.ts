@@ -24,7 +24,11 @@ import { isEditable } from '../domain/document.js';
 
 export interface AiDocumentTargetInput {
   readonly processId: string;
-  readonly systemModule: SystemDocumentModule;
+  /**
+   * Tipo de sistema do alvo. `null` só com `documentId` (AI-05 da US-116: disponibilidade no
+   * editor, sem o tipo escolhido) — vale o tipo do próprio documento.
+   */
+  readonly systemModule: SystemDocumentModule | null;
   readonly documentId: string | null;
 }
 
@@ -73,7 +77,7 @@ export class DocumentAiTargets {
       ]);
     }
     const context = await this.lifecycle.loadFor(tx, document);
-    if (context.type.systemModule !== input.systemModule) {
+    if (input.systemModule !== null && context.type.systemModule !== input.systemModule) {
       throw validationError([{ field: 'documentId', code: 'NOT_ALLOWED', message: TYPE_MISMATCH }]);
     }
     const actor = await this.lifecycle.actorOf(context);
@@ -107,6 +111,7 @@ export class DocumentAiTargets {
   ): Promise<AiDocumentTarget> {
     const process = await this.processes.load(tx, input.processId);
     if (process === null) throw documentNotFound();
+    if (input.systemModule === null) throw new Error('Alvo sem documento exige o tipo de sistema.');
     const type = (await this.types.list(tx)).find(
       (candidate) => candidate.systemModule === input.systemModule,
     );

@@ -21,4 +21,9 @@ export class InMemoryOutboxStore implements OutboxStore {
     this.rows.push({ ...row, occurredAt });
     return Promise.resolve(occurredAt);
   }
+
+  insertOnce(tx: TenantTx, row: OutboxRow): Promise<Date | null> {
+    if (this.rows.some((stored) => stored.id === row.id)) return Promise.resolve(null);
+    return this.insert(tx, row);
+  }
 }

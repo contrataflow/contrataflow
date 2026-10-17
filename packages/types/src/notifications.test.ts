@@ -32,9 +32,7 @@ interface DocumentedType {
  * Tipos de events.md §6 já especificados cujas stories produtoras ainda não foram implementadas
  * (EP-020 — IA): entram no registro com elas, que removem o tipo daqui.
  */
-const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {
-  AI_USAGE_LIMIT_WARNING: 'US-116',
-};
+const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {};
 
 /** Linhas da tabela de events.md §6 (fonte canônica do registro `NotificationType`). */
 function documentedTypes(): DocumentedType[] {

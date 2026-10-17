@@ -28,6 +28,7 @@ const TYPE_ICONS: Readonly<Record<NotificationType, IconName>> = {
   ROLE_CHANGED: 'user',
   AI_GENERATION_READY: 'folder',
   AI_GENERATION_FAILED: 'alert',
+  AI_USAGE_LIMIT_WARNING: 'alert',
 };
 
 export function notificationIcon(type: NotificationType): IconName {

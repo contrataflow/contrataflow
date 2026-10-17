@@ -97,6 +97,8 @@ interface Api {
   generations?: readonly AiGenerationDto[];
   request?: () => Response;
   history?: readonly AiGenerationListItemDto[];
+  /** AI-05 (US-116): padrão = pode gerar. */
+  availability?: { canGenerate: boolean; reasons: string[] };
 }
 
 /** API simulada: AI-02 devolve a sequência de estados (o último se repete). */
@@ -114,6 +116,21 @@ function mockAiApi(api: Api = {}) {
               scopes: [{ type: 'TENANT', includeSubtree: false }],
             })),
             implicit: { headOfDepartmentIds: [], ownDepartmentIds: [] },
+          },
+        }),
+      );
+    }
+    if (method === 'GET' && url.startsWith('/api/v1/ai/availability')) {
+      const { canGenerate, reasons } = api.availability ?? { canGenerate: true, reasons: [] };
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            enabled: !reasons.includes('AI_DISABLED'),
+            providerAvailable: true,
+            canGenerate,
+            reasons,
+            monthly: { percentUsed: 10 },
+            userDaily: { used: 1, limit: 40 },
           },
         }),
       );
@@ -174,6 +191,26 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
       expect(fetchMock).toHaveBeenCalled();
     });
     expect(screen.queryByRole('button', { name: 'Gerar rascunho com IA' })).toBeNull();
+  });
+
+  it.each([
+    ['AI_USER_DAILY_LIMIT_REACHED', 'Limite diário de pedidos atingido; volta amanhã.'],
+    ['AI_DISABLED', 'A IA está desligada neste órgão.'],
+    [
+      'AI_USAGE_LIMIT_REACHED',
+      'O limite mensal de uso de IA foi atingido. Fale com o administrador do órgão.',
+    ],
+  ])('US-116: AI-05 com %s desabilita o botão com a explicação', async (reason, message) => {
+    mockAiApi({ availability: { canGenerate: false, reasons: [reason] } });
+    renderAssistant();
+    const button = await screen.findByRole<HTMLButtonElement>('button', {
+      name: 'Gerar rascunho com IA',
+    });
+    await waitFor(() => {
+      expect(button.disabled).toBe(true);
+    });
+    const hint = document.getElementById(button.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toBe(message);
   });
 
   it('pede o rascunho (AI-01), acompanha (AI-02), mostra a proposta e descarta (AI-04)', async () => {

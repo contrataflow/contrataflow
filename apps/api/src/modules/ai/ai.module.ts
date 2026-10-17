@@ -21,6 +21,8 @@ import { AiGeneratorRegistry } from './application/ai-generator.js';
 import { AiMaintenanceService } from './application/ai-maintenance.service.js';
 import { AI_PROVIDER } from './application/ai-provider.port.js';
 import { AiSuggestionSourceAdapter } from './application/ai-suggestion.source.js';
+import { AiTenantGateService } from './application/ai-tenant-gate.service.js';
+import { AiUsageQueries } from './application/ai-usage.queries.js';
 import { DiscardAiGenerationCommand } from './application/discard-ai-generation.command.js';
 import {
   AI_CLOCK,
@@ -45,7 +47,9 @@ import {
 } from './infrastructure/prisma-ai-generation.repository.js';
 import { UnavailableAiProvider } from './infrastructure/unavailable-ai.provider.js';
 import { AiGenerationController } from './presentation/ai-generation.controller.js';
+import { AiUsageController } from './presentation/ai-usage.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
 import { DocumentModule } from '../document/document.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
@@ -62,20 +66,21 @@ const MAX_CONTEXT_CHARS = 240_000;
  * `ai-read-only`) e nunca executa comando de outro contexto: a aplicação do conteúdo é comando de
  * `document`/`risk`, que leem a proposta pela porta `AiSuggestionSource` implementada aqui. US-115:
  * a camada (AI-01..04, pipeline, `AiProvider` + `FakeAiProvider`, disjuntor, custo, auditoria,
- * timeline e notificações). Geradores concretos (US-117..121), portão do órgão (US-116) e
- * GroundingGuard (US-122) entram pelos registros `AiGeneratorRegistry`, `AiTenantGateRegistry` e
- * `AiPostProcessorRegistry`.
+ * timeline e notificações). US-116: o portão do órgão (`AiTenantGateService`, registrado no
+ * `AiTenantGateRegistry`) e AI-05/AI-06. Geradores concretos (US-117..121) e GroundingGuard
+ * (US-122) entram pelos registros `AiGeneratorRegistry` e `AiPostProcessorRegistry`.
  */
 @Module({
   imports: [
     AccessModule,
+    CatalogModule,
     DocumentModule,
     IdentityModule,
     TenancyModule,
     DocumentProcessContextModule,
     AiSuggestionSourceModule,
   ],
-  controllers: [AiGenerationController],
+  controllers: [AiGenerationController, AiUsageController],
   providers: [
     {
       provide: AI_SETTINGS,
@@ -127,16 +132,24 @@ const MAX_CONTEXT_CHARS = 240_000;
     AiGenerationJob,
     AiMaintenanceService,
     AiSuggestionSourceAdapter,
+    AiTenantGateService,
+    AiUsageQueries,
   ],
 })
 export class AiModule implements OnModuleInit {
   constructor(
     private readonly suggestions: AiSuggestionSourceRegistry,
     private readonly source: AiSuggestionSourceAdapter,
+    private readonly gates: AiTenantGateRegistry,
+    private readonly gate: AiTenantGateService,
   ) {}
 
-  /** Implementa a porta `AiSuggestionSource` lida por `document`/`risk` (DEC-079). */
+  /**
+   * Implementa a porta `AiSuggestionSource` lida por `document`/`risk` (DEC-079) e registra o
+   * portão do órgão (US-116: IA ligada, limites, reserva e avisos de consumo).
+   */
   onModuleInit(): void {
     this.suggestions.register(this.source);
+    this.gates.register(this.gate);
   }
 }

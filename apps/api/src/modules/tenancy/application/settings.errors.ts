@@ -1,3 +1,9 @@
+import {
+  AI_MONTHLY_TOKEN_LIMIT_MIN,
+  AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT,
+  AI_USER_DAILY_REQUEST_LIMIT_MAX,
+  AI_USER_DAILY_REQUEST_LIMIT_MIN,
+} from '@contrataflow/types';
 import type { Logger } from '@nestjs/common';
 
 import { ApiError, validationError } from '#shared/errors/api-error.js';
@@ -32,7 +38,37 @@ export function isNumberingMaskOnly(error: InvalidSettingValuesError): boolean {
  * RN-TEN-53: só máscaras de numeração → 422 `NUMBERING_MASK_INVALID` (código do módulo dono); com
  * qualquer outra violação, 422 `VALIDATION_ERROR` com um item por chave em `values.<chave>`.
  */
-export function invalidSettingValues(error: InvalidSettingValuesError): ApiError {
+/** Mensagens próprias das chaves `ai.*` (US-116 · V-02/V-03); `{máximo}` = teto da plataforma. */
+function aiValueMessage(key: string, maxMonthlyTokens: number | undefined): string | null {
+  if (key === 'ai.monthlyTokenLimit') {
+    const max = (maxMonthlyTokens ?? AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT).toLocaleString(
+      'pt-BR',
+    );
+    return `Informe um limite entre ${AI_MONTHLY_TOKEN_LIMIT_MIN.toLocaleString('pt-BR')} e ${max} tokens.`;
+  }
+  if (key === 'ai.userDailyRequestLimit') {
+    return `Informe de ${String(AI_USER_DAILY_REQUEST_LIMIT_MIN)} a ${String(AI_USER_DAILY_REQUEST_LIMIT_MAX)} pedidos por dia.`;
+  }
+  return null;
+}
+
+/** RN-AI-16 · V-01 da US-116: 422 `AI_TERMS_NOT_ACCEPTED` (o front reabre o diálogo dos termos). */
+export function aiTermsNotAccepted(): ApiError {
+  return new ApiError('AI_TERMS_NOT_ACCEPTED', {
+    errors: [
+      {
+        field: 'values.ai.termsAcceptedVersion',
+        code: 'REQUIRED',
+        message: 'Aceite os termos de uso da versão atual para ativar a IA.',
+      },
+    ],
+  });
+}
+
+export function invalidSettingValues(
+  error: InvalidSettingValuesError,
+  maxMonthlyTokens?: number,
+): ApiError {
   if (isNumberingMaskOnly(error)) {
     const errors = error.violations.map(({ key, missingOrganization }) => ({
       field: `values.${key}`,
@@ -45,11 +81,14 @@ export function invalidSettingValues(error: InvalidSettingValuesError): ApiError
     });
   }
   return validationError(
-    error.violations.map(({ key }) => ({
-      field: `values.${key}`,
-      code: 'INVALID_FORMAT',
-      message: `Valor inválido para ${key}.`,
-    })),
+    error.violations.map(({ key }) => {
+      const aiMessage = aiValueMessage(key, maxMonthlyTokens);
+      return {
+        field: `values.${key}`,
+        code: aiMessage === null ? ('INVALID_FORMAT' as const) : ('OUT_OF_RANGE' as const),
+        message: aiMessage ?? `Valor inválido para ${key}.`,
+      };
+    }),
   );
 }
 

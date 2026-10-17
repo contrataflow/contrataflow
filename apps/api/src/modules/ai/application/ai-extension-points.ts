@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { AiGeneration } from '../domain/ai-generation.js';
 import type { AiOutputPostProcessor } from '../domain/post-processing.js';
 
 /*
@@ -14,7 +15,12 @@ import type { AiOutputPostProcessor } from '../domain/post-processing.js';
  * - `AiOutputPostProcessor` (US-122 — GroundingGuard): cadeia ordenada, nasce vazia.
  */
 
-export type AiGateDenial = 'AI_DISABLED' | 'AI_USAGE_LIMIT_REACHED' | 'AI_USER_DAILY_LIMIT_REACHED';
+export type AiGateDenial =
+  | 'AI_DISABLED'
+  | 'AI_USAGE_LIMIT_REACHED'
+  | 'AI_USER_DAILY_LIMIT_REACHED'
+  /** Só na execução: o solicitante perdeu `AI_GENERATE` sobre o processo (RN-AI-22). */
+  | 'PERMISSION_DENIED';
 
 export type AiGateDecision =
   { readonly allowed: true } | { readonly allowed: false; readonly code: AiGateDenial };
@@ -27,10 +33,19 @@ export interface AiGateRequest {
   readonly reservedTokens: number;
   /** `REQUEST` em AI-01; `EXECUTION` na revalidação do job antes de chamar o provedor. */
   readonly stage: 'REQUEST' | 'EXECUTION';
+  /** Na execução: a própria geração (fora da contagem diária) e o seu `createdAt` (mês/dia). */
+  readonly generationId?: string;
+  readonly createdAt?: Date;
 }
 
 export interface AiTenantGate {
   check(tx: TenantTx, request: AiGateRequest): Promise<AiGateDecision>;
+  /**
+   * Término da geração com tokens gravados (sucesso, falha ou resposta descartada), na mesma
+   * transação: avisos de consumo do mês (US-116 · RN-AI-20). `addedTokens` = tokens que passaram
+   * a contar como consumo nesta gravação. Opcional.
+   */
+  settle?(tx: TenantTx, generation: AiGeneration, addedTokens: number): Promise<void>;
 }
 
 @Injectable()
@@ -45,6 +60,10 @@ export class AiTenantGateRegistry implements AiTenantGate {
   check(tx: TenantTx, request: AiGateRequest): Promise<AiGateDecision> {
     if (this.gate === null) return Promise.resolve({ allowed: false, code: 'AI_DISABLED' });
     return this.gate.check(tx, request);
+  }
+
+  settle(tx: TenantTx, generation: AiGeneration, addedTokens: number): Promise<void> {
+    return this.gate?.settle?.(tx, generation, addedTokens) ?? Promise.resolve();
   }
 }
 

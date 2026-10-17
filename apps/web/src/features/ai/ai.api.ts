@@ -1,6 +1,8 @@
 import type {
+  AiAvailabilityDto,
   AiGenerationDto,
   AiGenerationListItemDto,
+  AiUsageDto,
   RequestAiGeneration,
 } from '@contrataflow/validation';
 
@@ -19,7 +21,46 @@ export const aiKeys = {
     tenantKey(tenantId, 'ai', 'generations', generationId),
   history: (tenantId: string, processId: string) =>
     tenantKey(tenantId, 'processes', processId, 'ai-generations'),
+  /** AI-05 (US-116): todas as disponibilidades do tenant (invalidadas após AI-01 e SET-02). */
+  availabilityAll: (tenantId: string) => tenantKey(tenantId, 'ai', 'availability'),
+  availability: (tenantId: string, processId: string | null, documentId: string | null) =>
+    tenantKey(tenantId, 'ai', 'availability', processId ?? '-', documentId ?? '-'),
+  /** AI-06 (US-116): consumo do mês. */
+  usage: (tenantId: string, month: string | null) =>
+    tenantKey(tenantId, 'ai', 'usage', month ?? 'current'),
 };
+
+/** Cache curto de AI-05 no cliente (api/16-ai.md). */
+export const AI_AVAILABILITY_STALE_MS = 30_000;
+
+/** AI-05: o usuário pode gerar agora? (indicativo — AI-01 decide). */
+export async function fetchAiAvailability(
+  target: { readonly processId: string | null; readonly documentId: string | null },
+  signal?: AbortSignal,
+): Promise<AiAvailabilityDto> {
+  return (
+    await apiRequest<AiAvailabilityDto>('/ai/availability', {
+      query: {
+        processId: target.processId ?? undefined,
+        documentId: target.documentId ?? undefined,
+      },
+      signal,
+    })
+  ).data;
+}
+
+/** AI-06 (`SETTINGS_MANAGE`): consumo do mês (`YYYY-MM`; padrão: mês corrente do órgão). */
+export async function fetchAiUsage(
+  month: string | null,
+  signal?: AbortSignal,
+): Promise<AiUsageDto> {
+  return (
+    await apiRequest<AiUsageDto>('/ai/usage', {
+      query: { month: month ?? undefined },
+      signal,
+    })
+  ).data;
+}
 
 /** `QUEUED`/`RUNNING`: ainda gerando (o painel acompanha por AI-02). */
 export function isGenerating(status: AiGenerationDto['status']): boolean {

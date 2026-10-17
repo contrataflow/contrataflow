@@ -53,3 +53,35 @@ export const AI_PROPOSAL_TTL_DAYS = 7;
 
 /** Intervalo inicial de consulta do AI-02 pelo cliente (`meta.pollAfterMs`). */
 export const AI_POLL_AFTER_MS = 2_000;
+
+/*
+ * Configuração da IA no órgão (US-116 · DEC-037 · DEC-079 · PEND-22): limites técnicos de uso,
+ * sem cobrança — o custo é só registrado por geração.
+ */
+
+/** `ai.monthlyTokenLimit`: mínimo, padrão e teto padrão da plataforma (`AI_TENANT_MAX_MONTHLY_TOKENS`). */
+export const AI_MONTHLY_TOKEN_LIMIT_MIN = 50_000;
+export const AI_MONTHLY_TOKEN_LIMIT_DEFAULT = 2_000_000;
+export const AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT = 20_000_000;
+/** Teto técnico do schema da chave; o máximo efetivo é o da plataforma (validado pela API). */
+export const AI_MONTHLY_TOKEN_LIMIT_CEILING = 1_000_000_000;
+
+/** `ai.userDailyRequestLimit`: faixa e padrão (RN-AI-19). */
+export const AI_USER_DAILY_REQUEST_LIMIT_MIN = 1;
+export const AI_USER_DAILY_REQUEST_LIMIT_MAX = 500;
+export const AI_USER_DAILY_REQUEST_LIMIT_DEFAULT = 40;
+
+/** Faixas do aviso de consumo do mês (RN-AI-20), em percentual do limite. */
+export const AI_USAGE_THRESHOLDS = [80, 100] as const;
+export type AiUsageThreshold = (typeof AI_USAGE_THRESHOLDS)[number];
+
+/** Motivos de AI-05 (`reasons[]`) para não poder gerar (RN-AI-23). */
+export const AI_AVAILABILITY_REASONS = [
+  'AI_DISABLED',
+  'AI_PROVIDER_UNAVAILABLE',
+  'AI_USAGE_LIMIT_REACHED',
+  'AI_USER_DAILY_LIMIT_REACHED',
+  'PERMISSION_DENIED',
+  'DOCUMENT_NOT_EDITABLE',
+] as const;
+export type AiAvailabilityReason = (typeof AI_AVAILABILITY_REASONS)[number];

@@ -92,5 +92,103 @@
       "EXPIRED": "Expirada"
     },
     "open": "Ver proposta"
+  },
+  "availability": {
+    "AI_DISABLED": "A IA está desligada neste órgão.",
+    "AI_PROVIDER_UNAVAILABLE": "A IA está indisponível agora. Tente novamente em instantes.",
+    "AI_USAGE_LIMIT_REACHED": "O limite mensal de uso de IA foi atingido. Fale com o administrador do órgão.",
+    "AI_USER_DAILY_LIMIT_REACHED": "Limite diário de pedidos atingido; volta amanhã.",
+    "PERMISSION_DENIED": "Peça ao administrador do órgão.",
+    "DOCUMENT_NOT_EDITABLE": "O documento não pode ser editado por você agora."
+  },
+  "admin": {
+    "title": "Inteligência artificial",
+    "description": "A IA ajuda a redigir DFD, ETP, mapa de riscos e Termo de Referência. Ela nasce desligada: o órgão decide se usa, aceita os termos de uso e define limites de consumo.",
+    "switch": "Usar IA neste órgão",
+    "switchOn": "Ligada",
+    "switchOff": "Desligada",
+    "termsAccepted": "Termos de uso aceitos: versão {version}.",
+    "termsNone": "Os termos de uso ainda não foram aceitos.",
+    "readTerms": "Ler os termos de uso",
+    "newTerms": {
+      "title": "Nova versão dos termos de uso",
+      "description": "Há uma nova versão ({version}) dos termos de uso da IA. A IA continua ligada, mas para religá-la depois será preciso aceitar a versão vigente.",
+      "action": "Ler e aceitar"
+    },
+    "providerUnavailable": {
+      "title": "IA indisponível na plataforma",
+      "description": "O provedor de IA não está disponível no momento. Você pode ajustar a configuração; a geração volta quando o provedor estiver disponível."
+    },
+    "limits": {
+      "title": "Limites de uso",
+      "monthly": "Limite mensal de tokens",
+      "monthlyHint": "Entre {min} e {max} tokens no mês civil do órgão.",
+      "monthlyInvalid": "Informe um limite entre {min} e {max} tokens.",
+      "daily": "Pedidos por usuário por dia",
+      "dailyHint": "De 1 a 500 pedidos por pessoa no dia.",
+      "dailyInvalid": "Informe de 1 a 500 pedidos por dia.",
+      "belowUsage": "O novo limite é menor que o consumo deste mês ({used} tokens). Novos pedidos ficarão bloqueados até o próximo mês ou até um novo aumento.",
+      "save": "Salvar limites",
+      "saving": "Salvando…"
+    },
+    "saved": "Configuração salva",
+    "disable": {
+      "title": "Desligar a IA neste órgão?",
+      "description": "Novos pedidos serão recusados e as gerações na fila serão canceladas. As propostas já prontas ainda poderão ser aplicadas ou descartadas.",
+      "confirm": "Desligar",
+      "cancel": "Manter ligada"
+    },
+    "terms": {
+      "accept": "Li e aceito os termos de uso da versão {version}",
+      "activate": "Ativar",
+      "acceptOnly": "Aceitar",
+      "cancel": "Cancelar",
+      "required": "Aceite os termos de uso da versão atual para ativar a IA."
+    },
+    "errors": {
+      "conflict": "A configuração foi alterada por outra pessoa. Recarregue.",
+      "reload": "Recarregar",
+      "mfa": "Confirme sua identidade para alterar esta configuração.",
+      "permission": "Você não tem permissão para configurar a IA.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente.",
+      "generic": "Não foi possível salvar a configuração."
+    },
+    "usage": {
+      "title": "Consumo de IA",
+      "month": "Mês",
+      "loading": "Carregando o consumo…",
+      "loadFailed": "Não foi possível carregar o consumo.",
+      "retry": "Tentar novamente",
+      "empty": "Nenhuma geração neste mês.",
+      "percent": "{percent}% do limite usado",
+      "tokens": "{used} de {limit} tokens",
+      "reserved": "{reserved} tokens reservados por gerações em andamento",
+      "cost": "Custo estimado: US$ {cost}",
+      "costUnknown": "Custo estimado indisponível (modelo sem preço cadastrado).",
+      "generations": "{count, plural, =0 {Nenhuma geração} one {# geração} other {# gerações}}",
+      "byDocumentType": "Por tipo de documento",
+      "byKind": "Por tipo de geração",
+      "byUser": "Por usuário",
+      "columns": {
+        "item": "Item",
+        "generations": "Gerações",
+        "tokens": "Tokens",
+        "cost": "Custo (US$)"
+      },
+      "targets": {
+        "DFD": "DFD",
+        "ETP": "ETP",
+        "RISK_MAP": "Mapa de riscos",
+        "TERM_OF_REFERENCE": "Termo de Referência"
+      },
+      "kinds": {
+        "DRAFT": "Rascunho completo",
+        "REWRITE": "Reescrever seção",
+        "COMPLETE": "Completar seção",
+        "SUMMARIZE": "Resumir seção",
+        "SECTION": "Ajuste de seção"
+      },
+      "audit": "Ver na auditoria as ações de IA"
+    }
   }
 }

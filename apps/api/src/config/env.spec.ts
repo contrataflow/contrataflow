@@ -39,6 +39,8 @@ describe('loadConfig', () => {
       provider: 'fake',
       models: { draft: 'fake-draft-1', section: 'fake-section-1' },
       requestTimeoutMs: 120_000,
+      termsVersion: '2026-10',
+      tenantMaxMonthlyTokens: 20_000_000,
     });
     const staging = {
       ...REQUIRED,
@@ -55,6 +57,21 @@ describe('loadConfig', () => {
     );
     expect(() => loadConfig({ ...staging, APP_ENV: 'production', AI_PROVIDER: 'fake' })).toThrow(
       new ConfigValidationError(['AI_PROVIDER']),
+    );
+    // US-116: termos vigentes e teto do limite mensal por tenant (padrões da plataforma).
+    expect(loadConfig(REQUIRED).ai).toMatchObject({
+      termsVersion: '2026-10',
+      tenantMaxMonthlyTokens: 20_000_000,
+    });
+    expect(
+      loadConfig({
+        ...REQUIRED,
+        AI_TERMS_VERSION: '2027-01',
+        AI_TENANT_MAX_MONTHLY_TOKENS: '5000000',
+      }).ai,
+    ).toMatchObject({ termsVersion: '2027-01', tenantMaxMonthlyTokens: 5_000_000 });
+    expect(() => loadConfig({ ...REQUIRED, AI_TENANT_MAX_MONTHLY_TOKENS: '1000' })).toThrow(
+      new ConfigValidationError(['AI_TENANT_MAX_MONTHLY_TOKENS']),
     );
     expect(() => loadConfig({ ...REQUIRED, AI_REQUEST_TIMEOUT_MS: '10' })).toThrow(
       new ConfigValidationError(['AI_REQUEST_TIMEOUT_MS']),

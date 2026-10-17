@@ -26,7 +26,8 @@
     "risk": "Riscos",
     "uploads": "Arquivos",
     "notifications": "Notificações",
-    "features": "Funcionalidades"
+    "features": "Funcionalidades",
+    "ai": "Inteligência artificial"
   },
   "field": {
     "versionHint": "Versão {version}",
@@ -223,6 +224,24 @@
       "emailEnabled": {
         "label": "Enviar notificações por e-mail",
         "description": "Desligue para manter as notificações apenas dentro do sistema."
+      }
+    },
+    "ai": {
+      "enabled": {
+        "label": "Usar IA neste órgão",
+        "description": "Liga a geração assistida de documentos com IA. Ligar exige o aceite dos termos de uso da versão vigente."
+      },
+      "termsAcceptedVersion": {
+        "label": "Termos de uso aceitos",
+        "description": "Versão dos termos de uso da IA aceita pelo órgão."
+      },
+      "monthlyTokenLimit": {
+        "label": "Limite mensal de tokens",
+        "description": "Teto de consumo de IA do órgão no mês civil."
+      },
+      "userDailyRequestLimit": {
+        "label": "Pedidos por usuário por dia",
+        "description": "De 1 a 500 pedidos de IA por pessoa no dia civil."
       }
     }
   },

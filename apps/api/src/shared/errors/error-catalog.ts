@@ -326,12 +326,18 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
   AI_USAGE_LIMIT_REACHED: {
     status: 422,
     title: 'Limite de uso de IA',
-    detail: 'O limite de uso de IA foi atingido.',
+    detail: 'O limite mensal de uso de IA foi atingido.',
   },
   AI_USER_DAILY_LIMIT_REACHED: {
     status: 422,
     title: 'Limite diário de IA',
-    detail: 'O limite de uso de IA foi atingido.',
+    detail: 'Você atingiu o limite diário de pedidos de IA.',
+  },
+  // US-116: ligar a IA exige o aceite da versão vigente dos termos (RN-AI-16 · V-01).
+  AI_TERMS_NOT_ACCEPTED: {
+    status: 422,
+    title: 'Termos de uso da IA',
+    detail: 'Aceite os termos de uso da versão atual para ativar a IA.',
   },
   AI_GENERATION_IN_PROGRESS: {
     status: 409,

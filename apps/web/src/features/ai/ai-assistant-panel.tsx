@@ -132,6 +132,8 @@ export function AiAssistantPanel({
       setGenerationId(created.id);
       setTab('proposal');
       void queryClient.invalidateQueries({ queryKey: aiKeys.history(tenantId, processId) });
+      // AI-05 muda com o pedido (uso diário e reserva do mês — US-116).
+      void queryClient.invalidateQueries({ queryKey: aiKeys.availabilityAll(tenantId) });
     } catch (error) {
       const apiError = isApiError(error) ? error : null;
       const activeId = activeGenerationOf(apiError?.problem);

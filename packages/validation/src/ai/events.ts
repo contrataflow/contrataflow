@@ -1,4 +1,4 @@
-import { AI_GENERATION_ERROR_CODES } from '@contrataflow/types';
+import { AI_GENERATION_ERROR_CODES, AI_USAGE_THRESHOLDS } from '@contrataflow/types';
 import { z } from 'zod';
 
 import { aiGenerationKindSchema, aiSectionActionSchema, aiTargetModuleSchema } from './ai.js';
@@ -70,4 +70,23 @@ export const AiGenerationFailed = defineDomainEvent({
     attempts: z.int().min(0),
   }),
   routingKey: 'ai.generation_failed',
+});
+
+/**
+ * O consumo real do mês cruzou 80% ou 100% do limite do órgão (US-116 · RN-AI-20): gravado na
+ * transação do término da geração, uma vez por `(tenant, mês, faixa)` — `eventId` determinístico
+ * (UUID v5) sob a trava do tenant. Agregado = o tenant; fora de processo. Dispara
+ * `AI_USAGE_LIMIT_WARNING` a quem tem `SETTINGS_MANAGE`. Sem dados pessoais.
+ */
+export const AiUsageThresholdReached = defineDomainEvent({
+  eventType: 'AiUsageThresholdReached',
+  eventVersion: 1,
+  aggregateType: 'Tenant',
+  payload: z.strictObject({
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+    threshold: z.union(AI_USAGE_THRESHOLDS.map((value) => z.literal(value))),
+    usedTokens: z.int().min(0),
+    limitTokens: z.int().min(1),
+  }),
+  routingKey: 'ai.usage_threshold_reached',
 });
