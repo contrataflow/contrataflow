@@ -69,6 +69,8 @@ const CONFIG_CACHE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>
   'document_type.changed': [['document', 'types']],
   // US-104: listas de catálogo em cache por tenant (seletores dos formulários).
   'catalog.item_changed': [['catalog', 'items']],
+  // RN-IAM-42: `security.mfaPolicy` em cache no `identity` (a api já apaga no commit do SET-02).
+  'tenant.settings_changed': [['identity', 'mfa-policy']],
 };
 
 /**

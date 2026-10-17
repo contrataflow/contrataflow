@@ -48,7 +48,9 @@ Desde a US-093 (DEC-075 · RN-IAM-65..72):
   no-op, sem auditoria.
 - **MFA do destino:** porta `TENANT_MFA_POLICY` (`security.mfaPolicy`); com `ALL` e sessão sem
   segundo fator, a resposta traz `mfaRequired = true` e nada é gravado (o BFF conclui depois do
-  _step-up_). Até a US-103, `RegistryDefaultMfaPolicy` devolve o padrão `ADMINS`; em memória,
+  _step-up_). `SettingsTenantMfaPolicy` lê `security.mfaPolicy` pela porta
+  `TenantMfaSettings` (fonte registrada pelo `tenancy`), com cache de 60 s por tenant apagado no
+  commit do SET-02 e pelo `TenantSettingsChanged` (RN-IAM-42); no modo de identidade fake,
   `InMemoryTenantMfaPolicy`. A regra pura fica em `#shared/auth/mfa-policy.js`.
 - **Instituição padrão:** `setAsDefault` grava só `users.preferences.defaultTenantId` (sem
   `version`); o `session-events` devolve `defaultTenantId` para a seleção `DEFAULT` do login.

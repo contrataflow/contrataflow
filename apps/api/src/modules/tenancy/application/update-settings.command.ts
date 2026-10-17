@@ -13,6 +13,7 @@ import { validationError } from '#shared/errors/api-error.js';
 import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
 import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
+import { MFA_POLICY_KEY } from './mfa-policy.source.js';
 import { ORGANIZATION_LOGO_PORT } from './organization-ports.js';
 import type { OrganizationLogoPort } from './organization-ports.js';
 import {
@@ -116,6 +117,8 @@ export class UpdateSettingsCommand {
     }
 
     const keys = Object.keys(updated);
+    // RN-IAM-42: a próxima requisição já é avaliada pela nova política (o worker repete pelo evento).
+    if (keys.includes(MFA_POLICY_KEY)) await this.identity.invalidateMfaPolicy();
     if (keys.length > 0) {
       this.logger.log(
         {

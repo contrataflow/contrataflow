@@ -10,6 +10,8 @@ import {
   TOKEN_VERIFIER,
   USER_PORT,
 } from '#shared/auth/ports.js';
+import { TenantMfaSettings, TenantMfaSettingsModule } from '#shared/auth/tenant-mfa-settings.js';
+import { TenantCache } from '#shared/cache/tenant-cache.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { FirstAdminSeeder } from './application/first-admin.seeder.js';
@@ -75,7 +77,7 @@ import { PrismaMembershipRepository } from './infrastructure/prisma-membership.r
 import { SessionSweepScheduler } from './infrastructure/session-sweep.scheduler.js';
 import {
   InMemoryTenantMfaPolicy,
-  RegistryDefaultMfaPolicy,
+  SettingsTenantMfaPolicy,
 } from './infrastructure/tenant-mfa-policy.js';
 import {
   InvitationAcceptController,
@@ -183,11 +185,18 @@ function identityProviders(): Provider[] {
       ) => (backend instanceof InMemoryFirstAdminStore ? backend : prisma),
     },
     { provide: SESSION_AUDIT, useClass: AuditTrailSessionRecorder },
+    // `security.mfaPolicy` do tenant (RN-IAM-42): fonte registrada pelo `tenancy`, com cache.
+    {
+      provide: SettingsTenantMfaPolicy,
+      inject: [TenantMfaSettings, TenantCache],
+      useFactory: (settings: TenantMfaSettings, cache: TenantCache) =>
+        new SettingsTenantMfaPolicy(settings, cache),
+    },
     {
       provide: TENANT_MFA_POLICY,
-      inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) =>
-        config.oidc.fakeSigningKey ? new InMemoryTenantMfaPolicy() : new RegistryDefaultMfaPolicy(),
+      inject: [APP_CONFIG, SettingsTenantMfaPolicy],
+      useFactory: (config: AppConfig, settings: SettingsTenantMfaPolicy) =>
+        config.oidc.fakeSigningKey ? new InMemoryTenantMfaPolicy() : settings,
     },
     { provide: IDENTITY_CLOCK, useValue: () => new Date() },
   ];
@@ -206,7 +215,7 @@ function identityProviders(): Provider[] {
  * a US-092: detalhe e ciclo de vida do vínculo (USR-07..12), com POL-12/16.
  */
 @Module({
-  imports: [TenantSeedingModule, MembershipReferencesModule],
+  imports: [TenantSeedingModule, MembershipReferencesModule, TenantMfaSettingsModule],
   controllers: [
     MeController,
     SessionEventsController,

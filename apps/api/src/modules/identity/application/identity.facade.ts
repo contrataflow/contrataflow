@@ -117,4 +117,12 @@ export class IdentityFacade {
     if (tenantId === null) throw new Error('mfaPolicy exige o tenant do contexto.');
     return this.mfaPolicies.mfaPolicyOf(tenantId);
   }
+
+  /**
+   * Descarta a `security.mfaPolicy` em cache do tenant do contexto logo após o commit do SET-02
+   * (RN-IAM-42): a próxima requisição já é avaliada pela nova política.
+   */
+  invalidateMfaPolicy(): Promise<void> {
+    return this.mfaPolicies.invalidate();
+  }
 }

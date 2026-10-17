@@ -1,7 +1,7 @@
 import type { Server } from 'node:http';
 
 import type { Logger as PinoLogger } from '@contrataflow/observability';
-import type { INestApplication, Type } from '@nestjs/common';
+import type { INestApplication, InjectionToken, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Logger as NestPinoLogger } from 'nestjs-pino';
 import { __resetOutOfContextForTests } from 'nestjs-pino/PinoLogger.js';
@@ -60,6 +60,8 @@ export interface TestApiOptions {
   readonly logger?: PinoLogger;
   /** Substitui providers pelo token (ex.: diretório do Authentik, relógio). */
   readonly providers?: readonly { readonly token: unknown; readonly value: unknown }[];
+  /** Substitui providers pelo token por outro provider da aplicação (ex.: o adaptador real). */
+  readonly aliases?: readonly { readonly token: unknown; readonly existing: InjectionToken }[];
 }
 
 export interface TestApi {
@@ -98,6 +100,11 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
   }
   for (const { token, value } of options.providers ?? []) {
     builder = builder.overrideProvider(token).useValue(value);
+  }
+  for (const { token, existing } of options.aliases ?? []) {
+    builder = builder
+      .overrideProvider(token)
+      .useFactory({ factory: (provider: unknown) => provider, inject: [existing] });
   }
   const moduleRef = await builder.compile();
   const app = configureApiApp(

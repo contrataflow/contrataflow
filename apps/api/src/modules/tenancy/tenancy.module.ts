@@ -5,6 +5,7 @@ import type { OnModuleInit } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { TENANT_STATUS_PORT } from '#shared/auth/ports.js';
+import { TenantMfaSettings, TenantMfaSettingsModule } from '#shared/auth/tenant-mfa-settings.js';
 import { PlatformCache } from '#shared/cache/tenant-cache.js';
 import { currentRequestContext } from '#shared/context/request-context.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
@@ -12,6 +13,7 @@ import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenan
 import { ApplyTenantSeedersCommand } from './application/apply-tenant-seeders.command.js';
 import { ChangeTenantStatusCommand } from './application/change-tenant-status.command.js';
 import { CreateOrganizationCommand } from './application/create-organization.command.js';
+import { TenancyMfaPolicySource } from './application/mfa-policy.source.js';
 import {
   ORGANIZATION_CLOCK,
   ORGANIZATION_LOGO_PORT,
@@ -93,7 +95,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * de identidade fake a mesma instância em memória serve o guard e os casos de uso.
  */
 @Module({
-  imports: [AccessModule, IdentityModule, TenantSeedingModule],
+  imports: [AccessModule, IdentityModule, TenantSeedingModule, TenantMfaSettingsModule],
   controllers: [PlatformTenantsController, OrganizationController, SettingsController],
   providers: [
     TenancyFacade,
@@ -113,6 +115,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     GetPublicSettingsQuery,
     UpdateSettingsCommand,
     TenantSettingsSeeder,
+    TenancyMfaPolicySource,
     // Registro tipado de chaves (entities.md §6): chave duplicada entre módulos derruba o boot.
     { provide: SettingsRegistry, useFactory: () => new SettingsRegistry([SETTING_DEFINITIONS]) },
     PrismaTenantSettingsRepository,
@@ -216,11 +219,17 @@ export class TenancyModule implements OnModuleInit {
     private readonly seeders: TenantSeederRegistry,
     private readonly primaryOrganization: PrimaryOrganizationSeeder,
     private readonly settings: TenantSettingsSeeder,
+    private readonly mfaSettings: TenantMfaSettings,
+    private readonly mfaPolicySource: TenancyMfaPolicySource,
   ) {}
 
-  /** Seeders `tenancy.primaryOrganization` e `tenancy.settings` no checklist (US-099). */
+  /**
+   * Seeders `tenancy.primaryOrganization` e `tenancy.settings` no checklist (US-099) e a fonte de
+   * `security.mfaPolicy` lida pelo `identity` (RN-IAM-42).
+   */
   onModuleInit(): void {
     this.seeders.register(this.primaryOrganization);
     this.seeders.register(this.settings);
+    this.mfaSettings.register(this.mfaPolicySource);
   }
 }

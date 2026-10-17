@@ -148,6 +148,8 @@ export const SESSION_AUDIT = Symbol('SessionAuditPort');
  */
 export interface TenantMfaPolicyPort {
   mfaPolicyOf(tenantId: string): Promise<MfaPolicy>;
+  /** Descarta a política em cache do tenant do contexto (`security.mfaPolicy` alterada — RN-IAM-42). */
+  invalidate(): Promise<void>;
 }
 
 export const TENANT_MFA_POLICY = Symbol('TenantMfaPolicyPort');
