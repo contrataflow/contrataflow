@@ -122,3 +122,6 @@ export interface TemplateRepository {
 }
 
 export const TEMPLATE_REPOSITORY = Symbol('TemplateRepository');
+
+/** Definição da biblioteca padrão (US-110): `TEMPLATE_LIBRARY` do domínio; testes trocam a fixture. */
+export const TEMPLATE_LIBRARY = Symbol('TemplateLibrary');

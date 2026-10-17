@@ -203,6 +203,29 @@ describe('SCR-033 · lista de templates', () => {
     expect(screen.queryByRole('button', { name: 'Editar dados de Despacho padrão' })).toBeNull();
   });
 
+  it('[Sucesso] US-110: modelos semeados com o selo "Modelo padrão da plataforma" em texto (axe)', async () => {
+    const seeded = ['DFD', 'ETP', 'Termo de Referência'].map((name, index) =>
+      template({
+        id: `0192a000-0000-7000-8000-0000000e01${String(index).padStart(2, '0')}`,
+        name: `${name} — Modelo padrão`,
+        isSystem: true,
+        isDefault: true,
+        draftVersion: null,
+      }),
+    );
+    mockApi({ list: () => jsonResponse({ data: seeded, meta: { page: 1, totalItems: 3 } }) }, [
+      'TEMPLATE_VIEW',
+    ]);
+    renderWithShell(<TemplatesView />);
+    const row = (
+      await screen.findByRole('rowheader', { name: /Termo de Referência — Modelo padrão/ })
+    ).closest('tr');
+    if (!row) throw new Error('linha ausente');
+    expect(within(row).getByText('Modelo padrão da plataforma')).toBeTruthy();
+    expect(screen.getAllByText('Modelo padrão da plataforma')).toHaveLength(3);
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
   it('403 na lista mostra "Acesso negado"', async () => {
     mockApi({ list: () => problemResponse(403, 'PERMISSION_DENIED', 'Negado') }, []);
     renderWithShell(<TemplatesView />);

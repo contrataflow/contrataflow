@@ -28,6 +28,7 @@
     "active": "Ativo",
     "inactive": "Inativo",
     "system": "Modelo padrão da plataforma",
+    "systemHint": "Semeado pela biblioteca padrão da plataforma; pode ser revisado e publicado em nova versão pelo órgão.",
     "default": "Padrão do tipo"
   },
   "values": {

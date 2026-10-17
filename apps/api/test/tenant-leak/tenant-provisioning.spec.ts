@@ -332,7 +332,8 @@ describe('provisionamento de tenant no PostgreSQL (US-099)', () => {
         problem.provisioning.steps.filter((step) => step.status === 'PENDING').map((s) => s.key),
       ).toEqual([
         'document.systemTypes',
-        // A execução para na etapa que falhou: as seguintes ficam pendentes (US-042/US-106).
+        // A execução para na etapa que falhou: as seguintes ficam pendentes (US-042/US-106/US-110).
+        'document.templateLibrary',
         'workflow.seedWorkflows',
         'catalog.holidays',
         'identity.firstAdmin',

@@ -678,6 +678,83 @@ const TEMPLATE_LAYOUT = {
 function mockUuid() {
   return `0192a000-0000-7000-8000-${randomUUID().replaceAll('-', '').slice(0, 12)}`;
 }
+// US-110: biblioteca padrão semeada no provisionamento (`POST /__mock/template-library`) — um
+// template `isSystem` com a v1 publicada por tipo com template; o padrão do tipo só é definido se
+// ainda não houver um. Idempotente. O conteúdo completo e as regras ficam nos testes da API.
+const TEMPLATE_LIBRARY = {
+  DFD: [
+    'DFD — Modelo padrão',
+    [
+      ['JUSTIFICATION', 'Justificativa da necessidade'],
+      ['EXPECTED_RESULTS', 'Resultados pretendidos'],
+      ['NOTES', 'Observações'],
+    ],
+  ],
+  ETP: [
+    'ETP — Modelo padrão',
+    [
+      ['NEED_DESCRIPTION', 'Descrição da necessidade'],
+      ['REQUIREMENTS', 'Requisitos da contratação'],
+      ['CONCLUSION', 'Posicionamento conclusivo'],
+    ],
+  ],
+  OFICIO: ['Ofício — Modelo padrão', [['CONTENT', 'Conteúdo do ofício']]],
+};
+function seedTemplateLibrary() {
+  const now = '2026-10-17T12:00:00.000Z';
+  for (const type of documentTypes) {
+    const entry = TEMPLATE_LIBRARY[type.code];
+    if (!entry || templates.some((item) => item.isSystem && item.documentTypeId === type.id)) {
+      continue;
+    }
+    const [name, sections] = entry;
+    const template = {
+      id: mockUuid(),
+      name,
+      description: 'Texto-base para revisão pela Procuradoria do órgão.',
+      documentTypeId: type.id,
+      isActive: true,
+      isSystem: true,
+      currentPublishedVersionId: null,
+      createdAt: now,
+      updatedAt: now,
+      version: 2,
+    };
+    const version = {
+      id: mockUuid(),
+      templateId: template.id,
+      versionNumber: 1,
+      status: 'PUBLISHED',
+      sections: sections.map(([key, title], index) => ({
+        key,
+        title,
+        order: index + 1,
+        requirement: 'REQUIRED',
+        helpText: `Orientação ao redator: ${title.toLowerCase()}.`,
+        maxChars: 50_000,
+        render: 'TEXT',
+        allowNarrative: true,
+      })),
+      fieldConfig: {},
+      importMappings: null,
+      layout: TEMPLATE_LAYOUT,
+      changeNotes: null,
+      importSources: null,
+      publishedAt: now,
+      retiredAt: null,
+      contentHash: 'b0'.repeat(32),
+      createdAt: now,
+      updatedAt: now,
+      version: 2,
+    };
+    template.currentPublishedVersionId = version.id;
+    templates.push(template);
+    templateVersions.push(version);
+    if (!type.defaultTemplateId) {
+      Object.assign(type, { defaultTemplateId: template.id, version: type.version + 1 });
+    }
+  }
+}
 // Usuários e convites (US-091 · USR-01/03..06/14): convites pendentes em memória; o token de
 // `/convite/<token>` válido e o expirado são fixos (43 caracteres base64url).
 const INVITE_TOKEN = 'A'.repeat(43);
@@ -1009,6 +1086,10 @@ createServer(async (request, response) => {
     const body = JSON.parse((await readBody(request)) || '{}');
     if (body.status) failures.set(body.path, body);
     else failures.delete(body.path);
+    return send(response, 204);
+  }
+  if (url.pathname === '/__mock/template-library') {
+    seedTemplateLibrary();
     return send(response, 204);
   }
   if (url.pathname === '/__mock/audit-tamper') {

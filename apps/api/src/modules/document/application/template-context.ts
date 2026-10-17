@@ -117,6 +117,7 @@ interface TemplateInstruments {
   readonly created: Counter;
   readonly contentUpdates: Counter;
   readonly lifecycle: Counter;
+  readonly librarySeeded: Counter;
 }
 
 let instruments: TemplateInstruments | undefined;
@@ -137,6 +138,9 @@ function templateInstruments(): TemplateInstruments {
       description:
         'Ciclo de vida de versões de template por ação (created/published/publish_invalid/retired).',
     }),
+    librarySeeded: meter.createCounter('cf_template_library_seeded_total', {
+      description: 'Templates da biblioteca padrão semeados no provisionamento (US-110).',
+    }),
   };
   return instruments;
 }
@@ -152,6 +156,12 @@ export function recordTemplateContentUpdate(result: 'updated' | 'invalid'): void
 /** Métrica de publicação/aposentadoria (US-108 · DoD). */
 export function recordTemplateVersionLifecycle(
   action: 'created' | 'published' | 'publish_invalid' | 'retired',
+  options: { readonly system?: boolean } = {},
 ): void {
-  templateInstruments().lifecycle.add(1, { action });
+  templateInstruments().lifecycle.add(1, { action, system: options.system ?? false });
+}
+
+/** Métrica da semeadura da biblioteca padrão (US-110 · DoD). */
+export function recordTemplateLibrarySeeded(count: number): void {
+  templateInstruments().librarySeeded.add(count);
 }

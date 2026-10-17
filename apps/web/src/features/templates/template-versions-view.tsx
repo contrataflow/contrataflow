@@ -24,6 +24,7 @@ import { useIdempotentMutation } from '@/lib/api/use-idempotent-mutation';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { SystemTemplateBadge } from './system-template-badge';
 import { formatDateTime, prePublishProblems, retireBlocked } from './template-versions-model';
 import type { PublishProblem } from './template-versions-model';
 import {
@@ -140,6 +141,7 @@ export function TemplateVersionsView({ templateId }: { readonly templateId: stri
           {data ? (
             <p className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
               <span>{t('versions.subtitle', { type: data.documentType.name })}</span>
+              {data.isSystem ? <SystemTemplateBadge /> : null}
               {data.isDefault ? <Badge tone="ok">{t('badges.default')}</Badge> : null}
               {!data.isActive ? <Badge tone="muted">{t('badges.inactive')}</Badge> : null}
             </p>

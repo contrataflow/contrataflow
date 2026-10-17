@@ -119,6 +119,7 @@ describe('Feature: Provisionar tenant com dados padrão (US-099) — API de plat
         ['catalog.items', 'DONE'],
         ['access.defaultRoles', 'DONE'],
         ['document.systemTypes', 'DONE'],
+        ['document.templateLibrary', 'DONE'],
         ['workflow.seedWorkflows', 'DONE'],
         ['catalog.holidays', 'DONE'],
         ['identity.firstAdmin', 'DONE'],

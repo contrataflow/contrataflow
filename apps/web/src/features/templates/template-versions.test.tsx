@@ -463,6 +463,48 @@ describe('SCR-033 · aba Versões (US-108)', () => {
   });
 });
 
+describe('SCR-033 · biblioteca padrão semeada (US-110)', () => {
+  const seeded = () =>
+    template({
+      name: 'Ofício — Modelo padrão',
+      isSystem: true,
+      isDefault: true,
+      draftVersion: null,
+    });
+
+  it('[Sucesso] template semeado mostra o selo em texto e aceita "Iniciar nova versão" (RN-TPL-32)', async () => {
+    mockApi({
+      template: () => jsonResponse({ data: seeded() }),
+      history: () => jsonResponse({ data: [item()], meta: { page: 1, totalItems: 1 } }),
+    });
+    renderWithShell(
+      <WithToaster>
+        <TemplateVersionsView templateId={TEMPLATE_ID} />
+      </WithToaster>,
+    );
+    expect(await screen.findByText('Modelo padrão da plataforma')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Iniciar nova versão' })).toBeTruthy();
+  });
+
+  it('[Permissão] só TEMPLATE_VIEW: selo visível e sem o botão de nova versão', async () => {
+    mockApi(
+      {
+        template: () => jsonResponse({ data: seeded() }),
+        history: () => jsonResponse({ data: [item()], meta: { page: 1, totalItems: 1 } }),
+      },
+      ['TEMPLATE_VIEW'],
+    );
+    renderWithShell(
+      <WithToaster>
+        <TemplateVersionsView templateId={TEMPLATE_ID} />
+      </WithToaster>,
+    );
+    expect(await screen.findByText('Modelo padrão da plataforma')).toBeTruthy();
+    expect(await screen.findByRole('rowheader', { name: 'v1' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Iniciar nova versão' })).toBeNull();
+  });
+});
+
 describe('DefaultTemplateSelect (SCR-108 · DTY-04)', () => {
   const type = {
     id: OFICIO.id,

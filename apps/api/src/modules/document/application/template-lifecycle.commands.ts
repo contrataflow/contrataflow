@@ -135,7 +135,8 @@ export class CreateTemplateVersionCommand {
       return { template, version: next, type, importSources };
     });
 
-    recordTemplateVersionLifecycle('created');
+    // US-110: `system` separa a adoção de atualização da biblioteca padrão (template semeado).
+    recordTemplateVersionLifecycle('created', { system: outcome.template.isSystem });
     this.logger.log(
       {
         event: 'template_version.created',

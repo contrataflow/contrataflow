@@ -39,6 +39,7 @@ import { PreviewDocumentTypeImpactQuery } from './application/preview-document-t
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { TemplateContext } from './application/template-context.js';
+import { TemplateLibrarySeeder } from './application/template-library.seeder.js';
 import {
   CreateTemplateVersionCommand,
   PublishTemplateVersionCommand,
@@ -49,9 +50,10 @@ import {
   UpdateTemplateCommand,
   UpdateTemplateVersionContentCommand,
 } from './application/template.commands.js';
-import { TEMPLATE_REPOSITORY } from './application/template.ports.js';
+import { TEMPLATE_LIBRARY, TEMPLATE_REPOSITORY } from './application/template.ports.js';
 import { TemplateQueries } from './application/template.queries.js';
 import { UpdateDocumentTypeCommand } from './application/update-document-type.command.js';
+import { TEMPLATE_LIBRARY as TEMPLATE_LIBRARY_FIXTURE } from './domain/template-library.js';
 import {
   InMemoryDocumentTransactions,
   InMemoryDocumentTypeRepository,
@@ -122,6 +124,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     PublishTemplateVersionCommand,
     RetireTemplateVersionCommand,
     SetDefaultTemplateCommand,
+    // US-110: biblioteca padrão semeada no provisionamento.
+    TemplateLibrarySeeder,
+    { provide: TEMPLATE_LIBRARY, useValue: TEMPLATE_LIBRARY_FIXTURE },
     PrismaTemplateRepository,
     InMemoryTemplateRepository,
     {
@@ -185,10 +190,12 @@ export class DocumentModule implements OnModuleInit {
   constructor(
     private readonly seeders: TenantSeederRegistry,
     private readonly systemTypes: SystemDocumentTypesSeeder,
+    private readonly templateLibrary: TemplateLibrarySeeder,
   ) {}
 
-  /** Seeder `document.systemTypes` no checklist de provisionamento (US-099). */
+  /** Seeders `document.systemTypes` e `document.templateLibrary` (US-099 · US-110). */
   onModuleInit(): void {
     this.seeders.register(this.systemTypes);
+    this.seeders.register(this.templateLibrary);
   }
 }

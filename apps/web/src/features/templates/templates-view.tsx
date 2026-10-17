@@ -11,6 +11,7 @@ import { isApiError } from '@/lib/api/api-error';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { SystemTemplateBadge } from './system-template-badge';
 import { TemplateFormDialog } from './template-form-dialog';
 import {
   fetchTemplates,
@@ -234,7 +235,7 @@ function TemplateTable({
                   <span>{template.name}</span>
                   {template.isSystem ? (
                     <span className="ml-2">
-                      <Badge tone="muted">{t('badges.system')}</Badge>
+                      <SystemTemplateBadge />
                     </span>
                   ) : null}
                   {template.isDefault ? (

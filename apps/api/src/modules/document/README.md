@@ -90,3 +90,22 @@ genéricas — a ausência de registro nunca falha a ação.
   gatilho `document_versions_append_only`), `approvals`, `approval_documents`; RLS; FKs compostas
   por tenant; cancelado é final (gatilho); exclusão só lógica. Testes com PostgreSQL:
   `test/tenant-leak/documents.spec.ts`.
+
+## Biblioteca padrão de templates (US-110 · RN-TPL-28..36)
+
+- **Fixture:** `domain/template-library.ts` (`TEMPLATE_LIBRARY`, versão `TEMPLATE_LIBRARY_VERSION`) —
+  um modelo por tipo semeado com template (DFD, ETP, TR, RISK_MAP, PRICE_RESEARCH, DESPACHO,
+  OFICIO, NOTA_TECNICA, AUTORIZACAO, DECLARACAO; `DOCUMENTO_EXTERNO` não recebe). Para evoluir a
+  biblioteca num release: edite a fixture, suba `TEMPLATE_LIBRARY_VERSION` e registre no changelog
+  os tipos alterados — tenants existentes NÃO recebem a mudança (a adoção é manual: TPL-06 → TPL-08
+  → TPL-10, RN-TPL-35/36).
+- **Validação (V-01):** `loadTemplateLibrary` confere estrutura, `sectionDefinitionSchema`,
+  `layoutDefinitionSchema`, cobertura exata dos tipos e o `TemplateContentValidator` completo
+  (`TEMPLATE_INVALID`). Roda em `template-library.spec.ts` (bloqueia o build) e no seeder antes de
+  qualquer escrita.
+- **Seeder `document.templateLibrary`** (`application/template-library.seeder.ts`, depende de
+  `document.systemTypes`): uma `TenantTransaction` por tipo — template `isSystem = true` + v1
+  publicada pela mesma `publishTemplateVersion` do editor (`contentHash` RFC 8785) + `defaultTemplateId`
+  do tipo (só se ainda nulo). Idempotente pelo template de sistema/nome reservado do tipo; sem
+  auditoria por item nem evento (integra `tenant.provision`). Testes trocam a fixture pelo token
+  `TEMPLATE_LIBRARY`.

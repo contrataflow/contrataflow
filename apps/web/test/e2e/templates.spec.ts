@@ -131,3 +131,27 @@ test('publica a versão, inicia nova versão, define o padrão do tipo e aposent
   await retire.getByRole('button', { name: 'Aposentar' }).click();
   await expect(page.getByRole('row', { name: /^v1/ }).getByText('Aposentada')).toBeVisible();
 });
+
+// US-110: a biblioteca padrão semeada no provisionamento aparece publicada, com o selo em texto, e
+// o modelo abre com as seções canônicas (na API simulada, os tipos DFD, ETP e Ofício).
+test('a biblioteca padrão aparece publicada com o selo e o modelo abre com as seções', async ({
+  page,
+}) => {
+  const mockApiUrl = String(test.info().config.metadata.mockApiUrl);
+  await fetch(`${mockApiUrl}/__mock/template-library`, { method: 'POST' });
+  await openList(page);
+  await expect(page.getByText('Modelo padrão da plataforma')).toHaveCount(3);
+  const etp = page.getByRole('row', { name: /ETP — Modelo padrão/ });
+  await expect(etp.getByText('Publicada v1')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'lista com a biblioteca padrão');
+
+  await page.getByRole('link', { name: 'Versões de ETP — Modelo padrão' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'ETP — Modelo padrão' })).toBeVisible();
+  await expect(page.getByText('Modelo padrão da plataforma')).toBeVisible();
+  await page.getByRole('link', { name: 'Ver versão 1' }).click();
+  await expect(
+    page.getByText('Esta versão está publicada. Para alterar, inicie uma nova versão.'),
+  ).toBeVisible();
+  await expect(page.getByText('Descrição da necessidade').first()).toBeVisible();
+  await expect(page.getByText('Posicionamento conclusivo').first()).toBeVisible();
+});
