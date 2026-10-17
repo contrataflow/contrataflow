@@ -140,6 +140,42 @@ const holidays = [
   version: 1,
 }));
 
+// Fornecedores (US-025 · SUP-01..06): CPF sempre mascarado; o cadastro é global (como o das demais
+// telas simuladas) — por isso o e2e dos fornecedores roda em série.
+const suppliers = [
+  ['CNPJ', '11222333000181', 'Construtora ABC Ltda', 'ABC Obras', 'contato@abc.com.br'],
+  ['CPF', '***.444.777-**', 'João da Silva', null, null],
+  ['FOREIGN', 'DE-123456789', 'Acme GmbH', null, null],
+].map(([documentType, documentNumber, legalName, tradeName, email], index) => ({
+  id: `0192a000-0000-7000-8000-00000000f2${String(index).padStart(2, '0')}`,
+  documentType,
+  documentNumber,
+  legalName,
+  tradeName,
+  email,
+  phone: null,
+  website: null,
+  contactName: null,
+  addressStreet: null,
+  addressNumber: null,
+  addressComplement: null,
+  addressDistrict: null,
+  addressCity: null,
+  addressState: null,
+  addressZipCode: null,
+  isActive: index !== 2,
+  notes: null,
+  createdAt: '2026-10-16T12:00:00.000Z',
+  updatedAt: '2026-10-16T12:00:00.000Z',
+  version: 1,
+}));
+
+/** Documento sem máscara, para comparar o número digitado com o cadastrado. */
+const plainDocument = (value) =>
+  String(value ?? '')
+    .replace(/[.\-/\s]/g, '')
+    .toUpperCase();
+
 // Órgãos (US-101 · ORG-01..04): um órgão principal ativo e um fundo, só o necessário para o SCR-032.
 const organizations = [
   ['PMSJ', 'Prefeitura Municipal de São José', '11222333000181', 'DIRECT_ADMINISTRATION'],
@@ -1248,6 +1284,8 @@ createServer(async (request, response) => {
             { code: 'WORKFLOW_MANAGE', scopes: [] },
             { code: 'WORKFLOW_PUBLISH', scopes: [] },
             { code: 'AUDIT_VIEW', scopes: [] },
+            { code: 'SUPPLIER_VIEW', scopes: [] },
+            { code: 'SUPPLIER_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, {
@@ -1464,6 +1502,78 @@ createServer(async (request, response) => {
       { data: created },
       { ETag: '"1"', Location: `/api/v1/organizations/${created.id}` },
     );
+  }
+  if (url.pathname === '/api/v1/suppliers' && request.method === 'GET') {
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const isActive = url.searchParams.get('isActive');
+    const list = suppliers
+      .filter((item) => isActive === null || String(item.isActive) === isActive)
+      .filter(
+        (item) =>
+          q === '' ||
+          [item.legalName, item.tradeName, item.documentNumber].some((text) =>
+            String(text ?? '')
+              .toLowerCase()
+              .includes(q),
+          ),
+      )
+      .sort((a, b) => a.legalName.localeCompare(b.legalName, 'pt-BR'));
+    return send(response, 200, {
+      data: list,
+      meta: { page: 1, pageSize: 20, totalItems: list.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/suppliers/lookup' && request.method === 'GET') {
+    const wanted = plainDocument(url.searchParams.get('documentNumber'));
+    const found = suppliers.find((item) => plainDocument(item.documentNumber) === wanted);
+    return send(response, 200, { data: found ?? null });
+  }
+  if (url.pathname === '/api/v1/suppliers' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const plain = plainDocument(body.documentNumber);
+    if (suppliers.some((item) => plainDocument(item.documentNumber) === plain)) {
+      return problem(response, 409, 'SUPPLIER_ALREADY_EXISTS', String(correlationId));
+    }
+    const created = {
+      ...suppliers[0],
+      id: mockUuid(),
+      documentType: body.documentType,
+      documentNumber:
+        body.documentType === 'CPF' ? `***.${plain.slice(3, 6)}.${plain.slice(6, 9)}-**` : plain,
+      legalName: body.legalName,
+      tradeName: body.tradeName ?? null,
+      email: body.email ?? null,
+      isActive: true,
+      version: 1,
+    };
+    suppliers.push(created);
+    return send(
+      response,
+      201,
+      { data: created },
+      { ETag: '"1"', Location: `/api/v1/suppliers/${created.id}` },
+    );
+  }
+  const supplierRoute = /^\/api\/v1\/suppliers\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (supplierRoute) {
+    const supplier = suppliers.find((item) => item.id === supplierRoute[1]);
+    if (!supplier) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (request.method === 'GET') {
+      return send(response, 200, { data: supplier }, { ETag: `"${supplier.version}"` });
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"${supplier.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (request.method === 'PATCH') {
+      const body = JSON.parse((await readBody(request)) || '{}');
+      Object.assign(supplier, body, { version: supplier.version + 1 });
+      return send(response, 200, { data: supplier }, { ETag: `"${supplier.version}"` });
+    }
+    if (request.method === 'DELETE') {
+      suppliers.splice(suppliers.indexOf(supplier), 1);
+      response.writeHead(204);
+      return response.end();
+    }
   }
   const catalogList = /^\/api\/v1\/catalogs\/([A-Z_]+)\/items$/.exec(url.pathname);
   if (catalogList && request.method === 'GET') {

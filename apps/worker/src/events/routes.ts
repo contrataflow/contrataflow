@@ -142,6 +142,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     DepartmentUpdated: ['department.updated'],
     DepartmentMoved: ['department.moved'],
     DepartmentDeactivated: ['department.deactivated'],
+    // US-025: cadastro de apoio; nenhum consumidor assíncrono no MVP 1.
+    SupplierCreated: 'NO_ASYNC_CONSUMER',
+    SupplierUpdated: 'NO_ASYNC_CONSUMER',
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',

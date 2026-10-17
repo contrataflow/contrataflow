@@ -1,0 +1,139 @@
+{
+  "title": "Fornecedores",
+  "description": "Mantenha um cadastro único dos fornecedores da instituição. Os mesmos fornecedores são reutilizados nas pesquisas de preços, sem redigitar nem duplicar dados a cada contratação.",
+  "list": {
+    "title": "Fornecedores cadastrados",
+    "new": "Novo fornecedor",
+    "loading": "Carregando os fornecedores…",
+    "loadFailed": "Não foi possível carregar os fornecedores.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum fornecedor cadastrado. Cadastre o primeiro.",
+    "emptyHint": "Os fornecedores cadastrados podem ser escolhidos como fonte nas pesquisas de preços.",
+    "noResults": "Nenhum fornecedor encontrado",
+    "noResultsHint": "Revise a busca ou o filtro de situação.",
+    "pager": "Páginas de fornecedores",
+    "previous": "Anterior",
+    "next": "Próxima",
+    "pageOf": "Página {page} de {total}"
+  },
+  "filters": {
+    "search": "Buscar",
+    "searchHint": "Razão social, nome fantasia ou documento (mínimo de 2 caracteres).",
+    "status": "Situação",
+    "all": "Todos",
+    "active": "Ativos",
+    "inactive": "Inativos"
+  },
+  "table": {
+    "caption": "Fornecedores da instituição",
+    "legalName": "Razão social / Nome",
+    "document": "Documento",
+    "contact": "Contato",
+    "status": "Situação",
+    "actions": "Ações"
+  },
+  "badges": {
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "documentTypes": {
+    "CNPJ": "CNPJ",
+    "CPF": "CPF",
+    "FOREIGN": "Estrangeiro"
+  },
+  "actions": {
+    "edit": "Editar {name}",
+    "editLabel": "Editar",
+    "deactivate": "Inativar {name}",
+    "deactivateLabel": "Inativar",
+    "reactivate": "Reativar {name}",
+    "reactivateLabel": "Reativar",
+    "delete": "Excluir {name}",
+    "deleteLabel": "Excluir"
+  },
+  "form": {
+    "createTitle": "Novo fornecedor",
+    "editTitle": "Editar {name}",
+    "description": "Os campos com * são obrigatórios. O documento não pode ser alterado depois do cadastro.",
+    "documentType": "Tipo de documento *",
+    "documentNumber": "Número do documento *",
+    "documentHint": {
+      "CNPJ": "Aceita o CNPJ numérico e o alfanumérico.",
+      "CPF": "Informe os 11 dígitos; o CPF é guardado criptografado e exibido mascarado.",
+      "FOREIGN": "Número livre, até 20 caracteres."
+    },
+    "documentLocked": "Documento não pode ser alterado. Cadastre um novo fornecedor.",
+    "legalName": "Razão social / Nome *",
+    "tradeName": "Nome fantasia",
+    "isActive": "Fornecedor ativo",
+    "isActiveHint": "Fornecedor inativo não aparece para novas fontes de pesquisa, mas continua nas pesquisas já feitas.",
+    "contact": "Contato",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "website": "Website",
+    "websiteHint": "Comece com http:// ou https://",
+    "contactName": "Nome do contato",
+    "address": "Endereço",
+    "addressStreet": "Logradouro",
+    "addressNumber": "Número",
+    "addressComplement": "Complemento",
+    "addressDistrict": "Bairro",
+    "addressCity": "Cidade",
+    "addressState": "UF",
+    "addressZipCode": "CEP",
+    "notes": "Observações",
+    "cancel": "Cancelar",
+    "submit": "Salvar",
+    "submitting": "Salvando…"
+  },
+  "validation": {
+    "required": "Informe o campo {field}.",
+    "INVALID_CNPJ": "CNPJ inválido. Verifique o número digitado.",
+    "INVALID_CPF": "CPF inválido. Verifique o número digitado.",
+    "TOO_LONG": "Informe no máximo 20 caracteres.",
+    "duplicate": "Já existe um fornecedor cadastrado com este documento."
+  },
+  "duplicate": {
+    "title": "Este documento já está cadastrado para {name}.",
+    "description": "Use o fornecedor existente em vez de cadastrar outro."
+  },
+  "errors": {
+    "generic": "Não foi possível salvar o fornecedor. Tente novamente.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+    "notFound": "Este fornecedor não existe mais. Atualize a lista.",
+    "stale": "Este fornecedor foi alterado por outra pessoa. A lista foi atualizada; tente novamente.",
+    "permission": "Você não tem permissão para gerenciar fornecedores.",
+    "mfa": "Confirme sua identidade para continuar."
+  },
+  "conflict": {
+    "title": "Este fornecedor foi alterado por outra pessoa.",
+    "description": "Recarregue os dados atuais; as alterações que você fez no formulário serão mantidas.",
+    "reapply": "Recarregar e reaplicar minhas alterações"
+  },
+  "deactivate": {
+    "title": "Inativar {name}?",
+    "description": "O fornecedor deixa de aparecer para novas fontes de pesquisa. As pesquisas de preços já feitas continuam com ele.",
+    "cancel": "Cancelar",
+    "confirm": "Inativar"
+  },
+  "delete": {
+    "title": "Excluir {name}?",
+    "description": "O fornecedor deixa de existir no cadastro. Só é possível excluir um fornecedor que não tenha sido usado em pesquisas de preços.",
+    "cancel": "Cancelar",
+    "confirm": "Excluir",
+    "inUse": "Este fornecedor está em uso em pesquisas de preço e não pode ser excluído.",
+    "inUseHint": "Inative o fornecedor para tirá-lo das novas pesquisas e manter o histórico.",
+    "deactivateInstead": "Inativar"
+  },
+  "toast": {
+    "created": "Fornecedor {name} cadastrado.",
+    "updated": "Fornecedor {name} atualizado.",
+    "deactivated": "Fornecedor {name} inativado.",
+    "reactivated": "Fornecedor {name} reativado.",
+    "deleted": "Fornecedor {name} excluído."
+  },
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para consultar os fornecedores desta instituição."
+  }
+}

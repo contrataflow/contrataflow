@@ -86,6 +86,34 @@ export const envSchema = z
     /** API administrativa do Authentik (vínculo do `sub` no primeiro login — RN-IAM-06). */
     AUTHENTIK_API_URL: z.url().optional(),
     AUTHENTIK_API_TOKEN: z.string().min(16).optional(),
+    /*
+     * Proteção de campos sensíveis (DEC-086 · US-025): chave mestra AES-256 (32 bytes em base64) que
+     * cifra as chaves de dados do CPF e chave HMAC do *blind index* (≥ 32 bytes em base64).
+     * Obrigatórias fora de local/dev/test (em produção, a chave mestra vem do KMS pelo Secrets
+     * Manager); ausentes lá, usam-se chaves fixas de desenvolvimento — nunca com dados reais.
+     */
+    FIELD_ENCRYPTION_KEY: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z
+        .string()
+        .trim()
+        .refine(
+          (value) => Buffer.from(value, 'base64').length === 32,
+          'Informe 32 bytes em base64.',
+        )
+        .optional(),
+    ),
+    BLIND_INDEX_KEY: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z
+        .string()
+        .trim()
+        .refine(
+          (value) => Buffer.from(value, 'base64').length >= 32,
+          'Informe ao menos 32 bytes em base64.',
+        )
+        .optional(),
+    ),
     CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
     /**
      * Origens confiáveis de `X-Forwarded-For` e `X-CF-Session-Id-Hash` (o BFF — security.md §8),
@@ -196,6 +224,15 @@ export const envSchema = z
         message: 'Provedor de IA de teste proibido em produção.',
       });
     }
+    for (const key of ['FIELD_ENCRYPTION_KEY', 'BLIND_INDEX_KEY'] as const) {
+      if (!env[key] && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+        context.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'Obrigatória fora de local/dev/test.',
+        });
+      }
+    }
     if (!env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
         code: 'custom',
@@ -250,6 +287,11 @@ export interface AppConfig {
   readonly internal: { readonly serviceToken: string | null };
   /** API administrativa do Authentik; `null` = vínculo do `sub` só por e-mail verificado. */
   readonly authentik: { readonly apiUrl: string; readonly apiToken: string } | null;
+  /** Chaves em base64 da proteção de campos sensíveis (US-025); nulo = chave fixa de desenvolvimento. */
+  readonly fieldProtection: {
+    readonly encryptionKey: string | null;
+    readonly blindIndexKey: string | null;
+  };
   readonly http: {
     readonly correlationHeader: string;
     /** CIDRs de onde `X-Forwarded-For`/`X-CF-Session-Id-Hash` são aceitos (vazio = nenhum). */
@@ -331,6 +373,10 @@ function toAppConfig(env: Env): AppConfig {
       env.AUTHENTIK_API_URL && env.AUTHENTIK_API_TOKEN
         ? { apiUrl: env.AUTHENTIK_API_URL, apiToken: env.AUTHENTIK_API_TOKEN }
         : null,
+    fieldProtection: {
+      encryptionKey: env.FIELD_ENCRYPTION_KEY ?? null,
+      blindIndexKey: env.BLIND_INDEX_KEY ?? null,
+    },
     http: {
       correlationHeader: env.CORRELATION_HEADER_NAME,
       trustedProxies: (env.TRUSTED_PROXY_CIDRS ?? '')

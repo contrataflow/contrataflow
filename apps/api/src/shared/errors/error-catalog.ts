@@ -212,6 +212,16 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Unidade em uso',
     detail: 'Esta unidade está em uso e não pode ser excluída. Desative-a.',
   },
+  SUPPLIER_ALREADY_EXISTS: {
+    status: 409,
+    title: 'Fornecedor já cadastrado',
+    detail: 'Já existe um fornecedor cadastrado com este documento.',
+  },
+  SUPPLIER_IN_USE: {
+    status: 409,
+    title: 'Fornecedor em uso',
+    detail: 'Este fornecedor está em uso em pesquisas de preço e não pode ser excluído.',
+  },
   TEMPLATE_NAME_TAKEN: {
     status: 409,
     title: 'Nome de template em uso',

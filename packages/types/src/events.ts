@@ -46,6 +46,8 @@ export const DOMAIN_EVENT_NAMES = [
   'DocumentRejected',
   'DocumentReopened',
   'DocumentCanceled',
+  'SupplierCreated',
+  'SupplierUpdated',
   'AiGenerationRequested',
   'AiGenerationCompleted',
   'AiGenerationFailed',

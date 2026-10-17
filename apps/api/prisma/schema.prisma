@@ -1754,3 +1754,55 @@ model AiGeneration {
   @@index([tenantId, status, expiresAt], map: "ai_generations_status_expires_idx")
   @@map("ai_generations")
 }
+
+/// entities.md §2 — `SupplierDocumentType`.
+enum SupplierDocumentType {
+  CNPJ
+  CPF
+  FOREIGN
+
+  @@map("supplier_document_type")
+}
+
+/// entities.md §4 `Supplier` (módulo supplier · US-025 · DEC-010/034/086): cadastro de fornecedores
+/// do tenant, sem processo. CPF: `documentNumber` mascarado, número cifrado em `documentNumberEncrypted`
+/// (AES-256-GCM, envelope) e `documentNumberHash` (blind index HMAC) para unicidade e busca. Índice
+/// único parcial `(tenant_id, document_type, document_number_hash) WHERE deleted_at IS NULL`, GIN
+/// trigram de razão social/nome fantasia, checks e gatilho de documento imutável ficam em SQL bruto
+/// na migração. Exclusão só lógica (`deletedAt` — RN-PRICE-19).
+model Supplier {
+  id                      String               @id @db.Uuid
+  tenantId                String               @map("tenant_id") @db.Uuid
+  documentType            SupplierDocumentType @map("document_type")
+  documentNumber          String               @map("document_number") @db.VarChar(20)
+  documentNumberEncrypted Bytes?               @map("document_number_encrypted")
+  documentNumberHash      String               @map("document_number_hash") @db.VarChar(64)
+  legalName               String               @map("legal_name") @db.VarChar(250)
+  tradeName               String?              @map("trade_name") @db.VarChar(250)
+  email                   String?              @db.Citext
+  phone                   String?              @db.VarChar(20)
+  website                 String?              @db.VarChar(255)
+  contactName             String?              @map("contact_name") @db.VarChar(150)
+  addressStreet           String?              @map("address_street") @db.VarChar(200)
+  addressNumber           String?              @map("address_number") @db.VarChar(20)
+  addressComplement       String?              @map("address_complement") @db.VarChar(100)
+  addressDistrict         String?              @map("address_district") @db.VarChar(100)
+  addressCity             String?              @map("address_city") @db.VarChar(100)
+  addressState            String?              @map("address_state") @db.Char(2)
+  addressZipCode          String?              @map("address_zip_code") @db.Char(8)
+  isActive                Boolean              @default(true) @map("is_active")
+  notes                   String?
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?              @map("created_by_id") @db.Uuid
+  updatedById             String?              @map("updated_by_id") @db.Uuid
+  deletedAt               DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version                 Int                  @default(1)
+
+  @@unique([tenantId, id], map: "suppliers_tenant_id_id_key")
+  // Parcial na migração (`WHERE deleted_at IS NULL`).
+  @@index([tenantId, documentType, documentNumberHash], map: "suppliers_document_key")
+  @@index([tenantId, documentNumber], map: "suppliers_document_number_idx")
+  @@index([tenantId, isActive, legalName], map: "suppliers_active_name_idx")
+  @@map("suppliers")
+}

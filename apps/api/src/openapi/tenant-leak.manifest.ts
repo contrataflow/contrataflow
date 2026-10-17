@@ -55,6 +55,9 @@ const EXAMPLE_ROUTE =
 const DOCUMENT_TYPE_ADMIN_ROUTE =
   'Exige DOCUMENT_TYPE_MANAGE (que o usuário comum da suíte não tem): isolamento coberto em test/tenant-leak/document-types.spec.ts, com administradores nos dois tenants.';
 
+const SUPPLIER_ROUTE =
+  'Fornecedores (US-025): a suíte genérica não tem fixture de fornecedor do tenant B; o isolamento (404 em SUP-03/04/05, lookup SUP-06 e lista sem vazamento de B, mesmo CNPJ nos dois tenants e RLS de suppliers) é coberto em test/tenant-leak/suppliers.spec.ts, com usuários nos dois tenants, e em src/modules/supplier/presentation/supplier.routes.spec.ts.';
+
 const ORGANIZATION_ROUTE =
   'Órgãos (US-101): a suíte genérica ainda não tem fixture de órgão do tenant B; o isolamento (404 em ORG-03/04 e lista sem vazamento de B) é coberto em test/tenant-leak/organizations.spec.ts, com administradores nos dois tenants.';
 
@@ -166,6 +169,12 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DEP-07': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
   'DEP-08': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
   'DEP-09': { kind: 'exempt', reason: DEPARTMENT_ROUTE },
+  'SUP-01': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'SUP-02': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'SUP-03': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'SUP-04': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'SUP-05': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'SUP-06': { kind: 'exempt', reason: SUPPLIER_ROUTE },
   'ORG-01': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-03': { kind: 'exempt', reason: ORGANIZATION_ROUTE },

@@ -8,6 +8,12 @@ const REQUIRED = {
   OIDC_ISSUER_URL: 'http://localhost:9080/application/o/contrataflow/',
 };
 
+/** Chaves da proteção de campos (US-025): obrigatórias fora de local/dev/test. */
+const FIELD_KEYS = {
+  FIELD_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+  BLIND_INDEX_KEY: Buffer.alloc(32, 2).toString('base64'),
+};
+
 describe('loadConfig', () => {
   it('aplica os padrões da story (Campos) e congela o resultado', () => {
     const config = loadConfig(REQUIRED);
@@ -46,6 +52,7 @@ describe('loadConfig', () => {
       ...REQUIRED,
       APP_ENV: 'staging',
       INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      ...FIELD_KEYS,
       DATABASE_URL_PLATFORM: REQUIRED.DATABASE_URL,
       REDIS_SESSION_URL: 'redis://localhost:6379',
     };
@@ -87,6 +94,7 @@ describe('loadConfig', () => {
         APP_ENV: 'production',
         OIDC_FAKE_SIGNING_KEY: fake,
         INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+        ...FIELD_KEYS,
       }),
     ).toThrow(/OIDC_FAKE_SIGNING_KEY/);
     expect(() => loadConfig({ ...REQUIRED, APP_ENV: 'staging' })).toThrow(/INTERNAL_SERVICE_TOKEN/);
@@ -94,6 +102,7 @@ describe('loadConfig', () => {
       ...REQUIRED,
       APP_ENV: 'staging',
       INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      ...FIELD_KEYS,
       REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379',
       DATABASE_URL_PLATFORM: 'postgresql://cf_platform:x@db.contrataflow.test:5432/contrataflow',
       AUTHENTIK_API_URL: 'https://auth.contrataflow.test/api/v3/',
@@ -123,6 +132,7 @@ describe('loadConfig', () => {
       ...REQUIRED,
       APP_ENV: 'production',
       INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      ...FIELD_KEYS,
       DATABASE_URL_PLATFORM: 'postgresql://cf_platform:x@db.contrataflow.test:5432/contrataflow',
     };
     expect(() => loadConfig(production)).toThrow(new ConfigValidationError(['REDIS_SESSION_URL']));
@@ -130,6 +140,36 @@ describe('loadConfig', () => {
       loadConfig({ ...production, REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379' })
         .redis.sessionUrl,
     ).toBe('rediss://sessions.contrataflow.test:6379');
+  });
+
+  it('US-025: chaves de criptografia e blind index opcionais em local/dev/test e obrigatórias fora deles', () => {
+    expect(loadConfig(REQUIRED).fieldProtection).toEqual({
+      encryptionKey: null,
+      blindIndexKey: null,
+    });
+    expect(loadConfig({ ...REQUIRED, ...FIELD_KEYS }).fieldProtection).toEqual({
+      encryptionKey: FIELD_KEYS.FIELD_ENCRYPTION_KEY,
+      blindIndexKey: FIELD_KEYS.BLIND_INDEX_KEY,
+    });
+    expect(() => loadConfig({ ...REQUIRED, FIELD_ENCRYPTION_KEY: 'curta' })).toThrow(
+      new ConfigValidationError(['FIELD_ENCRYPTION_KEY']),
+    );
+    expect(() =>
+      loadConfig({ ...REQUIRED, BLIND_INDEX_KEY: Buffer.alloc(16).toString('base64') }),
+    ).toThrow(new ConfigValidationError(['BLIND_INDEX_KEY']));
+    const production = {
+      ...REQUIRED,
+      APP_ENV: 'production',
+      INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      DATABASE_URL_PLATFORM: 'postgresql://cf_platform:x@db.contrataflow.test:5432/contrataflow',
+      REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379',
+    };
+    expect(() => loadConfig(production)).toThrow(
+      new ConfigValidationError(['BLIND_INDEX_KEY', 'FIELD_ENCRYPTION_KEY']),
+    );
+    expect(loadConfig({ ...production, ...FIELD_KEYS }).fieldProtection.encryptionKey).toBe(
+      FIELD_KEYS.FIELD_ENCRYPTION_KEY,
+    );
   });
 
   it('US-100: papel cf_platform opcional em local/dev/test e obrigatório em staging/produção', () => {
@@ -145,6 +185,7 @@ describe('loadConfig', () => {
         ...REQUIRED,
         APP_ENV: 'production',
         INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+        ...FIELD_KEYS,
         REDIS_SESSION_URL: 'rediss://sessions.contrataflow.test:6379',
       }),
     ).toThrow(new ConfigValidationError(['DATABASE_URL_PLATFORM']));

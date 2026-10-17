@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Global, Module } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
@@ -6,6 +8,11 @@ import { AI_CIRCUIT_STORE } from '#shared/ai/ai-circuit-store.js';
 import { AUDIT_SAMPLING_STORE } from '#shared/audit/sampling-store.js';
 import { CACHE_STORE } from '#shared/cache/cache-store.js';
 import { PlatformCache, TenantCache } from '#shared/cache/tenant-cache.js';
+import {
+  EnvelopeFieldProtection,
+  FIELD_PROTECTION,
+  LocalKeyWrapper,
+} from '#shared/crypto/field-protection.js';
 import { IDEMPOTENCY_STORE } from '#shared/idempotency/idempotency.js';
 import { JOB_QUEUE } from '#shared/jobs/job-queue.js';
 import { OUTBOX_WRITER, SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
@@ -36,6 +43,11 @@ import { RedisThrottlerStorage } from './infrastructure/redis/redis-throttler.st
 import { RedisClient } from './infrastructure/redis/redis.client.js';
 import { InternalExampleController } from './presentation/internal-example.controller.js';
 
+/** Chave fixa de desenvolvimento (local/dev/test sem as variáveis de ambiente) — nunca com dados reais. */
+function developmentKey(label: string): Buffer {
+  return createHash('sha256').update(`contrataflow:dev-only:${label}`).digest();
+}
+
 /**
  * Módulo `platform` (DEC-040, nível 0): outros módulos usam somente a fachada exportada. Fornece
  * os armazenamentos Redis do rate limit e da idempotência ao pipeline HTTP, os contadores da
@@ -62,6 +74,23 @@ import { InternalExampleController } from './presentation/internal-example.contr
     { provide: CACHE_STORE, useClass: RedisCacheStore },
     TenantCache,
     PlatformCache,
+    {
+      // US-025 · DEC-086: criptografia de campos (CPF) com envelope + blind index. Produção troca o
+      // `LocalKeyWrapper` pelo adaptador do KMS (mesma porta `KeyWrapper`).
+      provide: FIELD_PROTECTION,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) =>
+        new EnvelopeFieldProtection(
+          new LocalKeyWrapper(
+            config.fieldProtection.encryptionKey === null
+              ? developmentKey('field-encryption')
+              : Buffer.from(config.fieldProtection.encryptionKey, 'base64'),
+          ),
+          config.fieldProtection.blindIndexKey === null
+            ? developmentKey('blind-index')
+            : Buffer.from(config.fieldProtection.blindIndexKey, 'base64'),
+        ),
+    },
     // Adaptador S3/MinIO da US-068; até lá, a guarda de tenant funciona e o adaptador recusa.
     { provide: OBJECT_STORAGE, useClass: UnconfiguredObjectStorage },
     StorageService,
@@ -110,6 +139,7 @@ import { InternalExampleController } from './presentation/internal-example.contr
     CACHE_STORE,
     TenantCache,
     PlatformCache,
+    FIELD_PROTECTION,
     StorageService,
     SESSION_REGISTRY,
     OUTBOX_WRITER,

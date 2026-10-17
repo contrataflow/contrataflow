@@ -17,5 +17,6 @@ export * from './internal/example.js';
 export * from './notification/index.js';
 export * from './organization/index.js';
 export * from './process/index.js';
+export * from './supplier/index.js';
 export * from './tenancy/index.js';
 export * from './workflow/index.js';

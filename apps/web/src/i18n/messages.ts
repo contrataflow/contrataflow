@@ -20,6 +20,7 @@ import profile from '../../messages/pt-BR/profile.json';
 import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
+import suppliers from '../../messages/pt-BR/suppliers.json';
 import templates from '../../messages/pt-BR/templates.json';
 import timeline from '../../messages/pt-BR/timeline.json';
 import users from '../../messages/pt-BR/users.json';
@@ -55,6 +56,7 @@ export const messages = {
   roles,
   settings,
   shell,
+  suppliers,
   templates,
   timeline,
   users,
