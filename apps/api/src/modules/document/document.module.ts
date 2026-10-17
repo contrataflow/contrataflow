@@ -18,6 +18,7 @@ import { CreateDocumentTypeCommand } from './application/create-document-type.co
 import { DocumentAiTargets } from './application/document-ai-target.js';
 import { DocumentApprovalTransitions } from './application/document-approval.transitions.js';
 import { DocumentAttachmentTargets } from './application/document-attachment-targets.js';
+import { DocumentCommentTargets } from './application/document-comment-target.js';
 import { DocumentCreationService } from './application/document-creation.service.js';
 import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
 import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
@@ -229,6 +230,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentCreationService,
     DocumentApprovalTransitions,
     DocumentAiTargets,
+    DocumentCommentTargets,
     TypedCollectionGuard,
     DocumentAttachmentTargets,
     DocumentQueries,

@@ -791,17 +791,25 @@ const commentCreated = defineMapping({
       ...lookupRef('COMMENT', payload.commentId),
       ...lookupRef('DOCUMENT', payload.documentId),
     ],
-    build: ({ lookups }) => [
-      entry(
-        'COMMENT_ADDED',
-        {
-          excerpt: commentExcerpt(lookups.get('COMMENT', payload.commentId)?.excerpt ?? null),
-          targetType: payload.targetType,
-          ...(payload.documentId ? documentParams(lookups, payload.documentId) : {}),
-        },
-        { entity: ['Comment', payload.commentId] },
-      ),
-    ],
+    build: ({ lookups }) => {
+      const comment = lookups.get('COMMENT', payload.commentId);
+      return [
+        entry(
+          'COMMENT_ADDED',
+          {
+            excerpt: commentExcerpt(comment?.excerpt ?? null),
+            targetType: payload.targetType,
+            ...(payload.documentId ? documentParams(lookups, payload.documentId) : {}),
+          },
+          {
+            entity: ['Comment', payload.commentId],
+            // US-071 · DEC-030: o trecho de comentário em documento `RESTRICTED` (pesquisa de
+            // preços de orçamento sigiloso) só aparece para quem atende POL-09.
+            visibility: comment?.restricted === true ? 'BUDGET_RESTRICTED' : 'STANDARD',
+          },
+        ),
+      ];
+    },
   }),
 });
 

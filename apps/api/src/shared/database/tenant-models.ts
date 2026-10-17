@@ -15,6 +15,7 @@ export const TENANT_SCOPED_MODELS = [
   'AuditLog',
   'AuditSeal',
   'CatalogItem',
+  'Comment',
   'Department',
   'Document',
   'DocumentRendition',

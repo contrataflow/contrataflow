@@ -1,0 +1,97 @@
+{
+  "panel": {
+    "title": "Comentários",
+    "loading": "Carregando comentários…",
+    "empty": "Ainda não há comentários. Use este espaço para discutir a instrução do processo.",
+    "loadFailed": "Não foi possível carregar os comentários agora.",
+    "retry": "Tentar novamente",
+    "loadMore": "Carregar mais comentários",
+    "readOnlyProcess": "Este processo está encerrado; os comentários estão disponíveis apenas para leitura.",
+    "readOnlyPermission": "Você pode ler os comentários, mas não comentar neste processo.",
+    "published": "Comentário publicado",
+    "updated": "Comentário atualizado",
+    "removed": "Comentário removido",
+    "filtersLabel": "Filtrar comentários",
+    "filters": {
+      "all": "Todos",
+      "process": "Do processo",
+      "document": "Deste documento",
+      "section": "Desta seção"
+    },
+    "sectionsLabel": "Comentários por seção",
+    "sectionBadge": "{section}: {count, plural, =0 {sem comentários} one {# comentário} other {# comentários}}"
+  },
+  "composer": {
+    "label": "Comentário",
+    "replyLabel": "Resposta",
+    "editLabel": "Editar comentário",
+    "placeholder": "Escreva um comentário…",
+    "hint": "Use **negrito**, *itálico*, [texto](https://…) para links e \"- \" ou \"1. \" para listas. Ctrl+Enter envia.",
+    "toolbar": "Formatação",
+    "bold": "Negrito",
+    "italic": "Itálico",
+    "list": "Lista",
+    "link": "Link",
+    "submit": "Comentar",
+    "reply": "Responder",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "sending": "Enviando…",
+    "counter": "{count} de {max} caracteres",
+    "section": "Seção (opcional)",
+    "noSection": "Documento inteiro",
+    "confidentialHint": "Não informe valores estimados em comentários: este processo tem orçamento sigiloso.",
+    "errors": {
+      "length": "Escreva um comentário de até 10.000 caracteres.",
+      "formatting": "O comentário contém formatação não permitida. Remova a formatação e tente de novo.",
+      "link": "Use apenas links http, https ou mailto.",
+      "section": "Seção inexistente neste documento.",
+      "documentCanceled": "Não é possível comentar um documento cancelado.",
+      "readOnly": "Este processo está encerrado; os comentários estão disponíveis apenas para leitura.",
+      "permission": "Você não pode comentar neste processo.",
+      "editWindow": "O prazo de 15 minutos para editar terminou.",
+      "stale": "O comentário foi alterado por outra pessoa. Recarregue.",
+      "notFound": "Comentário não encontrado.",
+      "duplicate": "Este comentário já foi enviado.",
+      "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+      "unavailable": "Não foi possível publicar agora. Tente novamente. Código: {correlationId}",
+      "invalid": "Revise o comentário."
+    }
+  },
+  "item": {
+    "label": "Comentário de {author}, {date}",
+    "process": "Processo",
+    "edited": "(editado)",
+    "deletedByAuthor": "Comentário excluído pelo autor",
+    "deletedByModerator": "Comentário removido por moderação",
+    "moderationReason": "Motivo: {reason}",
+    "masked": "Comentário em documento com orçamento sigiloso — conteúdo restrito",
+    "reply": "Responder",
+    "more": "Mais ações do comentário de {author}",
+    "edit": "Editar (até {time})",
+    "delete": "Excluir",
+    "moderate": "Remover por moderação",
+    "moreReplies": "{count, plural, one {Ver mais # resposta} other {Ver mais # respostas}}",
+    "repliesLabel": "Respostas",
+    "relative": {
+      "now": "agora",
+      "minutes": "há {count} min",
+      "hours": "há {count} h",
+      "days": "{count, plural, one {há # dia} other {há # dias}}"
+    }
+  },
+  "delete": {
+    "title": "Excluir comentário",
+    "description": "O comentário será removido para todos. As respostas permanecem.",
+    "confirm": "Excluir",
+    "cancel": "Cancelar"
+  },
+  "moderation": {
+    "title": "Remover por moderação",
+    "description": "O comentário será removido para todos. O motivo fica visível para o autor e para moderadores.",
+    "reason": "Motivo da remoção",
+    "reasonError": "Informe o motivo da remoção (mín. 10 caracteres).",
+    "confirm": "Remover",
+    "cancel": "Cancelar"
+  }
+}

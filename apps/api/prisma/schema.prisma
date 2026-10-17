@@ -2149,3 +2149,44 @@ model RiskTreatment {
   @@index([tenantId, responsibleId, status], map: "risk_treatments_responsible_idx")
   @@map("risk_treatments")
 }
+
+/// entities.md §2 `CommentTargetType` (US-071): processo ou documento do processo.
+enum CommentTargetType {
+  PROCESS
+  DOCUMENT
+
+  @@map("comment_target_type")
+}
+
+/// entities.md §4.9 `Comment` (US-071 · DEC-040): comentário no processo ou em documento (com
+/// seção opcional), com respostas de um nível. Rich text restrito em `body` (RN-CMT-03); exclusão
+/// só lógica (DEC-034) — pelo autor ou por moderação (`deletionReason`).
+model Comment {
+  id             String            @id @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  processId      String            @map("process_id") @db.Uuid
+  targetType     CommentTargetType @map("target_type")
+  documentId     String?           @map("document_id") @db.Uuid
+  sectionKey     String?           @map("section_key") @db.VarChar(60)
+  parentId       String?           @map("parent_id") @db.Uuid
+  authorId       String            @map("author_id") @db.Uuid
+  body           Json
+  bodyText       String            @map("body_text")
+  editedAt       DateTime?         @map("edited_at") @db.Timestamptz(6)
+  deletionReason String?           @map("deletion_reason")
+  resolvedAt     DateTime?         @map("resolved_at") @db.Timestamptz(6)
+  resolvedById   String?           @map("resolved_by_id") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?           @map("created_by_id") @db.Uuid
+  updatedById    String?           @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  deletedById    String?           @map("deleted_by_id") @db.Uuid
+  version        Int               @default(1)
+
+  @@unique([tenantId, id], map: "comments_tenant_id_id_key")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "comments_process_created_idx")
+  @@index([tenantId, documentId, sectionKey], map: "comments_document_section_idx")
+  @@index([tenantId, parentId], map: "comments_parent_idx")
+  @@map("comments")
+}

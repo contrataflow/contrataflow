@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { DatabaseUnavailableError, isTransientDatabaseError } from '#shared/database/errors.js';
+import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 import { cursorResult, decodeCursor } from '#shared/http/pagination.js';
 import type { CursorResult } from '#shared/http/pagination.js';
@@ -15,6 +16,7 @@ import type { CursorResult } from '#shared/http/pagination.js';
 import { TIMELINE_ENTRY_STORE, TIMELINE_TRANSACTIONS } from './ports.js';
 import type { TimelineEntryStore, TimelineTransactions } from './ports.js';
 import { timelineReadMetrics } from './timeline-telemetry.js';
+import { CollaborationFacade } from '../../collaboration/application/collaboration.facade.js';
 import { ProcessFacade } from '../../process/application/process.facade.js';
 import type { ProcessTimelineEntry } from '../domain/timeline-entry.js';
 import { timelineCriteriaOf, timelineFilterKeys } from '../domain/timeline-feed.js';
@@ -79,7 +81,31 @@ export class GetProcessTimelineHandler {
     @Inject(TIMELINE_ENTRY_STORE) private readonly entries: TimelineEntryStore,
     @Inject(TIMELINE_TRANSACTIONS) private readonly transactions: TimelineTransactions,
     private readonly processes: ProcessFacade,
+    private readonly collaboration: CollaborationFacade,
   ) {}
+
+  /**
+   * US-071 (lacuna 3 da story): a entrada `COMMENT_ADDED` é imutável, mas o trecho de comentário
+   * excluído (pelo autor ou por moderação) não é mais exibido — `excerpt` nulo e
+   * `commentDeleted: true` (DEC-034 · RL-05). Uma leitura por página.
+   */
+  private async suppressDeletedExcerpts(
+    tx: TenantTx,
+    entries: readonly ProcessTimelineEntry[],
+  ): Promise<ProcessTimelineEntry[]> {
+    const commentIds = entries.flatMap((entry) =>
+      entry.type === 'COMMENT_ADDED' && entry.entityId !== null ? [entry.entityId] : [],
+    );
+    if (commentIds.length === 0) return [...entries];
+    const labels = await this.collaboration.commentLabels(tx, commentIds);
+    return entries.map((entry) =>
+      entry.type === 'COMMENT_ADDED' &&
+      entry.entityId !== null &&
+      labels.get(entry.entityId)?.isDeleted === true
+        ? { ...entry, params: { ...entry.params, excerpt: null, commentDeleted: true } }
+        : entry,
+    );
+  }
 
   async execute(
     processId: string,
@@ -98,7 +124,8 @@ export class GetProcessTimelineHandler {
           after,
           take: query.limit + 1,
         });
-        return cursorResult(fetched.map(toTimelineEntryDto), query.limit, (item) => ({
+        const visible = await this.suppressDeletedExcerpts(tx, fetched);
+        return cursorResult(visible.map(toTimelineEntryDto), query.limit, (item) => ({
           o: item.occurredAt,
           i: item.id,
         }));

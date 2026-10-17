@@ -26,6 +26,7 @@ import {
 import { SituationalPanel } from './situational-panel';
 import { StageStepper } from './stage-stepper';
 import { AttachmentsSection } from '../attachments/attachments-section';
+import { CommentsPanel } from '../comments/comments-panel';
 import { useAvailableActions } from '../process-actions/process-actions.api';
 import { ConfidentialBudgetToggle } from '../process-confidentiality/confidential-budget-toggle';
 import { DocumentsPanel } from '../process-documents/documents-panel';
@@ -207,7 +208,7 @@ function SoonPanel({
 }: {
   readonly tab: Exclude<
     ProcessPanelTab,
-    'resumo' | 'timeline' | 'itens' | 'documentos' | 'participantes'
+    'resumo' | 'timeline' | 'itens' | 'documentos' | 'participantes' | 'comentarios'
   >;
 }) {
   const t = useTranslations('processes.panel.tabs.soon');
@@ -284,6 +285,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   } else if (tab === 'itens') {
     // US-006: lista canônica de itens (PRC-13..17).
     content = <ProcessItemsTab processId={processId} />;
+  } else if (tab === 'comentarios') {
+    // US-071: comentários do processo e dos documentos (CMT-01..04).
+    content = <CommentsPanel processId={processId} />;
   } else if (tab === 'participantes') {
     // US-012: participantes (PRC-28..30 — SCR-112).
     content = <ParticipantsTab processId={processId} />;

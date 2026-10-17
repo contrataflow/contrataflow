@@ -9,6 +9,7 @@ import { useCallback, useRef } from 'react';
 import { ErrorView } from '@/components/errors/error-view';
 import { AiAssistant, isAiTarget } from '@/features/ai/ai-assistant';
 import { AttachmentsSection } from '@/features/attachments/attachments-section';
+import { CommentsPanel } from '@/features/comments/comments-panel';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -184,6 +185,19 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
           allowedActions={meta.allowedActions}
         />
       )}
+
+      {/* US-071: comentários do documento (alvo `DOCUMENT`, seção opcional — o externo não tem). */}
+      <CommentsPanel
+        processId={processId}
+        document={{
+          id: document.id,
+          label: document.code ?? document.title,
+          sections:
+            document.documentType.kind === 'UPLOADED'
+              ? []
+              : Object.keys(document.draftContent.sections).map((key) => ({ key, title: key })),
+        }}
+      />
     </div>
   );
 }

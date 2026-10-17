@@ -199,7 +199,12 @@ export class InMemoryDocumentRepository implements DocumentRepository {
           .filter((row) => wanted.has(row.id))
           .map((row) => [
             row.id,
-            { code: row.code, title: row.title, documentTypeId: row.documentTypeId },
+            {
+              code: row.code,
+              title: row.title,
+              documentTypeId: row.documentTypeId,
+              confidentiality: row.confidentiality,
+            },
           ]),
       ),
     );

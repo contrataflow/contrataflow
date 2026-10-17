@@ -182,6 +182,21 @@ function mockDocumentApi(routes: Routes = {}) {
           : documentResponse(state.document, state.allowed),
       );
     }
+    // US-071: painel de comentários do documento (CMT-01) — vazio e sem compositor.
+    if (method === 'GET' && url.startsWith(`/api/v1/processes/${PROCESS_ID}/comments`)) {
+      return Promise.resolve(
+        jsonResponse({
+          data: [],
+          meta: {
+            nextCursor: null,
+            hasMore: false,
+            canComment: false,
+            readOnly: false,
+            isBudgetConfidential: false,
+          },
+        }),
+      );
+    }
     return Promise.resolve(problemResponse(404, 'NOT_FOUND'));
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -301,7 +316,10 @@ describe('DocumentActionsBar · botões por meta.allowedActions', () => {
     expect(screen.getByText('Nenhuma ação disponível para você neste documento.')).toBeTruthy();
     // `UPDATE` sozinho só libera "Salvar versão" (US-066), fora da barra do ciclo de vida; a
     // prévia em PDF (US-067) aparece para quem vê o documento, sem depender de `allowedActions`.
-    expect(screen.queryAllByRole('button').map((button) => button.textContent)).toEqual([
+    const outsideComments = screen
+      .queryAllByRole('button')
+      .filter((button) => !button.closest('section[aria-label="Comentários"]'));
+    expect(outsideComments.map((button) => button.textContent)).toEqual([
       'Salvar versão',
       'Gerar prévia em PDF',
     ]);

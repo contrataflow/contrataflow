@@ -462,6 +462,8 @@ export interface ProcessApiOptions {
   participants?: Handler;
   /** PRC-33 (US-013): `PUT /processes/{id}/confidentiality`. */
   confidentiality?: Handler;
+  /** CMT-01..04 (US-071): `/processes/{id}/comments` e `/comments/{commentId}`. */
+  comments?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -590,6 +592,20 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (url.includes('/available-actions')) {
       return respond(options.actions, () => jsonResponse({ data: [] }));
+    }
+    if (url.includes(`/processes/${PROCESS_ID}/comments`) || url.startsWith('/api/v1/comments/')) {
+      return respond(options.comments, () =>
+        jsonResponse({
+          data: [],
+          meta: {
+            nextCursor: null,
+            hasMore: false,
+            canComment: false,
+            readOnly: false,
+            isBudgetConfidential: false,
+          },
+        }),
+      );
     }
     return Promise.resolve(problemResponse(404, 'NOT_FOUND'));
   });

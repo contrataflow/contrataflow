@@ -1,4 +1,4 @@
-import type { SystemDocumentModule, Violation } from '@contrataflow/validation';
+import type { Confidentiality, SystemDocumentModule, Violation } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -29,6 +29,8 @@ export interface DocumentLabel {
   readonly code: string | null;
   readonly title: string;
   readonly documentTypeId: string;
+  /** Sigilo atual (US-071: mascaramento dos comentários do documento — RN-CMT-13). */
+  readonly confidentiality: Confidentiality;
 }
 
 export interface DocumentRepository {

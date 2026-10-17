@@ -435,6 +435,27 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Participante não encontrado',
     detail: 'Este participante não existe mais.',
   },
+  // US-071: comentários (api.md §2.2 · api/12-comments-attachments.md CMT-01..04).
+  COMMENT_NOT_FOUND: {
+    status: 404,
+    title: 'Comentário não encontrado',
+    detail: 'Comentário não encontrado.',
+  },
+  COMMENT_EDIT_WINDOW_EXPIRED: {
+    status: 409,
+    title: 'Prazo de edição encerrado',
+    detail: 'O prazo de 15 minutos para editar terminou.',
+  },
+  RICH_TEXT_INVALID: {
+    status: 422,
+    title: 'Formatação não permitida',
+    detail: 'O comentário contém formatação não permitida.',
+  },
+  SECTION_NOT_IN_TEMPLATE: {
+    status: 422,
+    title: 'Seção inexistente',
+    detail: 'Seção inexistente neste documento.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

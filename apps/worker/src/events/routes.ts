@@ -151,6 +151,12 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     RiskCreated: 'NO_ASYNC_CONSUMER',
     RiskAssessed: 'NO_ASYNC_CONSUMER',
     RiskDeleted: 'NO_ASYNC_CONSUMER',
+    // US-071: `COMMENT_REPLY` ao autor do comentário pai (NotificationDispatcher); a timeline
+    // (`COMMENT_ADDED`/`COMMENT_REMOVED`) é projetada no mesmo `tx`. Edição e exclusão: nenhum
+    // consumidor assíncrono no MVP 1.
+    CommentCreated: ['comment.created'],
+    CommentUpdated: 'NO_ASYNC_CONSUMER',
+    CommentDeleted: 'NO_ASYNC_CONSUMER',
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',

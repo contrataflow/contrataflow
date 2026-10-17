@@ -373,6 +373,91 @@ function listTimeline(found, query) {
 
 // Processos (US-001 · PRC-02/03/04 e WF-06): criação numerada em sequência, aviso de duplicidade
 // por título parecido (mesmo usuário, últimos 10 min) e idempotência por `Idempotency-Key`.
+// US-071: comentários por processo (CMT-01..04). Cada processo nasce com um comentário da
+// Cláudia (para responder e moderar); a Ana é a autora dos novos — edição até 15 min.
+const comments = new Map();
+const COMMENT_EDIT_MS = 15 * 60_000;
+function commentsOf(processId) {
+  if (!comments.has(processId)) {
+    const createdAt = new Date(Date.now() - 60 * 60_000).toISOString();
+    comments.set(processId, [
+      {
+        id: randomUUID(),
+        processId,
+        targetType: 'PROCESS',
+        documentId: null,
+        sectionKey: null,
+        parentId: null,
+        authorId: 'sub-claudia',
+        authorName: 'Cláudia Ramos',
+        body: plainDocument('Favor anexar a planilha de quantitativos do item 2.'),
+        createdAt,
+        editedAt: null,
+        deletedAt: null,
+        deletionReason: null,
+        version: 1,
+      },
+    ]);
+  }
+  return comments.get(processId);
+}
+function commentAllowed(node, depth = 0) {
+  const nodes = ['doc', 'paragraph', 'text', 'bulletList', 'orderedList', 'listItem', 'hardBreak'];
+  if (depth > 12 || typeof node !== 'object' || node === null || !nodes.includes(node.type)) {
+    return false;
+  }
+  for (const mark of node.marks ?? []) {
+    if (!['bold', 'italic', 'link'].includes(mark.type)) return false;
+    if (mark.type === 'link' && !/^(https?:|mailto:)/i.test(String(mark.attrs?.href ?? ''))) {
+      return false;
+    }
+  }
+  return (node.content ?? []).every((child) => commentAllowed(child, depth + 1));
+}
+function commentText(node) {
+  if (node?.type === 'text') return node.text ?? '';
+  return (node?.content ?? []).map(commentText).join(' ');
+}
+function commentView(comment, sub) {
+  const mine = comment.authorId === sub;
+  const deleted = comment.deletedAt !== null;
+  const editableUntil = new Date(Date.parse(comment.createdAt) + COMMENT_EDIT_MS);
+  const canEdit = mine && !deleted && Date.now() <= editableUntil.getTime();
+  return {
+    id: comment.id,
+    processId: comment.processId,
+    targetType: comment.targetType,
+    document: null,
+    sectionKey: comment.sectionKey,
+    parentId: comment.parentId,
+    author: {
+      id: comment.authorId,
+      name: comment.authorName,
+      departmentName: 'Setor de Manutenção',
+    },
+    body: deleted ? null : comment.body,
+    bodyMasked: false,
+    createdAt: comment.createdAt,
+    editedAt: comment.editedAt,
+    isDeleted: deleted,
+    deletedByModerator: deleted && comment.deletionReason !== null,
+    deletionReason: comment.deletionReason,
+    canEdit,
+    editableUntil: canEdit ? editableUntil.toISOString() : null,
+    canDelete: mine && !deleted,
+    // No mock, a Ana modera comentários de terceiros (a API real confere COMMENT_MODERATE).
+    canModerate: !mine && !deleted,
+    version: comment.version,
+  };
+}
+function findComment(id) {
+  for (const list of comments.values()) {
+    const found = list.find((item) => item.id === id);
+    if (found) return found;
+  }
+  return null;
+}
+
 const processes = [];
 const processReplays = new Map();
 let processSequence = 10;
@@ -3023,6 +3108,102 @@ createServer(async (request, response) => {
       });
     }
     return send(response, 200, { data: compareDocumentVersions(from, to) });
+  }
+  const commentsRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/comments$/.exec(url.pathname);
+  if (commentsRoute) {
+    // CMT-01/CMT-02 (US-071): threads (raízes mais recentes primeiro) e criação/resposta.
+    const found = processes.find((item) => item.view.id === commentsRoute[1]);
+    if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    const list = commentsOf(found.view.id);
+    if (request.method === 'GET') {
+      const roots = list.filter((item) => item.parentId === null).reverse();
+      return send(response, 200, {
+        data: roots.map((root) => {
+          const replies = list.filter((item) => item.parentId === root.id);
+          return {
+            ...commentView(root, sub),
+            replies: replies.map((reply) => commentView(reply, sub)),
+            replyCount: replies.length,
+          };
+        }),
+        meta: {
+          nextCursor: null,
+          hasMore: false,
+          canComment: true,
+          readOnly: false,
+          isBudgetConfidential: found.view.isBudgetConfidential === true,
+        },
+      });
+    }
+    if (request.method === 'POST') {
+      const body = JSON.parse((await readBody(request)) || '{}');
+      if (!commentAllowed(body.body)) {
+        return problem(response, 422, 'RICH_TEXT_INVALID', String(correlationId));
+      }
+      if (commentText(body.body).trim() === '') {
+        return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+      }
+      const parent = body.parentId ? list.find((item) => item.id === body.parentId) : null;
+      const comment = {
+        id: randomUUID(),
+        processId: found.view.id,
+        targetType: parent?.targetType ?? body.targetType,
+        documentId: parent?.documentId ?? body.documentId ?? null,
+        sectionKey: parent?.sectionKey ?? body.sectionKey ?? null,
+        parentId: parent?.id ?? null,
+        authorId: sub,
+        authorName: sub === 'sub-ana' ? 'Ana Souza' : 'Usuário',
+        body: body.body,
+        createdAt: new Date().toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        deletionReason: null,
+        version: 1,
+      };
+      list.push(comment);
+      return send(
+        response,
+        201,
+        { data: commentView(comment, sub) },
+        { Location: `/api/v1/comments/${comment.id}`, ETag: '"1"' },
+      );
+    }
+  }
+  const commentRoute = /^\/api\/v1\/comments\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (commentRoute && (request.method === 'PATCH' || request.method === 'DELETE')) {
+    // CMT-03/CMT-04 (US-071): edição do autor e exclusão/moderação, com `If-Match`.
+    const comment = findComment(commentRoute[1]);
+    if (!comment) return problem(response, 404, 'COMMENT_NOT_FOUND', String(correlationId));
+    if (request.headers['if-match'] !== `"${String(comment.version)}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (request.method === 'PATCH') {
+      if (!commentAllowed(body.body)) {
+        return problem(response, 422, 'RICH_TEXT_INVALID', String(correlationId));
+      }
+      Object.assign(comment, {
+        body: body.body,
+        editedAt: new Date().toISOString(),
+        version: comment.version + 1,
+      });
+      return send(
+        response,
+        200,
+        { data: commentView(comment, sub) },
+        { ETag: `"${String(comment.version)}"` },
+      );
+    }
+    const moderation = comment.authorId !== sub;
+    if (moderation && String(body.reason ?? '').trim().length < 10) {
+      return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+    }
+    Object.assign(comment, {
+      deletedAt: new Date().toISOString(),
+      deletionReason: moderation ? String(body.reason).trim() : null,
+      version: comment.version + 1,
+    });
+    return send(response, 204);
   }
   const timelineRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
   if (timelineRoute && request.method === 'GET') {

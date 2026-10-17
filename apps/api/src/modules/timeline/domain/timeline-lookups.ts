@@ -29,7 +29,11 @@ export interface TimelineLookupRecords {
   /** `approval`: título da aprovação. */
   readonly APPROVAL: { readonly title: string };
   /** `collaboration`: trecho do comentário (até 140 caracteres). */
-  readonly COMMENT: { readonly excerpt: string };
+  readonly COMMENT: {
+    readonly excerpt: string;
+    /** US-071: alvo em documento `RESTRICTED` — a entrada fica `BUDGET_RESTRICTED` (DEC-030). */
+    readonly restricted?: boolean;
+  };
   /** `files`: nome do arquivo e tipo do alvo. */
   readonly ATTACHMENT: { readonly fileName: string; readonly targetType: string };
   /** `etp`: nome da alternativa. */

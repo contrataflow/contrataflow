@@ -21,11 +21,11 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `cursor` (opaco, opcional); `limit` (int ≤100, opcional); `targetType` (`CommentTargetType`, opcional); `documentId` (uuid, opcional); `sectionKey` (texto, opcional); `parentId` (uuid, opcional)
 - **Request:** —
-- **Response:** `200 { data: [Comment], meta: { nextCursor, hasMore } }`, cada item com `replies[]` e `replyCount`; `Comment { id, processId, targetType, document: { id, code, title } | null, sectionKey, parentId, author: { id, name, departmentName }, body | null, bodyMasked, createdAt, editedAt, isDeleted, deletedByModerator, deletionReason (só autor/moderador), canEdit, editableUntil, canDelete, canModerate, version }`
+- **Response:** `200 { data: [Comment], meta: { nextCursor, hasMore, canComment, readOnly, isBudgetConfidential } }` (US-071: `meta` informa o compositor — FA-05/FA-07 e "Sem permissão"), cada item com `replies[]` e `replyCount`; `Comment { id, processId, targetType, document: { id, code, title } | null, sectionKey, parentId, author: { id, name, departmentName }, body | null, bodyMasked, createdAt, editedAt, isDeleted, deletedByModerator, deletionReason (só autor/moderador), canEdit, editableUntil, canDelete, canModerate, version }`
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 404 | `NOT_FOUND` | Processo inexistente, outro tenant ou não visível |
+  | 404 | `PROCESS_NOT_FOUND` | Processo inexistente, outro tenant ou não visível (US-071: mesmo código de CMT-02) |
   | 422 | `VALIDATION_ERROR` | `cursor`/`limit`/filtros inválidos |
 - **Efeitos:** —
 - **Notas:** leitura; não gera auditoria.
@@ -69,7 +69,7 @@
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `VALIDATION_ERROR` / `RICH_TEXT_INVALID` | Corpo inválido (mesmas regras de CMT-02) |
 - **Efeitos:** Evento `CommentUpdated` (`comment.updated`; `commentId`) e, se houver novas menções, `UserMentioned`; auditoria `comment.update` (`DATA_CHANGE`; `changes.body` antes/depois como `{ sha256, length }`)
-- **Notas:** api.md §2.2 define o código dedicado `COMMENT_EDIT_WINDOW_EXPIRED` (409) para o vencimento da janela de edição, mas a tabela de validações/erros da própria US-071 (V-10) usa `INVALID_STATE` para esse caso — inconsistência entre a story e o catálogo genérico; esta especificação segue a story (fonte principal da tarefa) e sinaliza a divergência para reconciliação na implementação.
+- **Notas:** reconciliado na implementação (US-071, 2026-10-17): janela vencida → 409 `COMMENT_EDIT_WINDOW_EXPIRED` (api.md §2.2 e V-10 da story); comentário já excluído → 409 `INVALID_STATE`. A versão (`If-Match`) é conferida antes do estado: edição com versão antiga de comentário moderado → 412 `VERSION_CONFLICT`.
 
 ### CMT-04 — Excluir ou moderar comentário
 `DELETE /api/v1/comments/{id}` · **Permissão:** autor do comentário ou `COMMENT_MODERATE` · **Story:** US-071
@@ -82,6 +82,8 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Nem autor nem `COMMENT_MODERATE` |
   | 404 | `COMMENT_NOT_FOUND` | Inexistente/outro tenant |
+  | 409 | `INVALID_PROCESS_STATUS` | Exclusão pelo autor com o processo em status final (a moderação é permitida) |
+  | 409 | `INVALID_STATE` | Comentário já excluído |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `VALIDATION_ERROR` (`REQUIRED`) | `reason` ausente ou fora de 10–1.000 na moderação |
 - **Efeitos:** Evento `CommentDeleted` (`comment.deleted`; `byModerator: boolean`); projeção síncrona `COMMENT_REMOVED` quando moderação; auditoria `comment.delete` (`DATA_CHANGE`; exclusão pelo autor; `metadata`: `processCode`, `hadReplies`) ou `comment.moderate` (`DATA_CHANGE`; remoção por moderador; `metadata`: `processCode`, `authorId`, `reason`); `access.denied` (`reasonCode = COMMENT_MODERATE`)

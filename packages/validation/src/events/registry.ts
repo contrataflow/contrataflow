@@ -8,6 +8,7 @@ import {
 } from '../ai/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
+import { CommentCreated, CommentDeleted, CommentUpdated } from '../collaboration/events.js';
 import {
   AiContentReviewed,
   DocumentApproved,
@@ -109,6 +110,9 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   RiskCreated,
   RiskAssessed,
   RiskDeleted,
+  CommentCreated,
+  CommentUpdated,
+  CommentDeleted,
   RoleCreated,
   RoleUpdated,
   RoleAssigned,

@@ -142,6 +142,9 @@ const PROCESS_ITEMS_ROUTE =
 const RISK_ROUTE =
   'Riscos do processo (US-033): a suíte genérica não tem processo nem risco do tenant B. O isolamento (RSK-01/02 com id de processo de B → 404 NOT_FOUND, RSK-03/04/05 com id de risco de B → 404 NOT_FOUND sem alterar nada, categoria RISK_CATEGORY de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de risks/risk_treatments) é coberto em test/tenant-leak/risks.spec.ts, com PostgreSQL real, e em src/modules/risk/presentation/risk.routes.spec.ts.';
 
+const COMMENT_ROUTE =
+  'Comentários (US-071): a suíte genérica não tem processo nem comentário do tenant B. O isolamento (CMT-01/02 com id de processo de B → 404 PROCESS_NOT_FOUND, CMT-03/04 com id de comentário de B → 404 COMMENT_NOT_FOUND sem alterar nada, documentId/parentId de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de comments) é coberto em test/tenant-leak/comments.spec.ts, com PostgreSQL real, e em src/modules/collaboration/presentation/comment.routes.spec.ts.';
+
 const AUDIT_SEAL_ROUTE =
   'Selos de integridade (US-074): a suíte genérica não tem trilha nem selos do tenant B. O isolamento (AUD-04 listando só os selos do tenant, AUD-05 sobre intervalo que só tem selo de B → 404 NOT_FOUND e RLS de audit_seals com app.tenant_id diferente) é coberto em test/tenant-leak/audit-seals.spec.ts, e a selagem só com os registros do tenant do job em apps/worker/test/tenant-leak/audit-sealer.spec.ts, com PostgreSQL real.';
 
@@ -289,6 +292,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'RSK-03': { kind: 'exempt', reason: RISK_ROUTE },
   'RSK-04': { kind: 'exempt', reason: RISK_ROUTE },
   'RSK-05': { kind: 'exempt', reason: RISK_ROUTE },
+  'CMT-01': { kind: 'exempt', reason: COMMENT_ROUTE },
+  'CMT-02': { kind: 'exempt', reason: COMMENT_ROUTE },
+  'CMT-03': { kind: 'exempt', reason: COMMENT_ROUTE },
+  'CMT-04': { kind: 'exempt', reason: COMMENT_ROUTE },
   'PRC-27': { kind: 'exempt', reason: PROCESS_DUPLICATE_ROUTE },
   'PRC-28': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
   'PRC-29': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },

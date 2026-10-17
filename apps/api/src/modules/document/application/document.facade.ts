@@ -13,6 +13,8 @@ import type {
   StageEntryResult,
 } from './document-approval.transitions.js';
 import { DocumentApprovalTransitions } from './document-approval.transitions.js';
+import { DocumentCommentTargets } from './document-comment-target.js';
+import type { CommentDocumentLabel, CommentDocumentTarget } from './document-comment-target.js';
 import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
@@ -35,6 +37,7 @@ export type {
 } from './document.ports.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
 export type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
+export type { CommentDocumentLabel, CommentDocumentTarget } from './document-comment-target.js';
 export type {
   TypedCollectionInput,
   TypedCollectionLockReason,
@@ -86,6 +89,7 @@ export class DocumentFacade {
     private readonly approvals: DocumentApprovalTransitions,
     private readonly aiTargets: DocumentAiTargets,
     private readonly collections: TypedCollectionGuard,
+    private readonly commentTargets: DocumentCommentTargets,
     @Inject(DOCUMENT_CLOCK) private readonly clock: DocumentClock,
   ) {}
 
@@ -184,6 +188,26 @@ export class DocumentFacade {
     input: TypedCollectionInput,
   ): Promise<TypedCollectionWrite> {
     return this.collections.assertWritable(tx, input);
+  }
+
+  /**
+   * US-071 (RN-CMT-01): o documento-alvo de um comentário no processo — status, sigilo e chaves de
+   * seção do template (`null` = externo). `null` se inexistente, excluído ou de outro processo.
+   */
+  commentTargetIn(
+    tx: TenantTx,
+    processId: string,
+    documentId: string,
+  ): Promise<CommentDocumentTarget | null> {
+    return this.commentTargets.resolve(tx, processId, documentId);
+  }
+
+  /** US-071 (RN-CMT-13): código, título e sigilo atual dos documentos comentados. */
+  commentDocumentLabels(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<Map<string, CommentDocumentLabel>> {
+    return this.commentTargets.labels(tx, ids);
   }
 
   /** Fonte `DOCUMENT` da timeline: código, título e nome do tipo (RN-TML-04). */

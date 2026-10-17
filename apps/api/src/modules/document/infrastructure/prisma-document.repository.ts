@@ -301,12 +301,17 @@ export class PrismaDocumentRepository implements DocumentRepository {
     if (ids.length === 0) return new Map();
     const rows = await tx.document.findMany({
       where: { id: { in: [...ids] } },
-      select: { id: true, code: true, title: true, documentTypeId: true },
+      select: { id: true, code: true, title: true, documentTypeId: true, confidentiality: true },
     });
     return new Map(
       rows.map((row) => [
         row.id,
-        { code: row.code, title: row.title, documentTypeId: row.documentTypeId },
+        {
+          code: row.code,
+          title: row.title,
+          documentTypeId: row.documentTypeId,
+          confidentiality: row.confidentiality,
+        },
       ]),
     );
   }

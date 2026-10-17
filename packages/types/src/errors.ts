@@ -99,6 +99,11 @@ export const ERROR_CODES = [
   'PARTICIPANT_NOT_ELIGIBLE',
   'PARTICIPANT_ALREADY_EXISTS',
   'PARTICIPANT_NOT_FOUND',
+  // US-071: comentários (api.md §2.2 · api/12-comments-attachments.md CMT-01..04).
+  'COMMENT_NOT_FOUND',
+  'COMMENT_EDIT_WINDOW_EXPIRED',
+  'RICH_TEXT_INVALID',
+  'SECTION_NOT_IN_TEMPLATE',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

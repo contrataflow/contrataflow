@@ -236,7 +236,7 @@ O ator do envelope de `AiGenerationCompleted`/`AiGenerationFailed` é o solicita
 | `APPROVAL_REQUESTED` | `ApprovalRequested` | "Aprovação solicitada a {approverLabel}" | `approverLabel`, `dueAt` | STANDARD |
 | `APPROVAL_DECIDED` | `ApprovalCompleted`/`Returned`/`Rejected` | "{actor} {decisionLabel} — {title}" | `decision`, `asDeputy`, `hasComment` | STANDARD |
 | `APPROVAL_CANCELED` / `APPROVAL_REASSIGNED` | `Approval*` | "Aprovação cancelada/redirecionada" | `reason`, `toApproverLabel?` | STANDARD |
-| `COMMENT_ADDED` | `CommentCreated` | "{actor} comentou" (+ trecho de até 140 caracteres) | `excerpt`, `documentLabel?` | STANDARD |
+| `COMMENT_ADDED` | `CommentCreated` | "{actor} comentou" (+ trecho de até 140 caracteres) | `excerpt`, `documentLabel?` | STANDARD; `BUDGET_RESTRICTED` quando o documento-alvo é `RESTRICTED` (US-071 · DEC-030). Comentário excluído depois: PRC-12 devolve `excerpt: null` e `commentDeleted: true` |
 | `COMMENT_REMOVED` | `CommentDeleted` (moderação) | "Comentário removido por moderação" | — | STANDARD |
 | `ATTACHMENT_ADDED` / `ATTACHMENT_REMOVED` | `Attachment*` | "{actor} anexou/removeu {fileName}" | `fileName`, `targetLabel` | STANDARD |
 | `ETP_ALTERNATIVE_RECOMMENDED` | `EtpAlternativeRecommended` | "{actor} definiu a alternativa recomendada: {name}" | `name` | STANDARD |

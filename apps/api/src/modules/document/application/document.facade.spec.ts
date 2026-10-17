@@ -5,6 +5,7 @@ import { runSimulatedTransaction } from '#shared/database/active-transaction.js'
 
 import type { DocumentAiTargets } from './document-ai-target.js';
 import type { DocumentApprovalTransitions } from './document-approval.transitions.js';
+import type { DocumentCommentTargets } from './document-comment-target.js';
 import type { CreateDocumentInput, DocumentCreationService } from './document-creation.service.js';
 import { DocumentFacade } from './document.facade.js';
 import { DocumentValidatorRegistry } from './document.ports.js';
@@ -37,6 +38,7 @@ function facadeWith(creation: Partial<DocumentCreationService> = {}) {
     {} as DocumentApprovalTransitions,
     {} as DocumentAiTargets,
     {} as TypedCollectionGuard,
+    {} as DocumentCommentTargets,
     () => NOW,
   );
   return { facade, documents, types, validators };

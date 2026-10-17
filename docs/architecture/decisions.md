@@ -107,6 +107,7 @@ Regras:
 - `SUSPENDED` guarda `statusBeforeSuspension` e pausa prazos (DEC-031). Aprovações pendentes ficam congeladas.
 - `CANCELED` e `PUBLISHED` são finais no MVP 1. Reabertura de `COMPLETED`/`CANCELED`: PEND-03.
 - Rascunho sem número (quando a numeração ocorre na autuação — DEC-028) pode ser **descartado** (exclusão lógica), em vez de cancelado.
+- **Aditivo (US-071, 2026-10-17):** em `CANCELED`, `COMPLETED` e `PUBLISHED` os comentários do processo são **somente leitura** — criar, responder, editar e excluir o próprio respondem 409 `INVALID_PROCESS_STATUS`; a moderação (`COMMENT_MODERATE`) continua permitida. Rever quando o MVP 3 tornar `COMPLETED → PUBLISHED` operacional.
 
 ### DEC-014 — Motor de workflow próprio, declarativo e versionado · `Aceita` · [ADR-005](../adr/adr-005-workflow-engine.md)
 - Definição: `Workflow` → `WorkflowVersion` (DRAFT → PUBLISHED → RETIRED; publicada é **imutável**) → `WorkflowStage` (tipos `START`, `TASK`, `APPROVAL`, `END`) → `WorkflowTransition` (ações `FORWARD`, `RETURN`, `APPROVE`, `REJECT`, `COMPLETE`) → `WorkflowRule`.
@@ -412,6 +413,7 @@ Schemas Zod em `packages/validation` são a fonte única: React Hook Form (`zodR
 
 ### DEC-056 — Rich text · `Aceita`
 TipTap/ProseMirror JSON armazenado em JSONB. Backend valida contra o schema permitido de nós/marks (`packages/editor`), rejeita nós desconhecidos e limita tamanho (padrão 1 MB por seção). HTML é gerado **somente no servidor** com as mesmas extensões e sanitizado antes do PDF. Imagens embutidas: PEND-08. Tabelas: permitidas.
+- **Comentários (US-071, 2026-10-17):** schema restrito próprio — `commentContentSchema` (`validateCommentContent` em `packages/validation/src/collaboration`, usado pela API e pelo compositor): nós `doc`, `paragraph`, `text`, `bulletList`, `orderedList`, `listItem`, `hardBreak`, `mention` (só com a US-072) e marcas `bold`, `italic`, `link` (http/https/mailto, ≤ 2.048). Qualquer outro nó, marca ou atributo → 422 `RICH_TEXT_INVALID`, sem limpeza silenciosa; JSON ≤ 100 KB; texto derivado 1–10.000 caracteres. A leitura renderiza o JSON em nós React (nunca HTML).
 
 ### DEC-057 — Busca · `Aceita`
 PostgreSQL FTS (`portuguese` + `unaccent`) em coluna `search_vector` (tsvector gerado) + `pg_trgm` para número/código/título. Motor dedicado e busca semântica (pgvector) avaliados no MVP 5.

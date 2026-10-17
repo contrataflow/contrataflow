@@ -10,6 +10,7 @@ import { DocumentFacade } from '#modules/document/application/document.facade.js
 import type { CreateDocumentInput } from '#modules/document/application/document.facade.js';
 import { InMemoryDocumentTypeRepository } from '#modules/document/infrastructure/in-memory-document-type.repository.js';
 import { InMemoryDocumentRepository } from '#modules/document/infrastructure/in-memory-document.repository.js';
+import { InMemoryTemplateRepository } from '#modules/document/infrastructure/in-memory-template.repository.js';
 import { DocumentProcessContextLoader } from '#modules/process/application/document-process-context.loader.js';
 import { runWithRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
@@ -184,6 +185,11 @@ export function documentRepositoryOf(api: TestApi): InMemoryDocumentRepository {
 
 export function documentTypeRepositoryOf(api: TestApi): InMemoryDocumentTypeRepository {
   return api.app.get(InMemoryDocumentTypeRepository, { strict: false });
+}
+
+/** Versões de template no repositório em memória (US-071: seções do documento comentado). */
+export function seedTemplateVersions(api: TestApi, ...versions: DocumentTemplateVersion[]): void {
+  api.app.get(InMemoryTemplateRepository, { strict: false }).seed([], versions);
 }
 
 export function approvalRepositoryOf(api: TestApi): InMemoryApprovalRepository {
