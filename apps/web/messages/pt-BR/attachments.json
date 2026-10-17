@@ -44,5 +44,34 @@
     "cancel": "Cancelar",
     "working": "Excluindo…",
     "failed": "Não foi possível excluir o anexo agora. Tente novamente."
+  },
+  "list": {
+    "label": "Anexos já enviados",
+    "loading": "Carregando anexos…",
+    "loadFailed": "Não foi possível carregar os anexos agora.",
+    "retryLoad": "Recarregar anexos",
+    "empty": "Nenhum anexo",
+    "uploadedAt": "Enviado em {date}",
+    "verifying": "Arquivo em verificação. Tente novamente em instantes.",
+    "rejected": "Arquivo rejeitado pela verificação de segurança.",
+    "noPreview": "Sem prévia disponível — baixar arquivo.",
+    "download": "Baixar",
+    "downloading": "Preparando o download…",
+    "downloadLabel": "Baixar {fileName}",
+    "preview": "Visualizar",
+    "closePreview": "Fechar prévia",
+    "previewLabel": "Visualizar {fileName}",
+    "closePreviewLabel": "Fechar a prévia de {fileName}",
+    "previewLoading": "Carregando a prévia…",
+    "previewFailed": "Não foi possível carregar a prévia. Baixe o arquivo.",
+    "previewAlt": "Prévia de {fileName}",
+    "pdfPending": "A prévia de PDF na tela chega com o visualizador de documentos. Baixe o arquivo para conferir.",
+    "correlation": "Código de suporte: {id}",
+    "errors": {
+      "notAvailable": "Arquivo em verificação. Tente novamente em instantes.",
+      "forbidden": "Você não tem permissão para baixar este arquivo.",
+      "notFound": "Anexo não encontrado.",
+      "unavailable": "Não foi possível baixar o arquivo agora. Tente novamente em instantes."
+    }
   }
 }

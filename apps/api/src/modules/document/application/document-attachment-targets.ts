@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 import type {
+  AttachmentConfidentiality,
   AttachmentTarget,
   AttachmentTargetReader,
   AttachmentTargetRef,
@@ -18,7 +19,7 @@ import { isEditable } from '../domain/document.js';
  * documento da versão — ADR-006). Visível = documento não excluído de processo visível (DEC-024,
  * senão 404). Anexar exige a POL-02 de EDIÇÃO do documento (permissão do tipo, custódia ou
  * participação, processo editável, tipo na etapa) e o documento em `DRAFT`/`RETURNED` — fora disso
- * 409 `DOCUMENT_NOT_EDITABLE`.
+ * 409 `DOCUMENT_NOT_EDITABLE`. Documento `RESTRICTED`: o acesso ao arquivo herda a POL-09 (US-069).
  */
 
 @Injectable()
@@ -57,6 +58,25 @@ export class DocumentAttachmentTargets implements AttachmentTargetReader {
         detail: 'Não é possível anexar arquivos neste momento.',
         extensions: { status: context.document.status },
       });
+    }
+  }
+
+  /** US-069 · RN-DOC-86: documento `RESTRICTED` exige POL-09 para detalhe e download do anexo. */
+  async confidentiality(
+    tx: TenantTx,
+    ref: AttachmentTargetRef,
+  ): Promise<AttachmentConfidentiality | null> {
+    const documentId = await this.documentIdOf(tx, ref);
+    if (documentId === null) return null;
+    try {
+      const context = await this.lifecycle.load(tx, documentId);
+      if (context.document.confidentiality !== 'RESTRICTED') {
+        return { restricted: false, allowed: true };
+      }
+      return { restricted: true, allowed: await this.lifecycle.canViewConfidentialBudget(context) };
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'NOT_FOUND') return null;
+      throw error;
     }
   }
 

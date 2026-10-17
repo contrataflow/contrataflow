@@ -24,6 +24,7 @@ import type { FilesSettings } from './application/files-ports.js';
 import { FilesFacade } from './application/files.facade.js';
 import { GetAttachmentDownloadQuery } from './application/get-attachment-download.query.js';
 import { GetAttachmentQuery } from './application/get-attachment.query.js';
+import { ListAttachmentsQuery } from './application/list-attachments.query.js';
 import { ScanFileJob } from './application/scan-file.job.js';
 import { ScanFileProcessor } from './application/scan-file.processor.js';
 import { ClamavClient, UnconfiguredAntivirus } from './infrastructure/clamav.client.js';
@@ -36,6 +37,7 @@ import {
   PrismaFilesTransactions,
 } from './infrastructure/prisma-attachment.repository.js';
 import { AttachmentController } from './presentation/attachment.controller.js';
+import { ProcessAttachmentsController } from './presentation/process-attachments.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
@@ -46,7 +48,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 /**
  * Módulo `files` (DEC-040, nível 2): outros módulos usam somente a fachada exportada. Dono de
  * `Attachment` (US-068: ATT-02/03/04/06 e o `file-scan`; US-064: ATT-05 e o leitor do arquivo do
- * anexo — porta `AttachmentFileRegistry`, lida pelo `document`). O alvo de cada anexo é lido pela porta
+ * anexo — porta `AttachmentFileRegistry`, lida pelo `document`; US-069: ATT-01 e a herança de POL-09). O alvo de cada anexo é lido pela porta
  * `AttachmentTargetRegistry` do shared kernel — `document` e `process` registram os seus; o storage
  * (guarda de tenant + S3) vem do `platform`, e o antivírus é o `clamd` (`CLAMAV_HOST`). O
  * `ScanFileJob` (fila `file-scan`) é consumido pelo worker, como o `AiGenerationJob` (queues.md §4.5).
@@ -59,7 +61,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessAccessModule,
     AttachmentTargetModule,
   ],
-  controllers: [AttachmentController],
+  controllers: [AttachmentController, ProcessAttachmentsController],
   providers: [
     FilesFacade,
     AttachmentAccess,
@@ -67,6 +69,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ConfirmAttachmentUploadCommand,
     GetAttachmentQuery,
     GetAttachmentDownloadQuery,
+    ListAttachmentsQuery,
     DeleteAttachmentCommand,
     FilesAttachmentFileReader,
     AntivirusCircuit,

@@ -4,7 +4,11 @@ import { currentRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import type { AttachmentRepository, FilesTransactions } from '../application/files-ports.js';
+import type {
+  AttachmentListFilter,
+  AttachmentRepository,
+  FilesTransactions,
+} from '../application/files-ports.js';
 import type { Attachment } from '../domain/attachment.js';
 import { canTransition } from '../domain/attachment.js';
 
@@ -51,6 +55,29 @@ export class InMemoryAttachmentRepository implements AttachmentRepository {
         .filter((row) => row.processId === processId && row.status === 'AVAILABLE')
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
     );
+  }
+
+  listByProcess(
+    _tx: TenantTx,
+    filter: AttachmentListFilter,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ items: Attachment[]; total: number }> {
+    this.check();
+    const matching = this.inTenant()
+      .filter(
+        (row) =>
+          row.processId === filter.processId &&
+          row.status !== 'DELETED' &&
+          row.deletedAt === null &&
+          (filter.targetType === undefined || row.targetType === filter.targetType) &&
+          (filter.targetId === undefined || row.targetId === filter.targetId) &&
+          (filter.categoryId === undefined || row.categoryId === filter.categoryId),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1));
+    return Promise.resolve({
+      items: matching.slice(window.skip, window.skip + window.take),
+      total: matching.length,
+    });
   }
 
   update(_tx: TenantTx, next: Attachment, expectedVersion: number): Promise<boolean> {

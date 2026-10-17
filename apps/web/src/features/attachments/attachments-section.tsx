@@ -9,6 +9,7 @@ import type { DragEvent } from 'react';
 
 import { Can } from '@/lib/permissions/can';
 
+import { AttachmentList } from './attachment-list';
 import { DeleteAttachmentDialog } from './delete-attachment-dialog';
 import { ACCEPT_ATTRIBUTE, DEFAULT_MAX_FILE_SIZE_MB, formatFileSize } from './upload-rules';
 import { useAttachmentUploads } from './use-attachment-uploads';
@@ -17,6 +18,8 @@ import type { UploadDeps, UploadItem } from './use-attachment-uploads';
 export interface AttachmentsSectionProps {
   readonly targetType: AttachmentTargetType;
   readonly targetId: string;
+  /** Processo do alvo: habilita a lista de anexos já enviados (ATT-01 — US-069). */
+  readonly processId?: string | undefined;
   /** Ação contextual de edição do alvo (`meta.allowedActions` da API — ex.: `UPDATE` no documento). */
   readonly action?: string | undefined;
   readonly allowedActions?: readonly string[] | undefined;
@@ -37,6 +40,7 @@ const TYPES = PLATFORM_UPLOAD_EXTENSIONS.join(', ');
 export function AttachmentsSection({
   targetType,
   targetId,
+  processId,
   action,
   allowedActions,
   deps,
@@ -54,6 +58,10 @@ export function AttachmentsSection({
     setDragging(false);
     uploads.add([...event.dataTransfer.files]);
   };
+
+  const sessionIds = new Set(
+    uploads.items.flatMap((item) => (item.attachment === null ? [] : [item.attachment.id])),
+  );
 
   const rejectionMessage = uploads.rejection
     ? uploads.rejection.reason === 'TYPE'
@@ -125,8 +133,22 @@ export function AttachmentsSection({
 
       {rejectionMessage === null ? null : <Alert tone="error" title={rejectionMessage} />}
 
+      {processId === undefined ? null : (
+        <AttachmentList
+          processId={processId}
+          targetType={targetType}
+          targetId={targetId}
+          hiddenIds={sessionIds}
+          sessionCount={uploads.items.length}
+          fetchBytes={deps?.fetchBytes}
+          navigate={deps?.navigate}
+        />
+      )}
+
       {uploads.items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('section.empty')}</p>
+        processId === undefined ? (
+          <p className="text-sm text-muted-foreground">{t('section.empty')}</p>
+        ) : null
       ) : (
         <ul className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2">
           {uploads.items.map((item) => (

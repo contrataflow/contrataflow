@@ -70,6 +70,9 @@ const SUPPLIER_ROUTE =
 const ATTACHMENT_ROUTE =
   'Anexos (US-068): a suíte genérica não tem fixture de documento/anexo do tenant B; o isolamento (alvo de outro tenant → 404 sem anexo criado, ATT-03/04 de outro tenant → 404) é coberto em src/modules/files/presentation/attachment.routes.spec.ts, e a RLS de attachments, a guarda de chave de storage no banco e a trava condicional em test/tenant-leak/attachments.spec.ts.';
 
+const ATTACHMENT_ACCESS_ROUTE =
+  'Visualizar e baixar anexos (US-069): a suíte genérica não tem processo, documento nem anexo do tenant B. O isolamento (ATT-01 com processo de outro tenant e ATT-04/05 com anexo de outro tenant → 404 NOT_FOUND sem revelar nada e sem auditoria de download; RLS de attachments na listagem) é coberto em test/tenant-leak/attachment-download.spec.ts, com PostgreSQL real, e em src/modules/files/presentation/attachment-download.routes.spec.ts, que traz também a herança de POL-09 (alvo RESTRICTED → 403).';
+
 const ORGANIZATION_ROUTE =
   'Órgãos (US-101): a suíte genérica ainda não tem fixture de órgão do tenant B; o isolamento (404 em ORG-03/04 e lista sem vazamento de B) é coberto em test/tenant-leak/organizations.spec.ts, com administradores nos dois tenants.';
 
@@ -217,10 +220,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'SUP-04': { kind: 'exempt', reason: SUPPLIER_ROUTE },
   'SUP-05': { kind: 'exempt', reason: SUPPLIER_ROUTE },
   'SUP-06': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'ATT-01': { kind: 'exempt', reason: ATTACHMENT_ACCESS_ROUTE },
   'ATT-02': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
   'ATT-03': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
-  'ATT-04': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
-  'ATT-05': { kind: 'exempt', reason: UPLOADED_DOCUMENT_ROUTE },
+  'ATT-04': { kind: 'exempt', reason: ATTACHMENT_ACCESS_ROUTE },
+  'ATT-05': { kind: 'exempt', reason: ATTACHMENT_ACCESS_ROUTE },
   'ATT-06': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
   'ORG-01': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },

@@ -18,8 +18,8 @@ import type { AttachmentRepository, FilesTransactions } from './files-ports.js';
  * `ATTACHMENT_NOT_AVAILABLE`: em varredura, infectado ou rejeitado — nunca um arquivo sem a P3) →
  * `attachment.download` gravado ANTES de assinar (falha ao auditar = 503, nunca URL sem trilha) →
  * URL `GET` assinada do bucket `documents` (≤ 300 s, `Content-Disposition: attachment`; a prévia
- * busca os bytes por `fetch`). A herança de POL-09 por documento `RESTRICTED` e o ATT-01 ficam com a
- * US-069.
+ * busca os bytes por `fetch`). Alvo `RESTRICTED` sem POL-09 → 403 antes de qualquer auditoria de
+ * download (US-069 · RN-DOC-86); o `ATT-01` é o `ListAttachmentsQuery`.
  */
 
 @Injectable()
@@ -34,7 +34,10 @@ export class GetAttachmentDownloadQuery {
 
   async execute(id: string): Promise<AttachmentDownloadDto> {
     const attachment = await this.transactions.run(async (tx) => {
-      const { attachment } = await this.access.visible(tx, await this.attachments.findById(tx, id));
+      const { attachment } = await this.access.viewable(
+        tx,
+        await this.attachments.findById(tx, id),
+      );
       if (attachment.status !== 'AVAILABLE') {
         throw new ApiError('ATTACHMENT_NOT_AVAILABLE', {
           detail: 'Arquivo em verificação. Tente novamente em instantes.',

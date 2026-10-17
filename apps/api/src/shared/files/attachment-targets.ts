@@ -25,6 +25,16 @@ export interface AttachmentTarget extends AttachmentTargetRef {
   readonly process: ProcessAccessTarget | null;
 }
 
+/**
+ * Sigilo do alvo para o acesso ao ARQUIVO (US-069 · RN-DOC-86 · POL-09): `restricted` = alvo com
+ * `confidentiality = RESTRICTED`; `allowed` = o usuário da requisição atende POL-09 sobre o processo
+ * dele. O arquivo não é mascarado: sem a política, detalhe e download respondem 403.
+ */
+export interface AttachmentConfidentiality {
+  readonly restricted: boolean;
+  readonly allowed: boolean;
+}
+
 export interface AttachmentTargetReader {
   readonly targetTypes: readonly AttachmentTargetType[];
   /**
@@ -38,6 +48,14 @@ export interface AttachmentTargetReader {
    * `INVALID_PROCESS_STATUS` (V-04).
    */
   assertAttachable(tx: TenantTx, target: AttachmentTarget): Promise<void>;
+  /**
+   * Sigilo do alvo e POL-09 do usuário (US-069). Omitido = alvo sem sigilo próprio (ex.: `PROCESS`);
+   * `null` = alvo inexistente (404).
+   */
+  confidentiality?(
+    tx: TenantTx,
+    ref: AttachmentTargetRef,
+  ): Promise<AttachmentConfidentiality | null>;
 }
 
 /** Registro dos leitores (um por tipo de alvo). */
@@ -62,6 +80,20 @@ export class AttachmentTargetRegistry {
     const reader = this.readers.get(target.targetType);
     if (!reader) throw new Error(`Alvo de anexo sem leitor: ${target.targetType}.`);
     await reader.assertAttachable(tx, target);
+  }
+
+  /**
+   * Sigilo do alvo (US-069). Sem leitor para o tipo falha fechado (restrito e não permitido): um
+   * anexo cujo dono não se registrou nunca é entregue sem a política.
+   */
+  async confidentiality(
+    tx: TenantTx,
+    ref: AttachmentTargetRef,
+  ): Promise<AttachmentConfidentiality | null> {
+    const reader = this.readers.get(ref.targetType);
+    if (!reader) return { restricted: true, allowed: false };
+    if (!reader.confidentiality) return { restricted: false, allowed: true };
+    return await reader.confidentiality(tx, ref);
   }
 }
 

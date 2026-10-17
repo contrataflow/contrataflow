@@ -272,8 +272,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
       <div className="flex min-w-0 flex-col gap-6">
         <SituationalPanel summary={data} processId={processId} timeZone={timeZone} />
         <ProcessDataCard query={detail} />
-        {/* US-068: anexos do processo (alvo `PROCESS`); a lista completa é da US-069. */}
-        <AttachmentsSection targetType="PROCESS" targetId={processId} />
+        {/* US-068/US-069: anexos do processo (alvo `PROCESS`) — envio, lista, prévia e download. */}
+        <AttachmentsSection targetType="PROCESS" targetId={processId} processId={processId} />
       </div>
     );
   } else if (tab === 'timeline') {

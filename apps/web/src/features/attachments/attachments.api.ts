@@ -1,13 +1,16 @@
+import type { AttachmentTargetType } from '@contrataflow/types';
 import type {
   AttachmentConfirmationDto,
   AttachmentDownloadDto,
   AttachmentDto,
   AttachmentUploadDto,
   CreateAttachmentIntent,
+  PageMeta,
 } from '@contrataflow/validation';
 import { attachmentUploadSchema } from '@contrataflow/validation';
 
 import { apiRequest, newIdempotencyKey } from '@/lib/api/client';
+import { tenantKey } from '@/lib/query/keys';
 
 /*
  * Upload seguro de anexos (US-068 · DEC-136 · api/12-comments-attachments.md): intenção (ATT-02,
@@ -112,4 +115,51 @@ export async function fetchAttachmentDownload(
   return (
     await apiRequest<AttachmentDownloadDto>(`/attachments/${attachmentId}/download`, { signal })
   ).data;
+}
+
+/** Anexos do processo (US-069): `['t', tenantId, 'attachments', processId, …]`. */
+export const attachmentKeys = {
+  process: (tenantId: string, processId: string) => tenantKey(tenantId, 'attachments', processId),
+  list: (tenantId: string, processId: string, targetType?: string, targetId?: string) =>
+    tenantKey(tenantId, 'attachments', processId, 'list', targetType ?? 'all', targetId ?? 'all'),
+};
+
+export interface AttachmentPage {
+  readonly items: readonly AttachmentDto[];
+  readonly meta: PageMeta;
+}
+
+export interface AttachmentListFilter {
+  readonly targetType?: AttachmentTargetType | undefined;
+  readonly targetId?: string | undefined;
+}
+
+/** ATT-01: anexos do processo, filtráveis pelo alvo (até 100 por página, `-createdAt`). */
+export async function fetchProcessAttachments(
+  processId: string,
+  filter: AttachmentListFilter = {},
+  signal?: AbortSignal,
+): Promise<AttachmentPage> {
+  const query = new URLSearchParams({ page: '1', pageSize: '100' });
+  if (filter.targetType !== undefined) query.set('targetType', filter.targetType);
+  if (filter.targetId !== undefined && filter.targetType !== undefined) {
+    query.set('targetId', filter.targetId);
+  }
+  const result = await apiRequest<AttachmentDto[]>(
+    `/processes/${processId}/attachments?${query.toString()}`,
+    { signal },
+  );
+  return { items: result.data, meta: result.meta as unknown as PageMeta };
+}
+
+/**
+ * Entrega do download (ATT-05): navega até a URL assinada (`Content-Disposition: attachment`). Só
+ * aceita http(s): qualquer outro esquema é recusado em vez de navegar.
+ */
+export function startAttachmentDownload(url: string): void {
+  const protocol = new URL(url).protocol;
+  if (protocol !== 'https:' && protocol !== 'http:') {
+    throw new Error('URL de download com esquema não permitido.');
+  }
+  window.location.assign(url);
 }

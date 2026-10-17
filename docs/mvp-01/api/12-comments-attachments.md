@@ -116,6 +116,7 @@
   | 422 | `VALIDATION_ERROR` | `targetType` fora do enum ou paginação fora dos limites |
 - **Efeitos:** —
 - **Notas:** —
+- **Implementação (US-069):** processo inexistente, de outro tenant ou não visível (DEC-024) → `404 NOT_FOUND` igual; só metadados (sem URL — ATT-05) e sem os `DELETED`; ordenação fixa `-createdAt`; `targetId` sem `targetType` → 422. A lista traz também os anexos de alvo `RESTRICTED`; o bloqueio por POL-09 vale no detalhe (ATT-04) e no download (ATT-05).
 
 ### ATT-02 — Registrar intenção de upload
 `POST /api/v1/attachments` · **Permissão:** `ATTACHMENT_UPLOAD` + alvo editável · **Story:** US-068
@@ -165,7 +166,7 @@
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `PROCESS_VIEW` |
+  | 403 | `PERMISSION_DENIED` | Sem `PROCESS_VIEW`, ou alvo `RESTRICTED` sem POL-09 (`reasonCode = POL-09`) |
   | 404 | `NOT_FOUND` | Inexistente/outro tenant/não visível |
 - **Efeitos:** —
 - **Notas:** para baixar o arquivo, ver ATT-05 (inclui herança de POL-09 quando o alvo é documento `RESTRICTED`).
@@ -184,6 +185,7 @@
   | 409 | `ATTACHMENT_NOT_AVAILABLE` | Anexo ainda não está `AVAILABLE` |
 - **Efeitos:** Auditoria `attachment.download` (`EXPORT`; registrada antes de devolver a URL; `metadata`: `fileName`, `sizeBytes`, `targetType`, `targetId`)
 - **Notas:** anexos de documentos com confidencialidade `RESTRICTED` herdam a exigência de POL-09 do documento (acesso bloqueado por completo em 403, sem campo mascarado — diferente da máscara monetária de api.md §1.4).
+- **Implementação (US-069):** ordem das checagens — visibilidade do processo (404) → POL-09 do alvo (403, antes de qualquer auditoria de download) → `AVAILABLE` agora (409) → auditoria → assinatura (≤ 300 s). Falha ao auditar → 503 sem URL; falha do storage → 503 com `Retry-After`.
 
 ### ATT-06 — Excluir anexo
 `DELETE /api/v1/attachments/{id}` · **Permissão:** `ATTACHMENT_UPLOAD` (próprio) ou `ATTACHMENT_DELETE` · **Story:** US-068

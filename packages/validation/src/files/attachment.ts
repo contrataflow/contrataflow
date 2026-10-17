@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { uuidV7Schema } from '../common/identifiers.js';
 import { trimmedString } from '../common/text.js';
+import { pageQuerySchema } from '../http/pagination.js';
 
 /*
  * Anexos (US-068 · entities.md §4 `Attachment` · api/12-comments-attachments.md ATT-02..06).
@@ -79,6 +80,23 @@ export const attachmentSchema = z.object({
   version: z.int(),
 });
 export type AttachmentDto = z.infer<typeof attachmentSchema>;
+
+/**
+ * ATT-01 — filtros da listagem do processo (US-069 · RN-DOC-81 · V-01): `targetId` exige
+ * `targetType`; paginação padrão (api.md §1.2). Ordenação fixa `-createdAt`.
+ */
+export const attachmentListQuerySchema = pageQuerySchema
+  .extend({
+    targetType: z.enum(ATTACHMENT_TARGET_TYPES, { error: 'Filtro ou página inválida.' }).optional(),
+    targetId: z.uuid({ error: 'Filtro ou página inválida.' }).optional(),
+    categoryId: z.uuid({ error: 'Filtro ou página inválida.' }).optional(),
+  })
+  .refine((query) => query.targetId === undefined || query.targetType !== undefined, {
+    error: 'Informe o tipo do alvo para filtrar pelo alvo.',
+    path: ['targetType'],
+  })
+  .meta({ id: 'AttachmentListQuery' });
+export type AttachmentListQuery = z.infer<typeof attachmentListQuerySchema>;
 
 /** Instruções do `PUT` direto na quarentena (DEC-136): credencial ao portador, nunca logar. */
 export const attachmentUploadSchema = z.object({

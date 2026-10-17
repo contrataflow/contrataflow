@@ -1,5 +1,7 @@
 import type { Readable } from 'node:stream';
 
+import type { AttachmentTargetType } from '@contrataflow/types';
+
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { Attachment } from '../domain/attachment.js';
@@ -10,6 +12,14 @@ import type { AntivirusResult } from '../domain/scan-verdict.js';
  * ClamAV) e em memória (testes e modo de identidade fake — local/dev/test sem banco).
  */
 
+/** Filtros do ATT-01 (US-069 · RN-DOC-81). */
+export interface AttachmentListFilter {
+  readonly processId: string;
+  readonly targetType?: AttachmentTargetType;
+  readonly targetId?: string;
+  readonly categoryId?: string;
+}
+
 export interface AttachmentRepository {
   insert(tx: TenantTx, attachment: Attachment): Promise<void>;
   /** `null` se não existe NO TENANT da transação. */
@@ -17,6 +27,12 @@ export interface AttachmentRepository {
   findByIds(tx: TenantTx, ids: readonly string[]): Promise<Attachment[]>;
   /** Anexos `AVAILABLE` do processo (cópia lógica da duplicação — US-011), mais antigos primeiro. */
   listAvailableByProcess(tx: TenantTx, processId: string): Promise<Attachment[]>;
+  /** ATT-01: anexos do processo NÃO excluídos, `-createdAt`; `total` ignora a janela. */
+  listByProcess(
+    tx: TenantTx,
+    filter: AttachmentListFilter,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ readonly items: Attachment[]; readonly total: number }>;
   /**
    * Grava a nova versão SE o registro ainda está na versão lida (`UPDATE … WHERE version = $lida`).
    * `false` = outro escreveu antes (perdeu a corrida).

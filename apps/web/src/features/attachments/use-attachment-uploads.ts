@@ -19,8 +19,8 @@ import { checkLocalFile } from './upload-rules';
 /*
  * Estado dos envios da tela (US-068 · fluxo principal 1–7): seleção → validação local → intenção →
  * PUT com progresso → confirmação → *polling* de ATT-04 (1 s a 15 s) até `AVAILABLE`, `INFECTED` ou
- * `REJECTED`. A lista completa do alvo (ATT-01) é da US-069; aqui ficam os anexos enviados nesta
- * sessão da tela. Erro de rede ou de URL vencida: "Enviar novamente" gera NOVA intenção (FA-02).
+ * `REJECTED`. A lista do alvo (ATT-01 — US-069) é do `AttachmentList`; aqui ficam os anexos enviados
+ * nesta sessão da tela. Erro de rede ou de URL vencida: "Enviar novamente" gera NOVA intenção (FA-02).
  */
 
 export type UploadPhase =
@@ -60,6 +60,9 @@ const defaultSleep = (ms: number) =>
 export interface UploadDeps {
   readonly sleep?: (ms: number) => Promise<void>;
   readonly createRequest?: () => XMLHttpRequest;
+  /** Testes (US-069): `fetch` dos bytes da prévia e navegação do download. */
+  readonly fetchBytes?: (url: string) => Promise<Blob>;
+  readonly navigate?: (url: string) => void;
 }
 
 function phaseOf(status: AttachmentDto['status']): UploadPhase {

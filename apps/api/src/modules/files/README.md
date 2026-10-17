@@ -13,4 +13,11 @@ Anexos: upload, antivírus e download (DEC-040).
   visível → `AVAILABLE` agora → `attachment.download` antes de assinar → URL `GET` ≤ 300 s do bucket
   `documents`) — base da prévia inline (PDF/PNG/JPEG por `fetch`). O `files` serve o arquivo do anexo
   ao `document` pela porta `AttachmentFileRegistry` (`#shared/files/attachment-files.ts`,
-  `FilesAttachmentFileReader`). ATT-01 e a herança de POL-09 por documento `RESTRICTED` são da US-069.
+  `FilesAttachmentFileReader`).
+- **US-069 (visualizar e baixar):** ATT-01 `GET /processes/{id}/attachments` (`ListAttachmentsQuery`,
+  `ProcessAttachmentsController`: processo visível, sem `DELETED`, filtros `targetType`/`targetId`/
+  `categoryId`, `-createdAt`) e a herança de POL-09: `AttachmentAccess.viewable` (usado por ATT-04 e
+  ATT-05) pergunta ao dono do alvo, pela porta `AttachmentTargetRegistry.confidentiality`, se o alvo é
+  `RESTRICTED` e se o usuário atende POL-09; sem a política → 403 `PERMISSION_DENIED`
+  (`reasonCode = POL-09`), antes do `409` de estado e da auditoria. Tipo de alvo sem leitor falha
+  fechado; ativo do tenant (sem processo) não tem alvo sigiloso. A lista devolve só metadados.

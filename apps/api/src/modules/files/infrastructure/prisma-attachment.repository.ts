@@ -4,7 +4,11 @@ import { Injectable } from '@nestjs/common';
 import { TenantTransaction } from '#shared/database/database.module.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
-import type { AttachmentRepository, FilesTransactions } from '../application/files-ports.js';
+import type {
+  AttachmentListFilter,
+  AttachmentRepository,
+  FilesTransactions,
+} from '../application/files-ports.js';
 import type { Attachment, ScanResult } from '../domain/attachment.js';
 
 type Row = Prisma.AttachmentGetPayload<object>;
@@ -126,6 +130,31 @@ export class PrismaAttachmentRepository implements AttachmentRepository {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     return rows.map(toDomain);
+  }
+
+  async listByProcess(
+    tx: TenantTx,
+    filter: AttachmentListFilter,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ items: Attachment[]; total: number }> {
+    const where: Prisma.AttachmentWhereInput = {
+      processId: filter.processId,
+      status: { not: 'DELETED' },
+      deletedAt: null,
+      ...(filter.targetType === undefined ? {} : { targetType: filter.targetType }),
+      ...(filter.targetId === undefined ? {} : { targetId: filter.targetId }),
+      ...(filter.categoryId === undefined ? {} : { categoryId: filter.categoryId }),
+    };
+    const [rows, total] = await Promise.all([
+      tx.attachment.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: window.skip,
+        take: window.take,
+      }),
+      tx.attachment.count({ where }),
+    ]);
+    return { items: rows.map(toDomain), total };
   }
 
   async update(tx: TenantTx, next: Attachment, expectedVersion: number): Promise<boolean> {

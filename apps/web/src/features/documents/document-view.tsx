@@ -179,6 +179,7 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
         <AttachmentsSection
           targetType="DOCUMENT"
           targetId={document.id}
+          processId={document.processId}
           action="UPDATE"
           allowedActions={meta.allowedActions}
         />
