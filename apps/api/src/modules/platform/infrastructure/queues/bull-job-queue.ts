@@ -47,6 +47,7 @@ export class BullJobQueue implements JobQueuePort, OnModuleDestroy {
             jobId: options.jobId,
             attempts: options.attempts ?? 5,
             backoff: { type: 'cf-exponential-jitter', delay: options.backoffMs ?? 5_000 },
+            ...(options.priority === undefined ? {} : { priority: options.priority }),
             removeOnComplete: { age: 24 * 3_600 },
             removeOnFail: { age: 7 * 24 * 3_600 },
           },

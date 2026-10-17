@@ -15,6 +15,8 @@ export interface EnqueueJobOptions {
   readonly attempts?: number;
   /** Base do backoff exponencial com jitter (`cf-exponential-jitter`), em ms. */
   readonly backoffMs?: number;
+  /** Prioridade BullMQ (1 = mais alta), ex.: prévia de PDF = 1, PDF da versão = 5 (queues.md §4.4). */
+  readonly priority?: number;
 }
 
 export interface JobQueuePort {

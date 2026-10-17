@@ -35,6 +35,7 @@ describe('ApprovalFacade', () => {
     const asked: string[] = [];
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
+      coversDocumentVersion: () => Promise.resolve(false),
       listPendingByProcess: (_tx, processId) => {
         asked.push(processId);
         return Promise.resolve([approval]);

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { RENDITION_KINDS } from './document-rendition.js';
 import { DOCUMENT_KINDS, DOCUMENT_STATUSES } from './document-type.js';
 import { VERSION_REASONS } from './document.js';
 import { defineDomainEvent } from '../events/define.js';
@@ -178,4 +179,43 @@ export const TemplateVersionRetired = defineDomainEvent({
   aggregateType: 'DocumentTemplate',
   payload: z.strictObject({ templateId: z.uuid(), templateVersionId: z.uuid() }),
   routingKey: 'template.version_retired',
+});
+
+// --- PDFs (events.md §4.3 · US-067) -------------------------------------------------------------
+
+const renditionKind = z.enum(RENDITION_KINDS);
+
+/**
+ * `DocumentRenditionReady` — o worker `document-render` gravou o PDF (RN-DOC-65). Agregado =
+ * `DocumentRendition` (routing key fixa, sem o tipo do documento: o consumidor é a central de
+ * notificações — US-111).
+ */
+export const DocumentRenditionReady = defineDomainEvent({
+  eventType: 'DocumentRenditionReady',
+  eventVersion: 1,
+  aggregateType: 'DocumentRendition',
+  payload: z.strictObject({
+    documentId: z.uuid(),
+    documentVersionId: z.uuid().nullable(),
+    renditionId: z.uuid(),
+    kind: renditionKind,
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    pageCount: z.int().min(1),
+  }),
+  routingKey: 'document.rendition_ready',
+});
+
+/** `DocumentRenditionFailed` — tentativas esgotadas ou falha permanente (RN-DOC-67). */
+export const DocumentRenditionFailed = defineDomainEvent({
+  eventType: 'DocumentRenditionFailed',
+  eventVersion: 1,
+  aggregateType: 'DocumentRendition',
+  payload: z.strictObject({
+    documentId: z.uuid(),
+    renditionId: z.uuid(),
+    kind: renditionKind,
+    errorCode: z.string().min(1).max(60),
+    attempts: z.int().min(0),
+  }),
+  routingKey: 'document.rendition_failed',
 });

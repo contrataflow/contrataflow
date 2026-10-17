@@ -28,6 +28,7 @@ import {
   fetchDocumentVersions,
   versionKeys,
 } from './documents.api';
+import { GeneratePdfButton } from './generate-pdf-button';
 import { SaveVersionAction } from './save-version-dialog';
 
 export interface DocumentVersionsViewProps {
@@ -139,7 +140,11 @@ export function DocumentVersionsView({ processId, documentId }: DocumentVersions
         <p className="text-sm text-muted-foreground">{t('empty')}</p>
       ) : (
         <>
-          <VersionList versions={items} onCompare={choose} />
+          <VersionList
+            versions={items}
+            onCompare={choose}
+            pdfEnabled={current !== undefined && current.document.documentType.kind !== 'UPLOADED'}
+          />
           {items.length > 1 ? (
             <VersionComparePicker versions={items} selection={selection} onCompare={choose} />
           ) : null}
@@ -168,9 +173,12 @@ export function DocumentVersionsView({ processId, documentId }: DocumentVersions
 function VersionList({
   versions,
   onCompare,
+  pdfEnabled,
 }: {
   readonly versions: readonly DocumentVersionSummaryDto[];
   readonly onCompare: (selection: Selection) => void;
+  /** US-067: "Gerar PDF desta versão" (DOC-21); documento externo já é o próprio arquivo. */
+  readonly pdfEnabled: boolean;
 }) {
   const t = useTranslations('documents.versions');
   const format = useFormatter();
@@ -181,52 +189,63 @@ function VersionList({
         return (
           <li
             key={version.id}
-            className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4 sm:flex-row sm:items-start sm:justify-between"
+            className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4"
           >
-            <div className="flex min-w-0 flex-col gap-1">
-              <p className="font-medium">
-                <span>{t('number', { number: version.versionNumber })}</span>
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {t(`reasons.${version.reason}`)}
-                </span>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {t('by', {
-                  author: version.createdByName ?? t('unknownAuthor'),
-                  date: format.dateTime(new Date(version.createdAt), {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  }),
-                })}
-              </p>
-              <p className="text-sm break-words">
-                {version.changeSummary ?? (
-                  <span className="text-muted-foreground">
-                    {DOCUMENT_VERSION_MESSAGES.noSummary}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="font-medium">
+                  <span>{t('number', { number: version.versionNumber })}</span>
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {t(`reasons.${version.reason}`)}
                   </span>
-                )}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {t('hash')}{' '}
-                <code title={version.contentHash}>
-                  {version.contentHash.slice(0, DOCUMENT_VERSION_LIMITS.hashPrefix)}
-                </code>
-              </p>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {t('by', {
+                    author: version.createdByName ?? t('unknownAuthor'),
+                    date: format.dateTime(new Date(version.createdAt), {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    }),
+                  })}
+                </p>
+                <p className="text-sm break-words">
+                  {version.changeSummary ?? (
+                    <span className="text-muted-foreground">
+                      {DOCUMENT_VERSION_MESSAGES.noSummary}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('hash')}{' '}
+                  <code title={version.contentHash}>
+                    {version.contentHash.slice(0, DOCUMENT_VERSION_LIMITS.hashPrefix)}
+                  </code>
+                </p>
+              </div>
+              {previous ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    onCompare({ from: previous.id, to: version.id });
+                  }}
+                >
+                  {t('compareWithPrevious')}
+                  <span className="sr-only">
+                    {' '}
+                    {t('compareWithPreviousTarget', { number: version.versionNumber })}
+                  </span>
+                </Button>
+              ) : null}
             </div>
-            {previous ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  onCompare({ from: previous.id, to: version.id });
+            {pdfEnabled ? (
+              <GeneratePdfButton
+                source={{
+                  kind: 'version',
+                  versionId: version.id,
+                  versionNumber: version.versionNumber,
                 }}
-              >
-                {t('compareWithPrevious')}
-                <span className="sr-only">
-                  {' '}
-                  {t('compareWithPreviousTarget', { number: version.versionNumber })}
-                </span>
-              </Button>
+              />
             ) : null}
           </li>
         );

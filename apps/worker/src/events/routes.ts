@@ -220,4 +220,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     AttachmentUploaded: 'NO_ASYNC_CONSUMER',
     AttachmentRejected: ['attachment.rejected'],
     AttachmentDeleted: 'NO_ASYNC_CONSUMER',
+    // US-067: o PDF pronto só conta nas métricas (`document.*`) — o front acompanha por *polling*
+    // (DOC-22); a falha também avisa quem pediu (`DOCUMENT_RENDER_FAILED`).
+    DocumentRenditionReady: ['document.rendition_ready'],
+    DocumentRenditionFailed: ['document.rendition_failed'],
   };

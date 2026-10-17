@@ -102,4 +102,14 @@ export class DocumentApprovalRequestService implements DocumentApprovalRequester
       },
     });
   }
+
+  /** Selo de aprovação (US-067 · FA-02): a aprovação cobre a versão (`approval_documents`). */
+  coversDocumentVersion(
+    tx: TenantTx,
+    approvalId: string,
+    documentId: string,
+    documentVersionId: string,
+  ): Promise<boolean> {
+    return this.approvals.coversDocumentVersion(tx, approvalId, documentId, documentVersionId);
+  }
 }

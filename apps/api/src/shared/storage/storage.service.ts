@@ -58,6 +58,18 @@ export interface CopyObjectInput {
   readonly metadata: ObjectMetadata;
 }
 
+/** Gravação de um objeto gerado no servidor (PDF das renditions — storage.md §10). */
+export interface PutObjectInput {
+  readonly ref: ObjectRef;
+  readonly body: Buffer;
+  readonly contentType: string;
+  /** SHA-256 hex do corpo: o provedor confere a integridade (`x-amz-checksum-sha256`). */
+  readonly sha256: string;
+  readonly metadata: ObjectMetadata;
+  /** Tags do objeto (`cf-retention` — storage.md §4). */
+  readonly tags: Readonly<Record<string, string>>;
+}
+
 /** Adaptador do provedor (S3/MinIO — US-068): não sabe de tenant; a guarda fica no serviço. */
 export interface ObjectStorage {
   presignGet(
@@ -72,6 +84,8 @@ export interface ObjectStorage {
   openRead(ref: ObjectRef): Promise<Readable | null>;
   /** Cópia no servidor (promoção quarentena → `documents`), com checksum SHA-256. */
   copy(input: CopyObjectInput): Promise<void>;
+  /** Grava (ou sobrescreve) o objeto com checksum SHA-256 (US-067). */
+  putObject(input: PutObjectInput): Promise<void>;
   /** Idempotente: objeto ausente não é erro. */
   delete(ref: ObjectRef): Promise<void>;
 }
@@ -116,6 +130,10 @@ export class UnconfiguredObjectStorage implements ObjectStorage {
   }
 
   copy(): Promise<void> {
+    return Promise.reject(new StorageNotConfiguredError());
+  }
+
+  putObject(): Promise<void> {
     return Promise.reject(new StorageNotConfiguredError());
   }
 
@@ -168,6 +186,11 @@ export class StorageService {
     assertTenantStorageKey(input.from.key, 'copy');
     assertTenantStorageKey(input.to.key, 'copy');
     await this.storage.copy(input);
+  }
+
+  async putObject(input: PutObjectInput): Promise<void> {
+    assertTenantStorageKey(input.ref.key, 'put');
+    await this.storage.putObject(input);
   }
 
   async delete(ref: ObjectRef): Promise<void> {

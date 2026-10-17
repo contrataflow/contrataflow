@@ -90,6 +90,19 @@ export class PrismaApprovalRepository implements ApprovalRepository {
       createdById: row.createdById ?? row.requestedById,
     }));
   }
+
+  async coversDocumentVersion(
+    tx: TenantTx,
+    approvalId: string,
+    documentId: string,
+    documentVersionId: string,
+  ): Promise<boolean> {
+    const row = await tx.approvalDocument.findFirst({
+      where: { approvalId, documentId, documentVersionId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
 }
 
 /** Aprovações em memória (testes e modo de identidade fake): mesma regra de pendência única. */
@@ -122,6 +135,22 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
             row.tenantId === tenantId && row.processId === processId && row.status === 'PENDING',
         )
         .sort((a, b) => a.requestedAt.getTime() - b.requestedAt.getTime()),
+    );
+  }
+
+  coversDocumentVersion(
+    _tx: TenantTx,
+    approvalId: string,
+    documentId: string,
+    documentVersionId: string,
+  ): Promise<boolean> {
+    const tenantId = currentRequestContext()?.tenantId;
+    const approval = this.rows.get(approvalId);
+    if (approval?.tenantId !== tenantId) return Promise.resolve(false);
+    return Promise.resolve(
+      (this.coverage.get(approvalId) ?? []).some(
+        (item) => item.documentId === documentId && item.documentVersionId === documentVersionId,
+      ),
     );
   }
 

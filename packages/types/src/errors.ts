@@ -93,6 +93,8 @@ export const ERROR_CODES = [
   'STORAGE_QUOTA_EXCEEDED',
   // US-006: itens da contratação (api.md §2.2 · api/02-processes.md PRC-15/16).
   'ITEM_IN_USE',
+  // US-067: download de PDF antes de `READY` ou de prévia vencida (api/03-documents.md DOC-23).
+  'RENDITION_NOT_READY',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

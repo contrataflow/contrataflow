@@ -17,6 +17,7 @@ export const TENANT_SCOPED_MODELS = [
   'CatalogItem',
   'Department',
   'Document',
+  'DocumentRendition',
   'DocumentTemplate',
   'DocumentTemplateVersion',
   'DocumentType',

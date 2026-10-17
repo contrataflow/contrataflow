@@ -111,6 +111,46 @@
     "unexpected": "Ocorreu um erro inesperado.",
     "retry": "Tentar novamente"
   },
+  "renditions": {
+    "status": {
+      "PENDING": "Gerando PDF…",
+      "PROCESSING": "Gerando PDF…",
+      "READY": "PDF pronto",
+      "FAILED": "Falha ao gerar",
+      "EXPIRED": "Prévia expirada"
+    },
+    "generate": {
+      "preview": "Gerar prévia em PDF",
+      "version": "Gerar PDF desta versão",
+      "again": {
+        "preview": "Gerar nova prévia",
+        "version": "Gerar novamente"
+      }
+    },
+    "target": "(versão {number})",
+    "retry": "Tentar novamente",
+    "download": "Baixar PDF",
+    "downloading": "Preparando o download…",
+    "previewExpiredAction": "Prévia expirada — gere novamente",
+    "panel": {
+      "label": "Resumo do PDF gerado",
+      "pages": "Páginas",
+      "size": "Tamanho",
+      "hash": "SHA-256",
+      "validUntil": "Válida até",
+      "previewNote": "A prévia reflete o rascunho no momento do pedido e fica disponível por {hours} horas.",
+      "masked": "Valores sigilosos ocultos neste PDF",
+      "units": {
+        "B": "{value} B",
+        "KB": "{value} KB",
+        "MB": "{value} MB"
+      }
+    },
+    "errors": {
+      "forbidden": "Você não tem permissão para baixar este PDF.",
+      "unexpected": "Ocorreu um erro inesperado."
+    }
+  },
   "versions": {
     "save": "Salvar versão",
     "saved": "Versão {number} salva",

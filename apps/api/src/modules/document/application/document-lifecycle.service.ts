@@ -117,6 +117,20 @@ export class DocumentLifecycleService {
     return context;
   }
 
+  /**
+   * Contexto do documento SEM a checagem de visibilidade (worker `document-render` — US-067: a
+   * visibilidade foi conferida no pedido). `null` = documento excluído ou de outro tenant.
+   */
+  async loadInternal(tx: TenantTx, documentId: string): Promise<DocumentContext | null> {
+    const document = await this.documents.findById(tx, documentId);
+    return document === null ? null : this.loadFor(tx, document);
+  }
+
+  /** Versão de template pelo id (a versão do documento aponta a usada no snapshot). */
+  findTemplateVersion(tx: TenantTx, id: string): Promise<DocumentTemplateVersion | null> {
+    return this.templates.findVersionById(tx, id);
+  }
+
   /** Como `load`, para um documento já lido (sem a checagem de visibilidade — chamadas internas). */
   async loadFor(tx: TenantTx, document: Document): Promise<DocumentContext> {
     const process = await this.processes.load(tx, document.processId);
@@ -423,35 +437,7 @@ export class DocumentLifecycleService {
       contentHash = previous.contentHash;
       attachmentId = previous.attachmentId;
     } else {
-      const parts = await this.typedParts(tx, context);
-      const { process, template } = context;
-      content = buildDocumentSnapshot({
-        document,
-        type: { code: context.type.code, kind: context.type.kind },
-        template:
-          template === null
-            ? null
-            : {
-                templateId: template.templateId,
-                versionId: template.id,
-                versionNumber: template.versionNumber,
-              },
-        process: {
-          id: process.id,
-          code: process.code,
-          title: process.title,
-          object: process.object,
-          organizationName: process.organizationName,
-          organizationCnpj: process.organizationCnpj,
-          requestingSecretariatName: process.requestingSecretariatName,
-          requestingDepartmentName: process.requestingDepartmentName,
-          isBudgetConfidential: process.isBudgetConfidential,
-        },
-        versionNumber: input.versionNumber,
-        header: parts?.header ?? {},
-        collections: parts?.collections ?? {},
-        generatedAt: input.now,
-      });
+      content = await this.snapshotOf(tx, context, document, input.versionNumber, input.now);
       contentHash = snapshotHash(content);
     }
     const version: DocumentVersionRecord = {
@@ -482,6 +468,48 @@ export class DocumentLifecycleService {
       'document.version_create',
     );
     return version;
+  }
+
+  /**
+   * Snapshot (§5.3.2) do documento informado — cabeçalho tipado e coleções do módulo dono no `tx`.
+   * Base da versão (`createVersion`) e da prévia em PDF do rascunho atual (US-067 · RN-DOC-65).
+   */
+  async snapshotOf(
+    tx: TenantTx,
+    context: DocumentContext,
+    document: Document,
+    versionNumber: number,
+    now: Date,
+  ): Promise<DocumentSnapshot> {
+    const parts = await this.typedParts(tx, context);
+    const { process, template } = context;
+    return buildDocumentSnapshot({
+      document,
+      type: { code: context.type.code, kind: context.type.kind },
+      template:
+        template === null
+          ? null
+          : {
+              templateId: template.templateId,
+              versionId: template.id,
+              versionNumber: template.versionNumber,
+            },
+      process: {
+        id: process.id,
+        code: process.code,
+        title: process.title,
+        object: process.object,
+        organizationName: process.organizationName,
+        organizationCnpj: process.organizationCnpj,
+        requestingSecretariatName: process.requestingSecretariatName,
+        requestingDepartmentName: process.requestingDepartmentName,
+        isBudgetConfidential: process.isBudgetConfidential,
+      },
+      versionNumber,
+      header: parts?.header ?? {},
+      collections: parts?.collections ?? {},
+      generatedAt: now,
+    });
   }
 
   nextVersionNumber(tx: TenantTx, documentId: string): Promise<number> {

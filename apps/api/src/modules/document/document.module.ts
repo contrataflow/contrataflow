@@ -36,6 +36,7 @@ import { DocumentFacade } from './application/document.facade.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './application/document.ports.js';
 import { DocumentQueries } from './application/document.queries.js';
 import { ListDocumentTypesQuery } from './application/list-document-types.query.js';
+import { PdfRendererCircuit } from './application/pdf-renderer-circuit.js';
 import {
   DOCUMENT_CLOCK,
   DOCUMENT_COUNTER,
@@ -44,6 +45,20 @@ import {
 } from './application/ports.js';
 import { PreviewDocumentTypeImpactQuery } from './application/preview-document-type-impact.query.js';
 import { GetProcessDocumentsHandler } from './application/process-documents.query.js';
+import { RenderDocumentJob } from './application/render-document.job.js';
+import { RenderDocumentProcessor } from './application/render-document.processor.js';
+import { RenditionAccess } from './application/rendition-access.js';
+import {
+  RequestPreviewCommand,
+  RequestRenditionCommand,
+} from './application/rendition.commands.js';
+import {
+  DOCUMENT_RENDITION_REPOSITORY,
+  PDF_RENDERER,
+  RENDITION_SETTINGS,
+} from './application/rendition.ports.js';
+import type { RenditionSettings } from './application/rendition.ports.js';
+import { GetRenditionDownloadQuery, GetRenditionQuery } from './application/rendition.queries.js';
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { TemplateContext } from './application/template-context.js';
@@ -62,12 +77,15 @@ import { TEMPLATE_LIBRARY, TEMPLATE_REPOSITORY } from './application/template.po
 import { TemplateQueries } from './application/template.queries.js';
 import { UpdateDocumentTypeCommand } from './application/update-document-type.command.js';
 import { TEMPLATE_LIBRARY as TEMPLATE_LIBRARY_FIXTURE } from './domain/template-library.js';
+import { GotenbergClient, UnconfiguredPdfRenderer } from './infrastructure/gotenberg.client.js';
+import { InMemoryDocumentRenditionRepository } from './infrastructure/in-memory-document-rendition.repository.js';
 import {
   InMemoryDocumentTransactions,
   InMemoryDocumentTypeRepository,
 } from './infrastructure/in-memory-document-type.repository.js';
 import { InMemoryDocumentRepository } from './infrastructure/in-memory-document.repository.js';
 import { InMemoryTemplateRepository } from './infrastructure/in-memory-template.repository.js';
+import { PrismaDocumentRenditionRepository } from './infrastructure/prisma-document-rendition.repository.js';
 import {
   PrismaDocumentTransactions,
   PrismaDocumentTypeRepository,
@@ -78,11 +96,17 @@ import { DocumentTypeController } from './presentation/document-type.controller.
 import { DocumentVersionController } from './presentation/document-version.controller.js';
 import { DocumentController } from './presentation/document.controller.js';
 import { ProcessDocumentsController } from './presentation/process-documents.controller.js';
+import {
+  DocumentPreviewController,
+  DocumentRenditionController,
+  DocumentVersionRenditionController,
+} from './presentation/rendition.controller.js';
 import { TemplateController } from './presentation/template.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
+import { TenancyModule } from '../tenancy/tenancy.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): tipos em memória. */
 const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
@@ -96,7 +120,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * processo chega pela porta `DocumentProcessContextRegistry`, implementada por `process`; a
  * aprovação avulsa, pela `DocumentApprovalRegistry`, implementada por `approval`). Autorização e MFA vêm de `access`/`identity`;
  * a verificação de uso em fluxos publicados, da porta `DocumentTypeUsageProvider` (implementada
- * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040).
+ * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040). Dono das
+ * renditions em PDF (US-067: DOC-20..23 e o `RenderDocumentJob` da fila `document-render`).
  */
 @Module({
   imports: [
@@ -104,6 +129,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CatalogModule,
     IdentityModule,
     OrganizationModule,
+    TenancyModule,
     DocumentTypeUsageModule,
     DocumentTypeCatalogModule,
     DocumentProcessContextModule,
@@ -117,6 +143,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentController,
     DocumentVersionController,
     ProcessDocumentsController,
+    DocumentPreviewController,
+    DocumentVersionRenditionController,
+    DocumentRenditionController,
   ],
   providers: [
     DocumentFacade,
@@ -205,6 +234,45 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     // US-062: painel de documentos do processo (DOC-01).
     GetProcessDocumentsHandler,
     { provide: DOCUMENT_CLOCK, useValue: () => new Date() },
+    // US-067: PDFs (DOC-20..23) e o `document-render` (consumido pelo worker, como o `file-scan`).
+    RenditionAccess,
+    RequestPreviewCommand,
+    RequestRenditionCommand,
+    GetRenditionQuery,
+    GetRenditionDownloadQuery,
+    PdfRendererCircuit,
+    RenderDocumentProcessor,
+    RenderDocumentJob,
+    PrismaDocumentRenditionRepository,
+    {
+      provide: InMemoryDocumentRenditionRepository,
+      useFactory: () => new InMemoryDocumentRenditionRepository(),
+    },
+    {
+      provide: DOCUMENT_RENDITION_REPOSITORY,
+      inject: [APP_CONFIG, PrismaDocumentRenditionRepository, InMemoryDocumentRenditionRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaDocumentRenditionRepository,
+        memory: InMemoryDocumentRenditionRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PDF_RENDERER,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) =>
+        config.pdf === null ? new UnconfiguredPdfRenderer() : new GotenbergClient(config.pdf),
+    },
+    {
+      provide: RENDITION_SETTINGS,
+      // queues.md §4.4/§10.1: 5 tentativas, base 5 s; trava = timeout do job (60 s).
+      useValue: {
+        attempts: 5,
+        backoffMs: 5_000,
+        leaseMs: 60_000,
+        timeZone: 'America/Sao_Paulo',
+      } satisfies RenditionSettings,
+    },
   ],
   exports: [DocumentFacade, DocumentTypeFacade],
 })

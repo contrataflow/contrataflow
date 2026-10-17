@@ -977,12 +977,14 @@ Concessões de visibilidade (DEC-024), mantidas na mesma transação.
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
 | `id`, `tenantId` | uuid | não | — | |
+| `processId` | uuid | não | — | Processo do documento (chave de storage, auditoria e evento — US-067) |
 | `documentId` | uuid | não | — | |
 | `documentVersionId` | uuid | sim | — | Nulo em `PREVIEW` de rascunho |
 | `draftRevision` | int | sim | — | Revisão do rascunho (PREVIEW) |
 | `approvalId` | uuid | sim | — | `APPROVAL_STAMPED` |
 | `kind` | RenditionKind | não | — | |
 | `status` | RenditionStatus | não | `PENDING` | |
+| `masked` | boolean | não | `false` | POL-09: PDF gerado com os valores sigilosos ocultos (decidido no pedido, pelo solicitante — US-067) |
 | `storageKey` | varchar(512) | sim | — | |
 | `sha256` | varchar(64) | sim | — | Hash do PDF |
 | `sizeBytes` | bigint | sim | — | |
@@ -995,9 +997,11 @@ Concessões de visibilidade (DEC-024), mantidas na mesma transação.
 | `startedAt` / `readyAt` | timestamptz | sim | — | |
 | `expiresAt` | timestamptz | sim | — | `PREVIEW`: +24 h |
 | `createdAt`, `updatedAt` | timestamptz | não | — | |
+| `version` | int | não | `1` | Gravação condicional da trava do worker (US-067) |
 
-- **Unique:** `(tenant_id, document_version_id) WHERE kind = 'CONTENT'`; `(tenant_id, document_version_id, approval_id) WHERE kind = 'APPROVAL_STAMPED'`.
-- **Índices:** `(tenant_id, document_id, kind, created_at DESC)`; `(status, requested_at) WHERE status IN ('PENDING','PROCESSING')`.
+- **Unique:** `(tenant_id, document_version_id, masked) WHERE kind = 'CONTENT' AND status <> 'FAILED'`; `(tenant_id, document_version_id, approval_id, masked) WHERE kind = 'APPROVAL_STAMPED' AND status <> 'FAILED'` — um PDF por versão (e por par versão × aprovação) em cada forma de POL-09; a falha não ocupa o lugar ("Tentar novamente" cria outra linha). Decidido na US-067 (2026-10-17).
+- **Índices:** `(tenant_id, document_id, kind, created_at DESC)`; `(status, requested_at) WHERE status IN ('PENDING','PROCESSING')`; `(tenant_id, expires_at) WHERE kind = 'PREVIEW' AND status <> 'EXPIRED'` (`previews-expire`).
+- **Gatilho `document_renditions_guard`:** `PENDING → PROCESSING | FAILED | EXPIRED`, `PROCESSING → READY | FAILED | EXPIRED`, `READY → EXPIRED` (só `PREVIEW`); origem, tipo, `masked` e solicitante imutáveis; PDF `READY` de escrita única. Sem DELETE.
 
 #### DocumentItem (`document_items`) — módulo `document` · Padrão
 Linha de item em um documento (DFD, ETP, TR).

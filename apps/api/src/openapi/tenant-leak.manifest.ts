@@ -136,6 +136,9 @@ const DOCUMENT_ROUTE =
 const DOCUMENT_VERSION_ROUTE =
   'Versões de documento (US-066): a suíte genérica não tem documento nem versão do tenant B. O isolamento (DOC-15/16/18 com id de documento de B e DOC-17 com id de versão de B → 404 NOT_FOUND; DOC-18 com versão de B num documento de A → 422 REFERENCE_NOT_FOUND, sem revelar nada; RLS e gatilho só-INSERT de document_versions) é coberto em test/tenant-leak/document-versions.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/document-versions.routes.spec.ts.';
 
+const DOCUMENT_RENDITION_ROUTE =
+  'PDFs de documento (US-067): a suíte genérica não tem documento, versão nem rendition do tenant B. O isolamento (DOC-20 com documento de B, DOC-21 com versão de B e DOC-22/23 com rendition de B → 404 NOT_FOUND sem revelar nada; RLS, índices únicos parciais e gatilho de document_renditions) é coberto em test/tenant-leak/document-renditions.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/renditions.routes.spec.ts.';
+
 const DOCUMENT_PANEL_ROUTE =
   'Painel de documentos (US-062): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-01 com processo de outro tenant → 404 PROCESS_NOT_FOUND igual ao inexistente, sem revelar nada; RLS de documents na consulta do painel; processo não visível → 404 com access.denied) é coberto em test/tenant-leak/process-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/process-documents.routes.spec.ts.';
 
@@ -265,6 +268,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-16': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
   'DOC-17': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
   'DOC-18': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
+  'DOC-20': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
+  'DOC-21': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
+  'DOC-22': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
+  'DOC-23': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

@@ -400,7 +400,7 @@
   | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
   | 422 | `VALIDATION_ERROR` | Sem `DocumentVersion` correspondente (`REFERENCE_NOT_FOUND`) |
 - **Efeitos:** Auditoria `document.render_request`: `metadata.kind`, `documentVersionId?`. Eventos assíncronos (worker): `DocumentRenditionReady`/`DocumentRenditionFailed`.
-- **Notas:** Mesma classe de limite de `DOC-20` (20 req/min). `RenditionKind` = `PREVIEW`\|`CONTENT`\|`APPROVAL_STAMPED`\|`SIGNED` (entities.md; `SIGNED` reservado a MVP futuro).
+- **Notas:** Equivalente = mesma versão, `kind`, `approvalId` e forma de POL-09 (`masked`: quem não pode ver o orçamento sigiloso recebe o PDF com os valores ocultos); `FAILED` não conta ("Tentar novamente" gera outra). `approvalId` que não cobre a versão → 422 `REFERENCE_NOT_FOUND`; documento externo → 422 `NOT_ALLOWED`. Mesma classe de limite de `DOC-20` (20 req/min). `RenditionKind` = `PREVIEW`\|`CONTENT`\|`APPROVAL_STAMPED`\|`SIGNED` (entities.md; `SIGNED` reservado a MVP futuro).
 
 ### DOC-22 — Consultar status de uma renderização
 `GET /api/v1/document-renditions/{renditionId}` · **Permissão:** `PROCESS_VIEW` (+POL-09) · **Story:** US-067
@@ -428,6 +428,8 @@
   | 403 | `PERMISSION_DENIED` | Sem acesso ao documento |
   | 404 | `NOT_FOUND` | Rendition inexistente/outro tenant |
   | 409 | `RENDITION_NOT_READY` | Download antes de `READY` ou prévia expirada |
+  | 403 | `PERMISSION_DENIED` | PDF completo (`masked = false`) de conteúdo sigiloso para quem não atende POL-09 |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Auditoria ou storage indisponível (nunca URL sem trilha) |
 - **Efeitos:** Auditoria `document.download` (`EXPORT`): `metadata.renditionId`, `kind`.
 - **Notas:** Mesma classe de limite de renderização (20 req/min) por reuso do fluxo de exportação.
 

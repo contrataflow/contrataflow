@@ -1,4 +1,5 @@
 export * from './document.js';
+export * from './document-rendition.js';
 export * from './document-type.js';
 export * from './document-version.js';
 export * from './events.js';

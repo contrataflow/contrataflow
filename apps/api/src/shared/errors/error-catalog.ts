@@ -405,6 +405,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Anexo indisponível',
     detail: 'O anexo ainda não está disponível.',
   },
+  RENDITION_NOT_READY: {
+    status: 409,
+    title: 'PDF indisponível',
+    detail: 'O PDF ainda está sendo gerado. Aguarde.',
+  },
   STORAGE_QUOTA_EXCEEDED: {
     status: 422,
     title: 'Limite de armazenamento atingido',

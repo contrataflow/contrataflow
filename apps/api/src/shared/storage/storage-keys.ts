@@ -73,6 +73,33 @@ export const StorageKeyBuilder = {
       'content.pdf',
     );
   },
+
+  /**
+   * PDF de uma versão com nome discriminado (US-067): `content.pdf`, `content-masked.pdf` (POL-09),
+   * `approval-stamped-{approvalId}[-masked].pdf` — sob `…/versions/{n}/renditions/`.
+   */
+  versionRendition(
+    processId: string,
+    documentId: string,
+    versionNumber: number,
+    fileName: string,
+  ): string {
+    return StorageKeyBuilder.build(
+      'processes',
+      processId,
+      'documents',
+      documentId,
+      'versions',
+      versionNumber,
+      'renditions',
+      fileName,
+    );
+  },
+
+  /** Prévia do rascunho (US-067): `tenants/{tenantId}/previews/{documentId}/{renditionId}.pdf`. */
+  documentPreview(documentId: string, renditionId: string): string {
+    return StorageKeyBuilder.build('previews', documentId, `${renditionId}.pdf`);
+  },
 } as const;
 
 /**

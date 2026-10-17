@@ -57,6 +57,8 @@ export const DOMAIN_EVENT_NAMES = [
   'AttachmentUploaded',
   'AttachmentRejected',
   'AttachmentDeleted',
+  'DocumentRenditionReady',
+  'DocumentRenditionFailed',
 ] as const satisfies readonly string[];
 
 export type DomainEventName = (typeof DOMAIN_EVENT_NAMES)[number];

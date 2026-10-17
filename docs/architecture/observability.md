@@ -390,6 +390,7 @@ Regras como código: `infra/observability/rules/alerts.rules.yml` (A01, A02, A04
 | A15 | ClamAV indisponível | `cf_clamav_up == 0` por 5 min ou breaker aberto | Alto | Plantão | [RB-05](#rb-05--clamav-indisponível) |
 | A16 | Base de assinaturas desatualizada | `cf_clamav_signature_age_seconds > 86400` | Médio | `#cf-alertas` | RB-05 |
 | A17 | Anexo preso na verificação | `cf_attachments_stuck > 0` por 30 min | Alto | Plantão | [RB-13](#rb-13--anexo-preso-em-scanning) |
+| A28 | Rendition presa | `DocumentRendition` em `PENDING`/`PROCESSING` há mais de 10 min (consulta do RB-14; gauge `cf_renditions_stuck` — **(proposta)**) | Alto | Plantão | [RB-14](#rb-14--rendition-presa) |
 | A18 | Malware detectado | Aumento de `cf_file_scan_results_total{result="infected"}` | Informativo | `#cf-seguranca` | — |
 | A19 | Violação de isolamento | Aumento de `cf_tenant_isolation_violations_total{barrier}` (extensão do Prisma, RLS, storage, cache, job, contexto) ou de `cf_tenant_context_missing_total` (US-100) | Crítico | Plantão + `#cf-seguranca` | [RB-10](#rb-10--suspeita-de-vazamento-entre-tenants) |
 | A20 | Falha de fixidez | `cf_storage_fixity_failures_total > 0` | Crítico | `#cf-seguranca` | [security.md](security.md) |
@@ -461,7 +462,7 @@ service:
 
 ## 12. Runbooks iniciais
 
-Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants; o RB-13, o do anexo preso na verificação (US-068).
+Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants; o RB-13, o do anexo preso na verificação (US-068); o RB-14, o da rendition de PDF presa (US-067).
 
 ### RB-06 — Indisponibilidade ou 5xx da API
 *Mínimo da US-085; aprofundar após o primeiro exercício em homologação.*
@@ -535,6 +536,19 @@ Estrutura padrão: alertas → impacto → diagnóstico → mitigação → vali
 - **Mitigação:** ClamAV fora → RB-05 (a fila volta sozinha quando o disjuntor fecha). Job ausente/na DLQ → reenfileirar `file-scan` com `jobId = attachmentId` (RB-11, `cli dlq:retry` ou o reconciliador). S3/banco → restaurar a dependência. **Nunca** atualizar `status` para `AVAILABLE` à mão — o gatilho `attachments_guard` e o CHECK `attachments_available_scanned` recusam, e contornar seria liberar arquivo sem antivírus.
 - **Validação:** a consulta do passo 1 volta vazia; `attachment.scan_completed` para os IDs afetados; `cf_attachment_scans_total{result="DEFERRED"}` parou de crescer.
 - **Pós-incidente:** anexos rejeitados por expiração da quarentena → avisar quem enviou para reenviar; revisar a capacidade do clamd e a concorrência de `file-scan` (3 por tenant).
+
+### RB-14 — Rendition presa
+*US-067. A linha `DocumentRendition` é a "outbox do trabalho" do `document-render` (padrão B): só vira `READY` com o PDF gravado e conferido (CHECK `document_renditions_ready_complete`).*
+- **Alertas:** A28; costuma vir junto de A11 (breaker do Gotenberg) ou A08–A10 (DLQ).
+- **Impacto:** o usuário vê "Gerando PDF…" sem fim; DOC-23 responde 409 `RENDITION_NOT_READY`. Nada é perdido: o pedido continua registrado.
+- **Diagnóstico:**
+  1. Quantas e desde quando (papel somente leitura): `SELECT tenant_id, kind, status, count(*), min(requested_at) FROM document_renditions WHERE status IN ('PENDING','PROCESSING') AND requested_at < now() - interval '10 minutes' GROUP BY 1, 2, 3;` (índice parcial `document_renditions_pending_idx`).
+  2. Quem detém a renderização: `status = 'PROCESSING'` com `attempts` = tentativa da última entrega e `started_at` recente = em curso; `started_at` mais velho que 60 s (ou nulo — trava devolvida pelo disjuntor) = a próxima entrega assume.
+  3. Logs: `document.render_retry` (`errorClass = RendererCircuitOpen` → breaker do Gotenberg, siga o RB-03; `PdfRendererUnavailableError` → Gotenberg 5xx/timeout; outra classe → S3/MinIO ou banco), `document.render_failed` (permanente ou tentativas esgotadas — a linha já está `FAILED`), `document.render_enqueue_deferred` (o pedido não conseguiu enfileirar — Redis de filas).
+  4. Job no Bull Board/CLI (RB-11): `document-render` com `jobId = renditionId` — ausente (nunca enfileirado), em espera/adiado (disjuntor) ou na DLQ.
+- **Mitigação:** Gotenberg fora → RB-03 (a fila volta sozinha quando o disjuntor fecha). Job ausente → reenfileirar `document-render` com `jobId = renditionId` e o payload de queues.md §4.4 (RB-11 ou o reconciliador); um novo DOC-21 equivalente também reenfileira a `PENDING` reaproveitada. Prévia: o usuário pode simplesmente pedir outra. **Nunca** marcar `READY` à mão — o gatilho e o CHECK recusam, e o hash do PDF precisa vir dos bytes gravados.
+- **Validação:** a consulta do passo 1 volta vazia; `document.render_completed` para os IDs afetados; `cf_document_renders_total{result="DEFERRED"}` parou de crescer.
+- **Pós-incidente:** revisar a capacidade do Gotenberg e a concorrência de `document-render` (2 por tenant — queues.md §4.4); classe permanente recorrente vira validação de template/layout.
 
 ### RB-11 — Operação das filas (Bull Board e CLI de reprocessamento)
 Entregável da US-083 ([queues.md](queues.md) §5.6, §11, §12 e §15.1). Para o time de suporte e plantão de plataforma.

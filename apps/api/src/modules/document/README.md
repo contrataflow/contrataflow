@@ -137,6 +137,40 @@ genéricas — a ausência de registro nunca falha a ação.
   (8 categorias do Gherkin) e `test/tenant-leak/document-versions.spec.ts` (PostgreSQL: `FOR UPDATE`,
   gatilho só-INSERT, RLS, outbox `PENDING`).
 
+## PDFs dos documentos (US-067 · RN-DOC-63..70 · ADR-007)
+
+- **Rotas** (`presentation/rendition.controller.ts`): DOC-20 `POST /documents/{id}/preview`, DOC-21
+  `POST /document-versions/{versionId}/renditions` (`{ kind: CONTENT|APPROVAL_STAMPED, approvalId? }`),
+  DOC-22 `GET /document-renditions/{id}`, DOC-23 `GET …/download`. `PROCESS_VIEW` na rota; o caso de
+  uso confere o documento (DEC-024 — 404). Classe de limite `export` (20/min). DOC-21 responde 202
+  (nova) ou 200 (equivalente reaproveitada) via `WithHttpStatus` do `EnvelopeInterceptor`.
+- **Pedido** (`application/rendition.commands.ts`): uma transação — `DocumentRendition` `PENDING`
+  - auditoria `document.render_request` (`reused`); depois do commit, `document-render` com
+    `jobId = renditionId` (prévia prioridade 1; versão 5). Fila fora → fica `PENDING` (reconciliador;
+    um DOC-21 equivalente também reenfileira). Prévia nunca reaproveita (cada clique gera a sua).
+- **POL-09 decidido no pedido:** `masked = true` quando o processo é (ou era, na versão) sigiloso e
+  quem pede não pode ver o orçamento (`RenditionAccess.maskRequired`). O worker só aplica
+  `maskConfidentialSnapshot`. Equivalência de FA-01 inclui `masked` (índices únicos parciais por
+  versão × `masked`, sem `FAILED`); DOC-23 de PDF completo de conteúdo sigiloso sem POL-09 → 403.
+- **Worker** (`RenderDocumentJob` → `RenderDocumentProcessor`, padrão do `ScanFileJob`): trava
+  condicional por `version` (`canClaim`: `PENDING`, tentativa anterior ou trava vencida de 60 s) →
+  snapshot da versão ou `DocumentLifecycleService.snapshotOf` do rascunho → `buildRenditionHtml`
+  (`domain/rendition-html.ts`: `packages/editor` `richTextToHtml`, variáveis do layout, marca d’água
+  na prévia, hash da versão no rodapé) → Gotenberg (`infrastructure/gotenberg.client.ts`) →
+  `inspectPdf` (SHA-256/tamanho/páginas) → `StorageService.putObject` (bucket `renditions`,
+  `cf-retention`) → `READY` + `DocumentRenditionReady`. Erros (`RenderDeferredError` sem consumir
+  tentativa com o disjuntor ABERTO; `RenderRetryableError` transitório; `RenderFailedError` depois de
+  gravar `FAILED` + `DocumentRenditionFailed` — permanente ou última tentativa). Disjuntor:
+  `PdfRendererCircuit` = `DependencyCircuit` do shared kernel (o mesmo do ClamAV).
+- **Worker app:** `RenditionRequesterLookup` (destinatário de `DOCUMENT_RENDER_FAILED`) e a tarefa
+  diária `previews-expire`. Como o `file-scan`, o consumidor real da fila entra quando o worker
+  carregar os módulos da API (traduzir `consumesAttempt`/`permanent` e a concorrência 2/tenant).
+- **Banco:** migração `20261017120000_document_renditions` (gatilho `document_renditions_guard`,
+  CHECKs de forma/`READY` completo/chave no prefixo do tenant, RLS, sem DELETE). Testes:
+  `domain/document-rendition.spec.ts`, `domain/rendition-html.spec.ts`, `domain/pdf-inspection.spec.ts`,
+  `infrastructure/gotenberg.client.spec.ts`, `presentation/renditions.routes.spec.ts` (8 categorias
+  do Gherkin) e `test/tenant-leak/document-renditions.spec.ts` (PostgreSQL).
+
 ## Biblioteca padrão de templates (US-110 · RN-TPL-28..36)
 
 - **Fixture:** `domain/template-library.ts` (`TEMPLATE_LIBRARY`, versão `TEMPLATE_LIBRARY_VERSION`) —

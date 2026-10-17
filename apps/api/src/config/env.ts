@@ -212,6 +212,9 @@ export const envSchema = z
     CLAMAV_HOST: optionalText,
     CLAMAV_PORT: z.coerce.number().int().min(1).max(65_535).default(3310),
     CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(60_000),
+    /** Gotenberg (HTML → PDF, US-067 · ADR-007); ausente = renderização pausada (sem PDF). */
+    GOTENBERG_URL: optionalUrl,
+    GOTENBERG_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
     /** Limite técnico de armazenamento por tenant (storage.md §8 · PEND-17 — proposta 50 GB). */
     STORAGE_TENANT_QUOTA_GB: z.coerce.number().int().min(1).max(100_000).default(50),
   })
@@ -381,6 +384,11 @@ export interface AppConfig {
     readonly port: number;
     readonly timeoutMs: number;
   } | null;
+  /** Gotenberg (US-067); `null` = `document-render` pausado até a configuração. */
+  readonly pdf: {
+    readonly gotenbergUrl: string;
+    readonly timeoutMs: number;
+  } | null;
 }
 
 export interface S3Config {
@@ -500,6 +508,10 @@ function toAppConfig(env: Env): AppConfig {
       env.CLAMAV_HOST === undefined
         ? null
         : { host: env.CLAMAV_HOST, port: env.CLAMAV_PORT, timeoutMs: env.CLAMAV_TIMEOUT_MS },
+    pdf:
+      env.GOTENBERG_URL === undefined
+        ? null
+        : { gotenbergUrl: env.GOTENBERG_URL, timeoutMs: env.GOTENBERG_TIMEOUT_MS },
   };
 }
 

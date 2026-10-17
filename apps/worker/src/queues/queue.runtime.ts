@@ -43,10 +43,12 @@ import { PlatformAuditWriter } from '../admin/platform-audit.js';
 import type { RunningDashboard } from '../admin/queue-dashboard.js';
 import { startQueueDashboard } from '../admin/queue-dashboard.js';
 import { AuditSealer } from '../audit/audit-sealer.js';
+import { RenditionRequesterLookup } from '../documents/rendition-requester.lookup.js';
 import { AttachmentUploaderLookup } from '../files/attachment-uploader.lookup.js';
 import { AiProposalsExpireTask } from '../maintenance/ai-proposals-expire.js';
 import { AttachmentsAbandonTask } from '../maintenance/attachments-abandon.js';
 import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.js';
+import { PreviewsExpireTask } from '../maintenance/previews-expire.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
 import { EmailSender } from '../notifications/email/email-sender.js';
 import { EmailTemplateRegistry } from '../notifications/email/email-templates.js';
@@ -166,20 +168,23 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
           new AiProposalsExpireTask(),
           // US-068 · RN-DOC-78: intenções de upload abandonadas há mais de 24 h.
           new AttachmentsAbandonTask(),
+          // US-067 · RN-DOC-68: prévias em PDF vencidas.
+          new PreviewsExpireTask(),
         ]),
       );
     const producer = this.producerInstance;
     // US-111: as fontes que dependem de outros módulos entram com as stories donas — visibilidade
     // do processo (`ProcessAccess`, US-001/US-012), permissão por escopo (US-096) e os `lookups`
     // de processo, aprovação, anexo e renderização. Sem a fonte, o destinatário não é resolvido.
-    // US-068: quem enviou o anexo rejeitado (`ATTACHMENT_UPLOADER`).
+    // US-068: quem enviou o anexo rejeitado (`ATTACHMENT_UPLOADER`); US-067: quem pediu o PDF que
+    // falhou (`RENDITION_REQUESTER`).
     // Um handler já registrado para a fila (testes de integração do runtime) prevalece.
     if (!this.registry.isHandled('notifications', 'event')) {
       this.registry.register(
         new NotificationDispatcher({
           directory: new SqlNotificationDirectory(),
           preferences: new SqlNotificationPreferences(),
-          lookups: [new AttachmentUploaderLookup()],
+          lookups: [new AttachmentUploaderLookup(), new RenditionRequesterLookup()],
           email: {
             enqueue: (notificationId) =>
               producer.enqueue(

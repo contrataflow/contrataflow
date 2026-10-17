@@ -234,7 +234,8 @@ Descartado: bucket único com prefixos — filtros de lifecycle por prefixo são
 | documents | `tenants/{tenantId}/processes/{processId}/attachments/{attachmentId}/{nome-sanitizado}` | Anexos com `processId` (todos os `AttachmentTargetType` de processo: `PROCESS`, `DOCUMENT`, `DOCUMENT_VERSION`, `PRICE_SOURCE`, `COMMENT`, `MOVEMENT`, `RISK`) — `Attachment.storageKey` |
 | documents | `tenants/{tenantId}/assets/{attachmentId}/{nome-sanitizado}` | Ativos sem processo: `TENANT_ASSET` (logo, timbre, brasão — `branding.logoAttachmentId`, `LayoutDefinition.logo`) e `TEMPLATE_VERSION` |
 | renditions | `tenants/{tenantId}/processes/{processId}/documents/{documentId}/versions/{versionNumber}/renditions/content.pdf` | `CONTENT` (uma por versão — *unique* em entities.md) |
-| renditions | `…/versions/{versionNumber}/renditions/approval-stamped-{approvalId}.pdf` | `APPROVAL_STAMPED` (uma por versão × aprovação; a mesma versão pode ser aprovada mais de uma vez — DEC-018) |
+| renditions | `…/versions/{versionNumber}/renditions/content-masked.pdf` | `CONTENT` com os valores sigilosos ocultos (POL-09 — quem pediu não pode ver o orçamento; US-067) |
+| renditions | `…/versions/{versionNumber}/renditions/approval-stamped-{approvalId}.pdf` | `APPROVAL_STAMPED` (uma por versão × aprovação; a mesma versão pode ser aprovada mais de uma vez — DEC-018); `-masked` no fim do nome para a forma com POL-09 |
 | renditions | `…/versions/{versionNumber}/renditions/signed-{signatureRequestId}.pdf` | `SIGNED` (MVP 3) |
 | renditions | `tenants/{tenantId}/previews/{documentId}/{renditionId}.pdf` | `PREVIEW` de rascunho (por `draftRevision`), tag `cf-retention=ephemeral` |
 | renditions | `tenants/{tenantId}/template-previews/{templateVersionId}/{renditionId}.pdf` | `PREVIEW` de template (US-109; estado efêmero em Redis, sem linha em `document_renditions`), tag `cf-retention=ephemeral` |

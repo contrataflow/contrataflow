@@ -15,6 +15,7 @@ import { useTenantId } from '@/lib/session/session-context';
 import { DocumentLifecycle } from './document-lifecycle';
 import { DocumentStatusBadge, PendingApprovalBadge } from './document-status-badge';
 import { documentKeys, documentVersionsHref, fetchDocument } from './documents.api';
+import { GeneratePdfButton } from './generate-pdf-button';
 import { SaveVersionAction } from './save-version-dialog';
 
 export interface DocumentViewProps {
@@ -139,6 +140,10 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
           <div>
             <SaveVersionAction document={document} />
           </div>
+        ) : null}
+        {/* US-067: prévia em PDF do rascunho (DOC-20); quem vê o documento (PROCESS_VIEW) pode gerar. */}
+        {document.documentType.kind !== 'UPLOADED' ? (
+          <GeneratePdfButton source={{ kind: 'preview', documentId: document.id }} />
         ) : null}
         {isAiTarget(document.documentType.systemModule) ? (
           <div>

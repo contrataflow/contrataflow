@@ -9,6 +9,7 @@ import type {
   PresignedRequest,
   PresignGetInput,
   PresignPutInput,
+  PutObjectInput,
 } from './storage.service.js';
 
 /*
@@ -20,6 +21,7 @@ export interface StoredObject {
   readonly body: Buffer;
   readonly contentType: string | null;
   readonly metadata: Readonly<Record<string, string>>;
+  readonly tags?: Readonly<Record<string, string>>;
 }
 
 export class InMemoryObjectStorage implements ObjectStorage {
@@ -92,6 +94,17 @@ export class InMemoryObjectStorage implements ObjectStorage {
       body: object.body,
       contentType: input.contentType,
       metadata: input.metadata,
+    });
+    return Promise.resolve();
+  }
+
+  putObject(input: PutObjectInput): Promise<void> {
+    this.check();
+    this.buckets[input.ref.bucket].set(input.ref.key, {
+      body: Buffer.from(input.body),
+      contentType: input.contentType,
+      metadata: input.metadata,
+      tags: input.tags,
     });
     return Promise.resolve();
   }

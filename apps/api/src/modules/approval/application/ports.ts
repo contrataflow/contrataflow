@@ -23,6 +23,13 @@ export interface ApprovalRepository {
   insert(tx: TenantTx, approval: Approval, coverage: readonly ApprovalCoverage[]): Promise<void>;
   /** Aprovações `PENDING` do processo, mais antigas primeiro (painel situacional — US-004). */
   listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]>;
+  /** A aprovação cobre exatamente esta versão do documento (selo de aprovação — US-067)? */
+  coversDocumentVersion(
+    tx: TenantTx,
+    approvalId: string,
+    documentId: string,
+    documentVersionId: string,
+  ): Promise<boolean>;
 }
 
 export const APPROVAL_REPOSITORY = Symbol('ApprovalRepository');

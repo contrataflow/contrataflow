@@ -299,9 +299,11 @@ describe('DocumentActionsBar · botões por meta.allowedActions', () => {
   it('sem ações permitidas: avisa que nenhuma ação está disponível', async () => {
     await openDocument({ state: { document: documentDto(), allowed: ['UPDATE'] } });
     expect(screen.getByText('Nenhuma ação disponível para você neste documento.')).toBeTruthy();
-    // `UPDATE` sozinho só libera "Salvar versão" (US-066), fora da barra do ciclo de vida.
+    // `UPDATE` sozinho só libera "Salvar versão" (US-066), fora da barra do ciclo de vida; a
+    // prévia em PDF (US-067) aparece para quem vê o documento, sem depender de `allowedActions`.
     expect(screen.queryAllByRole('button').map((button) => button.textContent)).toEqual([
       'Salvar versão',
+      'Gerar prévia em PDF',
     ]);
   });
 

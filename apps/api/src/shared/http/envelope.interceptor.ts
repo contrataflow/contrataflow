@@ -27,9 +27,21 @@ export class DataWithMembers<T, X extends Readonly<Record<string, unknown>>> {
   ) {}
 }
 
+/**
+ * Resposta cujo status depende do resultado (ex.: DOC-21 — `202` ao criar, `200` ao reaproveitar a
+ * equivalente — US-067 · FA-01). O `@HttpCode` da rota continua sendo o padrão documentado.
+ */
+export class WithHttpStatus<T> {
+  constructor(
+    readonly status: number,
+    readonly value: T,
+  ) {}
+}
+
 /** Envelope de DEC-106 aplicado ao valor devolvido pelo handler. */
 export function toEnvelope(value: unknown): unknown {
   if (value === undefined) return undefined;
+  if (value instanceof WithHttpStatus) return toEnvelope((value as WithHttpStatus<unknown>).value);
   if (value instanceof PageResult || value instanceof CursorResult) {
     return { data: value.items, meta: value.meta };
   }
@@ -50,7 +62,34 @@ export function toEnvelope(value: unknown): unknown {
  */
 @Injectable()
 export class EnvelopeInterceptor implements NestInterceptor {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    return next.handle().pipe(map(toEnvelope));
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    return next.handle().pipe(
+      map((value) => {
+        if (value instanceof WithHttpStatus) {
+          forceStatus(context, (value as WithHttpStatus<unknown>).status);
+        }
+        return toEnvelope(value);
+      }),
+    );
   }
+}
+
+interface StatusResponse {
+  statusCode: number;
+  status?: (code: number) => unknown;
+}
+
+/**
+ * O Nest aplica o status da rota DEPOIS dos interceptors (`reply(res, body, httpCode)`); aqui a
+ * próxima chamada a `status()` desta resposta passa a manter o status do resultado.
+ */
+function forceStatus(context: ExecutionContext, status: number): void {
+  const response = context.switchToHttp().getResponse<StatusResponse>();
+  response.statusCode = status;
+  const original = response.status?.bind(response);
+  if (original === undefined) return;
+  response.status = () => {
+    response.status = original;
+    return original(status);
+  };
 }

@@ -37,6 +37,13 @@ export interface DocumentApprovalRequester {
    * `ApiError` (`APPROVER_UNRESOLVED`…) para desfazer a submissão inteira.
    */
   requestForDocumentSubmission(tx: TenantTx, request: DocumentApprovalRequest): Promise<void>;
+  /** A aprovação cobre esta versão do documento (selo de aprovação do PDF — US-067 · FA-02)? */
+  coversDocumentVersion(
+    tx: TenantTx,
+    approvalId: string,
+    documentId: string,
+    documentVersionId: string,
+  ): Promise<boolean>;
 }
 
 /** Registro do solicitante (implementado pelo módulo `approval`). */
@@ -52,6 +59,17 @@ export class DocumentApprovalRegistry {
   requestForDocumentSubmission(tx: TenantTx, request: DocumentApprovalRequest): Promise<void> {
     if (!this.requester) return Promise.reject(new ApiError('APPROVER_UNRESOLVED'));
     return this.requester.requestForDocumentSubmission(tx, request);
+  }
+
+  /** Sem o módulo de aprovações, nenhuma aprovação existe para o selo. */
+  coversDocumentVersion(
+    tx: TenantTx,
+    approvalId: string,
+    documentId: string,
+    documentVersionId: string,
+  ): Promise<boolean> {
+    if (!this.requester) return Promise.resolve(false);
+    return this.requester.coversDocumentVersion(tx, approvalId, documentId, documentVersionId);
   }
 }
 

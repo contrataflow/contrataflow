@@ -39,6 +39,7 @@ function fakeStorage() {
     head: vi.fn(() => Promise.resolve({ sizeBytes: 1 })),
     openRead: vi.fn(() => Promise.resolve(null)),
     copy: vi.fn(() => Promise.resolve()),
+    putObject: vi.fn(() => Promise.resolve()),
     delete: vi.fn(() => Promise.resolve()),
   } satisfies ObjectStorage;
 }

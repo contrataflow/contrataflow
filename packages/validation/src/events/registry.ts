@@ -14,6 +14,8 @@ import {
   DocumentCreated,
   DocumentFinalized,
   DocumentRejected,
+  DocumentRenditionFailed,
+  DocumentRenditionReady,
   DocumentReopened,
   DocumentReturned,
   DocumentSubmitted,
@@ -115,4 +117,6 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   DocumentRejected,
   DocumentReopened,
   DocumentCanceled,
+  DocumentRenditionReady,
+  DocumentRenditionFailed,
 };

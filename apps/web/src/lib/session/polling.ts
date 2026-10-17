@@ -10,9 +10,13 @@ export const POLLING_ROUTES: ReadonlySet<string> = new Set([
   '/tasks/counters',
 ]);
 
-/** Sondagens com id no caminho: ações disponíveis e checklist do processo (US-041). */
+/**
+ * Sondagens com id no caminho: ações disponíveis e checklist do processo (US-041) e o status do
+ * PDF em geração (DOC-22 — US-067; o download `/download` é ação do usuário e fica de fora).
+ */
 export const POLLING_PATTERNS: readonly RegExp[] = [
   /^\/processes\/[0-9a-f-]{36}\/(?:available-actions|checklist)$/i,
+  /^\/document-renditions\/[0-9a-f-]{36}$/i,
 ];
 
 /** `path` sem o prefixo `/api/v1` e sem query string. */

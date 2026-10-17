@@ -1929,3 +1929,63 @@ model Attachment {
   @@index([tenantId, status], map: "attachments_pending_status_idx")
   @@map("attachments")
 }
+
+/// entities.md §2 — `RenditionKind` (US-067 · RN-DOC-63): `SIGNED` reservado ao MVP 3.
+enum RenditionKind {
+  PREVIEW
+  CONTENT
+  APPROVAL_STAMPED
+  SIGNED
+
+  @@map("rendition_kind")
+}
+
+/// entities.md §2 — `RenditionStatus` (US-067 · RN-DOC-65/68).
+enum RenditionStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+
+  @@map("rendition_status")
+}
+
+/// entities.md §4 `DocumentRendition` (módulo document · US-067 · ADR-007): PDF do rascunho
+/// (`PREVIEW`), da versão (`CONTENT`) ou do selo de aprovação (`APPROVAL_STAMPED`). A linha é a
+/// "outbox do trabalho" do `document-render`; o binário fica no bucket `renditions`.
+model DocumentRendition {
+  id                String          @id @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  processId         String          @map("process_id") @db.Uuid
+  documentId        String          @map("document_id") @db.Uuid
+  documentVersionId String?         @map("document_version_id") @db.Uuid
+  draftRevision     Int?            @map("draft_revision")
+  approvalId        String?         @map("approval_id") @db.Uuid
+  kind              RenditionKind
+  status            RenditionStatus @default(PENDING)
+  masked            Boolean         @default(false)
+  storageKey        String?         @map("storage_key") @db.VarChar(512)
+  sha256            String?         @db.VarChar(64)
+  sizeBytes         BigInt?         @map("size_bytes")
+  pageCount         Int?            @map("page_count")
+  errorCode         String?         @map("error_code") @db.VarChar(60)
+  errorMessage      String?         @map("error_message")
+  attempts          Int             @default(0)
+  requestedById     String?         @map("requested_by_id") @db.Uuid
+  requestedAt       DateTime        @default(now()) @map("requested_at") @db.Timestamptz(6)
+  startedAt         DateTime?       @map("started_at") @db.Timestamptz(6)
+  readyAt           DateTime?       @map("ready_at") @db.Timestamptz(6)
+  expiresAt         DateTime?       @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version           Int             @default(1)
+
+  @@unique([tenantId, id], map: "document_renditions_tenant_id_id_key")
+  @@index([tenantId, documentId, kind, createdAt(sort: Desc)], map: "document_renditions_document_idx")
+  // Parciais na migração: `document_renditions_content_key`/`_stamped_key` (únicos, sem `FAILED`),
+  // `document_renditions_pending_idx` e `document_renditions_preview_expiry_idx`.
+  @@index([status, requestedAt], map: "document_renditions_pending_idx")
+  @@index([tenantId, expiresAt], map: "document_renditions_preview_expiry_idx")
+  @@map("document_renditions")
+}

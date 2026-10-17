@@ -20,6 +20,7 @@ import type {
   PresignedRequest,
   PresignGetInput,
   PresignPutInput,
+  PutObjectInput,
 } from '#shared/storage/storage.service.js';
 
 /*
@@ -157,6 +158,22 @@ export class S3ObjectStorage implements ObjectStorage {
         ContentType: input.contentType,
         Metadata: { ...input.metadata },
         ChecksumAlgorithm: 'SHA256',
+      }),
+    );
+  }
+
+  /** PDF gerado pelo worker (storage.md §10): checksum SHA-256 conferido pelo S3 e tags. */
+  async putObject(input: PutObjectInput): Promise<void> {
+    await this.internal.send(
+      new PutObjectCommand({
+        Bucket: this.bucket(input.ref.bucket),
+        Key: input.ref.key,
+        Body: input.body,
+        ContentType: input.contentType,
+        ContentLength: input.body.length,
+        ChecksumSHA256: Buffer.from(input.sha256, 'hex').toString('base64'),
+        Metadata: { ...input.metadata },
+        Tagging: new URLSearchParams(input.tags).toString(),
       }),
     );
   }
