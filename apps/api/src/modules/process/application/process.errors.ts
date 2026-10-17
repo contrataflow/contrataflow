@@ -1,9 +1,17 @@
-import type { DuplicateCandidate, FieldError } from '@contrataflow/validation';
+import { PROCESS_UPDATE_MESSAGES, estimatedValueFromSourceMessage } from '@contrataflow/validation';
+import type {
+  DuplicateCandidate,
+  EstimatedValueSource,
+  FieldError,
+  ProcessConflictCurrent,
+  ProcessStatus,
+} from '@contrataflow/validation';
 import { metrics } from '@opentelemetry/api';
 import type { Counter, Histogram } from '@opentelemetry/api';
 
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
+import { notEditableStatusMessage } from '../domain/process-update.js';
 import type { ProcessIssue } from '../domain/process.js';
 
 /*
@@ -39,6 +47,56 @@ export function processNotFoundError(): ApiError {
   return new ApiError('PROCESS_NOT_FOUND');
 }
 
+/** 412 `VERSION_CONFLICT` do PRC-05 (RN-PROC-66 · FA-05): versão atual e o processo atual. */
+export function processVersionConflict(
+  sentVersion: number,
+  current: ProcessConflictCurrent,
+): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    title: 'Este processo foi alterado por outra pessoa',
+    detail: `A versão enviada (${String(sentVersion)}) é diferente da atual (${String(current.version)}).`,
+    extensions: { currentVersion: current.version, meta: { current } },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS`: processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` (RN-PROC-59). */
+export function processNotEditable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: notEditableStatusMessage(status),
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (POL-01), auditado como `access.denied` com o mesmo `reasonCode`. */
+export function notProcessCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: PROCESS_UPDATE_MESSAGES.notCustodian,
+    auditDenial: true,
+  });
+}
+
+/** 422 `BUSINESS_RULE_VIOLATION`: valor estimado com fonte de maior precedência (V-07 · DEC-032). */
+export function estimatedValueFromSource(source: EstimatedValueSource): ApiError {
+  const message = estimatedValueFromSourceMessage(source);
+  return new ApiError('BUSINESS_RULE_VIOLATION', {
+    status: 422,
+    detail: message,
+    violations: [
+      {
+        code: 'ESTIMATED_VALUE_FROM_SOURCE',
+        severity: 'BLOCKING',
+        message,
+        ruleId: 'RN-PROC-63',
+        sectionKey: null,
+        field: 'estimatedValue',
+        itemId: null,
+        params: { estimatedValueSource: source },
+      },
+    ],
+    extensions: { estimatedValueSource: source },
+  });
+}
+
 let createdCounter: Counter | undefined;
 let createDuration: Histogram | undefined;
 
@@ -54,4 +112,32 @@ export function recordProcessCreated(channel: string, durationMs: number): void 
   });
   createdCounter.add(1, { channel });
   createDuration.record(durationMs, { channel });
+}
+
+let updatedCounter: Counter | undefined;
+let updateDuration: Histogram | undefined;
+let conflictCounter: Counter | undefined;
+
+/** `cf_process_updated_total` e `cf_process_update_duration_ms` (commit de alteração efetiva). */
+export function recordProcessUpdated(durationMs: number): void {
+  const meter = metrics.getMeter('contrataflow-api');
+  updatedCounter ??= meter.createCounter('cf_process_updated_total', {
+    description: 'Edições efetivas dos dados do processo (commit do PRC-05).',
+  });
+  updateDuration ??= meter.createHistogram('cf_process_update_duration_ms', {
+    description: 'Duração da edição dos dados do processo (PRC-05).',
+    unit: 'ms',
+  });
+  updatedCounter.add(1);
+  updateDuration.record(durationMs);
+}
+
+/** `cf_process_update_conflict_total` — 412 `VERSION_CONFLICT` do PRC-05 (DoD da US-005). */
+export function recordProcessUpdateConflict(): void {
+  conflictCounter ??= metrics
+    .getMeter('contrataflow-api')
+    .createCounter('cf_process_update_conflict_total', {
+      description: 'Edições do processo recusadas por conflito de versão (412).',
+    });
+  conflictCounter.add(1);
 }

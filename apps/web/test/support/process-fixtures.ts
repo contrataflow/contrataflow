@@ -435,6 +435,8 @@ export interface ProcessApiOptions {
   resolve?: Handler;
   create?: Handler;
   process?: Handler;
+  /** PRC-05 (US-005). */
+  update?: Handler;
   summary?: Handler;
   stages?: Handler;
   actions?: Handler;
@@ -505,6 +507,9 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}`) {
       return respond(options.process, () => jsonResponse({ data: processDto() }));
+    }
+    if (method === 'PATCH' && url === `/api/v1/processes/${PROCESS_ID}`) {
+      return respond(options.update, () => jsonResponse({ data: processDto({ version: 2 }) }));
     }
     if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}/summary`) {
       return respond(options.summary, () => jsonResponse({ data: summaryDto() }));

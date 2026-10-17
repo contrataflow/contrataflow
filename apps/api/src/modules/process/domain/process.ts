@@ -113,7 +113,7 @@ export interface DraftContext {
   readonly requireInternalCode: boolean;
 }
 
-function textOrNull(value: string | null | undefined): string | null {
+export function textOrNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? '';
   return trimmed === '' ? null : trimmed;
 }

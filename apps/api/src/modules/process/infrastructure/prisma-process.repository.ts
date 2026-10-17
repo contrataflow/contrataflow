@@ -356,12 +356,99 @@ export class PrismaProcessRepository implements ProcessRepository {
     });
   }
 
-  async internalCodeExists(tx: TenantTx, internalCode: string): Promise<boolean> {
+  async internalCodeExists(
+    tx: TenantTx,
+    internalCode: string,
+    exceptProcessId?: string,
+  ): Promise<boolean> {
     const row = await tx.process.findFirst({
-      where: { internalCode, deletedAt: null },
+      where: {
+        internalCode,
+        deletedAt: null,
+        ...(exceptProcessId === undefined ? {} : { id: { not: exceptProcessId } }),
+      },
       select: { id: true },
     });
     return row !== null;
+  }
+
+  async lockForUpdate(tx: TenantTx, processId: string): Promise<boolean> {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT p.id
+        FROM processes p
+       WHERE p.tenant_id = current_setting('app.tenant_id')::uuid
+         AND p.id = ${processId}::uuid
+         AND p.deleted_at IS NULL
+         FOR UPDATE`;
+    return rows.length > 0;
+  }
+
+  async updateProcess(tx: TenantTx, process: Process, expectedVersion: number): Promise<boolean> {
+    try {
+      const result = await tx.process.updateMany({
+        where: { id: process.id, version: expectedVersion, deletedAt: null },
+        data: {
+          organizationId: process.organizationId,
+          requestingSecretariatId: process.requestingSecretariatId,
+          requestingDepartmentId: process.requestingDepartmentId,
+          title: process.title,
+          object: process.object,
+          description: process.description,
+          contractingTypeId: process.contractingTypeId,
+          modalityId: process.modalityId,
+          isPriceRegistration: process.isPriceRegistration,
+          priority: process.priority,
+          targetDate: toDbDate(process.targetDate),
+          estimatedValue: process.estimatedValue,
+          estimatedValueSource: process.estimatedValueSource,
+          originId: process.originId,
+          pcaStatus: process.pcaStatus,
+          pcaYear: process.pcaYear,
+          pcaItemCode: process.pcaItemCode,
+          pcaJustification: process.pcaJustification,
+          internalCode: process.internalCode,
+          notes: process.notes,
+          updatedAt: process.updatedAt,
+          updatedById: process.updatedById,
+          version: process.version,
+        },
+      });
+      return result.count === 1;
+    } catch (error) {
+      if (isUniqueViolation(error) && /internal_code/i.test(textOf(error))) {
+        throw new InternalCodeTakenError(process.internalCode ?? '');
+      }
+      throw error;
+    }
+  }
+
+  async syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void> {
+    const process = await tx.process.findFirst({
+      where: { id: processId },
+      select: { requestingSecretariatId: true, requestingDepartmentId: true },
+    });
+    if (process === null) return;
+    const units = [...new Set([process.requestingSecretariatId, process.requestingDepartmentId])];
+    await tx.processAccess.updateMany({
+      where: {
+        processId,
+        principalType: 'DEPARTMENT',
+        reason: 'REQUESTING',
+        revokedAt: null,
+        departmentId: { notIn: units },
+      },
+      data: { revokedAt: at },
+    });
+    await this.grantAccess(
+      tx,
+      processId,
+      units.map((departmentId) => ({
+        principalType: 'DEPARTMENT' as const,
+        departmentId,
+        reason: 'REQUESTING' as const,
+      })),
+      at,
+    );
   }
 
   async findDuplicateCandidates(

@@ -52,7 +52,8 @@ export type ProcessActionPermission =
   | 'PROCESS_CLAIM'
   | 'PROCESS_ASSIGN'
   | 'PROCESS_CANCEL'
-  | 'PROCESS_SUSPEND';
+  | 'PROCESS_SUSPEND'
+  | 'PROCESS_UPDATE';
 
 /** Quem consulta: lotações, chefias e permissões que tem em algum escopo. */
 export interface EngineViewer {
@@ -520,6 +521,30 @@ function lifecycleEntries(process: EngineProcess, viewer: EngineViewer): ActionE
 }
 
 /**
+ * EDIT (US-005 · RN-PROC-59 · POL-01): "Editar dados" com `PROCESS_UPDATE`; desabilitada com o
+ * motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia (a API repete as checagens).
+ */
+function editEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry[] {
+  if (!viewer.permissions.has('PROCESS_UPDATE')) return [];
+  const reasons: ActionReason[] = [];
+  if (!CUSTODY_STATUSES.has(process.status)) {
+    reasons.push({
+      code: 'INVALID_PROCESS_STATUS',
+      message:
+        process.status === 'AWAITING_APPROVAL'
+          ? 'Não é possível editar enquanto o processo aguarda aprovação.'
+          : `Não é possível editar com o processo ${STATUS_LABELS[process.status]}.`,
+    });
+  } else if (!isCustodian(process, viewer)) {
+    reasons.push({
+      code: 'NOT_PROCESS_CUSTODIAN',
+      message: 'Somente quem está com o processo pode editar os dados.',
+    });
+  }
+  return [entry('EDIT', 'Editar dados', reasons)];
+}
+
+/**
  * RN-WF-23/24/32: avanços (`FORWARD`/`COMPLETE` por transição, principal primeiro), devoluções
  * (`RETURN` por etapa percorrida) e ciclo de vida. `enabled` ⇔ `reasons` vazio; aviso (`WARNING`)
  * nunca entra em `reasons` (RN-WF-25).
@@ -533,5 +558,6 @@ export function availableActions(
     ...advanceEntries(input, viewer, evaluation),
     ...returnEntries(input, viewer, evaluation),
     ...lifecycleEntries(input.process, viewer),
+    ...editEntry(input.process, viewer),
   ];
 }

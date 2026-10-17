@@ -12,6 +12,7 @@ export {
   DialogFooter,
   DialogTitle,
   DialogTrigger,
+  SheetContent,
 } from './components/dialog.js';
 export type { DialogContentProps } from './components/dialog.js';
 export {

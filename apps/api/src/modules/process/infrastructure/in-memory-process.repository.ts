@@ -89,6 +89,8 @@ export class InMemoryProcessRepository implements ProcessRepository {
   private readonly assignments: ProcessAssignmentRecord[] = [];
   private readonly movements: ProcessMovementRecord[] = [];
   private readonly access: StoredAccess[] = [];
+  /** Concessões revogadas (`revokedAt` — RN-PROC-62), fora das leituras como no PostgreSQL. */
+  private readonly revoked: (StoredAccess & { readonly revokedAt: Date })[] = [];
   private readonly extras = new Map<string, ProcessListExtras>();
 
   insertCreation(_tx: TenantTx, creation: ProcessCreation): Promise<void> {
@@ -139,8 +141,65 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return Promise.resolve();
   }
 
-  internalCodeExists(_tx: TenantTx, internalCode: string): Promise<boolean> {
-    return Promise.resolve(this.owned().some((process) => process.internalCode === internalCode));
+  internalCodeExists(
+    _tx: TenantTx,
+    internalCode: string,
+    exceptProcessId?: string,
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.owned().some(
+        (process) => process.internalCode === internalCode && process.id !== exceptProcessId,
+      ),
+    );
+  }
+
+  lockForUpdate(_tx: TenantTx, processId: string): Promise<boolean> {
+    return Promise.resolve(this.processes.get(processId)?.tenantId === tenantOfContext());
+  }
+
+  updateProcess(_tx: TenantTx, process: Process, expectedVersion: number): Promise<boolean> {
+    const current = this.processes.get(process.id);
+    if (current?.tenantId !== tenantOfContext() || current.version !== expectedVersion) {
+      return Promise.resolve(false);
+    }
+    if (
+      process.internalCode !== null &&
+      this.owned().some(
+        (other) => other.id !== process.id && other.internalCode === process.internalCode,
+      )
+    ) {
+      return Promise.reject(new InternalCodeTakenError(process.internalCode));
+    }
+    this.processes.set(process.id, { ...process, tenantId: current.tenantId });
+    return Promise.resolve(true);
+  }
+
+  async syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void> {
+    const process = this.processes.get(processId);
+    if (process?.tenantId !== tenantOfContext()) return;
+    const units = new Set([process.requestingSecretariatId, process.requestingDepartmentId]);
+    for (let index = this.access.length - 1; index >= 0; index -= 1) {
+      const row = this.access[index];
+      if (
+        row?.processId === processId &&
+        row.principalType === 'DEPARTMENT' &&
+        row.reason === 'REQUESTING' &&
+        !units.has(row.departmentId ?? '')
+      ) {
+        this.access.splice(index, 1);
+        this.revoked.push({ ...row, revokedAt: at });
+      }
+    }
+    await this.grantAccess(
+      tx,
+      processId,
+      [...units].map((departmentId) => ({
+        principalType: 'DEPARTMENT' as const,
+        departmentId,
+        reason: 'REQUESTING' as const,
+      })),
+      at,
+    );
   }
 
   findDuplicateCandidates(
@@ -362,6 +421,11 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return this.access.filter((row) => row.processId === processId);
   }
 
+  /** Concessões revogadas do processo (RN-PROC-62). */
+  revokedAccessOf(processId: string): readonly (StoredAccess & { readonly revokedAt: Date })[] {
+    return this.revoked.filter((row) => row.processId === processId);
+  }
+
   /** Carga de teste: processo já existente (ex.: candidato a duplicidade criado antes). */
   seed(process: Process, grants: readonly AccessGrant[] = []): void {
     this.processes.set(process.id, process);
@@ -406,6 +470,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.assignments.length = 0;
     this.movements.length = 0;
     this.access.length = 0;
+    this.revoked.length = 0;
   }
 
   private owned(): Process[] {

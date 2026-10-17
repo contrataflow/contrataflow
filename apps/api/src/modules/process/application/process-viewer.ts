@@ -21,6 +21,7 @@ const ACTION_PERMISSIONS: readonly ProcessActionPermission[] = [
   'PROCESS_ASSIGN',
   'PROCESS_CANCEL',
   'PROCESS_SUSPEND',
+  'PROCESS_UPDATE',
 ];
 
 /** Quem consulta: visibilidade (DEC-024) e o que o motor precisa para as ações (POL-01/04/05). */

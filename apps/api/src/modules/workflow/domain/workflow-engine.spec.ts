@@ -9,7 +9,9 @@ import {
   isCustodian,
   notCustodianMessage,
 } from './workflow-engine.js';
+import type { EngineProcess, EngineViewer } from './workflow-engine.js';
 import {
+  CREATOR_ID,
   DEPARTMENTS,
   ETP_MESSAGE,
   RISK_MAP_MESSAGE,
@@ -315,6 +317,50 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
         viewer({ canAssignAnywhere: false, headOfDepartmentIds: [DEPARTMENTS.compras] }),
       );
       expect(actionsOf(actions, 'ASSIGN')[0]?.reasons[0]?.code).toBe('PERMISSION_DENIED');
+    });
+  });
+
+  describe('EDIT (US-005 · RN-PROC-59 · POL-01): "Editar dados"', () => {
+    const edit = (process: Partial<EngineProcess>, who: Partial<EngineViewer> = {}) =>
+      actionsOf(
+        availableActions(
+          engineInput(builder, { passes: studies }, process),
+          viewer({ permissions: new Set(['PROCESS_UPDATE']), ...who }),
+        ),
+        'EDIT',
+      );
+
+    it('sem PROCESS_UPDATE: a ação não aparece', () => {
+      expect(
+        actionsOf(availableActions(engineInput(builder, { passes: studies }), viewer()), 'EDIT'),
+      ).toEqual([]);
+    });
+
+    it.each(['DRAFT', 'IN_PROGRESS', 'RETURNED'] as const)(
+      '%s com custódia: habilitada',
+      (status) => {
+        expect(edit({ status })).toEqual([
+          { action: 'EDIT', label: 'Editar dados', enabled: true, reasons: [] },
+        ]);
+      },
+    );
+
+    it.each([
+      ['AWAITING_APPROVAL', 'Não é possível editar enquanto o processo aguarda aprovação.'],
+      ['SUSPENDED', 'Não é possível editar com o processo suspenso.'],
+      ['COMPLETED', 'Não é possível editar com o processo concluído.'],
+    ] as const)('%s: desabilitada com o motivo', (status, message) => {
+      expect(edit({ status })[0]?.reasons).toEqual([{ code: 'INVALID_PROCESS_STATUS', message }]);
+    });
+
+    it('sem custódia (outro responsável ou fora da unidade da fila): NOT_PROCESS_CUSTODIAN', () => {
+      expect(edit({ currentResponsibleId: CREATOR_ID })[0]?.reasons[0]?.code).toBe(
+        'NOT_PROCESS_CUSTODIAN',
+      );
+      expect(edit({}, { departmentIds: [DEPARTMENTS.compras] })[0]?.reasons[0]?.code).toBe(
+        'NOT_PROCESS_CUSTODIAN',
+      );
+      expect(edit({ currentResponsibleId: VIEWER_ID })[0]?.enabled).toBe(true);
     });
   });
 

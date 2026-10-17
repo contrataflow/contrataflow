@@ -38,6 +38,32 @@ Processo, itens, participantes, etiquetas, runtime da tramitação e visibilidad
   própria depois da leitura. Contadores de itens/comentários/participantes e etiquetas ficam 0/[]
   até as stories donas (US-006/007/012/071).
 
+## Edição dos dados (US-005)
+
+- **Rota:** PRC-05 `PATCH /processes/{id}` (`ProcessController`, `@RequireIfMatch` → 428 sem
+  `If-Match`; `PROCESS_UPDATE` em algum escopo no guard). Corpo `updateProcessSchema` (estrito:
+  campo fora da lista → 422 `NOT_ALLOWED`) e evento `ProcessUpdated` (`changedFields` + `version`,
+  nunca valores) em `packages/validation/src/process/`.
+- **Caso de uso:** `UpdateProcessCommand` — `lockForUpdate` (`SELECT … FOR UPDATE`) → leitura do
+  agregado e visibilidade (`ProcessPanelReader.load` → 404) → **no-op primeiro** (RN-PROC-67: PATCH
+  idêntico responde 200 mesmo com `If-Match` antigo, sem versão/evento/timeline/auditoria) →
+  `If-Match` (412 com `currentVersion` e `meta.current` = DTO + `updatedBy`) → `PROCESS_UPDATE`
+  cobrindo o processo → status editável (409) → custódia POL-01 (403 `NOT_PROCESS_CUSTODIAN`,
+  auditado) → bloqueio por status (422 `NOT_ALLOWED`) → valor estimado com fonte superior (422
+  `BUSINESS_RULE_VIOLATION`) → revalidação parcial → referências alteradas → `PROCESS_CREATE` no
+  novo setor → código interno → `updateProcess` (`WHERE version`) → `process.update` → evento.
+- **Domínio puro:** `domain/process-update.ts` — `diffProcess` (ChangeSet único para evento,
+  auditoria e timeline), `fieldLock` (campo × status + RN-PROC-61), `estimatedValueLockedBy`,
+  `revalidationIssues`, `applyProcessChanges`, `isProcessCustodian`.
+- **Projeções:** timeline `PROCESS_UPDATED` pelo mapeamento existente (`BUDGET_RESTRICTED` com
+  `estimatedValue` de processo sigiloso); `ProcessAccessProjector` também ouve `process.updated` e,
+  com secretaria/setor alterados, chama `syncRequestingAccess` (revoga `REQUESTING` antigos com
+  `revokedAt`, concede os novos) — a custódia (`CURRENT`/`RESPONSIBLE`) não muda.
+- **Motor:** PRC-08 emite `EDIT` ("Editar dados") para quem tem `PROCESS_UPDATE`, desabilitada com
+  o motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia.
+- **Testes:** `domain/process-update.spec.ts`, `presentation/process-update.routes.spec.ts` e
+  `test/tenant-leak/process-update.spec.ts` (PostgreSQL: rollback induzido, `FOR UPDATE` × encaminhamento).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

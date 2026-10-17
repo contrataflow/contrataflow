@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { withSpan } from '@contrataflow/observability';
 import { localDateOf } from '@contrataflow/types';
 import { ProcessCreated } from '@contrataflow/validation';
@@ -30,6 +28,7 @@ import {
   PROCESS_TRANSACTIONS,
 } from './ports.js';
 import type { ProcessClock, ProcessRepository, ProcessTransactions } from './ports.js';
+import { LONG_TEXT_FIELDS, fingerprint } from './process-audit.js';
 import {
   duplicateInternalCode,
   possibleDuplicate,
@@ -81,9 +80,6 @@ interface Prepared {
   readonly now: Date;
 }
 
-/** Campos de texto longo: na auditoria, só hash + tamanho (story · "Auditoria"). */
-const LONG_TEXT_FIELDS = ['title', 'object', 'description', 'notes', 'pcaJustification'] as const;
-
 /** Campos não sensíveis registrados com o valor inicial (`process.create` · `changes`). */
 const AUDITED_FIELDS = [
   'organizationId',
@@ -100,13 +96,6 @@ const AUDITED_FIELDS = [
   'pcaItemCode',
   'internalCode',
 ] as const satisfies readonly (keyof Process)[];
-
-function fingerprint(text: string): { readonly sha256: string; readonly length: number } {
-  return {
-    sha256: createHash('sha256').update(text, 'utf8').digest('hex'),
-    length: Array.from(text).length,
-  };
-}
 
 function creationChanges(process: Process): AuditChange[] {
   const changes: AuditChange[] = AUDITED_FIELDS.filter((field) => process[field] !== null).map(

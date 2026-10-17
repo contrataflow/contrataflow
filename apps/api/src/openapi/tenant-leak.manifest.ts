@@ -118,6 +118,9 @@ const PROCESS_LIST_ROUTE =
 const PROCESS_ROUTE =
   'Processos (US-001): a suíte genérica não tem fixtures de catálogo, workflow publicado nem processo do tenant B. O isolamento (unidade/catálogo de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, PRC-04 com id de B → 404 PROCESS_NOT_FOUND, PRC-03 nunca lista processo de B, RLS e FKs compostas das tabelas do processo) é coberto em test/tenant-leak/processes.spec.ts, com PostgreSQL real.';
 
+const PROCESS_UPDATE_ROUTE =
+  'Edição do processo (US-005): a suíte genérica não tem processo do tenant B. O isolamento (PATCH com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, unidade/catálogo de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS de processes/process_access) é coberto em test/tenant-leak/process-update.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-update.routes.spec.ts.';
+
 const AUDIT_SEAL_ROUTE =
   'Selos de integridade (US-074): a suíte genérica não tem trilha nem selos do tenant B. O isolamento (AUD-04 listando só os selos do tenant, AUD-05 sobre intervalo que só tem selo de B → 404 NOT_FOUND e RLS de audit_seals com app.tenant_id diferente) é coberto em test/tenant-leak/audit-seals.spec.ts, e a selagem só com os registros do tenant do job em apps/worker/test/tenant-leak/audit-sealer.spec.ts, com PostgreSQL real.';
 
@@ -232,6 +235,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-02': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-03': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-04': { kind: 'exempt', reason: PROCESS_ROUTE },
+  'PRC-05': { kind: 'exempt', reason: PROCESS_UPDATE_ROUTE },
   'PRC-07': { kind: 'exempt', reason: PROCESS_PANEL_ROUTE },
   'PRC-08': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },

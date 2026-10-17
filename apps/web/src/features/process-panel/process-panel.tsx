@@ -27,6 +27,7 @@ import { SituationalPanel } from './situational-panel';
 import { StageStepper } from './stage-stepper';
 import { AttachmentsSection } from '../attachments/attachments-section';
 import { useAvailableActions } from '../process-actions/process-actions.api';
+import { EditProcessSheet } from '../process-edit/edit-process-sheet';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
@@ -226,6 +227,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     throwOnError: false,
   });
   const stale = useStaleProcessRecovery(processId);
+  const [editing, setEditing] = useState(false);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -287,10 +289,13 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         summary={data}
         actions={actions.data}
         frozen={frozen}
-        onAction={() => {
-          toast({ title: t('actions.notYet') });
+        onAction={(action) => {
+          // US-005: "Editar dados" abre o painel lateral; as demais ações, os diálogos das stories donas.
+          if (action.action === 'EDIT') setEditing(true);
+          else toast({ title: t('actions.notYet') });
         }}
       />
+      <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
       <StageStepper
         stages={stages.data}
         isPending={stages.isPending}

@@ -190,6 +190,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-001: timeline e `ProcessAccess` são projetados no mesmo `tx` (síncronos); no worker só o
     // `BusinessMetricsCollector` (`process.*`). Sem notificação na criação (RN-PROC-17).
     ProcessCreated: ['process.created'],
+    // US-005: timeline e `ProcessAccess` (troca da unidade solicitante) no mesmo `tx`; no worker só
+    // o `BusinessMetricsCollector` (`process.*`). Sem notificação (story · "Notificações").
+    ProcessUpdated: ['process.updated'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

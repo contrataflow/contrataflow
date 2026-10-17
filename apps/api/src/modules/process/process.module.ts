@@ -44,6 +44,7 @@ import { ProcessFacade } from './application/process.facade.js';
 import { ProcessPresenter } from './application/process.presenter.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
 import { RuleTestProcessReader } from './application/rule-test-process.source.js';
+import { UpdateProcessCommand } from './application/update-process.command.js';
 import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
 import {
   PrismaProcessRepository,
@@ -71,7 +72,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `process` (DEC-040, nível 3 — agregado central): outros módulos usam somente a fachada
- * exportada. US-002: lista de processos (PRC-01 — `ListProcessesHandler`). US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`),
+ * exportada. US-002: lista de processos (PRC-01 — `ListProcessesHandler`). US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`); US-005: edição (PRC-05),
  * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
  * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
  * sobre a `WorkflowFacade`. US-004: painel situacional (PRC-07/PRC-10 e `meta.allowedActions` de
@@ -104,6 +105,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessAccessProjector,
     DuplicateCandidatesFinder,
     CreateProcessCommand,
+    UpdateProcessCommand,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,
     ListProcessesHandler,

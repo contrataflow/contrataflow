@@ -10,6 +10,7 @@ import {
   processSchema,
   processStageEntrySchema,
   processSummarySchema,
+  updateProcessSchema,
 } from '@contrataflow/validation';
 import type {
   CheckDuplicateProcesses,
@@ -21,14 +22,17 @@ import type {
   ProcessListQuery,
   ProcessStageEntryDto,
   ProcessSummaryDto,
+  UpdateProcess,
 } from '@contrataflow/validation';
-import { Controller, Get, Headers, HttpCode, Param, Post, Res } from '@nestjs/common';
+import { Controller, Get, Headers, HttpCode, Param, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
 
 import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { PageResult } from '#shared/http/pagination.js';
+import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
+import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
@@ -41,6 +45,7 @@ import {
   ListProcessStagesQuery,
 } from '../application/process-panel.queries.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
+import { UpdateProcessCommand } from '../application/update-process.command.js';
 
 const TAGS = ['Processos'];
 
@@ -64,9 +69,9 @@ function noStore(response: HttpResponse): void {
 }
 
 /**
- * Processos de contratação (api/02-processes.md · US-001/US-002/US-004): PRC-01 (listar), PRC-02
- * (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-07
- * (painel situacional) e PRC-10 (etapas e passagens do stepper).
+ * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
+ * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
+ * (editar dados), PRC-07 (painel situacional) e PRC-10 (etapas e passagens do stepper).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -80,6 +85,7 @@ export class ProcessController {
     private readonly list: ListProcessesHandler,
     private readonly summary: GetProcessSummaryQuery,
     private readonly stages: ListProcessStagesQuery,
+    private readonly update: UpdateProcessCommand,
   ) {}
 
   @Get()
@@ -181,6 +187,41 @@ export class ProcessController {
     response.setHeader('ETag', `"${process.version}"`);
     noStore(response);
     return new DataResult(process, { allowedActions });
+  }
+
+  @Patch(':id')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_UPDATE', {
+    detail: 'Você não tem permissão para editar este processo.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-05',
+    summary: 'Editar dados do processo',
+    tags: TAGS,
+    auditActions: ['process.update'],
+    responses: {
+      200: {
+        description:
+          'Processo atualizado (`ETag` = nova versão). PATCH sem diferença efetiva devolve o processo atual sem nova versão, evento, timeline nem auditoria. `PROCESS_UPDATE` cobrindo o processo + custódia (POL-01) + status `DRAFT`/`IN_PROGRESS`/`RETURNED`; órgão e unidade solicitante só em `DRAFT` (422 `NOT_ALLOWED`); `If-Match` divergente = 412 `VERSION_CONFLICT` com `currentVersion` e `meta.current`.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async updateProcess(
+    @ProcessId() id: string,
+    @ZodBody(updateProcessSchema) body: UpdateProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const updated = await this.update.execute({
+      processId: id,
+      patch: body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${updated.dto.version}"`);
+    noStore(response);
+    return updated.dto;
   }
 
   @Get(':id/summary')

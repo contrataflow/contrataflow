@@ -40,3 +40,20 @@ export const ProcessCreated = defineDomainEvent({
   }),
   routingKey: 'process.created',
 });
+
+/**
+ * `ProcessUpdated` (US-005 · PRC-05): commit de alteração efetiva dos dados do processo. Só os
+ * NOMES dos campos alterados (`changedFields`, ordem canônica de `UPDATE_PROCESS_FIELDS`) e a nova
+ * versão — nunca valores (events.md §1). Consumidores: `TimelineProjector` (`PROCESS_UPDATED`) e
+ * `ProcessAccessProjector` (unidade solicitante trocada — RN-PROC-62) no mesmo `tx`.
+ */
+export const ProcessUpdated = defineDomainEvent({
+  eventType: 'ProcessUpdated',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    changedFields: z.array(z.string().min(1).max(60)).min(1).max(30),
+    version: z.number().int().min(1),
+  }),
+  routingKey: 'process.updated',
+});

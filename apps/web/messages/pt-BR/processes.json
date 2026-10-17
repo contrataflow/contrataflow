@@ -324,5 +324,44 @@
       "block": "Não foi possível carregar este bloco.",
       "rateLimited": "Muitas atualizações seguidas. Aguarde alguns segundos."
     }
+  },
+  "edit": {
+    "title": "Editar dados do processo",
+    "close": "Fechar",
+    "loading": "Carregando os dados do processo…",
+    "save": "Salvar alterações",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "modified": "Alterado",
+    "confidential": "Sigiloso",
+    "confidentialHint": "O valor estimado deste processo é sigiloso.",
+    "estimatedFromSource": "Valor obtido de {source}. Para alterá-lo, ajuste o documento de origem.",
+    "requestingChanged": "O DFD já criado não é alterado automaticamente; revise o campo Setor no DFD.",
+    "requestingStays": "O processo continua com {department} até ser encaminhado.",
+    "copyTexts": "Copiar meus textos",
+    "copied": "Textos copiados.",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "permission": "Você não tem permissão para editar este processo."
+    },
+    "conflict": {
+      "title": "Este processo foi alterado por {name} às {time}.",
+      "titleUnknown": "Este processo foi alterado por outra pessoa.",
+      "noOverlap": "Nenhum dos campos que você alterou foi mudado pela outra pessoa.",
+      "field": "Campo",
+      "mine": "Seu valor",
+      "current": "Valor atual",
+      "reapply": "Reaplicar minhas alterações",
+      "discard": "Descartar e recarregar"
+    },
+    "discard": {
+      "title": "Descartar as alterações?",
+      "description": "As alterações não salvas serão perdidas.",
+      "keep": "Continuar editando",
+      "confirm": "Descartar"
+    }
   }
 }

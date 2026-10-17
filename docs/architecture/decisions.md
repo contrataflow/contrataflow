@@ -252,7 +252,7 @@ Lei 14.133, art. 24: o orçamento estimado pode ser sigiloso. `Process.isBudgetC
 - `Process.targetDate` (prazo alvo) é informativo/planejamento; atraso do processo = `targetDate < hoje` e status não final.
 
 ### DEC-032 — Valor estimado do processo · `Aceita`
-`Process.estimatedValue` é derivado por precedência de fonte: TR aprovado > pesquisa de preços concluída > ETP > DFD > manual. `estimatedValueSource` registra a origem. Edição manual só quando não houver fonte de maior precedência (senão, aviso).
+`Process.estimatedValue` é derivado por precedência de fonte: TR aprovado > pesquisa de preços concluída > ETP > DFD > manual. `estimatedValueSource` registra a origem. Edição manual só quando não houver fonte de maior precedência: havendo, o PATCH é recusado (422 `BUSINESS_RULE_VIOLATION`) e a UI mostra o campo somente leitura com o aviso da fonte (US-005 · RN-PROC-63).
 
 ### DEC-033 — Duplicação · `Aceita`
 Duplicar processo copia metadados, itens, etiquetas e — opcionalmente — o conteúdo dos documentos estruturados como **novos rascunhos**. Nunca copia: número, aprovações, tramitações, timeline, comentários, auditoria, participantes. Anexos: opcional (cópia lógica referenciando o mesmo binário). Grava `duplicatedFromId`.

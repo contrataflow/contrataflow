@@ -207,6 +207,8 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       'ASSIGN',
       'SUSPEND',
       'CANCEL',
+      // US-005: "Editar dados" (PROCESS_UPDATE + POL-01).
+      'EDIT',
     ]);
 
     const { violations } = processChecklistSchema.parse(data<ProcessChecklist>(checklistResponse));

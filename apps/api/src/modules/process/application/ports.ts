@@ -203,8 +203,31 @@ export interface ProcessRepository {
     grants: readonly AccessGrant[],
     grantedAt: Date,
   ): Promise<void>;
-  /** RN-PROC-09: código interno já usado por processo não descartado do tenant. */
-  internalCodeExists(tx: TenantTx, internalCode: string): Promise<boolean>;
+  /**
+   * RN-PROC-09/70: código interno já usado por processo não descartado do tenant (fora o
+   * `exceptProcessId`, na edição).
+   */
+  internalCodeExists(
+    tx: TenantTx,
+    internalCode: string,
+    exceptProcessId?: string,
+  ): Promise<boolean>;
+  /**
+   * US-005: `SELECT … FOR UPDATE` no processo (serializa a edição com tramitações e com a derivação
+   * do valor estimado — DEC-055). `false` = inexistente no tenant ou descartado.
+   */
+  lockForUpdate(tx: TenantTx, processId: string): Promise<boolean>;
+  /**
+   * US-005: grava os campos editáveis, `estimatedValueSource`, `updatedAt`, `updatedById` e a nova
+   * `version` se a versão gravada ainda for `expectedVersion` (`false` = outra escrita venceu).
+   * @throws InternalCodeTakenError
+   */
+  updateProcess(tx: TenantTx, process: Process, expectedVersion: number): Promise<boolean>;
+  /**
+   * RN-PROC-62: concessões `REQUESTING` iguais à secretaria e ao setor solicitantes ATUAIS do
+   * processo — revoga (`revokedAt`) as anteriores e concede as novas, no `tx`.
+   */
+  syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void>;
   /** RN-PROC-13: candidatos visíveis, mais recentes primeiro. */
   findDuplicateCandidates(tx: TenantTx, search: DuplicateSearch): Promise<DuplicateCandidateRow[]>;
   /** US-002 · PRC-01: página e total, visíveis e filtrados, num único snapshot. */

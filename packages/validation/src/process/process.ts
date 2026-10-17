@@ -356,3 +356,111 @@ export const processSchema = z
   })
   .meta({ id: 'Process' });
 export type ProcessDto = z.infer<typeof processSchema>;
+
+/*
+ * PRC-05 — edição dos dados do processo (US-005 · api/02-processes.md). PATCH parcial: só os
+ * campos enviados mudam; schema ESTRITO (campo fora da lista → 422 `NOT_ALLOWED` — RN-PROC-65).
+ * As regras que dependem do estado atual (bloqueio por status, fonte do valor estimado, regras
+ * cruzadas do PCA, prazo alvo ≥ hoje) são do domínio da API, sobre o estado resultante
+ * (RN-PROC-60..64); o front repete as mesmas sobre o formulário completo.
+ */
+
+/** RN-PROC-59: status em que o processo admite edição (POL-01). */
+export const EDITABLE_PROCESS_STATUSES = ['DRAFT', 'IN_PROGRESS', 'RETURNED'] as const;
+
+/** RN-PROC-60: só editáveis em `DRAFT` (órgão — com RN-PROC-61 — e unidade solicitante). */
+export const DRAFT_ONLY_PROCESS_FIELDS = [
+  'organizationId',
+  'requestingSecretariatId',
+  'requestingDepartmentId',
+] as const;
+
+/** Campos editáveis pelo PRC-05, na ordem canônica de `changedFields` (story · "Campos"). */
+export const UPDATE_PROCESS_FIELDS = [
+  ...DRAFT_ONLY_PROCESS_FIELDS,
+  'title',
+  'object',
+  'description',
+  'contractingTypeId',
+  'modalityId',
+  'isPriceRegistration',
+  'priority',
+  'targetDate',
+  'estimatedValue',
+  'originId',
+  'pcaStatus',
+  'pcaYear',
+  'pcaItemCode',
+  'pcaJustification',
+  'internalCode',
+  'notes',
+] as const;
+export type UpdatableProcessField = (typeof UPDATE_PROCESS_FIELDS)[number];
+
+/** Nome das fontes do valor estimado nas mensagens (DEC-032 · RN-PROC-63). */
+export const ESTIMATED_VALUE_SOURCE_LABELS: Readonly<Record<EstimatedValueSource, string>> =
+  Object.freeze({
+    MANUAL: 'Informado manualmente',
+    DFD: 'DFD',
+    ETP: 'ETP',
+    PRICE_RESEARCH: 'Pesquisa de preços',
+    TERM: 'Termo de referência',
+  });
+
+/** Mensagens da tabela de validações da US-005 (V-02, V-03, V-07, V-12 · FA-01..FA-08). */
+export const PROCESS_UPDATE_MESSAGES = Object.freeze({
+  lockedByStatus: 'Este campo só pode ser alterado enquanto o processo é rascunho.',
+  lockedHint: 'Definido na abertura. Não pode ser alterado depois do primeiro encaminhamento.',
+  lockedByNumbering: 'O órgão não pode ser alterado: o número do processo depende dele.',
+  notEditable: 'Há campos que não podem ser alterados por aqui.',
+  organizationNeedsUnits: 'Ao trocar o órgão, informe também a secretaria e o setor do novo órgão.',
+  internalCodeRequired: 'O código interno é obrigatório neste órgão.',
+  awaitingApproval: 'Não é possível editar enquanto o processo aguarda aprovação.',
+  notCustodian: 'O processo saiu da sua responsabilidade. Suas alterações não foram salvas.',
+  workflowUnchanged: 'O fluxo do processo não muda com esta alteração.',
+  noChanges: 'Nenhuma alteração para salvar.',
+  saved: 'Dados do processo atualizados',
+});
+
+/** V-07: "O valor estimado é obtido de {fonte}. Para alterá-lo, ajuste o documento de origem." */
+export function estimatedValueFromSourceMessage(source: EstimatedValueSource): string {
+  return `O valor estimado é obtido de ${ESTIMATED_VALUE_SOURCE_LABELS[source]}. Para alterá-lo, ajuste o documento de origem.`;
+}
+
+/** PRC-05 — corpo de `PATCH /processes/{id}`: subconjunto estrito dos campos editáveis. */
+export const updateProcessSchema = z
+  .strictObject({
+    organizationId: z.uuid({ error: PROCESS_MESSAGES.organizationInvalid }).optional(),
+    requestingSecretariatId: reference(PROCESS_MESSAGES.secretariatRequired).optional(),
+    requestingDepartmentId: reference(PROCESS_MESSAGES.departmentRequired).optional(),
+    title: processTitleSchema.optional(),
+    object: processObjectSchema.optional(),
+    description: createProcessShape.description,
+    contractingTypeId: reference(PROCESS_MESSAGES.contractingTypeRequired).optional(),
+    /** `null` = "A definir". */
+    modalityId: createProcessShape.modalityId,
+    isPriceRegistration: z.boolean().optional(),
+    priority: prioritySchema.optional(),
+    targetDate: isoDateSchema.nullish(),
+    /** `null` limpa o valor manual (e a origem — RN-PROC-63). */
+    estimatedValue: estimatedValueSchema.nullish(),
+    originId: reference(PROCESS_MESSAGES.originRequired).optional(),
+    pcaStatus: pcaStatusSchema.optional(),
+    pcaYear: createProcessShape.pcaYear,
+    pcaItemCode: createProcessShape.pcaItemCode,
+    pcaJustification: createProcessShape.pcaJustification,
+    internalCode: createProcessShape.internalCode,
+    notes: createProcessShape.notes,
+  })
+  .meta({ id: 'UpdateProcessRequest' });
+export type UpdateProcess = z.output<typeof updateProcessSchema>;
+export type UpdateProcessInput = z.input<typeof updateProcessSchema>;
+
+/**
+ * `meta.current` do 412 `VERSION_CONFLICT` do PRC-05 (FA-05): o processo atual (mesmo
+ * mascaramento do PRC-04) e quem fez a última alteração, para a reaplicação seletiva no front.
+ */
+export const processConflictCurrentSchema = processSchema
+  .extend({ updatedBy: unitRefSchema.nullable() })
+  .meta({ id: 'ProcessConflictCurrent' });
+export type ProcessConflictCurrent = z.infer<typeof processConflictCurrentSchema>;
