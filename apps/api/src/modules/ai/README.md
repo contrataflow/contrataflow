@@ -35,7 +35,7 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
   sigilo — RN-AI-05), `prompts.ts` + `prompts/common/system-prompt.ts` (versionados; impressões
   digitais travadas em `prompts/prompt-fingerprints.ts`), `structured-output.ts` +
   `output-converter.ts` (RN-AI-07), `post-processing.ts`, `ai-pricing.ts` + `pricing-table.ts`
-  (RN-AI-09) e o disjuntor (regra no shared kernel `#shared/ai/ai-circuit-store.ts`, estado na
+  (RN-AI-09), `fact-set.ts` + `grounding-guard.ts` (US-122 — RN-AI-54) e o disjuntor (regra no shared kernel `#shared/ai/ai-circuit-store.ts`, estado na
   chave Redis de plataforma `cf:{env}:ai:circuit`).
 - **Porta `AiSuggestionSource`** (`#shared/ai/ai-suggestion-source.ts`): implementada aqui no
   `onModuleInit`; `document` (DOC-26) e `risk` (RSK-11) leem a proposta e marcam a aplicação na
@@ -47,7 +47,19 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
 | ------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
 | `AiGeneratorRegistry`     | US-117..US-121 | um `AiGenerator` por `targetModule`/`kind` (prompt, reserva de tokens, pré-requisitos, contexto por fachadas) |
 | `AiTenantGateRegistry`    | US-116         | IA ligada, termos, limites e reserva (pedido e revalidação no job)                                            |
-| `AiPostProcessorRegistry` | US-122         | `GroundingGuard` (troca o que não está nas entradas por `[a confirmar]`)                                      |
+| `AiPostProcessorRegistry` | `AiModule`     | `GroundingGuard` (US-122 — troca o que não está nas entradas por `[a confirmar]`), registrado no init         |
+
+## GroundingGuard (US-122 · RN-AI-54)
+
+Pós-processador determinístico registrado pelo `AiModule`: todo valor monetário, quantidade com
+unidade, prazo/duração, data e percentual do texto gerado precisa existir no `FactSet` das entradas
+(contexto sanitizado, normalizado: centavos, dias/meses, ISO, algarismos e extenso pt-BR); o que
+faltar vira `toConfirm` (`VALUE`/`QUANTITY`/`DEADLINE`/`DATE`) e conta em `groundingReplacements`.
+Citações legais ficam. Idempotente. Depois da cadeia, `postProcessingIssues` confere de novo o
+schema do editor e o `maxChars`; exceção ou problema → `FAILED`/`OUTPUT_INVALID` sem `output`
+(falha fechada) e log `error ai.grounding_failed`. Número de campo estruturado das entradas
+sustenta também o valor em reais (`c:`): trade-off aceito para não marcar o valor estimado que vem
+da pesquisa de preços como número.
 
 ## Nunca
 

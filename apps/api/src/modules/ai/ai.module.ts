@@ -32,6 +32,7 @@ import {
 } from './application/ports.js';
 import type { AiSettings } from './application/ports.js';
 import { RequestAiGenerationCommand } from './application/request-ai-generation.command.js';
+import { GroundingGuard } from './domain/grounding-guard.js';
 import {
   DEFAULT_FAKE_AI_FIXTURES_DIR,
   FakeAiProvider,
@@ -142,14 +143,20 @@ export class AiModule implements OnModuleInit {
     private readonly source: AiSuggestionSourceAdapter,
     private readonly gates: AiTenantGateRegistry,
     private readonly gate: AiTenantGateService,
+    private readonly postProcessors: AiPostProcessorRegistry,
   ) {}
 
   /**
    * Implementa a porta `AiSuggestionSource` lida por `document`/`risk` (DEC-079) e registra o
-   * portão do órgão (US-116: IA ligada, limites, reserva e avisos de consumo).
+   * portão do órgão (US-116: IA ligada, limites, reserva e avisos de consumo) e o GroundingGuard
+   * na cadeia de pós-processamento (US-122 · RN-AI-54).
    */
   onModuleInit(): void {
     this.suggestions.register(this.source);
     this.gates.register(this.gate);
+    const guard = new GroundingGuard();
+    if (!this.postProcessors.all().some((processor) => processor.name === guard.name)) {
+      this.postProcessors.register(guard);
+    }
   }
 }

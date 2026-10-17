@@ -23,7 +23,6 @@ const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', impor
  */
 const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {
   AI_CONTENT_APPLIED: 'US-117',
-  AI_CONTENT_REVIEWED: 'US-122',
 };
 
 /** `type` da primeira coluna da tabela de events.md §5 (fonte canônica do registro). */

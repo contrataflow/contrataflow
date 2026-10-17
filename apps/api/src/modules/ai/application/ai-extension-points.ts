@@ -12,7 +12,7 @@ import type { AiOutputPostProcessor } from '../domain/post-processing.js';
  * - `AiTenantGate` (US-116): IA ligada no órgão, termos aceitos, limite mensal e diário e reserva
  *   de tokens. Porta OBRIGATÓRIA: sem implementação registrada, AI-01 falha fechado com 403
  *   `AI_DISABLED` e o job cancela por política. Consultado no pedido e revalidado no job (RN-AI-22).
- * - `AiOutputPostProcessor` (US-122 — GroundingGuard): cadeia ordenada, nasce vazia.
+ * - `AiOutputPostProcessor` (US-122): cadeia ordenada; o `AiModule` registra o `GroundingGuard`.
  */
 
 export type AiGateDenial =

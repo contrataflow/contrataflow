@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { maskConfidentialSnapshot } from './confidential-snapshot.js';
 import {
+  AI_REVIEW_PENDING_NOTE,
   buildRenditionHtml,
   DRAFT_WATERMARK,
   InvalidLayoutError,
@@ -197,5 +198,59 @@ describe('renditionVariables (entities.md §5.2)', () => {
       'user.name': 'Lúcia',
     });
     expect(renditionVariables(input())['document.version']).toBe('2');
+  });
+});
+
+describe('marcas de IA na prévia (US-122 · RN-AI-58)', () => {
+  const ai = {
+    generationId: '0192f067-0000-7000-8000-0000000000e1',
+    appliedAt: NOW.toISOString(),
+    appliedById: '0192f067-0000-7000-8000-0000000000a1',
+    reviewedAt: null,
+    reviewedById: null,
+  };
+  const withMarker = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Entrega em ' },
+          { type: 'toConfirm', attrs: { label: 'prazo', category: 'DEADLINE', origin: 'AI' } },
+        ],
+      },
+    ],
+  };
+  const aiSnapshot = (reviewedAt: string | null) =>
+    snapshot({
+      sections: {
+        PROBLEM: {
+          state: 'FILLED',
+          content: withMarker,
+          justification: null,
+          ai: { ...ai, reviewedAt },
+        },
+      },
+    } as Partial<DocumentSnapshot>);
+
+  it('prévia: nota no topo da seção pendente e "[a confirmar: prazo]" destacado', () => {
+    const html = buildRenditionHtml(
+      input({ kind: 'PREVIEW', contentHash: null, snapshot: aiSnapshot(null) }),
+    ).indexHtml;
+    expect(html).toContain(`<p class="cf-ai-note">${AI_REVIEW_PENDING_NOTE}</p><p>Entrega em `);
+    expect(html).toContain(
+      '<mark class="cf-to-confirm" data-category="DEADLINE">[a confirmar: prazo]</mark>',
+    );
+    expect(html).toContain('.cf-to-confirm{');
+  });
+
+  it('seção revisada e versões não levam a nota (a proveniência não é impressa)', () => {
+    const reviewed = buildRenditionHtml(
+      input({ kind: 'PREVIEW', contentHash: null, snapshot: aiSnapshot(NOW.toISOString()) }),
+    ).indexHtml;
+    expect(reviewed).not.toContain(AI_REVIEW_PENDING_NOTE);
+    const version = buildRenditionHtml(input({ snapshot: aiSnapshot(null) })).indexHtml;
+    expect(version).not.toContain(AI_REVIEW_PENDING_NOTE);
+    expect(version).not.toContain(ai.generationId);
   });
 });

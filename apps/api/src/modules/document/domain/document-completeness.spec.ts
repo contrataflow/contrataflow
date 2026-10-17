@@ -193,6 +193,98 @@ describe('regras genéricas de seção', () => {
     );
     expect(reviewed.violations).toEqual([]);
   });
+
+  const marker = (label: string) => ({
+    type: 'toConfirm',
+    attrs: { label, category: 'DEADLINE', origin: 'AI' },
+  });
+  const withMarkers = (count: number) =>
+    filledSection('x', {
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'Entrega em ' },
+              ...Array.from({ length: count }, () => marker('prazo')),
+            ],
+          },
+        ],
+      },
+    });
+
+  it('marcações [a confirmar] bloqueiam com params.count (RN-AI-57 · V-08)', () => {
+    const result = evaluateGenericCompleteness(
+      input({
+        sections: [sectionDefinition('OBJETO', { title: 'Objeto' })],
+        document: {
+          currentVersionId: null,
+          draftContent: { sections: { OBJETO: withMarkers(2) } },
+        },
+      }),
+    );
+    expect(result.violations).toEqual([
+      expect.objectContaining({
+        code: 'SECTION_PLACEHOLDER_PENDING',
+        severity: 'BLOCKING',
+        sectionKey: 'OBJETO',
+        params: { count: 2 },
+        message: 'Resolva os 2 itens [a confirmar] da seção "Objeto".',
+      }),
+    ]);
+    expect(result.sections[0]?.complete).toBe(false);
+    const one = evaluateGenericCompleteness(
+      input({
+        sections: [sectionDefinition('OBJETO', { title: 'Objeto' })],
+        document: {
+          currentVersionId: null,
+          draftContent: { sections: { OBJETO: withMarkers(1) } },
+        },
+      }),
+    );
+    expect(one.violations[0]?.message).toBe('Resolva o item [a confirmar] da seção "Objeto".');
+  });
+
+  it('revisão e pendências são independentes (FA-03): as duas violações juntas', () => {
+    const ai = {
+      generationId: '0192f065-0000-7000-8000-0000000000e1',
+      appliedAt: '2026-10-16T12:00:00.000Z',
+      appliedById: '0192f065-0000-7000-8000-0000000000a1',
+      reviewedAt: null,
+      reviewedById: null,
+    };
+    const result = evaluateGenericCompleteness(
+      input({
+        sections: [sectionDefinition('OBJETO')],
+        document: {
+          currentVersionId: null,
+          draftContent: { sections: { OBJETO: { ...withMarkers(1), ai } } },
+        },
+      }),
+    );
+    expect(codes(result.violations)).toEqual([
+      'SECTION_AI_REVIEW_PENDING:OBJETO',
+      'SECTION_PLACEHOLDER_PENDING:OBJETO',
+    ]);
+  });
+
+  it('seção fora do template (ou documento sem template) também bloqueia; "não se aplica" não', () => {
+    const result = evaluateGenericCompleteness(
+      input({
+        document: {
+          currentVersionId: null,
+          draftContent: {
+            sections: {
+              LIVRE: withMarkers(1),
+              OUTRA: { ...withMarkers(3), state: 'NOT_APPLICABLE' },
+            },
+          },
+        },
+      }),
+    );
+    expect(codes(result.violations)).toEqual(['SECTION_PLACEHOLDER_PENDING:LIVRE']);
+  });
 });
 
 describe('cabeçalho e documento externo', () => {

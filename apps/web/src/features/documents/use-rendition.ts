@@ -15,7 +15,8 @@ import {
  * Acompanhamento do PDF por DOC-22 (US-067): consulta a cada 2 s enquanto `PENDING`/`PROCESSING` e
  * para ao chegar em `READY`/`FAILED`/`EXPIRED` (ou sem dado ainda). Não consulta em segundo plano
  * (aba oculta). `renditionId` nulo desliga a consulta. O `staleTime` curto evita um GET extra logo
- * depois de o pedido (DOC-20/21) semear o cache com a rendition `PENDING`.
+ * depois de o pedido (DOC-20/21) semear o cache com a rendition `PENDING`; em estado final a
+ * rendition não muda mais (a validade da prévia é conferida no cliente), então não fica velha.
  */
 export function useRendition(renditionId: string | null) {
   const tenantId = useTenantId();
@@ -23,7 +24,10 @@ export function useRendition(renditionId: string | null) {
     queryKey: renditionKeys.detail(tenantId, renditionId ?? 'none'),
     queryFn: ({ signal }) => fetchRendition(renditionId ?? '', signal),
     enabled: renditionId !== null,
-    staleTime: RENDITION_POLL_MS / 2,
+    staleTime: (query) =>
+      isRenditionInProgress(query.state.data?.status) || !query.state.data
+        ? RENDITION_POLL_MS / 2
+        : Infinity,
     refetchInterval: (query) =>
       isRenditionInProgress(query.state.data?.status) ? RENDITION_POLL_MS : false,
     refetchIntervalInBackground: false,

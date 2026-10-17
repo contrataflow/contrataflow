@@ -14,7 +14,10 @@ import type {
  * Gotenberg — `index.html` (corpo), `header.html` e `footer.html` (repetidos em cada página). Tudo
  * é montado aqui a partir de JSON conferido: texto escapado, só os nós do editor, variáveis
  * `{{...}}` resolvidas no servidor. A prévia leva a marca d'água "RASCUNHO" em cada página; a
- * versão, o hash do conteúdo no rodapé (`showDocumentHashInFooter`). Função pura: nunca loga nada.
+ * versão, o hash do conteúdo no rodapé (`showDocumentHashInFooter`). Na prévia, a seção com
+ * conteúdo de IA não revisado ganha a nota "Conteúdo gerado por IA — revisão pendente" e as
+ * marcações `toConfirm` saem destacadas (US-122 · RN-AI-58); a proveniência nunca é impressa nas
+ * versões. Função pura: nunca loga nada.
  */
 
 /** Layout inválido no template (V-04): falha permanente, sem nova tentativa. */
@@ -51,6 +54,7 @@ export interface RenditionHtml {
 }
 
 export const DRAFT_WATERMARK = 'RASCUNHO';
+export const AI_REVIEW_PENDING_NOTE = 'Conteúdo gerado por IA — revisão pendente';
 export const MASKED_VALUE_LABEL = 'Valor sigiloso';
 
 /* Marcadores de página (área de uso privado do Unicode): sobrevivem ao escape do texto e viram os
@@ -236,7 +240,13 @@ function sectionsHtml(
             ? `<p class="cf-justification">${escapeHtml(section.justification)}</p>`
             : '');
       } else {
-        body = richText(section.content, variables);
+        const aiPending =
+          input.kind === 'PREVIEW' && section.ai !== undefined && section.ai !== null
+            ? section.ai.reviewedAt === null
+            : false;
+        body =
+          (aiPending ? `<p class="cf-ai-note">${escapeHtml(AI_REVIEW_PENDING_NOTE)}</p>` : '') +
+          richText(section.content, variables);
       }
       return (
         `<section class="cf-section"><h2>${String(index + 1)}. ${escapeHtml(title)}</h2>` +
@@ -258,7 +268,11 @@ function baseStyle(layout: LayoutDefinition): string {
     'th,td{border:1px solid #999;padding:3pt 5pt;text-align:left;vertical-align:top;}' +
     '.cf-fields th{width:35%;background:#f2f2f2;}.cf-grid th{background:#f2f2f2;}' +
     '.cf-meta{color:#444;margin:0 0 1em;}.cf-empty{color:#666;font-style:italic;}' +
-    '.cf-section{break-inside:auto;}blockquote{border-left:3px solid #999;margin:0;padding-left:8pt;}'
+    '.cf-section{break-inside:auto;}blockquote{border-left:3px solid #999;margin:0;padding-left:8pt;}' +
+    // US-122: pendência "[a confirmar]" e nota de IA visíveis também em impressão monocromática.
+    '.cf-to-confirm{background:#fff3b0;color:#111;font-weight:700;border:1px dashed #8a6d00;' +
+    'padding:0 2pt;}.cf-ai-note{border-left:4px solid #8a6d00;background:#fff8d6;' +
+    'padding:3pt 6pt;font-weight:700;margin:0 0 .4em;}'
   );
 }
 

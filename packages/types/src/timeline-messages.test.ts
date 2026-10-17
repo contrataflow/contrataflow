@@ -76,6 +76,16 @@ describe('dicionário de mensagens da timeline (US-060 · RN-TML-14)', () => {
     ],
     ['RISK_ADDED', { code: 'R02', level: 'NOVO' }, 'Carlos Lima registrou o risco R02 (NOVO)'],
     ['PROCESS_ASSIGNED', { toUserName: null }, 'Carlos Lima atribuiu o processo a —'],
+    [
+      'AI_CONTENT_REVIEWED',
+      { documentCode: 'DFD 0005/2026', documentTitle: 'DFD', sectionsCount: 2, risksCount: 0 },
+      'Carlos Lima revisou o conteúdo gerado por IA em DFD 0005/2026 — DFD (2 seções)',
+    ],
+    [
+      'AI_CONTENT_REVIEWED',
+      { targetModule: 'RISK_MAP', sectionsCount: 1, risksCount: 3 },
+      'Carlos Lima revisou o conteúdo gerado por IA em o mapa de riscos (1 seção e 3 riscos)',
+    ],
   ] as const)('%s %o → "%s"', (type, params, expected) => {
     expect(renderTimelineEntry({ ...user, type, params }).message).toBe(expected);
   });

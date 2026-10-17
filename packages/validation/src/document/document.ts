@@ -72,6 +72,12 @@ export const DOCUMENT_MESSAGES = {
   alreadyExists: 'Este processo já tem um documento deste tipo.',
   notEditable: 'O documento não pode ser editado no status atual.',
   versionConflict: 'Esta informação foi atualizada por outra pessoa. Recarregue e tente novamente.',
+  // DOC-27 (US-122 · V-01..V-04 · V-08)
+  aiReviewSectionsRequired: 'Selecione ao menos uma seção do documento.',
+  aiReviewReload: 'Recarregue o documento e tente de novo.',
+  aiReviewConfirmAll: 'Confirme que leu e revisou as seções.',
+  aiReviewSectionChanged: 'A seção foi alterada. Leia a versão atual antes de revisar.',
+  aiReviewPending: 'Revise o conteúdo gerado por IA e resolva os itens [a confirmar].',
 } as const;
 
 // --- Conteúdo (entities.md §5.3) ----------------------------------------------------------------
@@ -193,6 +199,55 @@ export const documentTransitionSchema = z
   .default({});
 export type DocumentTransition = z.output<typeof documentTransitionSchema>;
 
+/** Seções de um lote de revisão (DOC-27): no máximo as de um template (60 por documento). */
+export const AI_REVIEW_MAX_SECTIONS = 60;
+
+/**
+ * DOC-27 (corpo — US-122 · RN-AI-56): revisão humana das seções geradas por IA. `expectedRevisions`
+ * traz a `revision` lida de cada seção (V-02); lote de 2+ seções exige `confirmAll: true` — a
+ * confirmação "Li e revisei as N seções" (V-03). Chave fora do documento é conferida pela API.
+ */
+export const documentAiReviewSchema = z
+  .strictObject({
+    sectionKeys: z
+      .array(z.string().min(1).max(60), { error: DOCUMENT_MESSAGES.aiReviewSectionsRequired })
+      .min(1, { error: DOCUMENT_MESSAGES.aiReviewSectionsRequired })
+      .max(AI_REVIEW_MAX_SECTIONS),
+    expectedRevisions: z.record(z.string().min(1).max(60), z.int().min(0), {
+      error: DOCUMENT_MESSAGES.aiReviewReload,
+    }),
+    confirmAll: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const keys = new Set(value.sectionKeys);
+    if (keys.size !== value.sectionKeys.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sectionKeys'],
+        message: DOCUMENT_MESSAGES.aiReviewSectionsRequired,
+        params: { code: 'DUPLICATED' },
+      });
+    }
+    if ([...keys].some((key) => value.expectedRevisions[key] === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['expectedRevisions'],
+        message: DOCUMENT_MESSAGES.aiReviewReload,
+        params: { code: 'REQUIRED' },
+      });
+    }
+    if (keys.size >= 2 && value.confirmAll !== true) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmAll'],
+        message: DOCUMENT_MESSAGES.aiReviewConfirmAll,
+        params: { code: 'CONDITIONAL_REQUIRED' },
+      });
+    }
+  })
+  .meta({ id: 'DocumentAiReviewRequest' });
+export type DocumentAiReview = z.infer<typeof documentAiReviewSchema>;
+
 /** DOC-12 (corpo). */
 export const documentReopenSchema = z.strictObject({ reopenReason: documentReasonSchema });
 export type DocumentReopen = z.infer<typeof documentReopenSchema>;
@@ -261,6 +316,12 @@ export const documentMetaSchema = z
   .object({ allowedActions: z.array(z.enum(DOCUMENT_ACTIONS)) })
   .meta({ id: 'DocumentMeta' });
 export type DocumentMeta = z.infer<typeof documentMetaSchema>;
+
+/** DOC-27 (resposta): o documento e as seções efetivamente revisadas (FA-07 · idempotente). */
+export const documentAiReviewResultSchema = z
+  .object({ document: documentSchema, reviewedSectionKeys: z.array(z.string()) })
+  .meta({ id: 'DocumentAiReviewResult' });
+export type DocumentAiReviewResultDto = z.infer<typeof documentAiReviewResultSchema>;
 
 /** Seção avaliada pela completude genérica (DOC-08). */
 export const documentValidationSectionSchema = z.object({

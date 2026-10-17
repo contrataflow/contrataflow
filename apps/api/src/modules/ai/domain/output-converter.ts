@@ -3,6 +3,7 @@ import type {
   AiOutputSection,
   AiOutputWarning,
   RichTextNode,
+  ToConfirmCategory,
 } from '@contrataflow/validation';
 import type { z } from 'zod';
 
@@ -29,8 +30,8 @@ export interface SectionSpec {
 
 export const DEFAULT_SECTION_MAX_CHARS = 50_000;
 
-export type ToConfirmCategory =
-  'QUANTITY' | 'VALUE' | 'DEADLINE' | 'DATE' | 'DATA' | 'DECISION' | 'OTHER';
+/** Categorias do nó `toConfirm` (contrato em `@contrataflow/validation` — RN-AI-53). */
+export type { ToConfirmCategory };
 
 export interface ConversionSpec {
   readonly sections: readonly SectionSpec[];

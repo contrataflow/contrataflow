@@ -3,7 +3,8 @@
  * API (`@contrataflow/validation` — rich-text) vira HTML para o Gotenberg. Só os nós e marks do
  * schema permitido são emitidos; qualquer outro é descartado (com o texto dos filhos preservado),
  * todo texto e atributo é escapado e os links só saem com `http(s)`/`mailto`. Nunca há HTML vindo
- * do cliente: o resultado é sempre montado aqui.
+ * do cliente: o resultado é sempre montado aqui. O nó em linha `toConfirm` (US-122 · RN-AI-53) sai
+ * como `<mark class="cf-to-confirm">[a confirmar: …]</mark>`, em destaque na prévia.
  */
 
 export interface HtmlRichTextNode {
@@ -91,6 +92,31 @@ function cellAttributes(node: HtmlRichTextNode): string {
   );
 }
 
+const TO_CONFIRM_CATEGORIES = new Set([
+  'QUANTITY',
+  'VALUE',
+  'DEADLINE',
+  'DATE',
+  'DATA',
+  'DECISION',
+  'OTHER',
+]);
+
+/** Rótulo da marcação `toConfirm` (vazio → "informação"). */
+export function toConfirmLabelOf(node: HtmlRichTextNode): string {
+  const label = node.attrs?.label;
+  return typeof label === 'string' && label.trim() !== '' ? label.trim() : 'informação';
+}
+
+function toConfirmHtml(node: HtmlRichTextNode): string {
+  const category = node.attrs?.category;
+  const data =
+    typeof category === 'string' && TO_CONFIRM_CATEGORIES.has(category)
+      ? ` data-category="${category}"`
+      : '';
+  return `<mark class="cf-to-confirm"${data}>${escapeHtml(`[a confirmar: ${toConfirmLabelOf(node)}]`)}</mark>`;
+}
+
 function renderNode(node: HtmlRichTextNode, options: RichTextHtmlOptions): string {
   const children = () => (node.content ?? []).map((child) => renderNode(child, options)).join('');
   switch (node.type) {
@@ -103,6 +129,8 @@ function renderNode(node: HtmlRichTextNode, options: RichTextHtmlOptions): strin
     }
     case 'hardBreak':
       return '<br>';
+    case 'toConfirm':
+      return toConfirmHtml(node);
     case 'horizontalRule':
       return '<hr>';
     case 'heading': {
@@ -142,6 +170,7 @@ export function richTextToPlainText(doc: HtmlRichTextNode | null | undefined): s
   if (doc === null || doc === undefined) return '';
   if (doc.type === 'text') return typeof doc.text === 'string' ? doc.text : '';
   if (doc.type === 'hardBreak') return '\n';
+  if (doc.type === 'toConfirm') return `[a confirmar: ${toConfirmLabelOf(doc)}]`;
   const parts = (doc.content ?? []).map((child) => richTextToPlainText(child));
   return doc.type === 'doc' ? parts.join('\n') : parts.join('');
 }

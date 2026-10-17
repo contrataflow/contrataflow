@@ -59,6 +59,7 @@ import {
 } from './application/rendition.ports.js';
 import type { RenditionSettings } from './application/rendition.ports.js';
 import { GetRenditionDownloadQuery, GetRenditionQuery } from './application/rendition.queries.js';
+import { ReviewAiContentCommand } from './application/review-ai-content.command.js';
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { TemplateContext } from './application/template-context.js';
@@ -224,6 +225,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentAttachmentTargets,
     DocumentQueries,
     UpdateDocumentHeaderCommand,
+    ReviewAiContentCommand,
     FinalizeDocumentCommand,
     SubmitDocumentCommand,
     ReopenDocumentCommand,

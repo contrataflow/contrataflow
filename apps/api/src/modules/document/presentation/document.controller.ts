@@ -1,4 +1,6 @@
 import {
+  documentAiReviewResultSchema,
+  documentAiReviewSchema,
   documentCancelSchema,
   documentIdParamsSchema,
   documentMetaSchema,
@@ -17,6 +19,8 @@ import {
   pageEnvelope,
 } from '@contrataflow/validation';
 import type {
+  DocumentAiReview,
+  DocumentAiReviewResultDto,
   DocumentCancel,
   DocumentDto,
   DocumentMeta,
@@ -57,6 +61,7 @@ import {
 } from '../application/document.commands.js';
 import { DocumentQueries } from '../application/document.queries.js';
 import { toDocumentDto } from '../application/document.view.js';
+import { ReviewAiContentCommand } from '../application/review-ai-content.command.js';
 import type { DocumentType } from '../domain/document-type.js';
 import type { Document } from '../domain/document.js';
 
@@ -93,6 +98,7 @@ export class DocumentController {
     private readonly remove: DeleteDocumentCommand,
     private readonly versions: DocumentVersionQueries,
     private readonly saveVersion: SaveDocumentVersionCommand,
+    private readonly reviewAi: ReviewAiContentCommand,
   ) {}
 
   private respond(
@@ -331,6 +337,45 @@ export class DocumentController {
     @IfMatch() ifMatch: IfMatchValue | null,
   ): Promise<void> {
     await this.remove.execute({ documentId: params.id, expectedVersion: ifMatch?.value ?? 0 });
+  }
+
+  // --- Conteúdo gerado por IA (US-122 · DOC-27) ----------------------------------------------
+
+  @Post(':id/ai-review')
+  @HttpCode(200)
+  @ImplicitAccess(
+    'Permissão de EDIÇÃO do tipo do documento (DFD_UPDATE, ETP_UPDATE, RISK_MANAGE, TERM_UPDATE…) conferida pelo caso de uso sobre o processo, com POL-02; AI_GENERATE não é exigida.',
+  )
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-27',
+    summary: 'Marcar seções geradas por IA como revisadas',
+    tags: TAGS,
+    auditActions: ['ai.content_review'],
+    responses: {
+      200: {
+        description:
+          'Seções revisadas (`reviewedAt/By`, `revision + 1`); seções sem proveniência pendente são ignoradas (idempotente). A concorrência é por seção (`expectedRevisions`): divergência → 412 `VERSION_CONFLICT` com `meta.current`.',
+        schema: dataEnvelope(documentAiReviewResultSchema),
+      },
+    },
+  })
+  async reviewAiContent(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentAiReviewSchema) body: DocumentAiReview,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentAiReviewResultDto> {
+    const result = await this.reviewAi.execute({
+      documentId: params.id,
+      sectionKeys: body.sectionKeys,
+      expectedRevisions: body.expectedRevisions,
+      confirmAll: body.confirmAll ?? false,
+    });
+    response.setHeader('ETag', `"${result.document.version}"`);
+    return {
+      document: toDocumentDto(result.document, result.type),
+      reviewedSectionKeys: [...result.reviewedSectionKeys],
+    };
   }
 
   // --- Versões (US-066 · DOC-15/16/18) -------------------------------------------------------

@@ -1,3 +1,4 @@
+import { AI_TARGET_MODULES } from '@contrataflow/types';
 import { z } from 'zod';
 
 import { RENDITION_KINDS } from './document-rendition.js';
@@ -170,6 +171,27 @@ export const DocumentCanceled = defineDomainEvent({
   aggregateType: 'Document',
   payload: z.strictObject({ documentId: z.uuid(), documentTypeCode, fromStatus: documentStatus }),
   routingKey: documentRoutingKey('canceled'),
+});
+
+/**
+ * `AiContentReviewed` — DOC-27 (US-122 · RN-AI-56) e RSK-12 (US-119): revisão humana do conteúdo
+ * gerado por IA (events.md §4.7). Só ids e contagens — nunca o texto. Routing key
+ * `document.ai_content_reviewed.<tipo>` (`dfd`, `etp`, `risk_map`, `tr`). Projeta
+ * `AI_CONTENT_REVIEWED` na timeline.
+ */
+export const AiContentReviewed = defineDomainEvent({
+  eventType: 'AiContentReviewed',
+  eventVersion: 1,
+  aggregateType: 'Document',
+  payload: z.strictObject({
+    documentId: z.uuid().nullable(),
+    documentTypeCode,
+    targetModule: z.enum(AI_TARGET_MODULES).nullable(),
+    sectionKeys: z.array(z.string().min(1).max(60)),
+    riskIds: z.array(z.uuid()),
+    generationIds: z.array(z.uuid()),
+  }),
+  routingKey: documentRoutingKey('ai_content_reviewed'),
 });
 
 /** `TemplateVersionRetired` (events.md §4.5 · US-108): commit da aposentadoria (TPL-11). */

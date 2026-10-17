@@ -171,6 +171,25 @@ genéricas — a ausência de registro nunca falha a ação.
   `infrastructure/gotenberg.client.spec.ts`, `presentation/renditions.routes.spec.ts` (8 categorias
   do Gherkin) e `test/tenant-leak/document-renditions.spec.ts` (PostgreSQL).
 
+## Conteúdo gerado por IA e revisão humana (US-122 · RN-AI-53..58)
+
+- **Proveniência por seção** (`DraftContent.sections[k].ai` — `domain/section-ai-provenance.ts`):
+  `withAiApplied` (DOC-26 — US-117..US-121: proveniência nova e pendente, zera a revisão), `aiAfterSave`
+  (DOC-05 — US-015: editar mantém; `EMPTY`/`NOT_APPLICABLE` limpa) e `reviewAiSections` (DOC-27). O
+  `document` não importa `ai` (D9): só lê o `draftContent`.
+- **DOC-27** `POST /documents/{id}/ai-review` (`ReviewAiContentCommand`): linha travada → permissão de
+  EDIÇÃO do tipo + POL-02 (`AI_GENERATE` não é exigida) → chaves do documento (`NOT_ALLOWED`) →
+  `expectedRevisions` das seções pendentes (412 `VERSION_CONFLICT` + `meta.current`) → `reviewedAt/By`,
+  `revision + 1`, `draftRevision + 1`, `version + 1` → `ai.content_review` → `AiContentReviewed`
+  (`document.ai_content_reviewed.<tipo>`, timeline `AI_CONTENT_REVIEWED`). Nada pendente = 200 sem
+  gravar (idempotente, sem evento nem auditoria). Lote de 2+ seções exige `confirmAll: true`.
+- **Completude** (`document-completeness.ts`): `SECTION_AI_REVIEW_PENDING` e
+  `SECTION_PLACEHOLDER_PENDING` (`params.count`) bloqueantes e independentes, em todo tipo e também
+  nas seções do rascunho fora do template → DOC-09/10 respondem `DOCUMENT_INCOMPLETE`.
+- **Prévia** (`rendition-html.ts`): nota "Conteúdo gerado por IA — revisão pendente" no topo da seção
+  pendente (só `PREVIEW`) e `toConfirm` destacado (`<mark class="cf-to-confirm">`, em
+  `@contrataflow/editor`). O nó `toConfirm` é validado em `@contrataflow/validation` (`rich-text.ts`).
+
 ## Biblioteca padrão de templates (US-110 · RN-TPL-28..36)
 
 - **Fixture:** `domain/template-library.ts` (`TEMPLATE_LIBRARY`, versão `TEMPLATE_LIBRARY_VERSION`) —

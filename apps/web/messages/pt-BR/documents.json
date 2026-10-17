@@ -61,7 +61,8 @@
     "working": "Enviando…",
     "continue": "Continuar",
     "cancel": "Cancelar",
-    "close": "Fechar"
+    "close": "Fechar",
+    "goToSection": "Ir para a seção {key}"
   },
   "acknowledge": {
     "title": "Reconhecer os avisos",
@@ -269,6 +270,48 @@
       "backToList": "Voltar para Processos",
       "unavailable": "Não foi possível carregar os documentos agora.",
       "unexpected": "Ocorreu um erro inesperado.",
+      "retry": "Tentar novamente"
+    }
+  },
+  "aiReview": {
+    "title": "Conteúdo gerado por IA",
+    "summary": "{pending, plural, =0 {Nenhuma seção aguarda revisão} one {# seção aguarda revisão} other {# seções aguardam revisão}} · {marks, plural, =0 {nenhum item [a confirmar]} one {# item [a confirmar]} other {# itens [a confirmar]}}. O documento só pode ser finalizado, submetido ou encaminhado depois disso.",
+    "summaryDone": "Todo o conteúdo gerado por IA foi revisado e não há itens [a confirmar].",
+    "badge": {
+      "pending": "Gerado por IA · revisão pendente",
+      "marks": "· {count, plural, one {# pendência} other {# pendências}}",
+      "reviewed": "Gerado por IA · revisada em {date}",
+      "reviewedByMe": "Gerado por IA · revisada por você em {date}"
+    },
+    "chip": {
+      "text": "[a confirmar: {label}]",
+      "ariaLabel": "Pendência a confirmar: {label}"
+    },
+    "marksHint": "{count, plural, one {Substitua o item abaixo pelo dado confirmado no editor da seção.} other {Substitua os # itens abaixo pelos dados confirmados no editor da seção.}}",
+    "markReviewed": "Marcar seção como revisada",
+    "working": "Registrando…",
+    "reviewAll": {
+      "open": "Revisar todas ({count})",
+      "title": "Revisar todas as seções",
+      "description": "{count, plural, one {Confirme que você leu a seção gerada por IA abaixo.} other {Confirme que você leu as # seções geradas por IA abaixo.}} Os itens [a confirmar] continuam pendentes até serem resolvidos.",
+      "confirmLabel": "{count, plural, one {Li e revisei a seção} other {Li e revisei as # seções}}",
+      "confirm": "{count, plural, one {Marcar a seção como revisada} other {Marcar as # seções como revisadas}}",
+      "cancel": "Cancelar"
+    },
+    "toast": {
+      "one": "Seção marcada como revisada.",
+      "many": "{count, plural, =0 {Nenhuma seção precisava de revisão.} one {# seção marcada como revisada.} other {# seções marcadas como revisadas.}}"
+    },
+    "announce": {
+      "one": "Seção {section} marcada como revisada.",
+      "many": "{count, plural, =0 {Nenhuma seção precisava de revisão.} one {# seção marcada como revisada.} other {# seções marcadas como revisadas.}}"
+    },
+    "errors": {
+      "conflict": "A seção foi alterada. Leia a versão atual antes de revisar.",
+      "notAllowed": "Você não tem permissão para editar este documento.",
+      "notFound": "Documento não encontrado.",
+      "rateLimited": "Muitas tentativas seguidas. Aguarde um instante e tente de novo.",
+      "unavailable": "Não foi possível registrar a revisão agora. Tente novamente em instantes.",
       "retry": "Tentar novamente"
     }
   }

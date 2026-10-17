@@ -56,6 +56,7 @@ import { AI_SETTINGS, AI_TRANSACTIONS } from '../application/ports.js';
 import type { AiSettings, AiTransactions } from '../application/ports.js';
 import { requestGeneration } from '../domain/ai-generation.js';
 import type { AiGeneration } from '../domain/ai-generation.js';
+import { GroundingGuard } from '../domain/grounding-guard.js';
 import { FakeAiProvider } from '../infrastructure/fake-ai.provider.js';
 
 /*
@@ -398,6 +399,36 @@ describe('Feature: Camada de IA com registro e rastreabilidade das gerações (U
       expect(first?.placeholdersCount).toBe(2);
     });
 
+    it('GroundingGuard (US-122): troca valor e prazo sem entrada, mantém citação legal e conta as trocas', async () => {
+      const chain = api.app.get(AiPostProcessorRegistry);
+      chain.clear();
+      chain.register(new GroundingGuard());
+      provider.enqueue({
+        kind: 'output',
+        output: validOutput('Estimativa de R$ 80.000,00 em 90 dias, conforme o art. 18, § 1º.'),
+      });
+      const id = await requested(await newDfd());
+      await runAiJob(api, id);
+      const done = stored(id);
+      expect(done?.status).toBe('SUCCEEDED');
+      // 2 trocas por seção (valor e prazo) nas duas seções; + o "[a confirmar: quantidade]".
+      expect(done).toMatchObject({ groundingReplacements: 4, placeholdersCount: 6 });
+      const [first] = done?.output?.sections ?? [];
+      expect(first).toMatchObject({ groundingReplacements: 2, placeholdersCount: 3 });
+      const text = JSON.stringify(first?.content);
+      expect(text).not.toContain('80.000');
+      expect(text).not.toContain('90 dias');
+      expect(text).toContain('art. 18, § 1º');
+      expect(text).toContain('"category":"VALUE"');
+      expect(text).toContain('"category":"DEADLINE"');
+      // AI-02 expõe as contagens.
+      const get = await call('get', `/ai-generations/${id}`, { key: null });
+      expect(aiGenerationSchema.parse((get.body as { data: unknown }).data)).toMatchObject({
+        groundingReplacements: 4,
+        placeholdersCount: 6,
+      });
+    });
+
     it('Consultar (AI-02), listar (AI-03) e descartar (AI-04)', async () => {
       const target = await newDfd();
       const id = await requested(target);
@@ -636,6 +667,91 @@ describe('Feature: Camada de IA com registro e rastreabilidade das gerações (U
         errorCode: 'OUTPUT_INVALID',
         requestedById: FAKE_USERS.lucia.id,
       });
+    });
+
+    it('Provedor devolve marcação inválida (US-122 · V-09): toConfirm de categoria XYZ → FAILED/OUTPUT_INVALID após o reparo, sem output', async () => {
+      const invalidMarker = {
+        sections: [
+          {
+            sectionKey: 'NECESSIDADE',
+            blocks: [
+              {
+                type: 'paragraph',
+                text: [
+                  { type: 'toConfirm', attrs: { label: 'prazo', category: 'XYZ', origin: 'AI' } },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      provider.enqueue(
+        { kind: 'output', output: invalidMarker },
+        { kind: 'output', output: invalidMarker },
+      );
+      const id = await requested(await newDfd());
+      await runAiJob(api, id);
+      expect(provider.calls.map((call) => call.metadata.call)).toEqual(['initial', 'repair']);
+      expect(stored(id)).toMatchObject({
+        status: 'FAILED',
+        errorCode: 'OUTPUT_INVALID',
+        output: null,
+      });
+    });
+
+    it('Falha fechada do pós-processamento (RN-AI-54): gancho com erro ou toConfirm fora do contrato → OUTPUT_INVALID sem output', async () => {
+      const chain = api.app.get(AiPostProcessorRegistry);
+      const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      chain.register({
+        name: 'quebrado',
+        process: () => {
+          throw new Error('falha do guard');
+        },
+      });
+      provider.enqueue({ kind: 'output', output: validOutput('R$ 10,00') });
+      const broken = await requested(await newDfd());
+      await runAiJob(api, broken);
+      expect(stored(broken)).toMatchObject({
+        status: 'FAILED',
+        errorCode: 'OUTPUT_INVALID',
+        output: null,
+      });
+      expect(error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'ai.grounding_failed', generationId: broken }),
+        'ai.grounding_failed',
+      );
+      expect(JSON.stringify(error.mock.calls)).not.toContain('R$ 10,00');
+
+      chain.clear();
+      chain.register({
+        name: 'marcacao-invalida',
+        process: ({ output }) => ({
+          ...output,
+          sections: output.sections.map((section) => ({
+            ...section,
+            content: {
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'toConfirm', attrs: { label: '', category: 'XYZ', origin: 'AI' } },
+                  ],
+                },
+              ],
+            },
+          })),
+        }),
+      });
+      provider.enqueue({ kind: 'output', output: validOutput() });
+      const invalid = await requested(await newDfd());
+      await runAiJob(api, invalid);
+      expect(stored(invalid)).toMatchObject({
+        status: 'FAILED',
+        errorCode: 'OUTPUT_INVALID',
+        output: null,
+      });
+      error.mockRestore();
     });
 
     it('Política mudou antes da execução (FA-06): CANCELED_BY_POLICY sem chamar o provedor', async () => {

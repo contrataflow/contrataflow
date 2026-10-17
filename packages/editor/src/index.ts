@@ -15,5 +15,6 @@ export {
   resolveTemplateVariables,
   richTextToHtml,
   richTextToPlainText,
+  toConfirmLabelOf,
 } from './html.js';
 export type { HtmlRichTextNode, RichTextHtmlOptions } from './html.js';

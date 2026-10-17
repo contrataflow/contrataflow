@@ -57,6 +57,11 @@ export function assignDepartment(api: TestApi, membershipId: string, departmentI
   identity.assignDepartment(membershipId, departmentId);
 }
 
+/** Repositório em memória de perfis e concessões do `access` (specs de outros módulos não o importam). */
+export function roleRepositoryOf(api: TestApi): InMemoryRoleRepository {
+  return api.app.get(InMemoryRoleRepository, { strict: false });
+}
+
 /** Perfis padrão do tenant no repositório em memória do `access` (US-091: perfil inicial). */
 export function seedDefaultRolesOf(api: TestApi, tenantId: string): Map<string, Role> {
   const repository = api.app.get(InMemoryRoleRepository, { strict: false });

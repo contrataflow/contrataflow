@@ -23,6 +23,7 @@ export const RICH_TEXT_NODE_TYPES = [
   'tableRow',
   'tableHeader',
   'tableCell',
+  'toConfirm',
 ] as const;
 export type RichTextNodeType = (typeof RICH_TEXT_NODE_TYPES)[number];
 
@@ -34,6 +35,62 @@ export const RICH_TEXT_MARK_TYPES = [
   'code',
   'link',
 ] as const;
+
+/*
+ * Nó em linha `toConfirm` (US-122 · RN-AI-53 · entities.md §5.10): a pendência "[a confirmar: …]"
+ * que a IA (ou o GroundingGuard) deixa no lugar do dado que não está nas entradas, ou que o redator
+ * insere à mão. Sem filhos; atributos fechados (`label` 1..120, `category`, `origin`).
+ */
+export const TO_CONFIRM_CATEGORIES = [
+  'QUANTITY',
+  'VALUE',
+  'DEADLINE',
+  'DATE',
+  'DATA',
+  'DECISION',
+  'OTHER',
+] as const;
+export type ToConfirmCategory = (typeof TO_CONFIRM_CATEGORIES)[number];
+
+export const TO_CONFIRM_ORIGINS = ['AI', 'USER'] as const;
+export type ToConfirmOrigin = (typeof TO_CONFIRM_ORIGINS)[number];
+
+export const TO_CONFIRM_LABEL_MAX = 120;
+export const TO_CONFIRM_MESSAGE = `Descreva o que falta confirmar (até ${String(TO_CONFIRM_LABEL_MAX)} caracteres).`;
+
+/** Rótulo padrão de cada categoria (entities.md §5.10). */
+export const TO_CONFIRM_DEFAULT_LABELS: Readonly<Record<ToConfirmCategory, string>> = {
+  VALUE: 'valor',
+  QUANTITY: 'quantidade',
+  DEADLINE: 'prazo',
+  DATE: 'data',
+  DATA: 'dado do órgão',
+  DECISION: 'decisão da equipe',
+  OTHER: 'informação',
+};
+
+/** Texto exibido da marcação: "[a confirmar: {label}]" (editor, prévia e texto puro). */
+export function toConfirmText(label: string): string {
+  return `[a confirmar: ${label}]`;
+}
+
+const toConfirmCategories: ReadonlySet<string> = new Set(TO_CONFIRM_CATEGORIES);
+const toConfirmOrigins: ReadonlySet<string> = new Set(TO_CONFIRM_ORIGINS);
+
+/** Atributos do `toConfirm` fora do contrato (V-05) → mensagem; `null` = aceitos. */
+function toConfirmProblem(node: Record<string, unknown>): string | null {
+  if (node.content !== undefined || !isRecord(node.attrs)) return TO_CONFIRM_MESSAGE;
+  const { label, category, origin, ...rest } = node.attrs;
+  if (Object.keys(rest).length > 0) return TO_CONFIRM_MESSAGE;
+  if (typeof label !== 'string') return TO_CONFIRM_MESSAGE;
+  const trimmed = label.trim();
+  if (trimmed.length < 1 || trimmed.length > TO_CONFIRM_LABEL_MAX) return TO_CONFIRM_MESSAGE;
+  if (typeof category !== 'string' || !toConfirmCategories.has(category)) {
+    return TO_CONFIRM_MESSAGE;
+  }
+  if (typeof origin !== 'string' || !toConfirmOrigins.has(origin)) return TO_CONFIRM_MESSAGE;
+  return null;
+}
 
 /** Limite de tamanho do JSON serializado de um campo rico (DEC-056 · api.md §2.1). */
 export const RICH_TEXT_MAX_BYTES = 1024 * 1024;
@@ -78,6 +135,10 @@ function nodeProblem(node: unknown, depth: number): string | null {
       (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value),
     );
     if (!primitive) return 'Conteúdo rico malformado.';
+  }
+  if (node.type === 'toConfirm') {
+    const problem = toConfirmProblem(node);
+    if (problem) return problem;
   }
   if (node.type === 'text') {
     if (typeof node.text !== 'string' || node.content !== undefined) {
@@ -139,8 +200,26 @@ export function richTextPlainText(
   if (!doc) return '';
   const node = doc as RichTextNode;
   if (node.type === 'text') return node.text ?? '';
+  if (node.type === 'toConfirm') return toConfirmText(String(node.attrs?.label ?? ''));
   const parts = (node.content ?? []).map((child) => richTextPlainText(child));
   return parts.join(node.type === 'doc' ? '\n' : '');
+}
+
+function visit(node: RichTextNode, found: (node: RichTextNode) => void): void {
+  found(node);
+  for (const child of node.content ?? []) visit(child, found);
+}
+
+/** Marcações `toConfirm` do documento (RN-AI-57 · `SECTION_PLACEHOLDER_PENDING`). */
+export function countToConfirmNodes(
+  doc: RichTextDoc | RichTextDocValue | RichTextNode | undefined | null,
+): number {
+  if (!doc) return 0;
+  let count = 0;
+  visit(doc as RichTextNode, (node) => {
+    if (node.type === 'toConfirm') count += 1;
+  });
+  return count;
 }
 
 /** Documento com um parágrafo por linha do texto (vazio = documento sem conteúdo). */

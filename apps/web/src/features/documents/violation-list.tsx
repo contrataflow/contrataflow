@@ -2,6 +2,14 @@ import type { Violation } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import type { Ref } from 'react';
 
+import { aiSectionAnchor } from './ai-review-model';
+
+/** Violações de IA (RN-AI-57) com link para a seção no painel "Conteúdo gerado por IA". */
+const AI_SECTION_CODES: ReadonlySet<string> = new Set([
+  'SECTION_AI_REVIEW_PENDING',
+  'SECTION_PLACEHOLDER_PENDING',
+]);
+
 export interface ViolationListProps {
   readonly label: string;
   /** Na ordem de exibição (bloqueantes primeiro). */
@@ -12,7 +20,8 @@ export interface ViolationListProps {
 
 /**
  * Lista de `violations[]` do DOC-08 (e do 422): a gravidade vem em texto ("Bloqueante"/"Aviso"),
- * nunca só na cor, e `sectionKey`/`field`, quando existem, aparecem como referência.
+ * nunca só na cor, e `sectionKey`/`field`, quando existem, aparecem como referência. As pendências
+ * de IA (US-122) levam o link para a seção no painel "Conteúdo gerado por IA".
  */
 export function ViolationList({ label, violations, firstItemRef }: ViolationListProps) {
   const t = useTranslations('documents.completeness');
@@ -41,6 +50,14 @@ export function ViolationList({ label, violations, firstItemRef }: ViolationList
               <span className="text-xs break-words text-muted-foreground">
                 {references.join(' · ')}
               </span>
+            ) : null}
+            {violation.sectionKey && AI_SECTION_CODES.has(violation.code) ? (
+              <a
+                href={`#${aiSectionAnchor(violation.sectionKey)}`}
+                className="text-xs text-primary underline"
+              >
+                {t('goToSection', { key: violation.sectionKey })}
+              </a>
             ) : null}
           </li>
         );

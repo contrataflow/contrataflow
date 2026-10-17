@@ -1,14 +1,17 @@
+import { richTextProblem } from '@contrataflow/validation';
 import type { AiGenerationOutput } from '@contrataflow/validation';
 
 import type { SanitizedContext } from './context-sanitizer.js';
-import { countToConfirm } from './output-converter.js';
+import { countToConfirm, plainTextLength } from './output-converter.js';
+import type { SectionSpec } from './output-converter.js';
 
 /*
  * Ganchos de pós-processamento (RN-AI-07 · fluxo principal, passo 7): rodam em ordem sobre a
- * proposta já convertida, antes de gravar. A cadeia nasce vazia nesta story; a US-122 registra o
- * `GroundingGuard` (troca por `[a confirmar]` todo número/valor/prazo que não esteja nas entradas)
- * e cada gancho informa as trocas em `section.groundingReplacements`. Determinísticos e sem efeito
- * fora da proposta: nada de banco, rede ou log de conteúdo.
+ * proposta já convertida, antes de gravar. O `AiModule` registra o `GroundingGuard` (US-122: troca
+ * por `[a confirmar]` todo número/valor/prazo que não esteja nas entradas) e cada gancho informa as
+ * trocas em `section.groundingReplacements`. Determinísticos e sem efeito fora da proposta: nada de
+ * banco, rede ou log de conteúdo. A saída da cadeia é conferida de novo (`postProcessingIssues`):
+ * só nós do editor (DEC-056) e `maxChars` da seção — a troca por `toConfirm` muda o tamanho.
  */
 
 export interface PostProcessingInput {
@@ -27,6 +30,29 @@ export interface PostProcessingResult {
   readonly output: AiGenerationOutput;
   readonly placeholdersCount: number;
   readonly groundingReplacements: number;
+}
+
+/**
+ * Problemas da proposta pós-processada (só caminhos e códigos — nunca o texto): nó fora do schema
+ * do editor (ex.: `toConfirm` inválido) ou seção acima de `maxChars`. Vazio = pode gravar.
+ */
+export function postProcessingIssues(
+  output: AiGenerationOutput,
+  specs: readonly SectionSpec[],
+): string[] {
+  const maxChars = new Map(specs.map((spec) => [spec.sectionKey, spec.maxChars]));
+  const issues: string[] = [];
+  for (const [index, section] of output.sections.entries()) {
+    if (richTextProblem(section.content) !== null) {
+      issues.push(`sections.${String(index)}.content: invalid_node`);
+    }
+    const limit = maxChars.get(section.sectionKey);
+    const doc = section.content as Parameters<typeof plainTextLength>[0];
+    if (limit !== undefined && plainTextLength(doc) > limit) {
+      issues.push(`sections.${String(index)}.content: too_long`);
+    }
+  }
+  return issues;
 }
 
 /** Aplica a cadeia e recalcula as contagens de marcações por seção. */

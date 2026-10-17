@@ -9,6 +9,7 @@ import {
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import {
+  AiContentReviewed,
   DocumentApproved,
   DocumentCanceled,
   DocumentCreated,
@@ -69,6 +70,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   AiGenerationCompleted,
   AiGenerationFailed,
   AiUsageThresholdReached,
+  AiContentReviewed,
   AttachmentUploaded,
   AttachmentRejected,
   AttachmentDeleted,

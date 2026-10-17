@@ -139,6 +139,9 @@ const DOCUMENT_VERSION_ROUTE =
 const DOCUMENT_RENDITION_ROUTE =
   'PDFs de documento (US-067): a suíte genérica não tem documento, versão nem rendition do tenant B. O isolamento (DOC-20 com documento de B, DOC-21 com versão de B e DOC-22/23 com rendition de B → 404 NOT_FOUND sem revelar nada; RLS, índices únicos parciais e gatilho de document_renditions) é coberto em test/tenant-leak/document-renditions.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/renditions.routes.spec.ts.';
 
+const DOCUMENT_AI_REVIEW_ROUTE =
+  'Revisão do conteúdo gerado por IA (US-122): a suíte genérica não tem documento do tenant B com seção pendente. O isolamento (DOC-27 com DFD de B → 404 NOT_FOUND sem revelar nada nem alterar a proveniência; RLS de documents com app.tenant_id diferente retornando vazio) é coberto em test/tenant-leak/document-ai-review.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/document-ai-review.routes.spec.ts.';
+
 const DOCUMENT_PANEL_ROUTE =
   'Painel de documentos (US-062): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-01 com processo de outro tenant → 404 PROCESS_NOT_FOUND igual ao inexistente, sem revelar nada; RLS de documents na consulta do painel; processo não visível → 404 com access.denied) é coberto em test/tenant-leak/process-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/process-documents.routes.spec.ts.';
 
@@ -272,6 +275,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-21': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-22': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-23': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
+  'DOC-27': { kind: 'exempt', reason: DOCUMENT_AI_REVIEW_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

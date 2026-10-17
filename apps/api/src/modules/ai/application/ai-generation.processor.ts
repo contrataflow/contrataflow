@@ -47,7 +47,7 @@ import { ContextTooLargeError, sanitizeContext } from '../domain/context-sanitiz
 import type { ContextPart, SanitizedContext } from '../domain/context-sanitizer.js';
 import { convertStructuredOutput } from '../domain/output-converter.js';
 import type { ConversionResult } from '../domain/output-converter.js';
-import { runPostProcessors } from '../domain/post-processing.js';
+import { postProcessingIssues, runPostProcessors } from '../domain/post-processing.js';
 import type { PostProcessingResult } from '../domain/post-processing.js';
 import { AI_PRICING_TABLE } from '../domain/pricing-table.js';
 import { renderPrompt, repairInstruction } from '../domain/prompts.js';
@@ -369,11 +369,59 @@ export class AiGenerationProcessor {
     if (!conversion.ok) throw new GenerationFailure('OUTPUT_INVALID', usage);
     await this.circuit.success();
     return {
-      result: runPostProcessors(this.postProcessors.all(), conversion.output, sanitized),
+      result: this.postProcess(generation, prepared, conversion.output, sanitized, usage),
       usage,
       model: response.model,
       providerRequestId: response.providerRequestId,
     };
+  }
+
+  /**
+   * Passo 6 (RN-AI-54): ganchos (GroundingGuard) e nova conferência do schema do editor e do
+   * `maxChars`. Qualquer falha é FECHADA: `OUTPUT_INVALID` sem gravar `output` (V-09).
+   */
+  private postProcess(
+    generation: AiGeneration,
+    prepared: PreparedRun,
+    output: Parameters<typeof runPostProcessors>[1],
+    sanitized: SanitizedContext,
+    usage: AiTokenUsage,
+  ): PostProcessingResult {
+    let result: PostProcessingResult;
+    try {
+      result = runPostProcessors(this.postProcessors.all(), output, sanitized);
+    } catch (error) {
+      this.groundingFailed(generation, error instanceof Error ? error.name : 'unknown');
+      throw new GenerationFailure('OUTPUT_INVALID', usage);
+    }
+    const issues = postProcessingIssues(result.output, prepared.context.sections);
+    if (issues.length > 0) {
+      this.groundingFailed(generation, 'invalid_output');
+      throw new GenerationFailure('OUTPUT_INVALID', usage);
+    }
+    this.logger.log(
+      {
+        event: 'ai.grounding_applied',
+        generationId: generation.id,
+        targetModule: generation.targetModule,
+        replacements: result.groundingReplacements,
+        placeholders: result.placeholdersCount,
+      },
+      'ai.grounding_applied',
+    );
+    return result;
+  }
+
+  private groundingFailed(generation: AiGeneration, cause: string): void {
+    this.logger.error(
+      {
+        event: 'ai.grounding_failed',
+        generationId: generation.id,
+        cause,
+        correlationId: requireRequestContext().correlationId,
+      },
+      'ai.grounding_failed',
+    );
   }
 
   private convert(

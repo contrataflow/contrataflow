@@ -1,4 +1,4 @@
-import { DOCUMENT_LIMITS, richTextPlainText } from '@contrataflow/validation';
+import { DOCUMENT_LIMITS, countToConfirmNodes, richTextPlainText } from '@contrataflow/validation';
 import type {
   DocumentKind,
   DraftSection,
@@ -9,6 +9,7 @@ import type {
 } from '@contrataflow/validation';
 
 import type { Document } from './document.js';
+import { isAiReviewPending } from './section-ai-provenance.js';
 
 /*
  * Validação de completude (US-065 · DOC-08 · RN-DOC-51 · api.md §2.1.2): regras GENÉRICAS do módulo
@@ -77,6 +78,38 @@ function isBlank(value: unknown): boolean {
   return false;
 }
 
+/**
+ * RN-AI-57 (US-122): conteúdo aplicado por IA sem revisão humana (`SECTION_AI_REVIEW_PENDING`) e
+ * marcações "[a confirmar]" (`SECTION_PLACEHOLDER_PENDING`, `params.count`) — violações bloqueantes
+ * independentes (FA-03), avaliadas em todo tipo de documento.
+ */
+function aiViolations(key: string, title: string, section: DraftSection | undefined): Violation[] {
+  if (section?.state !== 'FILLED') return [];
+  const at = { sectionKey: key };
+  const violations: Violation[] = [];
+  if (isAiReviewPending(section)) {
+    violations.push(
+      violation(
+        'SECTION_AI_REVIEW_PENDING',
+        `Revise o conteúdo gerado por IA na seção "${title}".`,
+        at,
+      ),
+    );
+  }
+  const count = countToConfirmNodes(section.content);
+  if (count > 0) {
+    violations.push(
+      violation(
+        'SECTION_PLACEHOLDER_PENDING',
+        `Resolva ${count === 1 ? 'o item' : `os ${String(count)} itens`} [a confirmar] da seção "${title}".`,
+        at,
+        { count },
+      ),
+    );
+  }
+  return violations;
+}
+
 /** Uma seção do template contra o rascunho: violações e se está completa. */
 function evaluateSection(
   definition: SectionDefinition,
@@ -129,16 +162,7 @@ function evaluateSection(
     );
   }
 
-  // RN-AI-57 (US-122): conteúdo aplicado por IA precisa de revisão humana antes de concluir.
-  if (state === 'FILLED' && section?.ai?.reviewedAt === null) {
-    violations.push(
-      violation(
-        'SECTION_AI_REVIEW_PENDING',
-        `Revise o conteúdo gerado por IA na seção "${definition.title}".`,
-        at,
-      ),
-    );
-  }
+  violations.push(...aiViolations(definition.key, definition.title, section));
 
   return {
     violations,
@@ -163,6 +187,13 @@ export function evaluateGenericCompleteness(input: CompletenessInput): Completen
     );
     sections.push(evaluated.result);
     violations.push(...evaluated.violations);
+  }
+  // Seções do rascunho fora do template (documento sem template, seção retirada): as marcas de IA
+  // continuam bloqueando (RN-AI-57).
+  const defined = new Set(ordered.map((definition) => definition.key));
+  for (const key of Object.keys(input.document.draftContent.sections).sort()) {
+    if (defined.has(key)) continue;
+    violations.push(...aiViolations(key, key, input.document.draftContent.sections[key]));
   }
   for (const { field, label } of input.requiredHeaderFields) {
     if (isBlank(input.header[field])) {

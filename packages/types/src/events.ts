@@ -54,6 +54,7 @@ export const DOMAIN_EVENT_NAMES = [
   'AiGenerationCompleted',
   'AiGenerationFailed',
   'AiUsageThresholdReached',
+  'AiContentReviewed',
   'AttachmentUploaded',
   'AttachmentRejected',
   'AttachmentDeleted',

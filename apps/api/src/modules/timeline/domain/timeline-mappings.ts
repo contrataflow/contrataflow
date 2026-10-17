@@ -1025,6 +1025,41 @@ const aiGenerationCompleted = defineMapping({
   }),
 });
 
+/**
+ * `AiContentReviewed` (US-122 DOC-27 · US-119 RSK-12 · events.md §5): "{actor} revisou o conteúdo
+ * gerado por IA em {documentLabel}" + contagens. Só chaves e ids — nunca o texto revisado.
+ */
+const aiContentReviewed = defineMapping({
+  eventType: 'AiContentReviewed',
+  entryTypes: ['AI_CONTENT_REVIEWED'],
+  payload: z.looseObject({
+    documentId: uuid.nullable(),
+    targetModule: z.string().min(1).nullable(),
+    sectionKeys: z.array(z.string()),
+    riskIds: z.array(z.string()),
+    generationIds: z.array(z.string()),
+  }),
+  plan: (payload, event) => ({
+    refs: lookupRef('DOCUMENT', payload.documentId),
+    build: ({ lookups }) => [
+      entry(
+        'AI_CONTENT_REVIEWED',
+        {
+          ...(payload.documentId === null
+            ? { documentId: null, documentCode: null, documentTitle: null, typeName: null }
+            : documentParams(lookups, payload.documentId)),
+          targetModule: payload.targetModule,
+          sectionKeys: payload.sectionKeys,
+          sectionsCount: payload.sectionKeys.length,
+          risksCount: payload.riskIds.length,
+          generationIds: payload.generationIds,
+        },
+        { entity: ['Document', payload.documentId ?? event.aggregateId] },
+      ),
+    ],
+  }),
+});
+
 const MAPPINGS: readonly TimelineEventMapping[] = [
   processCreated,
   processUpdated,
@@ -1065,6 +1100,7 @@ const MAPPINGS: readonly TimelineEventMapping[] = [
   riskDeleted,
   termImportedFromEtp,
   aiGenerationCompleted,
+  aiContentReviewed,
 ];
 
 /** Registro por `eventType` (RN-TML-02); evento ausente é ignorado (RN-TML-07). */

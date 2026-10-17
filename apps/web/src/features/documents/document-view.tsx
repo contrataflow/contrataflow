@@ -12,6 +12,7 @@ import { AttachmentsSection } from '@/features/attachments/attachments-section';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { AiReviewPanel } from './ai-review';
 import { DocumentLifecycle } from './document-lifecycle';
 import { DocumentStatusBadge, PendingApprovalBadge } from './document-status-badge';
 import { documentKeys, documentVersionsHref, fetchDocument } from './documents.api';
@@ -163,6 +164,9 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
           <p className="break-words whitespace-pre-line">{document.cancellationReason}</p>
         </Alert>
       ) : null}
+
+      {/* US-122: marcas de IA e revisão humana por seção (DOC-27) antes das ações do ciclo de vida. */}
+      <AiReviewPanel document={document} meta={meta} />
 
       <DocumentLifecycle document={document} meta={meta} fallbackFocus={focusHeading} />
 

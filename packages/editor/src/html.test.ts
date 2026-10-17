@@ -5,6 +5,7 @@ import {
   resolveTemplateVariables,
   richTextToHtml,
   richTextToPlainText,
+  toConfirmLabelOf,
 } from './html.js';
 
 const text = (value: string, marks?: { type: string; attrs?: Record<string, unknown> }[]) => ({
@@ -119,5 +120,50 @@ describe('resolveTemplateVariables', () => {
 describe('escapeHtml', () => {
   it('escapa os cinco caracteres especiais', () => {
     expect(escapeHtml(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#39;');
+  });
+});
+
+describe('nó toConfirm (US-122 · RN-AI-53)', () => {
+  const marker = (attrs: Record<string, unknown>) => ({ type: 'toConfirm', attrs });
+
+  it('sai destacado como "[a confirmar: …]" com a categoria e o rótulo escapado', () => {
+    const html = richTextToHtml({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            text('Prazo de '),
+            marker({ label: 'prazo <b>', category: 'DEADLINE', origin: 'AI' }),
+          ],
+        },
+      ],
+    });
+    expect(html).toBe(
+      '<p>Prazo de <mark class="cf-to-confirm" data-category="DEADLINE">[a confirmar: prazo &lt;b&gt;]</mark></p>',
+    );
+  });
+
+  it('categoria fora do contrato não vira atributo; rótulo vazio vira "informação"', () => {
+    const html = richTextToHtml({
+      type: 'doc',
+      content: [marker({ label: ' ', category: '"><script>', origin: 'USER' })],
+    });
+    expect(html).toBe('<mark class="cf-to-confirm">[a confirmar: informação]</mark>');
+    expect(toConfirmLabelOf(marker({ label: '  valor ' }))).toBe('valor');
+  });
+
+  it('texto puro leva a marcação literal', () => {
+    expect(
+      richTextToPlainText({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [text('Total: '), marker({ label: 'valor', category: 'VALUE' })],
+          },
+        ],
+      }),
+    ).toBe('Total: [a confirmar: valor]');
   });
 });

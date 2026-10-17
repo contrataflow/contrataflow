@@ -46,6 +46,7 @@ describe('/processos/[id]/documentos/[docId] (SCR-105 · US-065)', () => {
             currentVersionNumber: 1,
             cancellationReason: null,
             version: 5,
+            draftContent: { sections: {} },
           },
           meta: { allowedActions: ['REOPEN'] },
         }),

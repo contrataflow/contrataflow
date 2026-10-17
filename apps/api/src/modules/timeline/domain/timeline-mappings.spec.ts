@@ -304,6 +304,18 @@ const CASES: readonly (readonly [string, Record<string, unknown>, TimelineEntryT
     },
     'AI_CONTENT_GENERATED',
   ],
+  [
+    'AiContentReviewed',
+    {
+      documentId: DOC,
+      documentTypeCode: 'DFD',
+      targetModule: 'DFD',
+      sectionKeys: ['JUSTIFICATION'],
+      riskIds: [],
+      generationIds: [id(90)],
+    },
+    'AI_CONTENT_REVIEWED',
+  ],
 ];
 
 const EVENTS_DOC = fileURLToPath(
@@ -317,7 +329,6 @@ const EVENTS_DOC = fileURLToPath(
  */
 const PENDING_SOURCE_EVENTS: Readonly<Record<string, string>> = {
   AiContentApplied: 'US-117',
-  AiContentReviewed: 'US-122',
 };
 
 /** Eventos de origem citados na tabela de events.md §5. */
@@ -373,6 +384,8 @@ describe('mapeamento evento → TimelineEntryType (RN-TML-02)', () => {
       Risk: 'risk.created',
       Term: 'term.imported_from_etp',
       AiGeneration: 'ai.generation_completed',
+      // Agregado `Document` (US-122): `document.ai_content_reviewed.<tipo>`.
+      AiContent: 'document.ai_content_reviewed.dfd',
     };
     for (const eventType of TIMELINE_MAPPINGS.keys()) {
       const prefix = Object.keys(routingKeys).find((name) => eventType.startsWith(name));
@@ -960,6 +973,35 @@ describe('params congelados, entidade e visibilidade', () => {
     );
     expect(risks.params).toMatchObject({ documentId: null, targetModule: 'RISK_MAP' });
     expect(JSON.stringify(risks.params)).not.toContain('totalTokens');
+  });
+
+  it('AI_CONTENT_REVIEWED: documento congelado e contagens — nunca o texto revisado', () => {
+    expect(
+      only(
+        project(
+          event('AiContentReviewed', {
+            documentId: DOC,
+            documentTypeCode: 'DFD',
+            targetModule: 'DFD',
+            sectionKeys: ['JUSTIFICATION', 'EXPECTED_RESULTS'],
+            riskIds: [],
+            generationIds: [id(90)],
+          }),
+        ),
+      ),
+    ).toMatchObject({
+      params: {
+        documentId: DOC,
+        documentCode: 'DFD 0003/2026',
+        targetModule: 'DFD',
+        sectionsCount: 2,
+        risksCount: 0,
+        generationIds: [id(90)],
+      },
+      entityType: 'Document',
+      entityId: DOC,
+      visibility: 'STANDARD',
+    });
   });
 
   it('actorDepartmentId opcional no payload vira a unidade do ator', () => {

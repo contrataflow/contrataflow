@@ -1,4 +1,6 @@
 import type {
+  DocumentAiReview,
+  DocumentAiReviewResultDto,
   DocumentCancel,
   DocumentDto,
   DocumentMeta,
@@ -134,6 +136,22 @@ export async function deleteDocument(documentId: string, version: number): Promi
     method: 'DELETE',
     ifMatch: ifMatchOf(version),
   });
+}
+
+/**
+ * DOC-27 (US-122): marca seções geradas por IA como revisadas. A concorrência é por seção
+ * (`expectedRevisions` no corpo — sem `If-Match`); seção já revisada é ignorada (idempotente).
+ */
+export async function reviewAiContent(
+  documentId: string,
+  body: DocumentAiReview,
+): Promise<DocumentAiReviewResultDto> {
+  return (
+    await apiRequest<DocumentAiReviewResultDto>(`/documents/${documentId}/ai-review`, {
+      method: 'POST',
+      body,
+    })
+  ).data;
 }
 
 /** Rota do painel do processo, aba "Documentos" (destino após excluir o rascunho). */
