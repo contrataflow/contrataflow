@@ -5,7 +5,7 @@ import { runSimulatedTransaction } from '#shared/database/active-transaction.js'
 
 import type { DocumentAiTargets } from './document-ai-target.js';
 import type { DocumentApprovalTransitions } from './document-approval.transitions.js';
-import type { DocumentCreationService } from './document-creation.service.js';
+import type { CreateDocumentInput, DocumentCreationService } from './document-creation.service.js';
 import { DocumentFacade } from './document.facade.js';
 import { DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentValidator } from './document.ports.js';
@@ -19,7 +19,12 @@ import { InMemoryDocumentRepository } from '../infrastructure/in-memory-document
 
 const TENANT = '0192f065-0000-7000-8000-00000000000a';
 
-function facadeWith() {
+const NOW = new Date('2026-10-17T12:00:00.000Z');
+const CARLA = '0192f065-0000-7000-8000-0000000000c1';
+const SOURCE = '0192f065-0000-7000-8000-0000000000b1';
+const TARGET = '0192f065-0000-7000-8000-0000000000b2';
+
+function facadeWith(creation: Partial<DocumentCreationService> = {}) {
   const documents = new InMemoryDocumentRepository();
   const types = new InMemoryDocumentTypeRepository();
   const validators = new DocumentValidatorRegistry();
@@ -27,9 +32,10 @@ function facadeWith() {
     documents,
     types,
     validators,
-    {} as DocumentCreationService,
+    creation as DocumentCreationService,
     {} as DocumentApprovalTransitions,
     {} as DocumentAiTargets,
+    () => NOW,
   );
   return { facade, documents, types, validators };
 }
@@ -38,7 +44,10 @@ function inTenant<T>(work: () => Promise<T>): Promise<T> {
   return runWithRequestContext(
     { correlationId: 'c-1', ip: '127.0.0.1', userAgent: 'vitest' },
     () => {
-      updateRequestContext({ tenantId: TENANT });
+      updateRequestContext({
+        tenantId: TENANT,
+        actor: { type: 'USER', userId: CARLA, membershipId: null },
+      });
       return work();
     },
   );
@@ -88,5 +97,95 @@ describe('DocumentFacade (US-065)', () => {
         expect([...(await facade.versionNumbers(tx, [version.id]))]).toEqual([[version.id, 3]]);
       }),
     );
+  });
+
+  it('copia como rascunho só os estruturados ativos da origem (US-011 · RN-PROC-120)', async () => {
+    const inputs: CreateDocumentInput[] = [];
+    const { facade, documents, types } = facadeWith({
+      create: (_tx, input) => {
+        inputs.push(input);
+        return Promise.resolve(buildDocument({ processId: input.processId }));
+      },
+    });
+    const dfd = buildDocumentType({ tenantId: TENANT, code: 'DFD', kind: 'STRUCTURED' });
+    const retired = buildDocumentType({
+      tenantId: TENANT,
+      code: 'ANTIGO',
+      kind: 'STRUCTURED',
+      isActive: false,
+    });
+    const memo = buildDocumentType({ tenantId: TENANT, code: 'OFICIO', kind: 'FREE_TEXT' });
+    types.seed(dfd);
+    types.seed(retired);
+    types.seed(memo);
+    const approved = buildDocument({
+      tenantId: TENANT,
+      processId: SOURCE,
+      documentTypeId: dfd.id,
+      status: 'APPROVED',
+      confidentiality: 'RESTRICTED',
+      title: 'DFD da merenda',
+      draftContent: {
+        sections: {
+          OBJETO: {
+            state: 'FILLED',
+            content: { type: 'doc' },
+            justification: null,
+            revision: 7,
+            updatedAt: '2026-01-02T10:00:00.000Z',
+            updatedById: '0192f065-0000-7000-8000-0000000000d1',
+          },
+        },
+      },
+    });
+    documents.seed(approved);
+    documents.seed(
+      buildDocument({ tenantId: TENANT, processId: SOURCE, documentTypeId: retired.id }),
+    );
+    documents.seed(buildDocument({ tenantId: TENANT, processId: SOURCE, documentTypeId: memo.id }));
+    documents.seed(
+      buildDocument({
+        tenantId: TENANT,
+        processId: SOURCE,
+        documentTypeId: dfd.id,
+        status: 'CANCELED',
+      }),
+    );
+
+    const result = await inTenant(() =>
+      runSimulatedTransaction((tx) =>
+        facade.copyStructuredAsDraftsIn(tx, {
+          sourceProcessId: SOURCE,
+          targetProcessId: TARGET,
+          idempotencyKey: 'K9',
+        }),
+      ),
+    );
+
+    expect(result.skipped).toBe(1);
+    expect([...result.copied.keys()]).toEqual([approved.id]);
+    expect(inputs).toEqual([
+      {
+        processId: TARGET,
+        documentTypeId: dfd.id,
+        title: 'DFD da merenda',
+        templateVersionId: approved.templateVersionId,
+        draftContent: {
+          sections: {
+            OBJETO: {
+              state: 'FILLED',
+              content: { type: 'doc' },
+              justification: null,
+              revision: 1,
+              updatedAt: NOW.toISOString(),
+              updatedById: CARLA,
+            },
+          },
+        },
+        confidentiality: 'RESTRICTED',
+        sourceDocumentId: approved.id,
+        idempotencyKey: 'K9',
+      },
+    ]);
   });
 });

@@ -80,6 +80,30 @@ interface Prepared {
   readonly now: Date;
 }
 
+/** Relógio e configurações do tenant lidos uma vez por criação (PRC-02 e PRC-27). */
+export interface CreationContext {
+  readonly now: Date;
+  readonly settings: ReadonlyMap<string, unknown>;
+  /** Hoje (`YYYY-MM-DD`) e o exercício no fuso do tenant (RN-PROC-11/12). */
+  readonly today: string;
+  readonly currentYear: number;
+  /** `process.requireInternalCode` (RN-PROC-09). */
+  readonly requireInternalCode: boolean;
+}
+
+export interface CreationOptions {
+  /** `Idempotency-Key` da requisição (auditoria `process.create`). */
+  readonly idempotencyKey: string | null;
+  /**
+   * US-011: processo de origem da duplicação — canal `DUPLICATION`, `duplicatedFromId` no agregado,
+   * na auditoria e no `ProcessCreated`, e sem a heurística de duplicidade (RN-PROC-13), que
+   * recusaria justamente a cópia pedida.
+   */
+  readonly duplicatedFromId?: string | null;
+  /** Mensagem do 403 quando o `PROCESS_CREATE` não cobre o setor solicitante. */
+  readonly permissionDetail?: string;
+}
+
 /** Campos não sensíveis registrados com o valor inicial (`process.create` · `changes`). */
 const AUDITED_FIELDS = [
   'organizationId',
@@ -161,25 +185,47 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
     input: CreateProcessInput,
     { now }: Prepared,
   ): Promise<CreatedProcess> {
-    const context = requireRequestContext();
-    const userId = context.actor.userId ?? '';
-    const settings = await this.tenancy.settingValues(tx, CREATE_PROCESS_SETTING_KEYS);
-    const { timezone } = await this.numbering.settingsOf(tx);
-    const today = localDateOf(now, timezone);
-    const currentYear = Number(today.slice(0, 4));
+    const context = await this.creationContext(tx, now);
 
     // 7.1 — regras do corpo (RN-PROC-01..12).
     let draft: ProcessDraft;
     try {
-      draft = draftProcess(input.body, {
-        today,
-        currentYear,
-        requireInternalCode: settings.get('process.requireInternalCode') === true,
-      });
+      draft = draftProcess(input.body, context);
     } catch (error) {
       if (error instanceof ProcessValidationError) throw processValidationError(error.issues);
       throw error;
     }
+    return this.createIn(tx, draft, context, { idempotencyKey: input.idempotencyKey });
+  }
+
+  /** Configurações e relógio do tenant para montar e validar o rascunho (`draftIssues`). */
+  async creationContext(tx: TenantTx, now: Date): Promise<CreationContext> {
+    const settings = await this.tenancy.settingValues(tx, CREATE_PROCESS_SETTING_KEYS);
+    const { timezone } = await this.numbering.settingsOf(tx);
+    const today = localDateOf(now, timezone);
+    return {
+      now,
+      settings,
+      today,
+      currentYear: Number(today.slice(0, 4)),
+      requireInternalCode: settings.get('process.requireInternalCode') === true,
+    };
+  }
+
+  /**
+   * Passos 7.1 (referências) a 7.11 sobre um rascunho já validado, no `tx` de quem chama: o PRC-02
+   * e a duplicação (US-011 · RN-PROC-122 — mesmas regras de numeração, workflow e concessões,
+   * independentes da origem).
+   */
+  async createIn(
+    tx: TenantTx,
+    draft: ProcessDraft,
+    { now, settings, currentYear }: CreationContext,
+    options: CreationOptions,
+  ): Promise<CreatedProcess> {
+    const context = requireRequestContext();
+    const userId = context.actor.userId ?? '';
+    const duplicatedFromId = options.duplicatedFromId ?? null;
 
     // 7.1 — referências do tenant (inexistente = de outro tenant, sem distinguir).
     const references = await this.references(tx, draft);
@@ -188,7 +234,10 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
     await this.access.assertCanInDepartment(
       'PROCESS_CREATE',
       { id: draft.requestingDepartmentId, organizationId: references.organizationId },
-      { mfaPolicy: await this.identity.mfaPolicy() },
+      {
+        mfaPolicy: await this.identity.mfaPolicy(),
+        ...(options.permissionDetail === undefined ? {} : { detail: options.permissionDetail }),
+      },
     );
 
     // 7.3 — código interno único e possível duplicidade.
@@ -198,7 +247,7 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
     ) {
       throw duplicateInternalCode(draft.internalCode);
     }
-    await this.checkDuplicates(tx, draft, userId, now, settings);
+    if (duplicatedFromId === null) await this.checkDuplicates(tx, draft, userId, now, settings);
 
     // 7.4 — workflow aplicável e etapa inicial (versão fixada — RN-PROC-06).
     const resolution = await withSpan('process.resolve_workflow', {}, () =>
@@ -247,6 +296,8 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
       currentYear,
       numbering,
       workflowVersionId: resolution.workflowVersionId,
+      creationChannel: duplicatedFromId === null ? 'WEB' : 'DUPLICATION',
+      duplicatedFromId,
       initialStage: {
         processStageId: ids.stage,
         workflowStageId: stage.id,
@@ -301,8 +352,9 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
         code: process.code,
         workflowVersionId: process.workflowVersionId,
         initialStageKey: stage.key,
-        idempotencyKey: input.idempotencyKey,
+        idempotencyKey: options.idempotencyKey,
         duplicateConfirmed: draft.confirmDuplicate,
+        ...(duplicatedFromId === null ? {} : { duplicatedFromId }),
       },
     });
     await this.outbox.record(
@@ -327,7 +379,7 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
           initialDepartmentId: process.currentDepartmentId,
           initialResponsibleId: process.currentResponsibleId,
           creationChannel: process.creationChannel,
-          duplicatedFromId: null,
+          duplicatedFromId: process.duplicatedFromId,
         },
       }),
     );

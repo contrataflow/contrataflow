@@ -40,7 +40,12 @@ import {
   DepartmentMoved,
   DepartmentUpdated,
 } from '../organization/events.js';
-import { ProcessCreated, ProcessItemsChanged, ProcessUpdated } from '../process/events.js';
+import {
+  ProcessCreated,
+  ProcessDuplicated,
+  ProcessItemsChanged,
+  ProcessUpdated,
+} from '../process/events.js';
 import { SupplierCreated, SupplierUpdated } from '../supplier/events.js';
 import {
   OrganizationCreated,
@@ -89,6 +94,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   OrganizationCreated,
   OrganizationUpdated,
   ProcessCreated,
+  ProcessDuplicated,
   ProcessUpdated,
   ProcessItemsChanged,
   SupplierCreated,

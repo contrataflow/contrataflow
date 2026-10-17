@@ -44,6 +44,15 @@ export class InMemoryAttachmentRepository implements AttachmentRepository {
     return Promise.resolve(this.inTenant().filter((row) => ids.includes(row.id)));
   }
 
+  listAvailableByProcess(_tx: TenantTx, processId: string): Promise<Attachment[]> {
+    this.check();
+    return Promise.resolve(
+      this.inTenant()
+        .filter((row) => row.processId === processId && row.status === 'AVAILABLE')
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
+    );
+  }
+
   update(_tx: TenantTx, next: Attachment, expectedVersion: number): Promise<boolean> {
     this.check();
     const current = this.inTenant().find((row) => row.id === next.id);

@@ -213,6 +213,7 @@ O ator do envelope de `AiGenerationCompleted`/`AiGenerationFailed` é o solicita
 |---|---|---|---|---|
 | `PROCESS_CREATED` | `ProcessCreated` | "{actor} abriu o processo {code}" | `code`, `title`, `requestingDepartmentName` | STANDARD |
 | `PROCESS_DUPLICATED_FROM` | `ProcessCreated` (com `duplicatedFromId`) | "Processo criado a partir de {sourceCode}" | `sourceCode` | STANDARD |
+| `PROCESS_DUPLICATED` | `ProcessDuplicated` (no processo de origem) | "{actor} duplicou o processo em {newCode}" | `newProcessId`, `newCode` | STANDARD |
 | `PROCESS_UPDATED` | `ProcessUpdated` | "{actor} alterou {fieldsLabel}" | `fields[]` | `BUDGET_RESTRICTED` se incluir `estimatedValue` com sigilo |
 | `PROCESS_NUMBER_ASSIGNED` | `ProcessNumberAssigned` | "Processo autuado sob o nº {code}" | `code` | STANDARD |
 | `ITEMS_CHANGED` | `ProcessItemsChanged` | "{actor} atualizou os itens ({itemsCount})" | contagens | STANDARD |

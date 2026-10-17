@@ -10,6 +10,7 @@ import {
   concludingActionOf,
   deleteDocument,
   DocumentTransitionError,
+  draftContentCopy,
   enterApprovalStage,
   finalizeDocument,
   hasLeftDraft,
@@ -606,5 +607,47 @@ describe('allowedActions (RN-DOC-18 · POL-02/POL-11)', () => {
 
   it('documento excluído não tem ações', () => {
     expect(actions(inStatus('DRAFT', { deletedAt: FIXTURE_NOW }))).toEqual([]);
+  });
+});
+
+describe('draftContentCopy — cópia como rascunho na duplicação (US-011 · RN-PROC-120)', () => {
+  const ACTOR = '0192f065-0000-7000-8000-0000000000c1';
+  const AUTHOR = '0192f065-0000-7000-8000-0000000000d1';
+  const section = {
+    state: 'FILLED' as const,
+    content: { type: 'doc' as const, content: [{ type: 'paragraph' }] },
+    justification: null,
+    revision: 9,
+    updatedAt: '2026-01-02T10:00:00.000Z',
+    updatedById: AUTHOR,
+  };
+
+  it('mantém o conteúdo e recomeça revisão e carimbo de cada seção', () => {
+    const copy = draftContentCopy(
+      { sections: { OBJETO: section, RISCOS: { ...section, state: 'NOT_APPLICABLE' } } },
+      { actorId: ACTOR, now: FIXTURE_NOW },
+    );
+    expect(copy.sections.OBJETO).toEqual({
+      ...section,
+      revision: 1,
+      updatedAt: FIXTURE_NOW.toISOString(),
+      updatedById: ACTOR,
+    });
+    expect(copy.sections.RISCOS?.state).toBe('NOT_APPLICABLE');
+  });
+
+  it('conteúdo gerado por IA volta a exigir revisão humana no novo processo', () => {
+    const ai = {
+      generationId: '0192f065-0000-7000-8000-0000000000e1',
+      appliedAt: '2026-01-02T09:00:00.000Z',
+      appliedById: AUTHOR,
+      reviewedAt: '2026-01-02T09:30:00.000Z',
+      reviewedById: AUTHOR,
+    };
+    const copy = draftContentCopy(
+      { sections: { OBJETO: { ...section, ai } } },
+      { actorId: ACTOR, now: FIXTURE_NOW },
+    );
+    expect(copy.sections.OBJETO?.ai).toEqual({ ...ai, reviewedAt: null, reviewedById: null });
   });
 });

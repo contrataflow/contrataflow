@@ -142,6 +142,15 @@ const CASES: readonly (readonly [string, Record<string, unknown>, TimelineEntryT
     { title: 'Manutenção', requestingDepartmentId: DEPT_MANUT },
     'PROCESS_CREATED',
   ],
+  [
+    'ProcessDuplicated',
+    {
+      sourceProcessId: PROCESS,
+      newProcessId: OTHER_PROCESS,
+      options: { copyDocuments: false, copyAttachments: false },
+    },
+    'PROCESS_DUPLICATED',
+  ],
   ['ProcessUpdated', { changedFields: ['title'] }, 'PROCESS_UPDATED'],
   [
     'ProcessNumberAssigned',
@@ -442,6 +451,23 @@ describe('params congelados, entidade e visibilidade', () => {
       ],
       ['PROCESS_DUPLICATED_FROM', { sourceProcessId: OTHER_PROCESS, sourceCode: '0007/2026' }],
     ]);
+  });
+
+  it('ProcessDuplicated grava PROCESS_DUPLICATED na origem com o código do novo processo', () => {
+    const projected = project(
+      event('ProcessDuplicated', {
+        sourceProcessId: PROCESS,
+        newProcessId: OTHER_PROCESS,
+        options: { copyDocuments: true, copyAttachments: false },
+      }),
+    );
+    expect(projected?.refs).toEqual([{ kind: 'PROCESS', id: OTHER_PROCESS }]);
+    expect(only(projected)).toMatchObject({
+      type: 'PROCESS_DUPLICATED',
+      params: { newProcessId: OTHER_PROCESS, newCode: '0007/2026' },
+      entityType: 'Process',
+      entityId: PROCESS,
+    });
   });
 
   describe('PROCESS_UPDATED e POL-09 (RN-TML-05)', () => {

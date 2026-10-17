@@ -53,7 +53,9 @@ export type ProcessActionPermission =
   | 'PROCESS_ASSIGN'
   | 'PROCESS_CANCEL'
   | 'PROCESS_SUSPEND'
-  | 'PROCESS_UPDATE';
+  | 'PROCESS_UPDATE'
+  | 'PROCESS_DUPLICATE'
+  | 'PROCESS_CREATE';
 
 /** Quem consulta: lotações, chefias e permissões que tem em algum escopo. */
 export interface EngineViewer {
@@ -570,6 +572,17 @@ function manageItemsEntry(process: EngineProcess, viewer: EngineViewer): ActionE
 }
 
 /**
+ * DUPLICATE (US-011 · RN-PROC-124): "Duplicar processo" com `PROCESS_DUPLICATE` e `PROCESS_CREATE`
+ * em algum escopo — em qualquer status e sem custódia (a duplicação não altera a origem). O escopo
+ * sobre a origem e sobre o setor do novo processo é conferido pela API.
+ */
+function duplicateEntry(viewer: EngineViewer): ActionEntry[] {
+  const { permissions } = viewer;
+  if (!permissions.has('PROCESS_DUPLICATE') || !permissions.has('PROCESS_CREATE')) return [];
+  return [entry('DUPLICATE', 'Duplicar processo', [])];
+}
+
+/**
  * RN-WF-23/24/32: avanços (`FORWARD`/`COMPLETE` por transição, principal primeiro), devoluções
  * (`RETURN` por etapa percorrida) e ciclo de vida. `enabled` ⇔ `reasons` vazio; aviso (`WARNING`)
  * nunca entra em `reasons` (RN-WF-25).
@@ -585,5 +598,6 @@ export function availableActions(
     ...lifecycleEntries(input.process, viewer),
     ...editEntry(input.process, viewer),
     ...manageItemsEntry(input.process, viewer),
+    ...duplicateEntry(viewer),
   ];
 }

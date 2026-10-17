@@ -17,6 +17,7 @@ import type { TimelineEntryType } from './timeline.js';
 export const TIMELINE_MESSAGE_TEMPLATES: Readonly<Record<TimelineEntryType, string>> = {
   PROCESS_CREATED: '{actor} abriu o processo {code}',
   PROCESS_DUPLICATED_FROM: 'Processo criado a partir de {sourceCode}',
+  PROCESS_DUPLICATED: '{actor} duplicou o processo em {newCode}',
   PROCESS_UPDATED: '{actor} alterou {fieldsLabel}',
   PROCESS_NUMBER_ASSIGNED: 'Processo autuado sob o nº {code}',
   ITEMS_CHANGED: '{actor} atualizou os itens ({itemsCount})',

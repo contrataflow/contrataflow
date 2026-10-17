@@ -406,6 +406,38 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
     });
   });
 
+  describe('DUPLICATE (US-011 · RN-PROC-124): "Duplicar processo"', () => {
+    const duplicate = (process: Partial<EngineProcess>, permissions: string[]) =>
+      actionsOf(
+        availableActions(
+          engineInput(builder, { passes: studies }, process),
+          viewer({ permissions: new Set(permissions) as EngineViewer['permissions'] }),
+        ),
+        'DUPLICATE',
+      );
+
+    it.each([[[]], [['PROCESS_DUPLICATE']], [['PROCESS_CREATE']]])(
+      'sem PROCESS_DUPLICATE e PROCESS_CREATE (%j): a ação não aparece',
+      (permissions) => {
+        expect(duplicate({}, permissions)).toEqual([]);
+      },
+    );
+
+    it.each(['DRAFT', 'AWAITING_APPROVAL', 'COMPLETED', 'CANCELED'] as const)(
+      '%s, mesmo sem custódia: habilitada (a origem não muda)',
+      (status) => {
+        expect(
+          duplicate({ status, currentResponsibleId: CREATOR_ID }, [
+            'PROCESS_DUPLICATE',
+            'PROCESS_CREATE',
+          ]),
+        ).toEqual([
+          { action: 'DUPLICATE', label: 'Duplicar processo', enabled: true, reasons: [] },
+        ]);
+      },
+    );
+  });
+
   it('ordem: avanços (principal primeiro), devoluções e ciclo de vida', () => {
     const input = engineInput(builder, { passes: studies, documents: [etp('FINALIZED', true)] });
     expect(availableActions(input, viewer()).map((entry) => entry.action)).toEqual([

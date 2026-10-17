@@ -8,6 +8,9 @@ import request from 'supertest';
 import { CATALOG_CLOCK } from '#modules/catalog/application/catalog-ports.js';
 import { InMemoryCatalogItemRepository } from '#modules/catalog/infrastructure/in-memory-catalog-item.repository.js';
 import { InMemoryNumberSequenceRepository } from '#modules/catalog/infrastructure/in-memory-number-sequence.repository.js';
+import { createAttachment, markAvailable } from '#modules/files/domain/attachment.js';
+import type { Attachment } from '#modules/files/domain/attachment.js';
+import { InMemoryAttachmentRepository } from '#modules/files/infrastructure/in-memory-attachment.repository.js';
 import { InMemoryProcessRepository } from '#modules/process/infrastructure/in-memory-process.repository.js';
 import { TENANT_SETTINGS_REPOSITORY } from '#modules/tenancy/application/settings-ports.js';
 import { InMemoryOrganizationRepository } from '#modules/tenancy/infrastructure/in-memory-organization.repository.js';
@@ -16,6 +19,7 @@ import { TIMELINE_ENTRY_STORE } from '#modules/timeline/application/ports.js';
 import type { InMemoryTimelineEntryStore } from '#modules/timeline/infrastructure/in-memory-timeline-entry.store.js';
 import { InMemoryWorkflowRepository } from '#modules/workflow/infrastructure/in-memory-workflow.repository.js';
 import { runAsSystem } from '#shared/context/request-context.js';
+import { newId } from '#shared/database/ids.js';
 import { TenantSeederRegistry } from '#shared/tenancy/tenant-seeding.js';
 
 import type { TestApi } from './api-test-app.js';
@@ -99,6 +103,59 @@ export function catalogItemId(
     );
   if (!item) throw new Error(`${catalogType}/${code} ausente no tenant ${tenantId}`);
   return item.id;
+}
+
+/** Repositório em memória do catálogo (specs de outros módulos não o importam — DEC-041). */
+export function catalogItemRepositoryOf(api: TestApi): InMemoryCatalogItemRepository {
+  return api.app.get(InMemoryCatalogItemRepository, { strict: false });
+}
+
+/** Anexos gravados no repositório em memória do `files`. */
+export function attachmentsOf(api: TestApi): readonly Attachment[] {
+  return [...api.app.get(InMemoryAttachmentRepository, { strict: false }).rows.values()];
+}
+
+/** Anexo AVAILABLE (PDF de 2 KiB, já verificado) no repositório em memória do `files` (US-011). */
+export function seedAvailableAttachment(
+  api: TestApi,
+  attachment: {
+    readonly tenantId: string;
+    readonly processId: string;
+    readonly targetType: Attachment['targetType'];
+    readonly targetId: string;
+    readonly uploadedById: string;
+    readonly now: Date;
+  },
+): Attachment {
+  const { tenantId, processId, now } = attachment;
+  const id = newId();
+  const scanning: Attachment = {
+    ...createAttachment({
+      id,
+      tenantId,
+      processId,
+      targetType: attachment.targetType,
+      targetId: attachment.targetId,
+      categoryId: null,
+      fileName: 'planilha.pdf',
+      extension: 'pdf',
+      declaredMimeType: 'application/pdf',
+      sizeBytes: 2048,
+      storageKey: `tenants/${tenantId}/processes/${processId}/attachments/${id}/planilha.pdf`,
+      quarantineKey: `tenants/${tenantId}/uploads/${id}`,
+      description: null,
+      uploadedById: attachment.uploadedById,
+      now,
+    }),
+    status: 'SCANNING',
+  };
+  const available = markAvailable(
+    scanning,
+    { sha256: 'b'.repeat(64), detectedMimeType: 'application/pdf', scanResult: {} },
+    now,
+  );
+  api.app.get(InMemoryAttachmentRepository, { strict: false }).rows.set(id, available);
+  return available;
 }
 
 export function processRepositoryOf(api: TestApi): InMemoryProcessRepository {

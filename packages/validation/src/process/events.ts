@@ -42,6 +42,24 @@ export const ProcessCreated = defineDomainEvent({
 });
 
 /**
+ * `ProcessDuplicated` (US-011 · PRC-27): commit da duplicação, no processo de ORIGEM (envelope
+ * `processId = sourceProcessId`) — o novo processo tem o próprio `ProcessCreated` com
+ * `duplicatedFromId`. Consumidores: `TimelineProjector` (`PROCESS_DUPLICATED` na origem) no mesmo
+ * `tx` e o `BusinessMetricsCollector` (`process.*`) no worker. Sem notificação.
+ */
+export const ProcessDuplicated = defineDomainEvent({
+  eventType: 'ProcessDuplicated',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    sourceProcessId: uuid,
+    newProcessId: uuid,
+    options: z.strictObject({ copyDocuments: z.boolean(), copyAttachments: z.boolean() }),
+  }),
+  routingKey: 'process.duplicated',
+});
+
+/**
  * `ProcessUpdated` (US-005 · PRC-05): commit de alteração efetiva dos dados do processo. Só os
  * NOMES dos campos alterados (`changedFields`, ordem canônica de `UPDATE_PROCESS_FIELDS`) e a nova
  * versão — nunca valores (events.md §1). Consumidores: `TimelineProjector` (`PROCESS_UPDATED`) e

@@ -187,6 +187,13 @@ export function draftProcess(body: CreateProcess, context: DraftContext): Proces
     confirmDuplicate: body.confirmDuplicate,
   };
 
+  const issues = draftIssues(draft, context);
+  if (issues.length > 0) throw new ProcessValidationError(issues);
+  return draft;
+}
+
+/** RN-PROC-09/11/12: regras do rascunho que dependem do PCA, do relógio e da configuração. */
+export function draftIssues(draft: ProcessDraft, context: DraftContext): ProcessIssue[] {
   const issues: ProcessIssue[] = [
     ...pcaIssues(draft).map((issue) => ({
       field: issue.path,
@@ -206,8 +213,44 @@ export function draftProcess(body: CreateProcess, context: DraftContext): Proces
       message: PROCESS_MESSAGES.internalCodeRequired,
     });
   }
-  if (issues.length > 0) throw new ProcessValidationError(issues);
-  return draft;
+  return issues;
+}
+
+/** Ajustes do diálogo de duplicação (SCR-113 · PRC-27): omitidos = os da origem. */
+export interface DuplicateOverrides {
+  readonly title?: string | undefined;
+  readonly object?: string | undefined;
+  readonly requestingSecretariatId?: string | undefined;
+  readonly requestingDepartmentId?: string | undefined;
+}
+
+/**
+ * Rascunho do processo duplicado (US-011 · DEC-033): RN-PROC-118 — título, objeto, descrição,
+ * tipo de contratação, modalidade, SRP, prioridade, origem, dados do PCA, observações e o órgão da
+ * origem (ou os valores ajustados no diálogo); RN-PROC-119 — nunca número, código, código interno,
+ * prazo alvo nem valor estimado (recalculado do zero no novo processo). Passa pelas mesmas regras
+ * da criação (`draftIssues`) no caso de uso.
+ */
+export function duplicateDraft(source: Process, overrides: DuplicateOverrides): ProcessDraft {
+  return {
+    title: overrides.title?.trim() ?? source.title,
+    object: overrides.object?.trim() ?? source.object,
+    description: source.description,
+    contractingTypeId: source.contractingTypeId,
+    modalityId: source.modalityId,
+    isPriceRegistration: source.isPriceRegistration,
+    organizationId: source.organizationId,
+    requestingSecretariatId: overrides.requestingSecretariatId ?? source.requestingSecretariatId,
+    requestingDepartmentId: overrides.requestingDepartmentId ?? source.requestingDepartmentId,
+    priority: source.priority,
+    targetDate: null,
+    estimatedValue: null,
+    originId: source.originId,
+    ...pcaReference(source),
+    internalCode: null,
+    notes: source.notes,
+    confirmDuplicate: false,
+  };
 }
 
 export interface ProcessNumber {
@@ -238,6 +281,8 @@ export interface CreateProcessContext {
   readonly workflowVersionId: string;
   readonly initialStage: InitialStagePosition;
   readonly creationChannel?: CreationChannel;
+  /** Processo de origem da duplicação (US-011 · RN-PROC-123 — imutável depois). */
+  readonly duplicatedFromId?: string | null;
 }
 
 /** `Process.create` (RN-PROC-04..08/10): processo em `DRAFT` posicionado na etapa inicial. */
@@ -278,7 +323,7 @@ export function createProcess(draft: ProcessDraft, context: CreateProcessContext
     pcaItemCode: draft.pcaItemCode,
     pcaJustification: draft.pcaJustification,
     notes: draft.notes,
-    duplicatedFromId: null,
+    duplicatedFromId: context.duplicatedFromId ?? null,
     createdAt: context.now,
     updatedAt: context.now,
     createdById: context.createdById,

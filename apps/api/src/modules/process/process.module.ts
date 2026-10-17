@@ -20,6 +20,7 @@ import { ConfidentialViewRecorder } from './application/confidential-view.record
 import { CreateProcessCommand } from './application/create-process.command.js';
 import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
 import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
+import { DuplicateProcessCommand } from './application/duplicate-process.command.js';
 import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
@@ -80,6 +81,7 @@ import { AccessModule } from '../access/access.module.js';
 import { ApprovalModule } from '../approval/approval.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { DocumentModule } from '../document/document.module.js';
+import { FilesModule } from '../files/files.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
@@ -99,6 +101,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`. US-065: leitor do processo
  * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento. US-006: itens da
  * contratação (PRC-13..17), com o uso dos itens perguntado à porta `ProcessItemUsageRegistry`.
+ * US-011: duplicação (PRC-27) sobre a criação da US-001 e as fachadas de `document` e `files`.
  */
 @Module({
   imports: [
@@ -106,6 +109,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApprovalModule,
     CatalogModule,
     DocumentModule,
+    FilesModule,
     IdentityModule,
     OrganizationModule,
     TenancyModule,
@@ -126,6 +130,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessAccessProjector,
     DuplicateCandidatesFinder,
     CreateProcessCommand,
+    DuplicateProcessCommand,
     UpdateProcessCommand,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,

@@ -271,6 +271,24 @@ export function processDateIssues(
   return issues;
 }
 
+/**
+ * PRC-27 — corpo de `POST /processes/{id}/duplicate` (US-011 · api/02-processes.md): campos
+ * omitidos copiam da origem; `title`/`object` seguem os limites do PRC-02. As cópias opcionais de
+ * documentos estruturados (como rascunho) e de anexos (cópia lógica) nascem desligadas.
+ */
+export const duplicateProcessSchema = z
+  .object({
+    title: processTitleSchema.optional(),
+    object: processObjectSchema.optional(),
+    requestingSecretariatId: reference(PROCESS_MESSAGES.secretariatRequired).optional(),
+    requestingDepartmentId: reference(PROCESS_MESSAGES.departmentRequired).optional(),
+    copyDocuments: z.boolean().default(false),
+    copyAttachments: z.boolean().default(false),
+  })
+  .meta({ id: 'DuplicateProcessRequest' });
+export type DuplicateProcess = z.output<typeof duplicateProcessSchema>;
+export type DuplicateProcessInput = z.input<typeof duplicateProcessSchema>;
+
 /** PRC-03 — `POST /processes/check-duplicates` (mesmas regras de tamanho do PRC-02). */
 export const checkDuplicateProcessesSchema = z
   .object({
@@ -348,6 +366,8 @@ export const processSchema = z
     pcaJustification: z.string().nullable(),
     notes: z.string().nullable(),
     creationChannel: z.enum(CREATION_CHANNELS),
+    /** Processo de origem da duplicação (US-011 · RN-PROC-123); `null` fora dela. */
+    duplicatedFromId: z.uuid().nullable(),
     openedAt: isoDateTimeSchema.nullable(),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,

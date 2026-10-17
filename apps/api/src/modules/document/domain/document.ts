@@ -4,6 +4,7 @@ import type {
   DocumentKind,
   DocumentStatus,
   DraftContent,
+  DraftSection,
   ProcessStatus,
 } from '@contrataflow/validation';
 
@@ -135,6 +136,8 @@ export interface NewDocumentInput {
   readonly type: Pick<LifecycleDocumentType, 'id' | 'allowMultiplePerProcess'> & {
     readonly defaultConfidentiality: Confidentiality;
   };
+  /** Padrão: o sigilo padrão do tipo (a cópia da duplicação mantém o da origem — US-011). */
+  readonly confidentiality?: Confidentiality;
   readonly templateVersionId: string | null;
   readonly title: string;
   readonly draftContent: DraftContent;
@@ -166,7 +169,7 @@ export function newDocument(input: NewDocumentInput): Document {
     code: input.numbering?.code ?? null,
     title: input.title,
     status: 'DRAFT',
-    confidentiality: input.type.defaultConfidentiality,
+    confidentiality: input.confidentiality ?? input.type.defaultConfidentiality,
     draftContent: input.draftContent,
     draftRevision: 1,
     singletonKey: input.type.allowMultiplePerProcess ? null : input.type.id,
@@ -549,4 +552,26 @@ export function allowedDocumentActions(
     actions.push('DELETE');
   }
   return actions;
+}
+
+/**
+ * `Document.copyAsDraft` (US-011 · RN-PROC-120 · DEC-033): o rascunho de trabalho da origem — o
+ * conteúdo mais recente, seja o da versão aprovada/finalizada, seja o rascunho em edição — como
+ * conteúdo inicial do novo documento em `DRAFT`. Nada de versões, aprovações ou números: cada
+ * seção recomeça (`revision = 1`, carimbo de quem duplicou) e a proveniência de IA é mantida, mas
+ * volta a exigir revisão humana no novo processo (RN-AI-55).
+ */
+export function draftContentCopy(content: DraftContent, stamp: TransitionStamp): DraftContent {
+  const at = stamp.now.toISOString();
+  const sections: Record<string, DraftSection> = {};
+  for (const [key, section] of Object.entries(content.sections)) {
+    sections[key] = {
+      ...section,
+      revision: 1,
+      updatedAt: at,
+      updatedById: stamp.actorId,
+      ...(section.ai ? { ai: { ...section.ai, reviewedAt: null, reviewedById: null } } : {}),
+    };
+  }
+  return { sections };
 }

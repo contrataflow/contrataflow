@@ -123,6 +123,7 @@ export function toProcessDto(process: Process, lookups: ProcessLookups): Process
     pcaJustification: process.pcaJustification,
     notes: process.notes,
     creationChannel: process.creationChannel,
+    duplicatedFromId: process.duplicatedFromId,
     openedAt: process.openedAt?.toISOString() ?? null,
     createdAt: process.createdAt.toISOString(),
     updatedAt: process.updatedAt.toISOString(),

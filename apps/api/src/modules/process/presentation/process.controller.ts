@@ -3,6 +3,7 @@ import {
   createProcessSchema,
   dataEnvelope,
   duplicateCheckResultSchema,
+  duplicateProcessSchema,
   processIdParamsSchema,
   processListQuerySchema,
   processDetailMetaSchema,
@@ -16,6 +17,7 @@ import type {
   CheckDuplicateProcesses,
   CreateProcess,
   DuplicateCheckResult,
+  DuplicateProcess,
   ProcessDetailMeta,
   ProcessDto,
   ProcessListItemDto,
@@ -39,6 +41,7 @@ import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateProcessCommand } from '../application/create-process.command.js';
+import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
 import { ListProcessesHandler } from '../application/list-processes.query.js';
 import {
   GetProcessSummaryQuery,
@@ -71,7 +74,8 @@ function noStore(response: HttpResponse): void {
 /**
  * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
  * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
- * (editar dados), PRC-07 (painel situacional) e PRC-10 (etapas e passagens do stepper).
+ * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper) e PRC-27
+ * (duplicar — US-011).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -86,6 +90,7 @@ export class ProcessController {
     private readonly summary: GetProcessSummaryQuery,
     private readonly stages: ListProcessStagesQuery,
     private readonly update: UpdateProcessCommand,
+    private readonly duplicate: DuplicateProcessCommand,
   ) {}
 
   @Get()
@@ -222,6 +227,42 @@ export class ProcessController {
     response.setHeader('ETag', `"${updated.dto.version}"`);
     noStore(response);
     return updated.dto;
+  }
+
+  @Post(':id/duplicate')
+  @Idempotent()
+  @RequirePermission('PROCESS_DUPLICATE', {
+    scope: { processParam: 'id' },
+    detail: 'Você não tem permissão para duplicar este processo.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-27',
+    summary: 'Duplicar processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.duplicate', 'process.create'],
+    responses: {
+      201: {
+        description:
+          'Novo processo em `DRAFT` (`Location` e `ETag` = versão) com `duplicatedFromId` = origem: metadados, itens e — com `copyDocuments`/`copyAttachments` — documentos estruturados como rascunho e anexos por cópia lógica (DEC-033). Número, workflow e etapa inicial resolvidos para os NOVOS dados, como no PRC-02; nunca copia número, aprovações, tramitações, timeline, comentários, auditoria, participantes nem valor estimado. `PROCESS_DUPLICATE` cobrindo a origem (não visível = 404 `PROCESS_NOT_FOUND`) e `PROCESS_CREATE` cobrindo o setor solicitante final.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async duplicateProcess(
+    @ProcessId() id: string,
+    @ZodBody(duplicateProcessSchema) body: DuplicateProcess,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const duplicated = await this.duplicate.execute({
+      processId: id,
+      body,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('Location', `/api/v1/processes/${duplicated.dto.id}`);
+    response.setHeader('ETag', `"${duplicated.dto.version}"`);
+    return duplicated.dto;
   }
 
   @Get(':id/summary')

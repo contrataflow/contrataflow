@@ -7,6 +7,8 @@ import {
   seedDefaultRoles,
 } from '#modules/access/domain/default-roles.js';
 import type { RoleAssignment } from '#modules/access/domain/role-assignment.js';
+import { createRole } from '#modules/access/domain/role-management.js';
+import { grantPermission } from '#modules/access/domain/role.js';
 import type { Role } from '#modules/access/domain/role.js';
 import { InMemoryRoleRepository } from '#modules/access/infrastructure/in-memory-role.repository.js';
 import { InMemoryRoleAssignmentRepository } from '#modules/access/infrastructure/role-assignment.repository.js';
@@ -60,6 +62,22 @@ export function assignDepartment(api: TestApi, membershipId: string, departmentI
 /** Repositório em memória de perfis e concessões do `access` (specs de outros módulos não o importam). */
 export function roleRepositoryOf(api: TestApi): InMemoryRoleRepository {
   return api.app.get(InMemoryRoleRepository, { strict: false });
+}
+
+/** Perfil customizado com as permissões dadas no repositório em memória do `access` (US-011). */
+export function seedCustomRole(
+  api: TestApi,
+  tenantId: string,
+  name: string,
+  permissionCodes: readonly string[],
+): Role {
+  const now = new Date('2026-10-15T12:00:00.000Z');
+  const role = createRole({ name }, { id: newId(), tenantId, now, userId: null });
+  roleRepositoryOf(api).seed(
+    [role],
+    permissionCodes.map((code) => grantPermission(role, code, { id: newId(), now, userId: null })),
+  );
+  return role;
 }
 
 /** Perfis padrão do tenant no repositório em memória do `access` (US-091: perfil inicial). */

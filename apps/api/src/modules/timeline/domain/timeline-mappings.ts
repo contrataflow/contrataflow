@@ -183,6 +183,26 @@ const processCreated = defineMapping({
   }),
 });
 
+/** US-011: a duplicação registrada também na ORIGEM (o novo tem `PROCESS_DUPLICATED_FROM`). */
+const processDuplicated = defineMapping({
+  eventType: 'ProcessDuplicated',
+  entryTypes: ['PROCESS_DUPLICATED'],
+  payload: z.looseObject({ newProcessId: uuid }),
+  plan: (payload, event) => ({
+    refs: lookupRef('PROCESS', payload.newProcessId),
+    build: ({ lookups }) => [
+      entry(
+        'PROCESS_DUPLICATED',
+        {
+          newProcessId: payload.newProcessId,
+          newCode: lookups.get('PROCESS', payload.newProcessId)?.code ?? null,
+        },
+        { entity: processEntity(event) },
+      ),
+    ],
+  }),
+});
+
 const processUpdated = defineMapping({
   eventType: 'ProcessUpdated',
   entryTypes: ['PROCESS_UPDATED'],
@@ -1062,6 +1082,7 @@ const aiContentReviewed = defineMapping({
 
 const MAPPINGS: readonly TimelineEventMapping[] = [
   processCreated,
+  processDuplicated,
   processUpdated,
   processNumberAssigned,
   processItemsChanged,

@@ -3995,6 +3995,13 @@
               "API"
             ]
           },
+          "duplicatedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "openedAt": {
             "type": [
               "string",
@@ -4063,6 +4070,7 @@
           "pcaJustification",
           "notes",
           "creationChannel",
+          "duplicatedFromId",
           "openedAt",
           "createdAt",
           "updatedAt",
@@ -5293,6 +5301,37 @@
           "creatableTypeIds",
           "pendingTypeIds"
         ]
+      },
+      "DuplicateProcessRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "object": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          },
+          "requestingSecretariatId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestingDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "copyDocuments": {
+            "type": "boolean",
+            "default": false
+          },
+          "copyAttachments": {
+            "type": "boolean",
+            "default": false
+          }
+        }
       },
       "CreateProcessItemRequest": {
         "type": "object",
@@ -26482,6 +26521,158 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/duplicate": {
+      "post": {
+        "operationId": "PRC-27",
+        "summary": "Duplicar processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "process.duplicate",
+          "process.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateProcessRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Novo processo em `DRAFT` (`Location` e `ETag` = versão) com `duplicatedFromId` = origem: metadados, itens e — com `copyDocuments`/`copyAttachments` — documentos estruturados como rascunho e anexos por cópia lógica (DEC-033). Número, workflow e etapa inicial resolvidos para os NOVOS dados, como no PRC-02; nunca copia número, aprovações, tramitações, timeline, comentários, auditoria, participantes nem valor estimado. `PROCESS_DUPLICATE` cobrindo a origem (não visível = 404 `PROCESS_NOT_FOUND`) e `PROCESS_CREATE` cobrindo o setor solicitante final.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Process"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

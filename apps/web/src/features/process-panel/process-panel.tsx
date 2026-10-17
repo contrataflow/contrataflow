@@ -28,6 +28,7 @@ import { StageStepper } from './stage-stepper';
 import { AttachmentsSection } from '../attachments/attachments-section';
 import { useAvailableActions } from '../process-actions/process-actions.api';
 import { DocumentsPanel } from '../process-documents/documents-panel';
+import { DuplicateProcessDialog } from '../process-duplicate/duplicate-process-dialog';
 import { EditProcessSheet } from '../process-edit/edit-process-sheet';
 import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { fetchProcess, processKeys } from '../processes/processes.api';
@@ -234,6 +235,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   });
   const stale = useStaleProcessRecovery(processId);
   const [editing, setEditing] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -306,10 +308,17 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           if (action.action === 'EDIT') setEditing(true);
           // US-006: "Gerenciar itens" leva à aba Itens.
           else if (action.action === 'MANAGE_ITEMS') changeTab('itens');
+          // US-011: "Duplicar processo" abre o diálogo SCR-113.
+          else if (action.action === 'DUPLICATE') setDuplicating(true);
           else toast({ title: t('actions.notYet') });
         }}
       />
       <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
+      <DuplicateProcessDialog
+        processId={processId}
+        open={duplicating}
+        onOpenChange={setDuplicating}
+      />
       <StageStepper
         stages={stages.data}
         isPending={stages.isPending}

@@ -52,6 +52,8 @@ export interface Attachment {
   readonly deletedAt: Date | null;
   readonly deletedById: string | null;
   readonly version: number;
+  /** Anexo de origem da cópia lógica (US-011 · DEC-033); ausente/`null` fora dela. */
+  readonly sourceAttachmentId?: string | null;
 }
 
 /** Transição fora de storage.md §5.1: erro de programação ou corrida já tratada pelo chamador. */
@@ -147,6 +149,40 @@ export function createAttachment(input: NewAttachmentInput): Attachment {
     deletedAt: null,
     deletedById: null,
     version: 1,
+  };
+}
+
+export interface LogicalCopyTarget {
+  readonly id: string;
+  readonly processId: string;
+  readonly targetType: 'PROCESS' | 'DOCUMENT';
+  readonly targetId: string;
+  readonly userId: string;
+  readonly now: Date;
+}
+
+/**
+ * Cópia lógica de um anexo `AVAILABLE` (US-011 · RN-PROC-121 · DEC-033): novo registro vinculado
+ * ao novo processo/documento, com o MESMO objeto de armazenamento e o resultado da varredura da
+ * origem — nenhum byte duplicado no storage e nenhuma nova varredura (o objeto já passou pela P3).
+ * O autor e o envio continuam os do arquivo original.
+ */
+export function logicalCopy(source: Attachment, target: LogicalCopyTarget): Attachment {
+  if (source.status !== 'AVAILABLE' || source.deletedAt !== null) {
+    throw new AttachmentTransitionError(source.status, 'AVAILABLE');
+  }
+  return {
+    ...source,
+    id: target.id,
+    processId: target.processId,
+    targetType: target.targetType,
+    targetId: target.targetId,
+    quarantineKey: null,
+    createdAt: target.now,
+    updatedAt: target.now,
+    updatedById: target.userId,
+    version: 1,
+    sourceAttachmentId: source.id,
   };
 }
 

@@ -361,5 +361,34 @@
       "keep": "Continuar editando",
       "confirm": "Descartar"
     }
+  },
+  "duplicate": {
+    "title": "Duplicar processo",
+    "description": "Abre um novo processo com os mesmos dados, itens e etiquetas. O novo processo recebe número próprio, segue o fluxo aplicável aos dados informados e fica com você.",
+    "close": "Fechar",
+    "loading": "Carregando os dados do processo…",
+    "options": "O que mais copiar",
+    "copyDocuments": "Copiar documentos estruturados (como rascunho)",
+    "copyDocumentsHint": "DFD, ETP, TR e demais documentos estruturados entram como novos rascunhos, com o conteúdo mais recente. Pesquisa de preços: só itens e fontes, nunca cotações.",
+    "noDocuments": "Nenhum documento estruturado para copiar",
+    "documentsList": "Documentos que serão copiados",
+    "copyAttachments": "Copiar anexos",
+    "copyAttachmentsHint": "Os anexos do processo (e dos documentos copiados) são vinculados ao novo processo, sem duplicar os arquivos.",
+    "neverCopied": "Nunca são copiados: número, aprovações, tramitações, histórico, comentários, auditoria, participantes e valor estimado.",
+    "submit": "Duplicar",
+    "submitting": "Duplicando…",
+    "cancel": "Cancelar",
+    "toast": "Processo {code} criado a partir de {sourceCode}",
+    "toastNoNumber": "Processo criado a partir de {sourceCode}",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "source": "Há dados copiados da origem que precisam de ajuste:",
+      "sourceHint": "Corrija o processo de origem em \"Editar dados\" e tente duplicar novamente.",
+      "permissionHint": "Escolha outro setor solicitante ou peça acesso ao administrador.",
+      "unavailable": "Não foi possível duplicar o processo agora.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "notFound": "Processo não encontrado."
+    }
   }
 }

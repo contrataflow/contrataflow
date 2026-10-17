@@ -47,6 +47,44 @@ export interface ProcessItem {
   readonly version: number;
 }
 
+export interface ItemCopyTarget {
+  readonly tenantId: string;
+  readonly processId: string;
+  readonly now: Date;
+  readonly userId: string;
+  readonly newId: () => string;
+}
+
+/**
+ * Itens copiados na duplicação (US-011 · RN-PROC-118/119 · DEC-033): natureza, descrição, unidade,
+ * catálogo, lote e observações, renumerados a partir de 1 na ordem da origem (sequência própria do
+ * novo processo). Quantidade e preço de referência ficam vazios: vinham de documentos da origem e o
+ * valor estimado do novo processo é recalculado do zero.
+ */
+export function duplicateItems(
+  items: readonly ProcessItem[],
+  target: ItemCopyTarget,
+): ProcessItem[] {
+  return [...items]
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((item, index) => ({
+      ...item,
+      id: target.newId(),
+      tenantId: target.tenantId,
+      processId: target.processId,
+      sequence: index + 1,
+      referenceQuantity: null,
+      referenceQuantitySourceDocumentId: null,
+      referenceUnitPrice: null,
+      referenceUnitPriceSourceDocumentId: null,
+      createdAt: target.now,
+      updatedAt: target.now,
+      createdById: target.userId,
+      updatedById: target.userId,
+      version: 1,
+    }));
+}
+
 /** RN-PROC-73: maior número entre os itens não excluídos + 1 (1 no primeiro). */
 export function nextSequence(active: readonly Pick<ProcessItem, 'sequence'>[]): number {
   return active.reduce((max, item) => Math.max(max, item.sequence), 0) + 1;

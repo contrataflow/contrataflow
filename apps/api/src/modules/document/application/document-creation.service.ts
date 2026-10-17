@@ -1,5 +1,5 @@
 import { DocumentCreated, EMPTY_DRAFT_CONTENT } from '@contrataflow/validation';
-import type { DraftContent } from '@contrataflow/validation';
+import type { Confidentiality, DraftContent } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
@@ -33,6 +33,8 @@ export interface CreateDocumentInput {
   /** Padrão: o criador. */
   readonly responsibleId?: string | null;
   readonly sourceDocumentId?: string | null;
+  /** Padrão: o sigilo padrão do tipo. */
+  readonly confidentiality?: Confidentiality;
   readonly idempotencyKey?: string | null;
 }
 
@@ -89,6 +91,7 @@ export class DocumentCreationService {
       tenantId: context.tenantId,
       processId: process.id,
       type,
+      ...(input.confidentiality === undefined ? {} : { confidentiality: input.confidentiality }),
       templateVersionId: input.templateVersionId,
       title: input.title,
       draftContent: input.draftContent ?? EMPTY_DRAFT_CONTENT,

@@ -188,6 +188,7 @@ export function processDto(extra: Partial<ProcessDto> = {}): ProcessDto {
     pcaJustification: null,
     notes: null,
     creationChannel: 'WEB',
+    duplicatedFromId: null,
     openedAt: '2026-10-16T13:00:00.000Z',
     createdAt: '2026-10-16T13:00:00.000Z',
     updatedAt: '2026-10-16T13:00:00.000Z',
@@ -450,6 +451,8 @@ export interface ProcessApiOptions {
   documents?: Handler;
   /** DTY-01 (US-062): `/document-types` (tipos ativos). */
   documentTypes?: Handler;
+  /** PRC-27 (US-011): `POST /processes/{id}/duplicate`. */
+  duplicate?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -512,6 +515,14 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
             status: 201,
             headers: { Location: `/api/v1/processes/${PROCESS_ID}`, ETag: '"1"' },
           },
+        ),
+      );
+    }
+    if (method === 'POST' && url === `/api/v1/processes/${PROCESS_ID}/duplicate`) {
+      return respond(options.duplicate, () =>
+        jsonResponse(
+          { data: processDto({ id: ID(410), code: '0045/2026', duplicatedFromId: PROCESS_ID }) },
+          { status: 201, headers: { Location: `/api/v1/processes/${ID(410)}`, ETag: '"1"' } },
         ),
       );
     }

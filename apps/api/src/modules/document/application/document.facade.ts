@@ -1,7 +1,9 @@
 import type { Confidentiality, DocumentStatus } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
+import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
+import { ApiError } from '#shared/errors/api-error.js';
 
 import { DocumentAiTargets } from './document-ai-target.js';
 import type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
@@ -15,8 +17,9 @@ import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentRepository, DocumentValidator } from './document.ports.js';
-import { DOCUMENT_TYPE_REPOSITORY } from './ports.js';
-import type { DocumentTypeRepository } from './ports.js';
+import { DOCUMENT_CLOCK, DOCUMENT_TYPE_REPOSITORY } from './ports.js';
+import type { DocumentClock, DocumentTypeRepository } from './ports.js';
+import { draftContentCopy } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
 export type {
@@ -45,6 +48,14 @@ export interface SummaryDocumentFact {
   readonly inApproval: boolean;
 }
 
+/** Resultado da cópia dos documentos estruturados na duplicação (US-011). */
+export interface DocumentDraftCopies {
+  /** Documento de origem → novo rascunho. */
+  readonly copied: ReadonlyMap<string, string>;
+  /** Elegíveis que não puderam ser copiados (tipo inativado depois da criação). */
+  readonly skipped: number;
+}
+
 /**
  * API pública do módulo `document` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório. US-065: a extensão dos módulos tipados (`registerValidator`), a
@@ -61,6 +72,7 @@ export class DocumentFacade {
     private readonly creation: DocumentCreationService,
     private readonly approvals: DocumentApprovalTransitions,
     private readonly aiTargets: DocumentAiTargets,
+    @Inject(DOCUMENT_CLOCK) private readonly clock: DocumentClock,
   ) {}
 
   /**
@@ -74,6 +86,53 @@ export class DocumentFacade {
   /** Cria o documento em `DRAFT` (RN-DOC-50: tipo singular → 409 `DOCUMENT_ALREADY_EXISTS`). */
   createIn(tx: TenantTx, input: CreateDocumentInput): Promise<Document> {
     return this.creation.create(tx, input);
+  }
+
+  /**
+   * Duplicação do processo com `copyDocuments` (US-011 · RN-PROC-120 · DEC-033): cada documento
+   * estruturado (`STRUCTURED`) não cancelado nem excluído da origem vira um novo documento em
+   * `DRAFT` no processo de destino, com o conteúdo mais recente (`draftContentCopy`), o mesmo
+   * modelo e sigilo e `sourceDocumentId` — numeração, `document.create` e `DocumentCreated` pela
+   * criação de sempre. Nunca versões nem aprovações. Tipo inativado depois é pulado (contado em
+   * `skipped`). A autorização é da duplicação (o processo novo nasce sob custódia de quem duplica).
+   */
+  async copyStructuredAsDraftsIn(
+    tx: TenantTx,
+    input: {
+      readonly sourceProcessId: string;
+      readonly targetProcessId: string;
+      readonly idempotencyKey: string | null;
+    },
+  ): Promise<DocumentDraftCopies> {
+    const userId = requireRequestContext().actor.userId;
+    if (userId === null) throw new ApiError('UNAUTHENTICATED');
+    const documents = await this.documents.listActiveByProcess(tx, input.sourceProcessId);
+    const types = new Map((await this.types.list(tx)).map((type) => [type.id, type]));
+    const copied = new Map<string, string>();
+    let skipped = 0;
+    for (const document of documents) {
+      const type = types.get(document.documentTypeId);
+      if (type?.kind !== 'STRUCTURED') continue;
+      if (!type.isActive) {
+        skipped += 1;
+        continue;
+      }
+      const copy = await this.creation.create(tx, {
+        processId: input.targetProcessId,
+        documentTypeId: type.id,
+        title: document.title,
+        templateVersionId: document.templateVersionId,
+        draftContent: draftContentCopy(document.draftContent, {
+          actorId: userId,
+          now: this.clock(),
+        }),
+        confidentiality: document.confidentiality,
+        sourceDocumentId: document.id,
+        idempotencyKey: input.idempotencyKey,
+      });
+      copied.set(document.id, copy.id);
+    }
+    return { copied, skipped };
   }
 
   /** RN-DOC-44: o documento entra na aprovação de etapa que o cobre (US-047/US-051). */

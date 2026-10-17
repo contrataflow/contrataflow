@@ -96,11 +96,14 @@ export class AccessFacade {
   async assertCanInDepartment(
     permission: PermissionCode,
     department: { readonly id: string; readonly organizationId: string | null },
-    options: { readonly mfaPolicy: MfaPolicy },
+    options: { readonly mfaPolicy: MfaPolicy; readonly detail?: string },
   ): Promise<void> {
     const permissions = await this.authorization.current();
     if (!permissions.coversDepartment(permission, department)) {
-      throw new ApiError('PERMISSION_DENIED', { auditReasonCode: permission });
+      throw new ApiError('PERMISSION_DENIED', {
+        auditReasonCode: permission,
+        ...(options.detail === undefined ? {} : { detail: options.detail }),
+      });
     }
     this.assertCan(permission, options);
   }

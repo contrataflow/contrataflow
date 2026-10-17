@@ -59,6 +59,7 @@ function toDomain(row: Row): Attachment {
     deletedAt: row.deletedAt,
     deletedById: row.deletedById,
     version: row.version,
+    sourceAttachmentId: row.sourceAttachmentId,
   };
 }
 
@@ -75,6 +76,7 @@ function scanResultJson(value: ScanResult | null): Prisma.InputJsonValue | undef
 @Injectable()
 export class PrismaAttachmentRepository implements AttachmentRepository {
   async insert(tx: TenantTx, attachment: Attachment): Promise<void> {
+    const scanResult = scanResultJson(attachment.scanResult);
     await tx.attachment.create({
       data: {
         id: attachment.id,
@@ -86,12 +88,18 @@ export class PrismaAttachmentRepository implements AttachmentRepository {
         fileName: attachment.fileName,
         extension: attachment.extension,
         declaredMimeType: attachment.declaredMimeType,
+        detectedMimeType: attachment.detectedMimeType,
         sizeBytes: BigInt(attachment.sizeBytes),
+        sha256: attachment.sha256,
         storageKey: attachment.storageKey,
         quarantineKey: attachment.quarantineKey,
         status: attachment.status,
+        ...(scanResult === undefined ? {} : { scanResult }),
+        scannedAt: attachment.scannedAt,
         description: attachment.description,
         uploadedById: attachment.uploadedById,
+        uploadedAt: attachment.uploadedAt,
+        sourceAttachmentId: attachment.sourceAttachmentId ?? null,
         createdAt: attachment.createdAt,
         updatedAt: attachment.updatedAt,
         createdById: attachment.uploadedById,
@@ -109,6 +117,14 @@ export class PrismaAttachmentRepository implements AttachmentRepository {
   async findByIds(tx: TenantTx, ids: readonly string[]): Promise<Attachment[]> {
     if (ids.length === 0) return [];
     const rows = await tx.attachment.findMany({ where: { id: { in: [...ids] } } });
+    return rows.map(toDomain);
+  }
+
+  async listAvailableByProcess(tx: TenantTx, processId: string): Promise<Attachment[]> {
+    const rows = await tx.attachment.findMany({
+      where: { processId, status: 'AVAILABLE', deletedAt: null },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
     return rows.map(toDomain);
   }
 

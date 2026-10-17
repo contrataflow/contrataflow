@@ -15,6 +15,8 @@ export interface AttachmentRepository {
   /** `null` se não existe NO TENANT da transação. */
   findById(tx: TenantTx, id: string): Promise<Attachment | null>;
   findByIds(tx: TenantTx, ids: readonly string[]): Promise<Attachment[]>;
+  /** Anexos `AVAILABLE` do processo (cópia lógica da duplicação — US-011), mais antigos primeiro. */
+  listAvailableByProcess(tx: TenantTx, processId: string): Promise<Attachment[]>;
   /**
    * Grava a nova versão SE o registro ainda está na versão lida (`UPDATE … WHERE version = $lida`).
    * `false` = outro escreveu antes (perdeu a corrida).
