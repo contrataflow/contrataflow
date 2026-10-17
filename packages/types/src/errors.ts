@@ -61,6 +61,14 @@ export const ERROR_CODES = [
   // US-001: criação de processo (api.md §2.2).
   'POSSIBLE_DUPLICATE_PROCESS',
   'DUPLICATE_INTERNAL_CODE',
+  // US-065: ciclo de vida do documento (api.md §2.2 · api/03-documents.md DOC-04/08..14).
+  'NOT_PROCESS_CUSTODIAN',
+  'INVALID_PROCESS_STATUS',
+  'DOCUMENT_INCOMPLETE',
+  'WARNINGS_NOT_ACKNOWLEDGED',
+  'DOCUMENT_ALREADY_EXISTS',
+  'DOCUMENT_NOT_EDITABLE',
+  'DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -1,0 +1,317 @@
+import {
+  documentCancelSchema,
+  documentIdParamsSchema,
+  documentMetaSchema,
+  documentReopenSchema,
+  documentSchema,
+  documentTransitionSchema,
+  documentUpdateSchema,
+  documentValidationSchema,
+  dataEnvelope,
+} from '@contrataflow/validation';
+import type {
+  DocumentCancel,
+  DocumentDto,
+  DocumentMeta,
+  DocumentReopen,
+  DocumentTransition,
+  DocumentUpdate,
+  DocumentValidationDto,
+} from '@contrataflow/validation';
+import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
+import { z } from 'zod';
+
+import { ImplicitAccess, Policy, RequirePermission } from '#shared/auth/authorization.js';
+import { DataResult } from '#shared/http/envelope.interceptor.js';
+import type { HttpResponse } from '#shared/http/http-types.js';
+import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
+import type { IfMatchValue } from '#shared/http/precondition.js';
+import { Idempotent } from '#shared/idempotency/idempotency.js';
+import { ApiOperation } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
+import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
+
+import {
+  CancelDocumentCommand,
+  DeleteDocumentCommand,
+  FinalizeDocumentCommand,
+  ReopenDocumentCommand,
+  SubmitDocumentCommand,
+  UpdateDocumentHeaderCommand,
+} from '../application/document.commands.js';
+import { DocumentQueries } from '../application/document.queries.js';
+import { toDocumentDto } from '../application/document.view.js';
+import type { DocumentType } from '../domain/document-type.js';
+import type { Document } from '../domain/document.js';
+
+const TAGS = ['Documentos'];
+
+/** `{ data: Document, meta: { allowedActions } }` (api.md §1.5) + `ETag: "<version>"`. */
+const DOCUMENT_RESPONSE = z.object({ data: documentSchema, meta: documentMetaSchema });
+
+type DocumentResponse = DataResult<DocumentDto, DocumentMeta>;
+
+/**
+ * POL-02 depende do TIPO do documento (`DOCUMENT_*` nos livres/externos, `DFD_*`/`ETP_*`/… nos
+ * tipados — permissions.md §2.2/§2.3): o caso de uso confere a permissão cobrindo o processo, a
+ * custódia/participação, a etapa e o status (`DocumentLifecycleService.authorizePol02`).
+ */
+const TYPE_PERMISSION =
+  'Permissão de edição/submissão do tipo do documento (DOCUMENT_*, DFD_*, ETP_*, TERM_*, RISK_*, PRICE_RESEARCH_*) conferida pelo caso de uso sobre o processo do documento, com POL-02.';
+
+/**
+ * DOC-03/04/08/09/10/12/13/14 (api/03-documents.md · US-065): o documento genérico e o seu ciclo de
+ * vida (DEC-018). Toda transição de `status` passa pelo `DocumentLifecycleService` (RN-DOC-41) —
+ * nenhum `PATCH` muda o status. Documento de outro tenant/processo não visível → 404.
+ */
+@Controller('documents')
+@TenantScope('TENANT')
+export class DocumentController {
+  constructor(
+    private readonly queries: DocumentQueries,
+    private readonly updateHeader: UpdateDocumentHeaderCommand,
+    private readonly finalize: FinalizeDocumentCommand,
+    private readonly submit: SubmitDocumentCommand,
+    private readonly reopen: ReopenDocumentCommand,
+    private readonly cancel: CancelDocumentCommand,
+    private readonly remove: DeleteDocumentCommand,
+  ) {}
+
+  private respond(
+    result: {
+      readonly document: Document;
+      readonly type: DocumentType;
+      readonly allowedActions: DocumentMeta['allowedActions'];
+    },
+    response: HttpResponse,
+  ): DocumentResponse {
+    response.setHeader('ETag', `"${result.document.version}"`);
+    return new DataResult(toDocumentDto(result.document, result.type), {
+      allowedActions: result.allowedActions,
+    });
+  }
+
+  @Get(':id')
+  @RequirePermission('PROCESS_VIEW')
+  @ApiOperation({
+    operationId: 'DOC-03',
+    summary: 'Consultar documento',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Documento com o rascunho de trabalho e `meta.allowedActions` (`ETag` = versão).',
+        schema: DOCUMENT_RESPONSE,
+      },
+    },
+  })
+  async getDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    return this.respond(await this.queries.get(params.id), response);
+  }
+
+  @Patch(':id')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(TYPE_PERMISSION)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-04',
+    summary: 'Atualizar dados do documento',
+    tags: TAGS,
+    auditActions: ['document.draft_update'],
+    responses: {
+      200: {
+        description: 'Título/responsável do rascunho atualizados (novo `ETag`); sem versão nova.',
+        schema: DOCUMENT_RESPONSE,
+      },
+    },
+  })
+  async updateDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentUpdateSchema) body: DocumentUpdate,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    const result = await this.updateHeader.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      patch: body,
+    });
+    return this.respond(result, response);
+  }
+
+  @Get(':id/validation')
+  @RequirePermission('PROCESS_VIEW')
+  @ApiOperation({
+    operationId: 'DOC-08',
+    summary: 'Consultar validação de completude do documento',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Pendências bloqueantes e avisos (regras genéricas + módulo tipado) num único `violations[]`.',
+        schema: dataEnvelope(documentValidationSchema),
+      },
+    },
+  })
+  getValidation(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+  ): Promise<DocumentValidationDto> {
+    return this.queries.validation(params.id);
+  }
+
+  @Post(':id/submit')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ImplicitAccess(TYPE_PERMISSION)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-09',
+    summary: 'Submeter documento',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['document.submit', 'document.version_create', 'approval.request'],
+    responses: {
+      200: {
+        description:
+          'Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId`.',
+        schema: DOCUMENT_RESPONSE,
+      },
+    },
+  })
+  async submitDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentTransitionSchema) body: DocumentTransition,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    const result = await this.submit.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      acknowledgedWarnings: body.acknowledgedWarnings ?? [],
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    return this.respond(result, response);
+  }
+
+  @Post(':id/finalize')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ImplicitAccess(TYPE_PERMISSION)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-10',
+    summary: 'Finalizar documento',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['document.finalize', 'document.version_create'],
+    responses: {
+      200: {
+        description: 'Documento `FINALIZED` com a versão `FINALIZATION`; edição bloqueada.',
+        schema: DOCUMENT_RESPONSE,
+      },
+    },
+  })
+  async finalizeDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentTransitionSchema) body: DocumentTransition,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    const result = await this.finalize.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      acknowledgedWarnings: body.acknowledgedWarnings ?? [],
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    return this.respond(result, response);
+  }
+
+  @Post(':id/reopen')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('DOCUMENT_REOPEN')
+  @Policy('POL-11')
+  @ApiOperation({
+    operationId: 'DOC-12',
+    summary: 'Reabrir documento',
+    tags: TAGS,
+    auditActions: ['document.reopen'],
+    responses: {
+      200: {
+        description:
+          'Documento de volta a `DRAFT`, com o rascunho a partir da última versão (sem versão nova).',
+        schema: DOCUMENT_RESPONSE,
+      },
+    },
+  })
+  async reopenDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentReopenSchema) body: DocumentReopen,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    const result = await this.reopen.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      reason: body.reopenReason,
+    });
+    return this.respond(result, response);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('DOCUMENT_CANCEL')
+  @Policy('POL-01')
+  @ApiOperation({
+    operationId: 'DOC-13',
+    summary: 'Cancelar documento',
+    tags: TAGS,
+    auditActions: ['document.cancel'],
+    responses: {
+      200: { description: 'Documento `CANCELED` (final).', schema: DOCUMENT_RESPONSE },
+    },
+  })
+  async cancelDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentCancelSchema) body: DocumentCancel,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    const result = await this.cancel.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      reason: body.cancellationReason,
+    });
+    return this.respond(result, response);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequireIfMatch()
+  @ImplicitAccess(TYPE_PERMISSION)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-14',
+    summary: 'Excluir documento (rascunho)',
+    tags: TAGS,
+    auditActions: ['document.delete'],
+    responses: {
+      204: { description: 'Rascunho nunca submetido excluído (exclusão lógica — DEC-034).' },
+    },
+  })
+  async deleteDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @IfMatch() ifMatch: IfMatchValue | null,
+  ): Promise<void> {
+    await this.remove.execute({ documentId: params.id, expectedVersion: ifMatch?.value ?? 0 });
+  }
+}

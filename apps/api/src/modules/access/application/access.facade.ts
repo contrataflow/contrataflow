@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
-import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
+import type { ProcessAccessTarget, ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
@@ -103,6 +103,30 @@ export class AccessFacade {
       throw new ApiError('PERMISSION_DENIED', { auditReasonCode: permission });
     }
     this.assertCan(permission, options);
+  }
+
+  /**
+   * Como `assertCan`, mas a permissão precisa cobrir o PROCESSO (perfil com escopo que o cubra ∪
+   * participação — permissions.md §1.1/§4), com MFA (POL-14) e a recusa auditada como
+   * `access.denied` — para recursos cujo processo vem do próprio recurso (documento — US-065) e não
+   * do caminho da rota.
+   */
+  async assertCanOnProcess(
+    permission: PermissionCode,
+    process: ProcessAccessTarget,
+    detail?: string,
+  ): Promise<void> {
+    const permissions = await this.authorization.current();
+    await this.authorization.assertPermission(permissions, permission, process, detail);
+  }
+
+  /** A permissão cobre o processo (perfil ∪ participação), sem MFA nem auditoria — ações exibidas. */
+  async canOnProcess(permission: PermissionCode, process: ProcessAccessTarget): Promise<boolean> {
+    const permissions = await this.authorization.current();
+    return (
+      permissions.roleCoversProcess(permission, process) ||
+      permissions.participationGrants(permission, process, new Date())
+    );
   }
 
   /** Permissões efetivas do vínculo da requisição (contexto, cache ou banco — US-097). */

@@ -4,10 +4,15 @@ import type { OnModuleInit } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { ProcessAccessModule, ProcessAccessRegistry } from '#shared/auth/process-access.js';
+import {
+  DocumentProcessContextModule,
+  DocumentProcessContextRegistry,
+} from '#shared/document/document-process-context.js';
 import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
 
 import { CreateProcessCommand } from './application/create-process.command.js';
+import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
 import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
 import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
@@ -57,7 +62,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
  * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
  * sobre a `WorkflowFacade`. US-097: leitor do processo na porta de autorização. US-044: fonte do
- * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`.
+ * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`. US-065: leitor do processo
+ * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento.
  */
 @Module({
   imports: [
@@ -68,6 +74,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     TenancyModule,
     WorkflowModule,
     ProcessAccessModule,
+    DocumentProcessContextModule,
   ],
   controllers: [ProcessController, ProcessActionsController],
   providers: [
@@ -85,6 +92,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,
     RuleTestProcessReader,
+    DocumentProcessContextLoader,
     PrismaProcessRepository,
     InMemoryProcessRepository,
     InMemoryProcessRuntimeStore,
@@ -130,6 +138,8 @@ export class ProcessModule implements OnModuleInit {
     private readonly accessProjector: ProcessAccessProjector,
     private readonly workflow: WorkflowFacade,
     private readonly ruleTestProcesses: RuleTestProcessReader,
+    private readonly documentContexts: DocumentProcessContextRegistry,
+    private readonly documentContextLoader: DocumentProcessContextLoader,
   ) {}
 
   onModuleInit(): void {
@@ -138,5 +148,7 @@ export class ProcessModule implements OnModuleInit {
     this.workflow.registerRuleTestProcessSource(this.ruleTestProcesses);
     // DEC-024 · DEC-161: concessões `ProcessAccess` no mesmo `tx` do fato.
     this.syncHandlers.register(this.accessProjector);
+    // US-065: o processo visto pelo ciclo de vida do documento (POL-01/02/11 · snapshot).
+    this.documentContexts.register(this.documentContextLoader);
   }
 }

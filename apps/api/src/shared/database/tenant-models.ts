@@ -8,13 +8,17 @@
 
 /** Modelos de tenant: a extensão injeta e confere `tenantId` em toda operação (RN-TEN-23). */
 export const TENANT_SCOPED_MODELS = [
+  'Approval',
+  'ApprovalDocument',
   'AuditLog',
   'AuditSeal',
   'CatalogItem',
   'Department',
+  'Document',
   'DocumentTemplate',
   'DocumentTemplateVersion',
   'DocumentType',
+  'DocumentVersion',
   'Holiday',
   'MembershipDepartment',
   'NumberSequence',

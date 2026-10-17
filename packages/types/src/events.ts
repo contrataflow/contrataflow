@@ -37,6 +37,15 @@ export const DOMAIN_EVENT_NAMES = [
   'MembershipReactivated',
   'MembershipRevoked',
   'ProcessCreated',
+  'DocumentCreated',
+  'DocumentVersionCreated',
+  'DocumentSubmitted',
+  'DocumentFinalized',
+  'DocumentApproved',
+  'DocumentReturned',
+  'DocumentRejected',
+  'DocumentReopened',
+  'DocumentCanceled',
 ] as const satisfies readonly string[];
 
 export type DomainEventName = (typeof DOMAIN_EVENT_NAMES)[number];

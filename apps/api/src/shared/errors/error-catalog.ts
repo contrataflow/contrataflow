@@ -252,6 +252,41 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Código interno já utilizado',
     detail: 'Já existe um processo com este código interno.',
   },
+  NOT_PROCESS_CUSTODIAN: {
+    status: 403,
+    title: 'Sem custódia do processo',
+    detail: 'Apenas o responsável atual pelo processo pode realizar esta ação.',
+  },
+  INVALID_PROCESS_STATUS: {
+    status: 409,
+    title: 'Status do processo incompatível',
+    detail: 'Esta ação não está disponível para o status atual do processo.',
+  },
+  DOCUMENT_INCOMPLETE: {
+    status: 422,
+    title: 'Documento incompleto',
+    detail: 'Há pendências que impedem esta ação.',
+  },
+  WARNINGS_NOT_ACKNOWLEDGED: {
+    status: 422,
+    title: 'Avisos não reconhecidos',
+    detail: 'Reconheça os avisos para continuar.',
+  },
+  DOCUMENT_ALREADY_EXISTS: {
+    status: 409,
+    title: 'Documento já existente',
+    detail: 'Este processo já tem um documento deste tipo.',
+  },
+  DOCUMENT_NOT_EDITABLE: {
+    status: 409,
+    title: 'Documento não editável',
+    detail: 'O documento não pode ser editado no status atual.',
+  },
+  DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE: {
+    status: 422,
+    title: 'Tipo não permitido na etapa',
+    detail: 'Este tipo de documento não é permitido na etapa atual do processo.',
+  },
   NOTIFICATION_NOT_FOUND: {
     status: 404,
     title: 'Notificação não encontrada',

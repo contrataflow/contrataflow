@@ -18,6 +18,8 @@ export interface OrganizationSummary {
   readonly id: string;
   readonly name: string;
   readonly shortName: string;
+  /** 14 dígitos (US-065: cabeçalho congelado no snapshot da versão do documento). */
+  readonly cnpj: string;
   readonly isActive: boolean;
 }
 
@@ -70,6 +72,7 @@ export class TenancyFacade {
           id: organization.id,
           name: organization.name,
           shortName: organization.shortName,
+          cnpj: organization.cnpj,
           isActive: organization.isActive,
         }
       : null;

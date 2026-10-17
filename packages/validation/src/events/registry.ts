@@ -3,7 +3,16 @@ import { RoleAssigned, RoleCreated, RoleRevoked, RoleUpdated } from '../access/e
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import {
+  DocumentApproved,
+  DocumentCanceled,
+  DocumentCreated,
+  DocumentFinalized,
+  DocumentRejected,
+  DocumentReopened,
+  DocumentReturned,
+  DocumentSubmitted,
   DocumentTypeChanged,
+  DocumentVersionCreated,
   TemplateVersionPublished,
   TemplateVersionRetired,
 } from '../document/events.js';
@@ -78,4 +87,13 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   WorkflowDefaultChanged,
   TemplateVersionPublished,
   TemplateVersionRetired,
+  DocumentCreated,
+  DocumentVersionCreated,
+  DocumentSubmitted,
+  DocumentFinalized,
+  DocumentApproved,
+  DocumentReturned,
+  DocumentRejected,
+  DocumentReopened,
+  DocumentCanceled,
 };

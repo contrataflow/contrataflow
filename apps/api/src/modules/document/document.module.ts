@@ -3,15 +3,30 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { DocumentApprovalModule } from '#shared/document/document-approval.js';
+import { DocumentProcessContextModule } from '#shared/document/document-process-context.js';
 import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalog.js';
 import { DocumentTypeUsageModule } from '#shared/document/document-type-usage.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
+import { DocumentApprovalTransitions } from './application/document-approval.transitions.js';
+import { DocumentCreationService } from './application/document-creation.service.js';
+import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
 import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
 import { DocumentTypeFacade } from './application/document-type.facade.js';
+import {
+  CancelDocumentCommand,
+  DeleteDocumentCommand,
+  FinalizeDocumentCommand,
+  ReopenDocumentCommand,
+  SubmitDocumentCommand,
+  UpdateDocumentHeaderCommand,
+} from './application/document.commands.js';
 import { DocumentFacade } from './application/document.facade.js';
+import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './application/document.ports.js';
+import { DocumentQueries } from './application/document.queries.js';
 import { ListDocumentTypesQuery } from './application/list-document-types.query.js';
 import {
   DOCUMENT_CLOCK,
@@ -39,17 +54,20 @@ import { UpdateDocumentTypeCommand } from './application/update-document-type.co
 import {
   InMemoryDocumentTransactions,
   InMemoryDocumentTypeRepository,
-  StaticDocumentCounter,
 } from './infrastructure/in-memory-document-type.repository.js';
+import { InMemoryDocumentRepository } from './infrastructure/in-memory-document.repository.js';
 import { InMemoryTemplateRepository } from './infrastructure/in-memory-template.repository.js';
 import {
   PrismaDocumentTransactions,
   PrismaDocumentTypeRepository,
 } from './infrastructure/prisma-document-type.repository.js';
+import { PrismaDocumentRepository } from './infrastructure/prisma-document.repository.js';
 import { PrismaTemplateRepository } from './infrastructure/prisma-template.repository.js';
 import { DocumentTypeController } from './presentation/document-type.controller.js';
+import { DocumentController } from './presentation/document.controller.js';
 import { TemplateController } from './presentation/template.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 
@@ -60,20 +78,26 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * Módulo `document` (DEC-040, nível 2): outros módulos usam somente as fachadas exportadas. Dono de
  * `DocumentType` (US-061: DTY-01..03, cache por tenant e semeadura dos tipos de sistema) e dos
  * templates (US-107: TPL-01..04/07/08 e o `TemplateContentValidator`; US-108: TPL-05/06/10/11 e o
- * template padrão do tipo, DTY-04); documentos e versões chegam com as stories seguintes. Autorização e MFA vêm de `access`/`identity`;
+ * template padrão do tipo, DTY-04) e dos documentos e versões (US-065: DOC-03/04/08..14, o
+ * `DocumentLifecycleService` de DEC-018 e a porta `DocumentValidator` dos módulos tipados — o
+ * processo chega pela porta `DocumentProcessContextRegistry`, implementada por `process`; a
+ * aprovação avulsa, pela `DocumentApprovalRegistry`, implementada por `approval`). Autorização e MFA vêm de `access`/`identity`;
  * a verificação de uso em fluxos publicados, da porta `DocumentTypeUsageProvider` (implementada
  * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040).
  */
 @Module({
   imports: [
     AccessModule,
+    CatalogModule,
     IdentityModule,
     OrganizationModule,
     DocumentTypeUsageModule,
     DocumentTypeCatalogModule,
+    DocumentProcessContextModule,
+    DocumentApprovalModule,
     TenantSeedingModule,
   ],
-  controllers: [DocumentTypeController, TemplateController],
+  controllers: [DocumentTypeController, TemplateController, DocumentController],
   providers: [
     DocumentFacade,
     DocumentTypeFacade,
@@ -126,8 +150,31 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         memory: InMemoryDocumentTransactions,
       ) => (inMemory(config) ? memory : prisma),
     },
-    // `documents` (US-062/US-065) ainda não existe: nenhum documento usa o tipo.
-    { provide: DOCUMENT_COUNTER, useValue: new StaticDocumentCounter() },
+    // US-065: documentos e versões; o ciclo de vida (DEC-018) e a extensão por módulo tipado.
+    PrismaDocumentRepository,
+    InMemoryDocumentRepository,
+    {
+      provide: DOCUMENT_REPOSITORY,
+      inject: [APP_CONFIG, PrismaDocumentRepository, InMemoryDocumentRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaDocumentRepository,
+        memory: InMemoryDocumentRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    // RN-DOC-04 · prévia de impacto (US-061): documentos não excluídos do tipo.
+    { provide: DOCUMENT_COUNTER, useExisting: DOCUMENT_REPOSITORY },
+    DocumentValidatorRegistry,
+    DocumentLifecycleService,
+    DocumentCreationService,
+    DocumentApprovalTransitions,
+    DocumentQueries,
+    UpdateDocumentHeaderCommand,
+    FinalizeDocumentCommand,
+    SubmitDocumentCommand,
+    ReopenDocumentCommand,
+    CancelDocumentCommand,
+    DeleteDocumentCommand,
     { provide: DOCUMENT_CLOCK, useValue: () => new Date() },
   ],
   exports: [DocumentFacade, DocumentTypeFacade],

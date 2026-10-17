@@ -82,6 +82,7 @@ describe('TenancyFacade', () => {
       id: ACTIVE,
       name: 'Prefeitura Municipal',
       shortName: 'PMSJ',
+      cnpj: '11444777000161',
       isActive: true,
     });
     await expect(inTenant(B, () => facade.organizationSummary(tx, ACTIVE))).resolves.toBeNull();

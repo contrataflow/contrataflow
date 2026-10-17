@@ -85,6 +85,7 @@
   | 404 | `NOT_FOUND` | Documento inexistente, de outro tenant ou não visível |
 - **Efeitos:** —
 - **Notas:** Base para `DOC-04` e para os painéis tipados (DFD/ETP/TR) que reaproveitam este recurso para o cabeçalho.
+- **`meta.allowedActions`** (US-065 · RN-DOC-18): subconjunto de `UPDATE`, `FINALIZE` \| `SUBMIT` (conforme `requiresApproval` do tipo), `REOPEN`, `CANCEL`, `DELETE` — calculado pelo `DocumentLifecycleService` (status, custódia/participação, POL-02/POL-11, permissão do tipo, etapa e status do processo). `WITHDRAW` entra com a US-053 (DOC-11). A resposta é `{ data: Document, meta: { allowedActions } }` também em DOC-04/09/10/12/13. Implementado em versão mínima pela US-065 (sem POL-09: documentos genéricos não têm campos monetários); a US-062 completa.
 
 ### DOC-04 — Atualizar dados do documento
 `PATCH /api/v1/documents/{id}` · **Permissão:** permissão de edição do tipo + POL-02 · **Story:** US-065
@@ -203,6 +204,7 @@
   | 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Há `WARNING` não reconhecido em `acknowledgedWarnings` |
 - **Efeitos:** Eventos `DocumentSubmitted` (`documentId`, `documentVersionId`, `approvalId?`), `DocumentVersionCreated` (`documentId`, `documentVersionId`, `versionNumber`, `reason = SUBMISSION`, `contentHash` — RN-DOC-53: toda transição cria versão) e `ApprovalRequested` (payload no módulo de aprovações, fora desta seção) quando a etapa exige aprovação. Projeção na timeline: `DOCUMENT_SUBMITTED`, `DOCUMENT_VERSION_CREATED`. Auditoria `document.submit` (`DATA_CHANGE`): `metadata.documentVersionId`, `approvalId?`.
 - **Notas:** `VersionReason` = `MANUAL`\|`SUBMISSION`\|`FINALIZATION`\|`IMPORT`\|`UPLOAD`\|`REOPEN`\|`SYSTEM` (entities.md).
+- **POL-02 nas transições (US-065):** além dos erros acima, DOC-04/09/10/14 respondem 403 `PERMISSION_DENIED` sem custódia nem participação `COLLABORATOR`/`CONSULTANT`, 409 `INVALID_PROCESS_STATUS` com o processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` e 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` com o tipo fora de `WorkflowStage.documentTypeCodes`; DOC-12 (POL-11) responde 403 `NOT_PROCESS_CUSTODIAN` sem custódia. A `Approval` avulsa e `approval_documents` (versão analisada) são gravadas no mesmo `tx` (as tabelas `approvals`/`approval_documents` nascem na migração da US-065); a resolução do titular (`DEPARTMENT_HEAD`), `ApprovalRequested` e a concessão `APPROVER` são da US-051.
 
 ### DOC-10 — Finalizar documento
 `POST /api/v1/documents/{id}/finalize` · **Permissão:** permissão de submissão do tipo + POL-02 · **Story:** US-065

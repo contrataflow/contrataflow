@@ -109,6 +109,9 @@ const AUDIT_SEAL_ROUTE =
 const PROCESS_TIMELINE_ROUTE =
   'Timeline do processo (US-060): a suíte genérica não tem processo nem entradas de timeline do tenant B. O isolamento (PRC-12 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_timeline_entries com app.tenant_id diferente retornando vazio e cursor forjado com posição de B sem efeito) é coberto em test/tenant-leak/process-timeline.spec.ts, com PostgreSQL real.';
 
+const DOCUMENT_ROUTE =
+  'Documentos (US-065): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-03/04/08/09/10/12/13/14 com id de documento de B → 404 NOT_FOUND sem alterar nada, RLS de documents/document_versions/approvals/approval_documents com app.tenant_id diferente retornando vazio e FKs compostas por tenant) é coberto em test/tenant-leak/documents.spec.ts e src/modules/document/presentation/document.routes.spec.ts, com PostgreSQL real no primeiro.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -204,6 +207,14 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-08': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-12': { kind: 'exempt', reason: PROCESS_TIMELINE_ROUTE },
+  'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-08': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-09': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-10': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-12': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-13': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-14': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'AUD-04': { kind: 'exempt', reason: AUDIT_SEAL_ROUTE },
   'AUD-05': { kind: 'exempt', reason: AUDIT_SEAL_ROUTE },
   'TPL-01': { kind: 'exempt', reason: TEMPLATE_ROUTE },

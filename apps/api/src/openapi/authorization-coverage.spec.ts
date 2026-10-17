@@ -70,6 +70,10 @@ describe('meta-teste de autorização das rotas (US-097 · RN-IAM-101)', () => {
     expect(declared.length).toBeGreaterThan(60);
     expect(declared.filter((code) => !codes.has(code))).toEqual([]);
     expect([...declaredPolicies(CONTROLLERS).keys()].sort()).toEqual([
+      // US-065: custódia (cancelar), edição de documento e reabertura — aplicadas pelo caso de uso.
+      'POL-01',
+      'POL-02',
+      'POL-11',
       'POL-12',
       'POL-13',
       'POL-15',

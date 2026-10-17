@@ -1469,3 +1469,199 @@ model ProcessAccess {
   @@index([tenantId, processId], map: "process_access_process_idx")
   @@map("process_access")
 }
+
+/// entities.md §2 — `DocumentStatus` (DEC-018: ciclo de vida único de documento).
+enum DocumentStatus {
+  DRAFT
+  IN_REVIEW
+  RETURNED
+  FINALIZED
+  APPROVED
+  REJECTED
+  CANCELED
+
+  @@map("document_status")
+}
+
+/// entities.md §2 — `VersionReason`.
+enum VersionReason {
+  MANUAL
+  SUBMISSION
+  FINALIZATION
+  IMPORT
+  UPLOAD
+  REOPEN
+  SYSTEM
+
+  @@map("version_reason")
+}
+
+/// entities.md §2 — `ApprovalSubjectType` (DEC-022).
+enum ApprovalSubjectType {
+  PROCESS_STAGE
+  DOCUMENT
+
+  @@map("approval_subject_type")
+}
+
+/// entities.md §2 — `ApprovalStatus`.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  RETURNED
+  REJECTED
+  CANCELED
+
+  @@map("approval_status")
+}
+
+/// entities.md §2 — `ApprovalDecision`.
+enum ApprovalDecision {
+  APPROVE
+  RETURN
+  REJECT
+
+  @@map("approval_decision")
+}
+
+/// entities.md §4.7 `Document` (módulo document · US-065): artefato genérico do processo com o
+/// rascunho de trabalho e o status de DEC-018. FKs compostas, checks, o índice único parcial do
+/// tipo singular (`singleton_key` — RN-DOC-50) e o gatilho de colunas imutáveis ficam em SQL bruto
+/// na migração. Exclusão só lógica (`deletedAt` — DEC-034).
+model Document {
+  id                 String          @id @db.Uuid
+  tenantId           String          @map("tenant_id") @db.Uuid
+  processId          String          @map("process_id") @db.Uuid
+  documentTypeId     String          @map("document_type_id") @db.Uuid
+  templateVersionId  String?         @map("template_version_id") @db.Uuid
+  number             Int?
+  year               Int?
+  code               String?         @db.VarChar(60)
+  title              String          @db.VarChar(250)
+  status             DocumentStatus  @default(DRAFT)
+  confidentiality    Confidentiality @default(INTERNAL)
+  draftContent       Json            @default("{\"sections\":{}}") @map("draft_content") @db.JsonB
+  draftRevision      Int             @default(1) @map("draft_revision")
+  singletonKey       String?         @map("singleton_key") @db.Uuid
+  currentVersionId   String?         @map("current_version_id") @db.Uuid
+  approvedVersionId  String?         @map("approved_version_id") @db.Uuid
+  pendingApprovalId  String?         @map("pending_approval_id") @db.Uuid
+  responsibleId      String?         @map("responsible_id") @db.Uuid
+  submittedAt        DateTime?       @map("submitted_at") @db.Timestamptz(6)
+  submittedById      String?         @map("submitted_by_id") @db.Uuid
+  finalizedAt        DateTime?       @map("finalized_at") @db.Timestamptz(6)
+  finalizedById      String?         @map("finalized_by_id") @db.Uuid
+  approvedAt         DateTime?       @map("approved_at") @db.Timestamptz(6)
+  returnedAt         DateTime?       @map("returned_at") @db.Timestamptz(6)
+  rejectedAt         DateTime?       @map("rejected_at") @db.Timestamptz(6)
+  reopenedAt         DateTime?       @map("reopened_at") @db.Timestamptz(6)
+  reopenedById       String?         @map("reopened_by_id") @db.Uuid
+  reopenReason       String?         @map("reopen_reason")
+  canceledAt         DateTime?       @map("canceled_at") @db.Timestamptz(6)
+  canceledById       String?         @map("canceled_by_id") @db.Uuid
+  cancellationReason String?         @map("cancellation_reason")
+  sourceDocumentId   String?         @map("source_document_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String          @map("created_by_id") @db.Uuid
+  updatedById        String?         @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  version            Int             @default(1)
+
+  @@unique([tenantId, id], map: "documents_tenant_id_id_key")
+  // Parciais na migração: `code IS NOT NULL` e o tipo singular ativo (RN-DOC-50).
+  @@index([tenantId, code], map: "documents_code_key")
+  @@index([tenantId, processId, singletonKey], map: "documents_singleton_key")
+  @@index([tenantId, processId, documentTypeId], map: "documents_process_type_idx")
+  @@index([tenantId, status], map: "documents_status_idx")
+  @@index([tenantId, responsibleId, status], map: "documents_responsible_idx")
+  @@map("documents")
+}
+
+/// entities.md §4.7 `DocumentVersion` (módulo document · US-065 · DEC-017/084): snapshot imutável
+/// (gatilho `document_versions_append_only`; o papel da aplicação só tem SELECT/INSERT).
+model DocumentVersion {
+  id                String         @id @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  documentId        String         @map("document_id") @db.Uuid
+  processId         String         @map("process_id") @db.Uuid
+  versionNumber     Int            @map("version_number")
+  reason            VersionReason
+  statusAtCreation  DocumentStatus @map("status_at_creation")
+  content           Json?          @db.JsonB
+  contentHash       String         @map("content_hash") @db.VarChar(64)
+  attachmentId      String?        @map("attachment_id") @db.Uuid
+  templateVersionId String?        @map("template_version_id") @db.Uuid
+  changeSummary     String?        @map("change_summary") @db.VarChar(500)
+  createdById       String         @map("created_by_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "document_versions_tenant_id_id_key")
+  @@unique([tenantId, documentId, id], map: "document_versions_tenant_id_document_id_id_key")
+  @@unique([tenantId, documentId, versionNumber], map: "document_versions_number_key")
+  @@index([tenantId, processId], map: "document_versions_process_idx")
+  @@index([tenantId, contentHash], map: "document_versions_hash_idx")
+  @@map("document_versions")
+}
+
+/// entities.md §4.6 `Approval` (módulo approval · DEC-022): aprovação de etapa (`PROCESS_STAGE`) ou
+/// submissão avulsa de documento (`DOCUMENT` — US-065). Uma pendência por etapa/documento (índices
+/// únicos parciais na migração); a decisão é da US-052.
+model Approval {
+  id                   String              @id @db.Uuid
+  tenantId             String              @map("tenant_id") @db.Uuid
+  processId            String              @map("process_id") @db.Uuid
+  subjectType          ApprovalSubjectType @map("subject_type")
+  processStageId       String?             @map("process_stage_id") @db.Uuid
+  documentId           String?             @map("document_id") @db.Uuid
+  title                String              @db.VarChar(200)
+  requestedById        String              @map("requested_by_id") @db.Uuid
+  requestedAt          DateTime            @default(now()) @map("requested_at") @db.Timestamptz(6)
+  requestComment       String?             @map("request_comment")
+  approverType         ApproverType        @map("approver_type")
+  approverUserId       String?             @map("approver_user_id") @db.Uuid
+  approverRoleId       String?             @map("approver_role_id") @db.Uuid
+  approverDepartmentId String?             @map("approver_department_id") @db.Uuid
+  allowDeputy          Boolean             @map("allow_deputy")
+  dueAt                DateTime?           @map("due_at") @db.Timestamptz(6)
+  status               ApprovalStatus      @default(PENDING)
+  decision             ApprovalDecision?
+  decidedById          String?             @map("decided_by_id") @db.Uuid
+  decidedAt            DateTime?           @map("decided_at") @db.Timestamptz(6)
+  decisionComment      String?             @map("decision_comment")
+  decidedAsDeputy      Boolean             @default(false) @map("decided_as_deputy")
+  canceledAt           DateTime?           @map("canceled_at") @db.Timestamptz(6)
+  canceledById         String?             @map("canceled_by_id") @db.Uuid
+  cancellationReason   String?             @map("cancellation_reason")
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?             @map("created_by_id") @db.Uuid
+  updatedById          String?             @map("updated_by_id") @db.Uuid
+  version              Int                 @default(1)
+
+  @@unique([tenantId, id], map: "approvals_tenant_id_id_key")
+  // Parciais na migração (`WHERE status = 'PENDING'`).
+  @@index([tenantId, processStageId], map: "approvals_pending_stage_key")
+  @@index([tenantId, documentId], map: "approvals_pending_document_key")
+  @@index([tenantId, approverUserId], map: "approvals_approver_user_idx")
+  @@index([tenantId, approverDepartmentId], map: "approvals_approver_department_idx")
+  @@index([tenantId, approverRoleId], map: "approvals_approver_role_idx")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "approvals_process_idx")
+  @@index([tenantId, decidedById, decidedAt(sort: Desc)], map: "approvals_decided_by_idx")
+  @@map("approvals")
+}
+
+/// entities.md §4.6 `ApprovalDocument`: documentos cobertos pela aprovação e a versão exata analisada.
+model ApprovalDocument {
+  id                String   @id @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  approvalId        String   @map("approval_id") @db.Uuid
+  documentId        String   @map("document_id") @db.Uuid
+  documentVersionId String   @map("document_version_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "approval_documents_tenant_id_id_key")
+  @@unique([tenantId, approvalId, documentId], map: "approval_documents_approval_document_key")
+  @@index([tenantId, documentId], map: "approval_documents_document_idx")
+  @@map("approval_documents")
+}

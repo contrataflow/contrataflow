@@ -1,0 +1,113 @@
+{
+  "statuses": {
+    "DRAFT": "Rascunho",
+    "IN_REVIEW": "Em revisão",
+    "RETURNED": "Devolvido",
+    "FINALIZED": "Finalizado",
+    "APPROVED": "Aprovado",
+    "REJECTED": "Indeferido",
+    "CANCELED": "Cancelado"
+  },
+  "view": {
+    "loading": "Carregando o documento…",
+    "backToProcess": "Voltar ao processo",
+    "noNumber": "Sem número",
+    "type": "Tipo: {type}",
+    "version": "Versão {number}",
+    "noVersion": "Nenhuma versão registrada",
+    "pendingApproval": "Em aprovação",
+    "cancellationReason": "Motivo do cancelamento",
+    "loadFailedTitle": "Não foi possível carregar o documento",
+    "loadFailedDescription": "Tente novamente; se o problema continuar, informe o código ao suporte.",
+    "notFoundTitle": "Documento não encontrado.",
+    "notFoundDescription": "O documento pode ter sido excluído ou você pode não ter acesso a ele.",
+    "retry": "Tentar novamente"
+  },
+  "actions": {
+    "label": "Ações do documento",
+    "none": "Nenhuma ação disponível para você neste documento.",
+    "more": "Mais ações",
+    "FINALIZE": "Finalizar",
+    "SUBMIT": "Submeter",
+    "REOPEN": "Reabrir",
+    "CANCEL": "Cancelar documento",
+    "DELETE": "Excluir rascunho"
+  },
+  "completeness": {
+    "heading": {
+      "FINALIZE": "Pendências para finalizar o documento",
+      "SUBMIT": "Pendências para submeter o documento"
+    },
+    "loading": "Verificando as pendências do documento…",
+    "loadFailed": "Não foi possível verificar as pendências agora.",
+    "retry": "Tentar novamente",
+    "clean": {
+      "FINALIZE": "Nenhuma pendência encontrada. O documento está pronto para ser finalizado.",
+      "SUBMIT": "Nenhuma pendência encontrada. O documento está pronto para ser submetido."
+    },
+    "summaryBlocking": "{count, plural, one {# pendência bloqueante} other {# pendências bloqueantes}}",
+    "summaryWarnings": "{count, plural, one {# aviso} other {# avisos}}",
+    "warningsHint": "Os avisos não impedem a ação, mas precisam ser reconhecidos para continuar.",
+    "listLabel": "Pendências do documento",
+    "blocking": "Bloqueante",
+    "warning": "Aviso",
+    "section": "Seção: {key}",
+    "field": "Campo: {field}",
+    "confirm": {
+      "FINALIZE": "Confirmar finalização",
+      "SUBMIT": "Confirmar submissão"
+    },
+    "working": "Enviando…",
+    "continue": "Continuar",
+    "cancel": "Cancelar",
+    "close": "Fechar"
+  },
+  "acknowledge": {
+    "title": "Reconhecer os avisos",
+    "description": "Os avisos abaixo não impedem a ação, mas você precisa reconhecê-los para continuar.",
+    "listLabel": "Avisos do documento",
+    "checkbox": "Reconheço os avisos",
+    "cancel": "Cancelar"
+  },
+  "reason": {
+    "hint": "Mínimo de {min} caracteres.",
+    "count": "{count, number} de {max, number} caracteres",
+    "working": "Enviando…",
+    "reopen": {
+      "title": "Reabrir documento",
+      "description": "A reabertura fica registrada com a justificativa informada.",
+      "label": "Justificativa da reabertura",
+      "confirm": "Confirmar reabertura",
+      "cancel": "Cancelar"
+    },
+    "cancel": {
+      "title": "Cancelar documento",
+      "description": "O cancelamento é definitivo e fica registrado com o motivo informado.",
+      "label": "Motivo do cancelamento",
+      "confirm": "Confirmar cancelamento",
+      "cancel": "Voltar"
+    }
+  },
+  "delete": {
+    "title": "Excluir rascunho?",
+    "description": "O rascunho será excluído e não poderá ser recuperado.",
+    "confirm": "Confirmar exclusão",
+    "cancel": "Cancelar",
+    "working": "Excluindo…"
+  },
+  "toasts": {
+    "FINALIZE": "Documento finalizado.",
+    "SUBMIT": "Documento submetido.",
+    "REOPEN": "Documento reaberto.",
+    "CANCEL": "Documento cancelado.",
+    "DELETE": "Rascunho excluído."
+  },
+  "errors": {
+    "notFound": "Documento não encontrado.",
+    "forbidden": "Você não tem permissão para esta ação.",
+    "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+    "unavailable": "Não foi possível concluir a ação agora.",
+    "unexpected": "Ocorreu um erro inesperado.",
+    "retry": "Tentar novamente"
+  }
+}
