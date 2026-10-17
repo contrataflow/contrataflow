@@ -145,3 +145,16 @@ export const ProcessParticipantRemoved = defineDomainEvent({
   }),
   routingKey: 'process.participant_removed',
 });
+
+/**
+ * `ProcessConfidentialityChanged` (US-013 · PRC-33): commit da ativação ou desativação do sigilo do
+ * orçamento estimado (RN-PROC-137). Só a flag — nunca o valor. Consumidores: `TimelineProjector`
+ * (`CONFIDENTIALITY_CHANGED`, `STANDARD`) no mesmo `tx` e métricas. Sem notificação (RN-PROC-145).
+ */
+export const ProcessConfidentialityChanged = defineDomainEvent({
+  eventType: 'ProcessConfidentialityChanged',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({ isBudgetConfidential: z.boolean() }),
+  routingKey: 'process.confidentiality_changed',
+});

@@ -199,6 +199,52 @@ export class DocumentFacade {
     });
   }
 
+  /**
+   * Cascata do sigilo do orçamento (US-013 · RN-PROC-139), no `tx` do PRC-33: ao ativar, todo
+   * documento de pesquisa de preços (`systemModule = PRICE_RESEARCH`) não excluído do processo —
+   * inclusive `FINALIZED`/`APPROVED`/cancelado — passa a `RESTRICTED`; ao desativar, volta à
+   * confidencialidade padrão do tipo. Cada documento alterado é travado (`FOR UPDATE`), relido e
+   * gravado com `version + 1` (DEC-055: uma edição concorrente com a versão antiga recebe 412 em vez
+   * de sobrescrever o sigilo). Devolve quantos documentos mudaram.
+   */
+  async applyBudgetConfidentialityIn(
+    tx: TenantTx,
+    processId: string,
+    isBudgetConfidential: boolean,
+  ): Promise<number> {
+    const types = new Map(
+      (await this.types.list(tx))
+        .filter((type) => type.systemModule === 'PRICE_RESEARCH')
+        .map((type) => [type.id, type]),
+    );
+    if (types.size === 0) return 0;
+    const targetOf = (document: Document): Confidentiality | null => {
+      const type = types.get(document.documentTypeId);
+      if (type === undefined) return null;
+      return isBudgetConfidential ? 'RESTRICTED' : type.defaultConfidentiality;
+    };
+    const candidates = (await this.documents.listByProcess(tx, processId)).filter((document) => {
+      const target = targetOf(document);
+      return target !== null && document.confidentiality !== target;
+    });
+    const updatedById = requireRequestContext().actor.userId;
+    const now = this.clock();
+    let changed = 0;
+    for (const candidate of candidates) {
+      await this.documents.lockForUpdate(tx, candidate.id);
+      const current = await this.documents.findById(tx, candidate.id);
+      const target = current === null ? null : targetOf(current);
+      if (current === null || target === null || current.confidentiality === target) continue;
+      await this.documents.update(
+        tx,
+        { ...current, confidentiality: target, updatedAt: now, updatedById },
+        current.version,
+      );
+      changed += 1;
+    }
+    return changed;
+  }
+
   /** Fonte `DOCUMENT_VERSION` da timeline: número da versão. */
   versionNumbers(tx: TenantTx, versionIds: readonly string[]): Promise<Map<string, number>> {
     return this.documents.versionNumbers(tx, versionIds);

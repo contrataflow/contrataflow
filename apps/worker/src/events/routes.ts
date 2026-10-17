@@ -205,6 +205,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // (manual ou pelo job `participants-expire`) não notifica (story · "Notificações").
     ProcessParticipantAdded: ['process.participant_added'],
     ProcessParticipantRemoved: ['process.participant_removed'],
+    // US-013: timeline (`CONFIDENTIALITY_CHANGED`) projetada no mesmo `tx`; no worker só o
+    // `BusinessMetricsCollector` (`process.*`). Sem notificação (RN-PROC-145).
+    ProcessConfidentialityChanged: ['process.confidentiality_changed'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

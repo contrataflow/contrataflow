@@ -476,6 +476,19 @@ export const updateProcessSchema = z
 export type UpdateProcess = z.output<typeof updateProcessSchema>;
 export type UpdateProcessInput = z.input<typeof updateProcessSchema>;
 
+/** Mensagens da US-013 (sigilo do orçamento — V-01/V-03/V-04 e o diálogo de confirmação). */
+export const PROCESS_CONFIDENTIALITY_MESSAGES = Object.freeze({
+  required: 'Informe se o orçamento é sigiloso.',
+  permissionDenied: 'Você não tem permissão para definir o sigilo deste processo.',
+  versionConflict: 'Este processo foi alterado por outra pessoa. Recarregue e tente novamente.',
+});
+
+/** PRC-33 — corpo de `PUT /processes/{id}/confidentiality` (RN-PROC-137 · V-01). */
+export const setProcessConfidentialitySchema = z.strictObject({
+  isBudgetConfidential: z.boolean({ error: PROCESS_CONFIDENTIALITY_MESSAGES.required }),
+});
+export type SetProcessConfidentiality = z.output<typeof setProcessConfidentialitySchema>;
+
 /**
  * `meta.current` do 412 `VERSION_CONFLICT` do PRC-05 (FA-05): o processo atual (mesmo
  * mascaramento do PRC-04) e quem fez a última alteração, para a reaplicação seletiva no front.

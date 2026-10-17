@@ -231,8 +231,9 @@ export interface ProcessRepository {
    */
   lockForUpdate(tx: TenantTx, processId: string): Promise<boolean>;
   /**
-   * US-005: grava os campos editáveis, `estimatedValueSource`, `updatedAt`, `updatedById` e a nova
-   * `version` se a versão gravada ainda for `expectedVersion` (`false` = outra escrita venceu).
+   * US-005: grava os campos editáveis, `estimatedValueSource`, `isBudgetConfidential` (só mudado
+   * pelo PRC-33 — US-013), `updatedAt`, `updatedById` e a nova `version` se a versão gravada ainda
+   * for `expectedVersion` (`false` = outra escrita venceu).
    * @throws InternalCodeTakenError
    */
   updateProcess(tx: TenantTx, process: Process, expectedVersion: number): Promise<boolean>;

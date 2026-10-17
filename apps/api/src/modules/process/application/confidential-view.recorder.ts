@@ -32,7 +32,7 @@ export class ConfidentialViewRecorder {
 
   async recordOnce(
     process: { readonly id: string; readonly code: string | null },
-    source: 'PRC-04' | 'PRC-07',
+    source: 'PRC-04' | 'PRC-07' | 'PRC-33',
   ): Promise<void> {
     const context = requireRequestContext();
     const session = context.sessionIdHash ?? `user.${context.actor.userId ?? 'anonymous'}`;
@@ -47,7 +47,7 @@ export class ConfidentialViewRecorder {
   private async record(
     key: string,
     process: { readonly id: string; readonly code: string | null },
-    source: 'PRC-04' | 'PRC-07',
+    source: 'PRC-04' | 'PRC-07' | 'PRC-33',
   ): Promise<void> {
     if ((await this.cached(key)) !== null) return;
     await this.audit.recordStandalone({

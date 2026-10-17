@@ -71,6 +71,7 @@ import { ProcessFacade } from './application/process.facade.js';
 import { ProcessPresenter } from './application/process.presenter.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
 import { RuleTestProcessReader } from './application/rule-test-process.source.js';
+import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
 import { UpdateProcessCommand } from './application/update-process.command.js';
 import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
 import {
@@ -155,6 +156,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateProcessCommand,
     DuplicateProcessCommand,
     UpdateProcessCommand,
+    SetProcessConfidentialityCommand,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,
     ListProcessesHandler,

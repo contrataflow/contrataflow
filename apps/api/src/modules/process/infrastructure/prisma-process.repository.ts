@@ -414,6 +414,7 @@ export class PrismaProcessRepository implements ProcessRepository {
           targetDate: toDbDate(process.targetDate),
           estimatedValue: process.estimatedValue,
           estimatedValueSource: process.estimatedValueSource,
+          isBudgetConfidential: process.isBudgetConfidential,
           originId: process.originId,
           pcaStatus: process.pcaStatus,
           pcaYear: process.pcaYear,

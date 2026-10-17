@@ -228,4 +228,19 @@ describe('RolePermission.grant (V-02)', () => {
       });
     }
   });
+
+  it('US-013 · RN-PROC-142: órgãos de controle veem o orçamento sigiloso; só gestor e autoridade o alteram', () => {
+    const holders = (permission: string) =>
+      Object.entries(DEFAULT_ROLE_GRANTS)
+        .filter(([, grants]) => (grants as readonly string[]).includes(permission))
+        .map(([key]) => key)
+        .sort();
+    expect(holders('PROCESS_SET_CONFIDENTIAL_BUDGET')).toEqual([
+      'AUTORIDADE_COMPETENTE',
+      'GESTOR_CONTRATACOES',
+    ]);
+    expect(holders('PROCESS_VIEW_CONFIDENTIAL_BUDGET')).toEqual(
+      expect.arrayContaining(['AUDITOR', 'CONTROLE_INTERNO']),
+    );
+  });
 });

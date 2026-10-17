@@ -37,6 +37,9 @@ export type TenantLeakCase = CoveredOperation | ExemptOperation;
 const PROCESS_PARTICIPANTS_ROUTE =
   'Participantes do processo (US-012): a suíte genérica não tem processo nem participante do tenant B. O isolamento (PRC-28/29/31/32 com id de processo de B → 404 PROCESS_NOT_FOUND, PRC-30 com participante de B → 404 PARTICIPANT_NOT_FOUND sem revogar nada, usuário ou unidade de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS, FKs compostas e índices únicos de process_participants) é coberto em test/tenant-leak/process-participants.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-participants.routes.spec.ts.';
 
+const PROCESS_CONFIDENTIALITY_ROUTE =
+  'Sigilo do orçamento estimado (US-013 · PRC-33): exige If-Match e a suíte genérica não tem processo nem documento do tenant B. O isolamento (PRC-33 com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, a pesquisa de preços de B intocada, RLS de processes e documents na cascata) é coberto em test/tenant-leak/process-confidentiality.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-confidentiality.routes.spec.ts.';
+
 const USER_LOOKUP_ROUTE =
   'Busca de usuários para seleção (USR-02 · US-012): sem id no caminho nem referência no corpo; a lista vem dos vínculos do tenant ativo (RLS de tenant_memberships) — usuário só de outro tenant nunca aparece, coberto em src/modules/process/presentation/process-participants.routes.spec.ts.';
 
@@ -276,6 +279,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-30': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
   'PRC-31': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
   'PRC-32': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
+  'PRC-33': { kind: 'exempt', reason: PROCESS_CONFIDENTIALITY_ROUTE },
   'DOC-01': { kind: 'exempt', reason: DOCUMENT_PANEL_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },

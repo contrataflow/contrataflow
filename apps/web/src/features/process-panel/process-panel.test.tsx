@@ -260,8 +260,12 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
         }),
     });
     renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
-    expect(await screen.findByText('Orçamento sigiloso')).toBeTruthy();
+    // Selo do cabeçalho e o rótulo do interruptor (US-013).
+    expect(await screen.findAllByText('Orçamento sigiloso')).not.toHaveLength(0);
     expect(screen.getAllByText('Sigiloso').length).toBeGreaterThan(0);
+    // US-013: sem PROCESS_SET_CONFIDENTIAL_BUDGET, o interruptor aparece desabilitado.
+    const confidential = await screen.findByRole('switch', { name: 'Orçamento sigiloso' });
+    expect((confidential as HTMLButtonElement).disabled).toBe(true);
     const documents = section('Documentos');
     expect(within(documents).queryByRole('link')).toBeNull();
     expect(documents.textContent).toContain('PP 0002/2026 — Aprovado — v1');

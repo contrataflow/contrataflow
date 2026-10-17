@@ -11,6 +11,8 @@ import {
   processSchema,
   processStageEntrySchema,
   processSummarySchema,
+  PROCESS_CONFIDENTIALITY_MESSAGES,
+  setProcessConfidentialitySchema,
   updateProcessSchema,
 } from '@contrataflow/validation';
 import type {
@@ -24,9 +26,10 @@ import type {
   ProcessListQuery,
   ProcessStageEntryDto,
   ProcessSummaryDto,
+  SetProcessConfidentiality,
   UpdateProcess,
 } from '@contrataflow/validation';
-import { Controller, Get, Headers, HttpCode, Param, Patch, Post, Res } from '@nestjs/common';
+import { Controller, Get, Headers, HttpCode, Param, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
 
 import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
@@ -48,6 +51,7 @@ import {
   ListProcessStagesQuery,
 } from '../application/process-panel.queries.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
+import { SetProcessConfidentialityCommand } from '../application/set-process-confidentiality.command.js';
 import { UpdateProcessCommand } from '../application/update-process.command.js';
 
 const TAGS = ['Processos'];
@@ -74,8 +78,8 @@ function noStore(response: HttpResponse): void {
 /**
  * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
  * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
- * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper) e PRC-27
- * (duplicar — US-011).
+ * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-27
+ * (duplicar — US-011) e PRC-33 (sigilo do orçamento — US-013).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -91,6 +95,7 @@ export class ProcessController {
     private readonly stages: ListProcessStagesQuery,
     private readonly update: UpdateProcessCommand,
     private readonly duplicate: DuplicateProcessCommand,
+    private readonly confidentiality: SetProcessConfidentialityCommand,
   ) {}
 
   @Get()
@@ -227,6 +232,42 @@ export class ProcessController {
     response.setHeader('ETag', `"${updated.dto.version}"`);
     noStore(response);
     return updated.dto;
+  }
+
+  @Put(':id/confidentiality')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_SET_CONFIDENTIAL_BUDGET', {
+    scope: { processParam: 'id' },
+    detail: PROCESS_CONFIDENTIALITY_MESSAGES.permissionDenied,
+  })
+  @ApiOperation({
+    operationId: 'PRC-33',
+    summary: 'Definir sigilo do orçamento estimado',
+    tags: TAGS,
+    auditActions: ['process.confidentiality_change'],
+    responses: {
+      200: {
+        description:
+          'Processo com o novo `isBudgetConfidential` (`ETag` = nova versão) e o valor mascarado pela POL-09 sobre o novo estado. Ao ativar, os documentos de pesquisa de preços passam a `RESTRICTED`; ao desativar, voltam à confidencialidade padrão do tipo (RN-PROC-139). Flag já no estado pedido = processo atual sem nova versão, evento nem auditoria. `PROCESS_SET_CONFIDENTIAL_BUDGET` cobrindo o processo (não visível = 404 `PROCESS_NOT_FOUND`); `If-Match` divergente = 412 `VERSION_CONFLICT` com `currentVersion` e `meta.current`. Evento `ProcessConfidentialityChanged`; sem notificação.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async setConfidentiality(
+    @ProcessId() id: string,
+    @ZodBody(setProcessConfidentialitySchema) body: SetProcessConfidentiality,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const result = await this.confidentiality.execute({
+      processId: id,
+      isBudgetConfidential: body.isBudgetConfidential,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
   }
 
   @Post(':id/duplicate')

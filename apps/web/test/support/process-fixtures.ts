@@ -458,6 +458,8 @@ export interface ProcessApiOptions {
    * `/process-participants/{id}`, `/processes/{id}/follow`, `/users/lookup` e `/departments/lookup`.
    */
   participants?: Handler;
+  /** PRC-33 (US-013): `PUT /processes/{id}/confidentiality`. */
+  confidentiality?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -536,6 +538,14 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (method === 'PATCH' && url === `/api/v1/processes/${PROCESS_ID}`) {
       return respond(options.update, () => jsonResponse({ data: processDto({ version: 2 }) }));
+    }
+    if (method === 'PUT' && url === `/api/v1/processes/${PROCESS_ID}/confidentiality`) {
+      return respond(options.confidentiality, () =>
+        jsonResponse(
+          { data: processDto({ isBudgetConfidential: true, version: 2 }) },
+          { headers: { ETag: '"2"' } },
+        ),
+      );
     }
     if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}/summary`) {
       return respond(options.summary, () => jsonResponse({ data: summaryDto() }));

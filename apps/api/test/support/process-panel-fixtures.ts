@@ -110,6 +110,14 @@ export async function seedPanelDocument(api: TestApi, input: PanelDocument): Pro
   return id;
 }
 
+/** Documento como está no repositório em memória (sigilo e versão — US-013 · RN-PROC-139). */
+export function storedPanelDocument(api: TestApi, documentId: string): Document {
+  const documents = api.app.get(InMemoryDocumentRepository, { strict: false });
+  const document = documents.allDocuments().find((candidate) => candidate.id === documentId);
+  if (!document) throw new Error(`documento ${documentId} ausente`);
+  return document;
+}
+
 /** Aprovação pendente de etapa (a abertura é da US-051): designada a um usuário, perfil ou unidade. */
 export function seedPanelApproval(
   api: TestApi,

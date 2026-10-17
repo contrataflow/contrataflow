@@ -320,6 +320,29 @@
       "retry": "Tentar novamente",
       "block": "Não foi possível carregar este bloco.",
       "rateLimited": "Muitas atualizações seguidas. Aguarde alguns segundos."
+    },
+    "confidentiality": {
+      "label": "Orçamento sigiloso",
+      "hint": "Os valores estimados ficam visíveis só a quem tem a permissão específica ou está com o processo; órgãos de controle continuam vendo normalmente.",
+      "noPermission": "Só o gestor ou a autoridade competente pode alterar",
+      "enableTitle": "Marcar o orçamento como sigiloso?",
+      "disableTitle": "Tornar o orçamento público?",
+      "enableDescription": "Os valores estimados deste processo ficarão visíveis só a quem tem a permissão específica ou está com o processo; órgãos de controle continuam vendo normalmente.",
+      "disableDescription": "Os valores estimados deste processo voltarão a ser visíveis a todos que podem ver o processo, e a pesquisa de preços volta à confidencialidade padrão.",
+      "confirmEnable": "Marcar como sigiloso",
+      "confirmDisable": "Tornar público",
+      "cancel": "Cancelar",
+      "close": "Fechar",
+      "enabled": "Orçamento marcado como sigiloso",
+      "disabled": "Orçamento deixou de ser sigiloso",
+      "errors": {
+        "conflict": "Este processo foi alterado por outra pessoa. Recarregue e tente novamente.",
+        "precondition": "Não foi possível confirmar a versão do processo.",
+        "permission": "Você não tem permissão para definir o sigilo deste processo.",
+        "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+        "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+        "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+      }
     }
   },
   "edit": {

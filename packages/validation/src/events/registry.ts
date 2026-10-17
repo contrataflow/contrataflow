@@ -41,6 +41,7 @@ import {
   DepartmentUpdated,
 } from '../organization/events.js';
 import {
+  ProcessConfidentialityChanged,
   ProcessCreated,
   ProcessDuplicated,
   ProcessItemsChanged,
@@ -101,6 +102,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessItemsChanged,
   ProcessParticipantAdded,
   ProcessParticipantRemoved,
+  ProcessConfidentialityChanged,
   SupplierCreated,
   SupplierUpdated,
   RoleCreated,

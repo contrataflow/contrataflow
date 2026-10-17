@@ -120,6 +120,28 @@ participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAcces
   e `test/tenant-leak/process-participants.spec.ts` (PostgreSQL: concorrência no índice único,
   rollback induzido, consultor vencido no predicado SQL, RLS, FK composta e gatilho).
 
+## Sigilo do orçamento estimado (US-013)
+
+- **Rota:** PRC-33 `PUT /processes/{id}/confidentiality` (`ProcessController`, `@RequireIfMatch` →
+  428; `PROCESS_SET_CONFIDENTIAL_BUDGET` com `processParam` no guard — não visível = 404
+  `PROCESS_NOT_FOUND`, sem a permissão = 403 + `access.denied` com o `reasonCode` da permissão, MFA
+  pela POL-14). Corpo `setProcessConfidentialitySchema` (estrito) e evento
+  `ProcessConfidentialityChanged` (`{ isBudgetConfidential }`) em `packages/validation/src/process/`.
+  O PATCH (PRC-05) nunca muda a flag (RN-PROC-137 — campo fora do schema = 422).
+- **Caso de uso:** `SetProcessConfidentialityCommand` — `lockForUpdate` → visibilidade
+  (`ProcessPanelReader.load`) → `If-Match` **antes** do no-op (o reenvio com versão antiga = 412 e
+  nunca repete o efeito) → flag igual = 200 sem versão/evento/auditoria → `updateProcess` (`version +
+1`) → `DocumentFacade.applyBudgetConfidentialityIn` (pesquisa de preços `RESTRICTED` ao ativar,
+  padrão do tipo ao desativar; cada documento travado, relido e gravado com `version + 1` — RN-PROC-139)
+  → `process.confidentiality_change` → evento (timeline `CONFIDENTIALITY_CHANGED`, `STANDARD`, no mesmo
+  `tx`). Sem notificação (RN-PROC-145). A resposta aplica a POL-09 sobre o NOVO estado; valor real
+  entregue = `process.confidential_view` (`ConfidentialViewRecorder`, fonte `PRC-33`).
+- **Máscara (POL-09):** continua por leitura (`canViewConfidentialBudget` nos presenters/queries de
+  processo, itens, lista, painel, documentos e PDFs); esta story só liga/desliga a flag.
+- **Testes:** `domain/process-confidentiality.spec.ts`, `presentation/process-confidentiality.routes.spec.ts`
+  e `test/tenant-leak/process-confidentiality.spec.ts` (PostgreSQL: cascata, rollback induzido,
+  concorrência e RLS).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum
