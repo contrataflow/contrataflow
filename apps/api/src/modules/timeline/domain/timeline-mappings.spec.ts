@@ -290,6 +290,20 @@ const CASES: readonly (readonly [string, Record<string, unknown>, TimelineEntryT
     },
     'TERM_IMPORTED_FROM_ETP',
   ],
+  [
+    'AiGenerationCompleted',
+    {
+      generationId: id(90),
+      documentId: DOC,
+      targetModule: 'DFD',
+      kind: 'DRAFT',
+      action: null,
+      sectionKey: null,
+      model: 'fake-draft-1',
+      promptVersion: '1.0.0',
+    },
+    'AI_CONTENT_GENERATED',
+  ],
 ];
 
 const EVENTS_DOC = fileURLToPath(
@@ -302,7 +316,6 @@ const EVENTS_DOC = fileURLToPath(
  * mapeamento e remove o evento daqui.
  */
 const PENDING_SOURCE_EVENTS: Readonly<Record<string, string>> = {
-  AiGenerationCompleted: 'US-115',
   AiContentApplied: 'US-117',
   AiContentReviewed: 'US-122',
 };
@@ -359,6 +372,7 @@ describe('mapeamento evento → TimelineEntryType (RN-TML-02)', () => {
       Quotation: 'price_research.quotation_excluded',
       Risk: 'risk.created',
       Term: 'term.imported_from_etp',
+      AiGeneration: 'ai.generation_completed',
     };
     for (const eventType of TIMELINE_MAPPINGS.keys()) {
       const prefix = Object.keys(routingKeys).find((name) => eventType.startsWith(name));
@@ -911,6 +925,41 @@ describe('params congelados, entidade e visibilidade', () => {
       entityType: 'TermOfReference',
       entityId: TERM,
     });
+  });
+
+  it('AI_CONTENT_GENERATED: documento congelado, alvo e modelo — nunca o texto gerado', () => {
+    const base = {
+      generationId: id(90),
+      targetModule: 'DFD',
+      kind: 'DRAFT',
+      action: null,
+      sectionKey: null,
+      model: 'fake-draft-1',
+      promptVersion: '1.0.0',
+      totalTokens: 1200,
+    };
+    expect(
+      only(project(event('AiGenerationCompleted', { ...base, documentId: DOC }))),
+    ).toMatchObject({
+      params: {
+        documentId: DOC,
+        documentCode: 'DFD 0003/2026',
+        generationId: id(90),
+        kind: 'DRAFT',
+        model: 'fake-draft-1',
+        promptVersion: '1.0.0',
+      },
+      entityType: 'AiGeneration',
+      entityId: id(90),
+      visibility: 'STANDARD',
+    });
+    const risks = only(
+      project(
+        event('AiGenerationCompleted', { ...base, documentId: null, targetModule: 'RISK_MAP' }),
+      ),
+    );
+    expect(risks.params).toMatchObject({ documentId: null, targetModule: 'RISK_MAP' });
+    expect(JSON.stringify(risks.params)).not.toContain('totalTokens');
   });
 
   it('actorDepartmentId opcional no payload vira a unidade do ator', () => {

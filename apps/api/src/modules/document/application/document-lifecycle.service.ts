@@ -65,6 +65,9 @@ export interface DocumentContext {
   readonly process: DocumentProcessContext;
 }
 
+/** O que a autorização lê do contexto (vale também sem documento — mapa de riscos da IA). */
+export type DocumentAuthorizationContext = Pick<DocumentContext, 'type' | 'process'>;
+
 /** O usuário da requisição diante do documento (permissões cobrindo o processo + POL-01/02). */
 export interface ResolvedDocumentActor extends DocumentActor {
   readonly userId: string;
@@ -124,7 +127,7 @@ export class DocumentLifecycleService {
   // --- Autorização ----------------------------------------------------------------------------
 
   /** Permissões do tipo e de ciclo de vida cobrindo o processo, custódia e participação. */
-  async actorOf(context: DocumentContext): Promise<ResolvedDocumentActor> {
+  async actorOf(context: DocumentAuthorizationContext): Promise<ResolvedDocumentActor> {
     const userId = requireRequestContext().actor.userId ?? '';
     const permissions = await this.access.effectivePermissions();
     const target = context.process.access;
@@ -151,7 +154,7 @@ export class DocumentLifecycleService {
     };
   }
 
-  processStateOf(context: DocumentContext): DocumentProcessState {
+  processStateOf(context: DocumentAuthorizationContext): DocumentProcessState {
     const stage = context.process.currentStage;
     return {
       status: context.process.status,
@@ -172,13 +175,13 @@ export class DocumentLifecycleService {
     );
   }
 
-  private assertProcessEditable(context: DocumentContext): void {
+  private assertProcessEditable(context: DocumentAuthorizationContext): void {
     if (!DOCUMENT_EDITABLE_PROCESS_STATUSES.has(context.process.status)) {
       throw invalidProcessStatus(context.process.status);
     }
   }
 
-  private assertTypeInStage(context: DocumentContext): void {
+  private assertTypeInStage(context: DocumentAuthorizationContext): void {
     if (!this.processStateOf(context).typeAllowedInStage) throw typeNotAllowedInStage();
   }
 
@@ -188,7 +191,7 @@ export class DocumentLifecycleService {
    * (422). O status do documento é conferido pela transição.
    */
   async authorizePol02(
-    context: DocumentContext,
+    context: DocumentAuthorizationContext,
     actor: ResolvedDocumentActor,
     kind: 'edit' | 'submit',
   ): Promise<void> {

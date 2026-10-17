@@ -1,4 +1,5 @@
 export * from './access/index.js';
+export * from './ai/index.js';
 export * from './audit/index.js';
 export * from './calendar/index.js';
 export * from './catalog/index.js';

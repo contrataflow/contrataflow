@@ -59,11 +59,11 @@ describe('Feature: Catálogo de permissões e perfis padrão (US-094)', () => {
       .set('Authorization', api.bearer(user.subject))
       .set('X-Tenant-Id', tenant);
 
-  it('[Sucesso] Consultar o catálogo: 200 com as 68 permissões e todos os campos', async () => {
+  it('[Sucesso] Consultar o catálogo: 200 com as 69 permissões e todos os campos', async () => {
     const response = await list();
     expect(response.status).toBe(200);
     const data = dataOf(response);
-    expect(data).toHaveLength(68);
+    expect(data).toHaveLength(69);
     for (const permission of data) expect(permissionSchema.strict().parse(permission)).toBeTruthy();
     expect(data).toEqual(PERMISSIONS.map((permission) => ({ ...permission })));
     expect(data.find((permission) => permission.code === 'ROLE_VIEW')).toEqual({
@@ -92,11 +92,11 @@ describe('Feature: Catálogo de permissões e perfis padrão (US-094)', () => {
     expect(both.map((permission) => permission.code)).toEqual(['ROLE_MANAGE', 'ROLE_ASSIGN']);
   });
 
-  it('[Validação] filtro com valor desconhecido é ignorado: lista completa de 68', async () => {
+  it('[Validação] filtro com valor desconhecido é ignorado: lista completa de 69', async () => {
     const response = await list(MARTA, '?riskLevel=EXTREME&module=nada&page=2');
     expect(response.status).toBe(200);
-    expect(dataOf(response)).toHaveLength(68);
-    expect(dataOf(await list(MARTA, '?riskLevel=LOW&riskLevel=HIGH'))).toHaveLength(68);
+    expect(dataOf(response)).toHaveLength(69);
+    expect(dataOf(await list(MARTA, '?riskLevel=LOW&riskLevel=HIGH'))).toHaveLength(69);
   });
 
   it('[Permissão] usuário sem ROLE_VIEW → 403 PERMISSION_DENIED, auditado como access.denied', async () => {
@@ -122,7 +122,7 @@ describe('Feature: Catálogo de permissões e perfis padrão (US-094)', () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const response = await list();
     expect(response.status).toBe(200);
-    expect(dataOf(response)).toHaveLength(68);
+    expect(dataOf(response)).toHaveLength(69);
   });
 
   it('[Sucesso] seeder pela fachada: 15 perfis e role.create com ator SYSTEM na auditoria real', async () => {

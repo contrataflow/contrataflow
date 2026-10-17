@@ -706,6 +706,17 @@ export const PERMISSIONS = [
     isDeprecated: false,
     introducedIn: 'MVP1',
   },
+  {
+    code: 'AI_GENERATE',
+    module: 'ai',
+    name: 'Gerar conteúdo com IA',
+    description:
+      'Pedir rascunho completo ou ajuste de seção de DFD, ETP, mapa de riscos e TR (POL-18)',
+    riskLevel: 'MEDIUM',
+    scopable: true,
+    isDeprecated: false,
+    introducedIn: 'MVP1',
+  },
 ] as const satisfies readonly PermissionDefinition[];
 
 export type PermissionCode = (typeof PERMISSIONS)[number]['code'];

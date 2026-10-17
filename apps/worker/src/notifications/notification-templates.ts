@@ -125,6 +125,14 @@ const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
         : 'Você recebeu um novo perfil de acesso',
     body: 'Seus perfis de acesso mudaram. Se você não reconhece a alteração, procure o administrador do órgão.',
   }),
+  AI_GENERATION_READY: () => ({
+    title: 'Conteúdo gerado por IA pronto para revisão',
+    body: 'A proposta que você pediu está pronta. Revise o texto antes de aplicar ao documento.',
+  }),
+  AI_GENERATION_FAILED: () => ({
+    title: 'Não foi possível gerar o conteúdo com IA',
+    body: 'A geração que você pediu não foi concluída. Abra o documento para tentar novamente.',
+  }),
 };
 
 /** Título e corpo do tipo, já mascarados e dentro dos limites das colunas (RN-NTF-07). */

@@ -1665,3 +1665,92 @@ model ApprovalDocument {
   @@index([tenantId, documentId], map: "approval_documents_document_idx")
   @@map("approval_documents")
 }
+
+/// entities.md §2 — `AiGenerationKind` (US-115).
+enum AiGenerationKind {
+  DRAFT
+  SECTION
+
+  @@map("ai_generation_kind")
+}
+
+/// entities.md §2 — `AiSectionAction` (US-115/US-121).
+enum AiSectionAction {
+  REWRITE
+  COMPLETE
+  SUMMARIZE
+
+  @@map("ai_section_action")
+}
+
+/// entities.md §2 — `AiGenerationStatus` (transições condicionais — RN-AI-03).
+enum AiGenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  APPLIED
+  DISCARDED
+  EXPIRED
+
+  @@map("ai_generation_status")
+}
+
+/// entities.md §4.11 `AiGeneration` (módulo ai · US-115 · DEC-079): registro de cada geração com
+/// IA, gravado ANTES da chamada ao provedor e nunca excluído (o papel da aplicação não tem DELETE).
+model AiGeneration {
+  id                    String               @id @db.Uuid
+  tenantId              String               @map("tenant_id") @db.Uuid
+  processId             String               @map("process_id") @db.Uuid
+  documentId            String?              @map("document_id") @db.Uuid
+  targetModule          SystemDocumentModule @map("target_module")
+  kind                  AiGenerationKind
+  action                AiSectionAction?
+  sectionKey            String?              @map("section_key") @db.VarChar(60)
+  baseRevision          Int?                 @map("base_revision")
+  status                AiGenerationStatus   @default(QUEUED)
+  needSummary           String?              @map("need_summary")
+  instruction           String?              @db.VarChar(500)
+  provider              String               @db.VarChar(30)
+  model                 String?              @db.VarChar(100)
+  promptKey             String               @map("prompt_key") @db.VarChar(60)
+  promptVersion         String               @map("prompt_version") @db.VarChar(20)
+  inputRefs             Json                 @default("[]") @map("input_refs") @db.JsonB
+  contextHash           String?              @map("context_hash") @db.VarChar(64)
+  output                Json?                @db.JsonB
+  outputHash            String?              @map("output_hash") @db.VarChar(64)
+  placeholdersCount     Int                  @default(0) @map("placeholders_count")
+  groundingReplacements Int                  @default(0) @map("grounding_replacements")
+  reservedTokens        Int                  @map("reserved_tokens")
+  inputTokens           Int?                 @map("input_tokens")
+  outputTokens          Int?                 @map("output_tokens")
+  totalTokens           Int?                 @map("total_tokens")
+  costUsd               Decimal?             @map("cost_usd") @db.Decimal(12, 6)
+  pricingVersion        String?              @map("pricing_version") @db.VarChar(20)
+  latencyMs             Int?                 @map("latency_ms")
+  attempts              Int                  @default(0) @db.SmallInt
+  providerRequestId     String?              @map("provider_request_id") @db.VarChar(200)
+  errorCode             String?              @map("error_code") @db.VarChar(40)
+  startedAt             DateTime?            @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime?            @map("completed_at") @db.Timestamptz(6)
+  expiresAt             DateTime?            @map("expires_at") @db.Timestamptz(6)
+  appliedAt             DateTime?            @map("applied_at") @db.Timestamptz(6)
+  appliedById           String?              @map("applied_by_id") @db.Uuid
+  appliedTargets        Json?                @map("applied_targets") @db.JsonB
+  discardedAt           DateTime?            @map("discarded_at") @db.Timestamptz(6)
+  discardedById         String?              @map("discarded_by_id") @db.Uuid
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  createdById           String               @map("created_by_id") @db.Uuid
+
+  @@unique([tenantId, id], map: "ai_generations_tenant_id_id_key")
+  // Parciais na migração (RN-AI-12): uma ativa por alvo (`status IN ('QUEUED','RUNNING')`).
+  @@index([tenantId, processId, targetModule], map: "ai_generations_active_draft_key")
+  @@index([tenantId, documentId, sectionKey], map: "ai_generations_active_section_key")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "ai_generations_process_idx")
+  @@index([tenantId, createdById, createdAt], map: "ai_generations_requester_idx")
+  @@index([tenantId, createdAt], map: "ai_generations_created_idx")
+  @@index([tenantId, status, expiresAt], map: "ai_generations_status_expires_idx")
+  @@map("ai_generations")
+}

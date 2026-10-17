@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { DocumentAiTargets } from './document-ai-target.js';
+import type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
 import type {
   ApprovalDecisionInput,
   StageEntryInput,
@@ -22,6 +24,7 @@ export type {
   TypedSnapshotParts,
 } from './document.ports.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
+export type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
 export type {
   ApprovalDecisionInput,
   StageEntryInput,
@@ -43,6 +46,7 @@ export class DocumentFacade {
     private readonly validators: DocumentValidatorRegistry,
     private readonly creation: DocumentCreationService,
     private readonly approvals: DocumentApprovalTransitions,
+    private readonly aiTargets: DocumentAiTargets,
   ) {}
 
   /**
@@ -66,6 +70,14 @@ export class DocumentFacade {
   /** RN-DOC-45: a decisão da aprovação pendente do documento (US-052). */
   applyApprovalDecisionIn(tx: TenantTx, input: ApprovalDecisionInput): Promise<Document> {
     return this.approvals.applyApprovalDecision(tx, input);
+  }
+
+  /**
+   * Alvo de uma geração com IA (US-115 · POL-02 de edição para o usuário da requisição): lança
+   * 403/409/422 como a edição do documento e devolve o que o pedido e o gerador precisam. Leitura.
+   */
+  aiTargetIn(tx: TenantTx, input: AiDocumentTargetInput): Promise<AiDocumentTarget> {
+    return this.aiTargets.resolve(tx, input);
   }
 
   /** Fonte `DOCUMENT` da timeline: código, título e nome do tipo (RN-TML-04). */

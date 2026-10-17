@@ -96,6 +96,7 @@ export const DEFAULT_ROLE_GRANTS = {
     'DASHBOARD_VIEW',
     'USER_VIEW',
     'CATALOG_MANAGE',
+    'AI_GENERATE',
   ],
   REQUISITANTE: [
     'PROCESS_VIEW',
@@ -130,6 +131,7 @@ export const DEFAULT_ROLE_GRANTS = {
     'COMMENT_CREATE',
     'INBOX_VIEW',
     'DASHBOARD_VIEW',
+    'AI_GENERATE',
   ],
   PLANEJAMENTO: [
     'PROCESS_VIEW',
@@ -171,6 +173,7 @@ export const DEFAULT_ROLE_GRANTS = {
     'COMMENT_CREATE',
     'INBOX_VIEW',
     'DASHBOARD_VIEW',
+    'AI_GENERATE',
   ],
   COMPRAS: [
     'PROCESS_VIEW',
@@ -204,6 +207,7 @@ export const DEFAULT_ROLE_GRANTS = {
     'COMMENT_CREATE',
     'INBOX_VIEW',
     'DASHBOARD_VIEW',
+    'AI_GENERATE',
   ],
   LICITACOES: [
     'PROCESS_VIEW',
@@ -341,6 +345,7 @@ export const DEFAULT_ROLE_GRANTS = {
     'COMMENT_CREATE',
     'INBOX_VIEW',
     'DASHBOARD_VIEW',
+    'AI_GENERATE',
   ],
   AUDITOR: [
     'PROCESS_VIEW',

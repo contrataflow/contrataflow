@@ -296,6 +296,7 @@ Feature: Camada de IA com registro e rastreabilidade das gerações
   3. *(Resolvida na DEC-079.)* Disjuntor em chave Redis de plataforma `cf:{env}:ai:circuit`, compartilhada entre API e worker.
   4. *(Resolvida na DEC-079.)* Tabela de preços em arquivo versionado no módulo `ai`; valores preenchidos com a decisão da ADR-013.
   5. O nó `toConfirm` e o GroundingGuard chegam com a US-122 (mesma sprint 16); aqui a conversão TipTap aceita o nó e a cadeia de ganchos de pós-processamento nasce vazia, com stubs nos testes.
+  6. *(Implementação, 2026-10-16.)* AI-01 de processo de outro tenant responde 404 `PROCESS_NOT_FOUND` (o guard de `AI_GENERATE` com o processo do caminho — RN-IAM-104), não `NOT_FOUND`. O `ETag` de AI-02 é enviado, mas o `304` por `If-None-Match` fica para quando o pipeline HTTP tratar consultas condicionais. A ligação do job ao worker está pendente (queues.md §4.5.1).
 
 ## Impacto técnico
 - Padrão B (DEC-163): registro e outbox no commit, enfileiramento após o commit, reconciliador como rede de segurança; claim condicional (`UPDATE … WHERE status = 'QUEUED'`) torna o worker idempotente por `generationId`. Concorrência: 4 por worker e 2 por tenant (semáforo por tenant; excedente é reagendado sem consumir tentativa).

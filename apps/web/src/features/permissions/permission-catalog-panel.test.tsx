@@ -60,16 +60,16 @@ afterEach(() => {
 });
 
 describe('[Sucesso] catálogo de permissões agrupado por módulo', () => {
-  it('renderiza os 68 itens do catálogo, agrupados e com a contagem por módulo', async () => {
+  it('renderiza os 69 itens do catálogo, agrupados e com a contagem por módulo', async () => {
     const api = mockApi();
     renderWithShell(<PermissionCatalogPanel />);
 
     expect(await screen.findByRole('heading', { name: 'Catálogo de permissões' })).toBeTruthy();
     await screen.findByText('Visualizar processos');
 
-    expect(CATALOG).toHaveLength(68);
-    expect(screen.getAllByRole('listitem', { hidden: true })).toHaveLength(68);
-    expect(screen.getByText('68 permissões')).toBeTruthy();
+    expect(CATALOG).toHaveLength(69);
+    expect(screen.getAllByRole('listitem', { hidden: true })).toHaveLength(69);
+    expect(screen.getByText('69 permissões')).toBeTruthy();
     expect(catalogCalls(api)).toHaveLength(1);
 
     const processCount = CATALOG.filter((permission) => permission.module === 'process').length;
@@ -88,7 +88,7 @@ describe('[Sucesso] catálogo de permissões agrupado por módulo', () => {
       (element) => element.textContent,
     );
     expect(summaries[0]).toBe('Processo');
-    // axe sobre os 68 itens é lento com a suíte inteira em paralelo (mesma folga do SCR-108).
+    // axe sobre os 69 itens é lento com a suíte inteira em paralelo (mesma folga do SCR-108).
     expect(await seriousA11yViolations()).toEqual([]);
   }, 20_000);
 

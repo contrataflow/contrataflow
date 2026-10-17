@@ -10,8 +10,8 @@ import {
 
 /** Catálogo do MVP 1 (permissions.md §2 · RN-IAM-73). */
 describe('catálogo de permissões', () => {
-  it('tem as 68 permissões de permissions.md §2, sem códigos repetidos', () => {
-    expect(PERMISSIONS).toHaveLength(68);
+  it('tem as 69 permissões de permissions.md §2, sem códigos repetidos', () => {
+    expect(PERMISSIONS).toHaveLength(69);
     expect(new Set(PERMISSION_CODES).size).toBe(PERMISSIONS.length);
   });
 

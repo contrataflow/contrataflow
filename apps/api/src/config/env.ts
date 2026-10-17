@@ -125,6 +125,19 @@ export const envSchema = z
       .default(20),
     /** `audit.sealVerification.maxPeriods` (US-074 · FA-04): selos por verificação (AUD-05). */
     AUDIT_SEAL_VERIFICATION_MAX_PERIODS: z.coerce.number().int().min(1).max(8_760).default(720),
+    /*
+     * IA (US-115 · RN-AI-14 · DEC-079): provedor e modelos são configuração de PLATAFORMA. `fake`
+     * (padrão em local/dev/test) ou `none` (padrão nos demais: desliga para todos — 503). Os
+     * provedores reais entram com o adaptador da ADR-013 (PEND-21); segredos no Secrets Manager.
+     */
+    AI_PROVIDER: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.enum(['fake', 'none', 'anthropic', 'bedrock', 'openai', 'azure-openai']).optional(),
+    ),
+    AI_MODEL_DRAFT: z.string().trim().min(1).max(100).default('fake-draft-1'),
+    AI_MODEL_SECTION: z.string().trim().min(1).max(100).default('fake-section-1'),
+    /** Timeout de cada chamada ao provedor (RN-AI-08: 120 s). */
+    AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
@@ -151,6 +164,21 @@ export const envSchema = z
         message: 'Obrigatória fora de local/dev/test.',
       });
     }
+    if (env.AI_PROVIDER !== undefined && !['fake', 'none'].includes(env.AI_PROVIDER)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['AI_PROVIDER'],
+        message:
+          'Adaptador do provedor ainda não disponível (ADR-013 · PEND-21): use fake ou none.',
+      });
+    }
+    if (env.AI_PROVIDER === 'fake' && env.APP_ENV === 'production') {
+      context.addIssue({
+        code: 'custom',
+        path: ['AI_PROVIDER'],
+        message: 'Provedor de IA de teste proibido em produção.',
+      });
+    }
     if (!env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
         code: 'custom',
@@ -163,7 +191,7 @@ export const envSchema = z
 export type Env = z.infer<typeof envSchema>;
 
 /** Classes de rate limit de api.md §1.6 (a de autenticação fica no BFF). */
-export type RateLimitClass = 'read' | 'write' | 'autosave' | 'export' | 'upload';
+export type RateLimitClass = 'read' | 'write' | 'autosave' | 'export' | 'upload' | 'ai';
 
 /** Configuração tipada e imutável injetada pelo `ConfigModule` (token `APP_CONFIG`). */
 export interface AppConfig {
@@ -234,6 +262,12 @@ export interface AppConfig {
     /** Teto de selos recalculados por verificação (AUD-05 · US-074 FA-04). */
     readonly sealVerificationMaxPeriods: number;
   };
+  /** Camada de IA (US-115 · RN-AI-14): provedor de plataforma, modelos e timeout. */
+  readonly ai: {
+    readonly provider: 'fake' | 'none';
+    readonly models: { readonly draft: string; readonly section: string };
+    readonly requestTimeoutMs: number;
+  };
 }
 
 /** Variável ausente ou inválida: o processo não sobe (V-01). Lista as chaves, nunca os valores. */
@@ -293,6 +327,8 @@ function toAppConfig(env: Env): AppConfig {
         autosave: 60,
         export: 20,
         upload: 60,
+        // "Geração com IA" (AI-01): 10 req/min por usuário + tenant.
+        ai: 10,
       },
       perTenant: 6_000,
     },
@@ -310,6 +346,16 @@ function toAppConfig(env: Env): AppConfig {
       },
       partitionMonthsAhead: 2,
       sealVerificationMaxPeriods: env.AUDIT_SEAL_VERIFICATION_MAX_PERIODS,
+    },
+    ai: {
+      provider:
+        env.AI_PROVIDER === 'fake' || env.AI_PROVIDER === 'none'
+          ? env.AI_PROVIDER
+          : FAKE_IDENTITY_ENVS.has(env.APP_ENV)
+            ? 'fake'
+            : 'none',
+      models: { draft: env.AI_MODEL_DRAFT, section: env.AI_MODEL_SECTION },
+      requestTimeoutMs: env.AI_REQUEST_TIMEOUT_MS,
     },
   };
 }

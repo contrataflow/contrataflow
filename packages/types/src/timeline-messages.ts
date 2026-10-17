@@ -10,7 +10,8 @@ import type { TimelineEntryType } from './timeline.js';
  * Placeholders derivados (não são chaves de `params`): `{actor}` (nome congelado do ator ou
  * "Sistema"), `{documentLabel}` (`documentCode` — `documentTitle`, ou `typeName`),
  * `{fieldsLabel}` (rótulos de `fields[]`), `{roleLabel}`, `{decisionLabel}`, `{levelLabel}`,
- * `{statusVerb}` e `{confidentialityLabel}`. Os demais vêm de `params` com o mesmo nome.
+ * `{statusVerb}`, `{confidentialityLabel}` e `{generationLabel}`. Os demais vêm de `params` com o
+ * mesmo nome.
  */
 
 export const TIMELINE_MESSAGE_TEMPLATES: Readonly<Record<TimelineEntryType, string>> = {
@@ -57,6 +58,7 @@ export const TIMELINE_MESSAGE_TEMPLATES: Readonly<Record<TimelineEntryType, stri
   RISK_LEVEL_CHANGED: '{actor} reavaliou o risco {code} ({levelLabel})',
   RISK_REMOVED: '{actor} removeu o risco {code}',
   TERM_IMPORTED_FROM_ETP: '{actor} importou dados do ETP (v{etpVersion}) para o TR',
+  AI_CONTENT_GENERATED: '{actor} gerou com IA {generationLabel} de {documentLabel}',
 };
 
 /** Rótulos dos campos de `PROCESS_UPDATED.fields[]` (desconhecido = "dados do processo"). */
@@ -94,6 +96,31 @@ const DECISION_LABELS: Readonly<Record<string, string>> = {
   REJECTED: 'indeferiu',
   COMPLETED: 'concluiu',
 };
+
+const AI_ACTION_LABELS: Readonly<Record<string, string>> = {
+  REWRITE: 'reescrever',
+  COMPLETE: 'completar',
+  SUMMARIZE: 'resumir',
+};
+
+/** Documento-alvo sem documento emitido (mapa de riscos — US-119). */
+const AI_TARGET_LABELS: Readonly<Record<string, string>> = {
+  DFD: 'o DFD',
+  ETP: 'o ETP',
+  RISK_MAP: 'o mapa de riscos',
+  TERM_OF_REFERENCE: 'o TR',
+};
+
+/** `{generationLabel}` (events.md §5): rascunho completo, proposta de riscos ou ajuste de seção. */
+function generationLabelOf(params: Readonly<Record<string, unknown>>): string {
+  if (params.kind === 'SECTION') {
+    const action = text(params.action);
+    const label = (action && AI_ACTION_LABELS[action]) ?? 'ajustar';
+    const section = text(params.sectionTitle) ?? text(params.sectionKey);
+    return section ? `o ajuste "${label}" da seção ${section}` : `o ajuste "${label}"`;
+  }
+  return params.targetModule === 'RISK_MAP' ? 'a proposta de riscos' : 'o rascunho completo';
+}
 
 const LEVEL_LABELS: Readonly<Record<string, string>> = {
   LOW: 'baixo',
@@ -141,7 +168,10 @@ function documentLabelOf(params: Readonly<Record<string, unknown>>): string {
   const code = text(params.documentCode);
   const title = text(params.documentTitle);
   if (code && title) return `${code} — ${title}`;
-  return code ?? title ?? text(params.typeName) ?? 'o documento';
+  const target = text(params.targetModule);
+  return (
+    code ?? title ?? text(params.typeName) ?? (target && AI_TARGET_LABELS[target]) ?? 'o documento'
+  );
 }
 
 function fieldsLabelOf(params: Readonly<Record<string, unknown>>): string {
@@ -167,6 +197,7 @@ function derived(input: TimelineMessageInput): Record<string, string> {
     decisionLabel: (decision && DECISION_LABELS[decision]) ?? 'decidiu',
     levelLabel: (level && LEVEL_LABELS[level]) ?? level ?? TIMELINE_UNKNOWN,
     confidentialityLabel: params.isBudgetConfidential === false ? 'público' : 'sigiloso',
+    generationLabel: generationLabelOf(params),
   };
 }
 

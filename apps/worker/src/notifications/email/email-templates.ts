@@ -70,6 +70,14 @@ export const EMAIL_TEMPLATES: Readonly<Record<NotificationType, EmailTemplate>> 
     action: 'Abrir o documento',
     reason: 'Você recebe este aviso porque pediu a geração do PDF.',
   },
+  AI_GENERATION_READY: {
+    action: 'Abrir o documento',
+    reason: 'Você recebe este aviso porque pediu uma geração com IA.',
+  },
+  AI_GENERATION_FAILED: {
+    action: 'Abrir o documento',
+    reason: 'Você recebe este aviso porque pediu uma geração com IA.',
+  },
   ROLE_CHANGED: {
     action: 'Acessar o ContrataFlow',
     reason:

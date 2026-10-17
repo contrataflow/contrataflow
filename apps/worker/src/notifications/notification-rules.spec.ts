@@ -43,6 +43,8 @@ const ROUTING_KEYS: Readonly<Record<string, string>> = {
   DocumentRenditionFailed: 'document.rendition_failed',
   RoleAssigned: 'role.assigned',
   RoleRevoked: 'role.revoked',
+  AiGenerationCompleted: 'ai.generation_completed',
+  AiGenerationFailed: 'ai.generation_failed',
 };
 
 describe('cobertura do registro NotificationType (events.md §6 · DoD da US-111)', () => {
@@ -311,6 +313,41 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
     expect(rejected.content(1).body).not.toContain('verificação de segurança');
     expect(rejected.link).toBeNull();
   });
+
+  it.each([
+    ['AiGenerationCompleted', 'AI_GENERATION_READY', 'pronto para revisão'],
+    ['AiGenerationFailed', 'AI_GENERATION_FAILED', 'Não foi possível'],
+  ])(
+    'US-115: %s → %s ao solicitante (o próprio ator), com link ?ia= para o editor',
+    (eventType, type, title) => {
+      const generationId = testId();
+      const documentId = testId();
+      const plan = notify(
+        planNotification(envelope(eventType, { generationId, documentId, requestedById: USER })),
+      );
+      expect(plan).toMatchObject({
+        type,
+        priority: 'NORMAL',
+        includeActor: true,
+        entityType: 'AiGeneration',
+        entityId: generationId,
+        link: `/processos/${PROCESS}/documentos/${documentId}?ia=${generationId}`,
+      });
+      expect(plan.recipients).toEqual([{ kind: 'USER', userId: USER }]);
+      expect(plan.content(1).title).toContain(title);
+      // Sem documento (mapa de riscos ainda não emitido): o processo, ainda com a geração.
+      const withoutDocument = notify(
+        planNotification(
+          envelope(eventType, { generationId, documentId: null, requestedById: USER }),
+        ),
+      );
+      expect(withoutDocument.link).toBe(`/processos/${PROCESS}?ia=${generationId}`);
+      const withoutProcess = notify(
+        planNotification(envelope(eventType, { generationId }, { processId: null })),
+      );
+      expect(withoutProcess.link).toBeNull();
+    },
+  );
 
   it('DOCUMENT_RENDER_FAILED: quem solicitou a renderização', () => {
     const plan = notify(

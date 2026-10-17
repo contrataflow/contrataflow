@@ -178,6 +178,14 @@ const EXPORTS = [
   'audit.export',
 ] as const;
 const ACCESS = ['process.confidential_view', 'audit.search', 'queue_dashboard.access'] as const;
+/** Geração com IA (EP-020 · events.md §7): nunca texto do resumo, contexto ou saída. */
+const AI_DATA_CHANGE = [
+  'ai.generation_request',
+  'ai.generation_discard',
+  'ai.content_apply',
+  'ai.content_review',
+] as const;
+const AI_SYSTEM = ['ai.generation_complete', 'ai.generation_fail'] as const;
 const SYSTEM = [
   'attachment.scan_result',
   'audit.seal',
@@ -201,6 +209,8 @@ export type AuditAction =
   | (typeof COLLABORATION_DATA_CHANGE)[number]
   | (typeof EXPORTS)[number]
   | (typeof ACCESS)[number]
+  | (typeof AI_DATA_CHANGE)[number]
+  | (typeof AI_SYSTEM)[number]
   | (typeof SYSTEM)[number];
 
 export interface AuditActionSpec {
@@ -218,7 +228,7 @@ const COALESCIBLE: ReadonlySet<string> = new Set<AuditAction>(['document.draft_u
 const BY_CATEGORY: readonly (readonly [AuditCategory, readonly AuditAction[]])[] = [
   ['SECURITY', [...AUTH_SECURITY, ...PLATFORM_SECURITY, ...IDENTITY_SECURITY]],
   ['ACCESS', [...AUTH_ACCESS, ...ACCESS]],
-  ['SYSTEM', [...PLATFORM_SYSTEM, ...SYSTEM]],
+  ['SYSTEM', [...PLATFORM_SYSTEM, ...SYSTEM, ...AI_SYSTEM]],
   ['CONFIGURATION', CONFIGURATION],
   [
     'DATA_CHANGE',
@@ -227,6 +237,7 @@ const BY_CATEGORY: readonly (readonly [AuditCategory, readonly AuditAction[]])[]
       ...DOCUMENT_DATA_CHANGE,
       ...TYPED_DATA_CHANGE,
       ...COLLABORATION_DATA_CHANGE,
+      ...AI_DATA_CHANGE,
     ],
   ],
   ['WORKFLOW', [...PROCESS_WORKFLOW, ...APPROVAL_WORKFLOW]],

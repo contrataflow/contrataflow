@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { runWithRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 
+import type { DocumentAiTargets } from './document-ai-target.js';
 import type { DocumentApprovalTransitions } from './document-approval.transitions.js';
 import type { DocumentCreationService } from './document-creation.service.js';
 import { DocumentFacade } from './document.facade.js';
@@ -28,6 +29,7 @@ function facadeWith() {
     validators,
     {} as DocumentCreationService,
     {} as DocumentApprovalTransitions,
+    {} as DocumentAiTargets,
   );
   return { facade, documents, types, validators };
 }

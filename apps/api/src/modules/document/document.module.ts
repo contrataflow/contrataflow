@@ -11,6 +11,7 @@ import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenan
 
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
+import { DocumentAiTargets } from './application/document-ai-target.js';
 import { DocumentApprovalTransitions } from './application/document-approval.transitions.js';
 import { DocumentCreationService } from './application/document-creation.service.js';
 import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
@@ -168,6 +169,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentLifecycleService,
     DocumentCreationService,
     DocumentApprovalTransitions,
+    DocumentAiTargets,
     DocumentQueries,
     UpdateDocumentHeaderCommand,
     FinalizeDocumentCommand,

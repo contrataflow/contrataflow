@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useRef } from 'react';
 
 import { ErrorView } from '@/components/errors/error-view';
+import { AiAssistant, isAiTarget } from '@/features/ai/ai-assistant';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -17,6 +18,8 @@ import { documentKeys, fetchDocument } from './documents.api';
 export interface DocumentViewProps {
   readonly processId: string;
   readonly documentId: string;
+  /** `?ia=<generationId>`: abre o assistente de IA na geração (SCR-117). */
+  readonly aiGenerationId?: string | null | undefined;
 }
 
 /**
@@ -25,7 +28,7 @@ export interface DocumentViewProps {
  * seções é da US-063. Estados: skeleton na primeira carga e erro com `correlationId` e "Tentar
  * novamente"; 404 mostra a mensagem única (não distingue inexistente de sem acesso).
  */
-export function DocumentView({ processId, documentId }: DocumentViewProps) {
+export function DocumentView({ processId, documentId, aiGenerationId = null }: DocumentViewProps) {
   const t = useTranslations('documents.view');
   const tErrors = useTranslations('errors');
   const tenantId = useTenantId();
@@ -123,6 +126,17 @@ export function DocumentView({ processId, documentId }: DocumentViewProps) {
               : t('version', { number: document.currentVersionNumber })}
           </span>
         </div>
+        {isAiTarget(document.documentType.systemModule) ? (
+          <div>
+            <AiAssistant
+              processId={processId}
+              documentId={document.id}
+              targetModule={document.documentType.systemModule}
+              editable={document.status === 'DRAFT' || document.status === 'RETURNED'}
+              initialGenerationId={aiGenerationId}
+            />
+          </div>
+        ) : null}
       </header>
 
       {document.status === 'CANCELED' && document.cancellationReason ? (

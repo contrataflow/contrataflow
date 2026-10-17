@@ -1,0 +1,96 @@
+{
+  "draftButton": "Gerar rascunho com IA",
+  "panel": {
+    "title": "Assistente de redação com IA",
+    "close": "Fechar o assistente",
+    "tabs": {
+      "label": "Seções do assistente",
+      "generate": "Gerar",
+      "proposal": "Proposta",
+      "history": "Histórico de IA"
+    }
+  },
+  "disclaimer": {
+    "title": "Revise antes de concluir",
+    "body": "Conteúdo gerado por IA pode conter erros. Revise antes de concluir."
+  },
+  "form": {
+    "needSummary": "Descreva a necessidade em poucas linhas",
+    "needSummaryHint": "Entre 20 e 2.000 caracteres. Não inclua dados pessoais.",
+    "needSummaryCount": "{count} de 2.000 caracteres",
+    "needSummaryInvalid": "Descreva a necessidade com 20 a 2.000 caracteres.",
+    "instruction": "Orientações (opcional)",
+    "instructionInvalid": "As orientações aceitam até 500 caracteres.",
+    "submit": "Gerar com IA",
+    "submitting": "Enviando…"
+  },
+  "progress": {
+    "title": "Gerando… você pode continuar editando",
+    "queued": "Na fila para gerar",
+    "running": "A IA está redigindo a proposta",
+    "cancel": "Cancelar",
+    "canceling": "Cancelando…",
+    "slow": "Está demorando mais que o normal. Avisaremos quando terminar."
+  },
+  "proposal": {
+    "title": "Proposta pronta",
+    "empty": "Nenhuma proposta neste momento. Peça um rascunho na aba Gerar.",
+    "placeholders": "{count, plural, =0 {Nenhum [a confirmar]} one {# [a confirmar]} other {# [a confirmar]}}",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "discarded": "Proposta descartada.",
+    "expiresAt": "Válida até {date}"
+  },
+  "warnings": {
+    "USED_DRAFT_INPUTS": "Foram usados documentos ainda em rascunho.",
+    "MISSING_PRICE_RESEARCH": "A pesquisa de preços ainda não foi concluída.",
+    "BUDGET_CONFIDENTIAL_VALUES_OMITTED": "Os valores do orçamento sigiloso não foram enviados à IA.",
+    "MISSING_OPTIONAL_INPUT": "Faltou uma informação opcional.",
+    "CONTEXT_TRUNCATED": "Parte das informações não coube e foi omitida."
+  },
+  "states": {
+    "failedTitle": "Não foi possível gerar agora",
+    "failedReason": {
+      "PROVIDER_UNAVAILABLE": "A IA ficou indisponível.",
+      "PROVIDER_RATE_LIMITED": "A IA recebeu pedidos demais.",
+      "TIMEOUT": "A IA demorou demais para responder.",
+      "CONTENT_FILTERED": "O conteúdo foi bloqueado pelo filtro do provedor.",
+      "CONTEXT_TOO_LARGE": "O processo tem informações demais para uma geração.",
+      "OUTPUT_INVALID": "A resposta da IA veio fora do formato esperado.",
+      "CANCELED_BY_POLICY": "As permissões ou os limites mudaram antes da geração.",
+      "default": "Tente novamente em instantes."
+    },
+    "retry": "Tentar novamente",
+    "canceled": "A geração foi cancelada.",
+    "expired": "Esta proposta expirou; gere novamente.",
+    "applied": "A proposta já foi aplicada ao documento.",
+    "unavailable": "A IA está indisponível agora. Tente novamente em instantes.",
+    "inProgress": "Já existe uma geração em andamento. Abrimos o acompanhamento dela.",
+    "requestFailed": "Não foi possível solicitar agora. Tente novamente."
+  },
+  "history": {
+    "title": "Histórico de IA",
+    "loading": "Carregando o histórico de IA",
+    "empty": "Nenhuma geração neste processo",
+    "loadFailed": "Não foi possível carregar o histórico.",
+    "retry": "Tentar novamente",
+    "by": "Por {name}",
+    "kind": {
+      "DRAFT": "Rascunho completo",
+      "SECTION": "Ajuste de seção"
+    },
+    "model": "Modelo {model} · prompt {version}",
+    "tokens": "{count, plural, =0 {Sem consumo registrado} one {# token} other {# tokens}}",
+    "status": {
+      "QUEUED": "Na fila",
+      "RUNNING": "Gerando",
+      "SUCCEEDED": "Pronta",
+      "FAILED": "Falhou",
+      "CANCELED": "Cancelada",
+      "APPLIED": "Aplicada",
+      "DISCARDED": "Descartada",
+      "EXPIRED": "Expirada"
+    },
+    "open": "Ver proposta"
+  }
+}

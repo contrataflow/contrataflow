@@ -9,8 +9,8 @@ import {
 } from './queues.js';
 
 describe('registro de filas e jobs (queues.md §4 · §9.3 · V-03)', () => {
-  it('tem as nove filas do MVP 1, cada uma com ao menos um job registrado', () => {
-    expect(QUEUE_NAMES).toHaveLength(9);
+  it('tem as dez filas do MVP 1 (com `ai-generation` — DEC-079), cada uma com ao menos um job registrado', () => {
+    expect(QUEUE_NAMES).toHaveLength(10);
     for (const queue of QUEUE_NAMES) expect(QUEUE_JOBS[queue].length).toBeGreaterThan(0);
   });
 

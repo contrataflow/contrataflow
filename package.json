@@ -39,6 +39,7 @@
     "env:smoke": "pnpm --filter @contrataflow/tools run env:smoke",
     "env:blueprint": "pnpm --filter @contrataflow/tools run env:blueprint",
     "db:migrate": "pnpm --filter @contrataflow/tools run db:migrate",
+    "ai:eval": "pnpm --filter @contrataflow/api run ai:eval --",
     "prepare": "husky"
   },
   "devDependencies": {

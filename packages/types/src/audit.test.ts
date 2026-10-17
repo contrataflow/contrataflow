@@ -9,9 +9,10 @@ const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', impor
 
 /**
  * Linhas de events.md §7 já especificadas cujas stories ainda não foram implementadas: as ações
- * entram no catálogo com elas, que removem a área daqui (EP-020 — IA: US-115/US-117/US-122).
+ * entram no catálogo com elas, que removem a área daqui. (A área de IA entrou inteira com a
+ * US-115, inclusive `ai.content_apply`/`ai.content_review` usados pelas US-117/US-122.)
  */
-const PENDING_AREAS: readonly string[] = ['| IA (EP-020)'];
+const PENDING_AREAS: readonly string[] = [];
 
 /** Ações `resource.action` citadas na tabela de events.md §7 (fonte canônica do catálogo). */
 function documentedActions(): string[] {
@@ -34,7 +35,7 @@ function documentedActions(): string[] {
 describe('catálogo de ações de auditoria (events.md §7 · US-073)', () => {
   it('é exatamente o da tabela de events.md §7', () => {
     expect(AUDIT_ACTION_NAMES).toEqual(documentedActions());
-    expect(AUDIT_ACTION_NAMES).toHaveLength(143);
+    expect(AUDIT_ACTION_NAMES).toHaveLength(149);
   });
 
   it('cada ação segue `resource.action` e tem uma categoria válida', () => {

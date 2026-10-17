@@ -26,6 +26,8 @@ const TYPE_ICONS: Readonly<Record<NotificationType, IconName>> = {
   ATTACHMENT_REJECTED: 'alert',
   DOCUMENT_RENDER_FAILED: 'alert',
   ROLE_CHANGED: 'user',
+  AI_GENERATION_READY: 'folder',
+  AI_GENERATION_FAILED: 'alert',
 };
 
 export function notificationIcon(type: NotificationType): IconName {

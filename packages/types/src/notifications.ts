@@ -21,6 +21,8 @@ export const NOTIFICATION_TYPES = [
   'ATTACHMENT_REJECTED',
   'DOCUMENT_RENDER_FAILED',
   'ROLE_CHANGED',
+  'AI_GENERATION_READY',
+  'AI_GENERATION_FAILED',
 ] as const satisfies readonly string[];
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -133,6 +135,19 @@ export const NOTIFICATION_REGISTRY: Readonly<Record<NotificationType, Notificati
       sourceEvents: ['RoleAssigned', 'RoleRevoked'],
       emailByDefault: true,
       mandatory: true,
+      dispatchedBy: 'US-111',
+    },
+    // US-115: avisam o próprio solicitante do trabalho assíncrono que ele pediu (events.md §6).
+    AI_GENERATION_READY: {
+      sourceEvents: ['AiGenerationCompleted'],
+      emailByDefault: false,
+      mandatory: false,
+      dispatchedBy: 'US-111',
+    },
+    AI_GENERATION_FAILED: {
+      sourceEvents: ['AiGenerationFailed'],
+      emailByDefault: false,
+      mandatory: false,
       dispatchedBy: 'US-111',
     },
   });
@@ -263,11 +278,16 @@ export function scrubNotificationText(text: string, max: number): string {
   return masked.length <= max ? masked : `${masked.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Rota web relativa (RN-NTF-08): `/…`, sem esquema, sem `//` e sem query (nada de token). */
+/**
+ * Rota web relativa (RN-NTF-08): `/…`, sem esquema, sem `//` e sem query (nada de token) — a única
+ * query aceita é `?ia=<generationId>`, que abre o painel de IA na geração (US-115).
+ */
 export function isRelativeNotificationLink(link: string): boolean {
   return (
     link.length <= NOTIFICATION_LINK_MAX &&
-    /^\/[A-Za-z0-9\-_/]*$/.test(link) &&
+    /^\/[A-Za-z0-9\-_/]*(?:\?ia=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i.test(
+      link,
+    ) &&
     !link.startsWith('//')
   );
 }

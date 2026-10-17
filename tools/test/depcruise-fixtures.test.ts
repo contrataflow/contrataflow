@@ -14,6 +14,7 @@ const EXPECTED: Record<string, string> = {
   'apps/api/src/modules/process/domain/uses-application.ts': 'domain-is-pure',
   'apps/api/src/modules/dfd/application/reads-process-internals.ts': 'cross-module-only-via-facade',
   'apps/api/src/modules/workflow/application/uses-process-facade.ts': 'module-levels',
+  'apps/api/src/modules/ai/application/runs-document-command.ts': 'ai-read-only',
   'apps/api/src/modules/catalog/application/cycle-a.ts': 'no-circular',
   'apps/api/src/shared/uses-module.ts': 'shared-kernel-is-independent',
   'apps/api/src/modules/process/application/uses-redis.ts': 'redis-only-in-cache-or-platform',
@@ -36,6 +37,7 @@ const EXPECTED: Record<string, string> = {
 /** Usos legítimos que não podem ser reprovados. */
 const ALLOWED = [
   'apps/api/src/modules/dfd/application/dfd.facade.ts',
+  'apps/api/src/modules/ai/application/reads-document-facade.ts',
   'apps/api/src/modules/identity/infrastructure/prisma-identity.repository.ts',
   'apps/worker/src/outbox/relay.ts',
   'packages/validation/src/index.ts',

@@ -40,9 +40,9 @@ const ROLE_COLUMNS: Readonly<Record<string, string>> = {
 
 /**
  * Linhas da matriz §3.2 já especificadas cujas permissões entram no catálogo com stories ainda
- * não implementadas (EP-020 — `AI_GENERATE` na US-115); a story remove a permissão daqui.
+ * não implementadas; a story remove a permissão daqui (`AI_GENERATE` entrou com a US-115).
  */
-const PENDING_PERMISSIONS: ReadonlySet<string> = new Set(['AI_GENERATE']);
+const PENDING_PERMISSIONS: ReadonlySet<string> = new Set<string>([]);
 
 /** Matriz §3.2 lida do documento canônico: perfil → permissões marcadas, na ordem das linhas. */
 function matrixFromDocs(): Record<string, string[]> {
@@ -90,17 +90,17 @@ describe('perfis padrão (permissions.md §3 · RN-IAM-74/75)', () => {
       Object.fromEntries(DEFAULT_ROLES.map((role) => [role.key, role.permissions.length])),
     ).toEqual({
       ADMIN_ORGAO: 26,
-      GESTOR_CONTRATACOES: 55,
-      REQUISITANTE: 32,
-      PLANEJAMENTO: 39,
-      COMPRAS: 31,
+      GESTOR_CONTRATACOES: 56,
+      REQUISITANTE: 33,
+      PLANEJAMENTO: 40,
+      COMPRAS: 32,
       LICITACOES: 21,
       CONTABILIDADE: 16,
       JURIDICO: 17,
       CONTROLE_INTERNO: 20,
       AUTORIDADE_COMPETENTE: 22,
       FISCAL_CONTRATO: 7,
-      GESTOR_CONTRATO: 20,
+      GESTOR_CONTRATO: 21,
       AUDITOR: 13,
       SOMENTE_LEITURA: 6,
       CONSULTOR_EXTERNO: 11,

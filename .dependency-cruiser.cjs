@@ -77,6 +77,20 @@ module.exports = {
     },
     ...moduleLevelRules(),
     {
+      name: 'ai-read-only',
+      severity: 'error',
+      comment:
+        'O módulo `ai` só LÊ outros módulos (regra D9 de domains.md · DEC-079): fachadas e módulos Nest, nunca comandos, serviços de ciclo de vida, repositórios ou domínio de outro contexto. A aplicação do conteúdo gerado é comando do módulo dono, que lê a proposta pela porta AiSuggestionSource.',
+      from: { path: `${API_MODULES}ai/` },
+      to: {
+        path: `${API_MODULES}(?!ai/)[^/]+/`,
+        pathNot: [
+          `${API_MODULES}[^/]+/application/[^/]+\\.facade\\.ts$`,
+          `${API_MODULES}[^/]+/[^/]+\\.module\\.ts$`,
+        ],
+      },
+    },
+    {
       name: 'shared-kernel-is-independent',
       severity: 'error',
       comment: 'O shared kernel (nível 0) nunca importa módulos (architecture.md §3.3).',

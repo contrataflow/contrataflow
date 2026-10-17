@@ -70,6 +70,22 @@ describe('RecipientResolver (events.md §6 · US-111)', () => {
     expect(result.recipients).toEqual([CARLA]);
   });
 
+  it('[events.md §6] o aviso de trabalho assíncrono de IA vai ao próprio solicitante (ator)', async () => {
+    const resolver = new RecipientResolver({
+      directory: directory(),
+      visibility: seeAll,
+      lookups: [],
+    });
+    const event = envelope('AiGenerationCompleted', {
+      generationId: testId(),
+      documentId: null,
+      requestedById: ACTOR,
+    });
+    const plan = planNotification(event);
+    if (plan.kind !== 'notify') throw new Error('plano esperado');
+    expect((await resolver.resolve(NO_SQL, plan, event, NOW)).recipients).toEqual([ACTOR]);
+  });
+
   it('remove repetidos e quem não tem vínculo ativo; ordena para travar sempre na mesma ordem', async () => {
     const result = await resolve([
       { kind: 'USER', userId: BRUNO },

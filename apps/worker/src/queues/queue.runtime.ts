@@ -43,6 +43,7 @@ import { PlatformAuditWriter } from '../admin/platform-audit.js';
 import type { RunningDashboard } from '../admin/queue-dashboard.js';
 import { startQueueDashboard } from '../admin/queue-dashboard.js';
 import { AuditSealer } from '../audit/audit-sealer.js';
+import { AiProposalsExpireTask } from '../maintenance/ai-proposals-expire.js';
 import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
 import { EmailSender } from '../notifications/email/email-sender.js';
@@ -157,7 +158,9 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
       // US-074: selagem horária por tenant (`audit-seal.tick` → `seal-tenant`).
       .register(new AuditSealer())
       // Tarefas diárias por tenant: cada módulo dono acrescenta a sua (US-106: calendário).
-      .register(new TenantHousekeepingJob([new HolidayYearGeneratorTask()]));
+      .register(
+        new TenantHousekeepingJob([new HolidayYearGeneratorTask(), new AiProposalsExpireTask()]),
+      );
     const producer = this.producerInstance;
     // US-111: as fontes que dependem de outros módulos entram com as stories donas — visibilidade
     // do processo (`ProcessAccess`, US-001/US-012), permissão por escopo (US-096) e os `lookups`

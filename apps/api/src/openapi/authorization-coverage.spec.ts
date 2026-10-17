@@ -62,7 +62,7 @@ describe('meta-teste de autorização das rotas (US-097 · RN-IAM-101)', () => {
     expect(authorizationCoverageViolations(CONTROLLERS)).toEqual([]);
   });
 
-  it('as permissões declaradas existem no catálogo e as políticas, em POL-01..17', () => {
+  it('as permissões declaradas existem no catálogo e as políticas, em POL-01..18', () => {
     const codes = new Set<string>(PERMISSIONS.map((permission) => permission.code));
     const declared = routeAuthorizations(CONTROLLERS).flatMap((entry) =>
       entry.requirement ? [entry.requirement.permission] : [],
@@ -78,6 +78,8 @@ describe('meta-teste de autorização das rotas (US-097 · RN-IAM-101)', () => {
       'POL-13',
       'POL-15',
       'POL-16',
+      // US-115: gerar com IA (AI_GENERATE + edição do tipo + POL-02 + portão do órgão).
+      'POL-18',
     ]);
   });
 

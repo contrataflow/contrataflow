@@ -984,6 +984,47 @@ const termImportedFromEtp = defineMapping({
   }),
 });
 
+/**
+ * `AiGenerationCompleted` (US-115 · events.md §5): "{actor} gerou com IA {generationLabel} de
+ * {documentLabel}". O ator é o solicitante (o job carrega o ator — DEC-164). Sem texto gerado: só
+ * o tipo da geração, o alvo, o modelo e a versão do prompt.
+ */
+const aiGenerationCompleted = defineMapping({
+  eventType: 'AiGenerationCompleted',
+  entryTypes: ['AI_CONTENT_GENERATED'],
+  payload: z.looseObject({
+    generationId: uuid,
+    documentId: uuid.nullable(),
+    targetModule: z.string().min(1),
+    kind: z.string().min(1),
+    action: z.string().nullable(),
+    sectionKey: z.string().nullable(),
+    model: z.string().min(1),
+    promptVersion: z.string().min(1),
+  }),
+  plan: (payload) => ({
+    refs: lookupRef('DOCUMENT', payload.documentId),
+    build: ({ lookups }) => [
+      entry(
+        'AI_CONTENT_GENERATED',
+        {
+          ...(payload.documentId === null
+            ? { documentId: null, documentCode: null, documentTitle: null, typeName: null }
+            : documentParams(lookups, payload.documentId)),
+          generationId: payload.generationId,
+          targetModule: payload.targetModule,
+          kind: payload.kind,
+          action: payload.action,
+          sectionKey: payload.sectionKey,
+          model: payload.model,
+          promptVersion: payload.promptVersion,
+        },
+        { entity: ['AiGeneration', payload.generationId] },
+      ),
+    ],
+  }),
+});
+
 const MAPPINGS: readonly TimelineEventMapping[] = [
   processCreated,
   processUpdated,
@@ -1023,6 +1064,7 @@ const MAPPINGS: readonly TimelineEventMapping[] = [
   riskAssessed,
   riskDeleted,
   termImportedFromEtp,
+  aiGenerationCompleted,
 ];
 
 /** Registro por `eventType` (RN-TML-02); evento ausente é ignorado (RN-TML-07). */
@@ -1044,4 +1086,5 @@ export const TIMELINE_ROUTING_KEYS: readonly string[] = [
   'price_research.*',
   'risk.*',
   'term.*',
+  'ai.*',
 ];

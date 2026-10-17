@@ -21,7 +21,7 @@
     {
       "level": 5,
       "name": "leitura e efeitos colaterais",
-      "modules": ["timeline", "inbox", "dashboard", "notification"]
+      "modules": ["timeline", "inbox", "dashboard", "notification", "ai"]
     }
   ],
   "allow": [

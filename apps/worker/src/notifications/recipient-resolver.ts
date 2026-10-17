@@ -95,8 +95,11 @@ export class RecipientResolver {
         candidates.add(userId);
       }
     }
-    // RN-NTF-02: o ator nunca é destinatário da própria notificação.
-    if (event.actor.userId !== null) candidates.delete(event.actor.userId);
+    // RN-NTF-02: o ator nunca é destinatário da própria notificação — salvo o aviso do trabalho
+    // assíncrono que ele mesmo pediu (IA — events.md §6).
+    if (event.actor.userId !== null && plan.includeActor !== true) {
+      candidates.delete(event.actor.userId);
+    }
     if (candidates.size === 0) return { recipients: [], unresolved };
 
     const active = await this.deps.directory.activeMembers(client, [...candidates], now);

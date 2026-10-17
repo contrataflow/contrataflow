@@ -1,5 +1,5 @@
 /**
- * Políticas contextuais de autorização (permissions.md §6 · POL-01..17 · DEC-134): regras em
+ * Políticas contextuais de autorização (permissions.md §6 · POL-01..18 · DEC-134): regras em
  * código que dependem do estado do recurso, aplicadas depois da permissão (US-097 · RN-IAM-100).
  * `denialCode` é o código da recusa principal da política — 403 é negação de acesso auditada como
  * `access.denied` com o ID da política em `reasonCode` (RN-IAM-105); 409/422 são estados do recurso
@@ -58,6 +58,8 @@ export const CONTEXTUAL_POLICIES = [
     denialCode: 'PERMISSION_DENIED',
     denialStatus: 403,
   },
+  // EP-020 (US-115/US-116): `AI_GENERATE` + edição do tipo + POL-02 + IA ligada e limites.
+  { id: 'POL-18', name: 'Gerar com IA', denialCode: 'PERMISSION_DENIED', denialStatus: 403 },
 ] as const satisfies readonly ContextualPolicyDefinition[];
 
 export type PolicyId = (typeof CONTEXTUAL_POLICIES)[number]['id'];

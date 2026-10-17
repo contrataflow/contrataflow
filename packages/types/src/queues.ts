@@ -11,6 +11,7 @@ export const QUEUE_NAMES = [
   'deadlines',
   'audit-seal',
   'maintenance',
+  'ai-generation',
   'dead-letter',
 ] as const satisfies readonly string[];
 
@@ -42,6 +43,8 @@ export const QUEUE_JOBS = Object.freeze({
     'audit-partitions-ensure',
     'tenant-housekeeping',
   ],
+  // DEC-079 · queues.md §4.5.1: `jobId = generationId`, padrão B (enfileirado após o commit).
+  'ai-generation': ['generate'],
   'dead-letter': ['dead-letter'],
 } as const satisfies Record<QueueName, readonly string[]>);
 

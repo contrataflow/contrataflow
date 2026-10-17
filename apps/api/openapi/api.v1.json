@@ -19,75 +19,409 @@
       }
     },
     "schemas": {
-      "AuditSeal": {
+      "AiGeneration": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "periodStart": {
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "targetModule": {
+            "type": "string",
+            "enum": [
+              "DFD",
+              "ETP",
+              "RISK_MAP",
+              "TERM_OF_REFERENCE"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SECTION"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "REWRITE",
+              "COMPLETE",
+              "SUMMARIZE",
+              null
+            ]
+          },
+          "sectionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseRevision": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "CANCELED",
+              "APPLIED",
+              "DISCARDED",
+              "EXPIRED"
+            ]
+          },
+          "requestedBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "createdAt": {
             "type": "string",
             "format": "date-time"
           },
-          "periodEnd": {
-            "type": "string",
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           },
-          "recordCount": {
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "promptKey": {
+            "type": "string"
+          },
+          "promptVersion": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "inputTokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "outputTokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "totalTokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "inputTokens",
+              "outputTokens",
+              "totalTokens"
+            ]
+          },
+          "placeholdersCount": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 0
           },
-          "digest": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
+          "groundingReplacements": {
+            "type": "integer",
+            "minimum": 0
           },
-          "chainHash": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
+          "inputRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiInputRef"
+            }
           },
-          "sealedAt": {
-            "type": "string",
+          "output": {
+            "$ref": "#/components/schemas/AiGenerationOutput"
+          },
+          "errorCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PROVIDER_UNAVAILABLE",
+              "PROVIDER_RATE_LIMITED",
+              "TIMEOUT",
+              "CONTENT_FILTERED",
+              "CONTEXT_TOO_LARGE",
+              "OUTPUT_INVALID",
+              "CANCELED_BY_POLICY",
+              null
+            ]
+          },
+          "appliedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
+          },
+          "appliedTargets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sectionKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "riskIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "required": [
+              "sectionKeys",
+              "riskIds"
+            ]
           }
         },
         "required": [
           "id",
-          "periodStart",
-          "periodEnd",
-          "recordCount",
-          "digest",
-          "chainHash",
-          "sealedAt"
+          "processId",
+          "documentId",
+          "targetModule",
+          "kind",
+          "action",
+          "sectionKey",
+          "baseRevision",
+          "status",
+          "requestedBy",
+          "createdAt",
+          "startedAt",
+          "completedAt",
+          "expiresAt",
+          "provider",
+          "model",
+          "promptKey",
+          "promptVersion",
+          "usage",
+          "placeholdersCount",
+          "groundingReplacements",
+          "inputRefs",
+          "output",
+          "errorCode",
+          "appliedAt",
+          "appliedTargets"
         ]
       },
-      "PageMeta": {
+      "AiInputRef": {
         "type": "object",
         "properties": {
-          "page": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "USER_SUMMARY",
+              "USER_INSTRUCTION",
+              "PROCESS",
+              "PROCESS_ITEMS",
+              "ORGANIZATION",
+              "TEMPLATE_VERSION",
+              "DOCUMENT_VERSION",
+              "DOCUMENT_DRAFT",
+              "SECTION",
+              "ETP_ALTERNATIVES",
+              "PRICE_RESEARCH",
+              "RISKS",
+              "TERM_CONDITIONS",
+              "CATALOG"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "documentTypeCode": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "versionNumber": {
             "type": "integer",
             "minimum": 1
           },
-          "pageSize": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
-          },
-          "totalItems": {
+          "revision": {
             "type": "integer",
             "minimum": 0
           },
-          "totalPages": {
-            "type": "integer",
-            "minimum": 0
+          "contentHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
           }
         },
         "required": [
-          "page",
-          "pageSize",
-          "totalItems",
-          "totalPages"
-        ]
+          "kind",
+          "id",
+          "contentHash"
+        ],
+        "additionalProperties": false
+      },
+      "AiGenerationOutput": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sectionKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "content": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "doc"
+                      ]
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "content"
+                  ],
+                  "additionalProperties": {}
+                },
+                "placeholdersCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "groundingReplacements": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "sectionKey",
+                "title",
+                "content",
+                "placeholdersCount",
+                "groundingReplacements"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "USED_DRAFT_INPUTS",
+                    "MISSING_PRICE_RESEARCH",
+                    "BUDGET_CONFIDENTIAL_VALUES_OMITTED",
+                    "MISSING_OPTIONAL_INPUT",
+                    "CONTEXT_TRUNCATED"
+                  ]
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "code"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "sections",
+          "warnings"
+        ],
+        "additionalProperties": false
       },
       "ProblemDetails": {
         "type": "object",
@@ -234,6 +568,76 @@
           "field",
           "itemId",
           "params"
+        ]
+      },
+      "AuditSeal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "chainHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sealedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "periodStart",
+          "periodEnd",
+          "recordCount",
+          "digest",
+          "chainHash",
+          "sealedAt"
+        ]
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "totalItems",
+          "totalPages"
         ]
       },
       "AuditSealVerification": {
@@ -1224,7 +1628,9 @@
               "PARTICIPANT_ADDED",
               "ATTACHMENT_REJECTED",
               "DOCUMENT_RENDER_FAILED",
-              "ROLE_CHANGED"
+              "ROLE_CHANGED",
+              "AI_GENERATION_READY",
+              "AI_GENERATION_FAILED"
             ]
           },
           "channel": {
@@ -1357,7 +1763,9 @@
               "PARTICIPANT_ADDED",
               "ATTACHMENT_REJECTED",
               "DOCUMENT_RENDER_FAILED",
-              "ROLE_CHANGED"
+              "ROLE_CHANGED",
+              "AI_GENERATION_READY",
+              "AI_GENERATION_FAILED"
             ]
           },
           "priority": {
@@ -2579,6 +2987,304 @@
           "object",
           "requestingDepartmentId"
         ]
+      },
+      "AiGenerationListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "targetModule": {
+            "type": "string",
+            "enum": [
+              "DFD",
+              "ETP",
+              "RISK_MAP",
+              "TERM_OF_REFERENCE"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SECTION"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "REWRITE",
+              "COMPLETE",
+              "SUMMARIZE",
+              null
+            ]
+          },
+          "sectionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseRevision": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "CANCELED",
+              "APPLIED",
+              "DISCARDED",
+              "EXPIRED"
+            ]
+          },
+          "requestedBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "promptKey": {
+            "type": "string"
+          },
+          "promptVersion": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "inputTokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "outputTokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "totalTokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "inputTokens",
+              "outputTokens",
+              "totalTokens"
+            ]
+          },
+          "placeholdersCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "groundingReplacements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inputRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiInputRef"
+            }
+          },
+          "errorCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PROVIDER_UNAVAILABLE",
+              "PROVIDER_RATE_LIMITED",
+              "TIMEOUT",
+              "CONTENT_FILTERED",
+              "CONTEXT_TOO_LARGE",
+              "OUTPUT_INVALID",
+              "CANCELED_BY_POLICY",
+              null
+            ]
+          },
+          "appliedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "appliedTargets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sectionKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "riskIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "required": [
+              "sectionKeys",
+              "riskIds"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "processId",
+          "documentId",
+          "targetModule",
+          "kind",
+          "action",
+          "sectionKey",
+          "baseRevision",
+          "status",
+          "requestedBy",
+          "createdAt",
+          "startedAt",
+          "completedAt",
+          "expiresAt",
+          "provider",
+          "model",
+          "promptKey",
+          "promptVersion",
+          "usage",
+          "placeholdersCount",
+          "groundingReplacements",
+          "inputRefs",
+          "errorCode",
+          "appliedAt",
+          "appliedTargets"
+        ]
+      },
+      "RequestAiGeneration": {
+        "type": "object",
+        "properties": {
+          "targetModule": {
+            "type": "string",
+            "enum": [
+              "DFD",
+              "ETP",
+              "RISK_MAP",
+              "TERM_OF_REFERENCE"
+            ]
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SECTION"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "REWRITE",
+              "COMPLETE",
+              "SUMMARIZE"
+            ]
+          },
+          "sectionKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "needSummary": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "instruction": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "targetModule",
+          "kind"
+        ],
+        "additionalProperties": false
       },
       "ActionEntry": {
         "type": "object",
@@ -5218,6 +5924,255 @@
     "parameters": {}
   },
   "paths": {
+    "/ai-generations/{generationId}": {
+      "get": {
+        "operationId": "AI-02",
+        "summary": "Consultar geração",
+        "tags": [
+          "Inteligência artificial"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "generationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A geração (sem custo, resumo nem instrução); `output` só em `SUCCEEDED`/`APPLIED`. `ETag` = status + `updatedAt`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AiGeneration"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai-generations/{generationId}/discard": {
+      "post": {
+        "operationId": "AI-04",
+        "summary": "Descartar proposta ou cancelar geração",
+        "tags": [
+          "Inteligência artificial"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "ai.generation_discard"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "generationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`SUCCEEDED` → `DISCARDED`; `QUEUED`/`RUNNING` → `CANCELED`. Já descartada/cancelada: devolvida sem novo efeito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AiGeneration"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/audit/seals": {
       "get": {
         "operationId": "AUD-04",
@@ -13433,7 +14388,9 @@
                             "PARTICIPANT_ADDED",
                             "ATTACHMENT_REJECTED",
                             "DOCUMENT_RENDER_FAILED",
-                            "ROLE_CHANGED"
+                            "ROLE_CHANGED",
+                            "AI_GENERATION_READY",
+                            "AI_GENERATION_FAILED"
                           ]
                         },
                         "channel": {
@@ -13458,7 +14415,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 30
+                    "maxItems": 34
                   }
                 },
                 "required": [
@@ -18370,6 +19327,367 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/ai-generations": {
+      "get": {
+        "operationId": "AI-03",
+        "summary": "Listar gerações do processo",
+        "tags": [
+          "Inteligência artificial"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "documentId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DFD",
+                "ETP",
+                "RISK_MAP",
+                "TERM_OF_REFERENCE"
+              ]
+            },
+            "required": false,
+            "name": "targetModule",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "SECTION"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "requestedById",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Histórico de IA do processo (`createdAt desc`, cursor), sem `output`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AiGenerationListItem"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/CursorMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "AI-01",
+        "summary": "Solicitar geração com IA",
+        "tags": [
+          "Inteligência artificial"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "ai.generation_request",
+          "ai.generation_discard"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAiGeneration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Geração registrada em `QUEUED` antes de qualquer chamada ao provedor e enfileirada após o commit (`Location` = AI-02; consulte a cada `meta.pollAfterMs`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AiGeneration"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "pollAfterMs": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "pollAfterMs"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

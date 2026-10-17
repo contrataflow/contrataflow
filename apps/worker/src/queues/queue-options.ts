@@ -135,4 +135,6 @@ export const QUEUE_POLICIES: Readonly<Record<ConsumedQueue, QueuePolicy>> = {
   deadlines: { concurrency: 5, timeoutMs: 5 * 60_000 },
   'audit-seal': { concurrency: 2, timeoutMs: 10 * 60_000 },
   maintenance: { concurrency: 2, timeoutMs: 30 * 60_000 },
+  // DEC-079 · queues.md §4.5.1: 120 s por chamada ao provedor (até 2 com o reparo) → 300 s por job.
+  'ai-generation': { concurrency: 4, timeoutMs: 300_000 },
 };

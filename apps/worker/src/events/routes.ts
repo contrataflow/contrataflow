@@ -47,6 +47,9 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
         'document.rendition_failed',
         'role.assigned',
         'role.revoked',
+        // US-115: aviso ao solicitante do trabalho assíncrono de IA (AI_GENERATION_READY/FAILED).
+        'ai.generation_completed',
+        'ai.generation_failed',
       ],
       queue: 'notifications',
     },
@@ -63,7 +66,10 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
       ],
       handler: 'PermissionCacheInvalidator',
     },
-    { match: ['process.*', 'document.*', 'approval.*'], handler: 'BusinessMetricsCollector' },
+    {
+      match: ['process.*', 'document.*', 'approval.*', 'ai.*'],
+      handler: 'BusinessMetricsCollector',
+    },
     {
       // events.md §3 (legenda C) — invalidadores de cache de configuração. Entram aqui os eventos
       // de configuração à medida que as stories donas os publicam (US-061: document_type.changed;
@@ -190,4 +196,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     DocumentRejected: ['document.rejected.etp'],
     DocumentReopened: ['document.reopened.etp'],
     DocumentCanceled: ['document.canceled.etp'],
+    // US-115: timeline projetada no mesmo `tx` (síncrona); no worker, métricas (`ai.*`) e os avisos
+    // ao solicitante (`AI_GENERATION_READY`/`AI_GENERATION_FAILED`). O pedido só conta nas métricas.
+    AiGenerationRequested: ['ai.generation_requested'],
+    AiGenerationCompleted: ['ai.generation_completed'],
+    AiGenerationFailed: ['ai.generation_failed'],
   };

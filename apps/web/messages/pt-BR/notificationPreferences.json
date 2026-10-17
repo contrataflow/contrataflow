@@ -29,7 +29,9 @@
     "PARTICIPANT_ADDED": "Você foi adicionado a um processo",
     "ATTACHMENT_REJECTED": "Anexo rejeitado",
     "DOCUMENT_RENDER_FAILED": "Falha ao gerar o PDF de um documento",
-    "ROLE_CHANGED": "Seus perfis de acesso mudaram"
+    "ROLE_CHANGED": "Seus perfis de acesso mudaram",
+    "AI_GENERATION_READY": "Conteúdo gerado por IA pronto para revisão",
+    "AI_GENERATION_FAILED": "Falha na geração com IA que você pediu"
   },
   "notes": {
     "mandatory": "Este aviso não pode ser desligado.",

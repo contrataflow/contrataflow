@@ -197,6 +197,11 @@ Os nomes de consumidores `NotificationDispatcher`, `EmailSender`, `PermissionCac
 - **Cancelamento:** AI-04 em `RUNNING` faz o handler descartar a resposta ao terminar (o status já é `CANCELED`); os tokens contam no uso.
 - **Estado do disjuntor:** chave de plataforma `cf:{env}:ai:circuit`, compartilhada com a API (AI-01 → 503 `AI_PROVIDER_UNAVAILABLE` com o circuito aberto).
 - **SLO:** rascunho completo p95 ≤ 90 s; ajuste de seção p95 ≤ 20 s, do pedido ao `SUCCEEDED`.
+- **Implementação (US-115, 2026-10-16):**
+  - Produtor: porta `JOB_QUEUE` do shared kernel da API (`#shared/jobs/job-queue.ts`), adaptador BullMQ em `modules/platform` (prefixo `cf:{env}:q`, Redis principal, sem fila offline, `add` com teto de 2 s); fila fora → log `ai.enqueue_deferred` e a geração fica `QUEUED`.
+  - Consumidor: `AiGenerationJob` (base `TenantJob` da API) → `AiGenerationProcessor`. Relê o vínculo do solicitante (perfis vigentes) antes da revalidação. Falha transitória antes da última tentativa lança `AiRetryableError` para a fila tentar de novo; o claim aceita `RUNNING` só com `attempts = tentativa − 1`.
+  - **Pendente:** o worker ainda não carrega módulos da API (o `#shared/*` do worker colide com o da API — ver "Como o worker importa código da API"); até essa ligação, o job `ai-generation/generate` não tem consumidor em execução real e `ai-generations-timeout` existe só como `AiMaintenanceService.failStaleRunning` na API. `ai-proposals-expire` já roda no worker como tarefa do `tenant-housekeeping` (SQL).
+  - Concorrência 2 por tenant e "pausar sem consumir tentativa com o circuito aberto" dependem dessa ligação (o processador já sinaliza `AiRetryableError.consumesAttempt`).
 
 ### 4.6 `deadlines` (a cada 15 min)
 - **Scheduler** `deadlines-tick` (`*/15 * * * *`, UTC) gera o job de plataforma `tick`, que lista tenants `ACTIVE` (tabela de plataforma `tenants`) e enfileira um `scan-tenant` por tenant com `jobId = deadlines.{tenantId}.{slot}` (slot = início do intervalo de 15 min em epoch).

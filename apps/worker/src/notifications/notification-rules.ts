@@ -62,6 +62,11 @@ export interface NotificationPlan {
   readonly link: string | null;
   /** Conteúdo para `groupCount` eventos agregados (o agrupamento reescreve título e corpo). */
   readonly content: (groupCount: number) => NotificationContent;
+  /**
+   * Exceção à RN-NTF-02 (events.md §6): avisos de trabalho assíncrono pedido pelo próprio ator
+   * (`AI_GENERATION_READY`/`AI_GENERATION_FAILED`) vão a ele.
+   */
+  readonly includeActor?: boolean;
 }
 
 export type PlanOutcome =
@@ -107,9 +112,11 @@ function plan(
     readonly entityId: string | null;
     readonly link: string | null;
     readonly variant?: string;
+    readonly includeActor?: boolean;
   },
 ): NotificationPlan {
   return {
+    ...(fields.includeActor ? { includeActor: true } : {}),
     kind: 'notify',
     type,
     priority: NOTIFICATION_REGISTRY[type].mandatory ? 'HIGH' : 'NORMAL',
@@ -312,7 +319,34 @@ const RULES: Readonly<Record<string, Rule>> = {
     }),
   RoleAssigned: (event) => roleChanged(event, 'assigned'),
   RoleRevoked: (event) => roleChanged(event, 'revoked'),
+  AiGenerationCompleted: (event) => aiGeneration('AI_GENERATION_READY', event),
+  AiGenerationFailed: (event) => aiGeneration('AI_GENERATION_FAILED', event),
 };
+
+/**
+ * US-115: o solicitante (`requestedById`, o próprio ator do envelope) recebe o aviso; o link abre o
+ * editor do documento com o painel de IA na geração (`?ia=<generationId>`).
+ */
+function aiGeneration(
+  type: 'AI_GENERATION_READY' | 'AI_GENERATION_FAILED',
+  event: DomainEventEnvelope<Payload>,
+): PlanOutcome {
+  const generationId = id(event.payload, 'generationId');
+  const documentId = id(event.payload, 'documentId');
+  const base =
+    event.processId === null
+      ? null
+      : documentId === null
+        ? `/processos/${event.processId}`
+        : `/processos/${event.processId}/documentos/${documentId}`;
+  return plan(type, event, {
+    recipients: [{ kind: 'USER', userId: id(event.payload, 'requestedById') }],
+    entityType: 'AiGeneration',
+    entityId: generationId,
+    link: base === null || generationId === null ? base : `${base}?ia=${generationId}`,
+    includeActor: true,
+  });
+}
 
 function approvalDecided(event: DomainEventEnvelope<Payload>, decision: string): PlanOutcome {
   const approvalId = id(event.payload, 'approvalId');

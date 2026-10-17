@@ -33,8 +33,6 @@ interface DocumentedType {
  * (EP-020 — IA): entram no registro com elas, que removem o tipo daqui.
  */
 const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {
-  AI_GENERATION_READY: 'US-115',
-  AI_GENERATION_FAILED: 'US-115',
   AI_USAGE_LIMIT_WARNING: 'US-116',
 };
 
@@ -228,6 +226,15 @@ describe('conteúdo (RN-NTF-07/08)', () => {
     expect(isRelativeNotificationLink('https://evil.test/x')).toBe(false);
     expect(isRelativeNotificationLink('//evil.test')).toBe(false);
     expect(isRelativeNotificationLink('/processos/1?token=abc')).toBe(false);
+    expect(
+      isRelativeNotificationLink(
+        '/processos/1/documentos/2?ia=0192f111-0000-7000-8000-000000000001',
+      ),
+    ).toBe(true);
+    expect(isRelativeNotificationLink('/processos/1?ia=nao-uuid')).toBe(false);
+    expect(
+      isRelativeNotificationLink('/processos/1?ia=0192f111-0000-7000-8000-000000000001&x=1'),
+    ).toBe(false);
     expect(isRelativeNotificationLink(`/${'a'.repeat(600)}`)).toBe(false);
   });
 });

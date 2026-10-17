@@ -22,7 +22,6 @@ const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', impor
  * A story que implementar o produtor remove o tipo daqui.
  */
 const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {
-  AI_CONTENT_GENERATED: 'US-115',
   AI_CONTENT_APPLIED: 'US-117',
   AI_CONTENT_REVIEWED: 'US-122',
 };

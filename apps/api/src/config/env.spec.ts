@@ -26,12 +26,39 @@ describe('loadConfig', () => {
       pagination: { maxPageSize: 100 },
       rateLimit: {
         windowMs: 60_000,
-        perClass: { read: 600, write: 120, autosave: 60, export: 20, upload: 60 },
+        perClass: { read: 600, write: 120, autosave: 60, export: 20, upload: 60, ai: 10 },
         perTenant: 6000,
       },
       idempotency: { ttlMs: 24 * 3_600_000 },
     });
     expect(Object.isFrozen(config.rateLimit.perClass)).toBe(true);
+  });
+
+  it('US-115: IA — fake em local/dev/test, none nos demais; provedor real só com a ADR-013', () => {
+    expect(loadConfig(REQUIRED).ai).toEqual({
+      provider: 'fake',
+      models: { draft: 'fake-draft-1', section: 'fake-section-1' },
+      requestTimeoutMs: 120_000,
+    });
+    const staging = {
+      ...REQUIRED,
+      APP_ENV: 'staging',
+      INTERNAL_SERVICE_TOKEN: 'y'.repeat(32),
+      DATABASE_URL_PLATFORM: REQUIRED.DATABASE_URL,
+      REDIS_SESSION_URL: 'redis://localhost:6379',
+    };
+    expect(loadConfig(staging).ai.provider).toBe('none');
+    expect(loadConfig({ ...staging, AI_PROVIDER: 'fake' }).ai.provider).toBe('fake');
+    expect(loadConfig({ ...REQUIRED, AI_PROVIDER: 'none' }).ai.provider).toBe('none');
+    expect(() => loadConfig({ ...REQUIRED, AI_PROVIDER: 'bedrock' })).toThrow(
+      new ConfigValidationError(['AI_PROVIDER']),
+    );
+    expect(() => loadConfig({ ...staging, APP_ENV: 'production', AI_PROVIDER: 'fake' })).toThrow(
+      new ConfigValidationError(['AI_PROVIDER']),
+    );
+    expect(() => loadConfig({ ...REQUIRED, AI_REQUEST_TIMEOUT_MS: '10' })).toThrow(
+      new ConfigValidationError(['AI_REQUEST_TIMEOUT_MS']),
+    );
   });
 
   it('US-087: identidade fake só em local/dev/test e credencial interna obrigatória fora deles', () => {

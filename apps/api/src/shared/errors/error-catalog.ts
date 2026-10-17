@@ -312,6 +312,62 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Convite expirado',
     detail: 'Este convite expirou. Peça para reenviarem.',
   },
+  // US-115: camada de IA (story "Casos de erro" · api/16-ai.md).
+  AI_DISABLED: {
+    status: 403,
+    title: 'IA desligada',
+    detail: 'A IA está desligada neste órgão.',
+  },
+  AI_PROVIDER_UNAVAILABLE: {
+    status: 503,
+    title: 'IA indisponível',
+    detail: 'A IA está indisponível agora. Tente novamente em instantes.',
+  },
+  AI_USAGE_LIMIT_REACHED: {
+    status: 422,
+    title: 'Limite de uso de IA',
+    detail: 'O limite de uso de IA foi atingido.',
+  },
+  AI_USER_DAILY_LIMIT_REACHED: {
+    status: 422,
+    title: 'Limite diário de IA',
+    detail: 'O limite de uso de IA foi atingido.',
+  },
+  AI_GENERATION_IN_PROGRESS: {
+    status: 409,
+    title: 'Geração em andamento',
+    detail: 'Já existe uma geração em andamento para este alvo.',
+  },
+  AI_PREREQUISITE_MISSING: {
+    status: 422,
+    title: 'Documento anterior ausente',
+    detail: 'Falta um documento anterior para gerar este.',
+  },
+  AI_SECTION_EMPTY: {
+    status: 422,
+    title: 'Seção sem conteúdo',
+    detail: 'A seção não tem conteúdo suficiente para esta ação.',
+  },
+  AI_SECTION_NOT_SUPPORTED: {
+    status: 422,
+    title: 'Seção não suportada',
+    detail: 'Esta seção não aceita ajuste com IA.',
+  },
+  AI_GENERATION_NOT_FOUND: {
+    status: 404,
+    title: 'Geração não encontrada',
+    detail: 'Geração não encontrada.',
+  },
+  AI_GENERATION_NOT_APPLICABLE: {
+    status: 409,
+    title: 'Geração não aplicável',
+    detail: 'Esta geração não pode mais ser descartada.',
+  },
+  AI_GENERATION_NOT_OWNED: {
+    status: 403,
+    title: 'Geração de outra pessoa',
+    detail: 'Só quem pediu a geração pode descartá-la.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

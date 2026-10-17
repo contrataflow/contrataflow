@@ -34,6 +34,9 @@ export interface ExemptOperation {
 
 export type TenantLeakCase = CoveredOperation | ExemptOperation;
 
+const AI_GENERATION_ROUTE =
+  'Geração com IA (US-115): a suíte genérica não tem processo, documento nem geração do tenant B. O isolamento (AI-01 no processo de B → 404 PROCESS_NOT_FOUND; AI-02/AI-04 com geração de B → 404 AI_GENERATION_NOT_FOUND sem alterar nada; AI-03 do processo de B → 404; RLS de ai_generations com app.tenant_id diferente retornando vazio; FKs compostas por tenant; job com tenant incorreto) é coberto em test/tenant-leak/ai-generations.spec.ts (PostgreSQL real) e src/modules/ai/presentation/ai-generation.routes.spec.ts.';
+
 const WORKFLOW_RULE_SCHEMA_ROUTE =
   'Schema do RuleContext (US-044 · WF-19): sem ID no caminho nem corpo; os documentos listados vêm só dos tipos ativos do tenant do contexto (RLS de document_types), coberto em src/modules/workflow/presentation/workflow-rules.routes.spec.ts.';
 
@@ -215,6 +218,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-12': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-13': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-14': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
+  'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
+  'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
+  'AI-04': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AUD-04': { kind: 'exempt', reason: AUDIT_SEAL_ROUTE },
   'AUD-05': { kind: 'exempt', reason: AUDIT_SEAL_ROUTE },
   'TPL-01': { kind: 'exempt', reason: TEMPLATE_ROUTE },
