@@ -14,6 +14,7 @@ import {
 } from '#shared/files/attachment-targets.js';
 import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
+import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
 import { CreateProcessCommand } from './application/create-process.command.js';
@@ -22,6 +23,7 @@ import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js
 import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
+  PROCESS_ITEM_REPOSITORY,
   PROCESS_REPOSITORY,
   PROCESS_RUNTIME_READER,
   PROCESS_TRANSACTIONS,
@@ -33,6 +35,18 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import {
+  AddProcessItemCommand,
+  RemoveProcessItemCommand,
+  ReorderProcessItemsCommand,
+  UpdateProcessItemCommand,
+} from './application/process-items.commands.js';
+import { ListProcessItemsQuery } from './application/process-items.queries.js';
+import {
+  ProcessItemPresenter,
+  ProcessItemsChangeRecorder,
+  ProcessItemsGate,
+} from './application/process-items.support.js';
 import {
   GetProcessSummaryQuery,
   ListProcessStagesQuery,
@@ -51,11 +65,16 @@ import {
   PrismaProcessTransactions,
 } from './infrastructure/prisma-process.repository.js';
 import {
+  InMemoryProcessItemRepository,
+  PrismaProcessItemRepository,
+} from './infrastructure/process-item.repositories.js';
+import {
   InMemoryProcessRuntimeReader,
   InMemoryProcessRuntimeStore,
   InMemoryProcessTransactions,
 } from './infrastructure/process-runtime.readers.js';
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
+import { ProcessItemsController } from './presentation/process-items.controller.js';
 import { ProcessController } from './presentation/process.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { ApprovalModule } from '../approval/approval.module.js';
@@ -78,7 +97,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * sobre a `WorkflowFacade`. US-004: painel situacional (PRC-07/PRC-10 e `meta.allowedActions` de
  * PRC-04) sobre as fachadas de `workflow`, `document` e `approval`. US-097: leitor do processo na porta de autorização. US-044: fonte do
  * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`. US-065: leitor do processo
- * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento.
+ * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento. US-006: itens da
+ * contratação (PRC-13..17), com o uso dos itens perguntado à porta `ProcessItemUsageRegistry`.
  */
 @Module({
   imports: [
@@ -93,8 +113,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessAccessModule,
     DocumentProcessContextModule,
     AttachmentTargetModule,
+    ProcessItemUsageModule,
   ],
-  controllers: [ProcessController, ProcessActionsController],
+  controllers: [ProcessController, ProcessActionsController, ProcessItemsController],
   providers: [
     ProcessAttachmentTargets,
     ProcessFacade,
@@ -117,6 +138,16 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     EvaluateStageRulesHandler,
     RuleTestProcessReader,
     DocumentProcessContextLoader,
+    ProcessItemsGate,
+    ProcessItemPresenter,
+    ProcessItemsChangeRecorder,
+    ListProcessItemsQuery,
+    AddProcessItemCommand,
+    UpdateProcessItemCommand,
+    RemoveProcessItemCommand,
+    ReorderProcessItemsCommand,
+    PrismaProcessItemRepository,
+    InMemoryProcessItemRepository,
     PrismaProcessRepository,
     InMemoryProcessRepository,
     InMemoryProcessRuntimeStore,
@@ -130,6 +161,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         config: AppConfig,
         prisma: PrismaProcessRepository,
         memory: InMemoryProcessRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PROCESS_ITEM_REPOSITORY,
+      inject: [APP_CONFIG, PrismaProcessItemRepository, InMemoryProcessItemRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaProcessItemRepository,
+        memory: InMemoryProcessItemRepository,
       ) => (inMemory(config) ? memory : prisma),
     },
     {

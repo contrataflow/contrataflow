@@ -1,6 +1,11 @@
-import { PROCESS_UPDATE_MESSAGES, estimatedValueFromSourceMessage } from '@contrataflow/validation';
+import {
+  PROCESS_ITEM_MESSAGES,
+  PROCESS_UPDATE_MESSAGES,
+  estimatedValueFromSourceMessage,
+} from '@contrataflow/validation';
 import type {
   DuplicateCandidate,
+  ProcessItemReference,
   EstimatedValueSource,
   FieldError,
   ProcessConflictCurrent,
@@ -11,6 +16,7 @@ import type { Counter, Histogram } from '@opentelemetry/api';
 
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
+import { itemsNotEditableMessage } from '../domain/process-items.js';
 import { notEditableStatusMessage } from '../domain/process-update.js';
 import type { ProcessIssue } from '../domain/process.js';
 
@@ -140,4 +146,47 @@ export function recordProcessUpdateConflict(): void {
       description: 'Edições do processo recusadas por conflito de versão (412).',
     });
   conflictCounter.add(1);
+}
+
+/* US-006 — itens da contratação (api/02-processes.md PRC-13..17 · "Casos de erro" da story). */
+
+/** 404 `NOT_FOUND` de PRC-15/16: item inexistente, excluído, de outro tenant ou não visível. */
+export function processItemNotFound(): ApiError {
+  return new ApiError('NOT_FOUND', { detail: 'Item não encontrado.' });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-PROC-71 · FA-07) com a mensagem dos itens. */
+export function processItemsNotEditable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: itemsNotEditableMessage(status),
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (POL-01 · FA-07), auditado como `access.denied`. */
+export function processItemsNotCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: PROCESS_ITEM_MESSAGES.notCustodian,
+    auditDenial: true,
+  });
+}
+
+/** 412 `VERSION_CONFLICT` (RN-PROC-81 · FA-08): a lista de itens mudou. */
+export function processItemsVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    title: 'Lista de itens desatualizada',
+    detail: PROCESS_ITEM_MESSAGES.stale,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `ITEM_IN_USE` (RN-PROC-76/79 · FA-01/FA-04) com os documentos em `meta.references`. */
+export function processItemInUse(
+  sequence: number,
+  references: readonly ProcessItemReference[],
+): ApiError {
+  return new ApiError('ITEM_IN_USE', {
+    detail: `O item ${String(sequence)} está em documentos do processo.`,
+    extensions: { meta: { references } },
+  });
 }

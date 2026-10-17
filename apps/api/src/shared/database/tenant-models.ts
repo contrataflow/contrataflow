@@ -31,6 +31,7 @@ export const TENANT_SCOPED_MODELS = [
   'Process',
   'ProcessAccess',
   'ProcessAssignment',
+  'ProcessItem',
   'ProcessMovement',
   'ProcessStage',
   'ProcessTimelineEntry',

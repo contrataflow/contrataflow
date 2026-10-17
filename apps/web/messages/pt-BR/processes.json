@@ -309,7 +309,6 @@
       "count": "{label} ({count})",
       "soon": {
         "documentos": "A lista completa de documentos do processo estará disponível em breve. Os documentos atuais aparecem no Resumo.",
-        "itens": "A gestão de itens do processo estará disponível em breve.",
         "tramitacao": "O histórico de tramitação estará disponível em breve. As passagens por etapa aparecem no stepper.",
         "comentarios": "Os comentários do processo estarão disponíveis em breve.",
         "participantes": "A gestão de participantes estará disponível em breve."

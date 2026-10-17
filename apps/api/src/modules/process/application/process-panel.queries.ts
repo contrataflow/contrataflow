@@ -333,7 +333,12 @@ export class GetProcessSummaryQuery {
         isOverdue: approval.dueAt !== null && approval.dueAt.getTime() < now.getTime(),
         isMine: approval.isMine,
       })),
-      counts: { documents: documents.length, items: 0, comments: 0, participants: 0 },
+      counts: {
+        documents: documents.length,
+        items: runtime.ruleProcess.itemsCount,
+        comments: 0,
+        participants: 0,
+      },
       version: process.version,
     };
     return { summary, rulesEvaluated: rulesOfStage(definition, process.currentWorkflowStageId) };

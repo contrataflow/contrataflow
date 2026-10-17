@@ -91,6 +91,8 @@ export const ERROR_CODES = [
   'UPLOAD_NOT_RECEIVED',
   'ATTACHMENT_NOT_AVAILABLE',
   'STORAGE_QUOTA_EXCEEDED',
+  // US-006: itens da contratação (api.md §2.2 · api/02-processes.md PRC-15/16).
+  'ITEM_IN_USE',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

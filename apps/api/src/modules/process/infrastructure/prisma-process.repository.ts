@@ -422,6 +422,19 @@ export class PrismaProcessRepository implements ProcessRepository {
     }
   }
 
+  async touchProcess(tx: TenantTx, processId: string, at: Date, userId: string): Promise<number> {
+    const rows = await tx.$queryRaw<{ version: number }[]>`
+      UPDATE processes
+         SET version = version + 1, updated_at = ${at}, updated_by_id = ${userId}::uuid
+       WHERE tenant_id = current_setting('app.tenant_id')::uuid
+         AND id = ${processId}::uuid
+         AND deleted_at IS NULL
+      RETURNING version`;
+    const [row] = rows;
+    if (!row) throw new Error('Processo travado não encontrado ao incrementar a versão.');
+    return row.version;
+  }
+
   async syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void> {
     const process = await tx.process.findFirst({
       where: { id: processId },

@@ -545,6 +545,31 @@ function editEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry[] 
 }
 
 /**
+ * MANAGE_ITEMS (US-006 · RN-PROC-71 · FA-07): "Gerenciar itens" com `PROCESS_UPDATE`; desabilitada
+ * com o motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia — a aba Itens fica em modo
+ * leitura com o motivo (a API repete as checagens).
+ */
+function manageItemsEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry[] {
+  if (!viewer.permissions.has('PROCESS_UPDATE')) return [];
+  const reasons: ActionReason[] = [];
+  if (!CUSTODY_STATUSES.has(process.status)) {
+    reasons.push({
+      code: 'INVALID_PROCESS_STATUS',
+      message:
+        process.status === 'AWAITING_APPROVAL'
+          ? 'Itens não podem ser alterados com o processo aguardando aprovação.'
+          : `Itens não podem ser alterados com o processo ${STATUS_LABELS[process.status]}.`,
+    });
+  } else if (!isCustodian(process, viewer)) {
+    reasons.push({
+      code: 'NOT_PROCESS_CUSTODIAN',
+      message: 'Somente quem está com o processo pode alterar os itens.',
+    });
+  }
+  return [entry('MANAGE_ITEMS', 'Gerenciar itens', reasons)];
+}
+
+/**
  * RN-WF-23/24/32: avanços (`FORWARD`/`COMPLETE` por transição, principal primeiro), devoluções
  * (`RETURN` por etapa percorrida) e ciclo de vida. `enabled` ⇔ `reasons` vazio; aviso (`WARNING`)
  * nunca entra em `reasons` (RN-WF-25).
@@ -559,5 +584,6 @@ export function availableActions(
     ...returnEntries(input, viewer, evaluation),
     ...lifecycleEntries(input.process, viewer),
     ...editEntry(input.process, viewer),
+    ...manageItemsEntry(input.process, viewer),
   ];
 }

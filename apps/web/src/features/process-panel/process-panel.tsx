@@ -28,6 +28,7 @@ import { StageStepper } from './stage-stepper';
 import { AttachmentsSection } from '../attachments/attachments-section';
 import { useAvailableActions } from '../process-actions/process-actions.api';
 import { EditProcessSheet } from '../process-edit/edit-process-sheet';
+import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
@@ -195,7 +196,11 @@ export function useStaleProcessRecovery(processId: string) {
 }
 
 /** Conteúdo das abas cujas stories donas ainda não entregaram a lista (carregado sob demanda). */
-function SoonPanel({ tab }: { readonly tab: Exclude<ProcessPanelTab, 'resumo' | 'timeline'> }) {
+function SoonPanel({
+  tab,
+}: {
+  readonly tab: Exclude<ProcessPanelTab, 'resumo' | 'timeline' | 'itens'>;
+}) {
   const t = useTranslations('processes.panel.tabs.soon');
   return <p className="text-sm text-muted-foreground">{t(tab)}</p>;
 }
@@ -263,6 +268,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     );
   } else if (tab === 'timeline') {
     content = <TimelineFeed processId={processId} />;
+  } else if (tab === 'itens') {
+    // US-006: lista canônica de itens (PRC-13..17).
+    content = <ProcessItemsTab processId={processId} />;
   } else {
     content = <SoonPanel tab={tab} />;
   }
@@ -292,6 +300,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         onAction={(action) => {
           // US-005: "Editar dados" abre o painel lateral; as demais ações, os diálogos das stories donas.
           if (action.action === 'EDIT') setEditing(true);
+          // US-006: "Gerenciar itens" leva à aba Itens.
+          else if (action.action === 'MANAGE_ITEMS') changeTab('itens');
           else toast({ title: t('actions.notYet') });
         }}
       />

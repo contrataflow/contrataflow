@@ -57,3 +57,23 @@ export const ProcessUpdated = defineDomainEvent({
   }),
   routingKey: 'process.updated',
 });
+
+/**
+ * `ProcessItemsChanged` (US-006 · PRC-14..17): commit de inclusão, edição, exclusão ou
+ * reordenação de itens. Só ids (`added`/`updated`/`removed` — a reordenação lista os renumerados
+ * em `updated`; a troca de nome de lote, os demais itens do lote) e o total de itens ativos —
+ * nunca descrições nem preços (events.md §1). Consumidores: `TimelineProjector` (`ITEMS_CHANGED`)
+ * no mesmo `tx` e o `BusinessMetricsCollector` (`process.*`) no worker.
+ */
+export const ProcessItemsChanged = defineDomainEvent({
+  eventType: 'ProcessItemsChanged',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    added: z.array(uuid),
+    updated: z.array(uuid),
+    removed: z.array(uuid),
+    itemsCount: z.int().min(0),
+  }),
+  routingKey: 'process.items_changed',
+});

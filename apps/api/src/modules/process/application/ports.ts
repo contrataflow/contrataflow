@@ -3,6 +3,7 @@ import type { DayCountType, ProcessStageStatus, ProcessStatus } from '@contrataf
 import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { ProcessItem } from '../domain/process-items.js';
 import type {
   ProcessListCriteria,
   ProcessListFacts,
@@ -224,6 +225,11 @@ export interface ProcessRepository {
    */
   updateProcess(tx: TenantTx, process: Process, expectedVersion: number): Promise<boolean>;
   /**
+   * US-006 (RN-PROC-81): itens são do agregado — `version + 1`, `updatedAt` e `updatedById` do
+   * processo (já travado pelo chamador). Devolve a nova versão.
+   */
+  touchProcess(tx: TenantTx, processId: string, at: Date, userId: string): Promise<number>;
+  /**
    * RN-PROC-62: concessões `REQUESTING` iguais à secretaria e ao setor solicitantes ATUAIS do
    * processo — revoga (`revokedAt`) as anteriores e concede as novas, no `tx`.
    */
@@ -249,3 +255,40 @@ export interface ProcessRepository {
 }
 
 export const PROCESS_REPOSITORY = Symbol('ProcessRepository');
+
+/** Contagem dos itens ativos para o painel e o `RuleContext` (`itemsCount`/`hasLots` — RN-PROC-82). */
+export interface ProcessItemStats {
+  readonly count: number;
+  readonly hasLots: boolean;
+}
+
+/**
+ * Itens da contratação (US-006 · `process_items`): sempre no `tx` do comando, que já travou o
+ * processo (`lockForUpdate` — serializa inclusões, reordenações e exclusões do mesmo processo).
+ */
+export interface ProcessItemRepository {
+  /** Itens não excluídos do processo, por `sequence`. */
+  listActive(tx: TenantTx, processId: string): Promise<ProcessItem[]>;
+  /** O processo do item não excluído (`null` = inexistente, excluído ou de outro tenant — RLS). */
+  processOf(tx: TenantTx, itemId: string): Promise<string | null>;
+  /** `SELECT … FOR UPDATE` no item não excluído (corrida com a inclusão em documento — RN-PROC-79). */
+  lockItem(tx: TenantTx, itemId: string): Promise<ProcessItem | null>;
+  insert(tx: TenantTx, item: ProcessItem): Promise<void>;
+  /** Grava os campos editáveis, `updatedAt`/`updatedById` e `version` de cada item. */
+  update(tx: TenantTx, items: readonly ProcessItem[]): Promise<void>;
+  /** Exclusão lógica (`deletedAt`, `deletedById`, `version + 1`). */
+  softDelete(tx: TenantTx, item: ProcessItem, at: Date, userId: string): Promise<void>;
+  /**
+   * RN-PROC-74: grava os novos números em DUAS fases (negativos → definitivos), sem violar o
+   * índice único parcial de `sequence`; `version + 1` em cada item renumerado.
+   */
+  resequence(
+    tx: TenantTx,
+    changes: readonly { readonly id: string; readonly to: number }[],
+    at: Date,
+    userId: string,
+  ): Promise<void>;
+  stats(tx: TenantTx, processId: string): Promise<ProcessItemStats>;
+}
+
+export const PROCESS_ITEM_REPOSITORY = Symbol('ProcessItemRepository');

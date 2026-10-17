@@ -1347,6 +1347,61 @@ model Process {
   @@map("processes")
 }
 
+/// entities.md §2 — `ItemKind` (natureza do item — US-006).
+enum ItemKind {
+  GOOD
+  SERVICE
+  ENGINEERING_SERVICE
+  WORK
+
+  @@map("item_kind")
+}
+
+/// entities.md §2 — `ItemCatalogSystem` (CATMAT/CATSER — art. 19, II).
+enum ItemCatalogSystem {
+  CATMAT
+  CATSER
+  OTHER
+
+  @@map("item_catalog_system")
+}
+
+/// entities.md §4.4 `ProcessItem` (US-006 · DEC-019): item canônico da contratação. Índice único
+/// parcial `(tenant_id, process_id, sequence) WHERE deleted_at IS NULL`, FKs compostas (processo,
+/// unidade de medida e documentos de origem), checks, gatilho de colunas imutáveis e RLS ficam em
+/// SQL bruto na migração. Exclusão só lógica (RN-PROC-79).
+model ProcessItem {
+  id                                 String             @id @db.Uuid
+  tenantId                           String             @map("tenant_id") @db.Uuid
+  processId                          String             @map("process_id") @db.Uuid
+  sequence                           Int
+  lotNumber                          Int?               @map("lot_number")
+  lotName                            String?            @map("lot_name") @db.VarChar(150)
+  kind                               ItemKind
+  description                        String             @db.VarChar(2000)
+  unitOfMeasureId                    String             @map("unit_of_measure_id") @db.Uuid
+  catalogSystem                      ItemCatalogSystem? @map("catalog_system")
+  catalogCode                        String?            @map("catalog_code") @db.VarChar(30)
+  referenceQuantity                  Decimal?           @map("reference_quantity") @db.Decimal(18, 4)
+  referenceQuantitySourceDocumentId  String?            @map("reference_quantity_source_document_id") @db.Uuid
+  referenceUnitPrice                 Decimal?           @map("reference_unit_price") @db.Decimal(18, 4)
+  referenceUnitPriceSourceDocumentId String?            @map("reference_unit_price_source_document_id") @db.Uuid
+  notes                              String?
+  createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                        String?            @map("created_by_id") @db.Uuid
+  updatedById                        String?            @map("updated_by_id") @db.Uuid
+  deletedAt                          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  deletedById                        String?            @map("deleted_by_id") @db.Uuid
+  version                            Int                @default(1)
+
+  @@unique([tenantId, id], map: "process_items_tenant_id_id_key")
+  // Parcial na migração (`WHERE deleted_at IS NULL`).
+  @@index([tenantId, processId, sequence], map: "process_items_sequence_key")
+  @@index([tenantId, processId], map: "process_items_process_idx")
+  @@map("process_items")
+}
+
 /// entities.md §4.4 `ProcessStage`: cada passagem por uma etapa do workflow (uma ACTIVE por processo).
 model ProcessStage {
   id                    String             @id @db.Uuid

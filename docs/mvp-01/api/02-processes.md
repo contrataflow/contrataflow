@@ -391,11 +391,13 @@ TimelineEntry { id: string; occurredAt: string; type: string; actorType: ActorTy
 - **Response:** `200 { data: ProcessItem[] }` + `ETag`:
 ```ts
 ProcessItem {
-  id: string; sequence: number; lotNumber?: number; lotName?: string;
+  id: string; processId: string; sequence: number; lotNumber: number | null; lotName: string | null;
   kind: ItemKind; description: string; unitOfMeasure: { id: string; label: string };
-  catalogSystem?: ItemCatalogSystem; catalogCode?: string; notes?: string;
-  referenceQuantity?: string; referenceQuantitySourceDocumentId?: string;
-  referenceUnitPrice?: string | null; referenceUnitPriceMasked: boolean; referenceUnitPriceSourceDocumentId?: string;
+  catalogSystem: ItemCatalogSystem | null; catalogCode: string | null; notes: string | null;
+  referenceQuantity: string | null; referenceQuantitySourceDocumentId: string | null;
+  referenceUnitPrice: string | null; referenceUnitPriceMasked: boolean; referenceUnitPriceSourceDocumentId: string | null;
+  references: { documentId: string; code: string; typeCode: string; status: string; editable: boolean }[]; // documentos/pesquisas que usam o item (FA-01/03/04)
+  version: number; // If-Match de PRC-15/PRC-16
 }
 ```
 - **Erros:**
@@ -405,7 +407,7 @@ ProcessItem {
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
 
 - **Efeitos:** —
-- **Notas:** `referenceUnitPriceMasked` segue POL-09 (RN-PROC-84).
+- **Notas:** `referenceUnitPriceMasked` segue POL-09 (RN-PROC-84): processo sigiloso sem POL-09 → `referenceUnitPrice: null` e `referenceUnitPriceMasked: true` em todos os itens (mesmo sem preço, para não revelar se há valor). `references` vem dos leitores registrados na porta `ProcessItemUsageRegistry` (US-006) pelos donos de `DocumentItem`/`PriceItem`.
 
 ### PRC-14 — Adicionar item ao processo
 `POST /api/v1/processes/{id}/items` · **Permissão:** `PROCESS_UPDATE` + POL-01 · **Story:** US-006

@@ -38,6 +38,7 @@ export const DOMAIN_EVENT_NAMES = [
   'MembershipRevoked',
   'ProcessCreated',
   'ProcessUpdated',
+  'ProcessItemsChanged',
   'DocumentCreated',
   'DocumentVersionCreated',
   'DocumentSubmitted',

@@ -174,6 +174,15 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return Promise.resolve(true);
   }
 
+  touchProcess(_tx: TenantTx, processId: string, at: Date, userId: string): Promise<number> {
+    const current = this.processes.get(processId);
+    if (current?.tenantId !== tenantOfContext())
+      return Promise.reject(new Error('processo ausente'));
+    const version = current.version + 1;
+    this.processes.set(processId, { ...current, version, updatedAt: at, updatedById: userId });
+    return Promise.resolve(version);
+  }
+
   async syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void> {
     const process = this.processes.get(processId);
     if (process?.tenantId !== tenantOfContext()) return;

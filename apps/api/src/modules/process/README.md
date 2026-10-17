@@ -64,6 +64,32 @@ Processo, itens, participantes, etiquetas, runtime da tramitação e visibilidad
 - **Testes:** `domain/process-update.spec.ts`, `presentation/process-update.routes.spec.ts` e
   `test/tenant-leak/process-update.spec.ts` (PostgreSQL: rollback induzido, `FOR UPDATE` × encaminhamento).
 
+## Itens da contratação (US-006)
+
+- **Rotas:** PRC-13 `GET /processes/{id}/items` (`ETag` = versão do PROCESSO), PRC-14 `POST
+/processes/{id}/items` (`@Idempotent`), PRC-17 `POST /processes/{id}/items/reorder` (`If-Match` =
+  versão do processo) e PRC-15/16 `PATCH`/`DELETE /process-items/{itemId}` (`If-Match` = versão do
+  item) — `ProcessItemsController`. Ids malformados → 400 `MALFORMED_REQUEST`. Contratos e
+  `ProcessItemsChanged` em `packages/validation/src/process/process-items.ts`/`events.ts`.
+- **Casos de uso:** `application/process-items.commands.ts` (`process.items_change`) sobre a guarda
+  `ProcessItemsGate` (`lockForUpdate` do processo → visibilidade → `PROCESS_UPDATE` cobrindo o
+  processo → status editável → custódia POL-01; item de outro tenant = 404 `NOT_FOUND`), domínio
+  puro em `domain/process-items.ts` (numeração máximo + 1, `resolveLot` = LotNamePolicy, reordenação,
+  diff), `touchProcess` (`version + 1` do processo a cada alteração) e `ProcessItemsChangeRecorder`
+  (auditoria `process.items_update` com descrição/observações como hash + tamanho e o evento, que
+  projeta a timeline `ITEMS_CHANGED` no mesmo `tx`). A renumeração grava em duas fases (negativos →
+  definitivos) por causa do índice único parcial de `sequence`.
+- **Uso do item (RN-PROC-76/79):** porta `#shared/process/process-item-usage.ts`
+  (`ProcessItemUsageRegistry`): os donos de `DocumentItem`/`PriceItem` registram leitores no
+  `onModuleInit` (devem validar o item com `FOR SHARE` ao referenciá-lo — a exclusão trava o item com
+  `FOR UPDATE`). Sem leitor (até US-014/US-024), nenhum item está em uso.
+- **Painel:** `RuleContext.process.itemsCount`/`hasLots` e `counts.items` do PRC-07 vêm de
+  `ProcessItemRepository.stats`; PRC-08 emite `MANAGE_ITEMS` ("Gerenciar itens") com o motivo de
+  modo leitura.
+- **Testes:** `domain/process-items.spec.ts`, `presentation/process-items.routes.spec.ts` e
+  `test/tenant-leak/process-items.spec.ts` (PostgreSQL: 20 inclusões paralelas, duas fases, rollback,
+  RLS e FK composta).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

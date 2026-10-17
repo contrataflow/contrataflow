@@ -209,6 +209,8 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       'CANCEL',
       // US-005: "Editar dados" (PROCESS_UPDATE + POL-01).
       'EDIT',
+      // US-006: "Gerenciar itens" (PROCESS_UPDATE + POL-01).
+      'MANAGE_ITEMS',
     ]);
 
     const { violations } = processChecklistSchema.parse(data<ProcessChecklist>(checklistResponse));

@@ -410,6 +410,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Limite de armazenamento atingido',
     detail: 'O órgão atingiu o limite de armazenamento de arquivos.',
   },
+  ITEM_IN_USE: {
+    status: 409,
+    title: 'Item em uso',
+    detail: 'Este item está em uso em documentos do processo.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

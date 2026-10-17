@@ -2,10 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { PROCESS_REPOSITORY } from './ports.js';
+import { PROCESS_ITEM_REPOSITORY, PROCESS_REPOSITORY } from './ports.js';
 import type {
   ProcessAccessRow,
   ProcessAggregateRows,
+  ProcessItemRepository,
   ProcessRepository,
   ProcessRuntimeReader,
 } from './ports.js';
@@ -47,6 +48,7 @@ export function accessGrantsOf(
 export class ProcessRuntimeLoader implements ProcessRuntimeReader {
   constructor(
     @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
+    @Inject(PROCESS_ITEM_REPOSITORY) private readonly items: ProcessItemRepository,
     private readonly catalog: CatalogFacade,
     private readonly tenancy: TenancyFacade,
   ) {}
@@ -60,6 +62,8 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
   async fromAggregate(tx: TenantTx, rows: ProcessAggregateRows): Promise<ProcessRuntime> {
     const { process } = rows;
     const settings = await this.tenancy.settingValues(tx, [HISTORICAL_SETTING]);
+    // RN-PROC-82: `itemsCount`/`hasLots` refletem os itens ativos nas avaliações (US-006).
+    const items = await this.items.stats(tx, process.id);
     const codeOf = async (id: string | null) =>
       id === null ? null : ((await this.catalog.find(tx, id))?.code ?? null);
     return {
@@ -87,8 +91,8 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
         tags: [],
         targetDate: process.targetDate,
         year: process.year,
-        itemsCount: 0,
-        hasLots: false,
+        itemsCount: items.count,
+        hasLots: items.hasLots,
       },
       passes: rows.stages.map((stage) => ({
         processStageId: stage.id,

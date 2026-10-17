@@ -121,6 +121,9 @@ const PROCESS_ROUTE =
 const PROCESS_UPDATE_ROUTE =
   'Edição do processo (US-005): a suíte genérica não tem processo do tenant B. O isolamento (PATCH com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, unidade/catálogo de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS de processes/process_access) é coberto em test/tenant-leak/process-update.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-update.routes.spec.ts.';
 
+const PROCESS_ITEMS_ROUTE =
+  'Itens do processo (US-006): a suíte genérica não tem processo nem item do tenant B. O isolamento (PRC-13/14/17 com id de processo de B → 404 PROCESS_NOT_FOUND, PRC-15/16 com id de item de B → 404 NOT_FOUND sem alterar nada, unidade de medida de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de process_items) é coberto em test/tenant-leak/process-items.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-items.routes.spec.ts.';
+
 const AUDIT_SEAL_ROUTE =
   'Selos de integridade (US-074): a suíte genérica não tem trilha nem selos do tenant B. O isolamento (AUD-04 listando só os selos do tenant, AUD-05 sobre intervalo que só tem selo de B → 404 NOT_FOUND e RLS de audit_seals com app.tenant_id diferente) é coberto em test/tenant-leak/audit-seals.spec.ts, e a selagem só com os registros do tenant do job em apps/worker/test/tenant-leak/audit-sealer.spec.ts, com PostgreSQL real.';
 
@@ -241,6 +244,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-10': { kind: 'exempt', reason: PROCESS_PANEL_ROUTE },
   'PRC-12': { kind: 'exempt', reason: PROCESS_TIMELINE_ROUTE },
+  'PRC-13': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'PRC-14': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'PRC-15': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'PRC-16': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'PRC-17': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-08': { kind: 'exempt', reason: DOCUMENT_ROUTE },

@@ -127,10 +127,14 @@ export const NAO_PREVISTA = catalogItem(
 );
 export const PLANO_ANUAL = catalogItem(222, 'PROCESS_ORIGIN', 'PLANO_ANUAL', 'Plano anual');
 
+export const UNIDADE = catalogItem(231, 'UNIT_OF_MEASURE', 'UN', 'Unidade');
+export const METRO_CUBICO = catalogItem(232, 'UNIT_OF_MEASURE', 'M3', 'Metro cúbico');
+
 export const CATALOGS: Partial<Record<CatalogType, CatalogItemDto[]>> = {
   CONTRACTING_TYPE: [AQUISICAO, SERVICOS],
   MODALITY: [PREGAO],
   PROCESS_ORIGIN: [NAO_PREVISTA, PLANO_ANUAL],
+  UNIT_OF_MEASURE: [UNIDADE, METRO_CUBICO],
 };
 
 export const WORKFLOW_RESOLUTION: WorkflowResolutionDto = {
@@ -440,6 +444,8 @@ export interface ProcessApiOptions {
   summary?: Handler;
   stages?: Handler;
   actions?: Handler;
+  /** PRC-13..17 (US-006): `/processes/{id}/items…` e `/process-items/{itemId}`. */
+  items?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -516,6 +522,12 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}/stages`) {
       return respond(options.stages, () => jsonResponse({ data: stagesDto() }));
+    }
+    if (
+      url.includes(`/processes/${PROCESS_ID}/items`) ||
+      url.startsWith('/api/v1/process-items/')
+    ) {
+      return respond(options.items, () => jsonResponse({ data: [] }, { headers: { ETag: '"1"' } }));
     }
     if (url.includes('/available-actions')) {
       return respond(options.actions, () => jsonResponse({ data: [] }));

@@ -364,6 +364,48 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
     });
   });
 
+  describe('MANAGE_ITEMS (US-006 · RN-PROC-71 · FA-07): "Gerenciar itens"', () => {
+    const manage = (process: Partial<EngineProcess>, who: Partial<EngineViewer> = {}) =>
+      actionsOf(
+        availableActions(
+          engineInput(builder, { passes: studies }, process),
+          viewer({ permissions: new Set(['PROCESS_UPDATE']), ...who }),
+        ),
+        'MANAGE_ITEMS',
+      );
+
+    it('sem PROCESS_UPDATE (ex.: participante consultor): a ação não aparece — aba em modo leitura', () => {
+      expect(
+        actionsOf(
+          availableActions(engineInput(builder, { passes: studies }), viewer()),
+          'MANAGE_ITEMS',
+        ),
+      ).toEqual([]);
+    });
+
+    it('com custódia em status editável: habilitada', () => {
+      expect(manage({ status: 'RETURNED' })).toEqual([
+        { action: 'MANAGE_ITEMS', label: 'Gerenciar itens', enabled: true, reasons: [] },
+      ]);
+    });
+
+    it.each([
+      ['AWAITING_APPROVAL', 'Itens não podem ser alterados com o processo aguardando aprovação.'],
+      ['CANCELED', 'Itens não podem ser alterados com o processo cancelado.'],
+    ] as const)('%s: desabilitada com o motivo', (status, message) => {
+      expect(manage({ status })[0]?.reasons).toEqual([{ code: 'INVALID_PROCESS_STATUS', message }]);
+    });
+
+    it('sem custódia: NOT_PROCESS_CUSTODIAN com a mensagem dos itens', () => {
+      expect(manage({ currentResponsibleId: CREATOR_ID })[0]?.reasons).toEqual([
+        {
+          code: 'NOT_PROCESS_CUSTODIAN',
+          message: 'Somente quem está com o processo pode alterar os itens.',
+        },
+      ]);
+    });
+  });
+
   it('ordem: avanços (principal primeiro), devoluções e ciclo de vida', () => {
     const input = engineInput(builder, { passes: studies, documents: [etp('FINALIZED', true)] });
     expect(availableActions(input, viewer()).map((entry) => entry.action)).toEqual([
