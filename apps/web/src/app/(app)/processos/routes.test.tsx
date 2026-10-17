@@ -12,8 +12,9 @@ configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/processos/novo',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 afterEach(() => {
@@ -37,7 +38,8 @@ describe('rotas de processo (US-001)', () => {
   it('/processos/[id] busca o processo pelo id da rota (SCR-006)', async () => {
     const api = mockProcessApi();
     renderWithShell(await ProcessDetailPage({ params: Promise.resolve({ id: PROCESS_ID }) }));
-    expect(await screen.findByText('Elabore o DFD para formalizar a demanda.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Onde está' })).toBeTruthy();
     expect(callsTo(api, 'GET', `/api/v1/processes/${PROCESS_ID}`)).toHaveLength(1);
+    expect(callsTo(api, 'GET', `/api/v1/processes/${PROCESS_ID}/summary`)).toHaveLength(1);
   });
 });

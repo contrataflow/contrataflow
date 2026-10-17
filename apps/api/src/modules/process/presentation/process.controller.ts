@@ -5,20 +5,28 @@ import {
   duplicateCheckResultSchema,
   processIdParamsSchema,
   processListQuerySchema,
+  processDetailMetaSchema,
   processListResponseSchema,
   processSchema,
+  processStageEntrySchema,
+  processSummarySchema,
 } from '@contrataflow/validation';
 import type {
   CheckDuplicateProcesses,
   CreateProcess,
   DuplicateCheckResult,
+  ProcessDetailMeta,
   ProcessDto,
   ProcessListItemDto,
   ProcessListQuery,
+  ProcessStageEntryDto,
+  ProcessSummaryDto,
 } from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Param, Post, Res } from '@nestjs/common';
+import { z } from 'zod';
 
 import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
+import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
 import { PageResult } from '#shared/http/pagination.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
@@ -28,6 +36,10 @@ import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateProcessCommand } from '../application/create-process.command.js';
 import { ListProcessesHandler } from '../application/list-processes.query.js';
+import {
+  GetProcessSummaryQuery,
+  ListProcessStagesQuery,
+} from '../application/process-panel.queries.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
 
 const TAGS = ['Processos'];
@@ -42,9 +54,19 @@ function ProcessId(): ParameterDecorator {
   };
 }
 
+/** DEC-024 · RN-PROC-47: a visibilidade (inclusive concessão própria) é conferida no caso de uso. */
+const PANEL_ACCESS =
+  'Detalhe e painel do processo (US-004 · DEC-024): PROCESS_VIEW com escopo que cubra o processo, concessão USER (criador, responsável, aprovador) ou participação ativa, conferidos no caso de uso sobre o runtime do mesmo tx; não visível = 404 PROCESS_NOT_FOUND igual ao inexistente, sem access.denied.';
+
+/** Resposta personalizada e mutável: nenhum cache intermediário (US-004 · "Impacto técnico"). */
+function noStore(response: HttpResponse): void {
+  response.setHeader('Cache-Control', 'no-store');
+}
+
 /**
- * Processos de contratação (api/02-processes.md · US-001/US-002): PRC-01 (listar), PRC-02 (criar), PRC-03 (verificar
- * duplicidade) e PRC-04 (detalhe mínimo para o painel SCR-006 — completado pela US-004).
+ * Processos de contratação (api/02-processes.md · US-001/US-002/US-004): PRC-01 (listar), PRC-02
+ * (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-07
+ * (painel situacional) e PRC-10 (etapas e passagens do stepper).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -56,6 +78,8 @@ export class ProcessController {
     private readonly duplicates: CheckDuplicateProcessesQuery,
     private readonly detail: GetProcessQuery,
     private readonly list: ListProcessesHandler,
+    private readonly summary: GetProcessSummaryQuery,
+    private readonly stages: ListProcessStagesQuery,
   ) {}
 
   @Get()
@@ -136,7 +160,7 @@ export class ProcessController {
   }
 
   @Get(':id')
-  @RequirePermission('PROCESS_VIEW', { scope: { processParam: 'id' } })
+  @ImplicitAccess(PANEL_ACCESS)
   @ApiOperation({
     operationId: 'PRC-04',
     summary: 'Obter detalhe do processo',
@@ -144,17 +168,64 @@ export class ProcessController {
     responses: {
       200: {
         description:
-          'Processo visível ao usuário (DEC-024 — `ETag` = versão); não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`.',
-        schema: dataEnvelope(processSchema),
+          'Processo visível ao usuário (DEC-024 — `ETag` = versão), com o valor sigiloso mascarado pela POL-09 e `meta.allowedActions` (ações habilitadas do motor); não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`. Valor sigiloso entregue = `process.confidential_view` (1× por sessão).',
+        schema: z.object({ data: processSchema, meta: processDetailMetaSchema }),
       },
     },
   })
   async getProcess(
     @ProcessId() id: string,
     @Res({ passthrough: true }) response: HttpResponse,
-  ): Promise<ProcessDto> {
-    const process = await this.detail.execute(id);
+  ): Promise<DataResult<ProcessDto, ProcessDetailMeta>> {
+    const { process, allowedActions } = await this.detail.execute(id);
     response.setHeader('ETag', `"${process.version}"`);
-    return process;
+    noStore(response);
+    return new DataResult(process, { allowedActions });
+  }
+
+  @Get(':id/summary')
+  @ImplicitAccess(PANEL_ACCESS)
+  @ApiOperation({
+    operationId: 'PRC-07',
+    summary: 'Obter painel situacional do processo',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'As 7 perguntas de DEC-180 (onde está, responsável, o que falta, próximo passo, prazos, documentos e aprovações pendentes), o cabeçalho e os contadores das abas, num instante único (`REPEATABLE READ`). Valor sigiloso mascarado (POL-09) e documentos `RESTRICTED` sem link para quem não atende; não visível = 404 `PROCESS_NOT_FOUND`.',
+        schema: dataEnvelope(processSummarySchema),
+      },
+    },
+  })
+  async getSummary(
+    @ProcessId() id: string,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessSummaryDto> {
+    const summary = await this.summary.execute(id);
+    noStore(response);
+    return summary;
+  }
+
+  @Get(':id/stages')
+  @ImplicitAccess(PANEL_ACCESS)
+  @ApiOperation({
+    operationId: 'PRC-10',
+    summary: 'Listar etapas e passagens do processo',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Etapas da versão de workflow fixada no processo, em `displayOrder`, com o status da última passagem (`null` = não percorrida) e todas as passagens (idas e voltas). A etapa `END` só aparece concluída com o processo `COMPLETED`.',
+        schema: dataEnvelope(z.array(processStageEntrySchema)),
+      },
+    },
+  })
+  async listStages(
+    @ProcessId() id: string,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessStageEntryDto[]> {
+    const stages = await this.stages.execute(id);
+    noStore(response);
+    return stages;
   }
 }

@@ -1,4 +1,8 @@
-import { inspectJsonLogic, isRuleContextPath } from '@contrataflow/validation';
+import {
+  RULE_EVALUATION_FAILED_MESSAGE,
+  inspectJsonLogic,
+  isRuleContextPath,
+} from '@contrataflow/validation';
 import type {
   ActionEntry,
   ActionReason,
@@ -120,7 +124,11 @@ const LIFECYCLE_LABELS: Readonly<Record<LifecycleAction, string>> = {
   CANCEL: 'Cancelar processo',
 };
 
-export const NOT_CUSTODIAN_MESSAGE = 'Você não é o responsável atual pelo processo.';
+/** V-03 da US-004: "Somente quem está com o processo pode {ação}." */
+export function notCustodianMessage(action: 'FORWARD' | 'COMPLETE' | 'RETURN'): string {
+  const verb = { FORWARD: 'encaminhá-lo', COMPLETE: 'concluí-lo', RETURN: 'devolvê-lo' }[action];
+  return `Somente quem está com o processo pode ${verb}.`;
+}
 
 const compare = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
 
@@ -279,10 +287,11 @@ function violationParams(rule: WorkflowSnapshotRule): Record<string, unknown> {
 export function checklistOf(evaluation: StageEvaluation): ChecklistViolation[] {
   const violations = evaluation.results
     .filter(({ outcome }) => !outcome.satisfied)
-    .map(({ rule, transition }): ChecklistViolation => ({
+    .map(({ rule, transition, outcome }): ChecklistViolation => ({
       code: 'WORKFLOW_RULE',
       severity: rule.severity,
-      message: rule.message,
+      // FA-10 (US-004): regra não avaliável mostra a mensagem padrão, nunca a configurada.
+      message: outcome.problem === undefined ? rule.message : RULE_EVALUATION_FAILED_MESSAGE,
       ruleId: rule.id,
       sectionKey: null,
       field:
@@ -295,6 +304,7 @@ export function checklistOf(evaluation: StageEvaluation): ChecklistViolation[] {
       type: rule.type,
       satisfied: false,
       scope: rule.scope,
+      ...(outcome.problem === undefined ? {} : { evaluationFailed: true }),
       ...(transition === null
         ? {}
         : { transitionId: transition.id, transitionKey: transition.key }),
@@ -318,11 +328,15 @@ const statusReason = (status: ProcessStatus): ActionReason => ({
 });
 
 /** Motivos comuns às ações de tramitação: status (POL-01) e custódia. */
-function custodyReasons(process: EngineProcess, viewer: EngineViewer): ActionReason[] {
+function custodyReasons(
+  process: EngineProcess,
+  viewer: EngineViewer,
+  action: 'FORWARD' | 'COMPLETE' | 'RETURN',
+): ActionReason[] {
   const reasons: ActionReason[] = [];
   if (!CUSTODY_STATUSES.has(process.status)) reasons.push(statusReason(process.status));
   if (!isCustodian(process, viewer)) {
-    reasons.push({ code: 'NOT_PROCESS_CUSTODIAN', message: NOT_CUSTODIAN_MESSAGE });
+    reasons.push({ code: 'NOT_PROCESS_CUSTODIAN', message: notCustodianMessage(action) });
   }
   return reasons;
 }
@@ -365,7 +379,14 @@ function advanceEntries(
       entry(
         transition.action === 'COMPLETE' ? 'COMPLETE' : 'FORWARD',
         transition.name,
-        [...custodyReasons(process, viewer), ...blockingReasons(evaluation, transition)],
+        [
+          ...custodyReasons(
+            process,
+            viewer,
+            transition.action === 'COMPLETE' ? 'COMPLETE' : 'FORWARD',
+          ),
+          ...blockingReasons(evaluation, transition),
+        ],
         {
           transitionKey: transition.key,
           toStageKey: transition.toStageKey,
@@ -415,7 +436,7 @@ function returnEntries(
     if (!traversed.has(transition.toStageId) || seen.has(transition.toStageId)) continue;
     seen.add(transition.toStageId);
     entries.push(
-      entry('RETURN', transition.name, custodyReasons(process, viewer), {
+      entry('RETURN', transition.name, custodyReasons(process, viewer, 'RETURN'), {
         transitionKey: transition.key,
         toStageKey: transition.toStageKey,
         requiresComment: transition.requiresComment,

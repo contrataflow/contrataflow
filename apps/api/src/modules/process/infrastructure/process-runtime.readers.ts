@@ -68,4 +68,8 @@ export class InMemoryProcessTransactions implements ProcessTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return runSimulatedTransaction(work);
   }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return runSimulatedTransaction(work);
+  }
 }

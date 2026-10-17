@@ -171,24 +171,120 @@
     "loading": "Carregando o processo…",
     "noNumber": "Rascunho (sem número)",
     "backToList": "Processos",
-    "priority": "Prioridade {priority}",
+    "header": {
+      "estimatedValue": "Valor estimado",
+      "valueSource": "Origem: {source}",
+      "sources": {
+        "MANUAL": "Manual",
+        "DFD": "DFD",
+        "ETP": "ETP",
+        "PRICE_RESEARCH": "Pesquisa de preços",
+        "TERM": "TR"
+      },
+      "organization": "Órgão: {name}",
+      "tags": "Etiquetas"
+    },
+    "actions": {
+      "label": "Ações do processo",
+      "more": "Mais",
+      "moreLabel": "Mais ações do processo",
+      "withResponsible": "Com {name} — {department}",
+      "inQueue": "Na fila de {department}",
+      "readOnly": "Processo em modo leitura.",
+      "seePending": "Ver pendências",
+      "blockedHint": "{action} — {reason}",
+      "verbs": {
+        "FORWARD": "Encaminhar",
+        "COMPLETE": "Concluir",
+        "CLAIM": "Assumir",
+        "RESUME": "Retomar",
+        "DECIDE_APPROVAL": "Decidir aprovação"
+      },
+      "unavailable": "Indisponível: {reasons}",
+      "notYet": "Esta ação abre o diálogo próprio, ainda não disponível nesta versão.",
+      "stale": "Exibindo dados de {time}. Não foi possível atualizar.",
+      "conflict": "Este processo foi atualizado por outra pessoa."
+    },
     "where": {
       "title": "Onde está",
-      "stage": "Etapa atual",
-      "department": "Unidade",
-      "responsible": "Responsável",
-      "dueAt": "Prazo da etapa",
-      "targetDate": "Prazo alvo",
+      "summary": "{stage} — {department} — {status}",
       "noStage": "O processo ainda não tem uma etapa ativa.",
-      "noResponsible": "Sem responsável definido",
-      "noDueAt": "Sem prazo definido"
+      "suspended": "Suspenso em {date} — motivo: {reason}",
+      "completed": "{stage} em {date}",
+      "canceled": "Cancelado em {date} — motivo: {reason}",
+      "group": "Fase: {group}"
+    },
+    "responsible": {
+      "title": "Responsável",
+      "since": "desde {date}",
+      "queue": "Na fila de {department}",
+      "awaiting": "Aguardando decisão de {name}",
+      "none": "Sem responsável definido"
+    },
+    "pending": {
+      "title": "O que falta",
+      "counts": "{blocking, plural, =0 {Nenhuma pendência obrigatória} one {# pendência obrigatória} other {# pendências obrigatórias}} e {warnings, plural, =0 {nenhuma recomendação} one {# recomendação} other {# recomendações}}",
+      "none": "Nenhuma pendência nesta etapa.",
+      "blocking": "Obrigatória",
+      "warning": "Recomendação",
+      "openDocument": "Abrir documento",
+      "createDocument": "Criar {type}",
+      "restricted": "Documento restrito",
+      "checklist": "Ver checklist completo",
+      "checklistDescription": "Regras da etapa atual e das saídas que ainda não foram cumpridas."
     },
     "next": {
       "title": "Próximo passo",
-      "documents": {
-        "DFD": "Elabore o DFD para formalizar a demanda."
+      "none": "Nenhuma orientação cadastrada para esta etapa.",
+      "instructions": "Orientações da etapa"
+    },
+    "deadlines": {
+      "title": "Prazos",
+      "stage": "Prazo da etapa",
+      "dueAt": "Vence em {date}",
+      "target": "Prazo alvo: {date}",
+      "targetOverdue": "{count, plural, one {Prazo alvo vencido há # dia} other {Prazo alvo vencido há # dias}}",
+      "noTarget": "Sem prazo alvo",
+      "final": "Processo encerrado — sem prazos em curso."
+    },
+    "documents": {
+      "title": "Documentos",
+      "empty": "Nenhum documento ainda",
+      "create": "Criar DFD",
+      "version": "v{number}",
+      "inApproval": "Em aprovação",
+      "restricted": "Conteúdo restrito (orçamento sigiloso)",
+      "noCode": "Sem número",
+      "item": "{code} — {status}"
+    },
+    "approvals": {
+      "title": "Aprovações pendentes",
+      "empty": "Nenhuma aprovação pendente",
+      "mine": "Aguardando sua decisão",
+      "approver": "Aprovador: {name}",
+      "requestedAt": "Solicitada em {date}",
+      "dueAt": "Prazo: {date}",
+      "overdue": "Atrasada"
+    },
+    "stepper": {
+      "title": "Etapas do processo",
+      "toggle": "Etapas",
+      "current": "etapa atual",
+      "notStarted": "Não percorrida",
+      "statuses": {
+        "ACTIVE": "Em andamento",
+        "COMPLETED": "Concluída",
+        "RETURNED": "Devolvida",
+        "CANCELED": "Cancelada"
       },
-      "none": "Nenhuma orientação cadastrada para esta etapa."
+      "sla": "{days, plural, one {SLA de # dia útil} other {SLA de # dias úteis}}",
+      "slaCalendar": "{days, plural, one {SLA de # dia} other {SLA de # dias}}",
+      "passes": "{count, plural, one {# passagem} other {# passagens}}",
+      "pass": "{sequence}ª passagem — {department}, entrada em {entered}",
+      "exited": "saída em {date}",
+      "assignee": "responsável: {name}",
+      "overridden": "prazo ajustado",
+      "overdue": "atrasada desde {date}"
     },
     "data": {
       "title": "Dados do processo",
@@ -199,14 +295,34 @@
       "workflow": "Fluxo",
       "workflowValue": "{name} (versão {version})",
       "estimatedValue": "Valor estimado",
-      "masked": "Valor restrito",
-      "none": "Não informado",
       "undefinedModality": "A definir"
     },
     "tabs": {
       "label": "Seções do processo",
-      "summary": "Resumo",
-      "timeline": "Timeline"
+      "resumo": "Resumo",
+      "documentos": "Documentos",
+      "itens": "Itens",
+      "tramitacao": "Tramitação",
+      "timeline": "Timeline",
+      "comentarios": "Comentários",
+      "participantes": "Participantes",
+      "count": "{label} ({count})",
+      "soon": {
+        "documentos": "A lista completa de documentos do processo estará disponível em breve. Os documentos atuais aparecem no Resumo.",
+        "itens": "A gestão de itens do processo estará disponível em breve.",
+        "tramitacao": "O histórico de tramitação estará disponível em breve. As passagens por etapa aparecem no stepper.",
+        "comentarios": "Os comentários do processo estarão disponíveis em breve.",
+        "participantes": "A gestão de participantes estará disponível em breve."
+      }
+    },
+    "errors": {
+      "notFound": "Processo não encontrado ou você não tem acesso a ele.",
+      "backToList": "Voltar para Processos",
+      "unavailable": "Não foi possível carregar o processo agora.",
+      "code": "Código: {correlationId}",
+      "retry": "Tentar novamente",
+      "block": "Não foi possível carregar este bloco.",
+      "rateLimited": "Muitas atualizações seguidas. Aguarde alguns segundos."
     }
   }
 }

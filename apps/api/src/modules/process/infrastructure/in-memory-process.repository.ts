@@ -1,4 +1,5 @@
 import { localDateOf } from '@contrataflow/types';
+import type { ProcessStageStatus } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { isProcessVisible } from '#shared/auth/process-access.js';
@@ -16,6 +17,7 @@ import type {
   ProcessAggregateRows,
   ProcessCreation,
   ProcessRepository,
+  ProcessSituationRow,
 } from '../application/ports.js';
 import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
 import {
@@ -31,6 +33,28 @@ import type {
   ProcessStageRecord,
 } from '../domain/process-runtime-records.js';
 import type { Process } from '../domain/process.js';
+
+/**
+ * Passagem guardada: a da criação (`ACTIVE`) ou, como carga de teste, as passagens que a
+ * tramitação (US-047/US-048) ainda vai gravar — concluídas, devolvidas, com prazo sobrescrito.
+ */
+export type StoredStage = Omit<ProcessStageRecord, 'status'> & {
+  readonly status: ProcessStageStatus;
+  readonly exitedAt?: Date | null;
+  readonly dueDateOverridden?: boolean;
+  readonly pausedAt?: Date | null;
+  readonly overdueSince?: Date | null;
+};
+
+const NO_SITUATION: Omit<ProcessSituationRow, 'assignmentSince'> = {
+  statusBeforeSuspension: null,
+  suspensionReason: null,
+  suspendedAt: null,
+  completedAt: null,
+  canceledAt: null,
+  cancellationReason: null,
+  overdueSince: null,
+};
 
 interface StoredAccess extends ProcessAccessRow {
   readonly processId: string;
@@ -60,7 +84,8 @@ function tenantOfContext(): string {
 @Injectable()
 export class InMemoryProcessRepository implements ProcessRepository {
   private readonly processes = new Map<string, Process>();
-  private readonly stages = new Map<string, ProcessStageRecord>();
+  private readonly stages = new Map<string, StoredStage>();
+  private readonly situations = new Map<string, Partial<ProcessSituationRow>>();
   private readonly assignments: ProcessAssignmentRecord[] = [];
   private readonly movements: ProcessMovementRecord[] = [];
   private readonly access: StoredAccess[] = [];
@@ -195,7 +220,9 @@ export class InMemoryProcessRepository implements ProcessRepository {
     const rows = facts.slice(start, start + search.pageSize).map((fact): ProcessListRow => {
       const visible = canView.get(fact.id) ?? false;
       // A passagem gravada pela criação é sempre a ativa (as demais vêm com a US-047).
-      const stage = [...this.stages.values()].find((candidate) => candidate.processId === fact.id);
+      const stage = [...this.stages.values()].find(
+        (candidate) => candidate.processId === fact.id && candidate.status === 'ACTIVE',
+      );
       return {
         id: fact.id,
         organizationId: fact.organizationId,
@@ -254,8 +281,15 @@ export class InMemoryProcessRepository implements ProcessRepository {
         departmentId: stage.departmentId,
         assigneeId: stage.assigneeId,
         enteredAt: stage.enteredAt,
-        exitedAt: null,
+        exitedAt: stage.exitedAt ?? null,
         dueAt: stage.dueAt,
+        slaDays: stage.slaDays,
+        slaType: stage.slaType,
+        dueDateOverridden: stage.dueDateOverridden ?? false,
+        pausedAt:
+          stage.pausedAt ??
+          (stage.status === 'ACTIVE' ? (this.extras.get(processId)?.stagePausedAt ?? null) : null),
+        overdueSince: stage.overdueSince ?? null,
       }));
     const access = this.access
       .filter((row) => row.processId === processId)
@@ -265,7 +299,16 @@ export class InMemoryProcessRepository implements ProcessRepository {
         userId,
         reason,
       }));
-    return Promise.resolve(structuredClone({ process, stages, access }));
+    const active = this.assignments
+      .filter((assignment) => assignment.processId === processId)
+      .at(-1);
+    const situation: ProcessSituationRow = {
+      ...NO_SITUATION,
+      overdueSince: this.extras.get(processId)?.overdueSince ?? null,
+      assignmentSince: active?.startedAt ?? null,
+      ...this.situations.get(processId),
+    };
+    return Promise.resolve(structuredClone({ process, stages, access, situation }));
   }
 
   codes(_tx: TenantTx, processIds: readonly string[]) {
@@ -303,7 +346,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return [...this.processes.values()];
   }
 
-  stagesOf(processId: string): readonly ProcessStageRecord[] {
+  stagesOf(processId: string): readonly StoredStage[] {
     return [...this.stages.values()].filter((stage) => stage.processId === processId);
   }
 
@@ -340,15 +383,26 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.extras.set(processId, { ...(this.extras.get(processId) ?? NO_EXTRAS), ...extras });
   }
 
-  /** Carga de teste: a passagem ativa do processo (SLA da etapa). */
-  seedStage(stage: ProcessStageRecord): void {
+  /** Carga de teste: uma passagem do processo (a ativa com o SLA da etapa, ou já encerrada). */
+  seedStage(stage: StoredStage): void {
     this.stages.set(stage.id, stage);
+  }
+
+  /** Carga de teste: suspensão, conclusão, cancelamento e o início da responsabilidade ativa. */
+  setSituation(processId: string, situation: Partial<ProcessSituationRow>): void {
+    this.situations.set(processId, { ...this.situations.get(processId), ...situation });
+  }
+
+  /** Carga de teste: troca o agregado (reatribuição, suspensão…) como a tramitação faria. */
+  replace(process: Process): void {
+    this.processes.set(process.id, process);
   }
 
   clear(): void {
     this.extras.clear();
     this.processes.clear();
     this.stages.clear();
+    this.situations.clear();
     this.assignments.length = 0;
     this.movements.length = 0;
     this.access.length = 0;

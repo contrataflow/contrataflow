@@ -21,3 +21,13 @@ export function formatDateTime(iso: string, timeZone: string): string {
     timeZone,
   }).format(new Date(iso));
 }
+
+/** Data (sem hora) de um instante no fuso do tenant: "01/10/2026". */
+export function formatDate(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone }).format(new Date(iso));
+}
+
+/** Data civil `YYYY-MM-DD` (sem fuso — DEC-003) como "30/11/2026". */
+export function formatCivilDate(date: string): string {
+  return date.split('-').reverse().join('/');
+}

@@ -176,6 +176,22 @@ export class AccessFacade {
     return role === null ? null : this.forApproval(tx, role);
   }
 
+  /**
+   * Chave e nome dos perfis do tenant da transação (US-004: aprovador designado por perfil no
+   * painel situacional). Perfil inexistente no tenant fica de fora.
+   */
+  async roleSummaries(
+    tx: TenantTx,
+    roleIds: readonly string[],
+  ): Promise<Map<string, { readonly key: string; readonly name: string }>> {
+    const summaries = new Map<string, { readonly key: string; readonly name: string }>();
+    for (const id of new Set(roleIds)) {
+      const role = await this.roles.findById(tx, id);
+      if (role !== null) summaries.set(id, { key: role.key, name: role.name });
+    }
+    return summaries;
+  }
+
   /** Perfil pela chave estável (`AUTORIDADE_COMPETENTE`…) — seeders de outros módulos (US-042). */
   async findRoleByKey(tx: TenantTx, key: string): Promise<RoleForApproval | null> {
     const [role] = await this.roles.findByKeys(tx, [key]);

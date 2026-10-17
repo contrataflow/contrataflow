@@ -83,6 +83,10 @@ class FlakyTransactions implements ProcessTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.run(work);
   }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.run(work);
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- o chamador informa o tipo do corpo

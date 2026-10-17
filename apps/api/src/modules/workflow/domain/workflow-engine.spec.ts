@@ -7,7 +7,7 @@ import {
   checklistOf,
   evaluateStage,
   isCustodian,
-  NOT_CUSTODIAN_MESSAGE,
+  notCustodianMessage,
 } from './workflow-engine.js';
 import {
   DEPARTMENTS,
@@ -215,8 +215,17 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
     const [forward] = actionsOf(actions, 'FORWARD');
     expect(forward).toMatchObject({
       enabled: false,
-      reasons: [{ code: 'NOT_PROCESS_CUSTODIAN', message: NOT_CUSTODIAN_MESSAGE }],
+      reasons: [
+        {
+          code: 'NOT_PROCESS_CUSTODIAN',
+          message: 'Somente quem está com o processo pode encaminhá-lo.',
+        },
+      ],
     });
+    expect(notCustodianMessage('RETURN')).toBe('Somente quem está com o processo pode devolvê-lo.');
+    expect(notCustodianMessage('COMPLETE')).toBe(
+      'Somente quem está com o processo pode concluí-lo.',
+    );
     expect(actionsOf(actions, 'CLAIM')[0]).toMatchObject({
       enabled: false,
       reasons: [{ code: 'PROCESS_ALREADY_ASSIGNED', message: 'O processo já tem um responsável.' }],

@@ -7,6 +7,8 @@ import type {
   OrganizationDto,
   PermissionScopeDto,
   ProcessDto,
+  ProcessStageEntryDto,
+  ProcessSummaryDto,
   WorkflowResolutionDto,
 } from '@contrataflow/validation';
 import { vi } from 'vitest';
@@ -191,6 +193,197 @@ export function processDto(extra: Partial<ProcessDto> = {}): ProcessDto {
   };
 }
 
+export const PLANEJAMENTO = { id: ID(13), name: 'Setor de Planejamento' };
+export const MARCOS = { id: ID(2), name: 'Marcos Vinícius Rocha' };
+export const DFD_ID = ID(501);
+export const ETP_ID = ID(502);
+export const RULE_ETP = ID(601);
+export const RULE_RISK = ID(602);
+
+/** PRC-07 do Background da US-004: 0012/2026 em ESTUDOS_PRELIMINARES com Marcos. */
+export function summaryDto(extra: Partial<ProcessSummaryDto> = {}): ProcessSummaryDto {
+  return {
+    header: {
+      code: '0012/2026',
+      title: 'Aquisição de cimento para manutenção de vias',
+      status: 'IN_PROGRESS',
+      priority: 'HIGH',
+      tags: [],
+      isBudgetConfidential: false,
+      estimatedValue: '85000.00',
+      estimatedValueMasked: false,
+      estimatedValueSource: 'DFD',
+      organization: { id: ORG_MAIN.id, shortName: 'PMSJ' },
+      showOrganization: false,
+    },
+    where: {
+      stage: {
+        key: 'ESTUDOS_PRELIMINARES',
+        name: 'ETP e mapa de riscos',
+        type: 'TASK',
+        groupLabel: 'Planejamento',
+      },
+      department: PLANEJAMENTO,
+      status: 'IN_PROGRESS',
+      statusBeforeSuspension: null,
+      suspensionReason: null,
+      suspendedAt: null,
+      completedAt: null,
+      canceledAt: null,
+      cancellationReason: null,
+    },
+    responsible: {
+      user: { ...MARCOS, jobTitle: 'Analista de Planejamento' },
+      queueDepartment: null,
+      since: '2026-10-01T12:10:00.000Z',
+      approver: null,
+    },
+    pending: {
+      blockingCount: 1,
+      warningCount: 1,
+      items: [
+        {
+          ruleId: RULE_ETP,
+          name: 'ETP completo',
+          type: 'REQUIRED_DOCUMENT',
+          severity: 'BLOCKING',
+          message: 'O ETP deve estar completo.',
+          evaluationFailed: false,
+          link: { documentId: ETP_ID, restricted: false },
+        },
+        {
+          ruleId: RULE_RISK,
+          name: 'Mapa de riscos',
+          type: 'REQUIRED_DOCUMENT',
+          severity: 'WARNING',
+          message: 'Recomenda-se elaborar o mapa de riscos.',
+          evaluationFailed: false,
+          link: { createDocumentTypeCode: 'RISK_MAP' },
+        },
+      ],
+    },
+    nextStep: {
+      action: {
+        action: 'FORWARD',
+        transitionKey: 'ESTUDOS_PARA_PESQUISA',
+        label: 'Encaminhar para Pesquisa de preços',
+        enabled: false,
+        reasons: [
+          { code: 'TRANSITION_BLOCKED', message: 'Há 1 pendência obrigatória nesta etapa.' },
+        ],
+      },
+      instructions: 'Elabore o **ETP** e o mapa de riscos.\n\n- Anexe a pesquisa preliminar',
+    },
+    deadline: {
+      dueAt: '2026-10-08T02:59:59.000Z',
+      slaType: 'BUSINESS',
+      daysLeft: 2,
+      overdueDays: null,
+      isDueSoon: true,
+      isOverdue: false,
+      isPaused: false,
+    },
+    target: { targetDate: '2026-11-30', isOverdue: false, overdueDays: null },
+    documents: [
+      {
+        id: DFD_ID,
+        typeCode: 'DFD',
+        typeName: 'DFD',
+        code: 'DFD 0005/2026',
+        title: 'DFD — cimento',
+        status: 'APPROVED',
+        versionNumber: 2,
+        confidentiality: 'INTERNAL',
+        restricted: false,
+        inApproval: false,
+      },
+      {
+        id: ETP_ID,
+        typeCode: 'ETP',
+        typeName: 'ETP',
+        code: 'ETP 0003/2026',
+        title: 'ETP — cimento',
+        status: 'DRAFT',
+        versionNumber: null,
+        confidentiality: 'INTERNAL',
+        restricted: false,
+        inApproval: false,
+      },
+    ],
+    approvals: [],
+    counts: { documents: 2, items: 3, comments: 5, participants: 1 },
+    version: 9,
+    ...extra,
+  };
+}
+
+type StagePass = ProcessStageEntryDto['passes'][number];
+
+function stagePass(n: number, sequence: number, status: StagePass['status']): StagePass {
+  return {
+    processStageId: ID(800 + n),
+    sequence,
+    status,
+    department: PLANEJAMENTO,
+    assignee: MARCOS,
+    enteredAt: '2026-09-20T12:00:00.000Z',
+    exitedAt: status === 'ACTIVE' ? null : '2026-09-22T12:00:00.000Z',
+    dueAt: null,
+    dueDateOverridden: false,
+    overdueSince: null,
+  };
+}
+
+function stageEntry(
+  n: number,
+  key: string,
+  name: string,
+  groupLabel: string,
+  extra: Partial<ProcessStageEntryDto> = {},
+): ProcessStageEntryDto {
+  return {
+    workflowStageId: ID(700 + n),
+    key,
+    name,
+    type: 'TASK',
+    groupLabel,
+    displayOrder: n,
+    slaDays: 5,
+    slaType: 'BUSINESS',
+    lastPassStatus: null,
+    isCurrent: false,
+    passes: [],
+    ...extra,
+  };
+}
+
+/** PRC-10: devolvido uma vez de APROVACAO_DFD para ABERTURA e depois aprovado. */
+export function stagesDto(): ProcessStageEntryDto[] {
+  return [
+    stageEntry(0, 'ABERTURA', 'Formalização da demanda', 'Demanda', {
+      type: 'START',
+      lastPassStatus: 'COMPLETED',
+      passes: [stagePass(1, 1, 'COMPLETED'), stagePass(3, 3, 'COMPLETED')],
+    }),
+    stageEntry(1, 'APROVACAO_DFD', 'Aprovação da demanda', 'Demanda', {
+      type: 'APPROVAL',
+      lastPassStatus: 'COMPLETED',
+      passes: [stagePass(2, 2, 'RETURNED'), stagePass(4, 4, 'COMPLETED')],
+    }),
+    stageEntry(2, 'ESTUDOS_PRELIMINARES', 'ETP e mapa de riscos', 'Planejamento', {
+      lastPassStatus: 'ACTIVE',
+      isCurrent: true,
+      passes: [stagePass(5, 5, 'ACTIVE')],
+    }),
+    stageEntry(3, 'PESQUISA_PRECOS', 'Pesquisa de preços', 'Planejamento'),
+    stageEntry(4, 'CONCLUSAO', 'Planejamento da contratação concluído', 'Conclusão', {
+      type: 'END',
+      slaDays: null,
+      slaType: null,
+    }),
+  ];
+}
+
 export const CANDIDATE: DuplicateCandidate = {
   id: ID(401),
   code: '0011/2026',
@@ -242,6 +435,9 @@ export interface ProcessApiOptions {
   resolve?: Handler;
   create?: Handler;
   process?: Handler;
+  summary?: Handler;
+  stages?: Handler;
+  actions?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -310,8 +506,14 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}`) {
       return respond(options.process, () => jsonResponse({ data: processDto() }));
     }
+    if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}/summary`) {
+      return respond(options.summary, () => jsonResponse({ data: summaryDto() }));
+    }
+    if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}/stages`) {
+      return respond(options.stages, () => jsonResponse({ data: stagesDto() }));
+    }
     if (url.includes('/available-actions')) {
-      return Promise.resolve(jsonResponse({ data: [] }));
+      return respond(options.actions, () => jsonResponse({ data: [] }));
     }
     return Promise.resolve(problemResponse(404, 'NOT_FOUND'));
   });

@@ -8,16 +8,43 @@ import { PROCESS_ID, mockProcessApi } from '@test/support/process-fixtures';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
 import { TimelineFeed } from './timeline-feed';
-import { ProcessPanel } from '../processes/process-panel';
+import { ProcessPanel } from '../process-panel/process-panel';
 
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 
+/** Navegação simulada: `?aba=` é estado observável (`useSearchParams`) e o roteador o altera. */
+const nav = vi.hoisted(() => {
+  let search = '';
+  const listeners = new Set<() => void>();
+  return {
+    get: () => search,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    replace: (href: string) => {
+      search = href.includes('?') ? (href.split('?')[1] ?? '') : '';
+      listeners.forEach((listener) => {
+        listener();
+      });
+    },
+  };
+});
 const push = vi.fn();
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push, refresh: vi.fn() }),
-  usePathname: () => `/processos/${PROCESS_ID}`,
-}));
+vi.mock('next/navigation', async () => {
+  const React = await import('react');
+  return {
+    useRouter: () => ({ push, replace: nav.replace, refresh: vi.fn() }),
+    usePathname: () => `/processos/${PROCESS_ID}`,
+    useSearchParams: () => {
+      const search = React.useSyncExternalStore(nav.subscribe, nav.get, nav.get);
+      return React.useMemo(() => new URLSearchParams(search), [search]);
+    },
+  };
+});
 
 const NOW = new Date('2026-10-05T15:00:00.000Z');
 const CARLOS = '0192d060-0000-7000-8000-00000000c001';
@@ -303,8 +330,14 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByRole('heading', { level: 3, name: 'Hoje' })).toBeTruthy();
     expect(screen.getByRole('tabpanel', { name: 'Timeline' })).toBeTruthy();
+    expect(nav.get()).toBe('aba=timeline');
     fireEvent.keyDown(tab, { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Tramitação' }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Tramitação' }), { key: 'Home' });
     expect(screen.getByRole('tab', { name: 'Resumo' }).getAttribute('aria-selected')).toBe('true');
+    expect(nav.get()).toBe('');
     expect(await screen.findByRole('heading', { level: 2, name: 'Onde está' })).toBeTruthy();
   });
 });

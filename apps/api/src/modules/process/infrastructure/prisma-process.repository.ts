@@ -1,5 +1,6 @@
 import type {
   CreationChannel,
+  DayCountType,
   EstimatedValueSource,
   PcaStatus,
   Priority,
@@ -28,6 +29,7 @@ import type {
   ProcessAggregateRows,
   ProcessCreation,
   ProcessRepository,
+  ProcessSituationRow,
   ProcessStageRow,
   ProcessTransactions,
 } from '../application/ports.js';
@@ -113,6 +115,14 @@ interface ProcessRow {
   readonly created_by_id: string;
   readonly updated_by_id: string | null;
   readonly version: number;
+  readonly status_before_suspension: ProcessStatus | null;
+  readonly suspension_reason: string | null;
+  readonly suspended_at: Date | null;
+  readonly completed_at: Date | null;
+  readonly canceled_at: Date | null;
+  readonly cancellation_reason: string | null;
+  readonly overdue_since: Date | null;
+  readonly assignment_since: Date | null;
   readonly stages: readonly {
     readonly id: string;
     readonly workflowStageId: string;
@@ -123,6 +133,11 @@ interface ProcessRow {
     readonly enteredAt: string;
     readonly exitedAt: string | null;
     readonly dueAt: string | null;
+    readonly slaDays: number | null;
+    readonly slaType: DayCountType | null;
+    readonly dueDateOverridden: boolean;
+    readonly pausedAt: string | null;
+    readonly overdueSince: string | null;
   }[];
   readonly access: readonly ProcessAccessRow[];
 }
@@ -184,6 +199,24 @@ function toStage(row: ProcessRow['stages'][number]): ProcessStageRow {
     enteredAt: new Date(row.enteredAt),
     exitedAt: row.exitedAt === null ? null : new Date(row.exitedAt),
     dueAt: row.dueAt === null ? null : new Date(row.dueAt),
+    slaDays: row.slaDays,
+    slaType: row.slaType,
+    dueDateOverridden: row.dueDateOverridden,
+    pausedAt: row.pausedAt === null ? null : new Date(row.pausedAt),
+    overdueSince: row.overdueSince === null ? null : new Date(row.overdueSince),
+  };
+}
+
+function toSituation(row: ProcessRow): ProcessSituationRow {
+  return {
+    statusBeforeSuspension: row.status_before_suspension,
+    suspensionReason: row.suspension_reason,
+    suspendedAt: row.suspended_at,
+    completedAt: row.completed_at,
+    canceledAt: row.canceled_at,
+    cancellationReason: row.cancellation_reason,
+    overdueSince: row.overdue_since,
+    assignmentSince: row.assignment_since,
   };
 }
 
@@ -403,12 +436,22 @@ export class PrismaProcessRepository implements ProcessRepository {
              p.pca_status::text AS pca_status, p.pca_year, p.pca_item_code, p.pca_justification,
              p.notes, p.duplicated_from_id, p.created_at, p.updated_at, p.created_by_id,
              p.updated_by_id, p.version,
+             p.status_before_suspension::text AS status_before_suspension, p.suspension_reason,
+             p.suspended_at, p.completed_at, p.canceled_at, p.cancellation_reason, p.overdue_since,
+             (SELECT pa.started_at
+                FROM process_assignments pa
+               WHERE pa.tenant_id = p.tenant_id AND pa.process_id = p.id AND pa.is_active
+               ORDER BY pa.started_at DESC
+               LIMIT 1) AS assignment_since,
              COALESCE((
                SELECT jsonb_agg(jsonb_build_object(
                         'id', s.id, 'workflowStageId', s.workflow_stage_id, 'sequence', s.sequence,
                         'status', s.status, 'departmentId', s.department_id,
                         'assigneeId', s.assignee_id, 'enteredAt', s.entered_at,
-                        'exitedAt', s.exited_at, 'dueAt', s.due_at) ORDER BY s.sequence)
+                        'exitedAt', s.exited_at, 'dueAt', s.due_at, 'slaDays', s.sla_days,
+                        'slaType', s.sla_type, 'dueDateOverridden', s.due_date_overridden,
+                        'pausedAt', s.paused_at, 'overdueSince', s.overdue_since)
+                      ORDER BY s.sequence)
                  FROM process_stages s
                 WHERE s.tenant_id = p.tenant_id AND s.process_id = p.id
              ), '[]'::jsonb) AS stages,
@@ -425,7 +468,12 @@ export class PrismaProcessRepository implements ProcessRepository {
          AND p.deleted_at IS NULL`;
     const [row] = rows;
     if (!row) return null;
-    return { process: toProcess(row), stages: row.stages.map(toStage), access: row.access };
+    return {
+      process: toProcess(row),
+      stages: row.stages.map(toStage),
+      access: row.access,
+      situation: toSituation(row),
+    };
   }
 
   async codes(tx: TenantTx, processIds: readonly string[]) {
@@ -472,5 +520,9 @@ export class PrismaProcessTransactions implements ProcessTransactions {
 
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.transaction.read(work);
+  }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.transaction.snapshot(work);
   }
 }

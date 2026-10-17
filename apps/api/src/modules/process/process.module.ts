@@ -15,6 +15,7 @@ import {
 import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
 
+import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
 import { CreateProcessCommand } from './application/create-process.command.js';
 import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
 import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
@@ -32,6 +33,11 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import {
+  GetProcessSummaryQuery,
+  ListProcessStagesQuery,
+  ProcessPanelReader,
+} from './application/process-panel.queries.js';
 import { ProcessRuntimeLoader } from './application/process-runtime.loader.js';
 import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
@@ -51,7 +57,9 @@ import {
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
 import { ProcessController } from './presentation/process.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { ApprovalModule } from '../approval/approval.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
+import { DocumentModule } from '../document/document.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
@@ -66,14 +74,17 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * exportada. US-002: lista de processos (PRC-01 — `ListProcessesHandler`). US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`),
  * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
  * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
- * sobre a `WorkflowFacade`. US-097: leitor do processo na porta de autorização. US-044: fonte do
+ * sobre a `WorkflowFacade`. US-004: painel situacional (PRC-07/PRC-10 e `meta.allowedActions` de
+ * PRC-04) sobre as fachadas de `workflow`, `document` e `approval`. US-097: leitor do processo na porta de autorização. US-044: fonte do
  * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`. US-065: leitor do processo
  * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento.
  */
 @Module({
   imports: [
     AccessModule,
+    ApprovalModule,
     CatalogModule,
+    DocumentModule,
     IdentityModule,
     OrganizationModule,
     TenancyModule,
@@ -96,6 +107,10 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CheckDuplicateProcessesQuery,
     GetProcessQuery,
     ListProcessesHandler,
+    ProcessPanelReader,
+    GetProcessSummaryQuery,
+    ListProcessStagesQuery,
+    ConfidentialViewRecorder,
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,
     RuleTestProcessReader,

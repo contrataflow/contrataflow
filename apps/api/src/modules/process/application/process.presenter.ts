@@ -179,7 +179,19 @@ export class ProcessPresenter {
     };
   }
 
-  async present(tx: TenantTx, process: Process): Promise<ProcessDto> {
-    return toProcessDto(process, await this.lookups(tx, process));
+  /**
+   * `canSeeConfidentialBudget` informado = POL-09 já resolvida para o processo (escopo que o cubra
+   * ou custódia — US-004); sem ele, a permissão do vínculo (criação — US-001).
+   */
+  async present(
+    tx: TenantTx,
+    process: Process,
+    canSeeConfidentialBudget?: boolean,
+  ): Promise<ProcessDto> {
+    const lookups = await this.lookups(tx, process);
+    return toProcessDto(
+      process,
+      canSeeConfidentialBudget === undefined ? lookups : { ...lookups, canSeeConfidentialBudget },
+    );
   }
 }

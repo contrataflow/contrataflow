@@ -8,14 +8,16 @@ import { Inject, Injectable } from '@nestjs/common';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { validationError } from '#shared/errors/api-error.js';
 
+import { ConfidentialViewRecorder } from './confidential-view.recorder.js';
 import { DuplicateCandidatesFinder } from './duplicate-candidates.js';
-import { PROCESS_CLOCK, PROCESS_REPOSITORY, PROCESS_TRANSACTIONS } from './ports.js';
-import type { ProcessClock, ProcessRepository, ProcessTransactions } from './ports.js';
-import { processNotFoundError } from './process.errors.js';
+import { PROCESS_CLOCK, PROCESS_TRANSACTIONS } from './ports.js';
+import type { ProcessClock, ProcessTransactions } from './ports.js';
+import { ProcessPanelReader } from './process-panel.queries.js';
 import { ProcessPresenter } from './process.presenter.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { duplicateWindowStart } from '../domain/duplicate-detection.js';
+import { allowedActionsOf } from '../domain/process-summary.js';
 
 const WINDOW_SETTING = 'process.duplicateDetectionWindowMinutes';
 
@@ -65,24 +67,37 @@ export class CheckDuplicateProcessesQuery {
 }
 
 /**
- * `GetProcessQuery` — PRC-04 (mínimo da US-001 para o painel SCR-006 após a criação; US-004
- * completa o painel situacional). A visibilidade (DEC-024) já foi conferida pelo guard
+ * `GetProcessQuery` — PRC-04 (US-001 · US-004): o processo com o valor mascarado pela POL-09 (a
+ * mesma regra do resumo — escopo que cubra o processo ou custódia) e `meta.allowedActions` (as
+ * ações habilitadas do motor — api.md §1.5). A visibilidade (DEC-024) já foi conferida pelo guard
  * (`@RequirePermission('PROCESS_VIEW', { scope: { processParam: 'id' } })` → 404
- * `PROCESS_NOT_FOUND`); aqui só se lê e apresenta.
+ * `PROCESS_NOT_FOUND`). Valor sigiloso entregue = `process.confidential_view` (1× por sessão).
  */
 @Injectable()
 export class GetProcessQuery {
   constructor(
     @Inject(PROCESS_TRANSACTIONS) private readonly transactions: ProcessTransactions,
-    @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
     private readonly presenter: ProcessPresenter,
+    private readonly panel: ProcessPanelReader,
+    private readonly confidentialViews: ConfidentialViewRecorder,
   ) {}
 
-  execute(processId: string): Promise<ProcessDto> {
-    return this.transactions.read(async (tx) => {
-      const rows = await this.processes.loadAggregate(tx, processId);
-      if (rows === null) throw processNotFoundError();
-      return this.presenter.present(tx, rows.process);
+  async execute(
+    processId: string,
+  ): Promise<{ readonly process: ProcessDto; readonly allowedActions: string[] }> {
+    const result = await this.transactions.read(async (tx) => {
+      const { rows, runtime, viewer } = await this.panel.load(tx, processId);
+      const actions = await this.panel.actions(tx, runtime, viewer);
+      const approvals = await this.panel.pendingApprovals(tx, processId, viewer);
+      const canSeeBudget = await this.panel.canSeeBudget(rows, runtime);
+      return {
+        process: await this.presenter.present(tx, rows.process, canSeeBudget),
+        allowedActions: allowedActionsOf(actions, approvals),
+      };
     });
+    if (result.process.isBudgetConfidential && !result.process.estimatedValueMasked) {
+      await this.confidentialViews.recordOnce(result.process, 'PRC-04');
+    }
+    return result;
   }
 }

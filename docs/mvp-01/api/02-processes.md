@@ -164,7 +164,7 @@ Esquema de referência `Process` (campos completos): ver exemplo de PRC-02; os d
 | 404 | `PROCESS_NOT_FOUND` | Inexistente, descartado, não visível ou de outro tenant |
 
 - **Efeitos:** Auditoria: `process.confidential_view` (`ACCESS`) na 1ª entrega de valor desmascarado de processo sigiloso por sessão/processo (US-013; `source="PRC-04"`). Processos não visíveis respondem 404 sem `access.denied` (a existência não é revelada).
-- **Notas:** —
+- **Notas:** `meta.allowedActions` = ações habilitadas de PRC-08 para o usuário (mais `DECIDE_APPROVAL` do aprovador designado). Mascaramento pela POL-09 por processo (escopo que o cubra ou custódia — a mesma regra de PRC-07). Visibilidade inclui a concessão `USER` (DEC-024 cond. 4). `Cache-Control: no-store`.
 
 ### PRC-05 — Editar dados do processo
 `PATCH /api/v1/processes/{id}` · **Permissão:** `PROCESS_UPDATE` + POL-01 · **Story:** US-005
@@ -230,18 +230,24 @@ Campos de unidade/órgão só editáveis com processo em `DRAFT`; demais campos 
 - **Response:** `200 { data: { header, where, responsible, pending, nextStep, deadline, target, documents[], approvals[], counts, version } }`:
 ```ts
 {
-  header: { code, title, status, priority, tags: Tag[], isBudgetConfidential, estimatedValue, estimatedValueMasked, estimatedValueSource, organization }; // RN-PROC-54
-  where: { stage: { key, name, type: StageType, groupLabel }, department: {id,name}, status, statusBeforeSuspension, suspensionReason? }; // RN-PROC-48(1)
-  responsible: { user?: {id,name,jobTitle}, queueDepartment?: {id,name}, since: string, approver?: object }; // RN-PROC-48(2)
-  pending: { blockingCount: number; warningCount: number; items: Array<{ ruleId, severity: "BLOCKING"|"WARNING", message, link? }> }; // RN-PROC-51
-  nextStep: { action?: { action, transitionId?, label, available: boolean, reasons: [{code,message}] }, instructions: string }; // RN-PROC-49
-  deadline: /* DTO de PRC-01 */ object; target: { targetDate, isOverdue, overdueDays }; // RN-PROC-53
-  documents: Array<{ id, typeCode, typeName, code, title, status, versionNumber, confidentiality, restricted, inApproval }>; // RN-PROC-48(6)/55
-  approvals: Array<{ id, title, approverLabel, requestedAt, dueAt, isOverdue, isMine }>; // RN-PROC-48(7)
+  header: { code: string|null, title, status, priority, tags: Tag[], isBudgetConfidential, estimatedValue: string|null, estimatedValueMasked, estimatedValueSource|null,
+            organization: { id, shortName }, showOrganization: boolean /* órgão ≠ principal do tenant */ }; // RN-PROC-54
+  where: { stage: { key, name, type: StageType, groupLabel|null } | null, department: {id,name}, status, statusBeforeSuspension|null, suspensionReason|null,
+           suspendedAt|null, completedAt|null, canceledAt|null, cancellationReason|null }; // RN-PROC-48(1) · FA-06/07
+  responsible: { user: {id,name,jobTitle|null} | null, queueDepartment: {id,name} | null, since: string|null /* início da atribuição ativa */,
+                 approver: { approvalId, label, isMine } | null /* só em AWAITING_APPROVAL */ }; // RN-PROC-48(2)
+  pending: { blockingCount: number; warningCount: number;
+             items: Array<{ ruleId, name, type: RuleType, severity: "BLOCKING"|"WARNING", message, evaluationFailed: boolean,
+                            link: { documentId, restricted } | { createDocumentTypeCode } | null }> }; // RN-PROC-51 · FA-10
+  nextStep: { action: { action, transitionKey?, approvalId?, label, enabled: boolean, reasons: [{code,message}] } | null, instructions: string|null }; // RN-PROC-49
+  deadline: /* DTO de PRC-01 */ object | null /* null em status final */; target: { targetDate, isOverdue, overdueDays|null } | null; // RN-PROC-53
+  documents: Array<{ id, typeCode, typeName, code|null, title, status, versionNumber|null, confidentiality, restricted, inApproval }>; // RN-PROC-48(6)/55
+  approvals: Array<{ id, title, approverLabel, requestedAt, dueAt|null, isOverdue, isMine }>; // RN-PROC-48(7)
   counts: { documents, items, comments, participants }; // RN-PROC-57
   version: number;
 }
 ```
+`nextStep.action` segue a nomenclatura de PRC-08 (`enabled`, `transitionKey`); as regras `TRANSITION_BLOCKED` da ação primária chegam como UM motivo com a contagem ("Há 1 pendência obrigatória nesta etapa."). Regra não avaliável (fail-closed) chega com `evaluationFailed = true` e a mensagem padrão "Não foi possível verificar esta regra. Tente novamente ou fale com o administrador.". Leitura em `REPEATABLE READ READ ONLY`; `Cache-Control: no-store`. Visibilidade (RN-PROC-47) conferida no caso de uso, inclusive por concessão `USER` (aprovador designado) — não visível = 404 `PROCESS_NOT_FOUND` sem `access.denied`.
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -291,7 +297,7 @@ ActionEntry {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`
 - **Request:** —
-- **Response:** `200 { data: { violations: Violation[] } }` — `Violation` no formato único de api.md §2.1.2 (`code: "WORKFLOW_RULE"`, `ruleId`, `severity: "BLOCKING"|"WARNING"`, `message`, `sectionKey?`, `field?`, `itemId?`, `params?`); campos adicionais vistos no painel (US-004): `name?`, `type?`, `satisfied?`, `scope?`, `transitionId?`, `transitionKey?`, `link?`. Só regras ativas NÃO satisfeitas (`satisfied: false`): `STAGE_EXIT` da etapa atual e `TRANSITION` das saídas `FORWARD`/`COMPLETE`, bloqueantes antes dos avisos; `params` traz `documentTypeCode`/`minStatus`/`minCount?` (`REQUIRED_DOCUMENT`) ou `stageKey` (`REQUIRED_APPROVAL`) para o atalho; `field` é o caminho do `REQUIRED_FIELD`.
+- **Response:** `200 { data: { violations: Violation[] } }` — `Violation` no formato único de api.md §2.1.2 (`code: "WORKFLOW_RULE"`, `ruleId`, `severity: "BLOCKING"|"WARNING"`, `message`, `sectionKey?`, `field?`, `itemId?`, `params?`); campos adicionais vistos no painel (US-004): `name?`, `type?`, `satisfied?`, `scope?`, `transitionId?`, `transitionKey?`, `link?`, `evaluationFailed?` (regra não avaliável: mensagem padrão "Não foi possível verificar esta regra. Tente novamente ou fale com o administrador." — FA-10). Só regras ativas NÃO satisfeitas (`satisfied: false`): `STAGE_EXIT` da etapa atual e `TRANSITION` das saídas `FORWARD`/`COMPLETE`, bloqueantes antes dos avisos; `params` traz `documentTypeCode`/`minStatus`/`minCount?` (`REQUIRED_DOCUMENT`) ou `stageKey` (`REQUIRED_APPROVAL`) para o atalho; `field` é o caminho do `REQUIRED_FIELD`.
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -311,9 +317,10 @@ ActionEntry {
 ```ts
 StageEntry {
   workflowStageId: string; key: string; name: string; type: StageType; groupLabel: string; displayOrder: number;
-  slaDays?: number; slaType?: DayCountType; lastPassStatus: string;
-  passes: Array<{ processStageId: string; sequence: number; status: string; department: {id,name}; assignee?: {id,name};
-                  enteredAt: string; exitedAt?: string; dueAt?: string; dueDateOverridden: boolean; overdueSince?: string }>;
+  slaDays: number|null; slaType: DayCountType|null; lastPassStatus: ProcessStageStatus|null /* null = não percorrida */;
+  isCurrent: boolean /* etapa da passagem ativa (aria-current="step") */;
+  passes: Array<{ processStageId: string; sequence: number; status: ProcessStageStatus; department: {id,name}; assignee: {id,name}|null;
+                  enteredAt: string; exitedAt: string|null; dueAt: string|null; dueDateOverridden: boolean; overdueSince: string|null }>;
 }
 ```
 - **Erros:**

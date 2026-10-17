@@ -1,3 +1,4 @@
+import type { Confidentiality, DocumentStatus } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -30,6 +31,19 @@ export type {
   StageEntryInput,
   StageEntryResult,
 } from './document-approval.transitions.js';
+
+/** Documento como o painel situacional o lista (sem conteúdo). */
+export interface SummaryDocumentFact {
+  readonly id: string;
+  readonly typeCode: string;
+  readonly typeName: string;
+  readonly code: string | null;
+  readonly title: string;
+  readonly status: DocumentStatus;
+  readonly versionNumber: number | null;
+  readonly confidentiality: Confidentiality;
+  readonly inApproval: boolean;
+}
 
 /**
  * API pública do módulo `document` para os demais módulos (DEC-041): métodos de intenção,
@@ -99,6 +113,31 @@ export class DocumentFacade {
         },
       ]),
     );
+  }
+
+  /**
+   * Documentos do painel situacional (US-004 · RN-PROC-48(6)): não cancelados nem excluídos, com
+   * tipo, código, título, status, versão atual, sigilo e o selo "Em aprovação"
+   * (`pendingApprovalId` — DEC-018). Quem chama decide o que mascarar (POL-09).
+   */
+  async listForSummary(tx: TenantTx, processId: string): Promise<SummaryDocumentFact[]> {
+    const documents = await this.documents.listActiveByProcess(tx, processId);
+    if (documents.length === 0) return [];
+    const types = new Map((await this.types.list(tx)).map((type) => [type.id, type]));
+    return documents.map((document) => {
+      const type = types.get(document.documentTypeId);
+      return {
+        id: document.id,
+        typeCode: type?.code ?? '',
+        typeName: type?.name ?? '',
+        code: document.code,
+        title: document.title,
+        status: document.status,
+        versionNumber: document.currentVersionNumber,
+        confidentiality: document.confidentiality,
+        inApproval: document.pendingApprovalId !== null,
+      };
+    });
   }
 
   /** Fonte `DOCUMENT_VERSION` da timeline: número da versão. */

@@ -95,6 +95,10 @@ class FlakyTransactions implements ProcessTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.run(work);
   }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.run(work);
+  }
 }
 
 const dept = (departmentId: string, reason: 'REQUESTING' | 'CURRENT' | 'HISTORICAL') =>

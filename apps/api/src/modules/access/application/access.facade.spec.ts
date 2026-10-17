@@ -157,6 +157,11 @@ describe('AccessFacade.findRoleForApproval / findRoleByKey (RN-DOC-07 · RN-WF-1
         id: AUTORIDADE.id,
       });
       await expect(facade.findRoleByKey(TX, 'INEXISTENTE')).resolves.toBeNull();
+      // US-004: rótulo do aprovador designado por perfil; o de outro tenant fica de fora.
+      const summaries = await facade.roleSummaries(TX, [AUTORIDADE.id, OUTRO.id, AUTORIDADE.id]);
+      expect([...summaries]).toEqual([
+        [AUTORIDADE.id, { key: 'AUTORIDADE_COMPETENTE', name: 'AUTORIDADE_COMPETENTE' }],
+      ]);
     });
   });
 });

@@ -21,6 +21,8 @@ export interface ApprovalRepository {
    * @throws PendingApprovalExistsError
    */
   insert(tx: TenantTx, approval: Approval, coverage: readonly ApprovalCoverage[]): Promise<void>;
+  /** Aprovações `PENDING` do processo, mais antigas primeiro (painel situacional — US-004). */
+  listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]>;
 }
 
 export const APPROVAL_REPOSITORY = Symbol('ApprovalRepository');

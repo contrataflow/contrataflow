@@ -4209,6 +4209,9 @@
           },
           "transitionKey": {
             "type": "string"
+          },
+          "evaluationFailed": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -4224,6 +4227,897 @@
           "type",
           "satisfied",
           "scope"
+        ]
+      },
+      "ProcessStageEntry": {
+        "type": "object",
+        "properties": {
+          "workflowStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "START",
+              "TASK",
+              "APPROVAL",
+              "END"
+            ]
+          },
+          "groupLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayOrder": {
+            "type": "integer"
+          },
+          "slaDays": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "slaType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BUSINESS",
+              "CALENDAR",
+              null
+            ]
+          },
+          "lastPassStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "ACTIVE",
+              "COMPLETED",
+              "RETURNED",
+              "CANCELED",
+              null
+            ]
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "passes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "processStageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "sequence": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ACTIVE",
+                    "COMPLETED",
+                    "RETURNED",
+                    "CANCELED"
+                  ]
+                },
+                "department": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                },
+                "assignee": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                },
+                "enteredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "exitedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "dueDateOverridden": {
+                  "type": "boolean"
+                },
+                "overdueSince": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "processStageId",
+                "sequence",
+                "status",
+                "department",
+                "assignee",
+                "enteredAt",
+                "exitedAt",
+                "dueAt",
+                "dueDateOverridden",
+                "overdueSince"
+              ]
+            }
+          }
+        },
+        "required": [
+          "workflowStageId",
+          "key",
+          "name",
+          "type",
+          "groupLabel",
+          "displayOrder",
+          "slaDays",
+          "slaType",
+          "lastPassStatus",
+          "isCurrent",
+          "passes"
+        ]
+      },
+      "ProcessSummary": {
+        "type": "object",
+        "properties": {
+          "header": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "IN_PROGRESS",
+                  "AWAITING_APPROVAL",
+                  "RETURNED",
+                  "SUSPENDED",
+                  "CANCELED",
+                  "COMPLETED",
+                  "PUBLISHED"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH",
+                  "URGENT"
+                ]
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "color"
+                  ]
+                }
+              },
+              "isBudgetConfidential": {
+                "type": "boolean"
+              },
+              "estimatedValue": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "estimatedValueMasked": {
+                "type": "boolean"
+              },
+              "estimatedValueSource": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "MANUAL",
+                  "DFD",
+                  "ETP",
+                  "PRICE_RESEARCH",
+                  "TERM",
+                  null
+                ]
+              },
+              "organization": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "shortName": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "shortName"
+                ]
+              },
+              "showOrganization": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "title",
+              "status",
+              "priority",
+              "tags",
+              "isBudgetConfidential",
+              "estimatedValue",
+              "estimatedValueMasked",
+              "estimatedValueSource",
+              "organization",
+              "showOrganization"
+            ]
+          },
+          "where": {
+            "type": "object",
+            "properties": {
+              "stage": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "START",
+                      "TASK",
+                      "APPROVAL",
+                      "END"
+                    ]
+                  },
+                  "groupLabel": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "name",
+                  "type",
+                  "groupLabel"
+                ]
+              },
+              "department": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "IN_PROGRESS",
+                  "AWAITING_APPROVAL",
+                  "RETURNED",
+                  "SUSPENDED",
+                  "CANCELED",
+                  "COMPLETED",
+                  "PUBLISHED"
+                ]
+              },
+              "statusBeforeSuspension": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "DRAFT",
+                  "IN_PROGRESS",
+                  "AWAITING_APPROVAL",
+                  "RETURNED",
+                  "SUSPENDED",
+                  "CANCELED",
+                  "COMPLETED",
+                  "PUBLISHED",
+                  null
+                ]
+              },
+              "suspensionReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "suspendedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "completedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "canceledAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "cancellationReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "stage",
+              "department",
+              "status",
+              "statusBeforeSuspension",
+              "suspensionReason",
+              "suspendedAt",
+              "completedAt",
+              "canceledAt",
+              "cancellationReason"
+            ]
+          },
+          "responsible": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "jobTitle": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "jobTitle"
+                ]
+              },
+              "queueDepartment": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ]
+              },
+              "since": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "approver": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "approvalId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "isMine": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "approvalId",
+                  "label",
+                  "isMine"
+                ]
+              }
+            },
+            "required": [
+              "user",
+              "queueDepartment",
+              "since",
+              "approver"
+            ]
+          },
+          "pending": {
+            "type": "object",
+            "properties": {
+              "blockingCount": {
+                "type": "integer"
+              },
+              "warningCount": {
+                "type": "integer"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ruleId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "REQUIRED_DOCUMENT",
+                        "REQUIRED_FIELD",
+                        "REQUIRED_APPROVAL",
+                        "CONDITION"
+                      ]
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "BLOCKING",
+                        "WARNING"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "evaluationFailed": {
+                      "type": "boolean"
+                    },
+                    "link": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "documentId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "restricted": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "documentId",
+                            "restricted"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createDocumentTypeCode": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "createDocumentTypeCode"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ruleId",
+                    "name",
+                    "type",
+                    "severity",
+                    "message",
+                    "evaluationFailed",
+                    "link"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "blockingCount",
+              "warningCount",
+              "items"
+            ]
+          },
+          "nextStep": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "FORWARD",
+                      "RETURN",
+                      "CLAIM",
+                      "ASSIGN",
+                      "SUSPEND",
+                      "RESUME",
+                      "CANCEL",
+                      "DISCARD",
+                      "COMPLETE",
+                      "DECIDE_APPROVAL",
+                      "EDIT",
+                      "MANAGE_ITEMS",
+                      "MANAGE_TAGS",
+                      "DUPLICATE",
+                      "MANAGE_PARTICIPANTS",
+                      "FOLLOW",
+                      "UNFOLLOW",
+                      "SET_CONFIDENTIALITY"
+                    ]
+                  },
+                  "transitionKey": {
+                    "type": "string"
+                  },
+                  "approvalId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "action",
+                  "label",
+                  "enabled",
+                  "reasons"
+                ]
+              },
+              "instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "instructions"
+            ]
+          },
+          "deadline": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessDeadline"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "target": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "targetDate": {
+                "type": "string",
+                "format": "date"
+              },
+              "isOverdue": {
+                "type": "boolean"
+              },
+              "overdueDays": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "targetDate",
+              "isOverdue",
+              "overdueDays"
+            ]
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "typeCode": {
+                  "type": "string"
+                },
+                "typeName": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "DRAFT",
+                    "IN_REVIEW",
+                    "RETURNED",
+                    "FINALIZED",
+                    "APPROVED",
+                    "REJECTED",
+                    "CANCELED"
+                  ]
+                },
+                "versionNumber": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "confidentiality": {
+                  "type": "string",
+                  "enum": [
+                    "PUBLIC",
+                    "INTERNAL",
+                    "RESTRICTED"
+                  ]
+                },
+                "restricted": {
+                  "type": "boolean"
+                },
+                "inApproval": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "typeCode",
+                "typeName",
+                "code",
+                "title",
+                "status",
+                "versionNumber",
+                "confidentiality",
+                "restricted",
+                "inApproval"
+              ]
+            }
+          },
+          "approvals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "approverLabel": {
+                  "type": "string"
+                },
+                "requestedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "isOverdue": {
+                  "type": "boolean"
+                },
+                "isMine": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "approverLabel",
+                "requestedAt",
+                "dueAt",
+                "isOverdue",
+                "isMine"
+              ]
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "documents": {
+                "type": "integer"
+              },
+              "items": {
+                "type": "integer"
+              },
+              "comments": {
+                "type": "integer"
+              },
+              "participants": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "documents",
+              "items",
+              "comments",
+              "participants"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "header",
+          "where",
+          "responsible",
+          "pending",
+          "nextStep",
+          "deadline",
+          "target",
+          "documents",
+          "approvals",
+          "counts",
+          "version"
         ]
       },
       "TimelineEntry": {
@@ -21951,7 +22845,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Processo visível ao usuário (DEC-024 — `ETag` = versão); não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`.",
+            "description": "Processo visível ao usuário (DEC-024 — `ETag` = versão), com o valor sigiloso mascarado pela POL-09 e `meta.allowedActions` (ações habilitadas do motor); não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`. Valor sigiloso entregue = `process.confidential_view` (1× por sessão).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21959,10 +22853,25 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/Process"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "allowedActions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "allowedActions"
+                      ]
                     }
                   },
                   "required": [
-                    "data"
+                    "data",
+                    "meta"
                   ]
                 }
               }
@@ -22557,6 +23466,243 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ProcessChecklist"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/stages": {
+      "get": {
+        "operationId": "PRC-10",
+        "summary": "Listar etapas e passagens do processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Etapas da versão de workflow fixada no processo, em `displayOrder`, com o status da última passagem (`null` = não percorrida) e todas as passagens (idas e voltas). A etapa `END` só aparece concluída com o processo `COMPLETED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProcessStageEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/summary": {
+      "get": {
+        "operationId": "PRC-07",
+        "summary": "Obter painel situacional do processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As 7 perguntas de DEC-180 (onde está, responsável, o que falta, próximo passo, prazos, documentos e aprovações pendentes), o cabeçalho e os contadores das abas, num instante único (`REPEATABLE READ`). Valor sigiloso mascarado (POL-09) e documentos `RESTRICTED` sem link para quem não atende; não visível = 404 `PROCESS_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ProcessSummary"
                     }
                   },
                   "required": [

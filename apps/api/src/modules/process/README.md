@@ -20,6 +20,24 @@ Processo, itens, participantes, etiquetas, runtime da tramitação e visibilidad
   aprovações de etapa, documentos e concessões num ÚNICO snapshot. Em produção, o
   `ProcessRuntimeLoader` da US-001 (abaixo); testes e modo fake usam `InMemoryProcessRuntimeStore`.
 
+## Painel situacional (US-004)
+
+- **Rotas:** PRC-04 `GET /processes/{id}` (com `meta.allowedActions`), PRC-07 `GET /processes/{id}/summary`
+  e PRC-10 `GET /processes/{id}/stages` (`ProcessController`, `@ImplicitAccess`). A visibilidade
+  (DEC-024, inclusive concessão `USER` — o aprovador designado chega pelo link) é conferida no
+  `ProcessPanelReader.load` sobre o runtime do mesmo `tx`; não visível = 404 `PROCESS_NOT_FOUND`
+  sem `access.denied`. `Cache-Control: no-store`.
+- **Composição:** `application/process-panel.queries.ts` — agregado + runtime (uma leitura:
+  `ProcessRuntimeLoader.fromAggregate`), motor (`getAvailableActions`/`evaluateRules`), documentos
+  (`DocumentFacade.listForSummary`) e aprovações (`ApprovalFacade.listPendingForProcess`) numa
+  transação `REPEATABLE READ READ ONLY` (`ProcessTransactions.snapshot` — RN-PROC-56). Regras puras
+  em `domain/process-summary.ts` (ação primária RN-PROC-49, pendências, prazo alvo, aprovador,
+  stepper). POL-09 por processo (`canViewConfidentialBudget`) vale também para o PRC-04.
+- **Auditoria:** `ConfidentialViewRecorder` grava `process.confidential_view` 1× por sessão
+  (`sessionIdHash`; sem ele, o usuário) e processo, marca no `TenantCache` (12 h), em transação
+  própria depois da leitura. Contadores de itens/comentários/participantes e etiquetas ficam 0/[]
+  até as stories donas (US-006/007/012/071).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

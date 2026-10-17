@@ -34,6 +34,11 @@ export interface TenantTransactionOptions {
   /** Consulta: a transação recusa escrita (`transaction_read_only`). */
   readonly readOnly?: boolean;
   /**
+   * Leitura em instantâneo único (`REPEATABLE READ`): todas as consultas do trabalho veem o mesmo
+   * instante (ex.: painel situacional — RN-PROC-56). Padrão: `READ COMMITTED`.
+   */
+  readonly repeatableRead?: boolean;
+  /**
    * Tenant alvo de um caso de uso `PLATFORM` (FA-02 · RN-TEN-21): só fora de contexto de tenant
    * (ou no mesmo tenant) e com ator `SYSTEM`/`PLATFORM_OPERATOR`. Padrão: o tenant do contexto.
    */
@@ -81,10 +86,19 @@ export async function runTenantTransaction<T>(
 ): Promise<T> {
   const { tenantId, userId } = resolveTenant(options);
   const statementTimeout = String(settings.statementTimeoutMs);
-  return await runScoped(base, settings, work, { kind: 'TENANT', tenantId }, (tx) =>
-    options.readOnly
-      ? tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
-      : tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`,
+  const isolation = options.repeatableRead
+    ? Prisma.TransactionIsolationLevel.RepeatableRead
+    : Prisma.TransactionIsolationLevel.ReadCommitted;
+  return await runScoped(
+    base,
+    settings,
+    work,
+    { kind: 'TENANT', tenantId },
+    (tx) =>
+      options.readOnly
+        ? tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true), set_config('transaction_read_only', 'on', true)`
+        : tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true), set_config('statement_timeout', ${statementTimeout}, true)`,
+    isolation,
   );
 }
 
@@ -129,6 +143,7 @@ async function runScoped<T>(
   work: (tx: TenantTx) => Promise<T>,
   scope: TransactionScope,
   prepare: (tx: TenantTx) => Promise<number>,
+  isolationLevel: Prisma.TransactionIsolationLevel = Prisma.TransactionIsolationLevel.ReadCommitted,
 ): Promise<T> {
   const retries = settings.retries ?? 2;
   for (let attempt = 0; ; attempt += 1) {
@@ -144,7 +159,7 @@ async function runScoped<T>(
             return trackTransaction(tx, () => work(tx));
           },
           {
-            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+            isolationLevel,
             maxWait: settings.maxWaitMs,
             timeout: settings.transactionTimeoutMs,
           },

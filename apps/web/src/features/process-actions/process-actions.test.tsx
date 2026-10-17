@@ -38,7 +38,10 @@ const RETURN: ActionEntry = {
   label: 'Devolver para a formalização da demanda',
   enabled: false,
   reasons: [
-    { code: 'NOT_PROCESS_CUSTODIAN', message: 'Você não é o responsável atual pelo processo.' },
+    {
+      code: 'NOT_PROCESS_CUSTODIAN',
+      message: 'Somente quem está com o processo pode encaminhá-lo.',
+    },
   ],
 };
 const CANCEL: ActionEntry = {
@@ -108,7 +111,7 @@ describe('AvailableActionsPanel (US-041 · PRC-08)', () => {
     expect(back.getAttribute('aria-disabled')).toBe('true');
     const describedBy = back.getAttribute('aria-describedby') ?? '';
     expect(document.getElementById(describedBy)?.textContent).toBe(
-      'Indisponível: Você não é o responsável atual pelo processo.',
+      'Indisponível: Somente quem está com o processo pode encaminhá-lo.',
     );
     await user.click(back);
     expect(onAction).toHaveBeenCalledTimes(1);

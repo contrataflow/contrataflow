@@ -3,7 +3,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { PROCESS_REPOSITORY } from './ports.js';
-import type { ProcessAccessRow, ProcessRepository, ProcessRuntimeReader } from './ports.js';
+import type {
+  ProcessAccessRow,
+  ProcessAggregateRows,
+  ProcessRepository,
+  ProcessRuntimeReader,
+} from './ports.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import type { ProcessAccessGrants, ProcessRuntime } from '../domain/process-runtime.js';
@@ -48,7 +53,11 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
 
   async load(tx: TenantTx, processId: string): Promise<ProcessRuntime | null> {
     const rows = await this.processes.loadAggregate(tx, processId);
-    if (rows === null) return null;
+    return rows === null ? null : this.fromAggregate(tx, rows);
+  }
+
+  /** O runtime de um agregado já lido no `tx` (painel situacional — US-004: uma leitura só). */
+  async fromAggregate(tx: TenantTx, rows: ProcessAggregateRows): Promise<ProcessRuntime> {
     const { process } = rows;
     const settings = await this.tenancy.settingValues(tx, [HISTORICAL_SETTING]);
     const codeOf = async (id: string | null) =>

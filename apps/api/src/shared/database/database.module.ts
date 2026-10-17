@@ -57,6 +57,14 @@ export class TenantTransaction {
   }
 
   /**
+   * Consulta em instantâneo único (`REPEATABLE READ READ ONLY`): várias leituras que precisam
+   * corresponder ao mesmo instante (painel situacional do processo — RN-PROC-56).
+   */
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.prisma.$tenantTransaction(work, { readOnly: true, repeatableRead: true });
+  }
+
+  /**
    * Comando de um caso de uso `PLATFORM` sobre um tenant alvo (US-100 · FA-02 · RN-TEN-21):
    * provisionamento, jobs de plataforma que iteram tenants. Só fora de contexto de tenant (ou no
    * mesmo tenant) e com ator `SYSTEM`/`PLATFORM_OPERATOR`; dentro de uma rota `TENANT` para outro

@@ -60,6 +60,10 @@ class FlakyProcessTransactions implements ProcessTransactions {
   run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.read(work);
   }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.read(work);
+  }
 }
 
 const actionsSchema = z.array(actionEntrySchema);
@@ -379,7 +383,10 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
     expect(entries.find((entry) => entry.action === 'FORWARD')).toMatchObject({
       enabled: false,
       reasons: [
-        { code: 'NOT_PROCESS_CUSTODIAN', message: 'Você não é o responsável atual pelo processo.' },
+        {
+          code: 'NOT_PROCESS_CUSTODIAN',
+          message: 'Somente quem está com o processo pode encaminhá-lo.',
+        },
       ],
     });
     expect(entries.find((entry) => entry.action === 'CLAIM')?.enabled).toBe(false);

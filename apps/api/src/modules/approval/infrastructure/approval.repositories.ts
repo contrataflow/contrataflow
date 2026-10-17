@@ -62,6 +62,34 @@ export class PrismaApprovalRepository implements ApprovalRepository {
       })),
     });
   }
+
+  async listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]> {
+    const rows = await tx.approval.findMany({
+      where: { processId, status: 'PENDING' },
+      orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      tenantId: row.tenantId,
+      processId: row.processId,
+      subjectType: row.subjectType,
+      processStageId: row.processStageId,
+      documentId: row.documentId,
+      title: row.title,
+      requestedById: row.requestedById,
+      requestedAt: row.requestedAt,
+      requestComment: row.requestComment,
+      approverType: row.approverType,
+      approverUserId: row.approverUserId,
+      approverRoleId: row.approverRoleId,
+      approverDepartmentId: row.approverDepartmentId,
+      allowDeputy: row.allowDeputy,
+      dueAt: row.dueAt,
+      status: row.status,
+      createdAt: row.createdAt,
+      createdById: row.createdById ?? row.requestedById,
+    }));
+  }
 }
 
 /** Aprovações em memória (testes e modo de identidade fake): mesma regra de pendência única. */
@@ -83,6 +111,23 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     this.rows.set(approval.id, approval);
     this.coverage.set(approval.id, coverage);
     return Promise.resolve();
+  }
+
+  listPendingByProcess(_tx: TenantTx, processId: string): Promise<Approval[]> {
+    const tenantId = currentRequestContext()?.tenantId;
+    return Promise.resolve(
+      [...this.rows.values()]
+        .filter(
+          (row) =>
+            row.tenantId === tenantId && row.processId === processId && row.status === 'PENDING',
+        )
+        .sort((a, b) => a.requestedAt.getTime() - b.requestedAt.getTime()),
+    );
+  }
+
+  /** Carga de teste: aprovação já aberta (as de etapa chegam com a US-051). */
+  seed(approval: Approval): void {
+    this.rows.set(approval.id, approval);
   }
 
   /** Inspeção de testes: aprovações do tenant do contexto (ou todas, fora de contexto). */

@@ -137,6 +137,8 @@ export const checklistViolationSchema = violationSchema
     scope: z.enum(RULE_SCOPES),
     transitionId: z.uuid().optional(),
     transitionKey: z.string().optional(),
+    /** Regra que não pôde ser avaliada: não satisfeita, com a mensagem padrão (FA-10 da US-004). */
+    evaluationFailed: z.boolean().optional(),
   })
   .meta({ id: 'ChecklistViolation' });
 export type ChecklistViolation = z.infer<typeof checklistViolationSchema>;

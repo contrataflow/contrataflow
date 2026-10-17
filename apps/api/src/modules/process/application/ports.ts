@@ -40,6 +40,8 @@ export const PROCESS_RUNTIME_READER = Symbol('ProcessRuntimeReader');
 export interface ProcessTransactions {
   run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  /** Leitura em instantâneo único (`REPEATABLE READ READ ONLY` — painel situacional, RN-PROC-56). */
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
 }
 
 export const PROCESS_TRANSACTIONS = Symbol('ProcessTransactions');
@@ -96,6 +98,29 @@ export interface ProcessStageRow {
   readonly enteredAt: Date;
   readonly exitedAt: Date | null;
   readonly dueAt: Date | null;
+  /** SLA congelado na entrada (stepper — RN-PROC-52). */
+  readonly slaDays: number | null;
+  readonly slaType: DayCountType | null;
+  readonly dueDateOverridden: boolean;
+  /** Prazo pausado (processo suspenso). */
+  readonly pausedAt: Date | null;
+  readonly overdueSince: Date | null;
+}
+
+/**
+ * Situação do processo que o painel mostra (US-004 · RN-PROC-48): suspensão, conclusão,
+ * cancelamento, atraso e o início da responsabilidade ativa — no mesmo snapshot do agregado.
+ */
+export interface ProcessSituationRow {
+  readonly statusBeforeSuspension: ProcessStatus | null;
+  readonly suspensionReason: string | null;
+  readonly suspendedAt: Date | null;
+  readonly completedAt: Date | null;
+  readonly canceledAt: Date | null;
+  readonly cancellationReason: string | null;
+  readonly overdueSince: Date | null;
+  /** `startedAt` da `ProcessAssignment` ativa. */
+  readonly assignmentSince: Date | null;
 }
 
 /** Concessão ativa como o runtime a lê. */
@@ -111,6 +136,7 @@ export interface ProcessAggregateRows {
   readonly process: Process;
   readonly stages: readonly ProcessStageRow[];
   readonly access: readonly ProcessAccessRow[];
+  readonly situation: ProcessSituationRow;
 }
 
 /**

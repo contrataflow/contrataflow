@@ -40,6 +40,11 @@ export interface DocumentRepository {
     processId: string,
     documentTypeId: string,
   ): Promise<Document | null>;
+  /**
+   * Documentos não cancelados nem excluídos do processo, com o número da versão atual, por
+   * criação (painel situacional — US-004 · RN-PROC-48(6)).
+   */
+  listActiveByProcess(tx: TenantTx, processId: string): Promise<Document[]>;
   /** @throws DocumentAlreadyExistsError */
   insert(tx: TenantTx, document: Document): Promise<void>;
   /**

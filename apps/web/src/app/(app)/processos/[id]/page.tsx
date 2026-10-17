@@ -1,8 +1,8 @@
-import { ProcessPanel } from '@/features/processes/process-panel';
+import { ProcessPanel } from '@/features/process-panel/process-panel';
 
 /**
- * SCR-006 — Detalhe do processo (`/processos/[id]`): painel situacional mínimo da US-001 (onde
- * está, próximo passo e ações disponíveis); as abas chegam com a US-004.
+ * SCR-006 — Detalhe do processo (`/processos/[id]?aba=…`): painel situacional da US-004
+ * (cabeçalho, barra de ações, stepper, as 7 perguntas e as abas).
  */
 export default async function ProcessDetailPage({
   params,
