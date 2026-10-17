@@ -6,6 +6,8 @@ import type {
   InviteUser,
   MembershipDetailMeta,
   MembershipReason,
+  MfaReset,
+  MfaResetResult,
   RoleDto,
   TenantMembershipDetailDto,
   TenantMembershipDto,
@@ -20,7 +22,7 @@ import { tenantKey } from '@/lib/query/keys';
 /*
  * Usuários e convites (US-091 · SCR-029/SCR-102): USR-01, USR-03..06 e USR-14 de
  * api/14-tenant-administration.md, mais os seletores DEP-02 e ROL-02. Gestão de vínculos
- * (US-092): USR-07..12. Chaves `['t', tenantId, …]` (RN-FND-90).
+ * (US-092): USR-07..12. Redefinição do MFA (US-090): USR-13. Chaves `['t', tenantId, …]` (RN-FND-90).
  */
 
 export interface UserListFilters {
@@ -218,6 +220,12 @@ export async function revokeUser(
       ifMatch: ifMatchOf(version),
     }),
   );
+}
+
+/** USR-13 (US-090): remove os fatores de MFA da conta; idempotente, sem `If-Match`. */
+export async function resetUserMfa(userId: string, body: MfaReset): Promise<MfaResetResult> {
+  return (await apiRequest<MfaResetResult>(`/users/${userId}/mfa-reset`, { method: 'POST', body }))
+    .data;
 }
 
 /** USR-03; a mesma `Idempotency-Key` vale para cada repetição da mesma intenção. */

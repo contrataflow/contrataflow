@@ -99,6 +99,7 @@ function mockApi(
             phone: null,
             preferences: { density: 'comfortable', theme: 'system' },
             membership: { jobTitle: null, departments: [] },
+            mfaVerified: false,
             version: 1,
           },
         }),

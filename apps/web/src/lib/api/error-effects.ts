@@ -1,5 +1,5 @@
 import { isApiError } from './api-error';
-import { resolveErrorAction } from './error-policy';
+import { resolveErrorAction, stepUpHref } from './error-policy';
 
 /*
  * Efeitos globais da política de erros (architecture.md §8.12) para consultas e mutações dos
@@ -22,6 +22,8 @@ export interface ErrorEffectDeps {
     readonly unexpected: string;
     readonly notFound: string;
     readonly correlation: (correlationId: string) => string;
+    /** Aviso do *step-up* antes de sair para o Authentik (US-090 · anunciado pelo `Toaster`). */
+    readonly stepUp: string;
   };
 }
 
@@ -36,6 +38,11 @@ export function applyErrorEffect(error: unknown, source: ErrorSource, deps: Erro
   const code = error.correlationId ? deps.messages.correlation(error.correlationId) : undefined;
   switch (action.kind) {
     case 'redirect':
+      // `MFA_REQUIRED` (US-090): avisa, enquanto o navegador segue ao desafio, por que a tela
+      // vai sair — o retorno do *step-up* volta a esta mesma página.
+      if (action.href === stepUpHref(deps.currentPath())) {
+        deps.notify({ title: deps.messages.stepUp, tone: 'info' });
+      }
       deps.navigate(action.href);
       return;
     case 'session-expired':

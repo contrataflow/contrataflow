@@ -225,7 +225,7 @@ describe('Feature: Gerenciar usuários e lotações (US-092)', () => {
         departments: [{ id: COMPRAS, name: 'Compras', isActive: true, isPrimary: true }],
       });
       expect(before.meta).toEqual({
-        allowedActions: ['UPDATE', 'UPDATE_DEPARTMENTS', 'SUSPEND', 'REVOKE'],
+        allowedActions: ['UPDATE', 'UPDATE_DEPARTMENTS', 'SUSPEND', 'REVOKE', 'MFA_RESET'],
         isSelf: false,
       });
 
@@ -602,6 +602,7 @@ describe('Feature: Gerenciar usuários e lotações (US-092)', () => {
         'UPDATE_DEPARTMENTS',
         'REACTIVATE',
         'REVOKE',
+        'MFA_RESET',
       ]);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.objectContaining({

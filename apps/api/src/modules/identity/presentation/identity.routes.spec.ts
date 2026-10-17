@@ -76,9 +76,23 @@ describe('Feature: Login OIDC — API (US-087)', () => {
           phone: null,
           preferences: { density: 'comfortable', theme: 'system' },
           membership: { jobTitle: null, departments: [] },
+          mfaVerified: false,
           version: 1,
         },
       });
+    });
+
+    it('[US-090 · RN-IAM-44] GET /me diz só se a sessão comprova o segundo fator', async () => {
+      const me = (amr: readonly string[]) =>
+        request(api.server)
+          .get('/api/v1/me')
+          .set('Authorization', api.bearer(FAKE_USERS.ana.subject, { amr }))
+          .set('X-Tenant-Id', A);
+      expect((await me(['pwd'])).body).toMatchObject({ data: { mfaVerified: false } });
+      const verified = await me(['pwd', 'hwk']);
+      expect(verified.body).toMatchObject({ data: { mfaVerified: true } });
+      // Sem o método nem o dispositivo (o ContrataFlow não guarda segredos de MFA).
+      expect(JSON.stringify(verified.body)).not.toMatch(/hwk|amr/);
     });
 
     it('[Validação] GET /me sem token → 401; sem instituição ativa → 400 MALFORMED_REQUEST', async () => {

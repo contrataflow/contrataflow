@@ -100,6 +100,28 @@ export interface AuthentikDirectoryPort {
 
 export const AUTHENTIK_DIRECTORY = Symbol('AuthentikDirectoryPort');
 
+/** Conta do usuário no Authentik: o PK do provisionamento ou, sem ele, o `sub` do primeiro login. */
+export interface AuthentikAccountRef {
+  readonly authentikUserId: string | null;
+  readonly externalSubject: string | null;
+}
+
+/**
+ * Redefinição do MFA pela API administrativa do Authentik (US-090 · RN-IAM-43/44): remove os
+ * dispositivos de segundo fator (TOTP, WebAuthn, códigos estáticos…) da conta, forçando novo
+ * *enrollment* no próximo desafio. Idempotente: conta sem dispositivo (ou sem conta) não é erro.
+ * O ContrataFlow nunca lê nem guarda os segredos — só pede a remoção.
+ */
+export interface AuthentikMfaPort {
+  /**
+   * Devolve quantos dispositivos foram removidos agora.
+   * @throws AuthentikUnavailableError
+   */
+  resetMfa(account: AuthentikAccountRef): Promise<{ readonly removedDevices: number }>;
+}
+
+export const AUTHENTIK_MFA = Symbol('AuthentikMfaPort');
+
 export interface SessionAuditBase {
   readonly tenantId: string;
   readonly userId: string;

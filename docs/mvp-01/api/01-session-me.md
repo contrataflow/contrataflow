@@ -31,6 +31,7 @@ User {
   phone?: string | null;         // formato BR
   preferences: { density: string; theme: string }; // registro RN-IAM-111
   membership: { jobTitle: string | null; departments: string[] }; // vínculo ativo no tenant (somente leitura)
+  mfaVerified: boolean;          // a sessão comprova o segundo fator (`amr`), sem método nem dispositivo (US-090 · RN-IAM-44)
   version: number;
 }
 ```

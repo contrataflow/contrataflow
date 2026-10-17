@@ -363,7 +363,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 
 ### USR-13 — Redefinir MFA do usuário
 `POST /api/v1/users/{userId}/mfa-reset` · **Permissão:** `USER_MANAGE` (+ POL-16) · **Story:** US-090
-- **Cabeçalhos:** `Idempotency-Key` —; `If-Match` obrigatório
+- **Cabeçalhos:** `Idempotency-Key` —; `If-Match` — (idempotente e sem alterar o vínculo — DEC-142)
 - **Parâmetros:** path `userId` (uuid, Sim)
 - **Request:** `{ reason: string }` — `reason` 10–500 caracteres, obrigatório
 - **Response:** `200 { data: { userId: string, resetAt: string } }`
@@ -372,11 +372,14 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 | HTTP | code | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem `USER_MANAGE` |
+| 403 | `MFA_REQUIRED` | Sessão do administrador sem segundo fator (`USER_MANAGE` é `HIGH`; política `ADMINS`/`ALL`) |
 | 404 | `USER_NOT_FOUND` | Inexistente/outro tenant |
+| 409 | `INVALID_STATE` | Vínculo `REVOKED` |
 | 422 | `VALIDATION_ERROR` | `reason` ausente/curto (`NOT_ALLOWED` se o alvo for o próprio vínculo — POL-16: redefinição sobre si mesmo deve usar a recuperação no login) |
+| 503 | `DEPENDENCY_UNAVAILABLE` | API administrativa do Authentik indisponível (com `Retry-After`) |
 
-- **Efeitos:** Auditoria `membership.mfa_reset` (`SECURITY`, `metadata`: `targetUserId`, `reason`). Sem evento de domínio.
-- **Notas:** POL-16; RN-IAM-43 (botão oculto para o próprio usuário); consome indiretamente `security.mfaPolicy` (`SET-02`/US-103).
+- **Efeitos:** remove os dispositivos de MFA da conta no Authentik (novo *enrollment* no próximo desafio); auditoria `membership.mfa_reset` (`SECURITY`, `metadata`: `targetUserId`, `reason`). Sem evento de domínio. Repetir antes do novo cadastro conclui normalmente.
+- **Notas:** POL-16; RN-IAM-43 (`meta.allowedActions` de USR-07 inclui `MFA_RESET` fora do próprio vínculo e do revogado; botão oculto para o próprio usuário); consome indiretamente `security.mfaPolicy` (`SET-02`/US-103).
 
 ### ROL-01 — Listar permissões do catálogo
 `GET /api/v1/permissions` · **Permissão:** `ROLE_VIEW` · **Story:** US-094

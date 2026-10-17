@@ -185,7 +185,7 @@ describe('Feature: gestão de vínculos isolada por tenant sobre PostgreSQL (US-
     vi.restoreAllMocks();
   });
 
-  it('[Tenant incorreto] usuário só do tenant B: 404 em USR-07..12 sem tocar no vínculo dele', async () => {
+  it('[Tenant incorreto] usuário só do tenant B: 404 em USR-07..13 sem tocar no vínculo dele', async () => {
     const before = await digestOf(B);
     const detail = await getUser(FABIO);
     expect(detail.status, JSON.stringify(detail.body)).toBe(404);
@@ -200,6 +200,10 @@ describe('Feature: gestão de vínculos isolada por tenant sobre PostgreSQL (US-
       await mutate('post', `${FABIO}/suspend`, 1),
       await mutate('post', `${FABIO}/reactivate`, 1),
       await mutate('post', `${FABIO}/revoke`, 1),
+      // US-090 · USR-13: a RLS esconde o vínculo de B antes de qualquer chamada ao Authentik.
+      await as(request(api.server).post(`/api/v1/users/${FABIO}/mfa-reset`)).send({
+        reason: 'Perdeu o dispositivo do segundo fator.',
+      }),
     ]) {
       expect(response.status, JSON.stringify(response.body)).toBe(404);
       expect(codeOf(response)).toBe('USER_NOT_FOUND');

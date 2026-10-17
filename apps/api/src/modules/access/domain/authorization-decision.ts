@@ -42,6 +42,14 @@ export function requiresMfa(riskLevel: PermissionRiskLevel, policy: MfaPolicy): 
   return riskLevel === 'HIGH' && policy !== 'NONE';
 }
 
+/**
+ * RN-IAM-39 (US-090): com `ALL`, toda requisição autenticada na instituição exige MFA desde o
+ * primeiro acesso, qualquer que seja o risco da permissão; `ADMINS` cobra só nas `HIGH`.
+ */
+export function sessionRequiresMfa(policy: MfaPolicy): boolean {
+  return policy === 'ALL';
+}
+
 /** A decisão depende de `security.mfaPolicy` (evita ler a configuração a cada requisição). */
 export function mfaPolicyNeeded(riskLevel: PermissionRiskLevel, hasSecondFactor: boolean): boolean {
   return riskLevel === 'HIGH' && !hasSecondFactor;

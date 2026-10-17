@@ -85,7 +85,16 @@ export function allowedMembershipActions(input: {
   if (!input.isSelf && canTransition('SUSPEND', input.status)) actions.push('SUSPEND');
   if (canTransition('REACTIVATE', input.status)) actions.push('REACTIVATE');
   if (!input.isSelf && canTransition('REVOKE', input.status)) actions.push('REVOKE');
+  if (canResetMfa(input.status, input.isSelf)) actions.push('MFA_RESET');
   return actions;
+}
+
+/**
+ * RN-IAM-43 (US-090 · USR-13): a redefinição do MFA não vale para o próprio vínculo (autoproteção,
+ * no espírito de POL-16) nem para o vínculo revogado, que não dá mais acesso à instituição.
+ */
+export function canResetMfa(status: MembershipStatus, isSelf: boolean): boolean {
+  return !isSelf && status !== 'REVOKED';
 }
 
 /** V-02 · RN-IAM-55: hoje < validade ≤ hoje + `security.externalMembershipMaxDays`. */

@@ -11,6 +11,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { MfaStatusBadge } from './mfa-status-badge';
 import { NotificationPreferencesGrid } from './notification-preferences-grid';
 import {
   PROFILE_DENSITIES,
@@ -403,7 +404,7 @@ function ProfileForm({
         </Button>
       </div>
 
-      <AuthentikShortcutLinks links={links} />
+      <SecuritySection links={links} mfaVerified={profile.mfaVerified} />
     </form>
   );
 }
@@ -543,43 +544,58 @@ function PreferencesFieldset({
   );
 }
 
-/** `AuthentikShortcutLinks` (SCR-039): senha e MFA são do Authentik, abertos em nova aba. */
-function AuthentikShortcutLinks({ links }: { readonly links: AuthentikLinks }) {
+/**
+ * Segurança (SCR-039): o status do segundo fator nesta sessão (`MfaStatusBadge` — US-090) e os
+ * atalhos de senha e MFA, que são do Authentik e abrem em nova aba.
+ */
+function SecuritySection({
+  links,
+  mfaVerified,
+}: {
+  readonly links: AuthentikLinks;
+  readonly mfaVerified: boolean;
+}) {
   const t = useTranslations('profile.security');
   const tSections = useTranslations('profile.sections');
-  if (links.password === null && links.mfa === null) return null;
+  const hasLinks = links.password !== null || links.mfa !== null;
   return (
     <section aria-labelledby="profile-security" className="flex flex-col gap-3">
       <h2 id="profile-security" className="text-lg font-semibold">
         {tSections('security')}
       </h2>
-      <p className="text-sm text-muted-foreground">{t('description')}</p>
-      <ul className="flex flex-wrap gap-3">
-        {links.password ? (
-          <li>
-            <a
-              className="text-sm font-medium text-primary underline underline-offset-2"
-              href={links.password}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('password')} <span className="text-muted-foreground">{t('newTab')}</span>
-            </a>
-          </li>
-        ) : null}
-        {links.mfa ? (
-          <li>
-            <a
-              className="text-sm font-medium text-primary underline underline-offset-2"
-              href={links.mfa}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('mfa')} <span className="text-muted-foreground">{t('newTab')}</span>
-            </a>
-          </li>
-        ) : null}
-      </ul>
+      <p className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium">{t('mfaStatus.label')}</span>
+        <MfaStatusBadge verified={mfaVerified} />
+      </p>
+      {hasLinks ? <p className="text-sm text-muted-foreground">{t('description')}</p> : null}
+      {hasLinks ? (
+        <ul className="flex flex-wrap gap-3">
+          {links.password ? (
+            <li>
+              <a
+                className="text-sm font-medium text-primary underline underline-offset-2"
+                href={links.password}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('password')} <span className="text-muted-foreground">{t('newTab')}</span>
+              </a>
+            </li>
+          ) : null}
+          {links.mfa ? (
+            <li>
+              <a
+                className="text-sm font-medium text-primary underline underline-offset-2"
+                href={links.mfa}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('mfa')} <span className="text-muted-foreground">{t('newTab')}</span>
+              </a>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
     </section>
   );
 }

@@ -22,7 +22,12 @@ import { EffectivePermissionsService } from './effective-permissions.service.js'
 import { ACCESS_CLOCK, ACCESS_TRANSACTIONS } from './ports.js';
 import type { AccessClock, AccessTransactions } from './ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
-import { decide, mfaPolicyNeeded, requiresMfa } from '../domain/authorization-decision.js';
+import {
+  decide,
+  mfaPolicyNeeded,
+  requiresMfa,
+  sessionRequiresMfa,
+} from '../domain/authorization-decision.js';
 import { EffectivePermissionSet } from '../domain/effective-permissions.js';
 import { PERMISSION_RISKS } from '../domain/permission-grants.js';
 
@@ -70,6 +75,14 @@ export function processNotFound(): ApiError {
     detail: 'Não encontramos o recurso solicitado.',
     auditReasonCode: 'PROCESS_VIEW',
     auditDenial: true,
+  });
+}
+
+/** V-01 (US-090): o frontend aciona o *step-up* (`/api/auth/step-up`). */
+function mfaRequired(): ApiError {
+  return new ApiError('MFA_REQUIRED', {
+    detail: 'Confirme sua identidade para continuar.',
+    auditReasonCode: 'MFA_REQUIRED',
   });
 }
 
@@ -156,6 +169,7 @@ export class AuthorizationService implements AuthorizationPort {
   }
 
   async authorize(request: AuthorizationRequest): Promise<void> {
+    await this.assertSessionMfa(request.route ?? null);
     const permissions = await this.current();
     let process: ProcessAccessTarget | null = null;
     const requirement = request.requirement;
@@ -166,7 +180,13 @@ export class AuthorizationService implements AuthorizationPort {
           request.params[requirement.scope.processParam],
         );
       }
-      await this.assertPermission(permissions, requirement.permission, process, requirement.detail);
+      await this.assertPermission(
+        permissions,
+        requirement.permission,
+        process,
+        requirement.detail,
+        request.route ?? null,
+      );
     }
     const { actor } = requireRequestContext();
     for (const declaration of request.policies) {
@@ -193,6 +213,7 @@ export class AuthorizationService implements AuthorizationPort {
     permission: PermissionCode,
     process: ProcessAccessTarget | null,
     detail = 'Você não tem permissão para esta ação.',
+    route: string | null = null,
   ): Promise<void> {
     const { amr } = requireRequestContext();
     const riskLevel = PERMISSION_RISKS[permission];
@@ -219,11 +240,8 @@ export class AuthorizationService implements AuthorizationPort {
     });
     if (decision.allowed) return;
     if (decision.code === 'MFA_REQUIRED') {
-      await this.recordMfaRequired(permission);
-      throw new ApiError('MFA_REQUIRED', {
-        detail: 'Confirme sua identidade para continuar.',
-        auditReasonCode: 'MFA_REQUIRED',
-      });
+      await this.recordMfaRequired(permission, route);
+      throw mfaRequired();
     }
     throw new ApiError(decision.code, {
       ...(decision.code === 'PERMISSION_DENIED' ? { detail } : {}),
@@ -264,14 +282,32 @@ export class AuthorizationService implements AuthorizationPort {
     }
   }
 
+  /**
+   * RN-IAM-39 (US-090): com `security.mfaPolicy = ALL`, toda requisição da instituição exige o
+   * segundo fator — não só as permissões `HIGH`. A política só é lida (cache de 60 s por tenant,
+   * apagado ao mudar a configuração — RN-IAM-42) quando a sessão não comprova o fator.
+   */
+  private async assertSessionMfa(route: string | null): Promise<void> {
+    if (hasSecondFactor(requireRequestContext().amr)) return;
+    if (!sessionRequiresMfa(await this.identity.mfaPolicy())) return;
+    await this.recordMfaRequired(null, route);
+    throw mfaRequired();
+  }
+
   /** `auth.mfa_required` (SECURITY): falha ao gravar não muda a recusa. */
-  private async recordMfaRequired(permission: PermissionCode): Promise<void> {
+  private async recordMfaRequired(
+    permission: PermissionCode | null,
+    route: string | null,
+  ): Promise<void> {
     try {
       await this.audit.recordStandalone({
         action: 'auth.mfa_required',
         result: 'DENIED',
         reasonCode: 'MFA_REQUIRED',
-        metadata: { permissionCode: permission },
+        metadata: {
+          permissionCode: permission,
+          ...(route === null ? {} : { route }),
+        },
       });
     } catch {
       // Já registrado (`audit.write_failed`) pelo serviço; a recusa continua.

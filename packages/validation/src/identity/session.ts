@@ -64,6 +64,11 @@ export const myProfileSchema = z
       jobTitle: z.string().nullable(),
       departments: z.array(z.string()),
     }),
+    /**
+     * A sessão desta requisição comprova o segundo fator (derivado do `amr` — US-090 ·
+     * RN-IAM-44); nunca o dispositivo nem o método usado.
+     */
+    mfaVerified: z.boolean(),
     version: z.int().min(1),
   })
   .meta({ id: 'MyProfile' });

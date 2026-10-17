@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   allowedMembershipActions,
+  canResetMfa,
   canTransition,
   departmentReferenceErrors,
   membershipValidityError,
@@ -85,16 +86,25 @@ describe('Ciclo de vida do vínculo (US-092)', () => {
     it('por status, e sem suspender/revogar o próprio vínculo', () => {
       expect(
         allowedMembershipActions({ status: 'ACTIVE', canManage: true, isSelf: false }),
-      ).toEqual(['UPDATE', 'UPDATE_DEPARTMENTS', 'SUSPEND', 'REVOKE']);
+      ).toEqual(['UPDATE', 'UPDATE_DEPARTMENTS', 'SUSPEND', 'REVOKE', 'MFA_RESET']);
       expect(allowedMembershipActions({ status: 'ACTIVE', canManage: true, isSelf: true })).toEqual(
         ['UPDATE', 'UPDATE_DEPARTMENTS'],
       );
       expect(
         allowedMembershipActions({ status: 'SUSPENDED', canManage: true, isSelf: false }),
-      ).toEqual(['UPDATE', 'UPDATE_DEPARTMENTS', 'REACTIVATE', 'REVOKE']);
+      ).toEqual(['UPDATE', 'UPDATE_DEPARTMENTS', 'REACTIVATE', 'REVOKE', 'MFA_RESET']);
       expect(
         allowedMembershipActions({ status: 'REVOKED', canManage: true, isSelf: false }),
       ).toEqual([]);
+    });
+  });
+
+  describe('redefinição do MFA (US-090 · RN-IAM-43)', () => {
+    it('nunca sobre o próprio vínculo nem sobre o revogado', () => {
+      expect(canResetMfa('ACTIVE', false)).toBe(true);
+      expect(canResetMfa('SUSPENDED', false)).toBe(true);
+      expect(canResetMfa('ACTIVE', true)).toBe(false);
+      expect(canResetMfa('REVOKED', false)).toBe(false);
     });
   });
 

@@ -93,3 +93,13 @@ Desde a US-092 (RN-IAM-54..64 · POL-12/16):
   `membership.mutation`/`membership.mutation_failed` e o histograma
   `cf_membership_mutation_duration_ms{action}`. Motivos de suspensão/revogação nunca vão para
   logs, eventos ou auditoria (só `hasReason`).
+
+Desde a US-090 (RN-IAM-39..44 · DEC-142):
+
+- **Redefinição do MFA (USR-13):** `ResetUserMfaCommand` — `USER_MANAGE` (+ MFA), vínculo no
+  tenant (404), autoproteção (422 `NOT_ALLOWED`), não revogado (409); remove os dispositivos pela
+  porta `AUTHENTIK_MFA` (`AuthentikAdminClient.resetMfa`, fora de transação, com 1 nova
+  tentativa, depois 503) e grava `membership.mfa_reset` (`SECURITY`, com o motivo) numa transação
+  própria. Sem escrita local além da auditoria e sem `If-Match`: idempotente. Log `identity.mfa_reset` sem o
+  motivo.
+- **ME-01 `mfaVerified`:** a sessão comprova o segundo fator (`amr`), sem método nem dispositivo.

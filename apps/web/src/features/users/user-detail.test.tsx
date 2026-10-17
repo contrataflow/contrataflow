@@ -92,6 +92,7 @@ interface Routes {
   suspend?: Handler;
   reactivate?: Handler;
   revoke?: Handler;
+  mfaReset?: Handler;
 }
 
 function mockApi(routes: Routes = {}, permissions: readonly string[] = MANAGER) {
@@ -144,6 +145,11 @@ function mockApi(routes: Routes = {}, permissions: readonly string[] = MANAGER) 
     if (method === 'POST' && url === `${base}/revoke`) {
       return respond(routes.revoke, () =>
         detailResponse(member({ version: 4, status: 'REVOKED' }), ['UPDATE']),
+      );
+    }
+    if (method === 'POST' && url === `${base}/mfa-reset`) {
+      return respond(routes.mfaReset, () =>
+        jsonResponse({ data: { userId: USER_ID, resetAt: '2026-10-17T12:00:00.000Z' } }),
       );
     }
     return Promise.resolve(problemResponse(500, 'INTERNAL_ERROR', 'x'));
@@ -744,5 +750,122 @@ describe('SCR-029 · suspender, reativar e revogar (US-092)', () => {
       expect(screen.queryByRole('alertdialog')).toBeNull();
     });
     expect(callsOf(api, 'POST', '/suspend')).toHaveLength(0);
+  });
+});
+
+describe('SCR-029 · redefinir a autenticação em duas etapas (US-090 · USR-13)', () => {
+  const WITH_MFA_RESET: MembershipAction[] = [...ALL_ACTIONS, 'MFA_RESET'];
+  const RESET = 'Redefinir autenticação em duas etapas';
+  const openReset = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByRole('button', { name: RESET }));
+    return screen.findByRole('alertdialog', {
+      name: 'Redefinir a autenticação em duas etapas de Diego Ramos?',
+    });
+  };
+
+  it('[Sucesso] motivo obrigatório com foco, POST sem If-Match e toast; sem violações de a11y', async () => {
+    const api = mockApi({ get: () => detailResponse(member(), WITH_MFA_RESET) });
+    const user = userEvent.setup();
+    open();
+    const dialog = await openReset(user);
+    const reason = within(dialog).getByRole('textbox', { name: 'Motivo' });
+    expect(document.activeElement).toBe(reason);
+    expect(await seriousA11yViolations()).toEqual([]);
+    await user.type(reason, 'Perdeu o celular com o autenticador.');
+    await user.click(within(dialog).getByRole('button', { name: 'Redefinir' }));
+
+    expect(
+      await screen.findByText('Autenticação em duas etapas de Diego Ramos redefinida.'),
+    ).toBeTruthy();
+    const call = callsOf(api, 'POST', '/mfa-reset')[0];
+    expect(call?.body).toEqual({ reason: 'Perdeu o celular com o autenticador.' });
+    expect(call?.headers.get('If-Match')).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('[Validação] V-03: motivo curto não chama a API e anuncia a mensagem no campo', async () => {
+    const api = mockApi({ get: () => detailResponse(member(), WITH_MFA_RESET) });
+    const user = userEvent.setup();
+    open();
+    const dialog = await openReset(user);
+    await user.type(within(dialog).getByRole('textbox', { name: 'Motivo' }), 'curto');
+    await user.click(within(dialog).getByRole('button', { name: 'Redefinir' }));
+    expect(
+      await within(dialog).findByText('Informe o motivo da redefinição (mín. 10 caracteres).'),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole('textbox', { name: 'Motivo' }).getAttribute('aria-invalid'),
+    ).toBe('true');
+    expect(callsOf(api, 'POST', '/mfa-reset')).toHaveLength(0);
+  });
+
+  it('[RN-IAM-43] botão oculto no próprio vínculo e sem USER_MANAGE', async () => {
+    mockApi({ get: () => detailResponse(member(), ['UPDATE', 'UPDATE_DEPARTMENTS'], true) });
+    open();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Diego Ramos' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: RESET })).toBeNull();
+  });
+
+  it('[Falha de integração] 503 mantém o diálogo com a mensagem e "Tentar novamente"', async () => {
+    let attempts = 0;
+    const api = mockApi({
+      get: () => detailResponse(member(), WITH_MFA_RESET),
+      mfaReset: () => {
+        attempts += 1;
+        return attempts === 1
+          ? problemResponse(503, 'DEPENDENCY_UNAVAILABLE', 'x')
+          : jsonResponse({ data: { userId: USER_ID, resetAt: '2026-10-17T12:00:00.000Z' } });
+      },
+    });
+    const user = userEvent.setup();
+    open();
+    const dialog = await openReset(user);
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Motivo' }),
+      'Dispositivo perdido.',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Redefinir' }));
+    expect(
+      await within(dialog).findByText(
+        'O serviço de autenticação está indisponível. Tente novamente em instantes.',
+      ),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Tentar novamente' }));
+    expect(
+      await screen.findByText('Autenticação em duas etapas de Diego Ramos redefinida.'),
+    ).toBeTruthy();
+    expect(callsOf(api, 'POST', '/mfa-reset')).toHaveLength(2);
+  });
+
+  it('[Permissão] 403 PERMISSION_DENIED e 422 NOT_ALLOWED aparecem no diálogo', async () => {
+    let attempts = 0;
+    mockApi({
+      get: () => detailResponse(member(), WITH_MFA_RESET),
+      mfaReset: () => {
+        attempts += 1;
+        return attempts === 1
+          ? problemResponse(403, 'PERMISSION_DENIED', 'x')
+          : problemResponse(422, 'VALIDATION_ERROR', 'x', [
+              { field: 'userId', code: 'NOT_ALLOWED', message: 'x' },
+            ]);
+      },
+    });
+    const user = userEvent.setup();
+    open();
+    const dialog = await openReset(user);
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Motivo' }),
+      'Dispositivo perdido.',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Redefinir' }));
+    expect(
+      await within(dialog).findByText(
+        'Você não tem permissão para redefinir a autenticação em duas etapas.',
+      ),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Redefinir' }));
+    expect(
+      await within(dialog).findByText('Use a recuperação no login para o seu próprio caso.'),
+    ).toBeTruthy();
   });
 });

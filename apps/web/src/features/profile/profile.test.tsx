@@ -35,6 +35,7 @@ function profile(overrides: Partial<MyProfileDto> = {}): MyProfileDto {
     phone: null,
     preferences: { density: 'comfortable', theme: 'system' },
     membership: { jobTitle: 'Analista de Compras', departments: ['Compras', 'Licitações'] },
+    mfaVerified: false,
     version: 1,
     ...overrides,
   };
@@ -153,8 +154,18 @@ describe('SCR-039 — Meu perfil (US-098)', () => {
     expect(
       screen.getByRole('link', { name: /Autenticação em duas etapas/ }).getAttribute('href'),
     ).toBe(LINKS.mfa);
+    // US-090 · RN-IAM-44: status do segundo fator nesta sessão, sem detalhar o dispositivo.
+    expect(screen.getByText('Segundo fator nesta sessão:')).toBeTruthy();
+    expect(screen.getByText('Não confirmado')).toBeTruthy();
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
     expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('[US-090] sessão com o segundo fator comprovado mostra "Confirmado"', async () => {
+    mockApi(profile({ mfaVerified: true }));
+    renderProfile();
+    expect(await screen.findByText('Confirmado')).toBeTruthy();
+    expect(screen.queryByText('Não confirmado')).toBeNull();
   });
 
   it('[Sucesso] salva nome social e tema com If-Match, avisa com aria-live e aplica o tema na hora', async () => {

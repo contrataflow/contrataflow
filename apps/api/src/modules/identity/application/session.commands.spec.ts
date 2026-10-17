@@ -368,6 +368,7 @@ describe('ME-01 e ME-04', () => {
       phone: null,
       preferences: { density: 'comfortable', theme: 'system' },
       membership: { jobTitle: null, departments: [] },
+      mfaVerified: false,
       version: 1,
     });
     await expect(inRequest(() => query.execute())).rejects.toMatchObject({

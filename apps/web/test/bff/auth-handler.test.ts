@@ -533,6 +533,101 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
     expect((await test.store.get(record.key))?.amr).toEqual(['pwd', 'otp']);
   });
 
+  it('[Sucesso · US-090] step-up concluído registra auth.step_up_completed sem o fator usado', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    const start = await handleAuthRequest(
+      browserRequest('/api/auth/step-up?returnTo=%2Fadmin%2Fusuarios', {
+        headers: { Cookie: cookie },
+      }),
+      'step-up',
+      test.runtime,
+    );
+    const url = new URL(start.headers.get('Location') ?? '');
+    const transaction =
+      cookieValue(start.headers.get('Set-Cookie'), LOGIN_TRANSACTION_COOKIE) ?? '';
+    await handleAuthRequest(
+      browserRequest(`${url.pathname}${url.search}`, {
+        headers: { Cookie: `${cookie}; ${LOGIN_TRANSACTION_COOKIE}=${transaction}` },
+      }),
+      'callback',
+      test.runtime,
+    );
+    const completed = logs.lines.filter((line) =>
+      line.includes('"event":"auth.step_up_completed"'),
+    );
+    expect(completed).toHaveLength(1);
+    const entry = JSON.parse(completed[0] ?? '{}') as Record<string, unknown>;
+    expect(entry).toMatchObject({ userId: record.userId });
+    expect(typeof entry.durationMs).toBe('number');
+    expect(completed[0]).not.toMatch(/otp|accessToken|refresh/);
+  });
+
+  it('[Falha de integração · US-090] Authentik fora no step-up: SCR-111 com nova tentativa e a sessão intacta', async () => {
+    const base = createTestRuntime();
+    const identity = base.runtime.identity;
+    const test = createTestRuntime({
+      identity: {
+        kind: identity.kind,
+        beginLogin: (input) =>
+          input.stepUp
+            ? Promise.reject(new IdentityProviderUnavailableError())
+            : identity.beginLogin(input),
+        completeLogin: (params, secrets) => identity.completeLogin(params, secrets),
+        refresh: (record) => identity.refresh(record),
+        revokeRefreshToken: (record) => identity.revokeRefreshToken(record),
+        endSessionUrl: () => identity.endSessionUrl(),
+      },
+    });
+    const { cookie, record } = await signIn(test);
+    const response = await handleAuthRequest(
+      browserRequest('/api/auth/step-up?returnTo=%2Fadmin%2Fperfis', {
+        headers: { Cookie: cookie },
+      }),
+      'step-up',
+      test.runtime,
+    );
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('Location') ?? '', APP_ORIGIN);
+    // Nunca `/entrar`: com a sessão ativa, voltaria ao destino e à mesma recusa (laço).
+    expect(location.pathname).toBe('/erro/confirmacao-indisponivel');
+    expect(location.searchParams.get('retorno')).toBe('/admin/perfis');
+    expect(location.searchParams.get('codigo')).not.toBeNull();
+    expect(await test.store.get(record.key)).toMatchObject({ amr: record.amr });
+    expect(logs.lines.some((line) => line.includes('"event":"auth.step_up_unavailable"'))).toBe(
+      true,
+    );
+  });
+
+  it('[FA-04 · US-090] desafio cancelado: a sessão não muda e a pessoa pode tentar de novo', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    const start = await handleAuthRequest(
+      browserRequest('/api/auth/step-up?returnTo=%2Fadmin%2Fperfis', {
+        headers: { Cookie: cookie },
+      }),
+      'step-up',
+      test.runtime,
+    );
+    const state = new URL(start.headers.get('Location') ?? '').searchParams.get('state') ?? '';
+    const transaction =
+      cookieValue(start.headers.get('Set-Cookie'), LOGIN_TRANSACTION_COOKIE) ?? '';
+    const callback = await handleAuthRequest(
+      browserRequest(
+        `/api/auth/callback?${new URLSearchParams({ error: 'access_denied', state }).toString()}`,
+        { headers: { Cookie: `${cookie}; ${LOGIN_TRANSACTION_COOKIE}=${transaction}` } },
+      ),
+      'callback',
+      test.runtime,
+    );
+    const location = new URL(callback.headers.get('Location') ?? '', APP_ORIGIN);
+    expect(location.pathname).toBe('/erro/confirmacao-nao-concluida');
+    expect(location.searchParams.get('retorno')).toBe('/admin/perfis');
+    const kept = await test.store.get(record.key);
+    expect(kept?.amr).toEqual(record.amr);
+    expect(kept?.tokens.accessToken).toBe(record.tokens.accessToken);
+  });
+
   it('step-up sem sessão vira login completo', async () => {
     const test = createTestRuntime();
     const response = await handleAuthRequest(

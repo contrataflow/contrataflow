@@ -3,6 +3,8 @@ import {
   membershipDetailSchema,
   membershipReasonSchema,
   membershipUserParamsSchema,
+  mfaResetResultSchema,
+  mfaResetSchema,
   reactivateMembershipSchema,
   updateMembershipDepartmentsSchema,
   updateMembershipSchema,
@@ -10,6 +12,8 @@ import {
 import type {
   MembershipDetailMeta,
   MembershipReason,
+  MfaReset,
+  MfaResetResult,
   TenantMembershipDetailDto,
   UpdateMembership,
   UpdateMembershipDepartments,
@@ -33,6 +37,7 @@ import {
   UpdateMembershipDepartmentsCommand,
 } from '../application/membership.commands.js';
 import type { MembershipDetailResult } from '../application/membership.commands.js';
+import { ResetUserMfaCommand } from '../application/reset-user-mfa.command.js';
 import type { MembershipTransition } from '../domain/membership-lifecycle.js';
 
 const TAGS = ['Usuários e vínculos'];
@@ -47,7 +52,7 @@ type DetailResponse = DataResult<TenantMembershipDetailDto, MembershipDetailMeta
 
 /**
  * USR-07..12 (api/14-tenant-administration.md · US-092): detalhe e ciclo de vida do vínculo do
- * usuário no tenant ativo. `USER_VIEW` consulta; `USER_MANAGE` (+ MFA conforme
+ * usuário no tenant ativo; USR-13 (US-090) redefine o MFA da conta no Authentik. `USER_VIEW` consulta; `USER_MANAGE` (+ MFA conforme
  * `security.mfaPolicy`, POL-14) edita, lota, suspende, reativa e revoga — conferidos nos casos de
  * uso, junto de POL-12/16. Toda mutação exige `If-Match` com a versão lida (RN-IAM-63) e devolve
  * o detalhe com o novo `ETag`.
@@ -60,6 +65,7 @@ export class UserMembershipController {
     private readonly update: UpdateMembershipCommand,
     private readonly updateDepartments: UpdateMembershipDepartmentsCommand,
     private readonly changeStatus: ChangeMembershipStatusCommand,
+    private readonly resetMfa: ResetUserMfaCommand,
   ) {}
 
   @Get(':userId')
@@ -223,6 +229,30 @@ export class UserMembershipController {
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<DetailResponse> {
     return this.transition('REVOKE', params.userId, body.reason, ifMatch, response);
+  }
+
+  @Post(':userId/mfa-reset')
+  @HttpCode(200)
+  @RequirePermission('USER_MANAGE')
+  @Policy('POL-16')
+  @ApiOperation({
+    operationId: 'USR-13',
+    summary: 'Redefinir MFA do usuário',
+    tags: TAGS,
+    auditActions: ['membership.mfa_reset'],
+    responses: {
+      200: {
+        description:
+          'Remove os fatores de MFA da conta no Authentik (novo *enrollment* no próximo desafio), com motivo obrigatório (10–500). Idempotente: repetir antes do novo cadastro conclui normalmente. Próprio vínculo → 422 `VALIDATION_ERROR` (`NOT_ALLOWED`, RN-IAM-43); vínculo revogado → 409 `INVALID_STATE`; Authentik fora do ar → 503 `DEPENDENCY_UNAVAILABLE`.',
+        schema: z.object({ data: mfaResetResultSchema }),
+      },
+    },
+  })
+  async resetUserMfa(
+    @ZodParams(membershipUserParamsSchema) params: { userId: string },
+    @ZodBody(mfaResetSchema) body: MfaReset,
+  ): Promise<MfaResetResult> {
+    return this.resetMfa.execute({ userId: params.userId, reason: body.reason });
   }
 
   private async transition(

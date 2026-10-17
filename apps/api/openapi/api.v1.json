@@ -2609,6 +2609,9 @@
               "departments"
             ]
           },
+          "mfaVerified": {
+            "type": "boolean"
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -2622,6 +2625,7 @@
           "phone",
           "preferences",
           "membership",
+          "mfaVerified",
           "version"
         ]
       },
@@ -7712,6 +7716,37 @@
         "required": [
           "departmentIds",
           "primaryDepartmentId"
+        ],
+        "additionalProperties": false
+      },
+      "MfaResetResult": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resetAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "userId",
+          "resetAt"
+        ]
+      },
+      "MfaReset": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
         ],
         "additionalProperties": false
       },
@@ -33304,7 +33339,8 @@
                               "UPDATE_DEPARTMENTS",
                               "SUSPEND",
                               "REACTIVATE",
-                              "REVOKE"
+                              "REVOKE",
+                              "MFA_RESET"
                             ]
                           }
                         },
@@ -33458,7 +33494,8 @@
                               "UPDATE_DEPARTMENTS",
                               "SUSPEND",
                               "REACTIVATE",
-                              "REVOKE"
+                              "REVOKE",
+                              "MFA_RESET"
                             ]
                           }
                         },
@@ -33614,7 +33651,8 @@
                               "UPDATE_DEPARTMENTS",
                               "SUSPEND",
                               "REACTIVATE",
-                              "REVOKE"
+                              "REVOKE",
+                              "MFA_RESET"
                             ]
                           }
                         },
@@ -33631,6 +33669,136 @@
                   "required": [
                     "data",
                     "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{userId}/mfa-reset": {
+      "post": {
+        "operationId": "USR-13",
+        "summary": "Redefinir MFA do usuário",
+        "tags": [
+          "Usuários e vínculos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "membership.mfa_reset"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaReset"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Remove os fatores de MFA da conta no Authentik (novo *enrollment* no próximo desafio), com motivo obrigatório (10–500). Idempotente: repetir antes do novo cadastro conclui normalmente. Próprio vínculo → 422 `VALIDATION_ERROR` (`NOT_ALLOWED`, RN-IAM-43); vínculo revogado → 409 `INVALID_STATE`; Authentik fora do ar → 503 `DEPENDENCY_UNAVAILABLE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MfaResetResult"
+                    }
+                  },
+                  "required": [
+                    "data"
                   ]
                 }
               }
@@ -33770,7 +33938,8 @@
                               "UPDATE_DEPARTMENTS",
                               "SUSPEND",
                               "REACTIVATE",
-                              "REVOKE"
+                              "REVOKE",
+                              "MFA_RESET"
                             ]
                           }
                         },
@@ -33926,7 +34095,8 @@
                               "UPDATE_DEPARTMENTS",
                               "SUSPEND",
                               "REACTIVATE",
-                              "REVOKE"
+                              "REVOKE",
+                              "MFA_RESET"
                             ]
                           }
                         },
@@ -34355,7 +34525,8 @@
                               "UPDATE_DEPARTMENTS",
                               "SUSPEND",
                               "REACTIVATE",
-                              "REVOKE"
+                              "REVOKE",
+                              "MFA_RESET"
                             ]
                           }
                         },

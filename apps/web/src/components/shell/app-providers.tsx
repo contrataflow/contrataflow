@@ -57,6 +57,7 @@ export function AppProviders({
         unexpected: t('toast.unexpected'),
         notFound: t('pages.404.title'),
         correlation: (correlationId) => t('correlation.label', { correlationId }),
+        stepUp: t('toast.stepUp'),
       },
     }),
     [t],

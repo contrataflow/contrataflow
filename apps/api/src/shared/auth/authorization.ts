@@ -103,6 +103,8 @@ export interface AuthorizationRequest {
   readonly requirement: PermissionRequirement | null;
   readonly policies: readonly PolicyDeclaration[];
   readonly params: Readonly<Record<string, string | undefined>>;
+  /** Padrão da rota (sem IDs) para a auditoria `auth.mfa_required` (US-090). */
+  readonly route?: string | null;
   /** Instância da política declarada pela classe (provider registrado ou criada com injeção). */
   readonly resolvePolicy: (type: Type<ContextualPolicy>) => Promise<ContextualPolicy>;
 }

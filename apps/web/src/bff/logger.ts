@@ -24,6 +24,9 @@ export type LogEvent =
   | 'auth.session_store_unavailable'
   | 'auth.login_started'
   | 'auth.login_unavailable'
+  // US-090: *step-up* concluído (sem o fator usado) e Authentik fora durante o desafio.
+  | 'auth.step_up_completed'
+  | 'auth.step_up_unavailable'
   | 'auth.session_created'
   | 'auth.session_evicted'
   | 'auth.callback_rejected'

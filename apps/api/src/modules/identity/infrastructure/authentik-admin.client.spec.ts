@@ -153,3 +153,79 @@ describe('AuthentikAdminClient — provisionamento do convite', () => {
     await expect(new DisabledAuthentikDirectory().removeUser()).resolves.toBeUndefined();
   });
 });
+
+/* US-090 · USR-13: remoção dos dispositivos de MFA pela API administrativa (RN-IAM-43/44). */
+describe('AuthentikAdminClient.resetMfa', () => {
+  /** API simulada: dispositivos por tipo; registra as remoções. */
+  function authentikWith(devices: Record<string, { pk: number | string }[]>, deleteStatus = 204) {
+    const deleted: string[] = [];
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.pathname === '/api/v3/core/users/') {
+        return Promise.resolve(Response.json({ results: [{ pk: 42, uuid: SUB }] }));
+      }
+      const match = /^\/api\/v3\/authenticators\/admin\/([a-z]+)\/(?:([^/]+)\/)?$/.exec(
+        url.pathname,
+      );
+      if (!match) return Promise.resolve(new Response('{}', { status: 404 }));
+      const [, type = '', id] = match;
+      if (init?.method === 'DELETE') {
+        deleted.push(`${type}:${id ?? ''}`);
+        return Promise.resolve(new Response(null, { status: deleteStatus }));
+      }
+      expect(url.searchParams.get('user')).toBe('42');
+      return Promise.resolve(Response.json({ results: devices[type] ?? [] }));
+    });
+    return { fetchMock, deleted };
+  }
+
+  it('remove TOTP e WebAuthn (e os de recuperação) da conta pelo PK do provisionamento', async () => {
+    const { fetchMock, deleted } = authentikWith({
+      totp: [{ pk: 1 }],
+      webauthn: [{ pk: 'a1' }, { pk: 2 }],
+      static: [{ pk: 3 }],
+    });
+    await expect(
+      client(fetchMock).resetMfa({ authentikUserId: '42', externalSubject: null }),
+    ).resolves.toEqual({ removedDevices: 4 });
+    expect(deleted).toEqual(['totp:1', 'webauthn:a1', 'webauthn:2', 'static:3']);
+  });
+
+  it('sem PK, encontra a conta pelo sub; sem conta nenhuma não chama a API', async () => {
+    const { fetchMock, deleted } = authentikWith({ totp: [{ pk: 9 }] });
+    await expect(
+      client(fetchMock).resetMfa({ authentikUserId: null, externalSubject: SUB }),
+    ).resolves.toEqual({ removedDevices: 1 });
+    expect(deleted).toEqual(['totp:9']);
+    const never = vi.fn<typeof fetch>();
+    await expect(
+      client(never).resetMfa({ authentikUserId: null, externalSubject: null }),
+    ).resolves.toEqual({ removedDevices: 0 });
+    expect(never).not.toHaveBeenCalled();
+  });
+
+  it('[Duplicidade] 404 na remoção = já removido; conta sem dispositivo conclui sem erro', async () => {
+    const gone = authentikWith({ totp: [{ pk: 1 }] }, 404);
+    await expect(
+      client(gone.fetchMock).resetMfa({ authentikUserId: '42', externalSubject: null }),
+    ).resolves.toEqual({ removedDevices: 0 });
+    const empty = authentikWith({});
+    await expect(
+      client(empty.fetchMock).resetMfa({ authentikUserId: '42', externalSubject: null }),
+    ).resolves.toEqual({ removedDevices: 0 });
+  });
+
+  it('[Falha de integração] erro HTTP ou de rede → AuthentikUnavailableError; sem API → também', async () => {
+    const forbidden = authentikWith({ totp: [{ pk: 1 }] }, 500);
+    await expect(
+      client(forbidden.fetchMock).resetMfa({ authentikUserId: '42', externalSubject: null }),
+    ).rejects.toBeInstanceOf(AuthentikUnavailableError);
+    const down = vi.fn<typeof fetch>(() => Promise.reject(new TypeError('fetch failed')));
+    await expect(
+      client(down).resetMfa({ authentikUserId: '42', externalSubject: null }),
+    ).rejects.toBeInstanceOf(AuthentikUnavailableError);
+    await expect(new DisabledAuthentikDirectory().resetMfa()).rejects.toBeInstanceOf(
+      AuthentikUnavailableError,
+    );
+  });
+});

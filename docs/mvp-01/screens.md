@@ -401,10 +401,10 @@ flowchart TD
 - **Componentes:** `ErrorBoundary`/`error.tsx`/`global-error.tsx`; variantes reaproveitam `LoginReasonMessage`/`NoMembershipPage` (SCR-001) e o botão "Trocar de instituição" → SCR-101.
 - **Dados e endpoints:** acionada por interceptadores de resposta (401 `SESSION_EXPIRED`, 403 `PERMISSION_DENIED`/`MEMBERSHIP_INACTIVE`/`TENANT_SUSPENDED`, 404, 500, 503); não possui endpoint de leitura próprio.
 - **Ações:** Tentar novamente → repete a requisição de origem; Trocar de instituição → SCR-101 (quando há outros vínculos); Sair → logout (US-088).
-- **Estados:** variantes: 403 (bloqueado), 404, 500, sessão expirada, manutenção/indisponibilidade ("Tentar novamente"), sem vínculo, sem acesso a esta instituição, acesso indisponível (`TENANT_SUSPENDED`: "O acesso a esta instituição está indisponível no momento. Procure o administrador."), instituição em encerramento (`OFFBOARDING`: faixa fixa "somente consulta e exportação", ações de comando ocultas).
+- **Estados:** variantes: 403 (bloqueado), 404, 500, sessão expirada, manutenção/indisponibilidade ("Tentar novamente"), sem vínculo, sem acesso a esta instituição, acesso indisponível (`TENANT_SUSPENDED`: "O acesso a esta instituição está indisponível no momento. Procure o administrador."), instituição em encerramento (`OFFBOARDING`: faixa fixa "somente consulta e exportação", ações de comando ocultas), confirmação de identidade indisponível ou não concluída (*step-up* da US-090: "Tentar novamente" refaz o desafio para o mesmo destino; a sessão segue válida).
 - **Validações e mensagens:** nenhum código técnico exposto além do `correlationId`.
 - **Acessibilidade e responsividade:** título, explicação e ação primária sempre focáveis; anúncio via `aria-live`; utilizável em 360 px.
-- **Stories:** US-086 (principal), US-087, US-088, US-099, US-100.
+- **Stories:** US-086 (principal), US-087, US-088, US-090, US-099, US-100.
 
 ### SCR-113 — Duplicar processo (diálogo)
 - **Rota:** diálogo sobre SCR-006 · **Acesso:** `PROCESS_DUPLICATE` + `PROCESS_CREATE` (para a unidade solicitante do novo processo) · **Personas:** requisitante com permissão de criar processo.

@@ -30,7 +30,9 @@ import type {
   MembershipState,
 } from '../application/membership-ports.js';
 import type {
+  AuthentikAccountRef,
   AuthentikDirectoryPort,
+  AuthentikMfaPort,
   IdentityRepository,
   LoginRecord,
   TenantMember,
@@ -867,7 +869,7 @@ function toTenantMembership(membership: StoredMembership, tenant: TenantData): T
  * contas criadas e das removidas pela compensação.
  */
 export class InMemoryAuthentikDirectory
-  implements AuthentikDirectoryPort, AuthentikProvisioningPort
+  implements AuthentikDirectoryPort, AuthentikProvisioningPort, AuthentikMfaPort
 {
   /** Authentik fora do ar: `provisionUser` falha (Gherkin "Falha de integração"). */
   unavailable = false;
@@ -892,5 +894,20 @@ export class InMemoryAuthentikDirectory
   removeUser(pk: string): Promise<void> {
     this.removed.push(pk);
     return Promise.resolve();
+  }
+
+  /** Dispositivos de MFA por conta (`authentikUserId` ou `sub`) — US-090. */
+  readonly mfaDevices = new Map<string, number>();
+  /** Redefinições pedidas (Gherkin "Duplicidade"). */
+  readonly mfaResets: AuthentikAccountRef[] = [];
+
+  resetMfa(account: AuthentikAccountRef): Promise<{ removedDevices: number }> {
+    if (this.unavailable) return Promise.reject(new AuthentikUnavailableError());
+    this.mfaResets.push(account);
+    const key = account.authentikUserId ?? account.externalSubject;
+    if (key === null) return Promise.resolve({ removedDevices: 0 });
+    const removedDevices = this.mfaDevices.get(key) ?? 0;
+    this.mfaDevices.set(key, 0);
+    return Promise.resolve({ removedDevices });
   }
 }

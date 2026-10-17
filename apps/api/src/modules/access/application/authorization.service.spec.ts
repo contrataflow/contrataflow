@@ -49,6 +49,7 @@ function setup(
   options: {
     readonly transactions?: AccessTransactions;
     readonly resolved?: EffectivePermissionsSnapshot;
+    readonly mfaPolicy?: 'NONE' | 'ADMINS' | 'ALL';
   } = {},
 ) {
   const resolve = vi.fn(() => Promise.resolve(options.resolved ?? TENANT_VIEW));
@@ -56,7 +57,9 @@ function setup(
   const registry = new ProcessAccessRegistry();
   const service = new AuthorizationService(
     { resolve } as unknown as EffectivePermissionsService,
-    { mfaPolicy: () => Promise.resolve('ADMINS') } as unknown as IdentityFacade,
+    {
+      mfaPolicy: () => Promise.resolve(options.mfaPolicy ?? 'ADMINS'),
+    } as unknown as IdentityFacade,
     registry,
     options.transactions ?? new InMemoryAccessTransactions(),
     () => new Date('2026-10-16T12:00:00.000Z'),
@@ -110,6 +113,47 @@ describe('AuthorizationService (US-097)', () => {
     );
     expect(set.snapshot.grants).toEqual([]);
     expect(resolve).not.toHaveBeenCalled();
+  });
+
+  // US-090 · RN-IAM-39: matriz política × riskLevel × amr (PROCESS_VIEW é LOW, ROLE_MANAGE é HIGH).
+  it.each([
+    ['NONE', 'PROCESS_VIEW', ['pwd'], null],
+    ['NONE', 'ROLE_MANAGE', ['pwd'], null],
+    ['ADMINS', 'PROCESS_VIEW', ['pwd'], null],
+    ['ADMINS', 'ROLE_MANAGE', ['pwd'], 'MFA_REQUIRED'],
+    ['ADMINS', 'ROLE_MANAGE', ['pwd', 'otp'], null],
+    ['ALL', 'PROCESS_VIEW', ['pwd'], 'MFA_REQUIRED'],
+    ['ALL', 'PROCESS_VIEW', ['pwd', 'hwk'], null],
+    ['ALL', 'ROLE_MANAGE', ['pwd', 'otp'], null],
+  ] as const)(
+    'RN-IAM-39: política %s, permissão %s, amr %j → %s',
+    async (mfaPolicy, permission, amr, expected) => {
+      const { service } = setup({ mfaPolicy });
+      const outcome = asMember(
+        () => service.authorize(request({ requirement: { permission, scope: 'ANY' } })),
+        amr,
+      );
+      if (expected === null) await expect(outcome).resolves.toBeUndefined();
+      else await expect(outcome).rejects.toMatchObject({ code: expected, status: 403 });
+    },
+  );
+
+  it('RN-IAM-39: com ALL, rota sem permissão declarada também exige MFA e audita a rota', async () => {
+    const { service, recordStandalone } = setup({ mfaPolicy: 'ALL' });
+    recordStandalone.mockResolvedValue(undefined as never);
+    await expect(
+      asMember(() => service.authorize(request({ route: '/api/v1/processes' }))),
+    ).rejects.toMatchObject({ code: 'MFA_REQUIRED', auditReasonCode: 'MFA_REQUIRED' });
+    expect(recordStandalone).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.mfa_required',
+        result: 'DENIED',
+        metadata: { permissionCode: null, route: '/api/v1/processes' },
+      }),
+    );
+    await expect(
+      asMember(() => service.authorize(request()), ['pwd', 'otp']),
+    ).resolves.toBeUndefined();
   });
 
   it('permissão HIGH sem 2º fator → MFA_REQUIRED, mesmo com a auditoria auth.mfa_required fora', async () => {

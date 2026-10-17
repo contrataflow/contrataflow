@@ -13,6 +13,7 @@ import { useTenantId } from '@/lib/session/session-context';
 
 import { MembershipActionDialog } from './membership-action-dialog';
 import type { MembershipDialogAction } from './membership-action-dialog';
+import { MfaResetDialog } from './mfa-reset-dialog';
 import { RoleAssignmentsSection } from './role-assignments-section';
 import { StatusBadge } from './status-badge';
 import { UserDepartmentsForm } from './user-departments-form';
@@ -35,7 +36,8 @@ interface FeedbackState {
  * Detalhe do vínculo (SCR-029 `/admin/usuarios/[userId]` · US-092): dados globais somente leitura,
  * `UserDetailForm` (USR-08), lotações com principal explícita (USR-09) e as ações de acesso
  * (suspender, reativar, revogar — USR-10..12) conforme `meta.allowedActions` e a aba "Perfis e
- * acessos" (US-096 · ROL-10..12). Toda mutação envia
+ * acessos" (US-096 · ROL-10..12), e a redefinição da autenticação em duas etapas (US-090 · USR-13,
+ * oculta para o próprio vínculo — RN-IAM-43). Toda mutação de vínculo envia
  * `If-Match`; a resposta (mesmo formato do detalhe, novo `ETag`) substitui o detalhe em cache e
  * invalida a lista, sem recarregar a página. 412/409 recarregam o detalhe antes de nova tentativa;
  * 404 devolve à lista.
@@ -48,6 +50,7 @@ export function UserDetailView({ userId }: { readonly userId: string }) {
   const queryClient = useQueryClient();
   const selfNoteId = useId();
   const [dialog, setDialog] = useState<MembershipDialogAction | null>(null);
+  const [mfaResetOpen, setMfaResetOpen] = useState(false);
   const [state, setState] = useState<FeedbackState | null>(null);
   const [gone, setGone] = useState(false);
   /** Incrementa depois de recarregar o detalhe por conflito: os formulários recomeçam dele. */
@@ -350,6 +353,43 @@ export function UserDetailView({ userId }: { readonly userId: string }) {
           ) : null}
         </section>
       ) : null}
+
+      {allowed.has('MFA_RESET') ? (
+        <section aria-labelledby={`${selfNoteId}-mfa`} className="flex flex-col gap-3">
+          <h2 id={`${selfNoteId}-mfa`} className="text-lg font-semibold">
+            {t('detail.mfa.title')}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t('detail.mfa.hint')}</p>
+          <div>
+            <Button
+              variant="secondary"
+              disabled={locked || pending}
+              onClick={() => {
+                setState(null);
+                setMfaResetOpen(true);
+              }}
+            >
+              {t('detail.mfa.action')}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      <MfaResetDialog
+        open={mfaResetOpen}
+        membership={membership}
+        returnTo={detailPath}
+        onClose={() => {
+          setMfaResetOpen(false);
+        }}
+        onDone={() => {
+          setMfaResetOpen(false);
+          toast({ title: t('detail.mfa.toast', { name: membership.name }), tone: 'success' });
+        }}
+        onStale={(feedback) => {
+          showFeedback(feedback);
+        }}
+      />
 
       <MembershipActionDialog
         action={dialog}

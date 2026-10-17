@@ -16,7 +16,9 @@ import { HOME_PATH } from '@/lib/routes';
  * SCR-111 — páginas de erro e estados globais (`/erro/*`): destino dos interceptadores e
  * boundaries (architecture.md §8.12), do callback do login (US-087: `sem-vinculo`,
  * `acesso-bloqueado`, `manutencao`) e do vínculo encerrado durante o uso (US-088:
- * `vinculo-inativo`). Só `correlationId` é exibido como código técnico.
+ * `vinculo-inativo`) e do *step-up* que não se concluiu (US-090: `confirmacao-indisponivel`,
+ * `confirmacao-nao-concluida` — a sessão segue válida, por isso não voltam a `/entrar`, que
+ * devolveria a pessoa à ação bloqueada). Só `correlationId` é exibido como código técnico.
  */
 
 const ERROR_VARIANTS = [
@@ -29,6 +31,8 @@ const ERROR_VARIANTS = [
   'vinculo-inativo',
   'acesso-bloqueado',
   'acesso-indisponivel',
+  'confirmacao-indisponivel',
+  'confirmacao-nao-concluida',
 ] as const;
 
 type Variant = (typeof ERROR_VARIANTS)[number];
@@ -67,6 +71,17 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
 
   const primary = buttonClassName();
   const secondary = buttonClassName({ variant: 'secondary' });
+  // Novo desafio de MFA para o mesmo destino; "início" não repete a ação bloqueada (US-090).
+  const stepUpRetry = (
+    <div className="flex flex-wrap items-start gap-3">
+      <a href={`/api/auth/step-up?returnTo=${encodeURIComponent(retorno)}`} className={primary}>
+        {t('actions.retry')}
+      </a>
+      <Link href={HOME_PATH} className={secondary}>
+        {t('actions.home')}
+      </Link>
+    </div>
+  );
   const actions = {
     '403': (
       <Link href={HOME_PATH} className={secondary}>
@@ -109,6 +124,8 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
         {t('actions.switchTenant')}
       </Link>
     ),
+    'confirmacao-indisponivel': stepUpRetry,
+    'confirmacao-nao-concluida': stepUpRetry,
   } satisfies Record<Exclude<Variant, 'sem-vinculo'>, ReactNode>;
 
   return (

@@ -249,6 +249,20 @@ function loginPage(reason: 'erro' | 'indisponivel', returnTo?: string): string {
   return `/entrar?${query.toString()}`;
 }
 
+/**
+ * *Step-up* que não se concluiu com a sessão aberta (US-090 · FA-04): SCR-111 com "Tentar
+ * novamente" (novo desafio para o mesmo destino). Nunca `/entrar`, que, com a sessão ativa,
+ * devolveria a pessoa ao destino — e à mesma recusa `MFA_REQUIRED`, em laço.
+ */
+function stepUpFailurePage(
+  kind: 'indisponivel' | 'nao-concluida',
+  returnTo: string,
+  correlationId: string,
+): string {
+  const query = new URLSearchParams({ codigo: correlationId, retorno: returnTo });
+  return `/erro/confirmacao-${kind}?${query.toString()}`;
+}
+
 /** SCR-002 com a indisponibilidade do IdP e o "Tentar novamente" (preserva `returnTo`). */
 function recoveryUnavailablePage(returnTo: string | null): string {
   const query = new URLSearchParams({ motivo: 'indisponivel' });
@@ -278,6 +292,16 @@ async function beginLogin(context: Context, stepUp: boolean, hint?: string): Pro
       reauthenticate,
     });
   } catch (error) {
+    if (stepUp) {
+      // US-090: a sessão continua válida para o que não exige MFA — nada muda nela.
+      log('warn', 'auth.step_up_unavailable', {
+        errorName: error instanceof Error ? error.name : 'unknown',
+        correlationId,
+      });
+      return redirectResponse(stepUpFailurePage('indisponivel', returnTo, correlationId), {
+        correlationId,
+      });
+    }
     // Authentik fora do ar (descoberta) ou cliente não configurado: SCR-001 "indisponível".
     log('error', 'auth.login_unavailable', {
       errorName: error instanceof Error ? error.name : 'unknown',
@@ -384,6 +408,26 @@ async function callback(context: Context): Promise<Response> {
   }
 
   const completion = await runtime.identity.completeLogin(url.searchParams, transaction);
+  if (!completion.ok && transaction.stepUp) {
+    const open = await sessions.lookup(sessionCookieValue(context), context.client);
+    if (open.status === 'active') {
+      // FA-04: desafio cancelado/falho (ou Authentik fora): a sessão não muda e a ação segue
+      // bloqueada com `MFA_REQUIRED`.
+      const unavailable = completion.reason === 'PROVIDER_UNAVAILABLE';
+      if (unavailable) log('warn', 'auth.step_up_unavailable', { correlationId });
+      return rejectCallback(
+        context,
+        headers,
+        completion.reason,
+        stepUpFailurePage(
+          unavailable ? 'indisponivel' : 'nao-concluida',
+          transaction.returnTo,
+          correlationId,
+        ),
+        started,
+      );
+    }
+  }
   if (!completion.ok) {
     if (completion.reason === 'PROVIDER_UNAVAILABLE') {
       const detail =
@@ -414,6 +458,12 @@ async function callback(context: Context): Promise<Response> {
     current.record.subject === login.subject
   ) {
     const updated = await sessions.replaceTokens(current.record, login);
+    // Sem o fator usado (Logs da US-090): só quem, a correlação e quanto levou o desafio.
+    log('info', 'auth.step_up_completed', {
+      userId: updated.userId,
+      correlationId,
+      durationMs: Math.max(0, runtime.now() - transaction.createdAt),
+    });
     // Troca de instituição que esperava este *step-up* (RN-IAM-69 · US-093).
     const pending = sessions.pendingTenantSwitch(updated);
     if (pending) {

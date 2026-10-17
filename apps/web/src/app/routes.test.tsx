@@ -187,6 +187,13 @@ describe('SCR-111 — páginas /erro/*', () => {
     ['manutencao', 'Sistema temporariamente indisponível', 'link', 'Tentar novamente'],
     ['acesso-indisponivel', 'Acesso indisponível', 'link', 'Trocar de instituição'],
     [
+      'confirmacao-indisponivel',
+      'Confirmação de identidade indisponível',
+      'link',
+      'Tentar novamente',
+    ],
+    ['confirmacao-nao-concluida', 'Identidade não confirmada', 'link', 'Tentar novamente'],
+    [
       'vinculo-inativo',
       'Seu acesso a esta instituição foi suspenso.',
       'link',
@@ -217,6 +224,24 @@ describe('SCR-111 — páginas /erro/*', () => {
       ).toBe(`${title} — ContrataFlow`);
     },
   );
+
+  it('[US-090] step-up indisponível: a mensagem da story, novo desafio para o retorno e "início"', async () => {
+    renderIntl(
+      await ErrorPage({
+        params: Promise.resolve({ variante: 'confirmacao-indisponivel' }),
+        searchParams: Promise.resolve({ retorno: '/admin/perfis', codigo: 'c-111-0003' }),
+      }),
+    );
+    expect(
+      screen.getByText(
+        'O serviço de autenticação está indisponível. Tente novamente em instantes.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Tentar novamente' }).getAttribute('href')).toBe(
+      '/api/auth/step-up?returnTo=%2Fadmin%2Fperfis',
+    );
+    expect(screen.getByRole('link', { name: 'Ir para o início' })).toBeTruthy();
+  });
 
   it('manutencao: "Tentar novamente" volta ao retorno validado, com o código copiável', async () => {
     renderIntl(

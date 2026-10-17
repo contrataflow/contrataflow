@@ -55,6 +55,7 @@ export class AuthorizationGuard implements CanActivate {
           targets,
         ) ?? [],
       params: request.params,
+      route: request.route?.path ?? null,
       resolvePolicy: (type: Type<ContextualPolicy>) => this.policy(type),
     });
     return true;

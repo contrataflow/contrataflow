@@ -36,6 +36,8 @@ export const MEMBERSHIP_ACTIONS = [
   'SUSPEND',
   'REACTIVATE',
   'REVOKE',
+  // US-090 · USR-13: redefinir a autenticação em duas etapas (nunca a do próprio vínculo).
+  'MFA_RESET',
 ] as const;
 export type MembershipAction = (typeof MEMBERSHIP_ACTIONS)[number];
 
@@ -115,7 +117,34 @@ export type MembershipReason = z.infer<typeof membershipReasonSchema>;
 /** USR-11 (corpo): vazio. */
 export const reactivateMembershipSchema = z.strictObject({}).meta({ id: 'ReactivateMembership' });
 
-/** Caminho de USR-07..12. */
+/** US-090 · USR-13 (V-03): motivo obrigatório, 10–500 caracteres. */
+export const MFA_RESET_REASON_MIN = 10;
+export const MFA_RESET_REASON_MESSAGE = 'Informe o motivo da redefinição (mín. 10 caracteres).';
+/** V-02 · RN-IAM-43: a redefinição sobre o próprio vínculo usa a recuperação no login. */
+export const MFA_RESET_SELF_MESSAGE =
+  'Para redefinir sua própria autenticação em duas etapas, use a recuperação no login.';
+
+/** USR-13 (corpo · RN-IAM-43): o motivo vai para a auditoria `membership.mfa_reset`. */
+export const mfaResetSchema = z
+  .strictObject({
+    reason: z
+      .string({ error: MFA_RESET_REASON_MESSAGE })
+      .trim()
+      .min(MFA_RESET_REASON_MIN, { error: MFA_RESET_REASON_MESSAGE })
+      .max(MEMBERSHIP_REASON_MAX, {
+        error: `O motivo deve ter no máximo ${String(MEMBERSHIP_REASON_MAX)} caracteres.`,
+      }),
+  })
+  .meta({ id: 'MfaReset' });
+export type MfaReset = z.infer<typeof mfaResetSchema>;
+
+/** Resposta de USR-13: `200 { data: { userId, resetAt } }`. */
+export const mfaResetResultSchema = z
+  .object({ userId: z.uuid(), resetAt: z.iso.datetime() })
+  .meta({ id: 'MfaResetResult' });
+export type MfaResetResult = z.infer<typeof mfaResetResultSchema>;
+
+/** Caminho de USR-07..13. */
 export const membershipUserParamsSchema = z.strictObject({
   userId: z.uuid({ error: 'Informe um identificador válido.' }),
 });

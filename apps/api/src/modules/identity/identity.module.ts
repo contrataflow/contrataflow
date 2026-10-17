@@ -39,6 +39,7 @@ import {
 } from './application/membership.commands.js';
 import {
   AUTHENTIK_DIRECTORY,
+  AUTHENTIK_MFA,
   FIRST_ADMIN_STORE,
   IDENTITY_CLOCK,
   IDENTITY_REPOSITORY,
@@ -48,6 +49,7 @@ import {
 } from './application/ports.js';
 import { RecordSessionEndingsCommand } from './application/record-session-endings.command.js';
 import { RecordSessionTenantCommand } from './application/record-session-tenant.command.js';
+import { ResetUserMfaCommand } from './application/reset-user-mfa.command.js';
 import { StartSessionCommand } from './application/start-session.command.js';
 import { UpdateMyProfileCommand } from './application/update-my-profile.command.js';
 import { AuditTrailSessionRecorder } from './infrastructure/audit-trail-session.recorder.js';
@@ -148,6 +150,8 @@ function identityProviders(): Provider[] {
       ) => (config.oidc.fakeSigningKey ? memory : prisma),
     },
     { provide: AUTHENTIK_PROVISIONING, useExisting: AUTHENTIK_DIRECTORY },
+    // Redefinição do MFA (US-090 · USR-13): a mesma API administrativa.
+    { provide: AUTHENTIK_MFA, useExisting: AUTHENTIK_DIRECTORY },
     // Gestão de vínculos (US-092): mesma escolha Prisma/memória do convite.
     PrismaMembershipRepository,
     {
@@ -212,7 +216,8 @@ function identityProviders(): Provider[] {
  * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`. Desde a
  * US-091: convite e aceite (USR-01/03..06/14), com a autorização, o perfil inicial e as unidades
  * da lotação pela porta `MembershipReferences` (implementada por `access` e `organization`). Desde
- * a US-092: detalhe e ciclo de vida do vínculo (USR-07..12), com POL-12/16.
+ * a US-092: detalhe e ciclo de vida do vínculo (USR-07..12), com POL-12/16. Desde a US-090: a
+ * redefinição do MFA da conta no Authentik (USR-13).
  */
 @Module({
   imports: [TenantSeedingModule, MembershipReferencesModule, TenantMfaSettingsModule],
@@ -245,6 +250,7 @@ function identityProviders(): Provider[] {
     UpdateMembershipCommand,
     UpdateMembershipDepartmentsCommand,
     ChangeMembershipStatusCommand,
+    ResetUserMfaCommand,
   ],
   exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT, PLATFORM_OPERATOR_PORT],
 })

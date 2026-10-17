@@ -165,9 +165,17 @@ describe('efeitos globais', () => {
         unexpected: 'inesperado',
         notFound: 'não encontrado',
         correlation: (id) => `Código: ${id}`,
+        stepUp: 'confirme sua identidade',
       },
     };
   }
+
+  it('[US-090] 403 MFA_REQUIRED avisa (aria-live do Toaster) e segue ao step-up da página atual', () => {
+    const d = deps();
+    applyErrorEffect(new ApiError({ status: 403, code: 'MFA_REQUIRED' }), 'mutation', d);
+    expect(d.calls.notify).toEqual([{ title: 'confirme sua identidade', tone: 'info' }]);
+    expect(d.calls.navigate).toEqual(['/api/auth/step-up?returnTo=%2Fexemplo']);
+  });
 
   it('401 UNAUTHENTICATED leva ao login; SESSION_EXPIRED e 503 não navegam (modal/banner)', () => {
     const d = deps();

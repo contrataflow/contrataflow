@@ -126,6 +126,23 @@ describe('Feature: Política de MFA do tenant (RN-IAM-42)', () => {
     expectProblem(await createOrganization(PWD), 403, 'MFA_REQUIRED');
   });
 
+  it('[Concorrência · US-090] política NONE → ALL com a sessão aberta: a próxima leitura exige MFA', async () => {
+    silence();
+    const listOrganizations = (amr: readonly string[]) =>
+      request(api.server)
+        .get('/api/v1/organizations')
+        .set('Authorization', api.bearer(MARTA.subject, { amr }))
+        .set('X-Tenant-Id', A);
+    await setPolicy('NONE');
+    expect((await listOrganizations(PWD)).status).toBe(200);
+    await setPolicy('ALL');
+    // RN-IAM-39: com ALL, toda requisição da instituição exige o segundo fator, não só as HIGH.
+    expectProblem(await listOrganizations(PWD), 403, 'MFA_REQUIRED');
+    expect((await listOrganizations(MFA)).status).toBe(200);
+    await setPolicy('ADMINS');
+    expect((await listOrganizations(PWD)).status).toBe(200);
+  });
+
   it('[Tenant incorreto] a política NONE do tenant B não vale para o A', async () => {
     silence();
     expectProblem(await createOrganization(PWD), 403, 'MFA_REQUIRED');

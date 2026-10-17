@@ -46,7 +46,12 @@
     "description": "Senha e autenticação em duas etapas são gerenciadas no Authentik e abrem em uma nova aba.",
     "password": "Alterar senha",
     "mfa": "Autenticação em duas etapas",
-    "newTab": "(abre em nova aba)"
+    "newTab": "(abre em nova aba)",
+    "mfaStatus": {
+      "label": "Segundo fator nesta sessão:",
+      "verified": "Confirmado",
+      "notVerified": "Não confirmado"
+    }
   },
   "validation": {
     "name": "Informe seu nome (mín. 2 caracteres).",
