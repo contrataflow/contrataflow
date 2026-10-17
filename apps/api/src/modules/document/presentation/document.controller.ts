@@ -7,7 +7,14 @@ import {
   documentTransitionSchema,
   documentUpdateSchema,
   documentValidationSchema,
+  documentVersionCompareQuerySchema,
+  documentVersionComparisonSchema,
+  documentVersionCreateSchema,
+  documentVersionListQuerySchema,
+  documentVersionSchema,
+  documentVersionSummarySchema,
   dataEnvelope,
+  pageEnvelope,
 } from '@contrataflow/validation';
 import type {
   DocumentCancel,
@@ -17,6 +24,12 @@ import type {
   DocumentTransition,
   DocumentUpdate,
   DocumentValidationDto,
+  DocumentVersionCompareQuery,
+  DocumentVersionComparisonDto,
+  DocumentVersionCreate,
+  DocumentVersionDto,
+  DocumentVersionListQuery,
+  DocumentVersionSummaryDto,
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
@@ -24,13 +37,16 @@ import { z } from 'zod';
 import { ImplicitAccess, Policy, RequirePermission } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
+import type { PageResult } from '#shared/http/pagination.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
-import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
+import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
+import { SaveDocumentVersionCommand } from '../application/document-version.commands.js';
+import { DocumentVersionQueries } from '../application/document-version.queries.js';
 import {
   CancelDocumentCommand,
   DeleteDocumentCommand,
@@ -75,6 +91,8 @@ export class DocumentController {
     private readonly reopen: ReopenDocumentCommand,
     private readonly cancel: CancelDocumentCommand,
     private readonly remove: DeleteDocumentCommand,
+    private readonly versions: DocumentVersionQueries,
+    private readonly saveVersion: SaveDocumentVersionCommand,
   ) {}
 
   private respond(
@@ -313,5 +331,81 @@ export class DocumentController {
     @IfMatch() ifMatch: IfMatchValue | null,
   ): Promise<void> {
     await this.remove.execute({ documentId: params.id, expectedVersion: ifMatch?.value ?? 0 });
+  }
+
+  // --- Versões (US-066 · DOC-15/16/18) -------------------------------------------------------
+
+  @Get(':id/versions')
+  @RequirePermission('PROCESS_VIEW')
+  @ApiOperation({
+    operationId: 'DOC-15',
+    summary: 'Listar versões do documento',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Versões imutáveis por `versionNumber` desc (RN-DOC-59), sem o snapshot: motivo, status na criação, autor, data, resumo e `contentHash` (`attachmentId` nos externos).',
+        schema: pageEnvelope(documentVersionSummarySchema),
+      },
+    },
+  })
+  listVersions(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodQuery(documentVersionListQuerySchema) query: DocumentVersionListQuery,
+  ): Promise<PageResult<DocumentVersionSummaryDto>> {
+    return this.versions.list(params.id, query);
+  }
+
+  @Post(':id/versions')
+  @Idempotent()
+  @ImplicitAccess(TYPE_PERMISSION)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-16',
+    summary: 'Criar versão manual do documento',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['document.version_create'],
+    responses: {
+      201: {
+        description:
+          'Versão `MANUAL` (snapshot + `contentHash` SHA-256 do JSON canônico — RFC 8785) do rascunho em `DRAFT`/`RETURNED`, sem mudar o status. Tipo `UPLOADED` → 422 `NOT_ALLOWED` (use DOC-19); fora de edição → 409 `DOCUMENT_NOT_EDITABLE`.',
+        schema: dataEnvelope(documentVersionSchema),
+      },
+    },
+  })
+  async createVersion(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentVersionCreateSchema) body: DocumentVersionCreate,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentVersionDto> {
+    const summary = body.changeSummary ?? '';
+    const created = await this.saveVersion.execute({
+      documentId: params.id,
+      changeSummary: summary === '' ? null : summary,
+    });
+    response.setHeader('Location', `/api/v1/document-versions/${created.id}`);
+    return created;
+  }
+
+  @Get(':id/versions/compare')
+  @RequirePermission('PROCESS_VIEW')
+  @ApiOperation({
+    operationId: 'DOC-18',
+    summary: 'Comparar versões do documento',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Diferenças entre duas versões do documento em `header` (por campo), `sections` (por `sectionKey`) e `collections` (por chave natural), cada entrada `ADDED`/`REMOVED`/`CHANGED`/`UNCHANGED`, ou `MASKED` para campo sigiloso de quem não atende POL-09. Versões de outro documento/inexistentes → 422 `REFERENCE_NOT_FOUND`; iguais → 422.',
+        schema: dataEnvelope(documentVersionComparisonSchema),
+      },
+    },
+  })
+  compareVersions(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodQuery(documentVersionCompareQuerySchema) query: DocumentVersionCompareQuery,
+  ): Promise<DocumentVersionComparisonDto> {
+    return this.versions.compare(params.id, query);
   }
 }

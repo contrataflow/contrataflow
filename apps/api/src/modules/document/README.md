@@ -91,6 +91,31 @@ genéricas — a ausência de registro nunca falha a ação.
   por tenant; cancelado é final (gatilho); exclusão só lógica. Testes com PostgreSQL:
   `test/tenant-leak/documents.spec.ts`.
 
+## Versões imutáveis e comparação (US-066 · RN-DOC-56..62)
+
+- **Rotas:** DOC-15 `GET /documents/{id}/versions` (desc, sem snapshot), DOC-16
+  `POST /documents/{id}/versions` (Idem., sem `If-Match`; `@ImplicitAccess` + POL-02 como DOC-04),
+  DOC-17 `GET /document-versions/{versionId}` (`DocumentVersionController`), DOC-18
+  `GET /documents/{id}/versions/compare?from=&to=`. Contratos em
+  `packages/validation/src/document/document-version.ts`.
+- **"Salvar versão"** (`SaveDocumentVersionCommand`, nome `document.version_save`): trava a linha
+  do documento (`DocumentRepository.lockForUpdate` — `FOR UPDATE`; em memória espera o `tx` dono
+  terminar) → `load` (404) → `authorizePol02(…, 'edit')` → `UPLOADED` = 422 `NOT_ALLOWED` →
+  `recordManualVersion` (409 `DOCUMENT_NOT_EDITABLE`) → `save` (bumpa a `version`) →
+  `createVersion(reason MANUAL, changeSummary)` → `recordDocumentVersion` (auditoria + evento, o
+  mesmo helper das transições). O resumo nunca vai para log, auditoria nem evento.
+- **POL-09** (`DocumentLifecycleService.confidentialMasker`): mascara quando o processo é sigiloso
+  agora OU era na versão e o usuário não tem `PROCESS_VIEW_CONFIDENTIAL_BUDGET` cobrindo o processo
+  (sem o MFA exigido não conta) nem a custódia. `domain/confidential-snapshot.ts` lista os campos
+  monetários (`MONETARY_SNAPSHOT_FIELDS`) e os troca por `null` + `<campo>Masked: true` no cabeçalho
+  e nas coleções, inclusive aninhadas. Módulo tipado com campo monetário novo: inclua-o na lista.
+- **Comparador** (`domain/document-version-comparator.ts`, `diffDocumentVersions`): função pura;
+  igualdade por JSON canônico; `MASKED` nunca revela se o valor mudou; chave natural das coleções
+  em `NATURAL_KEYS` (`items` → `processItemId`, demais → `id`).
+- **Testes:** `domain/document-version-comparator.spec.ts`, `presentation/document-versions.routes.spec.ts`
+  (8 categorias do Gherkin) e `test/tenant-leak/document-versions.spec.ts` (PostgreSQL: `FOR UPDATE`,
+  gatilho só-INSERT, RLS, outbox `PENDING`).
+
 ## Biblioteca padrão de templates (US-110 · RN-TPL-28..36)
 
 - **Fixture:** `domain/template-library.ts` (`TEMPLATE_LIBRARY`, versão `TEMPLATE_LIBRARY_VERSION`) —

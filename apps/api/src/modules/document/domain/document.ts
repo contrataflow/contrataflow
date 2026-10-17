@@ -468,6 +468,24 @@ export function updateDocumentHeader(
   };
 }
 
+/**
+ * RN-DOC-56 · DOC-16 (US-066): "Salvar versão" do rascunho editável (`DRAFT`/`RETURNED`) sem mudar
+ * o status — só aponta `currentVersionId`/`currentVersionNumber` para a versão `MANUAL`. Fora disso
+ * → `NOT_EDITABLE` (409 `DOCUMENT_NOT_EDITABLE`).
+ */
+export function recordManualVersion(
+  document: Document,
+  input: TransitionStamp & { readonly versionId: string; readonly versionNumber: number },
+): Document {
+  if (!isEditable(document)) throw new DocumentTransitionError('NOT_EDITABLE', document.status);
+  return {
+    ...document,
+    ...touched(input),
+    currentVersionId: input.versionId,
+    currentVersionNumber: input.versionNumber,
+  };
+}
+
 // --- Ações permitidas (RN-DOC-18 · `meta.allowedActions`) --------------------------------------
 
 /** O que a autorização decidiu para o usuário sobre ESTE documento (POL-01/02/11 já avaliadas). */

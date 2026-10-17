@@ -13,7 +13,8 @@ import { useTenantId } from '@/lib/session/session-context';
 
 import { DocumentLifecycle } from './document-lifecycle';
 import { DocumentStatusBadge, PendingApprovalBadge } from './document-status-badge';
-import { documentKeys, fetchDocument } from './documents.api';
+import { documentKeys, documentVersionsHref, fetchDocument } from './documents.api';
+import { SaveVersionAction } from './save-version-dialog';
 
 export interface DocumentViewProps {
   readonly processId: string;
@@ -125,7 +126,19 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
               ? t('noVersion')
               : t('version', { number: document.currentVersionNumber })}
           </span>
+          <Link
+            href={documentVersionsHref(processId, document.id)}
+            className="text-sm text-primary underline"
+          >
+            {t('versionsLink')}
+          </Link>
         </div>
+        {/* US-066: "Salvar versão" segue POL-02 (`UPDATE`); externo cria versão por upload (FA-02). */}
+        {meta.allowedActions.includes('UPDATE') && document.documentType.kind !== 'UPLOADED' ? (
+          <div>
+            <SaveVersionAction document={document} />
+          </div>
+        ) : null}
         {isAiTarget(document.documentType.systemModule) ? (
           <div>
             <AiAssistant

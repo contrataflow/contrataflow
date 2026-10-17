@@ -5,6 +5,11 @@ import type {
   DocumentReopen,
   DocumentTransition,
   DocumentValidationDto,
+  DocumentVersionComparisonDto,
+  DocumentVersionCreate,
+  DocumentVersionDto,
+  DocumentVersionSummaryDto,
+  PageMeta,
 } from '@contrataflow/validation';
 
 import { apiRequest } from '@/lib/api/client';
@@ -27,6 +32,19 @@ export const documentKeys = {
   /** DOC-08: `['t', tenantId, 'documents', id, 'validation']`. */
   validation: (tenantId: string, documentId: string) =>
     tenantKey(tenantId, 'documents', documentId, 'validation'),
+};
+
+/**
+ * Versões imutáveis (US-066 · SCR-106): `['t', tenantId, 'documents', id, 'versions', …]` — dentro
+ * de `documentKeys.all`, então invalidar o documento também renova a lista.
+ */
+export const versionKeys = {
+  /** DOC-15 (todas as páginas). */
+  list: (tenantId: string, documentId: string) =>
+    tenantKey(tenantId, 'documents', documentId, 'versions'),
+  /** DOC-18. */
+  compare: (tenantId: string, documentId: string, from: string, to: string) =>
+    tenantKey(tenantId, 'documents', documentId, 'versions', 'compare', from, to),
 };
 
 /** Documento e as ações permitidas (`meta.allowedActions` — a UI nunca recalcula a regra). */
@@ -121,4 +139,61 @@ export async function deleteDocument(documentId: string, version: number): Promi
 /** Rota do painel do processo, aba "Documentos" (destino após excluir o rascunho). */
 export function processDocumentsHref(processId: string): string {
   return `/processos/${processId}?aba=documentos`;
+}
+
+// --- Versões (US-066 · DOC-15/16/18) ---------------------------------------------------------
+
+/** Lista de versões (`versionNumber` desc) com a paginação. */
+export interface DocumentVersionPage {
+  readonly items: readonly DocumentVersionSummaryDto[];
+  readonly meta: PageMeta;
+}
+
+/** DOC-15: até 100 versões por página (o histórico de um documento administrativo é curto). */
+export async function fetchDocumentVersions(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<DocumentVersionPage> {
+  const result = await apiRequest<DocumentVersionSummaryDto[]>(
+    `/documents/${documentId}/versions?page=1&pageSize=100`,
+    { signal },
+  );
+  return { items: result.data, meta: result.meta as unknown as PageMeta };
+}
+
+/** DOC-16: "Salvar versão" com `Idempotency-Key` (sem `If-Match`). */
+export async function saveDocumentVersion(
+  documentId: string,
+  body: DocumentVersionCreate,
+  context: IdempotentContext,
+): Promise<DocumentVersionDto> {
+  return (
+    await apiRequest<DocumentVersionDto>(`/documents/${documentId}/versions`, {
+      method: 'POST',
+      body,
+      idempotencyKey: context.idempotencyKey,
+      correlationId: context.correlationId,
+    })
+  ).data;
+}
+
+/** DOC-18: diferenças entre duas versões do documento (POL-09 aplicado pela API). */
+export async function compareDocumentVersions(
+  documentId: string,
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+): Promise<DocumentVersionComparisonDto> {
+  const query = new URLSearchParams({ from, to }).toString();
+  return (
+    await apiRequest<DocumentVersionComparisonDto>(
+      `/documents/${documentId}/versions/compare?${query}`,
+      { signal },
+    )
+  ).data;
+}
+
+/** SCR-106: `/processos/{id}/documentos/{docId}/versoes`. */
+export function documentVersionsHref(processId: string, documentId: string): string {
+  return `/processos/${processId}/documentos/${documentId}/versoes`;
 }

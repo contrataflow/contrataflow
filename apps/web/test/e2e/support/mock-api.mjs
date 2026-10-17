@@ -1000,6 +1000,123 @@ function verifyAuditSeals(body) {
   return { status: 200, data: { brokenAtPeriodStart: broken?.periodStart ?? null, results } };
 }
 
+// Versões do documento (US-066 · DOC-03/15/16/18): um ETP em rascunho com a versão 1 já gravada;
+// "Salvar versão" grava a próxima com o texto atual do OBJETO, e a comparação diferencia essa seção.
+const VERSIONED_PROCESS_ID = '0192a000-0000-7000-8000-0000000d0c00';
+const VERSIONED_DOCUMENT_ID = '0192a000-0000-7000-8000-0000000d0c01';
+const VERSION_AUTHOR_ID = '0192a000-0000-7000-8000-0000000d0caa';
+const versionedDocument = {
+  id: VERSIONED_DOCUMENT_ID,
+  processId: VERSIONED_PROCESS_ID,
+  documentType: {
+    id: '0192a000-0000-7000-8000-0000000d0c02',
+    code: 'ETP',
+    name: 'Estudo Técnico Preliminar',
+    kind: 'FREE_TEXT',
+    systemModule: null,
+    requiresApproval: true,
+  },
+  templateVersionId: null,
+  number: 3,
+  year: 2026,
+  code: 'ETP 0003/2026',
+  title: 'Estudo técnico da aquisição de papel',
+  status: 'DRAFT',
+  confidentiality: 'PUBLIC',
+  draftContent: { sections: {}, collections: {}, headerFields: {} },
+  draftRevision: 2,
+  currentVersionId: null,
+  currentVersionNumber: null,
+  approvedVersionId: null,
+  pendingApprovalId: null,
+  responsibleId: null,
+  submittedAt: null,
+  submittedById: null,
+  finalizedAt: null,
+  finalizedById: null,
+  approvedAt: null,
+  returnedAt: null,
+  rejectedAt: null,
+  reopenedAt: null,
+  reopenedById: null,
+  reopenReason: null,
+  canceledAt: null,
+  canceledById: null,
+  cancellationReason: null,
+  sourceDocumentId: null,
+  createdAt: '2026-03-02T12:00:00.000Z',
+  updatedAt: '2026-03-02T12:00:00.000Z',
+  createdById: VERSION_AUTHOR_ID,
+  version: 2,
+};
+/** Texto do OBJETO no rascunho atual (o que a próxima versão retrata). */
+const DRAFT_OBJECT_TEXT = 'Aquisição de papel A4 reciclado para as secretarias.';
+const documentVersions = [];
+const versionReplays = new Map();
+
+function recordDocumentVersion({ reason, changeSummary, objectText, createdAt }) {
+  const versionNumber = documentVersions.length + 1;
+  const version = {
+    id: randomUUID(),
+    documentId: VERSIONED_DOCUMENT_ID,
+    processId: VERSIONED_PROCESS_ID,
+    versionNumber,
+    reason,
+    statusAtCreation: 'DRAFT',
+    contentHash: `${String(versionNumber).repeat(8)}${'a'.repeat(56)}`.slice(0, 64),
+    attachmentId: null,
+    templateVersionId: null,
+    changeSummary,
+    createdById: VERSION_AUTHOR_ID,
+    createdByName: 'Ana Souza',
+    createdAt,
+  };
+  documentVersions.push({ summary: version, objectText });
+  versionedDocument.currentVersionId = version.id;
+  versionedDocument.currentVersionNumber = versionNumber;
+  versionedDocument.version += 1;
+  return version;
+}
+
+recordDocumentVersion({
+  reason: 'MANUAL',
+  changeSummary: 'Primeira redação do objeto',
+  objectText: 'Aquisição de papel para as secretarias.',
+  createdAt: '2026-03-02T12:30:00.000Z',
+});
+
+function sectionSide(text) {
+  return { state: 'FILLED', text, justification: null };
+}
+
+/** DOC-18 reduzido: o título não muda; o OBJETO muda quando o texto difere. */
+function compareDocumentVersions(from, to) {
+  const changed = from.objectText !== to.objectText;
+  return {
+    documentId: VERSIONED_DOCUMENT_ID,
+    kind: 'FREE_TEXT',
+    from: from.summary,
+    to: to.summary,
+    header: [
+      {
+        field: 'document.title',
+        changeType: 'UNCHANGED',
+        from: versionedDocument.title,
+        to: versionedDocument.title,
+      },
+    ],
+    sections: [
+      {
+        sectionKey: 'OBJETO',
+        changeType: changed ? 'CHANGED' : 'UNCHANGED',
+        from: sectionSide(from.objectText),
+        to: sectionSide(to.objectText),
+      },
+    ],
+    collections: [],
+  };
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   response.end(body === undefined ? '' : JSON.stringify(body));
@@ -2654,6 +2771,57 @@ createServer(async (request, response) => {
       });
     }
     return send(response, 200, { data: outcome.data });
+  }
+  if (url.pathname === `/api/v1/documents/${VERSIONED_DOCUMENT_ID}` && request.method === 'GET') {
+    // DOC-03: o rascunho editável — "Salvar versão" aparece pela ação UPDATE (POL-02).
+    return send(
+      response,
+      200,
+      { data: versionedDocument, meta: { allowedActions: ['UPDATE'] } },
+      { ETag: `"${String(versionedDocument.version)}"` },
+    );
+  }
+  const versionsPath = `/api/v1/documents/${VERSIONED_DOCUMENT_ID}/versions`;
+  if (url.pathname === versionsPath && request.method === 'GET') {
+    const items = documentVersions.map((entry) => entry.summary).reverse();
+    return send(response, 200, {
+      data: items,
+      meta: { page: 1, pageSize: 100, totalItems: items.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === versionsPath && request.method === 'POST') {
+    const key = String(request.headers['idempotency-key'] ?? '');
+    const replayed = key ? versionReplays.get(key) : undefined;
+    if (replayed) return send(response, 201, replayed, { 'Idempotent-Replayed': 'true' });
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (typeof body.changeSummary === 'string' && body.changeSummary.length > 500) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [{ field: 'changeSummary', code: 'TOO_LONG', message: 'TOO_LONG' }],
+      });
+    }
+    const version = recordDocumentVersion({
+      reason: 'MANUAL',
+      changeSummary: body.changeSummary ?? null,
+      objectText: DRAFT_OBJECT_TEXT,
+      createdAt: new Date().toISOString(),
+    });
+    const created = { data: { ...version, kind: 'FREE_TEXT', content: null } };
+    if (key) versionReplays.set(key, created);
+    return send(response, 201, created, {
+      Location: `/api/v1/document-versions/${version.id}`,
+    });
+  }
+  if (url.pathname === `${versionsPath}/compare` && request.method === 'GET') {
+    const from = documentVersions.find(
+      (entry) => entry.summary.id === url.searchParams.get('from'),
+    );
+    const to = documentVersions.find((entry) => entry.summary.id === url.searchParams.get('to'));
+    if (!from || !to || from === to) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [{ field: 'to', code: 'REFERENCE_NOT_FOUND', message: 'REFERENCE_NOT_FOUND' }],
+      });
+    }
+    return send(response, 200, { data: compareDocumentVersions(from, to) });
   }
   const timelineRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
   if (timelineRoute && request.method === 'GET') {

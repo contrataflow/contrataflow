@@ -17,6 +17,8 @@ import { DocumentCreationService } from './application/document-creation.service
 import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
 import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
 import { DocumentTypeFacade } from './application/document-type.facade.js';
+import { SaveDocumentVersionCommand } from './application/document-version.commands.js';
+import { DocumentVersionQueries } from './application/document-version.queries.js';
 import {
   CancelDocumentCommand,
   DeleteDocumentCommand,
@@ -67,6 +69,7 @@ import {
 import { PrismaDocumentRepository } from './infrastructure/prisma-document.repository.js';
 import { PrismaTemplateRepository } from './infrastructure/prisma-template.repository.js';
 import { DocumentTypeController } from './presentation/document-type.controller.js';
+import { DocumentVersionController } from './presentation/document-version.controller.js';
 import { DocumentController } from './presentation/document.controller.js';
 import { TemplateController } from './presentation/template.controller.js';
 import { AccessModule } from '../access/access.module.js';
@@ -100,7 +103,12 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentApprovalModule,
     TenantSeedingModule,
   ],
-  controllers: [DocumentTypeController, TemplateController, DocumentController],
+  controllers: [
+    DocumentTypeController,
+    TemplateController,
+    DocumentController,
+    DocumentVersionController,
+  ],
   providers: [
     DocumentFacade,
     DocumentTypeFacade,
@@ -182,6 +190,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ReopenDocumentCommand,
     CancelDocumentCommand,
     DeleteDocumentCommand,
+    DocumentVersionQueries,
+    SaveDocumentVersionCommand,
     { provide: DOCUMENT_CLOCK, useValue: () => new Date() },
   ],
   exports: [DocumentFacade, DocumentTypeFacade],

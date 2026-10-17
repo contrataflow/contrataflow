@@ -48,10 +48,22 @@ export interface DocumentRepository {
    * @throws VersionConflictError
    */
   update(tx: TenantTx, document: Document, expectedVersion: number): Promise<void>;
+  /**
+   * Trava a linha do documento até o fim da transação (`SELECT … FOR UPDATE` — RN-DOC-58): dois
+   * "Salvar versão" simultâneos serializam e leem o máximo de `version_number` um depois do outro.
+   * Documento inexistente/de outro tenant: nada a travar (a leitura seguinte responde 404).
+   */
+  lockForUpdate(tx: TenantTx, documentId: string): Promise<void>;
   /** Maior `version_number` + 1 do documento (1 sem versões). */
   nextVersionNumber(tx: TenantTx, documentId: string): Promise<number>;
   insertVersion(tx: TenantTx, version: DocumentVersionRecord): Promise<void>;
   findVersion(tx: TenantTx, versionId: string): Promise<DocumentVersionRecord | null>;
+  /** Versões do documento por `versionNumber` desc (DOC-15 · RN-DOC-59), por página. */
+  listVersions(
+    tx: TenantTx,
+    documentId: string,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ readonly items: DocumentVersionRecord[]; readonly total: number }>;
   /** Documentos não excluídos do tipo (RN-DOC-04 · prévia de impacto da US-061). */
   countByType(tx: TenantTx, documentTypeId: string): Promise<number>;
   /** Rótulos para a timeline (inclui excluídos: o fato já aconteceu). */

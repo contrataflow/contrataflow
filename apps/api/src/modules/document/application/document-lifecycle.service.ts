@@ -1,5 +1,10 @@
 import type { PermissionCode } from '@contrataflow/types';
-import type { DocumentAction, VersionReason, Violation } from '@contrataflow/validation';
+import type {
+  DocumentAction,
+  DocumentSnapshot,
+  VersionReason,
+  Violation,
+} from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { isProcessVisible } from '#shared/auth/process-access.js';
@@ -34,6 +39,7 @@ import type { DocumentTypeRepository } from './ports.js';
 import { TEMPLATE_REPOSITORY } from './template.ports.js';
 import type { TemplateRepository } from './template.ports.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
+import { maskConfidentialSnapshot } from '../domain/confidential-snapshot.js';
 import { composeViolations, evaluateGenericCompleteness } from '../domain/document-completeness.js';
 import type { CompletenessResult } from '../domain/document-completeness.js';
 import { typePermissionsOf } from '../domain/document-permissions.js';
@@ -220,6 +226,44 @@ export class DocumentLifecycleService {
     this.assertProcessEditable(context);
   }
 
+  /**
+   * POL-09 sobre o processo do documento (RN-DOC-61): `PROCESS_VIEW_CONFIDENTIAL_BUDGET` cobrindo o
+   * processo (sem o 2º fator exigido não conta — POL-14/FA-12) ou a custódia atual. Mesma regra de
+   * `canViewConfidentialBudget` do módulo `process` (lista e timeline), avaliada sobre o contexto
+   * já carregado. Quem decide SE mascarar (processo sigiloso agora ou no momento da versão) é quem
+   * chama.
+   */
+  async canViewConfidentialBudget(context: DocumentAuthorizationContext): Promise<boolean> {
+    const { scope, custodyDepartmentIds } = await this.access.confidentialBudgetAccess();
+    const { process } = context;
+    if (scope.tenantWide) return true;
+    if (scope.organizationIds.includes(process.organizationId)) return true;
+    if (process.currentResponsibleId === scope.userId) return true;
+    if (
+      process.currentResponsibleId === null &&
+      custodyDepartmentIds.includes(process.currentDepartmentId)
+    ) {
+      return true;
+    }
+    return process.access.departmentIds.some((id) => scope.departmentIds.includes(id));
+  }
+
+  /**
+   * O snapshot como o usuário pode vê-lo (RN-DOC-61): mascara quando o processo é sigiloso agora OU
+   * era quando alguma das versões foi gravada (tornar o orçamento público depois não revela o
+   * retrato antigo) e o usuário não atende POL-09. Nas duas versões de uma comparação, igual.
+   */
+  async confidentialMasker(
+    context: DocumentAuthorizationContext,
+    versions: readonly DocumentVersionRecord[],
+  ): Promise<(content: DocumentSnapshot | null) => DocumentSnapshot | null> {
+    const confidential =
+      context.process.isBudgetConfidential ||
+      versions.some((version) => version.content?.process.isBudgetConfidential === true);
+    const mask = confidential && !(await this.canViewConfidentialBudget(context));
+    return (content) => (content === null || !mask ? content : maskConfidentialSnapshot(content));
+  }
+
   /** `If-Match` divergente da versão lida → 412 com a versão atual (V-09). */
   assertVersion(context: DocumentContext, expectedVersion: number): void {
     if (context.document.version !== expectedVersion) {
@@ -336,6 +380,8 @@ export class DocumentLifecycleService {
       readonly reason: VersionReason;
       readonly actorId: string;
       readonly now: Date;
+      /** Resumo da alteração (só `MANUAL` — RN-DOC-62); texto simples, nunca logado. */
+      readonly changeSummary?: string | null;
     },
   ): Promise<DocumentVersionRecord> {
     const { document } = input;
@@ -393,7 +439,7 @@ export class DocumentLifecycleService {
       contentHash,
       attachmentId,
       templateVersionId: document.templateVersionId,
-      changeSummary: null,
+      changeSummary: input.changeSummary ?? null,
       createdById: input.actorId,
       createdAt: input.now,
     };
@@ -413,6 +459,19 @@ export class DocumentLifecycleService {
 
   nextVersionNumber(tx: TenantTx, documentId: string): Promise<number> {
     return this.documents.nextVersionNumber(tx, documentId);
+  }
+
+  /** Trava a linha do documento até o fim do `tx` (RN-DOC-58 — "Salvar versão" concorrente). */
+  lockForVersioning(tx: TenantTx, documentId: string): Promise<void> {
+    return this.documents.lockForUpdate(tx, documentId);
+  }
+
+  listVersions(
+    tx: TenantTx,
+    documentId: string,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ readonly items: DocumentVersionRecord[]; readonly total: number }> {
+    return this.documents.listVersions(tx, documentId, window);
   }
 
   findVersion(tx: TenantTx, versionId: string): Promise<DocumentVersionRecord | null> {

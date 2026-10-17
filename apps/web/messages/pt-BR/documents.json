@@ -21,7 +21,8 @@
     "loadFailedDescription": "Tente novamente; se o problema continuar, informe o código ao suporte.",
     "notFoundTitle": "Documento não encontrado.",
     "notFoundDescription": "O documento pode ter sido excluído ou você pode não ter acesso a ele.",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "versionsLink": "Ver versões"
   },
   "actions": {
     "label": "Ações do documento",
@@ -109,5 +110,94 @@
     "unavailable": "Não foi possível concluir a ação agora.",
     "unexpected": "Ocorreu um erro inesperado.",
     "retry": "Tentar novamente"
+  },
+  "versions": {
+    "save": "Salvar versão",
+    "saved": "Versão {number} salva",
+    "notAllowed": "Não foi possível salvar a versão no estado atual do documento.",
+    "dialog": {
+      "title": "Salvar versão",
+      "description": "A versão registra um retrato permanente do documento, que não poderá ser alterado nem excluído. O status do documento não muda.",
+      "label": "Resumo da alteração (opcional)",
+      "hint": "Descreva brevemente o que mudou desde a versão anterior.",
+      "count": "{count} de {max} caracteres",
+      "confirm": "Salvar versão",
+      "cancel": "Cancelar",
+      "working": "Salvando…"
+    },
+    "title": "Versões do documento",
+    "backToDocument": "Voltar ao documento",
+    "backToProcess": "Voltar ao processo",
+    "notFoundTitle": "Versões não encontradas.",
+    "loading": "Carregando as versões…",
+    "loadFailed": "Não foi possível carregar as versões.",
+    "reload": "Recarregar",
+    "empty": "Nenhuma versão salva ainda",
+    "listLabel": "Versões do documento",
+    "number": "Versão {number}",
+    "by": "Por {author} em {date}",
+    "unknownAuthor": "Usuário desconhecido",
+    "hash": "Hash:",
+    "compareWithPrevious": "Comparar com a anterior",
+    "compareWithPreviousTarget": "(versão {number})",
+    "reasons": {
+      "MANUAL": "Salva manualmente",
+      "SUBMISSION": "Submissão",
+      "FINALIZATION": "Finalização",
+      "IMPORT": "Importação",
+      "UPLOAD": "Envio de arquivo",
+      "REOPEN": "Reabertura",
+      "SYSTEM": "Sistema"
+    },
+    "picker": {
+      "label": "Comparar duas versões",
+      "from": "Versão de origem",
+      "to": "Versão de destino",
+      "compare": "Comparar"
+    },
+    "changes": {
+      "ADDED": "Adicionado",
+      "REMOVED": "Removido",
+      "CHANGED": "Alterado",
+      "UNCHANGED": "Sem alteração",
+      "MASKED": "Valor sigiloso"
+    },
+    "sectionStates": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "fields": {
+      "document": {
+        "title": "Título",
+        "code": "Código",
+        "confidentiality": "Sigilo"
+      },
+      "template": {
+        "versionNumber": "Versão do template"
+      },
+      "file": {
+        "attachmentId": "Arquivo",
+        "sha256": "SHA-256 do arquivo"
+      }
+    },
+    "diff": {
+      "title": "Comparação",
+      "loading": "Comparando as versões…",
+      "failed": "Não foi possível comparar as versões.",
+      "empty": "Nada a comparar entre estas versões.",
+      "uploadedNote": "Documento externo: a comparação mostra apenas os metadados do arquivo de cada versão.",
+      "header": "Cabeçalho",
+      "sections": "Seções",
+      "collections": "Coleções",
+      "field": "Campo",
+      "item": "Item",
+      "status": "Situação",
+      "absent": "Ausente nesta versão",
+      "openText": "Ver texto completo",
+      "justification": "Justificativa: {text}",
+      "changedFields": "Campos alterados: {fields}",
+      "maskedFields": "Campos sigilosos: {fields}"
+    }
   }
 }

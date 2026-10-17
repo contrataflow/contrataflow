@@ -17,6 +17,7 @@ import {
   newDocument,
   reopenDocument,
   submitDocument,
+  recordManualVersion,
   updateDocumentHeader,
   withdrawSubmission,
 } from './document.js';
@@ -484,6 +485,46 @@ describe('cabeçalho do rascunho (RN-DOC-55 · DOC-04)', () => {
     expect(
       refusal(() => updateDocumentHeader(inStatus(status), { title: 'Novo título' }, stamp))
         .failure,
+    ).toBe('NOT_EDITABLE');
+  });
+});
+
+describe('salvar versão manual (RN-DOC-56 · DOC-16 da US-066)', () => {
+  const VERSION = '0192f066-0000-7000-8000-0000000000f1';
+
+  it.each(['DRAFT', 'RETURNED'] as const)(
+    '%s: aponta a versão corrente sem mudar o status',
+    (status) => {
+      const document = inStatus(status, { currentVersionId: null, currentVersionNumber: null });
+      const next = recordManualVersion(document, {
+        ...stamp,
+        versionId: VERSION,
+        versionNumber: 4,
+      });
+      expect(next).toMatchObject({
+        status,
+        currentVersionId: VERSION,
+        currentVersionNumber: 4,
+        updatedAt: LATER,
+        updatedById: ANA,
+      });
+    },
+  );
+
+  it.each(others(['DRAFT', 'RETURNED']))('%s → NOT_EDITABLE', (status) => {
+    expect(
+      refusal(() =>
+        recordManualVersion(inStatus(status), { ...stamp, versionId: VERSION, versionNumber: 2 }),
+      ).failure,
+    ).toBe('NOT_EDITABLE');
+  });
+
+  it('documento excluído → NOT_EDITABLE', () => {
+    const deleted = inStatus('DRAFT', { deletedAt: FIXTURE_NOW });
+    expect(
+      refusal(() =>
+        recordManualVersion(deleted, { ...stamp, versionId: VERSION, versionNumber: 1 }),
+      ).failure,
     ).toBe('NOT_EDITABLE');
   });
 });

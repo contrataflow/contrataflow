@@ -299,7 +299,10 @@ describe('DocumentActionsBar · botões por meta.allowedActions', () => {
   it('sem ações permitidas: avisa que nenhuma ação está disponível', async () => {
     await openDocument({ state: { document: documentDto(), allowed: ['UPDATE'] } });
     expect(screen.getByText('Nenhuma ação disponível para você neste documento.')).toBeTruthy();
-    expect(screen.queryByRole('button')).toBeNull();
+    // `UPDATE` sozinho só libera "Salvar versão" (US-066), fora da barra do ciclo de vida.
+    expect(screen.queryAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Salvar versão',
+    ]);
   });
 
   it('abaixo de 768 px a ação principal fica visível e as demais vão para "Mais ações"', async () => {

@@ -286,9 +286,9 @@
 ### DOC-15 — Listar versões do documento
 `GET /api/v1/documents/{id}/versions` · **Permissão:** `PROCESS_VIEW` · **Story:** US-066
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** path `id` (uuid, obrigatório) — id do documento. Query: `page`, `pageSize` (paginação padrão, api.md §1.2); ordenação não detalhada no extrato (a definir na implementação).
+- **Parâmetros:** path `id` (uuid, obrigatório) — id do documento. Query: `page`, `pageSize` (paginação padrão, api.md §1.2); ordem fixa `versionNumber` desc (RN-DOC-59 · US-066).
 - **Request:** —
-- **Response:** `200 { data: DocumentVersion[], meta: { page, pageSize, totalItems, totalPages } }`. Campos de `DocumentVersion` (entities.md): `versionNumber`, `reason`, `statusAtCreation`, `contentHash`, `templateVersionId?`, `attachmentId?` (quando `UPLOADED`).
+- **Response:** `200 { data: DocumentVersionSummary[], meta: { page, pageSize, totalItems, totalPages } }` — a versão sem o snapshot: `id`, `documentId`, `processId`, `versionNumber`, `reason`, `statusAtCreation`, `contentHash`, `templateVersionId`, `attachmentId` (quando `UPLOADED`), `changeSummary`, `createdById`, `createdByName`, `createdAt`.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
@@ -302,7 +302,7 @@
 - **Cabeçalhos:** `Idempotency-Key` obrigatório; `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento.
 - **Request:** `{ changeSummary?: string (≤ 500) }`.
-- **Response:** `201 { data: DocumentVersion }`.
+- **Response:** `201 { data: DocumentVersion }` + `Location: /api/v1/document-versions/{versionId}` (`DocumentVersion` = `DocumentVersionSummary` + `kind` + `content`, com POL-09 como no `DOC-17`). O documento continua no mesmo status; `currentVersionId`/`currentVersionNumber` passam a apontar a versão `MANUAL` e a `version` (ETag) do documento avança.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
@@ -311,7 +311,7 @@
   | 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
   | 422 | `VALIDATION_ERROR` | Tipo `UPLOADED` (`NOT_ALLOWED` — use `DOC-19`); `changeSummary` acima de 500 caracteres (`TOO_LONG`) |
 - **Efeitos:** Evento `DocumentVersionCreated` (`documentId`, `documentVersionId`, `versionNumber`, `reason = MANUAL`, `contentHash`). Auditoria `document.version_create`: `metadata.versionNumber`, `reason = MANUAL`, `contentHash`.
-- **Notas:** Ponto de checkpoint manual do rascunho, independente das transições automáticas de `DOC-09`/`DOC-10`.
+- **Notas:** Ponto de checkpoint manual do rascunho, independente das transições automáticas de `DOC-09`/`DOC-10`. Concorrência (RN-DOC-58): a transação trava a linha do documento (`SELECT … FOR UPDATE`) antes de ler o maior `versionNumber` — pedidos simultâneos viram versões consecutivas, sem lacuna nem repetição.
 
 ### DOC-17 — Consultar versão do documento
 `GET /api/v1/document-versions/{versionId}` · **Permissão:** `PROCESS_VIEW` (+POL-09) · **Story:** US-066
@@ -332,7 +332,11 @@
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento. Query: `from` (uuid, obrigatório) — id da versão de origem; `to` (uuid, obrigatório, ≠ `from`) — id da versão de destino; ambas devem pertencer ao mesmo `id`.
 - **Request:** —
-- **Response:** `200 { data: { from, to, header: HeaderDiff[], sections: SectionDiff[], collections: CollectionDiff[] } }`. Cada entrada de diff traz um marcador `changeType: 'ADDED'|'REMOVED'|'CHANGED'|'UNCHANGED'|'MASKED'` (`MASKED` quando o campo é sigiloso e o usuário não atende POL-09): `header[]` compara campos do cabeçalho (`{ field, changeType, from, to }`); `sections[]` compara conteúdo por `sectionKey` (`{ sectionKey, changeType, from, to }`); `collections[]` compara listas (ex.: itens) por identidade de item (`{ collection, itemId, changeType, from, to }`). Formato exato dos campos internos de cada diff não detalhado nas fontes além dos marcadores exigidos — confirmar na implementação.
+- **Response:** `200 { data: { documentId, kind, from, to, header: HeaderDiff[], sections: SectionDiff[], collections: CollectionDiff[] } }` (`from`/`to` = `DocumentVersionSummary`; contrato registrado na US-066, schema `documentVersionComparisonSchema`). Cada entrada traz `changeType: 'ADDED'|'REMOVED'|'CHANGED'|'UNCHANGED'|'MASKED'`; igualdade pelo JSON canônico (RFC 8785 — ordem de chaves não conta):
+  - `header[]` — `{ field, changeType, from, to }`: primeiro os metadados `document.title`, `document.code`, `document.confidentiality`, `template.versionNumber`, depois os campos do cabeçalho tipado em ordem alfabética. Documento `UPLOADED` (FA-02): só `file.attachmentId` e `file.sha256` (sem diff de conteúdo; seções e coleções vazias).
+  - `sections[]` — `{ sectionKey, changeType, from: { state, text, justification } | null, to }` por `sectionKey` (ordem alfabética); `text` é o texto extraído do TipTap; a mudança considera estado, conteúdo TipTap (inclusive formatação) e justificativa.
+  - `collections[]` — `{ collection, itemId, changeType, changedFields[], maskedFields[], from, to }` por chave natural (`processItemId` em `items`, `id` nas demais; sem chave ou repetida, a posição `#n`), na ordem do destino e as removidas ao final.
+  - `MASKED` (RN-DOC-61 · FA-03): campo monetário de processo sigiloso (agora ou no momento da versão) para quem não atende POL-09 — `from`/`to` nulos nos dois lados; nas linhas de coleção o campo vai para `maskedFields`, nunca para `changedFields`, e o valor vem `null` + `<campo>Masked: true`.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|

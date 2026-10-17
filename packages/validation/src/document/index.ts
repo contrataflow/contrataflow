@@ -1,5 +1,6 @@
 export * from './document.js';
 export * from './document-type.js';
+export * from './document-version.js';
 export * from './events.js';
 export * from './numbering-mask.js';
 export * from './rich-text.js';

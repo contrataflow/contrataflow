@@ -212,6 +212,28 @@ export class PrismaDocumentRepository implements DocumentRepository {
     }
   }
 
+  async lockForUpdate(tx: TenantTx, documentId: string): Promise<void> {
+    // A RLS limita ao tenant; a linha fica travada até o commit/rollback do caso de uso.
+    await tx.$queryRaw`SELECT id FROM documents WHERE id = ${documentId}::uuid FOR UPDATE`;
+  }
+
+  async listVersions(
+    tx: TenantTx,
+    documentId: string,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ items: DocumentVersionRecord[]; total: number }> {
+    const [rows, total] = await Promise.all([
+      tx.documentVersion.findMany({
+        where: { documentId },
+        orderBy: { versionNumber: 'desc' },
+        skip: window.skip,
+        take: window.take,
+      }),
+      tx.documentVersion.count({ where: { documentId } }),
+    ]);
+    return { items: rows.map(toVersion), total };
+  }
+
   async nextVersionNumber(tx: TenantTx, documentId: string): Promise<number> {
     const result = await tx.documentVersion.aggregate({
       where: { documentId },

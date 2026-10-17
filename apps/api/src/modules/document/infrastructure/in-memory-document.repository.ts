@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
+import { isActiveTransaction } from '#shared/database/active-transaction.js';
 import { VersionConflictError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
@@ -25,6 +26,8 @@ function holdsSingleton(document: Document): boolean {
 export class InMemoryDocumentRepository implements DocumentRepository {
   private readonly documents = new Map<string, Document>();
   private readonly versions = new Map<string, DocumentVersionRecord>();
+  /** Trava de linha por documento (`lockForUpdate`): o `tx` que a detém. */
+  private readonly locks = new Map<string, TenantTx>();
 
   private tenantId(): string | null {
     return currentRequestContext()?.tenantId ?? null;
@@ -103,6 +106,35 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     if (conflict) return Promise.reject(conflict);
     this.documents.set(document.id, { ...document, version: expectedVersion + 1 });
     return Promise.resolve();
+  }
+
+  /**
+   * Emula o `FOR UPDATE`: espera a transação que detém a trava terminar (o `tx` simulado deixa de
+   * estar ativo no commit/rollback) — mesma serialização do PostgreSQL entre requisições paralelas.
+   */
+  async lockForUpdate(tx: TenantTx, documentId: string): Promise<void> {
+    for (;;) {
+      const holder = this.locks.get(documentId);
+      if (holder === undefined || holder === tx || !isActiveTransaction(holder)) {
+        this.locks.set(documentId, tx);
+        return;
+      }
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  }
+
+  listVersions(
+    _tx: TenantTx,
+    documentId: string,
+    window: { readonly skip: number; readonly take: number },
+  ): Promise<{ items: DocumentVersionRecord[]; total: number }> {
+    const all = this.versionsInTenant()
+      .filter((version) => version.documentId === documentId)
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+    return Promise.resolve({
+      items: all.slice(window.skip, window.skip + window.take),
+      total: all.length,
+    });
   }
 
   nextVersionNumber(_tx: TenantTx, documentId: string): Promise<number> {

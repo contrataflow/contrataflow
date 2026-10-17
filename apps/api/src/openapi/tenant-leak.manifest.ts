@@ -118,6 +118,9 @@ const PROCESS_TIMELINE_ROUTE =
 const DOCUMENT_ROUTE =
   'Documentos (US-065): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-03/04/08/09/10/12/13/14 com id de documento de B → 404 NOT_FOUND sem alterar nada, RLS de documents/document_versions/approvals/approval_documents com app.tenant_id diferente retornando vazio e FKs compostas por tenant) é coberto em test/tenant-leak/documents.spec.ts e src/modules/document/presentation/document.routes.spec.ts, com PostgreSQL real no primeiro.';
 
+const DOCUMENT_VERSION_ROUTE =
+  'Versões de documento (US-066): a suíte genérica não tem documento nem versão do tenant B. O isolamento (DOC-15/16/18 com id de documento de B e DOC-17 com id de versão de B → 404 NOT_FOUND; DOC-18 com versão de B num documento de A → 422 REFERENCE_NOT_FOUND, sem revelar nada; RLS e gatilho só-INSERT de document_versions) é coberto em test/tenant-leak/document-versions.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/document-versions.routes.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -221,6 +224,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-12': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-13': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-14': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-15': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
+  'DOC-16': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
+  'DOC-17': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
+  'DOC-18': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

@@ -148,40 +148,55 @@ abstract class DocumentTransitionCommand<I> extends TransactionalCommandHandler<
   }
 
   /** `document.version_create` + `DocumentVersionCreated` (RN-DOC-53). */
-  protected async recordVersion(
+  protected recordVersion(
     tx: TenantTx,
     context: DocumentContext,
     version: DocumentVersionRecord,
   ): Promise<void> {
-    await this.audit.record(tx, {
-      action: 'document.version_create',
-      entityType: 'Document',
-      entityId: version.documentId,
+    return recordDocumentVersion(this.audit, this.outbox, tx, context, version);
+  }
+}
+
+/**
+ * Auditoria `document.version_create` + evento `DocumentVersionCreated` no `tx` do caso de uso —
+ * toda versão criada (transições da US-065 e "Salvar versão" da US-066) passa por aqui. O resumo
+ * da alteração nunca entra (texto livre — "Nunca logar" da US-066).
+ */
+export async function recordDocumentVersion(
+  audit: AuditTrailPort,
+  outbox: OutboxWriterPort,
+  tx: TenantTx,
+  context: DocumentContext,
+  version: DocumentVersionRecord,
+): Promise<void> {
+  await audit.record(tx, {
+    action: 'document.version_create',
+    entityType: 'Document',
+    entityId: version.documentId,
+    processId: version.processId,
+    metadata: {
+      documentVersionId: version.id,
+      versionNumber: version.versionNumber,
+      reason: version.reason,
+      contentHash: version.contentHash,
+      documentCode: context.document.code,
+    },
+  });
+  await outbox.record(
+    tx,
+    DocumentVersionCreated.of({
+      aggregateId: version.documentId,
       processId: version.processId,
-      metadata: {
+      payload: {
+        documentId: version.documentId,
+        documentTypeCode: context.type.code,
         documentVersionId: version.id,
         versionNumber: version.versionNumber,
         reason: version.reason,
         contentHash: version.contentHash,
-        documentCode: context.document.code,
       },
-    });
-    await this.outbox.record(
-      tx,
-      DocumentVersionCreated.of({
-        aggregateId: version.documentId,
-        processId: version.processId,
-        payload: {
-          documentId: version.documentId,
-          documentTypeCode: context.type.code,
-          documentVersionId: version.id,
-          versionNumber: version.versionNumber,
-          reason: version.reason,
-          contentHash: version.contentHash,
-        },
-      }),
-    );
-  }
+    }),
+  );
 }
 
 // --- Finalizar e submeter (DOC-10 · DOC-09) ----------------------------------------------------
