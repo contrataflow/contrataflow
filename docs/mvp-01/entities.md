@@ -733,7 +733,7 @@ Concessões de visibilidade (DEC-024), mantidas na mesma transação.
 - **Índices:** `(tenant_id, department_id, process_id) WHERE revoked_at IS NULL`; `(tenant_id, user_id, process_id) WHERE revoked_at IS NULL`.
 
 #### SavedView (`saved_views`) — módulo `process` · Padrão (P2)
-`ownerId` (uuid, não), `scope` (SavedViewScope), `name` (varchar(80)), `filters` (jsonb), `sort` (varchar(120)), `columns` (jsonb), `isShared` (boolean, `false`), `isDefault` (boolean, `false`). **Unique:** `(tenant_id, owner_id, scope, lower(name))`.
+`ownerId` (uuid, não), `scope` (SavedViewScope), `name` (varchar(80)), `filters` (jsonb), `sort` (varchar(120)), `columns` (jsonb), `isShared` (boolean, `false`), `isDefault` (boolean, `false`). **Unique:** `(tenant_id, owner_id, scope, lower(name))`; `(tenant_id, owner_id, scope) WHERE is_default` (uma única padrão — US-003). **Índices:** `(tenant_id, scope) WHERE is_shared` (compartilhadas). `filters` sempre com `v` (versão do contrato de filtros); exclusão física.
 
 ### 4.5 Workflow (definição)
 

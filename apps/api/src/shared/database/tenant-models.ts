@@ -43,6 +43,7 @@ export const TENANT_SCOPED_MODELS = [
   'Role',
   'RoleAssignment',
   'RolePermission',
+  'SavedView',
   'Supplier',
   'TenantMembership',
   'TenantSetting',

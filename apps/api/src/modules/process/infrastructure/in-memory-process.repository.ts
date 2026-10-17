@@ -3,14 +3,17 @@ import type { ProcessStageStatus } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { isProcessVisible } from '#shared/auth/process-access.js';
+import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
+import type { CursorReader } from '#shared/database/transaction-stream.js';
 
 import { InMemoryProcessParticipantRepository } from './process-participant.repositories.js';
 import { InternalCodeTakenError } from '../application/ports.js';
 import type {
   DuplicateCandidateRow,
   DuplicateSearch,
+  ProcessExportSearch,
   ProcessListPage,
   ProcessListRow,
   ProcessListSearch,
@@ -253,6 +256,41 @@ export class InMemoryProcessRepository implements ProcessRepository {
   }
 
   listProcesses(_tx: TenantTx, search: ProcessListSearch): Promise<ProcessListPage> {
+    const all = this.filteredRows(search, null);
+    const start = (search.page - 1) * search.pageSize;
+    return Promise.resolve(
+      structuredClone({
+        rows: all.slice(start, start + search.pageSize),
+        totalItems: all.length,
+      }),
+    );
+  }
+
+  countForExport(_tx: TenantTx, search: ProcessExportSearch): Promise<number> {
+    return Promise.resolve(this.filteredRows(search, search.exportCoverage).length);
+  }
+
+  exportCursor(search: ProcessExportSearch, batchSize: number): CursorReader<ProcessListRow> {
+    let rows: ProcessListRow[] = [];
+    let position = 0;
+    return {
+      open: () => {
+        rows = structuredClone(this.filteredRows(search, search.exportCoverage));
+        return Promise.resolve();
+      },
+      next: () => {
+        const batch = rows.slice(position, position + batchSize);
+        position += batch.length;
+        return Promise.resolve(batch);
+      },
+    };
+  }
+
+  /** Visíveis, cobertos pela exportação (quando informada), filtrados e ordenados. */
+  private filteredRows(
+    search: Omit<ProcessListSearch, 'page' | 'pageSize'>,
+    coverage: ProcessVisibilityScope | null,
+  ): ProcessListRow[] {
     const clock = {
       now: search.now,
       today: search.today,
@@ -296,6 +334,14 @@ export class InMemoryProcessRepository implements ProcessRepository {
         overdueSince: extras.overdueSince,
         tagIds: extras.tagIds,
       };
+      if (
+        coverage !== null &&
+        !coverage.tenantWide &&
+        !coverage.organizationIds.includes(process.organizationId) &&
+        !departmentIds.some((id) => coverage.departmentIds.includes(id))
+      ) {
+        continue;
+      }
       const visible = canViewConfidentialBudget(fact, search.budget, departmentIds);
       if (!matchesCriteria(fact, search.criteria, clock, visible)) continue;
       canView.set(process.id, visible);
@@ -308,8 +354,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
         (fact) => canView.get(fact.id) ?? false,
       ),
     );
-    const start = (search.page - 1) * search.pageSize;
-    const rows = facts.slice(start, start + search.pageSize).map((fact): ProcessListRow => {
+    return facts.map((fact): ProcessListRow => {
       const visible = canView.get(fact.id) ?? false;
       // A passagem gravada pela criação é sempre a ativa (as demais vêm com a US-047).
       const stage = [...this.stages.values()].find(
@@ -347,7 +392,6 @@ export class InMemoryProcessRepository implements ProcessRepository {
         stagePausedAt: this.extras.get(fact.id)?.stagePausedAt ?? null,
       };
     });
-    return Promise.resolve(structuredClone({ rows, totalItems: facts.length }));
   }
 
   hasUserGrant(_tx: TenantTx, userId: string): Promise<boolean> {

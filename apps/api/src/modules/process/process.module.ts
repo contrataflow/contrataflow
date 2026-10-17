@@ -21,6 +21,7 @@ import { CreateProcessCommand } from './application/create-process.command.js';
 import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
 import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
 import { DuplicateProcessCommand } from './application/duplicate-process.command.js';
+import { ExportProcessesQuery } from './application/export-processes.query.js';
 import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
@@ -29,6 +30,7 @@ import {
   PROCESS_REPOSITORY,
   PROCESS_RUNTIME_READER,
   PROCESS_TRANSACTIONS,
+  SAVED_VIEW_REPOSITORY,
 } from './application/ports.js';
 import { ProcessAccessProjector } from './application/process-access.projector.js';
 import { ProcessRuntimeAccessReader } from './application/process-access.reader.js';
@@ -49,6 +51,7 @@ import {
   ProcessItemsChangeRecorder,
   ProcessItemsGate,
 } from './application/process-items.support.js';
+import { ProcessListPresenter } from './application/process-list.presenter.js';
 import {
   GetProcessSummaryQuery,
   ListProcessStagesQuery,
@@ -71,6 +74,13 @@ import { ProcessFacade } from './application/process.facade.js';
 import { ProcessPresenter } from './application/process.presenter.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
 import { RuleTestProcessReader } from './application/rule-test-process.source.js';
+import {
+  CreateSavedViewCommand,
+  DeleteSavedViewCommand,
+  ListSavedViewsQuery,
+  SavedViewSupport,
+  UpdateSavedViewCommand,
+} from './application/saved-views.commands.js';
 import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
 import { UpdateProcessCommand } from './application/update-process.command.js';
 import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
@@ -91,10 +101,16 @@ import {
   InMemoryProcessRuntimeStore,
   InMemoryProcessTransactions,
 } from './infrastructure/process-runtime.readers.js';
+import {
+  InMemorySavedViewRepository,
+  PrismaSavedViewRepository,
+} from './infrastructure/saved-view.repositories.js';
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
+import { ProcessExportController } from './presentation/process-export.controller.js';
 import { ProcessItemsController } from './presentation/process-items.controller.js';
 import { ProcessParticipantsController } from './presentation/process-participants.controller.js';
 import { ProcessController } from './presentation/process.controller.js';
+import { SavedViewsController } from './presentation/saved-views.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { ApprovalModule } from '../approval/approval.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
@@ -121,6 +137,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * contratação (PRC-13..17), com o uso dos itens perguntado à porta `ProcessItemUsageRegistry`.
  * US-011: duplicação (PRC-27) sobre a criação da US-001 e as fachadas de `document` e `files`.
  * US-012: participantes (PRC-28..32) — `ProcessAccess` `PARTICIPANT`, seguir/deixar de seguir.
+ * US-003: visões salvas (PRC-35..38) e exportação CSV em *streaming* (PRC-34).
  */
 @Module({
   imports: [
@@ -139,7 +156,10 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessItemUsageModule,
   ],
   controllers: [
+    // US-003: `/processes/export` antes de `/processes/:id`.
+    ProcessExportController,
     ProcessController,
+    SavedViewsController,
     ProcessActionsController,
     ProcessItemsController,
     ProcessParticipantsController,
@@ -160,6 +180,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CheckDuplicateProcessesQuery,
     GetProcessQuery,
     ListProcessesHandler,
+    ProcessListPresenter,
+    ExportProcessesQuery,
+    SavedViewSupport,
+    ListSavedViewsQuery,
+    CreateSavedViewCommand,
+    UpdateSavedViewCommand,
+    DeleteSavedViewCommand,
+    PrismaSavedViewRepository,
+    InMemorySavedViewRepository,
     ProcessPanelReader,
     GetProcessSummaryQuery,
     ListProcessStagesQuery,
@@ -222,6 +251,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         config: AppConfig,
         prisma: PrismaProcessParticipantRepository,
         memory: InMemoryProcessParticipantRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: SAVED_VIEW_REPOSITORY,
+      inject: [APP_CONFIG, PrismaSavedViewRepository, InMemorySavedViewRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaSavedViewRepository,
+        memory: InMemorySavedViewRepository,
       ) => (inMemory(config) ? memory : prisma),
     },
     {

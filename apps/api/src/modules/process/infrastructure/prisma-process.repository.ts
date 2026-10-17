@@ -16,14 +16,22 @@ import { newId } from '#shared/database/ids.js';
 import { Prisma } from '#shared/database/prisma.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { buildVisibilityPredicate } from '#shared/database/process-visibility.js';
+import type { CursorReader } from '#shared/database/transaction-stream.js';
 
-import { buildProcessListSql, toProcessListRow } from './process-list.sql.js';
+import {
+  buildProcessExportCountSql,
+  buildProcessExportSql,
+  buildProcessListSql,
+  toProcessListRow,
+} from './process-list.sql.js';
 import type { ProcessListDbRow } from './process-list.sql.js';
 import { InternalCodeTakenError } from '../application/ports.js';
 import type {
   DuplicateCandidateRow,
   DuplicateSearch,
+  ProcessExportSearch,
   ProcessListPage,
+  ProcessListRow,
   ProcessListSearch,
   ProcessAccessRow,
   ProcessParticipantRow,
@@ -524,6 +532,31 @@ export class PrismaProcessRepository implements ProcessRepository {
     };
   }
 
+  async countForExport(tx: TenantTx, search: ProcessExportSearch): Promise<number> {
+    await tx.$executeRaw`SELECT set_config('statement_timeout', ${String(search.statementTimeoutMs)}, true)`;
+    const [row] = await tx.$queryRaw<{ total: number }[]>(buildProcessExportCountSql(search));
+    return row?.total ?? 0;
+  }
+
+  exportCursor(search: ProcessExportSearch, batchSize: number): CursorReader<ProcessListRow> {
+    // Cursor no servidor (RN-PROC-45): os parâmetros vão no DECLARE (protocolo estendido); cada
+    // FETCH traz um lote. Fecha sozinho no fim da transação somente leitura.
+    return {
+      open: async (tx) => {
+        await tx.$executeRaw`SELECT set_config('statement_timeout', ${String(search.statementTimeoutMs)}, true)`;
+        await tx.$executeRaw(
+          Prisma.sql`DECLARE process_export NO SCROLL CURSOR FOR ${buildProcessExportSql(search)}`,
+        );
+      },
+      next: async (tx) => {
+        const rows = await tx.$queryRaw<(Omit<ProcessListDbRow, 'total'> & { id: string })[]>(
+          Prisma.sql`FETCH FORWARD ${Prisma.raw(String(Math.trunc(batchSize)))} FROM process_export`,
+        );
+        return rows.map(toProcessListRow);
+      },
+    };
+  }
+
   async hasUserGrant(tx: TenantTx, userId: string): Promise<boolean> {
     const [row] = await tx.$queryRaw<{ granted: boolean }[]>`
       SELECT EXISTS (
@@ -651,5 +684,9 @@ export class PrismaProcessTransactions implements ProcessTransactions {
 
   snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.transaction.snapshot(work);
+  }
+
+  longRead<T>(work: (tx: TenantTx) => Promise<T>, timeoutMs: number): Promise<T> {
+    return this.transaction.longRead(work, timeoutMs);
   }
 }

@@ -65,6 +65,15 @@ export class TenantTransaction {
   }
 
   /**
+   * Leitura longa somente leitura (`READ ONLY`) com `statement_timeout` e tempo da transação
+   * iguais a `timeoutMs`, sem retentativa: exportação em *streaming* por cursor (US-003 ·
+   * RN-PROC-45), em que o trabalho só termina quando o último lote foi entregue.
+   */
+  longRead<T>(work: (tx: TenantTx) => Promise<T>, timeoutMs: number): Promise<T> {
+    return this.prisma.$tenantTransaction(work, { readOnly: true, timeoutMs });
+  }
+
+  /**
    * Comando de um caso de uso `PLATFORM` sobre um tenant alvo (US-100 · FA-02 · RN-TEN-21):
    * provisionamento, jobs de plataforma que iteram tenants. Só fora de contexto de tenant (ou no
    * mesmo tenant) e com ator `SYSTEM`/`PLATFORM_OPERATOR`; dentro de uma rota `TENANT` para outro

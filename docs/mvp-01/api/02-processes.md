@@ -862,11 +862,13 @@ Código;Título;Situação;Valor estimado;Orçamento sigiloso
 | HTTP | `code` | Quando |
 |---|---|---|
 | 422 | `VALIDATION_ERROR` | Filtro inválido |
-| 422 | `EXPORT_TOO_LARGE` | Consulta acima de 10.000 linhas |
+| 422 | `EXPORT_TOO_LARGE` | Consulta acima de 10.000 linhas (`meta.totalItems` com o total; nenhum byte do arquivo) |
 | 403 | `PERMISSION_DENIED` | Sem `PROCESS_EXPORT` |
+| 429 | `RATE_LIMITED` | Exportação do mesmo usuário em andamento (trava de 2 min) ou limite por minuto; `Retry-After` |
+| 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível antes do envio (depois de iniciado, a conexão é abortada) |
 
 - **Efeitos:** — (sem evento de domínio). Auditoria: `process.export` (`EXPORT`) na conclusão (`SUCCESS`) ou interrupção após iniciar o envio (`FAILURE`) — `metadata`: filtros aplicados (inclusive `q`), `sort`, `columns`, `rowCount`, `maskedRowCount`, `durationMs`, `savedViewId?`; `access.denied` em 403.
-- **Notas:** limite de 10.000 linhas (refinar filtros); fórmulas em células são neutralizadas (prefixo `'`, ver exemplo); classe de limite "Exportações e renderização" (api.md §1.6, 20 req/min).
+- **Notas:** limite de 10.000 linhas (`PROCESS_EXPORT_MAX_ROWS` — refinar filtros); linhas = processos visíveis E cobertos pelo escopo de `PROCESS_EXPORT`; formato: UTF-8 com BOM, separador `;`, CRLF, cabeçalho em pt-BR, decimais com vírgula sem separador de milhar, datas `DD/MM/AAAA` e data-hora `DD/MM/AAAA HH:mm` no fuso do tenant, enums pelos rótulos, etiquetas separadas por " | "; `estimatedValue` gera também "Orçamento sigiloso" e `deadline` gera "Prazo da etapa" e "Situação do prazo"; fórmulas em células de texto são neutralizadas (prefixo `'`, ver exemplo); geração por cursor em lotes de 500 (transação `READ ONLY`, `statement_timeout` 60 s); classe de limite "Exportações e renderização" (api.md §1.6, 20 req/min).
 
 ### PRC-35 — Listar visões salvas
 `GET /api/v1/saved-views` · **Permissão:** `PROCESS_VIEW` ou `INBOX_VIEW` · **Story:** US-003

@@ -81,8 +81,8 @@ export const PROCESS_LIST_MESSAGES = Object.freeze({
 const M = PROCESS_LIST_MESSAGES;
 
 /** `Decimal(18,2)` ≥ 0 com até 2 casas (mesma forma do `estimatedValueSchema`). */
-const MONEY_PATTERN = /^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/;
-const STAGE_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,59}$/;
+export const MONEY_PATTERN = /^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/;
+export const STAGE_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,59}$/;
 
 /** Valor de query string: texto ou repetição (`?status=A&status=B`), achatado em uma lista. */
 const rawValues = z.union([z.string(), z.array(z.string())]).transform((value) =>
@@ -166,7 +166,8 @@ function cents(value: string): bigint {
   return BigInt(integer) * 100n + BigInt(fraction.padEnd(2, '0'));
 }
 
-const queryShape = {
+/** Forma da query de PRC-01 (reutilizada pela exportação — PRC-34 · US-003). */
+export const processListQueryShape = {
   page: pageInt().optional().default(1),
   pageSize: pageInt(MAX_PAGE_SIZE).optional().default(PROCESS_LIST_DEFAULT_PAGE_SIZE),
   sort: processListSortSchema.optional(),
@@ -201,31 +202,46 @@ const queryShape = {
   includeStageOptions: booleanParam,
 };
 
+const queryShape = processListQueryShape;
+
 /** Chaves aceitas na query string (as demais são ignoradas — RN-PROC-20). */
 export const PROCESS_LIST_PARAM_KEYS = Object.keys(
   queryShape,
 ) as readonly (keyof typeof queryShape)[];
 export type ProcessListParamKey = keyof typeof queryShape;
 
+/** Intervalos "de/até" coerentes (V-06/V-07): datas e valores, onde quer que o filtro apareça. */
+export function refineProcessListRanges(
+  query: {
+    readonly createdFrom?: string | undefined;
+    readonly createdTo?: string | undefined;
+    readonly targetDateFrom?: string | undefined;
+    readonly targetDateTo?: string | undefined;
+    readonly estimatedValueMin?: string | undefined;
+    readonly estimatedValueMax?: string | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  const range = (from: string | undefined, to: string | undefined, path: string) => {
+    if (from !== undefined && to !== undefined && from > to) {
+      context.addIssue({ code: 'custom', path: [path], message: M.dateRange });
+    }
+  };
+  range(query.createdFrom, query.createdTo, 'createdTo');
+  range(query.targetDateFrom, query.targetDateTo, 'targetDateTo');
+  if (
+    query.estimatedValueMin !== undefined &&
+    query.estimatedValueMax !== undefined &&
+    cents(query.estimatedValueMin) > cents(query.estimatedValueMax)
+  ) {
+    context.addIssue({ code: 'custom', path: ['estimatedValueMax'], message: M.invalidValue });
+  }
+}
+
 /** PRC-01 (query) — filtros, busca, ordenação e paginação da tabela "Campos" da US-002. */
 export const processListQuerySchema = z
   .object(queryShape)
-  .superRefine((query, context) => {
-    const range = (from: string | undefined, to: string | undefined, path: string) => {
-      if (from !== undefined && to !== undefined && from > to) {
-        context.addIssue({ code: 'custom', path: [path], message: M.dateRange });
-      }
-    };
-    range(query.createdFrom, query.createdTo, 'createdTo');
-    range(query.targetDateFrom, query.targetDateTo, 'targetDateTo');
-    if (
-      query.estimatedValueMin !== undefined &&
-      query.estimatedValueMax !== undefined &&
-      cents(query.estimatedValueMin) > cents(query.estimatedValueMax)
-    ) {
-      context.addIssue({ code: 'custom', path: ['estimatedValueMax'], message: M.invalidValue });
-    }
-  })
+  .superRefine(refineProcessListRanges)
   .meta({ id: 'ProcessListQuery' });
 export type ProcessListQuery = z.output<typeof processListQuerySchema>;
 

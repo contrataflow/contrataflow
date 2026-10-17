@@ -1,5 +1,4 @@
 import { withSpan } from '@contrataflow/observability';
-import { localDateOf } from '@contrataflow/types';
 import type {
   ProcessListItemDto,
   ProcessListMeta,
@@ -10,32 +9,15 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { DatabaseUnavailableError, isStatementTimeout } from '#shared/database/errors.js';
-import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
-import { PROCESS_CLOCK, PROCESS_REPOSITORY, PROCESS_TRANSACTIONS } from './ports.js';
-import type {
-  ProcessClock,
-  ProcessListRow,
-  ProcessRepository,
-  ProcessTransactions,
-} from './ports.js';
+import { PROCESS_REPOSITORY, PROCESS_TRANSACTIONS } from './ports.js';
+import type { ProcessRepository, ProcessTransactions } from './ports.js';
+import { ProcessListPresenter } from './process-list.presenter.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
-import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
-import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
-import type { CatalogItemRef } from '../../catalog/application/catalog.facade.js';
-import { IdentityFacade } from '../../identity/application/identity.facade.js';
-import { OrganizationFacade } from '../../organization/application/organization.facade.js';
-import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
-import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import type { ReleasedStage } from '../../workflow/application/workflow.facade.js';
-import {
-  deadlineDateRange,
-  effectiveOrder,
-  isProcessOverdue,
-  stageDeadline,
-} from '../domain/process-list.js';
-import type { ProcessListCriteria, StageDeadlineInput } from '../domain/process-list.js';
+import { effectiveOrder } from '../domain/process-list.js';
+import type { ProcessListCriteria } from '../domain/process-list.js';
 
 /*
  * `ListProcessesHandler` (US-002 · PRC-01): lista paginada, filtrada e ordenada dos processos que
@@ -45,8 +27,6 @@ import type { ProcessListCriteria, StageDeadlineInput } from '../domain/process-
  * `deadline`). Somente leitura; nenhum evento. Logs sem o texto da busca nem valores.
  */
 
-const HISTORICAL_SETTING = 'access.historicalDepartmentsCanView';
-const WARN_SETTING = 'deadlines.warnBeforeBusinessDays';
 /** US-002 · "Impacto técnico": `SET LOCAL statement_timeout = '3s'`. */
 export const PROCESS_LIST_STATEMENT_TIMEOUT_MS = 3000;
 /** Acima disto: `warn process.list_slow` (meta p95 < 800 ms). */
@@ -66,9 +46,15 @@ export function filterKeysOf(query: ProcessListQuery): string[] {
     .sort();
 }
 
+/** Filtros de PRC-01 (a exportação — PRC-34 — usa os mesmos, sem paginação). */
+export type ProcessListFilterQuery = Omit<
+  ProcessListQuery,
+  'page' | 'pageSize' | 'includeStageOptions'
+>;
+
 /** Valores reservados e chaves de etapa → critérios resolvidos (RN-PROC-21/22). */
 export function resolveCriteria(
-  query: ProcessListQuery,
+  query: ProcessListFilterQuery,
   context: {
     readonly userId: string;
     readonly ownDepartmentIds: readonly string[];
@@ -151,14 +137,8 @@ export class ListProcessesHandler {
   constructor(
     @Inject(PROCESS_TRANSACTIONS) private readonly transactions: ProcessTransactions,
     @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
-    @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
     private readonly access: AccessFacade,
-    private readonly calendar: BusinessCalendarFacade,
-    private readonly tenancy: TenancyFacade,
-    private readonly workflow: WorkflowFacade,
-    private readonly organization: OrganizationFacade,
-    private readonly catalog: CatalogFacade,
-    private readonly identity: IdentityFacade,
+    private readonly presenter: ProcessListPresenter,
   ) {}
 
   execute(query: ProcessListQuery): Promise<ProcessListResult> {
@@ -246,17 +226,13 @@ export class ListProcessesHandler {
           auditReasonCode: 'PROCESS_VIEW',
         });
       }
-      const settings = await this.tenancy.settingValues(tx, [HISTORICAL_SETTING, WARN_SETTING]);
-      const timezone = await this.calendar.timezone(tx);
-      const now = this.clock();
-      const today = localDateOf(now, timezone);
-      const stages = await this.workflow.releasedStages(tx);
+      const list = await this.presenter.loadContext(tx);
+      const { now, timezone, today, stages } = list;
       const criteria = resolveCriteria(query, {
         userId,
         ownDepartmentIds: permissions.snapshot.ownDepartmentIds,
         stages,
       });
-      const historicalDepartmentsCanView = settings.get(HISTORICAL_SETTING) !== false;
       const page = await this.processes.listProcesses(tx, {
         criteria,
         order: effectiveOrder(query.sort, criteria.search !== null),
@@ -266,18 +242,11 @@ export class ListProcessesHandler {
         timezone,
         today,
         visibility: permissions.visibilityScope(),
-        historicalDepartmentsCanView,
+        historicalDepartmentsCanView: list.historicalDepartmentsCanView,
         budget: { ...budget.scope, custodyDepartmentIds: budget.custodyDepartmentIds },
         statementTimeoutMs: PROCESS_LIST_STATEMENT_TIMEOUT_MS,
       });
-      const warn = settings.get(WARN_SETTING);
-      const items = await this.present(tx, page.rows, {
-        now,
-        today,
-        timezone,
-        stages,
-        warnBeforeBusinessDays: typeof warn === 'number' ? warn : 2,
-      });
+      const items = await this.presenter.present(tx, page.rows, list);
       const valueFilter =
         criteria.estimatedValueMin !== null || criteria.estimatedValueMax !== null;
       const meta: ProcessListMeta = {
@@ -291,116 +260,6 @@ export class ListProcessesHandler {
         ...(budget.stepUpAvailable ? { confidentialStepUpAvailable: true } : {}),
       };
       return { items, meta };
-    });
-  }
-
-  /** `ProcessListPresenter`: nomes por lote (sem N+1), valor mascarado por linha e `deadline`. */
-  private async present(
-    tx: TenantTx,
-    rows: readonly ProcessListRow[],
-    context: {
-      readonly now: Date;
-      readonly today: string;
-      readonly timezone: string;
-      readonly stages: readonly ReleasedStage[];
-      readonly warnBeforeBusinessDays: number;
-    },
-  ): Promise<ProcessListItemDto[]> {
-    if (rows.length === 0) return [];
-    const departmentNames = await this.organization.departmentNames(tx, [
-      ...new Set(
-        rows.flatMap((row) => [
-          row.requestingSecretariatId,
-          row.requestingDepartmentId,
-          row.currentDepartmentId,
-        ]),
-      ),
-    ]);
-    const userNames = await this.identity.userDisplayNames(tx, [
-      ...new Set(
-        rows.flatMap((row) => (row.currentResponsibleId ? [row.currentResponsibleId] : [])),
-      ),
-    ]);
-    const catalog = new Map<string, CatalogItemRef>();
-    for (const id of new Set(
-      rows.flatMap((row) => [row.contractingTypeId, row.modalityId, row.originId]),
-    )) {
-      if (id === null) continue;
-      const item = await this.catalog.find(tx, id);
-      if (item) catalog.set(id, item);
-    }
-    const organizations = new Map<string, string>();
-    for (const id of new Set(rows.map((row) => row.organizationId))) {
-      organizations.set(id, (await this.tenancy.organizationSummary(tx, id))?.shortName ?? '');
-    }
-    const stageById = new Map(context.stages.map((stage) => [stage.id, stage]));
-    const localDate = (instant: Date) => localDateOf(instant, context.timezone);
-    const inputOf = (row: ProcessListRow): StageDeadlineInput => ({
-      dueAt: row.currentStageDueAt,
-      slaType: row.slaType,
-      isPaused: row.stagePausedAt !== null,
-      isOverdue: isProcessOverdue(row, context.now),
-      overdueSince: row.overdueSince,
-    });
-    const inputs = rows.map(inputOf);
-
-    const range = deadlineDateRange(inputs, { today: context.today, localDate });
-    const businessDays = new Set(
-      await this.calendar.listBusinessDaysBetween(tx, range.from, range.to),
-    );
-    const calendar = {
-      today: context.today,
-      localDate,
-      isBusinessDay: (date: string) => businessDays.has(date),
-      warnBeforeBusinessDays: context.warnBeforeBusinessDays,
-    };
-    const unit = (id: string) => ({ id, name: departmentNames.get(id) ?? id });
-    const catalogRef = (id: string) => {
-      const item = catalog.get(id);
-      return { id, code: item?.code ?? '', label: item?.label ?? '' };
-    };
-    return rows.map((row) => {
-      const stage =
-        row.currentWorkflowStageId === null ? undefined : stageById.get(row.currentWorkflowStageId);
-      const masked = row.isBudgetConfidential && !row.canViewBudget;
-      return {
-        id: row.id,
-        code: row.code,
-        number: row.number,
-        year: row.year,
-        internalCode: row.internalCode,
-        title: row.title,
-        status: row.status,
-        priority: row.priority,
-        organization: {
-          id: row.organizationId,
-          shortName: organizations.get(row.organizationId) ?? '',
-        },
-        requestingSecretariat: unit(row.requestingSecretariatId),
-        requestingDepartment: unit(row.requestingDepartmentId),
-        currentStage: stage ? { key: stage.key, name: stage.name } : null,
-        currentDepartment: unit(row.currentDepartmentId),
-        currentResponsible:
-          row.currentResponsibleId === null
-            ? null
-            : {
-                id: row.currentResponsibleId,
-                name: userNames.get(row.currentResponsibleId) ?? row.currentResponsibleId,
-              },
-        deadline: stageDeadline(inputOf(row), calendar),
-        contractingType: catalogRef(row.contractingTypeId),
-        modality: row.modalityId === null ? null : catalogRef(row.modalityId),
-        origin: catalogRef(row.originId),
-        isBudgetConfidential: row.isBudgetConfidential,
-        estimatedValue: masked ? null : row.estimatedValue,
-        estimatedValueMasked: masked,
-        targetDate: row.targetDate,
-        overdueSince: row.overdueSince?.toISOString() ?? null,
-        tags: [],
-        openedAt: row.openedAt?.toISOString() ?? null,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-      };
     });
   }
 }

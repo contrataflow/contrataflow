@@ -92,6 +92,10 @@ class FlakyTransactions implements ProcessTransactions {
   snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.run(work);
   }
+
+  longRead<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.read(work);
+  }
 }
 
 /** Documentos que referenciam itens (o papel de `DocumentItem`/`PriceItem` — US-014/US-024). */

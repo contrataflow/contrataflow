@@ -142,6 +142,32 @@ participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAcces
   e `test/tenant-leak/process-confidentiality.spec.ts` (PostgreSQL: cascata, rollback induzido,
   concorrência e RLS).
 
+## Visões salvas e exportação CSV (US-003)
+
+- **Rotas:** PRC-35..38 em `SavedViewsController` (`/saved-views`, `@ImplicitAccess` — escopo e posse
+  no caso de uso) e PRC-34 em `ProcessExportController` (`/processes/export`, registrado ANTES do
+  `ProcessController` para não cair em `:id`; `PROCESS_EXPORT` no guard, classe de limite `export`).
+  Contratos em `packages/validation/src/process/saved-views.ts` (filtros versionados `v: 1`, conversão
+  URL ⇄ `filters`, upcaster, colunas) e `process-export.ts` (query, rótulos, `PROCESS_EXPORT_MAX_ROWS`).
+- **Visões:** `application/saved-views.commands.ts` sobre `TransactionalCommandHandler`; regras puras em
+  `domain/saved-view.ts`. Trava `pg_advisory_xact_lock` por dono e escopo (limite de 20, nome e
+  padrão única); índices únicos `lower(name)` e parcial da padrão são a rede de segurança. Compartilhada
+  de outro dono = 403 com `access.denied` da visão (`ApiError.auditEntity`); privada de outro = 404.
+  Sem auditoria nem evento (preferência pessoal); exclusão física.
+- **Exportação:** `ExportProcessesQuery` — trava Redis por usuário (`TenantCache`, TTL 2 min; Redis fora
+  = segue sem trava com `warn export.lock_unavailable`), contagem exata antes do 1º byte (422
+  `EXPORT_TOO_LARGE` com `meta.totalItems`), e o arquivo por cursor no servidor (`DECLARE … CURSOR` +
+  `FETCH 500`) numa transação `READ ONLY` longa (`TenantTransaction.longRead`, 60 s) mantida aberta
+  pelo `pullInTransaction` (`#shared/database/transaction-stream.js`) enquanto o socket drena —
+  padrão de exportação em _streaming_ reutilizável. Linhas = visibilidade E cobertura do escopo de
+  `PROCESS_EXPORT` (`exportCoverageSql`). Apresentação pelo `ProcessListPresenter` (o mesmo de
+  PRC-01) e serialização em `domain/process-csv.ts` (BOM, `;`, CRLF, pt-BR, neutralização de fórmulas).
+  `process.export` `SUCCESS` é gravado ANTES do último pedaço (sem auditoria, sem arquivo completo);
+  falha ou cliente que desiste = `FAILURE` com `reasonCode`.
+- **Testes:** `domain/process-csv.spec.ts`, `domain/saved-view.spec.ts`,
+  `presentation/saved-views.routes.spec.ts` (8 categorias) e `test/tenant-leak/saved-views.spec.ts`
+  (PostgreSQL: cursor em 3 lotes, índices, RLS).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

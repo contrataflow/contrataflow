@@ -60,6 +60,16 @@ import {
   readStoredColumns,
   saveColumnsPreference,
 } from './process-list.api';
+import {
+  buildAvailability,
+  columnKeyOf,
+  columnKeysFromVisible,
+  exportQuery,
+  summarizeCriteria,
+} from './saved-views-model';
+import type { CriteriaLabels } from './saved-views-model';
+import { SavedViewsToolbar } from './saved-views-toolbar';
+import { useSavedViews } from './use-saved-views';
 
 /*
  * SCR-004 — Processos (`/processos` · US-002): tabela paginada no servidor (modo manual: a API
@@ -220,26 +230,6 @@ export function ProcessListPage() {
   // Opções de etapa: só na primeira consulta (`includeStageOptions` — lacuna 1).
   const [stageOptions, setStageOptions] = useState<readonly ProcessStageOptionDto[] | null>(null);
   const wantsStageOptions = useRef(true);
-  const list = useQuery({
-    queryKey: processListKeys.list(tenantId, apiQuery),
-    queryFn: async ({ signal }) => {
-      const include = wantsStageOptions.current;
-      const page = await fetchProcessList(
-        include ? { ...apiQuery, includeStageOptions: 'true' } : apiQuery,
-        signal,
-      );
-      if (include && page.meta.stageOptions) {
-        wantsStageOptions.current = false;
-        setStageOptions(page.meta.stageOptions);
-      }
-      return page;
-    },
-    placeholderData: keepPreviousData,
-    staleTime: PROCESS_LIST_STALE_TIME_MS,
-    refetchOnWindowFocus: true,
-    throwOnError: false,
-    retry: false,
-  });
 
   const optionQuery = <T,>(key: readonly unknown[], fn: (signal: AbortSignal) => Promise<T>) => ({
     queryKey: key,
@@ -297,6 +287,62 @@ export function ProcessListPage() {
     (column) => !column.multiOrganization || multiOrganization,
   );
   const visible = offered.filter((column) => column.fixed === true || columns.includes(column.id));
+
+  // --- Visões salvas (US-003) ---------------------------------------------------------------
+  const canExport = usePermission('PROCESS_EXPORT').allowed;
+  const visibleIds = visible.map((column) => column.id);
+  const availableColumnKeys = new Set(
+    offered.map((column) => columnKeyOf(column.id)).filter((key) => key !== null),
+  );
+  const availability = buildAvailability({
+    units: units.data,
+    organizations: organizations.data,
+    contractingTypes: contractingTypes.data,
+    modalities: modalities.data,
+    origins: origins.data,
+  });
+  const optionsSettled = [organizations, units, contractingTypes, modalities, origins].every(
+    (option) => !option.isPending,
+  );
+  const views = useSavedViews({
+    tenantId,
+    usedDefaults: state.usedDefaults,
+    params,
+    visibleColumnIds: visibleIds,
+    availableColumnKeys,
+    availability,
+    optionsSettled,
+    navigate,
+    applyColumns: (ids) => {
+      setColumns(ids.filter(isColumnId));
+    },
+    resetColumns: () => {
+      setColumns(readStoredColumns(tenantId)?.filter(isColumnId) ?? DEFAULT_COLUMNS);
+    },
+  });
+
+  // Opções de etapa: só na primeira consulta (`includeStageOptions` — lacuna 1).
+  const list = useQuery({
+    queryKey: processListKeys.list(tenantId, apiQuery),
+    queryFn: async ({ signal }) => {
+      const include = wantsStageOptions.current;
+      const page = await fetchProcessList(
+        include ? { ...apiQuery, includeStageOptions: 'true' } : apiQuery,
+        signal,
+      );
+      if (include && page.meta.stageOptions) {
+        wantsStageOptions.current = false;
+        setStageOptions(page.meta.stageOptions);
+      }
+      return page;
+    },
+    enabled: !views.awaitingDefault,
+    placeholderData: keepPreviousData,
+    staleTime: PROCESS_LIST_STALE_TIME_MS,
+    refetchOnWindowFocus: true,
+    throwOnError: false,
+    retry: false,
+  });
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersKey, setFiltersKey] = useState(0);
@@ -367,6 +413,25 @@ export function ProcessListPage() {
   const chipLabel = (key: ProcessListParamKey) =>
     key === 'tagId' ? t('columns.tags') : t(`filters.${CHIP_LABELS[key] ?? 'search'}`);
 
+  const criteriaLabels: CriteriaLabels = {
+    filter: chipLabel,
+    value: chipValue,
+    flag: (key) => (key === 'overdue' ? t('quick.overdue') : t('filters.targetDateOverdue')),
+    sortTerm: (field, direction) => {
+      const column = PROCESS_COLUMNS.find((candidate) => candidate.sort === field);
+      const label = column ? t(`columns.${column.id}`) : field;
+      return t(direction === 'desc' ? 'views.criteria.desc' : 'views.criteria.asc', { label });
+    },
+    sortPrefix: t('views.criteria.sortPrefix'),
+    empty: t('views.criteria.empty'),
+  };
+  const exportColumns = visible.map((column) => ({
+    id: column.id,
+    label: t(`columns.${column.id}`),
+  }));
+  // O arquivo só cita a visão de origem quando a lista ainda é exatamente a visão (auditoria).
+  const exportViewId = views.applied !== null && !views.unsaved ? views.applied.id : undefined;
+
   const showNoProcesses =
     page !== undefined && total === 0 && (activeKeys.length === 0 || state.usedDefaults);
 
@@ -389,6 +454,17 @@ export function ProcessListPage() {
       {invalidLink ? (
         <Alert tone="warning" title={PROCESS_LIST_MESSAGES.invalidLink} live={false} />
       ) : null}
+
+      <SavedViewsToolbar
+        controller={views}
+        canExport={canExport}
+        exportTotal={page && !list.isFetching ? total : undefined}
+        exportColumns={exportColumns}
+        buildExportQuery={() =>
+          exportQuery(params, columnKeysFromVisible(visibleIds), exportViewId)
+        }
+        summarize={() => summarizeCriteria(params, criteriaLabels)}
+      />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start">
         <div className="flex flex-1 flex-col gap-1">

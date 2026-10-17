@@ -123,6 +123,10 @@ class FlakyTransactions implements ProcessTransactions {
     this.snapshots += 1;
     return this.run(work);
   }
+
+  longRead<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.read(work);
+  }
 }
 
 const dept = (departmentId: string, reason: 'REQUESTING' | 'CURRENT' | 'HISTORICAL') =>

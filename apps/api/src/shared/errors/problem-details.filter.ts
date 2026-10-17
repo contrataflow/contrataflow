@@ -153,6 +153,9 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
         action: 'access.denied',
         result: 'DENIED',
         reasonCode: error.auditReasonCode,
+        ...(error.auditEntity === null
+          ? {}
+          : { entityType: error.auditEntity.type, entityId: error.auditEntity.id }),
         metadata: {
           code: error.code,
           method: request.method ?? null,

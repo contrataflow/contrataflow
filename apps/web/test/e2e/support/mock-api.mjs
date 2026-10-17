@@ -703,6 +703,168 @@ const RULE_TEST_PROCESSES = [
     title: 'Aquisição de notebooks',
   },
 ];
+// Lista de processos, visões salvas e exportação CSV (US-002/US-003 · SCR-004): três processos
+// fixos (um atrasado, um devolvido) bastam para a jornada de salvar, aplicar e exportar; a
+// ordenação, a paginação e as regras de visibilidade/mascaramento são cobertas nos testes da API.
+const LIST_FIXTURES = [
+  {
+    n: 12,
+    code: '0012/2026',
+    title: 'Aquisição de cimento para manutenção de vias',
+    status: 'IN_PROGRESS',
+    priority: 'HIGH',
+    overdue: false,
+    unit: 0,
+  },
+  {
+    n: 31,
+    code: '0031/2026',
+    title: 'Contratação de limpeza hospitalar',
+    status: 'RETURNED',
+    priority: 'MEDIUM',
+    overdue: false,
+    unit: 0,
+  },
+  {
+    n: 45,
+    code: '0045/2026',
+    title: 'Aquisição de medicamentos da farmácia básica',
+    status: 'AWAITING_APPROVAL',
+    priority: 'URGENT',
+    overdue: true,
+    unit: 0,
+  },
+];
+const LIST_STATUS_LABELS = {
+  DRAFT: 'Rascunho',
+  IN_PROGRESS: 'Em andamento',
+  AWAITING_APPROVAL: 'Aguardando aprovação',
+  RETURNED: 'Devolvido',
+  SUSPENDED: 'Suspenso',
+};
+const LIST_PRIORITY_LABELS = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta', URGENT: 'Urgente' };
+/** Unidade que existia quando a visão compartilhada foi salva e hoje não existe mais (FA-05). */
+const REMOVED_UNIT_ID = '0192a000-0000-7000-8000-00000000dead';
+const listProcessId = (n) => `0192a000-0000-7000-8000-${String(100000 + n).padStart(12, '0')}`;
+
+function listProcessItem(fixture) {
+  const unit = departments[fixture.unit];
+  const ref = (item) => ({ id: item.id, name: item.name });
+  return {
+    id: listProcessId(fixture.n),
+    code: fixture.code,
+    number: fixture.n,
+    year: 2026,
+    internalCode: null,
+    title: fixture.title,
+    status: fixture.status,
+    priority: fixture.priority,
+    organization: { id: organizations[0].id, shortName: 'PMSJ' },
+    requestingSecretariat: ref(departments[0]),
+    requestingDepartment: ref(departments[0]),
+    currentStage: { key: 'PESQUISA_PRECOS', name: 'Pesquisa de preços' },
+    currentDepartment: ref(unit),
+    currentResponsible: null,
+    deadline: {
+      dueAt: fixture.overdue ? '2026-10-01T02:59:59Z' : '2026-10-08T02:59:59Z',
+      slaType: 'BUSINESS',
+      daysLeft: fixture.overdue ? null : 2,
+      overdueDays: fixture.overdue ? 3 : null,
+      isDueSoon: !fixture.overdue,
+      isOverdue: fixture.overdue,
+      isPaused: false,
+    },
+    contractingType: { id: randomUUID(), code: 'AQUISICAO_BENS', label: 'Aquisição de bens' },
+    modality: null,
+    origin: { id: randomUUID(), code: 'DEMANDA_NAO_PREVISTA', label: 'Demanda não prevista' },
+    isBudgetConfidential: false,
+    estimatedValue: '85000.00',
+    estimatedValueMasked: false,
+    targetDate: '2026-11-30',
+    overdueSince: null,
+    tags: [],
+    openedAt: null,
+    createdAt: '2026-09-14T13:02:11Z',
+    updatedAt: '2026-10-02T18:40:00Z',
+  };
+}
+
+/** Filtros mínimos da lista: status, "somente atrasados" e unidade atual. */
+function listFixtures(params) {
+  const statuses = (params.get('status') ?? '').split(',').filter(Boolean);
+  const units = (params.get('currentDepartmentId') ?? '').split(',').filter(Boolean);
+  return LIST_FIXTURES.filter(
+    (fixture) =>
+      (statuses.length === 0 || statuses.includes(fixture.status)) &&
+      (params.get('overdue') !== 'true' || fixture.overdue) &&
+      (units.length === 0 || units.includes(departments[fixture.unit].id)),
+  );
+}
+
+const EXPORT_COLUMNS = {
+  code: [['Código', (f) => f.code]],
+  title: [['Título', (f) => f.title]],
+  status: [['Situação', (f) => LIST_STATUS_LABELS[f.status]]],
+  stage: [['Etapa', () => 'Pesquisa de preços']],
+  currentDepartment: [['Unidade atual', (f) => departments[f.unit].name]],
+  currentResponsible: [['Responsável', () => '']],
+  deadline: [
+    ['Prazo da etapa', (f) => (f.overdue ? '01/10/2026' : '08/10/2026')],
+    ['Situação do prazo', (f) => (f.overdue ? 'Atrasado' : 'No prazo')],
+  ],
+  priority: [['Prioridade', (f) => LIST_PRIORITY_LABELS[f.priority]]],
+};
+
+/** Célula do CSV (RN-PROC-43): fórmula neutralizada com apóstrofo e aspas quando preciso. */
+function processCsvCell(value) {
+  const text = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[;"\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+const BOM = String.fromCharCode(0xfeff);
+
+function processesCsv(fixtures, columns) {
+  const defs = columns.flatMap((column) => EXPORT_COLUMNS[column] ?? []);
+  const lines = [
+    defs.map(([header]) => processCsvCell(header)).join(';'),
+    ...fixtures.map((fixture) => defs.map(([, cell]) => processCsvCell(cell(fixture))).join(';')),
+  ];
+  return `${BOM}${lines.join('\r\n')}\r\n`;
+}
+
+// Visões salvas (US-003 · PRC-35..38): em memória, por dono. A Beatriz compartilhou uma visão cujo
+// filtro de unidade referencia uma unidade removida (aviso FA-05 no E2E).
+const savedViews = [
+  {
+    id: '0192a000-0000-7000-8000-00000000b001',
+    ownerSub: 'sub-beatriz',
+    ownerId: '0192a000-0000-7000-8000-00000000be01',
+    ownerName: 'Beatriz Lima',
+    scope: 'PROCESS_LIST',
+    name: 'Devolvidos da Saúde',
+    filters: {
+      v: 1,
+      status: ['RETURNED'],
+      currentDepartmentId: [departments[0].id, REMOVED_UNIT_ID],
+    },
+    sort: null,
+    columns: ['code', 'title', 'status', 'currentDepartment'],
+    isShared: true,
+    isDefault: false,
+    version: 1,
+  },
+];
+const savedViewReplays = new Map();
+
+function savedViewDto(view, sub) {
+  const { ownerSub, ownerId, ownerName, ...rest } = view;
+  return {
+    ...rest,
+    owner: { id: ownerId, name: ownerName },
+    isOwner: ownerSub === sub,
+  };
+}
+
 const workflowVersions = new Map();
 function emptyWorkflowVersion(id, workflowId, versionNumber, status) {
   return {
@@ -1446,6 +1608,7 @@ createServer(async (request, response) => {
             { code: 'WORKFLOW_PUBLISH', scopes: [] },
             { code: 'AUDIT_VIEW', scopes: [] },
             { code: 'AUDIT_EXPORT', scopes: [] },
+            { code: 'PROCESS_EXPORT', scopes: [] },
             { code: 'SUPPLIER_VIEW', scopes: [] },
             { code: 'SUPPLIER_MANAGE', scopes: [] },
           ]
@@ -2689,6 +2852,134 @@ createServer(async (request, response) => {
   // Regras (US-044 · WF-16..19 e WF-23): schema do contexto, CRUD no rascunho e o dry-run.
   if (url.pathname === '/api/v1/rule-context/schema' && request.method === 'GET') {
     return send(response, 200, { data: RULE_CONTEXT_SCHEMA });
+  }
+  // SCR-004 (US-002/US-003): a lista da tela traz sempre `status`, `sort`, `page` ou
+  // `includeStageOptions`; a busca por código/título das regras (`q` + `pageSize`) continua abaixo.
+  if (
+    url.pathname === '/api/v1/processes' &&
+    request.method === 'GET' &&
+    ['includeStageOptions', 'status', 'overdue', 'sort', 'currentDepartmentId', 'page'].some(
+      (key) => url.searchParams.has(key),
+    )
+  ) {
+    const found = listFixtures(url.searchParams);
+    return send(response, 200, {
+      data: found.map(listProcessItem),
+      meta: {
+        page: 1,
+        pageSize: 20,
+        totalItems: found.length,
+        totalPages: 1,
+        ...(url.searchParams.get('includeStageOptions') === 'true'
+          ? { stageOptions: [{ key: 'PESQUISA_PRECOS', name: 'Pesquisa de preços' }] }
+          : {}),
+      },
+    });
+  }
+  if (url.pathname === '/api/v1/processes/export' && request.method === 'GET') {
+    // PRC-34 (US-003): CSV com BOM, separador `;` e CRLF; só as colunas pedidas, na ordem pedida.
+    const columns = (url.searchParams.get('columns') ?? 'code,title').split(',');
+    response.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="processos-20261005-1432.csv"',
+    });
+    return response.end(processesCsv(listFixtures(url.searchParams), columns));
+  }
+  if (url.pathname === '/api/v1/saved-views' && request.method === 'GET') {
+    // PRC-35: as minhas e as compartilhadas por outros.
+    const visible = savedViews.filter(
+      (view) =>
+        view.scope === (url.searchParams.get('scope') ?? 'PROCESS_LIST') &&
+        (view.ownerSub === sub || view.isShared),
+    );
+    return send(response, 200, { data: visible.map((view) => savedViewDto(view, sub)) });
+  }
+  if (url.pathname === '/api/v1/saved-views' && request.method === 'POST') {
+    // PRC-36: idempotente por chave, nome único por dono sem diferenciar maiúsculas (409).
+    const raw = await readBody(request);
+    const body = JSON.parse(raw || '{}');
+    const key = String(request.headers['idempotency-key'] ?? '');
+    const replay = key ? savedViewReplays.get(`${sub}:${key}`) : undefined;
+    if (replay) {
+      return send(response, 201, { data: replay }, { 'Idempotent-Replayed': 'true', ETag: '"1"' });
+    }
+    const name = String(body.name ?? '').trim();
+    if (name.length < 1 || name.length > 80) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [
+          { field: 'name', code: 'TOO_LONG', message: 'Informe um nome de até 80 caracteres.' },
+        ],
+      });
+    }
+    const mine = savedViews.filter((view) => view.ownerSub === sub);
+    if (mine.some((view) => view.name.toLowerCase() === name.toLowerCase())) {
+      return problem(response, 409, 'CONFLICT', String(correlationId));
+    }
+    if (body.isDefault === true) {
+      for (const view of mine) view.isDefault = false;
+    }
+    const created = {
+      id: mockUuid(),
+      ownerSub: sub,
+      ownerId: sub === 'sub-ana' ? '0192a000-0000-7000-8000-00000000a0a1' : mockUuid(),
+      ownerName: sub === 'sub-ana' ? 'Ana Souza' : 'Usuário',
+      scope: body.scope ?? 'PROCESS_LIST',
+      name,
+      filters: body.filters ?? { v: 1 },
+      sort: body.sort ?? null,
+      columns: body.columns ?? ['code', 'title'],
+      isShared: body.isShared === true,
+      isDefault: body.isDefault === true,
+      version: 1,
+    };
+    savedViews.push(created);
+    const dto = savedViewDto(created, sub);
+    if (key) savedViewReplays.set(`${sub}:${key}`, dto);
+    return send(response, 201, { data: dto }, { ETag: '"1"' });
+  }
+  const savedViewRoute = /^\/api\/v1\/saved-views\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (savedViewRoute && (request.method === 'PATCH' || request.method === 'DELETE')) {
+    // PRC-37/38: só o dono altera (compartilhada de outro = 403; privada de outro = 404) e a
+    // versão vai em `If-Match` (412).
+    const found = savedViews.find((view) => view.id === savedViewRoute[1]);
+    if (!found || (found.ownerSub !== sub && !found.isShared)) {
+      return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    }
+    if (found.ownerSub !== sub) {
+      return problem(response, 403, 'PERMISSION_DENIED', String(correlationId));
+    }
+    const ifMatch = request.headers['if-match'];
+    if (ifMatch === undefined) {
+      return problem(response, 428, 'PRECONDITION_REQUIRED', String(correlationId));
+    }
+    if (String(ifMatch) !== `"${found.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    if (request.method === 'DELETE') {
+      savedViews.splice(savedViews.indexOf(found), 1);
+      response.writeHead(204);
+      return response.end();
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (
+        savedViews.some(
+          (view) =>
+            view !== found &&
+            view.ownerSub === sub &&
+            view.name.toLowerCase() === name.toLowerCase(),
+        )
+      ) {
+        return problem(response, 409, 'CONFLICT', String(correlationId));
+      }
+      body.name = name;
+    }
+    if (body.isDefault === true) {
+      for (const view of savedViews) if (view.ownerSub === sub) view.isDefault = false;
+    }
+    Object.assign(found, body, { version: found.version + 1 });
+    return send(response, 200, { data: savedViewDto(found, sub) }, { ETag: `"${found.version}"` });
   }
   if (url.pathname === '/api/v1/processes' && request.method === 'GET') {
     const q = String(url.searchParams.get('q') ?? '').toLowerCase();

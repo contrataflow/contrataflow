@@ -2190,3 +2190,35 @@ model Comment {
   @@index([tenantId, parentId], map: "comments_parent_idx")
   @@map("comments")
 }
+
+/// entities.md §2 — `SavedViewScope` (US-003).
+enum SavedViewScope {
+  PROCESS_LIST
+  INBOX
+
+  @@map("saved_view_scope")
+}
+
+/// entities.md §4.4 `SavedView` (US-003 · DEC-040 · P2): critérios salvos da lista de processos
+/// (`filters` versionado, `sort`, `columns`) por dono e escopo. Índices únicos `lower(name)` e da
+/// visão padrão (parcial) e o das compartilhadas só existem na migração.
+model SavedView {
+  id          String         @id @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  ownerId     String         @map("owner_id") @db.Uuid
+  scope       SavedViewScope
+  name        String         @db.VarChar(80)
+  filters     Json
+  sort        String?        @db.VarChar(120)
+  columns     Json
+  isShared    Boolean        @default(false) @map("is_shared")
+  isDefault   Boolean        @default(false) @map("is_default")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?        @map("created_by_id") @db.Uuid
+  updatedById String?        @map("updated_by_id") @db.Uuid
+  version     Int            @default(1)
+
+  @@unique([tenantId, id], map: "saved_views_tenant_id_id_key")
+  @@map("saved_views")
+}

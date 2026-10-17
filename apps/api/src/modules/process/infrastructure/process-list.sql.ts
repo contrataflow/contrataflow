@@ -6,10 +6,16 @@ import type {
   ProcessStatus,
 } from '@contrataflow/validation';
 
+import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { Prisma } from '#shared/database/prisma.js';
 import { buildVisibilityPredicate } from '#shared/database/process-visibility.js';
 
-import type { BudgetVisibility, ProcessListRow, ProcessListSearch } from '../application/ports.js';
+import type {
+  BudgetVisibility,
+  ProcessExportSearch,
+  ProcessListRow,
+  ProcessListSearch,
+} from '../application/ports.js';
 import type { ProcessListCriteria, ProcessListOrder } from '../domain/process-list.js';
 
 /*
@@ -208,18 +214,42 @@ function rankSql(search: string | null): Prisma.Sql {
            AS rank_similarity`;
 }
 
-/** A instrução completa: conjunto filtrado (CTE), total e a página ordenada (LATERAL). */
-export function buildProcessListSql(search: ProcessListSearch): Prisma.Sql {
+/**
+ * Cobertura do escopo de `PROCESS_EXPORT` (US-003 · RN-PROC-40 · permissions.md §1.1): tenant,
+ * órgão do processo ou unidade do escopo com `ProcessAccess` — a concessão própria (`USER`) dá
+ * visibilidade, não cobertura de permissão de perfil.
+ */
+export function exportCoverageSql(
+  scope: ProcessVisibilityScope,
+  historicalDepartmentsCanView: boolean,
+): Prisma.Sql {
+  return Prisma.sql`(
+        ${scope.tenantWide}
+     OR p.organization_id = ANY(${[...scope.organizationIds]}::uuid[])
+     OR EXISTS (SELECT 1 FROM process_access ea
+                 WHERE ea.tenant_id = p.tenant_id AND ea.process_id = p.id
+                   AND ea.revoked_at IS NULL AND ea.principal_type = 'DEPARTMENT'
+                   AND ea.department_id = ANY(${[...scope.departmentIds]}::uuid[])
+                   AND ea.reason::text = ANY(${reasonsOf(historicalDepartmentsCanView)}::text[])))`;
+}
+
+type FilteredSearch = Omit<ProcessListSearch, 'page' | 'pageSize'> & {
+  readonly exportCoverage?: ProcessVisibilityScope;
+};
+
+/** Conjunto filtrado (CTE `filtered`): visibilidade, cobertura da exportação e critérios. */
+function filteredSql(search: FilteredSearch): Prisma.Sql {
   const canViewBudget = budgetVisibilitySql(search.budget, search.historicalDepartmentsCanView);
   const conditions = [
     buildVisibilityPredicate(search.visibility, {
       historicalDepartmentsCanView: search.historicalDepartmentsCanView,
     }),
+    ...(search.exportCoverage === undefined
+      ? []
+      : [exportCoverageSql(search.exportCoverage, search.historicalDepartmentsCanView)]),
     ...criteriaSql(search.criteria, search, canViewBudget),
   ];
-  const offset = (search.page - 1) * search.pageSize;
   return Prisma.sql`
-    WITH filtered AS (
       SELECT p.id, p.organization_id, p.number, p.year, p.code, p.internal_code, p.title,
              p.status, p.priority, p.requesting_secretariat_id, p.requesting_department_id,
              p.current_department_id, p.current_responsible_id, p.current_stage_id,
@@ -229,12 +259,11 @@ export function buildProcessListSql(search: ProcessListSearch): Prisma.Sql {
              ${canViewBudget} AS can_view_budget,
              ${rankSql(search.criteria.search)}
         FROM processes p
-       WHERE ${Prisma.join(conditions, ' AND ')}
-    )
-    SELECT t.total, page.*
-      FROM (SELECT count(*)::int AS total FROM filtered) t
-      LEFT JOIN LATERAL (
-        SELECT f.id, f.organization_id, f.number, f.year, f.code, f.internal_code, f.title,
+       WHERE ${Prisma.join(conditions, ' AND ')}`;
+}
+
+/** Colunas da linha (alias `f` do conjunto filtrado) e a passagem ativa (`s`). */
+const ROW_COLUMNS = Prisma.sql`f.id, f.organization_id, f.number, f.year, f.code, f.internal_code, f.title,
                f.status::text AS status, f.priority::text AS priority,
                f.requesting_secretariat_id, f.requesting_department_id, f.current_department_id,
                f.current_responsible_id, f.current_workflow_stage_id, f.current_stage_due_at,
@@ -242,13 +271,45 @@ export function buildProcessListSql(search: ProcessListSearch): Prisma.Sql {
                f.is_budget_confidential, f.can_view_budget,
                CASE WHEN f.can_view_budget THEN f.estimated_value::text END AS estimated_value,
                f.target_date, f.opened_at, f.created_at, f.updated_at,
-               s.sla_type::text AS sla_type, s.paused_at AS stage_paused_at
+               s.sla_type::text AS sla_type, s.paused_at AS stage_paused_at`;
+
+const ACTIVE_STAGE_JOIN = Prisma.sql`LEFT JOIN process_stages s
+            ON s.tenant_id = current_setting('app.tenant_id')::uuid AND s.id = f.current_stage_id`;
+
+/** A instrução completa: conjunto filtrado (CTE), total e a página ordenada (LATERAL). */
+export function buildProcessListSql(search: ProcessListSearch): Prisma.Sql {
+  const offset = (search.page - 1) * search.pageSize;
+  return Prisma.sql`
+    WITH filtered AS (${filteredSql(search)}
+    )
+    SELECT t.total, page.*
+      FROM (SELECT count(*)::int AS total FROM filtered) t
+      LEFT JOIN LATERAL (
+        SELECT ${ROW_COLUMNS}
           FROM filtered f
-          LEFT JOIN process_stages s
-            ON s.tenant_id = current_setting('app.tenant_id')::uuid AND s.id = f.current_stage_id
+          ${ACTIVE_STAGE_JOIN}
          ORDER BY ${orderSql(search.order)}
          LIMIT ${search.pageSize} OFFSET ${offset}
       ) page ON TRUE`;
+}
+
+/** US-003 · RN-PROC-41: total exato da exportação (mesmo conjunto do cursor). */
+export function buildProcessExportCountSql(search: ProcessExportSearch): Prisma.Sql {
+  return Prisma.sql`
+    WITH filtered AS (${filteredSql(search)}
+    )
+    SELECT count(*)::int AS total FROM filtered`;
+}
+
+/** US-003 · RN-PROC-45: todas as linhas na ordem da lista (lidas por cursor, em lotes). */
+export function buildProcessExportSql(search: ProcessExportSearch): Prisma.Sql {
+  return Prisma.sql`
+    WITH filtered AS (${filteredSql(search)}
+    )
+    SELECT ${ROW_COLUMNS}
+      FROM filtered f
+      ${ACTIVE_STAGE_JOIN}
+     ORDER BY ${orderSql(search.order)}`;
 }
 
 /** Linha crua da instrução (`page.*` nulo quando a página está vazia). */
@@ -284,7 +345,9 @@ export interface ProcessListDbRow {
   readonly stage_paused_at: Date | null;
 }
 
-export function toProcessListRow(row: ProcessListDbRow & { readonly id: string }): ProcessListRow {
+export function toProcessListRow(
+  row: Omit<ProcessListDbRow, 'total'> & { readonly id: string },
+): ProcessListRow {
   return {
     id: row.id,
     organizationId: row.organization_id,

@@ -43,6 +43,11 @@ export interface TenantTransactionOptions {
    * (ou no mesmo tenant) e com ator `SYSTEM`/`PLATFORM_OPERATOR`. Padrão: o tenant do contexto.
    */
   readonly tenantId?: string;
+  /**
+   * Leitura longa em *streaming* (exportação por cursor — US-003 · RN-PROC-45): substitui o
+   * `statement_timeout` e o tempo máximo da transação interativa pelo mesmo valor.
+   */
+  readonly timeoutMs?: number;
 }
 
 /** Atores que podem abrir transação para um tenant alvo (RN-TEN-21). */
@@ -85,13 +90,22 @@ export async function runTenantTransaction<T>(
   options: TenantTransactionOptions,
 ): Promise<T> {
   const { tenantId, userId } = resolveTenant(options);
-  const statementTimeout = String(settings.statementTimeoutMs);
+  const effective: TenantTransactionSettings =
+    options.timeoutMs === undefined
+      ? settings
+      : {
+          ...settings,
+          statementTimeoutMs: options.timeoutMs,
+          transactionTimeoutMs: options.timeoutMs,
+          retries: 0,
+        };
+  const statementTimeout = String(effective.statementTimeoutMs);
   const isolation = options.repeatableRead
     ? Prisma.TransactionIsolationLevel.RepeatableRead
     : Prisma.TransactionIsolationLevel.ReadCommitted;
   return await runScoped(
     base,
-    settings,
+    effective,
     work,
     { kind: 'TENANT', tenantId },
     (tx) =>

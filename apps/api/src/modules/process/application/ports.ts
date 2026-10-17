@@ -2,6 +2,7 @@ import type { DayCountType, ProcessStageStatus, ProcessStatus } from '@contrataf
 
 import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import type { TenantTx } from '#shared/database/prisma.js';
+import type { CursorReader } from '#shared/database/transaction-stream.js';
 
 import type { ProcessItem } from '../domain/process-items.js';
 import type {
@@ -18,6 +19,7 @@ import type {
 } from '../domain/process-runtime-records.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
 import type { Process } from '../domain/process.js';
+import type { SavedView } from '../domain/saved-view.js';
 
 /*
  * Portas da aplicação do módulo `process`. US-041: leitor do runtime para o motor de workflow
@@ -44,6 +46,11 @@ export interface ProcessTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
   /** Leitura em instantâneo único (`REPEATABLE READ READ ONLY` — painel situacional, RN-PROC-56). */
   snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  /**
+   * Leitura longa somente leitura (exportação por cursor — US-003 · RN-PROC-45): `statement_timeout`
+   * e tempo da transação iguais a `timeoutMs`.
+   */
+  longRead<T>(work: (tx: TenantTx) => Promise<T>, timeoutMs: number): Promise<T>;
 }
 
 export const PROCESS_TRANSACTIONS = Symbol('ProcessTransactions');
@@ -183,6 +190,15 @@ export interface ProcessListSearch {
   readonly statementTimeoutMs: number;
 }
 
+/**
+ * Exportação (US-003 · PRC-34 · RN-PROC-40): os mesmos critérios e ordenação da lista, sem
+ * paginação, e só os processos visíveis E cobertos pelo escopo de `PROCESS_EXPORT` (tenant, órgão
+ * ou unidade com `ProcessAccess` — sem concessão própria).
+ */
+export interface ProcessExportSearch extends Omit<ProcessListSearch, 'page' | 'pageSize'> {
+  readonly exportCoverage: ProcessVisibilityScope;
+}
+
 /** Linha da lista: fatos desnormalizados (RN-PROC-29), sigilo resolvido e a etapa ativa. */
 export interface ProcessListRow extends Omit<
   ProcessListFacts,
@@ -255,6 +271,13 @@ export interface ProcessRepository {
   findDuplicateCandidates(tx: TenantTx, search: DuplicateSearch): Promise<DuplicateCandidateRow[]>;
   /** US-002 · PRC-01: página e total, visíveis e filtrados, num único snapshot. */
   listProcesses(tx: TenantTx, search: ProcessListSearch): Promise<ProcessListPage>;
+  /** US-003 · RN-PROC-41: total exato das linhas da exportação, antes do primeiro byte. */
+  countForExport(tx: TenantTx, search: ProcessExportSearch): Promise<number>;
+  /**
+   * US-003 · RN-PROC-45: cursor no servidor sobre as linhas da exportação, lido em lotes de
+   * `batchSize` dentro de uma transação somente leitura (`pullInTransaction`).
+   */
+  exportCursor(search: ProcessExportSearch, batchSize: number): CursorReader<ProcessListRow>;
   /** DEC-024 cond. 4: o usuário tem alguma concessão `USER` ativa em processo não descartado. */
   hasUserGrant(tx: TenantTx, userId: string): Promise<boolean>;
   /** O agregado com passagens e concessões, ou `null` (outro tenant, inexistente, descartado). */
@@ -352,3 +375,41 @@ export interface ProcessParticipantRepository {
 }
 
 export const PROCESS_PARTICIPANT_REPOSITORY = Symbol('ProcessParticipantRepository');
+
+/**
+ * Visões salvas (US-003 · `saved_views`): sempre no `tx` do caso de uso, sob a RLS do tenant. A
+ * unicidade do nome e da padrão também é do banco (índices únicos); a trava por dono e escopo
+ * serializa criação, limite e troca da padrão.
+ */
+export interface SavedViewRepository {
+  /** `pg_advisory_xact_lock` por dono e escopo (até o fim da transação). */
+  lockOwnerScope(tx: TenantTx, ownerId: string, scope: SavedView['scope']): Promise<void>;
+  /** Do dono no escopo, por nome. */
+  listOwned(tx: TenantTx, ownerId: string, scope: SavedView['scope']): Promise<SavedView[]>;
+  /** Compartilhadas por outros donos no escopo, por nome. */
+  listSharedByOthers(tx: TenantTx, userId: string, scope: SavedView['scope']): Promise<SavedView[]>;
+  findById(tx: TenantTx, id: string): Promise<SavedView | null>;
+  /** Desmarca a padrão do dono no escopo (exceto `exceptId`). */
+  clearDefault(
+    tx: TenantTx,
+    ownerId: string,
+    scope: SavedView['scope'],
+    exceptId: string | null,
+  ): Promise<void>;
+  /** @throws SavedViewNameTakenError */
+  insert(tx: TenantTx, view: SavedView): Promise<void>;
+  /** `UPDATE … WHERE version = expected` (412 em divergência). @throws SavedViewNameTakenError */
+  update(tx: TenantTx, view: SavedView, expectedVersion: number): Promise<void>;
+  /** `DELETE … WHERE version = expected` (412 em divergência). */
+  delete(tx: TenantTx, view: SavedView, expectedVersion: number): Promise<void>;
+}
+
+export const SAVED_VIEW_REPOSITORY = Symbol('SavedViewRepository');
+
+/** Nome repetido para o mesmo dono e escopo (índice `lower(name)` — V-02). */
+export class SavedViewNameTakenError extends Error {
+  constructor() {
+    super('Nome de visão já usado pelo dono no escopo.');
+    this.name = 'SavedViewNameTakenError';
+  }
+}
