@@ -12,13 +12,20 @@ import { ADMIN_NAV, MAIN_NAV, isActivePath } from './navigation';
 import type { AdminNavItem, NavItem } from './navigation';
 
 /** Menu principal (barra lateral e gaveta móvel): página atual com `aria-current`. */
-export function MainNav({ onNavigate }: { readonly onNavigate?: (() => void) | undefined }) {
+export function MainNav({
+  onNavigate,
+  showExample = false,
+}: {
+  readonly onNavigate?: (() => void) | undefined;
+  /** Item da página de exemplo do shell: só em ambientes de desenvolvimento e teste. */
+  readonly showExample?: boolean;
+}) {
   const t = useTranslations('shell');
   const handleClick = () => onNavigate?.();
   const pathname = usePathname();
   return (
     <nav aria-label={t('nav.label')} className="flex-1 space-y-1 overflow-y-auto p-3">
-      {MAIN_NAV.map((item) =>
+      {MAIN_NAV.filter((item) => showExample || item.labelKey !== 'example').map((item) =>
         item.permission ? (
           <GatedMainLink key={item.href} item={item} pathname={pathname} onNavigate={handleClick} />
         ) : (

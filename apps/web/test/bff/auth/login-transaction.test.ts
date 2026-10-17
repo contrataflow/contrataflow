@@ -20,7 +20,7 @@ import { deriveKey, masterKey, seal, unseal } from '@/bff/crypto';
 const KEY = deriveKey(Buffer.alloc(32, 1), 'login-transaction');
 const NOW = Date.parse('2026-10-14T12:00:00Z');
 
-function transaction(state: string, createdAt = NOW, returnTo = '/exemplo'): LoginTransaction {
+function transaction(state: string, createdAt = NOW, returnTo = '/processos'): LoginTransaction {
   return {
     state,
     nonce: `n-${state}`,

@@ -52,6 +52,27 @@ function stubFetch(handler: (url: string, init?: RequestInit) => Response) {
 }
 
 describe('[Sucesso] AppShell', () => {
+  it('esconde o item da página de exemplo fora de local/dev/test', () => {
+    vi.stubEnv('APP_ENV', 'production');
+    try {
+      const session = shellSession();
+      render(
+        <IntlProvider>
+          <AppProviders session={session}>
+            <AppShell session={session}>
+              <h1>Conteúdo</h1>
+            </AppShell>
+          </AppProviders>
+        </IntlProvider>,
+      );
+      const nav = screen.getByRole('navigation', { name: 'Menu principal' });
+      expect(within(nav).queryByRole('link', { name: 'Exemplo do shell' })).toBeNull();
+      expect(within(nav).getByRole('link', { name: 'Processos' })).toBeTruthy();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('renderiza menu, busca, notificações, seletor de instituição e usuário — sem violação de a11y', async () => {
     stubFetch(() => jsonResponse({ data: { permissions: [] } }));
     const session = shellSession();
@@ -149,7 +170,7 @@ describe('[Tenant incorreto] seletor de instituição (US-093)', () => {
     });
     // RN-IAM-72: nenhum dado do tenant anterior quando a navegação começa.
     expect(order).toEqual(['push:0']);
-    expect(router.push).toHaveBeenCalledWith('/exemplo');
+    expect(router.push).toHaveBeenCalledWith('/processos');
     const call = fetchMock.mock.calls.find(([url]) => url === '/api/auth/switch-tenant');
     const body = call?.[1]?.body;
     expect(JSON.parse(typeof body === 'string' ? body : '')).toEqual({ membershipId: 'm-b' });
@@ -203,7 +224,7 @@ describe('[Tenant incorreto] seletor de instituição (US-093)', () => {
   it('[Falha de integração] destino exige MFA: segue ao step-up sem limpar nada', async () => {
     stubFetch(() =>
       jsonResponse(
-        { code: 'MFA_REQUIRED', stepUpUrl: '/api/auth/step-up?returnTo=%2Fexemplo' },
+        { code: 'MFA_REQUIRED', stepUpUrl: '/api/auth/step-up?returnTo=%2Fprocessos' },
         { status: 403 },
       ),
     );
@@ -215,7 +236,7 @@ describe('[Tenant incorreto] seletor de instituição (US-093)', () => {
     await openSwitcher();
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Prefeitura B' }));
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith('/api/auth/step-up?returnTo=%2Fexemplo');
+      expect(assign).toHaveBeenCalledWith('/api/auth/step-up?returnTo=%2Fprocessos');
     });
     expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'x'))).toBe(1);
     vi.unstubAllGlobals();

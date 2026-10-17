@@ -175,7 +175,7 @@ describe('SCR-102 · aceite do convite (US-091)', () => {
     await user.click(await screen.findByRole('button', { name: 'Aceitar convite' }));
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith('/exemplo');
+      expect(replace).toHaveBeenCalledWith('/processos');
     });
     const accept = api.mock.calls.find(
       ([input]) => requestUrl(input) === '/api/v1/invitations/accept',
@@ -213,7 +213,7 @@ describe('SCR-102 · aceite do convite (US-091)', () => {
       jsonResponse({ data: { id: MEMBERSHIP_ID, tenant: PREVIEW.tenant, status: 'ACTIVE' } }),
     );
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith('/exemplo');
+      expect(replace).toHaveBeenCalledWith('/processos');
     });
   });
 

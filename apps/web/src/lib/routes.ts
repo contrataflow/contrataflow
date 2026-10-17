@@ -1,5 +1,5 @@
 /**
- * Início da área autenticada: a página de exemplo do shell, até o painel (SCR-003 — US-076)
- * existir. Destino padrão do login e da seleção de instituição.
+ * Início da área autenticada: a lista de processos, até o painel (SCR-003 — US-076) existir
+ * (então passa a ser `/painel`). Destino padrão do login, da seleção de instituição e da raiz `/`.
  */
-export const HOME_PATH = '/exemplo';
+export const HOME_PATH = '/processos';

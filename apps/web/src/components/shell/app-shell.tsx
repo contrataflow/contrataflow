@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { CSSProperties, ReactNode } from 'react';
 
+import { isExamplePageEnabled } from '@/config/env';
 import { NotificationBell } from '@/features/notifications/notification-bell';
 import { NewProcessButton } from '@/features/processes/new-process-button';
+import { HOME_PATH } from '@/lib/routes';
 import type { ActiveShellSession } from '@/lib/session/types';
 
 import { Icon } from './icons';
@@ -29,6 +31,7 @@ export function AppShell({
   readonly children: ReactNode;
 }) {
   const t = useTranslations('shell');
+  const showExample = isExamplePageEnabled();
   const theme = brandingTheme(session.activeTenant.primaryColor);
   return (
     <div
@@ -40,7 +43,7 @@ export function AppShell({
       <div className="flex min-h-screen">
         <aside className="sticky top-0 hidden h-screen w-64 flex-none flex-col border-r border-border bg-surface md:flex">
           <Link
-            href="/exemplo"
+            href={HOME_PATH}
             className="flex h-14 flex-none items-center gap-2 border-b border-border px-4"
           >
             <span
@@ -51,12 +54,12 @@ export function AppShell({
             </span>
             <span className="text-base font-semibold tracking-tight">{t('appName')}</span>
           </Link>
-          <MainNav />
+          <MainNav showExample={showExample} />
           <p className="border-t border-border p-3 text-xs text-muted-foreground">{t('footer')}</p>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4">
-            <MobileNav />
+            <MobileNav showExample={showExample} />
             <form role="search" action="/processos" className="hidden md:block">
               <label className="relative block">
                 <span className="sr-only">{t('search.label')}</span>

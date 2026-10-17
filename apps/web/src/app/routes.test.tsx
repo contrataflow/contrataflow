@@ -339,7 +339,7 @@ describe('SCR-111 — páginas /erro/*', () => {
     });
     renderIntl(element);
     expect(screen.getByRole('link', { name: 'Entrar novamente' }).getAttribute('href')).toBe(
-      '/api/auth/login?returnTo=%2Fexemplo',
+      '/api/auth/login?returnTo=%2Fprocessos',
     );
     expect(screen.queryByText(/Código/)).toBeNull();
   });
@@ -434,13 +434,13 @@ describe('SCR-001 — /entrar', () => {
         LoginPage({ searchParams: Promise.resolve({ returnTo: '/processos?x=1' }) }),
       ),
     ).toBe('/processos?x=1');
-    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe('/exemplo');
+    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe('/processos');
     // Mesmo com motivo, e nunca de volta para a própria entrada.
     expect(
       await redirectOf(
         LoginPage({ searchParams: Promise.resolve({ motivo: 'saiu', returnTo: '/entrar?x=1' }) }),
       ),
-    ).toBe('/exemplo');
+    ).toBe('/processos');
   });
 
   it('Redis de sessões indisponível: a página continua acessível e segue o fluxo normal', async () => {
@@ -728,7 +728,7 @@ describe('SCR-101 — /selecionar-orgao', () => {
     renderIntl(await SelectTenantPage(pageProps({ returnTo: '//evil.com' })));
     await userEvent.click(screen.getByRole('button', { name: /Prefeitura A/ }));
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith('/exemplo');
+      expect(assign).toHaveBeenCalledWith('/processos');
     });
   });
 
@@ -839,6 +839,15 @@ describe('(app): exemplo, admin, loading e error', () => {
     expect(
       fetchMock.mock.calls.every(([url]) => requestUrl(url) === '/api/v1/me/permissions'),
     ).toBe(true);
+  });
+
+  it('fora de local/dev/test a página de exemplo responde 404', async () => {
+    vi.stubEnv('APP_ENV', 'production');
+    try {
+      await expect(ExamplePage()).rejects.toThrow('NEXT_NOT_FOUND');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('prefetch que falha não derruba a página (o cliente refaz a consulta)', async () => {

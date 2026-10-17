@@ -8,7 +8,7 @@ import { Icon } from './icons';
 import { MainNav } from './main-nav';
 
 /** Menu em gaveta abaixo de 768 px (shell responsivo — o menu lateral colapsa). */
-export function MobileNav() {
+export function MobileNav({ showExample = false }: { readonly showExample?: boolean }) {
   const t = useTranslations('shell');
   const [open, setOpen] = useState(false);
   return (
@@ -25,6 +25,7 @@ export function MobileNav() {
       >
         <DialogTitle className="border-b border-border px-4 py-4">{t('appName')}</DialogTitle>
         <MainNav
+          showExample={showExample}
           onNavigate={() => {
             setOpen(false);
           }}

@@ -138,7 +138,7 @@ describe('returnTo da recuperação (FA-05)', () => {
       new RegExp(`^${RECOVERY_RETURN_COOKIE}=;.*Max-Age=0`),
     );
     // O destino padrão não precisa ser guardado.
-    expect(recoveryReturnCookie('/exemplo')).toContain('Max-Age=0');
+    expect(recoveryReturnCookie('/processos')).toContain('Max-Age=0');
   });
 
   it('prefere o cookie da recuperação, revalidado (RN-IAM-03)', () => {
@@ -169,7 +169,7 @@ describe('returnTo da recuperação (FA-05)', () => {
     expect(
       pendingReturnTo({
         recoveryCookie: null,
-        transactions: [transaction({ returnTo: '/exemplo' })],
+        transactions: [transaction({ returnTo: '/processos' })],
       }),
     ).toBeNull();
     expect(pendingReturnTo({ recoveryCookie: null, transactions: [] })).toBeNull();

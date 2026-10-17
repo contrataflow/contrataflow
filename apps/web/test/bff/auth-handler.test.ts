@@ -56,7 +56,7 @@ function cookieValue(setCookie: string | null, name: string): string | null {
 }
 
 /** Login completo: /login → callback do provedor fake → cookie de sessão. */
-async function login(test: TestRuntime, query = '?returnTo=%2Fexemplo&as=ana') {
+async function login(test: TestRuntime, query = '?returnTo=%2Fprocessos&as=ana') {
   const start = await handleAuthRequest(
     browserRequest(`/api/auth/login${query}`),
     'login',
@@ -96,7 +96,7 @@ describe('login e callback', () => {
     const test = createTestRuntime();
     const { callback } = await login(test);
     expect(callback.status).toBe(302);
-    expect(callback.headers.get('Location')).toBe('/exemplo');
+    expect(callback.headers.get('Location')).toBe('/processos');
     const setCookie = callback.headers.get('Set-Cookie') ?? '';
     expect(setCookie).toMatch(
       /__Host-cf_session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; Secure; SameSite=Lax/,
@@ -111,7 +111,7 @@ describe('login e callback', () => {
   it('returnTo externo é recusado (cai no destino padrão) e registrado', async () => {
     const test = createTestRuntime();
     const { callback } = await login(test, '?returnTo=https%3A%2F%2Fevil.com');
-    expect(callback.headers.get('Location')).toBe('/exemplo');
+    expect(callback.headers.get('Location')).toBe('/processos');
     expect(logs.lines.some((line) => line.includes('"auth.return_to_rejected"'))).toBe(true);
   });
 
@@ -171,13 +171,13 @@ describe('login e callback', () => {
   it('provedor não configurado ou fora do ar → SCR-001 "indisponível" mantendo o returnTo', async () => {
     const test = createTestRuntime({ identity: new UnconfiguredIdentityProvider() });
     const response = await handleAuthRequest(
-      browserRequest('/api/auth/login?returnTo=%2Fprocessos'),
+      browserRequest('/api/auth/login?returnTo=%2Fprocessos%2F1'),
       'login',
       test.runtime,
     );
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toBe(
-      '/entrar?motivo=indisponivel&returnTo=%2Fprocessos',
+      '/entrar?motivo=indisponivel&returnTo=%2Fprocessos%2F1',
     );
     expect(response.headers.get('Set-Cookie')).toBeNull();
     const runtime = createBffRuntime(test.runtime.config);
@@ -335,9 +335,9 @@ describe('login após expiração (RN-IAM-32)', () => {
         endSessionUrl: () => identity.endSessionUrl(),
       },
     });
-    await login(test, '?returnTo=%2Fexemplo&reauth=1');
+    await login(test, '?returnTo=%2Fprocessos&reauth=1');
     const start = await handleAuthRequest(
-      browserRequest('/api/auth/login?returnTo=%2Fexemplo', {
+      browserRequest('/api/auth/login?returnTo=%2Fprocessos', {
         headers: { Cookie: '__Host-cf_reauth=1' },
       }),
       'login',
@@ -511,7 +511,7 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
     const test = createTestRuntime();
     const { cookie, record } = await signIn(test);
     const start = await handleAuthRequest(
-      browserRequest('/api/auth/step-up?returnTo=%2Fexemplo', { headers: { Cookie: cookie } }),
+      browserRequest('/api/auth/step-up?returnTo=%2Fprocessos', { headers: { Cookie: cookie } }),
       'step-up',
       test.runtime,
     );
@@ -526,7 +526,7 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
       'callback',
       test.runtime,
     );
-    expect(callback.headers.get('Location')).toBe('/exemplo');
+    expect(callback.headers.get('Location')).toBe('/processos');
     expect(
       cookieValue(callback.headers.get('Set-Cookie'), test.runtime.config.sessionCookieName),
     ).toBeNull();

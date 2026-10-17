@@ -1,7 +1,9 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
+import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { apiServerClient, currentShellSession } from '@/bff/server-session';
+import { isExamplePageEnabled } from '@/config/env';
 import { ExampleView } from '@/features/_example/example-view';
 import { examplePaths, exampleKeys, itemsQuery } from '@/features/_example/example.api';
 import type { InternalItem, InternalPing } from '@/features/_example/example.api';
@@ -15,6 +17,7 @@ export const dynamic = 'force-dynamic';
  * é refeita no cliente e, se falhar de novo, cai no `error.tsx` com o `ApiError` completo.
  */
 export default async function ExamplePage() {
+  if (!isExamplePageEnabled()) notFound();
   const t = await getTranslations('example');
   const session = await currentShellSession();
   const queryClient = makeServerQueryClient();

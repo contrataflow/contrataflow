@@ -68,6 +68,9 @@ const optionalText = z
 /** Ambientes em que o provedor de identidade fake (FA-06) pode ser ligado. */
 const FAKE_IDENTITY_ENVS = new Set(['local', 'dev', 'test']);
 
+/** Ambientes em que a página de exemplo do shell (US-086) é servida; fora deles, 404. */
+const EXAMPLE_PAGE_ENVS = new Set(['local', 'dev', 'test']);
+
 /** Ambientes em que o BFF pode rodar sem Redis de sessões nem chave fixa (uma réplica). */
 const SINGLE_PROCESS_ENVS = new Set(['local', 'dev', 'test']);
 
@@ -245,6 +248,14 @@ let cached: WebConfig | undefined;
 export function webConfig(): WebConfig {
   cached ??= loadWebConfig(process.env);
   return cached;
+}
+
+/**
+ * A página de exemplo do shell só existe em ambientes de desenvolvimento e teste. Lê `APP_ENV`
+ * direto (mesmo padrão `local` do schema), sem exigir o restante da configuração do BFF.
+ */
+export function isExamplePageEnabled(): boolean {
+  return EXAMPLE_PAGE_ENVS.has(process.env.APP_ENV ?? 'local');
 }
 
 /** Só para testes: descarta a configuração memoizada. */

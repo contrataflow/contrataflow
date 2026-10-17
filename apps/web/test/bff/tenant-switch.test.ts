@@ -332,7 +332,7 @@ describe('[Falha de integração] Prefeitura B exige MFA (mfaPolicy ALL) e a ses
     expect(response.status).toBe(403);
     const body = await problem(response);
     expect(body).toMatchObject({ code: 'MFA_REQUIRED', stepUpUrl: SWITCH_STEP_UP_URL });
-    expect(SWITCH_STEP_UP_URL).toBe('/api/auth/step-up?returnTo=%2Fexemplo');
+    expect(SWITCH_STEP_UP_URL).toBe('/api/auth/step-up?returnTo=%2Fprocessos');
     expect(await test.store.get(record.key)).toMatchObject({
       activeTenantId: TENANT_A,
       pendingTenantSwitch: {
@@ -345,7 +345,7 @@ describe('[Falha de integração] Prefeitura B exige MFA (mfaPolicy ALL) e a ses
 
     const callback = await stepUp(test, cookie);
     expect(callback.status).toBe(302);
-    expect(callback.headers.get('Location')).toBe('/exemplo');
+    expect(callback.headers.get('Location')).toBe('/processos');
     const stored = await test.store.get(record.key);
     expect(stored).toMatchObject({
       activeTenantId: TENANT_B,
@@ -387,7 +387,7 @@ describe('[Falha de integração] Prefeitura B exige MFA (mfaPolicy ALL) e a ses
     test.clock.now += PENDING_SWITCH_TTL_MS + 1_000;
     // Mantém a sessão viva (ociosidade de 30 min não venceu): só a pendência expirou.
     const callback = await stepUp(test, cookie);
-    expect(callback.headers.get('Location')).toBe('/exemplo');
+    expect(callback.headers.get('Location')).toBe('/processos');
     expect(activateTenant).toHaveBeenCalledOnce();
     expect(await test.store.get(record.key)).toMatchObject({
       activeTenantId: TENANT_A,
@@ -398,7 +398,7 @@ describe('[Falha de integração] Prefeitura B exige MFA (mfaPolicy ALL) e a ses
   it('step-up sem pendência segue como antes (só troca os tokens)', async () => {
     const { test, cookie, record, activateTenant } = await helena();
     const callback = await stepUp(test, cookie);
-    expect(callback.headers.get('Location')).toBe('/exemplo');
+    expect(callback.headers.get('Location')).toBe('/processos');
     expect(activateTenant).not.toHaveBeenCalled();
     expect((await test.store.get(record.key))?.activeTenantId).toBe(TENANT_A);
   });
