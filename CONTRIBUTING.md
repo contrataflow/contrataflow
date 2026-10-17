@@ -151,6 +151,15 @@ ROLLBACK;
   `docker compose logs authentik-worker`. Blueprints alterados são reaplicados automaticamente no
   próximo start (FA-04); não é preciso recriar o volume.
 - **`ENV_NOT_READY` (V-05):** `pnpm env:seed`/`pnpm dev` com o ambiente fora do ar — rode `pnpm env:up`.
+- **Login cai em "Sistema temporariamente indisponível" (`auth.directory_unavailable`):** o log do
+  web traz `apiInternalUrl`, `status`, `code` e `attempts`. `code: ECONNREFUSED` quer dizer API fora
+  do ar ou reiniciando: no `pnpm dev`, api e worker reiniciam (`Restarting 'dist/main.js'`) a cada
+  arquivo gravado em `src/` — com outro agente editando a árvore, a porta 4000 fica fechada em laço
+  (o BFF repete a conexão recusada por ~3 s e desiste). Para testes manuais nessa situação, rode api
+  e worker sem _watch_ (em cada `apps/<app>`: `pnpm run build` e
+  `node --env-file=../../.env --enable-source-maps --import ./dist/otel.js dist/main.js`) e só o web
+  em dev (`pnpm --filter @contrataflow/web dev`). `status: 403` + `PERMISSION_DENIED` é o
+  `INTERNAL_SERVICE_TOKEN` diferente entre web e api.
 - **Dois `pnpm env:up` ao mesmo tempo:** o segundo espera o primeiro terminar; o bootstrap do MinIO
   e os blueprints são idempotentes.
 - **Sem internet:** com as imagens já no cache local do Docker, `pnpm env:up` funciona offline
@@ -491,7 +500,9 @@ storybook` abre o Storybook com o painel de acessibilidade.
 - **Persistência:** padrão de repositório, migração e concorrência em
   [`apps/api/prisma/README.md`](apps/api/prisma/README.md); testes em `apps/api/test/database/**`.
 - **Web:** Vitest com jsdom e Testing Library (`// @vitest-environment jsdom` no arquivo) e axe
-  nos testes de componente; BFF testado em `apps/web/test/bff/**` com a API simulada.
+  nos testes de componente; BFF testado em `apps/web/test/bff/**` com a API simulada. Em
+  `apps/web/test/integration/**`, o callback do login roda contra o processo real da API
+  (`apps/api/dist`, identidade fake, sem banco) — o Turborepo compila a API antes.
 - **E2E:** Playwright + axe-core em `apps/web/test/e2e` (`pnpm turbo run test:e2e`, com o Compose de
   pé); toda página nova chama `expectNoSeriousA11yViolations`. O shell (`shell.spec.ts`) roda contra
   a API simulada `test/e2e/support/mock-api.mjs` e o provedor fake, sem Authentik.

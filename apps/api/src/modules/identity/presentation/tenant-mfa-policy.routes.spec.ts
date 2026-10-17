@@ -7,7 +7,7 @@ import { FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
 
 import { createTestApi } from '../../../../test/support/api-test-app.js';
 import type { TestApi } from '../../../../test/support/api-test-app.js';
-import { InMemoryTenantSettingsRepository } from '../../tenancy/infrastructure/in-memory-tenant-settings.repository.js';
+import { inMemoryTenantSettings } from '../../../../test/support/tenant-settings.js';
 import { TENANT_MFA_POLICY } from '../application/ports.js';
 import { SettingsTenantMfaPolicy } from '../infrastructure/tenant-mfa-policy.js';
 
@@ -42,14 +42,14 @@ function expectProblem(response: request.Response, status: number, code: string)
 
 describe('Feature: Política de MFA do tenant (RN-IAM-42)', () => {
   let api: TestApi;
-  let settings: InMemoryTenantSettingsRepository;
+  let settings: ReturnType<typeof inMemoryTenantSettings>;
   let created = 0;
 
   beforeAll(async () => {
     api = await createTestApi({
       aliases: [{ token: TENANT_MFA_POLICY, existing: SettingsTenantMfaPolicy }],
     });
-    settings = api.app.get(InMemoryTenantSettingsRepository, { strict: false });
+    settings = inMemoryTenantSettings(api);
     for (const definition of SETTING_DEFINITIONS) {
       settings.seed(A, definition.key, definition.defaultValue);
       settings.seed(B, definition.key, definition.defaultValue);

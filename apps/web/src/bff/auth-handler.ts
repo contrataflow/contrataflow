@@ -437,7 +437,8 @@ async function callback(context: Context): Promise<Response> {
   if (identity.kind !== 'ok') {
     const rejection = identityRejection(identity, context, transaction.returnTo);
     if (identity.kind === 'unavailable') {
-      log('error', 'auth.directory_unavailable', { correlationId });
+      // A causa (status/código ou erro de rede) e o endereço usado (spec-486).
+      log('error', 'auth.directory_unavailable', { ...identity.cause, correlationId });
     }
     return rejectCallback(context, headers, rejection.reason, rejection.location, started);
   }
@@ -486,7 +487,11 @@ async function callback(context: Context): Promise<Response> {
     if (activation.kind === 'ok' && activation.active) {
       record = await sessions.activateTenant(record, activation.active, activation.memberships);
     } else {
-      log('warn', 'auth.tenant_activation_failed', { result: activation.kind, correlationId });
+      log('warn', 'auth.tenant_activation_failed', {
+        ...(activation.kind === 'unavailable' ? activation.cause : {}),
+        result: activation.kind,
+        correlationId,
+      });
     }
   }
 

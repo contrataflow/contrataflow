@@ -6,6 +6,7 @@ import type { SessionEventRequest, SessionEventResult } from '@contrataflow/vali
 import { CORRELATION_HEADER } from '../correlation';
 import type {
   DirectoryContext,
+  DirectoryFailureCause,
   DirectoryResult,
   MembershipSummary,
   SessionDirectory,
@@ -22,11 +23,20 @@ import { SESSION_HASH_HEADER } from '../upstream';
 export const SESSION_EVENTS_PATH = '/internal/session-events';
 export const SERVICE_TOKEN_HEADER = 'X-CF-Service-Token';
 
+/**
+ * Esperas entre tentativas quando a conexão é recusada (spec-486): a API reiniciando (deploy ou
+ * `--watch` local) fecha a porta por alguns segundos. A requisição não chegou a sair, então
+ * repetir é seguro; timeout e respostas HTTP nunca são repetidos.
+ */
+export const CONNECTION_RETRY_DELAYS_MS: readonly number[] = [250, 500, 1_000, 1_500];
+
 export interface ApiSessionDirectoryOptions {
   readonly apiInternalUrl: string;
   readonly serviceToken: string | null;
   readonly fetch: typeof fetch;
   readonly timeoutMs?: number;
+  readonly retryDelaysMs?: readonly number[];
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 function toMemberships(result: SessionEventResult): MembershipSummary[] {
@@ -73,6 +83,32 @@ async function problemOf(response: Response): Promise<ProblemSummary> {
   }
 }
 
+function codeOf(value: unknown): string | null {
+  if (value && typeof value === 'object' && 'code' in value && typeof value.code === 'string') {
+    return value.code;
+  }
+  return null;
+}
+
+/** Código e mensagem de uma falha do `fetch` (o undici põe o erro de socket em `cause`). */
+function networkFailure(error: unknown): { code: string | null; error: string | null } {
+  if (!(error instanceof Error)) return { code: null, error: null };
+  if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+    return { code: 'TIMEOUT', error: error.message };
+  }
+  const cause: unknown = error.cause;
+  // Com `autoSelectFamily`, a recusa chega como AggregateError (uma por endereço tentado).
+  const nested = cause instanceof AggregateError ? (cause.errors as unknown[])[0] : undefined;
+  const code = codeOf(cause) ?? codeOf(nested) ?? codeOf(error);
+  const message = cause instanceof Error && cause.message ? cause.message : error.message;
+  return { code, error: message };
+}
+
+const defaultSleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 export class ApiSessionDirectory implements SessionDirectory {
   constructor(private readonly options: ApiSessionDirectoryOptions) {}
 
@@ -100,6 +136,16 @@ export class ApiSessionDirectory implements SessionDirectory {
     });
   }
 
+  private unavailable(
+    attempts: number,
+    failure: Omit<DirectoryFailureCause, 'apiInternalUrl' | 'attempts'>,
+  ): DirectoryResult {
+    return {
+      kind: 'unavailable',
+      cause: { apiInternalUrl: this.options.apiInternalUrl, attempts, ...failure },
+    };
+  }
+
   private async send(
     context: DirectoryContext,
     body: SessionEventRequest,
@@ -115,25 +161,45 @@ export class ApiSessionDirectory implements SessionDirectory {
     if (context.ip) headers.set('X-Forwarded-For', context.ip);
     if (context.userAgent) headers.set('User-Agent', context.userAgent.slice(0, 512));
     headers.set(SESSION_HASH_HEADER, context.sessionIdHash);
-    let response: Response;
-    try {
-      response = await this.options.fetch(`${this.options.apiInternalUrl}${SESSION_EVENTS_PATH}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        redirect: 'manual',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
-      });
-    } catch {
-      return { kind: 'unavailable' };
+    const delays = this.options.retryDelaysMs ?? CONNECTION_RETRY_DELAYS_MS;
+    const sleep = this.options.sleep ?? defaultSleep;
+    let attempts = 0;
+    let response: Response | null = null;
+    while (!response) {
+      attempts += 1;
+      try {
+        response = await this.options.fetch(
+          `${this.options.apiInternalUrl}${SESSION_EVENTS_PATH}`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            redirect: 'manual',
+            cache: 'no-store',
+            signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
+          },
+        );
+      } catch (error) {
+        const failure = networkFailure(error);
+        const delay = delays[attempts - 1];
+        if (failure.code !== 'ECONNREFUSED' || delay === undefined) {
+          return this.unavailable(attempts, { status: null, ...failure });
+        }
+        await sleep(delay);
+      }
     }
 
     if (response.ok) {
       const parsed = sessionEventResponseSchema.safeParse(
         ((await response.json().catch(() => null)) as { data?: unknown } | null)?.data,
       );
-      if (!parsed.success) return { kind: 'unavailable' };
+      if (!parsed.success) {
+        return this.unavailable(attempts, {
+          status: response.status,
+          code: 'CONTRACT_MISMATCH',
+          error: null,
+        });
+      }
       // Troca suspensa pelo MFA da instituição de destino (RN-IAM-69 · US-093).
       if (parsed.data.mfaRequired) return { kind: 'mfa_required' };
       return {
@@ -149,23 +215,29 @@ export class ApiSessionDirectory implements SessionDirectory {
       await response.body?.cancel();
       return { kind: 'unauthenticated' };
     }
-    if (response.status === 403) {
-      const { code, reason } = await problemOf(response);
+    const { status } = response;
+    const { code, reason, fieldCodes } = await problemOf(response);
+    const failed = () =>
+      this.unavailable(attempts, {
+        status,
+        code: typeof code === 'string' ? code : null,
+        error: null,
+      });
+    if (status === 403) {
       // Só o bloqueio do usuário: outro 403 (ex.: credencial de serviço) é falha de integração.
       if (code === 'PERMISSION_DENIED' && reason === 'USER_BLOCKED') return { kind: 'blocked' };
       if (code === 'TENANT_SUSPENDED') return { kind: 'tenant_unavailable' };
       if (code === 'MEMBERSHIP_INACTIVE') return { kind: 'no_membership' };
-      return { kind: 'unavailable' };
+      return failed();
     }
-    if (response.status === 422) {
-      // Vínculo que não é do usuário (V-01 da US-093); outro 422 é falha de integração.
-      const { code, fieldCodes } = await problemOf(response);
-      if (code === 'VALIDATION_ERROR' && fieldCodes.includes('REFERENCE_NOT_FOUND')) {
-        return { kind: 'invalid_reference' };
-      }
-      return { kind: 'unavailable' };
+    // Vínculo que não é do usuário (V-01 da US-093); outro 422 é falha de integração.
+    if (
+      status === 422 &&
+      code === 'VALIDATION_ERROR' &&
+      fieldCodes.includes('REFERENCE_NOT_FOUND')
+    ) {
+      return { kind: 'invalid_reference' };
     }
-    await response.body?.cancel();
-    return { kind: 'unavailable' };
+    return failed();
   }
 }

@@ -248,8 +248,22 @@ export type DirectoryResult =
   | { readonly kind: 'tenant_unavailable' }
   /** Token recusado pela API (401). */
   | { readonly kind: 'unauthenticated' }
-  /** API, banco ou JWKS indisponíveis (503/timeout). */
-  | { readonly kind: 'unavailable' };
+  /** API, banco ou JWKS indisponíveis (503/timeout); `cause` vai para o log do BFF. */
+  | { readonly kind: 'unavailable'; readonly cause?: DirectoryFailureCause };
+
+/** Por que o diretório ficou indisponível — só escalares, sem corpo de resposta (spec-486). */
+export interface DirectoryFailureCause {
+  /** Endereço interno da API usado na chamada. */
+  readonly apiInternalUrl: string;
+  /** Status HTTP da API; `null` quando não houve resposta (rede/timeout). */
+  readonly status: number | null;
+  /** `code` do problem details, código de rede (`ECONNREFUSED`), `TIMEOUT` ou `CONTRACT_MISMATCH`. */
+  readonly code: string | null;
+  /** Mensagem do erro de rede, quando houve. */
+  readonly error: string | null;
+  /** Tentativas feitas (conexão recusada é repetida — API reiniciando). */
+  readonly attempts: number;
+}
 
 export interface DirectoryContext {
   readonly accessToken: string;

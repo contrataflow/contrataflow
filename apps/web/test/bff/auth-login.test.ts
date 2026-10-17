@@ -453,6 +453,26 @@ describe('Feature: Login OIDC com Authentik e sessão segura no BFF (US-087)', (
     expect(h.test.store.size).toBe(0);
   });
 
+  it('[Falha de integração] diretório indisponível: o log traz a causa e o endereço da API (spec-486)', async () => {
+    const h = harness();
+    const cause = {
+      apiInternalUrl: 'http://127.0.0.1:4000',
+      status: null,
+      code: 'ECONNREFUSED',
+      error: 'connect ECONNREFUSED 127.0.0.1:4000',
+      attempts: 5,
+    };
+    h.api.state.start = { kind: 'unavailable', cause };
+    const { state, transactions } = await begin(h);
+    const callback = await finish(h, state, transactions);
+    expect(logged('auth.directory_unavailable')).toEqual([
+      expect.objectContaining({
+        ...cause,
+        correlationId: callback.headers.get('X-Correlation-Id'),
+      }),
+    ]);
+  });
+
   it('[Falha de integração] Authentik indisponível na troca do código: "serviço indisponível", sem sessão', async () => {
     const h = harness();
     h.provider.state.fail = 'PROVIDER_UNAVAILABLE';
@@ -479,13 +499,20 @@ describe('Feature: Login OIDC com Authentik e sessão segura no BFF (US-087)', (
 
   it('ativação recusada pela API depois de criar a sessão: segue sem instituição (seleção)', async () => {
     const h = harness();
-    h.api.state.activation = () => ({ kind: 'unavailable' });
+    h.api.state.activation = () => ({
+      kind: 'unavailable',
+      cause: { apiInternalUrl: 'http://api', status: 503, code: 'X', error: null, attempts: 1 },
+    });
     const { state, transactions } = await begin(h);
     const callback = await finish(h, state, transactions);
     expect(callback.headers.get('Location')).toBe(
       '/selecionar-orgao?returnTo=%2Fprocessos%2F0192aa',
     );
-    expect(logged('auth.tenant_activation_failed')[0]).toMatchObject({ result: 'unavailable' });
+    expect(logged('auth.tenant_activation_failed')[0]).toMatchObject({
+      result: 'unavailable',
+      status: 503,
+      code: 'X',
+    });
   });
 
   it('identidade recusada pela API (token inválido / sem cadastro) → SCR-001 erro / "sem vínculo"', async () => {

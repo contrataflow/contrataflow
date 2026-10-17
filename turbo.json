@@ -48,7 +48,7 @@
       "cache": false
     },
     "@contrataflow/web#test:integration": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@contrataflow/api#build"],
       "cache": false
     },
     "test:e2e": {
