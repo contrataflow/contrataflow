@@ -47,10 +47,12 @@ export interface ProcessAccessGrants {
   /** Usuários com acesso (`CREATOR`, `RESPONSIBLE`, `PARTICIPANT`, `APPROVER`). */
   readonly userIds: readonly string[];
   /**
-   * Participações ativas (`ProcessParticipant` — permissions.md §4 · US-097): permissões fixas do
-   * papel naquele processo. Ausente até o agregado de participantes existir.
+   * Participações ativas e não vencidas (`ProcessParticipant` — permissions.md §4 · US-012):
+   * permissões fixas do papel naquele processo.
    */
   readonly participations?: readonly ProcessParticipation[];
+  /** Unidades participantes: só visibilidade (permissions.md §5 · US-012). */
+  readonly participantDepartmentIds?: readonly string[];
 }
 
 export interface ProcessRuntime {

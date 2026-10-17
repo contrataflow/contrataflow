@@ -25,6 +25,7 @@ import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
   PROCESS_ITEM_REPOSITORY,
+  PROCESS_PARTICIPANT_REPOSITORY,
   PROCESS_REPOSITORY,
   PROCESS_RUNTIME_READER,
   PROCESS_TRANSACTIONS,
@@ -53,6 +54,17 @@ import {
   ListProcessStagesQuery,
   ProcessPanelReader,
 } from './application/process-panel.queries.js';
+import {
+  AddProcessParticipantCommand,
+  FollowProcessCommand,
+  ListProcessParticipantsQuery,
+  RemoveProcessParticipantCommand,
+  UnfollowProcessCommand,
+} from './application/process-participants.commands.js';
+import {
+  ProcessParticipantPresenter,
+  ProcessParticipantRecorder,
+} from './application/process-participants.support.js';
 import { ProcessRuntimeLoader } from './application/process-runtime.loader.js';
 import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
@@ -70,12 +82,17 @@ import {
   PrismaProcessItemRepository,
 } from './infrastructure/process-item.repositories.js';
 import {
+  InMemoryProcessParticipantRepository,
+  PrismaProcessParticipantRepository,
+} from './infrastructure/process-participant.repositories.js';
+import {
   InMemoryProcessRuntimeReader,
   InMemoryProcessRuntimeStore,
   InMemoryProcessTransactions,
 } from './infrastructure/process-runtime.readers.js';
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
 import { ProcessItemsController } from './presentation/process-items.controller.js';
+import { ProcessParticipantsController } from './presentation/process-participants.controller.js';
 import { ProcessController } from './presentation/process.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { ApprovalModule } from '../approval/approval.module.js';
@@ -102,6 +119,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento. US-006: itens da
  * contratação (PRC-13..17), com o uso dos itens perguntado à porta `ProcessItemUsageRegistry`.
  * US-011: duplicação (PRC-27) sobre a criação da US-001 e as fachadas de `document` e `files`.
+ * US-012: participantes (PRC-28..32) — `ProcessAccess` `PARTICIPANT`, seguir/deixar de seguir.
  */
 @Module({
   imports: [
@@ -119,7 +137,12 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     AttachmentTargetModule,
     ProcessItemUsageModule,
   ],
-  controllers: [ProcessController, ProcessActionsController, ProcessItemsController],
+  controllers: [
+    ProcessController,
+    ProcessActionsController,
+    ProcessItemsController,
+    ProcessParticipantsController,
+  ],
   providers: [
     ProcessAttachmentTargets,
     ProcessFacade,
@@ -153,6 +176,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ReorderProcessItemsCommand,
     PrismaProcessItemRepository,
     InMemoryProcessItemRepository,
+    ProcessParticipantPresenter,
+    ProcessParticipantRecorder,
+    ListProcessParticipantsQuery,
+    AddProcessParticipantCommand,
+    RemoveProcessParticipantCommand,
+    FollowProcessCommand,
+    UnfollowProcessCommand,
+    PrismaProcessParticipantRepository,
+    InMemoryProcessParticipantRepository,
     PrismaProcessRepository,
     InMemoryProcessRepository,
     InMemoryProcessRuntimeStore,
@@ -175,6 +207,19 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         config: AppConfig,
         prisma: PrismaProcessItemRepository,
         memory: InMemoryProcessItemRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PROCESS_PARTICIPANT_REPOSITORY,
+      inject: [
+        APP_CONFIG,
+        PrismaProcessParticipantRepository,
+        InMemoryProcessParticipantRepository,
+      ],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaProcessParticipantRepository,
+        memory: InMemoryProcessParticipantRepository,
       ) => (inMemory(config) ? memory : prisma),
     },
     {

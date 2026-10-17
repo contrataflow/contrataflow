@@ -1,4 +1,5 @@
 import {
+  dataEnvelope,
   membershipDetailMetaSchema,
   membershipDetailSchema,
   membershipReasonSchema,
@@ -8,6 +9,8 @@ import {
   reactivateMembershipSchema,
   updateMembershipDepartmentsSchema,
   updateMembershipSchema,
+  userLookupItemSchema,
+  userLookupQuerySchema,
 } from '@contrataflow/validation';
 import type {
   MembershipDetailMeta,
@@ -17,6 +20,8 @@ import type {
   TenantMembershipDetailDto,
   UpdateMembership,
   UpdateMembershipDepartments,
+  UserLookupItem,
+  UserLookupQuery as UserLookupParams,
 } from '@contrataflow/validation';
 import { Controller, Get, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 import { z } from 'zod';
@@ -28,7 +33,7 @@ import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
-import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
+import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import {
   ChangeMembershipStatusCommand,
@@ -38,6 +43,7 @@ import {
 } from '../application/membership.commands.js';
 import type { MembershipDetailResult } from '../application/membership.commands.js';
 import { ResetUserMfaCommand } from '../application/reset-user-mfa.command.js';
+import { UserLookupQuery } from '../application/user-lookup.query.js';
 import type { MembershipTransition } from '../domain/membership-lifecycle.js';
 
 const TAGS = ['Usuários e vínculos'];
@@ -66,7 +72,26 @@ export class UserMembershipController {
     private readonly updateDepartments: UpdateMembershipDepartmentsCommand,
     private readonly changeStatus: ChangeMembershipStatusCommand,
     private readonly resetMfa: ResetUserMfaCommand,
+    private readonly lookup: UserLookupQuery,
   ) {}
+
+  // Declarada antes de `:userId` (a ordem das rotas decide `/users/lookup`).
+  @Get('lookup')
+  @ApiOperation({
+    operationId: 'USR-02',
+    summary: 'Buscar usuários para seleção (lookup)',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Até 20 pessoas com vínculo `ACTIVE` e não vencido no tenant ativo, por nome (`q` = nome ou e-mail, mín. 2 caracteres). Capacidade implícita do vínculo; `membershipType`/`membershipExpiresAt` orientam o papel Consultor (US-012 · RN-PROC-127).',
+        schema: dataEnvelope(z.array(userLookupItemSchema)),
+      },
+    },
+  })
+  lookupUsers(@ZodQuery(userLookupQuerySchema) query: UserLookupParams): Promise<UserLookupItem[]> {
+    return this.lookup.execute(query);
+  }
 
   @Get(':userId')
   @RequirePermission('USER_VIEW')

@@ -1,10 +1,12 @@
 import {
+  PARTICIPANT_MESSAGES,
   PROCESS_ITEM_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
   estimatedValueFromSourceMessage,
 } from '@contrataflow/validation';
 import type {
   DuplicateCandidate,
+  ParticipantRole,
   ProcessItemReference,
   EstimatedValueSource,
   FieldError,
@@ -17,6 +19,7 @@ import type { Counter, Histogram } from '@opentelemetry/api';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
 import { itemsNotEditableMessage } from '../domain/process-items.js';
+import type { GrantRefusal } from '../domain/process-participants.js';
 import { notEditableStatusMessage } from '../domain/process-update.js';
 import type { ProcessIssue } from '../domain/process.js';
 
@@ -189,4 +192,87 @@ export function processItemInUse(
     detail: `O item ${String(sequence)} está em documentos do processo.`,
     extensions: { meta: { references } },
   });
+}
+
+/* US-012 — participantes do processo (api/02-processes.md PRC-28..32 · "Casos de erro" da story). */
+
+const NOT_ELIGIBLE_DETAIL: Readonly<Record<string, string>> = {
+  CONSULTANT_DEPARTMENT: PARTICIPANT_MESSAGES.notEligibleConsultant,
+  NOT_EXTERNAL: PARTICIPANT_MESSAGES.notEligibleConsultant,
+  EXPIRES_AFTER_MEMBERSHIP: PARTICIPANT_MESSAGES.expiresAfterMembership,
+  SELF: PARTICIPANT_MESSAGES.notEligibleSelf,
+};
+
+/**
+ * Recusa da concessão (RN-PROC-126..128 · POL-10): 422 `PARTICIPANT_NOT_ELIGIBLE` com o motivo em
+ * `meta.reason`, ou 422 `VALIDATION_ERROR` (referência inválida/inativa — sem revelar se o alvo
+ * existe em outro tenant — e validade no passado).
+ */
+export function participantGrantRefused(refusal: GrantRefusal): ApiError {
+  switch (refusal.kind) {
+    case 'NOT_ELIGIBLE':
+      return new ApiError('PARTICIPANT_NOT_ELIGIBLE', {
+        detail: NOT_ELIGIBLE_DETAIL[refusal.reason] ?? PARTICIPANT_MESSAGES.notEligibleConsultant,
+        extensions: { meta: { reason: refusal.reason } },
+      });
+    case 'INVALID_REFERENCE':
+      return validationError([
+        {
+          field: refusal.field,
+          code: refusal.code,
+          message: PARTICIPANT_MESSAGES.invalidReference,
+        },
+      ]);
+    case 'EXPIRES_IN_PAST':
+      return validationError([
+        { field: 'expiresAt', code: 'DATE_IN_PAST', message: PARTICIPANT_MESSAGES.expiresAtFuture },
+      ]);
+  }
+}
+
+/** 409 `PARTICIPANT_ALREADY_EXISTS` (V-07 · RN-PROC-129) com o papel atual quando conhecido. */
+export function participantAlreadyExists(currentRole: ParticipantRole | null): ApiError {
+  return new ApiError('PARTICIPANT_ALREADY_EXISTS', {
+    detail: PARTICIPANT_MESSAGES.alreadyExists,
+    extensions: { meta: { currentRole } },
+  });
+}
+
+/** 404 `PARTICIPANT_NOT_FOUND` (V-08): inexistente, já revogado, de outro tenant ou não visível. */
+export function participantNotFound(): ApiError {
+  return new ApiError('PARTICIPANT_NOT_FOUND', { detail: PARTICIPANT_MESSAGES.notFound });
+}
+
+/**
+ * 403 `PERMISSION_DENIED` do PRC-32 (RN-PROC-133): só o papel `OBSERVER` sai por "Deixar de
+ * seguir"; auditado como `access.denied` com `reasonCode = PROCESS_FOLLOW`.
+ */
+export function unfollowNotObserver(): ApiError {
+  return new ApiError('PERMISSION_DENIED', {
+    detail: PARTICIPANT_MESSAGES.unfollowNotObserver,
+    auditReasonCode: 'PROCESS_FOLLOW',
+  });
+}
+
+let participantAddedCounter: Counter | undefined;
+let participantRemovedCounter: Counter | undefined;
+
+/** `cf_process_participant_added_total{role,granted_via}` (DoD da US-012: métricas). */
+export function recordParticipantAdded(role: string, grantedVia: string): void {
+  participantAddedCounter ??= metrics
+    .getMeter('contrataflow-api')
+    .createCounter('cf_process_participant_added_total', {
+      description: 'Participações concedidas em processos (PRC-29 e "seguir").',
+    });
+  participantAddedCounter.add(1, { role, granted_via: grantedVia });
+}
+
+/** `cf_process_participant_removed_total{reason}` (revogação manual ou "deixar de seguir"). */
+export function recordParticipantRemoved(reason: string): void {
+  participantRemovedCounter ??= metrics
+    .getMeter('contrataflow-api')
+    .createCounter('cf_process_participant_removed_total', {
+      description: 'Participações revogadas em processos (PRC-30 e "deixar de seguir").',
+    });
+  participantRemovedCounter.add(1, { reason });
 }

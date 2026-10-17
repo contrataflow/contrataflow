@@ -6,6 +6,7 @@ import { isProcessVisible } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { InMemoryProcessParticipantRepository } from './process-participant.repositories.js';
 import { InternalCodeTakenError } from '../application/ports.js';
 import type {
   DuplicateCandidateRow,
@@ -60,6 +61,7 @@ interface StoredAccess extends ProcessAccessRow {
   readonly processId: string;
   readonly tenantId: string;
   readonly grantedAt: Date;
+  readonly sourceId: string | null;
 }
 
 /** Fatos do runtime que a criação ainda não produz (US-055/US-008/US-007) — carga de teste. */
@@ -92,6 +94,8 @@ export class InMemoryProcessRepository implements ProcessRepository {
   /** Concessões revogadas (`revokedAt` — RN-PROC-62), fora das leituras como no PostgreSQL. */
   private readonly revoked: (StoredAccess & { readonly revokedAt: Date })[] = [];
   private readonly extras = new Map<string, ProcessListExtras>();
+
+  constructor(private readonly participants: InMemoryProcessParticipantRepository) {}
 
   insertCreation(_tx: TenantTx, creation: ProcessCreation): Promise<void> {
     const { process } = creation;
@@ -127,6 +131,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
         userId: grant.principalType === 'USER' ? grant.userId : null,
         reason: grant.reason,
         grantedAt,
+        sourceId: grant.sourceId ?? null,
       };
       const exists = this.access.some(
         (other) =>
@@ -181,6 +186,17 @@ export class InMemoryProcessRepository implements ProcessRepository {
     const version = current.version + 1;
     this.processes.set(processId, { ...current, version, updatedAt: at, updatedById: userId });
     return Promise.resolve(version);
+  }
+
+  revokeParticipantAccess(_tx: TenantTx, participantId: string, at: Date): Promise<void> {
+    for (let index = this.access.length - 1; index >= 0; index -= 1) {
+      const row = this.access[index];
+      if (row?.reason === 'PARTICIPANT' && row.sourceId === participantId) {
+        this.access.splice(index, 1);
+        this.revoked.push({ ...row, revokedAt: at });
+      }
+    }
+    return Promise.resolve();
   }
 
   async syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void> {
@@ -256,12 +272,20 @@ export class InMemoryProcessRepository implements ProcessRepository {
           ? [row.departmentId]
           : [],
       );
+      const participantDepartmentIds = rows.flatMap((row) =>
+        row.principalType === 'DEPARTMENT' &&
+        row.departmentId !== null &&
+        row.reason === 'PARTICIPANT'
+          ? [row.departmentId]
+          : [],
+      );
       const userIds = rows.flatMap((row) => (row.userId === null ? [] : [row.userId]));
       if (
         !isProcessVisible(search.visibility, {
           organizationId: process.organizationId,
           departmentIds,
           userIds,
+          participantDepartmentIds,
         })
       ) {
         continue;
@@ -376,7 +400,16 @@ export class InMemoryProcessRepository implements ProcessRepository {
       assignmentSince: active?.startedAt ?? null,
       ...this.situations.get(processId),
     };
-    return Promise.resolve(structuredClone({ process, stages, access, situation }));
+    const participants = this.participants
+      .activeOf(processId)
+      .map(({ id, userId, departmentId, role, expiresAt }) => ({
+        id,
+        userId,
+        departmentId,
+        role,
+        expiresAt,
+      }));
+    return Promise.resolve(structuredClone({ process, stages, access, participants, situation }));
   }
 
   codes(_tx: TenantTx, processIds: readonly string[]) {
@@ -447,6 +480,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
         userId: grant.principalType === 'USER' ? grant.userId : null,
         reason: grant.reason,
         grantedAt: process.createdAt,
+        sourceId: grant.sourceId ?? null,
       });
     }
   }

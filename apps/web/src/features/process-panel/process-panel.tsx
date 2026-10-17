@@ -31,6 +31,8 @@ import { DocumentsPanel } from '../process-documents/documents-panel';
 import { DuplicateProcessDialog } from '../process-duplicate/duplicate-process-dialog';
 import { EditProcessSheet } from '../process-edit/edit-process-sheet';
 import { ProcessItemsTab } from '../process-items/process-items-tab';
+import { FollowToggleButton } from '../process-participants/follow-toggle-button';
+import { ParticipantsTab } from '../process-participants/participants-tab';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
@@ -201,7 +203,10 @@ export function useStaleProcessRecovery(processId: string) {
 function SoonPanel({
   tab,
 }: {
-  readonly tab: Exclude<ProcessPanelTab, 'resumo' | 'timeline' | 'itens' | 'documentos'>;
+  readonly tab: Exclude<
+    ProcessPanelTab,
+    'resumo' | 'timeline' | 'itens' | 'documentos' | 'participantes'
+  >;
 }) {
   const t = useTranslations('processes.panel.tabs.soon');
   return <p className="text-sm text-muted-foreground">{t(tab)}</p>;
@@ -277,13 +282,20 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   } else if (tab === 'itens') {
     // US-006: lista canônica de itens (PRC-13..17).
     content = <ProcessItemsTab processId={processId} />;
+  } else if (tab === 'participantes') {
+    // US-012: participantes (PRC-28..30 — SCR-112).
+    content = <ParticipantsTab processId={processId} />;
   } else {
     content = <SoonPanel tab={tab} />;
   }
 
   return (
     <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 pb-24 md:pb-0">
-      <ProcessHeader header={data.header} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <ProcessHeader header={data.header} />
+        {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
+        <FollowToggleButton processId={processId} />
+      </div>
       {frozen ? (
         <Alert tone="warning" title={t('actions.stale', { time: updatedAt })}>
           <Button

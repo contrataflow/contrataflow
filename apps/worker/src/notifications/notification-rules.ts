@@ -292,21 +292,25 @@ const RULES: Readonly<Record<string, Rule>> = {
   },
   ProcessStageDueSoon: () => ({ kind: 'deferred', type: 'STAGE_DUE_SOON' }),
   ProcessStageOverdue: () => ({ kind: 'deferred', type: 'STAGE_OVERDUE' }),
+  // US-012 · RN-PROC-130: sem `notify`, o participante não é avisado; quem segue o processo é o
+  // próprio ator (RN-NTF-02 o exclui).
   ProcessParticipantAdded: (event) =>
-    plan('PARTICIPANT_ADDED', event, {
-      recipients: [
-        {
-          kind: 'FIRST_OF',
-          specs: [
-            { kind: 'USER', userId: id(event.payload, 'userId') },
-            { kind: 'DEPARTMENT_MEMBERS', departmentId: id(event.payload, 'departmentId') },
+    event.payload.notify === false
+      ? { kind: 'ignored', reason: 'participante sem notificações (notify = false)' }
+      : plan('PARTICIPANT_ADDED', event, {
+          recipients: [
+            {
+              kind: 'FIRST_OF',
+              specs: [
+                { kind: 'USER', userId: id(event.payload, 'userId') },
+                { kind: 'DEPARTMENT_MEMBERS', departmentId: id(event.payload, 'departmentId') },
+              ],
+            },
           ],
-        },
-      ],
-      entityType: 'Process',
-      entityId: event.processId,
-      link: processLink(event.processId),
-    }),
+          entityType: 'Process',
+          entityId: event.processId,
+          link: processLink(event.processId),
+        }),
   AttachmentRejected: (event) =>
     plan('ATTACHMENT_REJECTED', event, {
       recipients: [{ kind: 'LOOKUP', lookup: 'ATTACHMENT_UPLOADER' }],

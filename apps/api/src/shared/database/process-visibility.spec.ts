@@ -23,12 +23,14 @@ describe('buildVisibilityPredicate (DEC-024)', () => {
     expect(sql).toContain('p.organization_id = ANY(');
     expect(sql).toContain("pa.principal_type = 'DEPARTMENT'");
     expect(sql).toContain("pa.principal_type = 'USER'");
+    // US-012 (RN-PROC-135): concessão de consultor vencido não dá visibilidade.
+    expect(sql).toContain('pp.expires_at <= now()');
     expect(sql).not.toContain(SCOPE.userId);
     expect(predicate.values).toEqual([
       false,
       SCOPE.organizationIds,
       SCOPE.departmentIds,
-      ['REQUESTING', 'CURRENT', 'HISTORICAL'],
+      ['REQUESTING', 'CURRENT', 'HISTORICAL', 'PARTICIPANT'],
       SCOPE.userId,
     ]);
   });
@@ -40,7 +42,7 @@ describe('buildVisibilityPredicate (DEC-024)', () => {
     });
     expect(predicate.sql).toContain('proc.tenant_id');
     expect(predicate.sql).not.toContain(' p.');
-    expect(predicate.values).toContainEqual(['REQUESTING', 'CURRENT']);
+    expect(predicate.values).toContainEqual(['REQUESTING', 'CURRENT', 'PARTICIPANT']);
   });
 
   it('alias que não é identificador SQL é recusado (nunca interpolado)', () => {

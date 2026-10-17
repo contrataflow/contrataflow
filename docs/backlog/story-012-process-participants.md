@@ -219,6 +219,9 @@ Feature: Gerenciar participantes do processo
 - **Lacunas nas fontes canônicas:**
   1. ~~Código para participante duplicado~~ — resolvida: `PARTICIPANT_ALREADY_EXISTS` (409) incluído em api.md §2.2.
   2. A supressão de autonotificação em `PARTICIPANT_ADDED` quando o próprio ator se adiciona ao seguir não está explícita em events.md §6; aplicada por analogia ao padrão já usado em `PROCESS_ASSIGNED` ("exceto quando é o próprio ator").
+  3. ~~Contrato da busca de pessoas (`USR-02`)~~ — resolvida na implementação: `GET /users/lookup?q=` com `membershipType`/`membershipExpiresAt` (api/14-tenant-administration.md). A busca de unidades usa o `DEP-02` (`/departments/lookup`, só ativas), não a árvore do `DEP-01`.
+  4. ~~Semântica da unidade participante~~ — resolvida em permissions.md §5: `DEPARTMENT/PARTICIPANT` dá visibilidade a quem tem `PROCESS_VIEW` sobre a unidade e o papel vale para os lotados nela; não entra no escopo de unidade do perfil. `notify`/`grantedVia` entraram no payload de `ProcessParticipantAdded` (events.md §4.1) para a regra de notificação.
+  5. `expiresAt` só é aceito para `CONSULTANT` (nos demais papéis → `VALIDATION_ERROR`/`NOT_ALLOWED`): o job só revoga consultores (RN-PROC-134).
 
 ## Impacto técnico
 - Reaproveita 100% o modelo `ProcessParticipant`/`ProcessAccess` já definido em entities.md (DEC-036/DEC-024); nenhuma migração nova.

@@ -2,8 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { PROCESS_REPOSITORY } from './ports.js';
-import type { ProcessRepository } from './ports.js';
+import { PROCESS_CLOCK, PROCESS_PARTICIPANT_REPOSITORY, PROCESS_REPOSITORY } from './ports.js';
+import type {
+  ProcessClock,
+  ProcessParticipantReference,
+  ProcessParticipantRepository,
+  ProcessRepository,
+} from './ports.js';
 import { accessGrantsOf } from './process-runtime.loader.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -25,6 +30,9 @@ export class ProcessFacade {
     private readonly workflow: WorkflowFacade,
     private readonly access: AccessFacade,
     private readonly tenancy: TenancyFacade,
+    @Inject(PROCESS_PARTICIPANT_REPOSITORY)
+    private readonly participants: ProcessParticipantRepository,
+    @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
   ) {}
 
   /**
@@ -40,7 +48,7 @@ export class ProcessFacade {
     if (rows === null) return false;
     const budget = await this.access.confidentialBudgetAccess();
     const settings = await this.tenancy.settingValues(tx, [HISTORICAL_SETTING]);
-    const grants = accessGrantsOf(rows.access, settings.get(HISTORICAL_SETTING) !== false);
+    const grants = accessGrantsOf(rows, settings.get(HISTORICAL_SETTING) !== false, this.clock());
     return canViewConfidentialBudget(
       { ...rows.process, isBudgetConfidential: true },
       { ...budget.scope, custodyDepartmentIds: budget.custodyDepartmentIds },
@@ -74,5 +82,16 @@ export class ProcessFacade {
       if (name !== undefined) names.set(processStageId, name);
     }
     return names;
+  }
+
+  /**
+   * Principal e papel dos participantes (revogados ou não — fonte `PROCESS_PARTICIPANT` da timeline,
+   * US-012): o nome congelado é resolvido pela fonte, com as fachadas de `identity`/`organization`.
+   */
+  participantReferences(
+    tx: TenantTx,
+    participantIds: readonly string[],
+  ): Promise<Map<string, ProcessParticipantReference>> {
+    return this.participants.references(tx, participantIds);
   }
 }

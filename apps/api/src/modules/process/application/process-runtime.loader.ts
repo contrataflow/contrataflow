@@ -2,40 +2,68 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { PROCESS_ITEM_REPOSITORY, PROCESS_REPOSITORY } from './ports.js';
+import { PROCESS_CLOCK, PROCESS_ITEM_REPOSITORY, PROCESS_REPOSITORY } from './ports.js';
 import type {
-  ProcessAccessRow,
   ProcessAggregateRows,
+  ProcessClock,
   ProcessItemRepository,
   ProcessRepository,
   ProcessRuntimeReader,
 } from './ports.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
+import { isParticipationExpired } from '../domain/process-participants.js';
 import type { ProcessAccessGrants, ProcessRuntime } from '../domain/process-runtime.js';
 
 const HISTORICAL_SETTING = 'access.historicalDepartmentsCanView';
 
-/** Concessões que dão visibilidade (permissions.md §5): unidades e usuários. */
+/**
+ * Concessões que dão visibilidade (permissions.md §5) e as participações que valem (§4 · US-012):
+ * unidades (`REQUESTING`/`CURRENT`/`HISTORICAL`), unidades participantes (só visibilidade),
+ * usuários e participações não vencidas. A concessão `PARTICIPANT` de consultor vencido não conta
+ * (RN-PROC-135), mesmo antes de o job `participants-expire` revogá-la.
+ */
 export function accessGrantsOf(
-  rows: readonly ProcessAccessRow[],
+  rows: Pick<ProcessAggregateRows, 'access' | 'participants'>,
   historicalDepartmentsCanView: boolean,
+  now: Date,
 ): ProcessAccessGrants {
   const departmentReasons = new Set(
     historicalDepartmentsCanView
       ? ['REQUESTING', 'CURRENT', 'HISTORICAL']
       : ['REQUESTING', 'CURRENT'],
   );
+  const live = rows.participants.filter((participant) => !isParticipationExpired(participant, now));
+  const expiredUsers = new Set(
+    rows.participants.flatMap((participant) =>
+      participant.userId !== null && isParticipationExpired(participant, now)
+        ? [participant.userId]
+        : [],
+    ),
+  );
   const departmentIds = new Set<string>();
+  const participantDepartmentIds = new Set<string>();
   const userIds = new Set<string>();
-  for (const row of rows) {
+  for (const row of rows.access) {
     if (row.principalType === 'DEPARTMENT' && row.departmentId !== null) {
       if (departmentReasons.has(row.reason)) departmentIds.add(row.departmentId);
+      else if (row.reason === 'PARTICIPANT') participantDepartmentIds.add(row.departmentId);
     } else if (row.userId !== null) {
+      if (row.reason === 'PARTICIPANT' && expiredUsers.has(row.userId)) continue;
       userIds.add(row.userId);
     }
   }
-  return { departmentIds: [...departmentIds], userIds: [...userIds] };
+  return {
+    departmentIds: [...departmentIds],
+    userIds: [...userIds],
+    participations: live.map(({ userId, departmentId, role, expiresAt }) => ({
+      userId,
+      departmentId,
+      role,
+      expiresAt,
+    })),
+    participantDepartmentIds: [...participantDepartmentIds],
+  };
 }
 
 /**
@@ -51,6 +79,7 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
     @Inject(PROCESS_ITEM_REPOSITORY) private readonly items: ProcessItemRepository,
     private readonly catalog: CatalogFacade,
     private readonly tenancy: TenancyFacade,
+    @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
   ) {}
 
   async load(tx: TenantTx, processId: string): Promise<ProcessRuntime | null> {
@@ -106,7 +135,7 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
       })),
       approvals: [],
       documents: [],
-      access: accessGrantsOf(rows.access, settings.get(HISTORICAL_SETTING) !== false),
+      access: accessGrantsOf(rows, settings.get(HISTORICAL_SETTING) !== false, this.clock()),
     };
   }
 }

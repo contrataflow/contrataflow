@@ -1402,6 +1402,44 @@ model ProcessItem {
   @@map("process_items")
 }
 
+/// entities.md §2 — `ParticipantRole` (DEC-036 · permissions.md §4).
+enum ParticipantRole {
+  OBSERVER
+  COLLABORATOR
+  CONSULTANT
+
+  @@map("participant_role")
+}
+
+/// entities.md §4.4 `ProcessParticipant` (US-012 · DEC-036): acesso explícito por processo a um
+/// usuário ou unidade. Índices únicos parciais (ativos por usuário/unidade), FKs compostas, checks,
+/// gatilho de colunas imutáveis e RLS ficam em SQL bruto na migração. Revogação só lógica.
+model ProcessParticipant {
+  id               String          @id @db.Uuid
+  tenantId         String          @map("tenant_id") @db.Uuid
+  processId        String          @map("process_id") @db.Uuid
+  userId           String?         @map("user_id") @db.Uuid
+  departmentId     String?         @map("department_id") @db.Uuid
+  role             ParticipantRole
+  notify           Boolean         @default(true)
+  grantedById      String          @map("granted_by_id") @db.Uuid
+  grantedAt        DateTime        @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt        DateTime?       @map("expires_at") @db.Timestamptz(6)
+  reason           String?
+  revokedAt        DateTime?       @map("revoked_at") @db.Timestamptz(6)
+  revokedById      String?         @map("revoked_by_id") @db.Uuid
+  revocationReason String?         @map("revocation_reason")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_participants_tenant_id_id_key")
+  // Parciais na migração (`WHERE revoked_at IS NULL AND … IS NOT NULL`).
+  @@index([tenantId, processId, userId], map: "process_participants_active_user_key")
+  @@index([tenantId, processId, departmentId], map: "process_participants_active_department_key")
+  @@index([tenantId, expiresAt], map: "process_participants_expiring_idx")
+  @@map("process_participants")
+}
+
 /// entities.md §4.4 `ProcessStage`: cada passagem por uma etapa do workflow (uma ACTIVE por processo).
 model ProcessStage {
   id                    String             @id @db.Uuid
@@ -1522,6 +1560,8 @@ model ProcessAccess {
   @@index([tenantId, departmentId, processId], map: "process_access_department_idx")
   @@index([tenantId, userId, processId], map: "process_access_user_idx")
   @@index([tenantId, processId], map: "process_access_process_idx")
+  // Parcial na migração (`WHERE source_id IS NOT NULL` — US-012).
+  @@index([tenantId, sourceId], map: "process_access_source_idx")
   @@map("process_access")
 }
 

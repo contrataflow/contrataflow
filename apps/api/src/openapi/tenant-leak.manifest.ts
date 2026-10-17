@@ -34,6 +34,12 @@ export interface ExemptOperation {
 
 export type TenantLeakCase = CoveredOperation | ExemptOperation;
 
+const PROCESS_PARTICIPANTS_ROUTE =
+  'Participantes do processo (US-012): a suíte genérica não tem processo nem participante do tenant B. O isolamento (PRC-28/29/31/32 com id de processo de B → 404 PROCESS_NOT_FOUND, PRC-30 com participante de B → 404 PARTICIPANT_NOT_FOUND sem revogar nada, usuário ou unidade de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS, FKs compostas e índices únicos de process_participants) é coberto em test/tenant-leak/process-participants.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-participants.routes.spec.ts.';
+
+const USER_LOOKUP_ROUTE =
+  'Busca de usuários para seleção (USR-02 · US-012): sem id no caminho nem referência no corpo; a lista vem dos vínculos do tenant ativo (RLS de tenant_memberships) — usuário só de outro tenant nunca aparece, coberto em src/modules/process/presentation/process-participants.routes.spec.ts.';
+
 const AI_GENERATION_ROUTE =
   'Geração com IA (US-115): a suíte genérica não tem processo, documento nem geração do tenant B. O isolamento (AI-01 no processo de B → 404 PROCESS_NOT_FOUND; AI-02/AI-04 com geração de B → 404 AI_GENERATION_NOT_FOUND sem alterar nada; AI-03 do processo de B → 404; RLS de ai_generations com app.tenant_id diferente retornando vazio; FKs compostas por tenant; job com tenant incorreto) é coberto em test/tenant-leak/ai-generations.spec.ts (PostgreSQL real) e src/modules/ai/presentation/ai-generation.routes.spec.ts.';
 
@@ -265,6 +271,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-16': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-17': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-27': { kind: 'exempt', reason: PROCESS_DUPLICATE_ROUTE },
+  'PRC-28': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
+  'PRC-29': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
+  'PRC-30': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
+  'PRC-31': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
+  'PRC-32': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
   'DOC-01': { kind: 'exempt', reason: DOCUMENT_PANEL_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },
@@ -321,6 +332,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'ROL-11': { kind: 'exempt', reason: ROLE_ASSIGNMENT_ROUTE },
   'ROL-12': { kind: 'exempt', reason: ROLE_ASSIGNMENT_ROUTE },
   'USR-01': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
+  'USR-02': { kind: 'exempt', reason: USER_LOOKUP_ROUTE },
   'USR-03': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
   'USR-04': { kind: 'exempt', reason: USER_ADMIN_ROUTE },
   'USR-05': { kind: 'exempt', reason: USER_ADMIN_ROUTE },

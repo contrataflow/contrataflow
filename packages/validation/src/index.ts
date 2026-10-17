@@ -14,6 +14,7 @@ export * from './identity/membership.js';
 export * from './identity/profile.js';
 export * from './identity/session.js';
 export * from './identity/session-registry.js';
+export * from './identity/user-lookup.js';
 export * from './internal/example.js';
 export * from './notification/index.js';
 export * from './organization/index.js';

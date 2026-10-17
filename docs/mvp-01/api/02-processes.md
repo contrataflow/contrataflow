@@ -736,11 +736,15 @@ Exemplo de 409 `ITEM_IN_USE`:
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`
 - **Request:** —
-- **Response:** `200 { data: Participant[] }`:
+- **Response:** `200 { data: Participant[], meta: { canManage: boolean; me: { participantId: string; role: ParticipantRole } | null } }`:
 ```ts
-Participant { id: string; userId?: string; departmentId?: string; role: ParticipantRole;
-  notify: boolean; expiresAt?: string; grantedAt: string; grantedBy: {id,name}; reason?: string }
+Participant { id: string; processId: string; principalType: 'USER' | 'DEPARTMENT';
+  userId?: string; departmentId?: string;
+  principal: { id: string; name: string; isExternal: boolean };  // nome congelado na leitura; isExternal só para USER
+  role: ParticipantRole; notify: boolean; expiresAt?: string; grantedAt: string;
+  grantedBy: { id: string; name: string }; reason?: string }
 ```
+Ordem: `grantedAt` crescente. Só participações ativas (não revogadas); `CONSULTANT` com `expiresAt` vencido não aparece (RN-PROC-135), mesmo antes do job `participants-expire`. `meta.canManage` (`PROCESS_MANAGE_PARTICIPANTS` cobrindo o processo) e `meta.me` (`{ participantId, role } | null` — a participação do próprio usuário, para o botão "Seguir") orientam a UI.
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -756,7 +760,7 @@ Participant { id: string; userId?: string; departmentId?: string; role: Particip
 
 - **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
 - **Parâmetros:** path `id`
-- **Request:** `{ userId?: string; departmentId?: string; role: ParticipantRole; notify?: boolean; expiresAt?: string; reason?: string }` — exatamente um de `userId`/`departmentId`; `role` padrão `OBSERVER`; `expiresAt` obrigatório e ≤ validade do vínculo externo quando `role="CONSULTANT"` (RN-PROC-127); `notify` padrão `true`; `reason` até 500
+- **Request:** `{ userId?: string; departmentId?: string; role: ParticipantRole; notify?: boolean; expiresAt?: string; reason?: string }` — exatamente um de `userId`/`departmentId`; `role` obrigatório (o diálogo pré-seleciona `OBSERVER`); `expiresAt` futura e só para `CONSULTANT` (nos demais papéis → `NOT_ALLOWED`); `expiresAt` obrigatório e ≤ validade do vínculo externo quando `role="CONSULTANT"` (RN-PROC-127); `notify` padrão `true`; `reason` até 500
 - **Response:** `201 { data: Participant }`
 - **Erros:**
 

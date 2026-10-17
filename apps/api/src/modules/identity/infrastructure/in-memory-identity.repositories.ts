@@ -276,6 +276,7 @@ export class InMemoryIdentityRepository
         .map((membership) => ({
           userId: membership.userId,
           membershipId: membership.id,
+          type: membership.type,
           status: membership.status,
           expiresAt: membership.expiresAt,
           roleKeys: membership.roleKeys,

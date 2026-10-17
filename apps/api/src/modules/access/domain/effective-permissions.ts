@@ -7,6 +7,7 @@ import type {
   EffectivePermissionsSnapshot,
   EffectiveScope,
 } from '#shared/auth/effective-permissions.js';
+import { participationAppliesTo } from '#shared/auth/process-access.js';
 import type {
   ParticipantRole,
   ProcessAccessTarget,
@@ -240,8 +241,7 @@ export class EffectivePermissionSet {
   ): boolean {
     return target.participations.some(
       (participation) =>
-        participation.userId === this.snapshot.userId &&
-        (participation.expiresAt === null || participation.expiresAt.getTime() > now.getTime()) &&
+        participationAppliesTo(participation, this.snapshot, now) &&
         PARTICIPATION_PERMISSIONS[participation.role].has(permission),
     );
   }

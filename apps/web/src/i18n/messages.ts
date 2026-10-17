@@ -18,6 +18,7 @@ import processActions from '../../messages/pt-BR/processActions.json';
 import processes from '../../messages/pt-BR/processes.json';
 import processItems from '../../messages/pt-BR/processItems.json';
 import processList from '../../messages/pt-BR/processList.json';
+import processParticipants from '../../messages/pt-BR/processParticipants.json';
 import profile from '../../messages/pt-BR/profile.json';
 import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
@@ -56,6 +57,7 @@ export const messages = {
   processList,
   processes,
   processItems,
+  processParticipants,
   profile,
   roles,
   settings,

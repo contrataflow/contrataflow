@@ -278,10 +278,17 @@ AND (
    OR EXISTS (SELECT 1 FROM process_access pa
               WHERE pa.tenant_id = p.tenant_id AND pa.process_id = p.id AND pa.revoked_at IS NULL
                 AND (   (pa.principal_type = 'DEPARTMENT' AND pa.department_id = ANY(:deptIds)
-                         AND pa.reason IN ('REQUESTING','CURRENT','HISTORICAL'))
-                     OR (pa.principal_type = 'USER' AND pa.user_id = :userId)))
+                         AND pa.reason IN ('REQUESTING','CURRENT','HISTORICAL','PARTICIPANT'))
+                     OR (pa.principal_type = 'USER' AND pa.user_id = :userId
+                         -- RN-PROC-135: consultor vencido perde a visibilidade antes do job
+                         AND NOT (pa.reason = 'PARTICIPANT' AND EXISTS (
+                               SELECT 1 FROM process_participants pp
+                                WHERE pp.tenant_id = pa.tenant_id AND pp.id = pa.source_id
+                                  AND pp.expires_at IS NOT NULL AND pp.expires_at <= now())))))
 )
 ```
+
+- **Unidade participante (US-012):** a concessão `DEPARTMENT/PARTICIPANT` dá visibilidade a quem tem `PROCESS_VIEW` com escopo que cubra a unidade (como `REQUESTING`/`CURRENT`) e, para a §4, as permissões do papel valem para os usuários **lotados** na unidade participante. Ela não entra no escopo de unidade do perfil (§1.1): permissões de perfil com escopo de unidade não passam a cobrir o processo por força da participação (RN-PROC-131).
 
 | Evento | Concessões `ProcessAccess` mantidas (mesma transação) |
 |---|---|

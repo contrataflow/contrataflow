@@ -7,7 +7,7 @@ import type {
 } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { isProcessVisible } from '#shared/auth/process-access.js';
+import { isProcessVisible, participationAppliesTo } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { VersionConflictError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -166,7 +166,7 @@ export class DocumentLifecycleService {
   ): Promise<Pick<ResolvedDocumentActor, 'userId' | 'isCustodian' | 'isCollaborator'>> {
     const userId = requireRequestContext().actor.userId ?? '';
     const permissions = await this.access.effectivePermissions();
-    const now = Date.now();
+    const now = new Date();
     return {
       userId,
       isCustodian:
@@ -175,9 +175,12 @@ export class DocumentLifecycleService {
           : process.currentResponsibleId === userId,
       isCollaborator: process.access.participations.some(
         (participation) =>
-          participation.userId === userId &&
           participation.role !== 'OBSERVER' &&
-          (participation.expiresAt === null || participation.expiresAt.getTime() > now),
+          participationAppliesTo(
+            participation,
+            { userId, ownDepartmentIds: permissions.snapshot.ownDepartmentIds },
+            now,
+          ),
       ),
     };
   }

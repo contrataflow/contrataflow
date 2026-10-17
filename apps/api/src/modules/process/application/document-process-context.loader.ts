@@ -7,8 +7,8 @@ import type {
   DocumentProcessStage,
 } from '#shared/document/document-process-context.js';
 
-import { PROCESS_REPOSITORY } from './ports.js';
-import type { ProcessRepository } from './ports.js';
+import { PROCESS_CLOCK, PROCESS_REPOSITORY } from './ports.js';
+import type { ProcessClock, ProcessRepository } from './ports.js';
 import { accessGrantsOf } from './process-runtime.loader.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -30,6 +30,7 @@ export class DocumentProcessContextLoader implements DocumentProcessContextReade
     private readonly workflow: WorkflowFacade,
     private readonly tenancy: TenancyFacade,
     private readonly organization: OrganizationFacade,
+    @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
   ) {}
 
   async load(tx: TenantTx, processId: string): Promise<DocumentProcessContext | null> {
@@ -37,7 +38,7 @@ export class DocumentProcessContextLoader implements DocumentProcessContextReade
     if (rows === null) return null;
     const { process } = rows;
     const settings = await this.tenancy.settingValues(tx, [HISTORICAL_SETTING]);
-    const grants = accessGrantsOf(rows.access, settings.get(HISTORICAL_SETTING) !== false);
+    const grants = accessGrantsOf(rows, settings.get(HISTORICAL_SETTING) !== false, this.clock());
     const organization = await this.tenancy.organizationSummary(tx, process.organizationId);
     const names = await this.organization.departmentNames(tx, [
       process.requestingSecretariatId,
@@ -66,6 +67,7 @@ export class DocumentProcessContextLoader implements DocumentProcessContextReade
         departmentIds: grants.departmentIds,
         userIds: grants.userIds,
         participations: grants.participations ?? [],
+        participantDepartmentIds: grants.participantDepartmentIds ?? [],
       },
     };
   }

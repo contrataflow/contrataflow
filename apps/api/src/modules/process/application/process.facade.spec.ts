@@ -14,6 +14,7 @@ import {
 } from '../domain/process-runtime-records.js';
 import { createProcess, draftProcess } from '../domain/process.js';
 import { InMemoryProcessRepository } from '../infrastructure/in-memory-process.repository.js';
+import { InMemoryProcessParticipantRepository } from '../infrastructure/process-participant.repositories.js';
 
 type ConfidentialBudgetAccess = Awaited<ReturnType<AccessFacade['confidentialBudgetAccess']>>;
 
@@ -36,7 +37,8 @@ function inTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
 }
 
 describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)', () => {
-  const repository = new InMemoryProcessRepository();
+  const participants = new InMemoryProcessParticipantRepository();
+  const repository = new InMemoryProcessRepository(participants);
   const workflow = {
     publishedDefinitionIn: () =>
       Promise.resolve({ stages: [{ id: WF_STAGE, name: 'Formalização da demanda' }] }),
@@ -52,7 +54,7 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
   const tenancy = {
     settingValues: () => Promise.resolve(new Map<string, unknown>()),
   } as unknown as TenancyFacade;
-  const facade = new ProcessFacade(repository, workflow, access, tenancy);
+  const facade = new ProcessFacade(repository, workflow, access, tenancy, participants, () => NOW);
   const viewer = (
     userId: string,
     scope: Partial<ConfidentialBudgetAccess['scope']> = {},

@@ -73,6 +73,8 @@ describe('meta-teste de autorização das rotas (US-097 · RN-IAM-101)', () => {
       // US-065: custódia (cancelar), edição de documento e reabertura — aplicadas pelo caso de uso.
       'POL-01',
       'POL-02',
+      // US-012: participantes (elegibilidade e autoinclusão — aplicadas pelo caso de uso).
+      'POL-10',
       'POL-11',
       'POL-12',
       'POL-13',

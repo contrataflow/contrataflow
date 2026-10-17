@@ -48,6 +48,7 @@ import { AttachmentUploaderLookup } from '../files/attachment-uploader.lookup.js
 import { AiProposalsExpireTask } from '../maintenance/ai-proposals-expire.js';
 import { AttachmentsAbandonTask } from '../maintenance/attachments-abandon.js';
 import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.js';
+import { ParticipantsExpireTask } from '../maintenance/participants-expire.js';
 import { PreviewsExpireTask } from '../maintenance/previews-expire.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
 import { EmailSender } from '../notifications/email/email-sender.js';
@@ -170,6 +171,8 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
           new AttachmentsAbandonTask(),
           // US-067 · RN-DOC-68: prévias em PDF vencidas.
           new PreviewsExpireTask(),
+          // US-012 · RN-PROC-134: consultores com validade vencida.
+          new ParticipantsExpireTask(),
         ]),
       );
     const producer = this.producerInstance;

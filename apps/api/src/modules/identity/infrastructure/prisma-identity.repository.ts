@@ -282,11 +282,12 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
     // A extensão de isolamento injeta o tenant; a RLS confirma. Perfis: US-096 (vazio até lá).
     const rows = await tx.tenantMembership.findMany({
       where: { userId: { in: [...userIds] } },
-      select: { id: true, userId: true, status: true, expiresAt: true },
+      select: { id: true, userId: true, type: true, status: true, expiresAt: true },
     });
     return rows.map((row) => ({
       userId: row.userId,
       membershipId: row.id,
+      type: row.type,
       status: row.status,
       expiresAt: row.expiresAt,
       roleKeys: [],

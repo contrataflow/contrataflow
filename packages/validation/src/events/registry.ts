@@ -44,6 +44,8 @@ import {
   ProcessCreated,
   ProcessDuplicated,
   ProcessItemsChanged,
+  ProcessParticipantAdded,
+  ProcessParticipantRemoved,
   ProcessUpdated,
 } from '../process/events.js';
 import { SupplierCreated, SupplierUpdated } from '../supplier/events.js';
@@ -97,6 +99,8 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessDuplicated,
   ProcessUpdated,
   ProcessItemsChanged,
+  ProcessParticipantAdded,
+  ProcessParticipantRemoved,
   SupplierCreated,
   SupplierUpdated,
   RoleCreated,

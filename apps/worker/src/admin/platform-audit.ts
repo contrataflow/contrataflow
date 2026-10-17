@@ -78,7 +78,7 @@ export interface AuditRow {
   readonly result: AuditResult;
   readonly entityType: string | null;
   readonly entityId: string | null;
-  readonly processId: null;
+  readonly processId: string | null;
   readonly changes: null;
   readonly metadata: Readonly<Record<string, Json>>;
   readonly reasonCode: string | null;

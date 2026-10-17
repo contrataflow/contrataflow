@@ -22,6 +22,8 @@ export type LoginRecord =
 export interface TenantMember {
   readonly userId: string;
   readonly membershipId: string;
+  /** `INTERNAL`/`EXTERNAL`/`SERVICE` — Consultor exige `EXTERNAL` (US-012 · POL-10). */
+  readonly type: 'INTERNAL' | 'EXTERNAL' | 'SERVICE';
   readonly status: MembershipStatus;
   readonly expiresAt: Date | null;
   /** Perfis vigentes (`Role.key`); vazio até as atribuições de perfil existirem (US-096). */

@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import {
+  PARTICIPANT_GRANT_CHANNELS,
+  PARTICIPANT_REMOVAL_REASONS,
+  PARTICIPANT_ROLES,
+} from './process-participants.js';
 import { CREATION_CHANNELS, PRIORITIES } from './process.js';
 import { defineDomainEvent } from '../events/define.js';
 
@@ -94,4 +99,49 @@ export const ProcessItemsChanged = defineDomainEvent({
     itemsCount: z.int().min(0),
   }),
   routingKey: 'process.items_changed',
+});
+
+/**
+ * `ProcessParticipantAdded` (US-012 · PRC-29/PRC-31): commit da concessão a um usuário ou unidade
+ * que ainda não participava. Só ids, papel, validade e as flags `notify`/`grantedVia` — nunca nomes
+ * nem o motivo (texto livre). Consumidores: `TimelineProjector` (`PARTICIPANT_ADDED`) no mesmo `tx`;
+ * no worker, `PARTICIPANT_ADDED` ao participante quando `notify` (o ator que segue não recebe —
+ * RN-NTF-02) e o `BusinessMetricsCollector` (`process.*`).
+ */
+export const ProcessParticipantAdded = defineDomainEvent({
+  eventType: 'ProcessParticipantAdded',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z
+    .strictObject({
+      participantId: uuid,
+      userId: uuid.nullable(),
+      departmentId: uuid.nullable(),
+      role: z.enum(PARTICIPANT_ROLES),
+      expiresAt: z.iso.datetime({ offset: true }).nullable(),
+      notify: z.boolean(),
+      grantedVia: z.enum(PARTICIPANT_GRANT_CHANNELS),
+    })
+    .refine((payload) => (payload.userId === null) !== (payload.departmentId === null), {
+      message: 'participante é um usuário ou uma unidade',
+      path: ['userId'],
+    }),
+  routingKey: 'process.participant_added',
+});
+
+/**
+ * `ProcessParticipantRemoved` (US-012 · PRC-30/PRC-32 e job `participants-expire`): revogação
+ * (`REVOKED`) ou expiração do consultor (`EXPIRED`). Consumidores: `TimelineProjector`
+ * (`PARTICIPANT_REMOVED`, nome e papel lidos do participante no mesmo `tx`) e métricas. Sem
+ * notificação (story · "Notificações").
+ */
+export const ProcessParticipantRemoved = defineDomainEvent({
+  eventType: 'ProcessParticipantRemoved',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    participantId: uuid,
+    reason: z.enum(PARTICIPANT_REMOVAL_REASONS),
+  }),
+  routingKey: 'process.participant_removed',
 });

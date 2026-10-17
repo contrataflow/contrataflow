@@ -153,11 +153,14 @@ export function openingMovement(input: {
 export type ProcessAccessReason =
   'REQUESTING' | 'CURRENT' | 'HISTORICAL' | 'CREATOR' | 'RESPONSIBLE' | 'PARTICIPANT' | 'APPROVER';
 
-export type AccessGrant =
+export type AccessGrant = (
   | {
       readonly principalType: 'DEPARTMENT';
       readonly departmentId: string;
-      readonly reason: Extract<ProcessAccessReason, 'REQUESTING' | 'CURRENT' | 'HISTORICAL'>;
+      readonly reason: Extract<
+        ProcessAccessReason,
+        'REQUESTING' | 'CURRENT' | 'HISTORICAL' | 'PARTICIPANT'
+      >;
     }
   | {
       readonly principalType: 'USER';
@@ -166,7 +169,11 @@ export type AccessGrant =
         ProcessAccessReason,
         'CREATOR' | 'RESPONSIBLE' | 'PARTICIPANT' | 'APPROVER'
       >;
-    };
+    }
+) & {
+  /** Origem da concessão (`PARTICIPANT`: o participante — US-012). */
+  readonly sourceId?: string;
+};
 
 /**
  * permissions.md §5 · RN-PROC-14 — concessões da criação: `REQUESTING` para secretaria e setor

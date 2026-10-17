@@ -90,6 +90,36 @@ Processo, itens, participantes, etiquetas, runtime da tramitação e visibilidad
   `test/tenant-leak/process-items.spec.ts` (PostgreSQL: 20 inclusões paralelas, duas fases, rollback,
   RLS e FK composta).
 
+## Participantes (US-012)
+
+- **Rotas:** PRC-28 `GET /processes/{id}/participants` (`PROCESS_VIEW` cobrindo o processo; `meta`
+  `{ canManage, me }`), PRC-29 `POST /processes/{id}/participants` (`@Idempotent`,
+  `PROCESS_MANAGE_PARTICIPANTS` cobrindo o processo no guard + POL-10 no caso de uso), PRC-30
+  `DELETE /process-participants/{participantId}` (corpo opcional; o processo do participante é
+  conferido no caso de uso — não visível = 404 `PARTICIPANT_NOT_FOUND`) e PRC-31/32
+  `POST`/`DELETE /processes/{id}/follow` (`PROCESS_FOLLOW`) — `ProcessParticipantsController`.
+  Contratos e eventos em `packages/validation/src/process/process-participants.ts`/`events.ts`.
+- **Domínio puro:** `domain/process-participants.ts` — `grantRefusal` (RN-PROC-126..128: consultor
+  só usuário `EXTERNAL` ativo e validade ≤ a do vínculo, sem autoinclusão como Colaborador/
+  Consultor, referência inexistente/inativa = 422 sem revelar outro tenant, validade futura),
+  `unfollowDecision` (RN-PROC-133), `isParticipationExpired` (RN-PROC-135).
+- **Efeitos no mesmo `tx`:** `ProcessParticipantRecorder` — `ProcessAccess` `PARTICIPANT`
+  (`source_id` = participante; revogado por `revokeParticipantAccess`), auditoria
+  `process.participant_add`/`_remove` (sem nome nem motivo) e o evento (timeline
+  `PARTICIPANT_ADDED`/`_REMOVED`; o nome vem da fonte `PROCESS_PARTICIPANT` da timeline).
+- **Unicidade:** índices únicos parciais por usuário/unidade ativos; a corrida perdida vira 409
+  `PARTICIPANT_ALREADY_EXISTS` (`ParticipantAlreadyActiveError`).
+- **Autorização e visibilidade:** o runtime (`accessGrantsOf`) traz as participações não vencidas
+  (`participations`, inclusive de unidade — vale para os lotados) e as unidades participantes só
+  para visibilidade (`participantDepartmentIds` — nunca no escopo de unidade do perfil). Consultor
+  vencido perde a visibilidade antes do job (runtime e `buildVisibilityPredicate`).
+- **Expiração:** job `participants-expire` do worker (`apps/worker/src/maintenance/
+participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAccess`, timeline,
+  auditoria `SYSTEM` e outbox na transação do tenant.
+- **Testes:** `domain/process-participants.spec.ts`, `presentation/process-participants.routes.spec.ts`
+  e `test/tenant-leak/process-participants.spec.ts` (PostgreSQL: concorrência no índice único,
+  rollback induzido, consultor vencido no predicado SQL, RLS, FK composta e gatilho).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

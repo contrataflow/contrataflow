@@ -52,6 +52,7 @@ import { RecordSessionTenantCommand } from './application/record-session-tenant.
 import { ResetUserMfaCommand } from './application/reset-user-mfa.command.js';
 import { StartSessionCommand } from './application/start-session.command.js';
 import { UpdateMyProfileCommand } from './application/update-my-profile.command.js';
+import { UserLookupQuery } from './application/user-lookup.query.js';
 import { AuditTrailSessionRecorder } from './infrastructure/audit-trail-session.recorder.js';
 import {
   AuthentikAdminClient,
@@ -251,6 +252,7 @@ function identityProviders(): Provider[] {
     UpdateMembershipDepartmentsCommand,
     ChangeMembershipStatusCommand,
     ResetUserMfaCommand,
+    UserLookupQuery,
   ],
   exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT, PLATFORM_OPERATOR_PORT],
 })

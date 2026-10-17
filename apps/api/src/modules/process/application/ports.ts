@@ -1,6 +1,6 @@
 import type { DayCountType, ProcessStageStatus, ProcessStatus } from '@contrataflow/validation';
 
-import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
+import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { ProcessItem } from '../domain/process-items.js';
@@ -9,6 +9,7 @@ import type {
   ProcessListFacts,
   ProcessListOrder,
 } from '../domain/process-list.js';
+import type { ProcessParticipant } from '../domain/process-participants.js';
 import type {
   AccessGrant,
   ProcessAssignmentRecord,
@@ -132,11 +133,22 @@ export interface ProcessAccessRow {
   readonly reason: string;
 }
 
+/** Participação não revogada como o runtime a lê (US-012 — a validade é conferida no uso). */
+export interface ProcessParticipantRow {
+  readonly id: string;
+  readonly userId: string | null;
+  readonly departmentId: string | null;
+  readonly role: ParticipantRole;
+  readonly expiresAt: Date | null;
+}
+
 /** Processo + passagens + concessões ativas lidos numa ÚNICA instrução (um snapshot). */
 export interface ProcessAggregateRows {
   readonly process: Process;
   readonly stages: readonly ProcessStageRow[];
   readonly access: readonly ProcessAccessRow[];
+  /** Participações não revogadas (US-012). */
+  readonly participants: readonly ProcessParticipantRow[];
   readonly situation: ProcessSituationRow;
 }
 
@@ -230,6 +242,10 @@ export interface ProcessRepository {
    */
   touchProcess(tx: TenantTx, processId: string, at: Date, userId: string): Promise<number>;
   /**
+   * US-012: revoga (`revokedAt`) a concessão `PARTICIPANT` ativa cuja origem é o participante.
+   */
+  revokeParticipantAccess(tx: TenantTx, participantId: string, at: Date): Promise<void>;
+  /**
    * RN-PROC-62: concessões `REQUESTING` iguais à secretaria e ao setor solicitantes ATUAIS do
    * processo — revoga (`revokedAt`) as anteriores e concede as novas, no `tx`.
    */
@@ -292,3 +308,46 @@ export interface ProcessItemRepository {
 }
 
 export const PROCESS_ITEM_REPOSITORY = Symbol('ProcessItemRepository');
+
+/** RN-PROC-129: já existe participação ativa do mesmo usuário/unidade (índice único parcial). */
+export class ParticipantAlreadyActiveError extends Error {
+  constructor() {
+    super('Participante já ativo no processo.');
+    this.name = 'ParticipantAlreadyActiveError';
+  }
+}
+
+/** Nome congelado e papel de um participante (fonte `PROCESS_PARTICIPANT` da timeline). */
+export interface ProcessParticipantReference {
+  readonly userId: string | null;
+  readonly departmentId: string | null;
+  readonly role: ParticipantRole;
+}
+
+/**
+ * Participantes do processo (US-012 · `process_participants`): sempre no `tx` do caso de uso. A
+ * unicidade do participante ativo é do banco (índices únicos parciais — RN-PROC-129).
+ */
+export interface ProcessParticipantRepository {
+  /** Participações não revogadas do processo (inclusive vencidas — quem lê decide). */
+  listActive(tx: TenantTx, processId: string): Promise<ProcessParticipant[]>;
+  /** Participação não revogada do usuário (ou da unidade) no processo. */
+  findActive(
+    tx: TenantTx,
+    processId: string,
+    principal: { readonly userId: string } | { readonly departmentId: string },
+  ): Promise<ProcessParticipant | null>;
+  /** `SELECT … FOR UPDATE` na participação não revogada (`null` = inexistente, revogada ou de outro tenant). */
+  lockActive(tx: TenantTx, participantId: string): Promise<ProcessParticipant | null>;
+  /** @throws ParticipantAlreadyActiveError */
+  insert(tx: TenantTx, participant: ProcessParticipant): Promise<void>;
+  /** Grava `revokedAt`, `revokedById` e `revocationReason` (só se ainda ativa). */
+  revoke(tx: TenantTx, participant: ProcessParticipant): Promise<void>;
+  /** Principal e papel de participações (revogadas ou não) do tenant da transação. */
+  references(
+    tx: TenantTx,
+    participantIds: readonly string[],
+  ): Promise<Map<string, ProcessParticipantReference>>;
+}
+
+export const PROCESS_PARTICIPANT_REPOSITORY = Symbol('ProcessParticipantRepository');

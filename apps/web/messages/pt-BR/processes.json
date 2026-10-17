@@ -309,8 +309,7 @@
       "count": "{label} ({count})",
       "soon": {
         "tramitacao": "O histórico de tramitação estará disponível em breve. As passagens por etapa aparecem no stepper.",
-        "comentarios": "Os comentários do processo estarão disponíveis em breve.",
-        "participantes": "A gestão de participantes estará disponível em breve."
+        "comentarios": "Os comentários do processo estarão disponíveis em breve."
       }
     },
     "errors": {

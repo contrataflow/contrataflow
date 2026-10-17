@@ -337,7 +337,8 @@ export class GetProcessSummaryQuery {
         documents: documents.length,
         items: runtime.ruleProcess.itemsCount,
         comments: 0,
-        participants: 0,
+        // US-012: participações ativas e válidas (as vencidas já saem do runtime — RN-PROC-135).
+        participants: runtime.access.participations?.length ?? 0,
       },
       version: process.version,
     };

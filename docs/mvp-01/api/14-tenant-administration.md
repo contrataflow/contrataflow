@@ -162,12 +162,12 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 ### USR-02 — Buscar usuários para seleção (lookup)
 `GET /api/v1/users/lookup` · **Permissão:** implícita (vínculo ativo no tenant) · **Story:** US-092
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** query `q` (string, Não, busca textual mín. 2 caracteres), `departmentId` (uuid, Não) — **contrato não detalhado na story**; parâmetros derivados por analogia a `DEP-02`
+- **Parâmetros:** query `q` (string, Sim, mín. 2 e máx. 100 caracteres — nome ou e-mail, sem acento e sem distinção de maiúsculas)
 - **Request:** —
-- **Response:** `200 { data: { id, name, email }[] }` — campos mínimos para seletor; **a definir na implementação**
-- **Erros:** —
+- **Response:** `200 { data: { id: string; name: string; email: string; membershipType: 'INTERNAL' | 'EXTERNAL'; membershipExpiresAt: string | null }[] }` — até 20 usuários com vínculo `ACTIVE` (e não vencido) no tenant ativo, por nome; `id` = `userId`. Vínculos de serviço ficam de fora.
+- **Erros:** 422 `VALIDATION_ERROR` (`q` ausente/curto)
 - **Efeitos:** —
-- **Notas:** Endpoint sem contrato explícito nas stories da seção; sinalizado como lacuna na resposta.
+- **Notas:** Contrato definido na US-012 (seletor de participantes — SCR-112): `membershipType`/`membershipExpiresAt` permitem sugerir o papel Consultor e limitar a validade (RN-PROC-127).
 
 ### USR-03 — Convidar usuário
 `POST /api/v1/users/invitations` · **Permissão:** `USER_INVITE` · **Story:** US-091

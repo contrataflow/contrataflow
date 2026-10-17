@@ -453,6 +453,11 @@ export interface ProcessApiOptions {
   documentTypes?: Handler;
   /** PRC-27 (US-011): `POST /processes/{id}/duplicate`. */
   duplicate?: Handler;
+  /**
+   * PRC-28..32 e as buscas USR-02/DEP-02 (US-012): `/processes/{id}/participants`,
+   * `/process-participants/{id}`, `/processes/{id}/follow`, `/users/lookup` e `/departments/lookup`.
+   */
+  participants?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -554,6 +559,17 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (method === 'GET' && url.startsWith('/api/v1/document-types')) {
       return respond(options.documentTypes, () => jsonResponse({ data: [] }));
+    }
+    if (
+      url.includes(`/processes/${PROCESS_ID}/participants`) ||
+      url.includes(`/processes/${PROCESS_ID}/follow`) ||
+      url.startsWith('/api/v1/process-participants/') ||
+      url.startsWith('/api/v1/users/lookup') ||
+      url.startsWith('/api/v1/departments/lookup')
+    ) {
+      return respond(options.participants, () =>
+        jsonResponse({ data: [], meta: { canManage: false, me: null } }),
+      );
     }
     if (url.includes('/available-actions')) {
       return respond(options.actions, () => jsonResponse({ data: [] }));

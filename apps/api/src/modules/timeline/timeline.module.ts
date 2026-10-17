@@ -24,6 +24,7 @@ import { PrismaTimelineEntryStore } from './infrastructure/prisma-timeline-entry
 import {
   DepartmentLookupSource,
   ProcessLookupSource,
+  ProcessParticipantLookupSource,
   ProcessStageLookupSource,
 } from './infrastructure/process-lookup.sources.js';
 import {
@@ -72,18 +73,21 @@ import { ProcessModule } from '../process/process.module.js';
     DepartmentLookupSource,
     ProcessLookupSource,
     ProcessStageLookupSource,
+    ProcessParticipantLookupSource,
     DocumentLookupSource,
     DocumentVersionLookupSource,
     AttachmentLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
       // US-001: unidade, processo e etapa das referências de `ProcessCreated`. US-065: documento e
-      // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`).
+      // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`). US-012: participante
+      // (`PARTICIPANT_REMOVED`).
       inject: [
         IdentityUserLookupSource,
         DepartmentLookupSource,
         ProcessLookupSource,
         ProcessStageLookupSource,
+        ProcessParticipantLookupSource,
         DocumentLookupSource,
         DocumentVersionLookupSource,
         AttachmentLookupSource,

@@ -420,6 +420,21 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Item em uso',
     detail: 'Este item está em uso em documentos do processo.',
   },
+  PARTICIPANT_NOT_ELIGIBLE: {
+    status: 422,
+    title: 'Participante não elegível',
+    detail: 'Este usuário não pode receber o papel selecionado.',
+  },
+  PARTICIPANT_ALREADY_EXISTS: {
+    status: 409,
+    title: 'Participante já existe',
+    detail: 'Esta pessoa (ou unidade) já participa do processo.',
+  },
+  PARTICIPANT_NOT_FOUND: {
+    status: 404,
+    title: 'Participante não encontrado',
+    detail: 'Este participante não existe mais.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

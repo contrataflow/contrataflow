@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { IdentityFacade } from '#modules/identity/application/identity.facade.js';
 import { OrganizationFacade } from '#modules/organization/application/organization.facade.js';
 import { ProcessFacade } from '#modules/process/application/process.facade.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -57,5 +58,42 @@ export class ProcessStageLookupSource implements TimelineLookupSource<'PROCESS_S
   ): Promise<ReadonlyMap<string, TimelineLookupRecords['PROCESS_STAGE']>> {
     const names = await this.processes.stageNames(tx, ids);
     return new Map([...names].map(([id, name]) => [id, { name }]));
+  }
+}
+
+/**
+ * Fonte `PROCESS_PARTICIPANT` (US-012): nome do usuário (`identity`) ou da unidade
+ * (`organization`) e o papel do participante — revogado inclusive (`PARTICIPANT_REMOVED`).
+ */
+@Injectable()
+export class ProcessParticipantLookupSource implements TimelineLookupSource<'PROCESS_PARTICIPANT'> {
+  readonly kind = 'PROCESS_PARTICIPANT';
+
+  constructor(
+    private readonly processes: ProcessFacade,
+    private readonly identity: IdentityFacade,
+    private readonly organization: OrganizationFacade,
+  ) {}
+
+  async lookup(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, TimelineLookupRecords['PROCESS_PARTICIPANT']>> {
+    const refs = await this.processes.participantReferences(tx, ids);
+    const userNames = await this.identity.userDisplayNames(tx, [
+      ...new Set([...refs.values()].flatMap((ref) => ref.userId ?? [])),
+    ]);
+    const departmentNames = await this.organization.departmentNames(tx, [
+      ...new Set([...refs.values()].flatMap((ref) => ref.departmentId ?? [])),
+    ]);
+    const records = new Map<string, TimelineLookupRecords['PROCESS_PARTICIPANT']>();
+    for (const [id, ref] of refs) {
+      const name =
+        ref.userId !== null
+          ? userNames.get(ref.userId)
+          : departmentNames.get(ref.departmentId ?? '');
+      if (name !== undefined) records.set(id, { name, role: ref.role });
+    }
+    return records;
   }
 }

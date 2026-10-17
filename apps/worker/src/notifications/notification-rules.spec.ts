@@ -299,6 +299,16 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
     ]);
   });
 
+  it('PARTICIPANT_ADDED: notify = false não avisa (US-012 · RN-PROC-130)', () => {
+    expect(
+      planNotification(envelope('ProcessParticipantAdded', { userId: USER, notify: false })),
+    ).toMatchObject({ kind: 'ignored' });
+    expect(
+      notify(planNotification(envelope('ProcessParticipantAdded', { userId: USER, notify: true })))
+        .type,
+    ).toBe('PARTICIPANT_ADDED');
+  });
+
   it('ATTACHMENT_REJECTED (obrigatória): quem enviou; texto conforme o motivo', () => {
     const infected = notify(
       planNotification(

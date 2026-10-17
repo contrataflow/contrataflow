@@ -95,6 +95,10 @@ export const ERROR_CODES = [
   'ITEM_IN_USE',
   // US-067: download de PDF antes de `READY` ou de prévia vencida (api/03-documents.md DOC-23).
   'RENDITION_NOT_READY',
+  // US-012: participantes do processo (api.md §2.2 · api/02-processes.md PRC-29/30 · POL-10).
+  'PARTICIPANT_NOT_ELIGIBLE',
+  'PARTICIPANT_ALREADY_EXISTS',
+  'PARTICIPANT_NOT_FOUND',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

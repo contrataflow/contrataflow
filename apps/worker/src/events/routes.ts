@@ -200,6 +200,11 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-006: timeline projetada no mesmo `tx`; no worker só o `BusinessMetricsCollector`
     // (`process.*`). Sem notificação (alteração sob custódia — story · "Notificações").
     ProcessItemsChanged: ['process.items_changed'],
+    // US-012: timeline e `ProcessAccess` no mesmo `tx` (síncronos); no worker, o aviso
+    // `PARTICIPANT_ADDED` (com `notify`) e o `BusinessMetricsCollector` (`process.*`). A remoção
+    // (manual ou pelo job `participants-expire`) não notifica (story · "Notificações").
+    ProcessParticipantAdded: ['process.participant_added'],
+    ProcessParticipantRemoved: ['process.participant_removed'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

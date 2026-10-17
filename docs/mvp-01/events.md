@@ -84,7 +84,7 @@ Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = 
 | ↳ `ProcessCompleted` | `process.status_changed.completed` | US-010, US-052 | — | — |
 | `ProcessDuplicated` | `process.duplicated` | US-011 | `sourceProcessId`, `newProcessId`, `options {copyDocuments, copyAttachments}` | T |
 | `ProcessDraftDiscarded` | `process.draft_discarded` | US-009 (rascunho sem número) | `reasonProvided` | M |
-| `ProcessParticipantAdded` | `process.participant_added` | US-012 | `participantId`, `userId?`, `departmentId?`, `role`, `expiresAt?` | T A N |
+| `ProcessParticipantAdded` | `process.participant_added` | US-012 | `participantId`, `userId?`, `departmentId?`, `role`, `expiresAt?`, `notify`, `grantedVia` (`MANAGE`, `FOLLOW`) | T A N |
 | `ProcessParticipantRemoved` | `process.participant_removed` | US-012; job de expiração | `participantId`, `reason` (`REVOKED`, `EXPIRED`) | T A |
 | `ProcessConfidentialityChanged` | `process.confidentiality_changed` | US-013 | `isBudgetConfidential` | T |
 | `ProcessStageDueSoon` | `process.stage_due_soon` | Job `deadlines` (US-055) | `processStageId`, `stageKey`, `dueAt`, `businessDaysLeft`, `assigneeId?`, `departmentId` | N |
@@ -270,7 +270,7 @@ Registro `NotificationType`. Canais padrão: in-app sempre; e-mail conforme colu
 | `COMMENT_REPLY` | `CommentCreated` com `parentId` | Autor do comentário pai (se ≠ ator) | não | não |
 | `STAGE_DUE_SOON` | `ProcessStageDueSoon` | Responsável; se não houver, titular da unidade | não | não |
 | `STAGE_OVERDUE` | `ProcessStageOverdue` | Responsável e titular da unidade | ✔ | não |
-| `PARTICIPANT_ADDED` | `ProcessParticipantAdded` | Participante adicionado (exceto quando o próprio ator se adiciona — "seguir", PRC-31) | ✔ | não |
+| `PARTICIPANT_ADDED` | `ProcessParticipantAdded` | Participante adicionado com `notify = true` (exceto quando o próprio ator se adiciona — "seguir", PRC-31) | ✔ | não |
 | `ATTACHMENT_REJECTED` | `AttachmentRejected` | Quem enviou | não | **sim** |
 | `DOCUMENT_RENDER_FAILED` | `DocumentRenditionFailed` (após esgotar tentativas) | Quem solicitou a renderização | não | não |
 | `ROLE_CHANGED` | `RoleAssigned`/`RoleRevoked` | Usuário afetado (aviso de segurança) | ✔ | **sim** |

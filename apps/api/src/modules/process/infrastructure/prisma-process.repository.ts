@@ -26,6 +26,7 @@ import type {
   ProcessListPage,
   ProcessListSearch,
   ProcessAccessRow,
+  ProcessParticipantRow,
   ProcessAggregateRows,
   ProcessCreation,
   ProcessRepository,
@@ -140,6 +141,10 @@ interface ProcessRow {
     readonly overdueSince: string | null;
   }[];
   readonly access: readonly ProcessAccessRow[];
+  /** `expiresAt` chega como texto ISO do `jsonb`. */
+  readonly participants: readonly (Omit<ProcessParticipantRow, 'expiresAt'> & {
+    readonly expiresAt: string | null;
+  })[];
 }
 
 function toProcess(row: ProcessRow): Process {
@@ -350,9 +355,17 @@ export class PrismaProcessRepository implements ProcessRepository {
         departmentId: grant.principalType === 'DEPARTMENT' ? grant.departmentId : null,
         userId: grant.principalType === 'USER' ? grant.userId : null,
         reason: grant.reason,
+        sourceId: grant.sourceId ?? null,
         grantedAt,
       })),
       skipDuplicates: true,
+    });
+  }
+
+  async revokeParticipantAccess(tx: TenantTx, participantId: string, at: Date): Promise<void> {
+    await tx.processAccess.updateMany({
+      where: { reason: 'PARTICIPANT', sourceId: participantId, revokedAt: null },
+      data: { revokedAt: at },
     });
   }
 
@@ -561,7 +574,16 @@ export class PrismaProcessRepository implements ProcessRepository {
                         'userId', a.user_id, 'reason', a.reason))
                  FROM process_access a
                 WHERE a.tenant_id = p.tenant_id AND a.process_id = p.id AND a.revoked_at IS NULL
-             ), '[]'::jsonb) AS access
+             ), '[]'::jsonb) AS access,
+             COALESCE((
+               SELECT jsonb_agg(jsonb_build_object(
+                        'id', pp.id, 'userId', pp.user_id, 'departmentId', pp.department_id,
+                        'role', pp.role, 'expiresAt', pp.expires_at)
+                      ORDER BY pp.granted_at, pp.id)
+                 FROM process_participants pp
+                WHERE pp.tenant_id = p.tenant_id AND pp.process_id = p.id
+                  AND pp.revoked_at IS NULL
+             ), '[]'::jsonb) AS participants
         FROM processes p
        WHERE p.tenant_id = current_setting('app.tenant_id')::uuid
          AND p.id = ${processId}::uuid
@@ -572,6 +594,10 @@ export class PrismaProcessRepository implements ProcessRepository {
       process: toProcess(row),
       stages: row.stages.map(toStage),
       access: row.access,
+      participants: row.participants.map((participant) => ({
+        ...participant,
+        expiresAt: participant.expiresAt === null ? null : new Date(participant.expiresAt),
+      })),
       situation: toSituation(row),
     };
   }

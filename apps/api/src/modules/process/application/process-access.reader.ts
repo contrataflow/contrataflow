@@ -25,6 +25,7 @@ export class ProcessRuntimeAccessReader implements ProcessAccessReader {
       departmentIds: runtime.access.departmentIds,
       userIds: runtime.access.userIds,
       participations: runtime.access.participations ?? [],
+      participantDepartmentIds: runtime.access.participantDepartmentIds ?? [],
     };
   }
 }
