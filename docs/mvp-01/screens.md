@@ -643,7 +643,7 @@ flowchart TD
   - lista: `WorkflowList`, `DefaultBadge`, `SetDefaultButton`
   - editor: `StageTable` (ordenável), `StagePropertiesPanel`, `TransitionList`, `TransitionForm`, `CreateDraftButton`
   - versões: `VersionList`, `ValidationResultPanel` (`errors[]`/`warnings[]` com link para `stageKey`/`transitionKey`/`ruleId`), `PublishDialog` (notas da versão), `RetireConfirmDialog`
-  - diagrama: `WorkflowDiagram` (React Flow), `useElkLayout` (elkjs), `StageNode`, `TransitionEdge`, `VersionSwitcher`, `DiagramFallbackList`
+  - diagrama: `WorkflowDiagram` (quadro próprio com zoom/pan/minimapa), `useDiagramLayout` (layout hierárquico em camadas próprio — sem React Flow/elkjs, dependências novas fora do catálogo, RN-FND-11, decisão de 2026-10-16), `StageNode`, `TransitionEdge`, `VersionSwitcher`, `DiagramFallbackList`
 - **Dados e endpoints:**
   - WF-01 (listar), WF-02 (criar), WF-03 (detalhe), WF-04 (atualizar, IM)
   - WF-05 (tornar padrão, IM), WF-06 (resolver aplicabilidade)

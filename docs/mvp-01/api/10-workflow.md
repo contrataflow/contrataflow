@@ -153,11 +153,13 @@
 - **Parâmetros:** path `versionId` (uuid, obrigatório)
 - **Request:** —
 - **Response:** `200 { data: WorkflowVersion }` com `stages: WorkflowStage[]`, `transitions: WorkflowTransition[]` e `rules: WorkflowRule[]` embutidos · `ETag` = `WorkflowVersion.version` (incrementado a cada escrita no rascunho — RN-WF-06); versão publicada/aposentada servida do `definitionSnapshot` (FA-07 da US-040)
+- **Consistência (US-046 · Concorrência):** a leitura do rascunho é um snapshot inteiro — etapas, transições, regras e `ETag` do mesmo instante, nunca parcial. Como a transação é `READ COMMITTED` e toda escrita no rascunho trava a versão e sobe `version`, a leitura confere `version` antes e depois de carregar a definição e refaz (até 3 vezes) se mudou; persistindo a mudança, `503 DEPENDENCY_UNAVAILABLE` (nova tentativa).
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `WORKFLOW_VIEW` |
   | 404 | `NOT_FOUND` | Inexistente/outro tenant |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível ou rascunho mudando a cada leitura (3 tentativas) |
 - **Efeitos:** —
 - **Notas:** base para o editor (US-043) e para o diagrama (US-046, com `key`/`name`/`type`/`color`/`groupLabel` por etapa e `key`/`name`/`action`/`isPrimary` por transição — RN-WF-72); visualização não gera auditoria.
 

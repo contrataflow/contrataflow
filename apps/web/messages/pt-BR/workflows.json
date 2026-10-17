@@ -100,7 +100,8 @@
       "label": "Partes do workflow",
       "stages": "Etapas",
       "transitions": "Transições",
-      "versions": "Versões"
+      "versions": "Versões",
+      "diagram": "Diagrama"
     },
     "warnings": {
       "title": "Avisos do fluxo",
@@ -518,6 +519,63 @@
       "mfa": "Confirme sua identidade com o segundo fator para publicar workflows.",
       "unavailable": "Serviço temporariamente indisponível. Tente novamente em instantes.",
       "generic": "Não foi possível concluir a operação."
+    }
+  },
+  "diagram": {
+    "title": "Diagrama",
+    "hint": "Visão somente leitura das etapas e transições da versão. Para alterar, use as abas Etapas e Transições.",
+    "loading": "Carregando o diagrama…",
+    "loadFailed": "Não foi possível carregar o diagrama agora. Tente novamente.",
+    "retry": "Tentar novamente",
+    "notFound": "Workflow não encontrado.",
+    "backToList": "Voltar para a lista de workflows",
+    "forbidden": "Você não tem permissão para ver este workflow.",
+    "empty": "Nenhuma etapa criada ainda",
+    "retired": "Esta versão está aposentada",
+    "layoutFailed": "Não foi possível desenhar o diagrama; veja a lista abaixo.",
+    "version": "Versão exibida",
+    "versionOption": "Versão {number} — {status}",
+    "stagesLabel": "Etapas do diagrama",
+    "transitionsLabel": "Transições do diagrama",
+    "minimap": "Minimapa: clique para centralizar o diagrama nesse ponto",
+    "controls": {
+      "label": "Controles do diagrama",
+      "zoomIn": "Aproximar",
+      "zoomOut": "Afastar",
+      "fit": "Ajustar à tela",
+      "minimap": "Minimapa",
+      "zoomLevel": "Zoom {percent}%",
+      "hint": "Arraste o fundo para mover o desenho e use a roda do mouse ou os botões para o zoom. Clique numa etapa ou transição para ver os detalhes."
+    },
+    "node": {
+      "label": "Etapa {name}, tipo {type}",
+      "group": "Grupo {group}",
+      "sla": "SLA {sla}"
+    },
+    "edge": {
+      "label": "Transição {name}: {from} → {to}",
+      "primary": "Ação principal"
+    },
+    "warnings": {
+      "unreachable": "Aviso: não pode ser alcançada a partir da etapa inicial",
+      "noEnd": "Aviso: a partir dela não é possível chegar ao fim do fluxo",
+      "both": "Aviso: não pode ser alcançada a partir da etapa inicial nem leva ao fim do fluxo"
+    },
+    "details": {
+      "stageTitle": "Etapa {name}",
+      "transitionTitle": "Transição {name}",
+      "readOnly": "Somente leitura. Para alterar, use as abas Etapas e Transições.",
+      "close": "Fechar",
+      "group": "Grupo",
+      "sla": "SLA",
+      "route": "Origem → destino",
+      "yes": "Sim",
+      "no": "Não"
+    },
+    "fallback": {
+      "stages": "Etapas",
+      "transitions": "Transições",
+      "none": "Nenhuma transição."
     }
   }
 }

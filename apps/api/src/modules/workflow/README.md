@@ -107,6 +107,18 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
 - **Front:** aba "Versões" do editor (`apps/web/src/features/workflows/workflow-versions.tsx` e o
   modelo puro `workflow-versions-model.ts`).
 
+## Diagrama do workflow (US-046)
+
+- **Sem endpoint novo:** a aba "Diagrama" do SCR-034 lê WF-09 e WF-07 (RN-WF-71).
+- **WF-09 consistente (`GetWorkflowVersionQuery`):** o rascunho é lido numa transação só, com a
+  `version` conferida antes e depois de `loadDefinition`; mudou (escrita confirmada entre os
+  SELECTs em `READ COMMITTED`) → refaz, até 3 vezes, e depois 503 `DEPENDENCY_UNAVAILABLE`.
+  Publicada/aposentada segue pelo `definitionSnapshot` (imutável).
+- **Front:** `apps/web/src/features/workflows/workflow-diagram.tsx` e o modelo puro
+  `workflow-diagram-model.ts` (layout em camadas, alcançabilidade RN-WF-74 com as ações de avanço,
+  viewport); logs de front `workflow.diagram_viewed`/`workflow.diagram_layout_failed` por
+  `apps/web/src/lib/client-log.ts`.
+
 ## Regras de etapa e de transição (US-044)
 
 - **CRUD (WF-16/17/18):** os comandos da US-040 (`workflow-rule.commands.ts`). RN-WF-56:

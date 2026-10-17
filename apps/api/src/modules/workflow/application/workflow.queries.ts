@@ -7,6 +7,7 @@ import type {
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
+import { DatabaseUnavailableError } from '#shared/database/errors.js';
 import { pageResult, pageWindow } from '#shared/http/pagination.js';
 import type { PageResult } from '#shared/http/pagination.js';
 
@@ -22,8 +23,11 @@ import {
 } from './workflow.view.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
+import type { WorkflowVersion } from '../domain/workflow-definition.js';
 
 const MAX_PAGE_SIZE = 100;
+/** Leituras do rascunho até um snapshot estável (escrita concorrente entre os SELECTs). */
+const SNAPSHOT_ATTEMPTS = 3;
 
 /** `WORKFLOW_VIEW` (leituras WF-03/07/09 — permissions.md §1.1). */
 async function authorizeView(access: AccessFacade, identity: IdentityFacade): Promise<void> {
@@ -156,12 +160,32 @@ export class GetWorkflowVersionQuery {
 
   async execute(versionId: string): Promise<WorkflowVersionDetailDto> {
     await authorizeView(this.access, this.identity);
-    const version = await this.transactions.read((tx) => this.workflows.findVersion(tx, versionId));
-    if (!version) throw workflowVersionNotFound();
-    if (version.status !== 'DRAFT') {
-      const snapshot = await this.definitions.publishedDefinition(version.id);
-      if (snapshot) return toVersionDetailFromSnapshot(version, snapshot);
+    for (let attempt = 1; ; attempt += 1) {
+      const read = await this.transactions.read(async (tx) => {
+        const version = await this.workflows.findVersion(tx, versionId);
+        if (version?.status !== 'DRAFT') return { version, definition: null, after: null };
+        const definition = await this.workflows.loadDefinition(tx, version.id);
+        return { version, definition, after: await this.workflows.findVersion(tx, version.id) };
+      });
+      const { version, definition, after } = read;
+      if (!version) throw workflowVersionNotFound();
+      if (definition === null) return this.immutable(version);
+      // Snapshot consistente (US-046 · Concorrência): toda escrita no rascunho trava a linha da
+      // versão e sobe `version` na mesma transação; em READ COMMITTED cada SELECT vê o seu próprio
+      // instante, então só vale a leitura em que a versão não mudou entre o primeiro e o último.
+      if (after?.status === version.status && after.version === version.version) {
+        return toVersionDetailDto(version, definition);
+      }
+      if (attempt >= SNAPSHOT_ATTEMPTS) {
+        throw new DatabaseUnavailableError(new Error('workflow_version_snapshot_unstable'));
+      }
     }
+  }
+
+  /** Publicada/aposentada: o snapshot imutável (ou as linhas, já imutáveis pelos gatilhos). */
+  private async immutable(version: WorkflowVersion): Promise<WorkflowVersionDetailDto> {
+    const snapshot = await this.definitions.publishedDefinition(version.id);
+    if (snapshot) return toVersionDetailFromSnapshot(version, snapshot);
     const definition = await this.transactions.read((tx) =>
       this.workflows.loadDefinition(tx, version.id),
     );

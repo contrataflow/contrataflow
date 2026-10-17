@@ -3,10 +3,11 @@
 // (criar workflow, adicionar etapas e transição, recarregar e confirmar a persistência, "Criar
 // rascunho" a partir da publicada, reordenação pelo teclado), as regras do SCR-035 (US-044: criar
 // `REQUIRED_DOCUMENT`, testá-la contra um processo e salvar), a aba "Versões" (US-045: validar →
-// corrigir → publicar; a corrente única não é aposentada), axe-core em cada estado e a largura
-// de 360 px. A API é simulada (support/mock-api.mjs); seeder, aplicabilidade
-// (WF-06), concorrência e isolamento por tenant são cobertos nos testes da API (módulo `workflow`
-// e suíte tenant leak). A criação de processo de dispensa resolvendo o workflow chega com a US-001.
+// corrigir → publicar; a corrente única não é aposentada), o diagrama (US-046: só leitura,
+// detalhes, versão aposentada), axe-core em cada estado e a largura de 360 px. A API é simulada
+// (support/mock-api.mjs); seeder, aplicabilidade (WF-06), concorrência e isolamento por tenant são
+// cobertos nos testes da API (módulo `workflow` e suíte tenant leak). A criação de processo de
+// dispensa resolvendo o workflow chega com a US-001.
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -186,6 +187,60 @@ test('versões (US-045): validar → corrigir → publicar; a corrente única n�
     versions.getByRole('button', { name: 'Aposentar a versão 2' }).first(),
   ).toBeDisabled();
   await expectNoSeriousA11yViolations(page, 'histórico de versões');
+});
+
+test('diagrama (US-046): nós e arestas só leitura, detalhes e a versão aposentada', async ({
+  page,
+}) => {
+  await openList(page);
+  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('tab', { name: 'Diagrama' }).click();
+  const diagram = page.getByRole('tabpanel', { name: 'Diagrama' });
+  await expect(
+    diagram.getByRole('list', { name: 'Etapas do diagrama' }).getByRole('button'),
+  ).toHaveCount(2);
+  await expect(
+    diagram.getByRole('list', { name: 'Transições do diagrama' }).getByRole('button'),
+  ).toHaveCount(1);
+  await diagram.getByRole('button', { name: /^Etapa Parecer jurídico, tipo Tarefa/ }).click();
+  await expect(
+    diagram.getByRole('complementary', { name: 'Etapa Parecer jurídico' }),
+  ).toBeVisible();
+  // RN-WF-70: nada se cria, edita ou exclui a partir do diagrama.
+  await expect(diagram.getByRole('button', { name: /Adicionar|Excluir|Salvar/ })).toHaveCount(0);
+  await diagram.getByRole('button', { name: 'Aproximar' }).click();
+  await diagram.getByRole('button', { name: 'Ajustar à tela' }).click();
+  await expectNoSeriousA11yViolations(page, 'diagrama do workflow');
+
+  // FA-03: a versão aposentada abre normalmente, com o aviso no topo.
+  await openList(page);
+  await page.getByRole('link', { name: STANDARD }).click();
+  await page.getByRole('tab', { name: 'Diagrama' }).click();
+  await diagram.getByLabel('Versão exibida').selectOption({ label: 'Versão 1 — Aposentada' });
+  await expect(diagram.getByText('Esta versão está aposentada')).toBeVisible();
+  await expect(diagram.getByText('Nenhuma etapa criada ainda')).toBeVisible();
+  await diagram.getByLabel('Versão exibida').selectOption({ label: 'Versão 2 — Publicada' });
+  await expect(
+    diagram.getByRole('list', { name: 'Etapas do diagrama' }).getByRole('button'),
+  ).toHaveCount(1);
+  await expectNoSeriousA11yViolations(page, 'diagrama de versão publicada');
+});
+
+test('no celular (360 px) o diagrama abre ajustado, sem rolagem horizontal', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await openList(page);
+  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('tab', { name: 'Diagrama' }).click();
+  const diagram = page.getByRole('tabpanel', { name: 'Diagrama' });
+  await expect(diagram.getByRole('button', { name: 'Minimapa' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(diagram.getByRole('button', { name: /^Minimapa:/ })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+  ).toBe(false);
+  await expectNoSeriousA11yViolations(page, 'diagrama em 360 px');
 });
 
 test('no celular (360 px) o painel da etapa vira modal, sem rolagem horizontal', async ({

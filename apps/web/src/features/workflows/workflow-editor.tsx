@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
@@ -28,6 +28,8 @@ import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { StagePropertiesPanel } from './stage-properties-panel';
+import { useIsDesktop } from './use-is-desktop';
+import { WorkflowDiagramSection } from './workflow-diagram';
 import { outcomeOf } from './workflow-editor-errors';
 import type { EditorProblem } from './workflow-editor-errors';
 import { graphWarnings, reorderPatches, sortStages } from './workflow-editor-model';
@@ -44,25 +46,6 @@ import {
   WORKFLOWS_PATH,
   WORKFLOWS_STALE_TIME_MS,
 } from './workflows.api';
-
-/** Abaixo de 768 px o painel lateral vira modal (SCR-034 · acessibilidade e responsividade). */
-function useIsDesktop(): boolean {
-  const query = '(min-width: 768px)';
-  const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
-  const [desktop, setDesktop] = useState(() => !supported || window.matchMedia(query).matches);
-  useEffect(() => {
-    if (!supported) return undefined;
-    const media = window.matchMedia(query);
-    const onChange = () => {
-      setDesktop(media.matches);
-    };
-    media.addEventListener('change', onChange);
-    return () => {
-      media.removeEventListener('change', onChange);
-    };
-  }, [supported]);
-  return desktop;
-}
 
 /**
  * SCR-034 (`/admin/workflows/[id]` — US-043): carrega o workflow (WF-03) e a versão em edição
@@ -268,11 +251,12 @@ function CreateDraftButton({
   );
 }
 
-type Tab = 'stages' | 'transitions' | 'versions';
+type Tab = 'stages' | 'transitions' | 'versions' | 'diagram';
 
 /**
- * Tabela de etapas + painel lateral, transições, avisos do grafo da versão carregada e a aba
- * "Versões" (US-045: validar, publicar e aposentar).
+ * Tabela de etapas + painel lateral, transições, avisos do grafo da versão carregada, a aba
+ * "Versões" (US-045: validar, publicar e aposentar) e a aba "Diagrama" (US-046: só leitura, oculta
+ * sem `WORKFLOW_VIEW`).
  */
 function DraftEditor({
   workflow,
@@ -291,6 +275,7 @@ function DraftEditor({
   const router = useRouter();
   const ids = useId();
   const desktop = useIsDesktop();
+  const canView = usePermission('WORKFLOW_VIEW').allowed;
   const [tab, setTab] = useState<Tab>('stages');
   // Id da etapa aberta no painel, `'new'` (etapa nova) ou `null`.
   const [selected, setSelected] = useState<string | null>(null);
@@ -303,6 +288,9 @@ function DraftEditor({
     queryClient.setQueryData<WorkflowVersionDetailDto>(versionKey, (current) =>
       current ? change(current) : current,
     );
+    // Toda escrita sobe a `version` do rascunho (RN-WF-06): o histórico (WF-07) relê ao abrir
+    // "Versões"/"Diagrama", senão "Publicar" iria com o If-Match antigo (412).
+    void queryClient.invalidateQueries({ queryKey: workflowKeys.versions(tenantId, workflow.id) });
   };
   const putStage = (stage: WorkflowStageDto) => {
     updateCache((current) => ({
@@ -435,7 +423,10 @@ function DraftEditor({
         aria-label={t('tabs.label')}
         className="flex gap-2 border-b border-border"
       >
-        {(['stages', 'transitions', 'versions'] as const).map((value) => (
+        {(canView
+          ? (['stages', 'transitions', 'versions', 'diagram'] as const)
+          : (['stages', 'transitions', 'versions'] as const)
+        ).map((value) => (
           <button
             key={value}
             type="button"
@@ -518,6 +509,10 @@ function DraftEditor({
       ) : tab === 'versions' ? (
         <div role="tabpanel" id={`${ids}-panel-versions`} aria-labelledby={`${ids}-tab-versions`}>
           <WorkflowVersionsSection workflow={workflow} onGoTo={goTo} />
+        </div>
+      ) : tab === 'diagram' && canView ? (
+        <div role="tabpanel" id={`${ids}-panel-diagram`} aria-labelledby={`${ids}-tab-diagram`}>
+          <WorkflowDiagramSection workflow={workflow} defaultVersionId={version.id} />
         </div>
       ) : (
         <div
