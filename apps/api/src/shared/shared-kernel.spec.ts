@@ -21,7 +21,7 @@ import {
 import { ApiError, businessRuleViolation } from './errors/api-error.js';
 import { problemType } from './errors/error-catalog.js';
 import { toApiError } from './errors/problem-details.filter.js';
-import { toEnvelope } from './http/envelope.interceptor.js';
+import { DataWithMembers, toEnvelope } from './http/envelope.interceptor.js';
 import type { HttpRequest } from './http/http-types.js';
 import { readJsonBody } from './http/json-body.middleware.js';
 import {
@@ -242,6 +242,10 @@ describe('paginação, envelope e If-Match', () => {
   it('envelope de DEC-106', () => {
     expect(toEnvelope({ id: 1 })).toEqual({ data: { id: 1 } });
     expect(toEnvelope(undefined)).toBeUndefined();
+    // Membros irmãos fixados no contrato (ATT-02: `{ data, upload }`); `data` não é sobrescrito.
+    expect(toEnvelope(new DataWithMembers({ id: 1 }, { upload: { url: 'u' }, data: 'x' }))).toEqual(
+      { data: { id: 1 }, upload: { url: 'u' } },
+    );
     expect(toEnvelope(pageResult([1], { page: 1, pageSize: 1 }, 1))).toEqual({
       data: [1],
       meta: { page: 1, pageSize: 1, totalItems: 1, totalPages: 1 },

@@ -13,6 +13,7 @@ import type { AnyTimelineLookupSource } from './application/ports.js';
 import { TimelineLookupResolver } from './application/timeline-lookup.resolver.js';
 import { TimelineProjector } from './application/timeline-projector.js';
 import { TimelineFacade } from './application/timeline.facade.js';
+import { AttachmentLookupSource } from './infrastructure/attachment-lookup.source.js';
 import {
   DocumentLookupSource,
   DocumentVersionLookupSource,
@@ -31,6 +32,7 @@ import {
 } from './infrastructure/timeline-transactions.js';
 import { TimelineController } from './presentation/timeline.controller.js';
 import { DocumentModule } from '../document/document.module.js';
+import { FilesModule } from '../files/files.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { ProcessModule } from '../process/process.module.js';
@@ -44,7 +46,7 @@ import { ProcessModule } from '../process/process.module.js';
  * US-060: a leitura da timeline (PRC-12 — `TimelineController`/`GetProcessTimelineHandler`).
  */
 @Module({
-  imports: [IdentityModule, OrganizationModule, ProcessModule, DocumentModule],
+  imports: [IdentityModule, OrganizationModule, ProcessModule, DocumentModule, FilesModule],
   controllers: [TimelineController],
   providers: [
     TimelineFacade,
@@ -72,10 +74,11 @@ import { ProcessModule } from '../process/process.module.js';
     ProcessStageLookupSource,
     DocumentLookupSource,
     DocumentVersionLookupSource,
+    AttachmentLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
       // US-001: unidade, processo e etapa das referências de `ProcessCreated`. US-065: documento e
-      // versão dos eventos `Document*`.
+      // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`).
       inject: [
         IdentityUserLookupSource,
         DepartmentLookupSource,
@@ -83,6 +86,7 @@ import { ProcessModule } from '../process/process.module.js';
         ProcessStageLookupSource,
         DocumentLookupSource,
         DocumentVersionLookupSource,
+        AttachmentLookupSource,
       ],
       useFactory: (...sources: AnyTimelineLookupSource[]): AnyTimelineLookupSource[] => sources,
     },

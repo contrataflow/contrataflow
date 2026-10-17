@@ -36,6 +36,10 @@ function fakeStorage() {
   return {
     presignGet: vi.fn(() => Promise.resolve(signed)),
     presignPut: vi.fn(() => Promise.resolve({ ...signed, method: 'PUT' as const })),
+    head: vi.fn(() => Promise.resolve({ sizeBytes: 1 })),
+    openRead: vi.fn(() => Promise.resolve(null)),
+    copy: vi.fn(() => Promise.resolve()),
+    delete: vi.fn(() => Promise.resolve()),
   } satisfies ObjectStorage;
 }
 
@@ -117,6 +121,33 @@ describe('StorageService (storage.md §2 · V-08)', () => {
       },
       'security.tenant_isolation_violation',
     );
+  });
+
+  it('[Tenant incorreto] head, leitura, cópia e exclusão recusam chave fora do tenant (US-068 · RN-DOC-77)', async () => {
+    const storage = fakeStorage();
+    const service = new StorageService(storage);
+    const foreign = { bucket: 'quarantine' as const, key: `tenants/${B}/uploads/att-1` };
+    await inTenant(A, async () => {
+      const own = {
+        bucket: 'documents' as const,
+        key: StorageKeyBuilder.tenantAsset('a', 'x.png'),
+      };
+      await expect(service.head(foreign)).rejects.toBeInstanceOf(TenantIsolationViolationError);
+      await expect(service.openRead(foreign)).rejects.toBeInstanceOf(TenantIsolationViolationError);
+      await expect(service.delete(foreign)).rejects.toBeInstanceOf(TenantIsolationViolationError);
+      await expect(
+        service.copy({ from: foreign, to: own, contentType: 'image/png', metadata: {} }),
+      ).rejects.toBeInstanceOf(TenantIsolationViolationError);
+      await expect(
+        service.copy({ from: own, to: foreign, contentType: 'image/png', metadata: {} }),
+      ).rejects.toBeInstanceOf(TenantIsolationViolationError);
+      // Chaves próprias seguem para o adaptador.
+      await expect(service.head(own)).resolves.toEqual({ sizeBytes: 1 });
+      await service.delete(own);
+    });
+    expect(storage.copy).not.toHaveBeenCalled();
+    expect(storage.head).toHaveBeenCalledTimes(1);
+    expect(storage.delete).toHaveBeenCalledTimes(1);
   });
 
   it('[Sucesso] chave do próprio tenant: delega ao adaptador com expiração de até 300 s', async () => {

@@ -8,6 +8,7 @@ import { useCallback, useRef } from 'react';
 
 import { ErrorView } from '@/components/errors/error-view';
 import { AiAssistant, isAiTarget } from '@/features/ai/ai-assistant';
+import { AttachmentsSection } from '@/features/attachments/attachments-section';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -159,6 +160,14 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
       ) : null}
 
       <DocumentLifecycle document={document} meta={meta} fallbackFocus={focusHeading} />
+
+      {/* US-068: anexar exige poder editar o documento (POL-02 → `UPDATE` em allowedActions). */}
+      <AttachmentsSection
+        targetType="DOCUMENT"
+        targetId={document.id}
+        action="UPDATE"
+        allowedActions={meta.allowedActions}
+      />
     </div>
   );
 }

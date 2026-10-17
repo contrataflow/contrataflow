@@ -384,6 +384,32 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Geração de outra pessoa',
     detail: 'Só quem pediu a geração pode descartá-la.',
   },
+  // US-068: upload seguro de anexos (api/12-comments-attachments.md ATT-02..06).
+  FILE_TYPE_NOT_ALLOWED: {
+    status: 415,
+    title: 'Tipo de arquivo não permitido',
+    detail: 'Este tipo de arquivo não é permitido.',
+  },
+  FILE_TOO_LARGE: {
+    status: 413,
+    title: 'Arquivo muito grande',
+    detail: 'O arquivo excede o limite permitido.',
+  },
+  UPLOAD_NOT_RECEIVED: {
+    status: 409,
+    title: 'Upload não recebido',
+    detail: 'Não encontramos o arquivo enviado. Tente novamente.',
+  },
+  ATTACHMENT_NOT_AVAILABLE: {
+    status: 409,
+    title: 'Anexo indisponível',
+    detail: 'O anexo ainda não está disponível.',
+  },
+  STORAGE_QUOTA_EXCEEDED: {
+    status: 422,
+    title: 'Limite de armazenamento atingido',
+    detail: 'O órgão atingiu o limite de armazenamento de arquivos.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

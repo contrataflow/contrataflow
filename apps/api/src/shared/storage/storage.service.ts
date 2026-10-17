@@ -1,12 +1,14 @@
+import type { Readable } from 'node:stream';
+
 import { Inject, Injectable } from '@nestjs/common';
 
 import { assertTenantStorageKey } from './storage-keys.js';
 
 /*
  * Porta de storage com a guarda de tenant (US-100 · RN-TEN-30 · storage.md §2). O adaptador S3/MinIO
- * (`ObjectStorage`) chega com a US-068; aqui fica o que é de isolamento: toda operação confere o
- * prefixo `tenants/{tenantId}/` do contexto antes de chegar ao adaptador e limita as URLs
- * pré-assinadas a 300 s (DEC-136).
+ * (`ObjectStorage`) é da US-068 (`modules/platform`); aqui fica o que é de isolamento: toda
+ * operação confere o prefixo `tenants/{tenantId}/` do contexto antes de chegar ao adaptador e
+ * limita as URLs pré-assinadas a 300 s (DEC-136).
  */
 
 export type BucketClass = 'quarantine' | 'documents' | 'renditions';
@@ -41,6 +43,21 @@ export interface PresignPutInput {
   readonly expiresInSeconds?: number;
 }
 
+/** Resultado do `HEAD` (confirmação do upload — RN-DOC-73). */
+export interface ObjectHead {
+  readonly sizeBytes: number;
+}
+
+/** Metadados `x-amz-meta-*` (storage.md §4): nunca nome de arquivo nem dado pessoal. */
+export type ObjectMetadata = Readonly<Record<string, string>>;
+
+export interface CopyObjectInput {
+  readonly from: ObjectRef;
+  readonly to: ObjectRef;
+  readonly contentType: string;
+  readonly metadata: ObjectMetadata;
+}
+
 /** Adaptador do provedor (S3/MinIO — US-068): não sabe de tenant; a guarda fica no serviço. */
 export interface ObjectStorage {
   presignGet(
@@ -49,6 +66,14 @@ export interface ObjectStorage {
   presignPut(
     input: PresignPutInput & { readonly expiresInSeconds: number },
   ): Promise<PresignedRequest>;
+  /** `null` = objeto inexistente. */
+  head(ref: ObjectRef): Promise<ObjectHead | null>;
+  /** Leitura em stream único (varredura — storage.md §5.3); `null` = objeto inexistente. */
+  openRead(ref: ObjectRef): Promise<Readable | null>;
+  /** Cópia no servidor (promoção quarentena → `documents`), com checksum SHA-256. */
+  copy(input: CopyObjectInput): Promise<void>;
+  /** Idempotente: objeto ausente não é erro. */
+  delete(ref: ObjectRef): Promise<void>;
 }
 
 export const OBJECT_STORAGE = Symbol('ObjectStorage');
@@ -64,7 +89,7 @@ export class PresignExpiryError extends Error {
   }
 }
 
-/** Storage ainda não configurado neste processo (o adaptador real é da US-068). */
+/** Storage não configurado neste processo (sem `S3_*` no ambiente). */
 export class StorageNotConfiguredError extends Error {
   constructor() {
     super('Armazenamento de objetos não configurado.');
@@ -72,13 +97,29 @@ export class StorageNotConfiguredError extends Error {
   }
 }
 
-/** Adaptador padrão até a US-068: recusa tudo (depois da guarda de tenant). */
+/** Adaptador sem `S3_*` configurado: recusa tudo (depois da guarda de tenant). */
 export class UnconfiguredObjectStorage implements ObjectStorage {
   presignGet(): Promise<PresignedRequest> {
     return Promise.reject(new StorageNotConfiguredError());
   }
 
   presignPut(): Promise<PresignedRequest> {
+    return Promise.reject(new StorageNotConfiguredError());
+  }
+
+  head(): Promise<ObjectHead | null> {
+    return Promise.reject(new StorageNotConfiguredError());
+  }
+
+  openRead(): Promise<Readable | null> {
+    return Promise.reject(new StorageNotConfiguredError());
+  }
+
+  copy(): Promise<void> {
+    return Promise.reject(new StorageNotConfiguredError());
+  }
+
+  delete(): Promise<void> {
     return Promise.reject(new StorageNotConfiguredError());
   }
 }
@@ -110,5 +151,27 @@ export class StorageService {
     assertTenantStorageKey(input.ref.key, 'presign_put');
     const expiresInSeconds = expiry(input.expiresInSeconds);
     return await this.storage.presignPut({ ...input, expiresInSeconds });
+  }
+
+  async head(ref: ObjectRef): Promise<ObjectHead | null> {
+    assertTenantStorageKey(ref.key, 'head');
+    return await this.storage.head(ref);
+  }
+
+  async openRead(ref: ObjectRef): Promise<Readable | null> {
+    assertTenantStorageKey(ref.key, 'read');
+    return await this.storage.openRead(ref);
+  }
+
+  /** As duas chaves no prefixo do tenant do contexto: promoção nunca cruza tenants. */
+  async copy(input: CopyObjectInput): Promise<void> {
+    assertTenantStorageKey(input.from.key, 'copy');
+    assertTenantStorageKey(input.to.key, 'copy');
+    await this.storage.copy(input);
+  }
+
+  async delete(ref: ObjectRef): Promise<void> {
+    assertTenantStorageKey(ref.key, 'delete');
+    await this.storage.delete(ref);
   }
 }

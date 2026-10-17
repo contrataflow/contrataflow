@@ -22,6 +22,7 @@ import {
   TemplateVersionPublished,
   TemplateVersionRetired,
 } from '../document/events.js';
+import { AttachmentDeleted, AttachmentRejected, AttachmentUploaded } from '../files/events.js';
 import {
   MembershipActivated,
   MembershipReactivated,
@@ -66,6 +67,9 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   AiGenerationCompleted,
   AiGenerationFailed,
   AiUsageThresholdReached,
+  AttachmentUploaded,
+  AttachmentRejected,
+  AttachmentDeleted,
   CatalogItemChanged,
   DepartmentCreated,
   DepartmentDeactivated,

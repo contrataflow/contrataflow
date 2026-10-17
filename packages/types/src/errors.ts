@@ -85,6 +85,12 @@ export const ERROR_CODES = [
   'AI_GENERATION_NOT_FOUND',
   'AI_GENERATION_NOT_APPLICABLE',
   'AI_GENERATION_NOT_OWNED',
+  // US-068: upload seguro de anexos (api.md §2.2 · api/12-comments-attachments.md ATT-02..06).
+  'FILE_TYPE_NOT_ALLOWED',
+  'FILE_TOO_LARGE',
+  'UPLOAD_NOT_RECEIVED',
+  'ATTACHMENT_NOT_AVAILABLE',
+  'STORAGE_QUOTA_EXCEEDED',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

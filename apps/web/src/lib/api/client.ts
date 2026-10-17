@@ -33,6 +33,8 @@ export interface ApiResult<T> {
   readonly data: T;
   readonly meta: ApiMeta;
   readonly status: number;
+  /** Membros irmãos de `data` fixados no contrato (ex.: `upload` de ATT-02 — US-068). */
+  readonly members?: Readonly<Record<string, unknown>>;
 }
 
 export interface ApiRequestOptions {
@@ -65,6 +67,16 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
+}
+
+/** Membros do envelope além de `data`/`meta` (`{ data, upload }` de ATT-02). */
+function envelopeMembers(body: unknown): Record<string, unknown> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return {};
+  const members: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (key !== 'data' && key !== 'meta') members[key] = value;
+  }
+  return members;
 }
 
 function envelopeMeta(body: unknown): Record<string, unknown> {
@@ -117,9 +129,11 @@ export async function apiRequest<T>(
   const data = (
     typeof body === 'object' && body !== null && 'data' in body ? body.data : undefined
   ) as T;
+  const members = envelopeMembers(body);
   return {
     data,
     status: response.status,
+    ...(Object.keys(members).length > 0 ? { members } : {}),
     meta: {
       ...envelopeMeta(body),
       etag: response.headers.get('ETag'),

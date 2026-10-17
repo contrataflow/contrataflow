@@ -278,7 +278,7 @@ Registro `NotificationType`. Canais padrão: in-app sempre; e-mail conforme colu
 | `AI_USAGE_LIMIT_WARNING` | `AiUsageThresholdReached` (80% e 100% do limite mensal) | Vínculos ativos com `SETTINGS_MANAGE` (máx. 50) | ✔ | não |
 
 Regras gerais:
-- Nunca notificar o próprio ator. Exceção: avisos de conclusão de trabalho assíncrono pedido pelo próprio usuário — `AI_GENERATION_READY` e `AI_GENERATION_FAILED` (US-115) vão ao solicitante, que é o ator do envelope.
+- Nunca notificar o próprio ator. Exceção: avisos de conclusão de trabalho assíncrono pedido pelo próprio usuário — `AI_GENERATION_READY` e `AI_GENERATION_FAILED` (US-115) vão ao solicitante, e `ATTACHMENT_REJECTED` (US-068) a quem enviou o arquivo, que são o ator do envelope (o job roda com o ator de quem pediu).
 - Agrupamento: notificações iguais (`type` + `processId` + destinatário) em 5 min são agrupadas em uma (`groupKey`) para evitar ruído.
 - Conteúdo sem dados sigilosos (POL-09); link direto (`/processos/{id}`, `/aprovacoes/{id}`).
 - E-mail somente se `notifications.emailEnabled` (tenant) e preferência do usuário permitirem: sem desejo de e-mail (preferência ou padrão do tipo) → `emailStatus = NOT_APPLICABLE`; desejado mas desligado no tenant → `SKIPPED`; senão `PENDING`. Notificação agrupada mantém o `emailStatus` que já tinha (sem novo e-mail por agrupamento).

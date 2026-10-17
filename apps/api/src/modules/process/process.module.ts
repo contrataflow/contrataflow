@@ -8,6 +8,10 @@ import {
   DocumentProcessContextModule,
   DocumentProcessContextRegistry,
 } from '#shared/document/document-process-context.js';
+import {
+  AttachmentTargetModule,
+  AttachmentTargetRegistry,
+} from '#shared/files/attachment-targets.js';
 import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
 
@@ -27,6 +31,7 @@ import {
   EvaluateStageRulesHandler,
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
+import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
 import { ProcessRuntimeLoader } from './application/process-runtime.loader.js';
 import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
@@ -75,9 +80,11 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     WorkflowModule,
     ProcessAccessModule,
     DocumentProcessContextModule,
+    AttachmentTargetModule,
   ],
   controllers: [ProcessController, ProcessActionsController],
   providers: [
+    ProcessAttachmentTargets,
     ProcessFacade,
     ProcessPresenter,
     ProcessViewerResolver,
@@ -140,6 +147,8 @@ export class ProcessModule implements OnModuleInit {
     private readonly ruleTestProcesses: RuleTestProcessReader,
     private readonly documentContexts: DocumentProcessContextRegistry,
     private readonly documentContextLoader: DocumentProcessContextLoader,
+    private readonly attachmentTargets: AttachmentTargetRegistry,
+    private readonly processAttachmentTargets: ProcessAttachmentTargets,
   ) {}
 
   onModuleInit(): void {
@@ -150,5 +159,7 @@ export class ProcessModule implements OnModuleInit {
     this.syncHandlers.register(this.accessProjector);
     // US-065: o processo visto pelo ciclo de vida do documento (POL-01/02/11 · snapshot).
     this.documentContexts.register(this.documentContextLoader);
+    // US-068: o processo como alvo de anexo (`PROCESS`) lido pelo `files`.
+    this.attachmentTargets.register(this.processAttachmentTargets);
   }
 }

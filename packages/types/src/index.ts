@@ -4,6 +4,7 @@ export * from './calendar.js';
 export * from './catalog.js';
 export * from './errors.js';
 export * from './events.js';
+export * from './files.js';
 export * from './notifications.js';
 export * from './permissions.js';
 export * from './policies.js';

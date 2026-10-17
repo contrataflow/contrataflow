@@ -314,6 +314,8 @@ const RULES: Readonly<Record<string, Rule>> = {
       entityId: id(event.payload, 'attachmentId'),
       link: processLink(event.processId),
       variant: text(event.payload, 'status') === 'INFECTED' ? 'infected' : 'rejected',
+      // US-068: a varredura roda com o ator de quem confirmou o upload — o aviso é para ele.
+      includeActor: true,
     }),
   DocumentRenditionFailed: (event) =>
     plan('DOCUMENT_RENDER_FAILED', event, {

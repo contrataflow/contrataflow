@@ -37,6 +37,8 @@
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "catalog:",
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
     "@contrataflow/editor": "workspace:*",
     "@contrataflow/observability": "workspace:*",
     "@contrataflow/types": "workspace:*",

@@ -140,6 +140,13 @@ Regras obrigatórias da implementação:
 
 Testes de integração usam MinIO via Testcontainers, com a mesma implementação de produção.
 
+**Implementação (US-068, 2026-10-17):**
+- O serviço de isolamento é o `StorageService` do shared kernel (guarda `tenants/{tenantId}/` em `presignPut`/`presignGet`/`head`/`openRead`/`copy`/`delete`); o adaptador `S3ObjectStorage` (`modules/platform`) usa dois clientes — o interno (`S3_ENDPOINT`) e o que só assina URLs para o navegador (`S3_PUBLIC_ENDPOINT`) — com o checksum automático do SDK desligado (`WHEN_REQUIRED`: o PUT é do navegador). Sem `S3_BUCKET_*` o adaptador recusa tudo (rotas → 503). O duplo de testes é o `InMemoryObjectStorage`.
+- Detecção de tipo: inspetor próprio por *magic bytes* + checagens estruturais incrementais (`ContentInspector`, `modules/files/domain`) no mesmo *tee* do SHA-256 e do INSTREAM — no lugar do pacote `file-type`, que precisaria ler o contêiner ZIP de novo para distinguir DOCX/XLSX/ODF e não cobre as checagens da §7 (macros, `/Encrypt`, dimensões, texto). Conteúdo divergente da extensão declarada → `TYPE_MISMATCH`; extensão que o tenant deixou de permitir entre a intenção e o scan → `TYPE_NOT_ALLOWED`.
+- `reasonCode` de malware é `INFECTED` (o da story; `MALWARE_DETECTED` da proposta abaixo não é usado). O conjunto efetivo está em `ATTACHMENT_REASON_CODES` (`packages/types`); `UPLOAD_EXPIRED`/`MALFORMED_FILE` não são emitidos — objeto expirado na quarentena vira `EMPTY_FILE`.
+- Trava da varredura: `scan_result.claim = { attempt, at }` + gravação condicional por `version` (duas entregas da mesma tentativa → só uma processa; tentativa seguinte ou trava com mais de 90 s assume). Antivírus fora do ar devolve a trava (o anexo fica `SCANNING`) e o job pausa sem consumir tentativa (`ScanDeferredError.consumesAttempt = false`).
+- Cliente ClamAV próprio sobre `node:net` (protocolo INSTREAM/VERSION, ~100 linhas); disjuntor em processo (5 falhas, 30 s, meia-abertura com uma varredura).
+
 ### 2.2 Configuração
 
 | Variável | Dev (Compose) | Produção (AWS) |

@@ -208,4 +208,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     AiGenerationFailed: ['ai.generation_failed'],
     // US-116: `AI_USAGE_LIMIT_WARNING` a quem tem SETTINGS_MANAGE (máx. 50) e métricas (`ai.*`).
     AiUsageThresholdReached: ['ai.usage_threshold_reached'],
+    // US-068: timeline (`ATTACHMENT_ADDED`/`ATTACHMENT_REMOVED`) projetada no mesmo `tx` (síncrona);
+    // no worker só o aviso `ATTACHMENT_REJECTED` a quem enviou o arquivo.
+    AttachmentUploaded: 'NO_ASYNC_CONSUMER',
+    AttachmentRejected: ['attachment.rejected'],
+    AttachmentDeleted: 'NO_ASYNC_CONSUMER',
   };

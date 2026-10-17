@@ -107,7 +107,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `targetType?` (`AttachmentTargetType`: `DOCUMENT`\|`DOCUMENT_VERSION`\|`PROCESS`\|`MOVEMENT`\|`RISK`\|`PRICE_SOURCE`\|`COMMENT`); `targetId?` (uuid, exige `targetType`); `categoryId?` (uuid, item ativo do catálogo); paginação padrão (api.md §1.2)
 - **Request:** —
-- **Response:** `200 { data: Attachment[], meta }`; `Attachment { id, targetType, targetId, fileName, declaredMimeType, sizeBytes, categoryId?, description?, status: AttachmentStatus, sha256?, createdAt, uploadedById, version }`
+- **Response:** `200 { data: Attachment[], meta }`; `Attachment { id, processId, targetType, targetId, fileName, extension, declaredMimeType, sizeBytes, categoryId?, description?, status: AttachmentStatus, reasonCode?, sha256?, createdAt, uploadedAt?, scannedAt?, uploadedById, version }` — `reasonCode` (US-068) é o motivo resumido de `INFECTED`/`REJECTED` (`AttachmentReasonCode`, nunca a assinatura do malware); chaves de storage e o resultado bruto do antivírus nunca saem na API
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -136,6 +136,7 @@
   | 422 | `STORAGE_QUOTA_EXCEEDED` | Upload acima do limite de armazenamento do tenant (api.md §2.2; limite técnico — valor em `storage.md` §8, PEND-17) |
 - **Efeitos:** Auditoria `attachment.upload_intent` (`DATA_CHANGE`; `metadata`: `targetType`, `targetId`, `fileName`, `sizeBytes`); nenhum evento de domínio nesta chamada
 - **Notas:** quando o alvo é um documento com confidencialidade `RESTRICTED`, o acesso ao anexo (download, ver ATT-05) herda a exigência de POL-09 do documento — não há mascaramento de campo, apenas bloqueio de acesso.
+- **Implementação (US-068):** `upload.headers` traz o `Content-Type` assinado (o navegador o envia exatamente assim; o `Content-Length` também é assinado e o S3 recusa outro tamanho). Alvos com leitor registrado: `PROCESS` (processo visível e fora de status final) e `DOCUMENT`/`DOCUMENT_VERSION` (POL-02 de edição + documento `DRAFT`/`RETURNED`); os demais tipos respondem 404 até o módulo dono registrar o seu leitor (`AttachmentTargetRegistry` — `price-research`, `collaboration`, `risk`, ativos do tenant). A quota compara a soma de `sizeBytes` em `UPLOADED`/`SCANNING`/`AVAILABLE`/`DELETED` com `STORAGE_TENANT_QUOTA_GB` (padrão 50 — PEND-17).
 
 ### ATT-03 — Confirmar upload
 `POST /api/v1/attachments/{id}/confirm` · **Permissão:** uploader (autor da intenção) · **Story:** US-068
@@ -195,6 +196,7 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Nem uploader nem `ATTACHMENT_DELETE` |
   | 404 | `NOT_FOUND` | Inexistente/outro tenant |
+  | 409 | `ATTACHMENT_NOT_AVAILABLE` | Anexo fora de `AVAILABLE` (ainda em verificação ou rejeitado — US-068) |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `VALIDATION_ERROR` (`REQUIRED`) | `deletionReason` ausente |
 - **Efeitos:** Evento `AttachmentDeleted` (`attachment.deleted`; `attachmentId`, `hasReason`); auditoria `attachment.delete` (`DATA_CHANGE`; `metadata.deletionReason` armazenado como hash + tamanho, não o texto)

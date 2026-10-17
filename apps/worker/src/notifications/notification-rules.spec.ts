@@ -307,6 +307,8 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
     );
     expect(infected).toMatchObject({ type: 'ATTACHMENT_REJECTED', priority: 'HIGH' });
     expect(infected.recipients).toEqual([{ kind: 'LOOKUP', lookup: 'ATTACHMENT_UPLOADER' }]);
+    // US-068: a varredura roda com o ator de quem confirmou — o próprio uploader é avisado.
+    expect(infected.includeActor).toBe(true);
     expect(infected.content(1).body).toContain('verificação de segurança');
     const rejected = notify(
       planNotification(envelope('AttachmentRejected', { status: 'REJECTED' }, { processId: null })),

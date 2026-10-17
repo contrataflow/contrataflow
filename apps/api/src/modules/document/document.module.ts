@@ -7,12 +7,17 @@ import { DocumentApprovalModule } from '#shared/document/document-approval.js';
 import { DocumentProcessContextModule } from '#shared/document/document-process-context.js';
 import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalog.js';
 import { DocumentTypeUsageModule } from '#shared/document/document-type-usage.js';
+import {
+  AttachmentTargetModule,
+  AttachmentTargetRegistry,
+} from '#shared/files/attachment-targets.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
 import { DocumentAiTargets } from './application/document-ai-target.js';
 import { DocumentApprovalTransitions } from './application/document-approval.transitions.js';
+import { DocumentAttachmentTargets } from './application/document-attachment-targets.js';
 import { DocumentCreationService } from './application/document-creation.service.js';
 import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
 import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
@@ -102,6 +107,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentProcessContextModule,
     DocumentApprovalModule,
     TenantSeedingModule,
+    AttachmentTargetModule,
   ],
   controllers: [
     DocumentTypeController,
@@ -183,6 +189,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentCreationService,
     DocumentApprovalTransitions,
     DocumentAiTargets,
+    DocumentAttachmentTargets,
     DocumentQueries,
     UpdateDocumentHeaderCommand,
     FinalizeDocumentCommand,
@@ -201,11 +208,17 @@ export class DocumentModule implements OnModuleInit {
     private readonly seeders: TenantSeederRegistry,
     private readonly systemTypes: SystemDocumentTypesSeeder,
     private readonly templateLibrary: TemplateLibrarySeeder,
+    private readonly attachmentTargets: AttachmentTargetRegistry,
+    private readonly documentAttachmentTargets: DocumentAttachmentTargets,
   ) {}
 
-  /** Seeders `document.systemTypes` e `document.templateLibrary` (US-099 · US-110). */
+  /**
+   * Seeders `document.systemTypes` e `document.templateLibrary` (US-099 · US-110) e os alvos de
+   * anexo `DOCUMENT`/`DOCUMENT_VERSION` lidos pelo `files` (US-068).
+   */
   onModuleInit(): void {
     this.seeders.register(this.systemTypes);
     this.seeders.register(this.templateLibrary);
+    this.attachmentTargets.register(this.documentAttachmentTargets);
   }
 }

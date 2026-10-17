@@ -389,7 +389,7 @@ Regras como código: `infra/observability/rules/alerts.rules.yml` (A01, A02, A04
 | A14 | Falhas de login anômalas | Taxa de falhas > 3× a linha de base em 15 min | Alto | `#cf-seguranca` | RB-04 |
 | A15 | ClamAV indisponível | `cf_clamav_up == 0` por 5 min ou breaker aberto | Alto | Plantão | [RB-05](#rb-05--clamav-indisponível) |
 | A16 | Base de assinaturas desatualizada | `cf_clamav_signature_age_seconds > 86400` | Médio | `#cf-alertas` | RB-05 |
-| A17 | Anexo preso na verificação | `cf_attachments_stuck > 0` por 30 min | Alto | Plantão | RB-05 |
+| A17 | Anexo preso na verificação | `cf_attachments_stuck > 0` por 30 min | Alto | Plantão | [RB-13](#rb-13--anexo-preso-em-scanning) |
 | A18 | Malware detectado | Aumento de `cf_file_scan_results_total{result="infected"}` | Informativo | `#cf-seguranca` | — |
 | A19 | Violação de isolamento | Aumento de `cf_tenant_isolation_violations_total{barrier}` (extensão do Prisma, RLS, storage, cache, job, contexto) ou de `cf_tenant_context_missing_total` (US-100) | Crítico | Plantão + `#cf-seguranca` | [RB-10](#rb-10--suspeita-de-vazamento-entre-tenants) |
 | A20 | Falha de fixidez | `cf_storage_fixity_failures_total > 0` | Crítico | `#cf-seguranca` | [security.md](security.md) |
@@ -461,7 +461,7 @@ service:
 
 ## 12. Runbooks iniciais
 
-Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants.
+Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants; o RB-13, o do anexo preso na verificação (US-068).
 
 ### RB-06 — Indisponibilidade ou 5xx da API
 *Mínimo da US-085; aprofundar após o primeiro exercício em homologação.*
@@ -521,6 +521,20 @@ Estrutura padrão: alertas → impacto → diagnóstico → mitigação → vali
 - **Mitigação:** reiniciar/escalar clamd; aumentar memória ou desativar `ConcurrentDatabaseReload` (a recarga bloqueia o scan por instantes, mas reduz o pico de memória); espelho privado de assinaturas. **Nunca** desligar o scan nem marcar anexos como `AVAILABLE` manualmente.
 - **Validação:** breaker fechado; fila `file-scan` drenando; `cf_attachments_stuck` = 0 (o reconciliador reenfileira órfãos).
 - **Pós-incidente:** indisponibilidade > 24 h gera rejeições `UPLOAD_EXPIRED` — avisar os usuários afetados para reenviar; revisar capacidade.
+
+### RB-13 — Anexo preso em SCANNING
+*US-068. O anexo só vira `AVAILABLE` pelo `file-scan` depois de varredura limpa (P3 — storage.md §5); "preso" é a garantia funcionando, não perda de dado.*
+- **Alertas:** A17 (anexo em `UPLOADED`/`SCANNING` há mais de 30 min); costuma vir junto de A15 (ClamAV) ou A08–A10 (DLQ).
+- **Impacto:** o usuário vê "Verificando segurança do arquivo…" sem fim; o arquivo não pode ser baixado nem excluído (ATT-06 → 409 `ATTACHMENT_NOT_AVAILABLE`). Nada é liberado sem varredura.
+- **Diagnóstico:**
+  1. Quantos e desde quando (papel somente leitura): `SELECT tenant_id, status, count(*), min(updated_at) FROM attachments WHERE status IN ('UPLOADED','SCANNING') AND updated_at < now() - interval '30 minutes' GROUP BY 1, 2;` (índice parcial `attachments_pending_status_idx`).
+  2. Quem detém a varredura: `scan_result->'claim'` (`attempt`, `at`). `attempt` igual ao da última entrega + `at` recente = varredura em curso; `at` mais velho que 90 s = trava vencida (o worker caiu no meio) — a próxima entrega assume.
+  3. Logs: `attachment.scan_retry` (`errorClass = AntivirusUnavailable` → disjuntor do ClamAV, siga o RB-05; outra classe → S3/MinIO ou banco), `attachment.scan_failed` (tentativas esgotadas), `attachment.enqueue_deferred` (a confirmação não conseguiu enfileirar — Redis de filas).
+  4. Job no Bull Board/CLI (RB-11): `file-scan` com `jobId = attachmentId` — ausente (nunca enfileirado ou removido), em espera (fila pausada pelo disjuntor) ou na DLQ.
+  5. Objeto da quarentena (`tenants/{tenantId}/uploads/{attachmentId}`): ausente depois de 1 dia (lifecycle) → a próxima varredura rejeita o anexo (o usuário reenvia).
+- **Mitigação:** ClamAV fora → RB-05 (a fila volta sozinha quando o disjuntor fecha). Job ausente/na DLQ → reenfileirar `file-scan` com `jobId = attachmentId` (RB-11, `cli dlq:retry` ou o reconciliador). S3/banco → restaurar a dependência. **Nunca** atualizar `status` para `AVAILABLE` à mão — o gatilho `attachments_guard` e o CHECK `attachments_available_scanned` recusam, e contornar seria liberar arquivo sem antivírus.
+- **Validação:** a consulta do passo 1 volta vazia; `attachment.scan_completed` para os IDs afetados; `cf_attachment_scans_total{result="DEFERRED"}` parou de crescer.
+- **Pós-incidente:** anexos rejeitados por expiração da quarentena → avisar quem enviou para reenviar; revisar a capacidade do clamd e a concorrência de `file-scan` (3 por tenant).
 
 ### RB-11 — Operação das filas (Bull Board e CLI de reprocessamento)
 Entregável da US-083 ([queues.md](queues.md) §5.6, §11, §12 e §15.1). Para o time de suporte e plantão de plataforma.

@@ -55,6 +55,11 @@ export const StorageKeyBuilder = {
     return StorageKeyBuilder.build('processes', processId, 'attachments', attachmentId, fileName);
   },
 
+  /** Ativo sem processo (`TENANT_ASSET`/`TEMPLATE_VERSION`): `tenants/{tenantId}/assets/{id}/{nome}`. */
+  tenantAsset(attachmentId: string, fileName: string): string {
+    return StorageKeyBuilder.build('assets', attachmentId, fileName);
+  },
+
   /** PDF da versão: `…/processes/{processId}/documents/{documentId}/versions/{n}/renditions/content.pdf`. */
   versionContent(processId: string, documentId: string, versionNumber: number): string {
     return StorageKeyBuilder.build(

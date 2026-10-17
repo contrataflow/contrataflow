@@ -58,6 +58,9 @@ const DOCUMENT_TYPE_ADMIN_ROUTE =
 const SUPPLIER_ROUTE =
   'Fornecedores (US-025): a suíte genérica não tem fixture de fornecedor do tenant B; o isolamento (404 em SUP-03/04/05, lookup SUP-06 e lista sem vazamento de B, mesmo CNPJ nos dois tenants e RLS de suppliers) é coberto em test/tenant-leak/suppliers.spec.ts, com usuários nos dois tenants, e em src/modules/supplier/presentation/supplier.routes.spec.ts.';
 
+const ATTACHMENT_ROUTE =
+  'Anexos (US-068): a suíte genérica não tem fixture de documento/anexo do tenant B; o isolamento (alvo de outro tenant → 404 sem anexo criado, ATT-03/04 de outro tenant → 404) é coberto em src/modules/files/presentation/attachment.routes.spec.ts, e a RLS de attachments, a guarda de chave de storage no banco e a trava condicional em test/tenant-leak/attachments.spec.ts.';
+
 const ORGANIZATION_ROUTE =
   'Órgãos (US-101): a suíte genérica ainda não tem fixture de órgão do tenant B; o isolamento (404 em ORG-03/04 e lista sem vazamento de B) é coberto em test/tenant-leak/organizations.spec.ts, com administradores nos dois tenants.';
 
@@ -175,6 +178,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'SUP-04': { kind: 'exempt', reason: SUPPLIER_ROUTE },
   'SUP-05': { kind: 'exempt', reason: SUPPLIER_ROUTE },
   'SUP-06': { kind: 'exempt', reason: SUPPLIER_ROUTE },
+  'ATT-02': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
+  'ATT-03': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
+  'ATT-04': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
+  'ATT-06': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
   'ORG-01': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-03': { kind: 'exempt', reason: ORGANIZATION_ROUTE },

@@ -20,6 +20,17 @@ export function isCidr(value: string): boolean {
   return Number(prefix) <= (family === 4 ? 32 : 128);
 }
 
+const blankAsUndefined = (value: unknown) => (value === '' ? undefined : value);
+const optionalUrl = z.preprocess(blankAsUndefined, z.url().optional());
+const optionalText = z.preprocess(blankAsUndefined, z.string().trim().min(1).max(512).optional());
+const booleanFlag = z.preprocess(
+  blankAsUndefined,
+  z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+);
+
 /** Ambientes em que a identidade fake (FA-02) pode ser ligada. */
 const FAKE_IDENTITY_ENVS: ReadonlySet<string> = new Set(['local', 'dev', 'test']);
 
@@ -183,6 +194,26 @@ export const envSchema = z
       .min(AI_MONTHLY_TOKEN_LIMIT_MIN)
       .max(AI_MONTHLY_TOKEN_LIMIT_CEILING)
       .default(AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT),
+    /*
+     * Storage S3/MinIO (US-068 · storage.md §2.2). Sem os buckets, o storage fica desligado e as
+     * rotas de anexo respondem 503. `S3_PUBLIC_ENDPOINT` é o host que o NAVEGADOR alcança (assina as
+     * URLs); `S3_ENDPOINT`, o da rede interna. Credenciais estáticas só fora de produção (task role).
+     */
+    S3_ENDPOINT: optionalUrl,
+    S3_PUBLIC_ENDPOINT: optionalUrl,
+    S3_REGION: z.string().trim().min(1).max(40).default('us-east-1'),
+    S3_FORCE_PATH_STYLE: booleanFlag,
+    S3_ACCESS_KEY_ID: optionalText,
+    S3_SECRET_ACCESS_KEY: optionalText,
+    S3_BUCKET_QUARANTINE: optionalText,
+    S3_BUCKET_DOCUMENTS: optionalText,
+    S3_BUCKET_RENDITIONS: optionalText,
+    /** ClamAV (`clamd`, INSTREAM — storage.md §5.3); ausente = varredura pausada (RN-DOC-75). */
+    CLAMAV_HOST: optionalText,
+    CLAMAV_PORT: z.coerce.number().int().min(1).max(65_535).default(3310),
+    CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(60_000),
+    /** Limite técnico de armazenamento por tenant (storage.md §8 · PEND-17 — proposta 50 GB). */
+    STORAGE_TENANT_QUOTA_GB: z.coerce.number().int().min(1).max(100_000).default(50),
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
@@ -232,6 +263,13 @@ export const envSchema = z
           message: 'Obrigatória fora de local/dev/test.',
         });
       }
+    }
+    if (env.S3_ACCESS_KEY_ID && env.APP_ENV === 'production') {
+      context.addIssue({
+        code: 'custom',
+        path: ['S3_ACCESS_KEY_ID'],
+        message: 'Credencial estática proibida em produção: use a task role (storage.md §2.2).',
+      });
     }
     if (!env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
@@ -331,6 +369,34 @@ export interface AppConfig {
     /** Teto do limite mensal de tokens por tenant (`AI_TENANT_MAX_MONTHLY_TOKENS`). */
     readonly tenantMaxMonthlyTokens: number;
   };
+  /** Storage de objetos (US-068 · storage.md §2.2); `s3: null` = desligado (rotas → 503). */
+  readonly storage: {
+    readonly s3: S3Config | null;
+    /** Limite técnico por tenant (storage.md §8 · PEND-17), em bytes. */
+    readonly tenantQuotaBytes: number;
+  };
+  /** `clamd` (US-068); `null` = varredura pausada até a configuração (nunca libera — P3). */
+  readonly antivirus: {
+    readonly host: string;
+    readonly port: number;
+    readonly timeoutMs: number;
+  } | null;
+}
+
+export interface S3Config {
+  /** Endpoint interno (MinIO em dev); `null` = endpoint padrão da AWS. */
+  readonly endpoint: string | null;
+  /** Host das URLs pré-assinadas entregues ao navegador; `null` = o interno. */
+  readonly publicEndpoint: string | null;
+  readonly region: string;
+  readonly forcePathStyle: boolean;
+  /** `null` = cadeia padrão de credenciais (task role no ECS). */
+  readonly credentials: { readonly accessKeyId: string; readonly secretAccessKey: string } | null;
+  readonly buckets: {
+    readonly quarantine: string;
+    readonly documents: string;
+    readonly renditions: string;
+  };
 }
 
 /** Variável ausente ou inválida: o processo não sobe (V-01). Lista as chaves, nunca os valores. */
@@ -425,6 +491,34 @@ function toAppConfig(env: Env): AppConfig {
       requestTimeoutMs: env.AI_REQUEST_TIMEOUT_MS,
       termsVersion: env.AI_TERMS_VERSION,
       tenantMaxMonthlyTokens: env.AI_TENANT_MAX_MONTHLY_TOKENS,
+    },
+    storage: {
+      s3: s3ConfigOf(env),
+      tenantQuotaBytes: env.STORAGE_TENANT_QUOTA_GB * 1024 ** 3,
+    },
+    antivirus:
+      env.CLAMAV_HOST === undefined
+        ? null
+        : { host: env.CLAMAV_HOST, port: env.CLAMAV_PORT, timeoutMs: env.CLAMAV_TIMEOUT_MS },
+  };
+}
+
+function s3ConfigOf(env: Env): S3Config | null {
+  const { S3_BUCKET_QUARANTINE, S3_BUCKET_DOCUMENTS, S3_BUCKET_RENDITIONS } = env;
+  if (!S3_BUCKET_QUARANTINE || !S3_BUCKET_DOCUMENTS || !S3_BUCKET_RENDITIONS) return null;
+  return {
+    endpoint: env.S3_ENDPOINT ?? null,
+    publicEndpoint: env.S3_PUBLIC_ENDPOINT ?? null,
+    region: env.S3_REGION,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE,
+    credentials:
+      env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
+        ? { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY }
+        : null,
+    buckets: {
+      quarantine: S3_BUCKET_QUARANTINE,
+      documents: S3_BUCKET_DOCUMENTS,
+      renditions: S3_BUCKET_RENDITIONS,
     },
   };
 }

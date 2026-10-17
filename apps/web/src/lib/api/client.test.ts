@@ -39,6 +39,16 @@ describe('apiRequest (same-origin via proxy)', () => {
     expect(init?.cache).toBe('no-store');
   });
 
+  it('membros irmãos de `data` fixados no contrato (ATT-02: `{ data, upload }`)', async () => {
+    const fetchImpl = fetchReturning(
+      new Response(JSON.stringify({ data: { id: 'a' }, upload: { url: 'https://s3.test/x' } }), {
+        status: 201,
+      }),
+    );
+    const result = await apiRequest('/attachments', { method: 'POST', body: {}, fetchImpl });
+    expect(result.members).toEqual({ upload: { url: 'https://s3.test/x' } });
+  });
+
   it('mutação reenvia If-Match e Idempotency-Key; 204 sem corpo', async () => {
     const fetchImpl = fetchReturning(
       new Response(null, { status: 204, headers: { 'Idempotent-Replayed': 'true' } }),

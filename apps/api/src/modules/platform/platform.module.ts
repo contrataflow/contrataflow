@@ -41,6 +41,7 @@ import { RedisIdempotencyStore } from './infrastructure/redis/redis-idempotency.
 import { RedisSessionRegistry } from './infrastructure/redis/redis-session-registry.js';
 import { RedisThrottlerStorage } from './infrastructure/redis/redis-throttler.storage.js';
 import { RedisClient } from './infrastructure/redis/redis.client.js';
+import { S3ObjectStorage } from './infrastructure/storage/s3-object-storage.js';
 import { InternalExampleController } from './presentation/internal-example.controller.js';
 
 /** Chave fixa de desenvolvimento (local/dev/test sem as variáveis de ambiente) — nunca com dados reais. */
@@ -57,7 +58,7 @@ function developmentKey(label: string): Buffer {
  * que produz fato de domínio injeta a porta `OUTBOX_WRITER` (e os donos das projeções síncronas,
  * `SYNC_EVENT_HANDLERS`) do shared kernel, sem importar este módulo (DEC-072). Desde a US-100
  * também fornece o cache isolado por tenant (`TenantCache`/`PlatformCache` sobre `CACHE_STORE`) e o
- * `StorageService` com a guarda de prefixo `tenants/{tenantId}/` (adaptador S3 na US-068). Desde a
+ * `StorageService` com a guarda de prefixo `tenants/{tenantId}/` (adaptador S3 da US-068). Desde a
  * US-115, o produtor de jobs do padrão B da API (`JOB_QUEUE`, BullMQ) e o estado de plataforma do
  * disjuntor do provedor de IA (`AI_CIRCUIT_STORE`, chave `cf:{env}:ai:circuit`).
  */
@@ -91,8 +92,16 @@ function developmentKey(label: string): Buffer {
             : Buffer.from(config.fieldProtection.blindIndexKey, 'base64'),
         ),
     },
-    // Adaptador S3/MinIO da US-068; até lá, a guarda de tenant funciona e o adaptador recusa.
-    { provide: OBJECT_STORAGE, useClass: UnconfiguredObjectStorage },
+    {
+      // US-068: adaptador S3/MinIO; sem os buckets no ambiente, a guarda funciona e o adaptador
+      // recusa (rotas de anexo → 503).
+      provide: OBJECT_STORAGE,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) =>
+        config.storage.s3 === null
+          ? new UnconfiguredObjectStorage()
+          : new S3ObjectStorage(config.storage.s3),
+    },
     StorageService,
     {
       provide: SESSION_REGISTRY,

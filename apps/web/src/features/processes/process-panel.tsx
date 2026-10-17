@@ -13,6 +13,7 @@ import { useShellSession } from '@/lib/session/session-context';
 
 import { ProcessStatusBadge } from './process-status-badge';
 import { fetchProcess, processKeys } from './processes.api';
+import { AttachmentsSection } from '../attachments/attachments-section';
 import { AvailableActionsPanel } from '../process-actions/available-actions-panel';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
@@ -280,6 +281,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
               ]}
             />
           </Card>
+
+          {/* US-068: anexos do processo (alvo `PROCESS`); a lista completa é da US-069. */}
+          <AttachmentsSection targetType="PROCESS" targetId={processId} />
         </div>
       )}
     </div>

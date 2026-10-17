@@ -1806,3 +1806,71 @@ model Supplier {
   @@index([tenantId, isActive, legalName], map: "suppliers_active_name_idx")
   @@map("suppliers")
 }
+
+// --- Anexos (US-068 · entities.md §4 `Attachment` · storage.md §5) ---------------------------
+
+enum AttachmentTargetType {
+  PROCESS
+  DOCUMENT
+  DOCUMENT_VERSION
+  PRICE_SOURCE
+  COMMENT
+  MOVEMENT
+  RISK
+  TENANT_ASSET
+  TEMPLATE_VERSION
+
+  @@map("attachment_target_type")
+}
+
+enum AttachmentStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  SCANNING
+  AVAILABLE
+  INFECTED
+  REJECTED
+  DELETED
+
+  @@map("attachment_status")
+}
+
+model Attachment {
+  id                 String               @id @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  processId          String?              @map("process_id") @db.Uuid
+  targetType         AttachmentTargetType @map("target_type")
+  targetId           String?              @map("target_id") @db.Uuid
+  categoryId         String?              @map("category_id") @db.Uuid
+  fileName           String               @map("file_name") @db.VarChar(255)
+  extension          String               @db.VarChar(10)
+  declaredMimeType   String               @map("declared_mime_type") @db.VarChar(120)
+  detectedMimeType   String?              @map("detected_mime_type") @db.VarChar(120)
+  sizeBytes          BigInt               @map("size_bytes")
+  sha256             String?              @db.VarChar(64)
+  storageKey         String               @map("storage_key") @db.VarChar(512)
+  quarantineKey      String?              @map("quarantine_key") @db.VarChar(512)
+  status             AttachmentStatus     @default(PENDING_UPLOAD)
+  scanResult         Json?                @map("scan_result")
+  scannedAt          DateTime?            @map("scanned_at") @db.Timestamptz(6)
+  description        String?              @db.VarChar(500)
+  uploadedById       String               @map("uploaded_by_id") @db.Uuid
+  uploadedAt         DateTime?            @map("uploaded_at") @db.Timestamptz(6)
+  deletionReason     String?              @map("deletion_reason")
+  sourceAttachmentId String?              @map("source_attachment_id") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?              @map("created_by_id") @db.Uuid
+  updatedById        String?              @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  deletedById        String?              @map("deleted_by_id") @db.Uuid
+  version            Int                  @default(1)
+
+  @@unique([tenantId, id], map: "attachments_tenant_id_id_key")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "attachments_process_created_idx")
+  @@index([tenantId, targetType, targetId], map: "attachments_target_idx")
+  @@index([tenantId, sha256], map: "attachments_sha256_idx")
+  // Parcial na migração (`WHERE status IN ('PENDING_UPLOAD','UPLOADED','SCANNING')`).
+  @@index([tenantId, status], map: "attachments_pending_status_idx")
+  @@map("attachments")
+}

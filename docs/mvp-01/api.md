@@ -195,7 +195,7 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `FILE_TYPE_NOT_ALLOWED` | 415 | Extensão/MIME fora da allowlist |
 | `FILE_TOO_LARGE` | 413 | Acima de `uploads.maxFileSizeMb` |
 | `UPLOAD_NOT_RECEIVED` | 409 | Confirmação sem objeto na quarentena |
-| `ATTACHMENT_NOT_AVAILABLE` | 409 | Download de arquivo não `AVAILABLE` |
+| `ATTACHMENT_NOT_AVAILABLE` | 409 | Download (ATT-05) ou exclusão (ATT-06) de anexo não `AVAILABLE` |
 | `RENDITION_NOT_READY` | 409 | Download antes de `READY` |
 | `TEMPLATE_INVALID` | 422 | Seções/variáveis/layout inválidos |
 | `TEMPLATE_VERSION_NOT_DRAFT` | 409 | |
