@@ -2029,3 +2029,123 @@ model DocumentRendition {
   @@index([tenantId, expiresAt], map: "document_renditions_preview_expiry_idx")
   @@map("document_renditions")
 }
+
+/// entities.md §2 — `RiskPhase` (US-033).
+enum RiskPhase {
+  PLANNING
+  SELECTION
+  CONTRACT_MANAGEMENT
+
+  @@map("risk_phase")
+}
+
+/// entities.md §2 — `RiskLevel` (DEC-021).
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  EXTREME
+
+  @@map("risk_level")
+}
+
+/// entities.md §2 — `RiskStatus` (RN-RISK-07).
+enum RiskStatus {
+  OPEN
+  IN_TREATMENT
+  MITIGATED
+  MATERIALIZED
+  CLOSED
+
+  @@map("risk_status")
+}
+
+/// entities.md §2 — `TreatmentType` (US-034).
+enum TreatmentType {
+  PREVENTIVE
+  CONTINGENCY
+
+  @@map("treatment_type")
+}
+
+/// entities.md §2 — `TreatmentStatus` (US-034).
+enum TreatmentStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  CANCELED
+
+  @@map("treatment_status")
+}
+
+/// entities.md §5 `Risk` (US-033 · DEC-021): risco do processo, com código sequencial `R01`… (único
+/// por processo, nunca reaproveitado — RN-RISK-02), `score`/`level` calculados e a escala usada
+/// (`scaleSnapshot` — RN-RISK-04). FKs compostas, checks (`score = probability * impact`), gatilho
+/// de colunas imutáveis e RLS ficam em SQL bruto na migração. Exclusão só lógica.
+model Risk {
+  id                  String      @id @db.Uuid
+  tenantId            String      @map("tenant_id") @db.Uuid
+  processId           String      @map("process_id") @db.Uuid
+  code                String      @db.VarChar(10)
+  title               String      @db.VarChar(200)
+  description         String?
+  categoryId          String      @map("category_id") @db.Uuid
+  phase               RiskPhase
+  cause               String
+  consequence         String
+  probability         Int         @db.SmallInt
+  impact              Int         @db.SmallInt
+  score               Int         @db.SmallInt
+  level               RiskLevel
+  scaleSnapshot       Json        @map("scale_snapshot")
+  ownerId             String?     @map("owner_id") @db.Uuid
+  ownerDepartmentId   String?     @map("owner_department_id") @db.Uuid
+  status              RiskStatus  @default(OPEN)
+  residualProbability Int?        @map("residual_probability") @db.SmallInt
+  residualImpact      Int?        @map("residual_impact") @db.SmallInt
+  residualScore       Int?        @map("residual_score") @db.SmallInt
+  residualLevel       RiskLevel?  @map("residual_level")
+  sortOrder           Int         @default(0) @map("sort_order")
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById         String?     @map("created_by_id") @db.Uuid
+  updatedById         String?     @map("updated_by_id") @db.Uuid
+  deletedAt           DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  deletedById         String?     @map("deleted_by_id") @db.Uuid
+  version             Int         @default(1)
+
+  @@unique([tenantId, id], map: "risks_tenant_id_id_key")
+  @@unique([tenantId, processId, code], map: "risks_code_key")
+  @@index([tenantId, processId, level], map: "risks_process_level_idx")
+  @@map("risks")
+}
+
+/// entities.md §5 `RiskTreatment` (US-034): ação de tratamento do risco. Criada nesta migração para
+/// a exclusão em cascata lógica do risco (RN-RISK-10 · US-033); o CRUD é da US-034.
+model RiskTreatment {
+  id                      String          @id @db.Uuid
+  tenantId                String          @map("tenant_id") @db.Uuid
+  riskId                  String          @map("risk_id") @db.Uuid
+  processId               String          @map("process_id") @db.Uuid
+  type                    TreatmentType
+  description             String
+  responsibleId           String?         @map("responsible_id") @db.Uuid
+  responsibleDepartmentId String?         @map("responsible_department_id") @db.Uuid
+  dueDate                 DateTime?       @map("due_date") @db.Date
+  status                  TreatmentStatus @default(PLANNED)
+  completedAt             DateTime?       @map("completed_at") @db.Timestamptz(6)
+  notes                   String?
+  sortOrder               Int             @default(0) @map("sort_order")
+  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?         @map("created_by_id") @db.Uuid
+  updatedById             String?         @map("updated_by_id") @db.Uuid
+  deletedAt               DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  deletedById             String?         @map("deleted_by_id") @db.Uuid
+  version                 Int             @default(1)
+
+  @@unique([tenantId, id], map: "risk_treatments_tenant_id_id_key")
+  @@index([tenantId, riskId], map: "risk_treatments_risk_idx")
+  @@index([tenantId, responsibleId, status], map: "risk_treatments_responsible_idx")
+  @@map("risk_treatments")
+}

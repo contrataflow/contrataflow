@@ -150,6 +150,12 @@ const riskThresholds = z
     );
   });
 
+/** `risk.scale` e `risk.levelThresholds` (DEC-021): lidos pelo módulo `risk` (US-033). */
+export const riskScaleSettingSchema = riskScale;
+export type RiskScaleSetting = z.infer<typeof riskScale>;
+export const riskLevelThresholdsSettingSchema = riskThresholds;
+export type RiskLevelThreshold = z.infer<typeof riskThresholds>[number];
+
 const int = (min: number, max: number) => z.number().int().min(min).max(max);
 
 function define<T>(definition: SettingDefinition<T>): SettingDefinition {

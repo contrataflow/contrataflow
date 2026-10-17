@@ -447,6 +447,8 @@ export interface ProcessApiOptions {
   actions?: Handler;
   /** PRC-13..17 (US-006): `/processes/{id}/items…` e `/process-items/{itemId}`. */
   items?: Handler;
+  /** RSK-01/02/04/05 (US-033): `/processes/{id}/risks` e `/risks/{riskId}`. */
+  risks?: Handler;
   /** DOC-01 (US-062): `/processes/{id}/documents`. */
   documents?: Handler;
   /** DTY-01 (US-062): `/document-types` (tipos ativos). */
@@ -558,6 +560,11 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
       url.startsWith('/api/v1/process-items/')
     ) {
       return respond(options.items, () => jsonResponse({ data: [] }, { headers: { ETag: '"1"' } }));
+    }
+    if (url.includes(`/processes/${PROCESS_ID}/risks`) || url.startsWith('/api/v1/risks/')) {
+      return respond(options.risks, () =>
+        jsonResponse({ data: [], meta: { canManage: false, lockReason: 'PERMISSION_DENIED' } }),
+      );
     }
     if (method === 'GET' && url.startsWith(`/api/v1/processes/${PROCESS_ID}/documents`)) {
       return respond(options.documents, () =>

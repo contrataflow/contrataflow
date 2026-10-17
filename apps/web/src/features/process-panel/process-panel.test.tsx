@@ -115,6 +115,10 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     expect(document.activeElement).toBe(title);
     expect(screen.getByText('0012/2026')).toBeTruthy();
     expect(screen.getByText('Em andamento', { selector: 'span' })).toBeTruthy();
+    // US-033: acesso à tela de riscos (SCR-011).
+    expect(screen.getByRole('link', { name: 'Riscos' }).getAttribute('href')).toBe(
+      `/processos/${PROCESS_ID}/riscos`,
+    );
 
     expect(section('Onde está').textContent).toContain(
       'ETP e mapa de riscos — Setor de Planejamento — Em andamento',

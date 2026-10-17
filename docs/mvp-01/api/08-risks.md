@@ -27,13 +27,28 @@ Edição de riscos e tratamentos (POL-02) considera o documento `RISK_MAP`: se e
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório); query: filtros `phase`, `categoryId`, `status` (api.md §1.2) — sem campo de ordenação documentado
 - **Request:** —
-- **Response:** `200 { data: Risk[] }`
+- **Response:** `200 { data: Risk[], meta: RiskListMeta }` (`Cache-Control: no-store`)
 ```ts
 Risk {
-  id: string; code: string; title: string; description?: string; categoryId: string;
+  id: string; processId: string; code: string; title: string; description: string | null;
+  categoryId: string; category: { id: string; code: string; label: string }; // rótulo mesmo se inativa
   phase: string; cause: string; consequence: string; probability: number; impact: number;
-  ownerId?: string; ownerDepartmentId?: string; residualProbability?: number; residualImpact?: number;
-  score: number; level: string; scaleSnapshot: object; status: string; version: number;
+  ownerId: string | null; owner: { id: string; name: string } | null;
+  ownerDepartmentId: string | null; ownerDepartment: { id: string; name: string } | null;
+  residualProbability: number | null; residualImpact: number | null;
+  residualScore: number | null; residualLevel: string | null;
+  score: number; level: string; scaleSnapshot: { scale; levelThresholds }; status: string;
+  sortOrder: number;
+  treatments: { id: string; type: string; description: string; status: string }[]; // RN-RISK-10
+  version: number;
+}
+RiskListMeta {
+  scale: { max: number; probabilityLabels: string[]; impactLabels: string[] }; // vigente (grade)
+  levelThresholds: { level: string; minScore: number; maxScore: number }[];
+  riskMap: { id: string; code: string | null; status: string } | null; // RISK_MAP ativo do processo
+  canManage: boolean; // POL-02 estendida avaliada para o usuário (botões do SCR-011)
+  lockReason: null | "PERMISSION_DENIED" | "NOT_CUSTODIAN" | "INVALID_PROCESS_STATUS"
+            | "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE" | "DOCUMENT_NOT_EDITABLE"; // FA-04
 }
 ```
 - **Erros:**
@@ -101,11 +116,12 @@ Risk {
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** `id` (path, uuid, obrigatório)
-- **Request:** campos parciais de RSK-02, mais:
+- **Request:** campos parciais de RSK-02 (`null` limpa os opcionais), mais:
 ```ts
 {
-  residualProbability?: number; // RN-RISK-08
-  residualImpact?: number;      // RN-RISK-08
+  residualProbability?: number | null; // RN-RISK-08 — em par com residualImpact
+  residualImpact?: number | null;      // RN-RISK-08
+  status?: string;                      // RiskStatus — ajuste manual (RN-RISK-07)
 }
 ```
 - **Response:** `200 { data: Risk }`
@@ -116,8 +132,9 @@ Risk {
 | 403 | `PERMISSION_DENIED` | Sem permissão/escopo |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Mapa de Riscos bloqueou edição |
 | 409 | `INVALID_PROCESS_STATUS` | Processo fora de status editável |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-| 422 | `VALIDATION_ERROR` | Ver RSK-02 |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente (`currentVersion` na resposta) |
+| 422 | `VALIDATION_ERROR` | Ver RSK-02; residual sem par (`CONDITIONAL_REQUIRED`) |
+| 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | `RISK_MAP` fora dos tipos da etapa atual (POL-02) |
 
 - **Efeitos:** Eventos: `RiskAssessed` (`risk.assessed`), quando `probability` e/ou `impact` mudam — `riskId`, `fromLevel`, `toLevel`, `score` (mesmo sem mudança de nível). Auditoria: `risk.assess` (`DATA_CHANGE`) quando altera probabilidade/impacto (`changes`: `fromScore`/`toScore`, `fromLevel`/`toLevel`) ou `risk.update` nos demais casos.
 - **Notas:** —

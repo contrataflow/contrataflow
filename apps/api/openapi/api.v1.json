@@ -5594,6 +5594,502 @@
         ],
         "additionalProperties": false
       },
+      "Risk": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "PLANNING",
+              "SELECTION",
+              "CONTRACT_MANAGEMENT"
+            ]
+          },
+          "cause": {
+            "type": "string"
+          },
+          "consequence": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "impact": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "EXTREME"
+            ]
+          },
+          "scaleSnapshot": {
+            "type": "object",
+            "properties": {
+              "scale": {
+                "type": "object",
+                "properties": {
+                  "max": {
+                    "type": "integer"
+                  },
+                  "probabilityLabels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "impactLabels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "max",
+                  "probabilityLabels",
+                  "impactLabels"
+                ]
+              },
+              "levelThresholds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "LOW",
+                        "MEDIUM",
+                        "HIGH",
+                        "EXTREME"
+                      ]
+                    },
+                    "minScore": {
+                      "type": "integer"
+                    },
+                    "maxScore": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "minScore",
+                    "maxScore"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "scale",
+              "levelThresholds"
+            ]
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "owner": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "ownerDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ownerDepartment": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "residualProbability": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residualImpact": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residualScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residualLevel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "EXTREME",
+              null
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "IN_TREATMENT",
+              "MITIGATED",
+              "MATERIALIZED",
+              "CLOSED"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "treatments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskTreatmentSummary"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "processId",
+          "code",
+          "title",
+          "description",
+          "categoryId",
+          "category",
+          "phase",
+          "cause",
+          "consequence",
+          "probability",
+          "impact",
+          "score",
+          "level",
+          "scaleSnapshot",
+          "ownerId",
+          "owner",
+          "ownerDepartmentId",
+          "ownerDepartment",
+          "residualProbability",
+          "residualImpact",
+          "residualScore",
+          "residualLevel",
+          "status",
+          "sortOrder",
+          "treatments",
+          "version"
+        ]
+      },
+      "RiskTreatmentSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PREVENTIVE",
+              "CONTINGENCY"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "IN_PROGRESS",
+              "DONE",
+              "CANCELED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "description",
+          "status"
+        ]
+      },
+      "RiskListMeta": {
+        "type": "object",
+        "properties": {
+          "scale": {
+            "type": "object",
+            "properties": {
+              "max": {
+                "type": "integer"
+              },
+              "probabilityLabels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "impactLabels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "max",
+              "probabilityLabels",
+              "impactLabels"
+            ]
+          },
+          "levelThresholds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "LOW",
+                    "MEDIUM",
+                    "HIGH",
+                    "EXTREME"
+                  ]
+                },
+                "minScore": {
+                  "type": "integer"
+                },
+                "maxScore": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "level",
+                "minScore",
+                "maxScore"
+              ]
+            }
+          },
+          "riskMap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "status"
+            ]
+          },
+          "canManage": {
+            "type": "boolean"
+          },
+          "lockReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PERMISSION_DENIED",
+              "NOT_CUSTODIAN",
+              "INVALID_PROCESS_STATUS",
+              "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE",
+              "DOCUMENT_NOT_EDITABLE",
+              null
+            ]
+          }
+        },
+        "required": [
+          "scale",
+          "levelThresholds",
+          "riskMap",
+          "canManage",
+          "lockReason"
+        ]
+      },
+      "CreateRiskRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "PLANNING",
+              "SELECTION",
+              "CONTRACT_MANAGEMENT"
+            ]
+          },
+          "cause": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "consequence": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "probability": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "impact": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ownerDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "title",
+          "categoryId",
+          "phase",
+          "cause",
+          "consequence",
+          "probability",
+          "impact"
+        ],
+        "additionalProperties": false
+      },
       "ProcessStageEntry": {
         "type": "object",
         "properties": {
@@ -6573,6 +7069,96 @@
           "params",
           "visibility"
         ]
+      },
+      "UpdateRiskRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "PLANNING",
+              "SELECTION",
+              "CONTRACT_MANAGEMENT"
+            ]
+          },
+          "cause": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "consequence": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "probability": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "impact": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ownerDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "residualProbability": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "residualImpact": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "IN_TREATMENT",
+              "MITIGATED",
+              "MATERIALIZED",
+              "CLOSED"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "RoleAssignment": {
         "type": "object",
@@ -28109,6 +28695,316 @@
         }
       }
     },
+    "/processes/{id}/risks": {
+      "get": {
+        "operationId": "RSK-01",
+        "summary": "Listar riscos do processo",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PLANNING",
+                "SELECTION",
+                "CONTRACT_MANAGEMENT"
+              ]
+            },
+            "required": false,
+            "name": "phase",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "categoryId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "IN_TREATMENT",
+                "MITIGATED",
+                "MATERIALIZED",
+                "CLOSED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Riscos não excluídos por `sortOrder`/`code`, filtráveis por `phase`, `categoryId` e `status`. `meta`: escala vigente (`scale`, `levelThresholds`), o documento `RISK_MAP` do processo e se o usuário pode gerenciar agora (`canManage`/`lockReason` — FA-04).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Risk"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/RiskListMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "RSK-02",
+        "summary": "Registrar risco",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRiskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Risco com o próximo código do processo (`R01`, `R02`… — nunca reaproveitado, RN-RISK-02), `score` = probabilidade × impacto, `level` pelas faixas vigentes e `scaleSnapshot` (RN-RISK-03/04); `Location` e `ETag` = versão. Graus fora de `[1, risk.scale.max]` → 422 `OUT_OF_RANGE`; categoria inexistente, de outro tenant ou inativa → 422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`. Grava `risk.create` e `RiskCreated` (timeline `RISK_ADDED`). `RISK_MANAGE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + `RISK_MAP` permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento `RISK_MAP` existente em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Risk"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/processes/{id}/stages": {
       "get": {
         "operationId": "PRC-10",
@@ -28478,6 +29374,355 @@
                   "required": [
                     "data",
                     "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/risks/{id}": {
+      "delete": {
+        "operationId": "RSK-05",
+        "summary": "Excluir risco",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.delete"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Exclusão lógica do risco e, em cascata, dos tratamentos vinculados (RN-RISK-10); o código não é reaproveitado. Grava `risk.delete` e `RiskDeleted` (timeline `RISK_REMOVED`). `If-Match` divergente → 412 `VERSION_CONFLICT`. `RISK_MANAGE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + `RISK_MAP` permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento `RISK_MAP` existente em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`)."
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "RSK-03",
+        "summary": "Obter risco",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Risco com os tratamentos vinculados (`ETag` = versão, o `If-Match` de RSK-04/05). Inexistente, excluído, de outro tenant ou de processo não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Risk"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "RSK-04",
+        "summary": "Atualizar/avaliar risco",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.update",
+          "risk.assess"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRiskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Risco atualizado (`ETag` = nova versão). Probabilidade e/ou impacto alterados recalculam `score`/`level` pela escala vigente, gravam novo `scaleSnapshot` e emitem `RiskAssessed` (mesmo sem mudança de nível) com `risk.assess`; demais edições gravam `risk.update`. Residuais em par (422 `CONDITIONAL_REQUIRED`). `If-Match` divergente → 412 `VERSION_CONFLICT` com `currentVersion`. `RISK_MANAGE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + `RISK_MAP` permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento `RISK_MAP` existente em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Risk"
+                    }
+                  },
+                  "required": [
+                    "data"
                   ]
                 }
               }

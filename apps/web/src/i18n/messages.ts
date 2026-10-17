@@ -20,6 +20,7 @@ import processItems from '../../messages/pt-BR/processItems.json';
 import processList from '../../messages/pt-BR/processList.json';
 import processParticipants from '../../messages/pt-BR/processParticipants.json';
 import profile from '../../messages/pt-BR/profile.json';
+import risks from '../../messages/pt-BR/risks.json';
 import roles from '../../messages/pt-BR/roles.json';
 import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
@@ -59,6 +60,7 @@ export const messages = {
   processItems,
   processParticipants,
   profile,
+  risks,
   roles,
   settings,
   shell,

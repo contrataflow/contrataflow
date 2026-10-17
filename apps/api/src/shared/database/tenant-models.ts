@@ -37,6 +37,8 @@ export const TENANT_SCOPED_MODELS = [
   'ProcessParticipant',
   'ProcessStage',
   'ProcessTimelineEntry',
+  'Risk',
+  'RiskTreatment',
   'Role',
   'RoleAssignment',
   'RolePermission',

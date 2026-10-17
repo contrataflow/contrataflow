@@ -76,6 +76,7 @@ import {
 } from './application/template.commands.js';
 import { TEMPLATE_LIBRARY, TEMPLATE_REPOSITORY } from './application/template.ports.js';
 import { TemplateQueries } from './application/template.queries.js';
+import { TypedCollectionGuard } from './application/typed-collection-guard.js';
 import { UpdateDocumentTypeCommand } from './application/update-document-type.command.js';
 import { TEMPLATE_LIBRARY as TEMPLATE_LIBRARY_FIXTURE } from './domain/template-library.js';
 import { GotenbergClient, UnconfiguredPdfRenderer } from './infrastructure/gotenberg.client.js';
@@ -222,6 +223,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentCreationService,
     DocumentApprovalTransitions,
     DocumentAiTargets,
+    TypedCollectionGuard,
     DocumentAttachmentTargets,
     DocumentQueries,
     UpdateDocumentHeaderCommand,

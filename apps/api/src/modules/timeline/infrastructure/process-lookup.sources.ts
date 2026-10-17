@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { IdentityFacade } from '#modules/identity/application/identity.facade.js';
 import { OrganizationFacade } from '#modules/organization/application/organization.facade.js';
 import { ProcessFacade } from '#modules/process/application/process.facade.js';
+import { RiskFacade } from '#modules/risk/application/risk.facade.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { TimelineLookupSource } from '../application/ports.js';
@@ -95,5 +96,20 @@ export class ProcessParticipantLookupSource implements TimelineLookupSource<'PRO
       if (name !== undefined) records.set(id, { name, role: ref.role });
     }
     return records;
+  }
+}
+
+/** Fonte `RISK` (US-033): código e título do risco (inclusive excluído — `RISK_REMOVED`). */
+@Injectable()
+export class RiskLookupSource implements TimelineLookupSource<'RISK'> {
+  readonly kind = 'RISK';
+
+  constructor(private readonly risks: RiskFacade) {}
+
+  lookup(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, TimelineLookupRecords['RISK']>> {
+    return this.risks.riskLabels(tx, ids);
   }
 }

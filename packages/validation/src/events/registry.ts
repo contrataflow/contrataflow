@@ -49,6 +49,7 @@ import {
   ProcessParticipantRemoved,
   ProcessUpdated,
 } from '../process/events.js';
+import { RiskAssessed, RiskCreated, RiskDeleted } from '../risk/events.js';
 import { SupplierCreated, SupplierUpdated } from '../supplier/events.js';
 import {
   OrganizationCreated,
@@ -105,6 +106,9 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessConfidentialityChanged,
   SupplierCreated,
   SupplierUpdated,
+  RiskCreated,
+  RiskAssessed,
+  RiskDeleted,
   RoleCreated,
   RoleUpdated,
   RoleAssigned,

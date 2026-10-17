@@ -19,6 +19,12 @@ import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports
 import type { DocumentRepository, DocumentValidator } from './document.ports.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TYPE_REPOSITORY } from './ports.js';
 import type { DocumentClock, DocumentTypeRepository } from './ports.js';
+import { TypedCollectionGuard } from './typed-collection-guard.js';
+import type {
+  TypedCollectionInput,
+  TypedCollectionState,
+  TypedCollectionWrite,
+} from './typed-collection-guard.js';
 import { draftContentCopy } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
@@ -29,6 +35,13 @@ export type {
 } from './document.ports.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
 export type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
+export type {
+  TypedCollectionInput,
+  TypedCollectionLockReason,
+  TypedCollectionOwner,
+  TypedCollectionState,
+  TypedCollectionWrite,
+} from './typed-collection-guard.js';
 export type {
   ApprovalDecisionInput,
   StageEntryInput,
@@ -72,6 +85,7 @@ export class DocumentFacade {
     private readonly creation: DocumentCreationService,
     private readonly approvals: DocumentApprovalTransitions,
     private readonly aiTargets: DocumentAiTargets,
+    private readonly collections: TypedCollectionGuard,
     @Inject(DOCUMENT_CLOCK) private readonly clock: DocumentClock,
   ) {}
 
@@ -151,6 +165,25 @@ export class DocumentFacade {
    */
   aiTargetIn(tx: TenantTx, input: AiDocumentTargetInput): Promise<AiDocumentTarget> {
     return this.aiTargets.resolve(tx, input);
+  }
+
+  /**
+   * Coleção de documento tipado para LEITURA (US-033 · DEC-024): 404 `NOT_FOUND` se o processo não
+   * é visível; o documento dono (ex.: `RISK_MAP`) e, sem lançar, se o usuário pode alterá-la agora.
+   */
+  typedCollectionStateIn(tx: TenantTx, input: TypedCollectionInput): Promise<TypedCollectionState> {
+    return this.collections.inspect(tx, input);
+  }
+
+  /**
+   * POL-02 estendida às coleções dos documentos tipados (RN-RISK-09): lança 403/404/409/422 e
+   * trava o documento dono no `tx` do chamador (corrida com a finalização).
+   */
+  assertTypedCollectionWritableIn(
+    tx: TenantTx,
+    input: TypedCollectionInput,
+  ): Promise<TypedCollectionWrite> {
+    return this.collections.assertWritable(tx, input);
   }
 
   /** Fonte `DOCUMENT` da timeline: código, título e nome do tipo (RN-TML-04). */

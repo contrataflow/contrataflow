@@ -9,6 +9,7 @@ import type { CreateDocumentInput, DocumentCreationService } from './document-cr
 import { DocumentFacade } from './document.facade.js';
 import { DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentValidator } from './document.ports.js';
+import type { TypedCollectionGuard } from './typed-collection-guard.js';
 import {
   buildDocument,
   buildDocumentType,
@@ -35,6 +36,7 @@ function facadeWith(creation: Partial<DocumentCreationService> = {}) {
     creation as DocumentCreationService,
     {} as DocumentApprovalTransitions,
     {} as DocumentAiTargets,
+    {} as TypedCollectionGuard,
     () => NOW,
   );
   return { facade, documents, types, validators };

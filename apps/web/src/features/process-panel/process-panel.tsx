@@ -35,6 +35,7 @@ import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { FollowToggleButton } from '../process-participants/follow-toggle-button';
 import { ParticipantsTab } from '../process-participants/participants-tab';
 import { fetchProcess, processKeys } from '../processes/processes.api';
+import { RisksLink } from '../risks/risks-link';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
 /** Contador da aba (RN-PROC-57): documentos, itens, comentários e participantes vêm do resumo. */
@@ -296,7 +297,11 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         <ProcessHeader header={data.header} />
         <div className="flex flex-col items-end gap-3">
           {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
-          <FollowToggleButton processId={processId} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* US-033: acesso à tela de riscos (SCR-011). */}
+            <RisksLink processId={processId} />
+            <FollowToggleButton processId={processId} />
+          </div>
           {/* US-013: "Orçamento sigiloso" (PRC-33) com o estado e a versão do PRC-04. */}
           <ConfidentialBudgetToggle processId={processId} process={detail.data} frozen={frozen} />
         </div>

@@ -26,6 +26,7 @@ import {
   ProcessLookupSource,
   ProcessParticipantLookupSource,
   ProcessStageLookupSource,
+  RiskLookupSource,
 } from './infrastructure/process-lookup.sources.js';
 import {
   InMemoryTimelineTransactions,
@@ -37,6 +38,7 @@ import { FilesModule } from '../files/files.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { ProcessModule } from '../process/process.module.js';
+import { RiskModule } from '../risk/risk.module.js';
 
 /**
  * Módulo `timeline` (DEC-040, nível 5): outros módulos usam somente a fachada exportada. Dono de
@@ -47,7 +49,14 @@ import { ProcessModule } from '../process/process.module.js';
  * US-060: a leitura da timeline (PRC-12 — `TimelineController`/`GetProcessTimelineHandler`).
  */
 @Module({
-  imports: [IdentityModule, OrganizationModule, ProcessModule, DocumentModule, FilesModule],
+  imports: [
+    IdentityModule,
+    OrganizationModule,
+    ProcessModule,
+    DocumentModule,
+    FilesModule,
+    RiskModule,
+  ],
   controllers: [TimelineController],
   providers: [
     TimelineFacade,
@@ -77,11 +86,12 @@ import { ProcessModule } from '../process/process.module.js';
     DocumentLookupSource,
     DocumentVersionLookupSource,
     AttachmentLookupSource,
+    RiskLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
       // US-001: unidade, processo e etapa das referências de `ProcessCreated`. US-065: documento e
       // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`). US-012: participante
-      // (`PARTICIPANT_REMOVED`).
+      // (`PARTICIPANT_REMOVED`). US-033: risco (`RISK_ADDED`/`RISK_LEVEL_CHANGED`/`RISK_REMOVED`).
       inject: [
         IdentityUserLookupSource,
         DepartmentLookupSource,
@@ -91,6 +101,7 @@ import { ProcessModule } from '../process/process.module.js';
         DocumentLookupSource,
         DocumentVersionLookupSource,
         AttachmentLookupSource,
+        RiskLookupSource,
       ],
       useFactory: (...sources: AnyTimelineLookupSource[]): AnyTimelineLookupSource[] => sources,
     },

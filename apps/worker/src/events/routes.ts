@@ -146,6 +146,11 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-025: cadastro de apoio; nenhum consumidor assíncrono no MVP 1.
     SupplierCreated: 'NO_ASYNC_CONSUMER',
     SupplierUpdated: 'NO_ASYNC_CONSUMER',
+    // US-033: timeline (`RISK_ADDED`/`RISK_LEVEL_CHANGED`/`RISK_REMOVED`) projetada no mesmo `tx`;
+    // nenhum consumidor assíncrono nem notificação (story · "Notificações").
+    RiskCreated: 'NO_ASYNC_CONSUMER',
+    RiskAssessed: 'NO_ASYNC_CONSUMER',
+    RiskDeleted: 'NO_ASYNC_CONSUMER',
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',
