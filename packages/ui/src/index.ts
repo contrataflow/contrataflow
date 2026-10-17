@@ -5,6 +5,7 @@ export type { ButtonProps } from './components/button.js';
 export { buttonClassName } from './lib/button-class.js';
 export type { ButtonSize, ButtonVariant } from './lib/button-class.js';
 export {
+  BottomSheetContent,
   Dialog,
   DialogClose,
   DialogContent,

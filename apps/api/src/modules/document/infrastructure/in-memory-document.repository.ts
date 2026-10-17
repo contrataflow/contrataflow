@@ -96,6 +96,15 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     );
   }
 
+  listByProcess(_tx: TenantTx, processId: string): Promise<Document[]> {
+    return Promise.resolve(
+      this.inTenant()
+        .filter((row) => row.processId === processId && row.deletedAt === null)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((row) => this.withVersionNumber(row)),
+    );
+  }
+
   insert(_tx: TenantTx, document: Document): Promise<void> {
     const conflict = this.singletonConflict(document);
     if (conflict) return Promise.reject(conflict);

@@ -136,6 +136,9 @@ const DOCUMENT_ROUTE =
 const DOCUMENT_VERSION_ROUTE =
   'Versões de documento (US-066): a suíte genérica não tem documento nem versão do tenant B. O isolamento (DOC-15/16/18 com id de documento de B e DOC-17 com id de versão de B → 404 NOT_FOUND; DOC-18 com versão de B num documento de A → 422 REFERENCE_NOT_FOUND, sem revelar nada; RLS e gatilho só-INSERT de document_versions) é coberto em test/tenant-leak/document-versions.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/document-versions.routes.spec.ts.';
 
+const DOCUMENT_PANEL_ROUTE =
+  'Painel de documentos (US-062): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-01 com processo de outro tenant → 404 PROCESS_NOT_FOUND igual ao inexistente, sem revelar nada; RLS de documents na consulta do painel; processo não visível → 404 com access.denied) é coberto em test/tenant-leak/process-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/process-documents.routes.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -249,6 +252,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-15': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-16': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-17': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'DOC-01': { kind: 'exempt', reason: DOCUMENT_PANEL_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-08': { kind: 'exempt', reason: DOCUMENT_ROUTE },

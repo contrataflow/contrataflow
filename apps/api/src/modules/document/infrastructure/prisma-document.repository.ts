@@ -171,9 +171,17 @@ export class PrismaDocumentRepository implements DocumentRepository {
     return toDocument(row, await this.versionNumberOf(tx, row.currentVersionId));
   }
 
-  async listActiveByProcess(tx: TenantTx, processId: string): Promise<Document[]> {
+  listActiveByProcess(tx: TenantTx, processId: string): Promise<Document[]> {
+    return this.listWhere(tx, { processId, deletedAt: null, status: { not: 'CANCELED' } });
+  }
+
+  listByProcess(tx: TenantTx, processId: string): Promise<Document[]> {
+    return this.listWhere(tx, { processId, deletedAt: null });
+  }
+
+  private async listWhere(tx: TenantTx, where: Prisma.DocumentWhereInput): Promise<Document[]> {
     const rows = await tx.document.findMany({
-      where: { processId, deletedAt: null, status: { not: 'CANCELED' } },
+      where,
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     const versionIds = rows.flatMap((row) =>

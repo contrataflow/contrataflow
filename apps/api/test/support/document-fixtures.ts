@@ -241,3 +241,31 @@ export function openStageForAnyType(api: TestApi): Set<string> {
   });
   return open;
 }
+
+/**
+ * Etapa atual por processo com os `documentTypeCodes` informados (US-062 — Background do painel):
+ * `stageCodes.set(processId, codes)` troca os tipos da etapa (e o nome, se dado) daquele processo.
+ */
+export function stageDocumentTypes(
+  api: TestApi,
+  stageName?: string,
+): Map<string, readonly string[]> {
+  const codes = new Map<string, readonly string[]>();
+  const loader = api.app.get(DocumentProcessContextLoader, { strict: false });
+  api.app.get(DocumentProcessContextRegistry).register({
+    async load(tx, processId) {
+      const context = await loader.load(tx, processId);
+      const stage = codes.get(processId);
+      if (context === null || stage === undefined || context.currentStage === null) return context;
+      return {
+        ...context,
+        currentStage: {
+          ...context.currentStage,
+          ...(stageName === undefined ? {} : { name: stageName }),
+          documentTypeCodes: stage,
+        },
+      };
+    },
+  });
+  return codes;
+}

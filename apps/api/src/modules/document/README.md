@@ -4,8 +4,8 @@ Tipos, templates, documentos, versões imutáveis, renderização e itens de doc
 
 ## Ciclo de vida do documento (US-065 · DEC-017/018)
 
-- **Rotas** (`DocumentController`): DOC-03 `GET /documents/{id}` (mínimo para a SCR-105; a US-062
-  completa o painel), DOC-04 `PATCH` (título/responsável do rascunho), DOC-08 `GET …/validation`,
+- **Rotas** (`DocumentController`): DOC-03 `GET /documents/{id}` (SCR-105; o painel do processo é o
+  DOC-01 — US-062), DOC-04 `PATCH` (título/responsável do rascunho), DOC-08 `GET …/validation`,
   DOC-09 `POST …/submit`, DOC-10 `POST …/finalize`, DOC-12 `POST …/reopen`, DOC-13
   `POST …/cancel`, DOC-14 `DELETE`. Mutações exigem `If-Match` (412 com `currentVersion`); DOC-09/10
   aceitam `Idempotency-Key`. Respostas `{ data: Document, meta: { allowedActions } }` + `ETag`.
@@ -90,6 +90,27 @@ genéricas — a ausência de registro nunca falha a ação.
   gatilho `document_versions_append_only`), `approvals`, `approval_documents`; RLS; FKs compostas
   por tenant; cancelado é final (gatilho); exclusão só lógica. Testes com PostgreSQL:
   `test/tenant-leak/documents.spec.ts`.
+
+## Painel de documentos do processo (US-062 · RN-DOC-13..20)
+
+- **Rota:** DOC-01 `GET /processes/{id}/documents` (`ProcessDocumentsController`,
+  `@RequirePermission('PROCESS_VIEW', { scope: { processParam: 'id' } })`) →
+  `GetProcessDocumentsHandler` (`application/process-documents.query.ts`). Contratos em
+  `packages/validation/src/document/process-documents.ts`.
+- **Leitura composta sem N+1:** tipos do cache de DTY-01 (`DocumentTypeFacade.listAll`, ANTES da
+  transação — no cache frio ele abre a própria leitura), uma consulta `listByProcess` (inclui
+  cancelados), nomes dos responsáveis numa consulta, ator (`actorOf`) memoizado por
+  `systemModule`, permissões de criação por código distinto. `summary` = `typedSummary` do
+  `DocumentValidator` (só tipados com validador — ≤ 5 singulares por processo).
+- **Regras puras:** `domain/process-documents-panel.ts` (`panelTypes`, `sortPanelDocuments`,
+  `filterPanelDocuments`) e `createPermissionOf` (`domain/document-permissions.ts`). POL-09 do resumo
+  via `maskConfidentialRecord`.
+- **Logs/métricas:** `info document_panel.loaded` (`processId`, `documentCount`, `durationMs`),
+  `error document_panel.load_failed` (`errorCode`, `correlationId`), histograma
+  `cf_document_panel_duration_ms{result}`; o warn do cache de tipos passou a ser
+  `document_type.cache_unavailable`. Nunca loga título.
+- **Testes:** `domain/process-documents-panel.spec.ts`, `presentation/process-documents.routes.spec.ts`
+  (8 categorias do Gherkin) e `test/tenant-leak/process-documents.spec.ts` (PostgreSQL).
 
 ## Versões imutáveis e comparação (US-066 · RN-DOC-56..62)
 

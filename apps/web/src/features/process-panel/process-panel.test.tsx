@@ -386,9 +386,10 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     const { unmount } = renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
     const tab = await screen.findByRole('tab', { name: 'Documentos (2)' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByRole('tabpanel').textContent).toContain(
-      'A lista completa de documentos do processo estará disponível em breve.',
-    );
+    // US-062: a aba carrega o painel de documentos (DOC-01 + DTY-01).
+    expect(
+      await within(screen.getByRole('tabpanel')).findByText('Nenhum documento ainda.'),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'Itens (3)' }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/processos/${PROCESS_ID}?aba=itens`, {
       scroll: false,

@@ -134,24 +134,32 @@ export class DocumentLifecycleService {
 
   /** Permissões do tipo e de ciclo de vida cobrindo o processo, custódia e participação. */
   async actorOf(context: DocumentAuthorizationContext): Promise<ResolvedDocumentActor> {
-    const userId = requireRequestContext().actor.userId ?? '';
-    const permissions = await this.access.effectivePermissions();
     const target = context.process.access;
     const { edit, submit } = typePermissionsOf(context.type.systemModule);
     const can = (permission: PermissionCode) => this.access.canOnProcess(permission, target);
-    const now = Date.now();
-    const { process } = context;
     return {
-      userId,
+      ...(await this.custodyOf(context.process)),
       canEditType: await can(edit),
       canSubmitType: await can(submit),
       canReopen: await can('DOCUMENT_REOPEN'),
       canCancel: await can('DOCUMENT_CANCEL'),
+    };
+  }
+
+  /** Custódia atual (POL-01) e participação `COLLABORATOR`/`CONSULTANT` ativa (POL-02). */
+  async custodyOf(
+    process: DocumentProcessContext,
+  ): Promise<Pick<ResolvedDocumentActor, 'userId' | 'isCustodian' | 'isCollaborator'>> {
+    const userId = requireRequestContext().actor.userId ?? '';
+    const permissions = await this.access.effectivePermissions();
+    const now = Date.now();
+    return {
+      userId,
       isCustodian:
         process.currentResponsibleId === null
           ? permissions.snapshot.ownDepartmentIds.includes(process.currentDepartmentId)
           : process.currentResponsibleId === userId,
-      isCollaborator: target.participations.some(
+      isCollaborator: process.access.participations.some(
         (participation) =>
           participation.userId === userId &&
           participation.role !== 'OBSERVER' &&
@@ -233,7 +241,7 @@ export class DocumentLifecycleService {
    * já carregado. Quem decide SE mascarar (processo sigiloso agora ou no momento da versão) é quem
    * chama.
    */
-  async canViewConfidentialBudget(context: DocumentAuthorizationContext): Promise<boolean> {
+  async canViewConfidentialBudget(context: Pick<DocumentContext, 'process'>): Promise<boolean> {
     const { scope, custodyDepartmentIds } = await this.access.confidentialBudgetAccess();
     const { process } = context;
     if (scope.tenantWide) return true;
@@ -331,6 +339,25 @@ export class DocumentLifecycleService {
     const validator = this.validators.find(context.type.systemModule);
     if (!validator?.typedSummary) return null;
     return validator.typedSummary(tx, this.subjectOf(context));
+  }
+
+  /**
+   * Resumo do módulo tipado para o cartão do painel (US-062 · RN-DOC-17) — o mesmo `typedSummary`
+   * do evento `DocumentFinalized`; só `STRUCTURED` com validador. Quem chama aplica POL-09.
+   */
+  async panelSummary(
+    tx: TenantTx,
+    document: Document,
+    type: DocumentType,
+  ): Promise<Readonly<Record<string, unknown>> | null> {
+    if (type.kind !== 'STRUCTURED') return null;
+    const validator = this.validators.find(type.systemModule);
+    if (!validator?.typedSummary) return null;
+    const template =
+      document.templateVersionId === null
+        ? null
+        : await this.templates.findVersionById(tx, document.templateVersionId);
+    return validator.typedSummary(tx, { document, type, template });
   }
 
   logCompletenessBlocked(documentId: string, violations: readonly Violation[]): void {

@@ -97,3 +97,15 @@ export function transitionRefused(error: DocumentTransitionError): ApiError {
     },
   );
 }
+
+/**
+ * 404 `PROCESS_NOT_FOUND` do painel (DOC-01 · V-03): o mesmo corpo do guard de `PROCESS_VIEW` —
+ * inexistente, de outro tenant e não visível são indistinguíveis (DEC-024), auditado como negação.
+ */
+export function panelProcessNotFound(): ApiError {
+  return new ApiError('PROCESS_NOT_FOUND', {
+    detail: 'Não encontramos o recurso solicitado.',
+    auditReasonCode: 'PROCESS_VIEW',
+    auditDenial: true,
+  });
+}

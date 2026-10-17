@@ -446,6 +446,10 @@ export interface ProcessApiOptions {
   actions?: Handler;
   /** PRC-13..17 (US-006): `/processes/{id}/items…` e `/process-items/{itemId}`. */
   items?: Handler;
+  /** DOC-01 (US-062): `/processes/{id}/documents`. */
+  documents?: Handler;
+  /** DTY-01 (US-062): `/document-types` (tipos ativos). */
+  documentTypes?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -528,6 +532,17 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
       url.startsWith('/api/v1/process-items/')
     ) {
       return respond(options.items, () => jsonResponse({ data: [] }, { headers: { ETag: '"1"' } }));
+    }
+    if (method === 'GET' && url.startsWith(`/api/v1/processes/${PROCESS_ID}/documents`)) {
+      return respond(options.documents, () =>
+        jsonResponse({
+          data: [],
+          meta: { currentStage: null, creatableTypeIds: [], pendingTypeIds: [] },
+        }),
+      );
+    }
+    if (method === 'GET' && url.startsWith('/api/v1/document-types')) {
+      return respond(options.documentTypes, () => jsonResponse({ data: [] }));
     }
     if (url.includes('/available-actions')) {
       return respond(options.actions, () => jsonResponse({ data: [] }));

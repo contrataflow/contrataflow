@@ -103,6 +103,33 @@ export function SheetContent({
   );
 }
 
+/**
+ * Folha inferior (bottom sheet) sobre o mesmo Radix Dialog: presa à base da tela, largura total e
+ * rolagem própria — para menus de ação em telas pequenas (< 768 px).
+ */
+export function BottomSheetContent({
+  className,
+  children,
+  closeLabel: _closeLabel,
+  ...props
+}: DialogContentProps) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/45" />
+      <DialogPrimitive.Content
+        className={cx(
+          'fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col gap-2 overflow-y-auto',
+          'rounded-t-card border-t border-border bg-surface p-4 text-foreground shadow-lg',
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+  );
+}
+
 export function DialogTitle({
   className,
   ...props

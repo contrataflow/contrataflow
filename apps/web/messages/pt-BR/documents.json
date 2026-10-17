@@ -199,5 +199,37 @@
       "changedFields": "Campos alterados: {fields}",
       "maskedFields": "Campos sigilosos: {fields}"
     }
+  },
+  "panel": {
+    "title": "Documentos do processo",
+    "loading": "Carregando os documentos…",
+    "create": "Criar documento",
+    "createMenu": "Tipos de documento que você pode criar",
+    "noNumber": "Sem número",
+    "noResponsible": "sem responsável",
+    "meta": "Responsável: {responsible} · Atualizado em {updatedAt}",
+    "totalValue": "Valor total:",
+    "confidential": "Sigiloso",
+    "count": "{count, plural, =0 {Nenhum documento} one {# documento} other {# documentos}}",
+    "notStarted": "Não iniciado",
+    "start": "Iniciar {type}",
+    "empty": "Nenhum documento ainda.",
+    "emptyHint": "Comece criando um documento.",
+    "noMatches": "Nenhum documento corresponde aos filtros.",
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "Título ou número (mín. 2 caracteres)",
+      "type": "Tipo",
+      "status": "Status",
+      "responsible": "Responsável",
+      "all": "Todos"
+    },
+    "errors": {
+      "notFound": "Processo não encontrado.",
+      "backToList": "Voltar para Processos",
+      "unavailable": "Não foi possível carregar os documentos agora.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "retry": "Tentar novamente"
+    }
   }
 }

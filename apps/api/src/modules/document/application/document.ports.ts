@@ -45,6 +45,11 @@ export interface DocumentRepository {
    * criação (painel situacional — US-004 · RN-PROC-48(6)).
    */
   listActiveByProcess(tx: TenantTx, processId: string): Promise<Document[]>;
+  /**
+   * Documentos não excluídos do processo, inclusive cancelados (painel — US-062 · RN-DOC-19), com
+   * o número da versão atual: uma consulta só (sem N+1).
+   */
+  listByProcess(tx: TenantTx, processId: string): Promise<Document[]>;
   /** @throws DocumentAlreadyExistsError */
   insert(tx: TenantTx, document: Document): Promise<void>;
   /**

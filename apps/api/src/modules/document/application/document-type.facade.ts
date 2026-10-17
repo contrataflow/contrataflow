@@ -108,11 +108,11 @@ export class DocumentTypeFacade {
       cacheResult('unavailable');
       this.logger.warn(
         {
-          event: 'cache.unavailable',
+          event: 'document_type.cache_unavailable',
           module: DOCUMENT_TYPES_CACHE_MODULE,
           cause: errorName(error),
         },
-        'cache.unavailable',
+        'document_type.cache_unavailable',
       );
       return this.load();
     }
@@ -128,11 +128,11 @@ export class DocumentTypeFacade {
     } catch (error) {
       this.logger.warn(
         {
-          event: 'cache.unavailable',
+          event: 'document_type.cache_unavailable',
           module: DOCUMENT_TYPES_CACHE_MODULE,
           cause: errorName(error),
         },
-        'cache.unavailable',
+        'document_type.cache_unavailable',
       );
     }
     return loaded;

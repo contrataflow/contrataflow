@@ -64,6 +64,13 @@ function maskRecord(record: Readonly<Record<string, unknown>>): Record<string, u
   return result;
 }
 
+/** Um registro (resumo do painel — RN-DOC-17) como quem não atende POL-09 o vê. */
+export function maskConfidentialRecord(
+  record: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return maskRecord(record);
+}
+
 /** O snapshot como quem não atende POL-09 o vê (cabeçalho e coleções mascarados). */
 export function maskConfidentialSnapshot(snapshot: DocumentSnapshot): DocumentSnapshot {
   return {

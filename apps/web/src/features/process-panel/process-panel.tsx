@@ -27,6 +27,7 @@ import { SituationalPanel } from './situational-panel';
 import { StageStepper } from './stage-stepper';
 import { AttachmentsSection } from '../attachments/attachments-section';
 import { useAvailableActions } from '../process-actions/process-actions.api';
+import { DocumentsPanel } from '../process-documents/documents-panel';
 import { EditProcessSheet } from '../process-edit/edit-process-sheet';
 import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { fetchProcess, processKeys } from '../processes/processes.api';
@@ -199,7 +200,7 @@ export function useStaleProcessRecovery(processId: string) {
 function SoonPanel({
   tab,
 }: {
-  readonly tab: Exclude<ProcessPanelTab, 'resumo' | 'timeline' | 'itens'>;
+  readonly tab: Exclude<ProcessPanelTab, 'resumo' | 'timeline' | 'itens' | 'documentos'>;
 }) {
   const t = useTranslations('processes.panel.tabs.soon');
   return <p className="text-sm text-muted-foreground">{t(tab)}</p>;
@@ -268,6 +269,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     );
   } else if (tab === 'timeline') {
     content = <TimelineFeed processId={processId} />;
+  } else if (tab === 'documentos') {
+    // US-062: documentos agrupados por tipo e o menu "Criar documento" (DOC-01 + DTY-01).
+    content = <DocumentsPanel processId={processId} />;
   } else if (tab === 'itens') {
     // US-006: lista canônica de itens (PRC-13..17).
     content = <ProcessItemsTab processId={processId} />;

@@ -43,6 +43,7 @@ import {
   DOCUMENT_TYPE_REPOSITORY,
 } from './application/ports.js';
 import { PreviewDocumentTypeImpactQuery } from './application/preview-document-type-impact.query.js';
+import { GetProcessDocumentsHandler } from './application/process-documents.query.js';
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { TemplateContext } from './application/template-context.js';
@@ -76,6 +77,7 @@ import { PrismaTemplateRepository } from './infrastructure/prisma-template.repos
 import { DocumentTypeController } from './presentation/document-type.controller.js';
 import { DocumentVersionController } from './presentation/document-version.controller.js';
 import { DocumentController } from './presentation/document.controller.js';
+import { ProcessDocumentsController } from './presentation/process-documents.controller.js';
 import { TemplateController } from './presentation/template.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
@@ -114,6 +116,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     TemplateController,
     DocumentController,
     DocumentVersionController,
+    ProcessDocumentsController,
   ],
   providers: [
     DocumentFacade,
@@ -199,6 +202,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DeleteDocumentCommand,
     DocumentVersionQueries,
     SaveDocumentVersionCommand,
+    // US-062: painel de documentos do processo (DOC-01).
+    GetProcessDocumentsHandler,
     { provide: DOCUMENT_CLOCK, useValue: () => new Date() },
   ],
   exports: [DocumentFacade, DocumentTypeFacade],

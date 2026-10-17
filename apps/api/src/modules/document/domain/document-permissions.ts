@@ -25,3 +25,19 @@ const BY_MODULE: Readonly<Record<SystemDocumentModule, TypePermissions>> = {
 export function typePermissionsOf(systemModule: SystemDocumentModule | null): TypePermissions {
   return systemModule === null ? GENERIC : BY_MODULE[systemModule];
 }
+
+/**
+ * Permissão de criação do tipo (RN-DOC-16 · permissions.md §2.2/§2.3): `DOCUMENT_CREATE` nos
+ * livres/externos; nos tipados, a do módulo dono (o mapa de riscos nasce com `RISK_MANAGE`).
+ */
+const CREATE_BY_MODULE: Readonly<Record<SystemDocumentModule, PermissionCode>> = {
+  DFD: 'DFD_CREATE',
+  ETP: 'ETP_CREATE',
+  TERM_OF_REFERENCE: 'TERM_CREATE',
+  RISK_MAP: 'RISK_MANAGE',
+  PRICE_RESEARCH: 'PRICE_RESEARCH_CREATE',
+};
+
+export function createPermissionOf(systemModule: SystemDocumentModule | null): PermissionCode {
+  return systemModule === null ? 'DOCUMENT_CREATE' : CREATE_BY_MODULE[systemModule];
+}
