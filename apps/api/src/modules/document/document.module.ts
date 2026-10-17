@@ -78,6 +78,10 @@ import { TEMPLATE_LIBRARY, TEMPLATE_REPOSITORY } from './application/template.po
 import { TemplateQueries } from './application/template.queries.js';
 import { TypedCollectionGuard } from './application/typed-collection-guard.js';
 import { UpdateDocumentTypeCommand } from './application/update-document-type.command.js';
+import {
+  CreateProcessDocumentCommand,
+  UploadDocumentVersionCommand,
+} from './application/uploaded-document.commands.js';
 import { TEMPLATE_LIBRARY as TEMPLATE_LIBRARY_FIXTURE } from './domain/template-library.js';
 import { GotenbergClient, UnconfiguredPdfRenderer } from './infrastructure/gotenberg.client.js';
 import { InMemoryDocumentRenditionRepository } from './infrastructure/in-memory-document-rendition.repository.js';
@@ -123,7 +127,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * aprovação avulsa, pela `DocumentApprovalRegistry`, implementada por `approval`). Autorização e MFA vêm de `access`/`identity`;
  * a verificação de uso em fluxos publicados, da porta `DocumentTypeUsageProvider` (implementada
  * por `workflow`). Implementa a porta `DocumentTypeCatalog` lida por `workflow` (US-040). Dono das
- * renditions em PDF (US-067: DOC-20..23 e o `RenderDocumentJob` da fila `document-render`).
+ * renditions em PDF (US-067: DOC-20..23 e o `RenderDocumentJob` da fila `document-render`). O
+ * documento externo (US-064: DOC-02/19) lê o arquivo do anexo pela porta `AttachmentFileRegistry`,
+ * implementada por `files`.
  */
 @Module({
   imports: [
@@ -235,6 +241,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DeleteDocumentCommand,
     DocumentVersionQueries,
     SaveDocumentVersionCommand,
+    // US-064: documento externo — DOC-02 (casca `UPLOADED`) e DOC-19 (versão por upload).
+    CreateProcessDocumentCommand,
+    UploadDocumentVersionCommand,
     // US-062: painel de documentos do processo (DOC-01).
     GetProcessDocumentsHandler,
     { provide: DOCUMENT_CLOCK, useValue: () => new Date() },

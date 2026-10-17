@@ -21,6 +21,7 @@ import {
   invalidProcessStatus,
   notCustodianNorCollaborator,
   notProcessCustodian,
+  processNotFound,
   transitionRefused,
   typeNotAllowedInStage,
 } from './document.errors.js';
@@ -42,7 +43,7 @@ import { AccessFacade } from '../../access/application/access.facade.js';
 import { maskConfidentialSnapshot } from '../domain/confidential-snapshot.js';
 import { composeViolations, evaluateGenericCompleteness } from '../domain/document-completeness.js';
 import type { CompletenessResult } from '../domain/document-completeness.js';
-import { typePermissionsOf } from '../domain/document-permissions.js';
+import { createPermissionOf, typePermissionsOf } from '../domain/document-permissions.js';
 import { buildDocumentSnapshot, snapshotHash } from '../domain/document-snapshot.js';
 import type { DocumentVersionRecord } from '../domain/document-snapshot.js';
 import type { DocumentTemplateVersion } from '../domain/document-template.js';
@@ -53,6 +54,7 @@ import {
   DocumentTransitionError,
 } from '../domain/document.js';
 import type { Document, DocumentActor, DocumentProcessState } from '../domain/document.js';
+import type { UploadedVersionFile } from '../domain/uploaded-version.js';
 
 /*
  * `DocumentLifecycleService` (US-065 · DEC-018 · RN-DOC-41..55): o padrão de máquina de estados de
@@ -144,6 +146,22 @@ export class DocumentLifecycleService {
     return { document, type, template, process };
   }
 
+  /**
+   * Processo VISÍVEL (DEC-024 — senão 404 `NOT_FOUND`, como o documento) e o tipo do tenant para a
+   * criação (DOC-02 — US-063/064). Tipo inexistente/de outro tenant = `null`: quem chama decide a 422.
+   */
+  async creationContext(
+    tx: TenantTx,
+    processId: string,
+    documentTypeId: string,
+  ): Promise<{ readonly process: DocumentProcessContext; readonly type: DocumentType | null }> {
+    const process = await this.processes.load(tx, processId);
+    if (process === null) throw processNotFound();
+    const visibility = await this.access.processVisibilityScope();
+    if (!isProcessVisible(visibility, process.access)) throw processNotFound();
+    return { process, type: await this.types.findById(tx, documentTypeId) };
+  }
+
   // --- Autorização ----------------------------------------------------------------------------
 
   /** Permissões do tipo e de ciclo de vida cobrindo o processo, custódia e participação. */
@@ -233,6 +251,24 @@ export class DocumentLifecycleService {
       kind === 'edit' ? permissions.edit : permissions.submit,
       context.process.access,
       deniedDetail,
+    );
+    if (!actor.isCustodian && !actor.isCollaborator) throw notCustodianNorCollaborator();
+    this.assertProcessEditable(context);
+    this.assertTypeInStage(context);
+  }
+
+  /**
+   * POL-02 da criação (DOC-02 · RN-DOC-16/30): permissão de criação do tipo (`DOCUMENT_CREATE` nos
+   * livres/externos) cobrindo o processo (403 + MFA) + custódia ou participação (403) + processo
+   * editável (409) + tipo na etapa (422) — a mesma regra do menu "Criar documento" (US-062).
+   */
+  async authorizeCreate(
+    context: DocumentAuthorizationContext,
+    actor: Pick<ResolvedDocumentActor, 'isCustodian' | 'isCollaborator'>,
+  ): Promise<void> {
+    await this.access.assertCanOnProcess(
+      createPermissionOf(context.type.systemModule),
+      context.process.access,
     );
     if (!actor.isCustodian && !actor.isCollaborator) throw notCustodianNorCollaborator();
     this.assertProcessEditable(context);
@@ -415,7 +451,8 @@ export class DocumentLifecycleService {
   /**
    * Versão imutável do documento já transicionado (RN-DOC-53): snapshot (cabeçalho, seções e
    * coleções) com `contentHash` SHA-256 do JSON canônico; `UPLOADED` congela o arquivo da versão
-   * corrente (conteúdo nulo, hash do arquivo — US-064).
+   * corrente (conteúdo nulo, hash do arquivo) — ou o arquivo recém-enviado em `file` (DOC-19 ·
+   * RN-DOC-34: anexo `AVAILABLE` já conferido por quem chama).
    */
   async createVersion(
     tx: TenantTx,
@@ -427,15 +464,20 @@ export class DocumentLifecycleService {
       readonly reason: VersionReason;
       readonly actorId: string;
       readonly now: Date;
-      /** Resumo da alteração (só `MANUAL` — RN-DOC-62); texto simples, nunca logado. */
+      /** Resumo da alteração (`MANUAL`/`UPLOAD` — RN-DOC-62); texto simples, nunca logado. */
       readonly changeSummary?: string | null;
+      /** Arquivo da nova versão do documento externo (DOC-19 — `reason = UPLOAD`). */
+      readonly file?: UploadedVersionFile;
     },
   ): Promise<DocumentVersionRecord> {
     const { document } = input;
     let content: DocumentVersionRecord['content'] = null;
     let contentHash: string;
     let attachmentId: string | null = null;
-    if (context.type.kind === 'UPLOADED') {
+    if (input.file !== undefined) {
+      contentHash = input.file.contentHash;
+      attachmentId = input.file.attachmentId;
+    } else if (context.type.kind === 'UPLOADED') {
       const previousId = context.document.currentVersionId;
       const previous =
         previousId === null ? null : await this.documents.findVersion(tx, previousId);

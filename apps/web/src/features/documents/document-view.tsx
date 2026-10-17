@@ -18,6 +18,7 @@ import { DocumentStatusBadge, PendingApprovalBadge } from './document-status-bad
 import { documentKeys, documentVersionsHref, fetchDocument } from './documents.api';
 import { GeneratePdfButton } from './generate-pdf-button';
 import { SaveVersionAction } from './save-version-dialog';
+import { UploadedDocumentFile } from './uploaded-document-file';
 
 export interface DocumentViewProps {
   readonly processId: string;
@@ -28,8 +29,8 @@ export interface DocumentViewProps {
 
 /**
  * SCR-105 — visualizador do documento com o ciclo de vida (US-065): cabeçalho (código, título,
- * tipo, status, selo "Em aprovação" e versão corrente) e as ações do ciclo de vida. O editor de
- * seções é da US-063. Estados: skeleton na primeira carga e erro com `correlationId` e "Tentar
+ * tipo, status, selo "Em aprovação" e versão corrente) e as ações do ciclo de vida; no externo, o
+ * arquivo com versões e prévia (US-064). O editor de seções é da US-063. Estados: skeleton na primeira carga e erro com `correlationId` e "Tentar
  * novamente"; 404 mostra a mensagem única (não distingue inexistente de sem acesso).
  */
 export function DocumentView({ processId, documentId, aiGenerationId = null }: DocumentViewProps) {
@@ -170,13 +171,18 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
 
       <DocumentLifecycle document={document} meta={meta} fallbackFocus={focusHeading} />
 
-      {/* US-068: anexar exige poder editar o documento (POL-02 → `UPDATE` em allowedActions). */}
-      <AttachmentsSection
-        targetType="DOCUMENT"
-        targetId={document.id}
-        action="UPDATE"
-        allowedActions={meta.allowedActions}
-      />
+      {/* US-064: o externo é o próprio arquivo — envio, versão corrente e prévia; os demais tipos
+          recebem anexos (US-068: anexar exige poder editar — POL-02 → `UPDATE`). */}
+      {document.documentType.kind === 'UPLOADED' ? (
+        <UploadedDocumentFile document={document} meta={meta} />
+      ) : (
+        <AttachmentsSection
+          targetType="DOCUMENT"
+          targetId={document.id}
+          action="UPDATE"
+          allowedActions={meta.allowedActions}
+        />
+      )}
     </div>
   );
 }

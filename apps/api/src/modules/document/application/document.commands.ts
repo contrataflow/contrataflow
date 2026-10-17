@@ -180,6 +180,10 @@ export async function recordDocumentVersion(
       reason: version.reason,
       contentHash: version.contentHash,
       documentCode: context.document.code,
+      // US-064: a versão do documento externo aponta o arquivo varrido (hash = SHA-256 dele).
+      ...(version.reason === 'UPLOAD' && version.attachmentId !== null
+        ? { attachmentId: version.attachmentId, sha256: version.contentHash }
+        : {}),
     },
   });
   await outbox.record(

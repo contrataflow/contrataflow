@@ -15,6 +15,11 @@ export function documentNotFound(): ApiError {
   return new ApiError('NOT_FOUND', { detail: 'Documento não encontrado.' });
 }
 
+/** 404 do processo na criação (DOC-02): inexistente, de outro tenant ou não visível (DEC-024). */
+export function processNotFound(): ApiError {
+  return new ApiError('NOT_FOUND', { detail: 'Processo não encontrado.' });
+}
+
 /** 412 `VERSION_CONFLICT` com a versão atual para o cliente recarregar (V-09). */
 export function documentVersionConflict(currentVersion: number): ApiError {
   return new ApiError('VERSION_CONFLICT', {

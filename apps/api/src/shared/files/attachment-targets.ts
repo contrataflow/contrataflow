@@ -1,6 +1,7 @@
 import type { AttachmentTargetType } from '@contrataflow/types';
 import { Injectable, Module } from '@nestjs/common';
 
+import { AttachmentFileRegistry } from './attachment-files.js';
 import type { ProcessAccessTarget } from '../auth/process-access.js';
 import type { TenantTx } from '../database/prisma.js';
 
@@ -64,6 +65,12 @@ export class AttachmentTargetRegistry {
   }
 }
 
-/** Importado por `files` (consumidor) e pelos donos dos alvos; a instância é única. */
-@Module({ providers: [AttachmentTargetRegistry], exports: [AttachmentTargetRegistry] })
+/**
+ * Importado por `files` e pelos donos dos alvos; as instâncias são únicas. Leva também o
+ * `AttachmentFileRegistry` (o sentido inverso: `files` serve o arquivo do anexo — US-064).
+ */
+@Module({
+  providers: [AttachmentTargetRegistry, AttachmentFileRegistry],
+  exports: [AttachmentTargetRegistry, AttachmentFileRegistry],
+})
 export class AttachmentTargetModule {}

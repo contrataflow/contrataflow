@@ -91,6 +91,35 @@ genéricas — a ausência de registro nunca falha a ação.
   por tenant; cancelado é final (gatilho); exclusão só lógica. Testes com PostgreSQL:
   `test/tenant-leak/documents.spec.ts`.
 
+## Documento externo — upload com versões (US-064 · RN-DOC-31..40 · DEC-017/136)
+
+- **Rotas:** DOC-02 `POST /processes/{id}/documents` (`ProcessDocumentsController`,
+  `CreateProcessDocumentCommand` — Idem.; `DOCUMENT_CREATE` + POL-02) e DOC-19
+  `POST /documents/{id}/upload-version` (`DocumentController`, `UploadDocumentVersionCommand` — IM +
+  Idem., classe de limite `upload`; `DOCUMENT_UPDATE` + POL-02). Comandos em
+  `application/uploaded-document.commands.ts`; contratos `documentCreateSchema` e
+  `documentUploadVersionSchema` em `@contrataflow/validation`.
+- **DOC-02:** processo visível (404 `NOT_FOUND`) → tipo do tenant `UPLOADED` ativo (422
+  `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) → `DocumentLifecycleService.authorizeCreate`
+  (permissão de criação do tipo cobrindo o processo + custódia/participação + processo editável +
+  tipo na etapa) → responsável ativo → a fábrica única (`DocumentCreationService`). Nasce `DRAFT`
+  sem versão. **`FREE_TEXT` ainda responde 422**: a US-063 acrescenta o ramo (template publicado +
+  seções) neste mesmo comando.
+- **DOC-19:** `FOR UPDATE` → `load` (404) → `authorizePol02(…, 'edit')` → tipo `UPLOADED` (422
+  `NOT_ALLOWED`) → `If-Match` (412) → `recordManualVersion` (409 `DOCUMENT_NOT_EDITABLE`) → anexo pela
+  porta `AttachmentFileRegistry` (`#shared/files/attachment-files.ts`, implementada por `files`) e a
+  regra pura `domain/uploaded-version.ts` (`uploadedVersionFile`: anexo do PRÓPRIO documento — senão
+  422 `REFERENCE_NOT_FOUND` em `attachmentId`, inclusive de outro tenant —, `AVAILABLE` com hash —
+  senão 409 `ATTACHMENT_NOT_AVAILABLE` + `warn document.upload_version_not_available`) →
+  `createVersion(reason UPLOAD, file)` (`content` nulo, `contentHash` = SHA-256 do arquivo) →
+  `recordDocumentVersion` (auditoria com `attachmentId`/`sha256`; `DocumentVersionCreated`).
+  Dois envios simultâneos com o mesmo `If-Match`: a trava serializa, um vence e o outro recebe 412
+  (recarrega o `ETag` e vira a versão seguinte). Métrica `cf_document_upload_versions_total{result}`.
+- **Prévia:** ATT-05 do `files` (URL assinada ≤ 300 s, auditada) do anexo da versão corrente; PDF,
+  PNG e JPEG inline (`INLINE_PREVIEW_EXTENSIONS`), demais só download. DOCX → PDF é P2 (RN-DOC-37).
+- **Testes:** `domain/uploaded-version.spec.ts`, `presentation/uploaded-documents.routes.spec.ts`
+  (8 categorias do Gherkin + FA-01..05) e `test/tenant-leak/uploaded-documents.spec.ts` (PostgreSQL).
+
 ## Painel de documentos do processo (US-062 · RN-DOC-13..20)
 
 - **Rota:** DOC-01 `GET /processes/{id}/documents` (`ProcessDocumentsController`,

@@ -314,5 +314,67 @@
       "unavailable": "Não foi possível registrar a revisão agora. Tente novamente em instantes.",
       "retry": "Tentar novamente"
     }
+  },
+  "upload": {
+    "title": "Arquivo do documento",
+    "description": "Envie o arquivo produzido fora do sistema (parecer, laudo, planilha). Cada envio vira uma nova versão, e as anteriores ficam no histórico.",
+    "noFile": "Rascunho sem arquivo. Envie o arquivo para poder finalizar o documento.",
+    "versionBadge": "v{number} · enviado por {user} em {date}",
+    "unknownUser": "usuário sem acesso",
+    "loadingFile": "Carregando o arquivo atual…",
+    "loadFailed": "Não foi possível carregar o arquivo atual.",
+    "retryLoad": "Tentar novamente",
+    "send": "Enviar arquivo",
+    "sendNew": "Enviar nova versão",
+    "dropzone": "Arraste o arquivo para cá ou use o botão.",
+    "hint": "Tipos aceitos: {types}. Até {maxMb} MB.",
+    "notEditable": "Este documento não pode receber uma nova versão agora.",
+    "uploading": "Enviando {fileName}… {progress}%",
+    "progressLabel": "Envio de {fileName}",
+    "progressAnnouncement": "{progress}% enviado",
+    "scanning": "Verificando o arquivo…",
+    "registering": "Registrando a nova versão…",
+    "done": "Versão {number} enviada.",
+    "rejected": "Não foi possível usar este arquivo. Verifique e tente novamente.",
+    "typeNotAllowed": "Este tipo de arquivo não é permitido. Tipos aceitos: {types}.",
+    "tooLarge": "O arquivo excede o tamanho máximo permitido ({maxMb} MB). Reduza ou compacte o arquivo.",
+    "empty": "Selecione um arquivo válido.",
+    "retry": "Tentar novamente",
+    "chooseAnother": "Escolher outro arquivo",
+    "errors": {
+      "UPLOAD_NOT_RECEIVED": "Não encontramos o arquivo enviado. Tente novamente.",
+      "ATTACHMENT_NOT_AVAILABLE": "Este arquivo ainda não pode ser usado.",
+      "DOCUMENT_NOT_EDITABLE": "Este documento não pode receber uma nova versão agora.",
+      "VERSION_CONFLICT": "O documento foi atualizado por outra pessoa. Tente novamente.",
+      "PERMISSION_DENIED": "Você não tem permissão para esta ação.",
+      "FILE_TYPE_NOT_ALLOWED": "Este tipo de arquivo não é permitido.",
+      "FILE_TOO_LARGE": "O arquivo excede o tamanho máximo permitido.",
+      "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE": "Este tipo de documento não é permitido na etapa atual.",
+      "DEPENDENCY_UNAVAILABLE": "Não foi possível concluir o envio agora. Tente novamente em instantes.",
+      "NETWORK": "Não foi possível concluir o envio agora. Tente novamente em instantes.",
+      "default": "Ocorreu um erro inesperado ao enviar o arquivo."
+    },
+    "preview": {
+      "label": "Prévia de {fileName}",
+      "loading": "Carregando a prévia…",
+      "failed": "Não foi possível carregar a prévia. Baixe o arquivo.",
+      "unsupported": "Sem prévia disponível para este tipo de arquivo — baixe o arquivo.",
+      "pdfPending": "A prévia de PDF na tela chega com o visualizador de documentos. Baixe o arquivo para conferir.",
+      "download": "Baixar arquivo",
+      "downloading": "Preparando o download…",
+      "downloadFailed": "Não foi possível baixar o arquivo agora. Tente novamente."
+    }
+  },
+  "create": {
+    "title": "Novo documento: {type}",
+    "description": "Informe o título. Em seguida, você envia o arquivo.",
+    "label": "Título",
+    "hint": "Entre 5 e 250 caracteres.",
+    "count": "{count} de {max} caracteres",
+    "confirm": "Criar e enviar arquivo",
+    "cancel": "Cancelar",
+    "working": "Criando…",
+    "notAllowed": "Não é possível criar este documento agora.",
+    "notFound": "Processo não encontrado."
   }
 }

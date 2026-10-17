@@ -102,3 +102,22 @@ export const attachmentConfirmationSchema = z.object({
   reasonCode: z.enum(ATTACHMENT_REASON_CODES).optional(),
 });
 export type AttachmentConfirmationDto = z.infer<typeof attachmentConfirmationSchema>;
+
+/** ATT-05 — `200 { data: { url, expiresAt } }`: URL assinada de leitura (≤ 300 s), nunca logar. */
+export const attachmentDownloadSchema = z
+  .object({ url: z.url(), expiresAt: z.iso.datetime() })
+  .meta({ id: 'AttachmentDownload' });
+export type AttachmentDownloadDto = z.infer<typeof attachmentDownloadSchema>;
+
+/** Validade da URL de ATT-05 (storage.md §6 · US-069). */
+export const ATTACHMENT_DOWNLOAD_URL_SECONDS = 300;
+
+/**
+ * Extensões com prévia inline no navegador (RN-DOC-36 · RN-DOC-86): PDF e imagem. Os demais formatos
+ * oferecem só o download (a conversão DOCX → PDF é P2 — RN-DOC-37).
+ */
+export const INLINE_PREVIEW_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg'] as const;
+
+export function hasInlinePreview(extension: string): boolean {
+  return (INLINE_PREVIEW_EXTENSIONS as readonly string[]).includes(extension.toLowerCase());
+}

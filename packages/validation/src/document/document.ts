@@ -188,6 +188,20 @@ export const documentUpdateSchema = z
   });
 export type DocumentUpdate = z.infer<typeof documentUpdateSchema>;
 
+/**
+ * DOC-02 (corpo — US-063/US-064 · RN-DOC-31): tipo ativo do tenant (`FREE_TEXT`/`UPLOADED`,
+ * permitido na etapa — conferido pela API) e título de 5 a 250 caracteres. `responsibleId` vale para
+ * os dois tipos (padrão: o criador).
+ */
+export const documentCreateSchema = z
+  .strictObject({
+    documentTypeId: z.uuid({ error: 'Selecione um tipo de documento válido.' }),
+    title: documentTitleSchema,
+    responsibleId: z.uuid({ error: 'Informe um responsável válido.' }).optional(),
+  })
+  .meta({ id: 'DocumentCreateRequest' });
+export type DocumentCreate = z.infer<typeof documentCreateSchema>;
+
 /** DOC-09/DOC-10 (corpo): avisos de DOC-08 reconhecidos (V-02). Sem corpo = nenhum. */
 export const documentTransitionSchema = z
   .strictObject({

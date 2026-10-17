@@ -24,6 +24,7 @@ import { CorrelationCode } from '@/components/errors/correlation-code';
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession } from '@/lib/session/session-context';
 
+import { CreateDocumentDialog } from './create-document-dialog';
 import {
   EMPTY_FILTER,
   creatableTypes,
@@ -393,9 +394,15 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
   const types = useActiveDocumentTypes();
   const [filter, setFilter] = useState<PanelFilter>(EMPTY_FILTER);
 
-  // Destinos de criação: diálogo da US-063 (FREE_TEXT), da US-064 (UPLOADED) e telas dos módulos
-  // tipados (fora do EP-011) — ainda não entregues nesta versão.
-  const onCreate = (_type: PanelType) => {
+  const [creating, setCreating] = useState<PanelType | null>(null);
+
+  // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo"); o da US-063
+  // (FREE_TEXT) e as telas dos módulos tipados (fora do EP-011) ainda não foram entregues.
+  const onCreate = (type: PanelType) => {
+    if (type.kind === 'UPLOADED') {
+      setCreating(type);
+      return;
+    }
     toast({ title: tProcess('notYet') });
   };
 
@@ -428,6 +435,15 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
         <h2 className="text-base font-semibold">{t('title')}</h2>
         <CreateDocumentMenu types={menu} onCreate={onCreate} prominent={empty} />
       </div>
+      {creating ? (
+        <CreateDocumentDialog
+          processId={processId}
+          type={creating}
+          onClose={() => {
+            setCreating(null);
+          }}
+        />
+      ) : null}
       {items.length > 0 ? (
         <PanelFilters
           filter={filter}

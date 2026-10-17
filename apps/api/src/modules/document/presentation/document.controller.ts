@@ -8,6 +8,7 @@ import {
   documentSchema,
   documentTransitionSchema,
   documentUpdateSchema,
+  documentUploadVersionSchema,
   documentValidationSchema,
   documentVersionCompareQuerySchema,
   documentVersionComparisonSchema,
@@ -27,6 +28,7 @@ import type {
   DocumentReopen,
   DocumentTransition,
   DocumentUpdate,
+  DocumentUploadVersion,
   DocumentValidationDto,
   DocumentVersionCompareQuery,
   DocumentVersionComparisonDto,
@@ -46,6 +48,7 @@ import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
+import { RateLimit } from '#shared/rate-limit/rate-limit.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
@@ -62,6 +65,7 @@ import {
 import { DocumentQueries } from '../application/document.queries.js';
 import { toDocumentDto } from '../application/document.view.js';
 import { ReviewAiContentCommand } from '../application/review-ai-content.command.js';
+import { UploadDocumentVersionCommand } from '../application/uploaded-document.commands.js';
 import type { DocumentType } from '../domain/document-type.js';
 import type { Document } from '../domain/document.js';
 
@@ -99,6 +103,7 @@ export class DocumentController {
     private readonly versions: DocumentVersionQueries,
     private readonly saveVersion: SaveDocumentVersionCommand,
     private readonly reviewAi: ReviewAiContentCommand,
+    private readonly uploadVersion: UploadDocumentVersionCommand,
   ) {}
 
   private respond(
@@ -427,6 +432,45 @@ export class DocumentController {
     const summary = body.changeSummary ?? '';
     const created = await this.saveVersion.execute({
       documentId: params.id,
+      changeSummary: summary === '' ? null : summary,
+    });
+    response.setHeader('Location', `/api/v1/document-versions/${created.id}`);
+    return created;
+  }
+
+  // --- Documento externo (US-064 · DOC-19) ---------------------------------------------------
+
+  @Post(':id/upload-version')
+  @Idempotent()
+  @RequireIfMatch()
+  @RateLimit('upload')
+  @RequirePermission('DOCUMENT_UPDATE')
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-19',
+    summary: 'Enviar nova versão do arquivo (upload)',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['document.version_create'],
+    responses: {
+      201: {
+        description:
+          'Versão `UPLOAD` do documento externo a partir do anexo `AVAILABLE` dele (`content` nulo, `contentHash` = SHA-256 do arquivo), sem mudar o status; o documento passa a apontá-la (novo `ETag` no DOC-03). Anexo inexistente/de outro tenant/de outro alvo → 422 `REFERENCE_NOT_FOUND` em `attachmentId`; em varredura, infectado ou rejeitado → 409 `ATTACHMENT_NOT_AVAILABLE`; documento fora de `DRAFT`/`RETURNED` → 409 `DOCUMENT_NOT_EDITABLE`; tipo não `UPLOADED` → 422 `NOT_ALLOWED`; `If-Match` divergente → 412.',
+        schema: dataEnvelope(documentVersionSchema),
+      },
+    },
+  })
+  async uploadDocumentVersion(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentUploadVersionSchema) body: DocumentUploadVersion,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentVersionDto> {
+    const summary = body.changeSummary ?? '';
+    const created = await this.uploadVersion.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      attachmentId: body.attachmentId,
       changeSummary: summary === '' ? null : summary,
     });
     response.setHeader('Location', `/api/v1/document-versions/${created.id}`);

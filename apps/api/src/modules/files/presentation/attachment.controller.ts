@@ -1,5 +1,6 @@
 import {
   attachmentConfirmationSchema,
+  attachmentDownloadSchema,
   attachmentIdParamsSchema,
   attachmentIntentResponseSchema,
   attachmentSchema,
@@ -9,6 +10,7 @@ import {
 } from '@contrataflow/validation';
 import type {
   AttachmentConfirmationDto,
+  AttachmentDownloadDto,
   AttachmentDto,
   AttachmentIntentResponse,
   CreateAttachmentIntent,
@@ -31,13 +33,14 @@ import { toAttachmentDto } from '../application/attachment.view.js';
 import { ConfirmAttachmentUploadCommand } from '../application/confirm-attachment-upload.command.js';
 import { CreateAttachmentIntentCommand } from '../application/create-attachment-intent.command.js';
 import { DeleteAttachmentCommand } from '../application/delete-attachment.command.js';
+import { GetAttachmentDownloadQuery } from '../application/get-attachment-download.query.js';
 import { GetAttachmentQuery } from '../application/get-attachment.query.js';
 import { reasonCodeOf } from '../domain/attachment.js';
 
 const TAGS = ['Anexos'];
 
 /**
- * ATT-02/03/04/06 (api/12-comments-attachments.md · US-068): upload seguro em quatro passos
+ * ATT-02/03/04/05/06 (api/12-comments-attachments.md · US-068 · ATT-05 com a US-064): upload seguro em quatro passos
  * (DEC-136) — intenção com URL `PUT` assinada da quarentena, upload direto do navegador,
  * confirmação e varredura assíncrona (`file-scan`). A rota exige a permissão em algum escopo; o
  * caso de uso confere o processo do ALVO (DEC-024: invisível = 404) e a regra de edição dele.
@@ -50,6 +53,7 @@ export class AttachmentController {
     private readonly confirmation: ConfirmAttachmentUploadCommand,
     private readonly detail: GetAttachmentQuery,
     private readonly removal: DeleteAttachmentCommand,
+    private readonly download: GetAttachmentDownloadQuery,
   ) {}
 
   @Post()
@@ -144,6 +148,28 @@ export class AttachmentController {
     const attachment = await this.detail.execute(params.id);
     response.setHeader('ETag', `"${attachment.version}"`);
     return toAttachmentDto(attachment);
+  }
+
+  @Get(':id/download')
+  @RateLimit('export')
+  @RequirePermission('PROCESS_VIEW')
+  @ApiOperation({
+    operationId: 'ATT-05',
+    summary: 'Baixar anexo',
+    tags: TAGS,
+    auditActions: ['attachment.download'],
+    responses: {
+      200: {
+        description:
+          'URL `GET` assinada (≤ 300 s, `Content-Disposition: attachment`) do anexo `AVAILABLE`, auditada antes de assinar (`attachment.download`). A prévia inline de PDF/PNG/JPEG busca os bytes por `fetch`. Em varredura, infectado ou rejeitado → 409 `ATTACHMENT_NOT_AVAILABLE`; excluído, de outro tenant ou de processo invisível → 404.',
+        schema: dataEnvelope(attachmentDownloadSchema),
+      },
+    },
+  })
+  getDownload(
+    @ZodParams(attachmentIdParamsSchema) params: { id: string },
+  ): Promise<AttachmentDownloadDto> {
+    return this.download.execute(params.id);
   }
 
   @Delete(':id')

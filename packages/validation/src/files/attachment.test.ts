@@ -1,7 +1,12 @@
 import { UPLOAD_FILE_TYPES, isUploadExtension } from '@contrataflow/types';
 import { describe, expect, it } from 'vitest';
 
-import { createAttachmentIntentSchema, deleteAttachmentSchema } from './attachment.js';
+import {
+  attachmentDownloadSchema,
+  createAttachmentIntentSchema,
+  deleteAttachmentSchema,
+  hasInlinePreview,
+} from './attachment.js';
 import { AttachmentRejected, AttachmentUploaded } from './events.js';
 import { PLATFORM_UPLOAD_EXTENSIONS } from '../tenancy/settings.js';
 
@@ -94,5 +99,27 @@ describe('eventos de anexo', () => {
         reasonCode: 'INFECTED',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('ATT-05 e a prévia inline (US-064 · RN-DOC-36)', () => {
+  it('prévia nativa só para PDF, PNG e JPEG (sem diferenciar maiúsculas)', () => {
+    for (const extension of ['pdf', 'png', 'jpg', 'JPEG'])
+      expect(hasInlinePreview(extension)).toBe(true);
+    for (const extension of ['docx', 'xlsx', 'odt', 'csv', 'zip']) {
+      expect(hasInlinePreview(extension)).toBe(false);
+    }
+  });
+
+  it('ATT-05 responde URL e validade ISO', () => {
+    expect(
+      attachmentDownloadSchema.safeParse({
+        url: 'https://s3.test/x',
+        expiresAt: '2026-10-17T12:05:00.000Z',
+      }).success,
+    ).toBe(true);
+    expect(attachmentDownloadSchema.safeParse({ url: 'x', expiresAt: 'ontem' }).success).toBe(
+      false,
+    );
   });
 });

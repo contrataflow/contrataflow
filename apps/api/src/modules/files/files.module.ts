@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { ProcessAccessModule } from '#shared/auth/process-access.js';
+import { AttachmentFileRegistry } from '#shared/files/attachment-files.js';
 import { AttachmentTargetModule } from '#shared/files/attachment-targets.js';
 
 import { AntivirusCircuit } from './application/antivirus-circuit.js';
 import { AttachmentAccess } from './application/attachment-access.js';
+import { FilesAttachmentFileReader } from './application/attachment-file.reader.js';
 import { ConfirmAttachmentUploadCommand } from './application/confirm-attachment-upload.command.js';
 import { CreateAttachmentIntentCommand } from './application/create-attachment-intent.command.js';
 import { DeleteAttachmentCommand } from './application/delete-attachment.command.js';
@@ -19,6 +22,7 @@ import {
 } from './application/files-ports.js';
 import type { FilesSettings } from './application/files-ports.js';
 import { FilesFacade } from './application/files.facade.js';
+import { GetAttachmentDownloadQuery } from './application/get-attachment-download.query.js';
 import { GetAttachmentQuery } from './application/get-attachment.query.js';
 import { ScanFileJob } from './application/scan-file.job.js';
 import { ScanFileProcessor } from './application/scan-file.processor.js';
@@ -41,7 +45,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `files` (DEC-040, nível 2): outros módulos usam somente a fachada exportada. Dono de
- * `Attachment` (US-068: ATT-02/03/04/06 e o `file-scan`). O alvo de cada anexo é lido pela porta
+ * `Attachment` (US-068: ATT-02/03/04/06 e o `file-scan`; US-064: ATT-05 e o leitor do arquivo do
+ * anexo — porta `AttachmentFileRegistry`, lida pelo `document`). O alvo de cada anexo é lido pela porta
  * `AttachmentTargetRegistry` do shared kernel — `document` e `process` registram os seus; o storage
  * (guarda de tenant + S3) vem do `platform`, e o antivírus é o `clamd` (`CLAMAV_HOST`). O
  * `ScanFileJob` (fila `file-scan`) é consumido pelo worker, como o `AiGenerationJob` (queues.md §4.5).
@@ -61,7 +66,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateAttachmentIntentCommand,
     ConfirmAttachmentUploadCommand,
     GetAttachmentQuery,
+    GetAttachmentDownloadQuery,
     DeleteAttachmentCommand,
+    FilesAttachmentFileReader,
     AntivirusCircuit,
     ScanFileProcessor,
     ScanFileJob,
@@ -110,4 +117,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   ],
   exports: [FilesFacade],
 })
-export class FilesModule {}
+export class FilesModule implements OnModuleInit {
+  constructor(
+    private readonly attachmentFiles: AttachmentFileRegistry,
+    private readonly reader: FilesAttachmentFileReader,
+  ) {}
+
+  /** US-064: o arquivo do anexo lido pelo `document` (versão do documento externo). */
+  onModuleInit(): void {
+    this.attachmentFiles.register(this.reader);
+  }
+}

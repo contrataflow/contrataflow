@@ -160,6 +160,9 @@ const DOCUMENT_RENDITION_ROUTE =
 const DOCUMENT_AI_REVIEW_ROUTE =
   'Revisão do conteúdo gerado por IA (US-122): a suíte genérica não tem documento do tenant B com seção pendente. O isolamento (DOC-27 com DFD de B → 404 NOT_FOUND sem revelar nada nem alterar a proveniência; RLS de documents com app.tenant_id diferente retornando vazio) é coberto em test/tenant-leak/document-ai-review.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/document-ai-review.routes.spec.ts.';
 
+const UPLOADED_DOCUMENT_ROUTE =
+  'Documento externo (US-064): a suíte genérica não tem processo, documento nem anexo do tenant B. O isolamento (DOC-02 com processo de B, DOC-19 com documento de B e ATT-05 com anexo de B → 404 NOT_FOUND sem revelar nada; DOC-19 com attachmentId AVAILABLE de B num documento de A → 422 REFERENCE_NOT_FOUND em attachmentId, sem versão gravada; RLS de attachments e document_versions) é coberto em test/tenant-leak/uploaded-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/uploaded-documents.routes.spec.ts.';
+
 const DOCUMENT_PANEL_ROUTE =
   'Painel de documentos (US-062): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-01 com processo de outro tenant → 404 PROCESS_NOT_FOUND igual ao inexistente, sem revelar nada; RLS de documents na consulta do painel; processo não visível → 404 com access.denied) é coberto em test/tenant-leak/process-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/process-documents.routes.spec.ts.';
 
@@ -217,6 +220,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'ATT-02': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
   'ATT-03': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
   'ATT-04': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
+  'ATT-05': { kind: 'exempt', reason: UPLOADED_DOCUMENT_ROUTE },
   'ATT-06': { kind: 'exempt', reason: ATTACHMENT_ROUTE },
   'ORG-01': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
   'ORG-02': { kind: 'exempt', reason: ORGANIZATION_ROUTE },
@@ -289,6 +293,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-32': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
   'PRC-33': { kind: 'exempt', reason: PROCESS_CONFIDENTIALITY_ROUTE },
   'DOC-01': { kind: 'exempt', reason: DOCUMENT_PANEL_ROUTE },
+  'DOC-02': { kind: 'exempt', reason: UPLOADED_DOCUMENT_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-08': { kind: 'exempt', reason: DOCUMENT_ROUTE },
@@ -301,6 +306,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-16': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
   'DOC-17': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
   'DOC-18': { kind: 'exempt', reason: DOCUMENT_VERSION_ROUTE },
+  'DOC-19': { kind: 'exempt', reason: UPLOADED_DOCUMENT_ROUTE },
   'DOC-20': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-21': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-22': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },

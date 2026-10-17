@@ -29,6 +29,12 @@ export const DOCUMENT_VERSION_MESSAGES = {
   saveUnavailable: 'Não foi possível salvar a versão agora. Tente novamente em instantes.',
   forbidden: 'Você não tem permissão para salvar uma versão deste documento.',
   notFound: 'Documento ou versão não encontrados.',
+  // DOC-19 (US-064 · V-07/V-08)
+  attachmentRequired: 'Envie o arquivo do documento.',
+  attachmentNotFound: 'Não encontramos o arquivo enviado. Tente novamente.',
+  attachmentNotAvailable: 'Este arquivo ainda não pode ser usado.',
+  uploadNotEditable: 'Este documento não pode receber uma nova versão agora.',
+  notUploaded: 'Este tipo de documento não recebe arquivos; use "Salvar versão".',
 } as const;
 
 // --- Requisições --------------------------------------------------------------------------------
@@ -46,6 +52,24 @@ export const documentVersionCreateSchema = z
   })
   .default({});
 export type DocumentVersionCreate = z.output<typeof documentVersionCreateSchema>;
+
+/**
+ * DOC-19 (corpo — US-064 · RN-DOC-34): o anexo `AVAILABLE` (intenção + confirmação + varredura do
+ * ATT-02/03) que vira a nova versão do documento externo, com resumo opcional (RN-DOC-62).
+ */
+export const documentUploadVersionSchema = z
+  .strictObject({
+    attachmentId: z.uuid({ error: DOCUMENT_VERSION_MESSAGES.attachmentRequired }),
+    changeSummary: z
+      .string()
+      .trim()
+      .max(DOCUMENT_VERSION_LIMITS.changeSummaryMax, {
+        error: DOCUMENT_VERSION_MESSAGES.changeSummaryTooLong,
+      })
+      .optional(),
+  })
+  .meta({ id: 'DocumentUploadVersionRequest' });
+export type DocumentUploadVersion = z.output<typeof documentUploadVersionSchema>;
 
 /** DOC-15 (query): paginação padrão; ordem fixa `versionNumber` desc (RN-DOC-59). */
 export const documentVersionListQuerySchema = pageQuerySchema;

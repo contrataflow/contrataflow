@@ -5,7 +5,9 @@ import {
   documentVersionCompareQuerySchema,
   documentVersionCreateSchema,
   documentVersionListQuerySchema,
+  documentUploadVersionSchema,
 } from './document-version.js';
+import { documentCreateSchema } from './document.js';
 
 /* US-066 — contratos de versões e comparação (api/03-documents.md DOC-15..18). */
 
@@ -45,5 +47,43 @@ describe('DOC-15/18 — listar e comparar', () => {
       message: DOCUMENT_VERSION_MESSAGES.sameVersion,
     });
     expect(documentVersionCompareQuerySchema.safeParse({ from: V1 }).success).toBe(false);
+  });
+});
+
+describe('US-064 — DOC-02 e DOC-19 (documento externo)', () => {
+  it('DOC-02: tipo uuid, título 5–250 (aparado) e responsável opcional; corpo estrito', () => {
+    expect(
+      documentCreateSchema.parse({ documentTypeId: V1, title: '  Parecer jurídico  ' }),
+    ).toEqual({ documentTypeId: V1, title: 'Parecer jurídico' });
+    for (const title of ['abc', 'x'.repeat(251)]) {
+      expect(documentCreateSchema.safeParse({ documentTypeId: V1, title }).success).toBe(false);
+    }
+    expect(documentCreateSchema.safeParse({ documentTypeId: 'x', title: 'Parecer' }).success).toBe(
+      false,
+    );
+    expect(
+      documentCreateSchema.safeParse({
+        documentTypeId: V1,
+        title: 'Parecer',
+        templateVersionId: V1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('DOC-19: attachmentId obrigatório, resumo até 500 caracteres, sem chaves extras', () => {
+    expect(documentUploadVersionSchema.parse({ attachmentId: V1 })).toEqual({ attachmentId: V1 });
+    expect(
+      documentUploadVersionSchema.parse({ attachmentId: V1, changeSummary: ' Assinado ' }),
+    ).toEqual({ attachmentId: V1, changeSummary: 'Assinado' });
+    expect(documentUploadVersionSchema.safeParse({}).success).toBe(false);
+    const long = documentUploadVersionSchema.safeParse({
+      attachmentId: V1,
+      changeSummary: 'x'.repeat(501),
+    });
+    expect(long.success).toBe(false);
+    expect(long.error?.issues[0]?.message).toBe(DOCUMENT_VERSION_MESSAGES.changeSummaryTooLong);
+    expect(
+      documentUploadVersionSchema.safeParse({ attachmentId: V1, storageKey: 'tenants/x' }).success,
+    ).toBe(false);
   });
 });

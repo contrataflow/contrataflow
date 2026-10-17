@@ -1,5 +1,6 @@
 import type {
   AttachmentConfirmationDto,
+  AttachmentDownloadDto,
   AttachmentDto,
   AttachmentUploadDto,
   CreateAttachmentIntent,
@@ -98,4 +99,17 @@ export async function deleteAttachment(
     body: { deletionReason },
     ifMatch: `"${String(attachment.version)}"`,
   });
+}
+
+/**
+ * ATT-05: URL assinada (≤ 300 s) do anexo `AVAILABLE`, auditada pela API a cada pedido — nunca
+ * guardar em cache além da validade. A prévia inline busca os bytes por `fetch` (US-064 · RN-DOC-36).
+ */
+export async function fetchAttachmentDownload(
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<AttachmentDownloadDto> {
+  return (
+    await apiRequest<AttachmentDownloadDto>(`/attachments/${attachmentId}/download`, { signal })
+  ).data;
 }
