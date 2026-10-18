@@ -220,12 +220,12 @@ export function documentApprovalTitle(
 
 /**
  * RN-TRAM-52: "Aprovação de {nome da etapa} — {código do principal documento coberto}" (sem
- * documento coberto, só a etapa), até 200 caracteres.
+ * documento coberto, só a etapa), até 200 caracteres. Etapa cujo nome já começa com "Aprovação"
+ * entra sem o prefixo ("Aprovação da demanda — DFD 0005/2026" — US-016).
  */
 export function stageApprovalTitle(stageName: string, principalCode: string | null): string {
-  return clip(
-    principalCode === null
-      ? `Aprovação de ${stageName}`
-      : `Aprovação de ${stageName} — ${principalCode}`,
-  );
+  const subject = /^aprovação(?:\s|$)/iu.test(stageName.trim())
+    ? stageName
+    : `Aprovação de ${stageName}`;
+  return clip(principalCode === null ? subject : `${subject} — ${principalCode}`);
 }

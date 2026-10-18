@@ -228,32 +228,3 @@ function ViolationGroup({
     </div>
   );
 }
-
-/**
- * `DfdConclusionStep` (SCR-007 · passo 5): o estado de prontidão ("Sem pendências" ou "Há N
- * pendências obrigatórias") — a mesma avaliação do DOC-08. As ações "Concluir e enviar para
- * aprovação" e "Finalizar DFD" são da US-016 e entram nesta área.
- */
-export function DfdConclusionStep({ documentId }: { readonly documentId: string }) {
-  const t = useTranslations('dfd.conclusion');
-  const validation = useDfdValidation(documentId);
-  if (validation.data === undefined) {
-    return (
-      <div role="status">
-        <Skeleton className="h-16 w-full" />
-      </div>
-    );
-  }
-  const blocking = validation.data.summary.blocking;
-  return (
-    <div aria-live="polite" data-testid="dfd-conclusion-actions">
-      {blocking === 0 ? (
-        <Alert tone="success" title={`✓ ${t('ready')}`} />
-      ) : (
-        <Alert tone="warning" title={t('pending', { count: blocking })}>
-          <p>{t('pendingHint')}</p>
-        </Alert>
-      )}
-    </div>
-  );
-}

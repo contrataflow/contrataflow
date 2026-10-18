@@ -103,24 +103,21 @@ export class DfdDocumentValidator implements DocumentValidator {
     };
   }
 
-  /** Cabeçalho e itens congelados na versão e na prévia em PDF (entities.md §5.3.2). */
+  /**
+   * `DfdSnapshotBuilder` (US-016 · RN-DFD-40): cabeçalho completo e itens congelados na versão e na
+   * prévia em PDF (entities.md §5.3.2) — o item com número, lote, descrição e unidade do momento.
+   * Anexos não entram no snapshot no MVP 1 (lacuna 2 da story).
+   */
   async snapshotParts(
     tx: TenantTx,
     subject: DocumentValidationSubject,
   ): Promise<TypedSnapshotParts> {
     const dfd = await this.dfds.findById(tx, subject.document.id);
     if (dfd === null) return { header: {}, collections: {} };
-    const items = await this.documents.documentItemsIn(tx, subject.document.id);
+    const items = await this.documents.snapshotItemsIn(tx, subject.document);
     return {
       header: snapshotHeader(dfd),
-      collections: {
-        items: items.map((item) => ({
-          processItemId: item.processItemId,
-          quantity: item.quantity,
-          notes: item.notes,
-          sortOrder: item.sortOrder,
-        })),
-      },
+      collections: { items },
     };
   }
 }

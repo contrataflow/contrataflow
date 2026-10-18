@@ -359,7 +359,7 @@ const DEFAULT_PREPARATORY: SeedWorkflow = {
       'COMPLETE',
       'BLOCKING',
       'DFD completo',
-      'Preencha o DFD por completo antes de encaminhar a demanda.',
+      'O DFD deve estar completo.',
     ),
     documentRule(
       'ESTUDOS_PRELIMINARES',
@@ -469,7 +469,7 @@ const DIRECT_CONTRACTING: SeedWorkflow = {
       'COMPLETE',
       'BLOCKING',
       'DFD completo',
-      'Preencha o DFD por completo antes de encaminhar a demanda.',
+      'O DFD deve estar completo.',
     ),
     {
       stage: 'INSTRUCAO',

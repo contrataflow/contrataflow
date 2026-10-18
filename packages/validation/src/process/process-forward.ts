@@ -65,6 +65,9 @@ export function isDueDateInput(value: string): boolean {
   return z.iso.datetime({ offset: true }).safeParse(value).success;
 }
 
+/** Código de aviso de documento reconhecível no PRC-19 (`DFD_ATTACHMENTS_PENDING`, …). */
+const WARNING_CODE = /^[A-Z][A-Z0-9_]{2,79}$/;
+
 /** Corpo de PRC-19. ESTRITO: campo fora da lista → 422 (`NOT_ALLOWED`). */
 export const forwardProcessSchema = z
   .strictObject({
@@ -97,8 +100,14 @@ export const forwardProcessSchema = z
       })
       .max(PROCESS_FORWARD_LIMITS.documentsMax, { error: PROCESS_FORWARD_MESSAGES.documents })
       .optional(),
+    // DEC-016 · RN-DFD-41: ids das regras `WARNING` do workflow (PRC-08) e códigos dos avisos dos
+    // documentos cobertos pela etapa de aprovação (DOC-08 — ex.: `DFD_ATTACHMENTS_PENDING`).
     acknowledgedWarnings: z
-      .array(z.uuid({ error: PROCESS_FORWARD_MESSAGES.warningsNotAcknowledged }))
+      .array(
+        z.union([z.uuid(), z.string().regex(WARNING_CODE)], {
+          error: PROCESS_FORWARD_MESSAGES.warningsNotAcknowledged,
+        }),
+      )
       .max(PROCESS_FORWARD_LIMITS.acknowledgedWarningsMax)
       .optional(),
   })
@@ -218,11 +227,20 @@ export const MOVEMENT_METADATA_VERSION = 1;
 export const acknowledgedWarningSchema = z.object({ ruleId: z.uuid(), message: z.string() });
 export type AcknowledgedWarning = z.infer<typeof acknowledgedWarningSchema>;
 
+/** Aviso reconhecido de documento coberto pela aprovação (US-016 · RN-DFD-41). */
+export const acknowledgedDocumentWarningSchema = z.object({
+  documentId: z.uuid(),
+  code: z.string(),
+  message: z.string(),
+});
+export type AcknowledgedDocumentWarning = z.infer<typeof acknowledgedDocumentWarningSchema>;
+
 /** `ProcessMovement.metadata` (`MovementMetadata` v1 — todos opcionais). */
 export const movementMetadataSchema = z
   .object({
     v: z.literal(MOVEMENT_METADATA_VERSION).optional(),
     warningsAcknowledged: z.array(acknowledgedWarningSchema).optional(),
+    documentWarningsAcknowledged: z.array(acknowledgedDocumentWarningSchema).optional(),
     computedDueAt: z.iso.datetime({ offset: true }).nullable().optional(),
     dueDateOverridden: z.boolean().optional(),
     dueDateOverrideReason: z.string().optional(),

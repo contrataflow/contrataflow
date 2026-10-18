@@ -72,6 +72,7 @@ export const DOCUMENT_MESSAGES = {
   alreadyExists: 'Este processo já tem um documento deste tipo.',
   notEditable: 'O documento não pode ser editado no status atual.',
   versionConflict: 'Esta informação foi atualizada por outra pessoa. Recarregue e tente novamente.',
+  draftRevisionConflict: 'O documento foi alterado desde que você o revisou.',
   // DOC-27 (US-122 · V-01..V-04 · V-08)
   aiReviewSectionsRequired: 'Selecione ao menos uma seção do documento.',
   aiReviewReload: 'Recarregue o documento e tente de novo.',
@@ -208,13 +209,18 @@ export const documentCreateSchema = z
   .meta({ id: 'DocumentCreateRequest' });
 export type DocumentCreate = z.infer<typeof documentCreateSchema>;
 
-/** DOC-09/DOC-10 (corpo): avisos de DOC-08 reconhecidos (V-02). Sem corpo = nenhum. */
+/**
+ * DOC-09/DOC-10 (corpo): avisos de DOC-08 reconhecidos (V-02). Sem corpo = nenhum.
+ * `expectedDraftRevision` (US-016 · RN-DFD-43): o `draftRevision` do DOC-08 que a pessoa revisou —
+ * divergente → 412 `VERSION_CONFLICT`; ausente = sem conferência.
+ */
 export const documentTransitionSchema = z
   .strictObject({
     acknowledgedWarnings: z
       .array(z.string().min(1).max(80))
       .max(DOCUMENT_LIMITS.acknowledgedMax)
       .optional(),
+    expectedDraftRevision: z.int().min(1).optional(),
   })
   .default({});
 export type DocumentTransition = z.output<typeof documentTransitionSchema>;

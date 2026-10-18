@@ -120,7 +120,7 @@ describe('ApprovalRequestService', () => {
       tenantId: TENANT,
       subjectType: 'PROCESS_STAGE',
       processStageId: STAGE,
-      title: 'Aprovação de Aprovação da autoridade competente — TR 0004/2026',
+      title: 'Aprovação da autoridade competente — TR 0004/2026',
       requestComment: SECRET_COMMENT,
       approverUserId: HEAD,
       allowDeputy: true,

@@ -17,7 +17,11 @@ import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
 import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
-import { documentIncomplete, documentNotFound } from './document.errors.js';
+import {
+  documentIncomplete,
+  documentNotFound,
+  warningsNotAcknowledged,
+} from './document.errors.js';
 import { DOCUMENT_REPOSITORY } from './document.ports.js';
 import type { DocumentRepository } from './document.ports.js';
 import { DOCUMENT_CLOCK } from './ports.js';
@@ -37,12 +41,19 @@ export interface StageEntryInput {
   readonly documentId: string;
   /** `Approval` de etapa (`subjectType = PROCESS_STAGE`) que passa a cobrir o documento. */
   readonly approvalId: string;
+  /**
+   * Códigos dos avisos reconhecidos no encaminhamento (DEC-016 · RN-DFD-41). Rascunho com aviso
+   * fora da lista → 422 `WARNINGS_NOT_ACKNOWLEDGED`, desfazendo a tramitação. Ausente = nenhum.
+   */
+  readonly acknowledgedWarnings?: readonly string[];
 }
 
 export interface StageEntryResult {
   /** Versão analisada: a recém-criada (rascunho) ou a corrente (finalizado/aprovado). */
   readonly documentVersionId: string;
   readonly document: Document;
+  /** Avisos do rascunho reconhecidos (código + mensagem exibida) — vazio no finalizado. */
+  readonly acknowledgedWarnings: readonly { readonly code: string; readonly message: string }[];
 }
 
 export interface ApprovalDecisionInput {
@@ -72,7 +83,8 @@ export class DocumentApprovalTransitions {
   /**
    * RN-DOC-44: documento em rascunho é validado (bloqueante → `DOCUMENT_INCOMPLETE`, desfazendo a
    * tramitação), ganha a versão `SUBMISSION` e vai a `IN_REVIEW`; `FINALIZED`/`APPROVED` só recebe
-   * `pendingApprovalId`. Avisos não impedem a entrada (a tramitação já os reconheceu — DEC-016).
+   * `pendingApprovalId` (sem nova versão — RN-DFD-39). Avisos do rascunho precisam estar em
+   * `acknowledgedWarnings` (DEC-016 · RN-DFD-41 — `WARNINGS_NOT_ACKNOWLEDGED`).
    */
   async enterApprovalStage(tx: TenantTx, input: StageEntryInput): Promise<StageEntryResult> {
     const document = await this.documents.findById(tx, input.documentId);
@@ -81,13 +93,13 @@ export class DocumentApprovalTransitions {
     const actorId = this.actorId();
     const now = this.clock();
     const draft = document.status === 'DRAFT' || document.status === 'RETURNED';
+    let acknowledged: StageEntryResult['acknowledgedWarnings'] = [];
     if (draft) {
       const { violations } = await this.lifecycle.evaluate(tx, context);
-      const gate = gateCompleteness(
-        violations,
-        violations.map((item) => item.code),
-      );
+      const gate = gateCompleteness(violations, input.acknowledgedWarnings ?? []);
       if (gate.kind === 'INCOMPLETE') throw documentIncomplete(gate.violations);
+      if (gate.kind === 'WARNINGS_NOT_ACKNOWLEDGED') throw warningsNotAcknowledged(gate.violations);
+      acknowledged = gate.acknowledged.map((item) => ({ code: item.code, message: item.message }));
     }
     const draftVersion = draft
       ? { id: newId(), versionNumber: await this.lifecycle.nextVersionNumber(tx, document.id) }
@@ -97,7 +109,11 @@ export class DocumentApprovalTransitions {
     );
     const saved = await this.lifecycle.save(tx, outcome.document, document.version);
     if (!outcome.createdVersion || draftVersion === null) {
-      return { document: saved, documentVersionId: document.currentVersionId ?? '' };
+      return {
+        document: saved,
+        documentVersionId: document.currentVersionId ?? '',
+        acknowledgedWarnings: [],
+      };
     }
     const version = await this.lifecycle.createVersion(tx, context, {
       document: saved,
@@ -131,6 +147,7 @@ export class DocumentApprovalTransitions {
         approvalId: input.approvalId,
         documentCode: saved.code,
         documentTypeCode: context.type.code,
+        warningsAcknowledged: acknowledged,
       },
     });
     await this.outbox.record(
@@ -161,7 +178,7 @@ export class DocumentApprovalTransitions {
         },
       }),
     );
-    return { document: saved, documentVersionId: version.id };
+    return { document: saved, documentVersionId: version.id, acknowledgedWarnings: acknowledged };
   }
 
   /**

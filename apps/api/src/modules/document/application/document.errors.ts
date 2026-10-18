@@ -35,6 +35,20 @@ export function documentVersionConflict(currentVersion: number): ApiError {
   });
 }
 
+/**
+ * 412 `VERSION_CONFLICT` do rascunho revisado (US-016 · RN-DFD-43): o conteúdo mudou desde o DOC-08
+ * que a pessoa conferiu — `currentDraftRevision` para recarregar a validação.
+ */
+export function draftRevisionConflict(
+  currentVersion: number,
+  currentDraftRevision: number,
+): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: DOCUMENT_MESSAGES.draftRevisionConflict,
+    extensions: { currentVersion, currentDraftRevision },
+  });
+}
+
 /** 422 `DOCUMENT_INCOMPLETE` com as pendências em `violations[]` (V-01). */
 export function documentIncomplete(violations: readonly Violation[]): ApiError {
   return new ApiError('DOCUMENT_INCOMPLETE', {

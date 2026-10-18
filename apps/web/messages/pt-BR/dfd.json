@@ -110,7 +110,59 @@
   "conclusion": {
     "ready": "Sem pendências",
     "pending": "{count, plural, one {Há # pendência obrigatória} other {Há # pendências obrigatórias}}",
-    "pendingHint": "Volte à Revisão para corrigir as pendências antes de concluir."
+    "pendingHint": "Volte à Revisão para corrigir as pendências antes de concluir.",
+    "loading": "Carregando a conclusão do DFD…",
+    "thisDfd": "Este DFD",
+    "card": {
+      "title": "Pronto para envio",
+      "finalizeTitle": "Pronto para finalizar",
+      "document": "Documento",
+      "destination": "Destino",
+      "deadline": "Prazo previsto",
+      "until": "até {date}"
+    },
+    "finalizeHint": "O DFD será concluído sem mover o processo. Depois, quem está com o processo o encaminha para aprovação.",
+    "selfApproval": "Pela segregação de funções, a decisão caberá ao substituto da titular.",
+    "warnings": {
+      "title": "Alertas",
+      "acknowledge": "Estou ciente"
+    },
+    "message": {
+      "label": "Mensagem ao aprovador (opcional)",
+      "hint": "{count} de {max} caracteres",
+      "tooLong": "A mensagem pode ter até 5.000 caracteres."
+    },
+    "notSender": {
+      "title": "O envio para aprovação é feito por quem está com o processo.",
+      "custodian": "O envio para aprovação é feito por quem está com o processo ({name}).",
+      "queue": "O processo está na fila da unidade: quem assumir o processo poderá enviá-lo."
+    },
+    "send": "Concluir e enviar para aprovação",
+    "sending": "Enviando…",
+    "finalize": "Finalizar DFD",
+    "finalizing": "Finalizando…",
+    "saving": "Ainda estamos salvando suas alterações…",
+    "sent": "{code} enviado para aprovação de {approver}.",
+    "finalized": "DFD finalizado — encaminhe para aprovação.",
+    "concluded": "Este DFD já foi concluído.",
+    "inApproval": "Em aprovação — versão {version}",
+    "inApprovalSent": "Em aprovação — versão {version} enviada em {at}",
+    "pdf": "Baixar PDF (versão {version})",
+    "errors": {
+      "autosave": "Não foi possível salvar as últimas alterações. Resolva antes de concluir.",
+      "blocked": "Há pendências obrigatórias no DFD.",
+      "warnings": "Confirme que está ciente dos alertas.",
+      "stageChanged": "O processo foi movimentado por outra pessoa.",
+      "versionConflict": "Os dados mudaram desde que você abriu a tela.",
+      "approverUnresolved": "A secretaria não tem titular cadastrado. Peça ao administrador do órgão para defini-lo.",
+      "forbidden": "Você não pode enviar este processo.",
+      "notEditable": "Este DFD já foi concluído.",
+      "status": "O processo não permite esta ação agora.",
+      "inProgress": "Esta solicitação já está sendo processada.",
+      "unavailable": "Não foi possível enviar agora. Tente novamente em instantes.",
+      "unexpected": "Não foi possível concluir agora. Tente novamente.",
+      "correlation": "Código para o suporte: {id}"
+    }
   },
   "summary": {
     "empty": "Não informado"

@@ -435,7 +435,7 @@ describe('Feature: Solicitar aprovação e resolver o aprovador (US-051)', () =>
         dueAt: entered?.dueAt,
       });
       expect(entered?.dueAt).not.toBeNull();
-      expect(approval?.title).toMatch(/^Aprovação de Aprovação da autoridade competente — \w+/);
+      expect(approval?.title).toMatch(/^Aprovação da autoridade competente — \w+/);
 
       // Uma ApprovalDocument por documento, na versão vigente; status inalterado (DEC-018/FA-01).
       expect(
@@ -527,7 +527,7 @@ describe('Feature: Solicitar aprovação e resolver o aprovador (US-051)', () =>
       const [approval] = approvalsOf(process.id);
       expect(approval).toMatchObject({
         status: 'PENDING',
-        title: 'Aprovação de Aprovação da autoridade competente',
+        title: 'Aprovação da autoridade competente',
         requestComment: null,
       });
       expect(approvalRepositoryOf(api).coverageOf(approval?.id ?? '')).toEqual([]);

@@ -19,11 +19,14 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
+import { formatDateTime } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { resumeStep } from './dfd-autosave';
 import type { DfdHeaderDraft } from './dfd-autosave';
 import { DfdAutosavePanels } from './dfd-autosave-panels';
+import { inApprovalOf } from './dfd-conclusion-model';
+import { DfdConclusionStep } from './dfd-conclusion-step';
 import { DfdIdentificationStep } from './dfd-identification-step';
 import { DfdJustificationStep } from './dfd-justification-step';
 import {
@@ -35,13 +38,13 @@ import {
   stepIndex,
 } from './dfd-model';
 import { DfdPlanningStep, estimatedValueOf } from './dfd-planning-step';
-import { DfdConclusionStep, DfdReviewStep, useDfdValidation } from './dfd-review-step';
+import { DfdReviewStep, useDfdValidation } from './dfd-review-step';
 import { useDfd, useDocumentItems } from './dfd.api';
 import { sectionText, useDfdAutosave } from './use-dfd-autosave';
 import { AiAssistant } from '../ai/ai-assistant';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
 import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
-import { DocumentStatusBadge } from '../documents/document-status-badge';
+import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { documentKeys, fetchDocument } from '../documents/documents.api';
 import { formatMoneyText } from '../processes/money';
 import {
@@ -320,6 +323,8 @@ function LoadedWizard({
       : '');
 
   const steps = DFD_WIZARD_STEPS.map((id) => ({ id, label: t(`steps.${id}`) }));
+  // Selo derivado "Em aprovação" (DEC-018 · RN-DFD-39) e a faixa do modo leitura (US-016).
+  const inApproval = inApprovalOf(document);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6">
@@ -330,6 +335,7 @@ function LoadedWizard({
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold">{dfd.code ?? t('title')}</h1>
           <DocumentStatusBadge status={dfd.status} />
+          {document.pendingApprovalId ? <PendingApprovalBadge /> : null}
           <AiAssistant
             processId={processId}
             documentId={dfd.documentId}
@@ -375,7 +381,14 @@ function LoadedWizard({
       {allowed ? null : (
         <Alert tone="info" title={t('readOnly.title')}>
           <p>
-            {t(`readOnly.status.${dfd.status}`)}
+            {inApproval === null
+              ? t(`readOnly.status.${dfd.status}`)
+              : inApproval.sentAt === null
+                ? t('conclusion.inApproval', { version: inApproval.versionNumber ?? 1 })
+                : t('conclusion.inApprovalSent', {
+                    version: inApproval.versionNumber ?? 1,
+                    at: formatDateTime(inApproval.sentAt, timeZone),
+                  })}
             {dfd.status === 'DRAFT' || dfd.status === 'RETURNED'
               ? ` · ${t('readOnly.noPermission')}`
               : ''}
@@ -461,7 +474,16 @@ function LoadedWizard({
             onGoTo={goTo}
           />
         ) : null}
-        {step === 'CONCLUSION' ? <DfdConclusionStep documentId={dfd.documentId} /> : null}
+        {step === 'CONCLUSION' ? (
+          <DfdConclusionStep
+            processId={processId}
+            documentId={dfd.documentId}
+            document={document}
+            allowedActions={meta.allowedActions}
+            process={process}
+            autosave={editable ? autosave : null}
+          />
+        ) : null}
       </section>
       <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-4">
         <Button

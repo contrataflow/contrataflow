@@ -211,13 +211,15 @@ describe('approverConfigOfPolicy (submissão avulsa — entities.md §5.7)', () 
 });
 
 describe('títulos (RN-TRAM-52)', () => {
-  it('"Aprovação de {etapa} — {código}" até 200 caracteres', () => {
+  it('"Aprovação de {etapa} — {código}" até 200 caracteres; etapa "Aprovação …" sem o prefixo', () => {
     expect(stageApprovalTitle('Aprovação da demanda', 'DFD 0001/2026')).toBe(
-      'Aprovação de Aprovação da demanda — DFD 0001/2026',
+      'Aprovação da demanda — DFD 0001/2026',
     );
-    expect(stageApprovalTitle('Aprovação da demanda', null)).toBe(
-      'Aprovação de Aprovação da demanda',
+    expect(stageApprovalTitle('Aprovação da demanda', null)).toBe('Aprovação da demanda');
+    expect(stageApprovalTitle('Análise jurídica', 'DFD 0001/2026')).toBe(
+      'Aprovação de Análise jurídica — DFD 0001/2026',
     );
+    expect(stageApprovalTitle('Aprovações gerais', null)).toBe('Aprovação de Aprovações gerais');
     expect(stageApprovalTitle('x'.repeat(300), null)).toHaveLength(200);
   });
 

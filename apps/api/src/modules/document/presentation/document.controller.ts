@@ -229,6 +229,7 @@ export class DocumentController {
       documentId: params.id,
       expectedVersion: ifMatch?.value ?? 0,
       acknowledgedWarnings: body.acknowledgedWarnings ?? [],
+      expectedDraftRevision: body.expectedDraftRevision ?? null,
       idempotencyKey: idempotencyKey ?? null,
     });
     return this.respond(result, response);
@@ -264,6 +265,7 @@ export class DocumentController {
       documentId: params.id,
       expectedVersion: ifMatch?.value ?? 0,
       acknowledgedWarnings: body.acknowledgedWarnings ?? [],
+      expectedDraftRevision: body.expectedDraftRevision ?? null,
       idempotencyKey: idempotencyKey ?? null,
     });
     return this.respond(result, response);

@@ -222,7 +222,7 @@
 `POST /api/v1/documents/{id}/finalize` · **Permissão:** permissão de submissão do tipo + POL-02 · **Story:** US-065
 - **Cabeçalhos:** `Idempotency-Key` obrigatório; `If-Match` obrigatório
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento.
-- **Request:** `{ acknowledgedWarnings?: string[] }`.
+- **Request:** `{ acknowledgedWarnings?: string[]; expectedDraftRevision?: number }` — `expectedDraftRevision` é o `draftRevision` do `DOC-08` que a pessoa revisou (US-016 · RN-DFD-43); divergente → 412 `VERSION_CONFLICT` ("O documento foi alterado desde que você o revisou.", `currentDraftRevision`). Também aceito em `DOC-09`.
 - **Response:** `200 { data: Document }`.
 - **Erros:** idênticos a `DOC-09` (`PERMISSION_DENIED` 403, `NOT_FOUND` 404, `INVALID_STATE` 409, `VERSION_CONFLICT` 412, `DOCUMENT_INCOMPLETE`/`WARNINGS_NOT_ACKNOWLEDGED` 422).
 - **Efeitos:** Eventos `DocumentFinalized` (`documentId`, `documentVersionId`, `typedSummary?`), `DocumentVersionCreated` (`reason = FINALIZATION`). Projeção `DOCUMENT_FINALIZED`. Auditoria `document.finalize`: `metadata.documentVersionId`, `typedSummary?`.

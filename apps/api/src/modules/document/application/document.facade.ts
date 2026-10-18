@@ -30,7 +30,7 @@ import type { CommentDocumentLabel, CommentDocumentTarget } from './document-com
 import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
 import { DocumentItemsPresenter } from './document-items.commands.js';
-import type { DocumentItemCopy } from './document-items.commands.js';
+import type { DocumentItemCopy, DocumentItemSnapshotLine } from './document-items.commands.js';
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import { documentNotEditable, notProcessCustodian } from './document.errors.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
@@ -301,6 +301,11 @@ export class DocumentFacade {
   /** Linhas de item do documento (DOC-06), no `tx` do chamador — validador e snapshot tipados. */
   documentItemsIn(tx: TenantTx, documentId: string): Promise<DocumentItem[]> {
     return this.itemRows.rowsOf(tx, documentId);
+  }
+
+  /** Itens do documento como o snapshot da versão os congela (US-016 · RN-DFD-40). */
+  snapshotItemsIn(tx: TenantTx, document: Document): Promise<DocumentItemSnapshotLine[]> {
+    return this.itemRows.snapshotLinesOf(tx, document);
   }
 
   /**

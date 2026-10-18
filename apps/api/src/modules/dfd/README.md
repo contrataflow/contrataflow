@@ -28,7 +28,7 @@ padrão aqui é o que ETP, TR, pesquisa de preços e mapa de riscos repetem.
   não vê o orçamento (`DocumentFacade.typedDocumentIn` → `canViewConfidentialBudget`).
 - **Testes**: `domain/dfd.spec.ts`, `presentation/dfd.routes.spec.ts` (8 categorias do Gherkin +
   FA-02/05/06/09/10/11) e `test/tenant-leak/dfds.spec.ts` (PostgreSQL).
-- **Fora desta story**: conclusão/aprovação = US-016/017; duplicação = US-018.
+- **Fora desta story**: conclusão/envio = US-016 (abaixo); devolução = US-017; duplicação = US-018.
 
 ## US-015 — Autosave do cabeçalho (DFD-04)
 
@@ -50,6 +50,28 @@ padrão aqui é o que ETP, TR, pesquisa de preços e mapa de riscos repetem.
   `info dfd.header_saved` (`changedFields`, `version`). Sem evento de domínio.
 - **Front (SCR-007):** `apps/web/src/features/dfd/use-dfd-autosave.ts` sobre o `useAutosave` de
   `@contrataflow/ui` (seções → DOC-05, cabeçalho → DFD-04).
+
+## US-016 — Concluir e enviar para aprovação (PRC-19 · DOC-10)
+
+- **Sem rota própria:** "Concluir e enviar para aprovação" é o PRC-19 (`ENVIAR_APROVACAO_DFD`,
+  ABERTURA → APROVACAO_DFD) da US-047/051 e "Finalizar DFD" é o DOC-10 da US-065. O que é do DFD:
+  - **`DfdSnapshotBuilder`** = `DfdDocumentValidator.snapshotParts` (RN-DFD-40): cabeçalho completo +
+    `collections.items` com `processItemId`, `sequence`, `lotNumber`, `description`, `unit` (rótulo),
+    `unitOfMeasureId`, `quantity`, `notes`, `sortOrder` (`DocumentFacade.snapshotItemsIn`). Anexos
+    fora do snapshot no MVP 1.
+  - **Avisos do DFD no envio** (RN-DFD-41): `acknowledgedWarnings[]` do PRC-19 aceita, além dos ids
+    das regras, os CÓDIGOS dos avisos do documento coberto (`DFD_ATTACHMENTS_PENDING`).
+    `DocumentFacade.enterApprovalStageIn` recusa o rascunho com aviso não reconhecido (422
+    `WARNINGS_NOT_ACKNOWLEDGED`, desfaz a tramitação) e devolve os reconhecidos →
+    `ProcessMovement.metadata.documentWarningsAcknowledged` + `process.forward`/`document.submit`.
+  - **DOC-10 `expectedDraftRevision`** (RN-DFD-43): o `draftRevision` do DOC-08 revisado; divergente →
+    412 `VERSION_CONFLICT` (também aceito no DOC-09).
+  - Título da aprovação: "Aprovação da demanda — DFD 0005/2026" (RN-TRAM-52 sem o prefixo duplicado).
+- **Front:** `apps/web/src/features/dfd/dfd-conclusion-step.tsx` (passo 5: cartão "Pronto para envio",
+  "Estou ciente" por alerta, "Mensagem ao aprovador", descarga do autosave + DOC-08 antes de enviar,
+  faixa "Em aprovação" e "Baixar PDF (versão N)") e as regras puras em `dfd-conclusion-model.ts`.
+- **Testes:** `process/presentation/dfd-conclusion.routes.spec.ts` (8 categorias) e
+  `test/tenant-leak/dfd-conclusion.spec.ts` (PostgreSQL: transação única, falha induzida, tenant).
 
 ## US-018 — Duplicar DFD (DFD-05)
 

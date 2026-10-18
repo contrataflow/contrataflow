@@ -8733,8 +8733,16 @@
           "acknowledgedWarnings": {
             "type": "array",
             "items": {
-              "type": "string",
-              "format": "uuid"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{2,79}$"
+                }
+              ]
             },
             "maxItems": 100
           }
@@ -25778,6 +25786,10 @@
                       "maxLength": 80
                     },
                     "maxItems": 100
+                  },
+                  "expectedDraftRevision": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 },
                 "default": {},
@@ -26604,6 +26616,10 @@
                       "maxLength": 80
                     },
                     "maxItems": 100
+                  },
+                  "expectedDraftRevision": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 },
                 "default": {},

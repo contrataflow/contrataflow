@@ -249,7 +249,13 @@ function mockDfdApi(options: DfdApiOptions = {}) {
     if (method === 'GET' && url === `/api/v1/documents/${DFD_ID}`) {
       return Promise.resolve(
         jsonResponse({
-          data: { id: DFD_ID, draftContent: { sections: {} }, version: 1 },
+          data: {
+            id: DFD_ID,
+            status: 'DRAFT',
+            pendingApprovalId: null,
+            draftContent: { sections: {} },
+            version: 1,
+          },
           meta: { allowedActions: ['UPDATE'] },
         }),
       );

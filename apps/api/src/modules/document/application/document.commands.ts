@@ -24,7 +24,11 @@ import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import type { DocumentContext, ResolvedDocumentActor } from './document-lifecycle.service.js';
-import { documentIncomplete, warningsNotAcknowledged } from './document.errors.js';
+import {
+  documentIncomplete,
+  draftRevisionConflict,
+  warningsNotAcknowledged,
+} from './document.errors.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS } from './ports.js';
 import type { DocumentClock, DocumentTransactions } from './ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
@@ -210,6 +214,8 @@ export interface ConcludeDocumentInput {
   /** `If-Match` (versão do documento). */
   readonly expectedVersion: number;
   readonly acknowledgedWarnings: readonly string[];
+  /** `draftRevision` revisado no DOC-08 (RN-DFD-43); `null` = sem conferência. */
+  readonly expectedDraftRevision?: number | null;
   readonly idempotencyKey: string | null;
 }
 
@@ -237,6 +243,10 @@ abstract class ConcludeDocumentCommand extends DocumentTransitionCommand<Conclud
     await this.lifecycle.authorizePol02(context, actor, 'submit');
     this.lifecycle.assertVersion(context, input.expectedVersion);
     const { document, type } = context;
+    const expectedDraft = input.expectedDraftRevision ?? null;
+    if (expectedDraft !== null && expectedDraft !== document.draftRevision) {
+      throw draftRevisionConflict(document.version, document.draftRevision);
+    }
     this.lifecycle.transition(() => {
       assertConcludable(document, type, this.action);
     });

@@ -54,6 +54,20 @@ export interface DocumentItemCopy {
 }
 
 /** Monta os DTOs: cada linha com o nº, a descrição e a unidade do item do processo. */
+/** Linha de item no snapshot da versão (RN-DFD-40 — valores decimais como string). */
+export interface DocumentItemSnapshotLine {
+  readonly processItemId: string;
+  readonly sequence: number;
+  readonly lotNumber: number | null;
+  readonly description: string;
+  /** Rótulo da unidade no momento da versão. */
+  readonly unit: string;
+  readonly unitOfMeasureId: string;
+  readonly quantity: string;
+  readonly notes: string | null;
+  readonly sortOrder: number;
+}
+
 @Injectable()
 export class DocumentItemsPresenter {
   constructor(
@@ -103,6 +117,29 @@ export class DocumentItemsPresenter {
       (await this.catalog.listActive(tx, document.processId)).map((item) => [item.id, item]),
     );
     return this.toDtos(tx, rows, processItems);
+  }
+
+  /**
+   * Linhas como o snapshot de versão as congela (US-016 · RN-DFD-40): o item do processo (número,
+   * lote, descrição, unidade) com a quantidade deste documento, na ordem do documento.
+   */
+  async snapshotLinesOf(tx: TenantTx, document: Document): Promise<DocumentItemSnapshotLine[]> {
+    const rows = await this.items.listByDocument(tx, document.id);
+    if (rows.length === 0) return [];
+    const processItems = new Map(
+      (await this.catalog.listActive(tx, document.processId)).map((item) => [item.id, item]),
+    );
+    return (await this.toDtos(tx, rows, processItems)).map((dto) => ({
+      processItemId: dto.processItemId,
+      sequence: dto.sequence,
+      lotNumber: processItems.get(dto.processItemId)?.lotNumber ?? null,
+      description: dto.description,
+      unit: dto.unit.label,
+      unitOfMeasureId: dto.unit.id,
+      quantity: dto.quantity,
+      notes: dto.notes,
+      sortOrder: dto.sortOrder,
+    }));
   }
 
   async toDtos(

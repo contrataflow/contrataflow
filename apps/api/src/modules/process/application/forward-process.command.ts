@@ -8,6 +8,7 @@ import {
   PROCESS_FORWARD_MESSAGES,
 } from '@contrataflow/validation';
 import type {
+  AcknowledgedDocumentWarning,
   FieldError,
   ForwardProcess,
   ForwardedProcessDto,
@@ -289,11 +290,17 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       : null;
     const covered = toApproval ? coveredDocuments(before, toStage.approvalDocumentTypeCodes) : [];
     const coverage: StageCoverage[] = [];
+    const documentWarnings: AcknowledgedDocumentWarning[] = [];
     for (const document of covered) {
+      // RN-DFD-41: os avisos do rascunho coberto também exigem reconhecimento (por código).
       const entry = await this.documents.enterApprovalStageIn(tx, {
         documentId: document.id,
         approvalId: approvalId ?? '',
+        acknowledgedWarnings: acknowledged,
       });
+      documentWarnings.push(
+        ...entry.acknowledgedWarnings.map((warning) => ({ documentId: document.id, ...warning })),
+      );
       coverage.push({
         documentId: document.id,
         documentVersionId: entry.documentVersionId,
@@ -325,6 +332,7 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     const metadata: MovementMetadata = movementMetadataSchema.parse({
       v: MOVEMENT_METADATA_VERSION,
       warningsAcknowledged: acknowledgedWarningsOf(evaluation.violations, acknowledged),
+      ...(documentWarnings.length === 0 ? {} : { documentWarningsAcknowledged: documentWarnings }),
       computedDueAt: due.computedDueAt?.toISOString() ?? null,
       dueDateOverridden: due.reason !== null,
       ...(due.reason === null ? {} : { dueDateOverrideReason: due.reason }),
@@ -428,6 +436,9 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
         fromStatus: process.status,
         toStatus: updated.status,
         warningsAcknowledged: metadata.warningsAcknowledged ?? [],
+        ...(documentWarnings.length === 0
+          ? {}
+          : { documentWarningsAcknowledged: documentWarnings }),
         dueDateOverridden: due.reason !== null,
         approvalRequestedId: approvalId,
         idempotencyKey: input.idempotencyKey,

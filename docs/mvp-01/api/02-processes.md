@@ -551,7 +551,8 @@ Exemplo de 409 `ITEM_IN_USE`:
   dueDateOverrideReason?: string; // 10–1.000, obrigatório com dueAt
   comment?: string;               // até 5.000; obrigatório conforme RN-TRAM-11
   documentIds?: string[];         // até 50, sem repetição (RN-TRAM-12)
-  acknowledgedWarnings?: string[]; }
+  acknowledgedWarnings?: string[]; } // ids das regras WARNING (PRC-08/09) e códigos dos avisos
+                                     // dos documentos cobertos (DOC-08 — US-016 · RN-DFD-41)
 ```
 - **Response:** `200 { data: Process }` com `status`, `currentStage`, `currentDepartment`, `currentResponsible`, `movement: {id, sequence}`, `approval?: {id, approverLabel}`, `version` + `ETag`
 - **Erros:**
@@ -561,7 +562,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 422 | `VALIDATION_ERROR` | Corpo inválido; documento de outro processo; prazo inválido |
 | 422 | `TRANSITION_NOT_AVAILABLE` | Transição inexistente, de outra etapa ou não `FORWARD` |
 | 422 | `TRANSITION_BLOCKED` | Regra `BLOCKING` não satisfeita |
-| 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Aviso `WARNING` não reconhecido |
+| 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Aviso `WARNING` não reconhecido — da regra do workflow (`violations[].code = WORKFLOW_RULE`) ou do documento coberto em rascunho (código do módulo, ex.: `DFD_ATTACHMENTS_PENDING` — US-016) |
 | 422 | `DEPARTMENT_REQUIRED` | Unidade ausente em transição `CHOSEN_ON_FORWARD` |
 | 422 | `DUE_DATE_OVERRIDE_NOT_ALLOWED` | Prazo alterado sem permissão da transição |
 | 422 | `ASSIGNEE_NOT_ELIGIBLE` | Pessoa indicada não lotada no destino / sem vínculo ativo |
@@ -575,6 +576,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessStageChanged`(`ProcessForwarded`) sempre; `ProcessStatusChanged` quando o status muda; `ProcessAssigned` (`assignmentType=STAGE_ENTRY`) quando a nova etapa resolve responsável; `ProcessNumberAssigned` na autuação do 1º encaminhamento; `DocumentVersionCreated`+`DocumentSubmitted` por documento coberto submetido; `ApprovalRequested` quando o destino é `APPROVAL`. Projeções: timeline `PROCESS_FORWARDED` (e correlatas); `ProcessAccess`. Auditoria: `process.forward` (`WORKFLOW`); `process.number_assign`, `document.version_create`, `document.submit`, `approval.request` quando aplicáveis; `access.denied` em 403.
+- **Avisos reconhecidos (DEC-016):** os das regras em `ProcessMovement.metadata.warningsAcknowledged` (`{ ruleId, message }`); os dos documentos cobertos em `metadata.documentWarningsAcknowledged` (`{ documentId, code, message }`) e em `document.submit.metadata.warningsAcknowledged` (US-016). Ambos vão também em `process.forward.metadata`.
 - **Notas:** RN-TRAM-04/06/07/08/09/10/11/12/15. A prévia de cada transição disponível (`departmentResolution`, `requiresComment`, `allowDueDateOverride`, `dueAtPreview`, `approverPreview`) é obtida antecipadamente em `GET /processes/{id}/available-actions` (PRC-08), nas entradas `action="FORWARD"`.
 
 ### PRC-20 — Devolver processo
