@@ -10,6 +10,7 @@ import { ApiError } from '#shared/errors/api-error.js';
 
 import { AuthorizationService } from './authorization.service.js';
 import type { ConfidentialBudgetAccess } from './authorization.service.js';
+import { EffectivePermissionsService } from './effective-permissions.service.js';
 import { ROLE_REPOSITORY } from './ports.js';
 import type { RoleRepository } from './ports.js';
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
@@ -44,7 +45,25 @@ export class AccessFacade {
     private readonly defaultRoles: SeedDefaultRolesHandler,
     @Inject(ROLE_REPOSITORY) private readonly roles: RoleRepository,
     private readonly authorization: AuthorizationService,
+    private readonly effective: EffectivePermissionsService,
   ) {}
+
+  /**
+   * O vínculo de um TERCEIRO tem a permissão em algum escopo vigente (US-047 · RN-TRAM-08: o
+   * destinatário do encaminhamento precisa de `PROCESS_VIEW`). Calculado no `tx` do chamador.
+   */
+  async membershipHoldsIn(
+    tx: TenantTx,
+    member: {
+      readonly membershipId: string;
+      readonly userId: string;
+      readonly roleKeys: readonly string[];
+    },
+    permission: PermissionCode,
+  ): Promise<boolean> {
+    const snapshot = await this.effective.computeFor(tx, member);
+    return snapshot.grants.some((grant) => grant.permissions.includes(permission));
+  }
 
   /**
    * Seeder `access.defaultRoles` (US-094 · RN-IAM-74..77) para o checklist de provisionamento

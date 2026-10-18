@@ -1,4 +1,9 @@
-import { ProcessCreated, ProcessUpdated } from '@contrataflow/validation';
+import {
+  ApprovalRequested,
+  ProcessCreated,
+  ProcessStageChanged,
+  ProcessUpdated,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -7,6 +12,7 @@ import type { RecordedDomainEvent, SyncEventHandler } from '#shared/outbox/outbo
 import { PROCESS_REPOSITORY } from './ports.js';
 import type { ProcessRepository } from './ports.js';
 import { creationGrants } from '../domain/process-runtime-records.js';
+import { stageChangeAccess } from '../domain/stage-transition.js';
 
 /** Campos cuja alteração muda as concessões `REQUESTING` (RN-PROC-62). */
 const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartmentId']);
@@ -17,41 +23,83 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * são desfeitos juntos. US-001: `process.created` → `REQUESTING` (secretaria e setor), `CURRENT`
  * (unidade da etapa inicial), `CREATOR` (ator do evento) e `RESPONSIBLE` (responsável inicial).
  * US-005: `process.updated` com a secretaria ou o setor solicitante alterado → revoga as concessões
- * `REQUESTING` anteriores e concede as novas (RN-PROC-62). A US-047 acrescenta as tramitações
- * (`CURRENT` → `HISTORICAL`).
+ * `REQUESTING` anteriores e concede as novas (RN-PROC-62). US-047: `process.stage_changed.*` →
+ * `CURRENT` da origem vira `HISTORICAL` (unidade mudou), `CURRENT` do destino e `RESPONSIBLE` do
+ * novo responsável (RN-TRAM-17); `approval.requested` → `APPROVER` para o aprovador designado
+ * (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já tem o `CURRENT`).
  */
 @Injectable()
 export class ProcessAccessProjector implements SyncEventHandler {
   readonly name = 'ProcessAccessProjector';
-  readonly routingKeys = ['process.created', 'process.updated'];
+  readonly routingKeys = [
+    'process.created',
+    'process.updated',
+    'process.stage_changed.*',
+    'approval.requested',
+  ];
 
   constructor(@Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository) {}
 
   async handle(tx: TenantTx, event: RecordedDomainEvent): Promise<void> {
-    if (event.eventType === ProcessUpdated.eventType) {
-      const { changedFields } = ProcessUpdated.payloadSchema.parse(event.payload);
-      if (changedFields.some((field) => REQUESTING_FIELDS.has(field))) {
-        await this.processes.syncRequestingAccess(
+    const at = new Date(event.occurredAt);
+    switch (event.eventType) {
+      case ProcessUpdated.eventType: {
+        const { changedFields } = ProcessUpdated.payloadSchema.parse(event.payload);
+        if (changedFields.some((field) => REQUESTING_FIELDS.has(field))) {
+          await this.processes.syncRequestingAccess(tx, event.aggregateId, at);
+        }
+        return;
+      }
+      case ProcessCreated.eventType: {
+        const payload = ProcessCreated.payloadSchema.parse(event.payload);
+        await this.processes.grantAccess(
           tx,
           event.aggregateId,
-          new Date(event.occurredAt),
+          creationGrants({
+            requestingSecretariatId: payload.requestingSecretariatId,
+            requestingDepartmentId: payload.requestingDepartmentId,
+            currentDepartmentId: payload.initialDepartmentId,
+            creatorId: event.actor.userId,
+            responsibleId: payload.initialResponsibleId,
+          }),
+          at,
         );
+        return;
       }
-      return;
+      case ProcessStageChanged.eventType: {
+        const payload = ProcessStageChanged.payloadSchema.parse(event.payload);
+        const access = stageChangeAccess(payload);
+        if (access.historicalDepartmentId !== null) {
+          await this.processes.retireCurrentAccess(
+            tx,
+            event.aggregateId,
+            access.historicalDepartmentId,
+            at,
+          );
+        }
+        await this.processes.grantAccess(tx, event.aggregateId, access.grants, at);
+        return;
+      }
+      case ApprovalRequested.eventType: {
+        const payload = ApprovalRequested.payloadSchema.parse(event.payload);
+        if (event.processId === null || payload.approverUserId === null) return;
+        await this.processes.grantAccess(
+          tx,
+          event.processId,
+          [
+            {
+              principalType: 'USER',
+              userId: payload.approverUserId,
+              reason: 'APPROVER',
+              sourceId: payload.approvalId,
+            },
+          ],
+          at,
+        );
+        return;
+      }
+      default:
+        return;
     }
-    if (event.eventType !== ProcessCreated.eventType) return;
-    const payload = ProcessCreated.payloadSchema.parse(event.payload);
-    await this.processes.grantAccess(
-      tx,
-      event.aggregateId,
-      creationGrants({
-        requestingSecretariatId: payload.requestingSecretariatId,
-        requestingDepartmentId: payload.requestingDepartmentId,
-        currentDepartmentId: payload.initialDepartmentId,
-        creatorId: event.actor.userId,
-        responsibleId: payload.initialResponsibleId,
-      }),
-      new Date(event.occurredAt),
-    );
   }
 }

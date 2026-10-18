@@ -6,6 +6,7 @@ import {
   AiGenerationRequested,
   AiUsageThresholdReached,
 } from '../ai/events.js';
+import { ApprovalRequested } from '../approval/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import { CommentCreated, CommentDeleted, CommentUpdated } from '../collaboration/events.js';
@@ -43,12 +44,16 @@ import {
 } from '../organization/events.js';
 import { PriceResearchRecalculated } from '../price-research/events.js';
 import {
+  ProcessAssigned,
   ProcessConfidentialityChanged,
   ProcessCreated,
   ProcessDuplicated,
   ProcessItemsChanged,
+  ProcessNumberAssigned,
   ProcessParticipantAdded,
   ProcessParticipantRemoved,
+  ProcessStageChanged,
+  ProcessStatusChanged,
   ProcessUpdated,
 } from '../process/events.js';
 import { RiskAssessed, RiskCreated, RiskDeleted, RiskTreatmentChanged } from '../risk/events.js';
@@ -106,6 +111,11 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessParticipantAdded,
   ProcessParticipantRemoved,
   ProcessConfidentialityChanged,
+  ProcessStageChanged,
+  ProcessStatusChanged,
+  ProcessAssigned,
+  ProcessNumberAssigned,
+  ApprovalRequested,
   SupplierCreated,
   SupplierUpdated,
   PriceResearchRecalculated,

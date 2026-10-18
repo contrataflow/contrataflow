@@ -182,7 +182,8 @@
         "TERM": "TR"
       },
       "organization": "Órgão: {name}",
-      "tags": "Etiquetas"
+      "tags": "Etiquetas",
+      "statusLabel": "Situação do processo"
     },
     "actions": {
       "label": "Ações do processo",
@@ -410,6 +411,137 @@
       "retry": "Tentar novamente",
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
       "notFound": "Processo não encontrado."
+    }
+  },
+  "forward": {
+    "title": "Encaminhar processo",
+    "close": "Fechar",
+    "loading": "Carregando as opções de encaminhamento…",
+    "loadFailed": "Não foi possível carregar o encaminhamento.",
+    "retry": "Tentar novamente",
+    "empty": "Não há encaminhamentos disponíveis nesta etapa.",
+    "cancel": "Cancelar",
+    "submit": "Encaminhar",
+    "submitting": "Encaminhando…",
+    "submitBlocked": "Resolva as pendências obrigatórias para encaminhar.",
+    "transition": {
+      "legend": "Para onde",
+      "stage": "Etapa: {stage}",
+      "department": "Unidade: {department}",
+      "approver": "Aprovação: {approver}",
+      "unavailable": "Indisponível: {reasons}"
+    },
+    "destination": {
+      "title": "Unidade e responsável",
+      "department": "Unidade de destino",
+      "departmentHint": "Obrigatório. Busque e escolha a unidade que receberá o processo.",
+      "byWorkflow": "Definida pelo fluxo de trabalho",
+      "approver": "Aprovador: {approver}",
+      "approverUndefined": "O aprovador será definido pelo fluxo de trabalho.",
+      "assignee": "Atribuir diretamente a",
+      "assigneeHint": "Opcional. Digite ao menos 2 letras do nome. Sem escolha, vale a regra de atribuição da etapa."
+    },
+    "lookup": {
+      "selected": "Selecionado: {name}",
+      "change": "Trocar",
+      "searching": "Buscando…",
+      "searchFailed": "Não foi possível buscar agora.",
+      "noResults": "Nenhum resultado.",
+      "results": "Resultados da busca: {label}"
+    },
+    "due": {
+      "title": "Prazo",
+      "none": "Sem prazo definido",
+      "until": "Até {date}",
+      "untilSla": "Até {date} ({type, select, CALENDAR {{days, plural, one {# dia corrido} other {# dias corridos}}} other {{days, plural, one {# dia útil} other {# dias úteis}}}})",
+      "change": "Alterar prazo",
+      "keep": "Manter o prazo calculado",
+      "date": "Novo prazo",
+      "dateHint": "Entre hoje e {limit}.",
+      "reason": "Motivo da alteração do prazo",
+      "reasonHint": "Obrigatório, de 10 a 1.000 caracteres."
+    },
+    "comment": {
+      "label": "Comentário",
+      "labelRequired": "Comentário (obrigatório)",
+      "hintRequired": "Informe ao menos 10 caracteres.",
+      "counter": "{count, number} / {max, number}"
+    },
+    "documents": {
+      "legend": "Documentos que acompanham",
+      "hint": "Vêm marcados os documentos criados ou alterados nesta etapa.",
+      "hintApproval": "Os documentos cobertos pela aprovação seguem automaticamente e não podem ser desmarcados.",
+      "empty": "Este processo ainda não tem documentos.",
+      "willSubmit": "Será submetido para aprovação",
+      "inApproval": "Em aprovação",
+      "count": "{count, plural, =0 {Nenhum documento selecionado} one {# documento selecionado} other {# documentos selecionados}} (máx. 50)"
+    },
+    "rules": {
+      "title": "Pendências e avisos",
+      "none": "Nenhuma pendência nesta etapa.",
+      "counts": "{blocking, plural, =0 {Nenhuma pendência obrigatória} one {# pendência obrigatória} other {# pendências obrigatórias}} e {warnings, plural, =0 {nenhum aviso} one {# aviso} other {# avisos}}.",
+      "blockingList": "Pendências obrigatórias",
+      "warningList": "Avisos",
+      "blocking": "Obrigatória",
+      "warning": "Aviso",
+      "resolve": "Resolver",
+      "acknowledge": "Estou ciente e desejo prosseguir"
+    },
+    "summary": {
+      "title": "Resumo",
+      "queue": "O processo irá para <b>{stage} — {department}</b>, na fila da unidade, com prazo até <b>{date}</b>.",
+      "queueNoDue": "O processo irá para <b>{stage} — {department}</b>, na fila da unidade, sem prazo definido.",
+      "assigned": "O processo irá para <b>{stage} — {department}</b>, atribuído a <b>{assignee}</b>, com prazo até <b>{date}</b>.",
+      "assignedNoDue": "O processo irá para <b>{stage} — {department}</b>, atribuído a <b>{assignee}</b>, sem prazo definido.",
+      "pickDepartment": "O processo irá para <b>{stage}</b>. Escolha a unidade de destino para ver o resumo completo.",
+      "stageOnly": "O processo irá para <b>{stage}</b>.",
+      "approval": "O processo irá para aprovação de <b>{approver}</b>.",
+      "approvalUndefined": "O processo irá para <b>{stage}</b>, para aprovação.",
+      "submitOne": "O {document} será submetido na versão {version}.",
+      "submitMany": "{count} documentos serão submetidos para aprovação."
+    },
+    "toast": {
+      "forwarded": "Processo encaminhado para {stage} — {department}",
+      "numbered": "Processo autuado sob o nº {code} e encaminhado para {stage} — {department}",
+      "approval": "Processo encaminhado para aprovação de {approver}",
+      "numberedApproval": "Processo autuado sob o nº {code} e encaminhado para aprovação de {approver}"
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "versionConflict": "O processo foi alterado. Recarregue para continuar.",
+      "versionConflictHint": "Já recarregamos os dados e o que você digitou foi mantido. Revise e envie de novo.",
+      "transitionNotAvailable": "Este caminho não está disponível agora.",
+      "transitionNotAvailableHint": "Atualizamos as opções de encaminhamento. Escolha de novo.",
+      "blocked": "{count, plural, =0 {Há pendências na etapa.} one {Há # pendência obrigatória na etapa.} other {Há # pendências obrigatórias na etapa.}}",
+      "blockedHint": "Resolva as pendências obrigatórias para encaminhar.",
+      "warnings": "Confirme que está ciente dos avisos antes de encaminhar.",
+      "dueNotAllowed": "Esta etapa não permite alterar o prazo.",
+      "dueRestored": "O prazo calculado foi restaurado.",
+      "documentsIncomplete": "Há documentos incompletos.",
+      "documentFallback": "documento",
+      "completeDocument": "Complete o {document} antes de enviar.",
+      "openDocument": "Abrir documento",
+      "approverUnresolved": "Não há aprovador apto para esta etapa. Fale com o administrador do órgão.",
+      "idempotencyReused": "Esta solicitação já foi enviada com outros dados.",
+      "inProgress": "Estamos concluindo o encaminhamento.",
+      "unavailable": "Não foi possível encaminhar agora. Tente novamente em instantes.",
+      "code": "Código: {correlationId}",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente",
+      "custody": "Você não está com este processo.",
+      "notFound": "Processo não encontrado.",
+      "assigneeNotEligible": "Esta pessoa não pode receber o processo nesta unidade."
+    },
+    "stale": {
+      "title": "Processo movimentado",
+      "description": "Este processo acabou de ser movimentado por outra pessoa. Recarregue para ver a situação atual.",
+      "reload": "Recarregar"
+    },
+    "discard": {
+      "title": "Descartar o encaminhamento?",
+      "description": "O que você preencheu será perdido.",
+      "keep": "Continuar editando",
+      "confirm": "Descartar"
     }
   }
 }

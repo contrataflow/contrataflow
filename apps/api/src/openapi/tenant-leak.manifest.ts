@@ -145,6 +145,9 @@ const PROCESS_DUPLICATE_ROUTE =
 const PROCESS_UPDATE_ROUTE =
   'Edição do processo (US-005): a suíte genérica não tem processo do tenant B. O isolamento (PATCH com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, unidade/catálogo de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS de processes/process_access) é coberto em test/tenant-leak/process-update.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-update.routes.spec.ts.';
 
+const PROCESS_FORWARD_ROUTE =
+  'Encaminhamento do processo (US-047 · PRC-19): exige If-Match, Idempotency-Key e um processo do tenant numa etapa com transição, que a suíte genérica não tem. O isolamento (PRC-19 com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, unidade de B em toDepartmentId → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS de processes/process_stages/process_movements/process_access) é coberto em test/tenant-leak/process-forward.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-forward.routes.spec.ts.';
+
 const PROCESS_ITEMS_ROUTE =
   'Itens do processo (US-006): a suíte genérica não tem processo nem item do tenant B. O isolamento (PRC-13/14/17 com id de processo de B → 404 PROCESS_NOT_FOUND, PRC-15/16 com id de item de B → 404 NOT_FOUND sem alterar nada, unidade de medida de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de process_items) é coberto em test/tenant-leak/process-items.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-items.routes.spec.ts.';
 
@@ -305,6 +308,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-15': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-16': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-17': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'PRC-19': { kind: 'exempt', reason: PROCESS_FORWARD_ROUTE },
   'RSK-01': { kind: 'exempt', reason: RISK_ROUTE },
   'RSK-02': { kind: 'exempt', reason: RISK_ROUTE },
   'RSK-03': { kind: 'exempt', reason: RISK_ROUTE },

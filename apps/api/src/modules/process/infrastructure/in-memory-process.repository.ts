@@ -38,6 +38,7 @@ import type {
   ProcessStageRecord,
 } from '../domain/process-runtime-records.js';
 import type { Process } from '../domain/process.js';
+import type { StageTransitionPlan } from '../domain/stage-transition.js';
 
 /**
  * Passagem guardada: a da criação (`ACTIVE`) ou, como carga de teste, as passagens que a
@@ -93,6 +94,8 @@ export class InMemoryProcessRepository implements ProcessRepository {
   private readonly stages = new Map<string, StoredStage>();
   private readonly situations = new Map<string, Partial<ProcessSituationRow>>();
   private readonly assignments: ProcessAssignmentRecord[] = [];
+  /** Responsabilidades encerradas (`endedAt`/`isActive = false` no PostgreSQL). */
+  private readonly endedAssignments = new Map<string, Date>();
   private readonly movements: ProcessMovementRecord[] = [];
   private readonly access: StoredAccess[] = [];
   /** Concessões revogadas (`revokedAt` — RN-PROC-62), fora das leituras como no PostgreSQL. */
@@ -193,6 +196,66 @@ export class InMemoryProcessRepository implements ProcessRepository {
     const version = current.version + 1;
     this.processes.set(processId, { ...current, version, updatedAt: at, updatedById: userId });
     return Promise.resolve(version);
+  }
+
+  lastMovementSequence(_tx: TenantTx, processId: string): Promise<number> {
+    return Promise.resolve(
+      this.movements
+        .filter((movement) => movement.processId === processId)
+        .reduce((max, movement) => Math.max(max, movement.sequence), 0),
+    );
+  }
+
+  recordStageTransition(_tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
+    const current = this.processes.get(plan.process.id);
+    if (current?.tenantId !== tenantOfContext() || current.version !== plan.expectedVersion) {
+      return Promise.resolve(false);
+    }
+    const closing = this.stages.get(plan.closed.id);
+    if (closing?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao encerrar a etapa.'));
+    }
+    this.processes.set(plan.process.id, plan.process);
+    this.stages.set(closing.id, {
+      ...closing,
+      status: plan.closed.status,
+      exitedAt: plan.closed.exitedAt,
+    });
+    for (const assignment of this.assignments) {
+      if (assignment.processId === plan.process.id && !this.endedAssignments.has(assignment.id)) {
+        this.endedAssignments.set(assignment.id, plan.closed.exitedAt);
+      }
+    }
+    this.stages.set(plan.entered.id, plan.entered);
+    this.assignments.push(plan.assignment);
+    this.movements.push(plan.movement);
+    return Promise.resolve(true);
+  }
+
+  async retireCurrentAccess(
+    tx: TenantTx,
+    processId: string,
+    departmentId: string,
+    at: Date,
+  ): Promise<void> {
+    for (let index = this.access.length - 1; index >= 0; index -= 1) {
+      const row = this.access[index];
+      if (
+        row?.processId === processId &&
+        row.principalType === 'DEPARTMENT' &&
+        row.departmentId === departmentId &&
+        row.reason === 'CURRENT'
+      ) {
+        this.access.splice(index, 1);
+        this.revoked.push({ ...row, revokedAt: at });
+      }
+    }
+    await this.grantAccess(
+      tx,
+      processId,
+      [{ principalType: 'DEPARTMENT', departmentId, reason: 'HISTORICAL' }],
+      at,
+    );
   }
 
   revokeParticipantAccess(_tx: TenantTx, participantId: string, at: Date): Promise<void> {
@@ -499,8 +562,15 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return [...this.stages.values()].filter((stage) => stage.processId === processId);
   }
 
-  assignmentsOf(processId: string): readonly ProcessAssignmentRecord[] {
-    return this.assignments.filter((assignment) => assignment.processId === processId);
+  assignmentsOf(processId: string): readonly (ProcessAssignmentRecord & {
+    readonly isActive: boolean;
+  })[] {
+    return this.assignments
+      .filter((assignment) => assignment.processId === processId)
+      .map((assignment) => ({
+        ...assignment,
+        isActive: !this.endedAssignments.has(assignment.id),
+      }));
   }
 
   movementsOf(processId: string): readonly ProcessMovementRecord[] {
@@ -559,6 +629,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.stages.clear();
     this.situations.clear();
     this.assignments.length = 0;
+    this.endedAssignments.clear();
     this.movements.length = 0;
     this.access.length = 0;
     this.revoked.length = 0;

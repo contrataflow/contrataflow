@@ -30,7 +30,7 @@ import type {
   ResolvedDepartment,
 } from '../domain/stage-destination.js';
 import type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
-import type { EngineViewer } from '../domain/workflow-engine.js';
+import type { EngineViewer, TransitionEvaluation } from '../domain/workflow-engine.js';
 import type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
 
 export type {
@@ -53,7 +53,11 @@ export type {
   ResolvedDepartment,
 } from '../domain/stage-destination.js';
 export type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
-export type { EngineViewer, ProcessActionPermission } from '../domain/workflow-engine.js';
+export type {
+  EngineViewer,
+  ProcessActionPermission,
+  TransitionEvaluation,
+} from '../domain/workflow-engine.js';
 export type { WorkflowSnapshot, WorkflowSnapshotStage } from '../domain/workflow-snapshot.js';
 
 /**
@@ -150,6 +154,19 @@ export class WorkflowFacade {
    */
   evaluateRules(tx: TenantTx, state: ProcessExecutionState): Promise<ChecklistViolation[]> {
     return this.engine.evaluateRules(tx, state);
+  }
+
+  /**
+   * RN-TRAM-04/05 (US-047): a transição escolhida pelo comando — da versão fixada, partindo da
+   * etapa atual e com a ação pedida — e as regras `STAGE_EXIT` + `TRANSITION` não satisfeitas.
+   * `null` = indisponível. O mesmo cálculo de `getAvailableActions`/`evaluateRules`.
+   */
+  evaluateTransition(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    request: { readonly transitionId: string; readonly action: 'FORWARD' | 'COMPLETE' },
+  ): Promise<TransitionEvaluation | null> {
+    return this.engine.evaluateTransition(tx, state, request);
   }
 
   /** RN-WF-30: unidade responsável da etapa alcançada. */

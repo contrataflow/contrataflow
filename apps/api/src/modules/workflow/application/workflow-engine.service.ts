@@ -28,12 +28,14 @@ import {
   availableActions,
   checklistOf,
   evaluateStage,
+  evaluateTransition,
 } from '../domain/workflow-engine.js';
 import type {
   EngineInput,
   EngineProcess,
   EngineViewer,
   StageEvaluation,
+  TransitionEvaluation,
 } from '../domain/workflow-engine.js';
 import type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
 
@@ -119,6 +121,25 @@ export class WorkflowEngineService {
         'workflow.actions_computed',
       );
       return actions;
+    });
+  }
+
+  /**
+   * `evaluateTransition` (US-047 · RN-TRAM-04/05): a transição pedida pelo comando de tramitação,
+   * avaliada sobre o MESMO cálculo de PRC-08/09 (UI e backend nunca divergem). `null` = transição
+   * indisponível para a etapa atual. O `state` deve ter sido lido DEPOIS do bloqueio do processo.
+   */
+  evaluateTransition(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    request: { readonly transitionId: string; readonly action: 'FORWARD' | 'COMPLETE' },
+  ): Promise<TransitionEvaluation | null> {
+    return withSpan('workflow.evaluate_transition', this.spanAttributes(state), async () => {
+      const startedAt = performance.now();
+      const { input, evaluation } = await this.evaluate(tx, state);
+      const result = evaluateTransition(input, request, evaluation);
+      recordEngine('transition', performance.now() - startedAt);
+      return result;
     });
   }
 

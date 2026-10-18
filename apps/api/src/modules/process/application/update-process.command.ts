@@ -377,7 +377,7 @@ export class UpdateProcessCommand extends TransactionalCommandHandler<
 }
 
 /** O processo como a autorização o vê (escopo e participações — US-097). */
-function accessTargetOf(runtime: ProcessRuntime) {
+export function accessTargetOf(runtime: ProcessRuntime) {
   return {
     processId: runtime.id,
     organizationId: runtime.organizationId ?? null,

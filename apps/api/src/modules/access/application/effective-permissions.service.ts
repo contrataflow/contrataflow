@@ -214,6 +214,14 @@ export class EffectivePermissionsService {
     }
   }
 
+  /**
+   * Permissões efetivas de OUTRO vínculo calculadas no `tx` do chamador, sem cache (US-047 ·
+   * RN-TRAM-08: quem recebe o processo precisa de `PROCESS_VIEW`). Leituras só do tenant do `tx`.
+   */
+  computeFor(tx: TenantTx, subject: MembershipSubject): Promise<EffectivePermissionsSnapshot> {
+    return this.computeIn(tx, subject, this.clock());
+  }
+
   private async computeIn(
     tx: TenantTx,
     subject: MembershipSubject,

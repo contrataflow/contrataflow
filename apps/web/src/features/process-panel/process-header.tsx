@@ -14,6 +14,9 @@ import {
 import { ProcessStatusBadge } from '../processes/process-status-badge';
 import { TagChip } from '../tags/tag-chip';
 
+/** Linha de status do cabeçalho: recebe o foco depois de uma ação que muda o processo (US-047). */
+export const PROCESS_STATUS_HEADER_ID = 'process-status-header';
+
 /**
  * `ProcessHeader` (SCR-006 · RN-PROC-54): código (ou "Rascunho (sem número)"), título, status,
  * prioridade, etiquetas, "Orçamento sigiloso", órgão (fora do principal) e valor estimado com a
@@ -46,7 +49,13 @@ export function ProcessHeader({
       >
         {header.title}
       </h1>
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        id={PROCESS_STATUS_HEADER_ID}
+        role="group"
+        aria-label={t('header.statusLabel')}
+        tabIndex={-1}
+        className="flex flex-wrap items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <ProcessStatusBadge status={header.status} />
         <PriorityBadge priority={header.priority} />
         {header.isBudgetConfidential ? <ConfidentialBadge /> : null}

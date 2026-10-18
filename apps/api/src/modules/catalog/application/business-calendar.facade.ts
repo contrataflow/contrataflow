@@ -53,6 +53,19 @@ export class BusinessCalendarFacade {
     return (await this.settingsOf(tx)).timezone;
   }
 
+  /** Dia local `YYYY-MM-DD` do instante no fuso do tenant (US-047: "hoje" da sobrescrita de prazo). */
+  async localDate(tx: TenantTx, instant: Date): Promise<string> {
+    return localDateOf(instant, (await this.settingsOf(tx)).timezone);
+  }
+
+  /**
+   * Fim do dia local `YYYY-MM-DD` (`23:59:59.999` no fuso do tenant) como instante UTC — o prazo
+   * sobrescrito no encaminhamento é normalizado ao fim do dia (US-047 · RN-TRAM-10).
+   */
+  async endOfLocalDay(tx: TenantTx, date: string): Promise<Date> {
+    return endOfDayInstant(date, (await this.settingsOf(tx)).timezone);
+  }
+
   /** RN-TEN-74: a data `YYYY-MM-DD` é dia útil no calendário do tenant? */
   async isBusinessDay(tx: TenantTx, date: string): Promise<boolean> {
     const nonBusiness = await this.nonBusinessBetween(tx, await this.settingsOf(tx), date, date);

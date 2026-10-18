@@ -1604,7 +1604,7 @@ type MovementDocumentRef = { documentId; documentVersionId: string | null; versi
 `ProcessMovement.metadata` (todos opcionais; definido por US-047, US-048, US-053 e US-055):
 ```ts
 type MovementMetadata = {
-  warningsAcknowledged?: string[];          // ids de WorkflowRule WARNING reconhecidas
+  warningsAcknowledged?: Array<{ ruleId: string; message: string }>; // regras WARNING reconhecidas, com a mensagem exibida (DEC-016)
   computedDueAt?: string | null;            // prazo calculado pelo SLA antes de eventual sobrescrita
   dueDateOverridden?: boolean; dueDateOverrideReason?: string;
   approvalRequestedId?: string;             // Approval criada pelo encaminhamento a etapa APPROVAL (approvalId fica para decisões)

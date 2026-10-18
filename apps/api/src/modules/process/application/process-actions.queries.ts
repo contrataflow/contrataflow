@@ -4,6 +4,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
+import { ForwardPreviews } from './forward-previews.js';
 import { PROCESS_RUNTIME_READER, PROCESS_TRANSACTIONS } from './ports.js';
 import type { ProcessRuntimeReader, ProcessTransactions } from './ports.js';
 import { ProcessViewerResolver } from './process-viewer.js';
@@ -61,7 +62,10 @@ export interface GetAvailableActionsQuery {
   readonly processId: string;
 }
 
-/** `GetAvailableActionsQuery` — PRC-08: ações da etapa atual com motivos de indisponibilidade. */
+/**
+ * `GetAvailableActionsQuery` — PRC-08: ações da etapa atual com motivos de indisponibilidade e,
+ * nas entradas `FORWARD`, as prévias do encaminhamento (US-047 — `ForwardPreviews`).
+ */
 @Injectable()
 export class GetAvailableActionsHandler {
   constructor(
@@ -69,12 +73,18 @@ export class GetAvailableActionsHandler {
     @Inject(PROCESS_TRANSACTIONS) private readonly transactions: ProcessTransactions,
     private readonly viewers: ProcessViewerResolver,
     private readonly workflow: WorkflowFacade,
+    private readonly previews: ForwardPreviews,
   ) {}
 
   execute(query: GetAvailableActionsQuery): Promise<ActionEntry[]> {
     return this.transactions.read(async (tx) => {
       const { runtime, viewer } = await loadVisible(tx, this.reader, this.viewers, query.processId);
-      return this.workflow.getAvailableActions(tx, executionStateOf(runtime), viewer.engine);
+      const actions = await this.workflow.getAvailableActions(
+        tx,
+        executionStateOf(runtime),
+        viewer.engine,
+      );
+      return this.previews.enrich(tx, runtime, actions);
     });
   }
 }

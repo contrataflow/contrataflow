@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { uuidV7Schema } from '../common/identifiers.js';
 import { APPROVER_TYPES } from '../document/document-type.js';
 import { violationSchema } from '../http/problem.js';
-import { RULE_SCOPES, RULE_TYPES, STAGE_DEPARTMENT_RESOLUTIONS } from '../workflow/workflow.js';
+import {
+  RULE_SCOPES,
+  RULE_TYPES,
+  STAGE_DEPARTMENT_RESOLUTIONS,
+  STAGE_TYPES,
+} from '../workflow/workflow.js';
 
 /*
  * Ações disponíveis (PRC-08) e checklist de pendências (PRC-09) do processo (US-041 · US-004 ·
@@ -92,8 +97,13 @@ export type ActionReason = z.infer<typeof actionReasonSchema>;
 export const actionEntrySchema = z
   .object({
     action: z.enum(PROCESS_ACTIONS),
+    /** Transição da entrada (`FORWARD`/`COMPLETE`/`RETURN`): o `transitionId` do PRC-19 (US-047). */
+    transitionId: z.uuid().optional(),
     transitionKey: z.string().optional(),
     toStageKey: z.string().optional(),
+    /** Nome e tipo da etapa destino ("Para onde" e o resumo do SCR-103 — US-047). */
+    toStageName: z.string().optional(),
+    toStageType: z.enum(STAGE_TYPES).optional(),
     approvalId: z.uuid().optional(),
     label: z.string(),
     enabled: z.boolean(),

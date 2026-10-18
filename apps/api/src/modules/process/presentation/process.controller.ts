@@ -4,6 +4,8 @@ import {
   dataEnvelope,
   duplicateCheckResultSchema,
   duplicateProcessSchema,
+  forwardedProcessSchema,
+  forwardProcessSchema,
   processIdParamsSchema,
   processListQuerySchema,
   processDetailMetaSchema,
@@ -20,6 +22,8 @@ import type {
   CreateProcess,
   DuplicateCheckResult,
   DuplicateProcess,
+  ForwardProcess,
+  ForwardedProcessDto,
   ProcessDetailMeta,
   ProcessDto,
   ProcessListItemDto,
@@ -45,6 +49,7 @@ import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateProcessCommand } from '../application/create-process.command.js';
 import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
+import { ForwardProcessCommand } from '../application/forward-process.command.js';
 import { ListProcessesHandler } from '../application/list-processes.query.js';
 import {
   GetProcessSummaryQuery,
@@ -78,8 +83,8 @@ function noStore(response: HttpResponse): void {
 /**
  * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
  * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
- * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-27
- * (duplicar — US-011) e PRC-33 (sigilo do orçamento — US-013).
+ * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-19
+ * (encaminhar — US-047), PRC-27 (duplicar — US-011) e PRC-33 (sigilo do orçamento — US-013).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -96,6 +101,7 @@ export class ProcessController {
     private readonly update: UpdateProcessCommand,
     private readonly duplicate: DuplicateProcessCommand,
     private readonly confidentiality: SetProcessConfidentialityCommand,
+    private readonly forward: ForwardProcessCommand,
   ) {}
 
   @Get()
@@ -264,6 +270,51 @@ export class ProcessController {
       processId: id,
       isBudgetConfidential: body.isBudgetConfidential,
       expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/forward')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_FORWARD', {
+    detail: 'Você não tem permissão para encaminhar processos.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-19',
+    summary: 'Encaminhar processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: [
+      'process.forward',
+      'process.number_assign',
+      'document.version_create',
+      'document.submit',
+      'approval.request',
+    ],
+    responses: {
+      200: {
+        description:
+          'Processo na nova etapa (`ETag` = nova versão) com a tramitação `FORWARD` (`movement`), a aprovação aberta no destino `APPROVAL` (`approval`) e a autuação (`numberAssigned`). Uma transação: trava do processo, `expectedStageId` diferente da etapa atual = 409 `STAGE_CHANGED` (antes do `If-Match`: 412 `VERSION_CONFLICT`), `PROCESS_FORWARD` cobrindo o processo + custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`), status `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) e o motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`). Unidade (`DEPARTMENT_REQUIRED`), pessoa (`ASSIGNEE_NOT_ELIGIBLE`), prazo (`DUE_DATE_OVERRIDE_NOT_ALLOWED`), documentos cobertos (`DOCUMENT_INCOMPLETE`) e aprovador (`APPROVER_UNRESOLVED`) desfazem tudo.',
+        schema: dataEnvelope(forwardedProcessSchema),
+      },
+    },
+  })
+  async forwardProcess(
+    @ProcessId() id: string,
+    @ZodBody(forwardProcessSchema) body: ForwardProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ForwardedProcessDto> {
+    const result = await this.forward.execute({
+      processId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
     });
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);

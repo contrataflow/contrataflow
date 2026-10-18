@@ -221,6 +221,18 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-013: timeline (`CONFIDENTIALITY_CHANGED`) projetada no mesmo `tx`; no worker só o
     // `BusinessMetricsCollector` (`process.*`). Sem notificação (RN-PROC-145).
     ProcessConfidentialityChanged: ['process.confidentiality_changed'],
+    // US-047: timeline e `ProcessAccess` projetados no mesmo `tx` (síncronos); no worker, os avisos
+    // `PROCESS_RECEIVED` (destino `START`/`TASK`), `APPROVAL_REQUESTED` (aprovador) e o
+    // `BusinessMetricsCollector`. A entrada em etapa com responsável e os status `in_progress`/
+    // `awaiting_approval` não notificam (a regra do dispatcher os ignora).
+    ProcessStageChanged: ['process.stage_changed.forward'],
+    ProcessStatusChanged: [
+      'process.status_changed.in_progress',
+      'process.status_changed.awaiting_approval',
+    ],
+    ProcessAssigned: ['process.assigned'],
+    ProcessNumberAssigned: ['process.number_assigned'],
+    ApprovalRequested: ['approval.requested'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

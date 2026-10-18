@@ -106,6 +106,13 @@ export const ERROR_CODES = [
   'SECTION_NOT_IN_TEMPLATE',
   // US-014: DFD inexistente, de outro tenant ou não visível (api/05-dfd.md DFD-03).
   'DFD_NOT_FOUND',
+  // US-047: encaminhamento do processo (api.md §2.2 · api/02-processes.md PRC-19).
+  'STAGE_CHANGED',
+  'TRANSITION_NOT_AVAILABLE',
+  'TRANSITION_BLOCKED',
+  'DEPARTMENT_REQUIRED',
+  'DUE_DATE_OVERRIDE_NOT_ALLOWED',
+  'ASSIGNEE_NOT_ELIGIBLE',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

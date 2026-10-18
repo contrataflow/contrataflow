@@ -46,6 +46,7 @@ function validator(options: {
       {} as ConstructorParameters<typeof AccessFacade>[0],
       {} as ConstructorParameters<typeof AccessFacade>[1],
       {} as ConstructorParameters<typeof AccessFacade>[2],
+      {} as ConstructorParameters<typeof AccessFacade>[3],
     ),
     {
       findRoleForApproval: () => Promise.resolve(options.role ?? null),

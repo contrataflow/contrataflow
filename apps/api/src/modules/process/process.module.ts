@@ -26,6 +26,8 @@ import { DocumentProcessContextLoader } from './application/document-process-con
 import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
 import { DuplicateProcessCommand } from './application/duplicate-process.command.js';
 import { ExportProcessesQuery } from './application/export-processes.query.js';
+import { ForwardPreviews } from './application/forward-previews.js';
+import { ForwardProcessCommand } from './application/forward-process.command.js';
 import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
@@ -88,6 +90,7 @@ import {
   UpdateSavedViewCommand,
 } from './application/saved-views.commands.js';
 import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
+import { StageTransitionService } from './application/stage-transition.service.js';
 import {
   CreateTagCommand,
   ListTagsQuery,
@@ -155,6 +158,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * US-007: etiquetas (TAG-01..03) e o conjunto de etiquetas do processo (PRC-18).
  * US-014: leitor dos itens na porta `ProcessItemCatalogRegistry` (itens do DFD — DOC-06/07) e os
  * valores iniciais do DFD (`ProcessFacade.dfdDefaultsIn`).
+ * US-047: encaminhamento (PRC-19 — `ForwardProcessCommand`) sobre o `StageTransitionService`
+ * (mudança de etapa reutilizada por devolução, decisão e conclusão) e as prévias de PRC-08.
  */
 @Module({
   imports: [
@@ -198,6 +203,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DuplicateProcessCommand,
     UpdateProcessCommand,
     SetProcessConfidentialityCommand,
+    StageTransitionService,
+    ForwardProcessCommand,
+    ForwardPreviews,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,
     ListProcessesHandler,

@@ -43,8 +43,9 @@ import type {
   ProcessTransactions,
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
-import type { AccessGrant } from '../domain/process-runtime-records.js';
+import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
 import type { Process } from '../domain/process.js';
+import type { StageTransitionPlan } from '../domain/stage-transition.js';
 
 /*
  * `processes` e o runtime da tramitação no PostgreSQL (US-001): sempre no `tx` da
@@ -233,6 +234,43 @@ function toSituation(row: ProcessRow): ProcessSituationRow {
   };
 }
 
+/** Tramitação (só INSERT — gatilho `process_movements_append_only`). */
+async function insertMovement(tx: TenantTx, movement: ProcessMovementRecord): Promise<void> {
+  await tx.processMovement.create({
+    data: {
+      id: movement.id,
+      tenantId: movement.tenantId,
+      processId: movement.processId,
+      sequence: movement.sequence,
+      action: movement.action,
+      workflowTransitionId: movement.workflowTransitionId,
+      fromProcessStageId: movement.fromProcessStageId,
+      toProcessStageId: movement.toProcessStageId,
+      fromWorkflowStageId: movement.fromWorkflowStageId,
+      toWorkflowStageId: movement.toWorkflowStageId,
+      fromDepartmentId: movement.fromDepartmentId,
+      toDepartmentId: movement.toDepartmentId,
+      fromUserId: movement.fromUserId,
+      toUserId: movement.toUserId,
+      statusFrom: movement.statusFrom,
+      statusTo: movement.statusTo,
+      actorType: movement.actorType,
+      actorId: movement.actorId,
+      actorDepartmentId: movement.actorDepartmentId,
+      comment: movement.comment,
+      dueAt: movement.dueAt,
+      documents: movement.documents,
+      approvalId: movement.approvalId,
+      ip: movement.ip,
+      userAgent: movement.userAgent,
+      correlationId: movement.correlationId,
+      metadata: movement.metadata as Prisma.InputJsonObject,
+      occurredAt: movement.occurredAt,
+    },
+    select: { id: true },
+  });
+}
+
 @Injectable()
 export class PrismaProcessRepository implements ProcessRepository {
   async insertCreation(tx: TenantTx, { process, stage, assignment, movement }: ProcessCreation) {
@@ -320,30 +358,7 @@ export class PrismaProcessRepository implements ProcessRepository {
       },
       select: { id: true },
     });
-    await tx.processMovement.create({
-      data: {
-        id: movement.id,
-        tenantId: movement.tenantId,
-        processId: movement.processId,
-        sequence: movement.sequence,
-        action: movement.action,
-        toProcessStageId: movement.toProcessStageId,
-        toWorkflowStageId: movement.toWorkflowStageId,
-        toDepartmentId: movement.toDepartmentId,
-        toUserId: movement.toUserId,
-        statusFrom: movement.statusFrom,
-        statusTo: movement.statusTo,
-        actorType: movement.actorType,
-        actorId: movement.actorId,
-        dueAt: movement.dueAt,
-        ip: movement.ip,
-        userAgent: movement.userAgent,
-        correlationId: movement.correlationId,
-        metadata: movement.metadata as Prisma.InputJsonObject,
-        occurredAt: movement.occurredAt,
-      },
-      select: { id: true },
-    });
+    await insertMovement(tx, movement);
   }
 
   async grantAccess(
@@ -368,6 +383,115 @@ export class PrismaProcessRepository implements ProcessRepository {
       })),
       skipDuplicates: true,
     });
+  }
+
+  async lastMovementSequence(tx: TenantTx, processId: string): Promise<number> {
+    const row = await tx.processMovement.aggregate({
+      where: { processId },
+      _max: { sequence: true },
+    });
+    return row._max.sequence ?? 0;
+  }
+
+  async recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
+    const { process, closed, entered, assignment, movement } = plan;
+    // O processo primeiro: a versão lida sob a trava é a rede contra uma escrita fora da trava.
+    const updated = await tx.process.updateMany({
+      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      data: {
+        status: process.status,
+        currentStageId: process.currentStageId,
+        currentWorkflowStageId: process.currentWorkflowStageId,
+        currentDepartmentId: process.currentDepartmentId,
+        currentResponsibleId: process.currentResponsibleId,
+        currentStageDueAt: process.currentStageDueAt,
+        overdueSince: null,
+        number: process.number,
+        year: process.year,
+        code: process.code,
+        openedAt: process.openedAt,
+        updatedAt: process.updatedAt,
+        updatedById: process.updatedById,
+        version: process.version,
+      },
+    });
+    if (updated.count !== 1) return false;
+    // Encerra antes de abrir: uma única passagem/responsabilidade ativa por processo (índices parciais).
+    const ended = await tx.processStage.updateMany({
+      where: { id: closed.id, status: 'ACTIVE' },
+      data: {
+        status: closed.status,
+        exitedAt: closed.exitedAt,
+        exitedViaMovementId: closed.exitedViaMovementId,
+        updatedAt: closed.exitedAt,
+        version: { increment: 1 },
+      },
+    });
+    if (ended.count !== 1) throw new Error('Passagem ativa ausente ao encerrar a etapa.');
+    await tx.processAssignment.updateMany({
+      where: { processId: process.id, isActive: true },
+      data: { isActive: false, endedAt: closed.exitedAt },
+    });
+    await tx.processStage.create({
+      data: {
+        id: entered.id,
+        tenantId: entered.tenantId,
+        processId: entered.processId,
+        workflowStageId: entered.workflowStageId,
+        sequence: entered.sequence,
+        status: entered.status,
+        departmentId: entered.departmentId,
+        assigneeId: entered.assigneeId,
+        enteredAt: entered.enteredAt,
+        dueAt: entered.dueAt,
+        slaDays: entered.slaDays,
+        slaType: entered.slaType,
+        dueDateOverridden: entered.dueDateOverridden,
+        dueDateOverrideReason: entered.dueDateOverrideReason,
+        enteredViaMovementId: entered.enteredViaMovementId,
+      },
+      select: { id: true },
+    });
+    await tx.processAssignment.create({
+      data: {
+        id: assignment.id,
+        tenantId: assignment.tenantId,
+        processId: assignment.processId,
+        processStageId: assignment.processStageId,
+        departmentId: assignment.departmentId,
+        assigneeId: assignment.assigneeId,
+        type: assignment.type,
+        assignedById: assignment.assignedById,
+        startedAt: assignment.startedAt,
+      },
+      select: { id: true },
+    });
+    await insertMovement(tx, movement);
+    return true;
+  }
+
+  async retireCurrentAccess(
+    tx: TenantTx,
+    processId: string,
+    departmentId: string,
+    at: Date,
+  ): Promise<void> {
+    await tx.processAccess.updateMany({
+      where: {
+        processId,
+        principalType: 'DEPARTMENT',
+        departmentId,
+        reason: 'CURRENT',
+        revokedAt: null,
+      },
+      data: { revokedAt: at },
+    });
+    await this.grantAccess(
+      tx,
+      processId,
+      [{ principalType: 'DEPARTMENT', departmentId, reason: 'HISTORICAL' }],
+      at,
+    );
   }
 
   async revokeParticipantAccess(tx: TenantTx, participantId: string, at: Date): Promise<void> {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { PROCESS_STATUSES } from './process-actions.js';
 import {
   PARTICIPANT_GRANT_CHANNELS,
   PARTICIPANT_REMOVAL_REASONS,
@@ -7,6 +8,7 @@ import {
 } from './process-participants.js';
 import { CREATION_CHANNELS, PRIORITIES } from './process.js';
 import { defineDomainEvent } from '../events/define.js';
+import { STAGE_TYPES } from '../workflow/workflow.js';
 
 /*
  * Eventos do agregado `Process` (events.md §4.1). `ProcessCreated` (US-001): commit do PRC-02 (e,
@@ -157,4 +159,117 @@ export const ProcessConfidentialityChanged = defineDomainEvent({
   aggregateType: 'Process',
   payload: z.strictObject({ isBudgetConfidential: z.boolean() }),
   routingKey: 'process.confidentiality_changed',
+});
+
+/* US-047 — tramitação (events.md §4.1): encaminhar e, depois, devolver, decidir e concluir. */
+
+/** Causa da mudança de etapa (`ProcessStageChanged.cause` — DEC-162: especializa a routing key). */
+export const STAGE_CHANGE_CAUSES = [
+  'FORWARD',
+  'RETURN',
+  'APPROVAL_APPROVED',
+  'APPROVAL_RETURNED',
+  'APPROVAL_REJECTED',
+  'COMPLETE',
+] as const;
+export type StageChangeCause = (typeof STAGE_CHANGE_CAUSES)[number];
+
+const stageRef = z.strictObject({ processStageId: uuid, key: z.string().min(1).max(60) });
+
+/**
+ * `ProcessStageChanged` (US-047 · `ProcessForwarded` = `cause FORWARD`): a passagem anterior foi
+ * encerrada e a nova aberta, com a tramitação `movementId`. Só ids, chaves, prazo e a presença do
+ * comentário — nunca o texto nem valores (events.md §1). Consumidores: `TimelineProjector`
+ * (`PROCESS_FORWARDED`…) e `ProcessAccessProjector` no mesmo `tx`; no worker, `PROCESS_RECEIVED`
+ * (destino `START`/`TASK`) e métricas.
+ */
+export const ProcessStageChanged = defineDomainEvent({
+  eventType: 'ProcessStageChanged',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    cause: z.enum(STAGE_CHANGE_CAUSES),
+    movementId: uuid,
+    fromStage: stageRef,
+    toStage: stageRef.extend({ type: z.enum(STAGE_TYPES) }),
+    fromDepartmentId: uuid,
+    toDepartmentId: uuid,
+    /** Responsável da nova passagem; `null` = fila da unidade de destino. */
+    toUserId: uuid.nullable(),
+    dueAt: z.iso.datetime({ offset: true }).nullable(),
+    documentIds: z.array(uuid).max(100),
+    hasComment: z.boolean(),
+    /** Aprovação aberta pela entrada em etapa `APPROVAL` (US-051). */
+    approvalId: uuid.nullable(),
+  }),
+  routingKey: (payload) => `process.stage_changed.${payload.cause.toLowerCase()}`,
+});
+
+/** Causa da mudança de status (`ProcessStatusChanged.cause`). */
+export const STATUS_CHANGE_CAUSES = [
+  'FORWARD',
+  'RETURN',
+  'APPROVAL_DECISION',
+  'SUSPEND',
+  'RESUME',
+  'CANCEL',
+  'COMPLETE',
+] as const;
+export type StatusChangeCause = (typeof STATUS_CHANGE_CAUSES)[number];
+
+/**
+ * `ProcessStatusChanged` (DEC-013): só quando o status muda (RN-TRAM-13). Routing key especializada
+ * pelo status de destino (`process.status_changed.in_progress`…). Consumidores: timeline (ciclo de
+ * vida), aviso `PROCESS_STATUS_CHANGED` (suspenso, retomado, cancelado, concluído) e métricas.
+ */
+export const ProcessStatusChanged = defineDomainEvent({
+  eventType: 'ProcessStatusChanged',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    fromStatus: z.enum(PROCESS_STATUSES),
+    toStatus: z.enum(PROCESS_STATUSES),
+    cause: z.enum(STATUS_CHANGE_CAUSES),
+    reasonProvided: z.boolean(),
+  }),
+  routingKey: (payload) => `process.status_changed.${payload.toStatus.toLowerCase()}`,
+});
+
+/** `ProcessAssignment.type` (entities.md §4.4). */
+export const ASSIGNMENT_TYPES = ['STAGE_ENTRY', 'CLAIM', 'MANUAL', 'RETURN'] as const;
+
+/**
+ * `ProcessAssigned`: a passagem ganhou responsável (entrada em etapa com responsável — US-047,
+ * assumir — US-049, atribuir — US-050). A entrada em etapa não gera linha própria na timeline
+ * (já aparece na tramitação) nem aviso `PROCESS_ASSIGNED` (o destinatário recebe `PROCESS_RECEIVED`).
+ */
+export const ProcessAssigned = defineDomainEvent({
+  eventType: 'ProcessAssigned',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    processStageId: uuid,
+    departmentId: uuid,
+    fromUserId: uuid.nullable(),
+    toUserId: uuid.nullable(),
+    assignmentType: z.enum(ASSIGNMENT_TYPES),
+    hasReason: z.boolean(),
+  }),
+  routingKey: 'process.assigned',
+});
+
+/**
+ * `ProcessNumberAssigned` (US-047 · RN-TRAM-18 · DEC-028): autuação no 1º encaminhamento com
+ * `numbering.process.assignOn = START`. Consumidor: timeline (`PROCESS_NUMBER_ASSIGNED`).
+ */
+export const ProcessNumberAssigned = defineDomainEvent({
+  eventType: 'ProcessNumberAssigned',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    number: z.number().int().min(1),
+    year: z.number().int().min(2000).max(2100),
+    code: z.string().min(1).max(40),
+  }),
+  routingKey: 'process.number_assigned',
 });

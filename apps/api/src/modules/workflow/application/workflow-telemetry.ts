@@ -49,7 +49,10 @@ function workflowInstruments(): WorkflowInstruments {
   return instruments;
 }
 
-export function recordEngine(operation: 'actions' | 'checklist', durationMs: number): void {
+export function recordEngine(
+  operation: 'actions' | 'checklist' | 'transition',
+  durationMs: number,
+): void {
   workflowInstruments().engineDuration.record(durationMs, { operation });
 }
 

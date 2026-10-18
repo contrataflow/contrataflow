@@ -109,6 +109,19 @@ export interface DocumentState {
   readonly approvedAt: Date | null;
 }
 
+/** Documento como a tramitação o registra (US-047 · entities.md §5.6). */
+export interface MovementDocumentFact {
+  readonly id: string;
+  readonly typeCode: string;
+  readonly code: string | null;
+  readonly title: string;
+  readonly status: DocumentStatus;
+  readonly currentVersionId: string | null;
+  readonly currentVersionNumber: number | null;
+  /** Última alteração (rascunho salvo, transição ou versão criada). */
+  readonly updatedAt: Date;
+}
+
 /** Resultado da cópia dos documentos estruturados na duplicação (US-011). */
 export interface DocumentDraftCopies {
   /** Documento de origem → novo rascunho. */
@@ -325,6 +338,27 @@ export class DocumentFacade {
       copied.set(document.id, copy.id);
     }
     return { copied, skipped };
+  }
+
+  /**
+   * Documentos não excluídos do processo (inclusive cancelados) como a tramitação os registra
+   * (US-047 · RN-TRAM-12 · `MovementDocumentRef`): tipo, código, título, status, versão atual e a
+   * última alteração (rascunho salvo ou versão criada). Leitura no `tx` do encaminhamento.
+   */
+  async movementDocumentsIn(tx: TenantTx, processId: string): Promise<MovementDocumentFact[]> {
+    const documents = await this.documents.listByProcess(tx, processId);
+    if (documents.length === 0) return [];
+    const types = new Map((await this.types.list(tx)).map((type) => [type.id, type]));
+    return documents.map((document) => ({
+      id: document.id,
+      typeCode: types.get(document.documentTypeId)?.code ?? '',
+      code: document.code,
+      title: document.title,
+      status: document.status,
+      currentVersionId: document.currentVersionId,
+      currentVersionNumber: document.currentVersionNumber,
+      updatedAt: document.updatedAt,
+    }));
   }
 
   /** RN-DOC-44: o documento entra na aprovação de etapa que o cobre (US-047/US-051). */

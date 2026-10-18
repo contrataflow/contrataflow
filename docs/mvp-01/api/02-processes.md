@@ -275,6 +275,8 @@ ActionEntry {
   reasons: Array<{ code: string; message: string; ruleId?: string }>; // motivos de indisponibilidade quando enabled=false (ruleId em TRANSITION_BLOCKED)
 
   // Prévia de transição (obrigatória nesta especificação) — apenas em entradas action="FORWARD" (US-047):
+  transitionId?: string;                          // em FORWARD/COMPLETE/RETURN — o `transitionId` do POST /forward (PRC-19)
+  toStageName?: string; toStageType?: StageType;  // etapa destino ("Para onde" e resumo do SCR-103)
   departmentResolution?: { mode: DepartmentResolution; departmentId?: string; departmentName?: string };
   requiresComment?: boolean;
   allowDueDateOverride?: boolean;

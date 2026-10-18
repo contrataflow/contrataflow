@@ -458,6 +458,37 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
   },
   // US-014: DFD (api/05-dfd.md DFD-03).
   DFD_NOT_FOUND: { status: 404, title: 'DFD não encontrado', detail: 'DFD não encontrado.' },
+  // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
+  STAGE_CHANGED: {
+    status: 409,
+    title: 'Processo movimentado',
+    detail: 'O processo acabou de ser movimentado por outra pessoa.',
+  },
+  TRANSITION_NOT_AVAILABLE: {
+    status: 422,
+    title: 'Caminho indisponível',
+    detail: 'Este caminho não está disponível para a etapa atual.',
+  },
+  TRANSITION_BLOCKED: {
+    status: 422,
+    title: 'Pendências na etapa',
+    detail: 'Há pendências obrigatórias na etapa.',
+  },
+  DEPARTMENT_REQUIRED: {
+    status: 422,
+    title: 'Unidade de destino obrigatória',
+    detail: 'Escolha a unidade de destino.',
+  },
+  DUE_DATE_OVERRIDE_NOT_ALLOWED: {
+    status: 422,
+    title: 'Prazo não alterável',
+    detail: 'Esta etapa não permite alterar o prazo.',
+  },
+  ASSIGNEE_NOT_ELIGIBLE: {
+    status: 422,
+    title: 'Pessoa não elegível',
+    detail: 'Esta pessoa não pode receber o processo nesta unidade.',
+  },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

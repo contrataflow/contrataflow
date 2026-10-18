@@ -15,7 +15,7 @@ import { useShellSession } from '@/lib/session/session-context';
 
 import { ProcessActionBar } from './process-action-bar';
 import { ProcessDataCard } from './process-data-card';
-import { ProcessHeader } from './process-header';
+import { PROCESS_STATUS_HEADER_ID, ProcessHeader } from './process-header';
 import {
   isStaleProcessError,
   panelRefetchInterval,
@@ -34,6 +34,7 @@ import { ConfidentialBudgetToggle } from '../process-confidentiality/confidentia
 import { DocumentsPanel } from '../process-documents/documents-panel';
 import { DuplicateProcessDialog } from '../process-duplicate/duplicate-process-dialog';
 import { EditProcessSheet } from '../process-edit/edit-process-sheet';
+import { ForwardPanel } from '../process-forward/forward-panel';
 import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { FollowToggleButton } from '../process-participants/follow-toggle-button';
 import { ParticipantsTab } from '../process-participants/participants-tab';
@@ -248,6 +249,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   const [editing, setEditing] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [tagging, setTagging] = useState(false);
+  // US-047: "Encaminhar" abre o painel SCR-103 já na transição da ação (`transitionKey`).
+  const [forwarding, setForwarding] = useState(false);
+  const [forwardKey, setForwardKey] = useState<string | null>(null);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -359,10 +363,24 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           else if (action.action === 'MANAGE_TAGS') setTagging(true);
           // US-011: "Duplicar processo" abre o diálogo SCR-113.
           else if (action.action === 'DUPLICATE') setDuplicating(true);
-          else toast({ title: t('actions.notYet') });
+          // US-047: "Encaminhar" abre o painel lateral SCR-103.
+          else if (action.action === 'FORWARD') {
+            setForwardKey(action.transitionKey ?? null);
+            setForwarding(true);
+          } else toast({ title: t('actions.notYet') });
         }}
       />
       <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
+      <ForwardPanel
+        processId={processId}
+        open={forwarding}
+        onOpenChange={setForwarding}
+        initialTransitionKey={forwardKey}
+        onForwarded={() => {
+          // Foco ao cabeçalho de status (já sem as ações de custódia), não ao botão que abriu o painel.
+          document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
+        }}
+      />
       <ProcessTagsDialog
         processId={processId}
         open={tagging}

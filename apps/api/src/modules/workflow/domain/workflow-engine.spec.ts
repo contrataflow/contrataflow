@@ -6,6 +6,7 @@ import {
   availableActions,
   checklistOf,
   evaluateStage,
+  evaluateTransition,
   isCustodian,
   notCustodianMessage,
 } from './workflow-engine.js';
@@ -623,6 +624,90 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       const [complete] = availableActions(input, viewer());
       expect(complete).toMatchObject({ action: 'COMPLETE', enabled: false });
       expect(complete?.departmentResolution).toBeUndefined();
+    });
+  });
+
+  describe('evaluateTransition (US-047 · RN-TRAM-04/05): a transição do comando de tramitação', () => {
+    const transitionId = (key: string) =>
+      builder.transitions.find((transition) => transition.key === key)?.id ?? '';
+    const forwardKey = 'ESTUDOS_PRELIMINARES_FORWARD_PESQUISA_PRECOS';
+
+    it('transição da etapa atual: destino, origem e as regras STAGE_EXIT (bloqueante antes do aviso)', () => {
+      const input = engineInput(builder, { passes: studies, documents: [etp('DRAFT', false)] });
+      const result = evaluateTransition(input, {
+        transitionId: transitionId(forwardKey),
+        action: 'FORWARD',
+      });
+      expect(result).toMatchObject({
+        transition: { key: forwardKey },
+        fromStage: { key: 'ESTUDOS_PRELIMINARES' },
+        toStage: { key: 'PESQUISA_PRECOS', type: 'TASK' },
+      });
+      expect(result?.violations.map((item) => [item.severity, item.message])).toEqual([
+        ['BLOCKING', ETP_MESSAGE],
+        ['WARNING', RISK_MAP_MESSAGE],
+      ]);
+    });
+
+    it('de outra etapa, de outra ação ou inexistente → null (TRANSITION_NOT_AVAILABLE)', () => {
+      const input = engineInput(builder, { passes: studies, documents: [etp('DRAFT', true)] });
+      const unavailable = [
+        {
+          transitionId: transitionId('ABERTURA_FORWARD_APROVACAO_DFD'),
+          action: 'FORWARD' as const,
+        },
+        {
+          transitionId: transitionId('ESTUDOS_PRELIMINARES_RETURN_ABERTURA'),
+          action: 'FORWARD' as const,
+        },
+        { transitionId: transitionId(forwardKey), action: 'COMPLETE' as const },
+        { transitionId: '0192c000-0000-7000-8000-00000000dead', action: 'FORWARD' as const },
+      ];
+      for (const request of unavailable) expect(evaluateTransition(input, request)).toBeNull();
+    });
+
+    it('regra TRANSITION de outra saída não conta; processo sem etapa ativa → null', () => {
+      const custom = new DefinitionBuilder()
+        .stage('A', 'START')
+        .stage('B', 'TASK')
+        .stage('C', 'TASK')
+        .transition('A', 'B', 'FORWARD', { isPrimary: true })
+        .transition('A', 'C', 'FORWARD')
+        .rule(
+          'REQUIRED_FIELD',
+          { field: 'process.modalityCode' },
+          { transition: 'A_FORWARD_C' },
+          { message: 'Informe a modalidade.' },
+        );
+      const input = engineInput(custom, {
+        passes: [pass(custom, 'A', 1, { status: 'ACTIVE', exitedAt: null })],
+        context: ruleContext('A', { process: { ...ruleContext('A').process, modalityCode: null } }),
+      });
+      const id = (key: string) => custom.transitions.find((item) => item.key === key)?.id ?? '';
+      expect(
+        evaluateTransition(input, { transitionId: id('A_FORWARD_B'), action: 'FORWARD' })
+          ?.violations,
+      ).toEqual([]);
+      expect(
+        evaluateTransition(input, {
+          transitionId: id('A_FORWARD_C'),
+          action: 'FORWARD',
+        })?.violations.map((item) => item.message),
+      ).toEqual(['Informe a modalidade.']);
+      const idle = engineInput(custom, { passes: [pass(custom, 'A', 1)] });
+      expect(
+        evaluateTransition(idle, { transitionId: id('A_FORWARD_B'), action: 'FORWARD' }),
+      ).toBeNull();
+    });
+
+    it('PRC-08 expõe o transitionId e a etapa destino nas entradas de avanço', () => {
+      const input = engineInput(builder, { passes: studies, documents: [etp('DRAFT', true)] });
+      const [forward] = actionsOf(availableActions(input, viewer()), 'FORWARD');
+      expect(forward).toMatchObject({
+        transitionId: transitionId(forwardKey),
+        toStageName: 'Pesquisa de preços',
+        toStageType: 'TASK',
+      });
     });
   });
 });

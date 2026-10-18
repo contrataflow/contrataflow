@@ -1,5 +1,5 @@
 import type { DayCountType } from '@contrataflow/types';
-import type { ProcessStatus } from '@contrataflow/validation';
+import type { MovementDocumentRef, ProcessStatus } from '@contrataflow/validation';
 
 /*
  * Runtime da tramitação (US-001 · entities.md §4.4): a passagem pela etapa (`ProcessStage.enter`),
@@ -69,10 +69,14 @@ export interface ProcessAssignmentRecord {
   readonly startedAt: Date;
 }
 
-/** Responsabilidade automática da entrada na etapa (`STAGE_ENTRY`, sem autor). */
+/**
+ * Responsabilidade automática da entrada na etapa (`STAGE_ENTRY`): sem autor, salvo na atribuição
+ * direta do encaminhamento (`assignedById` = ator — RN-TRAM-14).
+ */
 export function stageEntryAssignment(
   id: string,
   stage: ProcessStageRecord,
+  assignedById: string | null = null,
 ): ProcessAssignmentRecord {
   return {
     id,
@@ -82,26 +86,52 @@ export function stageEntryAssignment(
     departmentId: stage.departmentId,
     assigneeId: stage.assigneeId,
     type: 'STAGE_ENTRY',
-    assignedById: null,
+    assignedById: stage.assigneeId === null ? null : assignedById,
     startedAt: stage.enteredAt,
   };
 }
+
+/** `MovementAction` (entities.md §2). */
+export type MovementAction =
+  | 'CREATE'
+  | 'FORWARD'
+  | 'RETURN'
+  | 'CLAIM'
+  | 'ASSIGN'
+  | 'APPROVE'
+  | 'REJECT'
+  | 'COMPLETE'
+  | 'CANCEL'
+  | 'SUSPEND'
+  | 'RESUME';
 
 export interface ProcessMovementRecord {
   readonly id: string;
   readonly tenantId: string;
   readonly processId: string;
   readonly sequence: number;
-  readonly action: 'CREATE';
+  readonly action: MovementAction;
+  readonly workflowTransitionId: string | null;
+  readonly fromProcessStageId: string | null;
   readonly toProcessStageId: string;
+  readonly fromWorkflowStageId: string | null;
   readonly toWorkflowStageId: string;
+  readonly fromDepartmentId: string | null;
   readonly toDepartmentId: string;
+  readonly fromUserId: string | null;
   readonly toUserId: string | null;
   readonly statusFrom: ProcessStatus | null;
   readonly statusTo: ProcessStatus;
   readonly actorType: 'USER' | 'SYSTEM';
   readonly actorId: string | null;
+  /** Unidade em nome da qual o ator agiu (a de custódia na origem — RN-TRAM-15). */
+  readonly actorDepartmentId: string | null;
+  readonly comment: string | null;
   readonly dueAt: Date | null;
+  /** Documentos que acompanham a tramitação, com status e versão APÓS os efeitos (§5.6). */
+  readonly documents: readonly MovementDocumentRef[];
+  /** Aprovação decidida (US-052); a aberta pelo encaminhamento fica em `metadata`. */
+  readonly approvalId: string | null;
   readonly ip: string | null;
   readonly userAgent: string | null;
   readonly correlationId: string;
@@ -129,15 +159,24 @@ export function openingMovement(input: {
     processId: stage.processId,
     sequence: 1,
     action: 'CREATE',
+    workflowTransitionId: null,
+    fromProcessStageId: null,
     toProcessStageId: stage.id,
+    fromWorkflowStageId: null,
     toWorkflowStageId: stage.workflowStageId,
+    fromDepartmentId: null,
     toDepartmentId: stage.departmentId,
+    fromUserId: null,
     toUserId: stage.assigneeId,
     statusFrom: null,
     statusTo: 'DRAFT',
     actorType: 'USER',
     actorId: input.actorId,
+    actorDepartmentId: null,
+    comment: null,
     dueAt: stage.dueAt,
+    documents: [],
+    approvalId: null,
     ip: input.ip === '' ? null : input.ip,
     userAgent: input.userAgent === null ? null : input.userAgent.slice(0, USER_AGENT_MAX),
     correlationId: input.correlationId,

@@ -200,6 +200,88 @@ participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAcces
   `test/tenant-leak/process-tags.spec.ts` (PostgreSQL: filtro SQL, índice único sob concorrência, 412 sob
   `FOR UPDATE`, rollback induzido, RLS/FKs entre tenants, sem `DELETE`).
 
+## Encaminhamento (US-047)
+
+- **Rota:** PRC-19 `POST /processes/{id}/forward` (`ProcessController`, `@Idempotent`,
+  `@RequireIfMatch` → 428; `PROCESS_FORWARD` em algum escopo no guard). Corpo
+  `forwardProcessSchema` e resposta `forwardedProcessSchema` (processo + `movement`, `approval?`,
+  `numberAssigned`, `statusFrom`) em `packages/validation/src/process/process-forward.ts`, que também
+  versiona `ProcessMovement.documents`/`metadata` (`MovementDocumentRef`, `MovementMetadata` v1) e
+  as regras puras compartilhadas com o SCR-103 (`forwardCommentIssues`, `dueDateOverrideIssues`).
+- **Caso de uso:** `ForwardProcessCommand` — `lockForUpdate` → visibilidade (404) → `expectedStageId`
+  (409 `STAGE_CHANGED`) ANTES do `If-Match` (412) → `PROCESS_FORWARD` cobrindo o processo, status e
+  custódia (403 `NOT_PROCESS_CUSTODIAN` auditado) → `WorkflowFacade.evaluateTransition` sobre o estado
+  travado (`TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED` com TODAS as violações/`WARNINGS_NOT_
+ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade inválida = 422, unidade
+  configurada inativa = `TRANSITION_NOT_AVAILABLE`) e responsável (`ASSIGNEE_NOT_ELIGIBLE`; candidato
+  da política inelegível = fila) → prazo (SLA pelo calendário; sobrescrita) → documentos (padrão =
+  alterados na passagem) → destino `APPROVAL`: aprovador (`ApprovalFacade.resolveStageApproverIn`) e
+  submissão dos cobertos (`DocumentFacade.enterApprovalStageIn`) → número (autuação, por último) →
+  `StageTransitionService` → `ApprovalFacade.requestForStageIn` → `process.number_assign`/
+  `ProcessNumberAssigned` → `process.forward`. Regras puras em `domain/process-forward.ts`.
+- **Prévias de PRC-08:** `ForwardPreviews` (só no PRC-08): `departmentName`, `dueAtPreview` e
+  `approverPreview` (não resolvível = `null` + motivo `APPROVER_UNRESOLVED`). O motor expõe
+  `transitionId`, `toStageName` e `toStageType` nas entradas de avanço.
+- **Projeções:** `ProcessAccessProjector` ouve `process.stage_changed.*` (CURRENT da origem →
+  HISTORICAL quando a unidade muda, CURRENT do destino, RESPONSIBLE) e `approval.requested`
+  (`APPROVER`). Timeline pelos mapeamentos existentes (`PROCESS_FORWARDED`, `PROCESS_NUMBER_ASSIGNED`,
+  `APPROVAL_REQUESTED`…); `PROCESS_RECEIVED`/`APPROVAL_REQUESTED` pelo worker.
+- **Testes:** `domain/process-forward.spec.ts`, `domain/stage-transition.spec.ts`,
+  `presentation/process-forward.routes.spec.ts` (8 categorias, em memória — fixtures em
+  `test/support/process-forward-fixtures.ts`) e `test/tenant-leak/process-forward.spec.ts`
+  (PostgreSQL: falha induzida, 20 simultâneos, RLS, eventos `PENDING`).
+
+### Mudança de etapa reutilizável (`StageTransitionService`)
+
+Base de toda tramitação (encaminhar — US-047; devolver — US-048; decidir — US-052; concluir —
+US-010). Com o processo JÁ travado (ordem de bloqueio: processo → aprovação → documentos), quem
+chama resolve destino, responsável, prazo, status, documentos e a aprovação, autoriza e chama:
+
+```ts
+const plan = await this.transitions.apply(tx, {
+  transition: {
+    process,
+    active,
+    lastStageSequence,
+    lastMovementSequence,
+    action: 'RETURN',
+    closeAs: 'RETURNED',
+    transitionId,
+    toWorkflowStageId,
+    toDepartmentId,
+    toUserId,
+    assignedById,
+    slaDays,
+    slaType,
+    dueAt,
+    dueDateOverrideReason,
+    statusTo,
+    comment,
+    documents,
+    approvalId,
+    metadata,
+    numbering: null,
+    actor,
+    now,
+    ids,
+  },
+  cause: 'RETURN',
+  statusCause: 'RETURN',
+  fromStageKey,
+  toStage: { key, type },
+  requestedApprovalId: null,
+});
+```
+
+- Plano puro em `domain/stage-transition.ts` (`planStageTransition`): encerra a passagem
+  (`COMPLETED`/`RETURNED`, `exitedViaMovementId`) e a responsabilidade ativas, abre a passagem
+  `sequence + 1` com a responsabilidade `STAGE_ENTRY`, registra a tramitação imutável e atualiza
+  `current*`, `overdueSince = null` e `version + 1` (e o número, na autuação).
+- Grava tudo por `ProcessRepository.recordStageTransition` (`WHERE version` como rede) e publica
+  `ProcessStageChanged` (`process.stage_changed.<cause>`), `ProcessStatusChanged` só quando o status
+  muda e `ProcessAssigned` (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
+- A auditoria da ação (`process.forward`, `process.return`…) e eventos específicos ficam com quem chama.
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

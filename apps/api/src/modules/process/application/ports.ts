@@ -20,6 +20,7 @@ import type {
 import type { ProcessRuntime } from '../domain/process-runtime.js';
 import type { Process } from '../domain/process.js';
 import type { SavedView } from '../domain/saved-view.js';
+import type { StageTransitionPlan } from '../domain/stage-transition.js';
 import type { Tag, TagSetDiff } from '../domain/tag.js';
 
 /*
@@ -268,6 +269,25 @@ export interface ProcessRepository {
    * processo — revoga (`revokedAt`) as anteriores e concede as novas, no `tx`.
    */
   syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void>;
+  /** US-047: maior `sequence` das tramitações do processo (0 = nenhuma). */
+  lastMovementSequence(tx: TenantTx, processId: string): Promise<number>;
+  /**
+   * US-047 (RN-TRAM-14..16 · RN-TRAM-21): grava a mudança de etapa no `tx` — o processo
+   * (`WHERE version = expectedVersion`, `overdueSince = null`), o encerramento da passagem e da
+   * responsabilidade ativas, a nova passagem, a nova responsabilidade e a tramitação (só INSERT).
+   * `false` = outra escrita venceu (nada gravado).
+   */
+  recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean>;
+  /**
+   * RN-TRAM-17 (DEC-024): a unidade deixou de ter a custódia — revoga o `CURRENT` ativo dela e
+   * concede o `HISTORICAL` (idempotente), no `tx`.
+   */
+  retireCurrentAccess(
+    tx: TenantTx,
+    processId: string,
+    departmentId: string,
+    at: Date,
+  ): Promise<void>;
   /** RN-PROC-13: candidatos visíveis, mais recentes primeiro. */
   findDuplicateCandidates(tx: TenantTx, search: DuplicateSearch): Promise<DuplicateCandidateRow[]>;
   /** US-002 · PRC-01: página e total, visíveis e filtrados, num único snapshot. */

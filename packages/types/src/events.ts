@@ -43,6 +43,12 @@ export const DOMAIN_EVENT_NAMES = [
   'ProcessParticipantAdded',
   'ProcessParticipantRemoved',
   'ProcessConfidentialityChanged',
+  // US-047: tramitação (encaminhar) e a aprovação aberta na entrada em etapa `APPROVAL`.
+  'ProcessStageChanged',
+  'ProcessStatusChanged',
+  'ProcessAssigned',
+  'ProcessNumberAssigned',
+  'ApprovalRequested',
   'DocumentCreated',
   'DocumentVersionCreated',
   'DocumentSubmitted',

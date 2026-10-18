@@ -10,12 +10,18 @@ import { ApiError } from '#shared/errors/api-error.js';
 
 import { AccessFacade } from './access.facade.js';
 import type { AuthorizationService } from './authorization.service.js';
+import type { EffectivePermissionsService } from './effective-permissions.service.js';
 import type { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 import type { Role } from '../domain/role.js';
 import { InMemoryRoleRepository } from '../infrastructure/in-memory-role.repository.js';
 
 const roles = new InMemoryRoleRepository();
-const facade = new AccessFacade({} as SeedDefaultRolesHandler, roles, {} as AuthorizationService);
+const facade = new AccessFacade(
+  {} as SeedDefaultRolesHandler,
+  roles,
+  {} as AuthorizationService,
+  {} as EffectivePermissionsService,
+);
 const TX = {} as TenantTx;
 
 function as<T>(roleKeys: readonly string[], amr: readonly string[], fn: () => T): T {

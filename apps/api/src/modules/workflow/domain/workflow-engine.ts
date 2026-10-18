@@ -318,6 +318,47 @@ export function checklistOf(evaluation: StageEvaluation): ChecklistViolation[] {
   ];
 }
 
+/** Transição escolhida num comando de tramitação e as regras que valem para ela (US-047). */
+export interface TransitionEvaluation {
+  readonly transition: WorkflowSnapshotTransition;
+  readonly fromStage: WorkflowSnapshotStage;
+  readonly toStage: WorkflowSnapshotStage;
+  /**
+   * RN-TRAM-05: regras NÃO satisfeitas — `STAGE_EXIT` da etapa atual e `TRANSITION` da própria
+   * transição —, bloqueantes antes dos avisos, no formato do checklist (`WORKFLOW_RULE`).
+   */
+  readonly violations: readonly ChecklistViolation[];
+}
+
+/**
+ * RN-TRAM-04/05 (US-047): a transição `transitionId` da versão fixada, partindo da etapa atual e
+ * com a ação pedida, com as regras que a condicionam. `null` = inexistente na versão, de outra
+ * etapa, de outra ação ou destino ausente (o comando responde `TRANSITION_NOT_AVAILABLE`).
+ */
+export function evaluateTransition(
+  input: EngineInput,
+  request: { readonly transitionId: string; readonly action: 'FORWARD' | 'COMPLETE' },
+  evaluation: StageEvaluation = evaluateStage(input),
+): TransitionEvaluation | null {
+  const { stage } = evaluation;
+  if (stage === null) return null;
+  const transition = evaluation.advances.find(
+    (candidate) => candidate.id === request.transitionId && candidate.action === request.action,
+  );
+  if (transition === undefined) return null;
+  const toStage = input.definition.stages.find(
+    (candidate) => candidate.id === transition.toStageId,
+  );
+  if (toStage === undefined) return null;
+  const violations = checklistOf({
+    ...evaluation,
+    results: evaluation.results.filter(
+      (result) => result.transition === null || result.transition.id === transition.id,
+    ),
+  });
+  return { transition, fromStage: stage, toStage, violations };
+}
+
 /** POL-01: responsável atual ou, na fila, lotado na unidade atual. */
 export function isCustodian(process: EngineProcess, viewer: EngineViewer): boolean {
   return process.currentResponsibleId === null
@@ -391,8 +432,10 @@ function advanceEntries(
           ...blockingReasons(evaluation, transition),
         ],
         {
+          transitionId: transition.id,
           transitionKey: transition.key,
           toStageKey: transition.toStageKey,
+          ...(target === undefined ? {} : { toStageName: target.name, toStageType: target.type }),
           primary: transition.isPrimary,
           requiresComment: transition.requiresComment,
           allowDueDateOverride: transition.allowDueDateOverride,
@@ -440,6 +483,7 @@ function returnEntries(
     seen.add(transition.toStageId);
     entries.push(
       entry('RETURN', transition.name, custodyReasons(process, viewer, 'RETURN'), {
+        transitionId: transition.id,
         transitionKey: transition.key,
         toStageKey: transition.toStageKey,
         requiresComment: transition.requiresComment,

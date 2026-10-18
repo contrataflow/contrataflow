@@ -1,11 +1,13 @@
 import {
   PARTICIPANT_MESSAGES,
+  PROCESS_FORWARD_MESSAGES,
   PROCESS_ITEM_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
   TAG_MESSAGES,
   estimatedValueFromSourceMessage,
 } from '@contrataflow/validation';
 import type {
+  ChecklistViolation,
   DuplicateCandidate,
   ParticipantRole,
   ProcessItemReference,
@@ -19,6 +21,7 @@ import type { Counter, Histogram } from '@opentelemetry/api';
 
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
+import { notForwardableMessage } from '../domain/process-forward.js';
 import { itemsNotEditableMessage } from '../domain/process-items.js';
 import type { GrantRefusal } from '../domain/process-participants.js';
 import { notEditableStatusMessage } from '../domain/process-update.js';
@@ -314,4 +317,119 @@ export function processTagsVersionConflict(sentVersion: number, currentVersion: 
     detail: TAG_MESSAGES.stale,
     extensions: { currentVersion, sentVersion },
   });
+}
+
+/* US-047 — encaminhamento (api/02-processes.md PRC-19 · "Casos de erro" da story). */
+
+/** 409 `STAGE_CHANGED` (RN-TRAM-03 · FA-08): outra pessoa tramitou — conferido antes do `If-Match`. */
+export function stageChanged(
+  currentStageId: string | null,
+  movedBy: { readonly id: string; readonly name: string } | null,
+): ApiError {
+  return new ApiError('STAGE_CHANGED', {
+    detail: PROCESS_FORWARD_MESSAGES.stageChanged,
+    extensions: { currentStageId, movedBy },
+  });
+}
+
+/** 412 `VERSION_CONFLICT` (RN-TRAM-03 · V-06). */
+export function forwardVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_FORWARD_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-TRAM-02). */
+export function processNotForwardable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: notForwardableMessage(status),
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (RN-TRAM-01 · POL-01), auditado como `access.denied`. */
+export function forwardNotCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: PROCESS_FORWARD_MESSAGES.notCustodian,
+    auditDenial: true,
+  });
+}
+
+/** 422 `TRANSITION_NOT_AVAILABLE` (RN-TRAM-04 · V-07; unidade de destino inativa — lacuna 3). */
+export function transitionNotAvailable(
+  detail: string = PROCESS_FORWARD_MESSAGES.transitionNotAvailable,
+): ApiError {
+  return new ApiError('TRANSITION_NOT_AVAILABLE', { detail });
+}
+
+/** 422 `TRANSITION_BLOCKED` (RN-TRAM-05 · V-08): TODAS as violações, inclusive os avisos. */
+export function transitionBlocked(
+  violations: readonly ChecklistViolation[],
+  blockingCount: number,
+): ApiError {
+  return new ApiError('TRANSITION_BLOCKED', {
+    detail: PROCESS_FORWARD_MESSAGES.blocked(blockingCount),
+    violations,
+  });
+}
+
+/** 422 `WARNINGS_NOT_ACKNOWLEDGED` (RN-TRAM-06 · V-09): os avisos que faltam reconhecer. */
+export function warningsNotAcknowledged(warnings: readonly ChecklistViolation[]): ApiError {
+  return new ApiError('WARNINGS_NOT_ACKNOWLEDGED', {
+    detail: PROCESS_FORWARD_MESSAGES.warningsNotAcknowledged,
+    violations: warnings,
+  });
+}
+
+/** 422 `DEPARTMENT_REQUIRED` (RN-TRAM-07 · V-10). */
+export function departmentRequired(): ApiError {
+  return new ApiError('DEPARTMENT_REQUIRED', {
+    detail: PROCESS_FORWARD_MESSAGES.departmentRequired,
+    errors: [
+      {
+        field: 'toDepartmentId',
+        code: 'REQUIRED',
+        message: PROCESS_FORWARD_MESSAGES.departmentRequired,
+      },
+    ],
+  });
+}
+
+/** 422 `ASSIGNEE_NOT_ELIGIBLE` (RN-TRAM-08 · V-12). */
+export function assigneeNotEligible(): ApiError {
+  return new ApiError('ASSIGNEE_NOT_ELIGIBLE', {
+    detail: PROCESS_FORWARD_MESSAGES.assigneeNotEligible,
+    errors: [
+      {
+        field: 'toUserId',
+        code: 'NOT_ALLOWED',
+        message: PROCESS_FORWARD_MESSAGES.assigneeNotEligible,
+      },
+    ],
+  });
+}
+
+/** 422 `DUE_DATE_OVERRIDE_NOT_ALLOWED` (RN-TRAM-10 · V-13). */
+export function dueDateOverrideNotAllowed(): ApiError {
+  return new ApiError('DUE_DATE_OVERRIDE_NOT_ALLOWED', {
+    detail: PROCESS_FORWARD_MESSAGES.dueDateNotAllowed,
+  });
+}
+
+let forwardedCounter: Counter | undefined;
+let forwardDuration: Histogram | undefined;
+
+/** `cf_process_forwarded_total{to_stage_type}` e `cf_process_forward_duration_ms` (DoD da US-047). */
+export function recordProcessForwarded(toStageType: string, durationMs: number): void {
+  const meter = metrics.getMeter('contrataflow-api');
+  forwardedCounter ??= meter.createCounter('cf_process_forwarded_total', {
+    description: 'Processos encaminhados (commit do PRC-19), por tipo da etapa de destino.',
+  });
+  forwardDuration ??= meter.createHistogram('cf_process_forward_duration_ms', {
+    description: 'Duração do encaminhamento (bloqueio, regras, numeração, aprovação e gravação).',
+    unit: 'ms',
+  });
+  forwardedCounter.add(1, { to_stage_type: toStageType });
+  forwardDuration.record(durationMs, { to_stage_type: toStageType });
 }

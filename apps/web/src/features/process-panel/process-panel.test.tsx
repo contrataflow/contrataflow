@@ -9,6 +9,11 @@ import { ApiError } from '@/lib/api/api-error';
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
 import {
+  FORWARD_URL,
+  forwardEntry as previewEntry,
+  forwardedDto,
+} from '@test/support/forward-fixtures';
+import {
   ETP_ID,
   ID,
   MARCOS,
@@ -18,7 +23,7 @@ import {
   problemResponse,
   summaryDto,
 } from '@test/support/process-fixtures';
-import { jsonResponse, renderWithShell } from '@test/support/render';
+import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
 import { ProcessPanel, useStaleProcessRecovery } from './process-panel';
 import { PANEL_REFETCH_MS, isStaleProcessError, panelRefetchInterval } from './process-panel.api';
@@ -559,6 +564,70 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
         before,
       );
     });
+  });
+
+  it('[US-047] "Encaminhar" abre o painel SCR-103 na transição da ação e devolve o foco ao cabeçalho de status', async () => {
+    const user = userEvent.setup();
+    const base = mockProcessApi({
+      summary: () =>
+        jsonResponse({
+          data: summaryDto({
+            nextStep: {
+              action: {
+                action: 'FORWARD',
+                transitionKey: 'ESTUDOS_PARA_PESQUISA',
+                label: 'Encaminhar para Pesquisa de preços',
+                enabled: true,
+                reasons: [],
+              },
+              instructions: null,
+            },
+          }),
+        }),
+      actions: () => jsonResponse({ data: [previewEntry()] }),
+    });
+    // PRC-09 e PRC-19 não fazem parte do mock padrão do painel.
+    const api = vi.fn<typeof fetch>((input, init) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/checklist')) {
+        return Promise.resolve(jsonResponse({ data: { violations: [] } }));
+      }
+      if (url === FORWARD_URL) return Promise.resolve(jsonResponse({ data: forwardedDto() }));
+      return base(input, init);
+    });
+    vi.stubGlobal('fetch', api);
+    renderWithShell(
+      <>
+        <ProcessPanel processId={PROCESS_ID} />
+        <Toaster />
+      </>,
+    );
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Encaminhar para Pesquisa de preços' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Encaminhar processo' });
+    expect(
+      within(dialog).getByRole<HTMLInputElement>('radio', {
+        name: 'Encaminhar para pesquisa de preços',
+      }).checked,
+    ).toBe(true);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Encaminhar' }));
+    expect(
+      await screen.findByText(
+        'Processo encaminhado para Pesquisa de preços — Departamento de Compras',
+      ),
+    ).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Encaminhar processo' })).toBeNull();
+    });
+    // O foco vai ao cabeçalho de status, não ao botão que abriu o painel.
+    const status = screen.getByRole('group', { name: 'Situação do processo' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(status);
+    });
+    expect(callsTo(api as never, 'POST', FORWARD_URL)).toHaveLength(1);
   });
 });
 
