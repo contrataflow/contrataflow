@@ -5,9 +5,10 @@ import type {
   CommentListMetaDto,
   CommentTargetType,
   CommentThreadDto,
+  MentionCandidateDto,
 } from '@contrataflow/validation';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest } from '@/lib/api/client';
 import { tenantKey } from '@/lib/query/keys';
@@ -27,6 +28,8 @@ export const commentKeys = {
     tenantKey(tenantId, 'processes', processId, 'comments'),
   list: (tenantId: string, processId: string, filters: CommentFilters) =>
     tenantKey(tenantId, 'processes', processId, 'comments', { ...filters }),
+  mentionCandidates: (tenantId: string, processId: string, q: string) =>
+    tenantKey(tenantId, 'processes', processId, 'mention-candidates', q),
 };
 
 /** FA-09: "Todos", "Do processo", "Deste documento", "Desta seção". */
@@ -156,5 +159,47 @@ export async function deleteComment(
     method: 'DELETE',
     ifMatch: ifMatch(version),
     ...(reason === undefined ? {} : { body: { reason } }),
+  });
+}
+
+/** CMT-05 (US-072): candidatos de menção do processo (até 10). */
+export async function fetchMentionCandidates(
+  processId: string,
+  q: string,
+  signal?: AbortSignal,
+): Promise<MentionCandidateDto[]> {
+  const result = await apiRequest<MentionCandidateDto[]>(
+    `/processes/${processId}/mention-candidates`,
+    { query: { q }, signal },
+  );
+  return Array.isArray(result.data) ? result.data : [];
+}
+
+/** Espera entre teclas antes de buscar os candidatos (passo 2 — debounce). */
+export const MENTION_DEBOUNCE_MS = 250;
+
+/**
+ * Candidatos de menção para a "@consulta" digitada (com debounce); `null` = sem consulta ativa. A
+ * falha não derruba o compositor: o "@algo" segue como texto (estado de erro do autocomplete).
+ */
+export function useMentionCandidates(processId: string, query: string | null) {
+  const tenantId = useTenantId();
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebounced(query);
+    }, MENTION_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [query]);
+  const q = debounced?.trim() ?? '';
+  return useQuery({
+    queryKey: commentKeys.mentionCandidates(tenantId, processId, q),
+    queryFn: ({ signal }) => fetchMentionCandidates(processId, q, signal),
+    enabled: query !== null && q.length >= 1,
+    staleTime: 30_000,
+    retry: false,
+    throwOnError: false,
   });
 }

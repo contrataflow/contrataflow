@@ -107,3 +107,27 @@ test('no celular (360 px) a aba ocupa a largura e continua acessível', async ({
   expect(overflows).toBe(false);
   await expectNoSeriousA11yViolations(page, 'aba Comentários em 360 px');
 });
+
+test('mencionar com "@": autocomplete por teclado, publicação e menção destacada (US-072)', async ({
+  page,
+}) => {
+  await openComments(page);
+  const panel = page.getByRole('region', { name: 'Comentários' });
+  const composer = panel.getByLabel('Comentário', { exact: true });
+  await composer.pressSequentially('Pode revisar, @clau');
+  const listbox = panel.getByRole('listbox', { name: 'Pessoas e unidades para mencionar' });
+  await expect(listbox.getByRole('option', { name: /Cláudia Ramos/ })).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'autocomplete de menções');
+  await composer.press('Enter');
+  await expect(composer).toHaveValue('Pode revisar, @Cláudia Ramos ');
+  await composer.pressSequentially('por favor.');
+  await composer.press('Control+Enter');
+  await expect(panel.getByText('Comentário publicado')).toBeAttached();
+  const first = panel.getByRole('article').first();
+  await expect(first.getByText('Pessoa:')).toBeAttached();
+  await expect(first).toContainText('Cláudia Ramos');
+
+  // FA-05: sem candidatos, a orientação leva a Participantes.
+  await composer.pressSequentially('@zzz');
+  await expect(panel.getByRole('link', { name: 'Ir para Participantes' })).toBeVisible();
+});

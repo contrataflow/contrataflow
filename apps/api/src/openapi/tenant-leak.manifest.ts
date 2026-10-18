@@ -157,6 +157,9 @@ const RISK_ROUTE =
 const COMMENT_ROUTE =
   'Comentários (US-071): a suíte genérica não tem processo nem comentário do tenant B. O isolamento (CMT-01/02 com id de processo de B → 404 PROCESS_NOT_FOUND, CMT-03/04 com id de comentário de B → 404 COMMENT_NOT_FOUND sem alterar nada, documentId/parentId de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de comments) é coberto em test/tenant-leak/comments.spec.ts, com PostgreSQL real, e em src/modules/collaboration/presentation/comment.routes.spec.ts.';
 
+const MENTION_ROUTE =
+  'Menções (US-072): a suíte genérica não tem processo nem usuário/unidade do tenant B visível ao processo. O isolamento (CMT-05 com id de processo de B → 404 PROCESS_NOT_FOUND, candidato homônimo de B nunca devolvido, nó mention com usuário ou unidade de B descartado sem gerar Mention nem evento, RLS e FKs compostas de mentions) é coberto em test/tenant-leak/mentions.spec.ts, com PostgreSQL real, e em src/modules/collaboration/presentation/mention.routes.spec.ts.';
+
 const RISK_TREATMENT_ROUTE =
   'Ações de tratamento (US-034): a suíte genérica não tem risco nem tratamento do tenant B. O isolamento (RSK-06 com id de risco de B → 404 NOT_FOUND, RSK-07/08 com id de tratamento de B → 404 NOT_FOUND sem alterar nada, responsável ou unidade de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de risk_treatments) é coberto em test/tenant-leak/risk-treatments.spec.ts, com PostgreSQL real, e em src/modules/risk/presentation/risk-treatment.routes.spec.ts.';
 
@@ -321,6 +324,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'CMT-02': { kind: 'exempt', reason: COMMENT_ROUTE },
   'CMT-03': { kind: 'exempt', reason: COMMENT_ROUTE },
   'CMT-04': { kind: 'exempt', reason: COMMENT_ROUTE },
+  'CMT-05': { kind: 'exempt', reason: MENTION_ROUTE },
   'PRC-18': { kind: 'exempt', reason: TAG_ROUTE },
   'PRC-27': { kind: 'exempt', reason: PROCESS_DUPLICATE_ROUTE },
   'PRC-28': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },

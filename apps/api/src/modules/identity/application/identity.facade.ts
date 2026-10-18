@@ -8,10 +8,15 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { MEMBERSHIP_REPOSITORY } from './membership-ports.js';
 import type { MembershipRepository } from './membership-ports.js';
 import { IDENTITY_REPOSITORY, TENANT_MFA_POLICY } from './ports.js';
-import type { IdentityRepository, TenantMember, TenantMfaPolicyPort } from './ports.js';
+import type {
+  ActiveMemberMatch,
+  IdentityRepository,
+  TenantMember,
+  TenantMfaPolicyPort,
+} from './ports.js';
 import type { MembershipType } from '../domain/tenant-membership.js';
 
-export type { TenantMember } from './ports.js';
+export type { ActiveMemberMatch, TenantMember } from './ports.js';
 
 /** Vínculo de destino de uma atribuição de perfil (US-096 · RN-IAM-90/92/93). */
 export interface MembershipForAssignment {
@@ -104,6 +109,29 @@ export class IdentityFacade {
    */
   departmentsOfUser(tx: TenantTx, userId: string): Promise<string[]> {
     return this.identity.departmentsOfUser(tx, userId);
+  }
+
+  /**
+   * Membros ativos por nome/nome social/e-mail (US-072 · CMT-05 — autocomplete de menções), no
+   * tenant da transação.
+   */
+  searchActiveMembers(
+    tx: TenantTx,
+    q: string,
+    limit: number,
+    now: Date,
+  ): Promise<ActiveMemberMatch[]> {
+    return this.identity.searchActiveMembers(tx, q, limit, now);
+  }
+
+  /** Membros ativos lotados em cada unidade (US-072 · FA-04: unidade com mais de 50 fica de fora). */
+  activeMemberCounts(
+    tx: TenantTx,
+    departmentIds: readonly string[],
+    now: Date,
+  ): Promise<Map<string, number>> {
+    if (departmentIds.length === 0) return Promise.resolve(new Map<string, number>());
+    return this.identity.activeMemberCounts(tx, departmentIds, now);
   }
 
   /** A unidade tem lotações? (impede a exclusão física — US-102 · RN-TEN-51). */

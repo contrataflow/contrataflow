@@ -44,3 +44,28 @@ export const CommentDeleted = defineDomainEvent({
   payload: z.strictObject({ commentId: uuid, byModerator: z.boolean() }),
   routingKey: 'comment.deleted',
 });
+
+/**
+ * `UserMentioned` (US-072 · events.md §4.4): um por `Mention` NOVO, no commit de CMT-02/CMT-03.
+ * Exatamente um alvo (usuário ou unidade — RN-CMT-23). Sem entrada de timeline (RN-CMT-25): o
+ * único consumidor é o `NotificationDispatcher` (`MENTIONED`, nunca ao próprio autor — RN-CMT-26).
+ */
+export const UserMentioned = defineDomainEvent({
+  eventType: 'UserMentioned',
+  eventVersion: 1,
+  aggregateType: 'Comment',
+  payload: z
+    .strictObject({
+      commentId: uuid,
+      mentionId: uuid,
+      mentionedUserId: uuid.nullable(),
+      mentionedDepartmentId: uuid.nullable(),
+    })
+    .refine(
+      (value) => (value.mentionedUserId === null) !== (value.mentionedDepartmentId === null),
+      {
+        message: 'Exatamente um alvo: usuário ou unidade.',
+      },
+    ),
+  routingKey: 'comment.user_mentioned',
+});

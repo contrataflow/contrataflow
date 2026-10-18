@@ -295,7 +295,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     content = <ProcessItemsTab processId={processId} />;
   } else if (tab === 'comentarios') {
     // US-071: comentários do processo e dos documentos (CMT-01..04).
-    content = <CommentsPanel processId={processId} />;
+    content = (
+      <CommentsPanel processId={processId} highlightedId={searchParams.get('comentario')} />
+    );
   } else if (tab === 'participantes') {
     // US-012: participantes (PRC-28..30 — SCR-112).
     content = <ParticipantsTab processId={processId} />;

@@ -1,9 +1,10 @@
-import { COMMENT_LIMITS, validateCommentContent } from '@contrataflow/validation';
+import { COMMENT_LIMITS, COMMENT_MESSAGES, validateCommentContent } from '@contrataflow/validation';
 import type { CommentBody } from '@contrataflow/validation';
 
 import { ApiError } from '@/lib/api/api-error';
 
 import { textToCommentBody } from './comment-markup';
+import type { ComposerMention } from './comment-markup';
 
 /*
  * Regras de tela dos comentários (US-071): validação no front (V-01/V-03 — a API confere de novo),
@@ -15,6 +16,7 @@ export type ComposerProblemKey =
   | 'length'
   | 'formatting'
   | 'link'
+  | 'mention'
   | 'section'
   | 'documentCanceled'
   | 'readOnly'
@@ -35,13 +37,15 @@ export interface ComposerProblem {
 /** V-01/V-03 no front: `body` pronto para enviar ou o motivo da recusa. */
 export function prepareCommentBody(
   text: string,
+  mentions: readonly ComposerMention[] = [],
 ):
   | { readonly ok: true; readonly body: CommentBody }
   | { readonly ok: false; readonly key: ComposerProblemKey } {
-  const body = textToCommentBody(text);
-  const result = validateCommentContent(body);
+  const body = textToCommentBody(text, mentions);
+  const result = validateCommentContent(body, { allowMentions: true });
   if (result.ok) return { ok: true, body };
   if (result.issue.code === 'VALIDATION_ERROR') return { ok: false, key: 'length' };
+  if (result.issue.element === 'mention') return { ok: false, key: 'mention' };
   return { ok: false, key: result.issue.reason === 'LINK' ? 'link' : 'formatting' };
 }
 
@@ -52,6 +56,7 @@ export function composerProblemOf(error: unknown): ComposerProblem {
     if (!(error instanceof ApiError)) return 'unavailable';
     switch (error.code) {
       case 'RICH_TEXT_INVALID':
+        if (error.problem?.detail === COMMENT_MESSAGES.mentionInvalid) return 'mention';
         return error.problem?.detail.includes('links') ? 'link' : 'formatting';
       case 'SECTION_NOT_IN_TEMPLATE':
         return 'section';

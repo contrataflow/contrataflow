@@ -1076,6 +1076,12 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "mentions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommentMention"
+            }
           }
         },
         "required": [
@@ -1097,7 +1103,33 @@
           "editableUntil",
           "canDelete",
           "canModerate",
-          "version"
+          "version",
+          "mentions"
+        ]
+      },
+      "CommentMention": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "DEPARTMENT"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "targetId"
         ]
       },
       "UpdateCommentRequest": {
@@ -6381,6 +6413,12 @@
             "type": "integer",
             "minimum": 1
           },
+          "mentions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommentMention"
+            }
+          },
           "replies": {
             "type": "array",
             "items": {
@@ -6412,6 +6450,7 @@
           "canDelete",
           "canModerate",
           "version",
+          "mentions",
           "replies",
           "replyCount"
         ]
@@ -7660,6 +7699,33 @@
           "itemIds"
         ],
         "additionalProperties": false
+      },
+      "MentionCandidate": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "DEPARTMENT"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "secondaryLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label"
+        ]
       },
       "AddProcessParticipantRequest": {
         "type": "object",
@@ -34772,6 +34838,136 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/ProcessItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/mention-candidates": {
+      "get": {
+        "operationId": "CMT-05",
+        "summary": "Buscar candidatos de menção",
+        "tags": [
+          "Comentários"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Até 10 candidatos em ordem alfabética (RN-CMT-21): usuários com vínculo ativo e visibilidade do processo (DEC-024 — `secondaryLabel` = unidade de lotação) e unidades ativas com visibilidade do processo e no máximo 50 membros ativos (`secondaryLabel` = sigla), filtrados por `q` (nome/e-mail ou nome/sigla, sem diferenciar maiúsculas nem acentos). `q` vazio → 422 `VALIDATION_ERROR`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MentionCandidate"
                       }
                     }
                   },

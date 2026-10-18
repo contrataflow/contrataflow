@@ -2191,6 +2191,24 @@ model Comment {
   @@map("comments")
 }
 
+/// entities.md §4.9 `Mention` (US-072 · RN-CMT-22/23): um registro por alvo distinto e válido do
+/// comentário — usuário xor unidade (CHECK na migração). Índices únicos parciais por alvo só na
+/// migração. `notifiedAt` é gravado pelo worker ao enviar `MENTIONED`.
+model Mention {
+  id                    String    @id @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  commentId             String    @map("comment_id") @db.Uuid
+  processId             String    @map("process_id") @db.Uuid
+  mentionedUserId       String?   @map("mentioned_user_id") @db.Uuid
+  mentionedDepartmentId String?   @map("mentioned_department_id") @db.Uuid
+  notifiedAt            DateTime? @map("notified_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "mentions_tenant_id_id_key")
+  @@index([tenantId, mentionedUserId, createdAt(sort: Desc)], map: "mentions_user_created_idx")
+  @@map("mentions")
+}
+
 /// entities.md §2 — `SavedViewScope` (US-003).
 enum SavedViewScope {
   PROCESS_LIST

@@ -32,6 +32,7 @@ import type {
 import type {
   AuthentikAccountRef,
   AuthentikDirectoryPort,
+  ActiveMemberMatch,
   AuthentikMfaPort,
   IdentityRepository,
   LoginRecord,
@@ -67,6 +68,18 @@ interface StoredMembership extends FakeMembership {
 }
 
 type TenantData = (typeof FAKE_TENANTS)[keyof typeof FAKE_TENANTS];
+
+/** Minúsculas e sem acento (o `lower(cf_unaccent(...))` do adaptador Prisma). */
+const foldText = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
+/** Vínculo `ACTIVE` não vencido. */
+const isActiveAt = (membership: { status: string; expiresAt: Date | null }, now: Date) =>
+  membership.status === 'ACTIVE' &&
+  (membership.expiresAt === null || membership.expiresAt.getTime() > now.getTime());
 
 /** Vínculo sem suspensão nem revogação registradas. */
 const NO_STATUS_DETAILS = {
@@ -332,6 +345,60 @@ export class InMemoryIdentityRepository
           .map((item) => item.departmentId),
       ),
     ]);
+  }
+
+  searchActiveMembers(
+    _tx: TenantTx,
+    q: string,
+    limit: number,
+    now: Date,
+  ): Promise<ActiveMemberMatch[]> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const needle = foldText(q.trim());
+    const matches: ActiveMemberMatch[] = [];
+    for (const membership of this.memberships) {
+      if (membership.tenantId !== tenantId || !isActiveAt(membership, now)) continue;
+      const user = this.users.get(membership.userId);
+      if (user?.status !== 'ACTIVE') continue;
+      const found = [user.name, user.socialName, user.email].some(
+        (text) => text !== null && foldText(text).includes(needle),
+      );
+      if (!found) continue;
+      matches.push({
+        userId: user.id,
+        membershipId: membership.id,
+        name: displayName(user),
+        roleKeys: membership.roleKeys,
+      });
+    }
+    return Promise.resolve(
+      matches
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || a.userId.localeCompare(b.userId))
+        .slice(0, limit),
+    );
+  }
+
+  activeMemberCounts(
+    _tx: TenantTx,
+    departmentIds: readonly string[],
+    now: Date,
+  ): Promise<Map<string, number>> {
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    const active = new Map(
+      this.memberships
+        .filter((membership) => membership.tenantId === tenantId && isActiveAt(membership, now))
+        .map((membership) => [membership.id, membership.userId]),
+    );
+    const counts = new Map<string, number>();
+    for (const departmentId of new Set(departmentIds)) {
+      const users = new Set(
+        this.assignments
+          .filter((item) => item.departmentId === departmentId && active.has(item.membershipId))
+          .map((item) => active.get(item.membershipId)),
+      );
+      if (users.size > 0) counts.set(departmentId, users.size);
+    }
+    return Promise.resolve(counts);
   }
 
   // --- InvitationRepository (US-091) -----------------------------------------------------------
@@ -801,6 +868,43 @@ export class InMemoryIdentityRepository
   }
 
   // --- Inspeção (testes) -----------------------------------------------------------------------
+
+  /** Carga de testes (US-072): usuário ativo com vínculo ATIVO no tenant, sem perfis. */
+  seedActiveMember(
+    user: { readonly id: string; readonly name: string; readonly email: string },
+    membership: { readonly id: string; readonly tenantId: string },
+  ): void {
+    this.users.set(user.id, {
+      ...user,
+      subject: null,
+      authentikUserId: null,
+      socialName: null,
+      status: 'ACTIVE',
+      phone: null,
+      lastLoginAt: null,
+      version: 1,
+      preferences: {},
+    });
+    this.memberships.push({
+      id: membership.id,
+      userId: user.id,
+      tenantId: membership.tenantId,
+      type: 'INTERNAL',
+      status: 'ACTIVE',
+      expiresAt: null,
+      roleKeys: [],
+      lastAccessAt: null,
+      jobTitle: null,
+      registrationNumber: null,
+      invitedAt: null,
+      inviteExpiresAt: null,
+      inviteTokenHash: null,
+      inviteResendCount: 0,
+      activatedAt: null,
+      ...NO_STATUS_DETAILS,
+      version: 1,
+    });
+  }
 
   /** Carga de testes: lota o vínculo na unidade (no banco, `membership_departments`). */
   assignDepartment(membershipId: string, departmentId: string): void {

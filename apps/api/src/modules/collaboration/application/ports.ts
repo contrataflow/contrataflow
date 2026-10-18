@@ -3,6 +3,7 @@ import type { CommentTargetType } from '@contrataflow/validation';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { Comment } from '../domain/comment.js';
+import type { Mention } from '../domain/mention.js';
 
 /*
  * Portas da aplicação dos comentários (US-071): implementadas em `infrastructure/` (Prisma) e em
@@ -75,6 +76,19 @@ export interface CommentRepository {
 }
 
 export const COMMENT_REPOSITORY = Symbol('CommentRepository');
+
+/** Menções dos comentários (US-072 · entities.md §4.9 `Mention`). */
+export interface MentionRepository {
+  /** Menções dos comentários (uma leitura para a página inteira — sem N+1). */
+  listByComments(tx: TenantTx, commentIds: readonly string[]): Promise<Mention[]>;
+  /**
+   * Grava as menções ignorando alvo já registrado no comentário (índices únicos parciais — rede de
+   * segurança de RN-CMT-23/24 sob concorrência) e devolve só as gravadas agora.
+   */
+  insertNew(tx: TenantTx, mentions: readonly Mention[]): Promise<Mention[]>;
+}
+
+export const MENTION_REPOSITORY = Symbol('MentionRepository');
 
 /** Transações do módulo: Prisma (`TenantTransaction`) ou simulada em memória. */
 export interface CommentTransactions {

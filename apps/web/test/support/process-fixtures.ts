@@ -467,6 +467,8 @@ export interface ProcessApiOptions {
   confidentiality?: Handler;
   /** CMT-01..04 (US-071): `/processes/{id}/comments` e `/comments/{commentId}`. */
   comments?: Handler;
+  /** CMT-05 (US-072): `/processes/{id}/mention-candidates?q=` (padrão: nenhum candidato). */
+  mentionCandidates?: Handler;
   /** TAG-01..03 e PRC-18 (US-007): `/tags`, `/tags/{id}` e `PUT /processes/{id}/tags`. */
   tags?: Handler;
 }
@@ -604,6 +606,9 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (url.includes('/available-actions')) {
       return respond(options.actions, () => jsonResponse({ data: [] }));
+    }
+    if (url.includes(`/processes/${PROCESS_ID}/mention-candidates`)) {
+      return respond(options.mentionCandidates, () => jsonResponse({ data: [] }));
     }
     if (url.includes(`/processes/${PROCESS_ID}/comments`) || url.startsWith('/api/v1/comments/')) {
       return respond(options.comments, () =>

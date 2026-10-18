@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import type { SqlClient } from '#shared/database/outbox-database.js';
 
+import type { NotificationEffect } from './mention-notified.effect.js';
 import { planNotification } from './notification-rules.js';
 import type { NotificationPlan } from './notification-rules.js';
 import { NotificationStore } from './notification-store.js';
@@ -38,6 +39,8 @@ export interface NotificationDispatcherDeps extends Omit<RecipientResolverDeps, 
   readonly store?: Pick<NotificationStore, 'upsertGrouped'>;
   readonly now?: () => Date;
   readonly metrics?: NotificationInstruments;
+  /** Efeitos nos módulos donos do evento (US-072: `Mention.notifiedAt`). */
+  readonly effects?: readonly NotificationEffect[];
 }
 
 const payloadSchema = z.strictObject({ envelope: domainEventEnvelopeSchema });
@@ -103,6 +106,9 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       );
       for (const item of written) {
         if (item.emailStatus === 'PENDING') await this.deps.email.enqueue(item.notificationId);
+      }
+      for (const effect of this.effectsOf(envelope)) {
+        effect.committed?.(logger, envelope, written, Date.now() - startedAt);
       }
       if (written.length > 0) {
         logger.log({
@@ -187,7 +193,14 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
         }
       }
     }
+    if (written.some((item) => item.kind !== 'duplicate')) {
+      for (const effect of this.effectsOf(envelope)) await effect.apply(client, envelope, now);
+    }
     return written;
+  }
+
+  private effectsOf(envelope: DomainEventEnvelope<Payload>): readonly NotificationEffect[] {
+    return (this.deps.effects ?? []).filter((effect) => effect.eventType === envelope.eventType);
   }
 }
 

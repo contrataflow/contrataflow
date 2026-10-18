@@ -58,17 +58,15 @@ describe('CommentContent', () => {
     });
   });
 
-  it('RN-CMT-19: menção recusada enquanto a US-072 não está ativa', () => {
-    const body = {
+  it('RN-CMT-19 (US-072): menção aceita; nó `mention` sem `id` é RICH_TEXT_INVALID (V-01)', () => {
+    const withMention = (attrs: Record<string, unknown>) => ({
       type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'mention', attrs: { kind: 'USER', id: MARCOS, label: 'Marcos' } }],
-        },
-      ],
-    };
-    expect(commentContentOf(body)).toMatchObject({
+      content: [{ type: 'paragraph', content: [{ type: 'mention', attrs }] }],
+    });
+    expect(
+      commentContentOf(withMention({ kind: 'USER', id: MARCOS, label: 'Marcos' })),
+    ).toMatchObject({ ok: true, bodyText: '@Marcos' });
+    expect(commentContentOf(withMention({ kind: 'USER', label: 'Marcos' }))).toMatchObject({
       ok: false,
       issue: { code: 'RICH_TEXT_INVALID', element: 'mention' },
     });

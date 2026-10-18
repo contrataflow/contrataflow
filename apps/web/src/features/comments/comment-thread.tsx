@@ -10,7 +10,7 @@ import {
 import type { CommentDto, CommentThreadDto } from '@contrataflow/validation';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useNow, useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useShellSession } from '@/lib/session/session-context';
 
@@ -31,6 +31,8 @@ export interface CommentActions {
   readonly onSaved: (kind: 'published' | 'updated') => void;
   /** Recusa por estado: recarrega a lista. */
   readonly onStale: () => void;
+  /** Comentário aberto pela notificação `MENTIONED` (US-072 · passo 6): destacado e focado. */
+  readonly highlightedId?: string | null;
 }
 
 function formatAbsolute(iso: string, timeZone: string): string {
@@ -71,6 +73,13 @@ export function CommentItem({
   const timeZone = session.activeTenant.timezone;
   const now = useNow({ updateInterval: 60_000 });
   const [editing, setEditing] = useState(false);
+  const highlighted = actions.highlightedId === comment.id;
+  const article = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!highlighted) return;
+    article.current?.scrollIntoView({ block: 'center' });
+    article.current?.focus({ preventScroll: true });
+  }, [highlighted]);
   const absolute = formatAbsolute(comment.createdAt, timeZone);
   const relative = relativeTimeOf(comment.createdAt, now);
   const relativeLabel =
@@ -110,13 +119,18 @@ export function CommentItem({
       />
     );
   } else {
-    content = <CommentBodyView body={comment.body} />;
+    content = <CommentBodyView body={comment.body} mentions={comment.mentions} />;
   }
 
   return (
     <article
+      ref={article}
       aria-label={t('label', { author: comment.author.name, date: absolute })}
-      className="flex min-w-0 flex-col gap-2"
+      tabIndex={highlighted ? -1 : undefined}
+      aria-current={highlighted ? 'true' : undefined}
+      className={`flex min-w-0 flex-col gap-2 ${
+        highlighted ? 'rounded-control ring-2 ring-primary ring-offset-2' : ''
+      }`}
     >
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 flex-col">

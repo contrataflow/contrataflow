@@ -260,24 +260,31 @@ const RULES: Readonly<Record<string, Rule>> = {
       link: approvalId === null ? processLink(event.processId) : `/aprovacoes/${approvalId}`,
     });
   },
-  UserMentioned: (event) =>
-    plan('MENTIONED', event, {
+  // US-072: o usuário mencionado ou cada membro ativo da unidade (até 50 — a API não grava menção a
+  // unidade maior, FA-04); nunca o autor (RN-NTF-02 · RN-CMT-26) nem quem não vê o processo. O
+  // link abre a aba Comentários com o comentário destacado.
+  UserMentioned: (event) => {
+    const commentId = id(event.payload, 'commentId');
+    const departmentId = id(event.payload, 'mentionedDepartmentId');
+    return plan('MENTIONED', event, {
       recipients: [
         {
           kind: 'FIRST_OF',
           specs: [
             { kind: 'USER', userId: id(event.payload, 'mentionedUserId') },
-            {
-              kind: 'DEPARTMENT_MEMBERS',
-              departmentId: id(event.payload, 'mentionedDepartmentId'),
-            },
+            { kind: 'DEPARTMENT_MEMBERS', departmentId },
           ],
         },
       ],
       entityType: 'Comment',
-      entityId: id(event.payload, 'commentId'),
-      link: processLink(event.processId),
-    }),
+      entityId: commentId,
+      link:
+        event.processId === null
+          ? null
+          : `/processos/${event.processId}?aba=comentarios${commentId === null ? '' : `&comentario=${commentId}`}`,
+      variant: departmentId === null ? 'user' : 'department',
+    });
+  },
   CommentCreated: (event) => {
     const parentAuthorId = id(event.payload, 'parentAuthorId');
     if (id(event.payload, 'parentId') === null || parentAuthorId === null) {

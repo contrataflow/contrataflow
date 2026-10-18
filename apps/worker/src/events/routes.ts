@@ -159,6 +159,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     CommentCreated: ['comment.created'],
     CommentUpdated: 'NO_ASYNC_CONSUMER',
     CommentDeleted: 'NO_ASYNC_CONSUMER',
+    // US-072: `MENTIONED` ao mencionado ou aos membros da unidade (NotificationDispatcher); sem
+    // timeline (RN-CMT-25).
+    UserMentioned: ['comment.user_mentioned'],
     // US-101: cadastro de baixa frequência; nenhum consumidor assíncrono no MVP 1.
     OrganizationCreated: 'NO_ASYNC_CONSUMER',
     OrganizationUpdated: 'NO_ASYNC_CONSUMER',

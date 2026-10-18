@@ -73,12 +73,15 @@ const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
     title: 'Aprovação redirecionada',
     body: grouped('Uma aprovação que envolve você foi redirecionada.', groupCount),
   }),
-  MENTIONED: ({ groupCount }) => ({
-    title: 'Você foi mencionado',
+  // US-072 (FA-01): a variante `department` avisa que a menção foi à unidade do destinatário.
+  MENTIONED: ({ groupCount, variant }) => ({
+    title: variant === 'department' ? 'Sua unidade foi mencionada' : 'Você foi mencionado',
     body:
       groupCount > 1
         ? `Mencionaram você (ou a sua unidade) ${String(groupCount)} vezes em comentários deste processo.`
-        : 'Mencionaram você (ou a sua unidade) em um comentário.',
+        : variant === 'department'
+          ? 'Mencionaram uma unidade da qual você faz parte em um comentário. Abra-o para ver.'
+          : 'Mencionaram você em um comentário. Abra-o para ver.',
   }),
   COMMENT_REPLY: ({ groupCount }) => ({
     title: 'Nova resposta ao seu comentário',

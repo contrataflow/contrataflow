@@ -3,6 +3,7 @@ import {
   CommentCreated,
   CommentDeleted,
   CommentUpdated,
+  UserMentioned,
 } from '@contrataflow/validation';
 import type { CommentDto, ProcessStatus } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
@@ -19,8 +20,8 @@ import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
 import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { commentNotFound, commentProcessNotFound, readOnlyProcess } from './comment.errors.js';
-import { COMMENT_REPOSITORY } from './ports.js';
-import type { CommentRepository } from './ports.js';
+import { COMMENT_REPOSITORY, MENTION_REPOSITORY } from './ports.js';
+import type { CommentRepository, MentionRepository } from './ports.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
@@ -28,6 +29,8 @@ import { OrganizationFacade } from '../../organization/application/organization.
 import { ProcessFacade } from '../../process/application/process.facade.js';
 import { abilitiesOf, isDeleted, isModerated, processAcceptsComments } from '../domain/comment.js';
 import type { Comment } from '../domain/comment.js';
+import { mentionedIds, mentionsPresentIn, targetOf } from '../domain/mention.js';
+import type { Mention } from '../domain/mention.js';
 
 /*
  * Peças comuns dos casos de uso de comentários (US-071): a guarda (visibilidade do processo —
@@ -107,6 +110,15 @@ export class CommentGate {
     return process;
   }
 
+  /** CMT-05 (US-072): `COMMENT_CREATE` cobrindo o processo — 403 com `access.denied`. */
+  assertCanComment(process: CommentProcess): Promise<void> {
+    return this.access.assertCanOnProcess(
+      'COMMENT_CREATE',
+      process.access,
+      COMMENT_MESSAGES.permissionDenied,
+    );
+  }
+
   /** CMT-03/04: o comentário (inclusive excluído) e o processo dele visível — senão 404. */
   async visibleComment(
     tx: TenantTx,
@@ -139,6 +151,7 @@ export class CommentPresenter {
     private readonly processes: ProcessFacade,
     private readonly identity: IdentityFacade,
     private readonly organization: OrganizationFacade,
+    @Inject(MENTION_REPOSITORY) private readonly mentions: MentionRepository,
   ) {}
 
   /**
@@ -169,6 +182,16 @@ export class CommentPresenter {
     const canViewBudget = needsBudget
       ? await this.processes.canViewConfidentialBudget(tx, viewer.process.id)
       : true;
+    const mentionsByComment = new Map<string, Mention[]>();
+    for (const mention of await this.mentions.listByComments(
+      tx,
+      comments.map((comment) => comment.id),
+    )) {
+      mentionsByComment.set(mention.commentId, [
+        ...(mentionsByComment.get(mention.commentId) ?? []),
+        mention,
+      ]);
+    }
 
     return comments.map((comment) => {
       const deleted = isDeleted(comment);
@@ -209,6 +232,16 @@ export class CommentPresenter {
         canDelete: abilities.canDelete,
         canModerate: abilities.canModerate,
         version: comment.version,
+        // US-072: só as menções válidas ainda presentes no corpo viram link (RN-CMT-22).
+        mentions:
+          deleted || masked
+            ? []
+            : mentionsPresentIn(mentionsByComment.get(comment.id) ?? [], comment.body).map(
+                (mention) => {
+                  const target = targetOf(mention);
+                  return { id: mention.id, kind: target.kind, targetId: target.id };
+                },
+              ),
       };
     });
   }
@@ -243,7 +276,10 @@ export class CommentRecorder {
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
   ) {}
 
-  /** `comment.create` + `CommentCreated` (timeline `COMMENT_ADDED` no mesmo `tx`; RN-CMT-15/16). */
+  /**
+   * `comment.create` + `CommentCreated` (timeline `COMMENT_ADDED` no mesmo `tx`; RN-CMT-15/16) e um
+   * `UserMentioned` por menção nova (US-072 · RN-CMT-25: sem timeline).
+   */
   async created(
     tx: TenantTx,
     comment: Comment,
@@ -252,6 +288,7 @@ export class CommentRecorder {
       readonly documentCode: string | null;
       readonly parentAuthorId: string | null;
       readonly idempotencyKey: string | null;
+      readonly mentions: readonly Mention[];
     },
   ): Promise<void> {
     await this.audit.record(tx, {
@@ -268,6 +305,8 @@ export class CommentRecorder {
         ...(comment.sectionKey === null ? {} : { sectionKey: comment.sectionKey }),
         ...(comment.parentId === null ? {} : { parentId: comment.parentId }),
         idempotencyKey: context.idempotencyKey,
+        // US-072: só ids (nunca nome ou e-mail do mencionado).
+        ...mentionedIds(context.mentions),
       },
     });
     await this.outbox.record(
@@ -285,17 +324,26 @@ export class CommentRecorder {
         },
       }),
     );
+    await this.mentioned(tx, comment, context.mentions);
   }
 
-  /** `comment.update` (hash e tamanho antes/depois, pela auditoria — RN-CMT-09) + `CommentUpdated`. */
-  async updated(tx: TenantTx, before: Comment, after: Comment): Promise<void> {
+  /**
+   * `comment.update` (hash e tamanho antes/depois, pela auditoria — RN-CMT-09) + `CommentUpdated` e
+   * `UserMentioned` só das menções novas (RN-CMT-24).
+   */
+  async updated(
+    tx: TenantTx,
+    before: Comment,
+    after: Comment,
+    mentions: readonly Mention[],
+  ): Promise<void> {
     await this.audit.record(tx, {
       action: 'comment.update',
       entityType: 'Comment',
       entityId: after.id,
       processId: after.processId,
       changes: [{ path: 'body', old: before.bodyText, new: after.bodyText }],
-      metadata: { version: after.version },
+      metadata: { version: after.version, ...mentionedIds(mentions) },
     });
     await this.outbox.record(
       tx,
@@ -305,6 +353,30 @@ export class CommentRecorder {
         payload: { commentId: after.id },
       }),
     );
+    await this.mentioned(tx, after, mentions);
+  }
+
+  /** Um `UserMentioned` por `Mention` novo (consumido só pelo `NotificationDispatcher`). */
+  private async mentioned(
+    tx: TenantTx,
+    comment: Comment,
+    mentions: readonly Mention[],
+  ): Promise<void> {
+    for (const mention of mentions) {
+      await this.outbox.record(
+        tx,
+        UserMentioned.of({
+          aggregateId: comment.id,
+          processId: comment.processId,
+          payload: {
+            commentId: comment.id,
+            mentionId: mention.id,
+            mentionedUserId: mention.mentionedUserId,
+            mentionedDepartmentId: mention.mentionedDepartmentId,
+          },
+        }),
+      );
+    }
   }
 
   /** `comment.delete` (autor) ou `comment.moderate` (motivo em `metadata`) + `CommentDeleted`. */

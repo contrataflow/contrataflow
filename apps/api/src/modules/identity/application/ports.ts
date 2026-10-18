@@ -30,6 +30,16 @@ export interface TenantMember {
   readonly roleKeys: readonly string[];
 }
 
+/** Membro ativo encontrado pela busca de menções (US-072 · RN-CMT-21). */
+export interface ActiveMemberMatch {
+  readonly userId: string;
+  readonly membershipId: string;
+  /** Nome exibido (social, se houver). */
+  readonly name: string;
+  /** Perfis do registro do vínculo (ponte das permissões efetivas — vazio no banco). */
+  readonly roleKeys: readonly string[];
+}
+
 export interface IdentityRepository {
   findUserById(userId: string): Promise<User | null>;
   findUserBySubject(subject: string): Promise<User | null>;
@@ -90,6 +100,23 @@ export interface IdentityRepository {
    * POL-01/POL-04 — e visibilidade por unidade — DEC-024).
    */
   departmentsOfUser(tx: TenantTx, userId: string): Promise<string[]>;
+  /**
+   * Usuários com vínculo ATIVO não vencido no tenant da transação (e usuário ativo) cujo nome, nome
+   * social ou e-mail contém `q` — sem diferenciar maiúsculas nem acentos —, por nome, até `limit`
+   * (US-072 · RN-CMT-21).
+   */
+  searchActiveMembers(
+    tx: TenantTx,
+    q: string,
+    limit: number,
+    now: Date,
+  ): Promise<ActiveMemberMatch[]>;
+  /** Membros ATIVOS não vencidos lotados em cada unidade (US-072 · FA-04: máx. 50). */
+  activeMemberCounts(
+    tx: TenantTx,
+    departmentIds: readonly string[],
+    now: Date,
+  ): Promise<Map<string, number>>;
 }
 
 export const IDENTITY_REPOSITORY = Symbol('IdentityRepository');

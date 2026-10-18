@@ -55,9 +55,11 @@ import { EmailSender } from '../notifications/email/email-sender.js';
 import { EmailTemplateRegistry } from '../notifications/email/email-templates.js';
 import { InvitationEmailSource } from '../notifications/email/invitation-email-source.js';
 import { NotificationEmailSource } from '../notifications/email/notification-email-source.js';
+import { MentionNotifiedEffect } from '../notifications/mention-notified.effect.js';
 import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
 import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
 import { SqlNotificationPreferences } from '../notifications/sql-notification-preferences.js';
+import { SqlProcessVisibility } from '../notifications/sql-process-visibility.js';
 import { OutboxPurgeJob } from '../outbox/outbox-purge.job.js';
 
 export const QUEUE_RUNTIME_CONFIG = Symbol('QueueRuntimeConfig');
@@ -188,6 +190,9 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
           directory: new SqlNotificationDirectory(),
           preferences: new SqlNotificationPreferences(),
           lookups: [new AttachmentUploaderLookup(), new RenditionRequesterLookup()],
+          // US-072: visibilidade do processo (DEC-024) e `Mention.notifiedAt`.
+          visibility: new SqlProcessVisibility(),
+          effects: [new MentionNotifiedEffect()],
           email: {
             enqueue: (notificationId) =>
               producer.enqueue(

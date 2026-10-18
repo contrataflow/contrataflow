@@ -21,7 +21,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `cursor` (opaco, opcional); `limit` (int ≤100, opcional); `targetType` (`CommentTargetType`, opcional); `documentId` (uuid, opcional); `sectionKey` (texto, opcional); `parentId` (uuid, opcional)
 - **Request:** —
-- **Response:** `200 { data: [Comment], meta: { nextCursor, hasMore, canComment, readOnly, isBudgetConfidential } }` (US-071: `meta` informa o compositor — FA-05/FA-07 e "Sem permissão"), cada item com `replies[]` e `replyCount`; `Comment { id, processId, targetType, document: { id, code, title } | null, sectionKey, parentId, author: { id, name, departmentName }, body | null, bodyMasked, createdAt, editedAt, isDeleted, deletedByModerator, deletionReason (só autor/moderador), canEdit, editableUntil, canDelete, canModerate, version }`
+- **Response:** `200 { data: [Comment], meta: { nextCursor, hasMore, canComment, readOnly, isBudgetConfidential } }` (US-071: `meta` informa o compositor — FA-05/FA-07 e "Sem permissão"), cada item com `replies[]` e `replyCount`; `Comment { id, processId, targetType, document: { id, code, title } | null, sectionKey, parentId, author: { id, name, departmentName }, body | null, bodyMasked, createdAt, editedAt, isDeleted, deletedByModerator, deletionReason (só autor/moderador), canEdit, editableUntil, canDelete, canModerate, version, mentions: [{ id, kind: 'USER'|'DEPARTMENT', targetId }] }` (US-072: só menções válidas no commit e ainda presentes no `body`; vazio se excluído/mascarado — nó `mention` sem par é rótulo simples)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -94,7 +94,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `q` (texto, obrigatório, mín. 1 caractere, digitado após "@")
 - **Request:** —
-- **Response:** `200 { data: [{ kind: 'USER'|'DEPARTMENT', id, label, secondaryLabel? }] }` (máx. 10 itens)
+- **Response:** `200 { data: [{ kind: 'USER'|'DEPARTMENT', id, label, secondaryLabel? }] }` (máx. 10 itens, ordem alfabética; `secondaryLabel` = unidade de lotação do usuário ou sigla da unidade; `Cache-Control: no-store`)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|

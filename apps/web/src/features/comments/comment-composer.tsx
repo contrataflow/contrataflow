@@ -1,7 +1,7 @@
 'use client';
 
 import { Alert, Button } from '@contrataflow/ui';
-import type { CommentDto, CommentTargetType } from '@contrataflow/validation';
+import type { CommentDto, CommentTargetType, MentionCandidateDto } from '@contrataflow/validation';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -9,7 +9,13 @@ import type { KeyboardEvent } from 'react';
 
 import { useIdempotentMutation } from '@/lib/api/use-idempotent-mutation';
 
-import { commentBodyToText } from './comment-markup';
+import {
+  activeMentionQuery,
+  commentBodyToText,
+  insertMention,
+  mentionsOfBody,
+} from './comment-markup';
+import type { ComposerMention } from './comment-markup';
 import {
   TEXT_MAX,
   applyFormat,
@@ -21,7 +27,8 @@ import {
   writeDraft,
 } from './comments-model';
 import type { ComposerProblem, ComposerProblemKey } from './comments-model';
-import { createComment, updateComment } from './comments.api';
+import { createComment, updateComment, useMentionCandidates } from './comments.api';
+import { MentionAutocomplete } from './mention-autocomplete';
 
 export interface ComposerTarget {
   readonly targetType: CommentTargetType;
@@ -61,12 +68,16 @@ const STALE_KEYS: ReadonlySet<ComposerProblemKey> = new Set([
  * de formatação operável por teclado (negrito, itálico, lista e link — marcação convertida no JSON
  * TipTap restrito), contador, `Ctrl+Enter` envia e `Esc` cancela a edição/resposta. Na falha o texto
  * permanece (e fica no `sessionStorage` por processo/alvo) com a mensagem e o `correlationId`; o
- * reenvio da mesma intenção reutiliza a `Idempotency-Key`.
+ * reenvio da mesma intenção reutiliza a `Idempotency-Key`. US-072: "@" seguido de 1 caractere abre o
+ * `MentionAutocomplete` (CMT-05); o candidato escolhido vira "@Rótulo" no texto e o nó `mention` no
+ * envio. O compositor só existe para quem tem `COMMENT_CREATE` (RN-CMT-07).
  */
 export function CommentComposer(props: CommentComposerProps) {
   const t = useTranslations('comments.composer');
   const fieldId = useId();
   const hintId = useId();
+  const listboxId = useId();
+  const optionId = (index: number) => `${listboxId}-option-${String(index)}`;
   const field = useRef<HTMLTextAreaElement>(null);
   const draftKey =
     props.mode === 'edit'
@@ -86,6 +97,26 @@ export function CommentComposer(props: CommentComposerProps) {
     props.mode === 'create' ? (props.target.sectionKey ?? '') : '',
   );
   const [problem, setProblem] = useState<ComposerProblem | null>(null);
+  // US-072: menções escolhidas, posição do cursor, opção ativa e "@consulta" dispensada com Esc.
+  const [mentions, setMentions] = useState<readonly ComposerMention[]>(() =>
+    props.mode === 'edit' ? mentionsOfBody(props.comment.body) : [],
+  );
+  const [caret, setCaret] = useState<number | null>(null);
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState<number | null>(null);
+  const query = caret === null ? null : activeMentionQuery(text, caret);
+  const open = query !== null && dismissed !== query.start;
+  const candidates = useMentionCandidates(props.processId, open ? query.query : null);
+  const options = candidates.data ?? [];
+  const popover = !open
+    ? null
+    : candidates.isError
+      ? 'error'
+      : candidates.data === undefined
+        ? 'loading'
+        : 'ready';
+  const listed = popover === 'ready' && options.length > 0;
+  const current = Math.min(active, Math.max(options.length - 1, 0));
 
   useEffect(() => {
     if (props.focusOnMount === true) field.current?.focus();
@@ -100,6 +131,7 @@ export function CommentComposer(props: CommentComposerProps) {
   const succeed = (comment: CommentDto) => {
     setProblem(null);
     setText('');
+    setMentions([]);
     if (draftKey !== null) writeDraft(draftKey, '');
     onDone(comment);
   };
@@ -130,7 +162,7 @@ export function CommentComposer(props: CommentComposerProps) {
 
   const submit = async () => {
     if (pending) return;
-    const prepared = prepareCommentBody(text);
+    const prepared = prepareCommentBody(text, mentions);
     if (!prepared.ok) {
       setProblem({ key: prepared.key, correlationId: '—' });
       return;
@@ -183,7 +215,53 @@ export function CommentComposer(props: CommentComposerProps) {
     });
   };
 
+  const syncCaret = () => {
+    setCaret(field.current?.selectionStart ?? null);
+  };
+
+  /** Passo 3: "@consulta" → "@Rótulo " e a menção guardada para o envio. */
+  const pick = (candidate: MentionCandidateDto) => {
+    if (query === null || caret === null) return;
+    const next = insertMention(text, { start: query.start, end: caret }, candidate.label);
+    persist(next.text);
+    setMentions((previous) =>
+      previous.some((item) => item.kind === candidate.kind && item.id === candidate.id)
+        ? previous
+        : [...previous, { kind: candidate.kind, id: candidate.id, label: candidate.label }],
+    );
+    setCaret(next.caret);
+    setActive(0);
+    requestAnimationFrame(() => {
+      field.current?.focus();
+      field.current?.setSelectionRange(next.caret, next.caret);
+    });
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (open && event.key === 'Escape') {
+      event.preventDefault();
+      setDismissed(query.start);
+      return;
+    }
+    if (listed && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setActive((current + step + options.length) % options.length);
+      return;
+    }
+    if (
+      listed &&
+      (event.key === 'Enter' || event.key === 'Tab') &&
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
+      const candidate = options[current];
+      if (candidate !== undefined) {
+        event.preventDefault();
+        pick(candidate);
+        return;
+      }
+    }
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       void submit();
@@ -229,20 +307,45 @@ export function CommentComposer(props: CommentComposerProps) {
           </Button>
         ))}
       </div>
-      <textarea
-        ref={field}
-        id={fieldId}
-        value={text}
-        rows={props.mode === 'create' ? 4 : 3}
-        placeholder={t('placeholder')}
-        aria-describedby={hintId}
-        aria-invalid={problem !== null && problem.key === 'length' ? true : undefined}
-        className="w-full rounded-control border border-border bg-surface p-2 text-sm"
-        onChange={(event) => {
-          persist(event.target.value);
-        }}
-        onKeyDown={onKeyDown}
-      />
+      <div className="relative">
+        <textarea
+          ref={field}
+          id={fieldId}
+          value={text}
+          rows={props.mode === 'create' ? 4 : 3}
+          placeholder={t('placeholder')}
+          aria-describedby={hintId}
+          aria-invalid={problem !== null && problem.key === 'length' ? true : undefined}
+          aria-autocomplete="list"
+          aria-controls={listed ? listboxId : undefined}
+          aria-activedescendant={listed ? optionId(current) : undefined}
+          className="w-full rounded-control border border-border bg-surface p-2 text-sm"
+          onChange={(event) => {
+            persist(event.target.value);
+            setCaret(event.target.selectionStart);
+            setActive(0);
+            setDismissed(null);
+          }}
+          onSelect={syncCaret}
+          onClick={syncCaret}
+          onBlur={() => {
+            setCaret(null);
+          }}
+          onKeyDown={onKeyDown}
+        />
+        {popover === null ? null : (
+          <MentionAutocomplete
+            processId={props.processId}
+            listboxId={listboxId}
+            optionId={optionId}
+            state={popover}
+            candidates={options}
+            active={current}
+            onHover={setActive}
+            onPick={pick}
+          />
+        )}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span id={hintId}>{t('hint')}</span>
         <span aria-live="polite" className={length > TEXT_MAX ? 'text-destructive' : undefined}>

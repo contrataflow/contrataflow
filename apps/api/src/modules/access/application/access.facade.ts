@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
+import { isProcessVisible } from '#shared/auth/process-access.js';
 import type { ProcessAccessTarget, ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -63,6 +64,25 @@ export class AccessFacade {
   ): Promise<boolean> {
     const snapshot = await this.effective.computeFor(tx, member);
     return snapshot.grants.some((grant) => grant.permissions.includes(permission));
+  }
+
+  /**
+   * O vínculo de um TERCEIRO vê o processo (DEC-024 · US-072 · RN-CMT-21/22: candidatos e alvos de
+   * menção): concessão própria (`ProcessAccess` do usuário) ou o predicado de visibilidade sobre os
+   * escopos de `PROCESS_VIEW` dele, calculados no `tx` do chamador (sem cache).
+   */
+  async memberCanViewProcess(
+    tx: TenantTx,
+    member: {
+      readonly membershipId: string;
+      readonly userId: string;
+      readonly roleKeys: readonly string[];
+    },
+    process: ProcessAccessTarget,
+  ): Promise<boolean> {
+    if (process.userIds.includes(member.userId)) return true;
+    const snapshot = await this.effective.computeFor(tx, member);
+    return isProcessVisible(new EffectivePermissionSet(snapshot).visibilityScope(), process);
   }
 
   /**

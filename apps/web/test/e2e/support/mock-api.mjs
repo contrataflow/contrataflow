@@ -402,9 +402,43 @@ function commentsOf(processId) {
   }
   return comments.get(processId);
 }
+// US-072: quem pode ser mencionado no mock (CMT-05 filtra por nome; a API real aplica DEC-024).
+const MENTIONABLE = [
+  {
+    kind: 'USER',
+    id: '0192e072-0000-7000-8000-0000000000c1',
+    label: 'Cláudia Ramos',
+    secondaryLabel: 'Secretaria de Saúde',
+  },
+  { kind: 'DEPARTMENT', id: '0192e072-0000-7000-8000-0000000000d1', label: 'Setor de Manutenção' },
+];
+const foldText = (text) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+function mentionNodes(node) {
+  if (node?.type === 'mention') return [node.attrs ?? {}];
+  return (node?.content ?? []).flatMap(mentionNodes);
+}
 function commentAllowed(node, depth = 0) {
-  const nodes = ['doc', 'paragraph', 'text', 'bulletList', 'orderedList', 'listItem', 'hardBreak'];
+  const nodes = [
+    'doc',
+    'paragraph',
+    'text',
+    'bulletList',
+    'orderedList',
+    'listItem',
+    'hardBreak',
+    'mention',
+  ];
   if (depth > 12 || typeof node !== 'object' || node === null || !nodes.includes(node.type)) {
+    return false;
+  }
+  if (
+    node.type === 'mention' &&
+    (!['USER', 'DEPARTMENT'].includes(node.attrs?.kind) || typeof node.attrs?.id !== 'string')
+  ) {
     return false;
   }
   for (const mark of node.marks ?? []) {
@@ -417,6 +451,7 @@ function commentAllowed(node, depth = 0) {
 }
 function commentText(node) {
   if (node?.type === 'text') return node.text ?? '';
+  if (node?.type === 'mention') return `@${node.attrs?.label ?? ''}`;
   return (node?.content ?? []).map(commentText).join(' ');
 }
 function commentView(comment, sub) {
@@ -449,6 +484,23 @@ function commentView(comment, sub) {
     // No mock, a Ana modera comentários de terceiros (a API real confere COMMENT_MODERATE).
     canModerate: !mine && !deleted,
     version: comment.version,
+    // US-072: só alvos "visíveis" (os de MENTIONABLE) viram menção válida (RN-CMT-22).
+    mentions: deleted
+      ? []
+      : mentionNodes(comment.body)
+          .filter((attrs) =>
+            MENTIONABLE.some((item) => item.kind === attrs.kind && item.id === attrs.id),
+          )
+          .filter(
+            (attrs, index, all) =>
+              all.findIndex((other) => other.kind === attrs.kind && other.id === attrs.id) ===
+              index,
+          )
+          .map((attrs) => ({
+            id: comment.mentionIds?.[`${attrs.kind}:${attrs.id}`] ?? randomUUID(),
+            kind: attrs.kind,
+            targetId: attrs.id,
+          })),
   };
 }
 function findComment(id) {
@@ -3669,6 +3721,20 @@ createServer(async (request, response) => {
       });
     }
     return send(response, 200, { data: compareDocumentVersions(from, to) });
+  }
+  const mentionRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/mention-candidates$/.exec(
+    url.pathname,
+  );
+  if (mentionRoute && request.method === 'GET') {
+    // CMT-05 (US-072): candidatos por nome/sigla, sem acento, até 10.
+    if (!processes.some((item) => item.view.id === mentionRoute[1])) {
+      return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    }
+    const q = foldText((url.searchParams.get('q') ?? '').trim());
+    if (q === '') return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+    return send(response, 200, {
+      data: MENTIONABLE.filter((item) => foldText(item.label).includes(q)).slice(0, 10),
+    });
   }
   const commentsRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/comments$/.exec(url.pathname);
   if (commentsRoute) {

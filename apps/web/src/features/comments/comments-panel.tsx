@@ -71,9 +71,12 @@ export function SectionCommentBadge({
 export function CommentsPanel({
   processId,
   document = null,
+  highlightedId = null,
 }: {
   readonly processId: string;
   readonly document?: CommentsDocumentContext | null;
+  /** `?comentario=` do link da notificação `MENTIONED` (US-072). */
+  readonly highlightedId?: string | null;
 }) {
   const t = useTranslations('comments.panel');
   const [filter, setFilter] = useState<FilterKey>(document ? 'document' : 'all');
@@ -114,6 +117,7 @@ export function CommentsPanel({
       refresh();
     },
     onStale: refresh,
+    highlightedId,
   };
 
   const target: { targetType: CommentTargetType; documentId?: string; sectionKey?: string } =

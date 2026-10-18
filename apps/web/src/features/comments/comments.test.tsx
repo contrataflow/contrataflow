@@ -62,6 +62,7 @@ function comment(sequence: number, extra: Partial<CommentDto> = {}): CommentDto 
     canDelete: false,
     canModerate: false,
     version: 1,
+    mentions: [],
     ...extra,
   };
 }

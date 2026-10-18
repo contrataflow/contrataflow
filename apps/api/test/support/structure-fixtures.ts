@@ -59,6 +59,16 @@ export function assignDepartment(api: TestApi, membershipId: string, departmentI
   identity.assignDepartment(membershipId, departmentId);
 }
 
+/** Usuário ativo com vínculo ATIVO no tenant, sem perfis (US-072: membros de unidade nos testes). */
+export function seedActiveMember(
+  api: TestApi,
+  user: { readonly id: string; readonly name: string; readonly email: string },
+  membership: { readonly id: string; readonly tenantId: string },
+): void {
+  const identity = api.app.get<InMemoryIdentityRepository>(IDENTITY_REPOSITORY, { strict: false });
+  identity.seedActiveMember(user, membership);
+}
+
 /** Repositório em memória de perfis e concessões do `access` (specs de outros módulos não o importam). */
 export function roleRepositoryOf(api: TestApi): InMemoryRoleRepository {
   return api.app.get(InMemoryRoleRepository, { strict: false });

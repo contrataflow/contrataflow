@@ -48,8 +48,8 @@ export type CommentContent =
   | { readonly ok: true; readonly body: CommentBody; readonly bodyText: string }
   | { readonly ok: false; readonly issue: CommentContentIssue };
 
-/** RN-CMT-19: `mention` só entra com a US-072; até lá é recusado (`RICH_TEXT_INVALID`). */
-export const MENTIONS_ENABLED = false;
+/** RN-CMT-19: `mention` aceito desde a US-072 (atributos fora do schema → `RICH_TEXT_INVALID`). */
+export const MENTIONS_ENABLED = true;
 
 /** Confere o documento TipTap restrito e deriva o texto puro (sem limpeza silenciosa). */
 export function commentContentOf(body: CommentBody): CommentContent {

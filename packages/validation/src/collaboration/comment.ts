@@ -61,11 +61,30 @@ export const COMMENT_MESSAGES = Object.freeze({
   confidentialHint:
     'Não informe valores estimados em comentários: este processo tem orçamento sigiloso.',
   maskedBody: 'Comentário em documento com orçamento sigiloso — conteúdo restrito',
+  mentionInvalid: 'Não foi possível salvar uma das menções do comentário.',
+  mentionQueryRequired: 'Digite ao menos 1 caractere depois de "@".',
+});
+
+// --- Menções (US-072 · RN-CMT-21..28) -----------------------------------------------------------
+
+/** entities.md §4.9 `Mention` — alvo da menção (exatamente um — RN-CMT-23). */
+export const MENTION_KINDS_LIST = ['USER', 'DEPARTMENT'] as const;
+export type MentionKind = (typeof MENTION_KINDS_LIST)[number];
+
+/** Limites fixos da US-072 (RN-CMT-21 — sem chave de configuração). */
+export const MENTION_LIMITS = Object.freeze({
+  /** Resultados de CMT-05. */
+  maxCandidates: 10,
+  /** Unidade com mais membros ativos não é sugerida nem notificada (FA-04). */
+  maxDepartmentMembers: 50,
+  queryMin: 1,
+  queryMax: 100,
+  labelMax: 200,
 });
 
 // --- Conteúdo restrito (RN-CMT-03..05) ----------------------------------------------------------
 
-/** Nós permitidos e quem pode contê-los (RN-CMT-03). `mention` só com a US-072 ativa (RN-CMT-19). */
+/** Nós permitidos e quem pode contê-los (RN-CMT-03). `mention` só com `allowMentions` (US-072 · RN-CMT-19). */
 const CHILDREN: Readonly<Record<string, ReadonlySet<string>>> = {
   doc: new Set(['paragraph', 'bulletList', 'orderedList']),
   paragraph: new Set(['text', 'hardBreak', 'mention']),
@@ -82,7 +101,7 @@ export const COMMENT_MARK_TYPES = Object.freeze(['bold', 'italic', 'link']);
 
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 const ORDERED_LIST_TYPES = new Set(['1', 'a', 'A', 'i', 'I']);
-const MENTION_KINDS = new Set(['USER', 'DEPARTMENT']);
+const MENTION_KINDS: ReadonlySet<string> = new Set(MENTION_KINDS_LIST);
 
 /** Motivo da recusa: o código da API e, para o log, só o NOME do nó/marca (nunca o conteúdo). */
 export type CommentContentIssue =
@@ -105,7 +124,8 @@ export type CommentContentResult =
       /** Texto puro derivado (menções como "@Nome") — RN-CMT-05. */
       readonly bodyText: string;
       readonly links: readonly string[];
-      readonly mentions: readonly { readonly kind: string; readonly id: string }[];
+      /** Alvos dos nós `mention`, na ordem do documento (com repetições — RN-CMT-23 deduplica). */
+      readonly mentions: readonly { readonly kind: MentionKind; readonly id: string }[];
     }
   | { readonly ok: false; readonly issue: CommentContentIssue };
 
@@ -195,21 +215,28 @@ function checkAttrs(
   type: string,
   attrs: unknown,
   options: CommentContentOptions,
-  mentions: { kind: string; id: string }[],
+  mentions: { kind: MentionKind; id: string }[],
 ): string | null {
   if (type === 'mention') {
     if (options.allowMentions !== true) reject('NODE', 'mention');
-    if (!isRecord(attrs)) reject('ATTRIBUTE', 'mention');
+    if (!isRecord(attrs)) reject('ATTRIBUTE', 'mention', COMMENT_MESSAGES.mentionInvalid);
     for (const key of ownKeys(attrs)) {
-      if (!['kind', 'id', 'label'].includes(key)) reject('ATTRIBUTE', 'mention');
+      if (!['kind', 'id', 'label'].includes(key))
+        reject('ATTRIBUTE', 'mention', COMMENT_MESSAGES.mentionInvalid);
     }
     const { kind, id, label } = attrs;
-    if (typeof kind !== 'string' || !MENTION_KINDS.has(kind)) reject('ATTRIBUTE', 'mention');
-    if (typeof id !== 'string' || !z.uuid().safeParse(id).success) reject('ATTRIBUTE', 'mention');
-    if (typeof label !== 'string' || label.trim() === '' || label.length > 200) {
-      reject('ATTRIBUTE', 'mention');
+    if (typeof kind !== 'string' || !MENTION_KINDS.has(kind))
+      reject('ATTRIBUTE', 'mention', COMMENT_MESSAGES.mentionInvalid);
+    if (typeof id !== 'string' || !z.uuid().safeParse(id).success)
+      reject('ATTRIBUTE', 'mention', COMMENT_MESSAGES.mentionInvalid);
+    if (
+      typeof label !== 'string' ||
+      label.trim() === '' ||
+      label.length > MENTION_LIMITS.labelMax
+    ) {
+      reject('ATTRIBUTE', 'mention', COMMENT_MESSAGES.mentionInvalid);
     }
-    mentions.push({ kind, id });
+    mentions.push({ kind: kind as MentionKind, id });
     return label.trim();
   }
   if (attrs === undefined) return null;
@@ -241,7 +268,7 @@ function checkAttrs(
 interface Walk {
   readonly options: CommentContentOptions;
   readonly links: string[];
-  readonly mentions: { kind: string; id: string }[];
+  readonly mentions: { kind: MentionKind; id: string }[];
 }
 
 /** Texto puro do nó (blocos separados por quebra de linha — RN-CMT-05). */
@@ -271,7 +298,7 @@ function walk(node: unknown, parent: string | null, depth: number, state: Walk):
     return '\n';
   }
   if (type === 'mention') {
-    if (node.content !== undefined) reject('STRUCTURE', type);
+    if (node.content !== undefined) reject('STRUCTURE', type, COMMENT_MESSAGES.mentionInvalid);
     return `@${mentionLabel ?? ''}`;
   }
   if (node.content === undefined) return '';
@@ -451,7 +478,36 @@ export const commentListQuerySchema = z
   .meta({ id: 'CommentListQuery' });
 export type CommentListQuery = z.output<typeof commentListQuerySchema>;
 
+/** CMT-05 — `?q=` digitado depois de "@" (V-02: mín. 1 caractere). */
+export const mentionCandidatesQuerySchema = z
+  .strictObject({
+    q: z
+      .string({ error: COMMENT_MESSAGES.mentionQueryRequired })
+      .trim()
+      .min(MENTION_LIMITS.queryMin, { error: COMMENT_MESSAGES.mentionQueryRequired })
+      .max(MENTION_LIMITS.queryMax, { error: COMMENT_MESSAGES.mentionQueryRequired }),
+  })
+  .meta({ id: 'MentionCandidatesQuery' });
+export type MentionCandidatesQuery = z.output<typeof mentionCandidatesQuerySchema>;
+
 // --- Respostas ----------------------------------------------------------------------------------
+
+/** Item de CMT-05 (RN-CMT-21): usuário (nome + unidade) ou unidade (nome + sigla). */
+export const mentionCandidateSchema = z
+  .object({
+    kind: z.enum(MENTION_KINDS_LIST),
+    id: z.uuid(),
+    label: z.string(),
+    secondaryLabel: z.string().optional(),
+  })
+  .meta({ id: 'MentionCandidate' });
+export type MentionCandidateDto = z.infer<typeof mentionCandidateSchema>;
+
+/** Menção processada do comentário (RN-CMT-22/23): só alvos válidos no commit viram link. */
+export const commentMentionSchema = z
+  .object({ id: z.uuid(), kind: z.enum(MENTION_KINDS_LIST), targetId: z.uuid() })
+  .meta({ id: 'CommentMention' });
+export type CommentMentionDto = z.infer<typeof commentMentionSchema>;
 
 const commentBaseSchema = z.object({
   id: z.uuid(),
@@ -476,6 +532,11 @@ const commentBaseSchema = z.object({
   canModerate: z.boolean(),
   /** `If-Match` de CMT-03/CMT-04. */
   version: z.int().min(1),
+  /**
+   * Menções válidas presentes no `body` (US-072); nó `mention` sem par aqui é rótulo simples
+   * (alvo sem visibilidade no commit — RN-CMT-22). Vazio se excluído ou mascarado.
+   */
+  mentions: z.array(commentMentionSchema),
 });
 
 /** `Comment` — resposta de CMT-01..03 (as respostas da thread vêm em `replies`). */

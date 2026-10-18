@@ -254,6 +254,9 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
         ],
       },
     ]);
+    // US-072: link para a aba Comentários com o comentário destacado; variante da unidade.
+    expect(plan.link).toMatch(/\?aba=comentarios&comentario=/);
+    expect(plan.content(1).title).toBe('Sua unidade foi mencionada');
   });
 
   it('COMMENT_REPLY: só resposta (com `parentId`), para o autor do pai', () => {

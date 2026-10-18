@@ -12,16 +12,26 @@ import {
 } from './application/comment.commands.js';
 import { ListCommentsQuery } from './application/comment.queries.js';
 import { CommentGate, CommentPresenter, CommentRecorder } from './application/comment.support.js';
-import { COMMENT_CLOCK, COMMENT_REPOSITORY, COMMENT_TRANSACTIONS } from './application/ports.js';
+import { SearchMentionCandidatesQuery } from './application/mention.queries.js';
+import { MentionTargets, MentionWriter } from './application/mention.support.js';
+import {
+  COMMENT_CLOCK,
+  COMMENT_REPOSITORY,
+  COMMENT_TRANSACTIONS,
+  MENTION_REPOSITORY,
+} from './application/ports.js';
 import {
   InMemoryCommentRepository,
   InMemoryCommentTransactions,
 } from './infrastructure/in-memory-comment.repository.js';
+import { InMemoryMentionRepository } from './infrastructure/in-memory-mention.repository.js';
 import {
   PrismaCommentRepository,
   PrismaCommentTransactions,
 } from './infrastructure/prisma-comment.repository.js';
+import { PrismaMentionRepository } from './infrastructure/prisma-mention.repository.js';
 import { CommentController } from './presentation/comment.controller.js';
+import { MentionController } from './presentation/mention.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { DocumentModule } from '../document/document.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
@@ -33,10 +43,10 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `collaboration` (DEC-040, nível 4): outros módulos usam somente a fachada exportada. Dono
- * de `Comment` (e, com a US-072, de `Mention`). US-071: comentar no processo e em documentos
- * (CMT-01..04) — o processo vem do kernel compartilhado (`DocumentProcessContextRegistry`), a
- * permissão do `access`, o alvo documento da fachada do `document`, POL-09 do `process` e o autor
- * de `identity`/`organization`.
+ * de `Comment` e `Mention`. US-071: comentar no processo e em documentos (CMT-01..04) — o processo
+ * vem do kernel compartilhado (`DocumentProcessContextRegistry`), a permissão do `access`, o alvo
+ * documento da fachada do `document`, POL-09 do `process` e o autor de `identity`/`organization`.
+ * US-072: menções a usuários e unidades (CMT-05 e o nó `mention` de CMT-02/03).
  */
 @Module({
   imports: [
@@ -47,7 +57,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     OrganizationModule,
     ProcessModule,
   ],
-  controllers: [CommentController],
+  controllers: [CommentController, MentionController],
   providers: [
     CollaborationFacade,
     ListCommentsQuery,
@@ -57,6 +67,20 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CommentGate,
     CommentPresenter,
     CommentRecorder,
+    SearchMentionCandidatesQuery,
+    MentionTargets,
+    MentionWriter,
+    PrismaMentionRepository,
+    { provide: InMemoryMentionRepository, useFactory: () => new InMemoryMentionRepository() },
+    {
+      provide: MENTION_REPOSITORY,
+      inject: [APP_CONFIG, PrismaMentionRepository, InMemoryMentionRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaMentionRepository,
+        memory: InMemoryMentionRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
     PrismaCommentRepository,
     PrismaCommentTransactions,
     InMemoryCommentTransactions,

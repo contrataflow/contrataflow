@@ -68,6 +68,7 @@ export const DOMAIN_EVENT_NAMES = [
   'CommentCreated',
   'CommentUpdated',
   'CommentDeleted',
+  'UserMentioned',
   'AiGenerationRequested',
   'AiGenerationCompleted',
   'AiGenerationFailed',

@@ -13,7 +13,12 @@ import { isUniqueViolation } from '#shared/database/errors.js';
 import { PlatformTransaction } from '#shared/database/platform-transaction.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
-import type { IdentityRepository, LoginRecord, TenantMember } from '../application/ports.js';
+import type {
+  ActiveMemberMatch,
+  IdentityRepository,
+  LoginRecord,
+  TenantMember,
+} from '../application/ports.js';
 import type { MembershipType, TenantMembership } from '../domain/tenant-membership.js';
 import { displayName } from '../domain/user.js';
 import type { ProfileUpdate, User } from '../domain/user.js';
@@ -318,6 +323,51 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
       select: { departmentId: true },
     });
     return [...new Set(rows.map((row) => row.departmentId))];
+  }
+
+  async searchActiveMembers(
+    tx: TenantTx,
+    q: string,
+    limit: number,
+    now: Date,
+  ): Promise<ActiveMemberMatch[]> {
+    // `users` é de plataforma (sem RLS): o vínculo, filtrado pela RLS, restringe ao tenant do tx.
+    const needle = `%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+    const rows = await tx.$queryRaw<
+      { user_id: string; membership_id: string; name: string; social_name: string | null }[]
+    >`
+      SELECT m.user_id, m.id AS membership_id, u.name, u.social_name
+        FROM tenant_memberships m
+        JOIN users u ON u.id = m.user_id AND u.status = 'ACTIVE'
+       WHERE m.status = 'ACTIVE'
+         AND (m.expires_at IS NULL OR m.expires_at > ${now})
+         AND (   lower(cf_unaccent(u.name)) LIKE lower(cf_unaccent(${needle}))
+              OR lower(cf_unaccent(coalesce(u.social_name, ''))) LIKE lower(cf_unaccent(${needle}))
+              OR lower(u.email::text) LIKE lower(${needle}))
+       ORDER BY lower(cf_unaccent(coalesce(u.social_name, u.name))), u.id
+       LIMIT ${limit}`;
+    return rows.map((row) => ({
+      userId: row.user_id,
+      membershipId: row.membership_id,
+      name: displayName({ name: row.name, socialName: row.social_name }),
+      roleKeys: [],
+    }));
+  }
+
+  async activeMemberCounts(
+    tx: TenantTx,
+    departmentIds: readonly string[],
+    now: Date,
+  ): Promise<Map<string, number>> {
+    const rows = await tx.$queryRaw<{ department_id: string; members: number }[]>`
+      SELECT md.department_id, count(DISTINCT m.user_id)::int AS members
+        FROM membership_departments md
+        JOIN tenant_memberships m ON m.tenant_id = md.tenant_id AND m.id = md.membership_id
+       WHERE md.department_id = ANY(${[...departmentIds]}::uuid[])
+         AND m.status = 'ACTIVE'
+         AND (m.expires_at IS NULL OR m.expires_at > ${now})
+       GROUP BY md.department_id`;
+    return new Map(rows.map((row) => [row.department_id, row.members]));
   }
 
   async touchMembershipAccess(tenantId: string, membershipId: string, at: Date): Promise<void> {

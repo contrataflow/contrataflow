@@ -64,6 +64,23 @@ export class OrganizationFacade {
     return references;
   }
 
+  /**
+   * Unidades ATIVAS do tenant da transação por nome, sigla ou código (US-072 · CMT-05 —
+   * autocomplete de menções), por nome, até `limit`.
+   */
+  async searchActiveDepartments(
+    tx: TenantTx,
+    q: string,
+    limit: number,
+  ): Promise<{ readonly id: string; readonly name: string; readonly acronym: string | null }[]> {
+    const found = await this.departments.lookup(tx, { q, limit });
+    return found.map((department) => ({
+      id: department.id,
+      name: department.name,
+      acronym: department.acronym,
+    }));
+  }
+
   /** Nomes das unidades do tenant da transação (timeline e apresentação de processos — US-001). */
   async departmentNames(tx: TenantTx, ids: readonly string[]): Promise<Map<string, string>> {
     const references = await this.departmentReferences(tx, ids);

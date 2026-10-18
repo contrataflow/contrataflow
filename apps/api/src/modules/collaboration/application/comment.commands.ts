@@ -6,6 +6,7 @@ import type {
   DeleteComment,
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
+import type { Logger } from '@nestjs/common';
 
 import { TransactionalCommandHandler } from '#shared/commands/transactional-command.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
@@ -31,6 +32,8 @@ import {
 } from './comment.errors.js';
 import { CommentGate, CommentPresenter, CommentRecorder, userIdOf } from './comment.support.js';
 import type { CommentProcess } from './comment.support.js';
+import { MentionWriter, NO_MENTIONS } from './mention.support.js';
+import type { MentionOutcome } from './mention.support.js';
 import { COMMENT_CLOCK, COMMENT_REPOSITORY, COMMENT_TRANSACTIONS } from './ports.js';
 import type { CommentClock, CommentRepository, CommentTransactions } from './ports.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
@@ -46,6 +49,7 @@ import {
   parentRefusal,
 } from '../domain/comment.js';
 import type { AuthorRefusal, Comment, CommentTarget } from '../domain/comment.js';
+import { mentionTargetsOf, newMentionTargets } from '../domain/mention.js';
 
 /*
  * Comandos de comentários (US-071 · CMT-02..04): o padrão `TransactionalCommandHandler` — o
@@ -68,6 +72,38 @@ function logContext() {
     userId: context.actor.userId,
     correlationId: context.correlationId,
   };
+}
+
+/**
+ * Logs das menções depois do commit (US-072 · "Logs"): só ids e o tipo do alvo — nunca nome,
+ * e-mail ou texto.
+ */
+function logMentions(logger: Logger, comment: Comment, outcome: MentionOutcome): void {
+  for (const mention of outcome.created) {
+    logger.log(
+      {
+        event: 'mention.created',
+        mentionId: mention.id,
+        commentId: comment.id,
+        targetKind: mention.mentionedUserId === null ? 'DEPARTMENT' : 'USER',
+        processId: comment.processId,
+        ...logContext(),
+      },
+      'mention.created',
+    );
+  }
+  for (const target of outcome.discarded) {
+    logger.warn(
+      {
+        event: 'mention.target_unavailable',
+        targetKind: target.kind,
+        commentId: comment.id,
+        processId: comment.processId,
+        ...logContext(),
+      },
+      'mention.target_unavailable',
+    );
+  }
 }
 
 abstract class CommentCommand<I, O> extends TransactionalCommandHandler<I, Prepared, O> {
@@ -140,6 +176,7 @@ export interface CreateCommentInput {
 export interface CommentResult {
   readonly dto: CommentDto;
   readonly comment: Comment;
+  readonly mentions: MentionOutcome;
 }
 
 /** `CreateCommentCommand` — CMT-02 (fluxo principal, passo 4 · FA-01). */
@@ -153,6 +190,7 @@ export class CreateCommentCommand extends CommentCommand<CreateCommentInput, Com
     private readonly documents: DocumentFacade,
     private readonly presenter: CommentPresenter,
     private readonly recorder: CommentRecorder,
+    private readonly mentionWriter: MentionWriter,
   ) {
     super('comment.create', transactions, clock);
   }
@@ -215,19 +253,29 @@ export class CreateCommentCommand extends CommentCommand<CreateCommentInput, Com
       now,
     });
     await this.comments.insert(tx, comment);
+    // US-072 (passo 4): menções válidas gravadas na mesma transação do comentário (RN-CMT-22/23).
+    const mentions = await this.mentionWriter.record(
+      tx,
+      comment,
+      mentionTargetsOf(comment.body),
+      process.access,
+      now,
+    );
     await this.recorder.created(tx, comment, {
       processCode: process.code,
       documentCode,
       parentAuthorId: parent?.authorId ?? null,
       idempotencyKey,
+      mentions: mentions.created,
     });
     const viewer = await this.gate.viewer(process, now);
     const [dto] = await this.presenter.present(tx, [comment], viewer);
     if (!dto) throw new Error('Comentário recém-criado sem DTO.');
-    return { dto, comment };
+    return { dto, comment, mentions };
   }
 
-  protected override committed({ comment }: CommentResult, durationMs: number): void {
+  protected override committed({ comment, mentions }: CommentResult, durationMs: number): void {
+    logMentions(this.logger, comment, mentions);
     countCommentCreated(comment.targetType, comment.parentId !== null);
     recordCommentDuration('create', durationMs);
     this.logger.log(
@@ -263,6 +311,7 @@ export class UpdateCommentCommand extends CommentCommand<UpdateCommentInput, Com
     private readonly gate: CommentGate,
     private readonly presenter: CommentPresenter,
     private readonly recorder: CommentRecorder,
+    private readonly mentionWriter: MentionWriter,
   ) {
     super('comment.update', transactions, clock);
   }
@@ -292,14 +341,21 @@ export class UpdateCommentCommand extends CommentCommand<UpdateCommentInput, Com
 
     const next = editComment(comment, content, now);
     await saveVersioned(this.comments, tx, next, expectedVersion);
-    await this.recorder.updated(tx, comment, next);
+    // FA-06 · RN-CMT-24: só os alvos novos frente ao corpo anterior.
+    const targets = newMentionTargets(comment.body, next.body);
+    const mentions =
+      targets.length === 0
+        ? NO_MENTIONS
+        : await this.mentionWriter.record(tx, next, targets, process.access, now);
+    await this.recorder.updated(tx, comment, next, mentions.created);
     const viewer = await this.gate.viewer(process, now);
     const [dto] = await this.presenter.present(tx, [next], viewer);
     if (!dto) throw new Error('Comentário sem DTO.');
-    return { dto, comment: next };
+    return { dto, comment: next, mentions };
   }
 
-  protected override committed({ comment }: CommentResult, durationMs: number): void {
+  protected override committed({ comment, mentions }: CommentResult, durationMs: number): void {
+    logMentions(this.logger, comment, mentions);
     recordCommentDuration('update', durationMs);
     this.logger.log(
       {

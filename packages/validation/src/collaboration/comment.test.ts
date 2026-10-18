@@ -8,9 +8,10 @@ import {
   createCommentSchema,
   deleteCommentSchema,
   isSafeCommentLink,
+  mentionCandidatesQuerySchema,
   validateCommentContent,
 } from './comment.js';
-import { CommentCreated, CommentDeleted, CommentUpdated } from './events.js';
+import { CommentCreated, CommentDeleted, CommentUpdated, UserMentioned } from './events.js';
 
 /*
  * US-071 · RN-CMT-03..05 — o validador estrito do rich text de comentário é ponto de segurança
@@ -382,6 +383,49 @@ describe('eventos Comment* (events.md §4.4)', () => {
         sectionKey: null,
         bodyText: 'x',
       }),
+    ).toThrow();
+  });
+});
+
+describe('menções (US-072)', () => {
+  const id = '0192d072-0000-7000-8000-000000000001';
+
+  it('V-01: nó mention fora do schema → RICH_TEXT_INVALID com a mensagem de menção', () => {
+    for (const attrs of [
+      { kind: 'USER', label: 'Ana' },
+      { kind: 'USER', id, label: ' ' },
+      { kind: 'USER', id, label: 'Ana', extra: 1 },
+    ]) {
+      expect(
+        validateCommentContent(doc(paragraph({ type: 'mention', attrs })), { allowMentions: true }),
+      ).toMatchObject({
+        ok: false,
+        issue: {
+          code: 'RICH_TEXT_INVALID',
+          element: 'mention',
+          message: COMMENT_MESSAGES.mentionInvalid,
+        },
+      });
+    }
+  });
+
+  it('V-02: CMT-05 exige q com ao menos 1 caractere (sem espaços)', () => {
+    expect(mentionCandidatesQuerySchema.safeParse({ q: 'cla' }).success).toBe(true);
+    expect(mentionCandidatesQuerySchema.safeParse({ q: '  ' }).success).toBe(false);
+    expect(mentionCandidatesQuerySchema.safeParse({}).success).toBe(false);
+  });
+
+  it('UserMentioned: comment.user_mentioned com exatamente um alvo', () => {
+    const payload = { commentId: id, mentionId: id };
+    expect(
+      UserMentioned.resolve({ ...payload, mentionedUserId: id, mentionedDepartmentId: null })
+        .routingKey,
+    ).toBe('comment.user_mentioned');
+    expect(() =>
+      UserMentioned.resolve({ ...payload, mentionedUserId: id, mentionedDepartmentId: id }),
+    ).toThrow();
+    expect(() =>
+      UserMentioned.resolve({ ...payload, mentionedUserId: null, mentionedDepartmentId: null }),
     ).toThrow();
   });
 });
