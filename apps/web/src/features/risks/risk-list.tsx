@@ -13,6 +13,7 @@ import { RiskFormDrawer } from './risk-form-drawer';
 import { lockStateOf, ownerLabelOf } from './risks-model';
 import type { RiskLockState } from './risks-model';
 import { useRisks } from './risks.api';
+import { TreatmentList } from './treatment-list';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
 
 type FormTarget = { readonly mode: 'add' } | { readonly mode: 'edit'; readonly riskId: string };
@@ -27,6 +28,7 @@ function RiskRow({
   onToggle,
   onEdit,
   onRemove,
+  onChanged,
 }: {
   readonly risk: RiskDto;
   readonly meta: RiskListMetaDto;
@@ -36,6 +38,7 @@ function RiskRow({
   readonly onToggle: () => void;
   readonly onEdit: () => void;
   readonly onRemove: () => void;
+  readonly onChanged: () => Promise<void> | void;
 }) {
   const t = useTranslations('risks');
   const detailsId = useId();
@@ -151,14 +154,6 @@ function RiskRow({
                 <dd className="break-words text-muted-foreground">{risk.consequence}</dd>
               </div>
               <div>
-                <dt className="font-medium">{t('details.treatments')}</dt>
-                <dd className="text-muted-foreground">
-                  {risk.treatments.length === 0
-                    ? t('details.noTreatments')
-                    : t('details.treatmentCount', { count: risk.treatments.length })}
-                </dd>
-              </div>
-              <div>
                 <dt className="font-medium">{t('details.scale')}</dt>
                 <dd className="text-muted-foreground">
                   {t('details.scaleUsed', {
@@ -168,6 +163,9 @@ function RiskRow({
                 </dd>
               </div>
             </dl>
+            <div className="mt-3">
+              <TreatmentList risk={risk} lock={lock} noticeId={noticeId} onChanged={onChanged} />
+            </div>
           </td>
         </tr>
       ) : null}
@@ -180,7 +178,8 @@ function RiskRow({
  * cor + texto, responsável ("Sem responsável" destacado — FA-03), detalhes por risco, "Novo risco",
  * edição/reavaliação e exclusão. Estados: skeleton, vazio, erro com "Tentar novamente", bloqueado
  * (FA-04: aviso + link para o Mapa de Riscos) e sem permissão (sem botões — cenário [Permissão]).
- * Abaixo de 768 px, cada risco vira um cartão.
+ * Abaixo de 768 px, cada risco vira um cartão. O painel expandido traz as ações de tratamento
+ * (US-034 · `TreatmentList`).
  */
 export function RiskList({ processId }: { readonly processId: string }) {
   const t = useTranslations('risks');
@@ -325,6 +324,7 @@ export function RiskList({ processId }: { readonly processId: string }) {
                 onRemove={() => {
                   setRemovingId(risk.id);
                 }}
+                onChanged={invalidate}
               />
             ))}
           </tbody>

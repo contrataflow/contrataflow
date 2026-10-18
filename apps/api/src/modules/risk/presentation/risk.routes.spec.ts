@@ -38,6 +38,7 @@ import {
 } from '../../../../test/support/structure-fixtures.js';
 import { RISK_CLOCK, RISK_TRANSACTIONS } from '../application/ports.js';
 import type { RiskTransactions } from '../application/ports.js';
+import type { RiskTreatment } from '../domain/risk-treatment.js';
 import { InMemoryRiskRepository } from '../infrastructure/in-memory-risk.repository.js';
 
 /*
@@ -491,25 +492,37 @@ describe('Feature: Registrar e avaliar riscos (US-033)', () => {
     it('Excluir: cascata lógica dos tratamentos, risk.delete, RiskDeleted, RISK_REMOVED e código não reaproveitado', async () => {
       const process = await processWith();
       const first = await createOk(process.id);
+      const treatment = (fields: Pick<RiskTreatment, 'type' | 'description' | 'status'>) => ({
+        id: newId(),
+        tenantId: A,
+        riskId: first.id,
+        processId: process.id,
+        responsibleId: null,
+        responsibleDepartmentId: null,
+        dueDate: null,
+        completedAt: null,
+        notes: null,
+        sortOrder: 0,
+        createdAt: NOW,
+        updatedAt: NOW,
+        createdById: null,
+        updatedById: null,
+        deletedAt: null,
+        deletedById: null,
+        version: 1,
+        ...fields,
+      });
       riskStore().seedTreatments(
-        {
-          id: newId(),
-          tenantId: A,
-          riskId: first.id,
+        treatment({
           type: 'PREVENTIVE',
           description: 'Ampliar a divulgação do edital',
           status: 'PLANNED',
-          deletedAt: null,
-        },
-        {
-          id: newId(),
-          tenantId: A,
-          riskId: first.id,
+        }),
+        treatment({
           type: 'CONTINGENCY',
           description: 'Contratação emergencial',
           status: 'IN_PROGRESS',
-          deletedAt: null,
-        },
+        }),
       );
       // O diálogo de exclusão lista os tratamentos vinculados (RN-RISK-10).
       expect(data<RiskDto>(await getRisk(first.id)).treatments).toHaveLength(2);

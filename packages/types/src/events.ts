@@ -58,6 +58,7 @@ export const DOMAIN_EVENT_NAMES = [
   'RiskCreated',
   'RiskAssessed',
   'RiskDeleted',
+  'RiskTreatmentChanged',
   'CommentCreated',
   'CommentUpdated',
   'CommentDeleted',

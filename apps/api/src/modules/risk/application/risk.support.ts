@@ -7,8 +7,15 @@ import {
   RiskDeleted,
   riskLevelThresholdsSettingSchema,
   riskScaleSettingSchema,
+  RiskTreatmentChanged,
+  TREATMENT_MESSAGES,
 } from '@contrataflow/validation';
-import type { RiskDto, RiskScaleSnapshot } from '@contrataflow/validation';
+import type {
+  RiskDto,
+  RiskScaleSnapshot,
+  RiskTreatmentChange,
+  RiskTreatmentDto,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
@@ -19,8 +26,9 @@ import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
 import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { RISK_REPOSITORY } from './ports.js';
-import type { RiskRepository, RiskTreatmentRef } from './ports.js';
-import { ownerReferenceError, riskNotFound } from './risk.errors.js';
+import type { RiskRepository } from './ports.js';
+import { ownerReferenceError, riskNotFound, treatmentNotFound } from './risk.errors.js';
+import type { ResponsibleField } from './risk.errors.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import type {
@@ -30,6 +38,11 @@ import type {
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
+import type {
+  RiskTreatment,
+  TreatmentChange,
+  TreatmentStatusChange,
+} from '../domain/risk-treatment.js';
 import type { Risk, RiskChange, RiskReassessment } from '../domain/risk.js';
 
 /*
@@ -37,14 +50,25 @@ import type { Risk, RiskChange, RiskReassessment } from '../domain/risk.js';
  * fachada do `document`, que trava o `RISK_MAP` no `tx`), a escala vigente do tenant
  * (`risk.scale`/`risk.levelThresholds`, lidas no `tx` — FA-02), as referências (categoria ativa do
  * `RISK_CATEGORY`, usuário e unidade responsáveis — V-04/V-05), o apresentador e a gravação dos
- * efeitos na mesma transação (auditoria `risk.*` e eventos `Risk*`, que projetam a timeline).
+ * efeitos na mesma transação (auditoria `risk.*` e eventos `Risk*`, que projetam a timeline). Os
+ * tratamentos (US-034) usam a mesma guarda (RN-RISK-16 = RN-RISK-09) com as mensagens deles.
  */
 
-const RISK_COLLECTION = {
-  systemModule: 'RISK_MAP',
-  deniedDetail: RISK_MESSAGES.permissionDenied,
-  lockedDetail: RISK_MESSAGES.locked,
+const COLLECTIONS = {
+  risks: {
+    systemModule: 'RISK_MAP',
+    deniedDetail: RISK_MESSAGES.permissionDenied,
+    lockedDetail: RISK_MESSAGES.locked,
+  },
+  treatments: {
+    systemModule: 'RISK_MAP',
+    deniedDetail: TREATMENT_MESSAGES.permissionDenied,
+    lockedDetail: TREATMENT_MESSAGES.locked,
+  },
 } as const;
+
+/** De quem são as mensagens de 403/409 da guarda: riscos (US-033) ou tratamentos (US-034). */
+export type RiskCollection = keyof typeof COLLECTIONS;
 
 /** Processo não visível nas rotas do risco = o próprio risco "não existe" (404 indistinguível). */
 const isNotFound = (error: unknown) => error instanceof ApiError && error.code === 'NOT_FOUND';
@@ -52,6 +76,11 @@ const isNotFound = (error: unknown) => error instanceof ApiError && error.code =
 /** O risco travado para escrita, com o processo já autorizado. */
 export interface RiskWriteContext extends TypedCollectionWrite {
   readonly risk: Risk;
+}
+
+/** O tratamento (e o risco dele) travados para escrita, com o processo já autorizado. */
+export interface TreatmentWriteContext extends RiskWriteContext {
+  readonly treatment: RiskTreatment;
 }
 
 @Injectable()
@@ -63,12 +92,19 @@ export class RiskGate {
 
   /** RSK-01: visibilidade do processo (404) + o `RISK_MAP` e se o usuário pode gerenciar. */
   readable(tx: TenantTx, processId: string): Promise<TypedCollectionState> {
-    return this.documents.typedCollectionStateIn(tx, { processId, ...RISK_COLLECTION });
+    return this.documents.typedCollectionStateIn(tx, { processId, ...COLLECTIONS.risks });
   }
 
   /** RSK-02: POL-02 estendida (403/404/409/422) sobre o processo. */
-  writable(tx: TenantTx, processId: string): Promise<TypedCollectionWrite> {
-    return this.documents.assertTypedCollectionWritableIn(tx, { processId, ...RISK_COLLECTION });
+  writable(
+    tx: TenantTx,
+    processId: string,
+    collection: RiskCollection = 'risks',
+  ): Promise<TypedCollectionWrite> {
+    return this.documents.assertTypedCollectionWritableIn(tx, {
+      processId,
+      ...COLLECTIONS[collection],
+    });
   }
 
   /** RSK-03: o risco e a visibilidade do processo dele (senão 404 `NOT_FOUND`). */
@@ -86,13 +122,17 @@ export class RiskGate {
     }
   }
 
-  /** RSK-04/05: o risco (404) e a POL-02 estendida sobre o processo dele. */
-  async writableRisk(tx: TenantTx, riskId: string): Promise<RiskWriteContext> {
+  /** RSK-04/05/06: o risco (404) e a POL-02 estendida sobre o processo dele. */
+  async writableRisk(
+    tx: TenantTx,
+    riskId: string,
+    collection: RiskCollection = 'risks',
+  ): Promise<RiskWriteContext> {
     const found = await this.risks.findById(tx, riskId);
     if (found === null) throw riskNotFound();
     let write: TypedCollectionWrite;
     try {
-      write = await this.writable(tx, found.processId);
+      write = await this.writable(tx, found.processId, collection);
     } catch (error) {
       if (isNotFound(error)) throw riskNotFound();
       throw error;
@@ -101,6 +141,25 @@ export class RiskGate {
     const risk = await this.risks.findById(tx, riskId);
     if (risk === null) throw riskNotFound();
     return { ...write, risk };
+  }
+
+  /**
+   * RSK-07/08 (RN-RISK-16): o tratamento (404), o risco dele e a POL-02 estendida sobre o processo;
+   * o tratamento é relido depois da trava do `RISK_MAP` (a versão do `If-Match` é a vigente).
+   */
+  async writableTreatment(tx: TenantTx, treatmentId: string): Promise<TreatmentWriteContext> {
+    const found = await this.risks.findTreatment(tx, treatmentId);
+    if (found === null) throw treatmentNotFound();
+    let context: RiskWriteContext;
+    try {
+      context = await this.writableRisk(tx, found.riskId, 'treatments');
+    } catch (error) {
+      if (isNotFound(error)) throw treatmentNotFound();
+      throw error;
+    }
+    const treatment = await this.risks.findTreatment(tx, treatmentId);
+    if (treatment === null) throw treatmentNotFound();
+    return { ...context, treatment };
   }
 }
 
@@ -131,24 +190,34 @@ export class RiskReferences {
     return (await this.catalog.assertActive(tx, 'RISK_CATEGORY', categoryId, 'categoryId')).code;
   }
 
-  /** V-05 (RN-RISK-06): vínculo ativo no tenant da transação (de outro tenant = inexistente). */
-  async owner(tx: TenantTx, userId: string): Promise<void> {
+  /**
+   * V-05 (RN-RISK-06) · V-03 da US-034 (RN-RISK-13): vínculo ativo no tenant da transação (de
+   * outro tenant = inexistente, sem revelar).
+   */
+  async owner(
+    tx: TenantTx,
+    userId: string,
+    field: Extract<ResponsibleField, 'ownerId' | 'responsibleId'> = 'ownerId',
+  ): Promise<void> {
     const [member] = await this.identity.membersInTenant(tx, [userId]);
-    if (member === undefined) throw ownerReferenceError('ownerId', 'REFERENCE_NOT_FOUND');
-    if (member.status !== 'ACTIVE') throw ownerReferenceError('ownerId', 'REFERENCE_INACTIVE');
+    if (member === undefined) throw ownerReferenceError(field, 'REFERENCE_NOT_FOUND');
+    if (member.status !== 'ACTIVE') throw ownerReferenceError(field, 'REFERENCE_INACTIVE');
   }
 
-  /** V-05: unidade ativa do tenant da transação. */
-  async ownerDepartment(tx: TenantTx, departmentId: string): Promise<void> {
+  /** V-05 · V-03 da US-034: unidade ativa do tenant da transação. */
+  async ownerDepartment(
+    tx: TenantTx,
+    departmentId: string,
+    field: Extract<
+      ResponsibleField,
+      'ownerDepartmentId' | 'responsibleDepartmentId'
+    > = 'ownerDepartmentId',
+  ): Promise<void> {
     const department = (await this.organization.departmentReferences(tx, [departmentId])).get(
       departmentId,
     );
-    if (department === undefined) {
-      throw ownerReferenceError('ownerDepartmentId', 'REFERENCE_NOT_FOUND');
-    }
-    if (!department.isActive) {
-      throw ownerReferenceError('ownerDepartmentId', 'REFERENCE_INACTIVE');
-    }
+    if (department === undefined) throw ownerReferenceError(field, 'REFERENCE_NOT_FOUND');
+    if (!department.isActive) throw ownerReferenceError(field, 'REFERENCE_INACTIVE');
   }
 }
 
@@ -161,16 +230,29 @@ export class RiskPresenter {
     private readonly organization: OrganizationFacade,
   ) {}
 
-  /** Tratamentos vinculados por risco (DTO e diálogo de exclusão — RN-RISK-10). */
-  async treatments(
+  /** Nomes de pessoas e unidades (riscos e tratamentos numa leitura só de cada fonte). */
+  private async names(
     tx: TenantTx,
-    riskIds: readonly string[],
-  ): Promise<Map<string, RiskTreatmentRef[]>> {
-    const byRisk = new Map<string, RiskTreatmentRef[]>();
-    for (const treatment of await this.risks.treatmentsOf(tx, riskIds)) {
-      byRisk.set(treatment.riskId, [...(byRisk.get(treatment.riskId) ?? []), treatment]);
-    }
-    return byRisk;
+    userIds: readonly (string | null)[],
+    departmentIds: readonly (string | null)[],
+  ): Promise<Names> {
+    const users = [...new Set(userIds.filter((id): id is string => id !== null))];
+    const departments = [...new Set(departmentIds.filter((id): id is string => id !== null))];
+    return {
+      users: users.length > 0 ? await this.identity.userDisplayNames(tx, users) : null,
+      departments:
+        departments.length > 0 ? await this.organization.departmentNames(tx, departments) : null,
+    };
+  }
+
+  /** DTO de RSK-06/07 (responsáveis com nome). */
+  async presentTreatment(tx: TenantTx, treatment: RiskTreatment): Promise<RiskTreatmentDto> {
+    const names = await this.names(
+      tx,
+      [treatment.responsibleId],
+      [treatment.responsibleDepartmentId],
+    );
+    return treatmentDtoOf(treatment, names);
   }
 
   /** DTOs de RSK-01..04: rótulo da categoria (mesmo inativa — RN-TEN-61), responsáveis e tratamentos. */
@@ -180,17 +262,27 @@ export class RiskPresenter {
       const item = await this.catalog.find(tx, id);
       categories.set(id, { code: item?.code ?? '', label: item?.label ?? '' });
     }
-    const ownerIds = [...new Set(risks.flatMap((risk) => (risk.ownerId ? [risk.ownerId] : [])))];
-    const departmentIds = [
-      ...new Set(risks.flatMap((risk) => (risk.ownerDepartmentId ? [risk.ownerDepartmentId] : []))),
-    ];
-    const owners = ownerIds.length > 0 ? await this.identity.userDisplayNames(tx, ownerIds) : null;
-    const departments =
-      departmentIds.length > 0 ? await this.organization.departmentNames(tx, departmentIds) : null;
-    const treatments = await this.treatments(
+    const treatments = await this.risks.treatmentsOf(
       tx,
       risks.map((risk) => risk.id),
     );
+    const names = await this.names(
+      tx,
+      [...risks.map((risk) => risk.ownerId), ...treatments.map((row) => row.responsibleId)],
+      [
+        ...risks.map((risk) => risk.ownerDepartmentId),
+        ...treatments.map((row) => row.responsibleDepartmentId),
+      ],
+    );
+    const owners = names.users;
+    const departments = names.departments;
+    const byRisk = new Map<string, RiskTreatmentDto[]>();
+    for (const treatment of treatments) {
+      byRisk.set(treatment.riskId, [
+        ...(byRisk.get(treatment.riskId) ?? []),
+        treatmentDtoOf(treatment, names),
+      ]);
+    }
     return risks.map((risk) => ({
       id: risk.id,
       processId: risk.processId,
@@ -230,19 +322,48 @@ export class RiskPresenter {
       residualLevel: risk.residualLevel,
       status: risk.status,
       sortOrder: risk.sortOrder,
-      treatments: (treatments.get(risk.id) ?? []).map(({ id, type, description, status }) => ({
-        id,
-        type,
-        description,
-        status,
-      })),
+      treatments: byRisk.get(risk.id) ?? [],
       version: risk.version,
     }));
   }
 }
 
-/** Textos livres do risco: na auditoria, só hash + tamanho (story · "Logs"/"Auditoria"). */
-const LONG_TEXT = new Set(['title', 'description', 'cause', 'consequence']);
+interface Names {
+  readonly users: ReadonlyMap<string, string> | null;
+  readonly departments: ReadonlyMap<string, string> | null;
+}
+
+function treatmentDtoOf(treatment: RiskTreatment, names: Names): RiskTreatmentDto {
+  return {
+    id: treatment.id,
+    riskId: treatment.riskId,
+    processId: treatment.processId,
+    type: treatment.type,
+    description: treatment.description,
+    responsibleId: treatment.responsibleId,
+    responsible:
+      treatment.responsibleId === null
+        ? null
+        : { id: treatment.responsibleId, name: names.users?.get(treatment.responsibleId) ?? '' },
+    responsibleDepartmentId: treatment.responsibleDepartmentId,
+    responsibleDepartment:
+      treatment.responsibleDepartmentId === null
+        ? null
+        : {
+            id: treatment.responsibleDepartmentId,
+            name: names.departments?.get(treatment.responsibleDepartmentId) ?? '',
+          },
+    dueDate: treatment.dueDate,
+    status: treatment.status,
+    completedAt: treatment.completedAt?.toISOString() ?? null,
+    notes: treatment.notes,
+    sortOrder: treatment.sortOrder,
+    version: treatment.version,
+  };
+}
+
+/** Textos livres (risco e tratamento): na auditoria, só hash + tamanho (story · "Logs"/"Auditoria"). */
+const LONG_TEXT = new Set(['title', 'description', 'cause', 'consequence', 'notes']);
 
 function fingerprint(text: string): { readonly sha256: string; readonly length: number } {
   return {
@@ -254,7 +375,7 @@ function fingerprint(text: string): { readonly sha256: string; readonly length: 
 const audited = (field: string, value: unknown) =>
   LONG_TEXT.has(field) && typeof value === 'string' ? fingerprint(value) : value;
 
-const toAuditChanges = (changes: readonly RiskChange[]): AuditChange[] =>
+const toAuditChanges = (changes: readonly (RiskChange | TreatmentChange)[]): AuditChange[] =>
   changes.map((change) => ({
     path: change.field,
     old: audited(change.field, change.old),
@@ -372,6 +493,89 @@ export class RiskChangeRecorder {
         aggregateId: risk.id,
         processId: risk.processId,
         payload: { riskId: risk.id, code: risk.code },
+      }),
+    );
+  }
+
+  /**
+   * RSK-06 (US-034): `risk.treatment_create` (`riskId`, `type`; a transição automática do risco em
+   * `changes` — RN-RISK-14) + `RiskTreatmentChanged` (`CREATED`, sem timeline).
+   */
+  async treatmentCreated(
+    tx: TenantTx,
+    treatment: RiskTreatment,
+    riskStatus: { readonly from: string; readonly to: string } | null,
+  ): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'risk.treatment_create',
+      entityType: 'RiskTreatment',
+      entityId: treatment.id,
+      processId: treatment.processId,
+      changes:
+        riskStatus === null
+          ? []
+          : [{ path: 'risk.status', old: riskStatus.from, new: riskStatus.to }],
+      metadata: { riskId: treatment.riskId, type: treatment.type },
+    });
+    await this.treatmentChanged(tx, treatment, 'CREATED');
+  }
+
+  /** RSK-07: `risk.treatment_update` (campos, `fromStatus`/`toStatus`) + `UPDATED`/`STATUS_CHANGED`. */
+  async treatmentUpdated(
+    tx: TenantTx,
+    treatment: RiskTreatment,
+    changes: readonly TreatmentChange[],
+    statusChange: TreatmentStatusChange | null,
+  ): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'risk.treatment_update',
+      entityType: 'RiskTreatment',
+      entityId: treatment.id,
+      processId: treatment.processId,
+      changes: toAuditChanges(changes),
+      metadata: {
+        riskId: treatment.riskId,
+        version: treatment.version,
+        ...(statusChange === null
+          ? {}
+          : { fromStatus: statusChange.from, toStatus: statusChange.to }),
+      },
+    });
+    await this.treatmentChanged(
+      tx,
+      treatment,
+      statusChange === null ? 'UPDATED' : 'STATUS_CHANGED',
+    );
+  }
+
+  /** RSK-08 (RN-RISK-17): `risk.treatment_delete` (`riskId`) + `RiskTreatmentChanged` (`DELETED`). */
+  async treatmentDeleted(tx: TenantTx, treatment: RiskTreatment): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'risk.treatment_delete',
+      entityType: 'RiskTreatment',
+      entityId: treatment.id,
+      processId: treatment.processId,
+      metadata: { riskId: treatment.riskId },
+    });
+    await this.treatmentChanged(tx, treatment, 'DELETED');
+  }
+
+  private async treatmentChanged(
+    tx: TenantTx,
+    treatment: RiskTreatment,
+    change: RiskTreatmentChange,
+  ): Promise<void> {
+    await this.outbox.record(
+      tx,
+      RiskTreatmentChanged.of({
+        aggregateId: treatment.riskId,
+        processId: treatment.processId,
+        payload: {
+          riskId: treatment.riskId,
+          treatmentId: treatment.id,
+          change,
+          status: treatment.status,
+        },
       }),
     );
   }

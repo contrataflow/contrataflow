@@ -37,9 +37,6 @@
     "description": "Descrição",
     "cause": "Causa",
     "consequence": "Consequência",
-    "treatments": "Tratamentos",
-    "noTreatments": "Nenhuma ação de tratamento.",
-    "treatmentCount": "{count, plural, one {# ação de tratamento} other {# ações de tratamento}}",
     "scale": "Escala da avaliação",
     "scaleUsed": "Avaliado na escala {size}.",
     "scaleChanged": "A escala do tenant mudou; reavalie o risco para aplicar a escala vigente."
@@ -156,6 +153,86 @@
       "retry": "Tentar novamente",
       "unexpected": "Ocorreu um erro inesperado.",
       "notFound": "Este risco não existe mais."
+    }
+  },
+  "treatments": {
+    "title": "Ações de tratamento",
+    "listLabel": "Ações de tratamento do risco {code}",
+    "empty": "Nenhuma ação de tratamento. Adicione a primeira ação.",
+    "add": "Nova ação de tratamento",
+    "addFor": "Nova ação de tratamento para {code}",
+    "noResponsible": "Sem responsável",
+    "labels": {
+      "responsible": "Responsável",
+      "dueDate": "Prazo",
+      "completedAt": "Conclusão"
+    },
+    "noDueDate": "Sem prazo",
+    "dueDate": "Prazo {date}",
+    "completedAt": "Concluída em {date}",
+    "notes": "Observações",
+    "due": {
+      "overdue": "Atrasado",
+      "today": "Vence hoje",
+      "soon": "{days, plural, one {Vence amanhã} other {Vence em # dias}}"
+    },
+    "status": {
+      "label": "Atualizar status",
+      "labelFor": "Status da ação {position} do risco {code}",
+      "terminal": "Status final; não pode ser alterado."
+    },
+    "actions": {
+      "group": "Ações da ação {position} do risco {code}",
+      "edit": "Editar",
+      "editFor": "Editar a ação {position} do risco {code}",
+      "remove": "Excluir",
+      "removeFor": "Excluir a ação {position} do risco {code}",
+      "moveUp": "Subir",
+      "moveUpFor": "Mover a ação {position} do risco {code} para cima",
+      "moveDown": "Descer",
+      "moveDownFor": "Mover a ação {position} do risco {code} para baixo"
+    },
+    "toast": {
+      "added": "Ação de tratamento adicionada ao risco {code}",
+      "updated": "Ação de tratamento atualizada",
+      "status": "Status alterado para {status}",
+      "removed": "Ação de tratamento excluída",
+      "reordered": "Ordem das ações atualizada",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    },
+    "remove": {
+      "title": "Excluir a ação de tratamento?",
+      "description": "A ação será removida do risco {code}. Para manter o histórico, prefira mudar o status para Cancelada.",
+      "cancel": "Cancelar",
+      "confirm": "Excluir ação",
+      "retry": "Tentar novamente"
+    },
+    "form": {
+      "addTitle": "Nova ação de tratamento — {code}",
+      "editTitle": "Editar ação de tratamento — {code}",
+      "close": "Fechar",
+      "save": "Salvar ação",
+      "saving": "Salvando…",
+      "cancel": "Cancelar",
+      "select": "Selecione",
+      "fields": {
+        "type": "Tipo *",
+        "description": "Descrição *",
+        "dueDate": "Prazo",
+        "notes": "Observações"
+      },
+      "hints": {
+        "type": "Prevenção reduz a probabilidade ou o impacto; contingência prepara a resposta se o risco ocorrer.",
+        "dueDate": "Opcional. Pode ser uma data passada."
+      },
+      "errors": {
+        "formErrors": "Revise os campos destacados.",
+        "keyReused": "Esta solicitação já foi enviada com outros dados. Revise e salve novamente.",
+        "retry": "Tentar novamente",
+        "unexpected": "Ocorreu um erro inesperado.",
+        "notFound": "Esta ação de tratamento não existe mais.",
+        "reload": "Recarregar"
+      }
     }
   }
 }

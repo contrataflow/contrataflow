@@ -1,11 +1,14 @@
 import { riskListMetaSchema } from '@contrataflow/validation';
 import type {
   CreateRiskInput,
+  CreateRiskTreatmentInput,
   RiskDto,
   RiskListMetaDto,
   RiskPhase,
   RiskStatus,
+  RiskTreatmentDto,
   UpdateRiskInput,
+  UpdateRiskTreatmentInput,
 } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 
@@ -20,10 +23,11 @@ import {
 } from '../processes/processes.api';
 
 /*
- * Riscos do processo (US-033 · SCR-011): RSK-01/02/04/05 de api/08-risks.md. Chave
+ * Riscos do processo (US-033 · SCR-011): RSK-01/02/04/05 de api/08-risks.md, e as ações de
+ * tratamento (US-034): RSK-06..08 (lidas pelos riscos — `Risk.treatments`). Chave
  * `['t', tenantId, 'processes', id, 'risks']` (sob a do processo: a invalidação do painel a
  * alcança). RSK-01 devolve a escala vigente, o `RISK_MAP` e se o usuário pode gerenciar em `meta`.
- * PATCH e DELETE usam a versão do risco (`version` do DTO) como `If-Match`.
+ * PATCH e DELETE usam a versão do risco/tratamento (`version` do DTO) como `If-Match`.
  */
 
 export const riskKeys = {
@@ -113,6 +117,44 @@ export async function updateRisk(
 /** RSK-05 com a versão do risco (exclui também os tratamentos vinculados — RN-RISK-10). */
 export async function deleteRisk(riskId: string, version: number): Promise<void> {
   await apiRequest<unknown>(`/risks/${riskId}`, {
+    method: 'DELETE',
+    ifMatch: ifMatch(version),
+  });
+}
+
+/** RSK-06 (a mesma `Idempotency-Key` em cada reenvio do mesmo formulário). */
+export async function createTreatment(
+  riskId: string,
+  body: CreateRiskTreatmentInput,
+  idempotencyKey: string,
+): Promise<RiskTreatmentDto> {
+  return (
+    await apiRequest<RiskTreatmentDto>(`/risks/${riskId}/treatments`, {
+      method: 'POST',
+      body,
+      idempotencyKey,
+    })
+  ).data;
+}
+
+/** RSK-07 com a versão do tratamento (campos, `status` ou `sortOrder`). */
+export async function updateTreatment(
+  treatmentId: string,
+  body: UpdateRiskTreatmentInput,
+  version: number,
+): Promise<RiskTreatmentDto> {
+  return (
+    await apiRequest<RiskTreatmentDto>(`/risk-treatments/${treatmentId}`, {
+      method: 'PATCH',
+      body,
+      ifMatch: ifMatch(version),
+    })
+  ).data;
+}
+
+/** RSK-08 com a versão do tratamento (exclusão lógica). */
+export async function deleteTreatment(treatmentId: string, version: number): Promise<void> {
+  await apiRequest<unknown>(`/risk-treatments/${treatmentId}`, {
     method: 'DELETE',
     ifMatch: ifMatch(version),
   });

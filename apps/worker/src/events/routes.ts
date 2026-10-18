@@ -151,6 +151,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     RiskCreated: 'NO_ASYNC_CONSUMER',
     RiskAssessed: 'NO_ASYNC_CONSUMER',
     RiskDeleted: 'NO_ASYNC_CONSUMER',
+    // US-034: consumo interno do módulo `risk`; sem timeline, notificação nem métricas (events.md).
+    RiskTreatmentChanged: 'NO_ASYNC_CONSUMER',
     // US-071: `COMMENT_REPLY` ao autor do comentário pai (NotificationDispatcher); a timeline
     // (`COMMENT_ADDED`/`COMMENT_REMOVED`) é projetada no mesmo `tx`. Edição e exclusão: nenhum
     // consumidor assíncrono no MVP 1.

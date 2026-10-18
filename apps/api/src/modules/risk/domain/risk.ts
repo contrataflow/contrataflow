@@ -281,3 +281,17 @@ export function diffRisk(before: Risk | null, after: Risk): RiskChange[] {
 export function touchRisk(risk: Risk, now: Date, userId: string | null): Risk {
   return { ...risk, updatedAt: now, updatedById: userId };
 }
+
+/**
+ * `Risk.startTreatment` (RN-RISK-14 · US-034): o PRIMEIRO tratamento com `status ≠ CANCELED` de um
+ * risco `OPEN` o leva a `IN_TREATMENT`; `null` = o risco não muda (outro status ou já havia
+ * tratamento ativo). Cancelar/excluir não reverte (FA-04: ajuste manual pelo RSK-04).
+ */
+export function startTreatment(
+  risk: Risk,
+  otherTreatments: readonly { readonly status: string }[],
+): Risk | null {
+  if (risk.status !== 'OPEN') return null;
+  if (otherTreatments.some((treatment) => treatment.status !== 'CANCELED')) return null;
+  return { ...risk, status: 'IN_TREATMENT' };
+}

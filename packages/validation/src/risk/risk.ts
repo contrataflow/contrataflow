@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { riskTreatmentSchema } from './treatment.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 import { RISK_LEVEL_VALUES } from '../tenancy/settings.js';
 import type { RiskLevelThreshold, RiskScaleSetting } from '../tenancy/settings.js';
@@ -30,12 +31,6 @@ export const RISK_STATUSES = [
 ] as const;
 export type RiskStatus = (typeof RISK_STATUSES)[number];
 
-/** entities.md §2 — `TreatmentType` / `TreatmentStatus` (US-034; lidos no diálogo de exclusão). */
-export const TREATMENT_TYPES = ['PREVENTIVE', 'CONTINGENCY'] as const;
-export type TreatmentType = (typeof TREATMENT_TYPES)[number];
-export const TREATMENT_STATUSES = ['PLANNED', 'IN_PROGRESS', 'DONE', 'CANCELED'] as const;
-export type TreatmentStatus = (typeof TREATMENT_STATUSES)[number];
-
 export const RISK_PHASE_LABELS: Readonly<Record<RiskPhase, string>> = Object.freeze({
   PLANNING: 'Planejamento da contratação',
   SELECTION: 'Seleção do fornecedor',
@@ -55,11 +50,6 @@ export const RISK_STATUS_LABELS: Readonly<Record<RiskStatus, string>> = Object.f
   MITIGATED: 'Mitigado',
   MATERIALIZED: 'Materializado',
   CLOSED: 'Encerrado',
-});
-
-export const TREATMENT_TYPE_LABELS: Readonly<Record<TreatmentType, string>> = Object.freeze({
-  PREVENTIVE: 'Prevenção',
-  CONTINGENCY: 'Contingência',
 });
 
 /** Limites dos campos (US-033 · "Campos" · V-02/V-03). */
@@ -294,17 +284,6 @@ const scaleSnapshotSchema = z.object({
   ),
 });
 
-/** Tratamento vinculado (US-034), resumido para o `DeleteRiskDialog` (RN-RISK-10). */
-export const riskTreatmentSummarySchema = z
-  .object({
-    id: z.uuid(),
-    type: z.enum(TREATMENT_TYPES),
-    description: z.string(),
-    status: z.enum(TREATMENT_STATUSES),
-  })
-  .meta({ id: 'RiskTreatmentSummary' });
-export type RiskTreatmentSummaryDto = z.infer<typeof riskTreatmentSummarySchema>;
-
 const namedRef = z.object({ id: z.uuid(), name: z.string() });
 
 /** `Risk` — resposta de RSK-01..04 (api/08-risks.md, esquema de referência + rótulos). */
@@ -336,7 +315,8 @@ export const riskSchema = z
     residualLevel: z.enum(RISK_LEVELS).nullable(),
     status: z.enum(RISK_STATUSES),
     sortOrder: z.int(),
-    treatments: z.array(riskTreatmentSummarySchema),
+    /** Tratamentos não excluídos por `sortOrder`, prazo e criação (US-034 · RN-RISK-10). */
+    treatments: z.array(riskTreatmentSchema),
     /** `If-Match` de RSK-04/RSK-05. */
     version: z.int().min(1),
   })

@@ -39,8 +39,19 @@ Risk {
   residualScore: number | null; residualLevel: string | null;
   score: number; level: string; scaleSnapshot: { scale; levelThresholds }; status: string;
   sortOrder: number;
-  treatments: { id: string; type: string; description: string; status: string }[]; // RN-RISK-10
+  treatments: RiskTreatment[]; // não excluídos, por sortOrder, prazo (sem prazo por último), criação — RN-RISK-10 · US-034
   version: number;
+}
+RiskTreatment { // US-034 — resposta de RSK-06/07 e item de Risk.treatments
+  id: string; riskId: string; processId: string;
+  type: "PREVENTIVE" | "CONTINGENCY"; description: string;
+  responsibleId: string | null; responsible: { id: string; name: string } | null;
+  responsibleDepartmentId: string | null; responsibleDepartment: { id: string; name: string } | null;
+  dueDate: string | null;      // YYYY-MM-DD; "Atrasado" calculado na UI (FA-03)
+  status: "PLANNED" | "IN_PROGRESS" | "DONE" | "CANCELED";
+  completedAt: string | null;  // gerado ao concluir (RN-RISK-12)
+  notes: string | null; sortOrder: number;
+  version: number;             // If-Match de RSK-07/08
 }
 RiskListMeta {
   scale: { max: number; probabilityLabels: string[]; impactLabels: string[] }; // vigente (grade)
@@ -173,15 +184,19 @@ RiskListMeta {
   notes?: string;                       // ≤1000
 }
 ```
-- **Response:** `201 { data: RiskTreatment }` com `status` padrão `PLANNED`
+- **Response:** `201 { data: RiskTreatment }` com `status` padrão `PLANNED`, `sortOrder` = depois do último tratamento do risco e `ETag` = versão
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Escopo de `RISK_MANAGE` não cobre o processo |
-| 422 | `VALIDATION_ERROR` | Campo obrigatório ausente; limites de tamanho; `responsibleId`/`responsibleDepartmentId` inválido (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
+| 404 | `NOT_FOUND` | Risco inexistente, excluído, de outro tenant ou de processo não visível |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Mapa de Riscos concluído (RN-RISK-16) |
+| 409 | `INVALID_PROCESS_STATUS` | Processo fora de status editável |
+| 422 | `VALIDATION_ERROR` | Campo obrigatório ausente; limites de tamanho; `responsibleId`/`responsibleDepartmentId` inválido (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); `status`/`sortOrder` no corpo (`NOT_ALLOWED`) |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
 
-- **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = CREATED` — `riskId`, `treatmentId`, `status`. Auditoria: `risk.treatment_create` (`DATA_CHANGE`) — `metadata`: `riskId`, `type`.
+- **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = CREATED` — `riskId`, `treatmentId`, `status`. Auditoria: `risk.treatment_create` (`DATA_CHANGE`) — `metadata`: `riskId`, `type`; `changes`: `risk.status` `OPEN → IN_TREATMENT` quando a transição automática ocorre (RN-RISK-14: primeiro tratamento com `status ≠ CANCELED` de risco `OPEN`, na mesma transação; a versão do risco sobe).
 - **Notas:** bloqueado (`DOCUMENT_NOT_EDITABLE`) quando o Mapa de Riscos foi concluído (RN-RISK-16); evento sem projeção automática em timeline/notificação (consumo interno do módulo `risk`).
 
 ### RSK-07 — Atualizar ação de tratamento
@@ -189,20 +204,21 @@ RiskListMeta {
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** `treatmentId` (path, uuid, obrigatório)
-- **Request:** campos parciais de RSK-06, mais `status?: string` (`TreatmentStatus`; RN-RISK-15)
-- **Response:** `200 { data: RiskTreatment }`
+- **Request:** campos parciais de RSK-06 (`null` limpa os opcionais), mais `status?: string` (`TreatmentStatus`; RN-RISK-15) e `sortOrder?: number` (0..10000 — reordenação, FA-02)
+- **Response:** `200 { data: RiskTreatment }` (`ETag` = nova versão; sem mudança efetiva, a versão atual sem auditoria nem evento)
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão/escopo |
-| 409 | `INVALID_STATE` | Transição de status não permitida (RN-RISK-15) |
+| 404 | `NOT_FOUND` | Tratamento inexistente, excluído, de outro tenant ou de processo não visível |
+| 409 | `INVALID_STATE` | Transição de status não permitida (RN-RISK-15) — `currentStatus`/`requestedStatus` na resposta |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Tratamento bloqueado (RN-RISK-16) |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente (`currentVersion` na resposta) |
 | 422 | `VALIDATION_ERROR` | Ver RSK-06 |
 
 - **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = UPDATED`/`STATUS_CHANGED`. Auditoria: `risk.treatment_update` (`DATA_CHANGE`) — `changes`: campos alterados, `fromStatus`/`toStatus` quando aplicável.
-- **Notas:** `completedAt` é gerado pelo sistema ao concluir (RN-RISK-12).
+- **Notas:** `completedAt` é gerado pelo sistema ao concluir (RN-RISK-12). Cancelar não reverte o status do risco (FA-04).
 
 ### RSK-08 — Excluir ação de tratamento
 `DELETE /api/v1/risk-treatments/{treatmentId}` · **Permissão:** `RISK_MANAGE` + POL-02 · **Story:** US-034
@@ -220,7 +236,7 @@ RiskListMeta {
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = DELETED`. Auditoria: `risk.treatment_delete` (`DATA_CHANGE`) — `metadata.riskId`.
-- **Notas:** —
+- **Notas:** exclusão lógica (RN-RISK-17); não reverte o status do risco (FA-04).
 
 ### RSK-09 — Obter matriz de riscos
 `GET /api/v1/processes/{id}/risk-matrix` · **Permissão:** `PROCESS_VIEW` · **Story:** US-035

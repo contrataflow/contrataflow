@@ -17,6 +17,7 @@ import {
   problemResponse,
 } from '@test/support/process-fixtures';
 import { jsonResponse, renderWithShell } from '@test/support/render';
+import { treatmentFixture } from '@test/support/risk-fixtures';
 
 import { RiskList } from './risk-list';
 
@@ -177,7 +178,7 @@ describe('SCR-011 · lista de riscos (US-033)', () => {
         'Avaliado na escala 3×3. A escala do tenant mudou; reavalie o risco para aplicar a escala vigente.',
       ),
     ).toBeTruthy();
-    expect(screen.getByText('Nenhuma ação de tratamento.')).toBeTruthy();
+    expect(screen.getByText('Nenhuma ação de tratamento. Adicione a primeira ação.')).toBeTruthy();
   });
 
   it('[Permissão] sem permissão: nem "Novo risco" nem editar/excluir', async () => {
@@ -411,18 +412,12 @@ describe('SCR-011 · lista de riscos (US-033)', () => {
     const user = userEvent.setup();
     const withTreatments = risk(1, {
       treatments: [
-        {
-          id: ID(950),
-          type: 'PREVENTIVE',
-          description: 'Exigir garantia contratual',
-          status: 'PLANNED',
-        },
-        {
-          id: ID(951),
+        treatmentFixture(0, ID(901), { description: 'Exigir garantia contratual' }),
+        treatmentFixture(1, ID(901), {
           type: 'CONTINGENCY',
           description: 'Acionar o segundo colocado',
           status: 'IN_PROGRESS',
-        },
+        }),
       ],
     });
     const DELETE = `/api/v1/risks/${withTreatments.id}`;

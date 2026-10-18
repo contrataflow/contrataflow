@@ -40,7 +40,7 @@ import { GetRiskQuery, ListRisksQuery } from '../application/risk.queries.js';
 const TAGS = ['Riscos'];
 
 /** Identificador do caminho que não é UUIDv7 = 400 `MALFORMED_REQUEST` (não é campo — sem 422). */
-class UuidV7Pipe implements PipeTransform<unknown, string> {
+export class UuidV7Pipe implements PipeTransform<unknown, string> {
   transform(value: unknown): string {
     const parsed = riskIdParamsSchema.shape.id.safeParse(value);
     if (!parsed.success) {
@@ -51,7 +51,7 @@ class UuidV7Pipe implements PipeTransform<unknown, string> {
 }
 
 /** `@PathId('process' | 'risk')`: valida o `:id` do caminho e documenta-o no OpenAPI. */
-function PathId(kind: 'process' | 'risk'): ParameterDecorator {
+export function PathId(kind: 'process' | 'risk'): ParameterDecorator {
   return (target, propertyKey, index) => {
     Param('id', new UuidV7Pipe())(target, propertyKey, index);
     if (propertyKey !== undefined) {

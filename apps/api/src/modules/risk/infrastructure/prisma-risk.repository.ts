@@ -6,15 +6,60 @@ import { updateVersioned } from '#shared/database/optimistic-concurrency.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 import { withLockTiming } from '#shared/database/row-lock.js';
 
-import type {
-  RiskListFilter,
-  RiskRepository,
-  RiskTransactions,
-  RiskTreatmentRef,
-} from '../application/ports.js';
+import type { RiskListFilter, RiskRepository, RiskTransactions } from '../application/ports.js';
+import type { RiskTreatment } from '../domain/risk-treatment.js';
 import type { Risk } from '../domain/risk.js';
 
 type Row = Prisma.RiskGetPayload<object>;
+type TreatmentRow = Prisma.RiskTreatmentGetPayload<object>;
+
+/** Coluna `date` ↔ `YYYY-MM-DD` (o Prisma lê/grava a meia-noite UTC). */
+const toDateOnly = (value: Date | null): string | null =>
+  value === null ? null : value.toISOString().slice(0, 10);
+const fromDateOnly = (value: string | null): Date | null =>
+  value === null ? null : new Date(`${value}T00:00:00.000Z`);
+
+function treatmentToDomain(row: TreatmentRow): RiskTreatment {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    riskId: row.riskId,
+    processId: row.processId,
+    type: row.type,
+    description: row.description,
+    responsibleId: row.responsibleId,
+    responsibleDepartmentId: row.responsibleDepartmentId,
+    dueDate: toDateOnly(row.dueDate),
+    status: row.status,
+    completedAt: row.completedAt,
+    notes: row.notes,
+    sortOrder: row.sortOrder,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    createdById: row.createdById,
+    updatedById: row.updatedById,
+    deletedAt: row.deletedAt,
+    deletedById: row.deletedById,
+    version: row.version,
+  };
+}
+
+/** Colunas editáveis (RSK-07): nunca tenant, risco nem processo (gatilho na migração). */
+function editableTreatment(treatment: RiskTreatment) {
+  return {
+    type: treatment.type,
+    description: treatment.description,
+    responsibleId: treatment.responsibleId,
+    responsibleDepartmentId: treatment.responsibleDepartmentId,
+    dueDate: fromDateOnly(treatment.dueDate),
+    status: treatment.status,
+    completedAt: treatment.completedAt,
+    notes: treatment.notes,
+    sortOrder: treatment.sortOrder,
+    updatedAt: treatment.updatedAt,
+    updatedById: treatment.updatedById,
+  };
+}
 
 function toDomain(row: Row): Risk {
   return {
@@ -162,13 +207,92 @@ export class PrismaRiskRepository implements RiskRepository {
     );
   }
 
-  async treatmentsOf(tx: TenantTx, riskIds: readonly string[]): Promise<RiskTreatmentRef[]> {
-    if (riskIds.length === 0) return [];
-    return tx.riskTreatment.findMany({
-      where: { riskId: { in: [...riskIds] }, deletedAt: null },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true, riskId: true, type: true, description: true, status: true },
+  async markInTreatment(
+    tx: TenantTx,
+    riskId: string,
+    change: { readonly at: Date; readonly userId: string | null },
+  ): Promise<boolean> {
+    const { count } = await tx.risk.updateMany({
+      where: { id: riskId, status: 'OPEN', deletedAt: null },
+      data: {
+        status: 'IN_TREATMENT',
+        updatedAt: change.at,
+        updatedById: change.userId,
+        version: { increment: 1 },
+      },
     });
+    return count === 1;
+  }
+
+  async treatmentsOf(tx: TenantTx, riskIds: readonly string[]): Promise<RiskTreatment[]> {
+    if (riskIds.length === 0) return [];
+    const rows = await tx.riskTreatment.findMany({
+      where: { riskId: { in: [...riskIds] }, deletedAt: null },
+      orderBy: [
+        { sortOrder: 'asc' },
+        { dueDate: { sort: 'asc', nulls: 'last' } },
+        { createdAt: 'asc' },
+        { id: 'asc' },
+      ],
+    });
+    return rows.map(treatmentToDomain);
+  }
+
+  async findTreatment(tx: TenantTx, id: string): Promise<RiskTreatment | null> {
+    const row = await tx.riskTreatment.findFirst({ where: { id, deletedAt: null } });
+    return row ? treatmentToDomain(row) : null;
+  }
+
+  async insertTreatment(tx: TenantTx, treatment: RiskTreatment): Promise<void> {
+    await tx.riskTreatment.create({
+      data: {
+        ...editableTreatment(treatment),
+        id: treatment.id,
+        tenantId: treatment.tenantId,
+        riskId: treatment.riskId,
+        processId: treatment.processId,
+        createdAt: treatment.createdAt,
+        createdById: treatment.createdById,
+        version: treatment.version,
+      },
+    });
+  }
+
+  async updateTreatment(
+    tx: TenantTx,
+    treatment: RiskTreatment,
+    expectedVersion: number,
+  ): Promise<void> {
+    await updateVersioned(
+      { aggregateType: 'RiskTreatment', aggregateId: treatment.id, expectedVersion },
+      () =>
+        tx.riskTreatment.updateMany({
+          where: { id: treatment.id, version: expectedVersion, deletedAt: null },
+          data: { ...editableTreatment(treatment), version: { increment: 1 } },
+        }),
+    );
+  }
+
+  async softDeleteTreatment(
+    tx: TenantTx,
+    treatment: RiskTreatment,
+    expectedVersion: number,
+    deletion: { readonly at: Date; readonly userId: string | null },
+  ): Promise<void> {
+    await updateVersioned(
+      { aggregateType: 'RiskTreatment', aggregateId: treatment.id, expectedVersion },
+      () =>
+        tx.riskTreatment.updateMany({
+          where: { id: treatment.id, version: expectedVersion, deletedAt: null },
+          data: {
+            deletedAt: deletion.at,
+            deletedById: deletion.userId,
+            updatedAt: deletion.at,
+            updatedById: deletion.userId,
+            version: { increment: 1 },
+          },
+        }),
+    );
   }
 
   async softDeleteTreatments(

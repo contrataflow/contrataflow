@@ -42,13 +42,13 @@ import type { Risk, RiskReassessment } from '../domain/risk.js';
  * (timeline no mesmo `tx`). Logs de negócio só depois do commit e nunca com textos do risco.
  */
 
-interface Prepared {
+export interface Prepared {
   readonly now: Date;
 }
 
-const userIdOf = () => requireRequestContext().actor.userId;
+export const userIdOf = () => requireRequestContext().actor.userId;
 
-function logContext() {
+export function logContext() {
   const context = requireRequestContext();
   return {
     tenantId: context.tenantId,
@@ -57,7 +57,7 @@ function logContext() {
   };
 }
 
-abstract class RiskCommand<I, O> extends TransactionalCommandHandler<I, Prepared, O> {
+export abstract class RiskCommand<I, O> extends TransactionalCommandHandler<I, Prepared, O> {
   protected constructor(
     name: string,
     transactions: RiskTransactions,

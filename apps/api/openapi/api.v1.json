@@ -7499,7 +7499,7 @@
           "treatments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RiskTreatmentSummary"
+              "$ref": "#/components/schemas/RiskTreatment"
             }
           },
           "version": {
@@ -7537,10 +7537,18 @@
           "version"
         ]
       },
-      "RiskTreatmentSummary": {
+      "RiskTreatment": {
         "type": "object",
         "properties": {
           "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "riskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
             "type": "string",
             "format": "uuid"
           },
@@ -7554,6 +7562,65 @@
           "description": {
             "type": "string"
           },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "responsible": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "responsibleDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "responsibleDepartment": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -7562,13 +7629,44 @@
               "DONE",
               "CANCELED"
             ]
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
           "id",
+          "riskId",
+          "processId",
           "type",
           "description",
-          "status"
+          "responsibleId",
+          "responsible",
+          "responsibleDepartmentId",
+          "responsibleDepartment",
+          "dueDate",
+          "status",
+          "completedAt",
+          "notes",
+          "sortOrder",
+          "version"
         ]
       },
       "RiskListMeta": {
@@ -8795,6 +8893,66 @@
           "visibility"
         ]
       },
+      "UpdateRiskTreatmentRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PREVENTIVE",
+              "CONTINGENCY"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "responsibleDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "IN_PROGRESS",
+              "DONE",
+              "CANCELED"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateRiskRequest": {
         "type": "object",
         "properties": {
@@ -8883,6 +9041,56 @@
             ]
           }
         },
+        "additionalProperties": false
+      },
+      "CreateRiskTreatmentRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PREVENTIVE",
+              "CONTINGENCY"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "responsibleDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "type",
+          "description"
+        ],
         "additionalProperties": false
       },
       "RoleAssignment": {
@@ -35384,6 +35592,239 @@
         }
       }
     },
+    "/risk-treatments/{treatmentId}": {
+      "delete": {
+        "operationId": "RSK-08",
+        "summary": "Excluir ação de tratamento",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.treatment_delete"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "treatmentId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Exclusão lógica do tratamento (RN-RISK-17): não afeta o código do risco, os demais tratamentos nem o status do risco (FA-04). Grava `risk.treatment_delete` e `RiskTreatmentChanged` (`DELETED`). `If-Match` divergente → 412 `VERSION_CONFLICT`. `RISK_MANAGE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + `RISK_MAP` permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento `RISK_MAP` existente em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`)."
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "RSK-07",
+        "summary": "Atualizar ação de tratamento",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.treatment_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "treatmentId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRiskTreatmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tratamento atualizado (`ETag` = nova versão). `status` segue RN-RISK-15 (`PLANNED → IN_PROGRESS → DONE`; não terminais → `CANCELED`; `DONE`/`CANCELED` terminais) — fora disso 409 `INVALID_STATE`; `DONE` grava `completedAt` e sair dele o limpa (RN-RISK-12). `sortOrder` reordena (FA-02). Cancelar não reverte o status do risco (FA-04). Grava `risk.treatment_update` e `RiskTreatmentChanged` (`UPDATED`/`STATUS_CHANGED`). `If-Match` divergente → 412 `VERSION_CONFLICT` com `currentVersion`. `RISK_MANAGE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + `RISK_MAP` permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento `RISK_MAP` existente em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RiskTreatment"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/risks/{id}": {
       "delete": {
         "operationId": "RSK-05",
@@ -35692,6 +36133,157 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/risks/{id}/treatments": {
+      "post": {
+        "operationId": "RSK-06",
+        "summary": "Criar ação de tratamento",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.treatment_create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRiskTreatmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tratamento com `status = PLANNED` (RN-RISK-11), ao fim da lista do risco (`sortOrder`); `ETag` = versão. O primeiro tratamento ativo de um risco `OPEN` o leva a `IN_TREATMENT` na mesma transação (RN-RISK-14). Responsável ou unidade inexistente, inativo ou de outro tenant → 422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`. Grava `risk.treatment_create` e `RiskTreatmentChanged` (`CREATED`, sem timeline). Risco inexistente, excluído ou de processo não visível → 404. `RISK_MANAGE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + `RISK_MAP` permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento `RISK_MAP` existente em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RiskTreatment"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {
