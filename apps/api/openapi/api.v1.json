@@ -2501,6 +2501,72 @@
           "allowedActions"
         ]
       },
+      "DocumentAiApplyResult": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "appliedSectionKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "versionCreated": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "id",
+              "versionNumber"
+            ]
+          }
+        },
+        "required": [
+          "document",
+          "appliedSectionKeys",
+          "versionCreated"
+        ]
+      },
+      "DocumentAiApplyRequest": {
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sectionKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "minItems": 1,
+            "maxItems": 60
+          },
+          "confirmReplaceFilled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "generationId",
+          "sectionKeys"
+        ],
+        "additionalProperties": false
+      },
       "DocumentAiReviewResult": {
         "type": "object",
         "properties": {
@@ -22407,6 +22473,158 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/ai-apply": {
+      "post": {
+        "operationId": "DOC-26",
+        "summary": "Aplicar conteúdo gerado por IA nas seções",
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "ai.content_apply",
+          "document.version_create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentAiApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Seções escolhidas aplicadas numa transação (`FILLED`, `revision + 1`, proveniência `ai` pendente de revisão), geração `APPLIED` e `AiContentApplied`. Substituir seção `FILLED`/`NOT_APPLICABLE` exige `confirmReplaceFilled: true` (422 `CONDITIONAL_REQUIRED`) e, no rascunho completo, cria antes uma versão `SYSTEM` (`versionCreated`). Erros: 404 `NOT_FOUND`/`AI_GENERATION_NOT_FOUND`, 403 `AI_GENERATION_NOT_OWNED`/`NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED`, 409 `AI_GENERATION_NOT_APPLICABLE`/`DOCUMENT_NOT_EDITABLE`, 412 `VERSION_CONFLICT`, 428 `PRECONDITION_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DocumentAiApplyResult"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -1,4 +1,9 @@
-import type { DocumentStatus, SystemDocumentModule } from '@contrataflow/validation';
+import type {
+  DocumentStatus,
+  SectionRequirement,
+  SectionState,
+  SystemDocumentModule,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -44,6 +49,37 @@ export interface AiDocumentTarget {
   readonly isBudgetConfidential: boolean;
 }
 
+/**
+ * O que o gerador de IA lê do documento alvo (US-117 · RN-AI-25/26): a versão de template fixada
+ * (seções narrativas e o guia de redação — título, ajuda, base legal e texto padrão), o estado de
+ * cada seção e os itens do documento. Sem conteúdo das seções nem pessoas.
+ */
+export interface AiDraftSource {
+  readonly documentId: string;
+  readonly processId: string;
+  readonly documentTypeCode: string;
+  readonly draftRevision: number;
+  readonly template: {
+    readonly versionId: string;
+    readonly versionNumber: number;
+    readonly sections: readonly {
+      readonly key: string;
+      readonly title: string;
+      readonly order: number;
+      readonly requirement: SectionRequirement;
+      readonly helpText: string | null;
+      readonly legalBasis: string | null;
+      /** `defaultContent` como texto puro. */
+      readonly defaultText: string | null;
+      readonly maxChars: number;
+      readonly allowNarrative: boolean;
+    }[];
+  } | null;
+  readonly sectionStates: Readonly<Record<string, SectionState>>;
+  /** Linhas de item do documento (DOC-06): Decimal(18,4) como string. */
+  readonly items: readonly { readonly processItemId: string; readonly quantity: string }[];
+}
+
 const TYPE_MISMATCH = 'O documento não corresponde ao tipo escolhido.';
 
 @Injectable()
@@ -67,7 +103,9 @@ export class DocumentAiTargets {
     documentId: string,
   ): Promise<AiDocumentTarget> {
     const document = await this.documents.findById(tx, documentId);
-    if (document?.processId !== input.processId) {
+    // Inexistente ou de outro tenant (RLS): 404 sem revelar nada; de outro processo do tenant: 422.
+    if (document?.deletedAt !== null) throw documentNotFound();
+    if (document.processId !== input.processId) {
       throw validationError([
         {
           field: 'documentId',

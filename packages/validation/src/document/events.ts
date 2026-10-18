@@ -194,6 +194,27 @@ export const AiContentReviewed = defineDomainEvent({
   routingKey: documentRoutingKey('ai_content_reviewed'),
 });
 
+/**
+ * `AiContentApplied` — DOC-26 (US-117/US-121) e RSK-11 (US-119): aplicação, por uma pessoa, do
+ * conteúdo gerado por IA (events.md §4.7). Só ids e contagens — nunca o texto. Routing key
+ * `document.ai_content_applied.<tipo>`. Projeta `AI_CONTENT_APPLIED` na timeline.
+ */
+export const AiContentApplied = defineDomainEvent({
+  eventType: 'AiContentApplied',
+  eventVersion: 1,
+  aggregateType: 'Document',
+  payload: z.strictObject({
+    generationId: z.uuid(),
+    documentId: z.uuid().nullable(),
+    documentTypeCode,
+    targetModule: z.enum(AI_TARGET_MODULES).nullable(),
+    sectionKeys: z.array(z.string().min(1).max(60)),
+    riskIds: z.array(z.uuid()),
+    replacedFilledSections: z.int().min(0),
+  }),
+  routingKey: documentRoutingKey('ai_content_applied'),
+});
+
 /** `TemplateVersionRetired` (events.md §4.5 · US-108): commit da aposentadoria (TPL-11). */
 export const TemplateVersionRetired = defineDomainEvent({
   eventType: 'TemplateVersionRetired',

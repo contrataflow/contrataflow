@@ -78,6 +78,12 @@ export const DOCUMENT_MESSAGES = {
   aiReviewConfirmAll: 'Confirme que leu e revisou as seções.',
   aiReviewSectionChanged: 'A seção foi alterada. Leia a versão atual antes de revisar.',
   aiReviewPending: 'Revise o conteúdo gerado por IA e resolva os itens [a confirmar].',
+  // DOC-26 (US-117 · V-09/V-10)
+  aiApplySectionsRequired: 'Selecione ao menos uma seção.',
+  aiApplySectionNotInProposal: 'A seção escolhida não está na proposta.',
+  aiApplyConfirmReplace: 'Confirme a substituição do texto atual.',
+  aiApplyNotApplicable: 'Esta proposta não pode mais ser aplicada. Gere novamente.',
+  aiApplyVersionSummary: 'Antes de aplicar conteúdo gerado por IA',
 } as const;
 
 // --- Conteúdo (entities.md §5.3) ----------------------------------------------------------------
@@ -217,6 +223,33 @@ export type DocumentTransition = z.output<typeof documentTransitionSchema>;
 export const AI_REVIEW_MAX_SECTIONS = 60;
 
 /**
+ * DOC-26 (corpo — US-117 · RN-AI-28/29): aplicação seletiva da proposta. `confirmReplaceFilled`
+ * é exigido pela API quando alguma seção escolhida está `FILLED`/`NOT_APPLICABLE` (V-10); as chaves
+ * são conferidas contra a proposta pela API.
+ */
+export const documentAiApplySchema = z
+  .strictObject({
+    generationId: z.uuid(),
+    sectionKeys: z
+      .array(z.string().min(1).max(60), { error: DOCUMENT_MESSAGES.aiApplySectionsRequired })
+      .min(1, { error: DOCUMENT_MESSAGES.aiApplySectionsRequired })
+      .max(AI_REVIEW_MAX_SECTIONS),
+    confirmReplaceFilled: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (new Set(value.sectionKeys).size !== value.sectionKeys.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sectionKeys'],
+        message: DOCUMENT_MESSAGES.aiApplySectionsRequired,
+        params: { code: 'DUPLICATED' },
+      });
+    }
+  })
+  .meta({ id: 'DocumentAiApplyRequest' });
+export type DocumentAiApply = z.infer<typeof documentAiApplySchema>;
+
+/**
  * DOC-27 (corpo — US-122 · RN-AI-56): revisão humana das seções geradas por IA. `expectedRevisions`
  * traz a `revision` lida de cada seção (V-02); lote de 2+ seções exige `confirmAll: true` — a
  * confirmação "Li e revisei as N seções" (V-03). Chave fora do documento é conferida pela API.
@@ -336,6 +369,16 @@ export const documentAiReviewResultSchema = z
   .object({ document: documentSchema, reviewedSectionKeys: z.array(z.string()) })
   .meta({ id: 'DocumentAiReviewResult' });
 export type DocumentAiReviewResultDto = z.infer<typeof documentAiReviewResultSchema>;
+
+/** DOC-26 (resposta): seções aplicadas e a versão criada antes da substituição (RN-AI-28). */
+export const documentAiApplyResultSchema = z
+  .object({
+    document: documentSchema,
+    appliedSectionKeys: z.array(z.string()),
+    versionCreated: z.object({ id: z.uuid(), versionNumber: z.int().min(1) }).nullable(),
+  })
+  .meta({ id: 'DocumentAiApplyResult' });
+export type DocumentAiApplyResultDto = z.infer<typeof documentAiApplyResultSchema>;
 
 /** Seção avaliada pela completude genérica (DOC-08). */
 export const documentValidationSectionSchema = z.object({

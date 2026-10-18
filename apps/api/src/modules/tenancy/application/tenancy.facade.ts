@@ -23,6 +23,16 @@ export interface OrganizationSummary {
   readonly isActive: boolean;
 }
 
+/** Órgão no contexto da geração com IA (US-117 · RN-AI-26): sem contatos nem endereço. */
+export interface OrganizationAiProfile {
+  readonly id: string;
+  readonly name: string;
+  readonly shortName: string;
+  readonly type: string;
+  readonly city: string | null;
+  readonly state: string | null;
+}
+
 /**
  * API pública do módulo `tenancy` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório.
@@ -47,6 +57,26 @@ export class TenancyFacade {
     const organization = await this.organizations.findById(tx, organizationId);
     if (!organization) return null;
     return organization.isActive ? 'ACTIVE' : 'INACTIVE';
+  }
+
+  /**
+   * Nome, tipo e município/UF do órgão para o contexto da IA (US-117), ou `null` se não existir no
+   * tenant. E-mail, telefone, CNPJ e endereço ficam de fora (minimização — RN-AI-05).
+   */
+  async organizationAiProfile(
+    tx: TenantTx,
+    organizationId: string,
+  ): Promise<OrganizationAiProfile | null> {
+    const organization = await this.organizations.findById(tx, organizationId);
+    if (!organization) return null;
+    return {
+      id: organization.id,
+      name: organization.name,
+      shortName: organization.shortName,
+      type: organization.type,
+      city: organization.addressCity,
+      state: organization.addressState,
+    };
   }
 
   /**

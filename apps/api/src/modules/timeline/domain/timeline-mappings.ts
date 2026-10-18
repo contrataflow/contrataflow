@@ -1054,6 +1054,43 @@ const aiGenerationCompleted = defineMapping({
 });
 
 /**
+ * `AiContentApplied` (US-117/US-121 DOC-26 · US-119 RSK-11 · events.md §5): "{actor} aplicou
+ * conteúdo gerado por IA em {documentLabel}" + contagens. Só chaves e ids — nunca o texto aplicado.
+ */
+const aiContentApplied = defineMapping({
+  eventType: 'AiContentApplied',
+  entryTypes: ['AI_CONTENT_APPLIED'],
+  payload: z.looseObject({
+    generationId: uuid,
+    documentId: uuid.nullable(),
+    targetModule: z.string().min(1).nullable(),
+    sectionKeys: z.array(z.string()),
+    riskIds: z.array(z.string()),
+    replacedFilledSections: z.int().min(0),
+  }),
+  plan: (payload, event) => ({
+    refs: lookupRef('DOCUMENT', payload.documentId),
+    build: ({ lookups }) => [
+      entry(
+        'AI_CONTENT_APPLIED',
+        {
+          ...(payload.documentId === null
+            ? { documentId: null, documentCode: null, documentTitle: null, typeName: null }
+            : documentParams(lookups, payload.documentId)),
+          generationId: payload.generationId,
+          targetModule: payload.targetModule,
+          sectionKeys: payload.sectionKeys,
+          sectionsCount: payload.sectionKeys.length,
+          risksCount: payload.riskIds.length,
+          replacedFilledSections: payload.replacedFilledSections,
+        },
+        { entity: ['Document', payload.documentId ?? event.aggregateId] },
+      ),
+    ],
+  }),
+});
+
+/**
  * `AiContentReviewed` (US-122 DOC-27 · US-119 RSK-12 · events.md §5): "{actor} revisou o conteúdo
  * gerado por IA em {documentLabel}" + contagens. Só chaves e ids — nunca o texto revisado.
  */
@@ -1129,6 +1166,7 @@ const MAPPINGS: readonly TimelineEventMapping[] = [
   riskDeleted,
   termImportedFromEtp,
   aiGenerationCompleted,
+  aiContentApplied,
   aiContentReviewed,
 ];
 

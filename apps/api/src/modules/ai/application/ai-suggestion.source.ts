@@ -68,6 +68,14 @@ export class AiSuggestionSourceAdapter implements AiSuggestionSource {
       output,
       appliedTargets: generation.appliedTargets,
       requestedById: generation.createdById,
+      trace: {
+        model: generation.model,
+        promptKey: generation.promptKey,
+        promptVersion: generation.promptVersion,
+        inputRefs: generation.inputRefs,
+        contextHash: generation.contextHash,
+        outputHash: generation.outputHash,
+      },
     };
   }
 

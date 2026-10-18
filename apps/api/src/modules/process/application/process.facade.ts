@@ -31,6 +31,34 @@ export interface ProcessDfdDefaults {
 }
 
 /**
+ * Dados do processo para o contexto da geração com IA (US-117 · RN-AI-26): ids de catálogo e de
+ * unidades (os nomes vêm das fachadas donas), sem pessoas. O sigilo (DEC-030) é de quem chama.
+ */
+export interface ProcessAiContext {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly code: string | null;
+  readonly title: string;
+  readonly object: string;
+  readonly description: string | null;
+  readonly contractingTypeId: string;
+  readonly modalityId: string | null;
+  readonly originId: string;
+  readonly isPriceRegistration: boolean;
+  readonly priority: Priority;
+  readonly pcaStatus: PcaStatus;
+  readonly pcaYear: number | null;
+  readonly pcaItemCode: string | null;
+  readonly requestingSecretariatId: string;
+  readonly requestingDepartmentId: string;
+  /** `YYYY-MM-DD`. */
+  readonly targetDate: string | null;
+  /** Decimal(18,2) como string. */
+  readonly estimatedValue: string | null;
+  readonly isBudgetConfidential: boolean;
+}
+
+/**
  * API pública do módulo `process` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório. US-001: as leituras de nomes congelados da timeline (fontes
  * `PROCESS` e `PROCESS_STAGE` de `TIMELINE_LOOKUP_SOURCES`), no `tx` do caso de uso. US-060: POL-09
@@ -86,6 +114,34 @@ export class ProcessFacade {
       pcaJustification: process.pcaJustification,
       estimatedValue: process.estimatedValue,
       estimatedValueSource: process.estimatedValueSource,
+    };
+  }
+
+  /** Processo para o contexto da IA (US-117), no `tx` do chamador. `null` = inexistente no tenant. */
+  async aiContextIn(tx: TenantTx, processId: string): Promise<ProcessAiContext | null> {
+    const rows = await this.processes.loadAggregate(tx, processId);
+    if (rows === null) return null;
+    const { process } = rows;
+    return {
+      id: process.id,
+      organizationId: process.organizationId,
+      code: process.code,
+      title: process.title,
+      object: process.object,
+      description: process.description,
+      contractingTypeId: process.contractingTypeId,
+      modalityId: process.modalityId,
+      originId: process.originId,
+      isPriceRegistration: process.isPriceRegistration,
+      priority: process.priority,
+      pcaStatus: process.pcaStatus,
+      pcaYear: process.pcaYear,
+      pcaItemCode: process.pcaItemCode,
+      requestingSecretariatId: process.requestingSecretariatId,
+      requestingDepartmentId: process.requestingDepartmentId,
+      targetDate: process.targetDate,
+      estimatedValue: process.estimatedValue,
+      isBudgetConfidential: process.isBudgetConfidential,
     };
   }
 

@@ -1,3 +1,4 @@
+import { richTextPlainText } from '@contrataflow/validation';
 import type {
   Confidentiality,
   DocumentAction,
@@ -11,7 +12,11 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { DocumentAiTargets } from './document-ai-target.js';
-import type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
+import type {
+  AiDocumentTarget,
+  AiDocumentTargetInput,
+  AiDraftSource,
+} from './document-ai-target.js';
 import type {
   ApprovalDecisionInput,
   StageEntryInput,
@@ -431,6 +436,56 @@ export class DocumentFacade {
    */
   aiTargetIn(tx: TenantTx, input: AiDocumentTargetInput): Promise<AiDocumentTarget> {
     return this.aiTargets.resolve(tx, input);
+  }
+
+  /**
+   * Fonte do rascunho com IA (US-117 · RN-AI-25/26), no `tx` do job (RLS) e DEPOIS do `aiTargetIn`
+   * do solicitante: versão de template fixada com o guia de redação, estado das seções e itens do
+   * documento. `null` = inexistente no tenant ou excluído. Leitura; nunca o texto das seções.
+   */
+  async aiDraftSourceIn(tx: TenantTx, documentId: string): Promise<AiDraftSource | null> {
+    const context = await this.lifecycle.loadInternal(tx, documentId);
+    if (context?.document.deletedAt !== null) return null;
+    const { document, template, type } = context;
+    const items = await this.itemRows.rowsOf(tx, document.id);
+    return {
+      documentId: document.id,
+      processId: document.processId,
+      documentTypeCode: type.code,
+      draftRevision: document.draftRevision,
+      template:
+        template === null
+          ? null
+          : {
+              versionId: template.id,
+              versionNumber: template.versionNumber,
+              sections: [...template.sections]
+                .sort((a, b) => a.order - b.order)
+                .map((section) => ({
+                  key: section.key,
+                  title: section.title,
+                  order: section.order,
+                  requirement: section.requirement,
+                  helpText: section.helpText ?? null,
+                  legalBasis: section.legalBasis ?? null,
+                  defaultText:
+                    section.defaultContent === undefined
+                      ? null
+                      : richTextPlainText(section.defaultContent).trim() || null,
+                  maxChars: section.maxChars,
+                  allowNarrative: section.allowNarrative,
+                })),
+            },
+      sectionStates: Object.fromEntries(
+        Object.entries(document.draftContent.sections).map(([key, section]) => [
+          key,
+          section.state,
+        ]),
+      ),
+      items: [...items]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => ({ processItemId: item.processItemId, quantity: item.quantity })),
+    };
   }
 
   /**

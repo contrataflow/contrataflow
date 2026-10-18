@@ -3,6 +3,7 @@
 import { AI_TARGET_MODULES } from '@contrataflow/types';
 import type { AiTargetModule } from '@contrataflow/types';
 import { Button } from '@contrataflow/ui';
+import type { DocumentDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState } from 'react';
 
@@ -24,6 +25,8 @@ export interface AiAssistantProps {
   readonly editable: boolean;
   /** `?ia=<generationId>` da URL (notificação `AI_GENERATION_READY`). */
   readonly initialGenerationId?: string | null | undefined;
+  /** DOC-26 aplicado (US-117): o editor recarrega as seções. */
+  readonly onApplied?: ((document: DocumentDto) => void) | undefined;
 }
 
 /**
@@ -39,6 +42,7 @@ export function AiAssistant({
   targetModule,
   editable,
   initialGenerationId = null,
+  onApplied,
 }: AiAssistantProps) {
   const t = useTranslations('ai');
   const { allowed } = usePermission('AI_GENERATE');
@@ -82,6 +86,7 @@ export function AiAssistant({
           canGenerate={canGenerate}
           needSummaryRequired={targetModule === 'DFD'}
           initialGenerationId={startAt}
+          onApplied={onApplied}
           onClose={() => {
             setOpen(false);
             opener.current?.focus();

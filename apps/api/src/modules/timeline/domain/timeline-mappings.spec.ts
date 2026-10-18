@@ -314,6 +314,19 @@ const CASES: readonly (readonly [string, Record<string, unknown>, TimelineEntryT
     'AI_CONTENT_GENERATED',
   ],
   [
+    'AiContentApplied',
+    {
+      generationId: id(90),
+      documentId: DOC,
+      documentTypeCode: 'DFD',
+      targetModule: 'DFD',
+      sectionKeys: ['JUSTIFICATION', 'EXPECTED_RESULTS'],
+      riskIds: [],
+      replacedFilledSections: 0,
+    },
+    'AI_CONTENT_APPLIED',
+  ],
+  [
     'AiContentReviewed',
     {
       documentId: DOC,
@@ -336,9 +349,7 @@ const EVENTS_DOC = fileURLToPath(
  * implementadas (EP-020 — IA). A story que implementar o produtor registra o tipo, a linha do
  * mapeamento e remove o evento daqui.
  */
-const PENDING_SOURCE_EVENTS: Readonly<Record<string, string>> = {
-  AiContentApplied: 'US-117',
-};
+const PENDING_SOURCE_EVENTS: Readonly<Record<string, string>> = {};
 
 /** Eventos de origem citados na tabela de events.md §5. */
 function documentedSourceEvents(): string[] {

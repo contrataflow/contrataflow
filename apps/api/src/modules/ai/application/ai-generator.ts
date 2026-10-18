@@ -1,4 +1,5 @@
 import type { AiGenerationKind, AiTargetModule } from '@contrataflow/types';
+import type { AiOutputWarning } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
@@ -39,6 +40,11 @@ export interface AiGeneratorContext {
   readonly sections: readonly SectionSpec[];
   /** Orçamento sigiloso: valores nunca entram no contexto (RN-AI-05 · DEC-030). */
   readonly isBudgetConfidential: boolean;
+  /**
+   * Avisos conhecidos pelo gerador (`MISSING_OPTIONAL_INPUT`, `BUDGET_CONFIDENTIAL_VALUES_OMITTED`…),
+   * somados aos da sanitização na proposta, sem repetir código e parâmetros.
+   */
+  readonly warnings?: readonly AiOutputWarning[];
 }
 
 /**

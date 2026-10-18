@@ -82,6 +82,11 @@ describe('dicionário de mensagens da timeline (US-060 · RN-TML-14)', () => {
       'Carlos Lima revisou o conteúdo gerado por IA em DFD 0005/2026 — DFD (2 seções)',
     ],
     [
+      'AI_CONTENT_APPLIED',
+      { documentCode: 'DFD 0005/2026', documentTitle: 'DFD', sectionsCount: 2, risksCount: 0 },
+      'Carlos Lima aplicou conteúdo gerado por IA em DFD 0005/2026 — DFD (2 seções)',
+    ],
+    [
       'AI_CONTENT_REVIEWED',
       { targetModule: 'RISK_MAP', sectionsCount: 1, risksCount: 3 },
       'Carlos Lima revisou o conteúdo gerado por IA em o mapa de riscos (1 seção e 3 riscos)',

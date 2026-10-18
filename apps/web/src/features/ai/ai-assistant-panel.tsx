@@ -8,7 +8,7 @@ import {
   AI_NEED_SUMMARY_MAX,
   AI_NEED_SUMMARY_MIN,
 } from '@contrataflow/validation';
-import type { AiGenerationDto } from '@contrataflow/validation';
+import type { AiGenerationDto, AiGenerationOutput, DocumentDto } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -23,6 +23,7 @@ import { AiDisclaimer } from './ai-disclaimer';
 import { AiGenerationProgress } from './ai-generation-progress';
 import { AiHistoryTab } from './ai-history-tab';
 import { useAiGeneration } from './ai-polling';
+import { AiProposalSectionList, previewText } from './ai-proposal-section-list';
 import { aiKeys, discardAiGeneration, isGenerating, requestAiGeneration } from './ai.api';
 
 type Tab = 'generate' | 'proposal' | 'history';
@@ -39,32 +40,18 @@ export interface AiAssistantPanelProps {
   /** `?ia=<generationId>`: abre o painel já na geração (notificação `AI_GENERATION_READY`). */
   readonly initialGenerationId: string | null;
   readonly onClose: () => void;
+  /** DOC-26 aplicado (US-117): o editor recarrega as seções com o conteúdo gerado. */
+  readonly onApplied?: ((document: DocumentDto) => void) | undefined;
 }
 
-interface TipTapNode {
-  readonly type?: string;
-  readonly text?: string;
-  readonly attrs?: Readonly<Record<string, unknown>>;
-  readonly content?: readonly TipTapNode[];
-}
-
-/** Texto corrido da seção proposta (prévia; o editor rico mostra o conteúdo completo — US-117). */
-export function previewText(node: TipTapNode): string {
-  if (node.type === 'text') return node.text ?? '';
-  if (node.type === 'toConfirm') {
-    const label = node.attrs?.label;
-    return `[a confirmar: ${typeof label === 'string' ? label : ''}]`;
-  }
-  const inner = (node.content ?? []).map(previewText).join(node.type === 'doc' ? '\n' : '');
-  return inner;
-}
+export { previewText };
 
 /**
  * `AiAssistantPanel` (SCR-117 · US-115): painel lateral com "Gerar", "Proposta" e "Histórico de
  * IA". O pedido é assíncrono (AI-01 → 202) e o acompanhamento, por AI-02 com recuo; o editor nunca
- * fica bloqueado. O conteúdo específico de cada documento (formulário, aplicação seletiva,
- * comparação) chega com as US-117 a US-121 — aqui ficam a base, o resumo genérico, a prévia, o
- * descarte e o histórico. Abaixo de 768 px ocupa a tela inteira.
+ * fica bloqueado. US-117: na proposta pronta do próprio solicitante, a aplicação seletiva por seção
+ * com comparação (`AiProposalSectionList` → DOC-26); para os demais, a prévia somente leitura
+ * (FA-06). Abaixo de 768 px ocupa a tela inteira.
  */
 export function AiAssistantPanel({
   processId,
@@ -74,10 +61,12 @@ export function AiAssistantPanel({
   needSummaryRequired,
   initialGenerationId,
   onClose,
+  onApplied,
 }: AiAssistantPanelProps) {
   const t = useTranslations('ai');
   const tenantId = useTenantId();
-  const timeZone = useShellSession().activeTenant.timezone;
+  const session = useShellSession();
+  const timeZone = session.activeTenant.timezone;
   const queryClient = useQueryClient();
   const titleId = useId();
   const tabsId = useId();
@@ -271,8 +260,15 @@ export function AiAssistantPanel({
             stalled={stalled}
             discarding={discarding}
             timeZone={timeZone}
+            documentId={documentId}
+            userId={session.user.id}
+            canApply={canGenerate}
             onDiscard={(current) => void discard(current)}
             onRetry={canGenerate ? retry : null}
+            onApplied={(document, count) => {
+              setNotice(t('apply.done', { count }));
+              onApplied?.(document);
+            }}
           />
         ) : null}
 
@@ -290,6 +286,16 @@ export function AiAssistantPanel({
   );
 }
 
+const MISSING_INPUTS = ['ITEMS', 'EXPECTED_DATE', 'PCA_LINK'] as const;
+type MissingInput = (typeof MISSING_INPUTS)[number] | 'other';
+
+/** Lacuna avisada pelo gerador (`MISSING_OPTIONAL_INPUT` · FA-07); desconhecida = `other`. */
+function missingInputOf(warning: AiGenerationOutput['warnings'][number]): MissingInput | null {
+  if (warning.code !== 'MISSING_OPTIONAL_INPUT') return null;
+  const input = warning.params?.input ?? '';
+  return MISSING_INPUTS.find((known) => known === input) ?? 'other';
+}
+
 function activeGenerationOf(body: unknown): string | null {
   if (typeof body !== 'object' || body === null) return null;
   const meta = (body as { meta?: { generationId?: unknown } }).meta;
@@ -302,8 +308,14 @@ interface ProposalViewProps {
   readonly stalled: boolean;
   readonly discarding: boolean;
   readonly timeZone: string;
+  readonly documentId: string | null;
+  /** Usuário da sessão: só o solicitante aplica ou descarta (RN-AI-13 · FA-06). */
+  readonly userId: string;
+  /** Pode aplicar (AI_GENERATE e documento editável; a API confere DFD_UPDATE + POL-02). */
+  readonly canApply: boolean;
   readonly onDiscard: (generation: AiGenerationDto) => void;
   readonly onRetry: (() => void) | null;
+  readonly onApplied: (document: DocumentDto, count: number) => void;
 }
 
 function ProposalView({
@@ -312,8 +324,12 @@ function ProposalView({
   stalled,
   discarding,
   timeZone,
+  documentId,
+  userId,
+  canApply,
   onDiscard,
   onRetry,
+  onApplied,
 }: ProposalViewProps) {
   const t = useTranslations('ai');
   if (generationId === null)
@@ -358,24 +374,51 @@ function ProposalView({
     );
   }
   if (generation.status === 'SUCCEEDED' && generation.output) {
-    return (
-      <div className="flex flex-col gap-4">
+    const owner = generation.requestedBy.id === userId;
+    const header = (
+      <>
         <h3 className="font-medium">{t('proposal.title')}</h3>
         {generation.expiresAt ? (
           <p className="text-xs text-muted-foreground">
             {t('proposal.expiresAt', { date: formatDateTime(generation.expiresAt, timeZone) })}
           </p>
         ) : null}
-        {generation.output.warnings.map((warning) => (
-          <Alert
-            key={warning.code}
-            tone="warning"
-            live={false}
-            title={t(`warnings.${warning.code}`)}
-          >
-            {null}
-          </Alert>
-        ))}
+        {generation.output.warnings.map((warning, index) => {
+          const input = missingInputOf(warning);
+          return (
+            <Alert
+              // O mesmo código pode repetir com parâmetros diferentes (MISSING_OPTIONAL_INPUT).
+              key={`${warning.code}-${String(index)}`}
+              tone="warning"
+              live={false}
+              title={t(`warnings.${warning.code}`)}
+            >
+              {input === null ? null : t(`missingInput.${input}`)}
+            </Alert>
+          );
+        })}
+      </>
+    );
+    if (owner && canApply && documentId !== null) {
+      return (
+        <div className="flex flex-col gap-4">
+          {header}
+          <AiProposalSectionList
+            generation={generation}
+            documentId={documentId}
+            discarding={discarding}
+            onDiscard={() => {
+              onDiscard(generation);
+            }}
+            onApplied={onApplied}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-4">
+        {header}
+        {owner ? null : <p className="text-sm text-muted-foreground">{t('proposal.readOnly')}</p>}
         <ul className="flex flex-col gap-3">
           {generation.output.sections.map((section) => (
             <li key={section.sectionKey} className="rounded-md border border-border p-3">
@@ -384,22 +427,24 @@ function ProposalView({
                 {t('proposal.placeholders', { count: section.placeholdersCount })}
               </p>
               <p className="mt-2 text-sm break-words whitespace-pre-line">
-                {previewText(section.content as TipTapNode)}
+                {previewText(section.content as Parameters<typeof previewText>[0])}
               </p>
             </li>
           ))}
         </ul>
-        <div>
-          <Button
-            variant="secondary"
-            disabled={discarding}
-            onClick={() => {
-              onDiscard(generation);
-            }}
-          >
-            {discarding ? t('proposal.discarding') : t('proposal.discard')}
-          </Button>
-        </div>
+        {owner ? (
+          <div>
+            <Button
+              variant="secondary"
+              disabled={discarding}
+              onClick={() => {
+                onDiscard(generation);
+              }}
+            >
+              {discarding ? t('proposal.discarding') : t('proposal.discard')}
+            </Button>
+          </div>
+        ) : null}
       </div>
     );
   }

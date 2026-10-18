@@ -22,6 +22,7 @@ import { FAKE_MEMBERSHIPS, FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake
 import {
   SETTINGS_TRANSACTIONS,
   TestAiGenerator,
+  replaceAiGenerator,
   aiRepositoryOf,
   jobQueueOf,
   rolesGrantingAiGenerate,
@@ -42,7 +43,6 @@ import {
   seedProcessStructure,
 } from '../../../../test/support/process-fixtures.js';
 import { seedDefaultRolesOf } from '../../../../test/support/structure-fixtures.js';
-import { AiGeneratorRegistry } from '../application/ai-generator.js';
 import type { AiGeneratorCheck, AiGeneratorRequest } from '../application/ai-generator.js';
 import { AI_PROVIDER } from '../application/ai-provider.port.js';
 import { AI_CLOCK, AI_SETTINGS, AI_TRANSACTIONS } from '../application/ports.js';
@@ -359,7 +359,7 @@ describe('Feature: Configurar a IA no órgão: ativação, limites e consumo (US
         .snapshot()
         .find((type) => type.tenantId === A && type.code === 'DFD')?.id ?? '';
     expect(dfdTypeId).not.toBe('');
-    api.app.get(AiGeneratorRegistry).register(generator);
+    replaceAiGenerator(api, generator);
   });
 
   afterAll(async () => {

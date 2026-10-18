@@ -26,6 +26,8 @@ export interface SectionSpec {
   /** Padrão de `SectionDefinition.maxChars` (entities.md §5.1): 50.000. */
   readonly maxChars: number;
   readonly legalBasis?: string | null;
+  /** Seção `OPTIONAL` sem base nas entradas pode vir ausente na resposta (FA-08 da US-117). */
+  readonly optional?: boolean;
 }
 
 export const DEFAULT_SECTION_MAX_CHARS = 50_000;
@@ -248,8 +250,8 @@ export function convertStructuredOutput(raw: unknown, spec: ConversionSpec): Con
       groundingReplacements: 0,
     });
   }
-  for (const key of expected.keys()) {
-    if (!seen.has(key)) issues.push(`sections: missing_section`);
+  for (const [key, definition] of expected) {
+    if (!seen.has(key) && definition.optional !== true) issues.push(`sections: missing_section`);
   }
   if (issues.length > 0) return { ok: false, issues: [...new Set(issues)] };
   return {

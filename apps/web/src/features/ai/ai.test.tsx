@@ -37,7 +37,8 @@ function generation(extra: Partial<AiGenerationDto> = {}): AiGenerationDto {
     sectionKey: null,
     baseRevision: null,
     status: 'QUEUED',
-    requestedBy: { id: ID(1), name: 'Ana Souza' },
+    // A solicitante é a usuária da sessão (Ana): a proposta pronta abre a aplicação (US-117).
+    requestedBy: { id: '0192a000-0000-7000-8000-0000000000a1', name: 'Ana Souza' },
     createdAt: '2026-10-16T12:00:00.000Z',
     startedAt: null,
     completedAt: null,
@@ -151,6 +152,12 @@ function mockAiApi(api: Api = {}) {
       states.splice(0, states.length, discarded);
       return Promise.resolve(jsonResponse({ data: discarded }));
     }
+    if (method === 'GET' && url === `/api/v1/documents/${DOC}`) {
+      // DOC-03 do DFD sem seções preenchidas (comparação da US-117).
+      return Promise.resolve(
+        jsonResponse({ data: { id: DOC, version: 6, draftContent: { sections: {} } } }),
+      );
+    }
     if (method === 'GET' && url.startsWith(`/api/v1/processes/${PROCESS_ID}/ai-generations`)) {
       return Promise.resolve(
         jsonResponse({ data: api.history ?? [], meta: { nextCursor: null, hasMore: false } }),
@@ -243,7 +250,8 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
 
     expect(await within(panel).findByText('Gerando… você pode continuar editando')).toBeTruthy();
     expect(await within(panel).findByText('Proposta pronta', {}, { timeout: 12_000 })).toBeTruthy();
-    expect(within(panel).getByText('Descrição da necessidade')).toBeTruthy();
+    // A lista de seções carrega o documento (DOC-03) para a marcação padrão e a comparação.
+    expect(await within(panel).findByText('Descrição da necessidade')).toBeTruthy();
     expect(within(panel).getByText('1 [a confirmar]')).toBeTruthy();
     expect(within(panel).getByText(/\[a confirmar: quantidade\]/)).toBeTruthy();
     expect(

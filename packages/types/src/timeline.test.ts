@@ -21,9 +21,7 @@ const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', impor
  * (EP-020 — IA): entram no registro, no mapeamento do projetor e num grupo (RN-TML-12) com elas.
  * A story que implementar o produtor remove o tipo daqui.
  */
-const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {
-  AI_CONTENT_APPLIED: 'US-117',
-};
+const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {};
 
 /** `type` da primeira coluna da tabela de events.md §5 (fonte canônica do registro). */
 function documentedEntryTypes(): string[] {

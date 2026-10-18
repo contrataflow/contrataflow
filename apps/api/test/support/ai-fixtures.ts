@@ -28,6 +28,7 @@ import type {
   PostProcessingInput,
 } from '#modules/ai/domain/post-processing.js';
 import type { InMemoryAiGenerationRepository } from '#modules/ai/infrastructure/in-memory-ai-generation.repository.js';
+import { InMemoryDfdRepository } from '#modules/dfd/infrastructure/dfd.repositories.js';
 import type { InMemoryJobQueue } from '#modules/platform/infrastructure/queues/in-memory-job-queue.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { JOB_QUEUE } from '#shared/jobs/job-queue.js';
@@ -151,14 +152,26 @@ export function aiRepositoryOf(api: TestApi): InMemoryAiGenerationRepository {
   return api.app.get(AI_GENERATION_REPOSITORY, { strict: false });
 }
 
+/** Cabeçalhos de DFD em memória (US-117: contexto do rascunho e "cabeçalho intacto"). */
+export function dfdRepositoryOf(api: TestApi): InMemoryDfdRepository {
+  return api.app.get(InMemoryDfdRepository, { strict: false });
+}
+
 export function jobQueueOf(api: TestApi): InMemoryJobQueue {
   return api.app.get(JOB_QUEUE, { strict: false });
+}
+
+/** Registra o gerador de teste no lugar do real do par (ex.: `DfdDraftGenerator` — US-117). */
+export function replaceAiGenerator(api: TestApi, generator: AiGenerator): void {
+  const generators = api.app.get(AiGeneratorRegistry);
+  generators.unregister(generator.targetModule, generator.kind);
+  generators.register(generator);
 }
 
 /** Registra o gerador, o portão e (opcional) o pós-processador de teste. */
 export function installAiTestDoubles(api: TestApi, generator = new TestAiGenerator()) {
   const gate = new TestAiGate();
-  api.app.get(AiGeneratorRegistry).register(generator);
+  replaceAiGenerator(api, generator);
   api.app.get(AiTenantGateRegistry).register(gate);
   return { generator, gate, postProcessors: api.app.get(AiPostProcessorRegistry) };
 }

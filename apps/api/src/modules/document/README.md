@@ -284,6 +284,17 @@ revision, updatedAt, updatedBy, draftRevision }` + `ETag: "s<revision>"`. Genér
   `withAiApplied` (DOC-26 — US-117..US-121: proveniência nova e pendente, zera a revisão), `aiAfterSave`
   (DOC-05 — US-015: editar mantém; `EMPTY`/`NOT_APPLICABLE` limpa) e `reviewAiSections` (DOC-27). O
   `document` não importa `ai` (D9): só lê o `draftContent`.
+- **DOC-26** `POST /documents/{id}/ai-apply` (`ApplyAiContentCommand` · US-117): `@Idempotent` +
+  `If-Match` (versão do documento). Linha travada → permissão de edição do tipo + POL-02 → proposta
+  pela porta `AiSuggestionSource` (404/403 `AI_GENERATION_NOT_OWNED`/409) → 412 →
+  `applyAiSections` (`domain/ai-content-apply.ts`: só `draftContent`; chave fora da proposta →
+  422 `NOT_ALLOWED`; `FILLED`/`NOT_APPLICABLE` sem `confirmReplaceFilled` → 422
+  `CONDITIONAL_REQUIRED`; conteúdo fora do schema/limite → 409 `AI_GENERATION_NOT_APPLICABLE`) →
+  rascunho completo substituindo texto: versão `SYSTEM` "Antes de aplicar conteúdo gerado por IA"
+  com o snapshot ANTERIOR (`DocumentVersionCreated`) → `markApplied` → `ai.content_apply` (sem texto)
+  → `AiContentApplied` (timeline `AI_CONTENT_APPLIED`) — tudo num `tx`. Uma aplicação por geração.
+  `DocumentAiTargets` (AI-01): documento inexistente/de outro tenant agora é 404 `NOT_FOUND`; de
+  outro processo do tenant continua 422 `REFERENCE_NOT_FOUND`.
 - **DOC-27** `POST /documents/{id}/ai-review` (`ReviewAiContentCommand`): linha travada → permissão de
   EDIÇÃO do tipo + POL-02 (`AI_GENERATE` não é exigida) → chaves do documento (`NOT_ALLOWED`) →
   `expectedRevisions` das seções pendentes (412 `VERSION_CONFLICT` + `meta.current`) → `reviewedAt/By`,

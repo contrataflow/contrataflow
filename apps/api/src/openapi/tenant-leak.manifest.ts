@@ -184,6 +184,9 @@ const DOCUMENT_RENDITION_ROUTE =
 const DOCUMENT_AI_REVIEW_ROUTE =
   'Revisão do conteúdo gerado por IA (US-122): a suíte genérica não tem documento do tenant B com seção pendente. O isolamento (DOC-27 com DFD de B → 404 NOT_FOUND sem revelar nada nem alterar a proveniência; RLS de documents com app.tenant_id diferente retornando vazio) é coberto em test/tenant-leak/document-ai-review.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/document-ai-review.routes.spec.ts.';
 
+const DOCUMENT_AI_APPLY_ROUTE =
+  'Aplicação do conteúdo gerado por IA (US-117): a suíte genérica não tem documento nem geração do tenant B. O isolamento (DOC-26 com DFD de B → 404 NOT_FOUND; com geração de B num DFD de A → 404 AI_GENERATION_NOT_FOUND sem alterar nada; AI-01 com o DFD de B → 404 NOT_FOUND; RLS de documents e ai_generations; aplicação em transação única com falha induzida) é coberto em test/tenant-leak/ai-dfd-draft.spec.ts, com PostgreSQL real, e em src/modules/ai/presentation/dfd-draft.routes.spec.ts.';
+
 const UPLOADED_DOCUMENT_ROUTE =
   'Documento externo (US-064): a suíte genérica não tem processo, documento nem anexo do tenant B. O isolamento (DOC-02 com processo de B, DOC-19 com documento de B e ATT-05 com anexo de B → 404 NOT_FOUND sem revelar nada; DOC-19 com attachmentId AVAILABLE de B num documento de A → 422 REFERENCE_NOT_FOUND em attachmentId, sem versão gravada; RLS de attachments e document_versions) é coberto em test/tenant-leak/uploaded-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/uploaded-documents.routes.spec.ts.';
 
@@ -366,6 +369,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-21': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-22': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-23': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
+  'DOC-26': { kind: 'exempt', reason: DOCUMENT_AI_APPLY_ROUTE },
   'DOC-27': { kind: 'exempt', reason: DOCUMENT_AI_REVIEW_ROUTE },
   'DFD-01': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-02': { kind: 'exempt', reason: DFD_ROUTE },

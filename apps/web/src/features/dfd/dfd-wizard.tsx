@@ -38,6 +38,7 @@ import { DfdPlanningStep, estimatedValueOf } from './dfd-planning-step';
 import { DfdConclusionStep, DfdReviewStep, useDfdValidation } from './dfd-review-step';
 import { useDfd, useDocumentItems } from './dfd.api';
 import { sectionText, useDfdAutosave } from './use-dfd-autosave';
+import { AiAssistant } from '../ai/ai-assistant';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
 import { DocumentStatusBadge } from '../documents/document-status-badge';
 import { documentKeys, fetchDocument } from '../documents/documents.api';
@@ -328,6 +329,14 @@ function LoadedWizard({
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold">{dfd.code ?? t('title')}</h1>
           <DocumentStatusBadge status={dfd.status} />
+          <AiAssistant
+            processId={processId}
+            documentId={dfd.documentId}
+            targetModule="DFD"
+            editable={dfd.status === 'DRAFT' || dfd.status === 'RETURNED'}
+            initialGenerationId={searchParams.get('ia')}
+            onApplied={(applied) => void autosave.adoptSections(applied)}
+          />
           {allowed ? (
             <AutosaveIndicator
               className="ml-auto"

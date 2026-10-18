@@ -1,4 +1,6 @@
 import {
+  documentAiApplyResultSchema,
+  documentAiApplySchema,
   documentAiReviewResultSchema,
   documentAiReviewSchema,
   documentCancelSchema,
@@ -20,6 +22,8 @@ import {
   pageEnvelope,
 } from '@contrataflow/validation';
 import type {
+  DocumentAiApply,
+  DocumentAiApplyResultDto,
   DocumentAiReview,
   DocumentAiReviewResultDto,
   DocumentCancel,
@@ -52,6 +56,7 @@ import { RateLimit } from '#shared/rate-limit/rate-limit.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
+import { ApplyAiContentCommand } from '../application/apply-ai-content.command.js';
 import { SaveDocumentVersionCommand } from '../application/document-version.commands.js';
 import { DocumentVersionQueries } from '../application/document-version.queries.js';
 import {
@@ -103,6 +108,7 @@ export class DocumentController {
     private readonly versions: DocumentVersionQueries,
     private readonly saveVersion: SaveDocumentVersionCommand,
     private readonly reviewAi: ReviewAiContentCommand,
+    private readonly applyAi: ApplyAiContentCommand,
     private readonly uploadVersion: UploadDocumentVersionCommand,
   ) {}
 
@@ -344,7 +350,52 @@ export class DocumentController {
     await this.remove.execute({ documentId: params.id, expectedVersion: ifMatch?.value ?? 0 });
   }
 
-  // --- Conteúdo gerado por IA (US-122 · DOC-27) ----------------------------------------------
+  // --- Conteúdo gerado por IA (US-117 · DOC-26 · US-122 · DOC-27) ---------------------------
+
+  @Post(':id/ai-apply')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'Permissão de EDIÇÃO do tipo do documento (DFD_UPDATE, ETP_UPDATE, RISK_MANAGE, TERM_UPDATE…) conferida pelo caso de uso sobre o processo, com POL-02; só o solicitante da geração aplica (RN-AI-13).',
+  )
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DOC-26',
+    summary: 'Aplicar conteúdo gerado por IA nas seções',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['ai.content_apply', 'document.version_create'],
+    responses: {
+      200: {
+        description:
+          'Seções escolhidas aplicadas numa transação (`FILLED`, `revision + 1`, proveniência `ai` pendente de revisão), geração `APPLIED` e `AiContentApplied`. Substituir seção `FILLED`/`NOT_APPLICABLE` exige `confirmReplaceFilled: true` (422 `CONDITIONAL_REQUIRED`) e, no rascunho completo, cria antes uma versão `SYSTEM` (`versionCreated`). Erros: 404 `NOT_FOUND`/`AI_GENERATION_NOT_FOUND`, 403 `AI_GENERATION_NOT_OWNED`/`NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED`, 409 `AI_GENERATION_NOT_APPLICABLE`/`DOCUMENT_NOT_EDITABLE`, 412 `VERSION_CONFLICT`, 428 `PRECONDITION_REQUIRED`.',
+        schema: dataEnvelope(documentAiApplyResultSchema),
+      },
+    },
+  })
+  async applyAiContent(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(documentAiApplySchema) body: DocumentAiApply,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentAiApplyResultDto> {
+    const result = await this.applyAi.execute({
+      documentId: params.id,
+      generationId: body.generationId,
+      sectionKeys: body.sectionKeys,
+      confirmReplaceFilled: body.confirmReplaceFilled ?? false,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.document.version}"`);
+    return {
+      document: toDocumentDto(result.document, result.type),
+      appliedSectionKeys: [...result.appliedSectionKeys],
+      versionCreated: result.versionCreated,
+    };
+  }
 
   @Post(':id/ai-review')
   @HttpCode(200)

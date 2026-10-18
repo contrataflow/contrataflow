@@ -49,6 +49,31 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
 | `AiTenantGateRegistry`    | US-116         | IA ligada, termos, limites e reserva (pedido e revalidação no job)                                            |
 | `AiPostProcessorRegistry` | `AiModule`     | `GroundingGuard` (US-122 — troca o que não está nas entradas por `[a confirmar]`), registrado no init         |
 
+## Rascunho do DFD — `draft.dfd` (US-117 · RN-AI-25..27)
+
+- **Gerador** `application/dfd-draft.generator.ts` (`DFD`/`DRAFT`, registrado no `onModuleInit` do
+  `AiModule`; testes trocam pelo de teste com `replaceAiGenerator`/`installAiTestDoubles`). Pedido:
+  `dfdDraftRequestProblem` (resumo 20..2.000, documento). Job: lê pelas fachadas
+  `DocumentFacade.aiDraftSourceIn` (template fixado + guia de redação, estado das seções, itens do
+  documento), `DfdFacade.aiDraftHeaderIn` (cabeçalho sem pessoas), `ProcessFacade.aiContextIn`,
+  `CatalogFacade`, `OrganizationFacade.departmentNames`, `TenancyFacade.organizationAiProfile` e a
+  porta `#shared/process/process-item-catalog` — em sequência (transação interativa).
+- **Contexto** `domain/dfd-draft-context.ts` (puro): partes/`inputRefs` `PROCESS`, `CATALOG`,
+  `DOCUMENT_DRAFT`, `PROCESS_ITEMS` (opcional — sai primeiro em `CONTEXT_TRUNCATED`), `ORGANIZATION`
+  e `TEMPLATE_VERSION` (+ `USER_SUMMARY`/`USER_INSTRUCTION` do pipeline). Só seções narrativas
+  (`allowNarrative`); `OPTIONAL` pode vir ausente (`SectionSpec.optional` — FA-08). Avisos do gerador
+  (`AiGeneratorContext.warnings`, somados aos da sanitização sem repetir): `MISSING_OPTIONAL_INPUT`
+  (`params.input` = `ITEMS`/`EXPECTED_DATE`/`PCA_LINK`) e `BUDGET_CONFIDENTIAL_VALUES_OMITTED`
+  (sigilo: nenhum valor entra). Chaves em pt-BR evitam as palavras de pessoa do sanitizador
+  (`unidadeRequisitante`, nunca `…Solicitante`).
+- **Prompt** `prompts/draft.dfd/prompt.ts` `1.0.0` (impressão digital travada); fixture
+  `test/fixtures/ai/draft.dfd/padrao.json` (também a resposta do `AI_PROVIDER=fake` local).
+- **Aplicação** é do `document` (DOC-26 — `ApplyAiContentCommand`), que lê a proposta pela porta
+  `AiSuggestionSource` (agora com `trace`: modelo, prompt, `inputRefs`, hashes — para a auditoria).
+- **Testes:** `domain/dfd-draft-context.spec.ts`, `presentation/dfd-draft.routes.spec.ts` (Gherkin
+  completo em memória), `test/tenant-leak/ai-dfd-draft.spec.ts` (PostgreSQL: commit único, falha
+  induzida, RLS).
+
 ## GroundingGuard (US-122 · RN-AI-54)
 
 Pós-processador determinístico registrado pelo `AiModule`: todo valor monetário, quantidade com

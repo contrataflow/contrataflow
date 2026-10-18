@@ -1,5 +1,6 @@
 import type { AiGenerationErrorCode } from '@contrataflow/types';
 import { AiGenerationCompleted, AiGenerationFailed } from '@contrataflow/validation';
+import type { AiOutputWarning } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
@@ -316,7 +317,7 @@ export class AiGenerationProcessor {
 
     const spec = {
       sections: prepared.context.sections,
-      warnings: sanitized.warnings,
+      warnings: mergeWarnings(sanitized.warnings, prepared.context.warnings ?? []),
       ...(prepared.generator.responseSchema ? { schema: prepared.generator.responseSchema } : {}),
     };
     const base = {
@@ -753,6 +754,20 @@ export class AiGenerationProcessor {
     }
     return outcome;
   }
+}
+
+/** Avisos da sanitização + do gerador, sem repetir o mesmo código com os mesmos parâmetros. */
+function mergeWarnings(
+  first: readonly AiOutputWarning[],
+  second: readonly AiOutputWarning[],
+): AiOutputWarning[] {
+  const seen = new Set<string>();
+  return [...first, ...second].filter((warning) => {
+    const key = canonicalJson(warning);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** Resumo e orientações do pedido entram no contexto como dados (sanitizados e com hash). */

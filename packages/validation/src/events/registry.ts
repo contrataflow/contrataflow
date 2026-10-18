@@ -16,6 +16,7 @@ import {
   UserMentioned,
 } from '../collaboration/events.js';
 import {
+  AiContentApplied,
   AiContentReviewed,
   DocumentApproved,
   DocumentCanceled,
@@ -91,6 +92,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   AiGenerationCompleted,
   AiGenerationFailed,
   AiUsageThresholdReached,
+  AiContentApplied,
   AiContentReviewed,
   AttachmentUploaded,
   AttachmentRejected,

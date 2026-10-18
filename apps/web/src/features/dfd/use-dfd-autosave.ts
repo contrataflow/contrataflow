@@ -283,6 +283,22 @@ export function useDfdAutosave(input: UseDfdAutosaveInput) {
       autosave.change(target, text);
       await autosave.keepMine(target);
     },
+    /**
+     * US-117: seções gravadas fora do autosave (aplicação da IA — DOC-26). As que mudaram no
+     * servidor passam a valer: nova revisão (o `If-Match` seguinte), texto no editor e pendência
+     * local apagada.
+     */
+    async adoptSections(document: DocumentDto) {
+      for (const [key, section] of Object.entries(document.draftContent.sections)) {
+        if (revisions.current[key] === section.revision) continue;
+        revisions.current[key] = section.revision;
+        latest.current.onSectionText(
+          key,
+          section.content ? richTextPlainText(section.content) : '',
+        );
+        await autosave.discard(sectionTarget(key));
+      }
+    },
     /** FA-01 "Descartar a minha e recarregar": fica a do servidor; a pendência local é apagada. */
     async discardMine() {
       if (conflict?.kind !== 'section') return;

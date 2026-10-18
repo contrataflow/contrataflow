@@ -3,6 +3,7 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { AiSuggestionSourceModule } from '#shared/ai/ai-suggestion-source.js';
 import { DocumentApprovalModule } from '#shared/document/document-approval.js';
 import { DocumentProcessContextModule } from '#shared/document/document-process-context.js';
 import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalog.js';
@@ -18,6 +19,7 @@ import {
 } from '#shared/process/process-item-usage.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
+import { ApplyAiContentCommand } from './application/apply-ai-content.command.js';
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
 import { DocumentAiTargets } from './application/document-ai-target.js';
@@ -179,6 +181,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     AttachmentTargetModule,
     ProcessItemCatalogModule,
     ProcessItemUsageModule,
+    AiSuggestionSourceModule,
   ],
   controllers: [
     DocumentTypeController,
@@ -281,6 +284,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentQueries,
     UpdateDocumentHeaderCommand,
     ReviewAiContentCommand,
+    ApplyAiContentCommand,
     FinalizeDocumentCommand,
     SubmitDocumentCommand,
     ReopenDocumentCommand,

@@ -1,5 +1,7 @@
 import type {
   AiAvailabilityDto,
+  DocumentAiApply,
+  DocumentAiApplyResultDto,
   AiGenerationDto,
   AiGenerationListItemDto,
   AiUsageDto,
@@ -109,6 +111,27 @@ export async function discardAiGeneration(generationId: string): Promise<AiGener
     await apiRequest<AiGenerationDto>(`/ai-generations/${generationId}/discard`, {
       method: 'POST',
       body: {},
+    })
+  ).data;
+}
+
+/**
+ * DOC-26 (US-117): aplica as seções escolhidas da proposta (`If-Match` = versão do documento lida
+ * no DOC-03; `Idempotency-Key` por intenção). 412 = o documento mudou: recarregar e repetir.
+ */
+export async function applyAiContent(
+  documentId: string,
+  body: DocumentAiApply,
+  version: number,
+  context: IdempotentContext,
+): Promise<DocumentAiApplyResultDto> {
+  return (
+    await apiRequest<DocumentAiApplyResultDto>(`/documents/${documentId}/ai-apply`, {
+      method: 'POST',
+      body,
+      ifMatch: `"${String(version)}"`,
+      idempotencyKey: context.idempotencyKey,
+      correlationId: context.correlationId,
     })
   ).data;
 }

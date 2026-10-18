@@ -57,6 +57,7 @@ export const TIMELINE_ENTRY_TYPES = [
   'TERM_IMPORTED_FROM_ETP',
   // Geração com IA (EP-020)
   'AI_CONTENT_GENERATED',
+  'AI_CONTENT_APPLIED',
   'AI_CONTENT_REVIEWED',
 ] as const;
 
@@ -135,6 +136,7 @@ export const TIMELINE_GROUP_TYPES: Readonly<Record<TimelineGroup, readonly Timel
     'RISK_REMOVED',
     'TERM_IMPORTED_FROM_ETP',
     'AI_CONTENT_GENERATED',
+    'AI_CONTENT_APPLIED',
     'AI_CONTENT_REVIEWED',
   ],
   APROVACOES: [

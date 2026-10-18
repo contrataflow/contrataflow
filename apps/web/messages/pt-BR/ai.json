@@ -39,7 +39,8 @@
     "discard": "Descartar",
     "discarding": "Descartando…",
     "discarded": "Proposta descartada.",
-    "expiresAt": "Válida até {date}"
+    "expiresAt": "Válida até {date}",
+    "readOnly": "Proposta de outra pessoa: somente leitura. Só quem pediu a geração pode aplicá-la ou descartá-la."
   },
   "warnings": {
     "USED_DRAFT_INPUTS": "Foram usados documentos ainda em rascunho.",
@@ -190,5 +191,42 @@
       },
       "audit": "Ver na auditoria as ações de IA"
     }
+  },
+  "missingInput": {
+    "ITEMS": "O DFD ainda não tem itens; as quantidades saíram como [a confirmar].",
+    "EXPECTED_DATE": "O DFD não tem data prevista; os prazos saíram como [a confirmar].",
+    "PCA_LINK": "O vínculo com o Plano de Contratações Anual está incompleto.",
+    "other": "Complete as informações marcadas como [a confirmar]."
+  },
+  "apply": {
+    "legend": "Escolha as seções a aplicar",
+    "loading": "Carregando o documento",
+    "loadFailed": "Não foi possível carregar o documento para comparar.",
+    "retry": "Tentar novamente",
+    "placeholders": "{count, plural, =0 {Nenhum [a confirmar]} one {# [a confirmar]} other {# [a confirmar]}}",
+    "replaces": "Substituirá o texto atual (uma versão é criada antes).",
+    "compare": "Comparar",
+    "hideCompare": "Fechar comparação",
+    "diff": {
+      "current": "Atual",
+      "suggested": "Sugerido",
+      "inserted": "sugerido",
+      "removed": "atual",
+      "empty": "Sem texto"
+    },
+    "action": "{count, plural, =0 {Aplicar seleção} one {Aplicar # seção} other {Aplicar # seções}}",
+    "applying": "Aplicando…",
+    "none": "Selecione ao menos uma seção.",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "confirm": {
+      "title": "{count, plural, one {# seção preenchida será substituída} other {# seções preenchidas serão substituídas}}",
+      "body": "Antes de aplicar, guardamos uma versão do documento com o texto atual. As seções não marcadas não poderão ser aplicadas depois: para usá-las, gere novamente.",
+      "action": "Confirmar e aplicar",
+      "back": "Voltar"
+    },
+    "conflict": "O DFD foi alterado. Atualizando a comparação… Confira e aplique de novo.",
+    "failed": "Não foi possível aplicar agora. Tente novamente.",
+    "done": "{count, plural, one {Conteúdo aplicado: # seção. Revise antes de concluir.} other {Conteúdo aplicado: # seções. Revise antes de concluir.}}"
   }
 }

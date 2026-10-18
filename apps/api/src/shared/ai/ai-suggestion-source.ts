@@ -1,5 +1,5 @@
 import type { AiGenerationKind, AiSectionAction, AiTargetModule } from '@contrataflow/types';
-import type { AiGenerationOutput } from '@contrataflow/validation';
+import type { AiGenerationOutput, AiInputRef } from '@contrataflow/validation';
 import { Injectable, Module } from '@nestjs/common';
 
 import type { TenantTx } from '../database/prisma.js';
@@ -34,6 +34,15 @@ export interface AiSuggestion {
   readonly output: AiGenerationOutput;
   readonly appliedTargets: AiAppliedTargets | null;
   readonly requestedById: string;
+  /** Rastreabilidade para a auditoria `ai.content_apply` (só ids, versões e hashes — RN-AI-29). */
+  readonly trace: {
+    readonly model: string | null;
+    readonly promptKey: string;
+    readonly promptVersion: string;
+    readonly inputRefs: readonly AiInputRef[];
+    readonly contextHash: string | null;
+    readonly outputHash: string | null;
+  };
 }
 
 export interface AiSuggestionSource {

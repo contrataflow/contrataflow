@@ -257,6 +257,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-122: timeline (`AI_CONTENT_REVIEWED`) projetada no mesmo `tx` (síncrona); no worker só o
     // `BusinessMetricsCollector` (`document.*`). Sem notificação.
     AiContentReviewed: ['document.ai_content_reviewed.dfd'],
+    // US-117: timeline (`AI_CONTENT_APPLIED`) projetada no mesmo `tx` do DOC-26 (síncrona); no
+    // worker só o `BusinessMetricsCollector` (`document.*`). Sem notificação (RN-AI-29).
+    AiContentApplied: ['document.ai_content_applied.dfd'],
     // US-068: timeline (`ATTACHMENT_ADDED`/`ATTACHMENT_REMOVED`) projetada no mesmo `tx` (síncrona);
     // no worker só o aviso `ATTACHMENT_REJECTED` a quem enviou o arquivo.
     AttachmentUploaded: 'NO_ASYNC_CONSUMER',

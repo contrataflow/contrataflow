@@ -13,7 +13,6 @@ import { Logger } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { AiGeneratorRegistry } from '#modules/ai/application/ai-generator.js';
 import { AI_PROVIDER } from '#modules/ai/application/ai-provider.port.js';
 import { AiTenantGateService } from '#modules/ai/application/ai-tenant-gate.service.js';
 import { AI_GENERATION_REPOSITORY, AI_TRANSACTIONS } from '#modules/ai/application/ports.js';
@@ -33,7 +32,12 @@ import { JOB_QUEUE } from '#shared/jobs/job-queue.js';
 
 import { startTestDatabase } from '../database/support/postgres.js';
 import type { TestDatabase } from '../database/support/postgres.js';
-import { TestAiGenerator, runAiJob, validOutput } from '../support/ai-fixtures.js';
+import {
+  TestAiGenerator,
+  replaceAiGenerator,
+  runAiJob,
+  validOutput,
+} from '../support/ai-fixtures.js';
 import {
   createTestApi,
   TEST_ISSUER,
@@ -265,7 +269,7 @@ describe('Feature: IA no órgão sobre PostgreSQL (US-116)', () => {
     await runTenantSeeders(api, A);
     await runTenantSeeders(api, B);
     // Portão REAL do órgão (registrado pelo módulo); só o gerador é de teste.
-    api.app.get(AiGeneratorRegistry).register(new TestAiGenerator());
+    replaceAiGenerator(api, new TestAiGenerator());
     await setAi(A, { 'ai.enabled': true, 'ai.termsAcceptedVersion': '2026-10' });
     await setAi(B, {
       'ai.enabled': true,

@@ -60,6 +60,7 @@ export const TIMELINE_MESSAGE_TEMPLATES: Readonly<Record<TimelineEntryType, stri
   RISK_REMOVED: '{actor} removeu o risco {code}',
   TERM_IMPORTED_FROM_ETP: '{actor} importou dados do ETP (v{etpVersion}) para o TR',
   AI_CONTENT_GENERATED: '{actor} gerou com IA {generationLabel} de {documentLabel}',
+  AI_CONTENT_APPLIED: '{actor} aplicou conteúdo gerado por IA em {documentLabel} ({reviewedLabel})',
   AI_CONTENT_REVIEWED:
     '{actor} revisou o conteúdo gerado por IA em {documentLabel} ({reviewedLabel})',
 };
@@ -129,7 +130,10 @@ function plural(count: number, singular: string, pluralForm: string): string {
   return `${String(count)} ${count === 1 ? singular : pluralForm}`;
 }
 
-/** `{reviewedLabel}` (events.md §5 · US-122): "2 seções", "1 risco" ou "2 seções e 1 risco". */
+/**
+ * `{reviewedLabel}` (events.md §5 · US-122/US-117 — revisão e aplicação): "2 seções", "1 risco" ou
+ * "2 seções e 1 risco".
+ */
 function reviewedLabelOf(params: Readonly<Record<string, unknown>>): string {
   const count = (value: unknown) =>
     typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
