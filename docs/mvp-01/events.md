@@ -308,6 +308,7 @@ Escritas pelo `AuditService` na mesma transação do caso de uso (DEC-161). `cat
 | Operação de filas (plataforma — US-083) | `queue_dashboard.access` (ACCESS — concedido ou negado); `outbox.republish`, `dead_letter.retry`, `dead_letter.discard` (SYSTEM). Sempre `actorType = PLATFORM_OPERATOR`; `tenantId` do job/evento afetado quando houver, senão de plataforma; ticket e motivo em `metadata` |
 
 Regras de conteúdo da auditoria:
+- Coalescência de `document.draft_update` no autosave (US-015 · RN-DFD-35): janela de 10 min por (documento, alvo — `SECTION:<CHAVE>`/`HEADER`/`ITEMS` —, usuário) aberta no Redis (`SET NX`) antes da transação; o registro leva `fromRevision` (primeira revisão ainda não auditada do usuário/alvo), `toRevision`, `sizeBytesBefore`/`sizeBytesAfter`, `contentHash` e `windowMinutes`. Redis indisponível → audita toda gravação (*fail-safe*, `warn audit.coalesce_store_unavailable`). Sobrescrita após conflito (`conflictResolution = KEEP_MINE`) e campos estruturados do cabeçalho são imediatos. A auditoria continua *append-only*: a janela só decide se a gravação gera registro.
 - `changes` registra somente campos alterados; campos sensíveis mascarados (`cpf`, tokens) e conteúdo rico resumido (hash + tamanho), nunca o texto completo.
 - `metadata` inclui, quando aplicável: `processCode`, `documentCode`, `fromStatus`/`toStatus`, `ruleViolations`, `warningsAcknowledged`, `idempotencyKey`.
 

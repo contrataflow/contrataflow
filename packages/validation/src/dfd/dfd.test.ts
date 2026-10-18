@@ -6,6 +6,8 @@ import {
   DFD_MESSAGES,
   dfdCreateSchema,
   dfdDocumentTitle,
+  dfdPatchIssues,
+  dfdPatchSchema,
   dfdRequiredFields,
   dfdStepIssues,
 } from './dfd.js';
@@ -365,5 +367,79 @@ describe('Contratos do DFD e dos itens', () => {
     expect(documentItemsReplaceSchema.safeParse({ items: [{ processItemId: ITEM }] }).success).toBe(
       false,
     );
+  });
+});
+
+describe('DFD-04: dfdPatchSchema e dfdPatchIssues (US-015 · RN-DFD-27)', () => {
+  const merged = {
+    requestDate: TODAY,
+    expectedDate: null,
+    pcaStatus: 'NOT_APPLICABLE' as const,
+    pcaYear: null,
+    pcaJustification: null,
+  };
+  type Merged = Parameters<typeof dfdPatchIssues>[1];
+  const issues = (patch: Parameters<typeof dfdPatchIssues>[0], over: Partial<Merged> = {}) =>
+    dfdPatchIssues(patch, { ...merged, ...over }, { today: TODAY }).map((issue) => [
+      issue.field,
+      issue.code,
+    ]);
+
+  it('schema estrito: campos não editáveis são recusados; sempre obrigatórios não aceitam null', () => {
+    expect(dfdPatchSchema.safeParse({ priority: 'HIGH' }).success).toBe(true);
+    expect(dfdPatchSchema.safeParse({ processId: ITEM }).success).toBe(false);
+    expect(dfdPatchSchema.safeParse({ requestDate: null }).success).toBe(false);
+    expect(dfdPatchSchema.safeParse({ expectedDate: null, estimatedValue: null }).success).toBe(
+      true,
+    );
+    expect(dfdPatchSchema.safeParse({ estimatedValue: '10,5' }).success).toBe(false);
+    expect(dfdPatchSchema.safeParse({ completedSteps: ['PLANNING', 'NOPE'] }).success).toBe(false);
+  });
+
+  it('confere só os campos enviados: data futura, objeto, previsão e exercício', () => {
+    expect(issues({ priority: 'LOW' })).toEqual([]);
+    expect(issues({ requestDate: '2026-10-18' })).toEqual([['requestDate', 'OUT_OF_RANGE']]);
+    expect(issues({ objectSummary: '   ' })).toEqual([['objectSummary', 'REQUIRED']]);
+    expect(issues({ objectSummary: 'curto' })).toEqual([['objectSummary', 'TOO_SHORT']]);
+    expect(issues({ objectSummary: 'x'.repeat(2001) })).toEqual([['objectSummary', 'TOO_LONG']]);
+    expect(issues({ expectedDate: '2026-10-16' }, { expectedDate: '2026-10-16' })).toEqual([
+      ['expectedDate', 'OUT_OF_RANGE'],
+    ]);
+    expect(
+      issues(
+        { expectedDate: '2026-10-16' },
+        { requestDate: '2026-10-01', expectedDate: '2026-10-16' },
+      ),
+    ).toEqual([['expectedDate', 'DATE_IN_PAST']]);
+    expect(issues({ pcaYear: 2030 })).toEqual([['pcaYear', 'OUT_OF_RANGE']]);
+    expect(issues({ pcaItemCode: 'x'.repeat(61) })).toEqual([['pcaItemCode', 'TOO_LONG']]);
+  });
+
+  it('pares garantidos pelo banco no cabeçalho mesclado (CHECKs de dfds)', () => {
+    expect(
+      issues(
+        { requestDate: '2026-10-10' },
+        { requestDate: '2026-10-10', expectedDate: '2026-10-05' },
+      ),
+    ).toEqual([['requestDate', 'OUT_OF_RANGE']]);
+    expect(issues({ pcaStatus: 'PLANNED' }, { pcaStatus: 'PLANNED' })).toEqual([
+      ['pcaYear', 'CONDITIONAL_REQUIRED'],
+    ]);
+    expect(
+      issues({ pcaStatus: 'PLANNED', pcaYear: 2027 }, { pcaStatus: 'PLANNED', pcaYear: 2027 }),
+    ).toEqual([]);
+    expect(issues({ pcaStatus: 'NOT_PLANNED' }, { pcaStatus: 'NOT_PLANNED' })).toEqual([
+      ['pcaJustification', 'CONDITIONAL_REQUIRED'],
+    ]);
+    // A justificativa curta é aceita no rascunho (o mínimo é da completude).
+    expect(
+      issues(
+        { pcaStatus: 'NOT_PLANNED', pcaJustification: 'curta' },
+        { pcaStatus: 'NOT_PLANNED', pcaJustification: 'curta' },
+      ),
+    ).toEqual([]);
+    expect(issues({ pcaJustification: 'x'.repeat(10_001) })).toEqual([
+      ['pcaJustification', 'TOO_LONG'],
+    ]);
   });
 });

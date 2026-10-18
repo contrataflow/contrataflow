@@ -1,9 +1,13 @@
+import { sectionEtag } from '@contrataflow/validation';
 import type {
   DfdDto,
   DfdMeta,
+  DfdPatch,
   DfdSummaryDto,
   DocumentItemDto,
   DocumentItemInput,
+  DocumentSectionSave,
+  DocumentSectionSavedDto,
 } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 
@@ -132,4 +136,33 @@ export async function replaceDocumentItems(
     items: Array.isArray(result.data) ? result.data : [],
     documentVersion: versionOf(result.meta.etag),
   };
+}
+
+/** DFD-04 (US-015): grava SÓ os campos alterados do cabeçalho com `If-Match` da versão do DFD. */
+export async function patchDfd(
+  dfdId: string,
+  patch: DfdPatch,
+  version: number,
+): Promise<DfdResult> {
+  return toResult(
+    await apiRequest<DfdDto>(`/dfds/${dfdId}`, {
+      method: 'PATCH',
+      body: patch,
+      ifMatch: `"${String(version)}"`,
+    }),
+  );
+}
+
+/** DOC-05 (US-015): grava a seção com `If-Match: "s<revision>"` (revisão da SEÇÃO). */
+export async function saveDocumentSection(
+  documentId: string,
+  sectionKey: string,
+  body: DocumentSectionSave,
+  revision: number,
+): Promise<DocumentSectionSavedDto> {
+  const result = await apiRequest<DocumentSectionSavedDto>(
+    `/documents/${documentId}/sections/${sectionKey}`,
+    { method: 'PUT', body, ifMatch: sectionEtag(revision) },
+  );
+  return result.data;
 }

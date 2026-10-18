@@ -79,6 +79,7 @@ export async function switchTenant(
     readonly refresh: () => void;
     /** "Usar como padrão" (FA-04). */
     readonly setAsDefault?: boolean;
+    readonly drafts?: LocalDrafts;
     readonly fetchImpl?: FetchLike;
   },
 ): Promise<TenantSwitchOutcome> {
@@ -99,6 +100,14 @@ export async function switchTenant(
   }
   deps.queryClient?.clear();
   clearToasts();
+  if (deps.currentTenantId !== null) {
+    try {
+      // RN-DFD-33: a contingência local do autosave não atravessa a troca de órgão.
+      await (deps.drafts ?? localDrafts()).clearTenant(deps.currentTenantId);
+    } catch {
+      // IndexedDB indisponível: nada a apagar.
+    }
+  }
   if (tenantId) publishSessionEvent({ type: 'tenant-switched', tenantId });
   deps.refresh();
   return { kind: 'switched', session };

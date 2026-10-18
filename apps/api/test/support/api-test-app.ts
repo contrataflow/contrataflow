@@ -18,6 +18,10 @@ import type {
 import { OUTBOX_STORE } from '#modules/platform/application/outbox-ports.js';
 import { InMemoryOutboxStore } from '#modules/platform/infrastructure/outbox/in-memory-outbox.store.js';
 import type { InMemoryOutboxRow } from '#modules/platform/infrastructure/outbox/in-memory-outbox.store.js';
+import {
+  DRAFT_AUDIT_WINDOW_STORE,
+  InMemoryDraftAuditWindowStore,
+} from '#shared/audit/draft-audit.js';
 import { AUDIT_SAMPLING_STORE, InMemoryAuditSamplingStore } from '#shared/audit/sampling-store.js';
 import { TOKEN_VERIFIER } from '#shared/auth/ports.js';
 import { CACHE_STORE, InMemoryCacheStore } from '#shared/cache/cache-store.js';
@@ -95,6 +99,8 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
       .useValue(new InMemoryIdempotencyStore())
       .overrideProvider(AUDIT_SAMPLING_STORE)
       .useValue(new InMemoryAuditSamplingStore())
+      .overrideProvider(DRAFT_AUDIT_WINDOW_STORE)
+      .useValue(new InMemoryDraftAuditWindowStore())
       .overrideProvider(CACHE_STORE)
       .useValue(new InMemoryCacheStore());
   }

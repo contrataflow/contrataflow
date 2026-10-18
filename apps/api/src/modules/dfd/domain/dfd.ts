@@ -1,4 +1,12 @@
-import type { DfdHeaderValues, DfdWizardStep, PcaStatus, Priority } from '@contrataflow/validation';
+import { DFD_PATCH_FIELDS, DFD_WIZARD_STEPS } from '@contrataflow/validation';
+import type {
+  DfdHeaderValues,
+  DfdPatch,
+  DfdPatchField,
+  DfdWizardStep,
+  PcaStatus,
+  Priority,
+} from '@contrataflow/validation';
 
 /*
  * Cabeçalho tipado do DFD (US-014 · entities.md §4.8 · Decreto 10.947/2022, art. 8º). O DFD nasce
@@ -120,4 +128,60 @@ export function isInSecretariat(
     department.organizationId === secretariat.organizationId &&
     department.path.includes(`/${secretariat.id}/`)
   );
+}
+
+/** Campo do cabeçalho alterado por um patch (valores antes/depois, para a auditoria). */
+export interface DfdHeaderChange {
+  readonly field: DfdPatchField;
+  readonly old: unknown;
+  readonly new: unknown;
+}
+
+/** `completedSteps` sem repetição e na ordem do wizard (união do merge — RN-DFD-28). */
+export function normalizeCompletedSteps(steps: readonly DfdWizardStep[]): DfdWizardStep[] {
+  const wanted = new Set(steps);
+  return DFD_WIZARD_STEPS.filter((step) => wanted.has(step));
+}
+
+const sameValue = (a: unknown, b: unknown) =>
+  Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && a.every((item, index) => item === b[index])
+    : a === b;
+
+/**
+ * DFD-04 (US-015 · RN-DFD-27): aplica os campos enviados ao cabeçalho, devolvendo só as mudanças
+ * efetivas (patch igual ao atual = sem mudança — nenhuma versão nova). Textos aparados; o código do
+ * PCA vazio vira `null`. As regras de campo e de referência já foram conferidas por quem chama.
+ */
+export function applyDfdPatch(
+  dfd: Dfd,
+  patch: DfdPatch,
+  stamp: { readonly actorId: string; readonly now: Date },
+): { readonly dfd: Dfd; readonly changes: readonly DfdHeaderChange[] } {
+  const blankToNull = (value: string | null | undefined) =>
+    value === undefined ? undefined : value === null || value.trim() === '' ? null : value.trim();
+  const normalized: Partial<Record<DfdPatchField, unknown>> = {
+    ...patch,
+    ...(patch.objectSummary === undefined ? {} : { objectSummary: patch.objectSummary.trim() }),
+    ...(patch.pcaItemCode === undefined ? {} : { pcaItemCode: blankToNull(patch.pcaItemCode) }),
+    ...(patch.pcaJustification === undefined
+      ? {}
+      : { pcaJustification: blankToNull(patch.pcaJustification) }),
+    ...(patch.completedSteps === undefined
+      ? {}
+      : { completedSteps: normalizeCompletedSteps(patch.completedSteps) }),
+  };
+  const changes: DfdHeaderChange[] = [];
+  const next: Record<string, unknown> = { ...dfd };
+  for (const field of DFD_PATCH_FIELDS) {
+    const value = normalized[field];
+    if (value === undefined || sameValue(dfd[field], value)) continue;
+    changes.push({ field, old: dfd[field], new: value });
+    next[field] = value;
+  }
+  if (changes.length === 0) return { dfd, changes };
+  return {
+    dfd: { ...(next as unknown as Dfd), updatedAt: stamp.now, updatedById: stamp.actorId },
+    changes,
+  };
 }

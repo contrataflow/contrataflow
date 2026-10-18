@@ -6,8 +6,13 @@ import { VersionConflictError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { DocumentAlreadyExistsError } from '../application/document.ports.js';
-import type { DocumentLabel, DocumentRepository } from '../application/document.ports.js';
+import type {
+  DocumentLabel,
+  DocumentRepository,
+  SectionDraftWrite,
+} from '../application/document.ports.js';
 import type { DocumentVersionRecord } from '../domain/document-snapshot.js';
+import { isEditable } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
 /** Ocupa a vaga do tipo singular no processo (o índice parcial `documents_singleton_key`). */
@@ -127,6 +132,27 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     if (conflict) return Promise.reject(conflict);
     this.documents.set(document.id, { ...document, version: expectedVersion + 1 });
     return Promise.resolve();
+  }
+
+  /** Mesma condição do `UPDATE` atômico do PostgreSQL (status, exclusão e revisão da seção). */
+  saveSectionDraft(_tx: TenantTx, input: SectionDraftWrite): Promise<number | null> {
+    const current = this.inTenant().find(
+      (row) => row.id === input.documentId && row.deletedAt === null,
+    );
+    if (current === undefined || !isEditable(current)) return Promise.resolve(null);
+    const revision = current.draftContent.sections[input.sectionKey]?.revision ?? 0;
+    if (revision !== input.expectedRevision) return Promise.resolve(null);
+    const draftRevision = current.draftRevision + 1;
+    this.documents.set(current.id, {
+      ...current,
+      draftContent: {
+        sections: { ...current.draftContent.sections, [input.sectionKey]: input.section },
+      },
+      draftRevision,
+      updatedAt: input.now,
+      updatedById: input.actorId,
+    });
+    return Promise.resolve(draftRevision);
   }
 
   /**

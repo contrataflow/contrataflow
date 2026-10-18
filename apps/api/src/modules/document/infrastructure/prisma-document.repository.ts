@@ -1,12 +1,17 @@
 import { documentSnapshotSchema, draftContentSchema } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
+import { currentRequestContext } from '#shared/context/request-context.js';
 import { isUniqueViolation } from '#shared/database/errors.js';
 import { updateVersioned } from '#shared/database/optimistic-concurrency.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
 import { DocumentAlreadyExistsError } from '../application/document.ports.js';
-import type { DocumentLabel, DocumentRepository } from '../application/document.ports.js';
+import type {
+  DocumentLabel,
+  DocumentRepository,
+  SectionDraftWrite,
+} from '../application/document.ports.js';
 import type { DocumentVersionRecord } from '../domain/document-snapshot.js';
 import type { Document } from '../domain/document.js';
 
@@ -235,6 +240,32 @@ export class PrismaDocumentRepository implements DocumentRepository {
       }
       throw error;
     }
+  }
+
+  async saveSectionDraft(tx: TenantTx, input: SectionDraftWrite): Promise<number | null> {
+    // Comando de referência da US-015: sem `SELECT … FOR UPDATE` — status e revisão da seção são
+    // conferidos no próprio `UPDATE` (a RLS e o `tenant_id` explícito limitam ao tenant).
+    const tenantId = currentRequestContext()?.tenantId ?? null;
+    if (tenantId === null) return null;
+    const rows = await tx.$queryRaw<{ draft_revision: number }[]>`
+      UPDATE documents
+         SET draft_content = jsonb_set(
+               draft_content,
+               ARRAY['sections', ${input.sectionKey}]::text[],
+               ${JSON.stringify(input.section)}::jsonb,
+               true
+             ),
+             draft_revision = draft_revision + 1,
+             updated_at = ${input.now},
+             updated_by_id = ${input.actorId}::uuid
+       WHERE tenant_id = ${tenantId}::uuid
+         AND id = ${input.documentId}::uuid
+         AND deleted_at IS NULL
+         AND status IN ('DRAFT', 'RETURNED')
+         AND COALESCE((draft_content #>> ARRAY['sections', ${input.sectionKey}, 'revision']::text[])::int, 0)
+             = ${input.expectedRevision}
+      RETURNING draft_revision`;
+    return rows[0]?.draft_revision ?? null;
   }
 
   async lockForUpdate(tx: TenantTx, documentId: string): Promise<void> {

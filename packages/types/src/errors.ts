@@ -113,6 +113,8 @@ export const ERROR_CODES = [
   'DEPARTMENT_REQUIRED',
   'DUE_DATE_OVERRIDE_NOT_ALLOWED',
   'ASSIGNEE_NOT_ELIGIBLE',
+  // US-015: autosave — revisão da seção divergente (api/03-documents.md DOC-05 · DEC-055).
+  'SECTION_REVISION_CONFLICT',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

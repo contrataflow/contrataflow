@@ -1,4 +1,9 @@
-import type { Confidentiality, SystemDocumentModule, Violation } from '@contrataflow/validation';
+import type {
+  Confidentiality,
+  DraftSection,
+  SystemDocumentModule,
+  Violation,
+} from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -33,6 +38,16 @@ export interface DocumentLabel {
   readonly confidentiality: Confidentiality;
 }
 
+/** A seção a gravar pela atualização condicional (DOC-05). */
+export interface SectionDraftWrite {
+  readonly documentId: string;
+  readonly sectionKey: string;
+  readonly section: DraftSection;
+  readonly expectedRevision: number;
+  readonly actorId: string;
+  readonly now: Date;
+}
+
 export interface DocumentRepository {
   /** `null` se inexistente, excluído (lógico) ou de outro tenant (RLS) — indistinguíveis (404). */
   findById(tx: TenantTx, id: string): Promise<Document | null>;
@@ -60,6 +75,14 @@ export interface DocumentRepository {
    * @throws VersionConflictError
    */
   update(tx: TenantTx, document: Document, expectedVersion: number): Promise<void>;
+  /**
+   * Gravação de seção do rascunho (DOC-05 · US-015 · RN-DFD-25/26): UMA atualização condicional
+   * atômica — documento do tenant, não excluído, em `DRAFT`/`RETURNED` e com a seção na
+   * `expectedRevision` (ausente = 0) — que troca só a seção (`jsonb_set`), incrementa
+   * `draftRevision` e o carimbo, SEM tocar `version`. Devolve o novo `draftRevision`, ou `null` se
+   * nenhuma linha atendeu (quem chama relê para distinguir 404, 409 e 412).
+   */
+  saveSectionDraft(tx: TenantTx, input: SectionDraftWrite): Promise<number | null>;
   /**
    * Trava a linha do documento até o fim da transação (`SELECT … FOR UPDATE` — RN-DOC-58): dois
    * "Salvar versão" simultâneos serializam e leem o máximo de `version_number` um depois do outro.

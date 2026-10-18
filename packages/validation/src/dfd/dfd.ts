@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
 import { uuidV7Schema } from '../common/identifiers.js';
+import { sectionAuthorSchema } from '../document/document-section.js';
 import { DOCUMENT_STATUSES } from '../document/document-type.js';
 import { DOCUMENT_ACTIONS } from '../document/document.js';
 import { SECTION_REQUIREMENTS } from '../document/template.js';
@@ -72,6 +73,7 @@ export const DFD_MESSAGES = Object.freeze({
   pcaItemCodeLength: `O item do PCA deve ter no máximo ${DFD_LIMITS.pcaItemCodeMax} caracteres.`,
   pcaJustificationRequired:
     'Justifique por que a demanda não está prevista no PCA (mín. 20 caracteres).',
+  pcaJustificationTooLong: `A justificativa deve ter no máximo ${DFD_LIMITS.pcaJustificationMax.toLocaleString('pt-BR')} caracteres.`,
   itemsRequired: 'Informe ao menos um item com quantidade.',
   departmentInactive: 'O setor escolhido foi desativado. Escolha outro setor.',
   attachmentsPending: (count: number) =>
@@ -357,3 +359,195 @@ export const PRIORITY_RANK: Readonly<Record<Priority, number>> = {
   HIGH: 2,
   URGENT: 3,
 };
+
+// --- DFD-04: gravação parcial do cabeçalho (US-015 · RN-DFD-27/28) ----------------------------
+
+/** Campos editáveis do cabeçalho pelo `PATCH` (RN-DFD-27); `processId`/`documentId` → `NOT_ALLOWED`. */
+export const DFD_PATCH_FIELDS = [
+  'requestDate',
+  'requestingDepartmentId',
+  'responsibleId',
+  'objectSummary',
+  'priority',
+  'expectedDate',
+  'estimatedValue',
+  'pcaStatus',
+  'pcaYear',
+  'pcaItemCode',
+  'pcaJustification',
+  'wizardStep',
+  'completedSteps',
+] as const;
+export type DfdPatchField = (typeof DFD_PATCH_FIELDS)[number];
+
+/**
+ * Campos de texto livre do cabeçalho: auditoria coalescida (`document.draft_update`, RN-DFD-35) e
+ * só como hash + tamanho. Os demais campos de dados (datas, prioridade, setor, responsável, PCA,
+ * estimativa) são auditados de imediato com `changes`; o passo do wizard não é auditado.
+ */
+export const DFD_TEXT_FIELDS: readonly DfdPatchField[] = ['objectSummary', 'pcaJustification'];
+export const DFD_WIZARD_FIELDS: readonly DfdPatchField[] = ['wizardStep', 'completedSteps'];
+
+/**
+ * DFD-04 — `PATCH /dfds/{id}` com `If-Match: "<version>"` e APENAS os campos alterados (o
+ * `useAutosave` agrupa os campos do passo). Forma e enumerações aqui; regras de campo em
+ * `dfdPatchIssues` e as de referência (setor da secretaria, responsável ativo) no caso de uso.
+ * Os campos sempre obrigatórios (RN-DFD-08) não aceitam `null`.
+ */
+export const dfdPatchSchema = z
+  .strictObject({
+    requestDate: isoDateSchema.optional(),
+    requestingDepartmentId: z.uuid().optional(),
+    responsibleId: z.uuid().optional(),
+    objectSummary: z.string().optional(),
+    priority: z.enum(PRIORITIES).optional(),
+    expectedDate: isoDateSchema.nullable().optional(),
+    estimatedValue: estimatedValueSchema.nullable().optional(),
+    pcaStatus: z.enum(PCA_STATUSES).optional(),
+    pcaYear: z.int().nullable().optional(),
+    pcaItemCode: z.string().nullable().optional(),
+    pcaJustification: z.string().nullable().optional(),
+    wizardStep: z.enum(DFD_WIZARD_STEPS).optional(),
+    completedSteps: z.array(z.enum(DFD_WIZARD_STEPS)).max(DFD_WIZARD_STEPS.length).optional(),
+  })
+  .meta({ id: 'DfdPatchRequest' });
+export type DfdPatch = z.infer<typeof dfdPatchSchema>;
+
+/**
+ * `meta.current` do 412 `VERSION_CONFLICT` do DFD-04 (FA-02): o DFD como está no servidor e quem o
+ * gravou por último ("Alteração de {nome} às HH:mm"). O cliente compara com a sua base para saber
+ * quais campos o servidor alterou (merge automático — RN-DFD-28).
+ */
+export const dfdConflictCurrentSchema = dfdSchema
+  .extend({ updatedBy: sectionAuthorSchema.nullable() })
+  .meta({ id: 'DfdConflictCurrent' });
+export type DfdConflictCurrent = z.infer<typeof dfdConflictCurrentSchema>;
+
+/** Erro de campo do DFD-04 (`errors[]` do `VALIDATION_ERROR` — api.md §2.1.1). */
+export interface DfdFieldIssue {
+  readonly field: DfdPatchField;
+  readonly code:
+    | 'REQUIRED'
+    | 'TOO_SHORT'
+    | 'TOO_LONG'
+    | 'OUT_OF_RANGE'
+    | 'DATE_IN_PAST'
+    | 'CONDITIONAL_REQUIRED';
+  readonly message: string;
+}
+
+/**
+ * Grupos de campos que o banco confere juntos (CHECKs de `dfds`): o autosave grava o grupo inteiro
+ * ou nada — previsão ≥ data do DFD; exercício com `PLANNED`; justificativa com `NOT_PLANNED`.
+ */
+export const DFD_FIELD_GROUPS: readonly (readonly DfdPatchField[])[] = [
+  ['requestDate', 'expectedDate'],
+  ['pcaStatus', 'pcaYear', 'pcaItemCode', 'pcaJustification'],
+];
+
+const isBlankText = (value: string | null | undefined) =>
+  value === null || value === undefined || value.trim() === '';
+
+/**
+ * Regras de campo do DFD-04 (RN-DFD-09..16 — os limites do wizard, `dfdStepIssues`): conferidas
+ * nos campos enviados, para o autosave gravar campo a campo. Os pares que o banco garante (CHECKs
+ * de `dfds`) são conferidos no cabeçalho mesclado (`merged` = atual + patch) quando um dos lados foi
+ * enviado: previsão ≥ data do DFD, exercício presente com `PLANNED` e justificativa presente com
+ * `NOT_PLANNED`. O mínimo de 20 caracteres da justificativa e os campos configuráveis vazios ficam
+ * com a completude (`evaluateDfdCompleteness`) — um rascunho pode estar incompleto. `today` no fuso
+ * do tenant.
+ */
+export function dfdPatchIssues(
+  patch: DfdPatch,
+  merged: Pick<
+    DfdHeaderValues,
+    'requestDate' | 'expectedDate' | 'pcaStatus' | 'pcaYear' | 'pcaJustification'
+  >,
+  context: { readonly today: string },
+): DfdFieldIssue[] {
+  const issues: DfdFieldIssue[] = [];
+  const sent = (field: DfdPatchField) => patch[field] !== undefined;
+  if (patch.requestDate !== undefined && patch.requestDate > context.today) {
+    issues.push({
+      field: 'requestDate',
+      code: 'OUT_OF_RANGE',
+      message: DFD_MESSAGES.requestDateFuture,
+    });
+  }
+  if (patch.objectSummary !== undefined) {
+    const length = patch.objectSummary.trim().length;
+    if (length === 0) {
+      issues.push({
+        field: 'objectSummary',
+        code: 'REQUIRED',
+        message: DFD_MESSAGES.objectRequired,
+      });
+    } else if (length < DFD_LIMITS.objectSummaryMin || length > DFD_LIMITS.objectSummaryMax) {
+      issues.push({
+        field: 'objectSummary',
+        code: length < DFD_LIMITS.objectSummaryMin ? 'TOO_SHORT' : 'TOO_LONG',
+        message: DFD_MESSAGES.objectLength,
+      });
+    }
+  }
+  if (
+    (sent('requestDate') || sent('expectedDate')) &&
+    merged.expectedDate &&
+    merged.requestDate &&
+    merged.expectedDate < merged.requestDate
+  ) {
+    issues.push({
+      field: sent('expectedDate') ? 'expectedDate' : 'requestDate',
+      code: 'OUT_OF_RANGE',
+      message: DFD_MESSAGES.expectedDateBeforeRequest,
+    });
+  } else if (patch.expectedDate && patch.expectedDate < context.today) {
+    issues.push({
+      field: 'expectedDate',
+      code: 'DATE_IN_PAST',
+      message: DFD_MESSAGES.expectedDatePast,
+    });
+  }
+  if (patch.pcaYear !== undefined && patch.pcaYear !== null) {
+    const currentYear = yearOf(context.today);
+    if (patch.pcaYear !== currentYear && patch.pcaYear !== currentYear + 1) {
+      issues.push({ field: 'pcaYear', code: 'OUT_OF_RANGE', message: DFD_MESSAGES.pcaYearRange });
+    }
+  }
+  if (
+    (sent('pcaStatus') || sent('pcaYear')) &&
+    merged.pcaStatus === 'PLANNED' &&
+    merged.pcaYear === null
+  ) {
+    issues.push({
+      field: 'pcaYear',
+      code: 'CONDITIONAL_REQUIRED',
+      message: DFD_MESSAGES.pcaYearRequired,
+    });
+  }
+  if ((patch.pcaItemCode?.trim().length ?? 0) > DFD_LIMITS.pcaItemCodeMax) {
+    issues.push({
+      field: 'pcaItemCode',
+      code: 'TOO_LONG',
+      message: DFD_MESSAGES.pcaItemCodeLength,
+    });
+  }
+  if ((patch.pcaJustification?.trim().length ?? 0) > DFD_LIMITS.pcaJustificationMax) {
+    issues.push({
+      field: 'pcaJustification',
+      code: 'TOO_LONG',
+      message: DFD_MESSAGES.pcaJustificationTooLong,
+    });
+  } else if (
+    (sent('pcaStatus') || sent('pcaJustification')) &&
+    merged.pcaStatus === 'NOT_PLANNED' &&
+    isBlankText(merged.pcaJustification)
+  ) {
+    issues.push({
+      field: 'pcaJustification',
+      code: 'CONDITIONAL_REQUIRED',
+      message: DFD_MESSAGES.pcaJustificationRequired,
+    });
+  }
+  return issues;
+}

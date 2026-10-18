@@ -4,6 +4,7 @@ import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { PlatformModule } from '#modules/platform/platform.module.js';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
+import { DRAFT_AUDIT_COALESCER } from '#shared/audit/draft-audit.js';
 
 import {
   ExportAuditLogsHandler,
@@ -16,6 +17,7 @@ import {
 } from './application/audit-seals.handlers.js';
 import { AuditFacade } from './application/audit.facade.js';
 import { AuditService } from './application/audit.service.js';
+import { DraftAuditCoalescer } from './application/draft-audit-coalescer.js';
 import { EnsureAuditPartitionsJob } from './application/ensure-audit-partitions.job.js';
 import {
   AUDIT_CLOCK,
@@ -50,6 +52,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * US-074: dono de `AuditSeal` — o worker sela; aqui, a listagem (AUD-04) e a verificação (AUD-05).
  * US-075: consulta (AUD-01), detalhe (AUD-02) e exportação (AUD-03) da trilha. Os selos vêm antes
  * na lista de controllers: `/audit/seals` precisa casar antes de `/audit/:id`.
+ * US-015: a janela da auditoria coalescida de rascunho (`DRAFT_AUDIT_COALESCER` — RN-DFD-35).
  */
 @Global()
 @Module({
@@ -59,6 +62,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     AuditFacade,
     AuditService,
     { provide: AUDIT_TRAIL, useExisting: AuditService },
+    DraftAuditCoalescer,
+    { provide: DRAFT_AUDIT_COALESCER, useExisting: DraftAuditCoalescer },
     PrismaAuditLogStore,
     PrismaAuditTransactions,
     PrismaAuditPartitions,
@@ -98,6 +103,6 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     EnsureAuditPartitionsJob,
     AuditPartitionScheduler,
   ],
-  exports: [AuditFacade, AUDIT_TRAIL],
+  exports: [AuditFacade, AUDIT_TRAIL, DRAFT_AUDIT_COALESCER],
 })
 export class AuditModule {}

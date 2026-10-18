@@ -5,6 +5,10 @@ import { Global, Module } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { AI_CIRCUIT_STORE } from '#shared/ai/ai-circuit-store.js';
+import {
+  DRAFT_AUDIT_WINDOW_STORE,
+  InMemoryDraftAuditWindowStore,
+} from '#shared/audit/draft-audit.js';
 import { AUDIT_SAMPLING_STORE } from '#shared/audit/sampling-store.js';
 import { CACHE_STORE } from '#shared/cache/cache-store.js';
 import { PlatformCache, TenantCache } from '#shared/cache/tenant-cache.js';
@@ -36,6 +40,7 @@ import { InMemoryAiCircuitStore } from './infrastructure/redis/in-memory-ai-circ
 import { RedisAiCircuitStore } from './infrastructure/redis/redis-ai-circuit.store.js';
 import { RedisAuditSamplingStore } from './infrastructure/redis/redis-audit-sampling.store.js';
 import { RedisCacheStore } from './infrastructure/redis/redis-cache.store.js';
+import { RedisDraftAuditWindowStore } from './infrastructure/redis/redis-draft-audit-window.store.js';
 import { RedisHealthIndicator } from './infrastructure/redis/redis-health.indicator.js';
 import { RedisIdempotencyStore } from './infrastructure/redis/redis-idempotency.store.js';
 import { RedisSessionRegistry } from './infrastructure/redis/redis-session-registry.js';
@@ -60,7 +65,8 @@ function developmentKey(label: string): Buffer {
  * também fornece o cache isolado por tenant (`TenantCache`/`PlatformCache` sobre `CACHE_STORE`) e o
  * `StorageService` com a guarda de prefixo `tenants/{tenantId}/` (adaptador S3 da US-068). Desde a
  * US-115, o produtor de jobs do padrão B da API (`JOB_QUEUE`, BullMQ) e o estado de plataforma do
- * disjuntor do provedor de IA (`AI_CIRCUIT_STORE`, chave `cf:{env}:ai:circuit`).
+ * disjuntor do provedor de IA (`AI_CIRCUIT_STORE`, chave `cf:{env}:ai:circuit`). Desde a US-015, a
+ * janela da auditoria coalescida de rascunho (`DRAFT_AUDIT_WINDOW_STORE`).
  */
 @Global()
 @Module({
@@ -138,6 +144,13 @@ function developmentKey(label: string): Buffer {
       inject: [APP_CONFIG, RedisAiCircuitStore],
       useFactory: (config: AppConfig, redis: RedisAiCircuitStore) =>
         config.oidc.fakeSigningKey === null ? redis : new InMemoryAiCircuitStore(),
+    }, // US-015: janela da auditoria coalescida de rascunho (RN-DFD-35 · `document.draft_update`).
+    RedisDraftAuditWindowStore,
+    {
+      provide: DRAFT_AUDIT_WINDOW_STORE,
+      inject: [APP_CONFIG, RedisDraftAuditWindowStore],
+      useFactory: (config: AppConfig, redis: RedisDraftAuditWindowStore) =>
+        config.oidc.fakeSigningKey === null ? redis : new InMemoryDraftAuditWindowStore(),
     },
   ],
   exports: [
@@ -155,6 +168,7 @@ function developmentKey(label: string): Buffer {
     SYNC_EVENT_HANDLERS,
     JOB_QUEUE,
     AI_CIRCUIT_STORE,
+    DRAFT_AUDIT_WINDOW_STORE,
   ],
 })
 export class PlatformModule {}

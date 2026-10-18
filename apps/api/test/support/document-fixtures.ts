@@ -25,6 +25,10 @@ import type { DocumentTemplateVersion } from '../../src/modules/document/domain/
 import type { DocumentType } from '../../src/modules/document/domain/document-type.js';
 import type { Document } from '../../src/modules/document/domain/document.js';
 
+/** Portas do `document` para os specs dos módulos tipados (US-015: banco fora e relógio). */
+export { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS } from '#modules/document/application/ports.js';
+export type { DocumentTransactions } from '#modules/document/application/ports.js';
+
 export const FIXTURE_NOW = new Date('2026-10-16T13:00:00.000Z');
 export const FIXTURE_USER = '0192f065-0000-7000-8000-0000000000a1';
 

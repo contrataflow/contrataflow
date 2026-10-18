@@ -1442,6 +1442,101 @@
           "template"
         ]
       },
+      "DfdPatchRequest": {
+        "type": "object",
+        "properties": {
+          "requestDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "requestingDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "responsibleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "objectSummary": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "expectedDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "estimatedValue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:0|[1-9]\\d{0,15})(?:\\.\\d{1,2})?$",
+            "description": "Decimal ≥ 0 com até 2 casas, ponto como separador (ex.: \"15000.00\")."
+          },
+          "pcaStatus": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "NOT_PLANNED",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "pcaYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pcaItemCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pcaJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wizardStep": {
+            "type": "string",
+            "enum": [
+              "IDENTIFICATION",
+              "JUSTIFICATION",
+              "PLANNING",
+              "REVIEW",
+              "CONCLUSION"
+            ]
+          },
+          "completedSteps": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "IDENTIFICATION",
+                "JUSTIFICATION",
+                "PLANNING",
+                "REVIEW",
+                "CONCLUSION"
+              ]
+            },
+            "maxItems": 5
+          }
+        },
+        "additionalProperties": false
+      },
       "DocumentRendition": {
         "type": "object",
         "properties": {
@@ -2551,6 +2646,111 @@
         },
         "required": [
           "items"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentSectionSaved": {
+        "type": "object",
+        "properties": {
+          "sectionKey": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "EMPTY",
+              "FILLED",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "draftRevision": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sectionKey",
+          "state",
+          "revision",
+          "updatedAt",
+          "updatedBy",
+          "draftRevision"
+        ]
+      },
+      "DocumentSectionSaveRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "doc"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": {}
+          },
+          "notApplicable": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "EMPTY",
+              "FILLED",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "justification": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "overwrittenRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "content"
         ],
         "additionalProperties": false
       },
@@ -19663,6 +19863,138 @@
             }
           }
         }
+      },
+      "patch": {
+        "operationId": "DFD-04",
+        "summary": "Atualizar cabeçalho do DFD (autosave)",
+        "tags": [
+          "DFD"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.draft_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DfdPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Gravação parcial: APENAS os campos enviados (RN-DFD-27), `If-Match: \"<version>\"` e `version + 1` (`ETag` novo); patch sem mudança efetiva = 200 sem nova versão. Também persiste `wizardStep`/`completedSteps` (retomada — RN-DFD-34). Regras de campo só nos enviados (data ≤ hoje, objeto 10–2.000, previsão ≥ data e ≥ hoje, PCA, item ≤ 60), setor na secretaria solicitante (`DEPARTMENT_NOT_IN_SECRETARIAT`), responsável ativo; `processId`/`documentId` → 422 `NOT_ALLOWED`. Erros: 404 `DFD_NOT_FOUND`, 403 `NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED` (estimativa sem POL-09 em processo sigiloso), 409 `DOCUMENT_NOT_EDITABLE`/`INVALID_PROCESS_STATUS`, 412 `VERSION_CONFLICT` com `meta.current` (o DFD atual + `updatedBy` — merge do cliente, RN-DFD-28), 422 `VALIDATION_ERROR`, 428 `PRECONDITION_REQUIRED`. Auditoria `document.draft_update`: imediata com `changes` nos campos de dados (estimativa mascarada se sigilosa), coalescida nos textos (hash + tamanho); sem evento de domínio.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Dfd"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/DfdMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/document-renditions/{renditionId}": {
@@ -23008,6 +23340,146 @@
                   "required": [
                     "data",
                     "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/sections/{sectionKey}": {
+      "put": {
+        "operationId": "DOC-05",
+        "summary": "Salvar seção do documento (autosave)",
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.draft_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "required": true,
+            "name": "sectionKey",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentSectionSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Seção gravada numa atualização condicional atômica (documento em `DRAFT`/`RETURNED` e a revisão da seção igual à do `If-Match`): estado derivado no servidor (`FILLED`/`EMPTY`, ou `NOT_APPLICABLE` com justificativa), `revision + 1` e `draftRevision + 1` — `Document.version` NÃO muda (RN-DFD-26) e nenhuma versão é criada (DEC-017). `ETag: \"s<revision>\"`. Reenvio idêntico = 200 com a revisão atual, sem gravar (RN-DFD-36). Erros: 412 `SECTION_REVISION_CONFLICT` com `meta.current` (seção atual, autor e horário), 428 `PRECONDITION_REQUIRED`, 409 `DOCUMENT_NOT_EDITABLE` (`meta.status`/`statusSince`)/`INVALID_PROCESS_STATUS`, 403 `NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED`, 422 `SECTION_NOT_IN_TEMPLATE`/`RICH_TEXT_INVALID`/`DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`/`VALIDATION_ERROR` (`TOO_LONG`), 413 `PAYLOAD_TOO_LARGE` (> 1 MB), 429 `RATE_LIMITED`, 404 `NOT_FOUND`. Auditoria `document.draft_update` coalescida (1 por documento/seção/usuário a cada 10 min) ou imediata em \"Manter a minha versão\" (`overwrittenRevision`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DocumentSectionSaved"
+                    }
+                  },
+                  "required": [
+                    "data"
                   ]
                 }
               }

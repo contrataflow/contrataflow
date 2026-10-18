@@ -238,13 +238,15 @@ export class DocumentLifecycleService {
    * POL-02 (editar — DOC-04/14 — e finalizar/submeter — DOC-09/10): permissão do tipo cobrindo o
    * processo (403 + MFA) + custódia ou participação (403) + processo editável (409) + tipo na etapa
    * (422). O status do documento é conferido pela transição. `deniedDetail` troca a mensagem do 403
-   * de permissão (coleções tipadas — "Você não tem permissão para gerenciar riscos…").
+   * de permissão (coleções tipadas — "Você não tem permissão para gerenciar riscos…");
+   * `notCustodian` troca o 403 sem custódia/participação (autosave — US-015: `NOT_PROCESS_CUSTODIAN`).
    */
   async authorizePol02(
     context: DocumentAuthorizationContext,
     actor: ResolvedDocumentActor,
     kind: 'edit' | 'submit',
     deniedDetail?: string,
+    notCustodian: () => Error = notCustodianNorCollaborator,
   ): Promise<void> {
     const permissions = typePermissionsOf(context.type.systemModule);
     await this.access.assertCanOnProcess(
@@ -252,7 +254,7 @@ export class DocumentLifecycleService {
       context.process.access,
       deniedDetail,
     );
-    if (!actor.isCustodian && !actor.isCollaborator) throw notCustodianNorCollaborator();
+    if (!actor.isCustodian && !actor.isCollaborator) throw notCustodian();
     this.assertProcessEditable(context);
     this.assertTypeInStage(context);
   }

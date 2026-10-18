@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { createDfdFromProcess, dfdHeaderValues, isInSecretariat } from './dfd.js';
+import {
+  applyDfdPatch,
+  createDfdFromProcess,
+  dfdHeaderValues,
+  isInSecretariat,
+  normalizeCompletedSteps,
+} from './dfd.js';
 import type { DfdProcessSource } from './dfd.js';
 
 const NOW = new Date('2026-10-17T15:00:00.000Z');
@@ -112,5 +118,105 @@ describe('isInSecretariat (RN-DFD-09)', () => {
     expect(isInSecretariat({ path: '/secretaria/', organizationId: 'org' }, secretariat)).toBe(
       false,
     );
+  });
+});
+
+describe('applyDfdPatch (DFD-04 · RN-DFD-27)', () => {
+  const dfd = createDfdFromProcess(PROCESS, input);
+  const LATER = new Date('2026-10-17T16:00:00.000Z');
+  const stamp = { actorId: '0192f014-0000-7000-8000-0000000000a2', now: LATER };
+
+  it('aplica só os campos enviados e devolve as mudanças efetivas com o carimbo', () => {
+    const { dfd: next, changes } = applyDfdPatch(
+      dfd,
+      { priority: 'URGENT', objectSummary: '  Novo objeto do DFD  ', pcaItemCode: '  ' },
+      stamp,
+    );
+    expect(changes).toEqual([
+      { field: 'objectSummary', old: dfd.objectSummary, new: 'Novo objeto do DFD' },
+      { field: 'priority', old: 'HIGH', new: 'URGENT' },
+      { field: 'pcaItemCode', old: 'PCA-12', new: null },
+    ]);
+    expect(next).toMatchObject({
+      priority: 'URGENT',
+      objectSummary: 'Novo objeto do DFD',
+      pcaItemCode: null,
+      requestDate: dfd.requestDate,
+      updatedAt: LATER,
+      updatedById: stamp.actorId,
+      version: 1,
+    });
+  });
+
+  it('patch igual ao atual não muda nada (nem o carimbo)', () => {
+    const result = applyDfdPatch(dfd, { priority: 'HIGH', completedSteps: [] }, stamp);
+    expect(result.changes).toEqual([]);
+    expect(result.dfd).toBe(dfd);
+  });
+
+  it('completedSteps sem repetição e na ordem do wizard', () => {
+    expect(normalizeCompletedSteps(['PLANNING', 'IDENTIFICATION', 'PLANNING'])).toEqual([
+      'IDENTIFICATION',
+      'PLANNING',
+    ]);
+    const { changes } = applyDfdPatch(
+      dfd,
+      { wizardStep: 'REVIEW', completedSteps: ['JUSTIFICATION', 'IDENTIFICATION'] },
+      stamp,
+    );
+    expect(changes).toEqual([
+      { field: 'wizardStep', old: 'IDENTIFICATION', new: 'REVIEW' },
+      { field: 'completedSteps', old: [], new: ['IDENTIFICATION', 'JUSTIFICATION'] },
+    ]);
+  });
+});
+
+describe('applyDfdPatch (DFD-04 · RN-DFD-27)', () => {
+  const dfd = createDfdFromProcess(PROCESS, input);
+  const LATER = new Date('2026-10-17T16:00:00.000Z');
+  const stamp = { actorId: '0192f014-0000-7000-8000-0000000000a2', now: LATER };
+
+  it('aplica só os campos enviados e devolve as mudanças efetivas com o carimbo', () => {
+    const { dfd: next, changes } = applyDfdPatch(
+      dfd,
+      { priority: 'URGENT', objectSummary: '  Novo objeto do DFD  ', pcaItemCode: '  ' },
+      stamp,
+    );
+    expect(changes).toEqual([
+      { field: 'objectSummary', old: dfd.objectSummary, new: 'Novo objeto do DFD' },
+      { field: 'priority', old: 'HIGH', new: 'URGENT' },
+      { field: 'pcaItemCode', old: 'PCA-12', new: null },
+    ]);
+    expect(next).toMatchObject({
+      priority: 'URGENT',
+      objectSummary: 'Novo objeto do DFD',
+      pcaItemCode: null,
+      requestDate: dfd.requestDate,
+      updatedAt: LATER,
+      updatedById: stamp.actorId,
+      version: 1,
+    });
+  });
+
+  it('patch igual ao atual não muda nada (nem o carimbo)', () => {
+    const result = applyDfdPatch(dfd, { priority: 'HIGH', completedSteps: [] }, stamp);
+    expect(result.changes).toEqual([]);
+    expect(result.dfd).toBe(dfd);
+  });
+
+  it('completedSteps sem repetição e na ordem do wizard', () => {
+    expect(normalizeCompletedSteps(['PLANNING', 'IDENTIFICATION', 'PLANNING'])).toEqual([
+      'IDENTIFICATION',
+      'PLANNING',
+    ]);
+    const { changes } = applyDfdPatch(
+      dfd,
+      { wizardStep: 'REVIEW', completedSteps: ['JUSTIFICATION', 'IDENTIFICATION'] },
+      stamp,
+    );
+    expect(changes).toEqual([
+      { field: 'wizardStep', old: 'IDENTIFICATION', new: 'REVIEW' },
+      { field: 'completedSteps', old: [], new: ['IDENTIFICATION', 'JUSTIFICATION'] },
+    ]);
   });
 });

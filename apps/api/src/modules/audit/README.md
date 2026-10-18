@@ -74,17 +74,18 @@ await this.audit.recordStandalone({
 
 ## O que o serviço faz
 
-| Etapa                          | Regra     | Onde                                                    |
-| ------------------------------ | --------- | ------------------------------------------------------- |
-| Contrato (V-01, V-02, V-03)    | RN-AUD-02 | `application/audit.service.ts`                          |
-| Contexto da requisição/job     | RN-AUD-05 | `RequestContext` (`shared/context`)                     |
-| Mascaramento                   | RN-AUD-03 | `domain/audit-masking.ts`                               |
-| Coalescência (`draft_update`)  | RN-AUD-06 | `domain/audit-coalescer.ts` + último registro no banco  |
-| Amostragem de `access.denied`  | RN-AUD-07 | `AUDIT_SAMPLING_STORE` (Redis em `modules/platform`)    |
-| `rowHash` (RFC 8785 + SHA-256) | RN-AUD-08 | `domain/audit-record.ts`, `domain/canonical-json.ts`    |
-| INSERT no `tx` (sem RETURNING) | RN-AUD-01 | `infrastructure/prisma-audit-log.store.ts`              |
-| `oncePerSession` (dedup)       | US-088    | `AuditLogStore.existsForSession` (Prisma e em memória)  |
-| Partições mensais (job diário) | FA-03     | `application/ensure-audit-partitions.job.ts`, scheduler |
+| Etapa                          | Regra     | Onde                                                       |
+| ------------------------------ | --------- | ---------------------------------------------------------- |
+| Contrato (V-01, V-02, V-03)    | RN-AUD-02 | `application/audit.service.ts`                             |
+| Contexto da requisição/job     | RN-AUD-05 | `RequestContext` (`shared/context`)                        |
+| Mascaramento                   | RN-AUD-03 | `domain/audit-masking.ts`                                  |
+| Coalescência (`draft_update`)  | RN-AUD-06 | `domain/audit-coalescer.ts` + último registro no banco     |
+| Amostragem de `access.denied`  | RN-AUD-07 | `AUDIT_SAMPLING_STORE` (Redis em `modules/platform`)       |
+| Janela do autosave (US-015)    | RN-DFD-35 | `DraftAuditCoalescer` + `DRAFT_AUDIT_WINDOW_STORE` (Redis) |
+| `rowHash` (RFC 8785 + SHA-256) | RN-AUD-08 | `domain/audit-record.ts`, `domain/canonical-json.ts`       |
+| INSERT no `tx` (sem RETURNING) | RN-AUD-01 | `infrastructure/prisma-audit-log.store.ts`                 |
+| `oncePerSession` (dedup)       | US-088    | `AuditLogStore.existsForSession` (Prisma e em memória)     |
+| Partições mensais (job diário) | FA-03     | `application/ensure-audit-partitions.job.ts`, scheduler    |
 
 - **Mascaramento:** segredos (`password`, `token`, `accessToken`, `secret`, `cookie`…) viram
   `[REDACTED]`; campos com `cpf` no nome são mascarados (`***.456.789-**`); `content`, `body`,
@@ -96,6 +97,14 @@ await this.audit.recordStandalone({
   ator, ação) é descartada, salvo salto de revisão (`AUDIT_COALESCE_MAX_REVISION_GAP`, 20) ou de
   tamanho (`AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT`, 30%). O estado fica em `metadata.coalesce` do
   registro gravado e é lido do próprio `audit_logs` na transação (DEC-071).
+- **Janela do autosave (US-015 · RN-DFD-35):** DOC-05 e DFD-04 NÃO usam o `coalesce` acima — o
+  `DraftAuditCoalescer` (porta `DRAFT_AUDIT_COALESCER`, `#shared/audit/draft-audit.ts`) abre ANTES
+  da transação uma janela de 10 min por (documento, alvo, usuário) no Redis (`SET NX PX` +
+  `…:last` com a última revisão auditada — `RedisDraftAuditWindowStore` na `platform`). Quem abre a
+  janela audita com `fromRevision` (última auditada + 1) … `toRevision`; gravação que falha devolve
+  a janela (`abandon`). Redis fora → audita toda gravação (fail-safe) e loga `warn
+audit.coalesce_store_unavailable` (no máximo 1 por minuto). Sobrescrita após conflito e campos de
+  dados do cabeçalho são sempre imediatos.
 - **Amostragem:** até `AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW` (20) por tenant, usuário (ou
   IP) e ação a cada `AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS` (60); o excedente vai para
   `metadata.suppressedCount` do próximo registro. Redis fora → grava tudo e loga

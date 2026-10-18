@@ -9,6 +9,7 @@ import { DfdRuleContextContributor } from './application/dfd-rule-context.js';
 import { CreateDfdCommand } from './application/dfd.commands.js';
 import { DfdFacade } from './application/dfd.facade.js';
 import { GetDfdQuery, ListProcessDfdsQuery } from './application/dfd.queries.js';
+import { PatchDfdHeaderCommand } from './application/patch-dfd-header.command.js';
 import { DFD_CLOCK, DFD_REPOSITORY, DFD_TRANSACTIONS } from './application/ports.js';
 import {
   InMemoryDfdRepository,
@@ -32,8 +33,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `dfd` (DEC-040, nível 4): outros módulos usam somente a fachada exportada. Dono de `Dfd`
- * (US-014: DFD-01..03). O documento, a numeração, os itens (DOC-06/07), a completude (DOC-08) e a
- * prévia (DOC-20) vêm do `document` pelo padrão de documento tipado (`createStructuredIn` + o
+ * (US-014: DFD-01..03; US-015: DFD-04 — cabeçalho pelo autosave). O documento, a numeração, os
+ * itens (DOC-06/07), as seções (DOC-05), a completude (DOC-08) e a prévia (DOC-20) vêm do `document` pelo padrão de documento tipado (`createStructuredIn` + o
  * `DfdDocumentValidator` registrado); os valores iniciais, do `process`; e `documents.DFD` do
  * `RuleContext` é contribuído aqui para o `workflow` (saída de `ABERTURA` — DEC-015).
  */
@@ -51,6 +52,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   providers: [
     DfdFacade,
     CreateDfdCommand,
+    PatchDfdHeaderCommand,
     GetDfdQuery,
     ListProcessDfdsQuery,
     DfdDocumentValidator,

@@ -458,6 +458,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
   },
   // US-014: DFD (api/05-dfd.md DFD-03).
   DFD_NOT_FOUND: { status: 404, title: 'DFD não encontrado', detail: 'DFD não encontrado.' },
+  // US-015: autosave de seção (api/03-documents.md DOC-05 · RN-DFD-25).
+  SECTION_REVISION_CONFLICT: {
+    status: 412,
+    title: 'A seção foi alterada por outra pessoa',
+    detail: 'Esta seção foi alterada por outra pessoa.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,

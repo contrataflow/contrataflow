@@ -207,6 +207,22 @@ export function isEditable(document: Document): boolean {
 }
 
 /**
+ * Desde quando o documento está no status atual (FA-05 da US-015 — "Em revisão desde 14:40"): a
+ * data da transição que o levou até ali, ou a última alteração quando o status não tem data própria.
+ */
+export function statusSinceOf(document: Document): Date {
+  const since: Partial<Record<DocumentStatus, Date | null>> = {
+    IN_REVIEW: document.submittedAt,
+    FINALIZED: document.finalizedAt,
+    APPROVED: document.approvedAt,
+    RETURNED: document.returnedAt,
+    REJECTED: document.rejectedAt,
+    CANCELED: document.canceledAt,
+  };
+  return since[document.status] ?? document.updatedAt;
+}
+
+/**
  * O documento já saiu de `DRAFT` alguma vez (RN-DOC-49): tem versão de `SUBMISSION` ou
  * `FINALIZATION` — exatamente quando `submittedAt`/`finalizedAt` foram preenchidos (as datas nunca
  * são apagadas, nem pela reabertura).

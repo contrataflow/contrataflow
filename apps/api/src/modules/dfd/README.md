@@ -28,5 +28,25 @@ padrão aqui é o que ETP, TR, pesquisa de preços e mapa de riscos repetem.
   não vê o orçamento (`DocumentFacade.typedDocumentIn` → `canViewConfidentialBudget`).
 - **Testes**: `domain/dfd.spec.ts`, `presentation/dfd.routes.spec.ts` (8 categorias do Gherkin +
   FA-02/05/06/09/10/11) e `test/tenant-leak/dfds.spec.ts` (PostgreSQL).
-- **Fora desta story**: DFD-04 (cabeçalho), DOC-05 (seções — autosave e conflito) = US-015;
-  conclusão/aprovação = US-016/017; duplicação = US-018.
+- **Fora desta story**: conclusão/aprovação = US-016/017; duplicação = US-018.
+
+## US-015 — Autosave do cabeçalho (DFD-04)
+
+- **Rota** `PATCH /dfds/{id}` (`PatchDfdHeaderCommand`), `If-Match: "<version>"`, corpo
+  `dfdPatchSchema` (estrito: `processId`/`documentId` → `NOT_ALLOWED`) com APENAS os campos
+  alterados — inclusive `wizardStep`/`completedSteps` (retomada, RN-DFD-34). Patch sem mudança =
+  200 sem versão nova.
+- **Ordem:** janela da auditoria dos textos (Redis, antes da transação, só se o patch tem texto) →
+  DFD do tenant (404 `DFD_NOT_FOUND`) → `DocumentFacade.editableTypedDocumentIn` (linha do documento
+  travada; POL-02 de edição — 403 `NOT_PROCESS_CUSTODIAN`; 409 processo/documento; 422 etapa) →
+  `If-Match` (412 `VERSION_CONFLICT` com `meta.current` = o DFD atual + `updatedBy`, para o merge do
+  cliente — RN-DFD-28) → POL-09 da estimativa (403 `reasonCode = POL-09`) → `dfdPatchIssues`
+  (`packages/validation`: regras nos campos enviados + os pares que os CHECKs de `dfds` conferem
+  juntos no cabeçalho mesclado) + setor da secretaria e responsável ativo → `applyDfdPatch` (domínio)
+  → `DfdRepository.update` condicionado à versão.
+- **Auditoria** `document.draft_update` (`target = HEADER`): campos de dados imediatos com `changes`
+  (estimativa `[MASKED]` em processo sigiloso; textos como hash + tamanho); só textos (`objectSummary`,
+  `pcaJustification`) → coalescido pela janela; só o passo do wizard → sem auditoria. Log
+  `info dfd.header_saved` (`changedFields`, `version`). Sem evento de domínio.
+- **Front (SCR-007):** `apps/web/src/features/dfd/use-dfd-autosave.ts` sobre o `useAutosave` de
+  `@contrataflow/ui` (seções → DOC-05, cabeçalho → DFD-04).

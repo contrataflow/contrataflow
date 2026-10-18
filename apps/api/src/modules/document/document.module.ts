@@ -76,6 +76,7 @@ import {
 import type { RenditionSettings } from './application/rendition.ports.js';
 import { GetRenditionDownloadQuery, GetRenditionQuery } from './application/rendition.queries.js';
 import { ReviewAiContentCommand } from './application/review-ai-content.command.js';
+import { SaveDocumentSectionCommand } from './application/save-document-section.command.js';
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
 import { StructuredDocumentCreator } from './application/structured-document.creator.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
@@ -125,6 +126,7 @@ import {
 import { PrismaDocumentRepository } from './infrastructure/prisma-document.repository.js';
 import { PrismaTemplateRepository } from './infrastructure/prisma-template.repository.js';
 import { DocumentItemsController } from './presentation/document-items.controller.js';
+import { DocumentSectionsController } from './presentation/document-sections.controller.js';
 import { DocumentTypeController } from './presentation/document-type.controller.js';
 import { DocumentVersionController } from './presentation/document-version.controller.js';
 import { DocumentController } from './presentation/document.controller.js';
@@ -184,6 +186,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     TemplatePreviewController,
     DocumentController,
     DocumentItemsController,
+    DocumentSectionsController,
     DocumentVersionController,
     ProcessDocumentsController,
     DocumentPreviewController,
@@ -294,6 +297,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentItemsQuery,
     ReplaceDocumentItemsCommand,
     DocumentItemUsageReader,
+    // US-015: autosave de seção (DOC-05) — genérico para todos os tipos.
+    SaveDocumentSectionCommand,
     PrismaDocumentItemRepository,
     {
       provide: InMemoryDocumentItemRepository,

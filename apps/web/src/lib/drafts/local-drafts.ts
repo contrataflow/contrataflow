@@ -70,6 +70,12 @@ export class LocalDrafts {
     await this.backend.remove(drafts.filter((d) => d.userId === userId).map(draftKey));
   }
 
+  /** Troca de instituição (US-015 · RN-DFD-33): apaga os rascunhos da instituição anterior. */
+  async clearTenant(tenantId: string): Promise<void> {
+    const drafts = await this.backend.list();
+    await this.backend.remove(drafts.filter((d) => d.tenantId === tenantId).map(draftKey));
+  }
+
   /** Outro usuário entrou no navegador: apaga rascunhos de terceiros e os vencidos (RN-IAM-30). */
   async purgeForeign(userId: string): Promise<void> {
     const limit = this.now() - DRAFT_TTL_MS;
@@ -157,13 +163,19 @@ export class IndexedDbDraftBackend implements DraftBackend {
 }
 
 let shared: LocalDrafts | undefined;
+let sharedBackend: DraftBackend | undefined;
+
+/** O armazenamento dos rascunhos do navegador (IndexedDB; sem ele — testes — em memória). */
+export function localDraftBackend(): DraftBackend {
+  sharedBackend ??=
+    typeof indexedDB === 'undefined'
+      ? new MemoryDraftBackend()
+      : new IndexedDbDraftBackend(indexedDB);
+  return sharedBackend;
+}
 
 /** Rascunhos do navegador (IndexedDB; sem ele — modo privado restrito, testes — em memória). */
 export function localDrafts(): LocalDrafts {
-  shared ??= new LocalDrafts(
-    typeof indexedDB === 'undefined'
-      ? new MemoryDraftBackend()
-      : new IndexedDbDraftBackend(indexedDB),
-  );
+  shared ??= new LocalDrafts(localDraftBackend());
   return shared;
 }

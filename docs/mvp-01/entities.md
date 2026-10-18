@@ -21,7 +21,7 @@ Quando uma entidade indicar **Padrão**, ela contém:
 | `updatedAt` | timestamptz | não | `now()` | `@updatedAt` |
 | `createdById` | uuid | sim | — | FK `users.id` (nulo quando ação de sistema) |
 | `updatedById` | uuid | sim | — | FK `users.id` |
-| `version` | int | não | `1` | Concorrência otimista; incrementado a cada alteração; exposto como `ETag` |
+| `version` | int | não | `1` | Concorrência otimista; incrementado a cada alteração; exposto como `ETag`. Exceção (US-015 · RN-DFD-26 · DEC-055): a gravação de seção do rascunho (DOC-05) **não** incrementa `Document.version` — incrementa a `revision` da seção e `draftRevision` |
 
 Marcadores adicionais:
 - **+SD** → possui `deletedAt timestamptz NULL` (exclusão lógica; `deletedById uuid NULL`). Unicidades usam índice parcial `WHERE deleted_at IS NULL`.

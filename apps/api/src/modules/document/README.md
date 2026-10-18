@@ -135,6 +135,40 @@ await this.etps.insert(tx, createEtpFrom(created.document, …)); // cabeçalho 
 - `DocumentItemUsageReader` registra os documentos na porta `ProcessItemUsageRegistry`: item
   referenciado → 409 `ITEM_IN_USE` na exclusão (US-006) e `references` no PRC-13.
 
+## Autosave de seção — DOC-05 (US-015 · RN-DFD-23..36 · DEC-055/056/017)
+
+- **Rota** (`presentation/document-sections.controller.ts`): `PUT /documents/{id}/sections/{sectionKey}`
+  com `If-Match: "s<revision>"` (revisão da SEÇÃO — `"7"` nunca casa: 412), classe de limite
+  `autosave` (60/min por usuário + documento). Corpo `documentSectionSaveSchema` (`notApplicable` OU
+  `state`; `overwrittenRevision` só em "Manter a minha versão"); resposta `{ sectionKey, state,
+revision, updatedAt, updatedBy, draftRevision }` + `ETag: "s<revision>"`. Genérico: ETP, TR e
+  documentos livres usam a mesma rota.
+- **Caso de uso** (`SaveDocumentSectionCommand`): janela da auditoria coalescida aberta ANTES da
+  transação (`DRAFT_AUDIT_COALESCER`) → documento visível (404) → permissão de EDIÇÃO do tipo +
+  POL-02 (sem custódia/participação = 403 `NOT_PROCESS_CUSTODIAN` com `access.denied` POL-02 —
+  `authorizePol02(…, notCustodian)`) → chave na versão do template (422 `SECTION_NOT_IN_TEMPLATE`) →
+  conteúdo (`domain/section-draft.ts`: 413 > 1 MB, 422 `RICH_TEXT_INVALID`, `TOO_LONG`,
+  justificativa de "não se aplica") → editável (409 `DOCUMENT_NOT_EDITABLE` com `meta.status` e
+  `meta.statusSince`) → reenvio idêntico = 200 no-op (RN-DFD-36, mesmo com `If-Match` antigo) →
+  revisão (412 `SECTION_REVISION_CONFLICT` com `meta.current`: conteúdo, revisão, autor e horário) →
+  `DocumentRepository.saveSectionDraft`: UM `UPDATE … jsonb_set(…)` condicionado a status
+  `DRAFT`/`RETURNED`, `deleted_at IS NULL` e à revisão da seção (sem `FOR UPDATE`); zero linhas →
+  releitura para distinguir 404/409/412. `Document.version` NÃO muda (RN-DFD-26 — exceção registrada
+  em entities.md §1.1) e nenhuma versão é criada.
+- **Auditoria** `document.draft_update`: coalescida (`target = SECTION:<CHAVE>`, `fromRevision`,
+  `toRevision`, `sizeBytesBefore/After`, `contentHash`, `windowMinutes`) ou imediata em "Manter a
+  minha versão" (`conflictResolution = KEEP_MINE`, `overwrittenRevision`, `overwrittenAuthorId`).
+  Texto nunca vai para log nem auditoria.
+- **Logs/métricas:** `debug document.section_saved`, `info document.section_conflict`,
+  `error document.section_save_failed` (base do comando); `document_section_saves_total{result}`,
+  `document_section_conflicts_total`.
+- **Cabeçalho tipado pelo módulo dono:** `DocumentFacade.editableTypedDocumentIn` (trava a linha,
+  404 = `null`, POL-02 de edição com `NOT_PROCESS_CUSTODIAN`, 409 não editável) — o DFD-04 usa;
+  ETP-04/TRM-04 seguem o mesmo padrão.
+- **Testes:** `domain/section-draft.spec.ts`, `dfd/presentation/dfd-autosave.routes.spec.ts` (8
+  categorias do Gherkin) e `test/tenant-leak/dfd-autosave.spec.ts` (PostgreSQL: 50 gravações
+  paralelas, `jsonb_set`, RLS).
+
 ## Documento externo — upload com versões (US-064 · RN-DOC-31..40 · DEC-017/136)
 
 - **Rotas:** DOC-02 `POST /processes/{id}/documents` (`ProcessDocumentsController`,

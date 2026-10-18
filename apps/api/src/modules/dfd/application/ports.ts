@@ -11,6 +11,12 @@ export interface DfdRepository {
   insert(tx: TenantTx, dfd: Dfd): Promise<void>;
   /** `null` se inexistente ou de outro tenant (RLS — 404 indistinguível). */
   findById(tx: TenantTx, id: string): Promise<Dfd | null>;
+  /**
+   * Grava o cabeçalho com `version = expectedVersion + 1`, condicionado a `expectedVersion`
+   * (DFD-04 · DEC-104): o perdedor de uma corrida recebe `VersionConflictError` (412).
+   * @throws VersionConflictError
+   */
+  update(tx: TenantTx, dfd: Dfd, expectedVersion: number): Promise<void>;
   /** DFDs do processo (ativos e cancelados), por criação. */
   listByProcess(tx: TenantTx, processId: string): Promise<Dfd[]>;
 }

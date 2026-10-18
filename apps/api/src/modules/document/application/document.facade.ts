@@ -24,6 +24,7 @@ import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
 import { DocumentItemsPresenter } from './document-items.commands.js';
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
+import { documentNotEditable, notProcessCustodian } from './document.errors.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentRepository, DocumentValidator } from './document.ports.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TYPE_REPOSITORY } from './ports.js';
@@ -42,7 +43,7 @@ import type {
 import type { DocumentItem } from '../domain/document-items.js';
 import type { DocumentTemplateVersion } from '../domain/document-template.js';
 import type { DocumentType } from '../domain/document-type.js';
-import { draftContentCopy, updateDocumentHeader } from '../domain/document.js';
+import { draftContentCopy, isEditable, updateDocumentHeader } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
 export type {
@@ -97,6 +98,17 @@ export interface TypedDocumentView {
   readonly isBudgetConfidential: boolean;
   readonly canViewConfidentialBudget: boolean;
   readonly allowedActions: DocumentAction[];
+}
+
+/**
+ * O documento tipado aberto para GRAVAR o cabeçalho do módulo dono (US-015 · DFD-04): a leitura de
+ * `TypedDocumentView` mais o que as regras de referência do cabeçalho precisam do processo.
+ */
+export interface EditableTypedDocument extends TypedDocumentView {
+  readonly process: {
+    readonly organizationId: string;
+    readonly requestingSecretariatId: string;
+  };
 }
 
 /** Estado de um documento para listagens dos módulos tipados (DFD-01). */
@@ -204,6 +216,48 @@ export class DocumentFacade {
       canViewConfidentialBudget:
         !process.isBudgetConfidential || (await this.lifecycle.canViewConfidentialBudget(context)),
       allowedActions: this.lifecycle.allowedActions(context, actor),
+    };
+  }
+
+  /**
+   * Gravação do cabeçalho tipado pelo módulo dono (US-015 · DFD-04 · RN-DFD-30): linha do documento
+   * travada (`FOR UPDATE` — corrida com a submissão/finalização) → visível (`null` = o 404 do
+   * módulo) → permissão de EDIÇÃO do tipo + POL-02 (403 com `access.denied` — `NOT_PROCESS_CUSTODIAN`
+   * sem custódia/participação —, 409 `INVALID_PROCESS_STATUS`, 422 de etapa) → documento em
+   * `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE` com `meta.status`/`statusSince`).
+   */
+  async editableTypedDocumentIn(
+    tx: TenantTx,
+    documentId: string,
+    options: { readonly notCustodianDetail: string },
+  ): Promise<EditableTypedDocument | null> {
+    await this.lifecycle.lockForVersioning(tx, documentId);
+    let context;
+    try {
+      context = await this.lifecycle.load(tx, documentId);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'NOT_FOUND') return null;
+      throw error;
+    }
+    const actor = await this.lifecycle.actorOf(context);
+    await this.lifecycle.authorizePol02(context, actor, 'edit', undefined, () =>
+      notProcessCustodian('POL-02', options.notCustodianDetail),
+    );
+    if (!isEditable(context.document)) throw documentNotEditable(context.document);
+    const { process } = context;
+    return {
+      document: context.document,
+      type: context.type,
+      template: context.template,
+      processId: process.id,
+      isBudgetConfidential: process.isBudgetConfidential,
+      canViewConfidentialBudget:
+        !process.isBudgetConfidential || (await this.lifecycle.canViewConfidentialBudget(context)),
+      allowedActions: this.lifecycle.allowedActions(context, actor),
+      process: {
+        organizationId: process.organizationId,
+        requestingSecretariatId: process.requestingSecretariatId,
+      },
     };
   }
 

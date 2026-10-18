@@ -3,17 +3,20 @@ import {
   dfdCreateSchema,
   dfdIdParamsSchema,
   dfdMetaSchema,
+  dfdPatchSchema,
   dfdSchema,
   dfdSummarySchema,
   processIdParamsSchema,
 } from '@contrataflow/validation';
-import type { DfdCreate, DfdDto, DfdMeta, DfdSummaryDto } from '@contrataflow/validation';
-import { Controller, Get, Headers, Post, Res } from '@nestjs/common';
+import type { DfdCreate, DfdDto, DfdMeta, DfdPatch, DfdSummaryDto } from '@contrataflow/validation';
+import { Controller, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
 
 import { ImplicitAccess, Policy } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
+import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
+import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
@@ -21,6 +24,7 @@ import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateDfdCommand } from '../application/dfd.commands.js';
 import { GetDfdQuery, ListProcessDfdsQuery } from '../application/dfd.queries.js';
+import { PatchDfdHeaderCommand } from '../application/patch-dfd-header.command.js';
 
 const TAGS = ['DFD'];
 
@@ -28,6 +32,9 @@ const READ_ACCESS =
   'DFD do processo (US-014 · DEC-024): visibilidade do processo (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente.';
 const CREATE_ACCESS =
   'DFD_CREATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied) + custódia atual (POL-01 — 403 NOT_PROCESS_CUSTODIAN; participação não cria) + POL-02 (processo editável, tipo DFD permitido na etapa), conferidos no caso de uso.';
+
+const UPDATE_ACCESS =
+  'DFD_UPDATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied) + custódia ou participação COLLABORATOR/CONSULTANT (POL-02 — 403 NOT_PROCESS_CUSTODIAN com access.denied) + processo em DRAFT/IN_PROGRESS/RETURNED (409) + tipo DFD permitido na etapa (422), conferidos no caso de uso a cada gravação (RN-DFD-30).';
 
 const DFD_RESPONSE = z.object({ data: dfdSchema, meta: dfdMetaSchema });
 
@@ -43,6 +50,7 @@ export class DfdController {
     private readonly list: ListProcessDfdsQuery,
     private readonly get: GetDfdQuery,
     private readonly create: CreateDfdCommand,
+    private readonly patchHeader: PatchDfdHeaderCommand,
   ) {}
 
   @Get('processes/:id/dfds')
@@ -123,5 +131,40 @@ export class DfdController {
     response.setHeader('ETag', `"${String(view.dto.version)}"`);
     response.setHeader('Cache-Control', 'no-store');
     return new DataResult(view.dto, view.meta);
+  }
+
+  @Patch('dfds/:id')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(UPDATE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DFD-04',
+    summary: 'Atualizar cabeçalho do DFD (autosave)',
+    tags: TAGS,
+    auditActions: ['document.draft_update'],
+    responses: {
+      200: {
+        description:
+          'Gravação parcial: APENAS os campos enviados (RN-DFD-27), `If-Match: "<version>"` e `version + 1` (`ETag` novo); patch sem mudança efetiva = 200 sem nova versão. Também persiste `wizardStep`/`completedSteps` (retomada — RN-DFD-34). Regras de campo só nos enviados (data ≤ hoje, objeto 10–2.000, previsão ≥ data e ≥ hoje, PCA, item ≤ 60), setor na secretaria solicitante (`DEPARTMENT_NOT_IN_SECRETARIAT`), responsável ativo; `processId`/`documentId` → 422 `NOT_ALLOWED`. Erros: 404 `DFD_NOT_FOUND`, 403 `NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED` (estimativa sem POL-09 em processo sigiloso), 409 `DOCUMENT_NOT_EDITABLE`/`INVALID_PROCESS_STATUS`, 412 `VERSION_CONFLICT` com `meta.current` (o DFD atual + `updatedBy` — merge do cliente, RN-DFD-28), 422 `VALIDATION_ERROR`, 428 `PRECONDITION_REQUIRED`. Auditoria `document.draft_update`: imediata com `changes` nos campos de dados (estimativa mascarada se sigilosa), coalescida nos textos (hash + tamanho); sem evento de domínio.',
+        schema: DFD_RESPONSE,
+      },
+    },
+  })
+  async patchDfd(
+    @ZodParams(dfdIdParamsSchema) params: { id: string },
+    @ZodBody(dfdPatchSchema) body: DfdPatch,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<DfdDto, DfdMeta>> {
+    const result = await this.patchHeader.save({
+      dfdId: params.id,
+      // `"s3"` (revisão de seção) nunca casa com a versão do cabeçalho: 412.
+      expectedVersion: ifMatch?.kind === 'version' ? ifMatch.value : -1,
+      patch: body,
+    });
+    response.setHeader('ETag', `"${String(result.dto.version)}"`);
+    response.setHeader('Cache-Control', 'no-store');
+    return new DataResult(result.dto, result.meta);
   }
 }

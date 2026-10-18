@@ -114,20 +114,24 @@
 `PUT /api/v1/documents/{id}/sections/{sectionKey}` · **Permissão:** permissão de edição do tipo + POL-02 (escopo de custódia/participação) · **Story:** US-015, US-020, US-036, US-063
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` obrigatório — revisão da **seção**, formato `"s<revision>"` (não a versão do documento; api.md §1.3)
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento; `sectionKey` (string, obrigatório) — chave da seção, deve existir no template da versão.
-- **Request:** `{ content: TipTapDoc | null; state: 'EMPTY'|'FILLED'|'NOT_APPLICABLE'; justification?: string (obrigatório ≥ 20 caracteres se state = NOT_APPLICABLE); overwrittenRevision?: number }`. `content` ≤ `maxChars` da seção (padrão 50.000) e ≤ 1 MB; `overwrittenRevision` só é enviado ao escolher "Manter a minha versão" após um conflito 412. No DFD (US-015), a UI usa variante com `notApplicable: boolean` (sempre `false`) em vez de `state` — confirmar na implementação se a API aceita as duas formas ou apenas `state`.
+- **Request:** `{ content: TipTapDoc | null; notApplicable?: boolean; state?: 'EMPTY'|'FILLED'|'NOT_APPLICABLE'; justification?: string | null (obrigatório ≥ 20 caracteres em "não se aplica"); overwrittenRevision?: number }`. A API aceita as duas formas (US-015): `notApplicable: true` **ou** `state: 'NOT_APPLICABLE'` marcam "não se aplica"; fora disso o estado é **derivado no servidor** (`FILLED` com texto útil, senão `EMPTY` — RN-DFD-31). `content` ≤ `maxChars` da seção (padrão 50.000 — `TOO_LONG`) e ≤ 1 MB serializado (413 `PAYLOAD_TOO_LARGE`); `overwrittenRevision` só é enviado ao escolher "Manter a minha versão" após um conflito 412 (auditoria imediata `conflictResolution = KEEP_MINE`). Reenvio idêntico (mesmo conteúdo e estado) = 200 com a revisão atual, sem nova revisão nem auditoria, mesmo com `If-Match` desatualizado (RN-DFD-36).
 - **Response:** `200 { data: { sectionKey, state, revision, updatedAt, updatedBy, draftRevision } }` + `ETag: "s<revision>"`.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem permissão de edição do tipo ou de custódia/participação |
+  | 403 | `PERMISSION_DENIED` | Sem permissão de edição do tipo |
+  | 403 | `NOT_PROCESS_CUSTODIAN` | Sem custódia nem participação `COLLABORATOR`/`CONSULTANT` (POL-02, `access.denied`) |
   | 404 | `NOT_FOUND` | Documento inexistente/outro tenant |
-  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
-  | 409 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
-  | 412 | `SECTION_REVISION_CONFLICT` | Revisão da seção divergente (corpo traz `meta.current`) |
+  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` (`meta.status`, `meta.statusSince`) |
+  | 409 | `INVALID_PROCESS_STATUS` | Processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` |
+  | 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
+  | 412 | `SECTION_REVISION_CONFLICT` | Revisão da seção divergente (corpo traz `meta.current`: `sectionKey`, `state`, `revision`, `content`, `justification`, `updatedAt`, `updatedBy { id, name }`) |
+  | 413 | `PAYLOAD_TOO_LARGE` | Seção acima de 1 MB serializado |
+  | 428 | `PRECONDITION_REQUIRED` | `If-Match` ausente |
   | 422 | `SECTION_NOT_IN_TEMPLATE` | `sectionKey` fora do template da versão |
   | 422 | `RICH_TEXT_INVALID` | Conteúdo fora do schema TipTap permitido |
   | 422 | `VALIDATION_ERROR` | `justification` ausente/curta (`CONDITIONAL_REQUIRED`/`TOO_SHORT`); `content` acima de `maxChars` (`TOO_LONG`) |
-- **Efeitos:** Nenhum evento de domínio (DEC-017) — autosave não cria `DocumentVersion`. Auditoria `document.draft_update` (`DATA_CHANGE`, coalescida por documento/seção/usuário — RN-DOC-54/RN-DFD-35): `metadata` com `sectionKey`, intervalo de revisões, variação de tamanho; texto nunca em claro (hash + tamanho).
+- **Efeitos:** Nenhum evento de domínio (DEC-017) — autosave não cria `DocumentVersion`. Auditoria `document.draft_update` (`DATA_CHANGE`, coalescida por documento/seção/usuário — RN-DOC-54/RN-DFD-35): `metadata` com `sectionKey`, intervalo de revisões, variação de tamanho; texto nunca em claro (hash + tamanho). Coalescência (US-015): janela de 10 min por (documento, alvo, usuário) aberta no Redis (`SET NX`) antes da transação; o registro leva `fromRevision` (primeira revisão ainda não auditada do usuário/alvo), `toRevision`, `sizeBytesBefore/After`, `contentHash` e `windowMinutes`; Redis indisponível → audita toda gravação e loga `warn audit.coalesce_store_unavailable`. Não incrementa `Document.version` (RN-DFD-26).
 - **Notas:** Classe de limite dedicada (api.md §1.6): 60 req/min por documento (usuário + documento), além do limite de corpo de 1 MB por seção (api.md §2.1, `PAYLOAD_TOO_LARGE`, 413).
 
 ### DOC-06 — Listar itens do documento

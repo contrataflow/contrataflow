@@ -123,5 +123,73 @@
     "open": "Abrir DFD",
     "failed": "Não foi possível criar o DFD agora. Tente novamente em instantes.",
     "failedWithCode": "Não foi possível criar o DFD agora. Tente novamente em instantes. Código: {correlationId}"
+  },
+  "autosave": {
+    "indicator": {
+      "dirty": "Alterações não salvas",
+      "saving": "Salvando…",
+      "saved": "Salvo às {time}",
+      "savedShort": "Salvo",
+      "error": "Erro ao salvar",
+      "offline": "Sem conexão — alterações guardadas neste navegador",
+      "offlineShort": "Sem conexão",
+      "conflict": "Conflito de edição — escolha qual versão manter",
+      "blocked": "Edição interrompida"
+    },
+    "blocked": {
+      "notEditable": "Este documento não pode mais ser editado ({status} desde {time}).",
+      "notEditableNoTime": "Este documento não pode mais ser editado.",
+      "notCustodian": "Somente quem está com o processo (ou colaboradores) pode editar.",
+      "processStatus": "O processo está {status} e não permite alterações.",
+      "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+      "generic": "Não foi possível continuar salvando este documento.",
+      "kept": "Suas últimas alterações foram guardadas neste navegador.",
+      "copy": "Copiar meu texto",
+      "copied": "Texto copiado."
+    },
+    "recovered": {
+      "title": "Recuperamos alterações não salvas de {time}.",
+      "restore": "Restaurar",
+      "discard": "Descartar"
+    },
+    "conflict": {
+      "title": "Esta seção foi alterada enquanto você editava",
+      "changedBy": "Alterado por {name} às {time}.",
+      "changedBySelf": "Você mesma, em outra aba, às {time}.",
+      "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+      "showDiff": "Ver diferenças",
+      "hideDiff": "Ocultar diferenças",
+      "keepMine": "Manter a minha versão",
+      "discardMine": "Descartar a minha e recarregar",
+      "serverColumn": "Versão salva no servidor",
+      "mineColumn": "Minha versão",
+      "inserted": "inserido",
+      "removed": "removido",
+      "empty": "(vazio)",
+      "someone": "outra pessoa"
+    },
+    "headerConflict": {
+      "title": "Outra pessoa alterou os mesmos campos",
+      "description": "Outra pessoa alterou {fields}. Escolha qual valor manter.",
+      "mine": "Minha alteração",
+      "theirs": "Alteração de {name} às {time}",
+      "confirm": "Salvar escolhas",
+      "empty": "(vazio)",
+      "fields": {
+        "requestDate": "Data",
+        "requestingDepartmentId": "Setor",
+        "responsibleId": "Responsável pela demanda",
+        "objectSummary": "Objeto",
+        "priority": "Prioridade",
+        "expectedDate": "Data pretendida para a contratação",
+        "estimatedValue": "Estimativa preliminar do valor",
+        "pcaStatus": "Situação no PCA",
+        "pcaYear": "Exercício do PCA",
+        "pcaItemCode": "Item do PCA",
+        "pcaJustification": "Justificativa (PCA)",
+        "wizardStep": "Passo",
+        "completedSteps": "Passos concluídos"
+      }
+    }
   }
 }

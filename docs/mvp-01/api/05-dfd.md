@@ -125,11 +125,13 @@ Dfd {
 | 403 | `NOT_PROCESS_CUSTODIAN` | Sem custódia nem participação |
 | 409 | `DOCUMENT_NOT_EDITABLE` | DFD fora de `DRAFT`/`RETURNED` |
 | 409 | `INVALID_PROCESS_STATUS` | Processo suspenso/cancelado/concluído |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 404 | `DFD_NOT_FOUND` | DFD inexistente, de outro tenant ou não visível |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente — `meta.current` = o `Dfd` atual + `updatedBy { id, name }` (merge do cliente, RN-DFD-28) |
 | 422 | `VALIDATION_ERROR` | Campo inválido (ver regras acima); campo não editável → `NOT_ALLOWED` |
+| 428 | `PRECONDITION_REQUIRED` | `If-Match` ausente |
 
 - **Efeitos:** Eventos: — (não emite evento de domínio). Auditoria: `document.draft_update` (`DATA_CHANGE`) — coalescida (RN-DFD-35) para texto; imediata para campos estruturados.
-- **Notas:** usado também para persistir `wizardStep`/`completedSteps` do wizard (RN-DFD-34). `If-Match` ausente → 428 `PRECONDITION_REQUIRED` (genérico, api.md §1.3).
+- **Notas:** usado também para persistir `wizardStep`/`completedSteps` do wizard (RN-DFD-34). `If-Match` ausente → 428 `PRECONDITION_REQUIRED` (genérico, api.md §1.3). Regras conferidas só nos campos enviados (US-015): data ≤ hoje, objeto 10–2000, previsão ≥ data do DFD e ≥ hoje, exercício do PCA no ano corrente ou seguinte, item ≤ 60, setor ativo na subárvore da secretaria solicitante (`DEPARTMENT_NOT_IN_SECRETARIAT`), responsável com vínculo ativo; obrigatoriedade condicional (PCA) e campos configuráveis vazios ficam para a completude (DOC-08). `estimatedValue` sem POL-09 em processo sigiloso → 403 `PERMISSION_DENIED` (`reasonCode = POL-09`). Patch sem mudança efetiva = 200 sem nova versão.
 
 ### DFD-05 — Duplicar DFD
 `POST /api/v1/dfds/{id}/duplicate` · **Permissão:** `DFD_CREATE` (+ `PROCESS_CREATE` se destino for novo processo) · **Story:** US-018

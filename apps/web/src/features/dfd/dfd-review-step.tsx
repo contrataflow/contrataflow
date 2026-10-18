@@ -17,11 +17,12 @@ import { documentKeys, fetchDocumentValidation } from '../documents/documents.ap
 import { GeneratePdfButton } from '../documents/generate-pdf-button';
 
 /** DOC-08 do DFD (`['t', tenantId, 'documents', id, 'validation']`), invalidado a cada gravação. */
-export function useDfdValidation(documentId: string) {
+export function useDfdValidation(documentId: string, enabled = true) {
   const tenantId = useTenantId();
   return useQuery({
     queryKey: documentKeys.validation(tenantId, documentId),
     queryFn: ({ signal }) => fetchDocumentValidation(documentId, signal),
+    enabled,
     throwOnError: false,
   });
 }

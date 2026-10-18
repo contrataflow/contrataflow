@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { currentRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 import { TenantTransaction } from '#shared/database/database.module.js';
+import { VersionConflictError } from '#shared/database/errors.js';
+import { updateVersioned } from '#shared/database/optimistic-concurrency.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
 import type { DfdRepository, DfdTransactions } from '../application/ports.js';
@@ -78,6 +80,32 @@ export class PrismaDfdRepository implements DfdRepository {
     });
   }
 
+  async update(tx: TenantTx, dfd: Dfd, expectedVersion: number): Promise<void> {
+    await updateVersioned({ aggregateType: 'Dfd', aggregateId: dfd.id, expectedVersion }, () =>
+      tx.dfd.updateMany({
+        where: { id: dfd.id, version: expectedVersion },
+        data: {
+          requestingDepartmentId: dfd.requestingDepartmentId,
+          responsibleId: dfd.responsibleId,
+          requestDate: asDate(dfd.requestDate),
+          objectSummary: dfd.objectSummary,
+          priority: dfd.priority,
+          expectedDate: dfd.expectedDate === null ? null : asDate(dfd.expectedDate),
+          estimatedValue: dfd.estimatedValue,
+          pcaStatus: dfd.pcaStatus,
+          pcaYear: dfd.pcaYear,
+          pcaItemCode: dfd.pcaItemCode,
+          pcaJustification: dfd.pcaJustification,
+          wizardStep: dfd.wizardStep,
+          completedSteps: [...dfd.completedSteps],
+          updatedAt: dfd.updatedAt,
+          updatedById: dfd.updatedById,
+          version: { increment: 1 },
+        },
+      }),
+    );
+  }
+
   async findById(tx: TenantTx, id: string): Promise<Dfd | null> {
     const row = await tx.dfd.findFirst({ where: { id } });
     return row === null ? null : toDfd(row);
@@ -110,6 +138,17 @@ export class InMemoryDfdRepository implements DfdRepository {
 
   findById(_tx: TenantTx, id: string): Promise<Dfd | null> {
     return Promise.resolve(this.inTenant().find((dfd) => dfd.id === id) ?? null);
+  }
+
+  update(_tx: TenantTx, dfd: Dfd, expectedVersion: number): Promise<void> {
+    const current = this.inTenant().find((row) => row.id === dfd.id);
+    if (current?.version !== expectedVersion) {
+      return Promise.reject(
+        new VersionConflictError({ aggregateType: 'Dfd', aggregateId: dfd.id, expectedVersion }),
+      );
+    }
+    this.rows.set(dfd.id, { ...dfd, version: expectedVersion + 1 });
+    return Promise.resolve();
   }
 
   listByProcess(_tx: TenantTx, processId: string): Promise<Dfd[]> {
