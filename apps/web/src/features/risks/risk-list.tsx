@@ -5,7 +5,7 @@ import { RISK_MESSAGES, RISK_PHASE_LABELS, RISK_STATUS_LABELS } from '@contrataf
 import type { RiskDto, RiskListMetaDto } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { DeleteRiskDialog } from './delete-risk-dialog';
 import { LevelBadge } from './level-badge';
@@ -17,6 +17,9 @@ import { TreatmentList } from './treatment-list';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
 
 type FormTarget = { readonly mode: 'add' } | { readonly mode: 'edit'; readonly riskId: string };
+
+/** Âncora da linha do risco (o atalho da aba "Matriz" leva o foco até ela — US-035). */
+const riskRowId = (riskId: string) => `risk-row-${riskId}`;
 
 /** Uma linha (cartão abaixo de 768 px) com a avaliação, o responsável e as ações. */
 function RiskRow({
@@ -47,7 +50,11 @@ function RiskRow({
   const describedBy = lock.disabled && lock.reason !== null ? noticeId : undefined;
   return (
     <>
-      <tr className="flex flex-col gap-2 border-b border-border p-3 md:table-row md:p-0">
+      <tr
+        id={riskRowId(risk.id)}
+        tabIndex={-1}
+        className="flex flex-col gap-2 border-b border-border p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring md:table-row md:p-0"
+      >
         <td className="block font-medium md:table-cell md:px-3 md:py-2">
           <span className="md:hidden">{t('columns.code')}: </span>
           {risk.code}
@@ -179,16 +186,37 @@ function RiskRow({
  * edição/reavaliação e exclusão. Estados: skeleton, vazio, erro com "Tentar novamente", bloqueado
  * (FA-04: aviso + link para o Mapa de Riscos) e sem permissão (sem botões — cenário [Permissão]).
  * Abaixo de 768 px, cada risco vira um cartão. O painel expandido traz as ações de tratamento
- * (US-034 · `TreatmentList`).
+ * (US-034 · `TreatmentList`). Com `focusRiskId` (atalho da matriz e das pendências do Mapa de Riscos —
+ * US-035 · FA-03), o risco abre expandido e recebe o foco.
  */
-export function RiskList({ processId }: { readonly processId: string }) {
+export function RiskList({
+  processId,
+  focusRiskId = null,
+  onFocused,
+}: {
+  readonly processId: string;
+  readonly focusRiskId?: string | null | undefined;
+  readonly onFocused?: (() => void) | undefined;
+}) {
   const t = useTranslations('risks');
   const list = useRisks(processId);
   const invalidate = useInvalidateProcess(processId);
   const noticeId = useId();
   const [form, setForm] = useState<FormTarget | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(focusRiskId === null ? [] : [focusRiskId]),
+  );
+  const loaded = list.data !== undefined;
+
+  // A lista é montada com o risco já expandido (estado inicial); aqui só o foco, quando a linha existe.
+  useEffect(() => {
+    if (focusRiskId === null || !loaded) return;
+    const row = document.getElementById(riskRowId(focusRiskId));
+    if (typeof row?.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
+    row?.focus();
+    onFocused?.();
+  }, [focusRiskId, loaded, onFocused]);
 
   if (list.data === undefined) {
     if (list.isPending) {

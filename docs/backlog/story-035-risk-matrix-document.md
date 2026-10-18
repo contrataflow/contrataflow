@@ -63,10 +63,10 @@ Permitir que um usuário autorizado visualize a distribuição de riscos na matr
 - **FA-05 — Matriz consultada com documento já finalizado:** a matriz continua disponível em modo leitura (RN-RISK-24), lendo os riscos atuais — não a versão congelada do documento.
 
 ## Regras de negócio
-- **RN-RISK-18** — A matriz (`RSK-09`) agrega os riscos não excluídos do processo em uma grade probabilidade × impacto, usando a escala e as faixas **vigentes** do tenant (não o `scaleSnapshot` individual de cada risco); cada célula expõe a quantidade e a lista de riscos (`code`, `title`, `level`); aceita filtros por `phase`, `categoryId` e `status`.
-- **RN-RISK-19** — O `RISK_MAP` é documento `STRUCTURED` singleton por processo (DEC-017, `singletonKey = documentTypeId`). `RSK-10` cria o documento em `DRAFT` quando não existir um `RISK_MAP` ativo (não `CANCELED`) para o processo; caso contrário, `DOCUMENT_ALREADY_EXISTS` (409).
+- **RN-RISK-18** — A matriz (`RSK-09`) agrega os riscos não excluídos do processo em uma grade probabilidade × impacto, usando a escala e as faixas **vigentes** do tenant (não o `scaleSnapshot` individual de cada risco); devolve todas as `scale.max²` células (probabilidade decrescente, impacto crescente), cada uma com `score`, `level` e a lista de riscos (`id`, `code`, `title`, por código); risco com grau acima do máximo vigente (escala reduzida depois do registro) fica na borda da grade; aceita filtros por `phase`, `categoryId` e `status`.
+- **RN-RISK-19** — O `RISK_MAP` é documento `STRUCTURED` singleton por processo (DEC-017, `singletonKey = documentTypeId`). `RSK-10` cria o documento em `DRAFT` quando não existir um `RISK_MAP` ativo (não `CANCELED`) para o processo; caso contrário, `DOCUMENT_ALREADY_EXISTS` (409, com `meta.existingDocumentId`). Sem nenhum risco registrado, `RSK-10` responde 422 `BUSINESS_RULE_VIOLATION` (`RISK_LIST_EMPTY`) — a pendência de tratamento (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) só é conferida na validação/conclusão (`DOC-08`/`DOC-09`/`DOC-10`).
 - **RN-RISK-20** — O conteúdo típado do `RISK_MAP` é a lista de `Risk`/`RiskTreatment` vigentes do processo; a `DocumentVersion` grava um snapshot imutável dessa lista com `contentHash` SHA-256 (RFC 8785) no momento da submissão ou finalização (`DOC-09`/`DOC-10`) — não na criação (`RSK-10`).
-- **RN-RISK-21** — Validação de completude (`DOC-08`): `BLOCKING` se o processo não tiver nenhum risco registrado (`RISK_LIST_EMPTY`); `BLOCKING` para cada risco em nível `HIGH` ou `EXTREME` sem nenhum `RiskTreatment` com `status ≠ CANCELED` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`, `itemId = riskId`).
+- **RN-RISK-21** — Validação de completude (`DOC-08`): `BLOCKING` se o processo não tiver nenhum risco registrado (`RISK_LIST_EMPTY`); `BLOCKING` para cada risco em nível `HIGH` ou `EXTREME` sem nenhum `RiskTreatment` com `status ≠ CANCELED` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`, `itemId = riskId`, `params = { code, level }`). Em `DOC-09`/`DOC-10`, as pendências bloqueantes recusam a conclusão com o erro genérico do ciclo de vida, 422 `DOCUMENT_INCOMPLETE` com esses `violations[]` (contrato da US-065 sem divergência).
 - **RN-RISK-22** — Conclusão segue DEC-018: tipo semeado `RISK_MAP` tem `requiresApproval = false` por padrão → ação "finalizar" (`DOC-10`) muda `DRAFT`/`RETURNED` para `FINALIZED`. Se a etapa atual do workflow cobrir o tipo `RISK_MAP`, a submissão ocorre via `DOC-09` com a permissão `RISK_MAP_SUBMIT`.
 - **RN-RISK-23** — A partir de `FINALIZED`/`IN_REVIEW`/`APPROVED`, os riscos e tratamentos do processo ficam bloqueados para edição (RN-RISK-09, US-033; RN-RISK-16, US-034) até a reabertura do `RISK_MAP` (`DOC-12`), que volta o documento a `DRAFT` com novo rascunho a partir da última versão.
 - **RN-RISK-24** — A matriz (`RSK-09`) permanece disponível em modo leitura independentemente do status do `RISK_MAP`, pois lê os riscos atuais do processo, não a versão congelada do documento.
@@ -84,8 +84,8 @@ Permitir que um usuário autorizado visualize a distribuição de riscos na matr
 | # | Validação | Camada | Mensagem ao usuário | Código de erro |
 |---|---|---|---|---|
 | V-01 | Já existe `RISK_MAP` ativo para o processo | API | "Já existe um Mapa de Riscos para este processo." | `DOCUMENT_ALREADY_EXISTS` |
-| V-02 | Nenhum risco registrado ao finalizar/submeter | API | "Registre ao menos um risco antes de emitir o Mapa de Riscos." | `BUSINESS_RULE_VIOLATION` (`RISK_LIST_EMPTY`) |
-| V-03 | Risco Alto/Extremo sem tratamento ativo | API | "O risco {code} precisa de ao menos uma ação de tratamento." | `BUSINESS_RULE_VIOLATION` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) |
+| V-02 | Nenhum risco registrado ao emitir (`RSK-10`) ou ao finalizar/submeter (`DOC-09`/`DOC-10`) | API | "Registre ao menos um risco antes de emitir o Mapa de Riscos." | `BUSINESS_RULE_VIOLATION` no `RSK-10` / `DOCUMENT_INCOMPLETE` no `DOC-09`/`DOC-10` (`RISK_LIST_EMPTY`) |
+| V-03 | Risco Alto/Extremo sem tratamento ativo | API | "O risco {code} precisa de ao menos uma ação de tratamento." | `DOCUMENT_INCOMPLETE` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) |
 | V-04 | Documento fora de `DRAFT`/`RETURNED` ao finalizar/submeter | API | "Este Mapa de Riscos não pode mais ser editado." | `DOCUMENT_NOT_EDITABLE` |
 | V-05 | Tipo `RISK_MAP` não permitido na etapa atual | API | "O Mapa de Riscos não é aceito nesta etapa do processo." | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` |
 | V-06 | Sem `RISK_MAP_SUBMIT` para finalizar/submeter | API | "Você não tem permissão para concluir o Mapa de Riscos." | `PERMISSION_DENIED` |
@@ -138,13 +138,13 @@ Feature: Visualizar matriz de riscos e emitir o Mapa de Riscos
   Scenario: [Validação] Finalizar sem nenhum risco registrado
     Given que o processo não possui riscos
     When "Ana" tentar finalizar o Mapa de Riscos
-    Then a API deve responder 422 com código "BUSINESS_RULE_VIOLATION" e violação "RISK_LIST_EMPTY"
+    Then a API deve responder 422 com código "DOCUMENT_INCOMPLETE" e violação "RISK_LIST_EMPTY"
     And o documento deve permanecer "DRAFT"
 
   Scenario: [Validação] Risco de nível Alto sem tratamento
     Given que o risco "R03" tem nível "HIGH" e nenhum tratamento ativo
     When "Ana" tentar finalizar o Mapa de Riscos
-    Then a API deve responder 422 com código "BUSINESS_RULE_VIOLATION" e violação "RISK_TREATMENT_REQUIRED_FOR_LEVEL" referenciando "R03"
+    Then a API deve responder 422 com código "DOCUMENT_INCOMPLETE" e violação "RISK_TREATMENT_REQUIRED_FOR_LEVEL" referenciando "R03"
 
   Scenario: [Permissão] Usuário sem RISK_MAP_SUBMIT
     Given que o usuário "Bruno" possui "RISK_MANAGE" mas não "RISK_MAP_SUBMIT"
@@ -185,8 +185,8 @@ Feature: Visualizar matriz de riscos e emitir o Mapa de Riscos
 | Situação | HTTP | Código | Mensagem (pt-BR) | Comportamento da UI |
 |---|---|---|---|---|
 | Mapa de Riscos já existe | 409 | `DOCUMENT_ALREADY_EXISTS` | "Já existe um Mapa de Riscos para este processo." | Oferece abrir o documento existente |
-| Nenhum risco registrado | 422 | `BUSINESS_RULE_VIOLATION` (`RISK_LIST_EMPTY`) | "Registre ao menos um risco antes de emitir o Mapa de Riscos." | Link para a lista de riscos |
-| Risco de nível alto sem tratamento | 422 | `BUSINESS_RULE_VIOLATION` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) | "O risco {code} precisa de ao menos uma ação de tratamento." | Lista pendências com link para US-034 |
+| Nenhum risco registrado | 422 | `BUSINESS_RULE_VIOLATION` (`RSK-10`) / `DOCUMENT_INCOMPLETE` (`DOC-09`/`DOC-10`) (`RISK_LIST_EMPTY`) | "Registre ao menos um risco antes de emitir o Mapa de Riscos." | Link para a lista de riscos |
+| Risco de nível alto sem tratamento | 422 | `DOCUMENT_INCOMPLETE` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) | "O risco {code} precisa de ao menos uma ação de tratamento." | Lista pendências com link para US-034 |
 | Documento não editável | 409 | `DOCUMENT_NOT_EDITABLE` | "Este Mapa de Riscos não pode mais ser editado." | Desabilita ações; mostra link para reabrir |
 | Tipo não permitido na etapa | 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | "O Mapa de Riscos não é aceito nesta etapa do processo." | Oculta ação de submissão |
 | Sem permissão | 403 | `PERMISSION_DENIED` | "Você não tem permissão para concluir o Mapa de Riscos." | Oculta botão "Finalizar" |
@@ -198,7 +198,7 @@ Feature: Visualizar matriz de riscos e emitir o Mapa de Riscos
 - **Stories:** US-034 (tratamentos sustentam a completude de riscos Alto/Extremo), US-065 (ciclo de vida genérico do documento — submeter/finalizar/reabrir), US-110 (template padrão do tipo `RISK_MAP`). Indiretas: US-033, US-097, US-073, US-082.
 - **Decisões/ADRs:** DEC-010, DEC-017, DEC-018, DEC-021, DEC-024; ADR-006.
 - **Configurações:** `risk.scale`, `risk.levelThresholds`.
-- **Lacunas nas fontes canônicas:** (1) o pacote não especifica o sufixo de routing key dos eventos de documento para o módulo `RISK_MAP` (mostra `dfd`, `etp`, `tr`, `price_research`, mas não `risk_map`); assumi `risk_map` por analogia direta ao valor do enum `SystemDocumentModule.RISK_MAP` em snake_case — proponho confirmar em events.md. (2) As chaves das seções narrativas do template padrão do tipo `RISK_MAP` (US-110) não constam neste pacote; assumi 0..N seções opcionais editáveis via `DOC-05`, sem fixar nomes de `sectionKey`.
+- **Lacunas nas fontes canônicas:** (1) o sufixo de routing key dos eventos de documento para o módulo `RISK_MAP` é `risk_map` (confirmado na implementação: `document.<fato>.<documentTypeCode em minúsculas>`). (2) As seções do template padrão do tipo `RISK_MAP` (US-110) são `INTRODUCTION` e `METHODOLOGY` (narrativas obrigatórias, via `DOC-05`), `RISK_MATRIX` e `RISK_LIST` (calculadas, sem texto) e `NOTES` (opcional).
 
 ## Impacto técnico
 - A montagem do snapshot de riscos/tratamentos para a `DocumentVersion` (RN-RISK-20) deve reutilizar o mesmo serializador usado pela matriz, para evitar divergência entre o que é exibido e o que é congelado na versão.

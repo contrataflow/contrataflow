@@ -5,6 +5,10 @@
   "processLine": "Processo {code} — {title}",
   "draftCode": "(sem número)",
   "listSection": "Lista de riscos",
+  "matrixSection": "Matriz",
+  "tabs": {
+    "label": "Seções dos riscos"
+  },
   "listCaption": "Riscos do processo",
   "loading": "Carregando riscos…",
   "empty": "Nenhum risco registrado. Comece identificando o primeiro risco.",
@@ -233,6 +237,57 @@
         "notFound": "Esta ação de tratamento não existe mais.",
         "reload": "Recarregar"
       }
+    }
+  },
+  "matrix": {
+    "intro": "Distribuição dos riscos do processo por probabilidade e impacto, com a escala vigente. A matriz reflete sempre os riscos atuais.",
+    "caption": "Matriz de riscos: probabilidade nas linhas e impacto nas colunas",
+    "axes": "Probabilidade ↓ / Impacto →",
+    "probability": "Probabilidade",
+    "impact": "Impacto",
+    "openRisk": "Abrir o risco {code} — {title} na lista",
+    "empty": "Nenhum risco registrado. Volte para a lista de riscos e registre o primeiro.",
+    "loading": "Carregando a matriz de riscos…",
+    "errors": {
+      "load": "Não foi possível carregar a matriz de riscos.",
+      "retry": "Tentar novamente"
+    },
+    "filters": {
+      "legend": "Filtrar a matriz",
+      "phase": "Fase",
+      "category": "Categoria",
+      "status": "Situação",
+      "all": "Todas",
+      "clear": "Limpar filtros"
+    }
+  },
+  "riskMap": {
+    "emit": "Emitir Mapa de Riscos",
+    "emitting": "Emitindo…",
+    "emptyHint": "Registre ao menos um risco para emitir o Mapa de Riscos.",
+    "open": "Abrir o Mapa de Riscos",
+    "openNamed": "Abrir o Mapa de Riscos {code}",
+    "openExisting": "Abrir o Mapa de Riscos existente",
+    "completed": "Mapa de Riscos concluído",
+    "rejected": "Mapa de Riscos rejeitado",
+    "completedHint": "Os riscos e tratamentos ficam bloqueados para edição até a reabertura do documento.",
+    "toast": {
+      "created": "Mapa de Riscos {code} emitido.",
+      "createdNoCode": "Mapa de Riscos emitido."
+    },
+    "errors": {
+      "notEditable": "Este processo não permite emitir o Mapa de Riscos agora.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {code}."
+    },
+    "completeness": {
+      "title": "Pendências para concluir o Mapa de Riscos",
+      "none": "Nenhuma pendência de risco: todos os riscos de nível Alto ou Extremo têm ação de tratamento.",
+      "listLabel": "Pendências do Mapa de Riscos",
+      "loading": "Verificando as pendências do Mapa de Riscos…",
+      "blocking": "Bloqueante",
+      "warning": "Aviso",
+      "goToRisk": "Ir para o risco e criar o tratamento",
+      "goToRiskNamed": "Ir para o risco {code} e criar o tratamento"
     }
   }
 }

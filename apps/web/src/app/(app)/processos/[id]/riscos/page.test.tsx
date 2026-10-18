@@ -13,8 +13,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('/processos/[id]/riscos (SCR-011 · US-033)', () => {
-  it('busca os riscos pelo id da rota e monta a seção "Lista de riscos" com o link de volta', async () => {
+describe('/processos/[id]/riscos (SCR-011 · US-033 · US-035)', () => {
+  it('busca os riscos pelo id da rota e abre na aba "Lista de riscos" com o link de volta', async () => {
     const api = mockProcessApi({
       permissions: ['PROCESS_VIEW'],
       risks: () =>
@@ -41,7 +41,10 @@ describe('/processos/[id]/riscos (SCR-011 · US-033)', () => {
     renderWithShell(await ProcessRisksPage({ params: Promise.resolve({ id: PROCESS_ID }) }));
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Riscos' })).toBeTruthy();
-    expect(screen.getByRole('heading', { level: 2, name: 'Lista de riscos' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Lista de riscos' }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: 'Matriz' }).getAttribute('aria-selected')).toBe('false');
     expect(
       await screen.findByText('Nenhum risco registrado. Comece identificando o primeiro risco.'),
     ).toBeTruthy();

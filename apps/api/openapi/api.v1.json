@@ -8890,6 +8890,136 @@
         },
         "additionalProperties": false
       },
+      "RiskMapCreateRequest": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "RiskMatrix": {
+        "type": "object",
+        "properties": {
+          "scale": {
+            "type": "object",
+            "properties": {
+              "max": {
+                "type": "integer"
+              },
+              "probabilityLabels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "impactLabels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "max",
+              "probabilityLabels",
+              "impactLabels"
+            ]
+          },
+          "levelThresholds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "LOW",
+                    "MEDIUM",
+                    "HIGH",
+                    "EXTREME"
+                  ]
+                },
+                "minScore": {
+                  "type": "integer"
+                },
+                "maxScore": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "level",
+                "minScore",
+                "maxScore"
+              ]
+            }
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskMatrixCell"
+            }
+          }
+        },
+        "required": [
+          "scale",
+          "levelThresholds",
+          "cells"
+        ]
+      },
+      "RiskMatrixCell": {
+        "type": "object",
+        "properties": {
+          "probability": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "impact": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "EXTREME"
+            ]
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "title"
+              ]
+            }
+          }
+        },
+        "required": [
+          "probability",
+          "impact",
+          "score",
+          "level",
+          "risks"
+        ]
+      },
       "Risk": {
         "type": "object",
         "properties": {
@@ -38149,6 +38279,315 @@
           },
           "409": {
             "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/risk-map": {
+      "post": {
+        "operationId": "RSK-10",
+        "summary": "Emitir Mapa de Riscos",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RiskMapCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cria o `Document` `RISK_MAP` (`STRUCTURED`, singular por processo — RN-RISK-19) em `DRAFT` com o título \"Mapa de Riscos\", a partir da versão publicada do template padrão do tipo (US-110), numerado pela máscara do tipo. Já existe `RISK_MAP` não cancelado → 409 `DOCUMENT_ALREADY_EXISTS` (`meta.existingDocumentId`); processo sem nenhum risco → 422 `BUSINESS_RULE_VIOLATION` (`RISK_LIST_EMPTY`); fora da etapa → 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`. O conteúdo tipado são os riscos vigentes: o snapshot só é gravado na submissão/finalização (DOC-09/10 — RN-RISK-20), quando também valem as pendências `RISK_TREATMENT_REQUIRED_FOR_LEVEL` (DOC-08). Grava `document.create`, `DocumentCreated` (`document.created.risk_map`) e a timeline `DOCUMENT_CREATED`. `Location: /api/v1/documents/{id}` e `ETag: \"1\"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Document"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/DocumentMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/risk-matrix": {
+      "get": {
+        "operationId": "RSK-09",
+        "summary": "Obter matriz de riscos",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PLANNING",
+                "SELECTION",
+                "CONTRACT_MANAGEMENT"
+              ]
+            },
+            "required": false,
+            "name": "phase",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "categoryId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "IN_TREATMENT",
+                "MITIGATED",
+                "MATERIALIZED",
+                "CLOSED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grade probabilidade × impacto da escala e das faixas VIGENTES do tenant (RN-RISK-18 — não o `scaleSnapshot` de cada risco): todas as `scale.max²` células (probabilidade decrescente, impacto crescente) com `score`, `level` e os riscos não excluídos (`id`, `code`, `title`, por código); grau acima do máximo vigente fica na borda. Filtros `phase`, `categoryId` e `status` (não persistidos). Disponível em qualquer status do `RISK_MAP` (RN-RISK-24 — lê os riscos atuais, não a versão congelada).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RiskMatrix"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
             "content": {
               "application/problem+json": {
                 "schema": {

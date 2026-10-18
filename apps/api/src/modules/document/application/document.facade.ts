@@ -64,6 +64,8 @@ export type {
   CreatedStructuredDocument,
 } from './structured-document.creator.js';
 export type { DocumentItemCopy } from './document-items.commands.js';
+/** O `Document` de DOC-03 para os módulos tipados que respondem o documento (US-035 · RSK-10). */
+export { toDocumentDto } from './document.view.js';
 export type { DocumentItem } from '../domain/document-items.js';
 export type { Document } from '../domain/document.js';
 export type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';

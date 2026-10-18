@@ -452,6 +452,11 @@ export interface ProcessApiOptions {
    * `/risk-treatments/{treatmentId}`.
    */
   risks?: Handler;
+  /**
+   * RSK-09/10 e o DOC-08 lido pela aba "Matriz" (US-035): `/processes/{id}/risk-matrix`,
+   * `/processes/{id}/risk-map` e `/documents/{id}/validation`.
+   */
+  riskMap?: Handler;
   /** DOC-01 (US-062): `/processes/{id}/documents`. */
   documents?: Handler;
   /** DTY-01 (US-062): `/document-types` (tipos ativos). */
@@ -572,6 +577,13 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
       url.startsWith('/api/v1/process-items/')
     ) {
       return respond(options.items, () => jsonResponse({ data: [] }, { headers: { ETag: '"1"' } }));
+    }
+    if (
+      url.includes(`/processes/${PROCESS_ID}/risk-matrix`) ||
+      url.includes(`/processes/${PROCESS_ID}/risk-map`) ||
+      /^\/api\/v1\/documents\/[^/]+\/validation/.test(url)
+    ) {
+      return respond(options.riskMap, () => problemResponse(404, 'NOT_FOUND'));
     }
     if (
       url.includes(`/processes/${PROCESS_ID}/risks`) ||

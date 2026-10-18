@@ -1,16 +1,18 @@
-import { riskListMetaSchema } from '@contrataflow/validation';
+import { riskListMetaSchema, riskMatrixSchema } from '@contrataflow/validation';
 import type {
   CreateRiskInput,
   CreateRiskTreatmentInput,
+  DocumentDto,
   RiskDto,
   RiskListMetaDto,
+  RiskMatrixDto,
   RiskPhase,
   RiskStatus,
   RiskTreatmentDto,
   UpdateRiskInput,
   UpdateRiskTreatmentInput,
 } from '@contrataflow/validation';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { apiRequest } from '@/lib/api/client';
 import { tenantKey } from '@/lib/query/keys';
@@ -27,12 +29,23 @@ import {
  * tratamento (US-034): RSK-06..08 (lidas pelos riscos — `Risk.treatments`). Chave
  * `['t', tenantId, 'processes', id, 'risks']` (sob a do processo: a invalidação do painel a
  * alcança). RSK-01 devolve a escala vigente, o `RISK_MAP` e se o usuário pode gerenciar em `meta`.
- * PATCH e DELETE usam a versão do risco/tratamento (`version` do DTO) como `If-Match`.
+ * PATCH e DELETE usam a versão do risco/tratamento (`version` do DTO) como `If-Match`. A matriz
+ * (US-035 · RSK-09) fica sob a chave da lista: toda invalidação dos riscos a recalcula; o Mapa de
+ * Riscos (RSK-10) é um documento — o resto do ciclo de vida é o da tela de documento (US-065).
  */
 
 export const riskKeys = {
   list: (tenantId: string, processId: string) =>
     tenantKey(tenantId, 'processes', processId, 'risks'),
+  matrix: (tenantId: string, processId: string, filters: RiskFilters) =>
+    tenantKey(tenantId, 'processes', processId, 'risks', 'matrix', {
+      phase: filters.phase ?? null,
+      categoryId: filters.categoryId ?? null,
+      status: filters.status ?? null,
+    }),
+  /** DOC-08 do Mapa de Riscos lido pela aba "Matriz": recalculado a cada mudança nos riscos. */
+  mapValidation: (tenantId: string, processId: string, documentId: string) =>
+    tenantKey(tenantId, 'processes', processId, 'risks', 'map-validation', documentId),
 };
 
 export interface RiskList {
@@ -71,6 +84,50 @@ export function useRisks(processId: string) {
     refetchOnWindowFocus: true,
     throwOnError: false,
   });
+}
+
+/** RSK-09 — matriz da escala vigente com os filtros (não persistidos). */
+export async function fetchRiskMatrix(
+  processId: string,
+  filters: RiskFilters = {},
+  signal?: AbortSignal,
+): Promise<RiskMatrixDto> {
+  const result = await apiRequest<RiskMatrixDto>(`/processes/${processId}/risk-matrix`, {
+    query: { phase: filters.phase, categoryId: filters.categoryId, status: filters.status },
+    signal,
+  });
+  return riskMatrixSchema.parse(result.data);
+}
+
+/** A matriz filtrada; ao trocar o filtro, a grade anterior fica na tela até a nova chegar. */
+export function useRiskMatrix(processId: string, filters: RiskFilters) {
+  const tenantId = useTenantId();
+  return useQuery({
+    queryKey: riskKeys.matrix(tenantId, processId, filters),
+    queryFn: ({ signal }) => fetchRiskMatrix(processId, filters, signal),
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: true,
+    throwOnError: false,
+  });
+}
+
+/** RSK-10 — emitir o Mapa de Riscos (a mesma `Idempotency-Key` em cada reenvio da intenção). */
+export async function createRiskMap(
+  processId: string,
+  idempotencyKey: string,
+): Promise<DocumentDto> {
+  return (
+    await apiRequest<DocumentDto>(`/processes/${processId}/risk-map`, {
+      method: 'POST',
+      body: {},
+      idempotencyKey,
+    })
+  ).data;
+}
+
+/** Tela de documento (US-062/US-065) — onde o Mapa de Riscos é conferido, finalizado e reaberto. */
+export function riskMapHref(processId: string, documentId: string): string {
+  return `/processos/${processId}/documentos/${documentId}`;
 }
 
 /** CAT-01: categorias de risco ativas (o select só lista itens ativos). */

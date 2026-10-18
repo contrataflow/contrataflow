@@ -244,16 +244,26 @@ RiskListMeta {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório); query: `phase`, `categoryId`, `status` (filtros não persistidos, api.md §1.2)
 - **Request:** —
-- **Response:** `200 { data: { scale: object, levelThresholds: object, cells: Array<{ probability: number, impact: number, score: number, level: string, risks: Array<{ id: string, code: string, title: string }> }> } }`
+- **Response:** `200 { data: RiskMatrix }` (`Cache-Control: no-store`)
+```ts
+RiskMatrix {
+  scale: { max: number; probabilityLabels: string[]; impactLabels: string[] };  // VIGENTE (RN-RISK-18)
+  levelThresholds: { level: string; minScore: number; maxScore: number }[];    // VIGENTES
+  cells: Array<{                     // todas as scale.max² células: probabilidade desc, impacto asc
+    probability: number; impact: number; score: number; level: string;
+    risks: Array<{ id: string; code: string; title: string }>;   // por código; [] se vazia
+  }>;
+}
+```
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 403 | `PERMISSION_DENIED` | Sem permissão |
-| 404 | `NOT_FOUND` | Processo inexistente/outro tenant |
+| 404 | `NOT_FOUND` | Processo inexistente, de outro tenant ou não visível (DEC-024 — sem `PROCESS_VIEW` que o cubra) |
+| 422 | `VALIDATION_ERROR` | Filtro inválido (`phase`/`status` fora do enum, `categoryId` não UUID, parâmetro desconhecido) |
 
-- **Efeitos:** —
-- **Notas:** —
+- **Efeitos:** — (log `risk_map.matrix_viewed` amostrado)
+- **Notas:** usa a escala e as faixas vigentes do tenant, não o `scaleSnapshot` de cada risco; grau acima do máximo vigente (escala reduzida depois do registro) fica na borda. Disponível em qualquer status do `RISK_MAP` (RN-RISK-24). A agregação é a mesma do snapshot do Mapa de Riscos (`buildRiskMatrix` de `@contrataflow/validation`).
 
 ### RSK-10 — Emitir Mapa de Riscos
 `POST /api/v1/processes/{id}/risk-map` · **Permissão:** `RISK_MANAGE` + POL-02 · **Story:** US-035
@@ -261,19 +271,21 @@ RiskListMeta {
 - **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório)
 - **Request:** `{}` (sem campos; usa os riscos vigentes)
-- **Response:** `201 { data: Document }` com `title` padrão "Mapa de Riscos", `status` inicial `DRAFT`
+- **Response:** `201 { data: Document, meta: { allowedActions } }` com `title` padrão "Mapa de Riscos", `status` inicial `DRAFT`, `Location: /api/v1/documents/{id}` e `ETag: "1"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 403 | `PERMISSION_DENIED` | Falta `RISK_MAP_SUBMIT`/`RISK_MANAGE` |
-| 409 | `DOCUMENT_ALREADY_EXISTS` | Já existe `RISK_MAP` ativo no processo |
+| 403 | `PERMISSION_DENIED` | Falta `RISK_MANAGE` cobrindo o processo, ou sem custódia nem participação `COLLABORATOR`/`CONSULTANT` |
+| 404 | `NOT_FOUND` | Processo inexistente, de outro tenant ou não visível |
+| 409 | `DOCUMENT_ALREADY_EXISTS` | Já existe `RISK_MAP` ativo no processo (`meta.existingDocumentId` quando detectado antes do índice único) |
+| 409 | `INVALID_PROCESS_STATUS` | Processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` |
 | 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
 | 422 | `BUSINESS_RULE_VIOLATION` (`RISK_LIST_EMPTY`) | Nenhum risco registrado |
-| 422 | `BUSINESS_RULE_VIOLATION` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) | Risco Alto/Extremo sem tratamento ativo |
+| 422 | `VALIDATION_ERROR` (`templateId`) | Template padrão do `RISK_MAP` sem versão publicada (US-110) |
 
 - **Efeitos:** Eventos: `DocumentCreated` (`document.created.risk_map`) — `documentId`, `documentTypeCode = RISK_MAP`, `kind = STRUCTURED`. Auditoria: `document.create` (`DATA_CHANGE`) — `metadata.documentTypeCode = RISK_MAP`. Timeline: `DOCUMENT_CREATED`.
-- **Notas:** submissão/finalização/reabertura usam `DOC-08`/`DOC-09`/`DOC-10`/`DOC-12` (fora deste arquivo), que emitem `DocumentVersionCreated`, `DocumentSubmitted`, `DocumentFinalized`, `DocumentReopened`, todos com projeção na timeline.
+- **Notas:** submissão/finalização/reabertura usam `DOC-08`/`DOC-09`/`DOC-10`/`DOC-12` (fora deste arquivo), que emitem `DocumentVersionCreated`, `DocumentSubmitted`, `DocumentFinalized`, `DocumentReopened` (`document.<fato>.risk_map`), todos com projeção na timeline. A completude do `RISK_MAP` (RN-RISK-21) entra no `DOC-08` e recusa `DOC-09`/`DOC-10` com o erro genérico 422 `DOCUMENT_INCOMPLETE`: `RISK_LIST_EMPTY` e `RISK_TREATMENT_REQUIRED_FOR_LEVEL` (um por risco Alto/Extremo sem tratamento com `status ≠ CANCELED`; `itemId = riskId`, `params = { code, level }`). A versão (RN-RISK-20) congela em `content.header` `riskCount`, `treatmentCount`, `scaleMax`, `levelThresholds` e `byLevel`, e em `content.collections` `risks`, `treatments` e `matrix` (células ocupadas); `typedSummary` de `DocumentFinalized`/`document.finalize` = `{ riskCount, treatmentCount, byLevel }`.
 
 ### RSK-11 — Aplicar riscos propostos pela IA
 `POST /api/v1/processes/{id}/risks/ai-apply` · **Permissão:** `RISK_MANAGE` + POL-02 · só o solicitante da geração (RN-AI-13) · **Story:** US-119

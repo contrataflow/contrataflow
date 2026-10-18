@@ -25,3 +25,16 @@ Mapa de riscos e tratamentos (DEC-040 · DEC-021). Dono de `Risk` e `RiskTreatme
 - Leitura só pelos riscos (`Risk.treatments` completo em RSK-01/03); `RiskTreatmentChanged` sem
   timeline nem consumidor assíncrono; descrição e observações só com hash na auditoria.
 - Fachada: `riskLabels` (fonte `RISK` da timeline).
+
+## US-035 — Matriz e Mapa de Riscos (RSK-09/10)
+
+- `domain/risk-map.ts`: matriz (`riskMatrixOf` = `buildRiskMatrix` de `@contrataflow/validation`,
+  escala VIGENTE — RN-RISK-18), completude (`evaluateRiskMapCompleteness` — RN-RISK-21) e o
+  snapshot da versão (`riskMapSnapshot` — RN-RISK-20: `risks`, `treatments`, `matrix`) sobre os
+  DTOs do `RiskPresenter` (o que a tela mostra é o que a versão congela).
+- `application/risk-map.validator.ts`: `RiskMapDocumentValidator` registrado no `document`
+  (`onModuleInit`) — DOC-08/09/10/12 são os genéricos da US-065; pendência bloqueante = 422
+  `DOCUMENT_INCOMPLETE` com os `violations[]` `RISK_*`.
+- `application/risk-map.commands.ts`: RSK-10 por `createStructuredIn` (`allowCollaborators`, sem
+  riscos → 422 `BUSINESS_RULE_VIOLATION` `RISK_LIST_EMPTY` depois da autorização).
+- O bloqueio dos riscos após a conclusão (RN-RISK-23) já é o `RiskGate` da US-033.
