@@ -38,6 +38,7 @@ import {
   usePriceResearch,
 } from './price-research.api';
 import type { PriceResearchResult } from './price-research.api';
+import { PriceSourcesPanel } from './price-sources-panel';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { useProcessItems } from '../process-items/process-items.api';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
@@ -56,7 +57,8 @@ type Tab = (typeof TABS)[number];
  * SCR-009 — Pesquisa de preços (`/processos/[id]/pesquisa-precos/[researchId]`, US-024): cabeçalho
  * com a data-base editável, painel "Parâmetros" (snapshot) e as abas Itens, Fontes e Documento.
  * As ações vêm de `meta.allowedActions` (a UI nunca recalcula a regra); sem elas, a tela é somente
- * leitura com o motivo em `meta.lockReason`. As fontes e cotações são da US-026.
+ * leitura com o motivo em `meta.lockReason`. A aba Fontes (fontes, grade de preços e anexos) é da
+ * US-026.
  */
 export function PriceResearchView({
   processId,
@@ -262,7 +264,15 @@ function LoadedView({
                 refresh={refresh}
               />
             ) : null}
-            {tab === 'sources' ? <SourcesPanel /> : null}
+            {tab === 'sources' ? (
+              <PriceSourcesPanel
+                processId={processId}
+                research={research}
+                items={items}
+                editable={canUpdate}
+                allowedActions={meta.allowedActions}
+              />
+            ) : null}
             {tab === 'document' ? (
               <DocumentPanel processId={processId} research={research} />
             ) : null}
@@ -632,25 +642,6 @@ function MissingItemsBanner({
         </Button>
       ) : null}
     </Alert>
-  );
-}
-
-/** Aba "Fontes": vazia até a US-026 (registro de fontes e cotações). */
-function SourcesPanel() {
-  const t = useTranslations('priceResearch.sources');
-  return (
-    <div className="flex flex-col items-start gap-3 rounded-card border border-border p-4">
-      <p className="font-medium">{t('empty')}</p>
-      <p className="text-sm text-muted-foreground">{PRICE_RESEARCH_MESSAGES.instructions}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled aria-describedby="pr-sources-soon">
-          {t('register')}
-        </Button>
-        <span id="pr-sources-soon" className="text-sm text-muted-foreground">
-          {t('soon')}
-        </span>
-      </div>
-    </div>
   );
 }
 

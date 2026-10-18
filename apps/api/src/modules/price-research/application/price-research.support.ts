@@ -18,8 +18,8 @@ import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 import { ProcessItemCatalogRegistry } from '#shared/process/process-item-catalog.js';
 import type { ProcessItemReference } from '#shared/process/process-item-catalog.js';
 
-import { PRICE_RESEARCH_REPOSITORY } from './ports.js';
-import type { PriceResearchRepository } from './ports.js';
+import { PRICE_RESEARCH_REPOSITORY, PRICE_SOURCE_REPOSITORY } from './ports.js';
+import type { PriceResearchRepository, PriceSourceRepository } from './ports.js';
 import { confidentialEditDenied, priceResearchNotFound } from './price-research.errors.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
@@ -214,7 +214,7 @@ const ALL_ACTIONS: readonly PriceResearchAction[] = ['UPDATE', 'ADD_ITEMS', 'REM
 @Injectable()
 export class PriceResearchPresenter {
   constructor(
-    @Inject(PRICE_RESEARCH_REPOSITORY) private readonly researches: PriceResearchRepository,
+    @Inject(PRICE_SOURCE_REPOSITORY) private readonly sources: PriceSourceRepository,
     private readonly catalog: ProcessItemCatalogRegistry,
     private readonly catalogs: CatalogFacade,
   ) {}
@@ -316,7 +316,7 @@ export class PriceResearchPresenter {
       tx,
       [...references.values()].map((item) => item.unitOfMeasureId),
     );
-    const quotations = await this.researches.quotationCounts(
+    const quotations = await this.sources.quotationCounts(
       tx,
       items.map((item) => item.id),
     );

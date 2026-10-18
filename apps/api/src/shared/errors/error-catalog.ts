@@ -464,6 +464,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'A seção foi alterada por outra pessoa',
     detail: 'Esta seção foi alterada por outra pessoa.',
   },
+  // US-026: fonte de pesquisa sem os campos que o tipo exige (api/07 PRS-10/11 · RN-PRICE-21).
+  QUOTATION_REQUIRED_FIELDS: {
+    status: 422,
+    title: 'Campos obrigatórios da fonte',
+    detail: 'Informe os campos exigidos por este tipo de fonte.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,

@@ -25,11 +25,13 @@ import {
   PRICE_RESEARCH_CLOCK,
   PRICE_RESEARCH_REPOSITORY,
   PRICE_RESEARCH_TRANSACTIONS,
+  PRICE_SOURCE_REPOSITORY,
 } from './ports.js';
 import type {
   PriceResearchClock,
   PriceResearchRepository,
   PriceResearchTransactions,
+  PriceSourceRepository,
 } from './ports.js';
 import {
   countPriceResearchCreated,
@@ -47,6 +49,7 @@ import {
   ResearchItemsReader,
 } from './price-research.support.js';
 import type { ResearchProcessItem } from './price-research.support.js';
+import { QuotationRecalculator } from './price-source.support.js';
 import { NumberingFacade } from '../../catalog/application/numbering.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import {
@@ -378,6 +381,7 @@ export class UpdatePriceResearchHeaderCommand extends PriceResearchCommand<
     private readonly recorder: PriceResearchRecorder,
     private readonly documents: DocumentFacade,
     private readonly numbering: NumberingFacade,
+    private readonly quotations: QuotationRecalculator,
   ) {
     super('price_research.update', transactions, clock);
   }
@@ -417,13 +421,15 @@ export class UpdatePriceResearchHeaderCommand extends PriceResearchCommand<
         old: research.referenceDate,
         new: patch.referenceDate,
       });
-      // FA-07: a validade das cotações é reavaliada e os alertas recalculados.
+      // FA-07: a validade das cotações é reavaliada (RN-PRICE-26) e os alertas recalculados.
+      const dated = withReferenceDate(research, patch.referenceDate ?? research.referenceDate);
+      const { timezone } = await this.numbering.settingsOf(tx);
+      await this.quotations.refreshExpiry(tx, dated, {
+        timezone,
+        stamp: { now, userId: this.userId() },
+      });
       const items = await this.researches.listItems(tx, research.id);
-      const recalculated = recalculate(
-        withReferenceDate(research, patch.referenceDate ?? research.referenceDate),
-        items,
-        { now, userId: this.userId() },
-      );
+      const recalculated = recalculate(dated, items, { now, userId: this.userId() });
       await this.researches.updateItems(tx, recalculated.changedItems);
       next = recalculated.research;
     }
@@ -585,6 +591,7 @@ export class RemovePriceItemCommand extends PriceResearchCommand<
     @Inject(PRICE_RESEARCH_TRANSACTIONS) transactions: PriceResearchTransactions,
     @Inject(PRICE_RESEARCH_CLOCK) clock: PriceResearchClock,
     @Inject(PRICE_RESEARCH_REPOSITORY) private readonly researches: PriceResearchRepository,
+    @Inject(PRICE_SOURCE_REPOSITORY) private readonly sources: PriceSourceRepository,
     private readonly gate: PriceResearchGate,
     private readonly recorder: PriceResearchRecorder,
   ) {
@@ -612,8 +619,7 @@ export class RemovePriceItemCommand extends PriceResearchCommand<
     if (item.version !== expectedVersion) throw priceResearchVersionConflict(item.version);
     const current = await this.researches.listItems(tx, research.id);
     if (!canRemoveItem(current.length)) throw lastItemNotRemovable();
-    const quotationsRemoved =
-      (await this.researches.quotationCounts(tx, [item.id])).get(item.id) ?? 0;
+    const quotationsRemoved = (await this.sources.quotationCounts(tx, [item.id])).get(item.id) ?? 0;
     try {
       await this.researches.deleteItem(tx, item, expectedVersion);
     } catch (error) {

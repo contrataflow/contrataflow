@@ -142,3 +142,69 @@ test('no celular (360 px) a SCR-009 empilha os itens e o painel de parâmetros, 
   expect(await hasHorizontalOverflow(page)).toBe(false);
   await expectNoSeriousA11yViolations(page, 'SCR-009 Pesquisa de preços em 360 px');
 });
+
+// US-026 — aba "Fontes" da SCR-009: registrar uma fonte de sítio eletrônico (campos do tipo), lançar
+// os preços na grade num único envio, editar e remover a fonte (com a confirmação das cotações).
+test('fontes: registrar fonte de sítio eletrônico, lançar preços na grade, editar e remover', async ({
+  page,
+}) => {
+  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
+  await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
+  await expect(page).toHaveURL(RESEARCH_PATH);
+  await page.getByRole('tab', { name: 'Fontes' }).click();
+  await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Nova fonte' }).click();
+  const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
+  await form
+    .getByLabel(/Tipo de fonte/)
+    .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+  await expect(
+    form.getByText(/Campos exigidos para .*: URL, data\/hora de acesso\./),
+  ).toBeVisible();
+  await form.getByLabel(/Descrição/).fill('Painel de Preços');
+  await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
+  await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
+  await expectNoSeriousA11yViolations(page, 'diálogo Nova fonte de pesquisa');
+  await form.getByRole('button', { name: 'Salvar fonte' }).click();
+  await expect(page.getByText('Fonte registrada')).toBeVisible();
+
+  // Com a fonte criada, a grade de preços dela abre (uma linha por item da pesquisa).
+  const grid = page.getByRole('table', { name: 'Preços da fonte Painel de Preços' });
+  await expect(grid.getByText('Cimento CP II 50 kg')).toBeVisible();
+  await grid.getByLabel('Preço unitário do item 1').fill('25,90');
+  await grid.getByLabel('Preço unitário do item 2').fill('120');
+  await grid.getByLabel('Preço unitário do item 3').fill('95,5');
+  await grid.getByLabel('Marca/modelo do item 1').fill('Votoran');
+  await expectNoSeriousA11yViolations(page, 'grade de preços da fonte');
+  await page.getByRole('button', { name: 'Salvar preços' }).click();
+  await expect(page.getByText('Preços salvos')).toBeVisible();
+  const sources = page.getByRole('list', { name: 'Fontes registradas' });
+  await expect(sources.getByText('3 preços lançados')).toBeVisible();
+  await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
+
+  // Em 360 px a grade rola dentro do próprio contêiner, sem rolagem horizontal da página.
+  await page.setViewportSize({ width: 360, height: 780 });
+  expect(await hasHorizontalOverflow(page)).toBe(false);
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // FA-01: editar a fonte.
+  await sources.getByRole('button', { name: 'Editar' }).click();
+  const edit = page.getByRole('dialog', { name: 'Editar fonte de pesquisa' });
+  await edit.getByLabel(/Descrição/).fill('Painel de Preços do Governo Federal');
+  await edit.getByRole('button', { name: 'Salvar fonte' }).click();
+  await expect(page.getByText('Fonte atualizada')).toBeVisible();
+  await expect(sources.getByText('Painel de Preços do Governo Federal')).toBeVisible();
+
+  // FA-02: remover a fonte (as cotações vão junto) depois da confirmação.
+  await sources.getByRole('button', { name: 'Remover', exact: true }).click();
+  const confirm = page.getByRole('dialog', { name: /Remover a fonte/ });
+  await expect(
+    confirm.getByText(
+      '3 preços lançados nesta fonte serão perdidos. Esta ação não pode ser desfeita.',
+    ),
+  ).toBeVisible();
+  await confirm.getByRole('button', { name: 'Remover fonte' }).click();
+  await expect(page.getByText('Fonte removida')).toBeVisible();
+  await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
+});

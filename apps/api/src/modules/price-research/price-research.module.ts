@@ -3,6 +3,10 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import {
+  AttachmentTargetModule,
+  AttachmentTargetRegistry,
+} from '#shared/files/attachment-targets.js';
 import { ProcessItemCatalogModule } from '#shared/process/process-item-catalog.js';
 import {
   ProcessItemUsageModule,
@@ -13,6 +17,7 @@ import {
   PRICE_RESEARCH_CLOCK,
   PRICE_RESEARCH_REPOSITORY,
   PRICE_RESEARCH_TRANSACTIONS,
+  PRICE_SOURCE_REPOSITORY,
 } from './application/ports.js';
 import { PriceItemUsageReader } from './application/price-item-usage.reader.js';
 import {
@@ -34,15 +39,40 @@ import {
   PriceResearchRecorder,
   ResearchItemsReader,
 } from './application/price-research.support.js';
+import { PriceSourceAttachmentTargets } from './application/price-source-attachment-targets.js';
+import { PriceSourceSupplierUsage } from './application/price-source-supplier-usage.js';
+import {
+  CreatePriceSourceCommand,
+  DeletePriceSourceCommand,
+  DeleteQuotationCommand,
+  UpdatePriceSourceCommand,
+  UpdateQuotationCommand,
+  UpsertQuotationsCommand,
+} from './application/price-source.commands.js';
+import { ListPriceSourcesQuery } from './application/price-source.queries.js';
+import {
+  PriceSourceGate,
+  PriceSourcePresenter,
+  PriceSourceRecorder,
+  PriceSourceRulesReader,
+  QuotationRecalculator,
+} from './application/price-source.support.js';
 import {
   InMemoryPriceResearchRepository,
   InMemoryPriceResearchTransactions,
   PrismaPriceResearchRepository,
   PrismaPriceResearchTransactions,
 } from './infrastructure/price-research.repositories.js';
+import {
+  InMemoryPriceSourceRepository,
+  PrismaPriceSourceRepository,
+} from './infrastructure/price-source.repositories.js';
 import { PriceResearchController } from './presentation/price-research.controller.js';
+import { PriceSourceController } from './presentation/price-source.controller.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { DocumentModule } from '../document/document.module.js';
+import { SupplierFacade } from '../supplier/application/supplier.facade.js';
+import { SupplierModule } from '../supplier/supplier.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): pesquisas em memória. */
@@ -52,19 +82,23 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * Módulo `price-research` (DEC-040, nível 4): outros módulos usam somente a fachada exportada. Dono
  * de `PriceResearch` e `PriceItem` (US-024: PRS-01..06/08). O documento, a numeração, a POL-02
  * estendida e as quantidades de ETP/DFD vêm do `document` (padrão de documento tipado); os itens do
- * processo, da porta `ProcessItemCatalogRegistry`; as unidades e o fuso, do `catalog`; os
- * parâmetros, do `tenancy`. O uso dos itens (`ITEM_IN_USE`) é publicado ao `process` pela porta
- * `ProcessItemUsageRegistry`.
+ * processo, da porta `ProcessItemCatalogRegistry`; as unidades, os tipos de fonte e o fuso, do
+ * `catalog`; os parâmetros, do `tenancy`; os fornecedores, do `supplier`. O uso dos itens
+ * (`ITEM_IN_USE`) é publicado ao `process` pela porta `ProcessItemUsageRegistry`; o dos fornecedores
+ * (US-026: PRS-09..15), pela `SupplierFacade`; o alvo de anexo `PRICE_SOURCE`, pela
+ * `AttachmentTargetRegistry`.
  */
 @Module({
   imports: [
     CatalogModule,
     DocumentModule,
     TenancyModule,
+    SupplierModule,
+    AttachmentTargetModule,
     ProcessItemCatalogModule,
     ProcessItemUsageModule,
   ],
-  controllers: [PriceResearchController],
+  controllers: [PriceResearchController, PriceSourceController],
   providers: [
     PriceResearchFacade,
     CreatePriceResearchCommand,
@@ -80,12 +114,48 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     PriceResearchPresenter,
     PriceResearchRecorder,
     PriceItemUsageReader,
+    CreatePriceSourceCommand,
+    UpdatePriceSourceCommand,
+    DeletePriceSourceCommand,
+    UpsertQuotationsCommand,
+    UpdateQuotationCommand,
+    DeleteQuotationCommand,
+    ListPriceSourcesQuery,
+    PriceSourceGate,
+    PriceSourceRulesReader,
+    PriceSourcePresenter,
+    PriceSourceRecorder,
+    QuotationRecalculator,
+    PriceSourceAttachmentTargets,
+    PriceSourceSupplierUsage,
+    PrismaPriceSourceRepository,
     PrismaPriceResearchRepository,
     PrismaPriceResearchTransactions,
     InMemoryPriceResearchTransactions,
     {
       provide: InMemoryPriceResearchRepository,
       useFactory: () => new InMemoryPriceResearchRepository(),
+    },
+    {
+      // `ON DELETE CASCADE` price_items → quotations no adaptador em memória.
+      provide: InMemoryPriceSourceRepository,
+      inject: [InMemoryPriceResearchRepository],
+      useFactory: (researches: InMemoryPriceResearchRepository) => {
+        const sources = new InMemoryPriceSourceRepository();
+        researches.onItemDeleted((itemId) => {
+          sources.removeQuotationsOfItem(itemId);
+        });
+        return sources;
+      },
+    },
+    {
+      provide: PRICE_SOURCE_REPOSITORY,
+      inject: [APP_CONFIG, PrismaPriceSourceRepository, InMemoryPriceSourceRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaPriceSourceRepository,
+        memory: InMemoryPriceSourceRepository,
+      ) => (inMemory(config) ? memory : prisma),
     },
     {
       provide: PRICE_RESEARCH_REPOSITORY,
@@ -113,10 +183,20 @@ export class PriceResearchModule implements OnModuleInit {
   constructor(
     private readonly itemUsage: ProcessItemUsageRegistry,
     private readonly priceItemUsage: PriceItemUsageReader,
+    private readonly suppliers: SupplierFacade,
+    private readonly supplierUsage: PriceSourceSupplierUsage,
+    private readonly attachmentTargets: AttachmentTargetRegistry,
+    private readonly sourceAttachments: PriceSourceAttachmentTargets,
   ) {}
 
-  /** US-024: os itens do processo referenciados por pesquisas (ITEM_IN_USE — US-006). */
+  /**
+   * US-024: os itens do processo referenciados por pesquisas (ITEM_IN_USE — US-006). US-026: os
+   * fornecedores referenciados por fontes (SUPPLIER_IN_USE — RN-PRICE-19) e o alvo de anexo
+   * `PRICE_SOURCE` (RN-PRICE-28).
+   */
   onModuleInit(): void {
     this.itemUsage.register(this.priceItemUsage);
+    this.suppliers.registerUsageProvider(this.supplierUsage);
+    this.attachmentTargets.register(this.sourceAttachments);
   }
 }

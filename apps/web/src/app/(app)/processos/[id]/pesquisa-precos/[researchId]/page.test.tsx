@@ -12,6 +12,7 @@ import {
   priceResearchMeta,
   processItem,
   readRoutes,
+  sourcesRoute,
   stubWithRoutes,
 } from '@test/support/price-research-fixtures';
 import type { Route } from '@test/support/price-research-fixtures';
@@ -282,18 +283,17 @@ describe('/processos/[id]/pesquisa-precos/[researchId] (SCR-009 · US-024)', () 
     });
   });
 
-  it('aba Fontes: estado vazio com "Registrar fonte" indisponível', async () => {
+  it('aba Fontes: estado vazio com "Nova fonte" (US-026)', async () => {
     const user = userEvent.setup();
-    await renderPage(readRoutes({}));
+    await renderPage(sourcesRoute([]), readRoutes({}));
     await user.click(await screen.findByRole('tab', { name: 'Fontes' }));
     expect(await screen.findByText('Nenhuma fonte registrada ainda')).toBeTruthy();
     expect(
       screen.getByText('Registre as fontes consultadas e os preços de cada item'),
     ).toBeTruthy();
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Registrar fonte' }).disabled,
-    ).toBe(true);
-    expect(screen.getByText('Disponível em breve')).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Nova fonte' }).disabled).toBe(
+      false,
+    );
   });
 
   it('aba Documento: leva ao documento no visualizador genérico', async () => {

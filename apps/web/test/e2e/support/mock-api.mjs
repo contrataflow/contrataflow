@@ -122,6 +122,35 @@ const catalogItems = [
   updatedAt: '2026-10-15T12:00:00.000Z',
   version: 1,
 }));
+// Tipos de fonte de pesquisa (US-026 · PRICE_SOURCE_TYPE): os campos exigidos como os semeados.
+catalogItems.push(
+  ...[
+    [
+      'SITIO_ELETRONICO',
+      'Sítio eletrônico especializado (art. 23, § 1º, III)',
+      ['url', 'accessedAt'],
+    ],
+    [
+      'PESQUISA_DIRETA_FORNECEDOR',
+      'Pesquisa direta com fornecedor (art. 23, § 1º, IV)',
+      ['supplierId', 'quoteDate', 'attachment', 'supplierChoiceJustification'],
+    ],
+  ].map(([code, label, requiredFields], index) => ({
+    id: `0192a000-0000-7000-8000-00000000c3${String(index).padStart(2, '0')}`,
+    catalogType: 'PRICE_SOURCE_TYPE',
+    code,
+    label,
+    description: null,
+    isSystem: true,
+    isActive: true,
+    sortOrder: index + 1,
+    parentId: null,
+    metadata: { legalBasis: 'Lei 14.133/2021, art. 23', requiredFields },
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z',
+    version: 1,
+  })),
+);
 
 // Calendário (US-106 · CAL-01..04): feriados de 2026 (Natal de sistema, Carnaval facultativo e um
 // feriado municipal próprio), só o necessário para o SCR-110. Versão por feriado com `If-Match`;
@@ -1830,6 +1859,159 @@ const etpOf = (etpId) => [...etpStates.values()].find((state) => state.etp?.dto.
 
 const priceResearchOf = (researchId) =>
   [...priceStates.values()].find((state) => state.research?.header.id === researchId)?.research;
+
+const sourceOwnerOf = (sourceId) =>
+  [...priceStates.values()]
+    .map((state) => state.research)
+    .find((research) => research?.sources?.some((source) => source.id === sourceId));
+
+function sourceDto(research, source) {
+  const type = catalogItems.find((item) => item.id === source.sourceTypeId);
+  return {
+    ...source,
+    sourceType: {
+      id: source.sourceTypeId,
+      code: type?.code ?? '',
+      label: type?.label ?? '',
+      isActive: true,
+      requiredFields: type?.metadata.requiredFields ?? [],
+      maxAgeDays: null,
+    },
+    supplier: null,
+    quotations: research.quotations.filter((quotation) => quotation.priceSourceId === source.id),
+  };
+}
+
+const unitPriceOf = (value) => {
+  const [integer, fraction = ''] = String(value).split('.');
+  return `${integer}.${fraction.padEnd(4, '0')}`;
+};
+
+/** PRS-09..15 sobre a pesquisa simulada; `true` quando respondeu. */
+async function handlePriceSources(request, response, url, correlationId) {
+  const list = /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/sources$/.exec(url.pathname);
+  if (list) {
+    const research = priceResearchOf(list[1]);
+    if (!research) {
+      problem(response, 404, 'NOT_FOUND', String(correlationId));
+      return true;
+    }
+    research.sources ??= [];
+    research.quotations ??= [];
+    if (request.method === 'GET') {
+      const data = research.sources.map((source) => sourceDto(research, source));
+      send(response, 200, {
+        data,
+        meta: { page: 1, pageSize: 100, totalItems: data.length, totalPages: 1 },
+      });
+      return true;
+    }
+    if (request.method === 'POST') {
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const now = new Date().toISOString();
+      const source = {
+        id: mockUuid(),
+        priceResearchId: research.header.id,
+        sourceTypeId: body.sourceTypeId,
+        description: body.description,
+        supplierId: body.supplierId ?? null,
+        quoteDate: body.quoteDate ?? null,
+        accessedAt: body.accessedAt ?? null,
+        url: body.url ?? null,
+        referenceOrganization: body.referenceOrganization ?? null,
+        referenceDocument: body.referenceDocument ?? null,
+        supplierChoiceJustification: body.supplierChoiceJustification ?? null,
+        notes: body.notes ?? null,
+        sortOrder: research.sources.length,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      };
+      research.sources.push(source);
+      send(response, 201, { data: sourceDto(research, source) }, { ETag: '"1"' });
+      return true;
+    }
+  }
+  const one = /^\/api\/v1\/price-sources\/([0-9a-f-]{36})(\/quotations)?$/.exec(url.pathname);
+  if (!one) return false;
+  const research = sourceOwnerOf(one[1]);
+  const source = research?.sources.find((candidate) => candidate.id === one[1]);
+  if (!research || !source) {
+    problem(response, 404, 'NOT_FOUND', String(correlationId));
+    return true;
+  }
+  const ifMatch = Number(String(request.headers['if-match'] ?? '').replaceAll('"', ''));
+  if (ifMatch !== source.version) {
+    problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    return true;
+  }
+  const now = new Date().toISOString();
+  if (one[2] && request.method === 'PUT') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    for (const line of body.items ?? []) {
+      if (!line.unitPrice) continue;
+      const current = research.quotations.find(
+        (quotation) =>
+          quotation.priceSourceId === source.id && quotation.priceItemId === line.priceItemId,
+      );
+      if (current) {
+        Object.assign(current, {
+          unitPrice: unitPriceOf(line.unitPrice),
+          brandModel: line.brandModel ?? null,
+          updatedAt: now,
+          version: current.version + 1,
+        });
+        continue;
+      }
+      research.quotations.push({
+        id: mockUuid(),
+        priceResearchId: research.header.id,
+        priceItemId: line.priceItemId,
+        priceSourceId: source.id,
+        unitPrice: unitPriceOf(line.unitPrice),
+        unitPriceMasked: false,
+        brandModel: line.brandModel ?? null,
+        status: 'VALID',
+        exclusionReason: null,
+        exclusionJustification: null,
+        outlierFlag: 'NONE',
+        isExpired: false,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      });
+    }
+    source.version += 1;
+    send(
+      response,
+      200,
+      { data: research.quotations.filter((quotation) => quotation.priceSourceId === source.id) },
+      { ETag: `"${String(source.version)}"` },
+    );
+    return true;
+  }
+  if (!one[2] && request.method === 'PATCH') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    Object.assign(source, body, { version: source.version + 1, updatedAt: now });
+    send(
+      response,
+      200,
+      { data: sourceDto(research, source) },
+      { ETag: `"${String(source.version)}"` },
+    );
+    return true;
+  }
+  if (!one[2] && request.method === 'DELETE') {
+    research.sources.splice(research.sources.indexOf(source), 1);
+    research.quotations = research.quotations.filter(
+      (quotation) => quotation.priceSourceId !== source.id,
+    );
+    response.writeHead(204);
+    response.end();
+    return true;
+  }
+  return false;
+}
 
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
@@ -4167,6 +4349,9 @@ createServer(async (request, response) => {
       });
     }
   }
+  // Fontes e cotações (US-026 · PRS-09..15): só o necessário para a jornada da aba "Fontes"; regras
+  // por tipo, POL-02/POL-09 e isolamento são cobertos nos testes da API.
+  if (await handlePriceSources(request, response, url, correlationId)) return;
   const priceResearchRoute = /^\/api\/v1\/price-research\/([0-9a-f-]{36})(\/items)?$/.exec(
     url.pathname,
   );

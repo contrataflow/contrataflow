@@ -4526,6 +4526,478 @@
         ],
         "additionalProperties": false
       },
+      "PriceSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceResearchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "requiredFields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "supplierId",
+                    "quoteDate",
+                    "accessedAt",
+                    "url",
+                    "referenceOrganization",
+                    "referenceDocument",
+                    "attachment",
+                    "supplierChoiceJustification"
+                  ]
+                }
+              },
+              "maxAgeDays": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label",
+              "isActive",
+              "requiredFields",
+              "maxAgeDays"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "supplierId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supplier": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "legalName": {
+                "type": "string"
+              },
+              "documentNumber": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "legalName",
+              "documentNumber"
+            ]
+          },
+          "quoteDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "accessedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referenceOrganization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referenceDocument": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplierChoiceJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "quotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Quotation"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "priceResearchId",
+          "sourceTypeId",
+          "sourceType",
+          "description",
+          "supplierId",
+          "supplier",
+          "quoteDate",
+          "accessedAt",
+          "url",
+          "referenceOrganization",
+          "referenceDocument",
+          "supplierChoiceJustification",
+          "notes",
+          "sortOrder",
+          "quotations",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "Quotation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceResearchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unitPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unitPriceMasked": {
+            "type": "boolean"
+          },
+          "brandModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "EXCLUDED"
+            ]
+          },
+          "exclusionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "UNFEASIBLE",
+              "EXCESSIVE",
+              "INCONSISTENT",
+              "EXPIRED",
+              "NON_COMPLIANT",
+              "OTHER",
+              null
+            ]
+          },
+          "exclusionJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outlierFlag": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "LOW",
+              "HIGH"
+            ]
+          },
+          "isExpired": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "priceResearchId",
+          "priceItemId",
+          "priceSourceId",
+          "unitPrice",
+          "unitPriceMasked",
+          "brandModel",
+          "status",
+          "exclusionReason",
+          "exclusionJustification",
+          "outlierFlag",
+          "isExpired",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "PriceSourceCreateRequest": {
+        "type": "object",
+        "properties": {
+          "sourceTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "supplierId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quoteDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "accessedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
+          },
+          "referenceOrganization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 250
+          },
+          "referenceDocument": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "supplierChoiceJustification": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "sourceTypeId",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "PriceSourceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "sourceTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "supplierId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quoteDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "accessedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
+          },
+          "referenceOrganization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 250
+          },
+          "referenceDocument": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "supplierChoiceJustification": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationsUpsertRequest": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "priceItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "unitPrice": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 40
+                },
+                "brandModel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "priceItemId"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 1000
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
       "ProcessItem": {
         "type": "object",
         "properties": {
@@ -10054,6 +10526,23 @@
           "params",
           "visibility"
         ]
+      },
+      "QuotationUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "unitPrice": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "brandModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateRiskTreatmentRequest": {
         "type": "object",
@@ -31262,6 +31751,688 @@
         }
       }
     },
+    "/price-research/{id}/sources": {
+      "get": {
+        "operationId": "PRS-09",
+        "summary": "Listar fontes da pesquisa",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fontes por ordem de registro, com o tipo (campos exigidos e validade), o fornecedor e as cotações de cada uma (`isExpired`, `status`). Sem POL-09 em processo sigiloso: `unitPrice: null` + `unitPriceMasked: true`. Pesquisa inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PriceSource"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "PRS-10",
+        "summary": "Criar fonte de pesquisa",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.source_create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceSourceCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tipo ativo do catálogo `PRICE_SOURCE_TYPE` do tenant (422 `VALIDATION_ERROR` `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `sourceTypeId`); descrição 1–300; `url` iniciada por `https://` (422 `INVALID_FORMAT`); `quoteDate`/`accessedAt` não futuras (422 `DATE_IN_PAST`); campos de `requiredFields` do tipo presentes (422 `QUOTATION_REQUIRED_FIELDS`, um erro `CONDITIONAL_REQUIRED` por campo — o anexo segue o ATT-02 com alvo `PRICE_SOURCE` depois de a fonte existir, RN-PRICE-28); `supplierId` de fornecedor ativo do tenant (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`). Grava `price_research.source_create` (`metadata.sourceTypeId`). `ETag` = versão da fonte; reenvio com a mesma `Idempotency-Key` = mesma resposta com `Idempotent-Replayed: true`. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PriceSource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-sources/{sourceId}": {
+      "delete": {
+        "operationId": "PRS-12",
+        "summary": "Remover fonte de pesquisa",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.source_delete"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "sourceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Remoção física da fonte e, em cascata, das cotações dela (RN-PRICE-29 — não pode ser desfeita). `If-Match` = versão da fonte (412 `VERSION_CONFLICT`). Grava `price_research.source_delete` (`metadata.quotationsRemoved`). `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`)."
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "PRS-11",
+        "summary": "Atualizar fonte de pesquisa",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.source_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "sourceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceSourceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campos de PRS-10, parciais (`null` apaga um opcional). Trocar o tipo reavalia os campos exigidos (FA-01); tipo e datas reavaliam a validade das cotações da fonte (RN-PRICE-26). Tipo ativo do catálogo `PRICE_SOURCE_TYPE` do tenant (422 `VALIDATION_ERROR` `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `sourceTypeId`); descrição 1–300; `url` iniciada por `https://` (422 `INVALID_FORMAT`); `quoteDate`/`accessedAt` não futuras (422 `DATE_IN_PAST`); campos de `requiredFields` do tipo presentes (422 `QUOTATION_REQUIRED_FIELDS`, um erro `CONDITIONAL_REQUIRED` por campo — o anexo segue o ATT-02 com alvo `PRICE_SOURCE` depois de a fonte existir, RN-PRICE-28); `supplierId` de fornecedor ativo do tenant (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`). Grava `price_research.source_update` (`changes` dos campos; texto livre como impressão digital). `If-Match` divergente → 412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PriceSource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-sources/{sourceId}/quotations": {
+      "put": {
+        "operationId": "PRS-13",
+        "summary": "Lançar cotações da fonte (grade)",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.quotation_create",
+          "price_research.quotation_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "sourceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotationsUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grade com uma linha por item da pesquisa (RN-PRICE-24): linha sem preço não altera nada; com preço, cria ou atualiza a cotação do item nesta fonte (única por item e fonte — RN-PRICE-25). Item fora da pesquisa → 422 `REFERENCE_NOT_FOUND` em `items[i].priceItemId`; repetido → 422 `DUPLICATE_IN_LIST`; preço ausente, ≤ 0 ou com mais casas que `unitPriceDecimals` → 422 `INVALID_DECIMAL` em `items[i].unitPrice` (nada gravado); linha sobre cotação `EXCLUDED` → 409 `INVALID_STATE` (restaurar antes — PRS-17). `isExpired` recalculado pela regra do tipo. Responde as cotações da fonte; `ETag` = nova versão da fonte. `If-Match` = versão da fonte (412 `VERSION_CONFLICT` — duas gravações simultâneas: uma 200, outra 412). `Idempotency-Key` opcional (FA-07: reenvio = mesma resposta com `Idempotent-Replayed: true`). Grava `price_research.quotation_create`/`quotation_update` por linha (`metadata.priceItemId`/`priceSourceId`). `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Quotation"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/process-items/{itemId}": {
       "delete": {
         "operationId": "PRC-16",
@@ -37828,6 +38999,239 @@
                   "required": [
                     "data",
                     "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quotations/{quotationId}": {
+      "delete": {
+        "operationId": "PRS-15",
+        "summary": "Remover cotação",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.quotation_delete"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "quotationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Remoção física da cotação (FA-04 — sem motivo; a exclusão justificada é a PRS-16). `If-Match` = versão da cotação (412 `VERSION_CONFLICT`); a fonte ganha versão nova. Grava `price_research.quotation_delete`. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`)."
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "PRS-14",
+        "summary": "Atualizar cotação individual",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.quotation_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "quotationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preço (> 0, casas do snapshot — 422 `INVALID_DECIMAL` em `unitPrice`) e/ou marca/modelo (≤ 200). Cotação `EXCLUDED` → 409 `INVALID_STATE`. `If-Match` = versão da cotação (412 `VERSION_CONFLICT`); a fonte ganha versão nova. Grava `price_research.quotation_update`. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Quotation"
+                    }
+                  },
+                  "required": [
+                    "data"
                   ]
                 }
               }

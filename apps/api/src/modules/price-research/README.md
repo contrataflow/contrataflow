@@ -36,3 +36,32 @@ Pesquisa de preços: itens, fontes, cotações e estatística (DEC-040, nível 4
 - **Testes**: `domain/price-research.spec.ts`, `presentation/price-research.routes.spec.ts` (8
   categorias do Gherkin + FA-03/04/05/07/09) e `test/tenant-leak/price-research.spec.ts`
   (PostgreSQL: atomicidade com falha induzida, 20 criações paralelas, RLS, FKs, cascata).
+
+## US-026 — Registrar fontes de pesquisa e cotações (PRS-09..15)
+
+- **Rotas** (`presentation/price-source.controller.ts`): PRS-09 `GET /price-research/{id}/sources`
+  (fontes com tipo, fornecedor e cotações; POL-09 no preço), PRS-10 `POST …/sources` (Idem.), PRS-11
+  `PATCH /price-sources/{id}`, PRS-12 `DELETE /price-sources/{id}`, PRS-13
+  `PUT /price-sources/{id}/quotations` (grade; `If-Match` da fonte, Idem. opcional), PRS-14
+  `PATCH /quotations/{id}` e PRS-15 `DELETE /quotations/{id}` (`If-Match` da cotação). Contratos em
+  `packages/validation/src/price-research/price-sources.ts` (`missingPriceSourceFields`,
+  `unitPriceIssue`, `PRICE_SOURCE_MESSAGES` — os mesmos no web).
+- **Domínio** (`domain/price-source.ts`): campos exigidos pelo tipo (`requiredFields` do catálogo
+  `PRICE_SOURCE_TYPE`, lidos na gravação — o anexo nunca é exigido na API, RN-PRICE-28), datas não
+  futuras, validade (`isSourceExpired`: snapshot `directQuoteMaxAgeDays`/`similarContractMaxAgeDays`
+  para pesquisa direta/contratação similar, `maxAgeDays` do catálogo para os demais) e o plano da
+  grade (`planQuotationGrid`: linha vazia não altera, idêntica é ignorada, `EXCLUDED` → 409).
+- **Escritas** (`application/price-source.commands.ts`): `PriceSourceGate` = `PriceResearchGate.writable`
+  (POL-02 estendida + documento editável + POL-09 + `FOR UPDATE` da pesquisa — serializa as gravações
+  e faz a segunda do mesmo `If-Match` receber o 412) e relê a fonte/cotação depois da trava. Toda
+  gravação termina no `QuotationRecalculator` (RN-PRICE-27: `validQuotationsCount` = cotações `VALID`,
+  alertas, contadores, `lastCalculatedAt`, versão da pesquisa + 1 e `PriceResearchRecalculated`).
+  Mudanças de cotação sobem a versão da fonte. PRS-04 com data-base nova reavalia `isExpired`.
+- **Integrações**: tipos de fonte pela `CatalogFacade.assertActivePriceSourceType`/`priceSourceTypesOf`;
+  fornecedor pela `SupplierFacade.assertActive`/`summariesOf`; uso do fornecedor (SUP-05) pelo
+  `PriceSourceSupplierUsage`; alvo de anexo `PRICE_SOURCE` (`PriceSourceAttachmentTargets`) delega
+  ao alvo `DOCUMENT` da pesquisa (visibilidade, POL-02 de edição e sigilo do arquivo).
+- **Banco**: migração `20261018140000_price_sources` (`price_sources`, `quotations`, enums
+  `quotation_status`/`exclusion_reason`/`outlier_flag`), RLS, FKs compostas e cascatas; remoção física.
+- **Testes**: `domain/price-source.spec.ts` (todos os tipos semeados), `presentation/price-sources.routes.spec.ts`
+  (8 categorias + FA-01..08) e `test/tenant-leak/price-sources.spec.ts` (PostgreSQL).

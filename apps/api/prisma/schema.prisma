@@ -2483,3 +2483,92 @@ model PriceItem {
   @@index([tenantId, processItemId], map: "price_items_process_item_idx")
   @@map("price_items")
 }
+
+enum QuotationStatus {
+  VALID
+  EXCLUDED
+
+  @@map("quotation_status")
+}
+
+enum ExclusionReason {
+  UNFEASIBLE
+  EXCESSIVE
+  INCONSISTENT
+  EXPIRED
+  NON_COMPLIANT
+  OTHER
+
+  @@map("exclusion_reason")
+}
+
+enum OutlierFlag {
+  NONE
+  LOW
+  HIGH
+
+  @@map("outlier_flag")
+}
+
+/// entities.md §4.8 `PriceSource` (módulo price-research · US-026): a evidência da pesquisa (art. 23,
+/// § 1º, da Lei 14.133/2021). Campos exigidos pelo tipo (`PRICE_SOURCE_TYPE.requiredFields`)
+/// conferidos na aplicação; remoção física (RN-PRICE-29) com as cotações em cascata. FKs compostas,
+/// checks e gatilho de colunas imutáveis na migração.
+model PriceSource {
+  id                          String    @id @db.Uuid
+  tenantId                    String    @map("tenant_id") @db.Uuid
+  priceResearchId             String    @map("price_research_id") @db.Uuid
+  processId                   String    @map("process_id") @db.Uuid
+  sourceTypeId                String    @map("source_type_id") @db.Uuid
+  supplierId                  String?   @map("supplier_id") @db.Uuid
+  description                 String    @db.VarChar(300)
+  quoteDate                   DateTime? @map("quote_date") @db.Date
+  accessedAt                  DateTime? @map("accessed_at") @db.Timestamptz(6)
+  url                         String?   @db.VarChar(2048)
+  referenceOrganization       String?   @map("reference_organization") @db.VarChar(250)
+  referenceDocument           String?   @map("reference_document") @db.VarChar(120)
+  supplierChoiceJustification String?   @map("supplier_choice_justification")
+  notes                       String?
+  sortOrder                   Int       @default(0) @map("sort_order")
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                 String?   @map("created_by_id") @db.Uuid
+  updatedById                 String?   @map("updated_by_id") @db.Uuid
+  version                     Int       @default(1)
+
+  @@unique([tenantId, id], map: "price_sources_tenant_id_id_key")
+  @@index([tenantId, priceResearchId], map: "price_sources_research_idx")
+  @@index([tenantId, supplierId], map: "price_sources_supplier_idx")
+  @@map("price_sources")
+}
+
+/// entities.md §4.8 `Quotation` (módulo price-research · US-026): o preço de um item numa fonte,
+/// único por `(price_item_id, price_source_id)`; `ON DELETE CASCADE` a partir do item e da fonte.
+model Quotation {
+  id                     String           @id @db.Uuid
+  tenantId               String           @map("tenant_id") @db.Uuid
+  priceResearchId        String           @map("price_research_id") @db.Uuid
+  priceItemId            String           @map("price_item_id") @db.Uuid
+  priceSourceId          String           @map("price_source_id") @db.Uuid
+  unitPrice              Decimal          @map("unit_price") @db.Decimal(18, 4)
+  brandModel             String?          @map("brand_model") @db.VarChar(200)
+  status                 QuotationStatus  @default(VALID)
+  exclusionReason        ExclusionReason? @map("exclusion_reason")
+  exclusionJustification String?          @map("exclusion_justification")
+  excludedById           String?          @map("excluded_by_id") @db.Uuid
+  excludedAt             DateTime?        @map("excluded_at") @db.Timestamptz(6)
+  outlierFlag            OutlierFlag      @default(NONE) @map("outlier_flag")
+  isExpired              Boolean          @default(false) @map("is_expired")
+  notes                  String?
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?          @map("created_by_id") @db.Uuid
+  updatedById            String?          @map("updated_by_id") @db.Uuid
+  version                Int              @default(1)
+
+  @@unique([tenantId, id], map: "quotations_tenant_id_id_key")
+  @@unique([tenantId, priceItemId, priceSourceId], map: "quotations_item_source_key")
+  @@index([tenantId, priceResearchId], map: "quotations_research_idx")
+  @@index([tenantId, priceSourceId], map: "quotations_source_idx")
+  @@map("quotations")
+}

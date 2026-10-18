@@ -260,6 +260,8 @@ export class PrismaPriceResearchRepository implements PriceResearchRepository {
         where: { id: item.id },
         data: {
           alerts: item.alerts,
+          validQuotationsCount: item.validQuotationsCount,
+          calculatedAt: item.calculatedAt,
           updatedAt: item.updatedAt,
           updatedById: item.updatedById,
           version: { increment: 1 },
@@ -282,11 +284,6 @@ export class PrismaPriceResearchRepository implements PriceResearchRepository {
     });
     return rows.map(toItem);
   }
-
-  quotationCounts(_tx: TenantTx, itemIds: readonly string[]): Promise<ReadonlyMap<string, number>> {
-    // As cotações (`quotations`) chegam com a US-026; até lá, nenhum item tem cotação.
-    return Promise.resolve(new Map(itemIds.map((id) => [id, 0])));
-  }
 }
 
 /** Pesquisas em memória: mesma semântica do adaptador Prisma, isoladas pelo tenant do contexto. */
@@ -296,6 +293,13 @@ export class InMemoryPriceResearchRepository implements PriceResearchRepository 
   private readonly items = new Map<string, PriceItem>();
   /** Trava de linha por pesquisa (`lockById`): o `tx` que a detém. */
   private readonly locks = new Map<string, TenantTx>();
+  /** `ON DELETE CASCADE` em memória: quem guarda linhas filhas do item (as cotações — US-026). */
+  private readonly itemDeletionListeners: ((itemId: string) => void)[] = [];
+
+  /** Liga a cascata `price_items` → `quotations` do adaptador em memória. */
+  onItemDeleted(listener: (itemId: string) => void): void {
+    this.itemDeletionListeners.push(listener);
+  }
 
   private tenantId(): string | null {
     return currentRequestContext()?.tenantId ?? null;
@@ -417,6 +421,8 @@ export class InMemoryPriceResearchRepository implements PriceResearchRepository 
       this.items.set(item.id, {
         ...current,
         alerts: item.alerts,
+        validQuotationsCount: item.validQuotationsCount,
+        calculatedAt: item.calculatedAt,
         updatedAt: item.updatedAt,
         updatedById: item.updatedById,
         version: current.version + 1,
@@ -437,16 +443,13 @@ export class InMemoryPriceResearchRepository implements PriceResearchRepository 
       );
     }
     this.items.delete(item.id);
+    for (const listener of this.itemDeletionListeners) listener(item.id);
     return Promise.resolve();
   }
 
   itemsReferencing(_tx: TenantTx, processItemIds: readonly string[]): Promise<PriceItem[]> {
     const wanted = new Set(processItemIds);
     return Promise.resolve(this.itemsInTenant().filter((item) => wanted.has(item.processItemId)));
-  }
-
-  quotationCounts(_tx: TenantTx, itemIds: readonly string[]): Promise<ReadonlyMap<string, number>> {
-    return Promise.resolve(new Map(itemIds.map((id) => [id, 0])));
   }
 
   /** Inspeção de testes: todas as pesquisas e itens (de todos os tenants). */

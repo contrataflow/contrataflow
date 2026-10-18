@@ -1,4 +1,9 @@
 import type { CatalogType } from '@contrataflow/types';
+import {
+  PRICE_SOURCE_AGE_REFERENCES,
+  PRICE_SOURCE_REQUIRED_FIELDS,
+} from '@contrataflow/validation';
+import type { PriceSourceRequiredField } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -14,6 +19,31 @@ export interface CatalogItemRef {
   readonly code: string;
   readonly label: string;
   readonly isActive: boolean;
+}
+
+/** Tipo de fonte de pesquisa (`PRICE_SOURCE_TYPE`) com as regras de `metadata` (US-026). */
+export interface PriceSourceTypeRef extends CatalogItemRef {
+  readonly requiredFields: readonly PriceSourceRequiredField[];
+  readonly maxAgeDays: number | null;
+  /** Padrão `quoteDate` quando o tipo não informa. */
+  readonly ageReference: 'quoteDate' | 'accessedAt';
+}
+
+/** Leitura defensiva de `metadata` do tipo de fonte (já validada pelo schema do catálogo). */
+function priceSourceRulesOf(metadata: Readonly<Record<string, unknown>>) {
+  const fields = Array.isArray(metadata.requiredFields) ? metadata.requiredFields : [];
+  const known = new Set<unknown>(PRICE_SOURCE_REQUIRED_FIELDS);
+  const reference = metadata.ageReference;
+  return {
+    requiredFields: fields.filter((field): field is PriceSourceRequiredField => known.has(field)),
+    maxAgeDays:
+      typeof metadata.maxAgeDays === 'number' && Number.isInteger(metadata.maxAgeDays)
+        ? metadata.maxAgeDays
+        : null,
+    ageReference: (PRICE_SOURCE_AGE_REFERENCES as readonly unknown[]).includes(reference)
+      ? (reference as 'quoteDate' | 'accessedAt')
+      : 'quoteDate',
+  };
 }
 
 /**
@@ -73,6 +103,41 @@ export class CatalogFacade {
       units.set(id, { label: item.label, allowsDecimal: item.metadata.allowsDecimal !== false });
     }
     return units;
+  }
+
+  /**
+   * US-026 (RN-PRICE-21 · V-02): o tipo de fonte ativo do tenant com os campos exigidos e a validade,
+   * lidos no momento da gravação (não há cópia por fonte). Inválido → 422 como `assertActive`.
+   */
+  async assertActivePriceSourceType(
+    tx: TenantTx,
+    id: string,
+    field: string,
+  ): Promise<PriceSourceTypeRef> {
+    const ref = await this.assertActive(tx, 'PRICE_SOURCE_TYPE', id, field);
+    const item = await this.items.findById(tx, id);
+    return { ...ref, ...priceSourceRulesOf(item?.metadata ?? {}) };
+  }
+
+  /** Tipos de fonte das fontes já gravadas (mesmo inativos — RN-TEN-61); outro tipo fica fora. */
+  async priceSourceTypesOf(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, PriceSourceTypeRef>> {
+    const types = new Map<string, PriceSourceTypeRef>();
+    for (const id of new Set(ids)) {
+      const item = await this.items.findById(tx, id);
+      if (item?.catalogType !== 'PRICE_SOURCE_TYPE') continue;
+      types.set(id, {
+        id: item.id,
+        catalogType: item.catalogType,
+        code: item.code,
+        label: item.label,
+        isActive: item.isActive,
+        ...priceSourceRulesOf(item.metadata),
+      });
+    }
+    return types;
   }
 
   /** Leitura para exibição de registro existente: devolve o item mesmo inativo (RN-TEN-61). */

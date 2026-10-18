@@ -1156,6 +1156,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `sortOrder` | int | não | `0` | |
 
 - **Índices:** `(tenant_id, price_research_id)`; `(tenant_id, supplier_id)`.
+- **Implementação (US-026, 2026-10-18):** remoção física, sem `deleted_at` (RN-PRICE-29: "não pode ser desfeita" e leva as cotações em cascata — a exclusão lógica cedeu à regra da story). FKs compostas por tenant para `price_research` (`ON DELETE CASCADE`), `processes`, `catalog_items` (tipo) e `suppliers`; CHECK `url ILIKE 'https://%'` e descrição não vazia; gatilho de colunas imutáveis (tenant, pesquisa, processo). Os campos exigidos vêm de `PRICE_SOURCE_TYPE.metadata.requiredFields`, lidos na gravação. O uso do fornecedor (SUP-05 → `SUPPLIER_IN_USE`) conta qualquer fonte que o referencie.
 
 #### Quotation (`quotations`) — módulo `price-research` · Padrão
 "Cotação": preço de um item em uma fonte.
@@ -1178,6 +1179,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 - **Unique:** `(tenant_id, price_item_id, price_source_id)`.
 - **Índices:** `(tenant_id, price_research_id)`.
 - **Check:** `status <> 'EXCLUDED' OR (exclusion_reason IS NOT NULL AND exclusion_justification IS NOT NULL)`.
+- **Implementação (US-026):** FKs compostas por tenant com `ON DELETE CASCADE` a partir de `price_research`, `price_items` (PRS-08) e `price_sources` (PRS-12); CHECK `unit_price > 0`; gatilho de colunas imutáveis (tenant, pesquisa, item, fonte); índice extra `(tenant_id, price_source_id)`. `unitPrice` normalizado com 4 casas (`decimal.js`); `isExpired` recalculado a cada gravação da fonte/cotação e quando a data-base muda (PRS-04).
 
 #### Supplier (`suppliers`) — módulo `supplier` · Padrão + SD
 | Campo | Tipo | Null | Default | Regras |

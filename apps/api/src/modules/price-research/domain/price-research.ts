@@ -231,7 +231,7 @@ export function referenceDateErrors(referenceDate: string, today: string): Field
 /**
  * Alertas de cotação de um item: sem cotação válida → `NO_VALID_QUOTES`; menos que o mínimo do
  * snapshot → `BELOW_MINIMUM_QUOTES`. Os demais (`HIGH_CV`, `HAS_OUTLIERS`, `EXPIRED_QUOTES`) dependem
- * das cotações e da estatística (US-026/US-029/US-030).
+ * da estatística (US-029/US-030).
  */
 export function quotationAlerts(
   validQuotationsCount: number,
@@ -256,20 +256,31 @@ export function countersOf(items: readonly Pick<PriceItem, 'alerts'>[]): {
 }
 
 /**
- * `PriceResearchRecalculator` desta story (FA-07 · RN-PRICE-06): reavalia os alertas de cada item
- * (validade das cotações e mínimo do snapshot) e os contadores do cabeçalho. Sem cotações ainda
- * (US-026), os alertas são os do cálculo inicial. Devolve as linhas alteradas e o cabeçalho.
+ * `PriceResearchRecalculator` (FA-07 da US-024 · RN-PRICE-27 da US-026): reavalia, por item, as
+ * cotações válidas (`validCounts` — `status = VALID`; omitido = as já gravadas), os alertas (mínimo
+ * do snapshot) e os contadores do cabeçalho. Estatística, método e totais são da US-029. Devolve as
+ * linhas alteradas e o cabeçalho.
  */
 export function recalculate(
   research: PriceResearch,
   items: readonly PriceItem[],
   stamp: { readonly now: Date; readonly userId: string | null },
+  validCounts?: ReadonlyMap<string, number>,
 ): { readonly research: PriceResearch; readonly changedItems: readonly PriceItem[] } {
   const changedItems: PriceItem[] = [];
   const next = items.map((item) => {
-    const alerts = quotationAlerts(item.validQuotationsCount, research.parameters);
-    if (sameAlerts(alerts, item.alerts)) return item;
-    const changed = { ...item, alerts, updatedAt: stamp.now, updatedById: stamp.userId };
+    const valid =
+      validCounts === undefined ? item.validQuotationsCount : (validCounts.get(item.id) ?? 0);
+    const alerts = quotationAlerts(valid, research.parameters);
+    if (valid === item.validQuotationsCount && sameAlerts(alerts, item.alerts)) return item;
+    const changed = {
+      ...item,
+      validQuotationsCount: valid,
+      alerts,
+      calculatedAt: stamp.now,
+      updatedAt: stamp.now,
+      updatedById: stamp.userId,
+    };
     changedItems.push(changed);
     return changed;
   });

@@ -173,9 +173,105 @@
     }
   },
   "sources": {
+    "title": "Fontes de pesquisa",
     "empty": "Nenhuma fonte registrada ainda",
-    "register": "Registrar fonte",
-    "soon": "Disponível em breve"
+    "register": "Nova fonte",
+    "loading": "Carregando fontes…",
+    "loadError": "Não foi possível carregar as fontes.",
+    "retry": "Tentar novamente",
+    "listLabel": "Fontes registradas",
+    "supplier": "Fornecedor: {name}",
+    "quoteDate": "Data: {date}",
+    "accessedAt": "Acesso em {dateTime}",
+    "reference": "Referência: {organization} — {document}",
+    "quotationsCount": "{count, plural, =0 {Nenhum preço lançado} one {# preço lançado} other {# preços lançados}}",
+    "expiredCount": "{count, plural, one {# cotação vencida} other {# cotações vencidas}}",
+    "inactiveType": "Tipo inativo",
+    "attachmentRequired": "Este tipo de fonte exige o anexo do orçamento. Envie-o abaixo.",
+    "actions": {
+      "edit": "Editar",
+      "remove": "Remover",
+      "prices": "Lançar preços",
+      "hidePrices": "Ocultar preços"
+    },
+    "toast": {
+      "created": "Fonte registrada",
+      "updated": "Fonte atualizada",
+      "removed": "Fonte removida",
+      "pricesSaved": "Preços salvos",
+      "quotationRemoved": "Preço removido"
+    },
+    "errors": {
+      "saveFailed": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "removeFailed": "Não foi possível remover a fonte agora. Tente novamente."
+    },
+    "removeDialog": {
+      "title": "Remover a fonte \"{description}\"?",
+      "simple": "A fonte será removida. Esta ação não pode ser desfeita.",
+      "withQuotations": "{count, plural, one {# preço lançado nesta fonte será perdido} other {# preços lançados nesta fonte serão perdidos}}. Esta ação não pode ser desfeita.",
+      "cancel": "Cancelar",
+      "confirm": "Remover fonte"
+    },
+    "form": {
+      "createTitle": "Nova fonte de pesquisa",
+      "editTitle": "Editar fonte de pesquisa",
+      "description": "Os campos exigidos dependem do tipo de fonte (art. 23, § 1º, da Lei 14.133/2021).",
+      "sourceType": "Tipo de fonte",
+      "sourceTypePlaceholder": "Selecione o tipo de fonte",
+      "sourceTypeChanged": "Campos exigidos para \"{type}\": {fields}.",
+      "noRequired": "Este tipo de fonte não exige campos adicionais.",
+      "fields": {
+        "sourceTypeId": "Tipo de fonte",
+        "description": "Descrição",
+        "supplierId": "Fornecedor",
+        "quoteDate": "Data do orçamento/documento",
+        "accessedAt": "Data/hora de acesso",
+        "url": "URL",
+        "referenceOrganization": "Órgão de referência",
+        "referenceDocument": "Documento de referência",
+        "supplierChoiceJustification": "Justificativa da escolha do fornecedor",
+        "notes": "Observações"
+      },
+      "required": "(obrigatório)",
+      "optional": "(opcional)",
+      "supplierSearch": "Buscar por nome ou documento (mínimo 2 caracteres)",
+      "supplierResults": "Fornecedores encontrados",
+      "supplierNone": "Nenhum fornecedor ativo encontrado.",
+      "supplierSearching": "Buscando…",
+      "supplierClear": "Trocar fornecedor",
+      "urlHint": "Inicie com https://",
+      "cancel": "Cancelar",
+      "save": "Salvar fonte",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar agora. Tente novamente em instantes."
+    },
+    "grid": {
+      "label": "Preços da fonte {description}",
+      "item": "Item",
+      "quantity": "Quantidade",
+      "unitPrice": "Preço unitário",
+      "brandModel": "Marca/modelo (opcional)",
+      "status": "Situação",
+      "excluded": "Desconsiderada",
+      "excludedHint": "Cotação desconsiderada ({reason}). Restaure-a para editar o preço.",
+      "expired": "Vencida",
+      "masked": "Sigiloso",
+      "unitPriceLabel": "Preço unitário do item {number}",
+      "brandModelLabel": "Marca/modelo do item {number}",
+      "removeQuotation": "Remover preço do item {number}",
+      "save": "Salvar preços",
+      "saving": "Salvando…",
+      "nothingToSave": "Nenhum preço alterado.",
+      "keyboardHint": "Use as setas para cima e para baixo para mudar de item.",
+      "reasons": {
+        "UNFEASIBLE": "inexequível",
+        "EXCESSIVE": "excessivo",
+        "INCONSISTENT": "inconsistente",
+        "EXPIRED": "vencido",
+        "NON_COMPLIANT": "não conforme",
+        "OTHER": "outro motivo"
+      }
+    }
   },
   "document": {
     "title": "Documento da pesquisa",

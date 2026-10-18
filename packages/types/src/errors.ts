@@ -115,6 +115,8 @@ export const ERROR_CODES = [
   'ASSIGNEE_NOT_ELIGIBLE',
   // US-015: autosave — revisão da seção divergente (api/03-documents.md DOC-05 · DEC-055).
   'SECTION_REVISION_CONFLICT',
+  // US-026: campos exigidos pelo tipo de fonte de pesquisa ausentes (api/07 PRS-10/11 · RN-PRICE-21).
+  'QUOTATION_REQUIRED_FIELDS',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

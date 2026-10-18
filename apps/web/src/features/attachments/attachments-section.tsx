@@ -23,6 +23,8 @@ export interface AttachmentsSectionProps {
   /** Ação contextual de edição do alvo (`meta.allowedActions` da API — ex.: `UPDATE` no documento). */
   readonly action?: string | undefined;
   readonly allowedActions?: readonly string[] | undefined;
+  /** Texto da falha genérica de envio no lugar do padrão (ex.: o anexo da fonte de pesquisa — US-026). */
+  readonly failedMessage?: string | undefined;
   /** Testes: relógio da sondagem e XHR simulados. */
   readonly deps?: UploadDeps | undefined;
 }
@@ -43,6 +45,7 @@ export function AttachmentsSection({
   processId,
   action,
   allowedActions,
+  failedMessage,
   deps,
 }: AttachmentsSectionProps) {
   const t = useTranslations('attachments');
@@ -155,6 +158,7 @@ export function AttachmentsSection({
             <AttachmentCard
               key={item.key}
               item={item}
+              failedMessage={failedMessage}
               onRetry={() => {
                 uploads.retry(item.key);
               }}
@@ -184,11 +188,13 @@ export function AttachmentsSection({
 
 function AttachmentCard({
   item,
+  failedMessage,
   onRetry,
   onDismiss,
   onDelete,
 }: {
   readonly item: UploadItem;
+  readonly failedMessage: string | undefined;
   readonly onRetry: () => void;
   readonly onDismiss: () => void;
   readonly onDelete: () => void;
@@ -225,7 +231,7 @@ function AttachmentCard({
       ) : null}
 
       <p aria-live="polite" className="text-sm">
-        <StatusText item={item} />
+        <StatusText item={item} failedMessage={failedMessage} />
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -259,7 +265,13 @@ const FAILURE_KEYS: Readonly<Record<string, string>> = {
   STORAGE_QUOTA_EXCEEDED: 'item.quotaExceeded',
 };
 
-function StatusText({ item }: { readonly item: UploadItem }) {
+function StatusText({
+  item,
+  failedMessage,
+}: {
+  readonly item: UploadItem;
+  readonly failedMessage: string | undefined;
+}) {
   const t = useTranslations('attachments');
   switch (item.phase) {
     case 'uploading':
@@ -282,6 +294,7 @@ function StatusText({ item }: { readonly item: UploadItem }) {
         return <>{item.errorDetail}</>;
       }
       const key = (item.errorCode && FAILURE_KEYS[item.errorCode]) ?? 'item.failed';
+      if (key === 'item.failed' && failedMessage !== undefined) return <>{failedMessage}</>;
       return <>{t(key as 'item.failed')}</>;
     }
   }

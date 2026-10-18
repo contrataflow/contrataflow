@@ -263,6 +263,7 @@ PriceSource {
 
 - **Efeitos:** —
 - **Notas:** —
+- **Implementação (US-026, 2026-10-18):** cada `PriceSource` traz também `priceResearchId`, `sourceType { id, code, label, isActive, requiredFields, maxAgeDays }`, `supplier { id, legalName, documentNumber } | null`, `sortOrder`, `createdAt`, `updatedAt` e `quotations: Quotation[]` (as cotações da fonte — a grade da SCR-009 não precisa de outra chamada). `Quotation = { id, priceResearchId, priceItemId, priceSourceId, unitPrice, unitPriceMasked, brandModel, status, exclusionReason, exclusionJustification, outlierFlag, isExpired, createdAt, updatedAt, version }`; sem POL-09 em processo sigiloso, `unitPrice: null` + `unitPriceMasked: true`. Campos opcionais sempre presentes (`null`). `pageSize` padrão 20 (a SCR-009 pede 100).
 
 ### PRS-10 — Criar fonte de pesquisa
 `POST /api/v1/price-research/{id}/sources` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
@@ -297,6 +298,7 @@ PriceSource {
 
 - **Efeitos:** Auditoria: `price_research.source_create` (`DATA_CHANGE`) — `metadata.sourceTypeId`.
 - **Notas:** anexo (`attachment`) usa o fluxo genérico de upload (`ATT-02`, US-068).
+- **Implementação (US-026):** ordem das validações: tipo ativo do tenant (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `sourceTypeId`) → formato (`url` sem `https://` → `INVALID_FORMAT`) → datas não futuras (`quoteDate` > hoje no fuso do tenant ou `accessedAt` > agora → `DATE_IN_PAST`) → campos de `requiredFields` (422 `QUOTATION_REQUIRED_FIELDS` com `detail` "Para este tipo de fonte, informe: {campos}." e um erro `CONDITIONAL_REQUIRED` por campo; o anexo nunca é exigido aqui — RN-PRICE-28) → fornecedor ativo do tenant. `""` e `null` nos opcionais equivalem a ausente. Também grava `PriceResearchRecalculated` (RN-PRICE-27) e responde `ETag` = versão da fonte. 409 `DOCUMENT_NOT_EDITABLE` (V-08) e 403 POL-09 como no PRS-04.
 
 ### PRS-11 — Atualizar fonte de pesquisa
 `PATCH /api/v1/price-sources/{sourceId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
@@ -316,6 +318,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.source_update` (`DATA_CHANGE`) — `changes`: campos alterados.
 - **Notas:** —
+- **Implementação (US-026):** `null` apaga um opcional. Trocar o tipo reavalia os campos exigidos com o tipo novo (que precisa estar ativo); mantendo o tipo, valem os `requiredFields` atuais do catálogo (lidos na gravação — mudanças no catálogo não retroagem sobre fontes não editadas). Tipo, `quoteDate` ou `accessedAt` alterados reavaliam `isExpired` das cotações da fonte (as alteradas ganham versão nova). `changes` da auditoria: ids e datas em claro; texto livre e URL como impressão digital (sha256 + tamanho). PATCH sem mudança efetiva = 200 sem nova versão.
 
 ### PRS-12 — Remover fonte de pesquisa
 `DELETE /api/v1/price-sources/{sourceId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
@@ -334,6 +337,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.source_delete` (`DATA_CHANGE`) — `metadata`: quantidade de cotações removidas.
 - **Notas:** —
+- **Implementação (US-026):** remoção física (sem `deleted_at` — RN-PRICE-29 prevalece sobre o "SD" de entities.md); `ON DELETE CASCADE` leva as cotações. Anexos já enviados com alvo `PRICE_SOURCE` ficam órfãos (o alvo passa a 404).
 
 ### PRS-13 — Lançar cotações da fonte (grade)
 `PUT /api/v1/price-sources/{sourceId}/quotations` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 (`If-Match` da fonte) · **Story:** US-026
@@ -356,6 +360,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.quotation_create`/`quotation_update` (`DATA_CHANGE`) por linha — `metadata`: `priceItemId`, `priceSourceId`.
 - **Notas:** linhas sobre cotação `EXCLUDED` são bloqueadas (`INVALID_STATE`) — restaurar antes de editar (PRS-17). Edição de `unitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12.
+- **Implementação (US-026):** `unitPrice` opcional por linha: linha sem preço e sem marca não altera nada; só marca → 422 `INVALID_DECIMAL`; linha idêntica à gravada é ignorada (sem versão nem auditoria). Erros de todas as linhas num único 422 (nada gravado). Linha sobre cotação `EXCLUDED` → 409 `INVALID_STATE` com `meta.priceItemIds`. Aceita `Idempotency-Key` opcional (FA-07 da story: reenvio com a mesma chave → mesma resposta + `Idempotent-Replayed: true`). Com alguma gravação, a fonte ganha versão nova (`ETag`) e a pesquisa é recalculada (`validQuotationsCount` = cotações `VALID`, alertas, contadores, `lastCalculatedAt`). `isExpired` (RN-PRICE-26): a data da fonte (`quoteDate`, ou a data local de `accessedAt` quando `ageReference = accessedAt`) anterior a `referenceDate − validade`; validade = `directQuoteMaxAgeDays`/`similarContractMaxAgeDays` do snapshot para `PESQUISA_DIRETA_FORNECEDOR`/`CONTRATACAO_SIMILAR` e `maxAgeDays` do catálogo para os demais; tipo sem `maxAgeDays` nunca expira. Métrica `price_research_quotations_upsert_duration_ms`.
 
 ### PRS-14 — Atualizar cotação individual
 `PATCH /api/v1/quotations/{quotationId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
@@ -379,6 +384,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.quotation_update` (`DATA_CHANGE`) — `metadata`: `priceItemId`, `priceSourceId`.
 - **Notas:** edição de `unitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12.
+- **Implementação (US-026):** `If-Match` = versão da cotação; a fonte também ganha versão nova (invalida a grade aberta com a versão antiga). Preço/marca iguais aos gravados = 200 sem gravação. 409 `INVALID_STATE` vem depois do 412.
 
 ### PRS-15 — Remover cotação
 `DELETE /api/v1/quotations/{quotationId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-026
@@ -397,6 +403,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`). Auditoria: `price_research.quotation_delete` (`DATA_CHANGE`) — `metadata`: `priceItemId`, `priceSourceId`.
 - **Notas:** —
+- **Implementação (US-026):** cotação `EXCLUDED` também pode ser removida (remoção ≠ exclusão justificada). A fonte ganha versão nova.
 
 ### PRS-16 — Desconsiderar cotação
 `POST /api/v1/quotations/{quotationId}/exclude` · **Permissão:** `PRICE_RESEARCH_EXCLUDE_QUOTATION` + POL-02 · **Story:** US-027

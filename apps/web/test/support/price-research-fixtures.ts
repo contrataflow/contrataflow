@@ -1,13 +1,16 @@
-// Dados e API simulada da pesquisa de preços (US-024 · SCR-009 e diálogo de criação).
+// Dados e API simulada da pesquisa de preços (US-024 · SCR-009 e diálogo de criação; US-026 · aba
+// "Fontes").
 import type {
   PriceItemDto,
   PriceResearchDto,
   PriceResearchMeta,
+  PriceSourceDto,
   ProcessItemDto,
+  QuotationDto,
 } from '@contrataflow/validation';
 import { vi } from 'vitest';
 
-import { ID, PROCESS_ID, UNIDADE } from './process-fixtures';
+import { ID, PROCESS_ID, UNIDADE, catalogItem } from './process-fixtures';
 import type { ProcessApiMock } from './process-fixtures';
 import { jsonResponse, requestUrl } from './render';
 
@@ -171,5 +174,111 @@ export function readRoutes(options: {
       });
     }
     return undefined;
+  };
+}
+
+// --- US-026: fontes e cotações -------------------------------------------------------------------
+
+export const SOURCE_ID = ID(730);
+export const SUPPLIER_ID = ID(740);
+
+/** Tipos de fonte do catálogo `PRICE_SOURCE_TYPE` (metadata como a semeada). */
+export const DIRETA = catalogItem(
+  720,
+  'PRICE_SOURCE_TYPE',
+  'PESQUISA_DIRETA_FORNECEDOR',
+  'Pesquisa direta com fornecedor',
+  {
+    metadata: {
+      legalBasis: 'Lei 14.133/2021, art. 23, § 1º, IV',
+      requiredFields: ['supplierId', 'quoteDate', 'attachment', 'supplierChoiceJustification'],
+      maxAgeDays: 180,
+      ageReference: 'quoteDate',
+    },
+  },
+);
+export const SITIO = catalogItem(
+  721,
+  'PRICE_SOURCE_TYPE',
+  'SITIO_ELETRONICO',
+  'Sítio eletrônico especializado',
+  {
+    metadata: {
+      legalBasis: 'Lei 14.133/2021, art. 23, § 1º, III',
+      requiredFields: ['url', 'accessedAt'],
+    },
+  },
+);
+
+/** Cotação do item nº `n` da pesquisa na fonte padrão. */
+export function quotationDto(n: number, extra: Partial<QuotationDto> = {}): QuotationDto {
+  return {
+    id: ID(800 + n),
+    priceResearchId: RESEARCH_ID,
+    priceItemId: ID(950 + n),
+    priceSourceId: SOURCE_ID,
+    unitPrice: '150.0000',
+    unitPriceMasked: false,
+    brandModel: null,
+    status: 'VALID',
+    exclusionReason: null,
+    exclusionJustification: null,
+    outlierFlag: 'NONE',
+    isExpired: false,
+    createdAt: '2026-10-16T13:00:00.000Z',
+    updatedAt: '2026-10-16T13:00:00.000Z',
+    version: 1,
+    ...extra,
+  };
+}
+
+export function priceSourceDto(extra: Partial<PriceSourceDto> = {}): PriceSourceDto {
+  return {
+    id: SOURCE_ID,
+    priceResearchId: RESEARCH_ID,
+    sourceTypeId: DIRETA.id,
+    sourceType: {
+      id: DIRETA.id,
+      code: DIRETA.code,
+      label: DIRETA.label,
+      isActive: true,
+      requiredFields: ['supplierId', 'quoteDate', 'attachment', 'supplierChoiceJustification'],
+      maxAgeDays: 180,
+    },
+    description: 'Orçamento Construtora XYZ',
+    supplierId: SUPPLIER_ID,
+    supplier: {
+      id: SUPPLIER_ID,
+      legalName: 'Construtora XYZ Ltda.',
+      documentNumber: '11.222.333/0001-81',
+    },
+    quoteDate: '2026-09-30',
+    accessedAt: null,
+    url: null,
+    referenceOrganization: null,
+    referenceDocument: null,
+    supplierChoiceJustification: 'Fornecedor do ramo com atuação na região.',
+    notes: null,
+    sortOrder: 0,
+    quotations: [],
+    createdAt: '2026-10-16T13:00:00.000Z',
+    updatedAt: '2026-10-16T13:00:00.000Z',
+    version: 1,
+    ...extra,
+  };
+}
+
+/** PRS-09 com as fontes dadas. */
+export function sourcesRoute(
+  sources: readonly PriceSourceDto[] | (() => readonly PriceSourceDto[]),
+): Route {
+  return (url, init) => {
+    if ((init?.method ?? 'GET') !== 'GET') return undefined;
+    if (!url.startsWith(`/api/v1/price-research/${RESEARCH_ID}/sources`)) return undefined;
+    const list = typeof sources === 'function' ? sources() : sources;
+    return jsonResponse({
+      data: list,
+      meta: { page: 1, pageSize: 100, totalItems: list.length, totalPages: 1 },
+    });
   };
 }
