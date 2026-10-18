@@ -307,10 +307,7 @@
       "timeline": "Timeline",
       "comentarios": "Comentários",
       "participantes": "Participantes",
-      "count": "{label} ({count})",
-      "soon": {
-        "tramitacao": "O histórico de tramitação estará disponível em breve. As passagens por etapa aparecem no stepper."
-      }
+      "count": "{label} ({count})"
     },
     "errors": {
       "notFound": "Processo não encontrado ou você não tem acesso a ele.",

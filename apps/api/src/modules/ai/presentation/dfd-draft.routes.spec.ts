@@ -612,7 +612,7 @@ describe('Feature: Gerar o rascunho do DFD com IA (US-117)', () => {
 
       const id = await proposal(target);
       const sent = JSON.stringify(provider.calls[0]);
-      expect(sent).not.toContain('987');
+      expect(sent).not.toContain('987654');
       expect(sent).not.toContain('valorEstimado');
       expect(stored(id)?.output?.warnings).toEqual(
         expect.arrayContaining([

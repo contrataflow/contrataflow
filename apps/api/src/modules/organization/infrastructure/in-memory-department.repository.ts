@@ -81,6 +81,11 @@ export class InMemoryDepartmentRepository implements DepartmentRepository {
     return Promise.resolve(this.inTenant().find((d) => d.id === id) ?? null);
   }
 
+  findByIds(_tx: TenantTx, ids: readonly string[]): Promise<Department[]> {
+    const wanted = new Set(ids);
+    return Promise.resolve(this.inTenant().filter((d) => wanted.has(d.id)));
+  }
+
   findByAcronym(
     _tx: TenantTx,
     organizationId: string,

@@ -44,6 +44,7 @@ import type {
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
+import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
 import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
 import type { Process } from '../domain/process.js';
@@ -393,6 +394,33 @@ export class PrismaProcessRepository implements ProcessRepository {
       _max: { sequence: true },
     });
     return row._max.sequence ?? 0;
+  }
+
+  async listMovements(tx: TenantTx, search: MovementFeedSearch): Promise<StoredMovement[]> {
+    const occurredAt = {
+      ...(search.occurredFrom === null ? {} : { gte: search.occurredFrom }),
+      ...(search.occurredTo === null ? {} : { lte: search.occurredTo }),
+    };
+    // `sequence DESC` percorre o índice único (tenant_id, process_id, sequence) de trás para a
+    // frente; o cursor é `sequence < n` (estável sob tramitações concorrentes — DEC-106).
+    const rows = await tx.processMovement.findMany({
+      where: {
+        processId: search.processId,
+        ...(search.actions === null ? {} : { action: { in: [...search.actions] } }),
+        ...(search.fromDepartmentId === null ? {} : { fromDepartmentId: search.fromDepartmentId }),
+        ...(search.toDepartmentId === null ? {} : { toDepartmentId: search.toDepartmentId }),
+        ...(search.actorId === null ? {} : { actorId: search.actorId }),
+        ...(Object.keys(occurredAt).length === 0 ? {} : { occurredAt }),
+        ...(search.beforeSequence === null ? {} : { sequence: { lt: search.beforeSequence } }),
+      },
+      orderBy: { sequence: 'desc' },
+      take: search.take,
+    });
+    return rows.map((row) => ({
+      ...row,
+      documents: row.documents as unknown as StoredMovement['documents'],
+      metadata: row.metadata as StoredMovement['metadata'],
+    }));
   }
 
   async recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {

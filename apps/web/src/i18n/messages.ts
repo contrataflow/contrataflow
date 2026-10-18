@@ -13,6 +13,7 @@ import errors from '../../messages/pt-BR/errors.json';
 import etp from '../../messages/pt-BR/etp.json';
 import example from '../../messages/pt-BR/example.json';
 import implementationAssistant from '../../messages/pt-BR/implementationAssistant.json';
+import movements from '../../messages/pt-BR/movements.json';
 import notificationPreferences from '../../messages/pt-BR/notificationPreferences.json';
 import notifications from '../../messages/pt-BR/notifications.json';
 import organizations from '../../messages/pt-BR/organizations.json';
@@ -58,6 +59,7 @@ export const messages = {
   etp,
   example,
   implementationAssistant,
+  movements,
   notificationPreferences,
   notifications,
   organizations,

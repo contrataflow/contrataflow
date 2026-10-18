@@ -5,8 +5,8 @@ import { isUniqueViolation } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { PendingApprovalExistsError } from '../application/ports.js';
-import type { ApprovalRepository } from '../application/ports.js';
-import type { Approval, ApprovalCoverage } from '../domain/approval.js';
+import type { ApprovalRepository, ApprovalSummaryRow } from '../application/ports.js';
+import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
 /**
  * `approvals` e `approval_documents` no PostgreSQL (US-065/US-051): INSERT no `tx` do caso de uso,
@@ -91,6 +91,14 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     }));
   }
 
+  async summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]> {
+    if (ids.length === 0) return [];
+    return tx.approval.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, title: true, status: true, decision: true },
+    });
+  }
+
   async coversDocumentVersion(
     tx: TenantTx,
     approvalId: string,
@@ -111,6 +119,15 @@ function subjectIdOf(approval: Approval): string {
     (approval.subjectType === 'PROCESS_STAGE' ? approval.processStageId : approval.documentId) ?? ''
   );
 }
+
+/** Decisão implícita no status (o domínio em memória não guarda a coluna `decision`). */
+const DECISION_OF_STATUS: Readonly<Record<ApprovalStatus, ApprovalSummaryRow['decision']>> = {
+  PENDING: null,
+  APPROVED: 'APPROVE',
+  RETURNED: 'RETURN',
+  REJECTED: 'REJECT',
+  CANCELED: null,
+};
 
 /** Aprovações em memória (testes e modo de identidade fake): mesma regra de pendência única. */
 @Injectable()
@@ -141,6 +158,21 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
             row.tenantId === tenantId && row.processId === processId && row.status === 'PENDING',
         )
         .sort((a, b) => a.requestedAt.getTime() - b.requestedAt.getTime()),
+    );
+  }
+
+  summariesByIds(_tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]> {
+    const tenantId = currentRequestContext()?.tenantId;
+    const wanted = new Set(ids);
+    return Promise.resolve(
+      [...this.rows.values()]
+        .filter((row) => row.tenantId === tenantId && wanted.has(row.id))
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          decision: DECISION_OF_STATUS[row.status],
+        })),
     );
   }
 

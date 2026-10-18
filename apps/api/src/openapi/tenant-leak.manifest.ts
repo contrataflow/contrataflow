@@ -184,6 +184,9 @@ const AUDIT_LOG_ROUTE =
 const PROCESS_TIMELINE_ROUTE =
   'Timeline do processo (US-060): a suíte genérica não tem processo nem entradas de timeline do tenant B. O isolamento (PRC-12 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_timeline_entries com app.tenant_id diferente retornando vazio e cursor forjado com posição de B sem efeito) é coberto em test/tenant-leak/process-timeline.spec.ts, com PostgreSQL real.';
 
+const PROCESS_MOVEMENTS_ROUTE =
+  'Histórico de tramitações (US-054): a suíte genérica não tem processo nem tramitações do tenant B. O isolamento (PRC-11 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_movements com app.tenant_id diferente retornando vazio, cursor e filtros com ids de B sem efeito e nomes hidratados só do próprio tenant) é coberto em test/tenant-leak/process-movements.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-movements.routes.spec.ts.';
+
 const DOCUMENT_ROUTE =
   'Documentos (US-065): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-03/04/08/09/10/12/13/14 com id de documento de B → 404 NOT_FOUND sem alterar nada, RLS de documents/document_versions/approvals/approval_documents com app.tenant_id diferente retornando vazio e FKs compostas por tenant) é coberto em test/tenant-leak/documents.spec.ts e src/modules/document/presentation/document.routes.spec.ts, com PostgreSQL real no primeiro.';
 
@@ -332,6 +335,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-08': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-10': { kind: 'exempt', reason: PROCESS_PANEL_ROUTE },
+  'PRC-11': { kind: 'exempt', reason: PROCESS_MOVEMENTS_ROUTE },
   'PRC-12': { kind: 'exempt', reason: PROCESS_TIMELINE_ROUTE },
   'PRC-13': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-14': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },

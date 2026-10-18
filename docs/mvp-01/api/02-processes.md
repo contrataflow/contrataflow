@@ -341,26 +341,34 @@ StageEntry {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`; query (feed, api.md §1.2): `cursor?`, `limit?` (1–100), `action?` (multi `MovementAction`), `fromDepartmentId?`, `toDepartmentId?`, `actorId?`, `occurredFrom?`, `occurredTo?`
 - **Request:** —
-- **Response:** `200 { data: MovementItem[], meta: { nextCursor, hasMore, canViewIp } }`:
+- **Response:** `200 { data: MovementItem[], meta: { nextCursor, hasMore, canViewIp } }` — ordem `sequence` decrescente; `canViewIp = false` sem `AUDIT_VIEW` (a UI omite a coluna — FA-02):
 ```ts
 MovementItem {
-  action: MovementAction;
-  fromStage?: {id,name}; toStage?: {id,name}; fromDepartment?: {id,name}; toDepartment?: {id,name}; fromUser?: {id,name}; toUser?: {id,name};
-  statusFrom?: ProcessStatus; statusTo?: ProcessStatus;
-  actor: { type: ActorType; id?: string; name: string; departmentName?: string };
-  comment?: string; dueAt?: string; documents?: MovementDocumentRef[]; approvalId?: string; approvalSummary?: object;
-  occurredAt: string; ip?: string; // só com permissão AUDIT_VIEW (RN-TRAM-74)
+  id: string; sequence: number; action: MovementAction;
+  // Nomes hidratados na consulta (o registro guarda só ids); `name: null` = não encontrado.
+  fromStage: {id,name} | null; toStage: {id,name} | null;
+  // `isActive = false`: unidade inativada ou vínculo não ativo — selo "(inativo)" (FA-05).
+  fromDepartment: {id,name,isActive} | null; toDepartment: {id,name,isActive} | null;
+  fromUser: {id,name,isActive} | null; toUser: {id,name,isActive} | null;
+  statusFrom: ProcessStatus | null; statusTo: ProcessStatus | null;
+  actor: { type: ActorType; id: string | null; name: string | null; departmentName: string | null }; // name null em SYSTEM
+  comment: string | null; dueAt: string | null; documents: MovementDocumentRef[];
+  approvalId: string | null;
+  approvalSummary: { title: string; status: ApprovalStatus; decision: ApprovalDecision | null } | null; // FA-03
+  occurredAt: string;
+  ip: string | null;            // só com AUDIT_VIEW (RN-TRAM-74); null para os demais e com o cache de permissões fora
+  userAgent: string | null; correlationId: string;
 }
 ```
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 422 | `VALIDATION_ERROR` | `action` fora do enum; período invertido (`OUT_OF_RANGE`); `cursor` inválido/expirado |
+| 422 | `VALIDATION_ERROR` | `action` fora do enum (`INVALID_ENUM` em `action`); período invertido (`OUT_OF_RANGE` em `occurredFrom`); `limit` > 100 (`OUT_OF_RANGE`); `cursor` inválido/expirado (`INVALID_FORMAT` em `cursor`) |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
 
 - **Efeitos:** — (leitura; não produz eventos). Auditoria: `access.denied` quando processo não visível/vínculo inativo.
-- **Notas:** `documents[]` = `MovementDocumentRef` e `metadata` = `MovementMetadata` (entities.md §5.6); `approvalSummary` (resumo da `Approval` vinculada) — a definir na implementação. A consulta em si não gera `AuditLog` dedicado (acesso aos dados de auditoria é tratado por `audit.search`, US-073, fora desta story).
+- **Notas:** `documents[]` = `MovementDocumentRef` e `metadata` = `MovementMetadata` (entities.md §5.6; `metadata` não é exposto). Cursor opaco sobre `sequence` (`sequence < n`, estável sob tramitações concorrentes). Nomes de etapa, unidade, usuário e o resumo da aprovação hidratados em lote por página (uma leitura por tipo). `ip` exige `AUDIT_VIEW` com o 2º fator quando `security.mfaPolicy` o exige (como a POL-09) e fica `null` quando o cache de permissões está indisponível na requisição (postura segura). `Cache-Control: no-store`. A consulta em si não gera `AuditLog` dedicado (acesso aos dados de auditoria é tratado por `audit.search`, US-073, fora desta story).
 
 ### PRC-12 — Listar timeline do processo
 `GET /api/v1/processes/{id}/timeline` · **Permissão:** `PROCESS_VIEW` · **Story:** US-060

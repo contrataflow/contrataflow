@@ -230,7 +230,12 @@ export function setProcessItemReferenceQuantity(
 export function workflowStagesOf(
   api: TestApi,
   tenantId: string,
-): { readonly id: string; readonly key: string; readonly workflowVersionId: string }[] {
+): {
+  readonly id: string;
+  readonly key: string;
+  readonly name: string;
+  readonly workflowVersionId: string;
+}[] {
   const repository = api.app.get(InMemoryWorkflowRepository, { strict: false });
   const published = new Set(
     [...repository.versions.values()]
@@ -239,7 +244,12 @@ export function workflowStagesOf(
   );
   return [...repository.stages.values()]
     .filter((stage) => stage.tenantId === tenantId && published.has(stage.workflowVersionId))
-    .map((stage) => ({ id: stage.id, key: stage.key, workflowVersionId: stage.workflowVersionId }));
+    .map((stage) => ({
+      id: stage.id,
+      key: stage.key,
+      name: stage.name,
+      workflowVersionId: stage.workflowVersionId,
+    }));
 }
 
 export function numberSequencesOf(api: TestApi): InMemoryNumberSequenceRepository {

@@ -29,6 +29,7 @@ import { AttachmentsSection } from '../attachments/attachments-section';
 import { CommentsPanel } from '../comments/comments-panel';
 import { ElaborateDfdButton } from '../dfd/elaborate-dfd';
 import { CreateEtpButton } from '../etp/create-etp-dialog';
+import { MovementTimeline } from '../movements/movement-timeline';
 import { CreatePriceResearchButton } from '../price-research/create-price-research-dialog';
 import { useAvailableActions } from '../process-actions/process-actions.api';
 import { useClaimProcess } from '../process-claim/use-claim-process';
@@ -209,19 +210,6 @@ export function useStaleProcessRecovery(processId: string) {
   };
 }
 
-/** Conteúdo das abas cujas stories donas ainda não entregaram a lista (carregado sob demanda). */
-function SoonPanel({
-  tab,
-}: {
-  readonly tab: Exclude<
-    ProcessPanelTab,
-    'resumo' | 'timeline' | 'itens' | 'documentos' | 'participantes' | 'comentarios'
-  >;
-}) {
-  const t = useTranslations('processes.panel.tabs.soon');
-  return <p className="text-sm text-muted-foreground">{t(tab)}</p>;
-}
-
 /**
  * SCR-006 — Detalhe do processo (US-004): cabeçalho, barra de ações (ação primária + "Mais"),
  * stepper das etapas, painel situacional com as 7 perguntas (PRC-07) e as abas Resumo, Documentos,
@@ -310,7 +298,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     // US-012: participantes (PRC-28..30 — SCR-112).
     content = <ParticipantsTab processId={processId} />;
   } else {
-    content = <SoonPanel tab={tab} />;
+    // US-054: histórico de tramitações (PRC-11).
+    content = <MovementTimeline processId={processId} />;
   }
 
   return (

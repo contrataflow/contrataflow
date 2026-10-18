@@ -190,6 +190,14 @@ export class AccessFacade {
     );
   }
 
+  /**
+   * A permissão libera um campo sensível da resposta (US-054: `ip` com `AUDIT_VIEW`) — sem negar
+   * nem auditar; `HIGH` sem o 2º fator exigido não conta.
+   */
+  revealsField(permission: PermissionCode): Promise<boolean> {
+    return this.authorization.revealsField(permission);
+  }
+
   /** Permissões efetivas do vínculo da requisição (contexto, cache ou banco — US-097). */
   effectivePermissions(): Promise<EffectivePermissionSet> {
     return this.authorization.current();

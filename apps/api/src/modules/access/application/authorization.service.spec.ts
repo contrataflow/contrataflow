@@ -178,6 +178,59 @@ describe('AuthorizationService (US-097)', () => {
     ).resolves.toBeUndefined();
   });
 
+  // US-054 · RN-TRAM-74: o `ip` da tramitação só com `AUDIT_VIEW` (HIGH) — sem negar a requisição.
+  it.each([
+    ['NONE', ['AUDIT_VIEW'], ['pwd'], true],
+    ['ADMINS', ['AUDIT_VIEW'], ['pwd'], false],
+    ['ADMINS', ['AUDIT_VIEW'], ['pwd', 'otp'], true],
+    ['NONE', ['PROCESS_VIEW'], ['pwd'], false],
+    ['ALL', ['PROCESS_VIEW'], ['pwd', 'otp'], false],
+  ] as const)(
+    'revealsField(AUDIT_VIEW): política %s, concedidas %j, amr %j → %s',
+    async (mfaPolicy, granted, amr, expected) => {
+      const { service } = setup({
+        mfaPolicy,
+        resolved: snapshot([
+          {
+            scope: {
+              type: 'TENANT',
+              organizationId: null,
+              departmentId: null,
+              includeSubtree: false,
+              departmentIds: [],
+            },
+            permissions: [...granted],
+          },
+        ]),
+      });
+      await expect(asMember(() => service.revealsField('AUDIT_VIEW'), amr)).resolves.toBe(expected);
+    },
+  );
+
+  it('revealsField: cache de permissões fora nesta requisição → campo oculto (postura segura)', async () => {
+    const { service } = setup({
+      mfaPolicy: 'NONE',
+      resolved: snapshot([
+        {
+          scope: {
+            type: 'TENANT',
+            organizationId: null,
+            departmentId: null,
+            includeSubtree: false,
+            departmentIds: [],
+          },
+          permissions: ['AUDIT_VIEW'],
+        },
+      ]),
+    });
+    await expect(
+      asMember(() => {
+        updateRequestContext({ permissionCacheUnavailable: true });
+        return service.revealsField('AUDIT_VIEW');
+      }),
+    ).resolves.toBe(false);
+  });
+
   it('sem leitor de processo registrado nenhum processo existe (falha fechada → 404)', async () => {
     const { service } = setup();
     await expect(

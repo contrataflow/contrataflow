@@ -1,6 +1,8 @@
+import type { ApprovalDecision } from '@contrataflow/validation';
+
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import type { Approval, ApprovalCoverage } from '../domain/approval.js';
+import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
 /*
  * Portas do módulo `approval` (US-065 → US-051/052): `approvals` e `approval_documents` no
@@ -15,6 +17,14 @@ export class PendingApprovalExistsError extends Error {
   }
 }
 
+/** Resumo de uma aprovação (US-054 · FA-03 — link "Ver decisão" no histórico de tramitações). */
+export interface ApprovalSummaryRow {
+  readonly id: string;
+  readonly title: string;
+  readonly status: ApprovalStatus;
+  readonly decision: ApprovalDecision | null;
+}
+
 export interface ApprovalRepository {
   /**
    * Grava a aprovação e os documentos cobertos no `tx` do chamador.
@@ -23,6 +33,8 @@ export interface ApprovalRepository {
   insert(tx: TenantTx, approval: Approval, coverage: readonly ApprovalCoverage[]): Promise<void>;
   /** Aprovações `PENDING` do processo, mais antigas primeiro (painel situacional — US-004). */
   listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]>;
+  /** Resumos das aprovações do tenant da transação por id, numa leitura; ids de fora não voltam. */
+  summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]>;
   /** A aprovação cobre exatamente esta versão do documento (selo de aprovação — US-067)? */
   coversDocumentVersion(
     tx: TenantTx,

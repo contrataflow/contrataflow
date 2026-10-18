@@ -38,6 +38,7 @@ describe('ApprovalFacade', () => {
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
       coversDocumentVersion: () => Promise.resolve(false),
+      summariesByIds: () => Promise.resolve([]),
       listPendingByProcess: (_tx, processId) => {
         asked.push(processId);
         return Promise.resolve([approval]);
@@ -65,5 +66,33 @@ describe('ApprovalFacade', () => {
         dueAt: null,
       },
     ]);
+  });
+
+  it('approvalSummaries (US-054): uma leitura para os ids distintos; sem ids, nenhuma', async () => {
+    const asked: (readonly string[])[] = [];
+    const repository: ApprovalRepository = {
+      insert: () => Promise.resolve(),
+      coversDocumentVersion: () => Promise.resolve(false),
+      listPendingByProcess: () => Promise.resolve([]),
+      summariesByIds: (_tx, ids) => {
+        asked.push(ids);
+        return Promise.resolve([
+          { id: approval.id, title: 'Aprovação do TR', status: 'APPROVED', decision: 'APPROVE' },
+        ]);
+      },
+    };
+    const facade = new ApprovalFacade(
+      repository,
+      {} as ApproverResolver,
+      {} as ApprovalRequestService,
+    );
+    await expect(facade.approvalSummaries({} as TenantTx, [])).resolves.toEqual(new Map());
+    const summaries = await facade.approvalSummaries({} as TenantTx, [approval.id, approval.id]);
+    expect(asked).toEqual([[approval.id]]);
+    expect(summaries.get(approval.id)).toEqual({
+      title: 'Aprovação do TR',
+      status: 'APPROVED',
+      decision: 'APPROVE',
+    });
   });
 });

@@ -8,12 +8,15 @@ import type { StageApprovalRequest } from './approval-request.service.js';
 import { ApproverResolver } from './approver-resolver.js';
 import type { StageApprover } from './approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './ports.js';
-import type { ApprovalRepository } from './ports.js';
+import type { ApprovalRepository, ApprovalSummaryRow } from './ports.js';
 import type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
 export type { StageApprovalRequest, StageCoverage } from './approval-request.service.js';
 export type { StageApprover } from './approver-resolver.js';
 export type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
+
+/** Resumo de uma aprovação vinculada a uma tramitação (US-054 · FA-03). */
+export type ApprovalSummaryFact = Omit<ApprovalSummaryRow, 'id'>;
 
 /** Aprovação pendente como o painel situacional a mostra (US-004 · RN-PROC-48(2)/(7)). */
 export interface PendingApprovalFact {
@@ -77,6 +80,22 @@ export class ApprovalFacade {
    */
   requestForStageIn(tx: TenantTx, request: StageApprovalRequest): Promise<void> {
     return this.requests.requestForStageEntry(tx, request);
+  }
+
+  /**
+   * Título, status e decisão (quando decidida) das aprovações, por id, numa leitura no `tx` do
+   * chamador — o link "Ver decisão" do histórico de tramitações (US-054 · FA-03). Id de outro
+   * tenant fica fora do mapa.
+   */
+  async approvalSummaries(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<Map<string, ApprovalSummaryFact>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.approvals.summariesByIds(tx, [...new Set(ids)]);
+    return new Map(
+      rows.map((row) => [row.id, { title: row.title, status: row.status, decision: row.decision }]),
+    );
   }
 
   /** Aprovações `PENDING` do processo (mais antigas primeiro), no `tx` do chamador. Leitura. */

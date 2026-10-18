@@ -337,6 +337,34 @@ const plan = await this.transitions.apply(tx, {
   muda e `ProcessAssigned` (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
 - A auditoria da ação (`process.forward`, `process.return`…) e eventos específicos ficam com quem chama.
 
+## Histórico de tramitações (US-054)
+
+- **Rota:** PRC-11 `GET /processes/{id}/movements` (`ProcessMovementsController` →
+  `ListProcessMovementsHandler`). `PROCESS_VIEW` sobre o processo no guard (não visível/outro
+  tenant = 404 `PROCESS_NOT_FOUND` + `access.denied`). Somente leitura, `READ COMMITTED`, sem
+  eventos; `Cache-Control: no-store`. Contrato em `packages/validation/src/process/process-movements.ts`.
+- **Leitura:** `ProcessRepository.listMovements` — `sequence DESC` sobre o índice único
+  `(tenant_id, process_id, sequence)`; cursor opaco `{ s: sequence }` (`sequence < n`, estável sob
+  tramitações concorrentes); filtros ação (OU), unidade de origem/destino, ator e período
+  (inclusivo) por E. Domínio puro em `domain/process-movements.ts` (`StoredMovement` = linha do
+  banco, com destino anulável), espelhado em memória.
+- **Hidratação em lote** (uma leitura por tipo, por página): etapas por `WorkflowFacade.releasedStages`,
+  unidades por `OrganizationFacade.departmentReferences` (agora `findByIds` — `IN (...)`), usuários
+  por `IdentityFacade.userDisplayNames` + `membersInTenant` (vínculo não `ACTIVE` = inativo) e o
+  resumo da aprovação por `ApprovalFacade.approvalSummaries`. Id sem nome → `name: null` e
+  `warn process.movements_hydration_partial` (só contagens).
+- **IP (RN-TRAM-74):** `AccessFacade.revealsField('AUDIT_VIEW')` — permissão em algum escopo, com o
+  2º fator quando a política o exige; falso se o cache de permissões caiu na requisição
+  (`RequestContext.permissionCacheUnavailable`, marcado pelo `EffectivePermissionsService`) ou se a
+  decisão falhar (`warn process.movements_ip_check_failed`). Aplicado só no presenter
+  (`toMovementItem`); `meta.canViewIp` diz à UI se mostra a coluna.
+- **Logs:** `info process.movements_listed` (chaves dos filtros, contagem, duração), `error
+process.movements_list_failed`; nunca comentário nem IP.
+- **Testes:** `domain/process-movements.spec.ts`, `application/list-process-movements.query.spec.ts`
+  (sem N+1, IP com falha fechada), `presentation/process-movements.routes.spec.ts` (8 categorias),
+  `test/tenant-leak/process-movements.spec.ts` (PostgreSQL: RLS, 1.000 tramitações + inserções
+  concorrentes, plano com índice) e `test/process/process-movements.perf.ts` (p95 < 1 s — `test:perf`).
+
 ## Criação do processo (US-001)
 
 - **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum

@@ -49,10 +49,10 @@ export class OrganizationFacade {
     ids: readonly string[],
   ): Promise<ReadonlyMap<string, DepartmentReference>> {
     const references = new Map<string, DepartmentReference>();
-    for (const id of new Set(ids)) {
-      const department = await this.departments.findById(tx, id);
-      if (!department) continue;
-      references.set(id, {
+    // Uma leitura por chamada (`IN (...)`), nunca uma por unidade (US-054 — sem N+1).
+    const found = await this.departments.findByIds(tx, [...new Set(ids)]);
+    for (const department of found) {
+      references.set(department.id, {
         id: department.id,
         organizationId: department.organizationId,
         parentId: department.parentId,

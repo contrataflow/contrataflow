@@ -11,6 +11,7 @@ import type {
   ProcessListFacts,
   ProcessListOrder,
 } from '../domain/process-list.js';
+import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
 import type { ProcessParticipant } from '../domain/process-participants.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
 import type {
@@ -273,6 +274,11 @@ export interface ProcessRepository {
   syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void>;
   /** US-047: maior `sequence` das tramitações do processo (0 = nenhuma). */
   lastMovementSequence(tx: TenantTx, processId: string): Promise<number>;
+  /**
+   * PRC-11 (US-054): tramitações do processo que casam os filtros, `sequence` decrescente, antes do
+   * cursor, até `take` (RN-TRAM-72/75). Somente leitura — `process_movements` é imutável.
+   */
+  listMovements(tx: TenantTx, search: MovementFeedSearch): Promise<StoredMovement[]>;
   /**
    * US-047 (RN-TRAM-14..16 · RN-TRAM-21): grava a mudança de etapa no `tx` — o processo
    * (`WHERE version = expectedVersion`, `overdueSince = null`), o encerramento da passagem e da

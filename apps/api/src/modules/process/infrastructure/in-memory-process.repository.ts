@@ -32,6 +32,8 @@ import {
   matchesCriteria,
 } from '../domain/process-list.js';
 import type { ProcessListFacts } from '../domain/process-list.js';
+import { compareMovements, matchesMovementSearch } from '../domain/process-movements.js';
+import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
 import type {
   AccessGrant,
@@ -205,6 +207,18 @@ export class InMemoryProcessRepository implements ProcessRepository {
       this.movements
         .filter((movement) => movement.processId === processId)
         .reduce((max, movement) => Math.max(max, movement.sequence), 0),
+    );
+  }
+
+  listMovements(_tx: TenantTx, search: MovementFeedSearch): Promise<StoredMovement[]> {
+    // Sem RLS em memória: o tenant vem do contexto, como o `app.tenant_id` da transação.
+    const tenantId = tenantOfContext();
+    return Promise.resolve(
+      this.movements
+        .filter((movement) => movement.tenantId === tenantId)
+        .filter((movement) => matchesMovementSearch(movement, search))
+        .sort(compareMovements)
+        .slice(0, search.take),
     );
   }
 
@@ -633,6 +647,11 @@ export class InMemoryProcessRepository implements ProcessRepository {
   /** Concessões revogadas do processo (RN-PROC-62). */
   revokedAccessOf(processId: string): readonly (StoredAccess & { readonly revokedAt: Date })[] {
     return this.revoked.filter((row) => row.processId === processId);
+  }
+
+  /** Carga de teste: tramitações já registradas pelas stories de escrita (histórico — US-054). */
+  seedMovements(...movements: ProcessMovementRecord[]): void {
+    this.movements.push(...movements);
   }
 
   /** Carga de teste: processo já existente (ex.: candidato a duplicidade criado antes). */

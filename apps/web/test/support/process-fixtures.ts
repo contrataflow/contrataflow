@@ -459,6 +459,8 @@ export interface ProcessApiOptions {
   riskMap?: Handler;
   /** DOC-01 (US-062): `/processes/{id}/documents`. */
   documents?: Handler;
+  /** PRC-11 (US-054): `/processes/{id}/movements` — padrão: histórico vazio, sem IP. */
+  movements?: Handler;
   /** DTY-01 (US-062): `/document-types` (tipos ativos). */
   documentTypes?: Handler;
   /** PRC-27 (US-011): `POST /processes/{id}/duplicate`. */
@@ -600,6 +602,11 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
           data: [],
           meta: { currentStage: null, creatableTypeIds: [], pendingTypeIds: [] },
         }),
+      );
+    }
+    if (method === 'GET' && url.startsWith(`/api/v1/processes/${PROCESS_ID}/movements`)) {
+      return respond(options.movements, () =>
+        jsonResponse({ data: [], meta: { nextCursor: null, hasMore: false, canViewIp: false } }),
       );
     }
     if (method === 'GET' && url.startsWith('/api/v1/document-types')) {

@@ -57,6 +57,12 @@ export interface RequestContext {
    * rota `TENANT` com vínculo ativo; `AccessFacade.assertCan` decide por elas.
    */
   readonly permissions?: EffectivePermissionsSnapshot;
+  /**
+   * O cache de permissões (Redis) falhou nesta requisição e as permissões vieram direto do banco
+   * (FA-01 da US-097). Campos sensíveis liberados só por permissão (`revealsField` — ex.: `ip` da
+   * tramitação, US-054) ficam ocultos até o cache se recuperar: postura segura.
+   */
+  readonly permissionCacheUnavailable?: boolean;
   readonly authTime: Date | null;
 }
 

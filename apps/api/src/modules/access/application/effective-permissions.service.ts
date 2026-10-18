@@ -15,7 +15,7 @@ import {
   TENANT_GENERATION_KEY,
 } from '#shared/auth/permission-cache.js';
 import { TenantCache } from '#shared/cache/tenant-cache.js';
-import { requireRequestContext } from '#shared/context/request-context.js';
+import { requireRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 import { DatabaseUnavailableError, isTransientDatabaseError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
@@ -304,6 +304,8 @@ export class EffectivePermissionsService {
   }
 
   private cacheUnavailable(membershipId: string, error: unknown): void {
+    // US-054: a requisição sabe que o cache está fora (campos sensíveis em postura segura).
+    updateRequestContext({ permissionCacheUnavailable: true });
     this.logger.warn(
       {
         event: 'authorization.cache_unavailable',

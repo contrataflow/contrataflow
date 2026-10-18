@@ -29,6 +29,7 @@ import { DuplicateProcessCommand } from './application/duplicate-process.command
 import { ExportProcessesQuery } from './application/export-processes.query.js';
 import { ForwardPreviews } from './application/forward-previews.js';
 import { ForwardProcessCommand } from './application/forward-process.command.js';
+import { ListProcessMovementsHandler } from './application/list-process-movements.query.js';
 import { ListProcessesHandler } from './application/list-processes.query.js';
 import {
   PROCESS_CLOCK,
@@ -128,6 +129,7 @@ import { InMemoryTagRepository, PrismaTagRepository } from './infrastructure/tag
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
 import { ProcessExportController } from './presentation/process-export.controller.js';
 import { ProcessItemsController } from './presentation/process-items.controller.js';
+import { ProcessMovementsController } from './presentation/process-movements.controller.js';
 import { ProcessParticipantsController } from './presentation/process-participants.controller.js';
 import { ProcessController } from './presentation/process.controller.js';
 import { SavedViewsController } from './presentation/saved-views.controller.js';
@@ -166,6 +168,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * (mudança de etapa reutilizada por devolução, decisão e conclusão) e as prévias de PRC-08.
  * US-048: devolução (PRC-20 — `ReturnProcessCommand`) sobre o mesmo serviço, com o responsável
  * resolvido por `PREVIOUS_ASSIGNEE`.
+ * US-054: histórico de tramitações (PRC-11 — `ListProcessMovementsHandler`), leitura de
+ * `ProcessMovement` com os nomes hidratados em lote pelas fachadas de `workflow`, `organization`,
+ * `identity` e `approval`, e o `ip` só com `AUDIT_VIEW` (`AccessFacade.revealsField`).
  */
 @Module({
   imports: [
@@ -190,6 +195,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessController,
     SavedViewsController,
     ProcessActionsController,
+    ProcessMovementsController,
     ProcessItemsController,
     ProcessParticipantsController,
     TagsController,
@@ -215,6 +221,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ForwardProcessCommand,
     ReturnProcessCommand,
     ClaimProcessCommand,
+    ListProcessMovementsHandler,
     ForwardPreviews,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,

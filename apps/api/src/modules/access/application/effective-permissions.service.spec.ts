@@ -10,7 +10,11 @@ import {
 } from '#shared/auth/permission-cache.js';
 import { InMemoryCacheStore } from '#shared/cache/cache-store.js';
 import { TenantCache } from '#shared/cache/tenant-cache.js';
-import { runWithRequestContext, updateRequestContext } from '#shared/context/request-context.js';
+import {
+  currentRequestContext,
+  runWithRequestContext,
+  updateRequestContext,
+} from '#shared/context/request-context.js';
 import { DatabaseUnavailableError } from '#shared/database/errors.js';
 import { newId } from '#shared/database/ids.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -197,8 +201,13 @@ describe('EffectivePermissionsService (US-097)', () => {
     const { service, store, assign } = setup();
     assign('REQUISITANTE');
     vi.spyOn(store, 'getMany').mockRejectedValue(new Error('ECONNREFUSED'));
-    const snapshot = await inTenant(() => service.resolve(SUBJECT));
+    const { snapshot, degraded } = await inTenant(async () => ({
+      snapshot: await service.resolve(SUBJECT),
+      // US-054: a requisição fica marcada (campos sensíveis em postura segura).
+      degraded: currentRequestContext()?.permissionCacheUnavailable,
+    }));
     expect(snapshot.grants).toHaveLength(1);
+    expect(degraded).toBe(true);
     expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'authorization.cache_unavailable',

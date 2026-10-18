@@ -168,6 +168,21 @@ export class AuthorizationService implements AuthorizationPort {
     return { scope, custodyDepartmentIds, stepUpAvailable: false };
   }
 
+  /**
+   * A permissão (em algum escopo) libera um CAMPO sensível da resposta, sem negar a requisição nem
+   * auditar (US-054 · RN-TRAM-74: `ip` da tramitação com `AUDIT_VIEW`). Como na POL-09 das listas,
+   * permissão `HIGH` sem o 2º fator exigido por `security.mfaPolicy` não conta. Com o cache de
+   * permissões fora nesta requisição, o campo fica oculto (postura segura até o cache voltar).
+   */
+  async revealsField(permission: PermissionCode): Promise<boolean> {
+    const permissions = await this.current();
+    if (requireRequestContext().permissionCacheUnavailable === true) return false;
+    if (!permissions.has(permission)) return false;
+    const riskLevel = PERMISSION_RISKS[permission];
+    if (!mfaPolicyNeeded(riskLevel, hasSecondFactor(requireRequestContext().amr))) return true;
+    return !requiresMfa(riskLevel, await this.identity.mfaPolicy());
+  }
+
   async authorize(request: AuthorizationRequest): Promise<void> {
     await this.assertSessionMfa(request.route ?? null);
     const permissions = await this.current();

@@ -135,6 +135,12 @@ export class PrismaDepartmentRepository implements DepartmentRepository {
     return row === null ? null : toDomain(row);
   }
 
+  async findByIds(tx: TenantTx, ids: readonly string[]): Promise<Department[]> {
+    if (ids.length === 0) return [];
+    const rows = await tx.department.findMany({ where: { id: { in: [...ids] } } });
+    return rows.map(toDomain);
+  }
+
   async findByAcronym(
     tx: TenantTx,
     organizationId: string,

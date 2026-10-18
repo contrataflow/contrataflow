@@ -12,3 +12,4 @@ export * from './saved-views.js';
 export * from './tags.js';
 export * from './events.js';
 export * from './timeline.js';
+export * from './process-movements.js';

@@ -55,6 +55,8 @@ export interface DepartmentRepository {
   lookup(tx: TenantTx, filter: DepartmentLookupFilter): Promise<Department[]>;
   /** `null` se o id não existe NO TENANT da transação (outro tenant → `null`, nunca o registro). */
   findById(tx: TenantTx, id: string): Promise<Department | null>;
+  /** Unidades do tenant da transação por id, numa leitura (`IN (...)`); ids de fora não voltam. */
+  findByIds(tx: TenantTx, ids: readonly string[]): Promise<Department[]>;
   findByAcronym(tx: TenantTx, organizationId: string, acronym: string): Promise<Department | null>;
   /** Irmã com o mesmo nome, sem diferenciar maiúsculas (`parentId` nulo = raízes do órgão). */
   findSiblingByName(

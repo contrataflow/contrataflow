@@ -450,7 +450,12 @@ describe('Feature: Registrar fontes de pesquisa e cotações (US-026)', () => {
       ]);
       const events = eventsOf(process.id, 'PriceResearchRecalculated');
       expect(events.length).toBe(before + 1);
-      expect(JSON.stringify(events.at(-1)?.payload)).not.toContain('150');
+      // Só contagens e o id — nenhum preço (comparar substrings curtas colide com o UUIDv7).
+      expect(events.at(-1)?.payload).toEqual({
+        priceResearchId: research.id,
+        itemsCount: 2,
+        itemsWithAlertsCount: 2,
+      });
       expect(auditOf(process.id, 'price_research.quotation_create')).toHaveLength(2);
       expect(auditOf(process.id, 'price_research.quotation_create')[0]?.metadata).toMatchObject({
         priceSourceId: source.id,

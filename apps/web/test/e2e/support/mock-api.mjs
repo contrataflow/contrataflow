@@ -401,6 +401,97 @@ function listTimeline(found, query) {
   return { data, meta: { nextCursor: hasMore ? `p${offset + limit}` : null, hasMore } };
 }
 
+// Histórico de tramitações (US-054 · PRC-11): 60 tramitações por processo (CREATE + idas e voltas
+// entre a Manutenção e as Cotações e uma decisão de aprovação a cada 10), filtros por ação (OU),
+// unidade, ator e período, cursor `p{offset}`. Sem AUDIT_VIEW para a Ana (`canViewIp = false`).
+const MOVEMENT_UNITS = [
+  { id: '0192e054-0000-7000-8000-0000000000a2', name: 'Setor de Manutenção', isActive: true },
+  { id: '0192e054-0000-7000-8000-0000000000a6', name: 'Setor de Cotações', isActive: true },
+];
+const MOVEMENT_STAGES = [
+  { id: '0192e054-0000-7000-8000-0000000005a1', name: 'Abertura' },
+  { id: '0192e054-0000-7000-8000-0000000005a2', name: 'Pesquisa de preços' },
+];
+const movementHistories = new Map();
+function movementsOf(found) {
+  const cached = movementHistories.get(found.view.id);
+  if (cached) return cached;
+  const base = found.createdAtMs;
+  const items = [];
+  for (let sequence = 1; sequence <= 60; sequence += 1) {
+    const forward = sequence % 2 === 0;
+    const approval = sequence % 10 === 0;
+    const [from, to] = forward ? [0, 1] : [1, 0];
+    const actor = TIMELINE_ACTORS[sequence % TIMELINE_ACTORS.length];
+    const action =
+      sequence === 1 ? 'CREATE' : approval ? 'APPROVE' : forward ? 'FORWARD' : 'RETURN';
+    items.push({
+      id: randomUUID(),
+      sequence,
+      action,
+      fromStage: sequence === 1 ? null : MOVEMENT_STAGES[from],
+      toStage: MOVEMENT_STAGES[to],
+      fromDepartment: sequence === 1 ? null : MOVEMENT_UNITS[from],
+      toDepartment: MOVEMENT_UNITS[to],
+      fromUser: null,
+      toUser: null,
+      statusFrom: sequence === 1 ? null : 'IN_PROGRESS',
+      statusTo: sequence === 1 ? 'DRAFT' : action === 'RETURN' ? 'RETURNED' : 'IN_PROGRESS',
+      actor:
+        sequence === 1
+          ? {
+              type: 'USER',
+              id: found.view.createdBy.id,
+              name: found.view.createdBy.name,
+              departmentName: null,
+            }
+          : {
+              type: 'USER',
+              id: actor.id,
+              name: actor.name,
+              departmentName: MOVEMENT_UNITS[from].name,
+            },
+      comment: action === 'RETURN' ? `Devolução ${sequence}: revisar o item.` : null,
+      dueAt: null,
+      documents: [],
+      approvalId: approval ? randomUUID() : null,
+      approvalSummary: approval
+        ? { title: `Aprovação ${sequence}`, status: 'APPROVED', decision: 'APPROVE' }
+        : null,
+      occurredAt: new Date(base - (60 - sequence) * 3_600_000).toISOString(),
+      ip: null,
+      userAgent: 'Mozilla/5.0',
+      correlationId: `e2e-${sequence}`,
+    });
+  }
+  items.reverse();
+  movementHistories.set(found.view.id, items);
+  return items;
+}
+function listMovements(found, query) {
+  const actions = (query.get('action') ?? '').split(',').filter(Boolean);
+  const from = query.get('occurredFrom');
+  const to = query.get('occurredTo');
+  const limit = Math.min(Number(query.get('limit') ?? 50), 100);
+  const offset = query.get('cursor') ? Number(query.get('cursor').slice(1)) : 0;
+  const matching = movementsOf(found).filter(
+    (item) =>
+      (actions.length === 0 || actions.includes(item.action)) &&
+      (!query.get('fromDepartmentId') ||
+        item.fromDepartment?.id === query.get('fromDepartmentId')) &&
+      (!query.get('toDepartmentId') || item.toDepartment?.id === query.get('toDepartmentId')) &&
+      (!query.get('actorId') || item.actor.id === query.get('actorId')) &&
+      (!from || item.occurredAt >= new Date(from).toISOString()) &&
+      (!to || item.occurredAt <= new Date(to).toISOString()),
+  );
+  const data = matching.slice(offset, offset + limit);
+  const hasMore = offset + limit < matching.length;
+  return {
+    data,
+    meta: { nextCursor: hasMore ? `p${offset + limit}` : null, hasMore, canViewIp: false },
+  };
+}
+
 // Processos (US-001 · PRC-02/03/04 e WF-06): criação numerada em sequência, aviso de duplicidade
 // por título parecido (mesmo usuário, últimos 10 min) e idempotência por `Idempotency-Key`.
 // US-071: comentários por processo (CMT-01..04). Cada processo nasce com um comentário da
@@ -4106,6 +4197,12 @@ createServer(async (request, response) => {
       version: comment.version + 1,
     });
     return send(response, 204);
+  }
+  const movementsRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/movements$/.exec(url.pathname);
+  if (movementsRoute && request.method === 'GET') {
+    const found = processes.find((item) => item.view.id === movementsRoute[1]);
+    if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    return send(response, 200, listMovements(found, url.searchParams));
   }
   const timelineRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
   if (timelineRoute && request.method === 'GET') {
