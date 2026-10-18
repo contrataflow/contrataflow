@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { runWithRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { ProcessDfdDuplication } from './process-dfd-duplication.js';
 import { ProcessFacade } from './process.facade.js';
 import type { AccessFacade } from '../../access/application/access.facade.js';
 import type { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -55,7 +56,15 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
   const tenancy = {
     settingValues: () => Promise.resolve(new Map<string, unknown>()),
   } as unknown as TenancyFacade;
-  const facade = new ProcessFacade(repository, workflow, access, tenancy, participants, () => NOW);
+  const facade = new ProcessFacade(
+    repository,
+    workflow,
+    access,
+    tenancy,
+    participants,
+    () => NOW,
+    {} as ProcessDfdDuplication,
+  );
   const viewer = (
     userId: string,
     scope: Partial<ConfidentialBudgetAccess['scope']> = {},

@@ -46,6 +46,7 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import { ProcessDfdDuplication } from './application/process-dfd-duplication.js';
 import { ProcessItemCatalogLoader } from './application/process-item-catalog.loader.js';
 import {
   AddProcessItemCommand,
@@ -201,6 +202,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DuplicateCandidatesFinder,
     CreateProcessCommand,
     DuplicateProcessCommand,
+    ProcessDfdDuplication,
     UpdateProcessCommand,
     SetProcessConfidentialityCommand,
     StageTransitionService,

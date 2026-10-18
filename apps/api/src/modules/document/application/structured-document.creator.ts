@@ -1,6 +1,7 @@
 import type {
   Confidentiality,
   DocumentAction,
+  DraftContent,
   SystemDocumentModule,
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
@@ -18,7 +19,7 @@ import type { TemplateRepository } from './template.ports.js';
 import type { DocumentTemplateVersion } from '../domain/document-template.js';
 import type { DocumentType } from '../domain/document-type.js';
 import type { Document } from '../domain/document.js';
-import { initialDraftContent } from '../domain/structured-draft.js';
+import { draftContentFromSource, initialDraftContent } from '../domain/structured-draft.js';
 
 /*
  * Padrão de documento tipado (US-014 · "Impacto técnico" · DEC-016/017/028): o módulo dono (DFD;
@@ -54,6 +55,11 @@ export interface CreateStructuredDocumentInput {
   readonly beforeCreate?: (process: DocumentProcessContext) => void | Promise<void>;
   /** Metadados do módulo dono acrescentados ao `document.create` (ex.: snapshot da pesquisa). */
   readonly auditMetadata?: Readonly<Record<string, unknown>>;
+  /**
+   * Duplicação (US-018): documento de origem — vira `sourceDocumentId` (DEC-017) e o conteúdo das
+   * suas seções é copiado para o rascunho do template (`draftContentFromSource`).
+   */
+  readonly source?: { readonly documentId: string; readonly draftContent: DraftContent };
 }
 
 export interface CreatedStructuredDocument {
@@ -105,21 +111,27 @@ export class StructuredDocumentCreator {
     await input.beforeCreate?.(process);
     const userId = custody.userId;
     const confidentiality = input.confidentialityOf?.(process);
+    const now = this.clock();
+    const initial = initialDraftContent(template.sections, {
+      actorId: userId,
+      now,
+      variables: {
+        'process.code': process.code ?? '',
+        'process.title': process.title,
+        'process.object': process.object,
+        'organization.name': process.organizationName ?? '',
+      },
+    });
     const document = await this.creation.create(tx, {
       processId: process.id,
       documentTypeId: type.id,
       title: input.titleOf(process),
       templateVersionId: template.id,
-      draftContent: initialDraftContent(template.sections, {
-        actorId: userId,
-        now: this.clock(),
-        variables: {
-          'process.code': process.code ?? '',
-          'process.title': process.title,
-          'process.object': process.object,
-          'organization.name': process.organizationName ?? '',
-        },
-      }),
+      draftContent:
+        input.source === undefined
+          ? initial
+          : draftContentFromSource(initial, input.source.draftContent, { actorId: userId, now }),
+      ...(input.source === undefined ? {} : { sourceDocumentId: input.source.documentId }),
       responsibleId: userId,
       ...(confidentiality === undefined ? {} : { confidentiality }),
       idempotencyKey: input.idempotencyKey,

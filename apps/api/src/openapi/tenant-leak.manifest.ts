@@ -196,6 +196,9 @@ const DOCUMENT_PANEL_ROUTE =
 const DFD_ROUTE =
   'DFD e itens de documento (US-014): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-03 com DFD de B → 404 DFD_NOT_FOUND; DFD-01/02 com processo de B e DOC-06/07 com documento de B → 404 NOT_FOUND sem alterar nada; DOC-07 com processItemId de outro processo/tenant → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks e índice único de dfds/document_items) é coberto em test/tenant-leak/dfds.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd.routes.spec.ts.';
 
+const DFD_DUPLICATE_ROUTE =
+  'Duplicar DFD (US-018): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-05 com DFD de B → 404 DFD_NOT_FOUND sem criar nada; targetProcessId de B ou inexistente → 422 REFERENCE_NOT_FOUND em targetProcessId sem revelar o registro; nada de B lido nem alterado; itens, documento e DFD criados só no tenant da requisição, com RLS e FKs compostas; transação única, índice único do DFD ativo sob concorrência e idempotência) é coberto em test/tenant-leak/dfd-duplicate.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd-duplicate.routes.spec.ts.';
+
 const DOCUMENT_AUTOSAVE_ROUTE =
   'Autosave do DFD (US-015): a suíte genérica não tem processo, documento nem DFD do tenant B. O isolamento (DOC-05 com documento de B → 404 NOT_FOUND e DFD-04 com DFD de B → 404 DFD_NOT_FOUND, sem alterar nenhuma seção, revisão, versão nem auditoria de nenhum tenant; a atualização condicional atômica com app.tenant_id e tenant_id explícito; 50 gravações concorrentes na mesma seção — exatamente uma por revisão) é coberto em test/tenant-leak/dfd-autosave.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd-autosave.routes.spec.ts.';
 
@@ -375,6 +378,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DFD-02': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-03': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-04': { kind: 'exempt', reason: DOCUMENT_AUTOSAVE_ROUTE },
+  'DFD-05': { kind: 'exempt', reason: DFD_DUPLICATE_ROUTE },
   'PRS-01': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-02': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-03': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },

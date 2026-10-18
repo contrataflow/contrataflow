@@ -85,6 +85,23 @@ export function duplicateItems(
     }));
 }
 
+/**
+ * Itens clonados para o processo de destino da duplicação do DFD (US-018 · RN-DFD-75): natureza,
+ * descrição, unidade, catálogo e observações; numerados a partir do próximo disponível do destino
+ * (RN-PROC-73), na ordem recebida; sem lote (o lote é da origem) nem valores de referência.
+ */
+export function cloneItemsAsNext(
+  items: readonly ProcessItem[],
+  existing: readonly Pick<ProcessItem, 'sequence'>[],
+  target: ItemCopyTarget,
+): ProcessItem[] {
+  const first = nextSequence(existing);
+  return duplicateItems(
+    items.map((item, index) => ({ ...item, sequence: index + 1 })),
+    target,
+  ).map((copy, index) => ({ ...copy, sequence: first + index, lotNumber: null, lotName: null }));
+}
+
 /** RN-PROC-73: maior número entre os itens não excluídos + 1 (1 no primeiro). */
 export function nextSequence(active: readonly Pick<ProcessItem, 'sequence'>[]): number {
   return active.reduce((max, item) => Math.max(max, item.sequence), 0) + 1;

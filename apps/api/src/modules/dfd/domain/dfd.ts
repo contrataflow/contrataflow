@@ -99,6 +99,55 @@ export function createDfdFromProcess(
   };
 }
 
+/**
+ * `Dfd.duplicateFrom` (US-018 · RN-DFD-76/77): cabeçalho do novo DFD a partir do DFD de origem —
+ * objeto, prioridade, previsão, estimativa e dados do PCA copiados; setor e responsável assumem os
+ * padrões do processo destino (RN-DFD-05) e a data do DFD é hoje; nasce no passo `IDENTIFICATION`,
+ * sem passos concluídos. Duas exceções ao "copiar tudo", para não gravar um cabeçalho inválido nem
+ * vazar valor: a previsão anterior a hoje não é copiada (viola `dfds_expected_date_after_request`) e a
+ * estimativa só é copiada quando o orçamento do processo de origem não é sigiloso (POL-09 — o
+ * destino pode ter outro público).
+ */
+export function duplicateDfd(
+  source: Dfd,
+  input: {
+    readonly documentId: string;
+    readonly tenantId: string;
+    readonly processId: string;
+    readonly requestingDepartmentId: string;
+    readonly creatorId: string;
+    readonly today: string;
+    readonly now: Date;
+    readonly copyEstimatedValue: boolean;
+  },
+): Dfd {
+  const stillAhead = source.expectedDate !== null && source.expectedDate >= input.today;
+  return {
+    id: input.documentId,
+    tenantId: input.tenantId,
+    processId: input.processId,
+    documentId: input.documentId,
+    requestingDepartmentId: input.requestingDepartmentId,
+    responsibleId: input.creatorId,
+    requestDate: input.today,
+    objectSummary: source.objectSummary,
+    priority: source.priority,
+    expectedDate: stillAhead ? source.expectedDate : null,
+    estimatedValue: input.copyEstimatedValue ? source.estimatedValue : null,
+    pcaStatus: source.pcaStatus,
+    pcaYear: source.pcaYear,
+    pcaItemCode: source.pcaItemCode,
+    pcaJustification: source.pcaJustification,
+    wizardStep: 'IDENTIFICATION',
+    completedSteps: [],
+    createdAt: input.now,
+    updatedAt: input.now,
+    createdById: input.creatorId,
+    updatedById: input.creatorId,
+    version: 1,
+  };
+}
+
 /** Os valores do cabeçalho para a completude (`evaluateDfdCompleteness`) e o snapshot. */
 export function dfdHeaderValues(dfd: Dfd): DfdHeaderValues {
   return {

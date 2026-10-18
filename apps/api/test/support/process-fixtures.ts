@@ -207,6 +207,11 @@ export function processRepositoryOf(api: TestApi): InMemoryProcessRepository {
   return api.app.get(InMemoryProcessRepository, { strict: false });
 }
 
+/** Itens da contratação em memória (US-018: os clonados na duplicação do DFD). */
+export function processItemRepositoryOf(api: TestApi): InMemoryProcessItemRepository {
+  return api.app.get(InMemoryProcessItemRepository, { strict: false });
+}
+
 /**
  * Quantidade de referência do item do processo (DEC-019: só os documentos e a pesquisa a gravam —
  * o PRC-14 a recusa), para os cenários que partem de itens com quantidade (US-024).

@@ -45,6 +45,14 @@ export interface DocumentItemsResult {
   readonly documentVersion: number;
 }
 
+/** Linha de item a copiar para um documento novo (`DocumentItemsPresenter.insertCopies`). */
+export interface DocumentItemCopy {
+  readonly processItemId: string;
+  /** Decimal(18,4) como string. */
+  readonly quantity: string;
+  readonly notes: string | null;
+}
+
 /** Monta os DTOs: cada linha com o nº, a descrição e a unidade do item do processo. */
 @Injectable()
 export class DocumentItemsPresenter {
@@ -57,6 +65,35 @@ export class DocumentItemsPresenter {
   /** Linhas atuais do documento (para o validador do módulo tipado e o snapshot). */
   rowsOf(tx: TenantTx, documentId: string): Promise<DocumentItem[]> {
     return this.items.listByDocument(tx, documentId);
+  }
+
+  /**
+   * Linhas de um documento recém-criado (duplicação — US-018 · RN-DFD-75): as quantidades e
+   * observações já validadas na origem, apontando para os itens do processo de destino. Sem versão
+   * nova nem auditoria própria (o documento nasce na mesma transação, em `version = 1`).
+   */
+  async insertCopies(
+    tx: TenantTx,
+    document: Pick<Document, 'id' | 'tenantId'>,
+    lines: readonly DocumentItemCopy[],
+  ): Promise<number> {
+    const actorId = requireRequestContext().actor.userId;
+    const now = new Date();
+    const rows: DocumentItem[] = lines.map((line, index) => ({
+      id: newId(),
+      tenantId: document.tenantId,
+      documentId: document.id,
+      processItemId: line.processItemId,
+      quantity: line.quantity,
+      notes: line.notes,
+      sortOrder: index,
+      createdAt: now,
+      updatedAt: now,
+      createdById: actorId,
+      updatedById: actorId,
+    }));
+    await this.items.replace(tx, document.id, rows);
+    return rows.length;
   }
 
   async present(tx: TenantTx, document: Document): Promise<DocumentItemDto[]> {

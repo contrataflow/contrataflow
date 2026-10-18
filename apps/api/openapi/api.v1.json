@@ -1537,6 +1537,26 @@
         },
         "additionalProperties": false
       },
+      "DfdDuplicateRequest": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "NEW_PROCESS",
+              "EXISTING_PROCESS"
+            ]
+          },
+          "targetProcessId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "targetType"
+        ],
+        "additionalProperties": false
+      },
       "DocumentRendition": {
         "type": "object",
         "properties": {
@@ -20022,6 +20042,162 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dfds/{id}/duplicate": {
+      "post": {
+        "operationId": "DFD-05",
+        "summary": "Duplicar DFD",
+        "tags": [
+          "DFD"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.duplicate",
+          "document.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DfdDuplicateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uma transação: destino `NEW_PROCESS` cria o processo pela mecânica da duplicação (US-011 — `PROCESS_CREATE`, `ProcessCreated`) com os itens da origem; `EXISTING_PROCESS` (`targetProcessId` — 422 `REFERENCE_NOT_FOUND` se de outro tenant/inexistente) exige processo editável, tipo DFD permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) e sem DFD ativo (409 `DOCUMENT_ALREADY_EXISTS`) e clona os itens do DFD como `ProcessItem` (`ProcessItemsChanged`). O novo `Document`/`Dfd` nasce `DRAFT`, `wizardStep = IDENTIFICATION`, numerado como qualquer DFD, com cabeçalho e seções copiados (setor e responsável do destino, data de hoje), itens remapeados e `sourceDocumentId` = o DFD de origem; anexos não são copiados. Grava `document.duplicate` e `DocumentCreated` (`document.created.dfd`). `Location: /api/v1/dfds/{id}` e `ETag: \"1\"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Dfd"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/DfdMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

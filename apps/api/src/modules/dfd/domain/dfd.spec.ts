@@ -4,6 +4,7 @@ import {
   applyDfdPatch,
   createDfdFromProcess,
   dfdHeaderValues,
+  duplicateDfd,
   isInSecretariat,
   normalizeCompletedSteps,
 } from './dfd.js';
@@ -218,5 +219,74 @@ describe('applyDfdPatch (DFD-04 · RN-DFD-27)', () => {
       { field: 'wizardStep', old: 'IDENTIFICATION', new: 'REVIEW' },
       { field: 'completedSteps', old: [], new: ['IDENTIFICATION', 'JUSTIFICATION'] },
     ]);
+  });
+});
+
+describe('duplicateDfd (US-018 · RN-DFD-76/77)', () => {
+  const source = {
+    ...createDfdFromProcess(PROCESS, { ...input, documentId: 'source-doc' }),
+    responsibleId: 'outra-pessoa',
+    requestDate: '2026-08-01',
+    expectedDate: '2026-12-15',
+    estimatedValue: '15000.00',
+    wizardStep: 'REVIEW' as const,
+    completedSteps: ['IDENTIFICATION', 'JUSTIFICATION'] as const,
+    version: 7,
+  };
+  const duplicateInput = {
+    documentId: 'new-doc',
+    tenantId: 't',
+    processId: 'target-process',
+    requestingDepartmentId: 'target-department',
+    creatorId: CREATOR,
+    today: '2026-10-17',
+    now: NOW,
+    copyEstimatedValue: true,
+  };
+  const from = (fields: Partial<typeof source> = {}) => ({
+    ...source,
+    completedSteps: [...source.completedSteps],
+    ...fields,
+  });
+
+  it('copia objeto, prioridade, previsão, estimativa e PCA; setor, responsável e data são do destino', () => {
+    expect(duplicateDfd(from(), duplicateInput)).toEqual({
+      id: 'new-doc',
+      tenantId: 't',
+      processId: 'target-process',
+      documentId: 'new-doc',
+      requestingDepartmentId: 'target-department',
+      responsibleId: CREATOR,
+      requestDate: '2026-10-17',
+      objectSummary: 'Aquisição de insumos para a UBS Centro',
+      priority: 'HIGH',
+      expectedDate: '2026-12-15',
+      estimatedValue: '15000.00',
+      pcaStatus: 'PLANNED',
+      pcaYear: 2026,
+      pcaItemCode: 'PCA-12',
+      pcaJustification: null,
+      wizardStep: 'IDENTIFICATION',
+      completedSteps: [],
+      createdAt: NOW,
+      updatedAt: NOW,
+      createdById: CREATOR,
+      updatedById: CREATOR,
+      version: 1,
+    });
+  });
+
+  it('previsão anterior a hoje não é copiada; igual a hoje é', () => {
+    expect(
+      duplicateDfd(from({ expectedDate: '2026-10-16' }), duplicateInput).expectedDate,
+    ).toBeNull();
+    expect(duplicateDfd(from({ expectedDate: '2026-10-17' }), duplicateInput).expectedDate).toBe(
+      '2026-10-17',
+    );
+  });
+
+  it('estimativa só é copiada quando permitido (POL-09)', () => {
+    const copy = duplicateDfd(from(), { ...duplicateInput, copyEstimatedValue: false });
+    expect(copy.estimatedValue).toBeNull();
   });
 });

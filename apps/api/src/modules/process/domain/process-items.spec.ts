@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cloneItemsAsNext,
   diffItem,
   itemLimitIssues,
   itemRuleIssues,
@@ -256,5 +257,62 @@ describe('Itens da contratação — domínio (US-006)', () => {
     expect(itemsNotEditableMessage('DRAFT')).toBe(
       'Itens não podem ser alterados com o processo DRAFT.',
     );
+  });
+});
+
+describe('cloneItemsAsNext (US-018 · RN-DFD-75)', () => {
+  const target = {
+    tenantId: 't',
+    processId: 'destino',
+    now: NOW,
+    userId: 'bia',
+    newId: (() => {
+      let count = 0;
+      return () => `novo-${String((count += 1))}`;
+    })(),
+  };
+
+  it('numera a partir do próximo do destino, na ordem recebida, sem lote nem valores de referência', () => {
+    const copies = cloneItemsAsNext(
+      [
+        item({
+          id: 'a',
+          sequence: 7,
+          lotNumber: 2,
+          lotName: 'Lote',
+          catalogSystem: 'CATMAT',
+          catalogCode: '123',
+          notes: 'obs',
+          referenceQuantity: '10.0000',
+          referenceUnitPrice: '3.50',
+        }),
+        item({ id: 'b', sequence: 3, description: 'Outro item' }),
+      ],
+      [item({ sequence: 1 }), item({ sequence: 4 })],
+      target,
+    );
+    expect(copies.map((copy) => [copy.id, copy.sequence, copy.description])).toEqual([
+      ['novo-1', 5, 'Cimento CP-II 50 kg'],
+      ['novo-2', 6, 'Outro item'],
+    ]);
+    expect(copies[0]).toMatchObject({
+      tenantId: 't',
+      processId: 'destino',
+      lotNumber: null,
+      lotName: null,
+      catalogSystem: 'CATMAT',
+      catalogCode: '123',
+      notes: 'obs',
+      referenceQuantity: null,
+      referenceUnitPrice: null,
+      createdById: 'bia',
+      version: 1,
+    });
+  });
+
+  it('destino vazio começa em 1', () => {
+    expect(cloneItemsAsNext([item({ sequence: 9 })], [], target).map((c) => c.sequence)).toEqual([
+      1,
+    ]);
   });
 });

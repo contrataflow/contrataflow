@@ -1,6 +1,7 @@
 import {
   dataEnvelope,
   dfdCreateSchema,
+  dfdDuplicateSchema,
   dfdIdParamsSchema,
   dfdMetaSchema,
   dfdPatchSchema,
@@ -8,7 +9,14 @@ import {
   dfdSummarySchema,
   processIdParamsSchema,
 } from '@contrataflow/validation';
-import type { DfdCreate, DfdDto, DfdMeta, DfdPatch, DfdSummaryDto } from '@contrataflow/validation';
+import type {
+  DfdCreate,
+  DfdDto,
+  DfdDuplicate,
+  DfdMeta,
+  DfdPatch,
+  DfdSummaryDto,
+} from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
 
@@ -24,6 +32,7 @@ import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateDfdCommand } from '../application/dfd.commands.js';
 import { GetDfdQuery, ListProcessDfdsQuery } from '../application/dfd.queries.js';
+import { DuplicateDfdCommand } from '../application/duplicate-dfd.command.js';
 import { PatchDfdHeaderCommand } from '../application/patch-dfd-header.command.js';
 
 const TAGS = ['DFD'];
@@ -32,6 +41,9 @@ const READ_ACCESS =
   'DFD do processo (US-014 · DEC-024): visibilidade do processo (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente.';
 const CREATE_ACCESS =
   'DFD_CREATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied) + custódia atual (POL-01 — 403 NOT_PROCESS_CUSTODIAN; participação não cria) + POL-02 (processo editável, tipo DFD permitido na etapa), conferidos no caso de uso.';
+
+const DUPLICATE_ACCESS =
+  'Duplicar DFD (US-018 · DEC-024): o DFD de origem precisa estar visível (PROCESS_VIEW, concessão USER ou participação; senão 404 DFD_NOT_FOUND); no destino, DFD_CREATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied) + custódia atual (POL-01 — 403 NOT_PROCESS_CUSTODIAN) + POL-02 (processo editável, tipo DFD permitido na etapa); para novo processo, também PROCESS_CREATE no setor solicitante (403), tudo conferido no caso de uso.';
 
 const UPDATE_ACCESS =
   'DFD_UPDATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied) + custódia ou participação COLLABORATOR/CONSULTANT (POL-02 — 403 NOT_PROCESS_CUSTODIAN com access.denied) + processo em DRAFT/IN_PROGRESS/RETURNED (409) + tipo DFD permitido na etapa (422), conferidos no caso de uso a cada gravação (RN-DFD-30).';
@@ -51,6 +63,7 @@ export class DfdController {
     private readonly get: GetDfdQuery,
     private readonly create: CreateDfdCommand,
     private readonly patchHeader: PatchDfdHeaderCommand,
+    private readonly duplicateDfd: DuplicateDfdCommand,
   ) {}
 
   @Get('processes/:id/dfds')
@@ -131,6 +144,41 @@ export class DfdController {
     response.setHeader('ETag', `"${String(view.dto.version)}"`);
     response.setHeader('Cache-Control', 'no-store');
     return new DataResult(view.dto, view.meta);
+  }
+
+  @Post('dfds/:id/duplicate')
+  @Idempotent()
+  @ImplicitAccess(DUPLICATE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'DFD-05',
+    summary: 'Duplicar DFD',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['document.duplicate', 'document.create'],
+    responses: {
+      201: {
+        description:
+          'Uma transação: destino `NEW_PROCESS` cria o processo pela mecânica da duplicação (US-011 — `PROCESS_CREATE`, `ProcessCreated`) com os itens da origem; `EXISTING_PROCESS` (`targetProcessId` — 422 `REFERENCE_NOT_FOUND` se de outro tenant/inexistente) exige processo editável, tipo DFD permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) e sem DFD ativo (409 `DOCUMENT_ALREADY_EXISTS`) e clona os itens do DFD como `ProcessItem` (`ProcessItemsChanged`). O novo `Document`/`Dfd` nasce `DRAFT`, `wizardStep = IDENTIFICATION`, numerado como qualquer DFD, com cabeçalho e seções copiados (setor e responsável do destino, data de hoje), itens remapeados e `sourceDocumentId` = o DFD de origem; anexos não são copiados. Grava `document.duplicate` e `DocumentCreated` (`document.created.dfd`). `Location: /api/v1/dfds/{id}` e `ETag: "1"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.',
+        schema: DFD_RESPONSE,
+      },
+    },
+  })
+  async duplicate(
+    @ZodParams(dfdIdParamsSchema) params: { id: string },
+    @ZodBody(dfdDuplicateSchema) body: DfdDuplicate,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<DfdDto, DfdMeta>> {
+    const duplicated = await this.duplicateDfd.execute({
+      dfdId: params.id,
+      targetType: body.targetType,
+      targetProcessId: body.targetProcessId ?? null,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('Location', `/api/v1/dfds/${duplicated.dto.id}`);
+    response.setHeader('ETag', `"${String(duplicated.dto.version)}"`);
+    return new DataResult(duplicated.dto, duplicated.meta);
   }
 
   @Patch('dfds/:id')

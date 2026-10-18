@@ -40,6 +40,7 @@ import { useDfd, useDocumentItems } from './dfd.api';
 import { sectionText, useDfdAutosave } from './use-dfd-autosave';
 import { AiAssistant } from '../ai/ai-assistant';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
+import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
 import { DocumentStatusBadge } from '../documents/document-status-badge';
 import { documentKeys, fetchDocument } from '../documents/documents.api';
 import { formatMoneyText } from '../processes/money';
@@ -337,6 +338,7 @@ function LoadedWizard({
             initialGenerationId={searchParams.get('ia')}
             onApplied={(applied) => void autosave.adoptSections(applied)}
           />
+          <DuplicateDfdButton dfd={dfd} />
           {allowed ? (
             <AutosaveIndicator
               className="ml-auto"

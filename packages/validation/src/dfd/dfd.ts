@@ -53,6 +53,11 @@ export const DFD_MESSAGES = Object.freeze({
   notCustodian: 'Somente quem está com o processo pode realizar esta ação.',
   permissionDenied: 'Você não tem permissão para elaborar o DFD deste processo.',
   notFound: 'DFD não encontrado.',
+  duplicateTargetInvalid: 'Selecione um processo válido.',
+  duplicateTargetRequired: 'Selecione o processo que receberá o DFD.',
+  duplicateTargetNotAllowed: 'Informe o processo apenas ao duplicar para um processo existente.',
+  duplicateNotAllowedInStage: 'Este processo não aceita DFD na etapa atual.',
+  duplicatePermissionDenied: 'Você não pode duplicar o DFD para este destino.',
   requestDateRequired: 'Informe a data do DFD.',
   requestDateFuture: 'A data do DFD não pode ser futura.',
   departmentRequired: 'Informe o setor.',
@@ -92,6 +97,40 @@ export const dfdCreateSchema = z
   })
   .meta({ id: 'DfdCreateRequest' });
 export type DfdCreate = z.infer<typeof dfdCreateSchema>;
+
+/** `targetType` da duplicação (RN-DFD-72/73). */
+export const DFD_DUPLICATE_TARGETS = ['NEW_PROCESS', 'EXISTING_PROCESS'] as const;
+export type DfdDuplicateTarget = (typeof DFD_DUPLICATE_TARGETS)[number];
+
+/**
+ * DFD-05 — `POST /dfds/{id}/duplicate` (US-018 · `Idempotency-Key` obrigatório): `targetProcessId`
+ * obrigatório para `EXISTING_PROCESS` e proibido para `NEW_PROCESS`.
+ */
+export const dfdDuplicateSchema = z
+  .strictObject({
+    targetType: z.enum(DFD_DUPLICATE_TARGETS),
+    targetProcessId: uuidV7Schema.optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.targetType === 'EXISTING_PROCESS' && value.targetProcessId === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targetProcessId'],
+        message: DFD_MESSAGES.duplicateTargetRequired,
+        params: { code: 'REQUIRED' },
+      });
+    }
+    if (value.targetType === 'NEW_PROCESS' && value.targetProcessId !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targetProcessId'],
+        message: DFD_MESSAGES.duplicateTargetNotAllowed,
+        params: { code: 'NOT_ALLOWED' },
+      });
+    }
+  })
+  .meta({ id: 'DfdDuplicateRequest' });
+export type DfdDuplicate = z.infer<typeof dfdDuplicateSchema>;
 
 export const dfdIdParamsSchema = z.strictObject({ id: uuidV7Schema });
 

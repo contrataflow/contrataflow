@@ -10,6 +10,12 @@ import type {
   ProcessParticipantRepository,
   ProcessRepository,
 } from './ports.js';
+import { ProcessDfdDuplication } from './process-dfd-duplication.js';
+import type {
+  CloneItemsForDfdInput,
+  DuplicateProcessForDfdInput,
+  ProcessCreatedForDfd,
+} from './process-dfd-duplication.js';
 import { accessGrantsOf } from './process-runtime.loader.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -74,7 +80,32 @@ export class ProcessFacade {
     @Inject(PROCESS_PARTICIPANT_REPOSITORY)
     private readonly participants: ProcessParticipantRepository,
     @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
+    private readonly dfdDuplication: ProcessDfdDuplication,
   ) {}
+
+  /**
+   * Duplicação do DFD para um NOVO processo (US-018 · RN-DFD-74), no `tx` do chamador: cria o
+   * processo pela mecânica da duplicação (US-011) com os itens da origem renumerados e devolve o
+   * mapa item de origem → item novo. `PROCESS_CREATE` (403) e a visibilidade da origem (404) são
+   * conferidos aqui; `DFD_CREATE` e a custódia, na criação do documento.
+   */
+  createProcessForDfdIn(
+    tx: TenantTx,
+    input: DuplicateProcessForDfdInput,
+  ): Promise<ProcessCreatedForDfd> {
+    return this.dfdDuplication.createProcessIn(tx, input);
+  }
+
+  /**
+   * Duplicação do DFD para um processo EXISTENTE (US-018 · RN-DFD-75): clona no destino os itens da
+   * origem indicados (a autorização do destino é de quem chama). Devolve item de origem → item novo.
+   */
+  cloneItemsForDfdIn(
+    tx: TenantTx,
+    input: CloneItemsForDfdInput,
+  ): Promise<ReadonlyMap<string, string>> {
+    return this.dfdDuplication.cloneItemsIn(tx, input);
+  }
 
   /**
    * POL-09 sobre UM processo para o usuário da requisição (US-060 · RN-TML-13): a mesma regra do
@@ -115,6 +146,15 @@ export class ProcessFacade {
       estimatedValue: process.estimatedValue,
       estimatedValueSource: process.estimatedValueSource,
     };
+  }
+
+  /**
+   * Orçamento sigiloso do processo (POL-09): `true` se for sigiloso. `null` = inexistente no tenant
+   * (US-018: o valor estimado do DFD só é copiado de processo sem sigilo).
+   */
+  async isBudgetConfidentialIn(tx: TenantTx, processId: string): Promise<boolean | null> {
+    const rows = await this.processes.loadAggregate(tx, processId);
+    return rows === null ? null : rows.process.isBudgetConfidential;
   }
 
   /** Processo para o contexto da IA (US-117), no `tx` do chamador. `null` = inexistente no tenant. */

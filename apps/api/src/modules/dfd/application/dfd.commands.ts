@@ -1,5 +1,4 @@
 import { localDateOf } from '@contrataflow/types';
-import { DFD_MESSAGES, dfdDocumentTitle } from '@contrataflow/validation';
 import type { DfdDto, DfdMeta } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 import { metrics } from '@opentelemetry/api';
@@ -8,13 +7,12 @@ import type { Counter } from '@opentelemetry/api';
 import { TransactionalCommandHandler } from '#shared/commands/transactional-command.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
-import { ApiError } from '#shared/errors/api-error.js';
 
+import { DfdDocumentCreator } from './dfd-document.creator.js';
 import { toDfdDto, toDfdMeta } from './dfd.presenter.js';
 import { DFD_CLOCK, DFD_REPOSITORY, DFD_TRANSACTIONS } from './ports.js';
 import type { DfdClock, DfdRepository, DfdTransactions } from './ports.js';
 import { NumberingFacade } from '../../catalog/application/numbering.facade.js';
-import { DocumentFacade } from '../../document/application/document.facade.js';
 import { ProcessFacade } from '../../process/application/process.facade.js';
 import { createDfdFromProcess } from '../domain/dfd.js';
 
@@ -64,7 +62,7 @@ export class CreateDfdCommand extends TransactionalCommandHandler<
     @Inject(DFD_TRANSACTIONS) transactions: DfdTransactions,
     @Inject(DFD_REPOSITORY) private readonly dfds: DfdRepository,
     @Inject(DFD_CLOCK) private readonly clock: DfdClock,
-    private readonly documents: DocumentFacade,
+    private readonly documentCreator: DfdDocumentCreator,
     private readonly processes: ProcessFacade,
     private readonly numbering: NumberingFacade,
   ) {
@@ -80,7 +78,7 @@ export class CreateDfdCommand extends TransactionalCommandHandler<
     input: CreateDfdInput,
     { now }: Prepared,
   ): Promise<CreatedDfd> {
-    const created = await this.createDocument(tx, input);
+    const created = await this.documentCreator.create(tx, input);
     const { document, process } = created;
     const defaults = await this.processes.dfdDefaultsIn(tx, process.id);
     if (defaults === null) throw new Error(`Processo ${process.id} sem agregado no tenant.`);
@@ -107,58 +105,6 @@ export class CreateDfdCommand extends TransactionalCommandHandler<
       templateVersionId: created.template.id,
       processId: process.id,
     };
-  }
-
-  /** O documento tipado; 409 com a mensagem e o DFD existente (FA-02 · V-02). */
-  private async createDocument(tx: TenantTx, input: CreateDfdInput) {
-    try {
-      return await this.documents.createStructuredIn(tx, {
-        processId: input.processId,
-        systemModule: 'DFD',
-        templateId: input.templateId,
-        titleOf: (process) => dfdDocumentTitle(process.title),
-        messages: {
-          templateInvalid: DFD_MESSAGES.templateInvalid,
-          notCustodian: DFD_MESSAGES.notCustodian,
-        },
-        idempotencyKey: input.idempotencyKey,
-      });
-    } catch (error) {
-      if (!(error instanceof ApiError)) throw error;
-      if (error.code === 'DOCUMENT_ALREADY_EXISTS') throw await this.alreadyExists(tx, error);
-      if (error.code === 'DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE') {
-        throw new ApiError('DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE', {
-          detail: DFD_MESSAGES.typeNotAllowedInStage,
-        });
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * O DFD que já ocupa a vaga (verificação prévia — com o código para o "Abrir DFD"); na corrida
-   * decidida pelo índice único o `tx` já falhou no banco e o 409 vai sem o código.
-   */
-  private async alreadyExists(tx: TenantTx, error: ApiError): Promise<ApiError> {
-    const meta = (error.extensions.meta ?? {}) as { existingDocumentId?: string };
-    const existingId = meta.existingDocumentId ?? null;
-    const existing =
-      existingId === null
-        ? undefined
-        : (await this.documents.documentStatesIn(tx, [existingId])).get(existingId);
-    return new ApiError('DOCUMENT_ALREADY_EXISTS', {
-      detail: DFD_MESSAGES.alreadyExists(existing?.code ?? null),
-      extensions:
-        existing === undefined
-          ? {}
-          : {
-              meta: {
-                existingDocumentId: existing.id,
-                existingDfdId: existing.id,
-                code: existing.code,
-              },
-            },
-    });
   }
 
   protected override committed(result: CreatedDfd, durationMs: number): void {

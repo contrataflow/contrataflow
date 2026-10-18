@@ -50,3 +50,27 @@ padrão aqui é o que ETP, TR, pesquisa de preços e mapa de riscos repetem.
   `info dfd.header_saved` (`changedFields`, `version`). Sem evento de domínio.
 - **Front (SCR-007):** `apps/web/src/features/dfd/use-dfd-autosave.ts` sobre o `useAutosave` de
   `@contrataflow/ui` (seções → DOC-05, cabeçalho → DFD-04).
+
+## US-018 — Duplicar DFD (DFD-05)
+
+- **Rota** `POST /dfds/{id}/duplicate` (`DuplicateDfdCommand`, Idem.), corpo `dfdDuplicateSchema`
+  (`targetType` `NEW_PROCESS` | `EXISTING_PROCESS`, `targetProcessId` só no segundo). Uma transação.
+- **Novo processo** (RN-DFD-74): `ProcessFacade.createProcessForDfdIn` — a mecânica da duplicação de
+  processo (US-011: `duplicateDraft` + `CreateProcessCommand.createIn`, com `PROCESS_CREATE` no setor
+  → 403) e os itens ativos da origem renumerados (`duplicateItems`); devolve o mapa item de origem →
+  item novo.
+- **Processo existente** (RN-DFD-73/75): o documento tipado confere `DFD_CREATE`, custódia, status,
+  etapa e DFD ativo único (índice decide a corrida → 409); `ProcessFacade.cloneItemsForDfdIn` trava o
+  processo, clona os itens do DFD como `ProcessItem` a partir do próximo número (limite de 1.000 → 422)
+  e grava `process.items_update` + `ProcessItemsChanged`. Processo inexistente/de outro tenant/não
+  visível → 422 `REFERENCE_NOT_FOUND` em `targetProcessId`.
+- **Documento**: `DfdDocumentCreator` (comum ao DFD-02) → `createStructuredIn` com `source`
+  (`sourceDocumentId` + seções copiadas por chave sobre o template publicado — `draftContentFromSource`);
+  itens do DFD remapeados via `DocumentFacade.copyItemsIn`; cabeçalho por `duplicateDfd` (setor e
+  responsável do destino, data de hoje; previsão passada e estimativa de orçamento sigiloso não
+  migram). Auditoria `document.duplicate`; eventos `DocumentCreated` (+ `ProcessCreated` /
+  `ProcessItemsChanged`). Log `dfd.duplicated`, métrica `dfd_duplicated_total`.
+- **Front**: `apps/web/src/features/dfd-duplicate` (SCR-113 "Duplicar apenas o DFD"), botão no
+  cabeçalho da SCR-007 e na linha do DFD do painel de documentos (só com `DFD_CREATE`).
+- **Testes**: `domain/dfd.spec.ts`, `presentation/dfd-duplicate.routes.spec.ts` (8 categorias) e
+  `test/tenant-leak/dfd-duplicate.spec.ts` (PostgreSQL: atomicidade, concorrência, tenant).

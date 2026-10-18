@@ -191,5 +191,45 @@
         "completedSteps": "Passos concluídos"
       }
     }
+  },
+  "duplicate": {
+    "action": "Duplicar DFD",
+    "title": "Duplicar DFD",
+    "description": "Cria um novo DFD em rascunho com o cabeçalho, as seções e os itens deste. Ele recebe número próprio e fica com você; o setor e o responsável seguem o processo de destino e a data é a de hoje.",
+    "close": "Fechar",
+    "target": "Para onde duplicar",
+    "newProcess": "Novo processo",
+    "newProcessHint": "Abre um processo semelhante ao atual, com os itens copiados, e o novo DFD nele.",
+    "newProcessDenied": "Você não tem permissão para abrir processos neste órgão.",
+    "existingProcess": "Processo existente",
+    "existingProcessHint": "Coloca o DFD em um processo que ainda não tem DFD; os itens do DFD são criados nesse processo.",
+    "search": "Buscar processo",
+    "searchPlaceholder": "Código ou título do processo",
+    "searchHint": "Digite ao menos 2 caracteres. Aparecem só processos em andamento que ainda podem receber alterações.",
+    "searching": "Buscando processos…",
+    "searchFailed": "Não foi possível buscar os processos agora.",
+    "noTargets": "Nenhum processo elegível encontrado.",
+    "results": "Processos encontrados",
+    "draftCode": "Sem número",
+    "noStage": "Sem etapa",
+    "selected": "Processo escolhido: {code}.",
+    "whatCopies": "Não são copiados: anexos, comentários, aprovações, histórico nem versões. Revise o conteúdo antes de enviar o novo DFD para aprovação.",
+    "submit": "Duplicar",
+    "submitting": "Duplicando…",
+    "cancel": "Cancelar",
+    "toast": "DFD {code} criado a partir de {sourceCode}",
+    "toastNoCode": "DFD criado a partir do DFD de origem",
+    "errors": {
+      "targetRequired": "Escolha o processo que receberá o DFD.",
+      "exists": "Este processo já possui o {code}.",
+      "existsNoCode": "Este processo já possui um DFD.",
+      "open": "Abrir DFD",
+      "stage": "Este processo não aceita DFD na etapa atual.",
+      "target": "Selecione um processo válido.",
+      "unavailable": "Não foi possível duplicar agora. Tente novamente.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "notFound": "DFD não encontrado."
+    }
   }
 }

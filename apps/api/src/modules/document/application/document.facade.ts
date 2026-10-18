@@ -28,6 +28,7 @@ import type { CommentDocumentLabel, CommentDocumentTarget } from './document-com
 import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
 import { DocumentItemsPresenter } from './document-items.commands.js';
+import type { DocumentItemCopy } from './document-items.commands.js';
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import { documentNotEditable, notProcessCustodian } from './document.errors.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
@@ -61,6 +62,7 @@ export type {
   CreateStructuredDocumentInput,
   CreatedStructuredDocument,
 } from './structured-document.creator.js';
+export type { DocumentItemCopy } from './document-items.commands.js';
 export type { DocumentItem } from '../domain/document-items.js';
 export type { Document } from '../domain/document.js';
 export type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
@@ -281,6 +283,18 @@ export class DocumentFacade {
   /** Linhas de item do documento (DOC-06), no `tx` do chamador — validador e snapshot tipados. */
   documentItemsIn(tx: TenantTx, documentId: string): Promise<DocumentItem[]> {
     return this.itemRows.rowsOf(tx, documentId);
+  }
+
+  /**
+   * Itens do documento recém-criado na duplicação de um módulo tipado (US-018 · RN-DFD-75), no `tx`
+   * do chamador: as linhas já apontam para os itens do processo de destino. Devolve quantas gravou.
+   */
+  copyItemsIn(
+    tx: TenantTx,
+    document: Pick<Document, 'id' | 'tenantId'>,
+    lines: readonly DocumentItemCopy[],
+  ): Promise<number> {
+    return this.itemRows.insertCopies(tx, document, lines);
   }
 
   /**

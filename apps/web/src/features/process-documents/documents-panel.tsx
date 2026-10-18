@@ -38,6 +38,7 @@ import {
 import type { DocumentGroup, PanelFilter, PanelType } from './process-documents-model';
 import { useActiveDocumentTypes, useProcessDocuments } from './process-documents.api';
 import { ElaborateDfdOutcome, useElaborateDfd } from '../dfd/elaborate-dfd';
+import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { CreatePriceResearchDialog } from '../price-research/create-price-research-dialog';
 import { useIsDesktop } from '../workflows/use-is-desktop';
@@ -103,6 +104,11 @@ function DocumentRow({
           updatedAt,
         })}
       </p>
+      {document.documentType.systemModule === 'DFD' ? (
+        <div>
+          <DuplicateDfdButton dfd={{ id: document.id, processId, code: document.code }} />
+        </div>
+      ) : null}
       {value === null ? null : (
         <p className="text-xs">
           <span className="text-muted-foreground">{t('totalValue')} </span>
