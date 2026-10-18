@@ -14,9 +14,14 @@ import {
   processStageEntrySchema,
   processSummarySchema,
   PROCESS_CONFIDENTIALITY_MESSAGES,
+  PROCESS_SUSPENSION_MESSAGES,
+  resumeMetaSchema,
+  resumeProcessSchema,
   returnedProcessSchema,
   returnProcessSchema,
   setProcessConfidentialitySchema,
+  suspendProcessSchema,
+  suspensionProcessSchema,
   updateProcessSchema,
 } from '@contrataflow/validation';
 import type {
@@ -32,9 +37,13 @@ import type {
   ProcessListQuery,
   ProcessStageEntryDto,
   ProcessSummaryDto,
+  ResumeMeta,
+  ResumeProcess,
   ReturnedProcessDto,
   ReturnProcess,
   SetProcessConfidentiality,
+  SuspendProcess,
+  SuspensionProcessDto,
   UpdateProcess,
 } from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Param, Patch, Post, Put, Res } from '@nestjs/common';
@@ -60,6 +69,10 @@ import {
   GetProcessSummaryQuery,
   ListProcessStagesQuery,
 } from '../application/process-panel.queries.js';
+import {
+  ResumeProcessCommand,
+  SuspendProcessCommand,
+} from '../application/process-suspension.commands.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
 import { ReturnProcessCommand } from '../application/return-process.command.js';
 import { SetProcessConfidentialityCommand } from '../application/set-process-confidentiality.command.js';
@@ -90,7 +103,8 @@ function noStore(response: HttpResponse): void {
  * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
  * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
  * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-19
- * (encaminhar — US-047), PRC-27 (duplicar — US-011) e PRC-33 (sigilo do orçamento — US-013).
+ * (encaminhar — US-047), PRC-23/PRC-24 (suspender e retomar — US-008), PRC-27 (duplicar —
+ * US-011) e PRC-33 (sigilo do orçamento — US-013).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -110,6 +124,8 @@ export class ProcessController {
     private readonly forward: ForwardProcessCommand,
     private readonly returns: ReturnProcessCommand,
     private readonly claims: ClaimProcessCommand,
+    private readonly suspensions: SuspendProcessCommand,
+    private readonly resumptions: ResumeProcessCommand,
   ) {}
 
   @Get()
@@ -481,5 +497,79 @@ export class ProcessController {
     const stages = await this.stages.execute(id);
     noStore(response);
     return stages;
+  }
+
+  @Post(':id/suspend')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_SUSPEND', { detail: PROCESS_SUSPENSION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-23',
+    summary: 'Suspender processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.suspend'],
+    responses: {
+      200: {
+        description:
+          'Processo `SUSPENDED` (`ETag` = nova versão) com `statusBeforeSuspension`, `suspendedAt`, `suspensionReason` e `currentStage.pausedAt`. Uma transação: trava do processo, `PROCESS_SUSPEND` cobrindo o processo sem exigir custódia (POL-07: 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`AWAITING_APPROVAL`/`RETURNED` (409 `INVALID_PROCESS_STATUS`, antes do `If-Match`) e `If-Match` (412 `VERSION_CONFLICT`). Pausa o prazo da etapa ativa, congela a aprovação pendente (segue `PENDING`) e as ações de custódia; registra a tramitação `SUSPEND` com o motivo. Etapa, unidade, responsável e concessões não mudam. Evento `ProcessStatusChanged` (`process.status_changed.suspended`).',
+        schema: dataEnvelope(suspensionProcessSchema),
+      },
+    },
+  })
+  async suspendProcess(
+    @ProcessId() id: string,
+    @ZodBody(suspendProcessSchema) body: SuspendProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<SuspensionProcessDto> {
+    const result = await this.suspensions.execute({
+      processId: id,
+      reason: body.reason,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/resume')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_SUSPEND', { detail: PROCESS_SUSPENSION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-24',
+    summary: 'Retomar processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.resume'],
+    responses: {
+      200: {
+        description:
+          'Processo com o status anterior à suspensão restaurado (`ETag` = nova versão) e `meta` com os dias acrescidos (`extendedBy`) e o novo prazo da etapa (`newDueAt`; `null` sem prazo). Uma transação: trava do processo, `PROCESS_SUSPEND` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), status `SUSPENDED` (409 `INVALID_PROCESS_STATUS`) e `If-Match` (412 `VERSION_CONFLICT`). O prazo da etapa e o da aprovação pendente são estendidos pelos dias úteis (ou corridos, `slaType = CALENDAR`) do calendário do tenant entre a data local da pausa e a da retomada; o prazo alvo não muda. Evento `ProcessStatusChanged` (`process.status_changed.resumed`).',
+        schema: z.object({ data: suspensionProcessSchema, meta: resumeMetaSchema }),
+      },
+    },
+  })
+  async resumeProcess(
+    @ProcessId() id: string,
+    @ZodBody(resumeProcessSchema) body: ResumeProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<SuspensionProcessDto, ResumeMeta>> {
+    const result = await this.resumptions.execute({
+      processId: id,
+      comment: body.comment === undefined || body.comment === '' ? null : body.comment,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return new DataResult(result.dto, result.meta);
   }
 }

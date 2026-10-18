@@ -186,6 +186,28 @@ export function addDays(
   return date;
 }
 
+/**
+ * RN-PROC-98 (US-008 · DEC-031): dias úteis (ou corridos) no intervalo `[from, to)` — o dia de
+ * `from` conta e o de `to`, não. `from >= to` (mesma data local) = 0. Base da extensão do prazo
+ * na retomada de um processo suspenso, na API e na prévia do diálogo (SCR-116).
+ */
+export function daysInInterval(
+  from: string,
+  to: string,
+  type: DayCountType,
+  nonBusiness: ReadonlySet<string>,
+): number {
+  if (from >= to) return 0;
+  if (type === 'CALENDAR') {
+    return Math.round((isoDateToUtc(to).getTime() - isoDateToUtc(from).getTime()) / DAY_MS);
+  }
+  let count = 0;
+  for (let date = from; date < to; date = addCalendarDays(date, 1)) {
+    if (isBusinessDay(date, nonBusiness)) count += 1;
+  }
+  return count;
+}
+
 /** Diferença (ms) entre o relógio local do fuso e o UTC no instante dado (positiva a leste). */
 function offsetMs(instant: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {

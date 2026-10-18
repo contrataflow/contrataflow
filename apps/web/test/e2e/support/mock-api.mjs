@@ -955,6 +955,39 @@ const tagsOfProcess = (processId) =>
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 const processVersionOf = (processId) => processVersions.get(processId) ?? 9;
 
+// Suspensão (US-008 · SCR-116): processId → { statusBefore, suspendedAt, reason }. Extensão do
+// prazo, congelamento, permissões e concorrência são cobertos nos testes da API; aqui vale a
+// jornada J-06 (suspender, ver o painel, retomar e conferir o novo prazo).
+const suspensions = new Map();
+const statusOfListed = (processId, fixture) =>
+  suspensions.has(processId) ? 'SUSPENDED' : fixture.status;
+const WEEKDAY = (date) => {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return day >= 1 && day <= 5;
+};
+const plusDays = (date, days) => {
+  const instant = new Date(`${date}T00:00:00Z`);
+  instant.setUTCDate(instant.getUTCDate() + days);
+  return instant.toISOString().slice(0, 10);
+};
+/** Fim do dia `YYYY-MM-DD` em Brasília (UTC−3, sem horário de verão). */
+const endOfDayBrt = (date) => `${plusDays(date, 1)}T02:59:59.999Z`;
+const brtDate = (iso) =>
+  new Date(new Date(iso).getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
+function businessDaysBetween(from, to) {
+  const dates = [];
+  for (let date = from; date <= to; date = plusDays(date, 1)) if (WEEKDAY(date)) dates.push(date);
+  return dates;
+}
+function addBusinessDaysBrt(fromIso, days) {
+  let date = brtDate(fromIso);
+  for (let counted = 0; counted < days;) {
+    date = plusDays(date, 1);
+    if (WEEKDAY(date)) counted += 1;
+  }
+  return endOfDayBrt(date);
+}
+
 function listProcessItem(fixture) {
   const unit = departments[fixture.unit];
   const ref = (item) => ({ id: item.id, name: item.name });
@@ -4470,7 +4503,7 @@ createServer(async (request, response) => {
   }
   // Detalhe, painel e etiquetas dos processos da lista (US-004/US-007): PRC-04/07/08/10 e PRC-18.
   const listedRoute =
-    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags)?$/.exec(
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume)?$/.exec(
       url.pathname,
     );
   const listedFixture = listedRoute
@@ -4505,9 +4538,78 @@ createServer(async (request, response) => {
         { ETag: `"${processVersionOf(processId)}"` },
       );
     }
+    if (request.method === 'POST' && listedRoute[2] === '/suspend') {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      if (suspensions.has(processId)) {
+        return problem(response, 409, 'INVALID_PROCESS_STATUS', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const reason = String(body.reason ?? '').trim();
+      if (reason.length < 20) {
+        return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+      }
+      const suspendedAt = new Date().toISOString();
+      suspensions.set(processId, { statusBefore: listedFixture.status, suspendedAt, reason });
+      processVersions.set(processId, processVersionOf(processId) + 1);
+      return send(
+        response,
+        200,
+        {
+          data: {
+            id: processId,
+            status: 'SUSPENDED',
+            statusBeforeSuspension: listedFixture.status,
+            suspendedAt,
+            suspensionReason: reason,
+            version: processVersionOf(processId),
+          },
+        },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
+    if (request.method === 'POST' && listedRoute[2] === '/resume') {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const suspension = suspensions.get(processId);
+      if (!suspension)
+        return problem(response, 409, 'INVALID_PROCESS_STATUS', String(correlationId));
+      const from = brtDate(suspension.suspendedAt);
+      const today = brtDate(new Date().toISOString());
+      const days = from < today ? businessDaysBetween(from, plusDays(today, -1)).length : 0;
+      const item = listProcessItem(listedFixture);
+      const newDueAt =
+        days === 0 ? item.deadline.dueAt : addBusinessDaysBrt(item.deadline.dueAt, days);
+      suspensions.delete(processId);
+      processVersions.set(processId, processVersionOf(processId) + 1);
+      return send(
+        response,
+        200,
+        {
+          data: {
+            id: processId,
+            status: suspension.statusBefore,
+            statusBeforeSuspension: null,
+            suspendedAt: null,
+            suspensionReason: null,
+            version: processVersionOf(processId),
+          },
+          meta: { extendedBy: { days, slaType: 'BUSINESS' }, newDueAt },
+        },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
     if (request.method === 'GET' && listedRoute[2] === '/available-actions') {
+      const suspended = suspensions.has(processId);
       return send(response, 200, {
-        data: [{ action: 'MANAGE_TAGS', label: 'Etiquetas', enabled: true, reasons: [] }],
+        data: [
+          { action: 'MANAGE_TAGS', label: 'Etiquetas', enabled: true, reasons: [] },
+          suspended
+            ? { action: 'RESUME', label: 'Retomar processo', enabled: true, reasons: [] }
+            : { action: 'SUSPEND', label: 'Suspender processo', enabled: true, reasons: [] },
+        ],
       });
     }
     if (request.method === 'GET' && listedRoute[2] === '/stages') {
@@ -4515,12 +4617,14 @@ createServer(async (request, response) => {
     }
     if (request.method === 'GET' && listedRoute[2] === '/summary') {
       const item = listProcessItem(listedFixture);
+      const suspension = suspensions.get(processId);
+      const status = statusOfListed(processId, listedFixture);
       return send(response, 200, {
         data: {
           header: {
             code: item.code,
             title: item.title,
-            status: item.status,
+            status,
             priority: item.priority,
             tags: tagsDto,
             isBudgetConfidential: false,
@@ -4538,10 +4642,10 @@ createServer(async (request, response) => {
               groupLabel: 'Planejamento',
             },
             department: item.currentDepartment,
-            status: item.status,
-            statusBeforeSuspension: null,
-            suspensionReason: null,
-            suspendedAt: null,
+            status,
+            statusBeforeSuspension: suspension?.statusBefore ?? null,
+            suspensionReason: suspension?.reason ?? null,
+            suspendedAt: suspension?.suspendedAt ?? null,
             completedAt: null,
             canceledAt: null,
             cancellationReason: null,
@@ -4553,8 +4657,13 @@ createServer(async (request, response) => {
             approver: null,
           },
           pending: { blockingCount: 0, warningCount: 0, items: [] },
-          nextStep: { action: null, instructions: null },
-          deadline: item.deadline,
+          nextStep: {
+            action: suspension
+              ? { action: 'RESUME', label: 'Retomar processo', enabled: true, reasons: [] }
+              : null,
+            instructions: null,
+          },
+          deadline: { ...item.deadline, isPaused: suspension !== undefined },
           target: { targetDate: '2026-11-30', isOverdue: false, overdueDays: null },
           documents: [],
           approvals: [],
@@ -4578,7 +4687,7 @@ createServer(async (request, response) => {
             title: item.title,
             object: 'Aquisição de cimento Portland para a manutenção das vias do município.',
             description: null,
-            status: item.status,
+            status: statusOfListed(processId, listedFixture),
             priority: item.priority,
             organization: item.organization,
             requestingSecretariat: item.requestingSecretariat,
@@ -4613,6 +4722,22 @@ createServer(async (request, response) => {
         { ETag: `"${processVersionOf(processId)}"` },
       );
     }
+  }
+  // CAL-05/CAL-06 (prévia da retomada — US-008): dias úteis sem feriados, fuso de Brasília.
+  if (request.method === 'GET' && url.pathname === '/api/v1/calendar/business-days') {
+    const dates = businessDaysBetween(
+      String(url.searchParams.get('from')),
+      String(url.searchParams.get('to')),
+    );
+    return send(response, 200, { data: { businessDays: dates.length, dates } });
+  }
+  if (request.method === 'POST' && url.pathname === '/api/v1/calendar/add-business-days') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    return send(response, 200, {
+      data: {
+        dueDateTime: addBusinessDaysBrt(String(body.fromDateTime), Number(body.businessDays)),
+      },
+    });
   }
   const processRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/available-actions)?$/.exec(
     url.pathname,

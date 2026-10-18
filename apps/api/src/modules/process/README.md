@@ -337,6 +337,36 @@ const plan = await this.transitions.apply(tx, {
   muda e `ProcessAssigned` (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
 - A auditoria da ação (`process.forward`, `process.return`…) e eventos específicos ficam com quem chama.
 
+## Suspender e retomar (US-008)
+
+- **Rotas:** PRC-23 `POST /processes/{id}/suspend` (`{ reason }` 20–5.000) e PRC-24 `POST
+/processes/{id}/resume` (`{ comment? }` até 5.000) no `ProcessController`, com `@Idempotent`,
+  `@RequireIfMatch` (428) e `PROCESS_SUSPEND` em algum escopo no guard. Esquemas em
+  `packages/validation/src/process/process-suspension.ts`; resposta `suspensionProcessSchema`
+  (`Process` + `statusBeforeSuspension`, `suspendedAt`, `suspensionReason`, `currentStage.pausedAt`)
+  e, no PRC-24, `meta = { extendedBy: { days, slaType }, newDueAt }`.
+- **Casos de uso:** `SuspendProcessCommand`/`ResumeProcessCommand` (`application/process-suspension.commands.ts`,
+  log de falha `process.lifecycle_failed`) — `lockForUpdate` → visibilidade (404) → `PROCESS_SUSPEND`
+  cobrindo o processo SEM custódia (POL-07; 403 com `access.denied`) → status (409
+  `INVALID_PROCESS_STATUS`, ANTES do `If-Match`: nova suspensão de um suspenso é 409 mesmo com a versão
+  atual) → `If-Match` (412) → plano puro (`domain/process-suspension.ts`) → `recordSuspension`/
+  `recordResume` (`WHERE version`) → `ProcessStatusChanged` → `process.suspend`/`process.resume`.
+- **Extensão do prazo (RN-PROC-98/99 · DEC-031):** `BusinessCalendarFacade.daysInInterval` conta os dias
+  úteis (ou corridos, `slaType = CALENDAR`) em [data local da pausa, data local da retomada) e
+  `addBusinessDays(dueAt, n)` dá o novo fim de dia; `pausedTotalSeconds += retomada − pausedAt`. Se o
+  novo prazo ainda não venceu, limpa `overdueSince` (passagem e processo) e os avisos já enviados. A
+  aprovação `PENDING` da passagem ganha os mesmos dias (`ApprovalFacade.extendPendingStageDueAtIn`,
+  depois do processo — ordem de trava). `targetDate` nunca muda (RN-PROC-100).
+- **Evento:** `ProcessStatusChanged` com `cause = SUSPEND/RESUME` e `reason` (motivo/comentário); a
+  routing key da retomada é `process.status_changed.resumed` (não o status restaurado). Timeline
+  `PROCESS_SUSPENDED`/`PROCESS_RESUMED` pelo mapeamento existente; aviso `PROCESS_STATUS_CHANGED` pelo
+  worker (`ProcessStakeholdersLookup`: criador, responsável e participantes com `notify`, sem o autor).
+- **Congelamento (RN-PROC-96):** as próprias políticas recusam com 409 (`EDITABLE`/`CUSTODY` não
+  incluem `SUSPENDED`); o job `deadlines` já filtra `paused_at IS NULL`. Suspenso em aprovação, o
+  painel continua mostrando o aprovador (`responsible.approver`) para o aviso "decisão indisponível".
+- **Testes:** `domain/process-suspension.spec.ts`, `presentation/process-suspension.routes.spec.ts`
+  (8 categorias, em memória) e `test/tenant-leak/process-suspension.spec.ts` (PostgreSQL).
+
 ## Histórico de tramitações (US-054)
 
 - **Rota:** PRC-11 `GET /processes/{id}/movements` (`ProcessMovementsController` →

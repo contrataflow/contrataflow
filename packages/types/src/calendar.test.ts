@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addCalendarDays,
   dayOfWeek,
+  daysInInterval,
   easterSunday,
   localDateOf,
   MOVABLE_HOLIDAY_NAMES,
@@ -194,5 +195,30 @@ describe('planRecurringHolidays (RN-TEN-76)', () => {
       2029,
     );
     expect(leap[0]?.date).toBe('2029-02-28');
+  });
+});
+
+describe('daysInInterval (RN-PROC-98 — dias suspensos)', () => {
+  const holidays = new Set(['2026-10-12']);
+
+  it('conta os dias úteis de [from, to): 06..09/10 (10–11 fim de semana, 12 feriado) = 4', () => {
+    expect(daysInInterval('2026-10-06', '2026-10-13', 'BUSINESS', holidays)).toBe(4);
+  });
+
+  it('o dia de from conta e o de to não: 06 e 07/10 = 2', () => {
+    expect(daysInInterval('2026-10-06', '2026-10-08', 'BUSINESS', holidays)).toBe(2);
+  });
+
+  it('mesma data (ou intervalo invertido) = 0', () => {
+    expect(daysInInterval('2026-10-06', '2026-10-06', 'BUSINESS', holidays)).toBe(0);
+    expect(daysInInterval('2026-10-08', '2026-10-06', 'CALENDAR', holidays)).toBe(0);
+  });
+
+  it('só fim de semana e feriado no intervalo = 0', () => {
+    expect(daysInInterval('2026-10-10', '2026-10-13', 'BUSINESS', holidays)).toBe(0);
+  });
+
+  it('CALENDAR conta dias corridos, inclusive feriados', () => {
+    expect(daysInInterval('2026-10-06', '2026-10-13', 'CALENDAR', holidays)).toBe(7);
   });
 });

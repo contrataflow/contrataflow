@@ -33,6 +33,19 @@ export interface ApprovalRepository {
   insert(tx: TenantTx, approval: Approval, coverage: readonly ApprovalCoverage[]): Promise<void>;
   /** Aprovações `PENDING` do processo, mais antigas primeiro (painel situacional — US-004). */
   listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]>;
+  /** US-008: a aprovação `PENDING` da passagem (`processStageId`), se houver. */
+  findPendingForStage(tx: TenantTx, processStageId: string): Promise<Approval | null>;
+  /**
+   * US-008 (RN-PROC-99): novo `dueAt` da aprovação ainda `PENDING` (`updatedAt`, `updatedById`,
+   * `version + 1`). `false` = deixou de estar pendente.
+   */
+  updatePendingDueAt(
+    tx: TenantTx,
+    approvalId: string,
+    dueAt: Date,
+    at: Date,
+    userId: string | null,
+  ): Promise<boolean>;
   /** Resumos das aprovações do tenant da transação por id, numa leitura; ids de fora não voltam. */
   summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]>;
   /** A aprovação cobre exatamente esta versão do documento (selo de aprovação — US-067)? */

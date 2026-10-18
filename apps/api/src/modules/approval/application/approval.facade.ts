@@ -33,6 +33,13 @@ export interface PendingApprovalFact {
   readonly dueAt: Date | null;
 }
 
+/** Prazo estendido da aprovação pendente da passagem (US-008 · RN-PROC-99). */
+export interface ExtendedApprovalDue {
+  readonly approvalId: string;
+  readonly from: Date;
+  readonly to: Date;
+}
+
 /**
  * API pública do módulo `approval` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório. US-004: as aprovações pendentes do processo para o painel.
@@ -96,6 +103,27 @@ export class ApprovalFacade {
     return new Map(
       rows.map((row) => [row.id, { title: row.title, status: row.status, decision: row.decision }]),
     );
+  }
+
+  /**
+   * US-008 (RN-PROC-99): a aprovação `PENDING` da passagem (congelada durante a suspensão) ganha o
+   * prazo que `extend` calcula a partir do atual (os mesmos dias da etapa, pelo calendário do
+   * tenant), no `tx` da retomada. Sem aprovação pendente ou sem prazo = `null`, nada muda.
+   */
+  async extendPendingStageDueAtIn(
+    tx: TenantTx,
+    processStageId: string,
+    extend: (dueAt: Date) => Promise<Date>,
+    at: Date,
+    userId: string | null,
+  ): Promise<ExtendedApprovalDue | null> {
+    const approval = await this.approvals.findPendingForStage(tx, processStageId);
+    const from = approval?.dueAt ?? null;
+    if (approval === null || from === null) return null;
+    const to = await extend(from);
+    if (to.getTime() === from.getTime()) return null;
+    if (!(await this.approvals.updatePendingDueAt(tx, approval.id, to, at, userId))) return null;
+    return { approvalId: approval.id, from, to };
   }
 
   /** Aprovações `PENDING` do processo (mais antigas primeiro), no `tx` do chamador. Leitura. */

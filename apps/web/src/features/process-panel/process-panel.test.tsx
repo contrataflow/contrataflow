@@ -507,7 +507,10 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
       await screen.findByText('Suspenso em 03/10/2026 — motivo: Aguardando orçamento.'),
     ).toBeTruthy();
     expect(within(section('Prazos')).getByText('Prazo pausado')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Retomar' })).toBeTruthy();
+    // US-008: banner "Suspenso desde … — motivo" e "Retomar" abre o diálogo SCR-116.
+    expect(screen.getByText('Suspenso desde 03/10/2026 — Aguardando orçamento.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Retomar' }));
+    expect(await screen.findByRole('dialog', { name: 'Retomar processo' })).toBeTruthy();
     unmount();
 
     mockProcessApi({
@@ -779,5 +782,35 @@ describe('process-panel.api', () => {
     const limited = new ApiError({ status: 429, code: 'RATE_LIMITED', retryAfterSeconds: 10 });
     expect(panelRefetchInterval(state(limited), now + 5_000)).toBe(false);
     expect(panelRefetchInterval(state(limited), now + 11_000)).toBe(PANEL_REFETCH_MS);
+  });
+});
+
+describe('US-008 — suspensão no painel (SCR-006)', () => {
+  it('FA-01: aprovação pendente de processo suspenso mostra "decisão indisponível até a retomada"', async () => {
+    mockProcessApi({
+      summary: () =>
+        jsonResponse({
+          data: summaryDto({
+            where: {
+              ...summaryDto().where,
+              status: 'SUSPENDED',
+              statusBeforeSuspension: 'AWAITING_APPROVAL',
+              suspensionReason: 'Determinação do tribunal de contas.',
+              suspendedAt: '2026-10-03T12:00:00.000Z',
+            },
+            responsible: {
+              user: null,
+              queueDepartment: null,
+              since: null,
+              approver: { approvalId: ID(777), label: 'Roberto Lima', isMine: true },
+            },
+          }),
+        }),
+    });
+    renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
+    expect(await screen.findByText('Aguardando decisão de Roberto Lima')).toBeTruthy();
+    expect(
+      screen.getByText('Processo suspenso — decisão indisponível até a retomada'),
+    ).toBeTruthy();
   });
 });

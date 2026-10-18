@@ -132,7 +132,13 @@ function ResponsibleCard({
   let body: ReactNode;
   if (responsible.approver !== null) {
     body = (
-      <p className="text-sm font-medium">{t('awaiting', { name: responsible.approver.label })}</p>
+      <>
+        <p className="text-sm font-medium">{t('awaiting', { name: responsible.approver.label })}</p>
+        {/* US-008 · FA-01: a aprovação segue pendente, mas a decisão fica congelada. */}
+        {summary.where.status === 'SUSPENDED' ? (
+          <p className="text-sm text-warning">{t('approvalFrozen')}</p>
+        ) : null}
+      </>
     );
   } else if (responsible.user !== null) {
     body = (

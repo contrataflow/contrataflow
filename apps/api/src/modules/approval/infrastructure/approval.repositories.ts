@@ -8,6 +8,32 @@ import { PendingApprovalExistsError } from '../application/ports.js';
 import type { ApprovalRepository, ApprovalSummaryRow } from '../application/ports.js';
 import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
+type ApprovalRow = NonNullable<Awaited<ReturnType<TenantTx['approval']['findFirst']>>>;
+
+function approvalOf(row: ApprovalRow): Approval {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    processId: row.processId,
+    subjectType: row.subjectType,
+    processStageId: row.processStageId,
+    documentId: row.documentId,
+    title: row.title,
+    requestedById: row.requestedById,
+    requestedAt: row.requestedAt,
+    requestComment: row.requestComment,
+    approverType: row.approverType,
+    approverUserId: row.approverUserId,
+    approverRoleId: row.approverRoleId,
+    approverDepartmentId: row.approverDepartmentId,
+    allowDeputy: row.allowDeputy,
+    dueAt: row.dueAt,
+    status: row.status,
+    createdAt: row.createdAt,
+    createdById: row.createdById ?? row.requestedById,
+  };
+}
+
 /**
  * `approvals` e `approval_documents` no PostgreSQL (US-065/US-051): INSERT no `tx` do caso de uso,
  * sob a RLS do tenant e a extensão de isolamento. A pendência única é dos índices parciais
@@ -63,32 +89,31 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     });
   }
 
+  async findPendingForStage(tx: TenantTx, processStageId: string): Promise<Approval | null> {
+    const row = await tx.approval.findFirst({ where: { processStageId, status: 'PENDING' } });
+    return row === null ? null : approvalOf(row);
+  }
+
+  async updatePendingDueAt(
+    tx: TenantTx,
+    approvalId: string,
+    dueAt: Date,
+    at: Date,
+    userId: string | null,
+  ): Promise<boolean> {
+    const updated = await tx.approval.updateMany({
+      where: { id: approvalId, status: 'PENDING' },
+      data: { dueAt, updatedAt: at, updatedById: userId, version: { increment: 1 } },
+    });
+    return updated.count === 1;
+  }
+
   async listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]> {
     const rows = await tx.approval.findMany({
       where: { processId, status: 'PENDING' },
       orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
     });
-    return rows.map((row) => ({
-      id: row.id,
-      tenantId: row.tenantId,
-      processId: row.processId,
-      subjectType: row.subjectType,
-      processStageId: row.processStageId,
-      documentId: row.documentId,
-      title: row.title,
-      requestedById: row.requestedById,
-      requestedAt: row.requestedAt,
-      requestComment: row.requestComment,
-      approverType: row.approverType,
-      approverUserId: row.approverUserId,
-      approverRoleId: row.approverRoleId,
-      approverDepartmentId: row.approverDepartmentId,
-      allowDeputy: row.allowDeputy,
-      dueAt: row.dueAt,
-      status: row.status,
-      createdAt: row.createdAt,
-      createdById: row.createdById ?? row.requestedById,
-    }));
+    return rows.map(approvalOf);
   }
 
   async summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]> {
@@ -174,6 +199,28 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
           decision: DECISION_OF_STATUS[row.status],
         })),
     );
+  }
+
+  findPendingForStage(_tx: TenantTx, processStageId: string): Promise<Approval | null> {
+    const tenantId = currentRequestContext()?.tenantId;
+    return Promise.resolve(
+      [...this.rows.values()].find(
+        (row) =>
+          row.tenantId === tenantId &&
+          row.processStageId === processStageId &&
+          row.status === 'PENDING',
+      ) ?? null,
+    );
+  }
+
+  updatePendingDueAt(_tx: TenantTx, approvalId: string, dueAt: Date): Promise<boolean> {
+    const tenantId = currentRequestContext()?.tenantId;
+    const row = this.rows.get(approvalId);
+    if (row === undefined || row.tenantId !== tenantId || row.status !== 'PENDING') {
+      return Promise.resolve(false);
+    }
+    this.rows.set(approvalId, { ...row, dueAt });
+    return Promise.resolve(true);
   }
 
   coversDocumentVersion(

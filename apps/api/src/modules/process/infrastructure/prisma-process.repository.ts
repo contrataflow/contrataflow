@@ -47,6 +47,7 @@ import type { ClaimPlan } from '../domain/process-claim.js';
 import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
 import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
+import type { ResumePlan, SuspendPlan } from '../domain/process-suspension.js';
 import type { Process } from '../domain/process.js';
 import type { StageTransitionPlan } from '../domain/stage-transition.js';
 
@@ -541,6 +542,67 @@ export class PrismaProcessRepository implements ProcessRepository {
       },
       select: { id: true },
     });
+    await insertMovement(tx, plan.movement);
+    return true;
+  }
+
+  async recordSuspension(tx: TenantTx, plan: SuspendPlan): Promise<boolean> {
+    const { process, suspension } = plan;
+    const updated = await tx.process.updateMany({
+      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      data: {
+        status: process.status,
+        statusBeforeSuspension: suspension.statusBeforeSuspension,
+        suspendedAt: suspension.suspendedAt,
+        suspendedById: suspension.suspendedById,
+        suspensionReason: suspension.suspensionReason,
+        updatedAt: process.updatedAt,
+        updatedById: process.updatedById,
+        version: process.version,
+      },
+    });
+    if (updated.count !== 1) return false;
+    const staged = await tx.processStage.updateMany({
+      where: { id: plan.stageId, status: 'ACTIVE' },
+      data: { pausedAt: plan.pausedAt, updatedAt: process.updatedAt, version: { increment: 1 } },
+    });
+    if (staged.count !== 1) throw new Error('Passagem ativa ausente ao suspender o processo.');
+    await insertMovement(tx, plan.movement);
+    return true;
+  }
+
+  async recordResume(tx: TenantTx, plan: ResumePlan): Promise<boolean> {
+    const { process, stage } = plan;
+    const updated = await tx.process.updateMany({
+      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      data: {
+        status: process.status,
+        statusBeforeSuspension: null,
+        suspendedAt: null,
+        suspendedById: null,
+        suspensionReason: null,
+        currentStageDueAt: process.currentStageDueAt,
+        ...(stage.clearOverdue ? { overdueSince: null } : {}),
+        updatedAt: process.updatedAt,
+        updatedById: process.updatedById,
+        version: process.version,
+      },
+    });
+    if (updated.count !== 1) return false;
+    const staged = await tx.processStage.updateMany({
+      where: { id: stage.id, status: 'ACTIVE' },
+      data: {
+        pausedAt: null,
+        pausedTotalSeconds: { increment: stage.pausedSeconds },
+        dueAt: stage.dueAt,
+        ...(stage.clearOverdue
+          ? { overdueSince: null, dueSoonNotifiedAt: null, overdueNotifiedAt: null }
+          : {}),
+        updatedAt: process.updatedAt,
+        version: { increment: 1 },
+      },
+    });
+    if (staged.count !== 1) throw new Error('Passagem ativa ausente ao retomar o processo.');
     await insertMovement(tx, plan.movement);
     return true;
   }

@@ -78,7 +78,7 @@ Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = 
 | `ProcessStageChanged` | `process.stage_changed.<cause>` | Encaminhar (US-047), devolver (US-048), decisão de aprovação (US-052), concluir (US-010) | `cause` (`FORWARD`, `RETURN`, `APPROVAL_APPROVED`, `APPROVAL_RETURNED`, `APPROVAL_REJECTED`, `COMPLETE`), `movementId`, `fromStage {processStageId, key}`, `toStage {processStageId, key, type}`, `fromDepartmentId`, `toDepartmentId`, `toUserId?`, `dueAt?`, `documentIds[]`, `approvalId?` | T A N M |
 | ↳ `ProcessForwarded` | `process.stage_changed.forward` | especialização (`cause = FORWARD`) | — | — |
 | ↳ `ProcessReturned` | `process.stage_changed.return` | especialização (`cause = RETURN`) | — | — |
-| `ProcessStatusChanged` | `process.status_changed.<status>` | Ciclo de vida (US-008, US-009, US-010, US-047, US-052) | `fromStatus`, `toStatus`, `cause`, `reasonProvided: boolean` | T N M |
+| `ProcessStatusChanged` | `process.status_changed.<status>` (retomada: `.resumed`) | Ciclo de vida (US-008, US-009, US-010, US-047, US-052) | `fromStatus`, `toStatus`, `cause` (`FORWARD`, `RETURN`, `APPROVAL_DECISION`, `SUSPEND`, `RESUME`, `CANCEL`, `COMPLETE`), `reasonProvided: boolean`, `reason?` (motivo da suspensão/cancelamento ou comentário da retomada — `params.reason` da timeline) | T N M |
 | ↳ `ProcessSuspended` / `ProcessResumed` | `process.status_changed.suspended` / `.resumed` | US-008 | — | — |
 | ↳ `ProcessCanceled` | `process.status_changed.canceled` | US-009 | — | — |
 | ↳ `ProcessCompleted` | `process.status_changed.completed` | US-010, US-052 | — | — |

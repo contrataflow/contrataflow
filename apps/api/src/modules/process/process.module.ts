@@ -80,6 +80,11 @@ import {
   ProcessParticipantRecorder,
 } from './application/process-participants.support.js';
 import { ProcessRuntimeLoader } from './application/process-runtime.loader.js';
+import {
+  ProcessLifecycleSupport,
+  ResumeProcessCommand,
+  SuspendProcessCommand,
+} from './application/process-suspension.commands.js';
 import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
 import { ProcessPresenter } from './application/process.presenter.js';
@@ -168,6 +173,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * (mudança de etapa reutilizada por devolução, decisão e conclusão) e as prévias de PRC-08.
  * US-048: devolução (PRC-20 — `ReturnProcessCommand`) sobre o mesmo serviço, com o responsável
  * resolvido por `PREVIOUS_ASSIGNEE`.
+ * US-008: suspender e retomar (PRC-23/PRC-24 — `SuspendProcessCommand`/`ResumeProcessCommand`), com
+ * a extensão do prazo pelo `BusinessCalendarFacade` e da aprovação pendente pela `ApprovalFacade`.
  * US-054: histórico de tramitações (PRC-11 — `ListProcessMovementsHandler`), leitura de
  * `ProcessMovement` com os nomes hidratados em lote pelas fachadas de `workflow`, `organization`,
  * `identity` e `approval`, e o `ip` só com `AUDIT_VIEW` (`AccessFacade.revealsField`).
@@ -221,6 +228,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ForwardProcessCommand,
     ReturnProcessCommand,
     ClaimProcessCommand,
+    ProcessLifecycleSupport,
+    SuspendProcessCommand,
+    ResumeProcessCommand,
     ListProcessMovementsHandler,
     ForwardPreviews,
     CheckDuplicateProcessesQuery,

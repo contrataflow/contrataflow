@@ -37,6 +37,8 @@ describe('ApprovalFacade', () => {
     const asked: string[] = [];
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
+      findPendingForStage: () => Promise.resolve(null),
+      updatePendingDueAt: () => Promise.resolve(false),
       coversDocumentVersion: () => Promise.resolve(false),
       summariesByIds: () => Promise.resolve([]),
       listPendingByProcess: (_tx, processId) => {
@@ -72,6 +74,8 @@ describe('ApprovalFacade', () => {
     const asked: (readonly string[])[] = [];
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
+      findPendingForStage: () => Promise.resolve(null),
+      updatePendingDueAt: () => Promise.resolve(false),
       coversDocumentVersion: () => Promise.resolve(false),
       listPendingByProcess: () => Promise.resolve([]),
       summariesByIds: (_tx, ids) => {
@@ -94,5 +98,59 @@ describe('ApprovalFacade', () => {
       status: 'APPROVED',
       decision: 'APPROVE',
     });
+  });
+
+  it('extendPendingStageDueAtIn (US-008): estende o prazo da aprovação pendente da passagem', async () => {
+    const pending = { ...approval, dueAt: new Date('2026-10-09T02:59:59.999Z') };
+    const updates: unknown[] = [];
+    const repository: ApprovalRepository = {
+      insert: () => Promise.resolve(),
+      coversDocumentVersion: () => Promise.resolve(false),
+      summariesByIds: () => Promise.resolve([]),
+      listPendingByProcess: () => Promise.resolve([]),
+      findPendingForStage: (_tx, stageId) =>
+        Promise.resolve(stageId === pending.processStageId ? pending : null),
+      updatePendingDueAt: (_tx, ...args) => {
+        updates.push(args);
+        return Promise.resolve(true);
+      },
+    };
+    const facade = new ApprovalFacade(
+      repository,
+      {} as ApproverResolver,
+      {} as ApprovalRequestService,
+    );
+    const to = new Date('2026-10-14T02:59:59.999Z');
+    const at = new Date('2026-10-08T12:00:00.000Z');
+    const extended = await facade.extendPendingStageDueAtIn(
+      {} as TenantTx,
+      pending.processStageId ?? '',
+      () => Promise.resolve(to),
+      at,
+      'actor',
+    );
+    expect(extended).toEqual({ approvalId: pending.id, from: pending.dueAt, to });
+    expect(updates).toEqual([[pending.id, to, at, 'actor']]);
+
+    // Outra passagem, prazo igual ou sem prazo: nada muda.
+    await expect(
+      facade.extendPendingStageDueAtIn(
+        {} as TenantTx,
+        'outra',
+        () => Promise.resolve(to),
+        at,
+        null,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      facade.extendPendingStageDueAtIn(
+        {} as TenantTx,
+        pending.processStageId ?? '',
+        (dueAt) => Promise.resolve(dueAt),
+        at,
+        null,
+      ),
+    ).resolves.toBeNull();
+    expect(updates).toHaveLength(1);
   });
 });

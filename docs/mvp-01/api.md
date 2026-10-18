@@ -276,8 +276,8 @@ Rotas do BFF (não fazem parte da API NestJS; especificadas em [authentication.m
 | PRC-20 | POST | `/processes/{id}/return` | `PROCESS_RETURN` + POL-01 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged`, `ProcessAssigned` | US-048 |
 | PRC-21 | POST | `/processes/{id}/claim` | `PROCESS_CLAIM` + POL-04 (IM) | 200 | `ProcessAssigned` | US-049 |
 | PRC-22 | POST | `/processes/{id}/assign` | `PROCESS_ASSIGN` ou titular + POL-05 (IM) | 200 | `ProcessAssigned` | US-050 |
-| PRC-23 | POST | `/processes/{id}/suspend` | `PROCESS_SUSPEND` + POL-07 (IM) | 200 | `ProcessStatusChanged` | US-008 |
-| PRC-24 | POST | `/processes/{id}/resume` | `PROCESS_SUSPEND` + POL-07 (IM) | 200 | `ProcessStatusChanged` | US-008 |
+| PRC-23 | POST | `/processes/{id}/suspend` | `PROCESS_SUSPEND` + POL-07 (IM, Idem.) | 200 | `ProcessStatusChanged` | US-008 |
+| PRC-24 | POST | `/processes/{id}/resume` | `PROCESS_SUSPEND` + POL-07 (IM, Idem.) | 200 | `ProcessStatusChanged` | US-008 |
 | PRC-25 | POST | `/processes/{id}/cancel` | `PROCESS_CANCEL` + POL-06 (IM) | 200 | `ProcessStatusChanged`, `ApprovalCanceled` | US-009 |
 | PRC-26 | POST | `/processes/{id}/complete` | `PROCESS_COMPLETE` + POL-08 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged` | US-010 |
 | PRC-27 | POST | `/processes/{id}/duplicate` | `PROCESS_DUPLICATE` + `PROCESS_CREATE` (Idem.) | 201 | `ProcessCreated`, `ProcessDuplicated`, `DocumentCreated` | US-011 |

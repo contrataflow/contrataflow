@@ -315,7 +315,11 @@ export class GetProcessSummaryQuery {
         queueDepartment: process.currentResponsibleId === null && !final ? department : null,
         since: situation.assignmentSince?.toISOString() ?? null,
         approver:
-          process.status === 'AWAITING_APPROVAL' && approvalOfStage !== undefined
+          // US-008 · FA-01: suspenso em aprovação, a aprovação segue `PENDING` (decisão congelada).
+          (process.status === 'AWAITING_APPROVAL' ||
+            (process.status === 'SUSPENDED' &&
+              situation.statusBeforeSuspension === 'AWAITING_APPROVAL')) &&
+          approvalOfStage !== undefined
             ? {
                 approvalId: approvalOfStage.id,
                 label: approvalOfStage.label,

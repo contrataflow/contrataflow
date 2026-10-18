@@ -42,6 +42,11 @@ import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { FollowToggleButton } from '../process-participants/follow-toggle-button';
 import { ParticipantsTab } from '../process-participants/participants-tab';
 import { ReturnProcessDialog } from '../process-return/return-process-dialog';
+import { SuspendedBanner } from '../process-suspension/suspended-banner';
+import {
+  ResumeProcessDialog,
+  SuspendProcessDialog,
+} from '../process-suspension/suspension-dialogs';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { RisksLink } from '../risks/risks-link';
 import { ProcessTagsButton, ProcessTagsDialog } from '../tags/process-tags';
@@ -248,6 +253,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   const [returnStageId, setReturnStageId] = useState<string | null>(null);
   // US-049: "Assumir" é ação direta (PRC-21), sem diálogo.
   const claiming = useClaimProcess(processId);
+  // US-008: "Suspender" (menu "Mais") e "Retomar" (ação primária do suspenso) abrem o SCR-116.
+  const [suspending, setSuspending] = useState(false);
+  const [resuming, setResuming] = useState(false);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -351,6 +359,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         </Alert>
       ) : null}
       {stale.conflict ? <Alert tone="info" title={t('actions.conflict')} /> : null}
+      <SuspendedBanner where={data.where} timeZone={timeZone} />
       <ProcessActionBar
         summary={data}
         actions={actions.data}
@@ -375,7 +384,11 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           else if (action.action === 'RETURN') {
             setReturnStageId('toStageId' in action ? (action.toStageId ?? null) : null);
             setReturning(true);
-          } else toast({ title: t('actions.notYet') });
+          }
+          // US-008: "Suspender"/"Retomar" abrem os diálogos SCR-116.
+          else if (action.action === 'SUSPEND') setSuspending(true);
+          else if (action.action === 'RESUME') setResuming(true);
+          else toast({ title: t('actions.notYet') });
         }}
       />
       <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
@@ -396,6 +409,26 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         initialStageId={returnStageId}
         onReturned={() => {
           // Quem devolveu perde a custódia: foco ao cabeçalho de status, como no encaminhamento.
+          document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
+        }}
+      />
+      <SuspendProcessDialog
+        processId={processId}
+        open={suspending}
+        onOpenChange={setSuspending}
+        onDone={() => {
+          document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
+        }}
+      />
+      <ResumeProcessDialog
+        processId={processId}
+        open={resuming}
+        onOpenChange={setResuming}
+        summary={data}
+        onReviewTargetDate={() => {
+          setEditing(true);
+        }}
+        onDone={() => {
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
         }}
       />

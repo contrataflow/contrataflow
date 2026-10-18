@@ -187,3 +187,43 @@ describe('US-055 — prazo da etapa em dias úteis (RN-TRAM-78)', () => {
     expect(due.toISOString()).toBe('2026-10-25T02:59:59.999Z');
   });
 });
+
+describe('US-008 — dias suspensos na retomada (RN-PROC-98)', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('suspenso em 06/10 10:00 e retomado em 13/10 15:00 (Brasília): 4 dias úteis, 12/10 feriado', async () => {
+    const { repository, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-12', { scope: 'NATIONAL' }));
+    const days = await inTenant(A, (tx) =>
+      facade.daysInInterval(tx, at('2026-10-06T13:00:00Z'), at('2026-10-13T18:00:00Z'), 'BUSINESS'),
+    );
+    expect(days).toBe(4);
+  });
+
+  it('mesma data local = 0 (FA-04), mesmo cruzando a meia-noite UTC', async () => {
+    const { facade, inTenant } = setup();
+    const days = await inTenant(A, (tx) =>
+      facade.daysInInterval(tx, at('2026-10-06T13:00:00Z'), at('2026-10-07T01:00:00Z'), 'BUSINESS'),
+    );
+    expect(days).toBe(0);
+  });
+
+  it('ponto facultativo só deixa de contar com calendar.optionalHolidaysAreNonBusiness', async () => {
+    const { repository, settings, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-07', { scope: 'OPTIONAL' }));
+    const count = (tx: TenantTx) =>
+      facade.daysInInterval(tx, at('2026-10-06T13:00:00Z'), at('2026-10-08T13:00:00Z'), 'BUSINESS');
+    expect(await inTenant(A, count)).toBe(2);
+    settings.set(A, { optionalHolidaysAreNonBusiness: true });
+    expect(await inTenant(A, count)).toBe(1);
+  });
+
+  it('CALENDAR conta dias corridos', async () => {
+    const { repository, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-12', { scope: 'NATIONAL' }));
+    const days = await inTenant(A, (tx) =>
+      facade.daysInInterval(tx, at('2026-10-06T13:00:00Z'), at('2026-10-13T18:00:00Z'), 'CALENDAR'),
+    );
+    expect(days).toBe(7);
+  });
+});

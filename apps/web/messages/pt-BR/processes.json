@@ -220,6 +220,7 @@
       "since": "desde {date}",
       "queue": "Na fila de {department}",
       "awaiting": "Aguardando decisão de {name}",
+      "approvalFrozen": "Processo suspenso — decisão indisponível até a retomada",
       "none": "Sem responsável definido"
     },
     "pending": {
@@ -594,6 +595,63 @@
       "reload": "Os dados do processo ainda estão carregando. Tente novamente em instantes.",
       "unavailable": "Não foi possível assumir o processo agora. Tente novamente em instantes.",
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    }
+  },
+  "suspension": {
+    "close": "Fechar",
+    "loading": "Carregando o processo…",
+    "cancel": "Cancelar",
+    "counter": "{count, number} / {max, number}",
+    "suspended": "Processo suspenso. Os prazos estão pausados.",
+    "resumed": "Processo retomado.",
+    "resumedWithDue": "Processo retomado. Novo prazo da etapa: {date}.",
+    "banner": "Suspenso desde {date} — {reason}",
+    "suspend": {
+      "title": "Suspender processo",
+      "description": "Os prazos ficam pausados e ninguém poderá tramitar ou decidir aprovações até a retomada.",
+      "submit": "Suspender",
+      "submitting": "Suspendendo…",
+      "reason": {
+        "label": "Motivo",
+        "hint": "Obrigatório, de 20 a 5.000 caracteres."
+      }
+    },
+    "resume": {
+      "title": "Retomar processo",
+      "description": "O processo volta à situação anterior e o prazo da etapa é estendido pelos dias em que ficou suspenso.",
+      "submit": "Retomar",
+      "submitting": "Retomando…",
+      "period": "Período suspenso",
+      "since": "Suspenso desde {date}",
+      "deadline": "Prazo da etapa",
+      "noDeadline": "Esta etapa não tem prazo definido.",
+      "noDays": "Nenhum dia útil será acrescentado.",
+      "calculating": "Calculando o novo prazo…",
+      "previewFailed": "Não foi possível calcular a prévia agora; o novo prazo é confirmado na retomada.",
+      "businessDays": "{count, plural, one {# dia útil será acrescentado} other {# dias úteis serão acrescentados}}. Novo prazo: {date}.",
+      "calendarDays": "{count, plural, one {# dia corrido será acrescentado} other {# dias corridos serão acrescentados}}. Novo prazo: {date}.",
+      "target": "Prazo alvo",
+      "targetKept": "O prazo alvo continua {date}.",
+      "reviewTarget": "Revisar prazo alvo",
+      "comment": {
+        "label": "Comentário (opcional)",
+        "hint": "Até 5.000 caracteres."
+      }
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "status": "Ação indisponível com o processo na situação atual.",
+      "permission": "Você não tem permissão para suspender ou retomar este processo.",
+      "notFound": "Processo não encontrado.",
+      "access": "Seu acesso a este órgão não está ativo.",
+      "stale": "O processo foi alterado por outra pessoa. Recarregue e tente novamente.",
+      "reload": "Recarregar",
+      "inProgress": "Estamos concluindo a operação.",
+      "keyReused": "Esta solicitação já foi enviada com outros dados.",
+      "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
     }
   }
 }

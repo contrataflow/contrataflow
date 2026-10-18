@@ -4,6 +4,7 @@ import {
   PROCESS_FORWARD_MESSAGES,
   PROCESS_ITEM_MESSAGES,
   PROCESS_RETURN_MESSAGES,
+  PROCESS_SUSPENSION_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
   TAG_MESSAGES,
   estimatedValueFromSourceMessage,
@@ -560,4 +561,45 @@ export function recordProcessReturned(assigneeResolved: boolean, durationMs: num
   const attributes = { assignee_resolved: String(assigneeResolved) };
   returnedCounter.add(1, attributes);
   returnDuration.record(durationMs, attributes);
+}
+
+/** 412 `VERSION_CONFLICT` da suspensão/retomada (V-05). */
+export function suspensionVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_SUSPENSION_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-PROC-93 · V-02): suspender fora dos status de origem. */
+export function processNotSuspendable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_SUSPENSION_MESSAGES.notSuspendable,
+    extensions: { processStatus: status },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-PROC-97 · V-03): retomar processo que não está suspenso. */
+export function processNotSuspended(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_SUSPENSION_MESSAGES.notSuspended,
+    extensions: { processStatus: status },
+  });
+}
+
+let suspensionCounter: Counter | undefined;
+let suspensionDuration: Histogram | undefined;
+
+/** `cf_process_lifecycle_total{action}` e `cf_process_lifecycle_duration_ms` (US-008). */
+export function recordProcessLifecycle(action: 'SUSPEND' | 'RESUME', durationMs: number): void {
+  const meter = metrics.getMeter('contrataflow-api');
+  suspensionCounter ??= meter.createCounter('cf_process_lifecycle_total', {
+    description: 'Suspensões e retomadas de processo (commit do PRC-23/PRC-24).',
+  });
+  suspensionDuration ??= meter.createHistogram('cf_process_lifecycle_duration_ms', {
+    description: 'Duração da suspensão/retomada (bloqueio, calendário e gravação).',
+    unit: 'ms',
+  });
+  suspensionCounter.add(1, { action });
+  suspensionDuration.record(durationMs, { action });
 }

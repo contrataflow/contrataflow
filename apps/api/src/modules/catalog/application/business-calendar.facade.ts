@@ -1,4 +1,4 @@
-import { addCalendarDays } from '@contrataflow/types';
+import { addCalendarDays, daysInInterval } from '@contrataflow/types';
 import type { DayCountType } from '@contrataflow/types';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -90,6 +90,22 @@ export class BusinessCalendarFacade {
     if (start > end) return 0;
     const nonBusiness = await this.nonBusinessBetween(tx, settings, start, end);
     return listBusinessDaysBetween(start, end, nonBusiness).length;
+  }
+
+  /**
+   * RN-PROC-98 (US-008): dias úteis (ou corridos) entre os dias locais de `from` (conta) e `to`
+   * (não conta), no fuso e com os feriados do tenant — os dias suspensos de uma pausa.
+   */
+  async daysInInterval(tx: TenantTx, from: Date, to: Date, type: DayCountType): Promise<number> {
+    const settings = await this.settingsOf(tx);
+    const start = localDateOf(from, settings.timezone);
+    const end = localDateOf(to, settings.timezone);
+    if (start >= end) return 0;
+    const nonBusiness =
+      type === 'CALENDAR'
+        ? new Set<string>()
+        : await this.nonBusinessBetween(tx, settings, start, end);
+    return daysInInterval(start, end, type, nonBusiness);
   }
 
   /**

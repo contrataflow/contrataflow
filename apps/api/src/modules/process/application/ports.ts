@@ -21,6 +21,7 @@ import type {
   ProcessStageRecord,
 } from '../domain/process-runtime-records.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
+import type { ResumePlan, SuspendPlan } from '../domain/process-suspension.js';
 import type { Process } from '../domain/process.js';
 import type { SavedView } from '../domain/saved-view.js';
 import type { StageTransitionPlan } from '../domain/stage-transition.js';
@@ -293,6 +294,19 @@ export interface ProcessRepository {
    * escrita venceu (nada gravado).
    */
   recordClaim(tx: TenantTx, plan: ClaimPlan): Promise<boolean>;
+  /**
+   * US-008 (RN-PROC-94/95): grava a suspensão no `tx` — o processo (`WHERE version =
+   * expectedVersion`: status, `statusBeforeSuspension`, `suspendedAt/ById`, `suspensionReason`), a
+   * pausa da passagem ativa (`pausedAt`) e a tramitação `SUSPEND`. `false` = outra escrita venceu.
+   */
+  recordSuspension(tx: TenantTx, plan: SuspendPlan): Promise<boolean>;
+  /**
+   * US-008 (RN-PROC-97..99): grava a retomada no `tx` — o processo (status restaurado, campos de
+   * suspensão limpos, `currentStageDueAt` e, se o atraso acabou, `overdueSince = null`), a passagem
+   * (`pausedAt = null`, `pausedTotalSeconds += n`, `dueAt` e os avisos) e a tramitação `RESUME`.
+   * `false` = outra escrita venceu.
+   */
+  recordResume(tx: TenantTx, plan: ResumePlan): Promise<boolean>;
   /**
    * US-048 (RN-TRAM-28): as responsabilidades (`ProcessAssignment`) das passagens ENCERRADAS do
    * processo pela etapa de workflow `workflowStageId` — a base de `PREVIOUS_ASSIGNEE`.

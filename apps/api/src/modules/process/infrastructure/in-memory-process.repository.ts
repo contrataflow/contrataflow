@@ -41,6 +41,7 @@ import type {
   ProcessMovementRecord,
   ProcessStageRecord,
 } from '../domain/process-runtime-records.js';
+import type { ResumePlan, SuspendPlan } from '../domain/process-suspension.js';
 import type { Process } from '../domain/process.js';
 import type { StageTransitionPlan } from '../domain/stage-transition.js';
 
@@ -53,7 +54,10 @@ export type StoredStage = Omit<ProcessStageRecord, 'status'> & {
   readonly exitedAt?: Date | null;
   readonly dueDateOverridden?: boolean;
   readonly pausedAt?: Date | null;
+  readonly pausedTotalSeconds?: number;
   readonly overdueSince?: Date | null;
+  readonly dueSoonNotifiedAt?: Date | null;
+  readonly overdueNotifiedAt?: Date | null;
 };
 
 const NO_SITUATION: Omit<ProcessSituationRow, 'assignmentSince'> = {
@@ -105,6 +109,8 @@ export class InMemoryProcessRepository implements ProcessRepository {
   /** Concessões revogadas (`revokedAt` — RN-PROC-62), fora das leituras como no PostgreSQL. */
   private readonly revoked: (StoredAccess & { readonly revokedAt: Date })[] = [];
   private readonly extras = new Map<string, ProcessListExtras>();
+  /** `processes.suspended_by_id` (US-008). */
+  private readonly suspendedBy = new Map<string, string | null>();
 
   constructor(
     private readonly participants: InMemoryProcessParticipantRepository,
@@ -265,6 +271,58 @@ export class InMemoryProcessRepository implements ProcessRepository {
       }
     }
     this.assignments.push(plan.assignment);
+    this.movements.push(plan.movement);
+    return Promise.resolve(true);
+  }
+
+  recordSuspension(_tx: TenantTx, plan: SuspendPlan): Promise<boolean> {
+    const current = this.processes.get(plan.process.id);
+    if (current?.tenantId !== tenantOfContext() || current.version !== plan.expectedVersion) {
+      return Promise.resolve(false);
+    }
+    const stage = this.stages.get(plan.stageId);
+    if (stage?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao suspender o processo.'));
+    }
+    this.processes.set(plan.process.id, plan.process);
+    this.stages.set(stage.id, { ...stage, pausedAt: plan.pausedAt });
+    this.setSituation(plan.process.id, {
+      statusBeforeSuspension: plan.suspension.statusBeforeSuspension,
+      suspendedAt: plan.suspension.suspendedAt,
+      suspensionReason: plan.suspension.suspensionReason,
+    });
+    this.suspendedBy.set(plan.process.id, plan.suspension.suspendedById);
+    this.movements.push(plan.movement);
+    return Promise.resolve(true);
+  }
+
+  recordResume(_tx: TenantTx, plan: ResumePlan): Promise<boolean> {
+    const current = this.processes.get(plan.process.id);
+    if (current?.tenantId !== tenantOfContext() || current.version !== plan.expectedVersion) {
+      return Promise.resolve(false);
+    }
+    const stage = this.stages.get(plan.stage.id);
+    if (stage?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao retomar o processo.'));
+    }
+    const { clearOverdue } = plan.stage;
+    this.processes.set(plan.process.id, plan.process);
+    this.stages.set(stage.id, {
+      ...stage,
+      pausedAt: null,
+      pausedTotalSeconds: (stage.pausedTotalSeconds ?? 0) + plan.stage.pausedSeconds,
+      dueAt: plan.stage.dueAt,
+      ...(clearOverdue
+        ? { overdueSince: null, dueSoonNotifiedAt: null, overdueNotifiedAt: null }
+        : {}),
+    });
+    this.setSituation(plan.process.id, {
+      statusBeforeSuspension: null,
+      suspendedAt: null,
+      suspensionReason: null,
+      ...(clearOverdue ? { overdueSince: null } : {}),
+    });
+    this.suspendedBy.delete(plan.process.id);
     this.movements.push(plan.movement);
     return Promise.resolve(true);
   }
@@ -687,6 +745,11 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.stages.set(stage.id, stage);
   }
 
+  /** Quem suspendeu o processo (`suspendedById` — US-008). */
+  suspendedByOf(processId: string): string | null {
+    return this.suspendedBy.get(processId) ?? null;
+  }
+
   /** Carga de teste: suspensão, conclusão, cancelamento e o início da responsabilidade ativa. */
   setSituation(processId: string, situation: Partial<ProcessSituationRow>): void {
     this.situations.set(processId, { ...this.situations.get(processId), ...situation });
@@ -702,6 +765,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.processes.clear();
     this.stages.clear();
     this.situations.clear();
+    this.suspendedBy.clear();
     this.assignments.length = 0;
     this.endedAssignments.clear();
     this.movements.length = 0;

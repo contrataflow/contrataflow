@@ -274,8 +274,12 @@ export const ProcessStatusChanged = defineDomainEvent({
     toStatus: z.enum(PROCESS_STATUSES),
     cause: z.enum(STATUS_CHANGE_CAUSES),
     reasonProvided: z.boolean(),
+    /** Motivo da suspensão/cancelamento (US-008/US-009): `params.reason` da timeline. */
+    reason: z.string().min(1).max(5000).nullish(),
   }),
-  routingKey: (payload) => `process.status_changed.${payload.toStatus.toLowerCase()}`,
+  // A retomada (US-008 · RN-PROC-101) restaura o status anterior: a chave é `resumed`, não o status.
+  routingKey: (payload) =>
+    `process.status_changed.${payload.cause === 'RESUME' ? 'resumed' : payload.toStatus.toLowerCase()}`,
 });
 
 /** `ProcessAssignment.type` (entities.md §4.4). */

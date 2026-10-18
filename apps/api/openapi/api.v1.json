@@ -9445,6 +9445,526 @@
         },
         "additionalProperties": false
       },
+      "SuspensionProcess": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "year": {
+            "type": "integer"
+          },
+          "internalCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_PROGRESS",
+              "AWAITING_APPROVAL",
+              "RETURNED",
+              "SUSPENDED",
+              "CANCELED",
+              "COMPLETED",
+              "PUBLISHED"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "organization": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "shortName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "shortName"
+            ]
+          },
+          "requestingSecretariat": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "requestingDepartment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "contractingType": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "modality": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "origin": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "isPriceRegistration": {
+            "type": "boolean"
+          },
+          "currentStage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "dueAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "documentTypeCodes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pausedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "dueAt",
+              "instructions",
+              "documentTypeCodes",
+              "pausedAt"
+            ]
+          },
+          "currentDepartment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "currentResponsible": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "versionNumber": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "versionNumber"
+            ]
+          },
+          "targetDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "estimatedValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimatedValueMasked": {
+            "type": "boolean"
+          },
+          "estimatedValueSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MANUAL",
+              "DFD",
+              "ETP",
+              "PRICE_RESEARCH",
+              "TERM",
+              null
+            ]
+          },
+          "isBudgetConfidential": {
+            "type": "boolean"
+          },
+          "pcaStatus": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "NOT_PLANNED",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "pcaYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pcaItemCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pcaJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creationChannel": {
+            "type": "string",
+            "enum": [
+              "WEB",
+              "DUPLICATION",
+              "IMPORT",
+              "API"
+            ]
+          },
+          "duplicatedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "openedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "statusBeforeSuspension": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "DRAFT",
+              "IN_PROGRESS",
+              "AWAITING_APPROVAL",
+              "RETURNED",
+              "SUSPENDED",
+              "CANCELED",
+              "COMPLETED",
+              "PUBLISHED",
+              null
+            ]
+          },
+          "suspendedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "suspensionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "number",
+          "year",
+          "internalCode",
+          "title",
+          "object",
+          "description",
+          "status",
+          "priority",
+          "organization",
+          "requestingSecretariat",
+          "requestingDepartment",
+          "contractingType",
+          "modality",
+          "origin",
+          "isPriceRegistration",
+          "currentStage",
+          "currentDepartment",
+          "currentResponsible",
+          "workflow",
+          "targetDate",
+          "estimatedValue",
+          "estimatedValueMasked",
+          "estimatedValueSource",
+          "isBudgetConfidential",
+          "pcaStatus",
+          "pcaYear",
+          "pcaItemCode",
+          "pcaJustification",
+          "notes",
+          "creationChannel",
+          "duplicatedFromId",
+          "openedAt",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "version",
+          "statusBeforeSuspension",
+          "suspendedAt",
+          "suspensionReason"
+        ]
+      },
+      "ResumeProcessMeta": {
+        "type": "object",
+        "properties": {
+          "extendedBy": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "slaType": {
+                "type": "string",
+                "enum": [
+                  "BUSINESS",
+                  "CALENDAR"
+                ]
+              }
+            },
+            "required": [
+              "days",
+              "slaType"
+            ]
+          },
+          "newDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "extendedBy",
+          "newDueAt"
+        ]
+      },
+      "ResumeProcessRequest": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        },
+        "additionalProperties": false
+      },
       "ReturnedProcess": {
         "type": "object",
         "properties": {
@@ -11695,6 +12215,20 @@
           "counts",
           "version"
         ]
+      },
+      "SuspendProcessRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
       },
       "ProcessTags": {
         "type": "object",
@@ -39836,6 +40370,161 @@
         }
       }
     },
+    "/processes/{id}/resume": {
+      "post": {
+        "operationId": "PRC-24",
+        "summary": "Retomar processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "process.resume"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeProcessRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processo com o status anterior à suspensão restaurado (`ETag` = nova versão) e `meta` com os dias acrescidos (`extendedBy`) e o novo prazo da etapa (`newDueAt`; `null` sem prazo). Uma transação: trava do processo, `PROCESS_SUSPEND` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), status `SUSPENDED` (409 `INVALID_PROCESS_STATUS`) e `If-Match` (412 `VERSION_CONFLICT`). O prazo da etapa e o da aprovação pendente são estendidos pelos dias úteis (ou corridos, `slaType = CALENDAR`) do calendário do tenant entre a data local da pausa e a da retomada; o prazo alvo não muda. Evento `ProcessStatusChanged` (`process.status_changed.resumed`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SuspensionProcess"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResumeProcessMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/processes/{id}/return": {
       "post": {
         "operationId": "PRC-20",
@@ -41085,6 +41774,157 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/suspend": {
+      "post": {
+        "operationId": "PRC-23",
+        "summary": "Suspender processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "process.suspend"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendProcessRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processo `SUSPENDED` (`ETag` = nova versão) com `statusBeforeSuspension`, `suspendedAt`, `suspensionReason` e `currentStage.pausedAt`. Uma transação: trava do processo, `PROCESS_SUSPEND` cobrindo o processo sem exigir custódia (POL-07: 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`AWAITING_APPROVAL`/`RETURNED` (409 `INVALID_PROCESS_STATUS`, antes do `If-Match`) e `If-Match` (412 `VERSION_CONFLICT`). Pausa o prazo da etapa ativa, congela a aprovação pendente (segue `PENDING`) e as ações de custódia; registra a tramitação `SUSPEND` com o motivo. Etapa, unidade, responsável e concessões não mudam. Evento `ProcessStatusChanged` (`process.status_changed.suspended`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SuspensionProcess"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

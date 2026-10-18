@@ -231,10 +231,13 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-048: a devolução notifica `PROCESS_RETURNED` (responsável de destino ou membros da
     // unidade) e, com responsável resolvido, `PROCESS_ASSIGNED` (`assignmentType = RETURN`).
     ProcessStageChanged: ['process.stage_changed.forward', 'process.stage_changed.return'],
+    // US-008: suspensão e retomada notificam `PROCESS_STATUS_CHANGED` (`PROCESS_STAKEHOLDERS`).
     ProcessStatusChanged: [
       'process.status_changed.in_progress',
       'process.status_changed.awaiting_approval',
       'process.status_changed.returned',
+      'process.status_changed.suspended',
+      'process.status_changed.resumed',
     ],
     ProcessAssigned: ['process.assigned'],
     // US-055: emitidos pelo job `deadlines` (timeline `STAGE_OVERDUE` gravada na mesma transação);
