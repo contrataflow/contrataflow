@@ -205,6 +205,49 @@ export const ProcessStageChanged = defineDomainEvent({
   routingKey: (payload) => `process.stage_changed.${payload.cause.toLowerCase()}`,
 });
 
+/* US-055 — prazos da etapa (events.md §4.1): emitidos só pelo job `deadlines` (ator `SYSTEM`). */
+
+const stageDeadlineFields = {
+  processStageId: uuid,
+  stageKey: z.string().min(1).max(60),
+  dueAt: z.iso.datetime({ offset: true }),
+  /** Responsável da passagem; ausente/nulo = fila da unidade. */
+  assigneeId: uuid.nullable().optional(),
+  departmentId: uuid,
+};
+
+/**
+ * `ProcessStageDueSoon` (US-055 · RN-TRAM-82): a passagem ativa está a
+ * `deadlines.warnBeforeBusinessDays` dias úteis (ou menos) do vencimento — uma única vez por
+ * passagem (`dueSoonNotifiedAt`). Consumidor: aviso `STAGE_DUE_SOON` (US-114).
+ */
+export const ProcessStageDueSoon = defineDomainEvent({
+  eventType: 'ProcessStageDueSoon',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    ...stageDeadlineFields,
+    businessDaysLeft: z.int().min(0),
+  }),
+  routingKey: 'process.stage_due_soon',
+});
+
+/**
+ * `ProcessStageOverdue` (US-055 · RN-TRAM-83): `now > dueAt` — uma única vez por passagem
+ * (`overdueSince`/`overdueNotifiedAt`). Consumidores: timeline `STAGE_OVERDUE` (gravada pelo
+ * próprio job, na mesma transação), aviso `STAGE_OVERDUE` (US-114) e métricas.
+ */
+export const ProcessStageOverdue = defineDomainEvent({
+  eventType: 'ProcessStageOverdue',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    ...stageDeadlineFields,
+    overdueSince: z.iso.datetime({ offset: true }),
+  }),
+  routingKey: 'process.stage_overdue',
+});
+
 /** Causa da mudança de status (`ProcessStatusChanged.cause`). */
 export const STATUS_CHANGE_CAUSES = [
   'FORWARD',

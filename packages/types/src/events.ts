@@ -48,6 +48,9 @@ export const DOMAIN_EVENT_NAMES = [
   'ProcessStatusChanged',
   'ProcessAssigned',
   'ProcessNumberAssigned',
+  // US-055: job `deadlines` (vencimento próximo e atraso da etapa).
+  'ProcessStageDueSoon',
+  'ProcessStageOverdue',
   'ApprovalRequested',
   'DocumentCreated',
   'DocumentVersionCreated',

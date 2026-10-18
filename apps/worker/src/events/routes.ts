@@ -237,6 +237,10 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
       'process.status_changed.returned',
     ],
     ProcessAssigned: ['process.assigned'],
+    // US-055: emitidos pelo job `deadlines` (timeline `STAGE_OVERDUE` gravada na mesma transação);
+    // no worker, os avisos `STAGE_DUE_SOON`/`STAGE_OVERDUE` (US-114) e métricas.
+    ProcessStageDueSoon: ['process.stage_due_soon'],
+    ProcessStageOverdue: ['process.stage_overdue'],
     ProcessNumberAssigned: ['process.number_assigned'],
     ApprovalRequested: ['approval.requested'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`

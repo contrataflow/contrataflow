@@ -59,6 +59,8 @@ import {
   ProcessParticipantAdded,
   ProcessParticipantRemoved,
   ProcessStageChanged,
+  ProcessStageDueSoon,
+  ProcessStageOverdue,
   ProcessStatusChanged,
   ProcessUpdated,
 } from '../process/events.js';
@@ -120,6 +122,8 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessConfidentialityChanged,
   ProcessStageChanged,
   ProcessStatusChanged,
+  ProcessStageDueSoon,
+  ProcessStageOverdue,
   ProcessAssigned,
   ProcessNumberAssigned,
   ApprovalRequested,

@@ -160,6 +160,69 @@ export function localDateOf(instant: Date, timeZone: string): string {
   }).format(instant);
 }
 
+/** RN-TEN-74: segunda a sexta-feira, fora das datas não úteis (feriados do tenant). */
+export function isBusinessDay(date: string, nonBusiness: ReadonlySet<string>): boolean {
+  const weekday = dayOfWeek(date);
+  return weekday >= 1 && weekday <= 5 && !nonBusiness.has(date);
+}
+
+/**
+ * RN-TEN-78: data do N-ésimo dia após `from` (o dia de `from` não conta). `BUSINESS` pula fins de
+ * semana e datas não úteis; `CALENDAR` soma dias corridos. `days = 0` devolve `from`.
+ */
+export function addDays(
+  from: string,
+  days: number,
+  type: DayCountType,
+  nonBusiness: ReadonlySet<string>,
+): string {
+  if (type === 'CALENDAR') return addCalendarDays(from, days);
+  let date = from;
+  let counted = 0;
+  while (counted < days) {
+    date = addCalendarDays(date, 1);
+    if (isBusinessDay(date, nonBusiness)) counted += 1;
+  }
+  return date;
+}
+
+/** Diferença (ms) entre o relógio local do fuso e o UTC no instante dado (positiva a leste). */
+function offsetMs(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+  const part = (type: string): number =>
+    Number(parts.find((candidate) => candidate.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second'),
+  );
+  return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/**
+ * Instante (UTC) de `23:59:59.999` do dia local `date` no fuso do tenant (RN-TEN-78). Resolve o
+ * deslocamento no próprio instante, o que também cobre fusos com horário de verão.
+ */
+export function endOfDayInstant(date: string, timeZone: string): Date {
+  const [year = 0, month = 1, day = 1] = date.split('-').map(Number);
+  const wallClockAsUtc = Date.UTC(year, month - 1, day, 23, 59, 59, 999);
+  let guess = wallClockAsUtc - offsetMs(new Date(wallClockAsUtc), timeZone);
+  guess = wallClockAsUtc - offsetMs(new Date(guess), timeZone);
+  return new Date(guess);
+}
+
 /** Ocorrência de feriado recorrente já existente (fonte da geração do ano seguinte). */
 export interface RecurringHolidaySource {
   readonly date: string;

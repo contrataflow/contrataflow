@@ -43,6 +43,7 @@ import { PlatformAuditWriter } from '../admin/platform-audit.js';
 import type { RunningDashboard } from '../admin/queue-dashboard.js';
 import { startQueueDashboard } from '../admin/queue-dashboard.js';
 import { AuditSealer } from '../audit/audit-sealer.js';
+import { DeadlineScanner } from '../deadlines/deadline-scanner.js';
 import { RenditionRequesterLookup } from '../documents/rendition-requester.lookup.js';
 import { AttachmentUploaderLookup } from '../files/attachment-uploader.lookup.js';
 import { AiProposalsExpireTask } from '../maintenance/ai-proposals-expire.js';
@@ -163,6 +164,8 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
       .register(new DeadlinesTick(tickDeps))
       .register(new AuditSealTick(tickDeps))
       .register(new MaintenanceDaily(tickDeps))
+      // US-055: prazos das etapas por tenant (`deadlines.tick` → `scan-tenant`).
+      .register(new DeadlineScanner({ database: this.database }))
       // US-074: selagem horária por tenant (`audit-seal.tick` → `seal-tenant`).
       .register(new AuditSealer())
       // Tarefas diárias por tenant: cada módulo dono acrescenta a sua (US-106: calendário).

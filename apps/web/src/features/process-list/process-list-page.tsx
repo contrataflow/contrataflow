@@ -887,7 +887,7 @@ function Cell({ column, item }: { readonly column: ColumnId; readonly item: Proc
         </>
       );
     case 'deadline':
-      return <DueDateBadge deadline={item.deadline} />;
+      return <DueDateBadge deadline={item.deadline} overdueSince={item.overdueSince} />;
     case 'priority':
       return <PriorityBadge priority={item.priority} />;
     case 'requestingSecretariat':

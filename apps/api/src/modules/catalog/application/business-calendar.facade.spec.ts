@@ -149,3 +149,41 @@ describe('BusinessCalendarFacade (US-106 · DEC-031)', () => {
     ).resolves.toBe(0);
   });
 });
+
+describe('US-055 — prazo da etapa em dias úteis (RN-TRAM-78)', () => {
+  // Background: SLA de 5 dias úteis; feriado nacional na quinta-feira da semana de referência.
+  it('[Sucesso] entra na segunda: o prazo cai no fim da terça seguinte, pulando o feriado de quinta', async () => {
+    const { repository, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-22', { scope: 'NATIONAL' }));
+
+    const due = await inTenant(A, (tx) =>
+      facade.addBusinessDays(tx, new Date('2026-10-19T15:00:00Z'), 5, 'BUSINESS'),
+    );
+
+    // Ter 20, qua 21, sex 23, seg 26, ter 27 → 23:59:59.999 de 27/10 em São Paulo.
+    expect(due.toISOString()).toBe('2026-10-28T02:59:59.999Z');
+  });
+
+  it('[Tenant incorreto] o feriado municipal da Prefeitura B na mesma semana não entra no cálculo de A', async () => {
+    const { repository, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-22', { scope: 'NATIONAL' }));
+    repository.seed(holiday(B, '2026-10-20'));
+
+    const due = await inTenant(A, (tx) =>
+      facade.addBusinessDays(tx, new Date('2026-10-19T15:00:00Z'), 5, 'BUSINESS'),
+    );
+
+    expect(due.toISOString()).toBe('2026-10-28T02:59:59.999Z');
+  });
+
+  it('SLA em dias corridos ignora fins de semana e feriados', async () => {
+    const { repository, facade, inTenant } = setup();
+    repository.seed(holiday(A, '2026-10-22', { scope: 'NATIONAL' }));
+
+    const due = await inTenant(A, (tx) =>
+      facade.addBusinessDays(tx, new Date('2026-10-19T15:00:00Z'), 5, 'CALENDAR'),
+    );
+
+    expect(due.toISOString()).toBe('2026-10-25T02:59:59.999Z');
+  });
+});

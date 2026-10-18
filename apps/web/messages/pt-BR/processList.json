@@ -111,6 +111,7 @@
     "overdue": "{count, plural, one {Atrasado há # dia útil} other {Atrasado há # dias úteis}}",
     "overdueCalendar": "{count, plural, one {Atrasado há # dia} other {Atrasado há # dias}}",
     "paused": "Prazo pausado",
+    "overduePaused": "Atrasado (suspenso)",
     "none": "Sem prazo"
   },
   "pagination": {

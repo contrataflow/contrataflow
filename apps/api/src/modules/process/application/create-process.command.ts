@@ -55,6 +55,7 @@ import {
 import { ProcessValidationError, createProcess, draftProcess } from '../domain/process.js';
 import type { Process, ProcessDraft, ProcessNumber } from '../domain/process.js';
 import { requestingUnitIssues } from '../domain/requesting-units.js';
+import { stageDueComputedLog } from '../domain/stage-deadline.js';
 
 /** Configurações lidas na criação (US-001 · "Configurações"). */
 export const CREATE_PROCESS_SETTING_KEYS = [
@@ -340,6 +341,9 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
       if (error instanceof InternalCodeTakenError) throw duplicateInternalCode(error.internalCode);
       throw error;
     }
+
+    // US-055 · RN-TRAM-78: o prazo da passagem nº 1.
+    this.logger.log(stageDueComputedLog(stageRecord));
 
     // 7.11 — auditoria e evento (timeline e ProcessAccess projetados no mesmo tx — 7.10).
     await this.audit.record(tx, {

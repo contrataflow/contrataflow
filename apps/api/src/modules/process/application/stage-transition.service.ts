@@ -4,7 +4,7 @@ import {
   ProcessStatusChanged,
 } from '@contrataflow/validation';
 import type { StageChangeCause, StageType, StatusChangeCause } from '@contrataflow/validation';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
@@ -13,6 +13,7 @@ import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 import { PROCESS_REPOSITORY } from './ports.js';
 import type { ProcessRepository } from './ports.js';
 import { forwardVersionConflict } from './process.errors.js';
+import { stageDueComputedLog } from '../domain/stage-deadline.js';
 import { planStageTransition } from '../domain/stage-transition.js';
 import type { StageTransitionInput, StageTransitionPlan } from '../domain/stage-transition.js';
 
@@ -48,6 +49,8 @@ export interface StageTransitionRequest {
  */
 @Injectable()
 export class StageTransitionService {
+  private readonly logger = new Logger('StageTransitionService');
+
   constructor(
     @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
@@ -60,6 +63,8 @@ export class StageTransitionService {
       throw forwardVersionConflict(plan.expectedVersion, plan.expectedVersion + 1);
     }
     const { process, movement, entered } = plan;
+    // US-055 · RN-TRAM-78/79: o prazo da nova passagem (calculado ou sobrescrito).
+    this.logger.log(stageDueComputedLog(entered));
     const before = request.transition.process;
     await this.outbox.record(
       tx,

@@ -26,14 +26,25 @@ const ICONS: Readonly<Record<DeadlineTone, string>> = {
   neutral: 'M5 3h2v10H5V3Zm4 0h2v10H9V3Z',
 };
 
-/** Rótulo e tom do badge de prazo ("No prazo", "Vence em N dias úteis", "Atrasado há N…"). */
-export function useDeadlineLabel(deadline: ProcessDeadlineDto): {
+/**
+ * Rótulo e tom do badge de prazo ("No prazo", "Vence em N dias úteis", "Atrasado há N…"). Com
+ * `overdueSince` (atraso já detectado pelo job `deadlines`), a etapa pausada pela suspensão mostra
+ * "Atrasado (suspenso)" até a retomada (US-055 · FA-04).
+ */
+export function useDeadlineLabel(
+  deadline: ProcessDeadlineDto,
+  overdueSince: string | null = null,
+): {
   readonly label: string;
   readonly tone: DeadlineTone;
 } {
   const t = useTranslations('processList.deadline');
   const calendar = deadline.slaType === 'CALENDAR';
-  if (deadline.isPaused) return { label: t('paused'), tone: 'neutral' };
+  if (deadline.isPaused) {
+    return overdueSince === null
+      ? { label: t('paused'), tone: 'neutral' }
+      : { label: t('overduePaused'), tone: 'late' };
+  }
   if (deadline.isOverdue) {
     const count = deadline.overdueDays ?? 0;
     return { label: t(calendar ? 'overdueCalendar' : 'overdue', { count }), tone: 'late' };
@@ -51,8 +62,15 @@ export function useDeadlineLabel(deadline: ProcessDeadlineDto): {
   return { label: t('onTime'), tone: 'ok' };
 }
 
-export function DueDateBadge({ deadline }: { readonly deadline: ProcessDeadlineDto }) {
-  const { label, tone } = useDeadlineLabel(deadline);
+export function DueDateBadge({
+  deadline,
+  overdueSince = null,
+}: {
+  readonly deadline: ProcessDeadlineDto;
+  /** `Process.overdueSince` (marcado pelo job `deadlines`), quando a tela o tem. */
+  readonly overdueSince?: string | null;
+}) {
+  const { label, tone } = useDeadlineLabel(deadline, overdueSince);
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-control px-2 py-0.5 text-xs font-medium ${TONES[tone]}`}
