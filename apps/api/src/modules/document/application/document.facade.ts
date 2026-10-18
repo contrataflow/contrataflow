@@ -1,4 +1,9 @@
-import type { Confidentiality, DocumentAction, DocumentStatus } from '@contrataflow/validation';
+import type {
+  Confidentiality,
+  DocumentAction,
+  DocumentStatus,
+  SystemDocumentModule,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { requireRequestContext } from '#shared/context/request-context.js';
@@ -37,7 +42,7 @@ import type {
 import type { DocumentItem } from '../domain/document-items.js';
 import type { DocumentTemplateVersion } from '../domain/document-template.js';
 import type { DocumentType } from '../domain/document-type.js';
-import { draftContentCopy } from '../domain/document.js';
+import { draftContentCopy, updateDocumentHeader } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
 export type {
@@ -204,6 +209,54 @@ export class DocumentFacade {
   /** Linhas de item do documento (DOC-06), no `tx` do chamador — validador e snapshot tipados. */
   documentItemsIn(tx: TenantTx, documentId: string): Promise<DocumentItem[]> {
     return this.itemRows.rowsOf(tx, documentId);
+  }
+
+  /**
+   * Quantidade de cada item do processo nos documentos tipados ativos (US-024 · RN-PRICE-04): para
+   * cada `systemModule` (na ordem de preferência — ex.: `ETP`, depois `DFD`), as linhas de item do
+   * documento não cancelado nem excluído do processo; a primeira fonte que tiver o item vence.
+   * Decimal(18,4) como string. Sem checar visibilidade: quem chama já autorizou o processo.
+   */
+  async itemQuantitiesIn(
+    tx: TenantTx,
+    processId: string,
+    systemModules: readonly SystemDocumentModule[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const quantities = new Map<string, string>();
+    const types = await this.types.list(tx);
+    for (const systemModule of systemModules) {
+      const type = types.find((candidate) => candidate.systemModule === systemModule);
+      if (type === undefined) continue;
+      const document = await this.documents.findActiveOfType(tx, processId, type.id);
+      if (document === null || document.status === 'CANCELED') continue;
+      for (const row of await this.itemRows.rowsOf(tx, document.id)) {
+        if (!quantities.has(row.processItemId)) quantities.set(row.processItemId, row.quantity);
+      }
+    }
+    return quantities;
+  }
+
+  /**
+   * Título do rascunho alterado pelo módulo tipado dono (US-024 · PRS-04): o chamador já autorizou
+   * (POL-02 estendida) e travou o documento no `tx`. `DRAFT`/`RETURNED` (senão 409
+   * `DOCUMENT_NOT_EDITABLE`); grava com `version + 1`. Devolve o título anterior, ou `null` se não
+   * mudou. A auditoria é de quem chama.
+   */
+  async renameDraftIn(
+    tx: TenantTx,
+    documentId: string,
+    title: string,
+  ): Promise<{ readonly previous: string } | null> {
+    const document = await this.documents.findById(tx, documentId);
+    if (document === null) throw new ApiError('NOT_FOUND', { detail: 'Documento não encontrado.' });
+    const actorId = requireRequestContext().actor.userId;
+    if (actorId === null) throw new ApiError('UNAUTHENTICATED');
+    const { document: next, changes } = this.lifecycle.transition(() =>
+      updateDocumentHeader(document, { title }, { actorId, now: this.clock() }),
+    );
+    if (changes.length === 0) return null;
+    await this.lifecycle.save(tx, next, document.version);
+    return { previous: document.title };
   }
 
   /** Código, status e versão dos documentos não excluídos (inclusive cancelados) por id. */

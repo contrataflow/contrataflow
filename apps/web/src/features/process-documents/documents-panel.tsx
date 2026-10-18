@@ -39,6 +39,7 @@ import type { DocumentGroup, PanelFilter, PanelType } from './process-documents-
 import { useActiveDocumentTypes, useProcessDocuments } from './process-documents.api';
 import { ElaborateDfdOutcome, useElaborateDfd } from '../dfd/elaborate-dfd';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
+import { CreatePriceResearchDialog } from '../price-research/create-price-research-dialog';
 import { useIsDesktop } from '../workflows/use-is-desktop';
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -396,9 +397,10 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
   const [filter, setFilter] = useState<PanelFilter>(EMPTY_FILTER);
 
   const [creating, setCreating] = useState<PanelType | null>(null);
+  const [creatingPriceResearch, setCreatingPriceResearch] = useState(false);
 
-  // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo") e o DFD-02 da
-  // US-014 (DFD → SCR-007); o da US-063 (FREE_TEXT) e os demais módulos tipados ainda não chegaram.
+  // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo"), o DFD-02 da
+  // US-014 (DFD → SCR-007) e o diálogo da pesquisa de preços (US-024 → SCR-009); o da US-063 (FREE_TEXT) e os demais módulos tipados ainda não chegaram.
   const elaborate = useElaborateDfd(processId);
   const onCreate = (type: PanelType) => {
     if (type.kind === 'UPLOADED') {
@@ -407,6 +409,11 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
     }
     if (type.systemModule === 'DFD') {
       elaborate.elaborate();
+      return;
+    }
+    // PRS-02 (US-024): o diálogo de criação da pesquisa de preços.
+    if (type.systemModule === 'PRICE_RESEARCH') {
+      setCreatingPriceResearch(true);
       return;
     }
     toast({ title: tProcess('notYet') });
@@ -442,6 +449,11 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
         <CreateDocumentMenu types={menu} onCreate={onCreate} prominent={empty} />
       </div>
       <ElaborateDfdOutcome processId={processId} outcome={elaborate.outcome} />
+      <CreatePriceResearchDialog
+        processId={processId}
+        open={creatingPriceResearch}
+        onOpenChange={setCreatingPriceResearch}
+      />
       {creating ? (
         <CreateDocumentDialog
           processId={processId}

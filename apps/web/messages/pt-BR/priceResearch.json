@@ -1,0 +1,186 @@
+{
+  "create": {
+    "action": "Criar pesquisa de preços",
+    "open": "Abrir pesquisa {code}",
+    "openNoCode": "Abrir pesquisa de preços",
+    "title": "Criar pesquisa de preços",
+    "description": "Escolha os itens do processo que farão parte da pesquisa, confira as quantidades e a data-base.",
+    "loading": "Carregando os itens do processo…",
+    "loadError": "Não foi possível carregar os itens do processo agora.",
+    "retry": "Tentar novamente",
+    "caption": "Itens do processo que farão parte da pesquisa de preços",
+    "selectedCount": "{selected} de {total} itens selecionados",
+    "selectAll": "Selecionar todos os itens",
+    "selectItem": "Incluir o item {number} na pesquisa",
+    "columns": {
+      "select": "Incluir",
+      "sequence": "Nº",
+      "lot": "Lote",
+      "description": "Descrição",
+      "unit": "Unidade",
+      "reference": "Quantidade de referência",
+      "quantity": "Quantidade na pesquisa"
+    },
+    "noLot": "Sem lote",
+    "noReference": "—",
+    "quantityOf": "Quantidade do item {number}",
+    "fields": {
+      "title": "Título",
+      "referenceDate": "Data-base",
+      "referenceDateHint": "Data de referência dos preços. Não pode ser posterior a hoje."
+    },
+    "rowErrors": "{count, plural, one {# item com a quantidade a corrigir.} other {# itens com a quantidade a corrigir.}}",
+    "submit": "Criar pesquisa",
+    "submitting": "Criando a pesquisa…",
+    "cancel": "Cancelar",
+    "noItems": {
+      "goToItems": "Ir para Itens"
+    },
+    "errors": {
+      "fix": "Revise os campos destacados.",
+      "exists": "Este processo já tem uma pesquisa de preços.",
+      "openExisting": "Abrir pesquisa existente",
+      "forbidden": "Você não pode criar a pesquisa deste processo agora.",
+      "invalidStatus": "O processo não permite novos documentos na situação atual.",
+      "typeNotAllowed": "A etapa atual não permite criar pesquisa de preços.",
+      "failed": "Não foi possível criar a pesquisa agora. Tente novamente.",
+      "failedWithCode": "Não foi possível criar a pesquisa agora. Tente novamente. Código: {correlationId}"
+    },
+    "toast": {
+      "created": "Pesquisa de preços {code} criada",
+      "createdNoCode": "Pesquisa de preços criada"
+    }
+  },
+  "page": {
+    "title": "Pesquisa de preços",
+    "loading": "Carregando a pesquisa de preços…",
+    "loadError": "Não foi possível carregar a pesquisa de preços agora.",
+    "notFound": "Pesquisa de preços não encontrada.",
+    "retry": "Tentar novamente",
+    "backToProcess": "Voltar ao processo",
+    "processLine": "Processo {code} — {title}",
+    "draftCode": "em rascunho",
+    "confidential": "Sigiloso",
+    "summary": {
+      "label": "Resumo da pesquisa",
+      "items": "Itens",
+      "withAlerts": "Itens com alertas",
+      "total": "Valor total estimado",
+      "notCalculated": "Ainda não calculado"
+    },
+    "referenceDate": {
+      "label": "Data-base",
+      "hint": "Ao alterar a data-base, as validades das cotações são recalculadas.",
+      "save": "Alterar data-base",
+      "saving": "Alterando…",
+      "changed": "Data-base alterada para {date}; validades recalculadas",
+      "failed": "Não foi possível alterar a data-base agora. Tente novamente."
+    },
+    "stale": "Recarregar",
+    "lock": {
+      "title": "Esta pesquisa está em modo leitura.",
+      "PERMISSION_DENIED": "Você não tem permissão para alterar esta pesquisa de preços.",
+      "NOT_CUSTODIAN": "O processo não está com você",
+      "INVALID_PROCESS_STATUS": "O processo não permite alterações na situação atual.",
+      "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE": "A etapa atual não permite pesquisa de preços",
+      "DOCUMENT_NOT_EDITABLE": "A pesquisa está concluída. Reabra-a para alterar.",
+      "CONFIDENTIAL_BUDGET": "Orçamento sigiloso: somente leitura",
+      "READ_ONLY": "Você pode consultar a pesquisa, mas não alterá-la."
+    },
+    "tabs": {
+      "label": "Seções da pesquisa de preços",
+      "items": "Itens",
+      "sources": "Fontes",
+      "document": "Documento"
+    }
+  },
+  "parameters": {
+    "title": "Parâmetros",
+    "defaultMethod": "Método padrão",
+    "methods": {
+      "AUTO_CV": "Automático (média ou mediana conforme o coeficiente de variação)",
+      "MEAN": "Média",
+      "MEDIAN": "Mediana",
+      "LOWEST": "Menor preço"
+    },
+    "cvThreshold": "Coeficiente de variação limite",
+    "minQuotations": "Mínimo de cotações por item",
+    "directQuoteMaxAgeDays": "Validade da cotação direta",
+    "similarContractMaxAgeDays": "Validade de contratos similares",
+    "days": "{count, plural, one {# dia} other {# dias}}",
+    "percent": "{value} %",
+    "percentOfMedian": "{value} % da mediana das demais cotações",
+    "outlierLower": "Valor atípico abaixo de",
+    "outlierUpper": "Valor atípico acima de",
+    "unitPriceDecimals": "Casas decimais do preço unitário",
+    "roundingMode": "Arredondamento",
+    "roundingModes": {
+      "HALF_UP": "Comercial (metade para cima)",
+      "HALF_EVEN": "Bancário (metade para o par)"
+    }
+  },
+  "items": {
+    "caption": "Itens da pesquisa de preços",
+    "count": "{count, plural, one {# item} other {# itens}}",
+    "empty": "A pesquisa ainda não tem itens.",
+    "columns": {
+      "sequence": "Nº",
+      "lot": "Lote",
+      "description": "Descrição",
+      "unit": "Unidade",
+      "quantity": "Quantidade",
+      "alerts": "Alertas",
+      "recommended": "Valor recomendado",
+      "actions": "Ações"
+    },
+    "noLot": "Sem lote",
+    "lot": "Lote {number}",
+    "lotNamed": "Lote {number} — {name}",
+    "noAlerts": "Sem alertas",
+    "notCalculated": "—",
+    "masked": "Sigiloso",
+    "maskedHint": "Orçamento sigiloso: o valor só é visível a quem tem acesso ao orçamento sigiloso ou está com o processo.",
+    "alerts": {
+      "NO_VALID_QUOTES": "Sem cotações válidas",
+      "BELOW_MINIMUM_QUOTES": "Abaixo do mínimo de cotações",
+      "HIGH_CV": "Preços muito dispersos",
+      "HAS_OUTLIERS": "Valores atípicos",
+      "EXPIRED_QUOTES": "Cotações vencidas"
+    },
+    "retry": "Tentar novamente",
+    "remove": "Remover",
+    "removeItem": "Remover o item {number}",
+    "removeDialog": {
+      "title": "Remover o item {number}?",
+      "withQuotations": "O item {number} tem {count, plural, one {# cotação registrada. Ela será apagada.} other {# cotações registradas. Elas serão apagadas.}}",
+      "simple": "O item {number} será removido da pesquisa de preços.",
+      "confirm": "Remover item",
+      "cancel": "Cancelar"
+    },
+    "toast": {
+      "removed": "Item {number} removido da pesquisa",
+      "added": "{count, plural, one {# item incluído na pesquisa} other {# itens incluídos na pesquisa}}"
+    },
+    "errors": {
+      "load": "Não foi possível carregar os itens da pesquisa agora.",
+      "removeFailed": "Não foi possível remover o item agora. Tente novamente.",
+      "addFailed": "Não foi possível incluir os itens agora. Tente novamente."
+    },
+    "missing": {
+      "message": "{count, plural, one {# item do processo não está na pesquisa} other {# itens do processo não estão na pesquisa}}",
+      "action": "Incluir itens",
+      "adding": "Incluindo…"
+    }
+  },
+  "sources": {
+    "empty": "Nenhuma fonte registrada ainda",
+    "register": "Registrar fonte",
+    "soon": "Disponível em breve"
+  },
+  "document": {
+    "title": "Documento da pesquisa",
+    "description": "O documento reúne a metodologia, o resumo dos preços e a conclusão da pesquisa de preços.",
+    "open": "Abrir documento",
+    "code": "Documento {code}"
+  }
+}

@@ -184,6 +184,9 @@ const DOCUMENT_PANEL_ROUTE =
 const DFD_ROUTE =
   'DFD e itens de documento (US-014): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-03 com DFD de B → 404 DFD_NOT_FOUND; DFD-01/02 com processo de B e DOC-06/07 com documento de B → 404 NOT_FOUND sem alterar nada; DOC-07 com processItemId de outro processo/tenant → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks e índice único de dfds/document_items) é coberto em test/tenant-leak/dfds.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd.routes.spec.ts.';
 
+const PRICE_RESEARCH_ROUTE =
+  'Pesquisa de preços (US-024): a suíte genérica não tem processo, pesquisa nem item de processo do tenant B. O isolamento (PRS-01/02 com processo de B e PRS-03/04/05/06 com pesquisa de B → 404 NOT_FOUND, PRS-08 com item de B → 404 NOT_FOUND, sem alterar nada nem revelar o código; processItemId de outro processo/tenant no corpo do PRS-02/06 → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks, índice único e cascata de price_research/price_items) é coberto em test/tenant-leak/price-research.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/price-research.routes.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -349,6 +352,13 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DFD-01': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-02': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-03': { kind: 'exempt', reason: DFD_ROUTE },
+  'PRS-01': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-02': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-03': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-04': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-05': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-06': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-08': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

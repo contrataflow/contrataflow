@@ -1107,6 +1107,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `completedAt` / `completedById` | timestamptz / uuid | sim | — | Conclusão = finalização do documento |
 
 - **Unique:** `(tenant_id, document_id)`.
+- **Check:** `id = document_id` (`price_research_id_is_document` — como o DFD, a pesquisa usa o id do documento; decidido na US-024, 2026-10-18); `min_quotations >= 1`; `unit_price_decimals IN (2, 4)`; `rounding_mode IN ('HALF_UP','HALF_EVEN')`; `items_with_alerts_count` entre 0 e `items_count`. Os parâmetros do snapshot e `tenant_id`/`process_id`/`document_id` não mudam depois da criação (gatilho de colunas imutáveis para os ids).
 
 #### PriceItem (`price_items`) — módulo `price-research` · Padrão
 | Campo | Tipo | Null | Default | Regras |
@@ -1132,6 +1133,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 
 - **Unique:** `(tenant_id, price_research_id, process_item_id)`.
 - **Check:** `method_override IS DISTINCT FROM 'MANUAL' OR (manual_unit_price IS NOT NULL AND manual_justification IS NOT NULL)`.
+- **Implementação (US-024):** FK composta `(tenant_id, price_research_id)` com `ON DELETE CASCADE` e `(tenant_id, process_item_id)` → `process_items` `ON DELETE RESTRICT`; `CHECK (quantity > 0)` e `alerts` sempre array. O PRS-08 apaga a linha fisicamente (o papel da aplicação tem DELETE); as `quotations` da US-026 entram com `ON DELETE CASCADE` a partir de `price_items`. O item referenciado não pode ser excluído do processo (`ITEM_IN_USE`, via `ProcessItemUsageRegistry`).
 
 #### PriceSource (`price_sources`) — módulo `price-research` · Padrão + SD
 "FontePesquisa" (instância/evidência).

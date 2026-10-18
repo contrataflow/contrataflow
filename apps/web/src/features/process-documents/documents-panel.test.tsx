@@ -73,6 +73,12 @@ const ETP = docType(10, 'ETP', 'Estudo Técnico Preliminar', {
 });
 const DESPACHO = docType(11, 'DESPACHO', 'Despacho', { sortOrder: 60 });
 const OFICIO = docType(12, 'OFICIO', 'Ofício', { sortOrder: 70 });
+const PRICE_RESEARCH = docType(13, 'PRICE_RESEARCH', 'Pesquisa de preços', {
+  kind: 'STRUCTURED',
+  systemModule: 'PRICE_RESEARCH',
+  allowMultiplePerProcess: false,
+  sortOrder: 40,
+});
 const TYPES = [ETP, DESPACHO, OFICIO];
 
 function doc(
@@ -147,13 +153,14 @@ const noRetryClient = () => {
 
 function renderPanel(
   documents: (() => Response) | { items: ProcessDocumentDto[]; meta?: ProcessDocumentsMeta },
+  types: readonly DocumentTypeDto[] = TYPES,
 ) {
   const api = mockProcessApi({
     documents:
       typeof documents === 'function'
         ? documents
         : () => jsonResponse({ data: documents.items, meta: documents.meta ?? META }),
-    documentTypes: () => jsonResponse({ data: TYPES }),
+    documentTypes: () => jsonResponse({ data: types }),
   });
   renderWithShell(
     <>
@@ -221,6 +228,24 @@ describe('SCR-006 · aba "Documentos" (US-062)', () => {
         'Esta ação abre o diálogo próprio, ainda não disponível nesta versão.',
       ),
     ).toBeTruthy();
+  });
+
+  it('US-024: "Pesquisa de preços" no menu abre o diálogo de criação (PRS-02)', async () => {
+    const user = userEvent.setup();
+    renderPanel(
+      {
+        items: [],
+        meta: {
+          ...META,
+          creatableTypeIds: [PRICE_RESEARCH.id],
+          pendingTypeIds: [PRICE_RESEARCH.id],
+        },
+      },
+      [...TYPES, PRICE_RESEARCH],
+    );
+    await user.click(await screen.findByRole('button', { name: 'Criar documento' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Pesquisa de preços' }));
+    expect(await screen.findByRole('dialog', { name: 'Criar pesquisa de preços' })).toBeTruthy();
   });
 
   it('FA-01/FA-04: sem documentos → estado vazio e menu em destaque; singular da etapa "Não iniciado"', async () => {

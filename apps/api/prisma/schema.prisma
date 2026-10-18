@@ -2323,3 +2323,99 @@ model Dfd {
   @@index([tenantId, processId], map: "dfds_process_idx")
   @@map("dfds")
 }
+
+/// entities.md §2 — `PriceDefaultMethod` (DEC-020: `AUTO_CV` = mediana se CV > limite, senão média).
+enum PriceDefaultMethod {
+  AUTO_CV
+  MEAN
+  MEDIAN
+  LOWEST
+
+  @@map("price_default_method")
+}
+
+/// entities.md §2 — `PriceCalculationMethod`.
+enum PriceCalculationMethod {
+  MEAN
+  MEDIAN
+  LOWEST
+  MANUAL
+
+  @@map("price_calculation_method")
+}
+
+/// entities.md §4.8 `PriceResearch` (módulo price-research · US-024): cabeçalho tipado 1:1 do
+/// `Document` do tipo PRICE_RESEARCH com o snapshot de `priceResearch.*` (DEC-020). `id = documentId`
+/// (CHECK `price_research_id_is_document`). Checks, FKs compostas e gatilho de colunas imutáveis na
+/// migração. Sem status próprio: usa o do documento e `completedAt` (DEC-018).
+model PriceResearch {
+  id                        String             @id @db.Uuid
+  tenantId                  String             @map("tenant_id") @db.Uuid
+  processId                 String             @map("process_id") @db.Uuid
+  documentId                String             @map("document_id") @db.Uuid
+  referenceDate             DateTime           @map("reference_date") @db.Date
+  defaultMethod             PriceDefaultMethod @map("default_method")
+  cvThresholdPercent        Decimal            @map("cv_threshold_percent") @db.Decimal(9, 4)
+  minQuotations             Int                @map("min_quotations")
+  directQuoteMaxAgeDays     Int                @map("direct_quote_max_age_days")
+  similarContractMaxAgeDays Int                @map("similar_contract_max_age_days")
+  outlierLowerPercent       Decimal            @map("outlier_lower_percent") @db.Decimal(9, 4)
+  outlierUpperPercent       Decimal            @map("outlier_upper_percent") @db.Decimal(9, 4)
+  unitPriceDecimals         Int                @map("unit_price_decimals") @db.SmallInt
+  roundingMode              String             @map("rounding_mode") @db.VarChar(10)
+  totalEstimatedValue       Decimal?           @map("total_estimated_value") @db.Decimal(18, 2)
+  itemsCount                Int                @default(0) @map("items_count")
+  itemsWithAlertsCount      Int                @default(0) @map("items_with_alerts_count")
+  lastCalculatedAt          DateTime?          @map("last_calculated_at") @db.Timestamptz(6)
+  completedAt               DateTime?          @map("completed_at") @db.Timestamptz(6)
+  completedById             String?            @map("completed_by_id") @db.Uuid
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?            @map("created_by_id") @db.Uuid
+  updatedById               String?            @map("updated_by_id") @db.Uuid
+  version                   Int                @default(1)
+
+  @@unique([tenantId, id], map: "price_research_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "price_research_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "price_research_process_idx")
+  @@map("price_research")
+}
+
+/// entities.md §4.8 `PriceItem` (módulo price-research · US-024): a linha do item canônico
+/// (`ProcessItem` — DEC-019) na pesquisa. `ON DELETE CASCADE` a partir de `price_research`; FKs
+/// compostas, checks e gatilho de colunas imutáveis na migração.
+model PriceItem {
+  id                        String                  @id @db.Uuid
+  tenantId                  String                  @map("tenant_id") @db.Uuid
+  priceResearchId           String                  @map("price_research_id") @db.Uuid
+  processItemId             String                  @map("process_item_id") @db.Uuid
+  quantity                  Decimal                 @db.Decimal(18, 4)
+  methodOverride            PriceCalculationMethod? @map("method_override")
+  effectiveMethod           PriceCalculationMethod? @map("effective_method")
+  validQuotationsCount      Int                     @default(0) @map("valid_quotations_count")
+  meanPrice                 Decimal?                @map("mean_price") @db.Decimal(18, 4)
+  medianPrice               Decimal?                @map("median_price") @db.Decimal(18, 4)
+  lowestPrice               Decimal?                @map("lowest_price") @db.Decimal(18, 4)
+  highestPrice              Decimal?                @map("highest_price") @db.Decimal(18, 4)
+  stdDeviation              Decimal?                @map("std_deviation") @db.Decimal(18, 4)
+  coefficientOfVariation    Decimal?                @map("coefficient_of_variation") @db.Decimal(9, 4)
+  recommendedUnitPrice      Decimal?                @map("recommended_unit_price") @db.Decimal(18, 4)
+  manualUnitPrice           Decimal?                @map("manual_unit_price") @db.Decimal(18, 4)
+  manualJustification       String?                 @map("manual_justification")
+  totalPrice                Decimal?                @map("total_price") @db.Decimal(18, 2)
+  belowMinimumJustification String?                 @map("below_minimum_justification")
+  alerts                    Json                    @default("[]") @db.JsonB
+  notes                     String?
+  sortOrder                 Int                     @default(0) @map("sort_order")
+  calculatedAt              DateTime?               @map("calculated_at") @db.Timestamptz(6)
+  createdAt                 DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?                 @map("created_by_id") @db.Uuid
+  updatedById               String?                 @map("updated_by_id") @db.Uuid
+  version                   Int                     @default(1)
+
+  @@unique([tenantId, id], map: "price_items_tenant_id_id_key")
+  @@unique([tenantId, priceResearchId, processItemId], map: "price_items_research_process_item_key")
+  @@index([tenantId, processItemId], map: "price_items_process_item_idx")
+  @@map("price_items")
+}

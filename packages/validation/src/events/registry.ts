@@ -41,6 +41,7 @@ import {
   DepartmentMoved,
   DepartmentUpdated,
 } from '../organization/events.js';
+import { PriceResearchRecalculated } from '../price-research/events.js';
 import {
   ProcessConfidentialityChanged,
   ProcessCreated,
@@ -107,6 +108,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessConfidentialityChanged,
   SupplierCreated,
   SupplierUpdated,
+  PriceResearchRecalculated,
   RiskCreated,
   RiskAssessed,
   RiskDeleted,

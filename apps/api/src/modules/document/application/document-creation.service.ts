@@ -36,6 +36,8 @@ export interface CreateDocumentInput {
   /** Padrão: o sigilo padrão do tipo. */
   readonly confidentiality?: Confidentiality;
   readonly idempotencyKey?: string | null;
+  /** Metadados do módulo tipado acrescentados ao `document.create` (US-024: snapshot e itens). */
+  readonly auditMetadata?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -116,6 +118,7 @@ export class DocumentCreationService {
         documentTypeCode: type.code,
         templateVersionId: document.templateVersionId,
         code: document.code,
+        ...input.auditMetadata,
         idempotencyKey: input.idempotencyKey ?? null,
       },
     });

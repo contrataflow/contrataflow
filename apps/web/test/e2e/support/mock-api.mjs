@@ -60,6 +60,7 @@ const documentTypes = [
   ['DFD', 'Documento de Formalização da Demanda', 'STRUCTURED', 'DFD', 10, null],
   ['ETP', 'Estudo Técnico Preliminar', 'STRUCTURED', 'ETP', 20, null],
   ['OFICIO', 'Ofício', 'FREE_TEXT', null, 70, 'OF {seq:4}/{year}'],
+  ['PRICE_RESEARCH', 'Pesquisa de preços', 'STRUCTURED', 'PRICE_RESEARCH', 30, 'PP {seq:4}/{year}'],
   ['DOCUMENTO_EXTERNO', 'Documento externo', 'UPLOADED', null, 110, null],
 ].map(([code, name, kind, systemModule, sortOrder, numberingMask], index) => ({
   id: `0192a000-0000-7000-8000-00000000d0${String(index).padStart(2, '0')}`,
@@ -1518,6 +1519,172 @@ function compareDocumentVersions(from, to) {
     collections: [],
   };
 }
+
+// Pesquisa de preços (US-024 · PRS-01/02/03/05 + itens do processo PRC-13 e DOC-01): três processos
+// dedicados, fora da lista (SCR-004) — um para criar a pesquisa, um que já a tem (FA-01) e um sem
+// itens (FA-02). Os itens seguem o Background da story: 1 "Cimento CP II 50 kg" (100 SC), 2 "Areia
+// média" (12 M3) e 3 "Brita 1" sem quantidade de referência. A resolução de quantidade, o snapshot e
+// as regras (V-01..V-11, POL-02/09) são cobertas nos testes da API; aqui valem a jornada e as telas.
+const PRICE_TYPE_ID = documentTypes.find((type) => type.code === 'PRICE_RESEARCH').id;
+const PRICE_UNITS = {
+  SC: { id: '0192a000-0000-7000-8000-00000000e501', label: 'SC' },
+  M3: { id: '0192a000-0000-7000-8000-00000000e502', label: 'M3' },
+};
+const PRICE_FIXTURES = [
+  { n: 24, code: '0024/2026', title: 'Aquisição de cimento e agregados para vias' },
+  { n: 25, code: '0025/2026', title: 'Aquisição de agregados para a obra da escola' },
+  { n: 26, code: '0026/2026', title: 'Contratação de serviços de jardinagem' },
+].map((fixture) => ({
+  ...fixture,
+  status: 'IN_PROGRESS',
+  priority: 'MEDIUM',
+  overdue: false,
+  unit: 0,
+}));
+const PRICE_ITEM_ROWS = [
+  [1, 'Cimento CP II 50 kg', 'SC', '100.0000'],
+  [2, 'Areia média', 'M3', '12.0000'],
+  [3, 'Brita 1', 'M3', null],
+];
+const priceParameters = {
+  defaultMethod: 'AUTO_CV',
+  cvThresholdPercent: '25.0000',
+  minQuotations: 3,
+  directQuoteMaxAgeDays: 180,
+  similarContractMaxAgeDays: 365,
+  outlierLowerPercent: '70.0000',
+  outlierUpperPercent: '130.0000',
+  unitPriceDecimals: 2,
+  roundingMode: 'HALF_UP',
+};
+const priceItemId = (fixture, sequence) =>
+  `0192a000-0000-7000-8000-00000e${String(fixture.n).padStart(4, '0')}${String(sequence).padStart(2, '0')}`;
+
+function priceProcessItems(fixture, withItems) {
+  if (!withItems) return [];
+  return PRICE_ITEM_ROWS.map(([sequence, description, unit, referenceQuantity]) => ({
+    id: priceItemId(fixture, sequence),
+    processId: listProcessId(fixture.n),
+    sequence,
+    lotNumber: null,
+    lotName: null,
+    kind: 'GOOD',
+    description,
+    unitOfMeasure: PRICE_UNITS[unit],
+    catalogSystem: null,
+    catalogCode: null,
+    notes: null,
+    referenceQuantity,
+    referenceQuantitySourceDocumentId: null,
+    referenceUnitPrice: null,
+    referenceUnitPriceMasked: false,
+    referenceUnitPriceSourceDocumentId: null,
+    references: [],
+    version: 1,
+  }));
+}
+
+/** processId → { fixture, items (do processo), research (ou null), replays }. */
+const priceStates = new Map(
+  PRICE_FIXTURES.map((fixture) => [
+    listProcessId(fixture.n),
+    {
+      fixture,
+      items: priceProcessItems(fixture, fixture.n !== 26),
+      research: null,
+      replays: new Map(),
+    },
+  ]),
+);
+
+function buildPriceResearch(state, { id, code, title, referenceDate, quantities }) {
+  const rows = state.items
+    .filter((item) => quantities.has(item.id))
+    .map((item, index) => ({
+      id: mockUuid(),
+      priceResearchId: id,
+      processItemId: item.id,
+      sequence: item.sequence,
+      lotNumber: item.lotNumber,
+      lotName: item.lotName,
+      description: item.description,
+      unit: { ...item.unitOfMeasure, allowsDecimal: true },
+      quantity: quantities.get(item.id),
+      methodOverride: null,
+      effectiveMethod: null,
+      validQuotationsCount: 0,
+      quotationsCount: 0,
+      meanPrice: null,
+      medianPrice: null,
+      lowestPrice: null,
+      highestPrice: null,
+      stdDeviation: null,
+      coefficientOfVariation: null,
+      manualUnitPrice: null,
+      manualJustification: null,
+      recommendedUnitPrice: null,
+      recommendedUnitPriceMasked: false,
+      totalPrice: null,
+      valuesMasked: false,
+      belowMinimumJustification: null,
+      alerts: [{ code: 'NO_VALID_QUOTES' }, { code: 'BELOW_MINIMUM_QUOTES' }],
+      calculatedAt: null,
+      sortOrder: index + 1,
+      version: 1,
+    }));
+  const now = new Date().toISOString();
+  return {
+    header: {
+      id,
+      documentId: id,
+      processId: listProcessId(state.fixture.n),
+      code,
+      title,
+      status: 'DRAFT',
+      confidentiality: 'INTERNAL',
+      templateVersionId: null,
+      documentVersion: 1,
+      draftRevision: 1,
+      referenceDate,
+      parameters: priceParameters,
+      itemsCount: rows.length,
+      itemsWithAlertsCount: rows.length,
+      totalEstimatedValue: null,
+      totalEstimatedValueMasked: false,
+      lastCalculatedAt: null,
+      completedAt: null,
+      pendingApprovalId: null,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    },
+    items: rows,
+  };
+}
+
+const priceMeta = () => ({
+  allowedActions: ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS'],
+  documentActions: [],
+  lockReason: null,
+  template: null,
+});
+
+// A pesquisa já existente do processo 0025/2026 (FA-01): os 3 itens, com as quantidades de referência.
+{
+  const state = priceStates.get(listProcessId(25));
+  state.research = buildPriceResearch(state, {
+    id: '0192a000-0000-7000-8000-0000000e0025',
+    code: 'PP 0004/2026',
+    title: 'Pesquisa de preços — 0025/2026',
+    referenceDate: '2026-10-06',
+    quantities: new Map(
+      state.items.map((item) => [item.id, (item.referenceQuantity ?? '6.0000').toString()]),
+    ),
+  });
+}
+
+const priceResearchOf = (researchId) =>
+  [...priceStates.values()].find((state) => state.research?.header.id === researchId)?.research;
 
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
@@ -3652,13 +3819,149 @@ createServer(async (request, response) => {
     found.version += 1;
     return send(response, 200, { data: tagDto(found) }, { ETag: `"${found.version}"` });
   }
+  // Pesquisa de preços (US-024): itens e documentos do processo, PRS-01/02 e PRS-03/05.
+  const priceProcessRoute =
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(items|documents|price-research)$/.exec(url.pathname);
+  const priceState = priceProcessRoute ? priceStates.get(priceProcessRoute[1]) : undefined;
+  if (priceProcessRoute && priceState) {
+    const resource = priceProcessRoute[2];
+    if (resource === 'items' && request.method === 'GET') {
+      return send(response, 200, { data: priceState.items }, { ETag: '"9"' });
+    }
+    if (resource === 'documents' && request.method === 'GET') {
+      return send(response, 200, {
+        data: [],
+        meta: {
+          currentStage: {
+            key: 'PESQUISA_PRECOS',
+            name: 'Pesquisa de preços',
+            documentTypeCodes: ['PRICE_RESEARCH'],
+          },
+          creatableTypeIds: priceState.research === null ? [PRICE_TYPE_ID] : [],
+          pendingTypeIds: [],
+        },
+      });
+    }
+    if (resource === 'price-research' && request.method === 'GET') {
+      const research = priceState.research;
+      return send(response, 200, {
+        data:
+          research === null
+            ? []
+            : [
+                {
+                  id: research.header.id,
+                  documentId: research.header.documentId,
+                  code: research.header.code,
+                  title: research.header.title,
+                  status: research.header.status,
+                  referenceDate: research.header.referenceDate,
+                  itemsCount: research.header.itemsCount,
+                  itemsWithAlertsCount: research.header.itemsWithAlertsCount,
+                  version: research.header.version,
+                },
+              ],
+      });
+    }
+    if (resource === 'price-research' && request.method === 'POST') {
+      // PRS-02: idempotente por chave; 409 com `existingId`, 422 sem itens (FA-02) e por linha
+      // (quantidade ausente — FA-03) com `errors[].field = items.<i>.quantity`.
+      const raw = await readBody(request);
+      const body = JSON.parse(raw || '{}');
+      const key = String(request.headers['idempotency-key'] ?? '');
+      const replay = key ? priceState.replays.get(key) : undefined;
+      if (replay) {
+        return send(response, 201, replay, { 'Idempotent-Replayed': 'true', ETag: '"1"' });
+      }
+      if (priceState.research !== null) {
+        return problemWith(response, 409, 'DOCUMENT_ALREADY_EXISTS', String(correlationId), {
+          members: { meta: { existingId: priceState.research.header.id } },
+        });
+      }
+      if (priceState.items.length === 0) {
+        return problemWith(response, 422, 'BUSINESS_RULE_VIOLATION', String(correlationId), {
+          members: {
+            violations: [
+              {
+                code: 'PRICE_ITEMS_REQUIRED',
+                severity: 'BLOCKING',
+                message: 'Cadastre os itens da contratação antes de criar a pesquisa.',
+                ruleId: null,
+                sectionKey: null,
+                field: null,
+                itemId: null,
+                params: {},
+              },
+            ],
+          },
+        });
+      }
+      const requested = Array.isArray(body.items)
+        ? body.items
+        : priceState.items.map((item) => ({ processItemId: item.id }));
+      const quantities = new Map();
+      const errors = [];
+      requested.forEach((entry, index) => {
+        const item = priceState.items.find((candidate) => candidate.id === entry.processItemId);
+        const given = typeof entry.quantity === 'string' ? entry.quantity.trim() : '';
+        const quantity = given !== '' ? given : (item?.referenceQuantity ?? '');
+        if (!item || !(Number(quantity) > 0)) {
+          errors.push({
+            field: `items.${String(index)}.quantity`,
+            code: 'REQUIRED',
+            message: 'Informe a quantidade',
+          });
+          return;
+        }
+        quantities.set(item.id, Number(quantity).toFixed(4));
+      });
+      if (errors.length > 0) {
+        return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), { errors });
+      }
+      const created = buildPriceResearch(priceState, {
+        id: mockUuid(),
+        code: 'PP 0003/2026',
+        title: body.title ?? `Pesquisa de preços — ${priceState.fixture.code}`,
+        referenceDate: body.referenceDate ?? new Date().toISOString().slice(0, 10),
+        quantities,
+      });
+      priceState.research = created;
+      const result = { data: created.header, meta: priceMeta() };
+      if (key) priceState.replays.set(key, result);
+      return send(response, 201, result, {
+        Location: `/api/v1/price-research/${created.header.id}`,
+        ETag: '"1"',
+      });
+    }
+  }
+  const priceResearchRoute = /^\/api\/v1\/price-research\/([0-9a-f-]{36})(\/items)?$/.exec(
+    url.pathname,
+  );
+  if (priceResearchRoute && request.method === 'GET') {
+    const research = priceResearchOf(priceResearchRoute[1]);
+    if (!research) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (priceResearchRoute[2]) {
+      return send(response, 200, {
+        data: research.items,
+        meta: { page: 1, pageSize: 100, totalItems: research.items.length, totalPages: 1 },
+      });
+    }
+    return send(
+      response,
+      200,
+      { data: research.header, meta: priceMeta() },
+      { ETag: `"${String(research.header.version)}"` },
+    );
+  }
   // Detalhe, painel e etiquetas dos processos da lista (US-004/US-007): PRC-04/07/08/10 e PRC-18.
   const listedRoute =
     /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags)?$/.exec(
       url.pathname,
     );
   const listedFixture = listedRoute
-    ? LIST_FIXTURES.find((fixture) => listProcessId(fixture.n) === listedRoute[1])
+    ? [...LIST_FIXTURES, ...PRICE_FIXTURES].find(
+        (fixture) => listProcessId(fixture.n) === listedRoute[1],
+      )
     : undefined;
   if (listedRoute && listedFixture) {
     const processId = listedRoute[1];

@@ -19,6 +19,9 @@ export interface ProcessItemReference {
   readonly id: string;
   readonly processId: string;
   readonly sequence: number;
+  /** Lote (RN-PROC-74) — exibição e filtro da pesquisa de preços (US-024 · PRS-05). */
+  readonly lotNumber: number | null;
+  readonly lotName: string | null;
   readonly description: string;
   readonly unitOfMeasureId: string;
   /** Decimal(18,4) como string (sugestão da quantidade no DFD — fluxo principal 9). */

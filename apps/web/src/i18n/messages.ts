@@ -16,6 +16,7 @@ import notificationPreferences from '../../messages/pt-BR/notificationPreference
 import notifications from '../../messages/pt-BR/notifications.json';
 import organizations from '../../messages/pt-BR/organizations.json';
 import permissions from '../../messages/pt-BR/permissions.json';
+import priceResearch from '../../messages/pt-BR/priceResearch.json';
 import processActions from '../../messages/pt-BR/processActions.json';
 import processes from '../../messages/pt-BR/processes.json';
 import processItems from '../../messages/pt-BR/processItems.json';
@@ -59,6 +60,7 @@ export const messages = {
   notifications,
   organizations,
   permissions,
+  priceResearch,
   processActions,
   processList,
   processes,

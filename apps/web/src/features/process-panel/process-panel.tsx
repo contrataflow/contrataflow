@@ -28,6 +28,7 @@ import { StageStepper } from './stage-stepper';
 import { AttachmentsSection } from '../attachments/attachments-section';
 import { CommentsPanel } from '../comments/comments-panel';
 import { ElaborateDfdButton } from '../dfd/elaborate-dfd';
+import { CreatePriceResearchButton } from '../price-research/create-price-research-dialog';
 import { useAvailableActions } from '../process-actions/process-actions.api';
 import { ConfidentialBudgetToggle } from '../process-confidentiality/confidential-budget-toggle';
 import { DocumentsPanel } from '../process-documents/documents-panel';
@@ -319,6 +320,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
           {/* US-014: "Elaborar DFD" quando o DOC-01 libera o tipo DFD (fluxo principal 1). */}
           <ElaborateDfdButton processId={processId} />
+          {/* US-024: "Criar pesquisa de preços" / "Abrir pesquisa {código}" (DOC-01 + PRS-01). */}
+          <CreatePriceResearchButton processId={processId} />
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* US-033: acesso à tela de riscos (SCR-011). */}
             <RisksLink processId={processId} />

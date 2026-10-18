@@ -1,4 +1,8 @@
-import type { DocumentAction, SystemDocumentModule } from '@contrataflow/validation';
+import type {
+  Confidentiality,
+  DocumentAction,
+  SystemDocumentModule,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -38,6 +42,18 @@ export interface CreateStructuredDocumentInput {
   /** Mensagens do módulo dono (V-01 e 403 da custódia). */
   readonly messages: { readonly templateInvalid: string; readonly notCustodian: string };
   readonly idempotencyKey: string | null;
+  /**
+   * Sigilo do documento a partir do processo (US-024 · RN-PRICE-08: `RESTRICTED` com orçamento
+   * sigiloso); ausente ou `undefined` = o sigilo padrão do tipo.
+   */
+  readonly confidentialityOf?: (process: DocumentProcessContext) => Confidentiality | undefined;
+  /**
+   * Regra do módulo dono conferida DEPOIS da autorização e ANTES de qualquer gravação (US-024 ·
+   * RN-PRICE-02: processo sem itens → 422 só para quem pode criar; nada numerado).
+   */
+  readonly beforeCreate?: (process: DocumentProcessContext) => void | Promise<void>;
+  /** Metadados do módulo dono acrescentados ao `document.create` (ex.: snapshot da pesquisa). */
+  readonly auditMetadata?: Readonly<Record<string, unknown>>;
 }
 
 export interface CreatedStructuredDocument {
@@ -86,7 +102,9 @@ export class StructuredDocumentCreator {
       input.messages.notCustodian,
     );
 
+    await input.beforeCreate?.(process);
     const userId = custody.userId;
+    const confidentiality = input.confidentialityOf?.(process);
     const document = await this.creation.create(tx, {
       processId: process.id,
       documentTypeId: type.id,
@@ -103,7 +121,9 @@ export class StructuredDocumentCreator {
         },
       }),
       responsibleId: userId,
+      ...(confidentiality === undefined ? {} : { confidentiality }),
       idempotencyKey: input.idempotencyKey,
+      ...(input.auditMetadata === undefined ? {} : { auditMetadata: input.auditMetadata }),
     });
     const created = { document, type, template, process };
     const actor = await this.lifecycle.actorOf(created);

@@ -249,4 +249,7 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // (DOC-22); a falha também avisa quem pediu (`DOCUMENT_RENDER_FAILED`).
     DocumentRenditionReady: ['document.rendition_ready'],
     DocumentRenditionFailed: ['document.rendition_failed'],
+    // US-024: totais recalculados no mesmo `tx` (sem valores no payload); nenhum consumidor
+    // assíncrono no MVP 1 (events.md §4.3 · "Cons." vazio).
+    PriceResearchRecalculated: 'NO_ASYNC_CONSUMER',
   };

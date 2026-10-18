@@ -32,6 +32,8 @@ export const TENANT_SCOPED_MODELS = [
   'Notification',
   'NotificationPreference',
   'OutboxEvent',
+  'PriceItem',
+  'PriceResearch',
   'Process',
   'ProcessAccess',
   'ProcessAssignment',

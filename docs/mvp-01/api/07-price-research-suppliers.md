@@ -94,6 +94,7 @@ O "mapa comparativo" em PDF é a renderização do documento `PRICE_RESEARCH` (`
 
 - **Efeitos:** Eventos: `DocumentCreated` (`document.created.price_research`) — `documentId`, `documentTypeCode = PRICE_RESEARCH`, `kind = STRUCTURED`, `code`, `title`, `templateVersionId`. Auditoria: `document.create` (`DATA_CHANGE`) — `metadata`: `documentCode`, `documentTypeCode`, `processCode`, `itemsCount`, snapshot de `parameters`, `idempotencyKey`. Timeline: `DOCUMENT_CREATED`.
 - **Notas:** `parameters` (inclui `roundingMode`) é um snapshot fixado na criação (RN-PRICE-05); confidencialidade herdada do processo.
+- **Implementação (US-024, 2026-10-18):** o `id` da pesquisa é o próprio `documentId` (CHECK `price_research_id_is_document`), como no DFD — a rota da SCR-009 e o painel de documentos usam o mesmo identificador. O `PriceResearch` traz também `templateVersionId`, `documentVersion`, `draftRevision`, `lastCalculatedAt`, `createdAt` e `updatedAt`; a resposta 201 traz o mesmo `meta` do PRS-03. O 409 `DOCUMENT_ALREADY_EXISTS` traz `meta: { existingId, existingDocumentId, code }` quando a verificação prévia encontrou a pesquisa (na corrida decidida pelo índice único, sem o id). `PRICE_ITEMS_REQUIRED` é conferido depois da autorização e antes de qualquer gravação (quem não pode criar recebe o 403). A data-base futura e a regra da quantidade são conferidas juntas no caso de uso (um único 422 com `items[i].quantity` e `referenceDate`). A auditoria `document.create` leva `code` (código do documento), `itemsCount` e `parameters`.
 
 ### PRS-03 — Obter pesquisa de preços
 `GET /api/v1/price-research/{id}` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-024
@@ -110,6 +111,7 @@ O "mapa comparativo" em PDF é a renderização do documento `PRICE_RESEARCH` (`
 
 - **Efeitos:** —
 - **Notas:** leitura de valores sigilosos sujeita a POL-09/RN-PRICE-12 (api.md §1.4): quem não atende a política recebe `totalEstimatedValue: null` + `totalEstimatedValueMasked: true`.
+- **Implementação (US-024):** `meta = { allowedActions: ('UPDATE'|'ADD_ITEMS'|'REMOVE_ITEMS')[], documentActions: DOCUMENT_ACTIONS[], lockReason, template }`. `lockReason` explica os botões desabilitados: `PERMISSION_DENIED`, `NOT_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`, `DOCUMENT_NOT_EDITABLE` ou `CONFIDENTIAL_BUDGET` (sem POL-09 em processo sigiloso — RN-PRICE-12). `complete`/`reopen` seguem em `documentActions` (`FINALIZE`/`REOPEN`) até a US-032. `meta.template` = versão de template fixada (seções `METHODOLOGY`/`CONCLUSION`/`PRICE_SUMMARY`).
 
 ### PRS-04 — Atualizar pesquisa de preços (data-base, título e parâmetros de cálculo)
 `PATCH /api/v1/price-research/{id}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-024, US-029
@@ -140,6 +142,7 @@ O "mapa comparativo" em PDF é a renderização do documento `PRICE_RESEARCH` (`
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit — `priceResearchId`, `itemsCount`, `itemsWithAlertsCount`, sem valores. Auditoria: `document.draft_update` (data-base/título) ou `price_research.method_change`/`price_research.recalculate` (parâmetros de cálculo, US-029).
 - **Notas:** demais parâmetros do snapshot (ex.: `directQuoteMaxAgeDays`, `similarContractMaxAgeDays`, `outlierLowerPercent/UpperPercent`) não aparecem como editáveis nas stories-fonte — a definir na implementação.
+- **Implementação (US-024):** só `referenceDate` e `title` são editáveis. Qualquer parâmetro do snapshot no corpo (inclusive `defaultMethod`, `cvThresholdPercent`, `minQuotations`, `unitPriceDecimals`, `roundingMode`) → 422 `VALIDATION_ERROR` `NOT_ALLOWED` ("Este parâmetro foi fixado na criação da pesquisa.") até a US-029 liberar os de cálculo. `If-Match` = `version` da pesquisa (428 sem ele). A nova data-base reavalia os alertas e emite `PriceResearchRecalculated`; só o título não emite o evento. Sem POL-09 em processo sigiloso → 403 `PERMISSION_DENIED` com `access.denied` (`reasonCode = POL-09`). Auditoria `document.draft_update` com o título como impressão digital (sha256 + tamanho).
 
 ### PRS-05 — Listar itens da pesquisa
 `GET /api/v1/price-research/{id}/items` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-024, US-029
@@ -167,6 +170,7 @@ PriceItem {
 
 - **Efeitos:** —
 - **Notas:** valores mascarados conforme POL-09/RN-PRICE-12 quando a pesquisa é sigilosa.
+- **Implementação (US-024):** o `PriceItem` traz também `priceResearchId`, `sequence`, `lotNumber`, `lotName`, `description`, `unit { id, label, allowsDecimal }`, `quotationsCount` (confirmação da remoção — FA-05), `alerts`, `valuesMasked` e `totalPrice` sempre presentes (`null` quando não calculados). Sem POL-09, todos os valores monetários e o CV vêm `null` com `valuesMasked`/`recommendedUnitPriceMasked = true`. `pageSize` padrão 100.
 
 ### PRS-06 — Incluir itens na pesquisa
 `POST /api/v1/price-research/{id}/items` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-024
@@ -188,6 +192,7 @@ PriceItem {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) **sempre** no commit — `priceResearchId`, `itemsCount`, `itemsWithAlertsCount`. Auditoria: `document.items_update` (`DATA_CHANGE`) — `changes`: itens incluídos com quantidade.
 - **Notas:** PRS-06 emite `PriceResearchRecalculated` em todo commit, mesmo sem cotações ainda lançadas.
+- **Implementação (US-024):** item já presente na pesquisa → 422 `DUPLICATE_IN_LIST` em `items[i].processItemId`. A quantidade segue a mesma regra do PRS-02 (processo → ETP → DFD; obrigatória se nenhuma). Muda a `version` da pesquisa.
 
 ### PRS-07 — Atualizar item da pesquisa (quantidade e método)
 `PATCH /api/v1/price-items/{itemId}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-029
@@ -234,6 +239,7 @@ PriceItem {
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit. Auditoria: `document.items_update` (`DATA_CHANGE`) — `changes`: item removido; `metadata`: nº de cotações apagadas.
 - **Notas:** a pesquisa precisa de ao menos um item.
+- **Implementação (US-024):** `If-Match` = `version` do item (o `PriceItem.version` do PRS-05). O 422 do último item vem em `errors[]` (`field = itemId`, `NOT_ALLOWED`, "A pesquisa precisa de ao menos um item."). Muda a `version` da pesquisa.
 
 ### PRS-09 — Listar fontes da pesquisa
 `GET /api/v1/price-research/{id}/sources` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-026

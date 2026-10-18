@@ -14,6 +14,8 @@ const referenceOf = (item: ProcessItem): ProcessItemReference => ({
   id: item.id,
   processId: item.processId,
   sequence: item.sequence,
+  lotNumber: item.lotNumber,
+  lotName: item.lotName,
   description: item.description,
   unitOfMeasureId: item.unitOfMeasureId,
   referenceQuantity: item.referenceQuantity,

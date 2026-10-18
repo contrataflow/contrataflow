@@ -20,6 +20,7 @@ export * from './identity/user-lookup.js';
 export * from './internal/example.js';
 export * from './notification/index.js';
 export * from './organization/index.js';
+export * from './price-research/index.js';
 export * from './process/index.js';
 export * from './risk/index.js';
 export * from './supplier/index.js';

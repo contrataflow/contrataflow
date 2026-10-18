@@ -54,6 +54,7 @@ export const DOMAIN_EVENT_NAMES = [
   'DocumentCanceled',
   'SupplierCreated',
   'SupplierUpdated',
+  'PriceResearchRecalculated',
   'RiskCreated',
   'RiskAssessed',
   'RiskDeleted',

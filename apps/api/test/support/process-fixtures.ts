@@ -13,6 +13,7 @@ import type { Attachment } from '#modules/files/domain/attachment.js';
 import { InMemoryAttachmentRepository } from '#modules/files/infrastructure/in-memory-attachment.repository.js';
 import type { ProcessParticipant } from '#modules/process/domain/process-participants.js';
 import { InMemoryProcessRepository } from '#modules/process/infrastructure/in-memory-process.repository.js';
+import { InMemoryProcessItemRepository } from '#modules/process/infrastructure/process-item.repositories.js';
 import { InMemoryProcessParticipantRepository } from '#modules/process/infrastructure/process-participant.repositories.js';
 import { TENANT_SETTINGS_REPOSITORY } from '#modules/tenancy/application/settings-ports.js';
 import { InMemoryOrganizationRepository } from '#modules/tenancy/infrastructure/in-memory-organization.repository.js';
@@ -204,6 +205,20 @@ export function seedParticipant(
 
 export function processRepositoryOf(api: TestApi): InMemoryProcessRepository {
   return api.app.get(InMemoryProcessRepository, { strict: false });
+}
+
+/**
+ * Quantidade de referência do item do processo (DEC-019: só os documentos e a pesquisa a gravam —
+ * o PRC-14 a recusa), para os cenários que partem de itens com quantidade (US-024).
+ */
+export function setProcessItemReferenceQuantity(
+  api: TestApi,
+  itemId: string,
+  referenceQuantity: string | null,
+): void {
+  api.app
+    .get(InMemoryProcessItemRepository, { strict: false })
+    .setReferences(itemId, { referenceQuantity });
 }
 
 /** Etapas das versões publicadas do tenant (workflow padrão do seeder — US-042). */
