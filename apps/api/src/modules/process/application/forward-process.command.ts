@@ -284,7 +284,7 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     const approvalId = toApproval ? newId() : null;
     const approver: StageApprover | null = toApproval
       ? await withSpan('process.forward.approval', {}, () =>
-          this.approvals.resolveStageApproverIn(tx, toStage, process),
+          this.approvals.resolveStageApproverIn(tx, toStage, process, now),
         )
       : null;
     const covered = toApproval ? coveredDocuments(before, toStage.approvalDocumentTypeCodes) : [];

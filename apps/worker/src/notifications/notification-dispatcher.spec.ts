@@ -7,7 +7,11 @@ import type { SqlClient } from '#shared/database/outbox-database.js';
 
 import { NotificationDispatcher } from './notification-dispatcher.js';
 import type { NotificationInstruments } from './notification-telemetry.js';
-import type { NotificationPreferences, ProcessVisibility } from './recipient-resolver.js';
+import type {
+  NotificationPreferences,
+  ProcessVisibility,
+  RecipientLookupSource,
+} from './recipient-resolver.js';
 import {
   ACTOR,
   FakeDirectory,
@@ -39,6 +43,7 @@ function setup(
     readonly preferences?: NotificationPreferences;
     readonly emailEnabled?: boolean;
     readonly failTransaction?: Error;
+    readonly lookups?: readonly RecipientLookupSource[];
   } = {},
 ) {
   const directory = new FakeDirectory();
@@ -57,6 +62,7 @@ function setup(
       visibleTo: (_client, _processId, userIds) => Promise.resolve(new Set(userIds)),
     },
     ...(options.preferences ? { preferences: options.preferences } : {}),
+    ...(options.lookups ? { lookups: options.lookups } : {}),
     email: {
       enqueue: (notificationId) => {
         emails.push(notificationId);
@@ -246,6 +252,60 @@ describe('NotificationDispatcher (US-111)', () => {
     );
     expect(store.rows).toHaveLength(1);
     expect(store.rows[0]).toMatchObject({ type: 'ROLE_CHANGED', archived: false });
+  });
+
+  it('[US-051] APPROVAL_REQUESTED do titular: titular e substituto, in-app obrigatório mesmo desligado', async () => {
+    const preferences: NotificationPreferences = {
+      preferences: () => Promise.resolve(new Map([[CARLA, { inApp: false, email: false }]])),
+    };
+    const { dispatcher, store, directory, context } = setup({ preferences });
+    directory.heads.set(DEPARTMENT, { headUserId: CARLA, deputyUserId: BRUNO });
+    const approvalId = testId();
+    await dispatcher.handle(
+      {
+        envelope: envelope('ApprovalRequested', {
+          approvalId,
+          subjectType: 'PROCESS_STAGE',
+          approverType: 'DEPARTMENT_HEAD',
+          approverUserId: CARLA,
+          approverRoleId: null,
+          approverDepartmentId: DEPARTMENT,
+          allowDeputy: true,
+        }),
+      },
+      context,
+    );
+    expect(store.rows.map((row) => [row.recipientId, row.type, row.archived]).sort()).toEqual(
+      [
+        [CARLA, 'APPROVAL_REQUESTED', false],
+        [BRUNO, 'APPROVAL_REQUESTED', false],
+      ].sort(),
+    );
+  });
+
+  it('[US-051] APPROVAL_REQUESTED de perfil: os detentores competentes (ROLE_HOLDERS), sem o ator', async () => {
+    const roleHolders: RecipientLookupSource = {
+      lookup: 'ROLE_HOLDERS',
+      resolve: () => Promise.resolve([CARLA, ACTOR]),
+    };
+    const { dispatcher, store, context } = setup({ lookups: [roleHolders] });
+    await dispatcher.handle(
+      {
+        envelope: envelope('ApprovalRequested', {
+          approvalId: testId(),
+          subjectType: 'DOCUMENT',
+          approverType: 'ROLE',
+          approverUserId: null,
+          approverRoleId: testId(),
+          approverDepartmentId: null,
+          allowDeputy: false,
+        }),
+      },
+      context,
+    );
+    expect(store.rows.map((row) => [row.recipientId, row.type])).toEqual([
+      [CARLA, 'APPROVAL_REQUESTED'],
+    ]);
   });
 
   it('[FA-01] sem responsável, avisa os membros da unidade (exceto o ator)', async () => {

@@ -12,6 +12,7 @@ import type { RecordedDomainEvent, SyncEventHandler } from '#shared/outbox/outbo
 
 import { PROCESS_REPOSITORY } from './ports.js';
 import type { ProcessRepository } from './ports.js';
+import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import { creationGrants } from '../domain/process-runtime-records.js';
 import { stageChangeAccess } from '../domain/stage-transition.js';
 
@@ -26,8 +27,10 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * US-005: `process.updated` com a secretaria ou o setor solicitante alterado → revoga as concessões
  * `REQUESTING` anteriores e concede as novas (RN-PROC-62). US-047: `process.stage_changed.*` →
  * `CURRENT` da origem vira `HISTORICAL` (unidade mudou), `CURRENT` do destino e `RESPONSIBLE` do
- * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) → `RESPONSIBLE` de quem assumiu; `approval.requested` → `APPROVER` para o aprovador designado
- * (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já tem o `CURRENT`).
+ * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) → `RESPONSIBLE` de quem
+ * assumiu; `approval.requested` (US-051) → `APPROVER` para o aprovador designado e, com
+ * `allowDeputy`, o substituto da unidade (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já
+ * tem o `CURRENT`).
  */
 @Injectable()
 export class ProcessAccessProjector implements SyncEventHandler {
@@ -40,7 +43,10 @@ export class ProcessAccessProjector implements SyncEventHandler {
     'approval.requested',
   ];
 
-  constructor(@Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository) {}
+  constructor(
+    @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
+    private readonly organization: OrganizationFacade,
+  ) {}
 
   async handle(tx: TenantTx, event: RecordedDomainEvent): Promise<void> {
     const at = new Date(event.occurredAt);
@@ -97,18 +103,27 @@ export class ProcessAccessProjector implements SyncEventHandler {
       }
       case ApprovalRequested.eventType: {
         const payload = ApprovalRequested.payloadSchema.parse(event.payload);
-        if (event.processId === null || payload.approverUserId === null) return;
+        if (event.processId === null) return;
+        // RN-TRAM-53: o aprovador designado e, com `allowDeputy`, o substituto da unidade (lido no
+        // mesmo `tx` — RLS do tenant). `ROLE` decide pela unidade, que já tem o `CURRENT`.
+        const deputyUserId =
+          payload.allowDeputy && payload.approverDepartmentId !== null
+            ? ((await this.organization.findDepartmentForApproval(tx, payload.approverDepartmentId))
+                ?.deputyUserId ?? null)
+            : null;
+        const userIds = [
+          ...new Set([payload.approverUserId, deputyUserId].filter((id) => id !== null)),
+        ];
+        if (userIds.length === 0) return;
         await this.processes.grantAccess(
           tx,
           event.processId,
-          [
-            {
-              principalType: 'USER',
-              userId: payload.approverUserId,
-              reason: 'APPROVER',
-              sourceId: payload.approvalId,
-            },
-          ],
+          userIds.map((userId) => ({
+            principalType: 'USER' as const,
+            userId,
+            reason: 'APPROVER' as const,
+            sourceId: payload.approvalId,
+          })),
           at,
         );
         return;

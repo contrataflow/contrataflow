@@ -28,11 +28,13 @@ import {
   ProcessStageLookupSource,
   RiskLookupSource,
 } from './infrastructure/process-lookup.sources.js';
+import { RoleLookupSource } from './infrastructure/role-lookup.source.js';
 import {
   InMemoryTimelineTransactions,
   PrismaTimelineTransactions,
 } from './infrastructure/timeline-transactions.js';
 import { TimelineController } from './presentation/timeline.controller.js';
+import { AccessModule } from '../access/access.module.js';
 import { DocumentModule } from '../document/document.module.js';
 import { CommentLookupSource } from './infrastructure/comment-lookup.source.js';
 import { CollaborationModule } from '../collaboration/collaboration.module.js';
@@ -52,6 +54,7 @@ import { RiskModule } from '../risk/risk.module.js';
  */
 @Module({
   imports: [
+    AccessModule,
     IdentityModule,
     OrganizationModule,
     ProcessModule,
@@ -91,12 +94,14 @@ import { RiskModule } from '../risk/risk.module.js';
     AttachmentLookupSource,
     RiskLookupSource,
     CommentLookupSource,
+    RoleLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
       // US-001: unidade, processo e etapa das referências de `ProcessCreated`. US-065: documento e
       // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`). US-012: participante
       // (`PARTICIPANT_REMOVED`). US-033: risco (`RISK_ADDED`/`RISK_LEVEL_CHANGED`/`RISK_REMOVED`).
-      // US-071: comentário (`COMMENT_ADDED` — trecho e sigilo do documento-alvo).
+      // US-071: comentário (`COMMENT_ADDED` — trecho e sigilo do documento-alvo). US-051: perfil
+      // aprovador (`APPROVAL_REQUESTED` com `approverType = ROLE`).
       inject: [
         IdentityUserLookupSource,
         DepartmentLookupSource,
@@ -108,6 +113,7 @@ import { RiskModule } from '../risk/risk.module.js';
         AttachmentLookupSource,
         RiskLookupSource,
         CommentLookupSource,
+        RoleLookupSource,
       ],
       useFactory: (...sources: AnyTimelineLookupSource[]): AnyTimelineLookupSource[] => sources,
     },

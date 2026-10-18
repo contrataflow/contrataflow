@@ -116,6 +116,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Aprovador não resolvível',
     detail: 'Não foi possível determinar quem aprova. Revise o aprovador selecionado.',
   },
+  APPROVAL_NOT_PENDING: {
+    status: 409,
+    title: 'Aprovação não pendente',
+    detail: 'Já existe uma aprovação em andamento para este item.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

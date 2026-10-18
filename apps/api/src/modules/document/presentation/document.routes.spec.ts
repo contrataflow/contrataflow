@@ -281,7 +281,7 @@ describe('Feature: Ciclo de vida do documento (US-065)', () => {
       requiresApproval: true,
       approvalPolicy: {
         approverType: 'USER',
-        approverUserId: FAKE_USERS.rafael.id,
+        approverUserId: FAKE_USERS.marta.id,
         allowDeputy: false,
       },
     });
@@ -411,7 +411,7 @@ describe('Feature: Ciclo de vida do documento (US-065)', () => {
         processId,
         status: 'PENDING',
         approverType: 'USER',
-        approverUserId: FAKE_USERS.rafael.id,
+        approverUserId: FAKE_USERS.marta.id,
         requestedById: FAKE_USERS.lucia.id,
         dueAt: null,
         title: 'Aprovação avulsa — Despacho sigiloso "Despacho sigiloso nº 3"',

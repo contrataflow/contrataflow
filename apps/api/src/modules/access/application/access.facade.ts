@@ -9,6 +9,7 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
+import { ApprovalCompetenceService } from './approval-competence.service.js';
 import { AuthorizationService } from './authorization.service.js';
 import type { ConfidentialBudgetAccess } from './authorization.service.js';
 import { EffectivePermissionsService } from './effective-permissions.service.js';
@@ -16,12 +17,14 @@ import { ROLE_REPOSITORY } from './ports.js';
 import type { RoleRepository } from './ports.js';
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 import type { SeedDefaultRolesResult } from './seed-default-roles.handler.js';
+import type { RequestingUnits } from '../domain/approval-competence.js';
 import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import { EffectivePermissionSet } from '../domain/effective-permissions.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
 import type { Role } from '../domain/role.js';
 
 export type { ConfidentialBudgetAccess } from './authorization.service.js';
+export type { RequestingUnits } from '../domain/approval-competence.js';
 
 /** Perfis padrão atribuídos com escopo `TENANT` (permissions.md §3.1). */
 const TENANT_WIDE_ROLE_KEYS: ReadonlySet<string> = new Set(
@@ -47,7 +50,23 @@ export class AccessFacade {
     @Inject(ROLE_REPOSITORY) private readonly roles: RoleRepository,
     private readonly authorization: AuthorizationService,
     private readonly effective: EffectivePermissionsService,
+    private readonly competence: ApprovalCompetenceService,
   ) {}
+
+  /**
+   * Detentores do perfil competentes para aprovar sobre as unidades solicitantes do processo
+   * (US-051 · RN-TRAM-47 · DEC-022): atribuições vigentes `TENANT`, `ORGANIZATION` do processo ou
+   * `DEPARTMENT`/`OWN_DEPARTMENTS` contendo a secretaria/setor solicitante, de vínculos ativos —
+   * nunca concessões `CURRENT`/`HISTORICAL`. No `tx` do chamador; vazio = ninguém no escopo.
+   */
+  roleHoldersInScopeIn(
+    tx: TenantTx,
+    roleId: string,
+    target: RequestingUnits,
+    now: Date,
+  ): Promise<string[]> {
+    return this.competence.roleHolders(tx, roleId, target, now);
+  }
 
   /**
    * O vínculo de um TERCEIRO tem a permissão em algum escopo vigente (US-047 · RN-TRAM-08: o

@@ -12,6 +12,7 @@ import { ProcessAccessModule } from '#shared/auth/process-access.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { AccessFacade } from './application/access.facade.js';
+import { ApprovalCompetenceService } from './application/approval-competence.service.js';
 import { AuthorizationService } from './application/authorization.service.js';
 import { DefaultRolesSeeder } from './application/default-roles.seeder.js';
 import { EffectivePermissionsService } from './application/effective-permissions.service.js';
@@ -82,6 +83,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   ],
   providers: [
     AccessFacade,
+    // US-051: competência de aprovar por perfil (detentores no escopo da unidade solicitante).
+    ApprovalCompetenceService,
     // US-097: permissões efetivas (cache Redis), decisão única e ME-03.
     EffectivePermissionsService,
     AuthorizationService,

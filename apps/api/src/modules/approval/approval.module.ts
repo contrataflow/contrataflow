@@ -8,10 +8,10 @@ import {
   DocumentApprovalRegistry,
 } from '#shared/document/document-approval.js';
 
+import { ApprovalRequestService } from './application/approval-request.service.js';
 import { ApprovalFacade } from './application/approval.facade.js';
-import { DocumentApprovalRequestService } from './application/document-approval.requester.js';
+import { ApproverResolver } from './application/approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './application/ports.js';
-import { StageApprovalService } from './application/stage-approval.service.js';
 import {
   InMemoryApprovalRepository,
   PrismaApprovalRepository,
@@ -24,17 +24,18 @@ import { OrganizationModule } from '../organization/organization.module.js';
 const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
- * Módulo `approval` (DEC-040): outros módulos usam somente a fachada exportada. US-065: a aprovação
- * avulsa da submissão de documento (`subjectType = DOCUMENT`), registrada na porta
- * `DocumentApprovalRegistry` do shared kernel (`document` está no mesmo nível). US-047: a aprovação
- * de etapa aberta pelo encaminhamento (`StageApprovalService` — aprovador, cobertura e evento).
+ * Módulo `approval` (DEC-040): outros módulos usam somente a fachada exportada. US-051: a
+ * solicitação de aprovação (`ApprovalRequestService`) e a resolução do aprovador
+ * (`ApproverResolver`) — a de etapa pela fachada (encaminhamento, US-047) e a avulsa da submissão
+ * de documento pela porta `DocumentApprovalRegistry` do shared kernel (`document` está no mesmo
+ * nível — US-065).
  */
 @Module({
   imports: [DocumentApprovalModule, AccessModule, IdentityModule, OrganizationModule],
   providers: [
     ApprovalFacade,
-    DocumentApprovalRequestService,
-    StageApprovalService,
+    ApproverResolver,
+    ApprovalRequestService,
     PrismaApprovalRepository,
     InMemoryApprovalRepository,
     {
@@ -52,7 +53,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 export class ApprovalModule implements OnModuleInit {
   constructor(
     private readonly registry: DocumentApprovalRegistry,
-    private readonly requester: DocumentApprovalRequestService,
+    private readonly requester: ApprovalRequestService,
   ) {}
 
   onModuleInit(): void {

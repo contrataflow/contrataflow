@@ -47,6 +47,7 @@ function validator(options: {
       {} as ConstructorParameters<typeof AccessFacade>[1],
       {} as ConstructorParameters<typeof AccessFacade>[2],
       {} as ConstructorParameters<typeof AccessFacade>[3],
+      {} as ConstructorParameters<typeof AccessFacade>[4],
     ),
     {
       findRoleForApproval: () => Promise.resolve(options.role ?? null),
@@ -127,7 +128,7 @@ describe('ApprovalPolicyValidator (RN-DOC-07 · V-08/V-09/V-10)', () => {
   });
 
   it('DEPARTMENT_HEAD FIXED: unidade ativa com titular resolve; sem titular → APPROVER_UNRESOLVED (422)', async () => {
-    const withHead = { id: DEPARTMENT, isActive: true, headUserId: USER };
+    const withHead = { id: DEPARTMENT, isActive: true, headUserId: USER, deputyUserId: null };
     expect(
       await outcome(validator({ department: withHead }).assertResolvable(tx, fixed, NOW)),
     ).toBeNull();

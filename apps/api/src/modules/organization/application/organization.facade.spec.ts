@@ -36,6 +36,7 @@ describe('OrganizationFacade (US-102)', () => {
       id: UNIT,
       isActive: true,
       headUserId: HEAD,
+      deputyUserId: null,
     });
   });
 

@@ -9,8 +9,9 @@ import { ApiError } from '../errors/api-error.js';
  * `requiresApproval = true` abre uma `Approval` (`subjectType = DOCUMENT`) conforme
  * `DocumentType.approvalPolicy`, na MESMA transação da submissão. `document` e `approval` estão no
  * mesmo nível (DEC-040): a dependência vira esta porta do shared kernel, que `approval` implementa
- * e registra no `onModuleInit`. A resolução completa do aprovador (titular da unidade, validações)
- * e o evento `ApprovalRequested` são da US-051.
+ * e registra no `onModuleInit`. US-051: o aprovador é resolvido como na etapa (`USER` com vínculo
+ * ativo, `ROLE` com detentor competente no escopo da unidade solicitante, titular da unidade com
+ * `allowDeputy`) e a aprovação publica `ApprovalRequested` (timeline, `APPROVER` e o aviso).
  */
 
 export interface DocumentApprovalRequest {
@@ -26,15 +27,20 @@ export interface DocumentApprovalRequest {
   readonly policy: ApprovalPolicy;
   readonly requestedById: string;
   readonly requestedAt: Date;
-  /** Unidades do processo para `DEPARTMENT_HEAD` com resolução pela unidade solicitante. */
+  /**
+   * Órgão e unidades solicitantes do processo: `DEPARTMENT_HEAD` pela unidade solicitante e a
+   * competência dos detentores de `ROLE` (RN-TRAM-47).
+   */
+  readonly organizationId: string;
   readonly requestingSecretariatId: string;
   readonly requestingDepartmentId: string;
 }
 
 export interface DocumentApprovalRequester {
   /**
-   * Cria a `Approval` `PENDING` e a cobertura (`ApprovalDocument`) no `tx` do chamador; lança
-   * `ApiError` (`APPROVER_UNRESOLVED`…) para desfazer a submissão inteira.
+   * Cria a `Approval` `PENDING`, a cobertura (`ApprovalDocument`), `approval.request` e
+   * `ApprovalRequested` no `tx` do chamador; lança `ApiError` (`APPROVER_UNRESOLVED`,
+   * `APPROVAL_NOT_PENDING`) para desfazer a submissão inteira.
    */
   requestForDocumentSubmission(tx: TenantTx, request: DocumentApprovalRequest): Promise<void>;
   /** A aprovação cobre esta versão do documento (selo de aprovação do PDF — US-067 · FA-02)? */

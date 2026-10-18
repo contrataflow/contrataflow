@@ -82,8 +82,9 @@ genéricas — a ausência de registro nunca falha a ação.
   `DocumentCreated`. Autorização de criação e etapa são de quem chama (DOC-02 na US-063/064).
 - Submissão avulsa (DOC-09): a `Approval` (`subjectType = DOCUMENT`) é aberta no mesmo `tx` pela
   porta `DocumentApprovalRegistry` (`#shared/document/document-approval.ts`), implementada pelo
-  módulo `approval` (resolução do aprovador pela `approvalPolicy`; titular da unidade, evento
-  `ApprovalRequested` e concessão `APPROVER` ficam para a US-051).
+  módulo `approval` (US-051: aprovador resolvido pela `approvalPolicy` como na etapa — titular
+  com `allowDeputy`, `ROLE` com detentor no escopo, `USER` com vínculo ativo —, `approval.request`
+  e `ApprovalRequested`; sem aprovador, 422 `APPROVER_UNRESOLVED` desfaz a submissão).
 - Tramitação/aprovação (US-047/051/052): `DocumentFacade.enterApprovalStageIn` (RN-DOC-44) e
   `applyApprovalDecisionIn` (RN-DOC-45), no `tx` de quem chama.
 - **Banco:** migração `20261016130000_documents` — `documents`, `document_versions` (só INSERT,

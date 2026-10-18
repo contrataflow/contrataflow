@@ -12,6 +12,8 @@ export interface DepartmentForApproval {
   readonly isActive: boolean;
   /** Titular (`headUserId`); `null` = unidade sem titular cadastrado. */
   readonly headUserId: string | null;
+  /** Substituto (`deputyUserId` — decide quando `allowDeputy`, US-051/US-052). */
+  readonly deputyUserId: string | null;
 }
 
 /**
@@ -109,6 +111,7 @@ export class OrganizationFacade {
       id: department.id,
       isActive: department.isActive,
       headUserId: department.headUserId,
+      deputyUserId: department.deputyUserId,
     };
   }
 }

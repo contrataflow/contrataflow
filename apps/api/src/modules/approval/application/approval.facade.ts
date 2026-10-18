@@ -3,17 +3,16 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { ApprovalRequestService } from './approval-request.service.js';
+import type { StageApprovalRequest } from './approval-request.service.js';
+import { ApproverResolver } from './approver-resolver.js';
+import type { StageApprover } from './approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './ports.js';
 import type { ApprovalRepository } from './ports.js';
-import { StageApprovalService } from './stage-approval.service.js';
-import type { StageApprovalRequest, StageApprover } from './stage-approval.service.js';
 import type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
-export type {
-  StageApprovalRequest,
-  StageApprover,
-  StageCoverage,
-} from './stage-approval.service.js';
+export type { StageApprovalRequest, StageCoverage } from './approval-request.service.js';
+export type { StageApprover } from './approver-resolver.js';
 export type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
 /** Aprovação pendente como o painel situacional a mostra (US-004 · RN-PROC-48(2)/(7)). */
@@ -34,12 +33,15 @@ export interface PendingApprovalFact {
 /**
  * API pública do módulo `approval` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório. US-004: as aprovações pendentes do processo para o painel.
+ * US-047/US-051: a aprovação de etapa aberta pelo encaminhamento (a avulsa do DOC-09 entra pela
+ * porta `DocumentApprovalRegistry`).
  */
 @Injectable()
 export class ApprovalFacade {
   constructor(
     @Inject(APPROVAL_REPOSITORY) private readonly approvals: ApprovalRepository,
-    private readonly stageApprovals: StageApprovalService,
+    private readonly resolver: ApproverResolver,
+    private readonly requests: ApprovalRequestService,
   ) {}
 
   /**
@@ -50,8 +52,9 @@ export class ApprovalFacade {
     tx: TenantTx,
     config: StageApproverConfig,
     process: RequestingUnitsOf,
+    now: Date,
   ): Promise<StageApprover | null> {
-    return this.stageApprovals.preview(tx, config, process);
+    return this.resolver.preview(tx, config, process, now);
   }
 
   /**
@@ -62,16 +65,18 @@ export class ApprovalFacade {
     tx: TenantTx,
     config: StageApproverConfig,
     process: RequestingUnitsOf,
+    now: Date,
   ): Promise<StageApprover> {
-    return this.stageApprovals.resolve(tx, config, process);
+    return this.resolver.resolve(tx, config, process, now, 'PROCESS_STAGE');
   }
 
   /**
-   * RN-TRAM-43..53 (US-047 → US-051): abre a `Approval` `PENDING` da etapa com a cobertura,
+   * RN-TRAM-43..53 (US-051 · disparo A): abre a `Approval` `PENDING` da etapa com a cobertura,
    * `approval.request` e `ApprovalRequested`, no `tx` de quem encaminha (falha desfaz tudo).
+   * @throws ApiError 409 `APPROVAL_NOT_PENDING`
    */
   requestForStageIn(tx: TenantTx, request: StageApprovalRequest): Promise<void> {
-    return this.stageApprovals.request(tx, request);
+    return this.requests.requestForStageEntry(tx, request);
   }
 
   /** Aprovações `PENDING` do processo (mais antigas primeiro), no `tx` do chamador. Leitura. */

@@ -57,6 +57,7 @@ import { InvitationEmailSource } from '../notifications/email/invitation-email-s
 import { NotificationEmailSource } from '../notifications/email/notification-email-source.js';
 import { MentionNotifiedEffect } from '../notifications/mention-notified.effect.js';
 import { NotificationDispatcher } from '../notifications/notification-dispatcher.js';
+import { RoleHoldersLookup } from '../notifications/role-holders.lookup.js';
 import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
 import { SqlNotificationPreferences } from '../notifications/sql-notification-preferences.js';
 import { SqlProcessVisibility } from '../notifications/sql-process-visibility.js';
@@ -189,7 +190,12 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
         new NotificationDispatcher({
           directory: new SqlNotificationDirectory(),
           preferences: new SqlNotificationPreferences(),
-          lookups: [new AttachmentUploaderLookup(), new RenditionRequesterLookup()],
+          lookups: [
+            new AttachmentUploaderLookup(),
+            new RenditionRequesterLookup(),
+            // US-051: detentores do perfil aprovador com competência sobre o processo.
+            new RoleHoldersLookup(),
+          ],
           // US-072: visibilidade do processo (DEC-024) e `Mention.notifiedAt`.
           visibility: new SqlProcessVisibility(),
           effects: [new MentionNotifiedEffect()],

@@ -929,7 +929,10 @@ function ProblemAlert({
     case 'approver':
       return (
         <Alert tone="error" title={t('approverUnresolved')}>
-          {problem.detail === null ? null : <p>{problem.detail}</p>}
+          {/* US-051 (V-02): o `detail` padrão da API repete o título — só o diferente aparece. */}
+          {problem.detail === null || problem.detail === t('approverUnresolved') ? null : (
+            <p>{problem.detail}</p>
+          )}
         </Alert>
       );
     case 'idempotencyReused':

@@ -9,6 +9,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { AccessFacade } from './access.facade.js';
+import type { ApprovalCompetenceService } from './approval-competence.service.js';
 import type { AuthorizationService } from './authorization.service.js';
 import type { EffectivePermissionsService } from './effective-permissions.service.js';
 import type { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
@@ -21,6 +22,7 @@ const facade = new AccessFacade(
   roles,
   {} as AuthorizationService,
   {} as EffectivePermissionsService,
+  {} as ApprovalCompetenceService,
 );
 const TX = {} as TenantTx;
 

@@ -1627,6 +1627,7 @@ type ApprovalPolicy = {
   allowDeputy: boolean; slaDays?: number; slaType?: 'BUSINESS' | 'CALENDAR';
 };
 ```
+Na solicitação (US-051 · RN-TRAM-48), a `Approval` grava `allowDeputy = true` sempre que `approverType = DEPARTMENT_HEAD` e `false` para `USER`/`ROLE` — a mesma regra da etapa `APPROVAL`; o `allowDeputy` da política fica como preferência registrada do tipo.
 
 ### 5.8 `DocumentTemplateVersion.importMappings` (TR ← ETP)
 ```ts

@@ -11,9 +11,9 @@ import { OrganizationFacade } from '../../organization/application/organization.
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
 
-/** "Casos de erro" (FA-12): sem aprovador apto, o encaminhamento à etapa é recusado. */
+/** "Casos de erro" (FA-12 · US-051 V-02): sem aprovador, o encaminhamento à etapa é recusado. */
 const APPROVER_UNRESOLVED_MESSAGE =
-  'Não há aprovador apto para esta etapa. Fale com o administrador do órgão.';
+  'Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.';
 
 /**
  * Prévias das entradas `FORWARD` de PRC-08 (US-047 · api/02-processes.md — "a prévia de cada
@@ -86,6 +86,7 @@ export class ForwardPreviews {
         tx,
         toStage,
         runtime.ruleProcess,
+        now,
       );
       if (approver === null) {
         const reasons = [

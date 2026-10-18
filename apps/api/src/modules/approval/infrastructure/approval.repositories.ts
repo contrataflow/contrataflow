@@ -9,9 +9,9 @@ import type { ApprovalRepository } from '../application/ports.js';
 import type { Approval, ApprovalCoverage } from '../domain/approval.js';
 
 /**
- * `approvals` e `approval_documents` no PostgreSQL (US-065): INSERT no `tx` do caso de uso, sob a
- * RLS do tenant e a extensão de isolamento. A pendência única por documento é do índice parcial
- * `approvals_pending_document_key`.
+ * `approvals` e `approval_documents` no PostgreSQL (US-065/US-051): INSERT no `tx` do caso de uso,
+ * sob a RLS do tenant e a extensão de isolamento. A pendência única é dos índices parciais
+ * `approvals_pending_stage_key` (etapa) e `approvals_pending_document_key` (avulsa) — RN-TRAM-43.
  */
 @Injectable()
 export class PrismaApprovalRepository implements ApprovalRepository {
@@ -47,7 +47,7 @@ export class PrismaApprovalRepository implements ApprovalRepository {
         },
       });
     } catch (error) {
-      if (isUniqueViolation(error)) throw new PendingApprovalExistsError(approval.documentId ?? '');
+      if (isUniqueViolation(error)) throw new PendingApprovalExistsError(subjectIdOf(approval));
       throw error;
     }
     if (coverage.length === 0) return;
@@ -105,6 +105,13 @@ export class PrismaApprovalRepository implements ApprovalRepository {
   }
 }
 
+/** A etapa ou o documento sob aprovação (o alvo dos índices de pendência única). */
+function subjectIdOf(approval: Approval): string {
+  return (
+    (approval.subjectType === 'PROCESS_STAGE' ? approval.processStageId : approval.documentId) ?? ''
+  );
+}
+
 /** Aprovações em memória (testes e modo de identidade fake): mesma regra de pendência única. */
 @Injectable()
 export class InMemoryApprovalRepository implements ApprovalRepository {
@@ -116,11 +123,10 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
       (row) =>
         row.tenantId === approval.tenantId &&
         row.status === 'PENDING' &&
-        row.subjectType === 'DOCUMENT' &&
-        approval.subjectType === 'DOCUMENT' &&
-        row.documentId === approval.documentId,
+        row.subjectType === approval.subjectType &&
+        subjectIdOf(row) === subjectIdOf(approval),
     );
-    if (pending) return Promise.reject(new PendingApprovalExistsError(approval.documentId ?? ''));
+    if (pending) return Promise.reject(new PendingApprovalExistsError(subjectIdOf(approval)));
     this.rows.set(approval.id, approval);
     this.coverage.set(approval.id, coverage);
     return Promise.resolve();
@@ -154,7 +160,7 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     );
   }
 
-  /** Carga de teste: aprovação já aberta (as de etapa chegam com a US-051). */
+  /** Carga de teste: aprovação já aberta. */
   seed(approval: Approval): void {
     this.rows.set(approval.id, approval);
   }

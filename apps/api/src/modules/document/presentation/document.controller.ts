@@ -213,7 +213,7 @@ export class DocumentController {
     responses: {
       200: {
         description:
-          'Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId`.',
+          'Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId` (US-051: aprovador resolvido pela política do tipo — sem aprovador, 422 `APPROVER_UNRESOLVED`; pendência concorrente, 409 `APPROVAL_NOT_PENDING`; ambos desfazem a submissão).',
         schema: DOCUMENT_RESPONSE,
       },
     },

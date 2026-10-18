@@ -442,6 +442,7 @@ export class SubmitDocumentCommand extends ConcludeDocumentCommand {
       policy,
       requestedById: version.createdById,
       requestedAt: now,
+      organizationId: context.process.organizationId,
       requestingSecretariatId: context.process.requestingSecretariatId,
       requestingDepartmentId: context.process.requestingDepartmentId,
     });

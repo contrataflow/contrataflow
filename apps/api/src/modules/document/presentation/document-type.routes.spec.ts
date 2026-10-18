@@ -41,8 +41,11 @@ const SECRETARIA_COM_TITULAR = newId();
 const DOCS_DO_TIPO_COM_USO = new Map<string, number>();
 
 const departments = new Map<string, DepartmentForApproval>([
-  [GABINETE, { id: GABINETE, isActive: true, headUserId: null }],
-  [SECRETARIA_COM_TITULAR, { id: SECRETARIA_COM_TITULAR, isActive: true, headUserId: LUCIA.id }],
+  [GABINETE, { id: GABINETE, isActive: true, headUserId: null, deputyUserId: null }],
+  [
+    SECRETARIA_COM_TITULAR,
+    { id: SECRETARIA_COM_TITULAR, isActive: true, headUserId: LUCIA.id, deputyUserId: null },
+  ],
 ]);
 
 const organization = {

@@ -20,16 +20,24 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import type { TestApi } from './api-test-app.js';
 import { documentRepositoryOf, filledSection } from './document-fixtures.js';
 
-/** Titular (`headUserId`) da unidade em memória; `null` = sem titular (aprovador não resolvível). */
+/**
+ * Titular (`headUserId`) e, se informado, substituto (`deputyUserId`) da unidade em memória;
+ * `null` = sem titular (aprovador não resolvível).
+ */
 export function setDepartmentHead(
   api: TestApi,
   departmentId: string,
   headUserId: string | null,
+  deputyUserId?: string | null,
 ): void {
   const repository = api.app.get(InMemoryDepartmentRepository, { strict: false });
   const department = repository.snapshot().find((candidate) => candidate.id === departmentId);
   if (!department) throw new Error(`unidade ${departmentId} ausente`);
-  repository.seed({ ...department, headUserId });
+  repository.seed({
+    ...department,
+    headUserId,
+    ...(deputyUserId === undefined ? {} : { deputyUserId }),
+  });
 }
 
 /**

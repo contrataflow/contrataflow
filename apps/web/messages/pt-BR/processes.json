@@ -521,7 +521,7 @@
       "documentFallback": "documento",
       "completeDocument": "Complete o {document} antes de enviar.",
       "openDocument": "Abrir documento",
-      "approverUnresolved": "Não há aprovador apto para esta etapa. Fale com o administrador do órgão.",
+      "approverUnresolved": "Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.",
       "idempotencyReused": "Esta solicitação já foi enviada com outros dados.",
       "inProgress": "Estamos concluindo o encaminhamento.",
       "unavailable": "Não foi possível encaminhar agora. Tente novamente em instantes.",

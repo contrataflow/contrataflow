@@ -7,10 +7,10 @@ import type { Approval, ApprovalCoverage } from '../domain/approval.js';
  * PostgreSQL ou em memória (testes e modo de identidade fake).
  */
 
-/** Já existe aprovação `PENDING` para o documento (índice único parcial — RN-TRAM-43). */
+/** Já existe aprovação `PENDING` para a etapa/documento (índices únicos parciais — RN-TRAM-43). */
 export class PendingApprovalExistsError extends Error {
-  constructor(readonly documentId: string) {
-    super('Já existe uma aprovação pendente para o documento.');
+  constructor(readonly subjectId: string) {
+    super('Já existe uma aprovação pendente para a etapa ou o documento.');
     this.name = 'PendingApprovalExistsError';
   }
 }

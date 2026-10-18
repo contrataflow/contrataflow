@@ -789,13 +789,32 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
       await user.click(submit());
       expect(
         await screen.findByText(
-          'Não há aprovador apto para esta etapa. Fale com o administrador do órgão.',
+          'Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.',
         ),
       ).toBeTruthy();
       expect(
         screen.getByText('A Secretaria de Obras não tem titular apto a decidir.'),
       ).toBeTruthy();
       expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    it('[US-051 · V-02] APPROVER_UNRESOLVED com o detail padrão da API mostra a orientação uma vez só', async () => {
+      const user = userEvent.setup();
+      renderPanel({
+        actions: [approvalEntry()],
+        forward: () =>
+          problemResponse(422, 'APPROVER_UNRESOLVED', {
+            detail:
+              'Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.',
+          }),
+      });
+      await screen.findByRole('radio', { name: 'Enviar para aprovação da demanda' });
+      await user.click(submit());
+      expect(
+        await screen.findAllByText(
+          'Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.',
+        ),
+      ).toHaveLength(1);
     });
 
     it('[Falha de banco] 503 mantém os dados, mostra o código e "Tentar novamente" reenvia', async () => {
