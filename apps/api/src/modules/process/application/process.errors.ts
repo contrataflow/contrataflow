@@ -1,5 +1,6 @@
 import {
   PARTICIPANT_MESSAGES,
+  PROCESS_CLAIM_MESSAGES,
   PROCESS_FORWARD_MESSAGES,
   PROCESS_ITEM_MESSAGES,
   PROCESS_RETURN_MESSAGES,
@@ -472,6 +473,75 @@ export function returnDueDateNotAllowed(): ApiError {
   return new ApiError('DUE_DATE_OVERRIDE_NOT_ALLOWED', {
     detail: PROCESS_RETURN_MESSAGES.dueDateNotAllowed,
   });
+}
+
+/** 412 `VERSION_CONFLICT` (V-04 · FA-03 · DEC-104): o front trata como sucesso já aplicado. */
+export function claimVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_CLAIM_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-TRAM-32 · V-03): status ou etapa não elegíveis. */
+export function processNotClaimable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_CLAIM_MESSAGES.invalidStatus,
+    extensions: { processStatus: status },
+  });
+}
+
+/**
+ * 409 `PROCESS_ALREADY_ASSIGNED` (RN-TRAM-31 · V-01 · POL-04): com o responsável atual para a tela
+ * mostrar quem assumiu (FA-01).
+ */
+export function processAlreadyAssigned(responsible: {
+  readonly id: string;
+  readonly name: string | null;
+}): ApiError {
+  return new ApiError('PROCESS_ALREADY_ASSIGNED', {
+    detail:
+      responsible.name === null
+        ? PROCESS_CLAIM_MESSAGES.alreadyAssigned
+        : PROCESS_CLAIM_MESSAGES.alreadyAssignedBy(responsible.name),
+    extensions: { currentResponsible: responsible },
+  });
+}
+
+/** 403 `PERMISSION_DENIED` (RN-TRAM-31 · V-02 · POL-04), auditado como `access.denied`. */
+export function claimNotInDepartment(): ApiError {
+  return new ApiError('PERMISSION_DENIED', {
+    detail: PROCESS_CLAIM_MESSAGES.notInDepartment,
+    auditReasonCode: 'PROCESS_CLAIM',
+  });
+}
+
+let claimedCounter: Counter | undefined;
+let claimDuration: Histogram | undefined;
+let claimConflictCounter: Counter | undefined;
+
+/** `cf_process_claimed_total` e `cf_process_claim_duration_ms` (DoD da US-049). */
+export function recordProcessClaimed(durationMs: number): void {
+  const meter = metrics.getMeter('contrataflow-api');
+  claimedCounter ??= meter.createCounter('cf_process_claimed_total', {
+    description: 'Processos assumidos pela unidade (commit do PRC-21).',
+  });
+  claimDuration ??= meter.createHistogram('cf_process_claim_duration_ms', {
+    description: 'Duração do "assumir" (bloqueio, validações e gravação).',
+    unit: 'ms',
+  });
+  claimedCounter.add(1);
+  claimDuration.record(durationMs);
+}
+
+/** `cf_process_claim_conflicts_total`: corrida de fila (o processo já tinha responsável). */
+export function recordClaimConflict(): void {
+  claimConflictCounter ??= metrics
+    .getMeter('contrataflow-api')
+    .createCounter('cf_process_claim_conflicts_total', {
+      description: 'Tentativas de assumir um processo que já tinha responsável (corrida de fila).',
+    });
+  claimConflictCounter.add(1);
 }
 
 let returnedCounter: Counter | undefined;

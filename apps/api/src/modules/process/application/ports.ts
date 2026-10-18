@@ -4,6 +4,7 @@ import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/proce
 import type { TenantTx } from '#shared/database/prisma.js';
 import type { CursorReader } from '#shared/database/transaction-stream.js';
 
+import type { ClaimPlan } from '../domain/process-claim.js';
 import type { ProcessItem } from '../domain/process-items.js';
 import type {
   ProcessListCriteria,
@@ -279,6 +280,13 @@ export interface ProcessRepository {
    * `false` = outra escrita venceu (nada gravado).
    */
   recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean>;
+  /**
+   * US-049 (RN-TRAM-33): grava o "assumir" no `tx` — o processo (`WHERE version = expectedVersion`),
+   * o responsável da passagem ativa, o encerramento da responsabilidade ativa (a da fila), a nova
+   * responsabilidade `CLAIM` e a tramitação (só INSERT). A passagem NÃO muda. `false` = outra
+   * escrita venceu (nada gravado).
+   */
+  recordClaim(tx: TenantTx, plan: ClaimPlan): Promise<boolean>;
   /**
    * US-048 (RN-TRAM-28): as responsabilidades (`ProcessAssignment`) das passagens ENCERRADAS do
    * processo pela etapa de workflow `workflowStageId` — a base de `PREVIOUS_ASSIGNEE`.

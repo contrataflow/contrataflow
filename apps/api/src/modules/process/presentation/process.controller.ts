@@ -51,6 +51,7 @@ import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
+import { ClaimProcessCommand } from '../application/claim-process.command.js';
 import { CreateProcessCommand } from '../application/create-process.command.js';
 import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
 import { ForwardProcessCommand } from '../application/forward-process.command.js';
@@ -108,6 +109,7 @@ export class ProcessController {
     private readonly confidentiality: SetProcessConfidentialityCommand,
     private readonly forward: ForwardProcessCommand,
     private readonly returns: ReturnProcessCommand,
+    private readonly claims: ClaimProcessCommand,
   ) {}
 
   @Get()
@@ -360,6 +362,39 @@ export class ProcessController {
       body,
       expectedVersion: ifMatch?.value ?? 0,
       idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/claim')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_CLAIM', {
+    detail: 'Você não tem permissão para assumir processos.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-21',
+    summary: 'Assumir processo',
+    tags: TAGS,
+    auditActions: ['process.claim'],
+    responses: {
+      200: {
+        description:
+          'Processo assumido (`currentResponsible` = quem chamou, `ETag` = nova versão). Sem corpo. Uma transação: trava do processo, `PROCESS_CLAIM` cobrindo o processo + lotação na unidade atual (POL-04: 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`RETURNED` em etapa que não seja `APPROVAL` (409 `INVALID_PROCESS_STATUS`), sem responsável individual (409 `PROCESS_ALREADY_ASSIGNED` com `currentResponsible`) e `If-Match` (412 `VERSION_CONFLICT`; o reenvio do clique duplo de quem já assumiu cai aqui). Sem motivo e sem notificação.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async claimProcess(
+    @ProcessId() id: string,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const result = await this.claims.execute({
+      processId: id,
+      expectedVersion: ifMatch?.value ?? 0,
     });
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);

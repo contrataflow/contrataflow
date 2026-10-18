@@ -267,6 +267,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Sem custódia do processo',
     detail: 'Apenas o responsável atual pelo processo pode realizar esta ação.',
   },
+  PROCESS_ALREADY_ASSIGNED: {
+    status: 409,
+    title: 'Processo já assumido',
+    detail: 'Este processo já tem um responsável.',
+  },
   INVALID_PROCESS_STATUS: {
     status: 409,
     title: 'Status do processo incompatível',

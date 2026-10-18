@@ -35,7 +35,7 @@ import type {
   ReturnEvaluation,
   TransitionEvaluation,
 } from '../domain/workflow-engine.js';
-import type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
+import type { WorkflowSnapshot, WorkflowSnapshotStage } from '../domain/workflow-snapshot.js';
 
 export type {
   RuleContextContribution,
@@ -184,6 +184,14 @@ export class WorkflowFacade {
     request: { readonly targetStageId: string },
   ): Promise<ReturnEvaluation | null> {
     return this.engine.evaluateReturn(tx, state, request);
+  }
+
+  /**
+   * RN-TRAM-32 (US-049): a etapa da passagem ativa na versão fixada no processo (`null` = sem
+   * passagem ativa ou fora da versão) — o "Assumir" não vale em etapa `APPROVAL`.
+   */
+  currentStage(state: ProcessExecutionState): Promise<WorkflowSnapshotStage | null> {
+    return this.engine.currentStage(state);
   }
 
   /** RN-WF-30: unidade responsável da etapa alcançada. */

@@ -39,7 +39,7 @@ import type {
   StageEvaluation,
   TransitionEvaluation,
 } from '../domain/workflow-engine.js';
-import type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
+import type { WorkflowSnapshot, WorkflowSnapshotStage } from '../domain/workflow-snapshot.js';
 
 /*
  * Motor de execução (US-041 · RN-WF-23..33): o mesmo cálculo para PRC-08/PRC-09 e, antes de aceitar
@@ -162,6 +162,20 @@ export class WorkflowEngineService {
       recordEngine('transition', performance.now() - startedAt);
       return result;
     });
+  }
+
+  /**
+   * `currentStage` (US-049 · RN-TRAM-32): a etapa da passagem ativa na versão FIXADA no processo
+   * (só o tipo importa ao "Assumir"), sem montar o RuleContext. `null` = sem passagem ativa ou
+   * etapa fora da versão.
+   */
+  async currentStage(state: ProcessExecutionState): Promise<WorkflowSnapshotStage | null> {
+    const definition = await this.definitions.publishedDefinition(state.workflowVersionId);
+    if (definition === null)
+      throw new PinnedWorkflowVersionUnavailableError(state.workflowVersionId);
+    const active = activePassOf(state.passes);
+    if (active === null) return null;
+    return definition.stages.find((candidate) => candidate.id === active.workflowStageId) ?? null;
   }
 
   private spanAttributes(state: ProcessExecutionState) {

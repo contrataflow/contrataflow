@@ -10,6 +10,7 @@ import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
 import {
   FORWARD_URL,
+  PROCESS_URL,
   forwardEntry as previewEntry,
   forwardedDto,
 } from '@test/support/forward-fixtures';
@@ -21,6 +22,7 @@ import {
   callsTo,
   mockProcessApi,
   problemResponse,
+  processDto,
   summaryDto,
 } from '@test/support/process-fixtures';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
@@ -374,7 +376,7 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
         jsonResponse({
           data: summaryDto({
             nextStep: {
-              action: { action: 'CLAIM', label: 'Assumir', enabled: true, reasons: [] },
+              action: { action: 'COMPLETE', label: 'Concluir', enabled: true, reasons: [] },
               instructions: null,
             },
           }),
@@ -386,7 +388,7 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
         <Toaster />
       </>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Assumir' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Concluir' }));
     expect(
       await screen.findByText(
         'Esta ação abre o diálogo próprio, ainda não disponível nesta versão.',
@@ -671,6 +673,87 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
       expect(document.activeElement).toBe(status);
     });
     expect(callsTo(api as never, 'POST', RETURN_URL)).toHaveLength(1);
+  });
+
+  describe('[US-049] Assumir', () => {
+    const CLAIM_URL = `${PROCESS_URL}/claim`;
+    const claimSummary = () =>
+      jsonResponse({
+        data: summaryDto({
+          nextStep: {
+            action: { action: 'CLAIM', label: 'Assumir', enabled: true, reasons: [] },
+            instructions: null,
+          },
+        }),
+      });
+    const withClaim = (answer: () => Response) => {
+      const base = mockProcessApi({ summary: claimSummary });
+      const api = vi.fn<typeof fetch>((input, init) => {
+        if (requestUrl(input) === CLAIM_URL) return Promise.resolve(answer());
+        return base(input, init);
+      });
+      vi.stubGlobal('fetch', api);
+      renderWithShell(
+        <>
+          <ProcessPanel processId={PROCESS_ID} />
+          <Toaster />
+        </>,
+      );
+      return api;
+    };
+
+    it('[Sucesso] "Assumir" chama o PRC-21 sem corpo, com o If-Match da versão do PRC-04, avisa por toast e recarrega o painel', async () => {
+      const api = withClaim(() => jsonResponse({ data: processDto({ status: 'IN_PROGRESS' }) }));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Assumir' }));
+
+      expect(await screen.findByText('Você assumiu este processo.')).toBeTruthy();
+      const [call, ...more] = callsTo(api, 'POST', CLAIM_URL);
+      expect(more).toEqual([]);
+      expect(call?.headers.get('If-Match')).toBe(`"${String(processDto().version)}"`);
+      expect(call?.init?.body ?? null).toBeNull();
+      // Nenhum diálogo de confirmação (ação reversível e sem efeitos sensíveis).
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('[Duplicidade] clique duplo: o 412 do reenvio vale como sucesso já aplicado, sem erro percebido', async () => {
+      withClaim(() => problemResponse(412, 'VERSION_CONFLICT'));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Assumir' }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: 'Assumir' })).toBeTruthy();
+      });
+      expect(screen.queryByText(/Ocorreu um erro inesperado/)).toBeNull();
+      expect(screen.queryByText('Os dados do processo mudaram. Atualize a página.')).toBeNull();
+    });
+
+    it('[Concorrência] 409 mostra quem assumiu o processo', async () => {
+      withClaim(() =>
+        problemResponse(409, 'PROCESS_ALREADY_ASSIGNED', {
+          extension: { currentResponsible: { id: ID(77), name: 'Marina Costa' } },
+        }),
+      );
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Assumir' }));
+
+      expect(
+        await screen.findByText('Este processo já foi assumido por Marina Costa.'),
+      ).toBeTruthy();
+    });
+
+    it('[Falha de banco] 503 avisa para tentar de novo e mantém o botão', async () => {
+      withClaim(() => problemResponse(503, 'DEPENDENCY_UNAVAILABLE'));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Assumir' }));
+
+      expect(
+        await screen.findByText(
+          'Não foi possível assumir o processo agora. Tente novamente em instantes.',
+        ),
+      ).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Assumir' })).toBeTruthy();
+    });
   });
 });
 

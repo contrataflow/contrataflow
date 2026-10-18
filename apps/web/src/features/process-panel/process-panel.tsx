@@ -31,6 +31,7 @@ import { ElaborateDfdButton } from '../dfd/elaborate-dfd';
 import { CreateEtpButton } from '../etp/create-etp-dialog';
 import { CreatePriceResearchButton } from '../price-research/create-price-research-dialog';
 import { useAvailableActions } from '../process-actions/process-actions.api';
+import { useClaimProcess } from '../process-claim/use-claim-process';
 import { ConfidentialBudgetToggle } from '../process-confidentiality/confidential-budget-toggle';
 import { DocumentsPanel } from '../process-documents/documents-panel';
 import { DuplicateProcessDialog } from '../process-duplicate/duplicate-process-dialog';
@@ -257,6 +258,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   // US-048: "Devolver" abre o diálogo SCR-104 já com a etapa da ação escolhida.
   const [returning, setReturning] = useState(false);
   const [returnStageId, setReturnStageId] = useState<string | null>(null);
+  // US-049: "Assumir" é ação direta (PRC-21), sem diálogo.
+  const claiming = useClaimProcess(processId);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -362,7 +365,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
       <ProcessActionBar
         summary={data}
         actions={actions.data}
-        frozen={frozen}
+        frozen={frozen || claiming.isPending}
         onAction={(action) => {
           // US-005: "Editar dados" abre o painel lateral; as demais ações, os diálogos das stories donas.
           if (action.action === 'EDIT') setEditing(true);
@@ -377,6 +380,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
             setForwardKey(action.transitionKey ?? null);
             setForwarding(true);
           }
+          // US-049: "Assumir" chama o PRC-21 direto, com a versão do PRC-04 no `If-Match`.
+          else if (action.action === 'CLAIM') void claiming.claim(detail.data?.version);
           // US-048: "Devolver" abre o diálogo SCR-104.
           else if (action.action === 'RETURN') {
             setReturnStageId('toStageId' in action ? (action.toStageId ?? null) : null);

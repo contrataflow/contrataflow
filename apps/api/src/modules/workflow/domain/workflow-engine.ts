@@ -97,6 +97,9 @@ export interface StageEvaluation {
 /** Ações de avanço que partem da etapa atual (RN-WF-23). */
 const ADVANCE: ReadonlySet<string> = new Set(['FORWARD', 'COMPLETE']);
 
+/** RN-TRAM-32 (US-049): status em que se assume o processo da fila. */
+const CLAIMABLE_STATUSES: ReadonlySet<ProcessStatus> = new Set(['IN_PROGRESS', 'RETURNED']);
+
 /** POL-01: status em que a custódia permite tramitar. */
 const CUSTODY_STATUSES: ReadonlySet<ProcessStatus> = new Set(['DRAFT', 'IN_PROGRESS', 'RETURNED']);
 /** POL-07: suspender a partir destes. */
@@ -550,10 +553,23 @@ export function evaluateReturn(
   return target === undefined ? null : { ...target, fromStage: stage };
 }
 
-/** CLAIM (POL-04): lotado na unidade atual, processo na fila, status com custódia. */
-function claimEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry {
+/**
+ * CLAIM (POL-04 · RN-TRAM-31/32): lotado na unidade atual, processo na fila, status com custódia e
+ * etapa que não seja de aprovação (a decisão é da `Approval`/POL-03, não de uma responsabilidade).
+ */
+function claimEntry(
+  process: EngineProcess,
+  viewer: EngineViewer,
+  stage: WorkflowSnapshotStage | null,
+): ActionEntry {
   const reasons: ActionReason[] = [];
-  if (!CUSTODY_STATUSES.has(process.status)) reasons.push(statusReason(process.status));
+  if (!CLAIMABLE_STATUSES.has(process.status)) reasons.push(statusReason(process.status));
+  else if (stage?.type === 'APPROVAL') {
+    reasons.push({
+      code: 'INVALID_PROCESS_STATUS',
+      message: 'Este processo não pode ser assumido no momento.',
+    });
+  }
   if (process.currentResponsibleId !== null) {
     reasons.push({
       code: 'PROCESS_ALREADY_ASSIGNED',
@@ -592,10 +608,14 @@ function assignEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry 
  * RN-WF-32: ações de ciclo de vida pelo `ProcessStatus` (DEC-013) e pela titularidade (POL-04..07),
  * fora do grafo de regras e fora do checklist. Suspenso mostra `RESUME`; os demais, `SUSPEND`.
  */
-function lifecycleEntries(process: EngineProcess, viewer: EngineViewer): ActionEntry[] {
+function lifecycleEntries(
+  process: EngineProcess,
+  viewer: EngineViewer,
+  stage: WorkflowSnapshotStage | null,
+): ActionEntry[] {
   const entries: ActionEntry[] = [];
   const { permissions } = viewer;
-  if (permissions.has('PROCESS_CLAIM')) entries.push(claimEntry(process, viewer));
+  if (permissions.has('PROCESS_CLAIM')) entries.push(claimEntry(process, viewer, stage));
   if (permissions.has('PROCESS_ASSIGN') || viewer.headOfDepartmentIds.length > 0) {
     entries.push(assignEntry(process, viewer));
   }
@@ -716,7 +736,7 @@ export function availableActions(
   return [
     ...advanceEntries(input, viewer, evaluation),
     ...returnEntries(input, viewer, evaluation),
-    ...lifecycleEntries(input.process, viewer),
+    ...lifecycleEntries(input.process, viewer, evaluation.stage),
     ...editEntry(input.process, viewer),
     ...manageItemsEntry(input.process, viewer),
     ...manageTagsEntry(input.process, viewer),

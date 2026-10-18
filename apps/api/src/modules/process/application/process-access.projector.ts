@@ -1,5 +1,6 @@
 import {
   ApprovalRequested,
+  ProcessAssigned,
   ProcessCreated,
   ProcessStageChanged,
   ProcessUpdated,
@@ -25,7 +26,7 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * US-005: `process.updated` com a secretaria ou o setor solicitante alterado → revoga as concessões
  * `REQUESTING` anteriores e concede as novas (RN-PROC-62). US-047: `process.stage_changed.*` →
  * `CURRENT` da origem vira `HISTORICAL` (unidade mudou), `CURRENT` do destino e `RESPONSIBLE` do
- * novo responsável (RN-TRAM-17); `approval.requested` → `APPROVER` para o aprovador designado
+ * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) → `RESPONSIBLE` de quem assumiu; `approval.requested` → `APPROVER` para o aprovador designado
  * (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já tem o `CURRENT`).
  */
 @Injectable()
@@ -35,6 +36,7 @@ export class ProcessAccessProjector implements SyncEventHandler {
     'process.created',
     'process.updated',
     'process.stage_changed.*',
+    'process.assigned',
     'approval.requested',
   ];
 
@@ -78,6 +80,19 @@ export class ProcessAccessProjector implements SyncEventHandler {
           );
         }
         await this.processes.grantAccess(tx, event.aggregateId, access.grants, at);
+        return;
+      }
+      case ProcessAssigned.eventType: {
+        // US-049: o "assumir" não muda de etapa — o novo responsável ganha o `RESPONSIBLE`. A
+        // entrada em etapa e a devolução já concedem pelo `ProcessStageChanged`.
+        const payload = ProcessAssigned.payloadSchema.parse(event.payload);
+        if (payload.assignmentType !== 'CLAIM' || payload.toUserId === null) return;
+        await this.processes.grantAccess(
+          tx,
+          event.aggregateId,
+          [{ principalType: 'USER', userId: payload.toUserId, reason: 'RESPONSIBLE' }],
+          at,
+        );
         return;
       }
       case ApprovalRequested.eventType: {

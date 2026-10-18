@@ -585,5 +585,18 @@
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
       "copyCode": "Copiar código"
     }
+  },
+  "claim": {
+    "claimed": "Você assumiu este processo.",
+    "errors": {
+      "alreadyAssigned": "Este processo já foi assumido.",
+      "alreadyAssignedBy": "Este processo já foi assumido por {name}.",
+      "status": "Este processo não pode ser assumido no momento.",
+      "denied": "Você não pertence à unidade responsável por este processo.",
+      "notFound": "Processo não encontrado.",
+      "reload": "Os dados do processo ainda estão carregando. Tente novamente em instantes.",
+      "unavailable": "Não foi possível assumir o processo agora. Tente novamente em instantes.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    }
   }
 }

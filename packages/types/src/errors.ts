@@ -65,6 +65,8 @@ export const ERROR_CODES = [
   'DUPLICATE_INTERNAL_CODE',
   // US-065: ciclo de vida do documento (api.md §2.2 · api/03-documents.md DOC-04/08..14).
   'NOT_PROCESS_CUSTODIAN',
+  // US-049: assumir processo (POL-04 · api/02-processes.md PRC-21).
+  'PROCESS_ALREADY_ASSIGNED',
   'INVALID_PROCESS_STATUS',
   'DOCUMENT_INCOMPLETE',
   'WARNINGS_NOT_ACKNOWLEDGED',

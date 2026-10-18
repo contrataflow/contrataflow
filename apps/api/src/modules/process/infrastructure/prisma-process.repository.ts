@@ -43,6 +43,7 @@ import type {
   ProcessTransactions,
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
+import type { ClaimPlan } from '../domain/process-claim.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
 import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
 import type { Process } from '../domain/process.js';
@@ -468,6 +469,51 @@ export class PrismaProcessRepository implements ProcessRepository {
       select: { id: true },
     });
     await insertMovement(tx, movement);
+    return true;
+  }
+
+  async recordClaim(tx: TenantTx, plan: ClaimPlan): Promise<boolean> {
+    const { process, assignment } = plan;
+    // O processo primeiro: a versão lida sob a trava é a rede contra uma escrita fora da trava.
+    const updated = await tx.process.updateMany({
+      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      data: {
+        currentResponsibleId: process.currentResponsibleId,
+        updatedAt: process.updatedAt,
+        updatedById: process.updatedById,
+        version: process.version,
+      },
+    });
+    if (updated.count !== 1) return false;
+    const staged = await tx.processStage.updateMany({
+      where: { id: plan.stageId, status: 'ACTIVE' },
+      data: {
+        assigneeId: assignment.assigneeId,
+        updatedAt: plan.endedAt,
+        version: { increment: 1 },
+      },
+    });
+    if (staged.count !== 1) throw new Error('Passagem ativa ausente ao assumir o processo.');
+    // Encerra antes de abrir: uma única responsabilidade ativa por processo (índice parcial).
+    await tx.processAssignment.updateMany({
+      where: { processId: process.id, isActive: true },
+      data: { isActive: false, endedAt: plan.endedAt },
+    });
+    await tx.processAssignment.create({
+      data: {
+        id: assignment.id,
+        tenantId: assignment.tenantId,
+        processId: assignment.processId,
+        processStageId: assignment.processStageId,
+        departmentId: assignment.departmentId,
+        assigneeId: assignment.assigneeId,
+        type: assignment.type,
+        assignedById: assignment.assignedById,
+        startedAt: assignment.startedAt,
+      },
+      select: { id: true },
+    });
+    await insertMovement(tx, plan.movement);
     return true;
   }
 

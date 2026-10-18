@@ -25,6 +25,7 @@ import type {
   ProcessSituationRow,
 } from '../application/ports.js';
 import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
+import type { ClaimPlan } from '../domain/process-claim.js';
 import {
   canViewConfidentialBudget,
   compareForOrder,
@@ -228,6 +229,27 @@ export class InMemoryProcessRepository implements ProcessRepository {
       }
     }
     this.stages.set(plan.entered.id, plan.entered);
+    this.assignments.push(plan.assignment);
+    this.movements.push(plan.movement);
+    return Promise.resolve(true);
+  }
+
+  recordClaim(_tx: TenantTx, plan: ClaimPlan): Promise<boolean> {
+    const current = this.processes.get(plan.process.id);
+    if (current?.tenantId !== tenantOfContext() || current.version !== plan.expectedVersion) {
+      return Promise.resolve(false);
+    }
+    const stage = this.stages.get(plan.stageId);
+    if (stage?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao assumir o processo.'));
+    }
+    this.processes.set(plan.process.id, plan.process);
+    this.stages.set(stage.id, { ...stage, assigneeId: plan.assignment.assigneeId });
+    for (const assignment of this.assignments) {
+      if (assignment.processId === plan.process.id && !this.endedAssignments.has(assignment.id)) {
+        this.endedAssignments.set(assignment.id, plan.endedAt);
+      }
+    }
     this.assignments.push(plan.assignment);
     this.movements.push(plan.movement);
     return Promise.resolve(true);

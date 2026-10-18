@@ -261,6 +261,31 @@ ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade invá
   `test/tenant-leak/process-return.spec.ts` (PostgreSQL: falha induzida, 10 simultâneos, eventos
   `PENDING`, destino de outro tenant).
 
+## Assumir (US-049)
+
+- **Rota:** PRC-21 `POST /processes/{id}/claim` (`ProcessController`, `@RequireIfMatch` → 428; sem
+  corpo e sem `Idempotency-Key`; `ETag` = nova versão). Resposta: o `Process` com `currentResponsible`.
+- **Caso de uso:** `ClaimProcessCommand` — `lockForUpdate` → visibilidade (404) → `PROCESS_CLAIM`
+  cobrindo o processo + lotação na unidade atual (POL-04: 403 `PERMISSION_DENIED` com `access.denied`
+  e `reasonCode = PROCESS_CLAIM`) → status `IN_PROGRESS`/`RETURNED` e etapa que não seja `APPROVAL`
+  (409 `INVALID_PROCESS_STATUS`, RN-TRAM-32) → sem responsável (409 `PROCESS_ALREADY_ASSIGNED` com
+  `currentResponsible`) → `If-Match` (412) → `recordClaim` → evento e `process.claim`.
+- **Ordem 409 × 412:** "já assumido por OUTRA pessoa" vale antes do `If-Match` (a corrida de fila
+  manda o mesmo `If-Match` dos dois lados e o perdedor precisa do 409 com o nome); "já assumido por
+  quem chama" com `If-Match` vencido é o reenvio do clique duplo → 412 (o front trata como sucesso).
+- **Gravação (`ProcessRepository.recordClaim`):** a passagem ativa NÃO muda — só `assigneeId`;
+  encerra a responsabilidade ativa (a da fila), abre a `CLAIM` (`assignedById = null`) e insere a
+  tramitação `CLAIM` (sem motivo). `WHERE version` é a rede; o índice único
+  `process_assignments_single_active_key` barra duas responsabilidades ativas.
+- **Efeitos:** `ProcessAssigned` (`assignmentType = CLAIM`) → timeline `PROCESS_CLAIMED` (mapeamento
+  existente) e `ProcessAccessProjector` (`process.assigned` `CLAIM` → `RESPONSIBLE`). Nenhum
+  consumidor de notificação ouve `CLAIM` (RN-TRAM-35).
+- **Motor:** PRC-08 emite `CLAIM` habilitada só em `IN_PROGRESS`/`RETURNED` e fora de etapa
+  `APPROVAL` (`WorkflowFacade.currentStage` dá o tipo da etapa da versão fixada).
+- **Testes:** `domain/process-claim.spec.ts`, `presentation/process-claim.routes.spec.ts` (8
+  categorias, em memória) e `test/tenant-leak/process-claim.spec.ts` (PostgreSQL: falha induzida, 10
+  simultâneos, índice único, evento `PENDING`, outro tenant).
+
 ### Mudança de etapa reutilizável (`StageTransitionService`)
 
 Base de toda tramitação (encaminhar — US-047; devolver — US-048; decidir — US-052; concluir —

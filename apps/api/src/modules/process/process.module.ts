@@ -20,6 +20,7 @@ import {
 } from '#shared/process/process-item-catalog.js';
 import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 
+import { ClaimProcessCommand } from './application/claim-process.command.js';
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
 import { CreateProcessCommand } from './application/create-process.command.js';
 import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
@@ -213,6 +214,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     StageTransitionSupport,
     ForwardProcessCommand,
     ReturnProcessCommand,
+    ClaimProcessCommand,
     ForwardPreviews,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,

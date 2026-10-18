@@ -269,7 +269,7 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       );
 
     it.each([
-      ['DRAFT', { CLAIM: true, ASSIGN: true, SUSPEND: false, CANCEL: true }],
+      ['DRAFT', { CLAIM: false, ASSIGN: true, SUSPEND: false, CANCEL: true }],
       ['IN_PROGRESS', { CLAIM: true, ASSIGN: true, SUSPEND: true, CANCEL: true }],
       ['AWAITING_APPROVAL', { CLAIM: false, ASSIGN: false, SUSPEND: true, CANCEL: true }],
       ['RETURNED', { CLAIM: true, ASSIGN: true, SUSPEND: true, CANCEL: true }],
@@ -310,6 +310,37 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       );
       expect(actionsOf(outsider, 'CLAIM')[0]?.reasons[0]?.code).toBe('NOT_PROCESS_CUSTODIAN');
       expect(actionsOf(outsider, 'FORWARD')[0]?.reasons[0]?.code).toBe('NOT_PROCESS_CUSTODIAN');
+    });
+
+    it('CLAIM (RN-TRAM-32): etapa APPROVAL desabilita com INVALID_PROCESS_STATUS, mesmo na fila', () => {
+      const approval = new DefinitionBuilder()
+        .stage('INICIO', 'START')
+        .stage('APROVACAO', 'APPROVAL')
+        .stage('FIM', 'END')
+        .transition('INICIO', 'APROVACAO', 'FORWARD', { isPrimary: true })
+        .transition('APROVACAO', 'FIM', 'APPROVE');
+      const actions = availableActions(
+        engineInput(
+          approval,
+          {
+            passes: [
+              pass(approval, 'INICIO', 1),
+              pass(approval, 'APROVACAO', 2, { status: 'ACTIVE', exitedAt: null }),
+            ],
+          },
+          { currentDepartmentId: DEPARTMENTS.planejamento },
+        ),
+        viewer(),
+      );
+      expect(actionsOf(actions, 'CLAIM')[0]).toMatchObject({
+        enabled: false,
+        reasons: [
+          {
+            code: 'INVALID_PROCESS_STATUS',
+            message: 'Este processo não pode ser assumido no momento.',
+          },
+        ],
+      });
     });
 
     it('ASSIGN sem escopo amplo nem chefia da unidade atual = PERMISSION_DENIED', () => {
