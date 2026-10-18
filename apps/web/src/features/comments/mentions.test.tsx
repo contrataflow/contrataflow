@@ -154,7 +154,11 @@ describe('SCR-006 · menções no compositor (US-072)', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
 
     await user.type(field, 'e @Setor');
-    await screen.findByRole('listbox');
+    // Sob carga a lista anterior pode estar na tela antes do debounce: espera a busca de "Setor".
+    await waitFor(() => {
+      expect(candidateCalls(api)).toContain('Setor');
+    });
+    await within(await screen.findByRole('listbox')).findByText('Setor de Manutenção');
     await user.keyboard('{ArrowDown}{Tab}');
     await user.keyboard('{Control>}{Enter}{/Control}');
     await waitFor(() => {
