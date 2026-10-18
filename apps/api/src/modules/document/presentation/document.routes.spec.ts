@@ -268,7 +268,7 @@ describe('Feature: Ciclo de vida do documento (US-065)', () => {
       roleId: roles.get('CONSULTOR_EXTERNO')?.id ?? '',
     });
     openStages = openStageForAnyType(api);
-    api.app.get(DocumentValidatorRegistry).register(dfdValidator);
+    api.app.get(DocumentValidatorRegistry).override(dfdValidator);
 
     const seeded = documentTypeRepositoryOf(api)
       .snapshot()

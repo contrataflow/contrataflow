@@ -1117,6 +1117,299 @@
         "additionalProperties": {},
         "description": "Documento TipTap restrito (RN-CMT-03): nós doc, paragraph, text, bulletList, orderedList, listItem, hardBreak e mention (US-072); marcas bold, italic e link (http/https/mailto, ≤ 2.048). JSON ≤ 100 KB; texto 1–10.000 caracteres."
       },
+      "Dfd": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "templateVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentVersion": {
+            "type": "integer"
+          },
+          "draftRevision": {
+            "type": "integer"
+          },
+          "requestDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "requestingDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "responsibleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "objectSummary": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "expectedDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "estimatedValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimatedValueMasked": {
+            "type": "boolean"
+          },
+          "pcaStatus": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "NOT_PLANNED",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "pcaYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pcaItemCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pcaJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wizardStep": {
+            "type": "string",
+            "enum": [
+              "IDENTIFICATION",
+              "JUSTIFICATION",
+              "PLANNING",
+              "REVIEW",
+              "CONCLUSION"
+            ]
+          },
+          "completedSteps": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "IDENTIFICATION",
+                "JUSTIFICATION",
+                "PLANNING",
+                "REVIEW",
+                "CONCLUSION"
+              ]
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "processId",
+          "code",
+          "title",
+          "status",
+          "templateVersionId",
+          "documentVersion",
+          "draftRevision",
+          "requestDate",
+          "requestingDepartmentId",
+          "responsibleId",
+          "objectSummary",
+          "priority",
+          "expectedDate",
+          "estimatedValue",
+          "estimatedValueMasked",
+          "pcaStatus",
+          "pcaYear",
+          "pcaItemCode",
+          "pcaJustification",
+          "wizardStep",
+          "completedSteps",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "DfdMeta": {
+        "type": "object",
+        "properties": {
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "UPDATE",
+                "FINALIZE",
+                "SUBMIT",
+                "REOPEN",
+                "CANCEL",
+                "DELETE"
+              ]
+            }
+          },
+          "template": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "versionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "integer"
+                    },
+                    "requirement": {
+                      "type": "string",
+                      "enum": [
+                        "REQUIRED",
+                        "REQUIRED_OR_JUSTIFY",
+                        "OPTIONAL"
+                      ]
+                    },
+                    "helpText": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "legalBasis": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "minChars": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "maxChars": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "title",
+                    "order",
+                    "requirement",
+                    "helpText",
+                    "legalBasis",
+                    "minChars",
+                    "maxChars"
+                  ]
+                }
+              },
+              "fieldConfig": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "versionId",
+              "versionNumber",
+              "sections",
+              "fieldConfig"
+            ]
+          }
+        },
+        "required": [
+          "allowedActions",
+          "template"
+        ]
+      },
       "DocumentRendition": {
         "type": "object",
         "properties": {
@@ -2126,6 +2419,106 @@
         "required": [
           "sectionKeys",
           "expectedRevisions"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentItem": {
+        "type": "object",
+        "properties": {
+          "processItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "label": {
+                "type": "string"
+              },
+              "allowsDecimal": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "allowsDecimal"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,13})(?:\\.\\d{1,4})?$"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "processItemId",
+          "sequence",
+          "description",
+          "unit",
+          "quantity",
+          "notes",
+          "sortOrder"
+        ]
+      },
+      "DocumentItemsReplace": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "processItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "quantity": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "sortOrder": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                }
+              },
+              "required": [
+                "processItemId",
+                "quantity"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 1000
+          }
+        },
+        "required": [
+          "items"
         ],
         "additionalProperties": false
       },
@@ -5459,6 +5852,72 @@
           "body",
           "targetType"
         ],
+        "additionalProperties": false
+      },
+      "DfdSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "requestDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "code",
+          "status",
+          "requestDate",
+          "priority",
+          "version"
+        ]
+      },
+      "DfdCreateRequest": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
         "additionalProperties": false
       },
       "ProcessDocument": {
@@ -17539,6 +17998,127 @@
         }
       }
     },
+    "/dfds/{id}": {
+      "get": {
+        "operationId": "DFD-03",
+        "summary": "Obter DFD",
+        "tags": [
+          "DFD"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cabeçalho do DFD, resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07) e `meta.allowedActions`; estimativa mascarada (`estimatedValueMasked`) sem POL-09 em processo sigiloso. `ETag` = versão do DFD. Inexistente, de outro tenant ou não visível = 404 `DFD_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Dfd"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/DfdMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/document-renditions/{renditionId}": {
       "get": {
         "operationId": "DOC-22",
@@ -20393,6 +20973,257 @@
           },
           "409": {
             "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/items": {
+      "get": {
+        "operationId": "DOC-06",
+        "summary": "Listar itens do documento",
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Linhas do documento com o nº, a descrição e a unidade do item do processo (`unit.allowsDecimal` — FA-11). `ETag` = versão do documento. Documento inexistente, excluído, de outro tenant ou de processo não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DocumentItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "DOC-07",
+        "summary": "Substituir itens do documento",
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.items_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentItemsReplace"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Substituição completa da coleção (RN-DFD-14): cada `processItemId` é item não excluído do mesmo processo, sem repetição (422 `REFERENCE_NOT_FOUND`/`DUPLICATE_IN_LIST` em `items[n].processItemId` — inclusive de outro tenant, sem revelar), quantidade > 0 com até 4 casas e inteira quando a unidade não admite decimais (422 `OUT_OF_RANGE`/`INVALID_DECIMAL` em `items[n].quantity`). Exige a permissão de edição do tipo + POL-02 (403/409 `INVALID_PROCESS_STATUS`/422 de etapa), `If-Match` com a versão do documento (428/412 `VERSION_CONFLICT` com `currentVersion`) e documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`). Grava `document.items_update` (sem evento); novo `ETag`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DocumentItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -30301,6 +31132,279 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/dfds": {
+      "get": {
+        "operationId": "DFD-01",
+        "summary": "Listar DFDs do processo",
+        "tags": [
+          "DFD"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Singular por processo: 0 ou 1 DFD ativo + os cancelados (histórico); excluídos logicamente ficam de fora. Processo inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DfdSummary"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "DFD-02",
+        "summary": "Criar DFD a partir de template",
+        "tags": [
+          "DFD"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DfdCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uma transação: template ativo do tipo DFD com versão publicada (padrão do tipo sem `templateId` — 422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `templateId`), `DFD_CREATE` + custódia (403), processo editável (409 `INVALID_PROCESS_STATUS`), tipo na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`), DFD ativo único (409 `DOCUMENT_ALREADY_EXISTS` com `meta.existingDfdId`/`code`), número `DFD 0005/2026` na mesma transação, `Document` em `DRAFT` com todas as seções do template e o `Dfd` com os valores do processo (RN-DFD-05). Grava `document.create`, `DocumentCreated` (`document.created.dfd`) e a timeline `DOCUMENT_CREATED`. `Location: /api/v1/dfds/{id}` e `ETag: \"1\"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Dfd"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/DfdMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

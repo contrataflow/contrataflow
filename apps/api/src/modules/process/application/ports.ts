@@ -314,6 +314,11 @@ export interface ProcessItemRepository {
   processOf(tx: TenantTx, itemId: string): Promise<string | null>;
   /** `SELECT … FOR UPDATE` no item não excluído (corrida com a inclusão em documento — RN-PROC-79). */
   lockItem(tx: TenantTx, itemId: string): Promise<ProcessItem | null>;
+  /**
+   * `SELECT … FOR SHARE` nos itens não excluídos do processo dentre `itemIds` (inclusão em
+   * documento — DOC-07 · US-014): a exclusão concorrente (`lockItem`) espera ou já venceu.
+   */
+  lockForShare(tx: TenantTx, processId: string, itemIds: readonly string[]): Promise<ProcessItem[]>;
   insert(tx: TenantTx, item: ProcessItem): Promise<void>;
   /** Grava os campos editáveis, `updatedAt`/`updatedById` e `version` de cada item. */
   update(tx: TenantTx, items: readonly ProcessItem[]): Promise<void>;

@@ -181,6 +181,9 @@ const UPLOADED_DOCUMENT_ROUTE =
 const DOCUMENT_PANEL_ROUTE =
   'Painel de documentos (US-062): a suíte genérica não tem processo nem documento do tenant B. O isolamento (DOC-01 com processo de outro tenant → 404 PROCESS_NOT_FOUND igual ao inexistente, sem revelar nada; RLS de documents na consulta do painel; processo não visível → 404 com access.denied) é coberto em test/tenant-leak/process-documents.spec.ts, com PostgreSQL real, e em src/modules/document/presentation/process-documents.routes.spec.ts.';
 
+const DFD_ROUTE =
+  'DFD e itens de documento (US-014): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-03 com DFD de B → 404 DFD_NOT_FOUND; DFD-01/02 com processo de B e DOC-06/07 com documento de B → 404 NOT_FOUND sem alterar nada; DOC-07 com processItemId de outro processo/tenant → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks e índice único de dfds/document_items) é coberto em test/tenant-leak/dfds.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd.routes.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -325,6 +328,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-02': { kind: 'exempt', reason: UPLOADED_DOCUMENT_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-04': { kind: 'exempt', reason: DOCUMENT_ROUTE },
+  'DOC-06': { kind: 'exempt', reason: DFD_ROUTE },
+  'DOC-07': { kind: 'exempt', reason: DFD_ROUTE },
   'DOC-08': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-09': { kind: 'exempt', reason: DOCUMENT_ROUTE },
   'DOC-10': { kind: 'exempt', reason: DOCUMENT_ROUTE },
@@ -341,6 +346,9 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DOC-22': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-23': { kind: 'exempt', reason: DOCUMENT_RENDITION_ROUTE },
   'DOC-27': { kind: 'exempt', reason: DOCUMENT_AI_REVIEW_ROUTE },
+  'DFD-01': { kind: 'exempt', reason: DFD_ROUTE },
+  'DFD-02': { kind: 'exempt', reason: DFD_ROUTE },
+  'DFD-03': { kind: 'exempt', reason: DFD_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

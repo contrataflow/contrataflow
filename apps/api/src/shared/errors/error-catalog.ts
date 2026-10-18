@@ -456,6 +456,8 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Seção inexistente',
     detail: 'Seção inexistente neste documento.',
   },
+  // US-014: DFD (api/05-dfd.md DFD-03).
+  DFD_NOT_FOUND: { status: 404, title: 'DFD não encontrado', detail: 'DFD não encontrado.' },
 });
 
 /** `type` do problem+json: URL estável derivada do código (`VALIDATION_ERROR` → `validation-error`). */

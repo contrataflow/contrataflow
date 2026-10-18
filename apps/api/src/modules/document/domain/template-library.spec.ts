@@ -157,7 +157,10 @@ describe('Feature: Biblioteca de templates padrão (US-110)', () => {
           ?.legalBasis;
       expect(legal('ETP', 'NEED_DESCRIPTION')).toBe('Lei 14.133/2021, art. 18, §1º, I');
       expect(legal('TR', 'OBJECT')).toMatch(/^Lei 14\.133\/2021, art\. 6º, XXIII/);
-      expect(legal('DFD', 'JUSTIFICATION')).toBe('Decreto 10.947/2022');
+      // US-014 · RN-DFD-07: a base legal do DFD semeado detalha o dispositivo.
+      expect(legal('DFD', 'JUSTIFICATION')).toBe(
+        'Lei 14.133/2021, art. 12, VII; Decreto 10.947/2022, art. 8º, I',
+      );
       expect(legal('NOTA_TECNICA', 'CONTENT')).toMatch(/art\. 72/);
       expect(legal('PRICE_RESEARCH', 'CONCLUSION')).toMatch(/art\. 23/);
     });

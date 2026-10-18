@@ -8,7 +8,17 @@ import {
 import type { AiGenerationDto } from '@contrataflow/validation';
 import { Logger } from '@nestjs/common';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from 'vitest';
 
 import { AI_CIRCUIT_STORE } from '#shared/ai/ai-circuit-store.js';
 import type { AiCircuitStorePort } from '#shared/ai/ai-circuit-store.js';
@@ -903,6 +913,12 @@ describe('Feature: Camada de IA com registro e rastreabilidade das gerações (U
 
   describe('[Concorrência]', () => {
     it('Cancelamento durante a execução: fica CANCELED, sem output, com os tokens registrados', async () => {
+      // O cenário é o cancelamento, não o timeout: com a suíte inteira em paralelo, o POST do
+      // descarte pode passar dos 200 ms do provedor e virar TIMEOUT (falso negativo).
+      settings.requestTimeoutMs = 30_000;
+      onTestFinished(() => {
+        settings.requestTimeoutMs = 200;
+      });
       const gateway = deferred();
       provider.enqueue({
         kind: 'wait',

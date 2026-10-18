@@ -8,6 +8,7 @@ import type { DraftSection, SectionDefinition } from '@contrataflow/validation';
 import { InMemoryApprovalRepository } from '#modules/approval/infrastructure/approval.repositories.js';
 import { DocumentFacade } from '#modules/document/application/document.facade.js';
 import type { CreateDocumentInput } from '#modules/document/application/document.facade.js';
+import { InMemoryDocumentItemRepository } from '#modules/document/infrastructure/document-item.repositories.js';
 import { InMemoryDocumentTypeRepository } from '#modules/document/infrastructure/in-memory-document-type.repository.js';
 import { InMemoryDocumentRepository } from '#modules/document/infrastructure/in-memory-document.repository.js';
 import { InMemoryTemplateRepository } from '#modules/document/infrastructure/in-memory-template.repository.js';
@@ -190,6 +191,16 @@ export function documentTypeRepositoryOf(api: TestApi): InMemoryDocumentTypeRepo
 /** Versões de template no repositório em memória (US-071: seções do documento comentado). */
 export function seedTemplateVersions(api: TestApi, ...versions: DocumentTemplateVersion[]): void {
   api.app.get(InMemoryTemplateRepository, { strict: false }).seed([], versions);
+}
+
+/** Repositório em memória dos templates (US-014: template padrão do DFD semeado). */
+export function templateRepositoryOf(api: TestApi): InMemoryTemplateRepository {
+  return api.app.get(InMemoryTemplateRepository, { strict: false });
+}
+
+/** Linhas de item de documento em memória (US-014 · DOC-07). */
+export function documentItemRepositoryOf(api: TestApi): InMemoryDocumentItemRepository {
+  return api.app.get(InMemoryDocumentItemRepository, { strict: false });
 }
 
 export function approvalRepositoryOf(api: TestApi): InMemoryApprovalRepository {

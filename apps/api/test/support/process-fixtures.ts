@@ -11,7 +11,9 @@ import { InMemoryNumberSequenceRepository } from '#modules/catalog/infrastructur
 import { createAttachment, markAvailable } from '#modules/files/domain/attachment.js';
 import type { Attachment } from '#modules/files/domain/attachment.js';
 import { InMemoryAttachmentRepository } from '#modules/files/infrastructure/in-memory-attachment.repository.js';
+import type { ProcessParticipant } from '#modules/process/domain/process-participants.js';
 import { InMemoryProcessRepository } from '#modules/process/infrastructure/in-memory-process.repository.js';
+import { InMemoryProcessParticipantRepository } from '#modules/process/infrastructure/process-participant.repositories.js';
 import { TENANT_SETTINGS_REPOSITORY } from '#modules/tenancy/application/settings-ports.js';
 import { InMemoryOrganizationRepository } from '#modules/tenancy/infrastructure/in-memory-organization.repository.js';
 import type { InMemoryTenantSettingsRepository } from '#modules/tenancy/infrastructure/in-memory-tenant-settings.repository.js';
@@ -156,6 +158,48 @@ export function seedAvailableAttachment(
   );
   api.app.get(InMemoryAttachmentRepository, { strict: false }).rows.set(id, available);
   return available;
+}
+
+/**
+ * Anexo ainda em verificação (`SCANNING` — ClamAV fora do ar, US-068) no repositório em memória do
+ * `files` (US-014: alerta `DFD_ATTACHMENTS_PENDING`).
+ */
+export function seedScanningAttachment(
+  api: TestApi,
+  attachment: Parameters<typeof seedAvailableAttachment>[1],
+): Attachment {
+  const available = seedAvailableAttachment(api, attachment);
+  const scanning: Attachment = { ...available, status: 'SCANNING', sha256: null };
+  api.app.get(InMemoryAttachmentRepository, { strict: false }).rows.set(available.id, scanning);
+  return scanning;
+}
+
+/**
+ * Participação ativa no processo, gravada direto no repositório em memória (US-014: consultor
+ * externo `CONSULTANT` sem passar pela elegibilidade do PRC-29 — o diretório fake não tem externo
+ * com vínculo vigente no tenant A).
+ */
+export function seedParticipant(
+  api: TestApi,
+  participant: Pick<ProcessParticipant, 'tenantId' | 'processId' | 'userId' | 'role'> &
+    Partial<ProcessParticipant>,
+): ProcessParticipant {
+  const now = new Date();
+  const row: ProcessParticipant = {
+    id: newId(),
+    departmentId: null,
+    notify: false,
+    grantedById: participant.userId ?? '',
+    grantedAt: now,
+    expiresAt: null,
+    reason: null,
+    revokedAt: null,
+    revokedById: null,
+    revocationReason: null,
+    ...participant,
+  };
+  api.app.get(InMemoryProcessParticipantRepository, { strict: false }).put(row);
+  return row;
 }
 
 export function processRepositoryOf(api: TestApi): InMemoryProcessRepository {

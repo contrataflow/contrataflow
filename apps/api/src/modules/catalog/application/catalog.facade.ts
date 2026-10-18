@@ -57,6 +57,24 @@ export class CatalogFacade {
     };
   }
 
+  /**
+   * Unidades de medida (`UNIT_OF_MEASURE`) para os itens de documento (US-014 · FA-11): rótulo e
+   * `metadata.allowsDecimal` (padrão `true` quando ausente), mesmo inativas (RN-TEN-61). Id de outro
+   * tipo de catálogo ou de outro tenant fica fora do mapa.
+   */
+  async unitsOf(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, { readonly label: string; readonly allowsDecimal: boolean }>> {
+    const units = new Map<string, { readonly label: string; readonly allowsDecimal: boolean }>();
+    for (const id of new Set(ids)) {
+      const item = await this.items.findById(tx, id);
+      if (item?.catalogType !== 'UNIT_OF_MEASURE') continue;
+      units.set(id, { label: item.label, allowsDecimal: item.metadata.allowsDecimal !== false });
+    }
+    return units;
+  }
+
   /** Leitura para exibição de registro existente: devolve o item mesmo inativo (RN-TEN-61). */
   async find(tx: TenantTx, id: string): Promise<CatalogItemRef | null> {
     const item = await this.items.findById(tx, id);

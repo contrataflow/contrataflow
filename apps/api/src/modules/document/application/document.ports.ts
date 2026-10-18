@@ -139,6 +139,14 @@ export class DocumentValidatorRegistry {
     this.validators.set(validator.module, validator);
   }
 
+  /**
+   * Substitui o validador do módulo (specs do `document` que simulam o módulo tipado sobre o
+   * aplicativo completo, onde o módulo dono já registrou o real). Nunca usado em produção.
+   */
+  override(validator: DocumentValidator): void {
+    this.validators.set(validator.module, validator);
+  }
+
   find(module: SystemDocumentModule | null): DocumentValidator | null {
     return module === null ? null : (this.validators.get(module) ?? null);
   }

@@ -254,7 +254,7 @@ describe('Feature: Versionamento imutável e comparação de versões (US-066)',
       roleId: seedDefaultRolesOf(api, A).get('CONSULTOR_EXTERNO')?.id ?? '',
     });
     openStages = openStageForAnyType(api);
-    api.app.get(DocumentValidatorRegistry).register(dfdValidator);
+    api.app.get(DocumentValidatorRegistry).override(dfdValidator);
     const seeded = documentTypeRepositoryOf(api)
       .snapshot()
       .filter((type) => type.tenantId === A);

@@ -91,6 +91,50 @@ genéricas — a ausência de registro nunca falha a ação.
   por tenant; cancelado é final (gatilho); exclusão só lógica. Testes com PostgreSQL:
   `test/tenant-leak/documents.spec.ts`.
 
+## Documento tipado: `createStructuredIn` + validador registrado (US-014 · padrão para ETP/TR/…)
+
+O módulo tipado (nível 4) cria o seu documento e o cabeçalho no MESMO `tx`:
+
+```ts
+// no CreateXCommand do módulo dono (TransactionalCommandHandler):
+const created = await this.documents.createStructuredIn(tx, {
+  processId, systemModule: 'ETP', templateId,            // null = template padrão do tipo
+  titleOf: (process) => `ETP — ${process.title}`,
+  messages: { templateInvalid: '…', notCustodian: '…' },
+  idempotencyKey,
+});
+await this.etps.insert(tx, createEtpFrom(created.document, …)); // cabeçalho tipado
+```
+
+- `StructuredDocumentCreator` (`application/structured-document.creator.ts`), na ordem: processo
+  visível (404) → template ativo do tipo com versão publicada (422 em `templateId`) →
+  `authorizeCreateAsCustodian` (permissão de criação do tipo + custódia POL-01 — 403
+  `NOT_PROCESS_CUSTODIAN`; participação não cria — + processo editável 409 + tipo na etapa 422) →
+  `initialDraftContent` (todas as seções da versão com `revision = 1`, `defaultContent` com as
+  variáveis resolvidas, estado derivado do conteúdo) → `DocumentCreationService` (singular 409,
+  número, `document.create`, `DocumentCreated`, timeline). Devolve documento, tipo, versão de
+  template, processo e `allowedActions`.
+- **Completude**: o módulo registra o seu `DocumentValidator` (`documents.registerValidator`); o
+  DOC-08, finalizar/submeter e `DocumentFacade.isCompleteIn` (o `RuleContext` da tramitação) usam o
+  mesmo registro. Regras específicas como função pura em `packages/validation` (ex.:
+  `evaluateDfdCompleteness`), reaproveitada pelo checklist do front. Specs do `document` que
+  simulam o módulo tipado usam `DocumentValidatorRegistry.override` (o real já está registrado).
+- **Leitura**: `typedDocumentIn` (documento visível + ações + POL-09, `null` = o 404 do módulo),
+  `documentItemsIn`, `documentStatesIn`.
+
+### Itens de documento (DOC-06/07 · `document_items`)
+
+- `DocumentItemsController`: DOC-06 `GET /documents/{id}/items` (`ETag` = versão do documento) e
+  DOC-07 `PUT` (substituição completa, `If-Match` obrigatório). Comando
+  `ReplaceDocumentItemsCommand`: `FOR UPDATE` no documento → 404 → POL-02 de edição do tipo → 412 →
+  409 `DOCUMENT_NOT_EDITABLE` → itens do processo `FOR SHARE` pela porta
+  `#shared/process/process-item-catalog.ts` (implementada por `process`) + unidade
+  (`CatalogFacade.unitsOf` — `metadata.allowsDecimal`) → `planDocumentItems` (domínio puro: V-09/V-10,
+  diff) → gravação → `version + 1` do documento → `document.items_update` (sem evento). Log
+  `document.items_saved`.
+- `DocumentItemUsageReader` registra os documentos na porta `ProcessItemUsageRegistry`: item
+  referenciado → 409 `ITEM_IN_USE` na exclusão (US-006) e `references` no PRC-13.
+
 ## Documento externo — upload com versões (US-064 · RN-DOC-31..40 · DEC-017/136)
 
 - **Rotas:** DOC-02 `POST /processes/{id}/documents` (`ProcessDocumentsController`,
@@ -221,7 +265,8 @@ genéricas — a ausência de registro nunca falha a ação.
 
 ## Biblioteca padrão de templates (US-110 · RN-TPL-28..36)
 
-- **Fixture:** `domain/template-library.ts` (`TEMPLATE_LIBRARY`, versão `TEMPLATE_LIBRARY_VERSION`) —
+- **Fixture:** `domain/template-library.ts` (`TEMPLATE_LIBRARY`, versão `TEMPLATE_LIBRARY_VERSION`;
+  `2026.10.2` = DFD com títulos, base legal e `minChars` de RN-DFD-07 — US-014) —
   um modelo por tipo semeado com template (DFD, ETP, TR, RISK_MAP, PRICE_RESEARCH, DESPACHO,
   OFICIO, NOTA_TECNICA, AUTORIZACAO, DECLARACAO; `DOCUMENTO_EXTERNO` não recebe). Para evoluir a
   biblioteca num release: edite a fixture, suba `TEMPLATE_LIBRARY_VERSION` e registre no changelog

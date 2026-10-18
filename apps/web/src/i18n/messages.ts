@@ -6,6 +6,7 @@ import calendar from '../../messages/pt-BR/calendar.json';
 import catalogs from '../../messages/pt-BR/catalogs.json';
 import comments from '../../messages/pt-BR/comments.json';
 import departments from '../../messages/pt-BR/departments.json';
+import dfd from '../../messages/pt-BR/dfd.json';
 import documents from '../../messages/pt-BR/documents.json';
 import documentTypes from '../../messages/pt-BR/documentTypes.json';
 import errors from '../../messages/pt-BR/errors.json';
@@ -48,6 +49,7 @@ export const messages = {
   catalogs,
   comments,
   departments,
+  dfd,
   documents,
   documentTypes,
   errors,

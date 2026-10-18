@@ -5,6 +5,7 @@ export * from './calendar/index.js';
 export * from './catalog/index.js';
 export * from './collaboration/index.js';
 export * from './common/index.js';
+export * from './dfd/index.js';
 export * from './document/index.js';
 export * from './events/index.js';
 export * from './files/index.js';

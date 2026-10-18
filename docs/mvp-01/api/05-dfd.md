@@ -76,6 +76,7 @@ Dfd {
 
 - **Efeitos:** Eventos: `DocumentCreated` (`DFDCreated`) (`document.created.dfd`) — `documentId`, `documentTypeCode = DFD`, `kind = STRUCTURED`, `code`, `title`, `templateVersionId`. Auditoria: `document.create` (`DATA_CHANGE`). Timeline: `DOCUMENT_CREATED`.
 - **Notas:** campos completos do cabeçalho (data, setor, responsável, objeto, prioridade, PCA) seguem RN-DFD-09 a RN-DFD-16 e são preenchidos via DFD-04 no wizard.
+- **Implementação (US-014, 2026-10-17):** o `id` do DFD é o próprio `documentId` (CHECK `dfds_id_is_document`) — a rota da SCR-007 e o painel de documentos usam o mesmo identificador. O `Dfd` traz também `processId`, `title`, `templateVersionId`, `documentVersion` (o `If-Match` do DOC-07), `draftRevision`, `expectedDate`, `estimatedValue`/`estimatedValueMasked` (POL-09), `pcaYear`, `pcaItemCode`, `pcaJustification`, `createdAt`, `updatedAt`. A resposta 201 traz o mesmo `meta` do DFD-03. O 409 `DOCUMENT_ALREADY_EXISTS` traz `meta: { existingDocumentId, existingDfdId, code }` quando a verificação prévia encontrou o DFD (na corrida decidida pelo índice único, sem o código). Sem `DFD_CREATE` → 403 `PERMISSION_DENIED` (`access.denied` com `reasonCode = DFD_CREATE`); com a permissão e sem custódia → 403 `NOT_PROCESS_CUSTODIAN` (`reasonCode = POL-01`).
 
 ### DFD-03 — Obter DFD
 `GET /api/v1/dfds/{id}` · **Permissão:** `PROCESS_VIEW` · **Story:** US-014, US-015
@@ -83,7 +84,7 @@ Dfd {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório) — DFD
 - **Request:** —
-- **Response:** `200 { data: Dfd, meta: { allowedActions } }` + `ETag: "<dfd.version>"` (schema de DFD-02, acrescido de `draftContent.sections[k].revision` por seção, US-015)
+- **Response:** `200 { data: Dfd, meta: { allowedActions, template } }` + `ETag: "<dfd.version>"` (schema de DFD-02, acrescido de `draftContent.sections[k].revision` por seção, US-015). `meta.template` (US-014) = a versão de template fixada no documento — `{ versionId, versionNumber, sections: [{ key, title, order, requirement, helpText, legalBasis, minChars, maxChars }], fieldConfig }` —, porque o TPL-07 exige `TEMPLATE_VIEW`, que a área requisitante não tem. `allowedActions` usa o vocabulário de `DOCUMENT_ACTIONS` (US-065: `UPDATE`, `FINALIZE`/`SUBMIT`, `REOPEN`, `CANCEL`, `DELETE`).
 - **Erros:**
 
 | HTTP | `code` | Quando |

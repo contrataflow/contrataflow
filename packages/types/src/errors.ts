@@ -104,6 +104,8 @@ export const ERROR_CODES = [
   'COMMENT_EDIT_WINDOW_EXPIRED',
   'RICH_TEXT_INVALID',
   'SECTION_NOT_IN_TEMPLATE',
+  // US-014: DFD inexistente, de outro tenant ou não visível (api/05-dfd.md DFD-03).
+  'DFD_NOT_FOUND',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

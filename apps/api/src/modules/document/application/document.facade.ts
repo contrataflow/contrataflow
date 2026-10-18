@@ -1,4 +1,4 @@
-import type { Confidentiality, DocumentStatus } from '@contrataflow/validation';
+import type { Confidentiality, DocumentAction, DocumentStatus } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { requireRequestContext } from '#shared/context/request-context.js';
@@ -17,16 +17,26 @@ import { DocumentCommentTargets } from './document-comment-target.js';
 import type { CommentDocumentLabel, CommentDocumentTarget } from './document-comment-target.js';
 import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
+import { DocumentItemsPresenter } from './document-items.commands.js';
+import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentRepository, DocumentValidator } from './document.ports.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TYPE_REPOSITORY } from './ports.js';
 import type { DocumentClock, DocumentTypeRepository } from './ports.js';
+import { StructuredDocumentCreator } from './structured-document.creator.js';
+import type {
+  CreateStructuredDocumentInput,
+  CreatedStructuredDocument,
+} from './structured-document.creator.js';
 import { TypedCollectionGuard } from './typed-collection-guard.js';
 import type {
   TypedCollectionInput,
   TypedCollectionState,
   TypedCollectionWrite,
 } from './typed-collection-guard.js';
+import type { DocumentItem } from '../domain/document-items.js';
+import type { DocumentTemplateVersion } from '../domain/document-template.js';
+import type { DocumentType } from '../domain/document-type.js';
 import { draftContentCopy } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
@@ -36,6 +46,12 @@ export type {
   TypedSnapshotParts,
 } from './document.ports.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
+export type {
+  CreateStructuredDocumentInput,
+  CreatedStructuredDocument,
+} from './structured-document.creator.js';
+export type { DocumentItem } from '../domain/document-items.js';
+export type { Document } from '../domain/document.js';
 export type { AiDocumentTarget, AiDocumentTargetInput } from './document-ai-target.js';
 export type { CommentDocumentLabel, CommentDocumentTarget } from './document-comment-target.js';
 export type {
@@ -62,6 +78,30 @@ export interface SummaryDocumentFact {
   readonly versionNumber: number | null;
   readonly confidentiality: Confidentiality;
   readonly inApproval: boolean;
+}
+
+/**
+ * O documento tipado como o módulo dono o lê (US-014 · DFD-03): documento, tipo, versão de
+ * template, processo, `meta.allowedActions` (RN-DOC-18) e se o usuário vê o orçamento (POL-09).
+ */
+export interface TypedDocumentView {
+  readonly document: Document;
+  readonly type: DocumentType;
+  readonly template: DocumentTemplateVersion | null;
+  readonly processId: string;
+  readonly isBudgetConfidential: boolean;
+  readonly canViewConfidentialBudget: boolean;
+  readonly allowedActions: DocumentAction[];
+}
+
+/** Estado de um documento para listagens dos módulos tipados (DFD-01). */
+export interface DocumentState {
+  readonly id: string;
+  readonly code: string | null;
+  readonly status: DocumentStatus;
+  readonly version: number;
+  readonly currentVersionNumber: number | null;
+  readonly approvedAt: Date | null;
 }
 
 /** Resultado da cópia dos documentos estruturados na duplicação (US-011). */
@@ -91,6 +131,9 @@ export class DocumentFacade {
     private readonly collections: TypedCollectionGuard,
     private readonly commentTargets: DocumentCommentTargets,
     @Inject(DOCUMENT_CLOCK) private readonly clock: DocumentClock,
+    private readonly structured: StructuredDocumentCreator,
+    private readonly lifecycle: DocumentLifecycleService,
+    private readonly itemRows: DocumentItemsPresenter,
   ) {}
 
   /**
@@ -104,6 +147,84 @@ export class DocumentFacade {
   /** Cria o documento em `DRAFT` (RN-DOC-50: tipo singular → 409 `DOCUMENT_ALREADY_EXISTS`). */
   createIn(tx: TenantTx, input: CreateDocumentInput): Promise<Document> {
     return this.creation.create(tx, input);
+  }
+
+  /**
+   * Padrão de documento tipado (US-014 · `createStructured`): cria o `Document` do tipo do módulo
+   * a partir da versão publicada do template (padrão do tipo ou escolhido), com o rascunho de todas
+   * as seções, numeração, `document.create`, `DocumentCreated` e timeline — no `tx` do chamador,
+   * que grava o cabeçalho tipado em seguida. Lança 404/403/409/422 (ver `StructuredDocumentCreator`).
+   */
+  createStructuredIn(
+    tx: TenantTx,
+    input: CreateStructuredDocumentInput,
+  ): Promise<CreatedStructuredDocument> {
+    return this.structured.create(tx, input);
+  }
+
+  /**
+   * O documento visível ao usuário da requisição (DEC-024), com as ações e a POL-09 do processo;
+   * `null` se inexistente, excluído, de outro tenant ou de processo não visível (o módulo dono
+   * responde o seu 404 — ex.: `DFD_NOT_FOUND`).
+   */
+  async typedDocumentIn(tx: TenantTx, documentId: string): Promise<TypedDocumentView | null> {
+    let context;
+    try {
+      context = await this.lifecycle.load(tx, documentId);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'NOT_FOUND') return null;
+      throw error;
+    }
+    const actor = await this.lifecycle.actorOf(context);
+    const { process } = context;
+    return {
+      document: context.document,
+      type: context.type,
+      template: context.template,
+      processId: process.id,
+      isBudgetConfidential: process.isBudgetConfidential,
+      canViewConfidentialBudget:
+        !process.isBudgetConfidential || (await this.lifecycle.canViewConfidentialBudget(context)),
+      allowedActions: this.lifecycle.allowedActions(context, actor),
+    };
+  }
+
+  /**
+   * Completude do documento (RN-DFD-19): a MESMA avaliação do DOC-08 (genérica + `DocumentValidator`
+   * do módulo tipado), sem checar visibilidade — o `RuleContext` da tramitação (US-041) lê por aqui.
+   * `null` se o documento não existe no tenant.
+   */
+  async isCompleteIn(tx: TenantTx, documentId: string): Promise<boolean | null> {
+    const context = await this.lifecycle.loadInternal(tx, documentId);
+    if (context === null) return null;
+    const { violations } = await this.lifecycle.evaluate(tx, context);
+    return !violations.some((item) => item.severity === 'BLOCKING');
+  }
+
+  /** Linhas de item do documento (DOC-06), no `tx` do chamador — validador e snapshot tipados. */
+  documentItemsIn(tx: TenantTx, documentId: string): Promise<DocumentItem[]> {
+    return this.itemRows.rowsOf(tx, documentId);
+  }
+
+  /** Código, status e versão dos documentos não excluídos (inclusive cancelados) por id. */
+  async documentStatesIn(
+    tx: TenantTx,
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, DocumentState>> {
+    const states = new Map<string, DocumentState>();
+    for (const id of new Set(ids)) {
+      const document = await this.documents.findById(tx, id);
+      if (document === null) continue;
+      states.set(id, {
+        id: document.id,
+        code: document.code,
+        status: document.status,
+        version: document.version,
+        currentVersionNumber: document.currentVersionNumber,
+        approvedAt: document.approvedAt,
+      });
+    }
+    return states;
   }
 
   /**

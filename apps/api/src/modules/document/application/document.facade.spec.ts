@@ -7,9 +7,12 @@ import type { DocumentAiTargets } from './document-ai-target.js';
 import type { DocumentApprovalTransitions } from './document-approval.transitions.js';
 import type { DocumentCommentTargets } from './document-comment-target.js';
 import type { CreateDocumentInput, DocumentCreationService } from './document-creation.service.js';
+import type { DocumentItemsPresenter } from './document-items.commands.js';
+import type { DocumentLifecycleService } from './document-lifecycle.service.js';
 import { DocumentFacade } from './document.facade.js';
 import { DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentValidator } from './document.ports.js';
+import type { StructuredDocumentCreator } from './structured-document.creator.js';
 import type { TypedCollectionGuard } from './typed-collection-guard.js';
 import {
   buildDocument,
@@ -40,6 +43,9 @@ function facadeWith(creation: Partial<DocumentCreationService> = {}) {
     {} as TypedCollectionGuard,
     {} as DocumentCommentTargets,
     () => NOW,
+    {} as StructuredDocumentCreator,
+    {} as DocumentLifecycleService,
+    {} as DocumentItemsPresenter,
   );
   return { facade, documents, types, validators };
 }

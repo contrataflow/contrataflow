@@ -14,6 +14,10 @@ import {
 } from '#shared/files/attachment-targets.js';
 import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
+import {
+  ProcessItemCatalogModule,
+  ProcessItemCatalogRegistry,
+} from '#shared/process/process-item-catalog.js';
 import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
@@ -40,6 +44,7 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import { ProcessItemCatalogLoader } from './application/process-item-catalog.loader.js';
 import {
   AddProcessItemCommand,
   RemoveProcessItemCommand,
@@ -148,6 +153,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * US-012: participantes (PRC-28..32) — `ProcessAccess` `PARTICIPANT`, seguir/deixar de seguir.
  * US-003: visões salvas (PRC-35..38) e exportação CSV em *streaming* (PRC-34).
  * US-007: etiquetas (TAG-01..03) e o conjunto de etiquetas do processo (PRC-18).
+ * US-014: leitor dos itens na porta `ProcessItemCatalogRegistry` (itens do DFD — DOC-06/07) e os
+ * valores iniciais do DFD (`ProcessFacade.dfdDefaultsIn`).
  */
 @Module({
   imports: [
@@ -164,6 +171,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentProcessContextModule,
     AttachmentTargetModule,
     ProcessItemUsageModule,
+    ProcessItemCatalogModule,
   ],
   controllers: [
     // US-003: `/processes/export` antes de `/processes/:id`.
@@ -178,6 +186,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   ],
   providers: [
     ProcessAttachmentTargets,
+    ProcessItemCatalogLoader,
     ProcessFacade,
     ProcessPresenter,
     ProcessViewerResolver,
@@ -323,6 +332,8 @@ export class ProcessModule implements OnModuleInit {
     private readonly documentContextLoader: DocumentProcessContextLoader,
     private readonly attachmentTargets: AttachmentTargetRegistry,
     private readonly processAttachmentTargets: ProcessAttachmentTargets,
+    private readonly itemCatalog: ProcessItemCatalogRegistry,
+    private readonly itemCatalogLoader: ProcessItemCatalogLoader,
   ) {}
 
   onModuleInit(): void {
@@ -335,5 +346,7 @@ export class ProcessModule implements OnModuleInit {
     this.documentContexts.register(this.documentContextLoader);
     // US-068: o processo como alvo de anexo (`PROCESS`) lido pelo `files`.
     this.attachmentTargets.register(this.processAttachmentTargets);
+    // US-014: os itens do processo lidos pelos itens de documento (DOC-06/07).
+    this.itemCatalog.register(this.itemCatalogLoader);
   }
 }

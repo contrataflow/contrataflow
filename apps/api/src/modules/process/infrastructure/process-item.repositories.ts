@@ -72,6 +72,28 @@ export class PrismaProcessItemRepository implements ProcessItemRepository {
     return row === null ? null : toItem(row);
   }
 
+  async lockForShare(
+    tx: TenantTx,
+    processId: string,
+    itemIds: readonly string[],
+  ): Promise<ProcessItem[]> {
+    if (itemIds.length === 0) return [];
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT i.id
+        FROM process_items i
+       WHERE i.tenant_id = current_setting('app.tenant_id')::uuid
+         AND i.process_id = ${processId}::uuid
+         AND i.id = ANY(${[...itemIds]}::uuid[])
+         AND i.deleted_at IS NULL
+         FOR SHARE`;
+    if (locked.length === 0) return [];
+    const rows = await tx.processItem.findMany({
+      where: { id: { in: locked.map((row) => row.id) } },
+      orderBy: { sequence: 'asc' },
+    });
+    return rows.map(toItem);
+  }
+
   async insert(tx: TenantTx, item: ProcessItem): Promise<void> {
     await tx.processItem.create({
       data: {
@@ -245,6 +267,19 @@ export class InMemoryProcessItemRepository implements ProcessItemRepository {
   lockItem(_tx: TenantTx, itemId: string): Promise<ProcessItem | null> {
     const item = this.owned(itemId);
     return Promise.resolve(item === null ? null : strip(item));
+  }
+
+  lockForShare(
+    _tx: TenantTx,
+    processId: string,
+    itemIds: readonly string[],
+  ): Promise<ProcessItem[]> {
+    const wanted = new Set(itemIds);
+    return Promise.resolve(
+      this.active(processId)
+        .filter((item) => wanted.has(item.id))
+        .map(strip),
+    );
   }
 
   insert(_tx: TenantTx, item: ProcessItem): Promise<void> {

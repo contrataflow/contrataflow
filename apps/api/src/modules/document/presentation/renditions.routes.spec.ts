@@ -276,7 +276,7 @@ describe('Feature: Gerar PDF de documentos (US-067)', () => {
       roleId: seedDefaultRolesOf(api, A).get('CONSULTOR_EXTERNO')?.id ?? '',
     });
     openStages = openStageForAnyType(api);
-    api.app.get(DocumentValidatorRegistry).register(dfdValidator);
+    api.app.get(DocumentValidatorRegistry).override(dfdValidator);
     const seeded = documentTypeRepositoryOf(api)
       .snapshot()
       .filter((type) => type.tenantId === A);

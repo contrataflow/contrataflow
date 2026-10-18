@@ -11,6 +11,11 @@ import {
   AttachmentTargetModule,
   AttachmentTargetRegistry,
 } from '#shared/files/attachment-targets.js';
+import { ProcessItemCatalogModule } from '#shared/process/process-item-catalog.js';
+import {
+  ProcessItemUsageModule,
+  ProcessItemUsageRegistry,
+} from '#shared/process/process-item-usage.js';
 import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
@@ -20,6 +25,13 @@ import { DocumentApprovalTransitions } from './application/document-approval.tra
 import { DocumentAttachmentTargets } from './application/document-attachment-targets.js';
 import { DocumentCommentTargets } from './application/document-comment-target.js';
 import { DocumentCreationService } from './application/document-creation.service.js';
+import {
+  DocumentItemsPresenter,
+  DocumentItemsQuery,
+  DocumentItemUsageReader,
+  ReplaceDocumentItemsCommand,
+} from './application/document-items.commands.js';
+import { DOCUMENT_ITEM_REPOSITORY } from './application/document-items.ports.js';
 import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
 import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
 import { DocumentTypeFacade } from './application/document-type.facade.js';
@@ -65,6 +77,7 @@ import type { RenditionSettings } from './application/rendition.ports.js';
 import { GetRenditionDownloadQuery, GetRenditionQuery } from './application/rendition.queries.js';
 import { ReviewAiContentCommand } from './application/review-ai-content.command.js';
 import { SetDefaultTemplateCommand } from './application/set-default-template.command.js';
+import { StructuredDocumentCreator } from './application/structured-document.creator.js';
 import { SystemDocumentTypesSeeder } from './application/system-document-types.seeder.js';
 import { TemplateAssetAttachmentTargets } from './application/template-asset-targets.js';
 import { TemplateContext } from './application/template-context.js';
@@ -92,6 +105,10 @@ import {
   UploadDocumentVersionCommand,
 } from './application/uploaded-document.commands.js';
 import { TEMPLATE_LIBRARY as TEMPLATE_LIBRARY_FIXTURE } from './domain/template-library.js';
+import {
+  InMemoryDocumentItemRepository,
+  PrismaDocumentItemRepository,
+} from './infrastructure/document-item.repositories.js';
 import { GotenbergClient, UnconfiguredPdfRenderer } from './infrastructure/gotenberg.client.js';
 import { InMemoryDocumentRenditionRepository } from './infrastructure/in-memory-document-rendition.repository.js';
 import {
@@ -107,6 +124,7 @@ import {
 } from './infrastructure/prisma-document-type.repository.js';
 import { PrismaDocumentRepository } from './infrastructure/prisma-document.repository.js';
 import { PrismaTemplateRepository } from './infrastructure/prisma-template.repository.js';
+import { DocumentItemsController } from './presentation/document-items.controller.js';
 import { DocumentTypeController } from './presentation/document-type.controller.js';
 import { DocumentVersionController } from './presentation/document-version.controller.js';
 import { DocumentController } from './presentation/document.controller.js';
@@ -141,6 +159,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * documento externo (US-064: DOC-02/19) lê o arquivo do anexo pela porta `AttachmentFileRegistry`,
  * implementada por `files`. Layout de impressão (US-109): TPL-08 com `layout`, o logo `TENANT_ASSET`
  * (alvo de anexo = rascunho do template) e a prévia efêmera TPL-09/12/13 (Redis + `document-render`).
+ * US-014: o padrão de documento tipado (`DocumentFacade.createStructuredIn`) e os itens de documento
+ * (DOC-06/07) sobre os itens do processo, lidos pela porta `ProcessItemCatalogRegistry` (`process`).
  */
 @Module({
   imports: [
@@ -155,12 +175,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentApprovalModule,
     TenantSeedingModule,
     AttachmentTargetModule,
+    ProcessItemCatalogModule,
+    ProcessItemUsageModule,
   ],
   controllers: [
     DocumentTypeController,
     TemplateController,
     TemplatePreviewController,
     DocumentController,
+    DocumentItemsController,
     DocumentVersionController,
     ProcessDocumentsController,
     DocumentPreviewController,
@@ -265,6 +288,26 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     // US-064: documento externo — DOC-02 (casca `UPLOADED`) e DOC-19 (versão por upload).
     CreateProcessDocumentCommand,
     UploadDocumentVersionCommand,
+    // US-014: documento tipado (`createStructuredIn`) e itens de documento (DOC-06/07).
+    StructuredDocumentCreator,
+    DocumentItemsPresenter,
+    DocumentItemsQuery,
+    ReplaceDocumentItemsCommand,
+    DocumentItemUsageReader,
+    PrismaDocumentItemRepository,
+    {
+      provide: InMemoryDocumentItemRepository,
+      useFactory: () => new InMemoryDocumentItemRepository(),
+    },
+    {
+      provide: DOCUMENT_ITEM_REPOSITORY,
+      inject: [APP_CONFIG, PrismaDocumentItemRepository, InMemoryDocumentItemRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaDocumentItemRepository,
+        memory: InMemoryDocumentItemRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
     // US-062: painel de documentos do processo (DOC-01).
     GetProcessDocumentsHandler,
     { provide: DOCUMENT_CLOCK, useValue: () => new Date() },
@@ -319,6 +362,8 @@ export class DocumentModule implements OnModuleInit {
     private readonly attachmentTargets: AttachmentTargetRegistry,
     private readonly documentAttachmentTargets: DocumentAttachmentTargets,
     private readonly templateAssetTargets: TemplateAssetAttachmentTargets,
+    private readonly itemUsage: ProcessItemUsageRegistry,
+    private readonly documentItemUsage: DocumentItemUsageReader,
   ) {}
 
   /**
@@ -331,5 +376,7 @@ export class DocumentModule implements OnModuleInit {
     this.seeders.register(this.templateLibrary);
     this.attachmentTargets.register(this.documentAttachmentTargets);
     this.attachmentTargets.register(this.templateAssetTargets);
+    // US-014: os itens do processo referenciados por documentos (ITEM_IN_USE — US-006).
+    this.itemUsage.register(this.documentItemUsage);
   }
 }

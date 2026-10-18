@@ -1,3 +1,4 @@
+import type { AttachmentTargetType } from '@contrataflow/types';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { requireRequestContext } from '#shared/context/request-context.js';
@@ -81,6 +82,22 @@ export class FilesFacade {
       copied += 1;
     }
     return { copied, skipped };
+  }
+
+  /**
+   * Anexos do alvo ainda em verificação (`UPLOADED`/`SCANNING` — US-014 · FA-07): o aviso
+   * `DFD_ATTACHMENTS_PENDING` do checklist. No `tx` do chamador (RLS do tenant).
+   */
+  async scanPendingCount(
+    tx: TenantTx,
+    target: {
+      readonly processId: string;
+      readonly targetType: AttachmentTargetType;
+      readonly targetId: string;
+    },
+  ): Promise<number> {
+    const { items } = await this.attachments.listByProcess(tx, target, { skip: 0, take: 1000 });
+    return items.filter((item) => item.status === 'UPLOADED' || item.status === 'SCANNING').length;
   }
 
   /** Nome e tipo de alvo dos anexos, em lote, no `tx` do chamador (RLS do tenant). */

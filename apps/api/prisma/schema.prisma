@@ -2255,3 +2255,71 @@ model ProcessTag {
   @@id([tenantId, processId, tagId], map: "process_tags_pkey")
   @@map("process_tags")
 }
+
+/// entities.md §4.7 `DocumentItem` (módulo document · US-014 · DEC-019): linha de item de um
+/// documento tipado (DFD, ETP, TR) que referencia um `ProcessItem` do mesmo processo, uma vez por
+/// documento. Substituída inteira pelo DOC-07 (DELETE + INSERT no `tx`, com o documento travado).
+model DocumentItem {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  documentId         String   @map("document_id") @db.Uuid
+  processItemId      String   @map("process_item_id") @db.Uuid
+  quantity           Decimal  @db.Decimal(18, 4)
+  specification      Json?    @db.JsonB
+  acceptanceCriteria Json?    @map("acceptance_criteria") @db.JsonB
+  calculationMemo    Json?    @map("calculation_memo") @db.JsonB
+  notes              String?
+  sortOrder          Int      @default(0) @map("sort_order")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?  @map("created_by_id") @db.Uuid
+  updatedById        String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, documentId, processItemId], map: "document_items_document_process_item_key")
+  @@index([tenantId, processItemId], map: "document_items_process_item_idx")
+  @@map("document_items")
+}
+
+/// entities.md §2 — `DfdWizardStep` (RN-DFD-21).
+enum DfdWizardStep {
+  IDENTIFICATION
+  JUSTIFICATION
+  PLANNING
+  REVIEW
+  CONCLUSION
+
+  @@map("dfd_wizard_step")
+}
+
+/// entities.md §4.8 `Dfd` (módulo dfd · US-014): cabeçalho tipado 1:1 do `Document` do tipo DFD
+/// (Decreto 10.947/2022, art. 8º). `id = documentId` (CHECK `dfds_id_is_document`). Checks de PCA e
+/// de datas, FKs compostas por tenant e o gatilho de colunas imutáveis na migração.
+model Dfd {
+  id                     String          @id @db.Uuid
+  tenantId               String          @map("tenant_id") @db.Uuid
+  processId              String          @map("process_id") @db.Uuid
+  documentId             String          @map("document_id") @db.Uuid
+  requestingDepartmentId String          @map("requesting_department_id") @db.Uuid
+  responsibleId          String          @map("responsible_id") @db.Uuid
+  requestDate            DateTime        @map("request_date") @db.Date
+  objectSummary          String          @map("object_summary") @db.VarChar(2000)
+  priority               Priority
+  expectedDate           DateTime?       @map("expected_date") @db.Date
+  estimatedValue         Decimal?        @map("estimated_value") @db.Decimal(18, 2)
+  pcaStatus              PcaStatus       @map("pca_status")
+  pcaYear                Int?            @map("pca_year")
+  pcaItemCode            String?         @map("pca_item_code") @db.VarChar(60)
+  pcaJustification       String?         @map("pca_justification")
+  wizardStep             DfdWizardStep   @default(IDENTIFICATION) @map("wizard_step")
+  completedSteps         DfdWizardStep[] @default([]) @map("completed_steps")
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?         @map("created_by_id") @db.Uuid
+  updatedById            String?         @map("updated_by_id") @db.Uuid
+  version                Int             @default(1)
+
+  @@unique([tenantId, id], map: "dfds_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "dfds_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "dfds_process_idx")
+  @@map("dfds")
+}

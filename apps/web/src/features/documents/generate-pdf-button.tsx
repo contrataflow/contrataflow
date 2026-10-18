@@ -37,6 +37,8 @@ export interface GeneratePdfButtonProps {
   readonly source: PdfSource;
   /** Segue a URL pré-assinada do DOC-23; injetável nos testes (o padrão navega a janela). */
   readonly navigate?: ((url: string) => void) | undefined;
+  /** Rótulo do botão inicial da tela dona (ex.: "Pré-visualizar PDF" no wizard do DFD — US-014). */
+  readonly label?: string | undefined;
 }
 
 type OutcomeOrigin = 'request' | 'download' | 'poll';
@@ -50,7 +52,11 @@ type OutcomeOrigin = 'request' | 'download' | 'poll';
  * 429 com `Retry-After`, 503) aparecem em linha, sem fechar nada. O PDF ficar pronto não depende
  * do usuário na tela: o estado vive só nesta sessão (não há rota que liste os PDFs do documento).
  */
-export function GeneratePdfButton({ source, navigate = startDownload }: GeneratePdfButtonProps) {
+export function GeneratePdfButton({
+  source,
+  navigate = startDownload,
+  label,
+}: GeneratePdfButtonProps) {
   const t = useTranslations('documents.renditions');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
@@ -164,7 +170,8 @@ export function GeneratePdfButton({ source, navigate = startDownload }: Generate
   const blocked = blockedUntil !== null;
   const target = source.kind === 'version' ? source.versionNumber : null;
   const showGenerate = !(status === 'READY' && source.kind === 'version');
-  const baseLabel = source.kind === 'preview' ? t('generate.preview') : t('generate.version');
+  const baseLabel =
+    label ?? (source.kind === 'preview' ? t('generate.preview') : t('generate.version'));
   let generateLabel = baseLabel;
   if (status === 'FAILED') generateLabel = t('retry');
   else if (status === 'EXPIRED' || (status === 'READY' && source.kind === 'preview')) {

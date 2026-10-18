@@ -37,6 +37,7 @@ import {
 } from './process-documents-model';
 import type { DocumentGroup, PanelFilter, PanelType } from './process-documents-model';
 import { useActiveDocumentTypes, useProcessDocuments } from './process-documents.api';
+import { ElaborateDfdOutcome, useElaborateDfd } from '../dfd/elaborate-dfd';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { useIsDesktop } from '../workflows/use-is-desktop';
 
@@ -396,11 +397,16 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
 
   const [creating, setCreating] = useState<PanelType | null>(null);
 
-  // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo"); o da US-063
-  // (FREE_TEXT) e as telas dos módulos tipados (fora do EP-011) ainda não foram entregues.
+  // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo") e o DFD-02 da
+  // US-014 (DFD → SCR-007); o da US-063 (FREE_TEXT) e os demais módulos tipados ainda não chegaram.
+  const elaborate = useElaborateDfd(processId);
   const onCreate = (type: PanelType) => {
     if (type.kind === 'UPLOADED') {
       setCreating(type);
+      return;
+    }
+    if (type.systemModule === 'DFD') {
+      elaborate.elaborate();
       return;
     }
     toast({ title: tProcess('notYet') });
@@ -435,6 +441,7 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
         <h2 className="text-base font-semibold">{t('title')}</h2>
         <CreateDocumentMenu types={menu} onCreate={onCreate} prominent={empty} />
       </div>
+      <ElaborateDfdOutcome processId={processId} outcome={elaborate.outcome} />
       {creating ? (
         <CreateDocumentDialog
           processId={processId}

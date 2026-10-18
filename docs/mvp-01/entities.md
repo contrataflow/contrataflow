@@ -1018,7 +1018,7 @@ Linha de item em um documento (DFD, ETP, TR).
 | `sortOrder` | int | não | `0` | |
 
 - **Unique:** `(tenant_id, document_id, process_item_id)`.
-- **Regra:** editável somente com o documento em `DRAFT`/`RETURNED`.
+- **Regra:** editável somente com o documento em `DRAFT`/`RETURNED`. O DOC-07 substitui a coleção inteira (DELETE + INSERT/UPDATE no `tx`, com o documento travado e `documents.version + 1` — o novo `ETag`); o papel da aplicação tem DELETE nesta tabela (US-014).
 
 ### 4.8 Documentos tipados
 
@@ -1044,7 +1044,8 @@ Cabeçalho tipado do DFD. Seções de template: `JUSTIFICATION`, `EXPECTED_RESUL
 | `completedSteps` | DfdWizardStep[] | não | `{}` | |
 
 - **Unique:** `(tenant_id, document_id)`.
-- **Check:** mesmas regras de PCA de `Process`; `expected_date IS NULL OR expected_date >= request_date`.
+- **Check:** mesmas regras de PCA de `Process`; `expected_date IS NULL OR expected_date >= request_date`; `id = document_id` (`dfds_id_is_document` — o DFD usa o id do documento; decidido na US-014, 2026-10-17).
+- **Obrigatoriedade de `expectedDate`/`estimatedValue` (RN-DFD-08):** padrão do módulo — previsão obrigatória, estimativa opcional — enquanto o `fieldConfig` do template não disser outra coisa (o template semeado traz `fieldConfig = {}`, RN-TPL-31).
 
 #### Etp (`etps`) — módulo `etp` · Padrão
 Seções de template (chaves): `NEED_DESCRIPTION`, `PROBLEM`, `OBJECTIVE`, `PCA_ALIGNMENT`, `REQUIREMENTS`, `MARKET_SURVEY`, `ALTERNATIVES`, `ESTIMATES`, `RECOMMENDED_SOLUTION`, `PARCELING`, `RELATED_CONTRACTS`, `EXPECTED_RESULTS`, `ENVIRONMENTAL_IMPACTS`, `PRIOR_MEASURES`, `RISKS`, `CONCLUSION`.

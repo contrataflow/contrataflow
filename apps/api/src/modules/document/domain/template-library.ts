@@ -34,7 +34,7 @@ import { FULL_VALIDATION, validateTemplateContent } from './template-content.val
  */
 
 /** Versão do conteúdo semeado, gravada no `seedVersions` da auditoria `tenant.provision`. */
-export const TEMPLATE_LIBRARY_VERSION = '2026.10.1';
+export const TEMPLATE_LIBRARY_VERSION = '2026.10.2';
 
 /** Definição de um modelo padrão (forma de entrada, antes dos padrões do schema). */
 export interface TemplateLibraryEntry {
@@ -85,6 +85,7 @@ interface SectionSpec {
   readonly render?: SectionDefinitionInput['render'];
   readonly allowNarrative?: boolean;
   readonly defaultContent?: string;
+  readonly minChars?: number;
 }
 
 /** Seções na ordem da lista (`order` a partir de 1 — RN-TPL-04). */
@@ -96,6 +97,7 @@ function sections(specs: readonly SectionSpec[]): SectionDefinitionInput[] {
     requirement: spec.requirement ?? 'REQUIRED',
     helpText: spec.helpText,
     ...(spec.legalBasis === undefined ? {} : { legalBasis: spec.legalBasis }),
+    ...(spec.minChars === undefined ? {} : { minChars: spec.minChars }),
     ...(spec.defaultContent === undefined
       ? {}
       : { defaultContent: richTextFromPlainText(spec.defaultContent) }),
@@ -118,26 +120,29 @@ export const TEMPLATE_LIBRARY: readonly TemplateLibraryEntry[] = [
     name: 'DFD — Modelo padrão',
     description: `Documento de Formalização da Demanda (Decreto 10.947/2022). ${REVIEW_NOTE}`,
     sections: sections([
+      // US-014 · RN-DFD-07: chaves, títulos, base legal e `minChars` do DFD semeado.
       {
         key: 'JUSTIFICATION',
         title: 'Justificativa da necessidade',
         helpText:
           'Descreva a necessidade da contratação, o problema a resolver e o interesse público envolvido, considerando o planejamento do órgão.',
-        legalBasis: 'Decreto 10.947/2022',
+        legalBasis: `${LEI}, art. 12, VII; Decreto 10.947/2022, art. 8º, I`,
+        minChars: 50,
       },
       {
         key: 'EXPECTED_RESULTS',
-        title: 'Resultados pretendidos',
+        title: 'Resultados esperados',
         helpText:
           'Indique os resultados esperados em termos de economicidade e de melhor aproveitamento dos recursos.',
-        legalBasis: 'Decreto 10.947/2022',
+        legalBasis: `Boa prática (insumo do ETP, ${LEI}, art. 18, § 1º, IX)`,
       },
       {
         key: 'NOTES',
         title: 'Observações',
         requirement: 'OPTIONAL',
         helpText:
-          'Informações complementares: vinculação com outras demandas, restrições de prazo e unidades envolvidas.',
+          'Informações complementares: vinculação ou dependência com outras demandas (outro DFD), restrições de prazo e unidades envolvidas.',
+        legalBasis: 'Decreto 10.947/2022, art. 8º, VII (dependências)',
       },
     ]),
   },

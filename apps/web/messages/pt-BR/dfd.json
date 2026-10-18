@@ -1,0 +1,127 @@
+{
+  "title": "DFD — Documento de Formalização da Demanda",
+  "backToProcess": "Voltar ao processo",
+  "processLine": "Processo {code} — {title}",
+  "draftCode": "em rascunho",
+  "loading": "Carregando o DFD…",
+  "loadError": "Não foi possível carregar o DFD agora.",
+  "retry": "Tentar novamente",
+  "notFound": "DFD não encontrado.",
+  "stepper": {
+    "label": "Passos do DFD",
+    "progress": "Passo {current} de {total}",
+    "complete": "concluído"
+  },
+  "steps": {
+    "IDENTIFICATION": "Identificação",
+    "JUSTIFICATION": "Justificativa",
+    "PLANNING": "Planejamento",
+    "REVIEW": "Revisão",
+    "CONCLUSION": "Conclusão"
+  },
+  "nav": {
+    "back": "Voltar",
+    "continue": "Continuar",
+    "fixErrors": "Revise os campos destacados."
+  },
+  "readOnly": {
+    "title": "Este DFD está em modo leitura.",
+    "status": {
+      "DRAFT": "Rascunho",
+      "IN_REVIEW": "Em revisão",
+      "FINALIZED": "Concluído",
+      "APPROVED": "Aprovado",
+      "RETURNED": "Devolvido",
+      "REJECTED": "Indeferido",
+      "CANCELED": "Cancelado"
+    },
+    "noPermission": "Você pode consultar o DFD, mas não editá-lo."
+  },
+  "identification": {
+    "number": "Número",
+    "requestDate": "Data *",
+    "department": "Setor *",
+    "departmentPlaceholder": "Selecione o setor",
+    "departmentHint": "Unidades da {secretariat} solicitante do processo.",
+    "responsible": "Responsável pela demanda *",
+    "object": "Objeto *",
+    "objectHint": "Descreva de forma sucinta o que será contratado (10 a 2.000 caracteres).",
+    "priority": "Prioridade *",
+    "priorities": {
+      "LOW": "Baixa",
+      "MEDIUM": "Média",
+      "HIGH": "Alta",
+      "URGENT": "Urgente"
+    },
+    "priorityDescriptions": {
+      "LOW": "Pode aguardar o planejamento regular.",
+      "MEDIUM": "Deve ser atendida no exercício.",
+      "HIGH": "Afeta a continuidade de um serviço se não for atendida em breve.",
+      "URGENT": "Risco imediato ao serviço ou à população."
+    },
+    "priorityRaise": "Ao ser aprovado, o DFD elevará a prioridade do processo para {priority}."
+  },
+  "justification": {
+    "help": "Orientação",
+    "legalBasis": "Base legal: {basis}",
+    "maxChars": "Até {max} caracteres."
+  },
+  "planning": {
+    "itemsTitle": "Itens e quantidades",
+    "itemsHint": "Marque os itens do processo atendidos por este DFD e informe a quantidade.",
+    "number": "Nº",
+    "description": "Descrição",
+    "unit": "Unidade",
+    "include": "Incluir neste DFD",
+    "includeItem": "Incluir o item {number} neste DFD",
+    "quantity": "Quantidade",
+    "quantityOf": "Quantidade do item {number}",
+    "addItem": "Adicionar item ao processo",
+    "emptyItems": "Este processo ainda não tem itens.",
+    "emptyItemsGuidance": "Peça ao responsável pelo processo para cadastrar os itens.",
+    "saving": "Salvando itens…",
+    "saved": "Itens salvos.",
+    "conflict": "Os itens foram alterados por outra pessoa. Atualizamos a lista.",
+    "saveError": "Não foi possível salvar os itens agora. Tente novamente em instantes.",
+    "expectedDate": "Previsão (data pretendida para a contratação) *",
+    "estimatedValue": "Estimativa preliminar do valor",
+    "estimatedValueHint": "Opcional. Valor de referência para o planejamento.",
+    "confidentialValue": "Valor sigiloso",
+    "useProcessValue": "Usar o valor informado na abertura do processo: {value}",
+    "notes": "Observações",
+    "notesHint": "Vinculação ou dependência com outras demandas, restrições de prazo e unidades envolvidas."
+  },
+  "review": {
+    "title": "Checklist de completude",
+    "loading": "Verificando as pendências…",
+    "error": "Não foi possível verificar as pendências agora.",
+    "clean": "Sem pendências",
+    "cleanHint": "O DFD tem tudo o que é exigido para a conclusão.",
+    "blocking": "Pendências obrigatórias",
+    "warnings": "Alertas",
+    "goTo": "Ir para o campo",
+    "goToStep": "Ir para o campo no passo {step}",
+    "summaryTitle": "Resumo",
+    "itemsCount": "{count, plural, =0 {Nenhum item} one {# item} other {# itens}}",
+    "previewTitle": "Pré-visualização",
+    "previewAction": "Pré-visualizar PDF",
+    "previewHint": "O PDF da prévia sai com a marca d'água \"RASCUNHO\"."
+  },
+  "conclusion": {
+    "ready": "Sem pendências",
+    "pending": "{count, plural, one {Há # pendência obrigatória} other {Há # pendências obrigatórias}}",
+    "pendingHint": "Volte à Revisão para corrigir as pendências antes de concluir."
+  },
+  "summary": {
+    "empty": "Não informado"
+  },
+  "elaborate": {
+    "action": "Elaborar DFD",
+    "creating": "Criando DFD…",
+    "exists": "Este processo já possui o {code}.",
+    "existsNoCode": "Este processo já possui um DFD.",
+    "open": "Abrir DFD",
+    "failed": "Não foi possível criar o DFD agora. Tente novamente em instantes.",
+    "failedWithCode": "Não foi possível criar o DFD agora. Tente novamente em instantes. Código: {correlationId}"
+  }
+}

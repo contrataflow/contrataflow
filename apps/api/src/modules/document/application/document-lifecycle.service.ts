@@ -275,6 +275,25 @@ export class DocumentLifecycleService {
     this.assertTypeInStage(context);
   }
 
+  /**
+   * Criação de documento TIPADO (US-014 · RN-DFD-02 · POL-01/02): permissão de criação do tipo
+   * cobrindo o processo (403 + MFA + `access.denied`) + custódia atual (403 `NOT_PROCESS_CUSTODIAN`
+   * — participação não cria) + processo editável (409) + tipo na etapa (422).
+   */
+  async authorizeCreateAsCustodian(
+    context: DocumentAuthorizationContext,
+    actor: Pick<ResolvedDocumentActor, 'isCustodian'>,
+    notCustodianDetail: string,
+  ): Promise<void> {
+    await this.access.assertCanOnProcess(
+      createPermissionOf(context.type.systemModule),
+      context.process.access,
+    );
+    if (!actor.isCustodian) throw notProcessCustodian('POL-01', notCustodianDetail);
+    this.assertProcessEditable(context);
+    this.assertTypeInStage(context);
+  }
+
   /** POL-11 (DOC-12): `DOCUMENT_REOPEN` + custódia + processo editável + tipo na etapa. */
   async authorizeReopen(context: DocumentContext, actor: ResolvedDocumentActor): Promise<void> {
     await this.access.assertCanOnProcess('DOCUMENT_REOPEN', context.process.access);

@@ -25,6 +25,14 @@ import { DocumentsPanel } from './documents-panel';
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 
+// US-014: "Novo documento › DFD" cria pelo DFD-02 e navega para o SCR-007.
+const push = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => `/processos/${PROCESS_ID}`,
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 afterEach(() => {
   vi.unstubAllGlobals();
   clearToasts();

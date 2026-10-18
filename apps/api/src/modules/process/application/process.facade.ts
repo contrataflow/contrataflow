@@ -1,3 +1,4 @@
+import type { EstimatedValueSource, PcaStatus, Priority } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -16,6 +17,18 @@ import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import { canViewConfidentialBudget } from '../domain/process-list.js';
 
 const HISTORICAL_SETTING = 'access.historicalDepartmentsCanView';
+
+/** O que o DFD copia do processo na criação (RN-DFD-05). */
+export interface ProcessDfdDefaults {
+  readonly priority: Priority;
+  readonly pcaStatus: PcaStatus;
+  readonly pcaYear: number | null;
+  readonly pcaItemCode: string | null;
+  readonly pcaJustification: string | null;
+  /** Decimal(18,2) como string. */
+  readonly estimatedValue: string | null;
+  readonly estimatedValueSource: EstimatedValueSource | null;
+}
 
 /**
  * API pública do módulo `process` para os demais módulos (DEC-041): métodos de intenção,
@@ -54,6 +67,26 @@ export class ProcessFacade {
       { ...budget.scope, custodyDepartmentIds: budget.custodyDepartmentIds },
       grants.departmentIds,
     );
+  }
+
+  /**
+   * Valores do processo que o DFD copia na criação (US-014 · RN-DFD-05) e o valor manual que o passo
+   * Planejamento sugere (fluxo principal 9). `null` = inexistente no tenant (RLS). O mascaramento do
+   * valor (POL-09) é de quem chama.
+   */
+  async dfdDefaultsIn(tx: TenantTx, processId: string): Promise<ProcessDfdDefaults | null> {
+    const rows = await this.processes.loadAggregate(tx, processId);
+    if (rows === null) return null;
+    const { process } = rows;
+    return {
+      priority: process.priority,
+      pcaStatus: process.pcaStatus,
+      pcaYear: process.pcaYear,
+      pcaItemCode: process.pcaItemCode,
+      pcaJustification: process.pcaJustification,
+      estimatedValue: process.estimatedValue,
+      estimatedValueSource: process.estimatedValueSource,
+    };
   }
 
   /** Código (nulo em rascunho sem número) e sigilo do orçamento dos processos do tenant. */
