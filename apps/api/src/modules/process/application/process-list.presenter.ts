@@ -4,8 +4,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { PROCESS_CLOCK } from './ports.js';
-import type { ProcessClock, ProcessListRow } from './ports.js';
+import { PROCESS_CLOCK, TAG_REPOSITORY } from './ports.js';
+import type { ProcessClock, ProcessListRow, TagRepository } from './ports.js';
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import type { CatalogItemRef } from '../../catalog/application/catalog.facade.js';
@@ -46,6 +46,7 @@ export interface ProcessListContext {
 export class ProcessListPresenter {
   constructor(
     @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
+    @Inject(TAG_REPOSITORY) private readonly tags: TagRepository,
     private readonly calendar: BusinessCalendarFacade,
     private readonly tenancy: TenancyFacade,
     private readonly workflow: WorkflowFacade,
@@ -115,6 +116,11 @@ export class ProcessListPresenter {
     for (const id of new Set(rows.map((row) => row.organizationId))) {
       organizations.set(id, (await this.tenancy.organizationSummary(tx, id))?.shortName ?? '');
     }
+    // Etiquetas (US-007) de todas as linhas numa só consulta.
+    const tagsByProcess = await this.tags.forProcesses(
+      tx,
+      rows.map((row) => row.id),
+    );
     const stageById = new Map(context.stages.map((stage) => [stage.id, stage]));
     const localDate = (instant: Date) => localDateOf(instant, context.timezone);
     const inputOf = (row: ProcessListRow): StageDeadlineInput => ({
@@ -178,7 +184,12 @@ export class ProcessListPresenter {
         estimatedValueMasked: masked,
         targetDate: row.targetDate,
         overdueSince: row.overdueSince?.toISOString() ?? null,
-        tags: [],
+        tags: (tagsByProcess.get(row.id) ?? []).map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color,
+          isActive: tag.isActive,
+        })),
         openedAt: row.openedAt?.toISOString() ?? null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),

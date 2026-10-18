@@ -118,8 +118,8 @@ describe('CsvRowSerializer — formato pt-BR (RN-PROC-44)', () => {
       currentResponsible: { id: ID, name: 'Ana Souza' },
       internalCode: 'INT-1',
       tags: [
-        { id: ID, name: 'Obras', color: null },
-        { id: ID, name: 'Urgente', color: null },
+        { id: ID, name: 'Obras', color: null, isActive: true },
+        { id: ID, name: 'Urgente', color: null, isActive: true },
       ],
     });
     const cells = (column: Parameters<typeof columnValues>[0]) =>

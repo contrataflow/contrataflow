@@ -747,6 +747,41 @@ const LIST_PRIORITY_LABELS = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta', URG
 const REMOVED_UNIT_ID = '0192a000-0000-7000-8000-00000000dead';
 const listProcessId = (n) => `0192a000-0000-7000-8000-${String(100000 + n).padStart(12, '0')}`;
 
+// Etiquetas (US-007 · SCR-109/SCR-006/SCR-004): cadastro e vínculos globais da API simulada. A
+// unicidade `lower(name)`, o limite de 10, a paleta e as regras de custódia/status são cobertos nos
+// testes da API; aqui valem a jornada (cadastrar, aplicar, filtrar, desativar) e o 412 por versão.
+const TAG_PALETTE = [
+  '#64748B',
+  '#B45309',
+  '#B91C1C',
+  '#C2410C',
+  '#4D7C0F',
+  '#15803D',
+  '#0F766E',
+  '#0369A1',
+  '#1D4ED8',
+  '#4338CA',
+  '#7E22CE',
+  '#BE185D',
+];
+const tags = [];
+/** processId → ids de etiqueta; versão do processo (If-Match de PRC-18) começa em 9. */
+const processTagLinks = new Map();
+const processVersions = new Map();
+const tagDto = (tag) => ({
+  id: tag.id,
+  name: tag.name,
+  color: tag.color,
+  isActive: tag.isActive,
+  version: tag.version,
+});
+const tagsOfProcess = (processId) =>
+  [...(processTagLinks.get(processId) ?? [])]
+    .map((id) => tags.find((tag) => tag.id === id))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+const processVersionOf = (processId) => processVersions.get(processId) ?? 9;
+
 function listProcessItem(fixture) {
   const unit = departments[fixture.unit];
   const ref = (item) => ({ id: item.id, name: item.name });
@@ -782,7 +817,12 @@ function listProcessItem(fixture) {
     estimatedValueMasked: false,
     targetDate: '2026-11-30',
     overdueSince: null,
-    tags: [],
+    tags: tagsOfProcess(listProcessId(fixture.n)).map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      color: tag.color,
+      isActive: tag.isActive,
+    })),
     openedAt: null,
     createdAt: '2026-09-14T13:02:11Z',
     updatedAt: '2026-10-02T18:40:00Z',
@@ -793,8 +833,11 @@ function listProcessItem(fixture) {
 function listFixtures(params) {
   const statuses = (params.get('status') ?? '').split(',').filter(Boolean);
   const units = (params.get('currentDepartmentId') ?? '').split(',').filter(Boolean);
+  const tagIds = (params.get('tagId') ?? '').split(',').filter(Boolean);
   return LIST_FIXTURES.filter(
     (fixture) =>
+      (tagIds.length === 0 ||
+        tagIds.some((id) => processTagLinks.get(listProcessId(fixture.n))?.has(id))) &&
       (statuses.length === 0 || statuses.includes(fixture.status)) &&
       (params.get('overdue') !== 'true' || fixture.overdue) &&
       (units.length === 0 || units.includes(departments[fixture.unit].id)),
@@ -1611,6 +1654,8 @@ createServer(async (request, response) => {
             { code: 'PROCESS_EXPORT', scopes: [] },
             { code: 'SUPPLIER_VIEW', scopes: [] },
             { code: 'SUPPLIER_MANAGE', scopes: [] },
+            { code: 'PROCESS_UPDATE', scopes: [] },
+            { code: 'TAG_MANAGE', scopes: [] },
           ]
         : [];
     return send(response, 200, {
@@ -3559,6 +3604,197 @@ createServer(async (request, response) => {
     const found = processes.find((item) => item.view.id === timelineRoute[1]);
     if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
     return send(response, 200, listTimeline(found, url.searchParams));
+  }
+  // Etiquetas (US-007): TAG-01..03.
+  if (url.pathname === '/api/v1/tags' && request.method === 'GET') {
+    const withInactive = url.searchParams.get('includeInactive') === 'true';
+    const list = tags
+      .filter((tag) => withInactive || tag.isActive)
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return send(response, 200, { data: list.map(tagDto) });
+  }
+  const nameTaken = (name, except) =>
+    tags.some((tag) => tag !== except && tag.name.toLowerCase() === name.toLowerCase());
+  const nameInvalid = (name) => name.length < 2 || name.length > 40;
+  if (url.pathname === '/api/v1/tags' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const name = String(body.name ?? '').trim();
+    const color = String(body.color ?? '#64748B').toUpperCase();
+    if (nameInvalid(name) || !TAG_PALETTE.includes(color)) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [
+          nameInvalid(name)
+            ? { field: 'name', code: 'TOO_SHORT', message: 'Nome inválido.' }
+            : { field: 'color', code: 'INVALID_ENUM', message: 'Cor inválida.' },
+        ],
+      });
+    }
+    if (nameTaken(name)) return problem(response, 409, 'CONFLICT', String(correlationId));
+    const created = { id: mockUuid(), name, color, isActive: true, version: 1 };
+    tags.push(created);
+    return send(response, 201, { data: tagDto(created) }, { ETag: '"1"' });
+  }
+  const tagRoute = /^\/api\/v1\/tags\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (tagRoute && request.method === 'PATCH') {
+    const found = tags.find((tag) => tag.id === tagRoute[1]);
+    if (!found) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    if (String(request.headers['if-match'] ?? '') !== `"${found.version}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (nameTaken(name, found)) return problem(response, 409, 'CONFLICT', String(correlationId));
+      found.name = name;
+    }
+    if (typeof body.color === 'string') found.color = body.color.toUpperCase();
+    if (typeof body.isActive === 'boolean') found.isActive = body.isActive;
+    found.version += 1;
+    return send(response, 200, { data: tagDto(found) }, { ETag: `"${found.version}"` });
+  }
+  // Detalhe, painel e etiquetas dos processos da lista (US-004/US-007): PRC-04/07/08/10 e PRC-18.
+  const listedRoute =
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags)?$/.exec(
+      url.pathname,
+    );
+  const listedFixture = listedRoute
+    ? LIST_FIXTURES.find((fixture) => listProcessId(fixture.n) === listedRoute[1])
+    : undefined;
+  if (listedRoute && listedFixture) {
+    const processId = listedRoute[1];
+    const tagsDto = tagsOfProcess(processId).map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      color: tag.color,
+      isActive: tag.isActive,
+    }));
+    if (listedRoute[2] === '/tags' && request.method === 'PUT') {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const ids = Array.isArray(body.tagIds) ? body.tagIds : [];
+      const current = processTagLinks.get(processId) ?? new Set();
+      const unchanged = ids.length === current.size && ids.every((id) => current.has(id));
+      if (!unchanged) {
+        processTagLinks.set(processId, new Set(ids));
+        processVersions.set(processId, processVersionOf(processId) + 1);
+      }
+      return send(
+        response,
+        200,
+        { data: { tags: tagsOfProcess(processId).map(tagDto) } },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
+    if (request.method === 'GET' && listedRoute[2] === '/available-actions') {
+      return send(response, 200, {
+        data: [{ action: 'MANAGE_TAGS', label: 'Etiquetas', enabled: true, reasons: [] }],
+      });
+    }
+    if (request.method === 'GET' && listedRoute[2] === '/stages') {
+      return send(response, 200, { data: [] });
+    }
+    if (request.method === 'GET' && listedRoute[2] === '/summary') {
+      const item = listProcessItem(listedFixture);
+      return send(response, 200, {
+        data: {
+          header: {
+            code: item.code,
+            title: item.title,
+            status: item.status,
+            priority: item.priority,
+            tags: tagsDto,
+            isBudgetConfidential: false,
+            estimatedValue: '85000.00',
+            estimatedValueMasked: false,
+            estimatedValueSource: 'DFD',
+            organization: item.organization,
+            showOrganization: false,
+          },
+          where: {
+            stage: {
+              key: 'PESQUISA_PRECOS',
+              name: 'Pesquisa de preços',
+              type: 'TASK',
+              groupLabel: 'Planejamento',
+            },
+            department: item.currentDepartment,
+            status: item.status,
+            statusBeforeSuspension: null,
+            suspensionReason: null,
+            suspendedAt: null,
+            completedAt: null,
+            canceledAt: null,
+            cancellationReason: null,
+          },
+          responsible: {
+            user: { id: '0192a000-0000-7000-8000-00000000a0a1', name: 'Ana Souza', jobTitle: null },
+            queueDepartment: null,
+            since: '2026-10-01T12:10:00.000Z',
+            approver: null,
+          },
+          pending: { blockingCount: 0, warningCount: 0, items: [] },
+          nextStep: { action: null, instructions: null },
+          deadline: item.deadline,
+          target: { targetDate: '2026-11-30', isOverdue: false, overdueDays: null },
+          documents: [],
+          approvals: [],
+          counts: { documents: 0, items: 0, comments: 0, participants: 0 },
+          version: processVersionOf(processId),
+        },
+      });
+    }
+    if (request.method === 'GET' && listedRoute[2] === undefined) {
+      const item = listProcessItem(listedFixture);
+      return send(
+        response,
+        200,
+        {
+          data: {
+            id: item.id,
+            code: item.code,
+            number: item.number,
+            year: item.year,
+            internalCode: null,
+            title: item.title,
+            object: 'Aquisição de cimento Portland para a manutenção das vias do município.',
+            description: null,
+            status: item.status,
+            priority: item.priority,
+            organization: item.organization,
+            requestingSecretariat: item.requestingSecretariat,
+            requestingDepartment: item.requestingDepartment,
+            contractingType: item.contractingType,
+            modality: null,
+            origin: item.origin,
+            isPriceRegistration: false,
+            currentStage: null,
+            currentDepartment: item.currentDepartment,
+            currentResponsible: null,
+            workflow: { id: mockUuid(), name: 'Fluxo padrão', versionNumber: 1 },
+            targetDate: item.targetDate,
+            estimatedValue: item.estimatedValue,
+            estimatedValueMasked: false,
+            estimatedValueSource: 'DFD',
+            isBudgetConfidential: false,
+            pcaStatus: 'NOT_APPLICABLE',
+            pcaYear: null,
+            pcaItemCode: null,
+            pcaJustification: null,
+            notes: null,
+            creationChannel: 'WEB',
+            duplicatedFromId: null,
+            openedAt: null,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            createdBy: { id: '0192a000-0000-7000-8000-00000000a0a1', name: 'Ana Souza' },
+            version: processVersionOf(processId),
+          },
+        },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
   }
   const processRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/available-actions)?$/.exec(
     url.pathname,

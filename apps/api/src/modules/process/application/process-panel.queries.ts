@@ -13,12 +13,18 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { ConfidentialViewRecorder } from './confidential-view.recorder.js';
-import { PROCESS_CLOCK, PROCESS_REPOSITORY, PROCESS_TRANSACTIONS } from './ports.js';
+import {
+  PROCESS_CLOCK,
+  PROCESS_REPOSITORY,
+  PROCESS_TRANSACTIONS,
+  TAG_REPOSITORY,
+} from './ports.js';
 import type {
   ProcessAggregateRows,
   ProcessClock,
   ProcessRepository,
   ProcessTransactions,
+  TagRepository,
 } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
@@ -176,6 +182,7 @@ export class GetProcessSummaryQuery {
   constructor(
     @Inject(PROCESS_TRANSACTIONS) private readonly transactions: ProcessTransactions,
     @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
+    @Inject(TAG_REPOSITORY) private readonly tags: TagRepository,
     private readonly panel: ProcessPanelReader,
     private readonly workflow: WorkflowFacade,
     private readonly documents: DocumentFacade,
@@ -252,6 +259,7 @@ export class GetProcessSummaryQuery {
     const organization = await this.tenancy.organizationSummary(tx, process.organizationId);
     const primaryOrganizationId = await this.tenancy.primaryOrganizationId(tx);
     const masked = process.isBudgetConfidential && !canSeeBudget;
+    const processTags = (await this.tags.forProcesses(tx, [process.id])).get(process.id) ?? [];
     const department = {
       id: process.currentDepartmentId,
       name: departmentNames.get(process.currentDepartmentId) ?? process.currentDepartmentId,
@@ -267,7 +275,12 @@ export class GetProcessSummaryQuery {
         title: process.title,
         status: process.status,
         priority: process.priority,
-        tags: [],
+        tags: processTags.map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color,
+          isActive: tag.isActive,
+        })),
         isBudgetConfidential: process.isBudgetConfidential,
         estimatedValue: masked ? null : process.estimatedValue,
         estimatedValueMasked: masked,

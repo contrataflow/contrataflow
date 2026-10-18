@@ -37,6 +37,9 @@ export type TenantLeakCase = CoveredOperation | ExemptOperation;
 const PROCESS_PARTICIPANTS_ROUTE =
   'Participantes do processo (US-012): a suíte genérica não tem processo nem participante do tenant B. O isolamento (PRC-28/29/31/32 com id de processo de B → 404 PROCESS_NOT_FOUND, PRC-30 com participante de B → 404 PARTICIPANT_NOT_FOUND sem revogar nada, usuário ou unidade de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS, FKs compostas e índices únicos de process_participants) é coberto em test/tenant-leak/process-participants.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-participants.routes.spec.ts.';
 
+const TAG_ROUTE =
+  'Etiquetas (US-007): a suíte genérica não tem etiqueta nem processo do tenant B. O isolamento (TAG-01 sem etiquetas de B, TAG-03 com etiqueta de B → 404 NOT_FOUND sem alterar nada, PRC-18 com etiqueta de B → 422 REFERENCE_NOT_FOUND em tagIds e com processo de B → 404 PROCESS_NOT_FOUND, RLS e índice único lower(name) por tenant de tags e process_tags) é coberto em test/tenant-leak/process-tags.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/tags.routes.spec.ts.';
+
 const SAVED_VIEW_ROUTE =
   'Visões salvas e exportação CSV (US-003): a suíte genérica não tem visão nem processo do tenant B. O isolamento (PRC-35 sem visões de B na listagem, PRC-37/38 com id de visão de B → 404 NOT_FOUND sem alterar nada, PRC-34 sem linhas de B no arquivo, RLS e índices únicos de saved_views) é coberto em test/tenant-leak/saved-views.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/saved-views.routes.spec.ts.';
 
@@ -302,6 +305,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'CMT-02': { kind: 'exempt', reason: COMMENT_ROUTE },
   'CMT-03': { kind: 'exempt', reason: COMMENT_ROUTE },
   'CMT-04': { kind: 'exempt', reason: COMMENT_ROUTE },
+  'PRC-18': { kind: 'exempt', reason: TAG_ROUTE },
   'PRC-27': { kind: 'exempt', reason: PROCESS_DUPLICATE_ROUTE },
   'PRC-28': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
   'PRC-29': { kind: 'exempt', reason: PROCESS_PARTICIPANTS_ROUTE },
@@ -314,6 +318,9 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-36': { kind: 'exempt', reason: SAVED_VIEW_ROUTE },
   'PRC-37': { kind: 'exempt', reason: SAVED_VIEW_ROUTE },
   'PRC-38': { kind: 'exempt', reason: SAVED_VIEW_ROUTE },
+  'TAG-01': { kind: 'exempt', reason: TAG_ROUTE },
+  'TAG-02': { kind: 'exempt', reason: TAG_ROUTE },
+  'TAG-03': { kind: 'exempt', reason: TAG_ROUTE },
   'DOC-01': { kind: 'exempt', reason: DOCUMENT_PANEL_ROUTE },
   'DOC-02': { kind: 'exempt', reason: UPLOADED_DOCUMENT_ROUTE },
   'DOC-03': { kind: 'exempt', reason: DOCUMENT_ROUTE },

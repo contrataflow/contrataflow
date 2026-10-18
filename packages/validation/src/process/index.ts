@@ -6,5 +6,6 @@ export * from './process-export.js';
 export * from './process-participants.js';
 export * from './process-summary.js';
 export * from './saved-views.js';
+export * from './tags.js';
 export * from './events.js';
 export * from './timeline.js';

@@ -70,6 +70,8 @@ import {
 import type { CriteriaLabels } from './saved-views-model';
 import { SavedViewsToolbar } from './saved-views-toolbar';
 import { useSavedViews } from './use-saved-views';
+import { TagChip } from '../tags/tag-chip';
+import { useTags } from '../tags/tags.api';
 
 /*
  * SCR-004 — Processos (`/processos` · US-002): tabela paginada no servidor (modo manual: a API
@@ -97,6 +99,7 @@ export type ColumnId =
   | 'origin'
   | 'estimatedValue'
   | 'targetDate'
+  | 'tags'
   | 'internalCode'
   | 'organization'
   | 'createdAt'
@@ -113,7 +116,7 @@ interface ColumnDef {
   readonly card?: boolean;
 }
 
-/** Colunas da tabela "Colunas" da US-002 ("Etiquetas" entra com a US-007). */
+/** Colunas da tabela "Colunas" da US-002 ("Etiquetas" — US-007 — fica fora do padrão). */
 export const PROCESS_COLUMNS: readonly ColumnDef[] = [
   { id: 'code', sort: 'code', fixed: true, card: true },
   { id: 'title', sort: 'title', fixed: true, card: true },
@@ -130,6 +133,7 @@ export const PROCESS_COLUMNS: readonly ColumnDef[] = [
   { id: 'origin' },
   { id: 'estimatedValue', sort: 'estimatedValue' },
   { id: 'targetDate', sort: 'targetDate' },
+  { id: 'tags' },
   { id: 'internalCode' },
   { id: 'organization', multiOrganization: true },
   { id: 'createdAt', sort: 'createdAt' },
@@ -257,8 +261,12 @@ export function ProcessListPage() {
       fetchCatalogOptions('PROCESS_ORIGIN', signal),
     ),
   );
+  // Etiquetas (US-007): o filtro oferece as ativas; quem tem `TAG_MANAGE` vê também as inativas.
+  const canManageTags = usePermission('TAG_MANAGE').allowed;
+  const tags = useTags(canManageTags);
   const multiOrganization = (organizations.data?.length ?? 0) > 1;
   const filterOptions: FilterOptions = {
+    tags: tags.data ?? [],
     stages: stageOptions ?? [],
     units: units.data ?? [],
     organizations: (organizations.data ?? []).map((org) => ({ id: org.id, name: org.shortName })),
@@ -378,6 +386,7 @@ export function ProcessListPage() {
   const nameOf = (id: string) =>
     units.data?.find((unit) => unit.id === id)?.name ??
     organizations.data?.find((org) => org.id === id)?.shortName ??
+    tags.data?.find((tag) => tag.id === id)?.name ??
     [...(contractingTypes.data ?? []), ...(modalities.data ?? []), ...(origins.data ?? [])].find(
       (item) => item.id === id,
     )?.label ??
@@ -895,6 +904,18 @@ function Cell({ column, item }: { readonly column: ColumnId; readonly item: Proc
       return <ConfidentialValue value={item.estimatedValue} masked={item.estimatedValueMasked} />;
     case 'targetDate':
       return <>{date(item.targetDate)}</>;
+    case 'tags':
+      return item.tags.length === 0 ? (
+        <>{t('table.none')}</>
+      ) : (
+        <ul className="flex flex-wrap gap-1">
+          {item.tags.map((tag) => (
+            <li key={tag.id}>
+              <TagChip name={tag.name} color={tag.color} isActive={tag.isActive} />
+            </li>
+          ))}
+        </ul>
+      );
     case 'internalCode':
       return <>{item.internalCode ?? t('table.none')}</>;
     case 'organization':

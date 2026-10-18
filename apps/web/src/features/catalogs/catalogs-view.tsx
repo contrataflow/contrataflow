@@ -21,6 +21,7 @@ import type { KeyboardEvent } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
+import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { CatalogFormDialog } from './catalog-form-dialog';
@@ -33,6 +34,10 @@ import {
   reorderCatalogItems,
   setCatalogItemActive,
 } from './catalogs.api';
+import { TagsAdminPanel } from '../tags/tags-admin-panel';
+
+/** Aba extra da SCR-109 (não é um catálogo): o cadastro de etiquetas (US-007). */
+const TAGS_TAB = 'TAGS';
 
 /**
  * SCR-109 — Administração › Catálogos (`/admin/catalogos` · US-104): abas por `catalogType`, cada
@@ -40,13 +45,18 @@ import {
  * desativação com `If-Match` (CAT-04/05) e reordenação (CAT-06). Leitura é capacidade implícita do
  * vínculo ativo; as ações de escrita só aparecem com `CATALOG_MANAGE` (a API decide cada
  * requisição). Estados: skeleton, vazio, "nenhum item ativo", erro com "Tentar novamente",
- * conflito de versão e indicador de salvamento.
+ * conflito de versão e indicador de salvamento. Com `TAG_MANAGE`, a aba "Etiquetas" (US-007) traz o
+ * cadastro das etiquetas do órgão (`TagsAdminPanel`).
  */
 export function CatalogsView() {
   const t = useTranslations('catalogs');
+  const tTags = useTranslations('tags.admin');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const [catalogType, setCatalogType] = useState<CatalogType>(CATALOG_TYPES[0]);
+  const canManageTags = usePermission('TAG_MANAGE').allowed;
+  const [tagsSelected, setTagsSelected] = useState(false);
+  const tagsActive = tagsSelected && canManageTags;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CatalogItemDto | null>(null);
   const [deactivating, setDeactivating] = useState<CatalogItemDto | null>(null);
@@ -139,12 +149,15 @@ export function CatalogsView() {
   };
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
-    const last = CATALOG_TYPES.length - 1;
+    const tabs: readonly (CatalogType | typeof TAGS_TAB)[] = canManageTags
+      ? [...CATALOG_TYPES, TAGS_TAB]
+      : CATALOG_TYPES;
+    const last = tabs.length - 1;
     const target =
       event.key === 'ArrowRight'
-        ? (index + 1) % CATALOG_TYPES.length
+        ? (index + 1) % tabs.length
         : event.key === 'ArrowLeft'
-          ? (index - 1 + CATALOG_TYPES.length) % CATALOG_TYPES.length
+          ? (index - 1 + tabs.length) % tabs.length
           : event.key === 'Home'
             ? 0
             : event.key === 'End'
@@ -152,8 +165,13 @@ export function CatalogsView() {
               : null;
     if (target === null) return;
     event.preventDefault();
-    const next = CATALOG_TYPES[target];
-    if (next) {
+    const next = tabs[target];
+    if (next === TAGS_TAB) {
+      setTagsSelected(true);
+      setBanner(null);
+      document.getElementById(`catalog-tab-${TAGS_TAB}`)?.focus();
+    } else if (next) {
+      setTagsSelected(false);
       setCatalogType(next);
       setBanner(null);
       document.getElementById(`catalog-tab-${next}`)?.focus();
@@ -181,13 +199,16 @@ export function CatalogsView() {
             type="button"
             role="tab"
             id={`catalog-tab-${type}`}
-            aria-selected={type === catalogType}
+            aria-selected={!tagsActive && type === catalogType}
             aria-controls="catalog-panel"
-            tabIndex={type === catalogType ? 0 : -1}
+            tabIndex={!tagsActive && type === catalogType ? 0 : -1}
             className={`border-b-2 px-3 py-2 text-sm font-medium ${
-              type === catalogType ? 'border-primary' : 'border-transparent text-muted-foreground'
+              !tagsActive && type === catalogType
+                ? 'border-primary'
+                : 'border-transparent text-muted-foreground'
             }`}
             onClick={() => {
+              setTagsSelected(false);
               setCatalogType(type);
               setBanner(null);
             }}
@@ -198,15 +219,39 @@ export function CatalogsView() {
             {t(`types.${type}`)}
           </button>
         ))}
+        {canManageTags ? (
+          <button
+            type="button"
+            role="tab"
+            id={`catalog-tab-${TAGS_TAB}`}
+            aria-selected={tagsActive}
+            aria-controls="catalog-panel"
+            tabIndex={tagsActive ? 0 : -1}
+            className={`border-b-2 px-3 py-2 text-sm font-medium ${
+              tagsActive ? 'border-primary' : 'border-transparent text-muted-foreground'
+            }`}
+            onClick={() => {
+              setTagsSelected(true);
+              setBanner(null);
+            }}
+            onKeyDown={(event) => {
+              onTabKeyDown(event, CATALOG_TYPES.length);
+            }}
+          >
+            {tTags('tab')}
+          </button>
+        ) : null}
       </div>
 
       <div
         role="tabpanel"
         id="catalog-panel"
-        aria-labelledby={`catalog-tab-${catalogType}`}
+        aria-labelledby={`catalog-tab-${tagsActive ? TAGS_TAB : catalogType}`}
         className="flex flex-col gap-4"
       >
-        {items.error && isApiError(items.error) && items.error.status === 403 ? (
+        {tagsActive ? (
+          <TagsAdminPanel />
+        ) : items.error && isApiError(items.error) && items.error.status === 403 ? (
           <Alert tone="error" title={t('errors.permission')} />
         ) : (
           <>

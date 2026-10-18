@@ -20,6 +20,7 @@ import type {
 import type { ProcessRuntime } from '../domain/process-runtime.js';
 import type { Process } from '../domain/process.js';
 import type { SavedView } from '../domain/saved-view.js';
+import type { Tag, TagSetDiff } from '../domain/tag.js';
 
 /*
  * Portas da aplicação do módulo `process`. US-041: leitor do runtime para o motor de workflow
@@ -413,3 +414,40 @@ export class SavedViewNameTakenError extends Error {
     this.name = 'SavedViewNameTakenError';
   }
 }
+
+/** Nome repetido no tenant (índice `lower(name)` — RN-PROC-85). */
+export class TagNameTakenError extends Error {
+  constructor() {
+    super('Nome de etiqueta já usado no tenant.');
+    this.name = 'TagNameTakenError';
+  }
+}
+
+/**
+ * Etiquetas (US-007 · `tags` e `process_tags`): sempre no `tx` do caso de uso, sob a RLS do tenant.
+ * A unicidade do nome é do banco; a associação ao processo só muda sob o bloqueio do processo
+ * (`ProcessRepository.lockForUpdate`).
+ */
+export interface TagRepository {
+  /** Etiquetas do tenant por nome; `includeInactive = false` só as ativas. */
+  list(tx: TenantTx, includeInactive: boolean): Promise<Tag[]>;
+  findById(tx: TenantTx, id: string): Promise<Tag | null>;
+  /** As etiquetas existentes no tenant dentre `ids` (outro tenant = inexistente). */
+  findByIds(tx: TenantTx, ids: readonly string[]): Promise<Tag[]>;
+  /** @throws TagNameTakenError */
+  insert(tx: TenantTx, tag: Tag): Promise<void>;
+  /** `UPDATE … WHERE version = expected` (412 em divergência). @throws TagNameTakenError */
+  update(tx: TenantTx, tag: Tag, expectedVersion: number): Promise<void>;
+  /** Etiquetas (ativas e inativas) aplicadas a cada processo, por nome. */
+  forProcesses(tx: TenantTx, processIds: readonly string[]): Promise<Map<string, Tag[]>>;
+  /** Grava só a diferença do conjunto (inserções e remoções) do processo já travado. */
+  applyDiff(
+    tx: TenantTx,
+    processId: string,
+    diff: TagSetDiff,
+    at: Date,
+    userId: string | null,
+  ): Promise<void>;
+}
+
+export const TAG_REPOSITORY = Symbol('TagRepository');

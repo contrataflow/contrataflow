@@ -11,6 +11,8 @@ import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/suppor
 import { ProcessListPage } from './process-list-page';
 
 configure({ asyncUtilTimeout: 5_000 });
+// A suíte completa roda em paralelo com as demais: o padrão de 5 s é curto para a primeira renderização.
+vi.setConfig({ testTimeout: 30_000 });
 
 /** Navegação simulada: a URL é estado observável (`useSearchParams`) e o roteador a altera. */
 const nav = vi.hoisted(() => {

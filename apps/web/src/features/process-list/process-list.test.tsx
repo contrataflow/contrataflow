@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ProcessListItemDto } from '@contrataflow/validation';
+import type { ProcessListItemDto, TagDto } from '@contrataflow/validation';
 import { act, configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +22,8 @@ import {
 import { columnsPreferenceKey } from './process-list.api';
 
 configure({ asyncUtilTimeout: 5_000 });
+// A suíte completa roda em paralelo com as demais: o padrão de 5 s é curto para a primeira renderização.
+vi.setConfig({ testTimeout: 30_000 });
 
 /** Navegação simulada: a URL é estado observável (`useSearchParams`) e o roteador a altera. */
 const nav = vi.hoisted(() => {
@@ -136,7 +138,10 @@ const P45 = item({
 
 type Handler = (url: URL, init?: RequestInit) => Response | Promise<Response>;
 
-function mockApi(list: Handler, extra: { me?: Handler } = {}) {
+function mockApi(
+  list: Handler,
+  extra: { me?: Handler; tags?: readonly TagDto[]; permissions?: readonly string[] } = {},
+) {
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
     const url = new URL(requestUrl(input), 'http://localhost');
     if (url.pathname === '/api/v1/processes') return Promise.resolve(list(url, init));
@@ -145,11 +150,21 @@ function mockApi(list: Handler, extra: { me?: Handler } = {}) {
       return Promise.resolve(
         jsonResponse({
           data: {
-            permissions: [
-              { code: 'PROCESS_CREATE', scopes: [{ type: 'TENANT', includeSubtree: false }] },
-            ],
+            permissions: (extra.permissions ?? ['PROCESS_CREATE']).map((code) => ({
+              code,
+              scopes: [{ type: 'TENANT', includeSubtree: false }],
+            })),
             implicit: { headOfDepartmentIds: [], ownDepartmentIds: [] },
           },
+        }),
+      );
+    }
+    if (url.pathname === '/api/v1/tags') {
+      // TAG-01: as inativas só chegam com `includeInactive=true` (quem tem TAG_MANAGE).
+      const withInactive = url.searchParams.get('includeInactive') === 'true';
+      return Promise.resolve(
+        jsonResponse({
+          data: (extra.tags ?? []).filter((entry) => withInactive || entry.isActive),
         }),
       );
     }
@@ -453,5 +468,49 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(search.get('estimatedValueMin')).toBe('15000.00');
     expect(search.get('overdue')).toBe('true');
     expect(search.get('currentResponsibleId')).toBe('none');
+  });
+  it('[Sucesso] US-007: coluna "Etiquetas" com chips (inativa esmaecida) e filtro por etiqueta na URL', async () => {
+    const tags: TagDto[] = [
+      { id: ID(61), name: 'Obras emergenciais', color: '#B45309', isActive: true, version: 1 },
+      { id: ID(62), name: 'Recurso federal', color: '#64748B', isActive: true, version: 1 },
+      { id: ID(63), name: 'Antiga', color: '#64748B', isActive: false, version: 2 },
+    ];
+    mockApi(
+      () =>
+        page([
+          item({
+            tags: [
+              { id: ID(61), name: 'Obras emergenciais', color: '#B45309', isActive: true },
+              { id: ID(63), name: 'Antiga', color: '#64748B', isActive: false },
+            ],
+          }),
+        ]),
+      { tags, permissions: ['PROCESS_CREATE', 'TAG_MANAGE'] },
+    );
+    renderWithShell(<ProcessListPage />);
+    const table = await screen.findByRole('table');
+    // A coluna não faz parte do padrão: o seletor de colunas a oferece.
+    expect(within(table).queryByRole('columnheader', { name: /Etiquetas/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Colunas' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Etiquetas' }));
+    expect(within(table).getByRole('columnheader', { name: /Etiquetas/ })).toBeTruthy();
+    expect(within(table).getByText('Obras emergenciais')).toBeTruthy();
+    expect(within(table).getByText('(inativa)')).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    const dialog = await screen.findByRole('dialog');
+    const active = await within(dialog).findByRole('group', { name: 'Etiquetas' });
+    expect(within(active).getByRole('checkbox', { name: 'Recurso federal' })).toBeTruthy();
+    // Inativas em grupo separado (visível a quem pode listá-las).
+    const inactive = await within(dialog).findByRole('group', { name: 'Etiquetas inativas' });
+    await userEvent.click(within(active).getByRole('checkbox', { name: 'Obras emergenciais' }));
+    await userEvent.click(within(inactive).getByRole('checkbox', { name: 'Antiga' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Aplicar filtros' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(new URLSearchParams(nav.get()).get('tagId')).toBe(`${ID(61)},${ID(63)}`);
+    expect(await screen.findByText(/Obras emergenciais, Antiga/)).toBeTruthy();
   });
 });

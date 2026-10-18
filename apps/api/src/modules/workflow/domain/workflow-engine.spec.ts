@@ -406,6 +406,51 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
     });
   });
 
+  describe('MANAGE_TAGS (US-007 · RN-PROC-87 · FA-04): "Etiquetas"', () => {
+    const manage = (process: Partial<EngineProcess>, who: Partial<EngineViewer> = {}) =>
+      actionsOf(
+        availableActions(
+          engineInput(builder, { passes: studies }, process),
+          viewer({ permissions: new Set(['PROCESS_UPDATE']), ...who }),
+        ),
+        'MANAGE_TAGS',
+      );
+
+    it('sem PROCESS_UPDATE: a ação não aparece', () => {
+      expect(
+        actionsOf(
+          availableActions(engineInput(builder, { passes: studies }), viewer()),
+          'MANAGE_TAGS',
+        ),
+      ).toEqual([]);
+    });
+
+    it('com custódia em status editável: habilitada', () => {
+      expect(manage({ status: 'RETURNED' })).toEqual([
+        { action: 'MANAGE_TAGS', label: 'Etiquetas', enabled: true, reasons: [] },
+      ]);
+    });
+
+    it.each([
+      [
+        'AWAITING_APPROVAL',
+        'Etiquetas não podem ser alteradas com o processo aguardando aprovação.',
+      ],
+      ['CANCELED', 'Etiquetas não podem ser alteradas com o processo cancelado.'],
+    ] as const)('%s: desabilitada com o motivo', (status, message) => {
+      expect(manage({ status })[0]?.reasons).toEqual([{ code: 'INVALID_PROCESS_STATUS', message }]);
+    });
+
+    it('sem custódia: NOT_PROCESS_CUSTODIAN com a mensagem das etiquetas', () => {
+      expect(manage({ currentResponsibleId: CREATOR_ID })[0]?.reasons).toEqual([
+        {
+          code: 'NOT_PROCESS_CUSTODIAN',
+          message: 'Somente quem está com o processo pode alterar as etiquetas.',
+        },
+      ]);
+    });
+  });
+
   describe('DUPLICATE (US-011 · RN-PROC-124): "Duplicar processo"', () => {
     const duplicate = (process: Partial<EngineProcess>, permissions: string[]) =>
       actionsOf(

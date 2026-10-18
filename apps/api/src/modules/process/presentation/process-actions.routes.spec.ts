@@ -215,6 +215,8 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       'EDIT',
       // US-006: "Gerenciar itens" (PROCESS_UPDATE + POL-01).
       'MANAGE_ITEMS',
+      // US-007: "Etiquetas" (PROCESS_UPDATE + POL-01).
+      'MANAGE_TAGS',
       // US-011: "Duplicar processo" (PROCESS_DUPLICATE + PROCESS_CREATE).
       'DUPLICATE',
     ]);

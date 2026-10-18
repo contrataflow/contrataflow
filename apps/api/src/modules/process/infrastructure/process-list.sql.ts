@@ -123,8 +123,16 @@ export function criteriaSql(
   }
   list(Prisma.sql`p.origin_id`, criteria.originIds);
   if (criteria.years !== null) where.push(Prisma.sql`p.year = ANY(${[...criteria.years]}::int[])`);
-  // Etiquetas (US-007) ainda não têm tabela: nenhum processo tem etiqueta, o filtro não casa.
-  if (criteria.tagIds !== null) where.push(SQL_FALSE);
+  // Etiquetas (US-007 · FA-05): OU dentro do filtro, ativas e inativas; índice `process_tags_tag_idx`.
+  if (criteria.tagIds !== null) {
+    where.push(
+      criteria.tagIds.length === 0
+        ? SQL_FALSE
+        : Prisma.sql`EXISTS (SELECT 1 FROM process_tags pt
+                    WHERE pt.tenant_id = p.tenant_id AND pt.process_id = p.id
+                      AND pt.tag_id = ANY(${[...criteria.tagIds]}::uuid[]))`,
+    );
+  }
   if (criteria.overdue !== null) {
     const overdue = overdueSql(context.now);
     where.push(criteria.overdue ? overdue : Prisma.sql`NOT ${overdue}`);

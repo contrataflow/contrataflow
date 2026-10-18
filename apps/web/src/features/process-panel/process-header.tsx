@@ -4,6 +4,7 @@ import type { ProcessSummaryDto } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 
 import {
   ConfidentialBadge,
@@ -11,13 +12,21 @@ import {
   PriorityBadge,
 } from '../process-list/process-list-badges';
 import { ProcessStatusBadge } from '../processes/process-status-badge';
+import { TagChip } from '../tags/tag-chip';
 
 /**
  * `ProcessHeader` (SCR-006 · RN-PROC-54): código (ou "Rascunho (sem número)"), título, status,
  * prioridade, etiquetas, "Orçamento sigiloso", órgão (fora do principal) e valor estimado com a
- * origem — "Sigiloso" quando mascarado (POL-09). O foco vai ao título ao carregar.
+ * origem — "Sigiloso" quando mascarado (POL-09). O foco vai ao título ao carregar. As etiquetas
+ * (US-007) aparecem como chips, com a inativa esmaecida, e `tagsAction` traz o botão "Etiquetas".
  */
-export function ProcessHeader({ header }: { readonly header: ProcessSummaryDto['header'] }) {
+export function ProcessHeader({
+  header,
+  tagsAction,
+}: {
+  readonly header: ProcessSummaryDto['header'];
+  readonly tagsAction?: ReactNode;
+}) {
   const t = useTranslations('processes.panel');
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -47,14 +56,19 @@ export function ProcessHeader({ header }: { readonly header: ProcessSummaryDto['
           </span>
         ) : null}
       </div>
-      {header.tags.length > 0 ? (
-        <ul aria-label={t('header.tags')} className="flex flex-wrap gap-1">
-          {header.tags.slice(0, 10).map((tag) => (
-            <li key={tag.id} className="rounded-control bg-muted px-2 py-0.5 text-xs">
-              {tag.name}
-            </li>
-          ))}
-        </ul>
+      {header.tags.length > 0 || tagsAction ? (
+        <div className="flex flex-wrap items-start gap-2">
+          {header.tags.length > 0 ? (
+            <ul aria-label={t('header.tags')} className="flex flex-wrap gap-1">
+              {header.tags.slice(0, 10).map((tag) => (
+                <li key={tag.id}>
+                  <TagChip name={tag.name} color={tag.color} isActive={tag.isActive} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {tagsAction}
+        </div>
       ) : null}
       <p className="flex flex-wrap items-center gap-x-2 text-sm">
         <span className="text-muted-foreground">{t('header.estimatedValue')}:</span>

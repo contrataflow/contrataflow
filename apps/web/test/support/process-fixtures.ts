@@ -464,6 +464,8 @@ export interface ProcessApiOptions {
   confidentiality?: Handler;
   /** CMT-01..04 (US-071): `/processes/{id}/comments` e `/comments/{commentId}`. */
   comments?: Handler;
+  /** TAG-01..03 e PRC-18 (US-007): `/tags`, `/tags/{id}` e `PUT /processes/{id}/tags`. */
+  tags?: Handler;
 }
 
 /** `fetch` simulado das leituras de apoio, PRC-02/03/04 e WF-06. */
@@ -556,6 +558,9 @@ export function mockProcessApi(options: ProcessApiOptions = {}) {
     }
     if (method === 'GET' && url === `/api/v1/processes/${PROCESS_ID}/stages`) {
       return respond(options.stages, () => jsonResponse({ data: stagesDto() }));
+    }
+    if (url.startsWith('/api/v1/tags') || url === `/api/v1/processes/${PROCESS_ID}/tags`) {
+      return respond(options.tags, () => jsonResponse({ data: [] }));
     }
     if (
       url.includes(`/processes/${PROCESS_ID}/items`) ||

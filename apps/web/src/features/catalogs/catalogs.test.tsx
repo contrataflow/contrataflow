@@ -84,6 +84,7 @@ function mockApi(
     patch?: Handler;
     toggle?: Handler;
     order?: Handler;
+    tags?: Handler;
   } = {},
   permissions: readonly string[] = ['CATALOG_MANAGE'],
 ) {
@@ -96,6 +97,9 @@ function mockApi(
           data: { permissions: permissions.map((code) => ({ code, scopes: [] })) },
         }),
       );
+    }
+    if (method === 'GET' && url.startsWith('/api/v1/tags')) {
+      return Promise.resolve((routes.tags ?? (() => jsonResponse({ data: [] })))(url, init));
     }
     const type = /\/catalogs\/([A-Z_]+)\//.exec(url)?.[1];
     if (method === 'GET' && url.startsWith('/api/v1/catalogs/')) {
@@ -505,5 +509,45 @@ describe('[Validação] e erros do servidor', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(await within(dialog).findByText('Revise este campo.')).toBeTruthy();
     expect(callsTo(api, 'POST')).toHaveLength(0);
+  });
+});
+
+describe('[Permissão] SCR-109 · aba "Etiquetas" (US-007)', () => {
+  const TAG = {
+    id: '0192a000-0000-7000-8000-000000000999',
+    name: 'Obras emergenciais',
+    color: '#B45309',
+    isActive: true,
+    version: 1,
+  };
+
+  it('com TAG_MANAGE a aba existe (por teclado também) e abre o cadastro de etiquetas', async () => {
+    mockApi({ tags: () => jsonResponse({ data: [TAG] }) }, ['CATALOG_MANAGE', 'TAG_MANAGE']);
+    renderWithShell(<CatalogsView />);
+    const tab = await screen.findByRole('tab', { name: 'Etiquetas' });
+    expect(screen.getAllByRole('tab')).toHaveLength(9);
+    expect(tab.getAttribute('aria-selected')).toBe('false');
+
+    // End vai para a última aba, a de etiquetas.
+    screen.getByRole('tab', { name: 'Tipos de contratação' }).focus();
+    await userEvent.keyboard('{End}');
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    const panel = screen.getByRole('tabpanel');
+    expect(await within(panel).findByRole('table', { name: 'Etiquetas do órgão' })).toBeTruthy();
+    expect(within(panel).getByText('Obras emergenciais')).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Nova etiqueta' })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Modalidades' }));
+    expect(
+      await screen.findByRole('table', { name: 'Itens do catálogo Modalidades' }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Etiquetas do órgão' })).toBeNull();
+  });
+
+  it('sem TAG_MANAGE a aba "Etiquetas" fica oculta', async () => {
+    mockApi({}, ['CATALOG_MANAGE']);
+    renderWithShell(<CatalogsView />);
+    await screen.findByRole('tab', { name: 'Modalidades' });
+    expect(screen.queryByRole('tab', { name: 'Etiquetas' })).toBeNull();
   });
 });

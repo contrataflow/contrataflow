@@ -9,6 +9,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import type { CursorReader } from '#shared/database/transaction-stream.js';
 
 import { InMemoryProcessParticipantRepository } from './process-participant.repositories.js';
+import { InMemoryTagRepository } from './tag.repositories.js';
 import { InternalCodeTakenError } from '../application/ports.js';
 import type {
   DuplicateCandidateRow,
@@ -98,7 +99,10 @@ export class InMemoryProcessRepository implements ProcessRepository {
   private readonly revoked: (StoredAccess & { readonly revokedAt: Date })[] = [];
   private readonly extras = new Map<string, ProcessListExtras>();
 
-  constructor(private readonly participants: InMemoryProcessParticipantRepository) {}
+  constructor(
+    private readonly participants: InMemoryProcessParticipantRepository,
+    private readonly tags: InMemoryTagRepository,
+  ) {}
 
   insertCreation(_tx: TenantTx, creation: ProcessCreation): Promise<void> {
     const { process } = creation;
@@ -332,7 +336,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
       const fact: ProcessListFacts = {
         ...process,
         overdueSince: extras.overdueSince,
-        tagIds: extras.tagIds,
+        tagIds: [...extras.tagIds, ...this.tags.tagIdsOf(process.id)],
       };
       if (
         coverage !== null &&

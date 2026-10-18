@@ -35,8 +35,8 @@ Processo, itens, participantes, etiquetas, runtime da tramitação e visibilidad
   stepper). POL-09 por processo (`canViewConfidentialBudget`) vale também para o PRC-04.
 - **Auditoria:** `ConfidentialViewRecorder` grava `process.confidential_view` 1× por sessão
   (`sessionIdHash`; sem ele, o usuário) e processo, marca no `TenantCache` (12 h), em transação
-  própria depois da leitura. Contadores de itens/comentários/participantes e etiquetas ficam 0/[]
-  até as stories donas (US-006/007/012/071).
+  própria depois da leitura. Contadores de comentários e participantes ficam 0 até as stories donas
+  (US-012/071); as etiquetas do cabeçalho vêm de `TagRepository.forProcesses` (US-007).
 
 ## Edição dos dados (US-005)
 
@@ -167,6 +167,38 @@ participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAcces
 - **Testes:** `domain/process-csv.spec.ts`, `domain/saved-view.spec.ts`,
   `presentation/saved-views.routes.spec.ts` (8 categorias) e `test/tenant-leak/saved-views.spec.ts`
   (PostgreSQL: cursor em 3 lotes, índices, RLS).
+
+## Etiquetas (US-007)
+
+- **Rotas:** TAG-01 `GET /tags` (`PROCESS_VIEW`; `includeInactive=true` só vale com `TAG_MANAGE`, senão é
+  ignorado — RN-PROC-91), TAG-02 `POST /tags` (`@Idempotent`) e TAG-03 `PATCH /tags/{id}` (`If-Match`) —
+  `TagsController`, `TAG_MANAGE` + MFA da política do tenant; PRC-18 `PUT /processes/{id}/tags`
+  (`ProcessTagsController`, `@RequireIfMatch`, `PROCESS_UPDATE` no guard). Contratos, paleta
+  acessível (`TAG_PALETTE`, contraste AA com o texto branco do chip) e limites em
+  `packages/validation/src/process/tags.ts` — a mesma regra do formulário.
+- **Cadastro:** `tags` nunca é excluída (a aplicação não tem `DELETE`); nome 2–40 único no tenant sem
+  diferenciar maiúsculas (índice `lower(name)` → 409 `CONFLICT`), cor `#RRGGBB` da paleta (422
+  `INVALID_ENUM`/`INVALID_FORMAT`). Auditoria de configuração `tag.create`/`tag.update`/`tag.deactivate`
+  (desativar = `tag.deactivate`); **sem evento e sem tocar a versão dos processos** (RN-PROC-90).
+- **Aplicação (PRC-18):** `SetProcessTagsCommand` reaproveita a guarda `ProcessItemsGate.writable`
+  com recusas próprias (`GateRefusals`: 409 `INVALID_PROCESS_STATUS` e 403 `NOT_PROCESS_CUSTODIAN`
+  com as mensagens das etiquetas). Ordem: trava do processo → autorização (`PROCESS_UPDATE` cobrindo o
+  processo → status → custódia) → conjunto (RN-PROC-88: máx. 10, repetição, id inexistente/de outro
+  tenant = `REFERENCE_NOT_FOUND`, inativa só se já aplicada) → **diferença** → conjunto idêntico
+  responde 200 sem versão/evento/timeline/auditoria (antes do `If-Match`, como o PRC-05) → `If-Match`
+  (412) → grava só inserções/remoções de `process_tags`, `touchProcess`, `process.tags_update` e
+  `ProcessUpdated` (`changedFields = ["tags"]` → timeline `PROCESS_UPDATED`) na mesma transação.
+- **Leitura:** a lista (PRC-01) filtra por `tagId` com `EXISTS` em `process_tags` (índice
+  `process_tags_tag_idx`) e traz `tags[{id,name,color,isActive}]` por consulta única por página; o painel
+  (PRC-07) traz as etiquetas no cabeçalho; `RuleContext.process.tags` leva os NOMES (ativas e inativas —
+  RN-PROC-92). PRC-08 expõe `MANAGE_TAGS` ("Etiquetas").
+- **Banco:** migração `20261017170000_tags` (`tags` com `UNIQUE (tenant_id, lower(name))`, checks de
+  nome/cor, trigger de tenant imutável, RLS; `process_tags` com PK `(tenant_id, process_id, tag_id)`, FKs
+  compostas, `CASCADE` no processo, RLS; grants: `cf_app` sem `DELETE` em `tags` e sem `UPDATE` em
+  `process_tags`).
+- **Testes:** `domain/tag.spec.ts`, `presentation/tags.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/process-tags.spec.ts` (PostgreSQL: filtro SQL, índice único sob concorrência, 412 sob
+  `FOR UPDATE`, rollback induzido, RLS/FKs entre tenants, sem `DELETE`).
 
 ## Criação do processo (US-001)
 

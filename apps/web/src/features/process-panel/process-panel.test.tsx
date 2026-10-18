@@ -388,6 +388,61 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     ).toBeTruthy();
   });
 
+  it('[Sucesso] US-007: "Etiquetas" no cabeçalho abre o seletor com as etiquetas aplicadas; PUT usa a versão do PRC-04', async () => {
+    const tagId = ID(901);
+    const api = mockProcessApi({
+      permissions: ['PROCESS_VIEW', 'PROCESS_UPDATE'],
+      summary: () =>
+        jsonResponse({
+          data: summaryDto({
+            header: {
+              ...summaryDto().header,
+              tags: [{ id: tagId, name: 'Obras emergenciais', color: '#B45309', isActive: true }],
+            },
+          }),
+        }),
+      actions: () =>
+        jsonResponse({
+          data: [{ action: 'MANAGE_TAGS', label: 'Etiquetas', enabled: true, reasons: [] }],
+        }),
+      tags: (_url, init) =>
+        init?.method === 'PUT'
+          ? jsonResponse({ data: { tags: [] } }, { headers: { ETag: '"2"' } })
+          : jsonResponse({
+              data: [
+                {
+                  id: tagId,
+                  name: 'Obras emergenciais',
+                  color: '#B45309',
+                  isActive: true,
+                  version: 1,
+                },
+              ],
+            }),
+    });
+    renderWithShell(
+      <>
+        <ProcessPanel processId={PROCESS_ID} />
+        <Toaster />
+      </>,
+    );
+    const chips = await screen.findByRole('list', { name: 'Etiquetas' });
+    expect(within(chips).getByText('Obras emergenciais')).toBeTruthy();
+    await userEvent.click(await screen.findByRole('button', { name: 'Etiquetas (1)' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Etiquetas do processo' });
+    const option = await within(dialog).findByRole('option', { name: /Obras emergenciais/ });
+    expect(option.getAttribute('aria-selected')).toBe('true');
+    await userEvent.click(option);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Aplicar etiquetas' }));
+    await waitFor(() => {
+      expect(callsTo(api, 'PUT', `/api/v1/processes/${PROCESS_ID}/tags`)).toHaveLength(1);
+    });
+    const [call] = callsTo(api, 'PUT', `/api/v1/processes/${PROCESS_ID}/tags`);
+    // Sem custódia adicional: If-Match = versão do processo (PRC-04) e conjunto vazio.
+    expect(call?.headers.get('If-Match')).toBe('"1"');
+    expect(call?.body).toEqual({ tagIds: [] });
+  });
+
   it('deep link de aba (`?aba=documentos`) abre a aba; aba desconhecida abre o Resumo (V-06)', async () => {
     mockProcessApi();
     nav.set(`/processos/${PROCESS_ID}?aba=documentos`);

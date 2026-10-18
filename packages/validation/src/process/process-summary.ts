@@ -46,7 +46,14 @@ const summaryHeaderSchema = z.object({
   title: z.string(),
   status: z.enum(PROCESS_STATUSES),
   priority: z.enum(PRIORITIES),
-  tags: z.array(z.object({ id: z.uuid(), name: z.string(), color: z.string().nullable() })),
+  tags: z.array(
+    z.object({
+      id: z.uuid(),
+      name: z.string(),
+      color: z.string().nullable(),
+      isActive: z.boolean(),
+    }),
+  ),
   isBudgetConfidential: z.boolean(),
   /** `null` quando não informado ou mascarado (POL-09 · RN-PROC-55). */
   estimatedValue: z.string().nullable(),

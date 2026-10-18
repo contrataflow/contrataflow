@@ -2222,3 +2222,36 @@ model SavedView {
   @@unique([tenantId, id], map: "saved_views_tenant_id_id_key")
   @@map("saved_views")
 }
+
+/// entities.md §4.4 `Tag` (US-007 · DEC-040 · P2): etiqueta do órgão, nunca excluída (só `isActive`).
+/// O índice único `(tenant_id, lower(name))` só existe na migração; o nome é aparado e a cor
+/// pertence à paleta acessível (validação de aplicação — `TAG_PALETTE`).
+model Tag {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(40)
+  color       String   @default("#64748B") @db.VarChar(7)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  version     Int      @default(1)
+
+  @@unique([tenantId, id], map: "tags_tenant_id_id_key")
+  @@map("tags")
+}
+
+/// entities.md §4.4 `ProcessTag` (US-007): associação processo × etiqueta (máximo de 10 por
+/// processo — regra de aplicação). FKs compostas e o índice `(tenant_id, tag_id, process_id)` na
+/// migração.
+model ProcessTag {
+  tenantId    String   @map("tenant_id") @db.Uuid
+  processId   String   @map("process_id") @db.Uuid
+  tagId       String   @map("tag_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by_id") @db.Uuid
+
+  @@id([tenantId, processId, tagId], map: "process_tags_pkey")
+  @@map("process_tags")
+}

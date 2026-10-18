@@ -2,13 +2,19 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { PROCESS_CLOCK, PROCESS_ITEM_REPOSITORY, PROCESS_REPOSITORY } from './ports.js';
+import {
+  PROCESS_CLOCK,
+  PROCESS_ITEM_REPOSITORY,
+  PROCESS_REPOSITORY,
+  TAG_REPOSITORY,
+} from './ports.js';
 import type {
   ProcessAggregateRows,
   ProcessClock,
   ProcessItemRepository,
   ProcessRepository,
   ProcessRuntimeReader,
+  TagRepository,
 } from './ports.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -77,6 +83,7 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
   constructor(
     @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
     @Inject(PROCESS_ITEM_REPOSITORY) private readonly items: ProcessItemRepository,
+    @Inject(TAG_REPOSITORY) private readonly tags: TagRepository,
     private readonly catalog: CatalogFacade,
     private readonly tenancy: TenancyFacade,
     @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
@@ -93,6 +100,8 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
     const settings = await this.tenancy.settingValues(tx, [HISTORICAL_SETTING]);
     // RN-PROC-82: `itemsCount`/`hasLots` refletem os itens ativos nas avaliações (US-006).
     const items = await this.items.stats(tx, process.id);
+    // RN-PROC-92: os NOMES das etiquetas (ativas e inativas) no momento da regra.
+    const tags = (await this.tags.forProcesses(tx, [process.id])).get(process.id) ?? [];
     const codeOf = async (id: string | null) =>
       id === null ? null : ((await this.catalog.find(tx, id))?.code ?? null);
     return {
@@ -117,7 +126,7 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
         organizationId: process.organizationId,
         requestingSecretariatId: process.requestingSecretariatId,
         requestingDepartmentId: process.requestingDepartmentId,
-        tags: [],
+        tags: tags.map((tag) => tag.name),
         targetDate: process.targetDate,
         year: process.year,
         itemsCount: items.count,

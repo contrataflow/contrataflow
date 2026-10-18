@@ -1,5 +1,5 @@
 import { ProcessItemsChanged } from '@contrataflow/validation';
-import type { ProcessItemDto, ProcessItemReference } from '@contrataflow/validation';
+import type { ProcessItemDto, ProcessItemReference, ProcessStatus } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
@@ -47,6 +47,17 @@ export interface ItemContext extends ItemsProcessContext {
   readonly item: ProcessItem;
 }
 
+/** As recusas de status e de custódia da guarda — cada story de escrita no agregado tem as suas. */
+export interface GateRefusals {
+  readonly notEditable: (status: ProcessStatus) => ApiError;
+  readonly notCustodian: () => ApiError;
+}
+
+const ITEMS_REFUSALS: GateRefusals = {
+  notEditable: processItemsNotEditable,
+  notCustodian: processItemsNotCustodian,
+};
+
 /** O processo como a autorização o vê (escopo e participações — US-097). */
 function accessTargetOf(runtime: ProcessRuntime) {
   return {
@@ -80,9 +91,13 @@ export class ProcessItemsGate {
    * PRC-14/17: `SELECT … FOR UPDATE` no processo (serializa inclusões — números sem repetição —
    * e alinha com a edição e a tramitação), visibilidade (404) e a autorização de escrita.
    */
-  async writable(tx: TenantTx, processId: string): Promise<ItemsProcessContext> {
+  async writable(
+    tx: TenantTx,
+    processId: string,
+    refusals: GateRefusals = ITEMS_REFUSALS,
+  ): Promise<ItemsProcessContext> {
     if (!(await this.processes.lockForUpdate(tx, processId))) throw processNotFoundError();
-    return this.authorize(tx, processId);
+    return this.authorize(tx, processId, refusals);
   }
 
   /**
@@ -96,7 +111,7 @@ export class ProcessItemsGate {
     }
     let context: ItemsProcessContext;
     try {
-      context = await this.authorize(tx, processId);
+      context = await this.authorize(tx, processId, ITEMS_REFUSALS);
     } catch (error) {
       if (isProcessNotFound(error)) throw processItemNotFound();
       throw error;
@@ -107,12 +122,16 @@ export class ProcessItemsGate {
   }
 
   /** RN-PROC-71: `PROCESS_UPDATE` cobrindo o processo → status editável (409) → custódia (403). */
-  private async authorize(tx: TenantTx, processId: string): Promise<ItemsProcessContext> {
+  private async authorize(
+    tx: TenantTx,
+    processId: string,
+    refusals: GateRefusals,
+  ): Promise<ItemsProcessContext> {
     const { rows, runtime, viewer } = await this.panel.load(tx, processId);
     await this.access.assertCanOnProcess('PROCESS_UPDATE', accessTargetOf(runtime));
     const process = rows.process;
-    if (!isEditableStatus(process.status)) throw processItemsNotEditable(process.status);
-    if (!isProcessCustodian(process, viewer.engine)) throw processItemsNotCustodian();
+    if (!isEditableStatus(process.status)) throw refusals.notEditable(process.status);
+    if (!isProcessCustodian(process, viewer.engine)) throw refusals.notCustodian();
     return { rows, runtime, canSeeBudget: await this.panel.canSeeBudget(rows, runtime) };
   }
 }

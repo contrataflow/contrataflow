@@ -6,6 +6,7 @@ import type {
   CatalogItemDto,
   ProcessListParamKey,
   ProcessStageOptionDto,
+  TagDto,
 } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
@@ -31,6 +32,8 @@ export interface FilterOptions {
   readonly contractingTypes: readonly CatalogItemDto[];
   readonly modalities: readonly CatalogItemDto[];
   readonly origins: readonly CatalogItemDto[];
+  /** US-007: etiquetas do cadastro (as inativas só chegam a quem tem `TAG_MANAGE`). */
+  readonly tags: readonly TagDto[];
 }
 
 export type FilterDraft = Partial<Record<ProcessListParamKey, string | undefined>>;
@@ -48,6 +51,7 @@ const FILTER_KEYS: readonly ProcessListParamKey[] = [
   'contractingTypeId',
   'modalityId',
   'originId',
+  'tagId',
   'year',
   'overdue',
   'targetDateOverdue',
@@ -129,6 +133,7 @@ export function ProcessFiltersPanel({
   const t = useTranslations('processList.filters');
   const tStatus = useTranslations('processes.statuses');
   const tPriority = useTranslations('processes.priorities');
+  const tTags = useTranslations('tags.filter');
   const [draft, setDraft] = useState<Draft>(() => pick(params));
   const [minText, setMinText] = useState(() => moneyText(params.estimatedValueMin));
   const [maxText, setMaxText] = useState(() => moneyText(params.estimatedValueMax));
@@ -189,6 +194,13 @@ export function ProcessFiltersPanel({
     </Field>
   );
   const units = options.units.map((unit) => ({ value: unit.id, label: unit.name }));
+  /** Cada grupo troca só as próprias etiquetas: as marcadas no outro grupo são preservadas. */
+  const mergeTags = (group: readonly TagDto[], values: readonly string[]) => {
+    const others = valuesOf(draft.tagId).filter((id) => !group.some((tag) => tag.id === id));
+    set('tagId', [...others, ...values].join(','));
+  };
+  const activeTags = options.tags.filter((tag) => tag.isActive);
+  const inactiveTags = options.tags.filter((tag) => !tag.isActive);
   const catalog = (items: readonly CatalogItemDto[]) =>
     items.map((item) => ({ value: item.id, label: item.label }));
 
@@ -233,6 +245,30 @@ export function ProcessFiltersPanel({
               selected={valuesOf(draft.stageKey)}
               onChange={(values) => {
                 set('stageKey', values.join(','));
+              }}
+            />
+          ) : null}
+          {activeTags.length > 0 ? (
+            <Checkboxes
+              legend={tTags('legend')}
+              options={activeTags.map((tag) => ({ value: tag.id, label: tag.name }))}
+              selected={valuesOf(draft.tagId).filter((id) =>
+                activeTags.some((tag) => tag.id === id),
+              )}
+              onChange={(values) => {
+                mergeTags(activeTags, values);
+              }}
+            />
+          ) : null}
+          {inactiveTags.length > 0 ? (
+            <Checkboxes
+              legend={tTags('inactiveLegend')}
+              options={inactiveTags.map((tag) => ({ value: tag.id, label: tag.name }))}
+              selected={valuesOf(draft.tagId).filter((id) =>
+                inactiveTags.some((tag) => tag.id === id),
+              )}
+              onChange={(values) => {
+                mergeTags(inactiveTags, values);
               }}
             />
           ) : null}

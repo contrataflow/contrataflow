@@ -572,6 +572,27 @@ function manageItemsEntry(process: EngineProcess, viewer: EngineViewer): ActionE
 }
 
 /**
+ * MANAGE_TAGS (US-007 · RN-PROC-87 · FA-04): "Etiquetas" com `PROCESS_UPDATE`; desabilitada com o
+ * motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia (a API repete as checagens).
+ */
+function manageTagsEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry[] {
+  if (!viewer.permissions.has('PROCESS_UPDATE')) return [];
+  const reasons: ActionReason[] = [];
+  if (!CUSTODY_STATUSES.has(process.status)) {
+    reasons.push({
+      code: 'INVALID_PROCESS_STATUS',
+      message: `Etiquetas não podem ser alteradas com o processo ${STATUS_LABELS[process.status]}.`,
+    });
+  } else if (!isCustodian(process, viewer)) {
+    reasons.push({
+      code: 'NOT_PROCESS_CUSTODIAN',
+      message: 'Somente quem está com o processo pode alterar as etiquetas.',
+    });
+  }
+  return [entry('MANAGE_TAGS', 'Etiquetas', reasons)];
+}
+
+/**
  * DUPLICATE (US-011 · RN-PROC-124): "Duplicar processo" com `PROCESS_DUPLICATE` e `PROCESS_CREATE`
  * em algum escopo — em qualquer status e sem custódia (a duplicação não altera a origem). O escopo
  * sobre a origem e sobre o setor do novo processo é conferido pela API.
@@ -598,6 +619,7 @@ export function availableActions(
     ...lifecycleEntries(input.process, viewer),
     ...editEntry(input.process, viewer),
     ...manageItemsEntry(input.process, viewer),
+    ...manageTagsEntry(input.process, viewer),
     ...duplicateEntry(viewer),
   ];
 }

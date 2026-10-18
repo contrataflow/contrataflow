@@ -37,6 +37,7 @@ import { FollowToggleButton } from '../process-participants/follow-toggle-button
 import { ParticipantsTab } from '../process-participants/participants-tab';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { RisksLink } from '../risks/risks-link';
+import { ProcessTagsButton, ProcessTagsDialog } from '../tags/process-tags';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
 /** Contador da aba (RN-PROC-57): documentos, itens, comentários e participantes vêm do resumo. */
@@ -244,6 +245,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   const stale = useStaleProcessRecovery(processId);
   const [editing, setEditing] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [tagging, setTagging] = useState(false);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -298,7 +300,20 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   return (
     <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 pb-24 md:pb-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <ProcessHeader header={data.header} />
+        <ProcessHeader
+          header={data.header}
+          tagsAction={
+            // US-007: "Etiquetas" (PRC-08 `MANAGE_TAGS`) abre o seletor; PRC-18 grava o conjunto.
+            <ProcessTagsButton
+              entry={actions.data?.find((entry) => entry.action === 'MANAGE_TAGS')}
+              count={data.header.tags.length}
+              frozen={frozen}
+              onClick={() => {
+                setTagging(true);
+              }}
+            />
+          }
+        />
         <div className="flex flex-col items-end gap-3">
           {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -334,12 +349,21 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           if (action.action === 'EDIT') setEditing(true);
           // US-006: "Gerenciar itens" leva à aba Itens.
           else if (action.action === 'MANAGE_ITEMS') changeTab('itens');
+          // US-007: "Etiquetas" abre o seletor.
+          else if (action.action === 'MANAGE_TAGS') setTagging(true);
           // US-011: "Duplicar processo" abre o diálogo SCR-113.
           else if (action.action === 'DUPLICATE') setDuplicating(true);
           else toast({ title: t('actions.notYet') });
         }}
       />
       <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
+      <ProcessTagsDialog
+        processId={processId}
+        open={tagging}
+        onOpenChange={setTagging}
+        applied={data.header.tags}
+        version={detail.data?.version}
+      />
       <DuplicateProcessDialog
         processId={processId}
         open={duplicating}

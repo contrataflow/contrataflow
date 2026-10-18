@@ -344,7 +344,14 @@ export const processListItemSchema = z
     estimatedValueMasked: z.boolean(),
     targetDate: isoDateSchema.nullable(),
     overdueSince: isoDateTimeSchema.nullable(),
-    tags: z.array(z.object({ id: z.uuid(), name: z.string(), color: z.string().nullable() })),
+    tags: z.array(
+      z.object({
+        id: z.uuid(),
+        name: z.string(),
+        color: z.string().nullable(),
+        isActive: z.boolean(),
+      }),
+    ),
     openedAt: isoDateTimeSchema.nullable(),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,

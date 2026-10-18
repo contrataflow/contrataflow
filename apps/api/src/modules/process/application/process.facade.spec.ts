@@ -15,6 +15,7 @@ import {
 import { createProcess, draftProcess } from '../domain/process.js';
 import { InMemoryProcessRepository } from '../infrastructure/in-memory-process.repository.js';
 import { InMemoryProcessParticipantRepository } from '../infrastructure/process-participant.repositories.js';
+import { InMemoryTagRepository } from '../infrastructure/tag.repositories.js';
 
 type ConfidentialBudgetAccess = Awaited<ReturnType<AccessFacade['confidentialBudgetAccess']>>;
 
@@ -38,7 +39,7 @@ function inTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
 
 describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)', () => {
   const participants = new InMemoryProcessParticipantRepository();
-  const repository = new InMemoryProcessRepository(participants);
+  const repository = new InMemoryProcessRepository(participants, new InMemoryTagRepository());
   const workflow = {
     publishedDefinitionIn: () =>
       Promise.resolve({ stages: [{ id: WF_STAGE, name: 'Formalização da demanda' }] }),

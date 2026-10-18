@@ -2,6 +2,7 @@ import {
   PARTICIPANT_MESSAGES,
   PROCESS_ITEM_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
+  TAG_MESSAGES,
   estimatedValueFromSourceMessage,
 } from '@contrataflow/validation';
 import type {
@@ -22,6 +23,7 @@ import { itemsNotEditableMessage } from '../domain/process-items.js';
 import type { GrantRefusal } from '../domain/process-participants.js';
 import { notEditableStatusMessage } from '../domain/process-update.js';
 import type { ProcessIssue } from '../domain/process.js';
+import { tagsNotEditableMessage } from '../domain/tag.js';
 
 /*
  * Erros e telemetria do módulo `process` (US-001 · api.md §2.2 · "Casos de erro" e "Logs" da story).
@@ -275,4 +277,41 @@ export function recordParticipantRemoved(reason: string): void {
       description: 'Participações revogadas em processos (PRC-30 e "deixar de seguir").',
     });
   participantRemovedCounter.add(1, { reason });
+}
+
+/* US-007 — etiquetas do processo (api/02-processes.md PRC-18 e TAG-01..03 · "Casos de erro"). */
+
+/** 404 `NOT_FOUND` de TAG-03: etiqueta inexistente ou de outro tenant. */
+export function tagNotFound(): ApiError {
+  return new ApiError('NOT_FOUND', { detail: TAG_MESSAGES.notFound });
+}
+
+/** 409 `CONFLICT` (RN-PROC-85 · V-03): nome repetido no tenant. */
+export function tagNameTaken(): ApiError {
+  return new ApiError('CONFLICT', { detail: TAG_MESSAGES.nameTaken });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-PROC-87 · "Casos de erro"). */
+export function processTagsNotEditable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: tagsNotEditableMessage(status),
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (POL-01 · FA-04), auditado como `access.denied`. */
+export function processTagsNotCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: TAG_MESSAGES.forbidden,
+    auditDenial: true,
+  });
+}
+
+/** 412 `VERSION_CONFLICT` (RN-PROC-87): o processo mudou desde que o seletor foi aberto. */
+export function processTagsVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    title: 'Processo desatualizado',
+    detail: TAG_MESSAGES.stale,
+    extensions: { currentVersion, sentVersion },
+  });
 }

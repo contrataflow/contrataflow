@@ -31,6 +31,7 @@ import {
   PROCESS_RUNTIME_READER,
   PROCESS_TRANSACTIONS,
   SAVED_VIEW_REPOSITORY,
+  TAG_REPOSITORY,
 } from './application/ports.js';
 import { ProcessAccessProjector } from './application/process-access.projector.js';
 import { ProcessRuntimeAccessReader } from './application/process-access.reader.js';
@@ -82,6 +83,12 @@ import {
   UpdateSavedViewCommand,
 } from './application/saved-views.commands.js';
 import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
+import {
+  CreateTagCommand,
+  ListTagsQuery,
+  SetProcessTagsCommand,
+  UpdateTagCommand,
+} from './application/tags.commands.js';
 import { UpdateProcessCommand } from './application/update-process.command.js';
 import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
 import {
@@ -105,12 +112,14 @@ import {
   InMemorySavedViewRepository,
   PrismaSavedViewRepository,
 } from './infrastructure/saved-view.repositories.js';
+import { InMemoryTagRepository, PrismaTagRepository } from './infrastructure/tag.repositories.js';
 import { ProcessActionsController } from './presentation/process-actions.controller.js';
 import { ProcessExportController } from './presentation/process-export.controller.js';
 import { ProcessItemsController } from './presentation/process-items.controller.js';
 import { ProcessParticipantsController } from './presentation/process-participants.controller.js';
 import { ProcessController } from './presentation/process.controller.js';
 import { SavedViewsController } from './presentation/saved-views.controller.js';
+import { ProcessTagsController, TagsController } from './presentation/tags.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { ApprovalModule } from '../approval/approval.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
@@ -138,6 +147,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * US-011: duplicação (PRC-27) sobre a criação da US-001 e as fachadas de `document` e `files`.
  * US-012: participantes (PRC-28..32) — `ProcessAccess` `PARTICIPANT`, seguir/deixar de seguir.
  * US-003: visões salvas (PRC-35..38) e exportação CSV em *streaming* (PRC-34).
+ * US-007: etiquetas (TAG-01..03) e o conjunto de etiquetas do processo (PRC-18).
  */
 @Module({
   imports: [
@@ -163,6 +173,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessActionsController,
     ProcessItemsController,
     ProcessParticipantsController,
+    TagsController,
+    ProcessTagsController,
   ],
   providers: [
     ProcessAttachmentTargets,
@@ -189,6 +201,12 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DeleteSavedViewCommand,
     PrismaSavedViewRepository,
     InMemorySavedViewRepository,
+    ListTagsQuery,
+    CreateTagCommand,
+    UpdateTagCommand,
+    SetProcessTagsCommand,
+    PrismaTagRepository,
+    InMemoryTagRepository,
     ProcessPanelReader,
     GetProcessSummaryQuery,
     ListProcessStagesQuery,
@@ -260,6 +278,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
         config: AppConfig,
         prisma: PrismaSavedViewRepository,
         memory: InMemorySavedViewRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: TAG_REPOSITORY,
+      inject: [APP_CONFIG, PrismaTagRepository, InMemoryTagRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaTagRepository,
+        memory: InMemoryTagRepository,
       ) => (inMemory(config) ? memory : prisma),
     },
     {

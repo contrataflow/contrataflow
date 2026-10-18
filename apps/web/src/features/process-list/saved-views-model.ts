@@ -36,9 +36,8 @@ const RESPONSIBLE_KEY: ProcessColumnKey = 'currentResponsible';
 const isColumnKey = (value: string): value is ProcessColumnKey =>
   (PROCESS_COLUMN_KEYS as readonly string[]).includes(value);
 
-/** Chave da API/visão → id de coluna da tela (`null` = a tela não tem a coluna, ex.: `tags`). */
+/** Chave da API/visão → id de coluna da tela (`null` = a tela não tem a coluna). */
 export function columnIdOf(key: ProcessColumnKey): string | null {
-  if (key === 'tags') return null;
   return key === RESPONSIBLE_KEY ? RESPONSIBLE_ID : key;
 }
 
@@ -233,7 +232,7 @@ function canonicalColumns(
 
 /**
  * A lista atual difere da visão aplicada? Compara filtros (sem ordem de valores), ordenação e
- * conjunto de colunas — as que a tela não oferece (`tags`, órgão com um só órgão) não contam.
+ * conjunto de colunas — as que a tela não oferece (órgão com um só órgão) não contam.
  */
 export function hasUnsavedChanges(
   view: Pick<SavedViewDto, 'filters' | 'sort' | 'columns'>,

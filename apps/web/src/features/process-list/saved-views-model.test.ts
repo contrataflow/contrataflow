@@ -58,15 +58,16 @@ const LABELS: CriteriaLabels = {
 };
 
 describe('colunas: tela ⇄ visão', () => {
-  it('mapeia responsible ⇄ currentResponsible e ignora o que a tela não tem', () => {
+  it('mapeia responsible ⇄ currentResponsible e mantém as demais chaves', () => {
     expect(columnIdOf('currentResponsible')).toBe('responsible');
-    expect(columnIdOf('tags')).toBeNull();
+    expect(columnIdOf('tags')).toBe('tags');
     expect(columnIdOf('status')).toBe('status');
     expect(columnKeyOf('responsible')).toBe('currentResponsible');
     expect(columnKeyOf('estimatedValue')).toBe('estimatedValue');
     expect(columnKeyOf('desconhecida')).toBeNull();
     expect(columnIdsFromView(['code', 'tags', 'currentResponsible', 'code'])).toEqual([
       'code',
+      'tags',
       'responsible',
     ]);
   });
@@ -210,13 +211,14 @@ describe('estado atual → visão e "Alterações não salvas"', () => {
     );
   });
 
-  it('colunas que a tela não oferece (tags, órgão com um só órgão) não contam como alteração', () => {
-    const withTags = view({ columns: ['code', 'title', 'status', 'currentResponsible', 'tags'] });
+  it('colunas que a tela não oferece (órgão com um só órgão) não contam como alteração', () => {
     const current = currentDefinition(
       { status: 'IN_PROGRESS,RETURNED', overdue: 'true', sort: '-priority' },
       visible,
     );
-    expect(hasUnsavedChanges(withTags, current, available)).toBe(false);
+    // A coluna de etiquetas (US-007) é da tela: quando oferecida, conta como qualquer outra.
+    const withTags = view({ columns: ['code', 'title', 'status', 'currentResponsible', 'tags'] });
+    expect(hasUnsavedChanges(withTags, current, new Set([...available, 'tags']))).toBe(true);
     const withOrganization = view({
       columns: ['code', 'title', 'status', 'currentResponsible', 'organization'],
     });
