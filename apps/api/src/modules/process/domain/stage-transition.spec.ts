@@ -144,6 +144,22 @@ describe('Feature: Mudança de etapa — plano puro (US-047 · StageTransitionSe
     expect(plan.process.currentResponsibleId).toBe(RUI);
   });
 
+  it('devolução (US-048): passagem RETURNED, responsabilidade RETURN e processo RETURNED', () => {
+    const plan = planStageTransition(
+      input({
+        action: 'RETURN',
+        closeAs: 'RETURNED',
+        toUserId: RUI,
+        assignmentType: 'RETURN',
+        statusTo: 'RETURNED',
+      }),
+    );
+    expect(plan.closed.status).toBe('RETURNED');
+    expect(plan.assignment).toMatchObject({ type: 'RETURN', assigneeId: RUI, assignedById: null });
+    expect(plan.movement).toMatchObject({ action: 'RETURN', statusTo: 'RETURNED', toUserId: RUI });
+    expect(plan.process).toMatchObject({ status: 'RETURNED', currentResponsibleId: RUI });
+  });
+
   it('prazo sobrescrito fica marcado com o motivo (RN-TRAM-10)', () => {
     const plan = planStageTransition(input({ dueDateOverrideReason: 'Volume alto de itens' }));
     expect(plan.entered).toMatchObject({

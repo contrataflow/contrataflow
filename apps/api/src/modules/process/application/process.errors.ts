@@ -2,6 +2,7 @@ import {
   PARTICIPANT_MESSAGES,
   PROCESS_FORWARD_MESSAGES,
   PROCESS_ITEM_MESSAGES,
+  PROCESS_RETURN_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
   TAG_MESSAGES,
   estimatedValueFromSourceMessage,
@@ -325,9 +326,10 @@ export function processTagsVersionConflict(sentVersion: number, currentVersion: 
 export function stageChanged(
   currentStageId: string | null,
   movedBy: { readonly id: string; readonly name: string } | null,
+  detail: string = PROCESS_FORWARD_MESSAGES.stageChanged,
 ): ApiError {
   return new ApiError('STAGE_CHANGED', {
-    detail: PROCESS_FORWARD_MESSAGES.stageChanged,
+    detail,
     extensions: { currentStageId, movedBy },
   });
 }
@@ -432,4 +434,60 @@ export function recordProcessForwarded(toStageType: string, durationMs: number):
   });
   forwardedCounter.add(1, { to_stage_type: toStageType });
   forwardDuration.record(durationMs, { to_stage_type: toStageType });
+}
+
+/* US-048 — devolução (api/02-processes.md PRC-20 · "Casos de erro" da story). */
+
+/** 412 `VERSION_CONFLICT` (V-08 · DEC-104). */
+export function returnVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_RETURN_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-TRAM-23 · V-05): só `IN_PROGRESS`. */
+export function processNotReturnable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_RETURN_MESSAGES.invalidStatus,
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (RN-TRAM-23 · POL-01 · V-06), auditado como `access.denied`. */
+export function returnNotCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: PROCESS_RETURN_MESSAGES.notCustodian,
+    auditDenial: true,
+  });
+}
+
+/** 422 `TRANSITION_NOT_AVAILABLE` (RN-TRAM-24 · V-03): sem revelar se a etapa existe em outro lugar. */
+export function returnTargetNotAvailable(): ApiError {
+  return transitionNotAvailable(PROCESS_RETURN_MESSAGES.targetNotAvailable);
+}
+
+/** 422 `DUE_DATE_OVERRIDE_NOT_ALLOWED` (RN-TRAM-26 · V-04). */
+export function returnDueDateNotAllowed(): ApiError {
+  return new ApiError('DUE_DATE_OVERRIDE_NOT_ALLOWED', {
+    detail: PROCESS_RETURN_MESSAGES.dueDateNotAllowed,
+  });
+}
+
+let returnedCounter: Counter | undefined;
+let returnDuration: Histogram | undefined;
+
+/** `cf_process_returned_total{assignee_resolved}` e `cf_process_return_duration_ms` (DoD da US-048). */
+export function recordProcessReturned(assigneeResolved: boolean, durationMs: number): void {
+  const meter = metrics.getMeter('contrataflow-api');
+  returnedCounter ??= meter.createCounter('cf_process_returned_total', {
+    description: 'Processos devolvidos (commit do PRC-20), por resolução do responsável anterior.',
+  });
+  returnDuration ??= meter.createHistogram('cf_process_return_duration_ms', {
+    description: 'Duração da devolução (bloqueio, destino, responsável, prazo e gravação).',
+    unit: 'ms',
+  });
+  const attributes = { assignee_resolved: String(assigneeResolved) };
+  returnedCounter.add(1, attributes);
+  returnDuration.record(durationMs, attributes);
 }

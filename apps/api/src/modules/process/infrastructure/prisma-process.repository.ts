@@ -43,6 +43,7 @@ import type {
   ProcessTransactions,
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
+import type { PreviousAssignment } from '../domain/process-return.js';
 import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
 import type { Process } from '../domain/process.js';
 import type { StageTransitionPlan } from '../domain/stage-transition.js';
@@ -468,6 +469,23 @@ export class PrismaProcessRepository implements ProcessRepository {
     });
     await insertMovement(tx, movement);
     return true;
+  }
+
+  async previousAssignments(
+    tx: TenantTx,
+    processId: string,
+    workflowStageId: string,
+  ): Promise<PreviousAssignment[]> {
+    const stages = await tx.processStage.findMany({
+      where: { processId, workflowStageId, status: { not: 'ACTIVE' } },
+      select: { id: true },
+    });
+    if (stages.length === 0) return [];
+    return tx.processAssignment.findMany({
+      where: { processId, processStageId: { in: stages.map((stage) => stage.id) } },
+      select: { assigneeId: true, startedAt: true },
+      orderBy: { startedAt: 'desc' },
+    });
   }
 
   async retireCurrentAccess(

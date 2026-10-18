@@ -50,6 +50,7 @@ import {
   warningsNotAcknowledged,
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
+import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
 import { accessTargetOf } from './update-process.command.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
@@ -58,7 +59,6 @@ import type { StageApprover, StageCoverage } from '../../approval/application/ap
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
 import { NumberingFacade } from '../../catalog/application/numbering.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
-import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
@@ -74,7 +74,6 @@ import {
   chosenDepartmentIssue,
   coveredDocuments,
   destinationDecision,
-  isEligibleAssignee,
   movementDocumentIds,
   movementDocumentRefs,
   statusOnEntering,
@@ -150,13 +149,13 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     private readonly calendar: BusinessCalendarFacade,
     private readonly numbering: NumberingFacade,
     private readonly documents: DocumentFacade,
-    private readonly identity: IdentityFacade,
     private readonly organization: OrganizationFacade,
     private readonly tenancy: TenancyFacade,
     private readonly workflow: WorkflowFacade,
     private readonly panel: ProcessPanelReader,
     private readonly presenter: ProcessPresenter,
     private readonly transitions: StageTransitionService,
+    private readonly support: StageTransitionSupport,
   ) {
     super('process.forward', transactions);
   }
@@ -215,7 +214,7 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
 
     // 11.3 — etapa esperada ANTES do If-Match (RN-TRAM-03 · FA-08).
     if (process.currentStageId !== body.expectedStageId) {
-      throw stageChanged(process.currentStageId, await this.lastWriter(tx, process));
+      throw stageChanged(process.currentStageId, await this.support.lastWriter(tx, process));
     }
     if (input.expectedVersion !== process.version) {
       throw forwardVersionConflict(input.expectedVersion, process.version);
@@ -312,7 +311,7 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     );
 
     // 11.9 — autuação no 1º encaminhamento (por último: a sequência fica travada só pelas gravações).
-    const labels = await this.labels(tx, {
+    const labels = await this.support.labels(tx, {
       fromStage: fromStage.name,
       toStage: toStage.name,
       fromDepartmentId: process.currentDepartmentId,
@@ -480,16 +479,6 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     );
   }
 
-  /** FA-08: quem alterou o processo por último (nome exibido no diálogo de conflito). */
-  private async lastWriter(
-    tx: TenantTx,
-    process: Process,
-  ): Promise<{ readonly id: string; readonly name: string } | null> {
-    const id = process.updatedById ?? process.createdById;
-    const name = (await this.identity.userDisplayNames(tx, [id])).get(id);
-    return name === undefined ? null : { id, name };
-  }
-
   /**
    * RN-TRAM-07 (V-10/V-11 · FA-02): unidade pela `departmentResolution` da etapa destino;
    * `CHOSEN_ON_FORWARD` exige unidade ativa do órgão do processo (outro tenant = inexistente).
@@ -558,7 +547,7 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     now: Date,
   ): Promise<string | null> {
     if (requested !== undefined) {
-      if (!(await this.isEligible(tx, requested, toDepartmentId, now))) {
+      if (!(await this.support.isEligibleAssignee(tx, requested, toDepartmentId, now))) {
         throw assigneeNotEligible();
       }
       return requested;
@@ -574,33 +563,9 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       passes: runtime.passes,
     });
     if (candidate === null) return null;
-    return (await this.isEligible(tx, candidate, toDepartmentId, now)) ? candidate : null;
-  }
-
-  private async isEligible(
-    tx: TenantTx,
-    userId: string,
-    departmentId: string,
-    now: Date,
-  ): Promise<boolean> {
-    const [member] = await this.identity.membersInTenant(tx, [userId]);
-    if (member === undefined) return isEligibleAssignee(null, now);
-    const assigned = (
-      await this.identity.usersAssignedToDepartment(tx, departmentId, [userId])
-    ).has(userId);
-    const canViewProcesses =
-      assigned && member.status === 'ACTIVE'
-        ? await this.access.membershipHoldsIn(tx, member, 'PROCESS_VIEW')
-        : false;
-    return isEligibleAssignee(
-      {
-        membershipStatus: member.status,
-        membershipExpiresAt: member.expiresAt,
-        assignedToDepartment: assigned,
-        canViewProcesses,
-      },
-      now,
-    );
+    return (await this.support.isEligibleAssignee(tx, candidate, toDepartmentId, now))
+      ? candidate
+      : null;
   }
 
   /**
@@ -628,39 +593,6 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       dueAt: await this.calendar.endOfLocalDay(tx, date),
       computedDueAt: computed,
       reason: body.dueDateOverrideReason ?? '',
-    };
-  }
-
-  /** Nomes congelados de etapas, unidades e pessoas (`metadata.labels` — RN-TRAM-15). */
-  private async labels(
-    tx: TenantTx,
-    input: {
-      readonly fromStage: string;
-      readonly toStage: string;
-      readonly fromDepartmentId: string;
-      readonly toDepartmentId: string;
-      readonly fromUserId: string | null;
-      readonly toUserId: string | null;
-    },
-  ): Promise<NonNullable<MovementMetadata['labels']>> {
-    const departments = await this.organization.departmentNames(tx, [
-      input.fromDepartmentId,
-      input.toDepartmentId,
-    ]);
-    const userIds = [input.fromUserId, input.toUserId].filter((id): id is string => id !== null);
-    const users = await this.identity.userDisplayNames(tx, userIds);
-    const userName = (id: string | null) => (id === null ? undefined : users.get(id));
-    const fromUser = userName(input.fromUserId);
-    const toUser = userName(input.toUserId);
-    const fromDepartment = departments.get(input.fromDepartmentId);
-    const toDepartment = departments.get(input.toDepartmentId);
-    return {
-      fromStage: input.fromStage,
-      toStage: input.toStage,
-      ...(fromDepartment === undefined ? {} : { fromDepartment }),
-      ...(toDepartment === undefined ? {} : { toDepartment }),
-      ...(fromUser === undefined ? {} : { fromUser }),
-      ...(toUser === undefined ? {} : { toUser }),
     };
   }
 

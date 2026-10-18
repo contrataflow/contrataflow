@@ -24,6 +24,7 @@ import {
   summaryDto,
 } from '@test/support/process-fixtures';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
+import { RETURN_URL, returnEntry, returnedDto } from '@test/support/return-fixtures';
 
 import { ProcessPanel, useStaleProcessRecovery } from './process-panel';
 import { PANEL_REFETCH_MS, isStaleProcessError, panelRefetchInterval } from './process-panel.api';
@@ -628,6 +629,48 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
       expect(document.activeElement).toBe(status);
     });
     expect(callsTo(api as never, 'POST', FORWARD_URL)).toHaveLength(1);
+  });
+
+  it('[US-048] "Devolver" (menu Mais) abre o diálogo SCR-104 com a etapa da ação e devolve o foco ao cabeçalho de status', async () => {
+    const user = userEvent.setup();
+    const base = mockProcessApi({
+      actions: () => jsonResponse({ data: [returnEntry()] }),
+    });
+    const api = vi.fn<typeof fetch>((input, init) => {
+      if (requestUrl(input) === RETURN_URL) {
+        return Promise.resolve(jsonResponse({ data: returnedDto() }));
+      }
+      return base(input, init);
+    });
+    vi.stubGlobal('fetch', api);
+    renderWithShell(
+      <>
+        <ProcessPanel processId={PROCESS_ID} />
+        <Toaster />
+      </>,
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Mais ações do processo' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Devolver à formalização/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Devolver processo' });
+    expect(
+      within(dialog).getByRole<HTMLInputElement>('radio', { name: /Formalização da demanda/ })
+        .checked,
+    ).toBe(true);
+    await user.type(
+      within(dialog).getByLabelText('Motivo da devolução'),
+      'Faltou detalhar a justificativa da contratação no DFD',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Devolver' }));
+    expect(await screen.findByText('Processo devolvido para Formalização da demanda')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Devolver processo' })).toBeNull();
+    });
+    const status = screen.getByRole('group', { name: 'Situação do processo' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(status);
+    });
+    expect(callsTo(api as never, 'POST', RETURN_URL)).toHaveLength(1);
   });
 });
 

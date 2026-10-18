@@ -39,6 +39,7 @@ import { ForwardPanel } from '../process-forward/forward-panel';
 import { ProcessItemsTab } from '../process-items/process-items-tab';
 import { FollowToggleButton } from '../process-participants/follow-toggle-button';
 import { ParticipantsTab } from '../process-participants/participants-tab';
+import { ReturnProcessDialog } from '../process-return/return-process-dialog';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { RisksLink } from '../risks/risks-link';
 import { ProcessTagsButton, ProcessTagsDialog } from '../tags/process-tags';
@@ -253,6 +254,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   // US-047: "Encaminhar" abre o painel SCR-103 já na transição da ação (`transitionKey`).
   const [forwarding, setForwarding] = useState(false);
   const [forwardKey, setForwardKey] = useState<string | null>(null);
+  // US-048: "Devolver" abre o diálogo SCR-104 já com a etapa da ação escolhida.
+  const [returning, setReturning] = useState(false);
+  const [returnStageId, setReturnStageId] = useState<string | null>(null);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -372,6 +376,11 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           else if (action.action === 'FORWARD') {
             setForwardKey(action.transitionKey ?? null);
             setForwarding(true);
+          }
+          // US-048: "Devolver" abre o diálogo SCR-104.
+          else if (action.action === 'RETURN') {
+            setReturnStageId('toStageId' in action ? (action.toStageId ?? null) : null);
+            setReturning(true);
           } else toast({ title: t('actions.notYet') });
         }}
       />
@@ -383,6 +392,16 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         initialTransitionKey={forwardKey}
         onForwarded={() => {
           // Foco ao cabeçalho de status (já sem as ações de custódia), não ao botão que abriu o painel.
+          document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
+        }}
+      />
+      <ReturnProcessDialog
+        processId={processId}
+        open={returning}
+        onOpenChange={setReturning}
+        initialStageId={returnStageId}
+        onReturned={() => {
+          // Quem devolveu perde a custódia: foco ao cabeçalho de status, como no encaminhamento.
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
         }}
       />

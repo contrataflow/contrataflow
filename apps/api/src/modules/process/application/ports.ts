@@ -11,6 +11,7 @@ import type {
   ProcessListOrder,
 } from '../domain/process-list.js';
 import type { ProcessParticipant } from '../domain/process-participants.js';
+import type { PreviousAssignment } from '../domain/process-return.js';
 import type {
   AccessGrant,
   ProcessAssignmentRecord,
@@ -278,6 +279,15 @@ export interface ProcessRepository {
    * `false` = outra escrita venceu (nada gravado).
    */
   recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean>;
+  /**
+   * US-048 (RN-TRAM-28): as responsabilidades (`ProcessAssignment`) das passagens ENCERRADAS do
+   * processo pela etapa de workflow `workflowStageId` — a base de `PREVIOUS_ASSIGNEE`.
+   */
+  previousAssignments(
+    tx: TenantTx,
+    processId: string,
+    workflowStageId: string,
+  ): Promise<PreviousAssignment[]>;
   /**
    * RN-TRAM-17 (DEC-024): a unidade deixou de ter a custódia — revoga o `CURRENT` ativo dela e
    * concede o `HISTORICAL` (idempotente), no `tx`.

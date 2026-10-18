@@ -228,10 +228,13 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // `PROCESS_RECEIVED` (destino `START`/`TASK`), `APPROVAL_REQUESTED` (aprovador) e o
     // `BusinessMetricsCollector`. A entrada em etapa com responsável e os status `in_progress`/
     // `awaiting_approval` não notificam (a regra do dispatcher os ignora).
-    ProcessStageChanged: ['process.stage_changed.forward'],
+    // US-048: a devolução notifica `PROCESS_RETURNED` (responsável de destino ou membros da
+    // unidade) e, com responsável resolvido, `PROCESS_ASSIGNED` (`assignmentType = RETURN`).
+    ProcessStageChanged: ['process.stage_changed.forward', 'process.stage_changed.return'],
     ProcessStatusChanged: [
       'process.status_changed.in_progress',
       'process.status_changed.awaiting_approval',
+      'process.status_changed.returned',
     ],
     ProcessAssigned: ['process.assigned'],
     ProcessNumberAssigned: ['process.number_assigned'],

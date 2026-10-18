@@ -30,7 +30,11 @@ import type {
   ResolvedDepartment,
 } from '../domain/stage-destination.js';
 import type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
-import type { EngineViewer, TransitionEvaluation } from '../domain/workflow-engine.js';
+import type {
+  EngineViewer,
+  ReturnEvaluation,
+  TransitionEvaluation,
+} from '../domain/workflow-engine.js';
 import type { WorkflowSnapshot } from '../domain/workflow-snapshot.js';
 
 export type {
@@ -56,6 +60,7 @@ export type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
 export type {
   EngineViewer,
   ProcessActionPermission,
+  ReturnEvaluation,
   TransitionEvaluation,
 } from '../domain/workflow-engine.js';
 export type { WorkflowSnapshot, WorkflowSnapshotStage } from '../domain/workflow-snapshot.js';
@@ -167,6 +172,18 @@ export class WorkflowFacade {
     request: { readonly transitionId: string; readonly action: 'FORWARD' | 'COMPLETE' },
   ): Promise<TransitionEvaluation | null> {
     return this.engine.evaluateTransition(tx, state, request);
+  }
+
+  /**
+   * RN-TRAM-24 (US-048): o destino `targetStageId` da devolução — etapa já percorrida e configurada
+   * numa `RETURN` da etapa atual —, com a transição e a última passagem. `null` = indisponível.
+   */
+  evaluateReturn(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    request: { readonly targetStageId: string },
+  ): Promise<ReturnEvaluation | null> {
+    return this.engine.evaluateReturn(tx, state, request);
   }
 
   /** RN-WF-30: unidade responsável da etapa alcançada. */

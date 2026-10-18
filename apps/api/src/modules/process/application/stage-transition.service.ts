@@ -41,7 +41,7 @@ export interface StageTransitionRequest {
  * 2. grava tudo pelo repositório (`recordStageTransition` — `WHERE version` como rede);
  * 3. publica `ProcessStageChanged` (timeline e `ProcessAccess` CURRENT/HISTORICAL/RESPONSIBLE no
  *    mesmo `tx`), `ProcessStatusChanged` só quando o status muda e `ProcessAssigned`
- *    (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
+ *    (`STAGE_ENTRY`; `RETURN` na devolução) quando a nova passagem nasce com responsável.
  *
  * Quem chama resolve destino, responsável, prazo, status, documentos e a aprovação, autoriza e
  * audita a ação própria (`process.forward`, `process.return`…).
@@ -111,7 +111,7 @@ export class StageTransitionService {
             departmentId: entered.departmentId,
             fromUserId: before.currentResponsibleId,
             toUserId: entered.assigneeId,
-            assignmentType: 'STAGE_ENTRY',
+            assignmentType: plan.assignment.type === 'RETURN' ? 'RETURN' : 'STAGE_ENTRY',
             hasReason: false,
           },
         }),

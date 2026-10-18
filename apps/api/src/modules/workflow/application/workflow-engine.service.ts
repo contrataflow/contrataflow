@@ -27,6 +27,7 @@ import {
   activePassOf,
   availableActions,
   checklistOf,
+  evaluateReturn,
   evaluateStage,
   evaluateTransition,
 } from '../domain/workflow-engine.js';
@@ -34,6 +35,7 @@ import type {
   EngineInput,
   EngineProcess,
   EngineViewer,
+  ReturnEvaluation,
   StageEvaluation,
   TransitionEvaluation,
 } from '../domain/workflow-engine.js';
@@ -138,6 +140,25 @@ export class WorkflowEngineService {
       const startedAt = performance.now();
       const { input, evaluation } = await this.evaluate(tx, state);
       const result = evaluateTransition(input, request, evaluation);
+      recordEngine('transition', performance.now() - startedAt);
+      return result;
+    });
+  }
+
+  /**
+   * `evaluateReturn` (US-048 · RN-TRAM-24): o destino da devolução sobre o MESMO cálculo das
+   * entradas `RETURN` de PRC-08. `null` = etapa não percorrida ou sem `RETURN` configurada na etapa
+   * atual. O `state` deve ter sido lido DEPOIS do bloqueio do processo.
+   */
+  evaluateReturn(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    request: { readonly targetStageId: string },
+  ): Promise<ReturnEvaluation | null> {
+    return withSpan('workflow.evaluate_return', this.spanAttributes(state), async () => {
+      const startedAt = performance.now();
+      const { input, evaluation } = await this.evaluate(tx, state);
+      const result = evaluateReturn(input, request, evaluation);
       recordEngine('transition', performance.now() - startedAt);
       return result;
     });

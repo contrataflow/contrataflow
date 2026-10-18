@@ -456,42 +456,98 @@ function advanceEntries(
   return entries;
 }
 
+/** Destino de devolução: a transição `RETURN`, a etapa e a última passagem encerrada por ela. */
+export interface ReturnTarget {
+  readonly transition: WorkflowSnapshotTransition;
+  readonly toStage: WorkflowSnapshotStage;
+  /** Passagem `COMPLETED`/`RETURNED` mais recente pela etapa de destino. */
+  readonly lastPass: StagePassFact;
+}
+
+/** O destino escolhido pela devolução, com a etapa atual de onde parte (US-048). */
+export interface ReturnEvaluation extends ReturnTarget {
+  readonly fromStage: WorkflowSnapshotStage;
+}
+
 /**
- * RN-WF-23: uma `RETURN` por etapa DISTINTA já percorrida (passagem `COMPLETED`/`RETURNED`) entre
- * os destinos de devolução configurados na etapa atual (FA-02: primeira etapa = nenhuma).
+ * RN-WF-23 · RN-TRAM-24 (US-048): as `RETURN` da etapa atual cujo destino já foi percorrido
+ * (passagem `COMPLETED`/`RETURNED`), uma por etapa DISTINTA, na ordem de exibição (FA-02 da
+ * US-041: primeira etapa = nenhuma).
  */
+function returnTargets(input: EngineInput, evaluation: StageEvaluation): ReturnTarget[] {
+  const { definition, facts } = input;
+  const { stage } = evaluation;
+  if (stage === null) return [];
+  const lastPasses = new Map<string, StagePassFact>();
+  for (const pass of facts.passes) {
+    if (pass.status !== 'COMPLETED' && pass.status !== 'RETURNED') continue;
+    const known = lastPasses.get(pass.workflowStageId);
+    if (known === undefined || pass.sequence > known.sequence) {
+      lastPasses.set(pass.workflowStageId, pass);
+    }
+  }
+  const targets: ReturnTarget[] = [];
+  const returns = definition.transitions
+    .filter((transition) => transition.fromStageId === stage.id && transition.action === 'RETURN')
+    .sort(byDisplay);
+  for (const transition of returns) {
+    const lastPass = lastPasses.get(transition.toStageId);
+    const toStage = definition.stages.find((candidate) => candidate.id === transition.toStageId);
+    if (lastPass === undefined || toStage === undefined) continue;
+    if (targets.some((target) => target.toStage.id === toStage.id)) continue;
+    targets.push({ transition, toStage, lastPass });
+  }
+  return targets;
+}
+
+/** RN-TRAM-23 (US-048): devolver só em `IN_PROGRESS` (em aprovação, pela decisão — US-052/053). */
+function returnReasons(process: EngineProcess, viewer: EngineViewer): ActionReason[] {
+  const reasons: ActionReason[] = [];
+  if (process.status !== 'IN_PROGRESS') reasons.push(statusReason(process.status));
+  if (!isCustodian(process, viewer)) {
+    reasons.push({ code: 'NOT_PROCESS_CUSTODIAN', message: notCustodianMessage('RETURN') });
+  }
+  return reasons;
+}
+
+/** Uma `RETURN` por destino de devolução, com a etapa e a data da última passagem (SCR-104). */
 function returnEntries(
   input: EngineInput,
   viewer: EngineViewer,
   evaluation: StageEvaluation,
 ): ActionEntry[] {
-  const { definition, process, facts } = input;
-  const { stage } = evaluation;
-  if (stage === null || !viewer.permissions.has('PROCESS_RETURN')) return [];
-  const traversed = new Set(
-    facts.passes
-      .filter((pass) => pass.status === 'COMPLETED' || pass.status === 'RETURNED')
-      .map((pass) => pass.workflowStageId),
+  if (!viewer.permissions.has('PROCESS_RETURN')) return [];
+  return returnTargets(input, evaluation).map(({ transition, toStage, lastPass }) =>
+    entry('RETURN', transition.name, returnReasons(input.process, viewer), {
+      transitionId: transition.id,
+      transitionKey: transition.key,
+      toStageKey: transition.toStageKey,
+      toStageId: toStage.id,
+      toStageName: toStage.name,
+      toStageType: toStage.type,
+      lastPassedAt: lastPass.exitedAt ?? lastPass.enteredAt,
+      requiresComment: transition.requiresComment,
+      allowDueDateOverride: transition.allowDueDateOverride,
+    }),
   );
-  const seen = new Set<string>();
-  const entries: ActionEntry[] = [];
-  const returns = definition.transitions
-    .filter((transition) => transition.fromStageId === stage.id && transition.action === 'RETURN')
-    .sort(byDisplay);
-  for (const transition of returns) {
-    if (!traversed.has(transition.toStageId) || seen.has(transition.toStageId)) continue;
-    seen.add(transition.toStageId);
-    entries.push(
-      entry('RETURN', transition.name, custodyReasons(process, viewer, 'RETURN'), {
-        transitionId: transition.id,
-        transitionKey: transition.key,
-        toStageKey: transition.toStageKey,
-        requiresComment: transition.requiresComment,
-        allowDueDateOverride: transition.allowDueDateOverride,
-      }),
-    );
-  }
-  return entries;
+}
+
+/**
+ * RN-TRAM-24 (US-048): o destino `targetStageId` da devolução — etapa já percorrida e configurada
+ * numa `RETURN` da etapa atual — com a transição e a última passagem. `null` = indisponível
+ * (inexistente na versão, de outro processo/tenant, não percorrida ou sem `RETURN` configurada).
+ */
+export function evaluateReturn(
+  input: EngineInput,
+  request: { readonly targetStageId: string },
+  evaluation: StageEvaluation = evaluateStage(input),
+): ReturnEvaluation | null {
+  const { stage } = evaluation;
+  if (stage === null) return null;
+  const target = returnTargets(input, evaluation).find(
+    (candidate) => candidate.toStage.id === request.targetStageId,
+  );
+  return target === undefined ? null : { ...target, fromStage: stage };
 }
 
 /** CLAIM (POL-04): lotado na unidade atual, processo na fila, status com custódia. */

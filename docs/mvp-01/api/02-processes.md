@@ -276,7 +276,8 @@ ActionEntry {
 
   // Prévia de transição (obrigatória nesta especificação) — apenas em entradas action="FORWARD" (US-047):
   transitionId?: string;                          // em FORWARD/COMPLETE/RETURN — o `transitionId` do POST /forward (PRC-19)
-  toStageName?: string; toStageType?: StageType;  // etapa destino ("Para onde" e resumo do SCR-103)
+  toStageName?: string; toStageType?: StageType;  // etapa destino ("Para onde" e resumo do SCR-103; destino da devolução no SCR-104)
+  toStageId?: string; lastPassedAt?: string;      // só em RETURN (US-048): o `targetStageId` do PRC-20 e a saída da última passagem pela etapa
   departmentResolution?: { mode: DepartmentResolution; departmentId?: string; departmentName?: string };
   requiresComment?: boolean;
   allowDueDateOverride?: boolean;

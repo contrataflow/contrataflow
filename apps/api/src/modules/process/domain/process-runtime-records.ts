@@ -70,13 +70,14 @@ export interface ProcessAssignmentRecord {
 }
 
 /**
- * Responsabilidade automática da entrada na etapa (`STAGE_ENTRY`): sem autor, salvo na atribuição
- * direta do encaminhamento (`assignedById` = ator — RN-TRAM-14).
+ * Responsabilidade automática da entrada na etapa (`STAGE_ENTRY`; `RETURN` na devolução — US-048):
+ * sem autor, salvo na atribuição direta do encaminhamento (`assignedById` = ator — RN-TRAM-14).
  */
 export function stageEntryAssignment(
   id: string,
   stage: ProcessStageRecord,
   assignedById: string | null = null,
+  type: Extract<ProcessAssignmentRecord['type'], 'STAGE_ENTRY' | 'RETURN'> = 'STAGE_ENTRY',
 ): ProcessAssignmentRecord {
   return {
     id,
@@ -85,7 +86,7 @@ export function stageEntryAssignment(
     processStageId: stage.id,
     departmentId: stage.departmentId,
     assigneeId: stage.assigneeId,
-    type: 'STAGE_ENTRY',
+    type,
     assignedById: stage.assigneeId === null ? null : assignedById,
     startedAt: stage.enteredAt,
   };

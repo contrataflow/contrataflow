@@ -31,6 +31,7 @@ import {
   matchesCriteria,
 } from '../domain/process-list.js';
 import type { ProcessListFacts } from '../domain/process-list.js';
+import type { PreviousAssignment } from '../domain/process-return.js';
 import type {
   AccessGrant,
   ProcessAssignmentRecord,
@@ -230,6 +231,32 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.assignments.push(plan.assignment);
     this.movements.push(plan.movement);
     return Promise.resolve(true);
+  }
+
+  previousAssignments(
+    _tx: TenantTx,
+    processId: string,
+    workflowStageId: string,
+  ): Promise<PreviousAssignment[]> {
+    const stageIds = new Set(
+      [...this.stages.values()]
+        .filter(
+          (stage) =>
+            stage.processId === processId &&
+            stage.workflowStageId === workflowStageId &&
+            stage.status !== 'ACTIVE' &&
+            stage.tenantId === tenantOfContext(),
+        )
+        .map((stage) => stage.id),
+    );
+    return Promise.resolve(
+      this.assignments
+        .filter((assignment) => stageIds.has(assignment.processStageId))
+        .map((assignment) => ({
+          assigneeId: assignment.assigneeId,
+          startedAt: assignment.startedAt,
+        })),
+    );
   }
 
   async retireCurrentAccess(
@@ -606,6 +633,12 @@ export class InMemoryProcessRepository implements ProcessRepository {
   /** Carga de teste: atraso, pausa e etiquetas que as stories donas ainda vão gravar. */
   setListExtras(processId: string, extras: Partial<ProcessListExtras>): void {
     this.extras.set(processId, { ...(this.extras.get(processId) ?? NO_EXTRAS), ...extras });
+  }
+
+  /** Carga de teste: responsabilidade de uma passagem (histórico de `PREVIOUS_ASSIGNEE` — US-048). */
+  seedAssignment(assignment: ProcessAssignmentRecord, endedAt: Date | null = null): void {
+    this.assignments.push(assignment);
+    if (endedAt !== null) this.endedAssignments.set(assignment.id, endedAt);
   }
 
   /** Carga de teste: uma passagem do processo (a ativa com o SLA da etapa, ou já encerrada). */

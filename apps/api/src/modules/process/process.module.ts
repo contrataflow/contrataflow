@@ -82,6 +82,7 @@ import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
 import { ProcessPresenter } from './application/process.presenter.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
+import { ReturnProcessCommand } from './application/return-process.command.js';
 import { RuleTestProcessReader } from './application/rule-test-process.source.js';
 import {
   CreateSavedViewCommand,
@@ -91,6 +92,7 @@ import {
   UpdateSavedViewCommand,
 } from './application/saved-views.commands.js';
 import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
+import { StageTransitionSupport } from './application/stage-transition-support.js';
 import { StageTransitionService } from './application/stage-transition.service.js';
 import {
   CreateTagCommand,
@@ -161,6 +163,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * valores iniciais do DFD (`ProcessFacade.dfdDefaultsIn`).
  * US-047: encaminhamento (PRC-19 — `ForwardProcessCommand`) sobre o `StageTransitionService`
  * (mudança de etapa reutilizada por devolução, decisão e conclusão) e as prévias de PRC-08.
+ * US-048: devolução (PRC-20 — `ReturnProcessCommand`) sobre o mesmo serviço, com o responsável
+ * resolvido por `PREVIOUS_ASSIGNEE`.
  */
 @Module({
   imports: [
@@ -206,7 +210,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     UpdateProcessCommand,
     SetProcessConfidentialityCommand,
     StageTransitionService,
+    StageTransitionSupport,
     ForwardProcessCommand,
+    ReturnProcessCommand,
     ForwardPreviews,
     CheckDuplicateProcessesQuery,
     GetProcessQuery,

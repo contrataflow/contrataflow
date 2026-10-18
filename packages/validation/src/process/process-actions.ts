@@ -104,6 +104,10 @@ export const actionEntrySchema = z
     /** Nome e tipo da etapa destino ("Para onde" e o resumo do SCR-103 — US-047). */
     toStageName: z.string().optional(),
     toStageType: z.enum(STAGE_TYPES).optional(),
+    /** `WorkflowStage` de destino da `RETURN` (o `targetStageId` do PRC-20 — US-048). */
+    toStageId: z.uuid().optional(),
+    /** Saída da última passagem pela etapa de destino da `RETURN` (SCR-104 — US-048). */
+    lastPassedAt: z.iso.datetime({ offset: true }).optional(),
     approvalId: z.uuid().optional(),
     label: z.string(),
     enabled: z.boolean(),

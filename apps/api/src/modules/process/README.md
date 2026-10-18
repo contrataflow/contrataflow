@@ -231,6 +231,36 @@ ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade invá
   `test/support/process-forward-fixtures.ts`) e `test/tenant-leak/process-forward.spec.ts`
   (PostgreSQL: falha induzida, 20 simultâneos, RLS, eventos `PENDING`).
 
+## Devolução (US-048)
+
+- **Rota:** PRC-20 `POST /processes/{id}/return` (`ProcessController`, `@Idempotent`,
+  `@RequireIfMatch` → 428; `PROCESS_RETURN` em algum escopo no guard). Corpo `returnProcessSchema`
+  (`targetStageId` = `WorkflowStage`, `comment` 10–5.000, `dueAt?`, `expectedStageId?`) e resposta
+  `returnedProcessSchema` (processo + `movement`, `statusFrom`) em
+  `packages/validation/src/process/process-return.ts`.
+- **Caso de uso:** `ReturnProcessCommand` — `lockForUpdate` → visibilidade (404) → `expectedStageId`
+  (se enviado; 409 `STAGE_CHANGED`) ANTES do `If-Match` (412) → `PROCESS_RETURN` cobrindo o processo,
+  status `IN_PROGRESS` (409 — em `AWAITING_APPROVAL` a devolução é a decisão US-052/retirada US-053)
+  e custódia (403 `NOT_PROCESS_CUSTODIAN` auditado) → `WorkflowFacade.evaluateReturn` (etapa já
+  percorrida E com `RETURN` configurada na etapa atual; senão 422 `TRANSITION_NOT_AVAILABLE`, sem
+  revelar etapa de outro tenant) → unidade (`departmentResolution`; `CHOSEN_ON_FORWARD` reaproveita
+  a da última passagem) → responsável `PREVIOUS_ASSIGNEE` (`ProcessRepository.previousAssignments`:
+  responsabilidade mais recente com pessoa entre as passagens encerradas pela etapa; inelegível ou
+  nenhum = fila + `warn return.previous_assignee_not_found`) → prazo (SLA pelo calendário;
+  `dueAt` só com `allowDueDateOverride`, senão 422 `DUE_DATE_OVERRIDE_NOT_ALLOWED`) →
+  `StageTransitionService` (`action/closeAs/statusTo` RETURN/RETURNED/RETURNED,
+  `assignmentType: 'RETURN'`, `documents: []`) → `process.return`. Regras puras em
+  `domain/process-return.ts`. Nenhum documento muda de status (POL-11).
+- **PRC-08:** cada entrada `RETURN` traz `toStageId`, `toStageName`, `toStageType` e `lastPassedAt`
+  (saída da última passagem) para o SCR-104; habilitada só em `IN_PROGRESS` com custódia.
+- **Projeções e avisos:** os mesmos do encaminhamento (`PROCESS_RETURNED` na timeline, `ProcessAccess`
+  pelo `process.stage_changed.return`); no worker, `PROCESS_RETURNED` e `PROCESS_ASSIGNED`
+  (`assignmentType = RETURN`).
+- **Testes:** `domain/process-return.spec.ts`, `workflow/domain/workflow-engine-return.spec.ts`,
+  `presentation/process-return.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/process-return.spec.ts` (PostgreSQL: falha induzida, 10 simultâneos, eventos
+  `PENDING`, destino de outro tenant).
+
 ### Mudança de etapa reutilizável (`StageTransitionService`)
 
 Base de toda tramitação (encaminhar — US-047; devolver — US-048; decidir — US-052; concluir —

@@ -60,6 +60,8 @@ export interface StageTransitionInput {
   readonly toUserId: string | null;
   /** Quem atribuiu diretamente (atribuição no encaminhamento — RN-TRAM-14). */
   readonly assignedById: string | null;
+  /** `ProcessAssignment.type` da nova passagem (padrão `STAGE_ENTRY`; `RETURN` na devolução). */
+  readonly assignmentType?: 'STAGE_ENTRY' | 'RETURN';
   readonly slaDays: number | null;
   readonly slaType: DayCountType;
   readonly dueAt: Date | null;
@@ -181,7 +183,12 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
       exitedViaMovementId: movement.id,
     },
     entered,
-    assignment: stageEntryAssignment(ids.assignment, stage, input.assignedById),
+    assignment: stageEntryAssignment(
+      ids.assignment,
+      stage,
+      input.assignedById,
+      input.assignmentType ?? 'STAGE_ENTRY',
+    ),
     movement,
   };
 }

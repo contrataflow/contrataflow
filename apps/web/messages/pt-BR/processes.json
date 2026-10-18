@@ -543,5 +543,47 @@
       "keep": "Continuar editando",
       "confirm": "Descartar"
     }
+  },
+  "return": {
+    "title": "Devolver processo",
+    "description": "Devolva o processo para uma etapa já percorrida, para que seja corrigido ou complementado.",
+    "close": "Fechar",
+    "loading": "Carregando as etapas para devolução…",
+    "loadFailed": "Não foi possível carregar as etapas para devolução.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhuma etapa anterior disponível para devolução.",
+    "cancel": "Cancelar",
+    "submit": "Devolver",
+    "submitting": "Devolvendo…",
+    "returned": "Processo devolvido para {stage}",
+    "target": {
+      "legend": "Etapa de destino",
+      "lastPassed": "Última passagem em {date}"
+    },
+    "comment": {
+      "label": "Motivo da devolução",
+      "hint": "Obrigatório, de 10 a 5.000 caracteres.",
+      "counter": "{count, number} / {max, number}"
+    },
+    "due": {
+      "label": "Prazo (opcional)",
+      "hint": "Sem alteração, vale o prazo calculado pela etapa."
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "targetNotAvailable": "Esta etapa não está disponível como destino da devolução.",
+      "dueNotAllowed": "O prazo desta devolução não pode ser alterado.",
+      "status": "Este processo não pode ser devolvido no status atual.",
+      "custody": "Você não está com este processo.",
+      "notFound": "Processo não encontrado.",
+      "stageChanged": "Este processo foi tramitado por outra pessoa. Atualize a página.",
+      "versionConflict": "Os dados do processo mudaram. Atualize a página.",
+      "precondition": "Não foi possível confirmar a versão atual. Recarregue a página.",
+      "reload": "Atualizar",
+      "unavailable": "Não foi possível devolver o processo agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
   }
 }

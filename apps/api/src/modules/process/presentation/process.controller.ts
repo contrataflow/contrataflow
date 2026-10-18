@@ -14,6 +14,8 @@ import {
   processStageEntrySchema,
   processSummarySchema,
   PROCESS_CONFIDENTIALITY_MESSAGES,
+  returnedProcessSchema,
+  returnProcessSchema,
   setProcessConfidentialitySchema,
   updateProcessSchema,
 } from '@contrataflow/validation';
@@ -30,6 +32,8 @@ import type {
   ProcessListQuery,
   ProcessStageEntryDto,
   ProcessSummaryDto,
+  ReturnedProcessDto,
+  ReturnProcess,
   SetProcessConfidentiality,
   UpdateProcess,
 } from '@contrataflow/validation';
@@ -56,6 +60,7 @@ import {
   ListProcessStagesQuery,
 } from '../application/process-panel.queries.js';
 import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
+import { ReturnProcessCommand } from '../application/return-process.command.js';
 import { SetProcessConfidentialityCommand } from '../application/set-process-confidentiality.command.js';
 import { UpdateProcessCommand } from '../application/update-process.command.js';
 
@@ -102,6 +107,7 @@ export class ProcessController {
     private readonly duplicate: DuplicateProcessCommand,
     private readonly confidentiality: SetProcessConfidentialityCommand,
     private readonly forward: ForwardProcessCommand,
+    private readonly returns: ReturnProcessCommand,
   ) {}
 
   @Get()
@@ -311,6 +317,45 @@ export class ProcessController {
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<ForwardedProcessDto> {
     const result = await this.forward.execute({
+      processId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/return')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_RETURN', {
+    detail: 'Você não tem permissão para devolver processos.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-20',
+    summary: 'Devolver processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.return'],
+    responses: {
+      200: {
+        description:
+          'Processo devolvido (`status = RETURNED`, `ETag` = nova versão) para a etapa já percorrida `targetStageId`, com a tramitação `RETURN` (`movement`). Uma transação: trava do processo, `expectedStageId` (se enviado) diferente da etapa atual = 409 `STAGE_CHANGED` (antes do `If-Match`: 412 `VERSION_CONFLICT`), `PROCESS_RETURN` cobrindo o processo + custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`), status `IN_PROGRESS` (409 `INVALID_PROCESS_STATUS`), destino percorrido e configurado na transição `RETURN` da etapa atual (422 `TRANSITION_NOT_AVAILABLE`) e prazo informado só com `allowDueDateOverride` (422 `DUE_DATE_OVERRIDE_NOT_ALLOWED`). Responsável de destino por `PREVIOUS_ASSIGNEE` (sem histórico = fila da unidade); nenhum documento muda de status.',
+        schema: dataEnvelope(returnedProcessSchema),
+      },
+    },
+  })
+  async returnProcess(
+    @ProcessId() id: string,
+    @ZodBody(returnProcessSchema) body: ReturnProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ReturnedProcessDto> {
+    const result = await this.returns.execute({
       processId: id,
       body,
       expectedVersion: ifMatch?.value ?? 0,
