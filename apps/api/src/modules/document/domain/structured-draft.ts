@@ -1,6 +1,11 @@
 import { resolveTemplateVariables } from '@contrataflow/editor';
 import { richTextPlainText } from '@contrataflow/validation';
-import type { DraftContent, DraftSection, SectionDefinition } from '@contrataflow/validation';
+import type {
+  DraftContent,
+  DraftSection,
+  RichTextDocValue,
+  SectionDefinition,
+} from '@contrataflow/validation';
 
 import { draftContentCopy } from './document.js';
 
@@ -70,6 +75,32 @@ export function draftContentFromSource(
   const sections: Record<string, DraftSection> = {};
   for (const [key, section] of Object.entries(initial.sections)) {
     sections[key] = copied[key] ?? section;
+  }
+  return { sections };
+}
+
+/**
+ * Seções do rascunho inicial preenchidas pelo módulo dono na criação (US-019 · RN-ETP-05 — a
+ * importação do DFD): cada chave presente no rascunho recebe o conteúdo e nasce `FILLED` (ou
+ * `EMPTY`, se o conteúdo não tiver texto útil — RN-DFD-31); chave que o template não tem é ignorada.
+ */
+export function withSectionContents(
+  initial: DraftContent,
+  contents: Readonly<Record<string, RichTextDocValue>>,
+  stamp: { readonly actorId: string; readonly now: Date },
+): DraftContent {
+  const sections: Record<string, DraftSection> = { ...initial.sections };
+  for (const [key, content] of Object.entries(contents)) {
+    const current = sections[key];
+    if (current === undefined) continue;
+    const filled = richTextPlainText(content).trim() !== '';
+    sections[key] = {
+      ...current,
+      state: filled ? 'FILLED' : 'EMPTY',
+      content: filled ? content : null,
+      updatedAt: stamp.now.toISOString(),
+      updatedById: stamp.actorId,
+    };
   }
   return { sections };
 }

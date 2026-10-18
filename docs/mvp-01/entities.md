@@ -1063,6 +1063,7 @@ Seções de template (chaves): `NEED_DESCRIPTION`, `PROBLEM`, `OBJECTIVE`, `PCA_
 | `importedFromDfdVersionId` | uuid | sim | — | FK → `document_versions` |
 
 - **Unique:** `(tenant_id, document_id)`.
+- **Check:** `id = document_id` (`etps_id_is_document` — como o DFD e a pesquisa de preços, o ETP usa o id do documento; decidido na US-019, 2026-10-18); `estimated_value_source IN ('MANUAL','PRICE_RESEARCH')`; `estimated_total_value >= 0`. `recommendedAlternativeId` ganha a FK quando `etp_alternatives` for criada (US-021). `tenant_id`/`process_id`/`document_id` imutáveis (gatilho).
 
 #### EtpAlternative (`etp_alternatives`) — módulo `etp` · Padrão + SD
 | Campo | Tipo | Null | Default | Regras |

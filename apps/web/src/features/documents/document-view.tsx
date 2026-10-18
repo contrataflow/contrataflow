@@ -4,7 +4,7 @@ import { Alert, Skeleton } from '@contrataflow/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { ErrorView } from '@/components/errors/error-view';
 import { AiAssistant, isAiTarget } from '@/features/ai/ai-assistant';
@@ -26,6 +26,8 @@ export interface DocumentViewProps {
   readonly documentId: string;
   /** `?ia=<generationId>`: abre o assistente de IA na geração (SCR-117). */
   readonly aiGenerationId?: string | null | undefined;
+  /** Foco no título assim que o documento carrega (US-019: chegada à SCR-008 após criar o ETP). */
+  readonly focusTitleOnLoad?: boolean | undefined;
 }
 
 /**
@@ -34,7 +36,12 @@ export interface DocumentViewProps {
  * arquivo com versões e prévia (US-064). O editor de seções é da US-063. Estados: skeleton na primeira carga e erro com `correlationId` e "Tentar
  * novamente"; 404 mostra a mensagem única (não distingue inexistente de sem acesso).
  */
-export function DocumentView({ processId, documentId, aiGenerationId = null }: DocumentViewProps) {
+export function DocumentView({
+  processId,
+  documentId,
+  aiGenerationId = null,
+  focusTitleOnLoad = false,
+}: DocumentViewProps) {
   const t = useTranslations('documents.view');
   const tErrors = useTranslations('errors');
   const tenantId = useTenantId();
@@ -50,6 +57,10 @@ export function DocumentView({ processId, documentId, aiGenerationId = null }: D
     // O erro fica na tela ("Tentar novamente"); não derruba o segmento.
     throwOnError: false,
   });
+  const loaded = query.data !== undefined;
+  useEffect(() => {
+    if (focusTitleOnLoad && loaded) heading.current?.focus();
+  }, [focusTitleOnLoad, loaded]);
 
   if (!query.data) {
     if (query.isPending) {

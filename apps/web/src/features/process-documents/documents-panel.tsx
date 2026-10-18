@@ -40,6 +40,7 @@ import { useActiveDocumentTypes, useProcessDocuments } from './process-documents
 import { ElaborateDfdOutcome, useElaborateDfd } from '../dfd/elaborate-dfd';
 import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
+import { CreateEtpDialog } from '../etp/create-etp-dialog';
 import { CreatePriceResearchDialog } from '../price-research/create-price-research-dialog';
 import { useIsDesktop } from '../workflows/use-is-desktop';
 
@@ -404,9 +405,11 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
 
   const [creating, setCreating] = useState<PanelType | null>(null);
   const [creatingPriceResearch, setCreatingPriceResearch] = useState(false);
+  const [creatingEtp, setCreatingEtp] = useState(false);
 
   // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo"), o DFD-02 da
-  // US-014 (DFD → SCR-007) e o diálogo da pesquisa de preços (US-024 → SCR-009); o da US-063 (FREE_TEXT) e os demais módulos tipados ainda não chegaram.
+  // US-014 (DFD → SCR-007), o diálogo do ETP (US-019 → SCR-008) e o da pesquisa de preços (US-024 →
+  // SCR-009); o da US-063 (FREE_TEXT) e os demais módulos tipados ainda não chegaram.
   const elaborate = useElaborateDfd(processId);
   const onCreate = (type: PanelType) => {
     if (type.kind === 'UPLOADED') {
@@ -415,6 +418,11 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
     }
     if (type.systemModule === 'DFD') {
       elaborate.elaborate();
+      return;
+    }
+    // ETP-02 (US-019): o diálogo "Criar ETP" com o cartão de importação do DFD.
+    if (type.systemModule === 'ETP') {
+      setCreatingEtp(true);
       return;
     }
     // PRS-02 (US-024): o diálogo de criação da pesquisa de preços.
@@ -455,6 +463,7 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
         <CreateDocumentMenu types={menu} onCreate={onCreate} prominent={empty} />
       </div>
       <ElaborateDfdOutcome processId={processId} outcome={elaborate.outcome} />
+      <CreateEtpDialog processId={processId} open={creatingEtp} onOpenChange={setCreatingEtp} />
       <CreatePriceResearchDialog
         processId={processId}
         open={creatingPriceResearch}

@@ -10,6 +10,7 @@ import dfd from '../../messages/pt-BR/dfd.json';
 import documents from '../../messages/pt-BR/documents.json';
 import documentTypes from '../../messages/pt-BR/documentTypes.json';
 import errors from '../../messages/pt-BR/errors.json';
+import etp from '../../messages/pt-BR/etp.json';
 import example from '../../messages/pt-BR/example.json';
 import implementationAssistant from '../../messages/pt-BR/implementationAssistant.json';
 import notificationPreferences from '../../messages/pt-BR/notificationPreferences.json';
@@ -54,6 +55,7 @@ export const messages = {
   documents,
   documentTypes,
   errors,
+  etp,
   example,
   implementationAssistant,
   notificationPreferences,

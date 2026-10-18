@@ -2342,6 +2342,52 @@ model Dfd {
   @@map("dfds")
 }
 
+/// entities.md §2 — `EtpConclusion`.
+enum EtpConclusion {
+  PENDING
+  VIABLE
+  NOT_VIABLE
+
+  @@map("etp_conclusion")
+}
+
+/// entities.md §2 — `ParcelingDecision`.
+enum ParcelingDecision {
+  PARCELED
+  NOT_PARCELED
+  NOT_APPLICABLE
+
+  @@map("parceling_decision")
+}
+
+/// entities.md §4.8 `Etp` (módulo etp · US-019): cabeçalho tipado 1:1 do `Document` do tipo ETP
+/// (Lei 14.133/2021, art. 18, §1º). `id = documentId` (CHECK `etps_id_is_document`). Checks, FKs
+/// compostas (documento, processo, versão do DFD de origem, pesquisa de preços) e o gatilho de
+/// colunas imutáveis na migração. `recommendedAlternativeId` ganha FK com `etp_alternatives` (US-021).
+model Etp {
+  id                       String                @id @db.Uuid
+  tenantId                 String                @map("tenant_id") @db.Uuid
+  processId                String                @map("process_id") @db.Uuid
+  documentId               String                @map("document_id") @db.Uuid
+  recommendedAlternativeId String?               @map("recommended_alternative_id") @db.Uuid
+  parcelingDecision        ParcelingDecision?    @map("parceling_decision")
+  conclusion               EtpConclusion         @default(PENDING)
+  estimatedTotalValue      Decimal?              @map("estimated_total_value") @db.Decimal(18, 2)
+  estimatedValueSource     EstimatedValueSource? @map("estimated_value_source")
+  priceResearchId          String?               @map("price_research_id") @db.Uuid
+  importedFromDfdVersionId String?               @map("imported_from_dfd_version_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById              String?               @map("created_by_id") @db.Uuid
+  updatedById              String?               @map("updated_by_id") @db.Uuid
+  version                  Int                   @default(1)
+
+  @@unique([tenantId, id], map: "etps_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "etps_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "etps_process_idx")
+  @@map("etps")
+}
+
 /// entities.md §2 — `PriceDefaultMethod` (DEC-020: `AUTO_CV` = mediana se CV > limite, senão média).
 enum PriceDefaultMethod {
   AUTO_CV

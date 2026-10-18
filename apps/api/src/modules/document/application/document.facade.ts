@@ -1,7 +1,8 @@
-import { richTextPlainText } from '@contrataflow/validation';
+import { ETP_IMPORTABLE_DFD_STATUSES, richTextPlainText } from '@contrataflow/validation';
 import type {
   Confidentiality,
   DocumentAction,
+  DocumentSnapshot,
   DocumentStatus,
   SystemDocumentModule,
 } from '@contrataflow/validation';
@@ -126,6 +127,20 @@ export interface DocumentState {
   readonly version: number;
   readonly currentVersionNumber: number | null;
   readonly approvedAt: Date | null;
+}
+
+/**
+ * DFD do processo elegível para a importação do ETP (US-019 · RN-ETP-04): não cancelado nem
+ * excluído, em `FINALIZED`/`APPROVED`, com o snapshot da versão de origem (`approvedVersionId`,
+ * senão `currentVersionId`).
+ */
+export interface ImportableDfdSource {
+  readonly documentId: string;
+  readonly code: string | null;
+  readonly status: (typeof ETP_IMPORTABLE_DFD_STATUSES)[number];
+  readonly versionId: string;
+  readonly versionNumber: number;
+  readonly snapshot: DocumentSnapshot;
 }
 
 /** Documento como a tramitação o registra (US-047 · entities.md §5.6). */
@@ -343,6 +358,33 @@ export class DocumentFacade {
     if (changes.length === 0) return null;
     await this.lifecycle.save(tx, next, document.version);
     return { previous: document.title };
+  }
+
+  /**
+   * O DFD elegível para a importação do ETP (US-019 · RN-ETP-04), no `tx` do chamador — a MESMA
+   * regra para o cartão "Importar dados do DFD" (ETP-01) e para a criação (ETP-02). `null` sem DFD,
+   * com o DFD em `DRAFT`/`RETURNED`/`IN_REVIEW`/`CANCELED` ou sem versão. Sem checar visibilidade:
+   * quem chama já autorizou o processo.
+   */
+  async importableDfdIn(tx: TenantTx, processId: string): Promise<ImportableDfdSource | null> {
+    const type = (await this.types.list(tx)).find((candidate) => candidate.systemModule === 'DFD');
+    if (type === undefined) return null;
+    const document = await this.documents.findActiveOfType(tx, processId, type.id);
+    if (document === null) return null;
+    const status = ETP_IMPORTABLE_DFD_STATUSES.find((candidate) => candidate === document.status);
+    if (status === undefined) return null;
+    const versionId = document.approvedVersionId ?? document.currentVersionId;
+    if (versionId === null) return null;
+    const version = await this.documents.findVersion(tx, versionId);
+    if (version?.documentId !== document.id || version.content === null) return null;
+    return {
+      documentId: document.id,
+      code: document.code,
+      status,
+      versionId: version.id,
+      versionNumber: version.versionNumber,
+      snapshot: version.content,
+    };
   }
 
   /** Código, status e versão dos documentos não excluídos (inclusive cancelados) por id. */

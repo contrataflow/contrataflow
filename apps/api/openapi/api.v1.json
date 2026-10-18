@@ -7249,6 +7249,262 @@
           }
         }
       },
+      "EtpSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "conclusion": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "VIABLE",
+              "NOT_VIABLE"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "code",
+          "status",
+          "conclusion",
+          "version"
+        ]
+      },
+      "EtpListMeta": {
+        "type": "object",
+        "properties": {
+          "importableDfd": {
+            "$ref": "#/components/schemas/ImportableDfd"
+          }
+        },
+        "required": [
+          "importableDfd"
+        ]
+      },
+      "ImportableDfd": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "FINALIZED",
+              "APPROVED"
+            ]
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "objectSummary": {
+            "type": "string"
+          },
+          "itemsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pcaStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PLANNED",
+              "NOT_PLANNED",
+              "NOT_APPLICABLE",
+              null
+            ]
+          }
+        },
+        "required": [
+          "documentId",
+          "code",
+          "status",
+          "versionId",
+          "versionNumber",
+          "objectSummary",
+          "itemsCount",
+          "pcaStatus"
+        ]
+      },
+      "Etp": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "conclusion": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "VIABLE",
+              "NOT_VIABLE"
+            ]
+          },
+          "importedFromDfdVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "templateVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentVersion": {
+            "type": "integer"
+          },
+          "itemsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "processId",
+          "code",
+          "title",
+          "status",
+          "conclusion",
+          "importedFromDfdVersionId",
+          "responsibleId",
+          "templateVersionId",
+          "documentVersion",
+          "itemsCount",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "EtpMeta": {
+        "type": "object",
+        "properties": {
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "UPDATE",
+                "FINALIZE",
+                "SUBMIT",
+                "REOPEN",
+                "CANCEL",
+                "DELETE"
+              ]
+            }
+          }
+        },
+        "required": [
+          "allowedActions"
+        ]
+      },
+      "EtpCreateRequest": {
+        "type": "object",
+        "properties": {
+          "importFromDfd": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "ProcessParticipant": {
         "type": "object",
         "properties": {
@@ -34919,6 +35175,283 @@
                   },
                   "required": [
                     "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/etps": {
+      "get": {
+        "operationId": "ETP-01",
+        "summary": "Listar ETPs do processo",
+        "tags": [
+          "ETP"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Singular por processo: 0 ou 1 ETP ativo + os cancelados (histórico); excluídos logicamente ficam de fora. `meta.importableDfd` = o DFD não cancelado em `FINALIZED`/`APPROVED` com versão (objeto, nº de itens e situação no PCA do snapshot da versão aprovada, senão a atual) — o cartão \"Importar dados do DFD\" —, ou `null`. Processo inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EtpSummary"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/EtpListMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "ETP-02",
+        "summary": "Criar ETP (com importação opcional do DFD)",
+        "tags": [
+          "ETP"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EtpCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uma transação (RN-ETP-09): template publicado do tipo ETP com as 16 seções (`EMPTY`, ou `FILLED` com `defaultContent`), ETP ativo único (409 `DOCUMENT_ALREADY_EXISTS` com `meta.existingEtpId`), número `ETP 0001/2026`, `Document` em `DRAFT` sob responsabilidade do criador e o `Etp` com `conclusion = PENDING`. Com `importFromDfd: true`: exige DFD não cancelado em `FINALIZED`/`APPROVED` (senão 422 `VALIDATION_ERROR` com `NOT_ALLOWED` em `importFromDfd`); do snapshot da versão aprovada (senão a atual) copia objeto + justificativa para `NEED_DESCRIPTION` e a situação no PCA para `PCA_ALIGNMENT` (ambas `FILLED`), cria um item do ETP por item do DFD (mesmo `processItemId` e `quantity`) e grava `importedFromDfdVersionId`. Grava `document.create` (`changes`: `documentTypeCode`, `importedFromDfdVersionId`), `DocumentCreated` (`document.created.etp`) e a timeline `DOCUMENT_CREATED`. `Location: /api/v1/etps/{id}` e `ETag: \"1\"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Etp"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/EtpMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
                   ]
                 }
               }

@@ -2,10 +2,12 @@ import type {
   Confidentiality,
   DocumentAction,
   DraftContent,
+  RichTextDocValue,
   SystemDocumentModule,
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
+import type { AuditChange } from '#shared/audit/audit-trail.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import type { DocumentProcessContext } from '#shared/document/document-process-context.js';
 import { validationError } from '#shared/errors/api-error.js';
@@ -19,7 +21,11 @@ import type { TemplateRepository } from './template.ports.js';
 import type { DocumentTemplateVersion } from '../domain/document-template.js';
 import type { DocumentType } from '../domain/document-type.js';
 import type { Document } from '../domain/document.js';
-import { draftContentFromSource, initialDraftContent } from '../domain/structured-draft.js';
+import {
+  draftContentFromSource,
+  initialDraftContent,
+  withSectionContents,
+} from '../domain/structured-draft.js';
 
 /*
  * Padrão de documento tipado (US-014 · "Impacto técnico" · DEC-016/017/028): o módulo dono (DFD;
@@ -55,6 +61,19 @@ export interface CreateStructuredDocumentInput {
   readonly beforeCreate?: (process: DocumentProcessContext) => void | Promise<void>;
   /** Metadados do módulo dono acrescentados ao `document.create` (ex.: snapshot da pesquisa). */
   readonly auditMetadata?: Readonly<Record<string, unknown>>;
+  /** `changes` do `document.create` (US-019: `importedFromDfdVersionId`). */
+  readonly auditChanges?: readonly AuditChange[];
+  /**
+   * POL-02 da criação com participação (US-019 · RN-ETP-07): custódia OU participação
+   * `COLLABORATOR`/`CONSULTANT` cria (403 `PERMISSION_DENIED` sem nenhuma das duas). Ausente = só
+   * a custódia (POL-01 — DFD, pesquisa de preços).
+   */
+  readonly allowCollaborators?: boolean;
+  /**
+   * Conteúdo de seções do template preenchido na criação (US-019 · RN-ETP-05: importação do DFD),
+   * por chave; a seção nasce `FILLED`. Chave que o template não tem é ignorada.
+   */
+  readonly sectionContents?: Readonly<Record<string, RichTextDocValue>>;
   /**
    * Duplicação (US-018): documento de origem — vira `sourceDocumentId` (DEC-017) e o conteúdo das
    * suas seções é copiado para o rascunho do template (`draftContentFromSource`).
@@ -101,12 +120,17 @@ export class StructuredDocumentCreator {
     }
     const template = await this.publishedTemplate(tx, type, input);
     const custody = await this.lifecycle.custodyOf(process);
-    // POL-02 da criação com a custódia de POL-01: a participação edita, mas não cria (RN-DFD-02).
-    await this.lifecycle.authorizeCreateAsCustodian(
-      { type, process },
-      custody,
-      input.messages.notCustodian,
-    );
+    if (input.allowCollaborators === true) {
+      // RN-ETP-07: custódia ou participação COLLABORATOR/CONSULTANT.
+      await this.lifecycle.authorizeCreate({ type, process }, custody);
+    } else {
+      // POL-02 da criação com a custódia de POL-01: a participação edita, mas não cria (RN-DFD-02).
+      await this.lifecycle.authorizeCreateAsCustodian(
+        { type, process },
+        custody,
+        input.messages.notCustodian,
+      );
+    }
 
     await input.beforeCreate?.(process);
     const userId = custody.userId;
@@ -122,6 +146,10 @@ export class StructuredDocumentCreator {
         'organization.name': process.organizationName ?? '',
       },
     });
+    const seeded =
+      input.sectionContents === undefined
+        ? initial
+        : withSectionContents(initial, input.sectionContents, { actorId: userId, now });
     const document = await this.creation.create(tx, {
       processId: process.id,
       documentTypeId: type.id,
@@ -129,13 +157,14 @@ export class StructuredDocumentCreator {
       templateVersionId: template.id,
       draftContent:
         input.source === undefined
-          ? initial
-          : draftContentFromSource(initial, input.source.draftContent, { actorId: userId, now }),
+          ? seeded
+          : draftContentFromSource(seeded, input.source.draftContent, { actorId: userId, now }),
       ...(input.source === undefined ? {} : { sourceDocumentId: input.source.documentId }),
       responsibleId: userId,
       ...(confidentiality === undefined ? {} : { confidentiality }),
       idempotencyKey: input.idempotencyKey,
       ...(input.auditMetadata === undefined ? {} : { auditMetadata: input.auditMetadata }),
+      ...(input.auditChanges === undefined ? {} : { auditChanges: input.auditChanges }),
     });
     const created = { document, type, template, process };
     const actor = await this.lifecycle.actorOf(created);

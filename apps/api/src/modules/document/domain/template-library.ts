@@ -34,7 +34,7 @@ import { FULL_VALIDATION, validateTemplateContent } from './template-content.val
  */
 
 /** Versão do conteúdo semeado, gravada no `seedVersions` da auditoria `tenant.provision`. */
-export const TEMPLATE_LIBRARY_VERSION = '2026.10.2';
+export const TEMPLATE_LIBRARY_VERSION = '2026.10.3';
 
 /** Definição de um modelo padrão (forma de entrada, antes dos padrões do schema). */
 export interface TemplateLibraryEntry {
@@ -161,14 +161,15 @@ export const TEMPLATE_LIBRARY: readonly TemplateLibraryEntry[] = [
       {
         key: 'PROBLEM',
         title: 'Problema a ser resolvido',
-        requirement: 'REQUIRED_OR_JUSTIFY',
+        // RN-ETP-02 (US-019): PROBLEM e OBJECTIVE são opcionais.
+        requirement: 'OPTIONAL',
         helpText: 'Detalhe o problema ou a deficiência que motiva a contratação e seus impactos.',
         legalBasis: `${ETP_BASE}, I`,
       },
       {
         key: 'OBJECTIVE',
         title: 'Objetivo da contratação',
-        requirement: 'REQUIRED_OR_JUSTIFY',
+        requirement: 'OPTIONAL',
         helpText: 'Indique o que se pretende alcançar com a contratação.',
       },
       {

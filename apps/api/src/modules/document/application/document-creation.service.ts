@@ -3,7 +3,7 @@ import type { Confidentiality, DraftContent } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
-import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
+import type { AuditChange, AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { newId } from '#shared/database/ids.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -38,6 +38,8 @@ export interface CreateDocumentInput {
   readonly idempotencyKey?: string | null;
   /** Metadados do módulo tipado acrescentados ao `document.create` (US-024: snapshot e itens). */
   readonly auditMetadata?: Readonly<Record<string, unknown>>;
+  /** `changes` do `document.create` (US-019: `importedFromDfdVersionId`). */
+  readonly auditChanges?: readonly AuditChange[];
 }
 
 /**
@@ -114,6 +116,7 @@ export class DocumentCreationService {
       entityType: 'Document',
       entityId: document.id,
       processId: document.processId,
+      ...(input.auditChanges === undefined ? {} : { changes: input.auditChanges }),
       metadata: {
         documentTypeCode: type.code,
         templateVersionId: document.templateVersionId,

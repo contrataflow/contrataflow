@@ -205,6 +205,9 @@ const DOCUMENT_AUTOSAVE_ROUTE =
 const PRICE_RESEARCH_ROUTE =
   'Pesquisa de preços (US-024): a suíte genérica não tem processo, pesquisa nem item de processo do tenant B. O isolamento (PRS-01/02 com processo de B e PRS-03/04/05/06 com pesquisa de B → 404 NOT_FOUND, PRS-08 com item de B → 404 NOT_FOUND, sem alterar nada nem revelar o código; processItemId de outro processo/tenant no corpo do PRS-02/06 → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks, índice único e cascata de price_research/price_items) é coberto em test/tenant-leak/price-research.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/price-research.routes.spec.ts.';
 
+const ETP_ROUTE =
+  'ETP (US-019): a suíte genérica não tem processo, DFD nem ETP do tenant B. O isolamento (ETP-01/02 com processo de B → 404 NOT_FOUND sem criar nem ler nada; o DFD de origem só é lido no tenant do processo; RLS, FKs compostas — documento, processo, versão do DFD — e checks de etps) é coberto em test/tenant-leak/etps.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp.routes.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -379,6 +382,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DFD-03': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-04': { kind: 'exempt', reason: DOCUMENT_AUTOSAVE_ROUTE },
   'DFD-05': { kind: 'exempt', reason: DFD_DUPLICATE_ROUTE },
+  'ETP-01': { kind: 'exempt', reason: ETP_ROUTE },
+  'ETP-02': { kind: 'exempt', reason: ETP_ROUTE },
   'PRS-01': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-02': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-03': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },

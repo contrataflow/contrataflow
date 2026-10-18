@@ -1735,6 +1735,99 @@ const priceMeta = () => ({
   });
 }
 
+// ETP (US-019 · ETP-01/02 + DOC-01/DOC-03): dois processos dedicados, fora da lista (SCR-004) —
+// 0027/2026 com o DFD 0005/2026 finalizado (o cartão "Importar dados do DFD") e 0028/2026 que já tem
+// o ETP 0002/2026 (FA-03). A importação (seções, itens, PCA), a atomicidade, POL-02 e o isolamento
+// por tenant são cobertos nos testes da API; aqui valem a jornada e as telas.
+const ETP_TYPE_ID = documentTypes.find((type) => type.code === 'ETP').id;
+const ETP_FIXTURES = [
+  { n: 27, code: '0027/2026', title: 'Manutenção predial preventiva das escolas' },
+  { n: 28, code: '0028/2026', title: 'Reforma da quadra poliesportiva' },
+].map((fixture) => ({
+  ...fixture,
+  status: 'IN_PROGRESS',
+  priority: 'MEDIUM',
+  overdue: false,
+  unit: 0,
+}));
+
+function buildEtp(fixture, { id, code, imported }) {
+  const now = new Date().toISOString();
+  const processId = listProcessId(fixture.n);
+  return {
+    summary: { id, documentId: id, code, status: 'DRAFT', conclusion: 'PENDING', version: 1 },
+    dto: {
+      id,
+      documentId: id,
+      processId,
+      code,
+      title: `Estudo Técnico Preliminar — ${fixture.code}`,
+      status: 'DRAFT',
+      conclusion: 'PENDING',
+      importedFromDfdVersionId: imported ? '0192a000-0000-7000-8000-0000000e1906' : null,
+      responsibleId: '0192a000-0000-7000-8000-00000000a0a1',
+      templateVersionId: null,
+      documentVersion: 1,
+      itemsCount: imported ? 2 : 0,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    },
+    document: {
+      ...versionedDocument,
+      id,
+      processId,
+      documentType: {
+        id: ETP_TYPE_ID,
+        code: 'ETP',
+        name: 'Estudo Técnico Preliminar',
+        kind: 'STRUCTURED',
+        systemModule: 'ETP',
+        requiresApproval: false,
+      },
+      number: Number(code.slice(4, 8)),
+      code,
+      title: `Estudo Técnico Preliminar — ${fixture.code}`,
+      confidentiality: 'INTERNAL',
+      draftRevision: 1,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    },
+  };
+}
+
+/** processId → { fixture, importableDfd, etp (ou null), replays }. */
+const etpStates = new Map(
+  ETP_FIXTURES.map((fixture) => [
+    listProcessId(fixture.n),
+    {
+      fixture,
+      importableDfd:
+        fixture.n === 27
+          ? {
+              documentId: '0192a000-0000-7000-8000-0000000e1905',
+              code: 'DFD 0005/2026',
+              status: 'FINALIZED',
+              versionId: '0192a000-0000-7000-8000-0000000e1906',
+              versionNumber: 1,
+              objectSummary: 'Manutenção predial preventiva das escolas municipais',
+              itemsCount: 2,
+              pcaStatus: 'PLANNED',
+            }
+          : null,
+      etp: null,
+      replays: new Map(),
+    },
+  ]),
+);
+etpStates.get(listProcessId(28)).etp = buildEtp(ETP_FIXTURES[1], {
+  id: '0192a000-0000-7000-8000-0000000e1928',
+  code: 'ETP 0002/2026',
+  imported: false,
+});
+const etpOf = (etpId) => [...etpStates.values()].find((state) => state.etp?.dto.id === etpId)?.etp;
+
 const priceResearchOf = (researchId) =>
   [...priceStates.values()].find((state) => state.research?.header.id === researchId)?.research;
 
@@ -3885,6 +3978,80 @@ createServer(async (request, response) => {
     found.version += 1;
     return send(response, 200, { data: tagDto(found) }, { ETag: `"${found.version}"` });
   }
+  // ETP (US-019): documentos do processo (DOC-01), ETP-01/02 e o documento do ETP (DOC-03).
+  const etpProcessRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(documents|etps)$/.exec(
+    url.pathname,
+  );
+  const etpState = etpProcessRoute ? etpStates.get(etpProcessRoute[1]) : undefined;
+  if (etpProcessRoute && etpState) {
+    const resource = etpProcessRoute[2];
+    if (resource === 'documents' && request.method === 'GET') {
+      return send(response, 200, {
+        data: [],
+        meta: {
+          currentStage: {
+            key: 'ESTUDOS_PRELIMINARES',
+            name: 'ETP e mapa de riscos',
+            documentTypeCodes: ['ETP', 'RISK_MAP'],
+          },
+          creatableTypeIds: etpState.etp === null ? [ETP_TYPE_ID] : [],
+          pendingTypeIds: [],
+        },
+      });
+    }
+    if (resource === 'etps' && request.method === 'GET') {
+      return send(response, 200, {
+        data: etpState.etp === null ? [] : [etpState.etp.summary],
+        meta: { importableDfd: etpState.etp === null ? etpState.importableDfd : null },
+      });
+    }
+    if (resource === 'etps' && request.method === 'POST') {
+      // ETP-02: idempotente por chave; 409 com `existingEtpId`; 422 `NOT_ALLOWED` sem DFD elegível.
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const key = String(request.headers['idempotency-key'] ?? '');
+      const replay = key ? etpState.replays.get(key) : undefined;
+      if (replay) {
+        return send(response, 201, replay, { 'Idempotent-Replayed': 'true', ETag: '"1"' });
+      }
+      if (etpState.etp !== null) {
+        return problemWith(response, 409, 'DOCUMENT_ALREADY_EXISTS', String(correlationId), {
+          members: { meta: { existingEtpId: etpState.etp.dto.id } },
+        });
+      }
+      if (body.importFromDfd === true && etpState.importableDfd === null) {
+        return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+          errors: [
+            {
+              field: 'importFromDfd',
+              code: 'NOT_ALLOWED',
+              message: 'Não há um DFD finalizado neste processo para importar.',
+            },
+          ],
+        });
+      }
+      etpState.etp = buildEtp(etpState.fixture, {
+        id: mockUuid(),
+        code: 'ETP 0001/2026',
+        imported: body.importFromDfd === true,
+      });
+      const result = { data: etpState.etp.dto, meta: { allowedActions: ['UPDATE'] } };
+      if (key) etpState.replays.set(key, result);
+      return send(response, 201, result, {
+        Location: `/api/v1/etps/${etpState.etp.dto.id}`,
+        ETag: '"1"',
+      });
+    }
+  }
+  const etpDocumentRoute = /^\/api\/v1\/documents\/([0-9a-f-]{36})$/.exec(url.pathname);
+  const etpDocument = etpDocumentRoute ? etpOf(etpDocumentRoute[1]) : undefined;
+  if (etpDocument && request.method === 'GET') {
+    return send(
+      response,
+      200,
+      { data: etpDocument.document, meta: { allowedActions: ['UPDATE'] } },
+      { ETag: '"1"' },
+    );
+  }
   // Pesquisa de preços (US-024): itens e documentos do processo, PRS-01/02 e PRS-03/05.
   const priceProcessRoute =
     /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(items|documents|price-research)$/.exec(url.pathname);
@@ -4025,7 +4192,7 @@ createServer(async (request, response) => {
       url.pathname,
     );
   const listedFixture = listedRoute
-    ? [...LIST_FIXTURES, ...PRICE_FIXTURES].find(
+    ? [...LIST_FIXTURES, ...PRICE_FIXTURES, ...ETP_FIXTURES].find(
         (fixture) => listProcessId(fixture.n) === listedRoute[1],
       )
     : undefined;

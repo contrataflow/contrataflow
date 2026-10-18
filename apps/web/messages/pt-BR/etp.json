@@ -1,0 +1,49 @@
+{
+  "create": {
+    "action": "Criar ETP",
+    "open": "Abrir {code}",
+    "openNoCode": "Abrir ETP",
+    "title": "Criar Estudo Técnico Preliminar",
+    "description": "O ETP nasce com as 16 seções do modelo vigente (art. 18, § 1º, da Lei 14.133/2021), em rascunho e sob sua responsabilidade.",
+    "loading": "Carregando o DFD do processo…",
+    "loadError": "Não foi possível verificar o DFD do processo.",
+    "retry": "Tentar novamente",
+    "submit": "Criar ETP",
+    "submitting": "Criando ETP…",
+    "cancel": "Cancelar",
+    "noDfd": "Não há DFD finalizado neste processo: o ETP começa em branco.",
+    "import": {
+      "title": "Importar dados do {code}?",
+      "titleNoCode": "Importar dados do DFD?",
+      "label": "Importar dados do DFD",
+      "hint": "Copia a descrição da necessidade, os itens e a situação no PCA. Você poderá editar tudo depois.",
+      "object": "Objeto",
+      "items": "{count, plural, =0 {Nenhum item} one {# item} other {# itens}}",
+      "itemsLabel": "Itens",
+      "pca": "Situação no PCA",
+      "pcaStatus": {
+        "PLANNED": "Previsto no PCA",
+        "NOT_PLANNED": "Não previsto no PCA",
+        "NOT_APPLICABLE": "Não se aplica",
+        "unknown": "Não informada"
+      }
+    },
+    "exists": "Este processo já tem um ETP. Abra o estudo existente.",
+    "openExisting": "Abrir ETP",
+    "forbidden": "Você não pode criar o ETP neste processo.",
+    "notEditable": "O processo não está em um status que permita criar documentos.",
+    "typeNotAllowed": "Este documento não é permitido na etapa atual.",
+    "noEligibleDfd": "Não há um DFD finalizado neste processo para importar.",
+    "reused": "Esta solicitação já foi enviada com outros dados. Recarregue a página.",
+    "unavailable": "Não foi possível criar o ETP agora. Tente novamente em instantes.",
+    "failed": "Ocorreu um erro inesperado.",
+    "failedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "toast": {
+      "created": "{code} criado.",
+      "createdNoCode": "ETP criado."
+    }
+  },
+  "page": {
+    "title": "Estudo Técnico Preliminar"
+  }
+}

@@ -25,6 +25,7 @@ export const TENANT_SCOPED_MODELS = [
   'DocumentTemplateVersion',
   'DocumentType',
   'DocumentVersion',
+  'Etp',
   'Holiday',
   'MembershipDepartment',
   'Mention',

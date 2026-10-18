@@ -8,6 +8,7 @@ export * from './collaboration/index.js';
 export * from './common/index.js';
 export * from './dfd/index.js';
 export * from './document/index.js';
+export * from './etp/index.js';
 export * from './events/index.js';
 export * from './files/index.js';
 export * from './http/index.js';

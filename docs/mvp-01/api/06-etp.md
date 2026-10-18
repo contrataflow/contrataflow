@@ -24,9 +24,18 @@ Seções, validação, submissão/finalização e versões do ETP usam os endpoi
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório) — processo
 - **Request:** —
-- **Response:** `200 { data: Etp[] }` (0 ou 1, singleton)
+- **Response:** `200 { data: Etp[], meta: { importableDfd } }` (0 ou 1 ativo + os cancelados, singleton)
 ```ts
 EtpSummary { id: string; documentId: string; code: string; status: string; conclusion: string; version: number; }
+// DFD elegível para a importação do ETP-02 (RN-ETP-04 — a MESMA regra da criação): o "Importar
+// dados do DFD 0005/2026?" da US-019 (passo 2). `null` quando não há DFD não cancelado em
+// FINALIZED/APPROVED com versão (FA-02). Decidido na US-019 (2026-10-18): o servidor resolve a
+// elegibilidade numa chamada só, em vez de o front combinar DOC-01 e DOC-03.
+ImportableDfd {
+  documentId: string; code: string | null; status: "FINALIZED" | "APPROVED";
+  versionId: string; versionNumber: number; // approvedVersionId, senão currentVersionId
+  objectSummary: string; itemsCount: number; pcaStatus: "PLANNED" | "NOT_PLANNED" | "NOT_APPLICABLE";
+}
 ```
 - **Erros:**
 
@@ -47,10 +56,11 @@ EtpSummary { id: string; documentId: string; code: string; status: string; concl
 ```ts
 { importFromDfd?: boolean; } // true somente quando há DFD finalizado elegível (RN-ETP-04)
 ```
-- **Response:** `201 { data: Etp }`
+- **Response:** `201 { data: Etp, meta: { allowedActions } }` + `Location: /api/v1/etps/{id}` + `ETag: "1"`
 ```ts
 Etp {
-  id: string; documentId: string; code: string; status: string;
+  id: string; // = documentId (CHECK etps_id_is_document — como DFD e pesquisa de preços)
+  documentId: string; processId: string; code: string; title: string; status: string;
   conclusion: "PENDING" | "VIABLE" | "NOT_VIABLE"; // EtpConclusion
   importedFromDfdVersionId?: string | null; // RN-ETP-04/05
   responsibleId: string; // RN-ETP-08, criador
@@ -70,7 +80,7 @@ Etp {
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
 
 - **Efeitos:** Eventos: `ETPCreated` (`DocumentCreated`) (`document.created.etp`) — `documentId`, `documentTypeCode = ETP`, `kind`; `sourceDocumentId` nulo. Auditoria: `document.create` (`DATA_CHANGE`) — `changes`: `documentTypeCode`, `importedFromDfdVersionId`; `metadata`: `code`, `idempotencyKey`.
-- **Notas:** a importação copia dados do DFD; não duplica o documento.
+- **Notas:** a importação copia dados do DFD; não duplica o documento. Fonte: o snapshot da versão de origem (`approvedVersionId`, senão `currentVersionId`) — objeto (`header.objectSummary`) + seção `JUSTIFICATION` → `NEED_DESCRIPTION`; situação no PCA (`header.pcaStatus`/`pcaYear`/`pcaItemCode`/`pcaJustification`) → `PCA_ALIGNMENT`; `collections.items` → `DocumentItem` do ETP (mesmo `processItemId` e `quantity`). Criação com custódia OU participação `COLLABORATOR`/`CONSULTANT` (RN-ETP-07 — diferente do DFD, em que a participação não cria). Sem custódia nem participação → 403 `PERMISSION_DENIED` (`access.denied` com `reasonCode = POL-02`); processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` → 409 `DOCUMENT_NOT_EDITABLE` (V-03 da US-019, no lugar do `INVALID_PROCESS_STATUS` genérico).
 
 ### ETP-03 — Obter ETP
 `GET /api/v1/etps/{id}` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-020
