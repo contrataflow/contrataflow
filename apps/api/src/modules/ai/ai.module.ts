@@ -34,6 +34,7 @@ import {
 } from './application/ports.js';
 import type { AiSettings } from './application/ports.js';
 import { RequestAiGenerationCommand } from './application/request-ai-generation.command.js';
+import { RiskMapDraftGenerator } from './application/risk-map-draft.generator.js';
 import { GroundingGuard } from './domain/grounding-guard.js';
 import {
   DEFAULT_FAKE_AI_FIXTURES_DIR,
@@ -58,6 +59,7 @@ import { DocumentModule } from '../document/document.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { ProcessModule } from '../process/process.module.js';
+import { RiskModule } from '../risk/risk.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): gerações em memória. */
@@ -73,7 +75,7 @@ const MAX_CONTEXT_CHARS = 240_000;
  * `document`/`risk`, que leem a proposta pela porta `AiSuggestionSource` implementada aqui. US-115:
  * a camada (AI-01..04, pipeline, `AiProvider` + `FakeAiProvider`, disjuntor, custo, auditoria,
  * timeline e notificações). US-116: o portão do órgão (`AiTenantGateService`, registrado no
- * `AiTenantGateRegistry`) e AI-05/AI-06. Geradores concretos (US-117: `DfdDraftGenerator`; US-118..121) e GroundingGuard
+ * `AiTenantGateRegistry`) e AI-05/AI-06. Geradores concretos (US-117: `DfdDraftGenerator`; US-119: `RiskMapDraftGenerator`; US-118/120/121) e GroundingGuard
  * (US-122) entram pelos registros `AiGeneratorRegistry` e `AiPostProcessorRegistry`.
  */
 @Module({
@@ -85,6 +87,7 @@ const MAX_CONTEXT_CHARS = 240_000;
     IdentityModule,
     OrganizationModule,
     ProcessModule,
+    RiskModule,
     TenancyModule,
     DocumentProcessContextModule,
     AiSuggestionSourceModule,
@@ -145,6 +148,7 @@ const MAX_CONTEXT_CHARS = 240_000;
     AiTenantGateService,
     AiUsageQueries,
     DfdDraftGenerator,
+    RiskMapDraftGenerator,
   ],
 })
 export class AiModule implements OnModuleInit {
@@ -156,18 +160,22 @@ export class AiModule implements OnModuleInit {
     private readonly postProcessors: AiPostProcessorRegistry,
     private readonly generators: AiGeneratorRegistry,
     private readonly dfdDraft: DfdDraftGenerator,
+    private readonly riskMapDraft: RiskMapDraftGenerator,
   ) {}
 
   /**
    * Implementa a porta `AiSuggestionSource` lida por `document`/`risk` (DEC-079) e registra o
    * portão do órgão (US-116: IA ligada, limites, reserva e avisos de consumo) e o GroundingGuard
-   * na cadeia de pós-processamento (US-122 · RN-AI-54) e os geradores concretos (US-117: `DFD`/`DRAFT`).
+   * na cadeia de pós-processamento (US-122 · RN-AI-54) e os geradores concretos (US-117: `DFD`/`DRAFT`;
+   * US-119: `RISK_MAP`/`DRAFT`).
    */
   onModuleInit(): void {
     this.suggestions.register(this.source);
     this.gates.register(this.gate);
-    if (this.generators.find(this.dfdDraft.targetModule, this.dfdDraft.kind) === undefined) {
-      this.generators.register(this.dfdDraft);
+    for (const generator of [this.dfdDraft, this.riskMapDraft]) {
+      if (this.generators.find(generator.targetModule, generator.kind) === undefined) {
+        this.generators.register(generator);
+      }
     }
     const guard = new GroundingGuard();
     if (!this.postProcessors.all().some((processor) => processor.name === guard.name)) {

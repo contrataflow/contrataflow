@@ -87,6 +87,9 @@ function riskWith(treatments: readonly RiskTreatmentDto[]): RiskDto {
     status: treatments.length === 0 ? 'OPEN' : 'IN_TREATMENT',
     sortOrder: 0,
     treatments: [...treatments],
+    aiGenerationId: null,
+    aiReviewedAt: null,
+    aiReviewedBy: null,
     version: 2,
   };
 }

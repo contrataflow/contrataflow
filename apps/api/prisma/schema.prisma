@@ -2106,6 +2106,9 @@ model Risk {
   residualScore       Int?        @map("residual_score") @db.SmallInt
   residualLevel       RiskLevel?  @map("residual_level")
   sortOrder           Int         @default(0) @map("sort_order")
+  aiGenerationId      String?     @map("ai_generation_id") @db.Uuid
+  aiReviewedAt        DateTime?   @map("ai_reviewed_at") @db.Timestamptz(6)
+  aiReviewedById      String?     @map("ai_reviewed_by_id") @db.Uuid
   createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById         String?     @map("created_by_id") @db.Uuid
@@ -2117,6 +2120,8 @@ model Risk {
   @@unique([tenantId, id], map: "risks_tenant_id_id_key")
   @@unique([tenantId, processId, code], map: "risks_code_key")
   @@index([tenantId, processId, level], map: "risks_process_level_idx")
+  // Parcial na migração (US-119): só riscos gerados por IA não excluídos.
+  @@index([tenantId, processId], map: "risks_ai_generation_idx")
   @@map("risks")
 }
 
@@ -2136,6 +2141,7 @@ model RiskTreatment {
   completedAt             DateTime?       @map("completed_at") @db.Timestamptz(6)
   notes                   String?
   sortOrder               Int             @default(0) @map("sort_order")
+  aiGenerationId          String?         @map("ai_generation_id") @db.Uuid
   createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById             String?         @map("created_by_id") @db.Uuid

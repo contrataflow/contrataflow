@@ -96,6 +96,7 @@ export class InMemoryRiskRepository implements RiskRepository {
       tenantId: current.tenantId,
       processId: current.processId,
       code: current.code,
+      aiGenerationId: current.aiGenerationId,
       deletedAt: null,
       version: expectedVersion + 1,
     });

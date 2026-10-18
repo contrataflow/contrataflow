@@ -356,7 +356,8 @@ const RULES: Readonly<Record<string, Rule>> = {
 
 /**
  * US-115: o solicitante (`requestedById`, o próprio ator do envelope) recebe o aviso; o link abre o
- * editor do documento com o painel de IA na geração (`?ia=<generationId>`).
+ * editor do documento com o painel de IA na geração (`?ia=<generationId>`). US-119: a proposta do
+ * mapa de riscos abre a tela de riscos (SCR-011), onde os riscos são aplicados.
  */
 function aiGeneration(
   type: 'AI_GENERATION_READY' | 'AI_GENERATION_FAILED',
@@ -367,9 +368,11 @@ function aiGeneration(
   const base =
     event.processId === null
       ? null
-      : documentId === null
-        ? `/processos/${event.processId}`
-        : `/processos/${event.processId}/documentos/${documentId}`;
+      : event.payload.targetModule === 'RISK_MAP'
+        ? `/processos/${event.processId}/riscos`
+        : documentId === null
+          ? `/processos/${event.processId}`
+          : `/processos/${event.processId}/documentos/${documentId}`;
   return plan(type, event, {
     recipients: [{ kind: 'USER', userId: id(event.payload, 'requestedById') }],
     entityType: 'AiGeneration',

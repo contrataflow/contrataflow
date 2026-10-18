@@ -8,7 +8,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import type { AiGenerationTarget } from './ports.js';
 import type { AiGeneration } from '../domain/ai-generation.js';
 import type { ContextPart } from '../domain/context-sanitizer.js';
-import type { SectionSpec } from '../domain/output-converter.js';
+import type { RiskRefiner, SectionSpec } from '../domain/output-converter.js';
 import { PromptRegistry } from '../domain/prompts.js';
 import type { PromptTemplate } from '../domain/prompts.js';
 import type { StructuredResponse } from '../domain/structured-output.js';
@@ -45,6 +45,13 @@ export interface AiGeneratorContext {
    * somados aos da sanitização na proposta, sem repetir código e parâmetros.
    */
   readonly warnings?: readonly AiOutputWarning[];
+  /**
+   * Só o mapa de riscos (US-119): normaliza os riscos da resposta (escala vigente, categoria,
+   * semelhança, chaves da proposta) dentro da validação — problema = saída inválida, com reparo.
+   */
+  readonly refineRisks?: RiskRefiner;
+  /** Descarta seções não pedidas (mapa de riscos sem documento — RN-AI-41). */
+  readonly ignoreUnknownSections?: boolean;
 }
 
 /**

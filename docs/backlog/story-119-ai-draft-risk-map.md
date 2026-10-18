@@ -261,7 +261,7 @@ Feature: Gerar a proposta do mapa de riscos com IA
 
 ## Banco de dados
 - **Tabelas:** `ai_generations` (status, `appliedTargets`), `risks` e `risk_treatments` (inserção), `documents` (seções via `DOC-26`), `audit_logs`, `outbox_events`.
-- **Migrações:** nenhuma nova nesta story — `Risk`/`RiskTreatment` já têm `aiGenerationId`; `aiReviewedAt`/`aiReviewedById` em `Risk` vêm da camada de IA (US-115).
+- **Migrações:** `20261018150000_risk_ai_review` (implementação, 2026-10-18) — as colunas `aiGenerationId` (risco e tratamento) e `aiReviewedAt`/`aiReviewedById` (risco) previstas em entities.md §5 não tinham sido criadas pela US-115.
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, process_id, code)` em `risks`; FK composta → `ai_generations`; único parcial de geração `DRAFT` ativa por (processo, `targetModule`).
 
 ## API

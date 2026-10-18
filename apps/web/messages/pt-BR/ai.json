@@ -196,6 +196,8 @@
     "ITEMS": "O DFD ainda não tem itens; as quantidades saíram como [a confirmar].",
     "EXPECTED_DATE": "O DFD não tem data prevista; os prazos saíram como [a confirmar].",
     "PCA_LINK": "O vínculo com o Plano de Contratações Anual está incompleto.",
+    "ETP": "O processo ainda não tem ETP; a proposta usou só o DFD e o que mais existir.",
+    "TERM_OF_REFERENCE": "O Termo de Referência ainda não existe; prazos e critérios saíram como [a confirmar].",
     "other": "Complete as informações marcadas como [a confirmar]."
   },
   "apply": {
@@ -228,5 +230,29 @@
     "conflict": "O DFD foi alterado. Atualizando a comparação… Confira e aplique de novo.",
     "failed": "Não foi possível aplicar agora. Tente novamente.",
     "done": "{count, plural, one {Conteúdo aplicado: # seção. Revise antes de concluir.} other {Conteúdo aplicado: # seções. Revise antes de concluir.}}"
+  },
+  "riskProposal": {
+    "legend": "Escolha os riscos e os tratamentos a aplicar",
+    "hint": "A proposta é somente leitura: ajuste probabilidade, impacto e textos depois de aplicar. Riscos parecidos com um já registrado vêm desmarcados.",
+    "formula": "P {probability} × I {impact}",
+    "similar": "Parecido com {code}",
+    "similarUnknown": "Parecido com um risco já registrado",
+    "description": "Descrição",
+    "cause": "Causa",
+    "consequence": "Consequência",
+    "rationale": "Por que a IA sugeriu",
+    "treatments": "Tratamentos",
+    "treatmentsCount": "{count, plural, one {# tratamento} other {# tratamentos}}",
+    "highWithoutTreatment": "Riscos de nível Alto ou Extremo sem tratamento marcado: a conclusão do Mapa de Riscos exigirá ao menos um tratamento.",
+    "action": "{count, plural, =0 {Aplicar selecionados} one {Aplicar # risco} other {Aplicar # riscos}}",
+    "applying": "Aplicando…",
+    "none": "Selecione ao menos um risco da proposta.",
+    "notApplicable": "Esta proposta não pode mais ser aplicada. Gere outra.",
+    "notOwned": "Só quem pediu a proposta pode aplicá-la.",
+    "locked": "Os riscos estão bloqueados porque o Mapa de Riscos foi concluído.",
+    "failed": "Não foi possível concluir agora. Tente novamente.",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "done": "{count, plural, one {# risco criado a partir da proposta. Revise cada risco antes de concluir o mapa.} other {# riscos criados a partir da proposta. Revise cada risco antes de concluir o mapa.}}"
   }
 }

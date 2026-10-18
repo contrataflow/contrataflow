@@ -2,6 +2,7 @@ import type {
   AiGenerationOutput,
   AiOutputSection,
   AiOutputWarning,
+  AiProposedRisk,
   RichTextNode,
   ToConfirmCategory,
 } from '@contrataflow/validation';
@@ -35,12 +36,30 @@ export const DEFAULT_SECTION_MAX_CHARS = 50_000;
 /** Categorias do nó `toConfirm` (contrato em `@contrataflow/validation` — RN-AI-53). */
 export type { ToConfirmCategory };
 
+/**
+ * Normalização dos riscos propostos (US-119 · RN-AI-39), dada pelo gerador do mapa de riscos: escala
+ * vigente, categoria desconhecida → `OUTRO`, `similarToRiskId` conhecido e chaves da proposta.
+ * Problema = saída inválida (entra no reparo, como os de schema).
+ */
+export type RiskRefinement =
+  | { readonly ok: true; readonly risks: readonly AiProposedRisk[] }
+  | { readonly ok: false; readonly issues: readonly string[] };
+
+export type RiskRefiner = (risks: readonly Record<string, unknown>[] | undefined) => RiskRefinement;
+
 export interface ConversionSpec {
   readonly sections: readonly SectionSpec[];
   /** Schema do gerador (padrão: o comum). */
   readonly schema?: z.ZodType<StructuredResponse>;
   /** Avisos já conhecidos (sanitização) somados à proposta. */
   readonly warnings?: readonly AiOutputWarning[];
+  /** Só o mapa de riscos: sem ele, a proposta não leva `risks`. */
+  readonly refineRisks?: RiskRefiner;
+  /**
+   * Seção não pedida é descartada em vez de invalidar a saída (mapa de riscos ainda não emitido —
+   * as seções narrativas não entram na proposta, RN-AI-41).
+   */
+  readonly ignoreUnknownSections?: boolean;
 }
 
 export type ConversionResult =
@@ -229,7 +248,9 @@ export function convertStructuredOutput(raw: unknown, spec: ConversionSpec): Con
   for (const [index, section] of parsed.data.sections.entries()) {
     const definition = expected.get(section.sectionKey);
     if (definition === undefined) {
-      issues.push(`sections.${String(index)}.sectionKey: unknown_section`);
+      if (spec.ignoreUnknownSections !== true) {
+        issues.push(`sections.${String(index)}.sectionKey: unknown_section`);
+      }
       continue;
     }
     if (seen.has(section.sectionKey)) {
@@ -253,18 +274,55 @@ export function convertStructuredOutput(raw: unknown, spec: ConversionSpec): Con
   for (const [key, definition] of expected) {
     if (!seen.has(key) && definition.optional !== true) issues.push(`sections: missing_section`);
   }
+  let risks: readonly AiProposedRisk[] | undefined;
+  if (spec.refineRisks !== undefined) {
+    const refined = spec.refineRisks(parsed.data.risks);
+    if (refined.ok) risks = refined.risks;
+    else issues.push(...refined.issues);
+  }
   if (issues.length > 0) return { ok: false, issues: [...new Set(issues)] };
   return {
     ok: true,
     output: {
       sections,
-      ...(parsed.data.risks === undefined ? {} : { risks: parsed.data.risks }),
+      ...(risks === undefined ? {} : { risks: [...risks] }),
       warnings: [...(spec.warnings ?? [])],
     },
   };
 }
 
-/** Total de marcações `toConfirm` da proposta (seções). */
+const LITERAL_TO_CONFIRM = /\[a confirmar/gi;
+
+/** Marcadores literais "[a confirmar…" num texto simples (riscos propostos — US-119). */
+export function countLiteralToConfirm(text: string): number {
+  return [...text.matchAll(LITERAL_TO_CONFIRM)].length;
+}
+
+/** Textos de um risco proposto e dos tratamentos dele (onde valem os marcadores literais). */
+export function riskTexts(risk: AiProposedRisk): string[] {
+  return [
+    risk.title,
+    risk.description,
+    risk.cause,
+    risk.consequence,
+    risk.rationale,
+    ...risk.treatments.map((treatment) => treatment.description),
+  ];
+}
+
+/** Marcadores literais nos riscos propostos. */
+export function riskPlaceholdersOf(risks: readonly AiProposedRisk[] | undefined): number {
+  return (risks ?? []).reduce(
+    (sum, risk) =>
+      sum + riskTexts(risk).reduce((acc, text) => acc + countLiteralToConfirm(text), 0),
+    0,
+  );
+}
+
+/** Total de marcações `toConfirm` da proposta (seções e riscos). */
 export function placeholdersOf(output: AiGenerationOutput): number {
-  return output.sections.reduce((sum, section) => sum + section.placeholdersCount, 0);
+  return (
+    output.sections.reduce((sum, section) => sum + section.placeholdersCount, 0) +
+    riskPlaceholdersOf(output.risks)
+  );
 }

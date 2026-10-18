@@ -10,6 +10,7 @@ import { useId, useRef, useState } from 'react';
 import { usePermission } from '@/lib/permissions/use-permission';
 
 import { AiAssistantPanel } from './ai-assistant-panel';
+import type { AiRiskContext } from './ai-assistant-panel';
 import { useAiAvailability } from './use-ai-availability';
 
 /** O documento é alvo da IA (DFD, ETP, mapa de riscos e TR — DEC-037)? */
@@ -19,7 +20,8 @@ export function isAiTarget(systemModule: string | null): systemModule is AiTarge
 
 export interface AiAssistantProps {
   readonly processId: string;
-  readonly documentId: string;
+  /** `null` = mapa de riscos ainda não emitido (a proposta traz só riscos — US-119). */
+  readonly documentId: string | null;
   readonly targetModule: AiTargetModule;
   /** Documento em `DRAFT`/`RETURNED`: pode receber geração (a API confere POL-02). */
   readonly editable: boolean;
@@ -27,6 +29,8 @@ export interface AiAssistantProps {
   readonly initialGenerationId?: string | null | undefined;
   /** DOC-26 aplicado (US-117): o editor recarrega as seções. */
   readonly onApplied?: ((document: DocumentDto) => void) | undefined;
+  /** Mapa de riscos (US-119): faixas vigentes, riscos registrados e a recarga após o RSK-11. */
+  readonly riskContext?: AiRiskContext | undefined;
 }
 
 /**
@@ -43,6 +47,7 @@ export function AiAssistant({
   editable,
   initialGenerationId = null,
   onApplied,
+  riskContext,
 }: AiAssistantProps) {
   const t = useTranslations('ai');
   const { allowed } = usePermission('AI_GENERATE');
@@ -87,6 +92,7 @@ export function AiAssistant({
           needSummaryRequired={targetModule === 'DFD'}
           initialGenerationId={startAt}
           onApplied={onApplied}
+          riskContext={riskContext}
           onClose={() => {
             setOpen(false);
             opener.current?.focus();

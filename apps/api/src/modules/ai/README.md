@@ -74,6 +74,29 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
   completo em memória), `test/tenant-leak/ai-dfd-draft.spec.ts` (PostgreSQL: commit único, falha
   induzida, RLS).
 
+## Proposta do mapa de riscos — `draft.risk_map` (US-119 · RN-AI-38..41)
+
+- **Gerador** `application/risk-map-draft.generator.ts` (`RISK_MAP`/`DRAFT`, registrado no
+  `onModuleInit`; reserva 25 mil tokens; resumo opcional). Pedido: DFD não cancelado
+  (`DocumentFacade.aiChainSourceIn`) senão 422 `AI_PREREQUISITE_MISSING` com `meta.missing: ['DFD']`;
+  com o `RISK_MAP` já emitido, o pedido precisa apontá-lo (`documentId`). Job: DFD/ETP/TR pela
+  precedência aprovada → versão → rascunho (`USED_DRAFT_INPUTS`), riscos registrados
+  (`RiskFacade.aiContextIn`), categorias ativas (`CatalogFacade.activeItemsOf`) e `risk.scale`.
+- **Contexto e normalização** `domain/risk-map-draft-context.ts` (puro): seções de valor
+  (`ESTIMATES`, `ESTIMATED_VALUE`) nunca entram; sem documento, as seções da resposta são
+  descartadas (`ignoreUnknownSections`). `riskMapResponseSchema` (1..15 riscos, 1..3 tratamentos,
+  sem responsável/prazo/valor) + `normalizeRiskProposal` (`AiGeneratorContext.refineRisks`, dentro
+  do reparo): grau acima da escala vigente = saída inválida; categoria desconhecida → `OUTRO`;
+  chaves `R1`/`R1.T1`. **Semelhança pelo código** (`similarToRiskCode: 'R03'` → `similarToRiskId`):
+  ids não vão ao modelo porque a sanitização mascara sequências numéricas longas dos UUIDs.
+- **GroundingGuard nos riscos:** texto simples → marcador LITERAL "[a confirmar: …]"
+  (`groundPlainText`); as trocas contam por diferença de marcadores (`runPostProcessors`).
+- **Aplicação** é do `risk` (RSK-11/RSK-12); as seções narrativas seguem pelo DOC-26 (cada parte
+  uma vez — `appliedTargets` acumula). Notificação `AI_GENERATION_READY` do mapa abre
+  `/processos/{id}/riscos?ia=`.
+- **Testes:** `domain/risk-map-draft-context.spec.ts`, `presentation/risk-map-draft.routes.spec.ts`
+  (Gherkin completo em memória), `test/tenant-leak/ai-risk-map-draft.spec.ts` (PostgreSQL).
+
 ## GroundingGuard (US-122 · RN-AI-54)
 
 Pós-processador determinístico registrado pelo `AiModule`: todo valor monetário, quantidade com

@@ -79,6 +79,9 @@ function risk(sequence: number, extra: Partial<RiskDto> = {}): RiskDto {
     status: 'OPEN',
     sortOrder: sequence,
     treatments: [],
+    aiGenerationId: null,
+    aiReviewedAt: null,
+    aiReviewedBy: null,
     version: 3,
     ...extra,
   };
@@ -447,5 +450,79 @@ describe('SCR-011 · lista de riscos (US-033)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByText(/ação de tratamento/)).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Excluir risco' })).toBeTruthy();
+  });
+});
+
+describe('SCR-011 · riscos gerados por IA (US-119 · RN-AI-42)', () => {
+  const REVIEW = `${LIST}/ai-review`;
+  const aiRisk = (sequence: number, extra: Partial<RiskDto> = {}) =>
+    risk(sequence, { aiGenerationId: ID(900), aiReviewedAt: null, aiReviewedBy: null, ...extra });
+
+  it('selo "Gerado por IA · revisão pendente" (com "[a confirmar]") e revisado; acessível', async () => {
+    renderList([
+      aiRisk(1, { cause: 'Prazo de [a confirmar: prazo] para o levantamento' }),
+      aiRisk(2, {
+        aiReviewedAt: '2026-10-18T12:00:00.000Z',
+        aiReviewedBy: { id: ID(77), name: 'Lúcia' },
+      }),
+      risk(3),
+    ]);
+    expect(await screen.findByText(/Gerado por IA · revisão pendente/)).toBeTruthy();
+    expect(screen.getByText(/há itens \[a confirmar\]/)).toBeTruthy();
+    expect(screen.getByText(/Gerado por IA · revisado em/)).toBeTruthy();
+    expect(screen.getAllByText(/Gerado por IA/)).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Marcar o risco R01 como revisado' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Marcar o risco R02 como revisado' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Revisar todos/ })).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('"Marcar como revisado" envia o RSK-12 com a versão vista e recarrega a lista', async () => {
+    const user = userEvent.setup();
+    const api = renderList([aiRisk(1)], {
+      handler: (url, init) =>
+        url.endsWith('/ai-review') && init?.method === 'POST'
+          ? jsonResponse({ data: { risks: [], reviewedRiskIds: [ID(1)] } })
+          : undefined,
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'Marcar o risco R01 como revisado' }),
+    );
+    await waitFor(() => {
+      expect(callsTo(api, 'POST', REVIEW)).toHaveLength(1);
+    });
+    const [call] = callsTo(api, 'POST', REVIEW);
+    const body = bodyOf(call?.init);
+    expect(body.riskIds).toHaveLength(1);
+    expect(Object.values(body.expectedVersions as Record<string, number>)).toEqual([3]);
+    expect(await screen.findByText('Risco R01 marcado como revisado.')).toBeTruthy();
+    await waitFor(() => {
+      expect(callsTo(api, 'GET', LIST).length).toBeGreaterThan(1);
+    });
+  });
+
+  it('"Revisar todos" com 2+ pendentes: confirmação explícita; 412 avisa que o risco mudou', async () => {
+    const user = userEvent.setup();
+    const api = renderList([aiRisk(1), aiRisk(2)], {
+      handler: (url, init) =>
+        url.endsWith('/ai-review') && init?.method === 'POST'
+          ? problemResponse(412, 'VERSION_CONFLICT')
+          : undefined,
+    });
+    await user.click(await screen.findByRole('button', { name: 'Revisar todos (2)' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Revisar os riscos gerados por IA' });
+    const confirm = within(dialog).getByRole('button', {
+      name: 'Marcar os 2 riscos como revisados',
+    });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Li e revisei os 2 riscos' }));
+    await user.click(confirm);
+    await waitFor(() => {
+      expect(callsTo(api, 'POST', REVIEW)).toHaveLength(1);
+    });
+    expect(bodyOf(callsTo(api, 'POST', REVIEW)[0]?.init).riskIds).toHaveLength(2);
+    expect(
+      await within(dialog).findByText('O risco foi alterado por outra pessoa. Recarregue.'),
+    ).toBeTruthy();
   });
 });

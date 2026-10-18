@@ -84,6 +84,9 @@ function risk(sequence: number, probability: number, impact: number, title: stri
     status: 'OPEN',
     sortOrder: sequence - 1,
     treatments: [],
+    aiGenerationId: null,
+    aiReviewedAt: null,
+    aiReviewedBy: null,
     version: 1,
   };
 }

@@ -163,6 +163,9 @@ const MENTION_ROUTE =
 const RISK_MAP_ROUTE =
   'Matriz e Mapa de Riscos (US-035): a suíte genérica não tem processo nem risco do tenant B. O isolamento (RSK-09/RSK-10 com id de processo de B → 404 NOT_FOUND sem revelar riscos nem criar documento, RLS de documents/risks/risk_treatments na leitura da matriz e na emissão) é coberto em test/tenant-leak/risk-map.spec.ts, com PostgreSQL real, e em src/modules/risk/presentation/risk-map.routes.spec.ts.';
 
+const RISK_AI_ROUTE =
+  'Riscos propostos pela IA (US-119): a suíte genérica não tem processo, risco nem geração do tenant B. O isolamento (RSK-11 com geração de B num processo de A → 404 AI_GENERATION_NOT_FOUND sem criar nada; contexto enviado ao provedor sem riscos nem textos de B; RLS de risks/risk_treatments/ai_generations; aplicação em transação única com falha induzida e corrida entre duas aplicações) é coberto em test/tenant-leak/ai-risk-map-draft.spec.ts, com PostgreSQL real, e em src/modules/ai/presentation/risk-map-draft.routes.spec.ts.';
+
 const RISK_TREATMENT_ROUTE =
   'Ações de tratamento (US-034): a suíte genérica não tem risco nem tratamento do tenant B. O isolamento (RSK-06 com id de risco de B → 404 NOT_FOUND, RSK-07/08 com id de tratamento de B → 404 NOT_FOUND sem alterar nada, responsável ou unidade de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de risk_treatments) é coberto em test/tenant-leak/risk-treatments.spec.ts, com PostgreSQL real, e em src/modules/risk/presentation/risk-treatment.routes.spec.ts.';
 
@@ -340,6 +343,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'RSK-08': { kind: 'exempt', reason: RISK_TREATMENT_ROUTE },
   'RSK-09': { kind: 'exempt', reason: RISK_MAP_ROUTE },
   'RSK-10': { kind: 'exempt', reason: RISK_MAP_ROUTE },
+  'RSK-11': { kind: 'exempt', reason: RISK_AI_ROUTE },
+  'RSK-12': { kind: 'exempt', reason: RISK_AI_ROUTE },
   'CMT-01': { kind: 'exempt', reason: COMMENT_ROUTE },
   'CMT-02': { kind: 'exempt', reason: COMMENT_ROUTE },
   'CMT-03': { kind: 'exempt', reason: COMMENT_ROUTE },

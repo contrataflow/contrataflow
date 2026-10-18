@@ -191,6 +191,17 @@ export class RiskReferences {
   }
 
   /**
+   * RSK-11 (US-119): categorias ATIVAS do `RISK_CATEGORY` por código (a proposta traz o código —
+   * RN-AI-39); quem chama recusa o código ausente (`REFERENCE_INACTIVE`).
+   */
+  async activeCategoriesByCode(
+    tx: TenantTx,
+  ): Promise<ReadonlyMap<string, { readonly id: string; readonly code: string }>> {
+    const items = await this.catalog.activeItemsOf(tx, 'RISK_CATEGORY');
+    return new Map(items.map((item) => [item.code, { id: item.id, code: item.code }]));
+  }
+
+  /**
    * V-05 (RN-RISK-06) · V-03 da US-034 (RN-RISK-13): vínculo ativo no tenant da transação (de
    * outro tenant = inexistente, sem revelar).
    */
@@ -268,7 +279,11 @@ export class RiskPresenter {
     );
     const names = await this.names(
       tx,
-      [...risks.map((risk) => risk.ownerId), ...treatments.map((row) => row.responsibleId)],
+      [
+        ...risks.map((risk) => risk.ownerId),
+        ...risks.map((risk) => risk.aiReviewedById),
+        ...treatments.map((row) => row.responsibleId),
+      ],
       [
         ...risks.map((risk) => risk.ownerDepartmentId),
         ...treatments.map((row) => row.responsibleDepartmentId),
@@ -323,6 +338,12 @@ export class RiskPresenter {
       status: risk.status,
       sortOrder: risk.sortOrder,
       treatments: byRisk.get(risk.id) ?? [],
+      aiGenerationId: risk.aiGenerationId,
+      aiReviewedAt: risk.aiReviewedAt?.toISOString() ?? null,
+      aiReviewedBy:
+        risk.aiReviewedById === null
+          ? null
+          : { id: risk.aiReviewedById, name: owners?.get(risk.aiReviewedById) ?? '' },
       version: risk.version,
     }));
   }
@@ -398,6 +419,7 @@ export class RiskChangeRecorder {
     risk: Risk,
     changes: readonly RiskChange[],
     categoryCode: string,
+    extra: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.audit.record(tx, {
       action: 'risk.create',
@@ -405,7 +427,7 @@ export class RiskChangeRecorder {
       entityId: risk.id,
       processId: risk.processId,
       changes: toAuditChanges(changes.filter((change) => CREATE_AUDIT_FIELDS.has(change.field))),
-      metadata: { code: risk.code, level: risk.level, score: risk.score },
+      metadata: { code: risk.code, level: risk.level, score: risk.score, ...extra },
     });
     await this.outbox.record(
       tx,
@@ -505,6 +527,7 @@ export class RiskChangeRecorder {
     tx: TenantTx,
     treatment: RiskTreatment,
     riskStatus: { readonly from: string; readonly to: string } | null,
+    extra: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.audit.record(tx, {
       action: 'risk.treatment_create',
@@ -515,7 +538,7 @@ export class RiskChangeRecorder {
         riskStatus === null
           ? []
           : [{ path: 'risk.status', old: riskStatus.from, new: riskStatus.to }],
-      metadata: { riskId: treatment.riskId, type: treatment.type },
+      metadata: { riskId: treatment.riskId, type: treatment.type, ...extra },
     });
     await this.treatmentChanged(tx, treatment, 'CREATED');
   }

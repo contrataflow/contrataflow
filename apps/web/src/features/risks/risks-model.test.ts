@@ -62,6 +62,9 @@ function risk(extra: Partial<RiskDto> = {}): RiskDto {
     status: 'OPEN',
     sortOrder: 1,
     treatments: [],
+    aiGenerationId: null,
+    aiReviewedAt: null,
+    aiReviewedBy: null,
     version: 3,
     ...extra,
   };

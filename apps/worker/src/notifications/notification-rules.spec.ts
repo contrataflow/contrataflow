@@ -358,6 +358,18 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
         ),
       );
       expect(withoutDocument.link).toBe(`/processos/${PROCESS}?ia=${generationId}`);
+      // Proposta do mapa de riscos (US-119): a tela de riscos (SCR-011), com ou sem o documento.
+      const riskMap = notify(
+        planNotification(
+          envelope(eventType, {
+            generationId,
+            documentId,
+            targetModule: 'RISK_MAP',
+            requestedById: USER,
+          }),
+        ),
+      );
+      expect(riskMap.link).toBe(`/processos/${PROCESS}/riscos?ia=${generationId}`);
       const withoutProcess = notify(
         planNotification(envelope(eventType, { generationId }, { processId: null })),
       );

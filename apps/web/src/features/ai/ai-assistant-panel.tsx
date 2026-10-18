@@ -8,7 +8,12 @@ import {
   AI_NEED_SUMMARY_MAX,
   AI_NEED_SUMMARY_MIN,
 } from '@contrataflow/validation';
-import type { AiGenerationDto, AiGenerationOutput, DocumentDto } from '@contrataflow/validation';
+import type {
+  AiGenerationDto,
+  AiGenerationOutput,
+  DocumentDto,
+  RiskLevelThreshold,
+} from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -24,9 +29,18 @@ import { AiGenerationProgress } from './ai-generation-progress';
 import { AiHistoryTab } from './ai-history-tab';
 import { useAiGeneration } from './ai-polling';
 import { AiProposalSectionList, previewText } from './ai-proposal-section-list';
+import { AiRiskProposalList } from './ai-risk-proposal-list';
 import { aiKeys, discardAiGeneration, isGenerating, requestAiGeneration } from './ai.api';
 
 type Tab = 'generate' | 'proposal' | 'history';
+
+/** Mapa de riscos (US-119): faixas vigentes e riscos já registrados, para a proposta de riscos. */
+export interface AiRiskContext {
+  readonly levelThresholds: readonly RiskLevelThreshold[];
+  readonly existing: readonly { readonly id: string; readonly code: string }[];
+  /** RSK-11 aplicado: a lista de riscos recarrega. */
+  readonly onRisksApplied?: (() => void) | undefined;
+}
 const TABS: readonly Tab[] = ['generate', 'proposal', 'history'];
 
 export interface AiAssistantPanelProps {
@@ -42,6 +56,8 @@ export interface AiAssistantPanelProps {
   readonly onClose: () => void;
   /** DOC-26 aplicado (US-117): o editor recarrega as seções com o conteúdo gerado. */
   readonly onApplied?: ((document: DocumentDto) => void) | undefined;
+  /** Mapa de riscos (US-119): a proposta traz riscos, aplicados pelo RSK-11. */
+  readonly riskContext?: AiRiskContext | undefined;
 }
 
 export { previewText };
@@ -62,6 +78,7 @@ export function AiAssistantPanel({
   initialGenerationId,
   onClose,
   onApplied,
+  riskContext,
 }: AiAssistantPanelProps) {
   const t = useTranslations('ai');
   const tenantId = useTenantId();
@@ -261,6 +278,9 @@ export function AiAssistantPanel({
             discarding={discarding}
             timeZone={timeZone}
             documentId={documentId}
+            processId={processId}
+            targetModule={targetModule}
+            riskContext={riskContext}
             userId={session.user.id}
             canApply={canGenerate}
             onDiscard={(current) => void discard(current)}
@@ -268,6 +288,10 @@ export function AiAssistantPanel({
             onApplied={(document, count) => {
               setNotice(t('apply.done', { count }));
               onApplied?.(document);
+            }}
+            onRisksApplied={(count) => {
+              setNotice(t('riskProposal.done', { count }));
+              riskContext?.onRisksApplied?.();
             }}
           />
         ) : null}
@@ -286,7 +310,7 @@ export function AiAssistantPanel({
   );
 }
 
-const MISSING_INPUTS = ['ITEMS', 'EXPECTED_DATE', 'PCA_LINK'] as const;
+const MISSING_INPUTS = ['ITEMS', 'EXPECTED_DATE', 'PCA_LINK', 'ETP', 'TERM_OF_REFERENCE'] as const;
 type MissingInput = (typeof MISSING_INPUTS)[number] | 'other';
 
 /** Lacuna avisada pelo gerador (`MISSING_OPTIONAL_INPUT` · FA-07); desconhecida = `other`. */
@@ -309,6 +333,9 @@ interface ProposalViewProps {
   readonly discarding: boolean;
   readonly timeZone: string;
   readonly documentId: string | null;
+  readonly processId: string;
+  readonly targetModule: AiTargetModule;
+  readonly riskContext: AiRiskContext | undefined;
   /** Usuário da sessão: só o solicitante aplica ou descarta (RN-AI-13 · FA-06). */
   readonly userId: string;
   /** Pode aplicar (AI_GENERATE e documento editável; a API confere DFD_UPDATE + POL-02). */
@@ -316,6 +343,29 @@ interface ProposalViewProps {
   readonly onDiscard: (generation: AiGenerationDto) => void;
   readonly onRetry: (() => void) | null;
   readonly onApplied: (document: DocumentDto, count: number) => void;
+  readonly onRisksApplied: (count: number) => void;
+}
+
+/**
+ * Partes ainda aplicáveis da proposta (US-119 · RN-AI-40/41): no mapa de riscos, riscos (RSK-11) e
+ * seções (DOC-26) são aplicados uma vez cada — a geração `APPLIED` ainda aceita a outra parte.
+ */
+export function pendingParts(
+  generation: AiGenerationDto,
+  documentId: string | null,
+): { readonly risks: boolean; readonly sections: boolean } {
+  const applied = generation.appliedTargets;
+  const open =
+    generation.status === 'SUCCEEDED' ||
+    (generation.status === 'APPLIED' && generation.targetModule === 'RISK_MAP');
+  if (!open || generation.output === null) return { risks: false, sections: false };
+  return {
+    risks: (generation.output.risks?.length ?? 0) > 0 && (applied?.riskIds.length ?? 0) === 0,
+    sections:
+      documentId !== null &&
+      generation.output.sections.length > 0 &&
+      (applied?.sectionKeys.length ?? 0) === 0,
+  };
 }
 
 function ProposalView({
@@ -325,11 +375,15 @@ function ProposalView({
   discarding,
   timeZone,
   documentId,
+  processId,
+  targetModule,
+  riskContext,
   userId,
   canApply,
   onDiscard,
   onRetry,
   onApplied,
+  onRisksApplied,
 }: ProposalViewProps) {
   const t = useTranslations('ai');
   if (generationId === null)
@@ -373,7 +427,9 @@ function ProposalView({
       </Alert>
     );
   }
-  if (generation.status === 'SUCCEEDED' && generation.output) {
+  const parts = pendingParts(generation, documentId);
+  const riskMapOpen = targetModule === 'RISK_MAP' && (parts.risks || parts.sections);
+  if ((generation.status === 'SUCCEEDED' || riskMapOpen) && generation.output) {
     const owner = generation.requestedBy.id === userId;
     const header = (
       <>
@@ -399,6 +455,37 @@ function ProposalView({
         })}
       </>
     );
+    if (owner && canApply && targetModule === 'RISK_MAP') {
+      return (
+        <div className="flex flex-col gap-4">
+          {header}
+          {parts.risks && riskContext !== undefined ? (
+            <AiRiskProposalList
+              generation={generation}
+              processId={processId}
+              levelThresholds={riskContext.levelThresholds}
+              existing={riskContext.existing}
+              discarding={discarding}
+              onDiscard={() => {
+                onDiscard(generation);
+              }}
+              onApplied={onRisksApplied}
+            />
+          ) : null}
+          {parts.sections && documentId !== null ? (
+            <AiProposalSectionList
+              generation={generation}
+              documentId={documentId}
+              discarding={discarding}
+              onDiscard={() => {
+                onDiscard(generation);
+              }}
+              onApplied={onApplied}
+            />
+          ) : null}
+        </div>
+      );
+    }
     if (owner && canApply && documentId !== null) {
       return (
         <div className="flex flex-col gap-4">
@@ -419,6 +506,18 @@ function ProposalView({
       <div className="flex flex-col gap-4">
         {header}
         {owner ? null : <p className="text-sm text-muted-foreground">{t('proposal.readOnly')}</p>}
+        {(generation.output.risks?.length ?? 0) > 0 ? (
+          <ul aria-label={t('riskProposal.legend')} className="flex flex-col gap-2">
+            {generation.output.risks?.map((risk) => (
+              <li key={risk.proposalKey} className="rounded-md border border-border p-3 text-sm">
+                <p className="font-medium break-words">{risk.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('riskProposal.treatmentsCount', { count: risk.treatments.length })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <ul className="flex flex-col gap-3">
           {generation.output.sections.map((section) => (
             <li key={section.sectionKey} className="rounded-md border border-border p-3">

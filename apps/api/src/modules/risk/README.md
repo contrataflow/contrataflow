@@ -38,3 +38,16 @@ Mapa de riscos e tratamentos (DEC-040 · DEC-021). Dono de `Risk` e `RiskTreatme
 - `application/risk-map.commands.ts`: RSK-10 por `createStructuredIn` (`allowCollaborators`, sem
   riscos → 422 `BUSINESS_RULE_VIOLATION` `RISK_LIST_EMPTY` depois da autorização).
 - O bloqueio dos riscos após a conclusão (RN-RISK-23) já é o `RiskGate` da US-033.
+
+## US-119 — Riscos propostos pela IA (RSK-11/RSK-12)
+
+- Colunas `ai_generation_id` (risco e tratamento, imutável — gatilho) e `ai_reviewed_at`/
+  `ai_reviewed_by_id` (risco) na migração `20261018150000_risk_ai_review`.
+- `application/risk-ai.commands.ts`: RSK-11 lê a proposta pela porta `AiSuggestionSource` e marca a
+  geração `APPLIED` ANTES de inserir (ids reservados): a atualização condicional trava a linha da
+  geração, então a segunda aplicação simultânea recebe 409 sem disputar a numeração. Riscos nascem
+  sem responsável, com `IN_TREATMENT` quando vêm com tratamento (RN-RISK-14); tratamentos `PLANNED`.
+  RSK-12 revisa por risco com `expectedVersions` (412 com `meta.current`), idempotente.
+- `domain/risk-ai-proposal.ts` (seleção — V-07) e `createRiskFromAiProposal`/`markRiskAiReviewed`.
+- Completude do `RISK_MAP` (`evaluateRiskMapCompleteness`): `RISK_AI_REVIEW_PENDING` e
+  `RISK_PLACEHOLDER_PENDING` ("[a confirmar" no risco ou em tratamento ativo), ambos bloqueantes.

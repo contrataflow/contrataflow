@@ -32,6 +32,8 @@ export interface RiskTreatment {
   readonly completedAt: Date | null;
   readonly notes: string | null;
   readonly sortOrder: number;
+  /** Geração de origem (RSK-11 · US-119); imutável. Revisado com o risco (RN-AI-42). */
+  readonly aiGenerationId: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly createdById: string | null;
@@ -47,6 +49,8 @@ export interface NewTreatmentContext {
   readonly sortOrder: number;
   readonly now: Date;
   readonly userId: string | null;
+  /** Tratamento proposto pela IA (RSK-11): `PLANNED`, sem responsável nem prazo. */
+  readonly generationId?: string;
 }
 
 /** `RiskTreatment.create` (RN-RISK-11/13): `status = PLANNED`, ao fim da lista do risco. */
@@ -68,6 +72,7 @@ export function createRiskTreatment(
     completedAt: null,
     notes: body.notes ?? null,
     sortOrder: context.sortOrder,
+    aiGenerationId: context.generationId ?? null,
     createdAt: context.now,
     updatedAt: context.now,
     createdById: context.userId,

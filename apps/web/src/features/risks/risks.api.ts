@@ -1,5 +1,7 @@
 import { riskListMetaSchema, riskMatrixSchema } from '@contrataflow/validation';
 import type {
+  ApplyAiRisksInput,
+  ApplyAiRisksResultDto,
   CreateRiskInput,
   CreateRiskTreatmentInput,
   DocumentDto,
@@ -8,6 +10,7 @@ import type {
   RiskMatrixDto,
   RiskPhase,
   RiskStatus,
+  ReviewAiRisksResultDto,
   RiskTreatmentDto,
   UpdateRiskInput,
   UpdateRiskTreatmentInput,
@@ -15,6 +18,7 @@ import type {
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { apiRequest } from '@/lib/api/client';
+import type { IdempotentContext } from '@/lib/api/use-idempotent-mutation';
 import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -215,4 +219,39 @@ export async function deleteTreatment(treatmentId: string, version: number): Pro
     method: 'DELETE',
     ifMatch: ifMatch(version),
   });
+}
+
+/**
+ * RSK-11 (US-119) — aplica os riscos e tratamentos escolhidos da proposta de IA (a mesma
+ * `Idempotency-Key` em cada reenvio da intenção). Riscos criados ficam "gerados por IA" até o RSK-12.
+ */
+export async function applyAiRisks(
+  processId: string,
+  body: ApplyAiRisksInput,
+  context: IdempotentContext,
+): Promise<ApplyAiRisksResultDto> {
+  return (
+    await apiRequest<ApplyAiRisksResultDto>(`/processes/${processId}/risks/ai-apply`, {
+      method: 'POST',
+      body,
+      idempotencyKey: context.idempotencyKey,
+      correlationId: context.correlationId,
+    })
+  ).data;
+}
+
+/** RSK-12 (US-119) — marca os riscos gerados por IA como revisados, com a versão vista de cada um. */
+export async function reviewAiRisks(
+  processId: string,
+  risks: readonly Pick<RiskDto, 'id' | 'version'>[],
+): Promise<ReviewAiRisksResultDto> {
+  return (
+    await apiRequest<ReviewAiRisksResultDto>(`/processes/${processId}/risks/ai-review`, {
+      method: 'POST',
+      body: {
+        riskIds: risks.map((risk) => risk.id),
+        expectedVersions: Object.fromEntries(risks.map((risk) => [risk.id, risk.version])),
+      },
+    })
+  ).data;
 }

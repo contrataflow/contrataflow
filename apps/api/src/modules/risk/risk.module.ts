@@ -3,8 +3,10 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { AiSuggestionSourceModule } from '#shared/ai/ai-suggestion-source.js';
 
 import { RISK_CLOCK, RISK_REPOSITORY, RISK_TRANSACTIONS } from './application/ports.js';
+import { ApplyAiRisksCommand, ReviewAiRisksCommand } from './application/risk-ai.commands.js';
 import { CreateRiskMapCommand } from './application/risk-map.commands.js';
 import { RiskMapDocumentValidator } from './application/risk-map.validator.js';
 import {
@@ -34,6 +36,7 @@ import {
   PrismaRiskRepository,
   PrismaRiskTransactions,
 } from './infrastructure/prisma-risk.repository.js';
+import { RiskAiController } from './presentation/risk-ai.controller.js';
 import { RiskMapController } from './presentation/risk-map.controller.js';
 import { RiskTreatmentController } from './presentation/risk-treatment.controller.js';
 import { RiskController } from './presentation/risk.controller.js';
@@ -55,10 +58,19 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * guarda (RN-RISK-16) e a transição automática do risco para `IN_TREATMENT` (RN-RISK-14). US-035:
  * matriz (RSK-09) e emissão do Mapa de Riscos (RSK-10) pelo padrão de documento tipado, com o
  * `RiskMapDocumentValidator` (completude, snapshot e resumo do `RISK_MAP`) registrado no `document`.
+ * US-119: aplicação (RSK-11) e revisão (RSK-12) dos riscos propostos pela IA — a proposta vem pela
+ * porta `AiSuggestionSource` (o `ai` não escreve aqui).
  */
 @Module({
-  imports: [CatalogModule, DocumentModule, IdentityModule, OrganizationModule, TenancyModule],
-  controllers: [RiskController, RiskTreatmentController, RiskMapController],
+  imports: [
+    AiSuggestionSourceModule,
+    CatalogModule,
+    DocumentModule,
+    IdentityModule,
+    OrganizationModule,
+    TenancyModule,
+  ],
+  controllers: [RiskController, RiskTreatmentController, RiskMapController, RiskAiController],
   providers: [
     RiskFacade,
     ListRisksQuery,
@@ -71,6 +83,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DeleteRiskTreatmentCommand,
     GetRiskMatrixQuery,
     CreateRiskMapCommand,
+    ApplyAiRisksCommand,
+    ReviewAiRisksCommand,
     RiskMapDocumentValidator,
     RiskGate,
     RiskScaleReader,

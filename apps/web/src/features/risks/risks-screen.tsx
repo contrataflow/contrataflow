@@ -7,10 +7,13 @@ import { useTranslations } from 'next-intl';
 import { useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { AiAssistant } from '@/features/ai/ai-assistant';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { RiskList } from './risk-list';
 import { RiskMatrixPanel } from './risk-matrix-panel';
+import { useRisks } from './risks.api';
+import { useInvalidateProcess } from '../process-panel/process-panel.api';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 
 const TABS = ['list', 'matrix'] as const;
@@ -19,9 +22,16 @@ type Tab = (typeof TABS)[number];
 /**
  * SCR-011 — Riscos (`/processos/[id]/riscos`): cabeçalho com o processo e as abas "Lista de riscos"
  * (US-033/US-034) e "Matriz" (US-035 — grade de calor e Mapa de Riscos). Abas no padrão WAI-ARIA
- * (setas, Home/End); a matriz leva de volta à lista com o risco aberto.
+ * (setas, Home/End); a matriz leva de volta à lista com o risco aberto. US-119: "Gerar rascunho com
+ * IA" (`AiDraftButton` + SCR-117) com a proposta de riscos; `?ia=` abre o painel na geração.
  */
-export function RisksScreen({ processId }: { readonly processId: string }) {
+export function RisksScreen({
+  processId,
+  aiGenerationId = null,
+}: {
+  readonly processId: string;
+  readonly aiGenerationId?: string | null | undefined;
+}) {
   const t = useTranslations('risks');
   const session = useShellSession();
   const id = useId();
@@ -33,6 +43,9 @@ export function RisksScreen({ processId }: { readonly processId: string }) {
     queryFn: ({ signal }) => fetchProcess(processId, signal),
     throwOnError: false,
   });
+  const risks = useRisks(processId);
+  const invalidate = useInvalidateProcess(processId);
+  const meta = risks.data?.meta;
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const index = TABS.indexOf(tab);
@@ -54,7 +67,26 @@ export function RisksScreen({ processId }: { readonly processId: string }) {
         <Link href={`/processos/${processId}`} className="text-sm text-primary underline">
           {t('backToProcess')}
         </Link>
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h1 className="text-2xl font-semibold">{t('title')}</h1>
+          {meta === undefined ? null : (
+            <AiAssistant
+              processId={processId}
+              documentId={meta.riskMap?.id ?? null}
+              targetModule="RISK_MAP"
+              editable={meta.canManage && meta.lockReason === null}
+              initialGenerationId={aiGenerationId}
+              riskContext={{
+                levelThresholds: meta.levelThresholds,
+                existing: (risks.data?.risks ?? []).map((risk) => ({
+                  id: risk.id,
+                  code: risk.code,
+                })),
+                onRisksApplied: () => void invalidate(),
+              }}
+            />
+          )}
+        </div>
         {detail.data === undefined ? null : (
           <p className="text-sm text-muted-foreground">
             {t('processLine', {

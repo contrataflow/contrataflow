@@ -140,6 +140,19 @@ export class CatalogFacade {
     return types;
   }
 
+  /** Itens ATIVOS do catálogo no tenant da transação, por `sortOrder` e `code` (ex.: contexto da IA). */
+  async activeItemsOf(tx: TenantTx, catalogType: CatalogType): Promise<CatalogItemRef[]> {
+    return (await this.items.listAll(tx, catalogType, false))
+      .filter((item) => item.isActive)
+      .map((item) => ({
+        id: item.id,
+        catalogType: item.catalogType,
+        code: item.code,
+        label: item.label,
+        isActive: item.isActive,
+      }));
+  }
+
   /** Leitura para exibição de registro existente: devolve o item mesmo inativo (RN-TEN-61). */
   async find(tx: TenantTx, id: string): Promise<CatalogItemRef | null> {
     const item = await this.items.findById(tx, id);

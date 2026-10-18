@@ -41,6 +41,11 @@ export interface Risk {
   readonly residualScore: number | null;
   readonly residualLevel: RiskLevel | null;
   readonly sortOrder: number;
+  /** Geração de origem (RSK-11 · US-119); imutável. `null` = registrado por uma pessoa. */
+  readonly aiGenerationId: string | null;
+  /** Revisão humana do risco gerado por IA (RSK-12 · RN-AI-42). */
+  readonly aiReviewedAt: Date | null;
+  readonly aiReviewedById: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly createdById: string | null;
@@ -173,6 +178,9 @@ export function createRisk(body: CreateRisk, context: NewRiskContext): Risk {
     residualScore: null,
     residualLevel: null,
     sortOrder: 0,
+    aiGenerationId: null,
+    aiReviewedAt: null,
+    aiReviewedById: null,
     createdAt: context.now,
     updatedAt: context.now,
     createdById: context.userId,
@@ -294,4 +302,59 @@ export function startTreatment(
   if (risk.status !== 'OPEN') return null;
   if (otherTreatments.some((treatment) => treatment.status !== 'CANCELED')) return null;
   return { ...risk, status: 'IN_TREATMENT' };
+}
+
+/** O risco proposto pela IA e escolhido pela pessoa (RSK-11 · RN-AI-39/40), já sem chave da proposta. */
+export interface AiRiskProposal {
+  readonly title: string;
+  readonly description: string;
+  readonly categoryId: string;
+  readonly phase: RiskPhase;
+  readonly cause: string;
+  readonly consequence: string;
+  readonly probability: number;
+  readonly impact: number;
+}
+
+/**
+ * `Risk.createFromAiProposal` (RN-AI-40): o risco de sempre (código, escore/nível pelas faixas
+ * vigentes, snapshot da escala) com a geração de origem e SEM responsável — fica "gerado por IA"
+ * até o RSK-12. Valide `gradeIssues` antes (a proposta já foi conferida na geração, mas a escala
+ * pode ter mudado depois).
+ */
+export function createRiskFromAiProposal(
+  proposal: AiRiskProposal,
+  context: NewRiskContext & { readonly generationId: string },
+): Risk {
+  const risk = createRisk(
+    {
+      title: proposal.title,
+      description: proposal.description.trim() === '' ? null : proposal.description,
+      categoryId: proposal.categoryId,
+      phase: proposal.phase,
+      cause: proposal.cause,
+      consequence: proposal.consequence,
+      probability: proposal.probability,
+      impact: proposal.impact,
+      ownerId: null,
+      ownerDepartmentId: null,
+    },
+    context,
+  );
+  return { ...risk, aiGenerationId: context.generationId };
+}
+
+/**
+ * `Risk.markAiReviewed` (RSK-12 · RN-AI-42): grava quem e quando revisou o risco gerado por IA.
+ * `null` = nada a fazer (risco sem origem na IA ou já revisado — o RSK-12 é idempotente).
+ */
+export function markRiskAiReviewed(risk: Risk, userId: string, now: Date): Risk | null {
+  if (risk.aiGenerationId === null || risk.aiReviewedAt !== null) return null;
+  return {
+    ...risk,
+    aiReviewedAt: now,
+    aiReviewedById: userId,
+    updatedAt: now,
+    updatedById: userId,
+  };
 }

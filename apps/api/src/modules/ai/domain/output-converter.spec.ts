@@ -150,11 +150,54 @@ describe('OutputConverter — validação da resposta', () => {
     const withRisks = structuredResponseSchema.extend({
       risks: z.array(z.record(z.string(), z.unknown())).min(1),
     });
-    const result = convertStructuredOutput(
-      { ...paragraphs({ NECESSIDADE: 'a', JUSTIFICATIVA: 'b' }), risks: [{ title: 'Atraso' }] },
-      { sections: SECTIONS, schema: withRisks },
-    );
-    expect(result.ok && result.output.risks).toEqual([{ title: 'Atraso' }]);
+    const raw = {
+      ...paragraphs({ NECESSIDADE: 'a', JUSTIFICATIVA: 'b' }),
+      risks: [{ title: 'Atraso' }],
+    };
+    const risk = {
+      proposalKey: 'R1',
+      title: 'Atraso',
+      description: '',
+      categoryCode: 'PRAZO',
+      phase: 'PLANNING' as const,
+      cause: 'Causa do atraso na entrega.',
+      consequence: 'Consequência do atraso na entrega.',
+      probability: 2,
+      impact: 2,
+      rationale: '',
+      treatments: [],
+    };
+    const refined = convertStructuredOutput(raw, {
+      sections: SECTIONS,
+      schema: withRisks,
+      refineRisks: (risks) => {
+        expect(risks).toEqual([{ title: 'Atraso' }]);
+        return { ok: true, risks: [risk] };
+      },
+    });
+    expect(refined.ok && refined.output.risks).toEqual([risk]);
+    // Sem o refinador do mapa de riscos, a proposta não leva `risks`.
+    const plain = convertStructuredOutput(raw, { sections: SECTIONS, schema: withRisks });
+    expect(plain.ok && plain.output.risks).toBeUndefined();
+    const refused = convertStructuredOutput(raw, {
+      sections: SECTIONS,
+      schema: withRisks,
+      refineRisks: () => ({ ok: false, issues: ['risks.0.probability: out_of_scale'] }),
+    });
+    expect(refused).toEqual({ ok: false, issues: ['risks.0.probability: out_of_scale'] });
     expect(responseJsonSchema()).toMatchObject({ type: 'object', required: ['sections'] });
+  });
+
+  it('descarta seção não pedida quando o gerador pede (mapa de riscos sem documento)', () => {
+    const raw = paragraphs({ NECESSIDADE: 'a', JUSTIFICATIVA: 'b', INTRODUCTION: 'c' });
+    expect(convertStructuredOutput(raw, { sections: SECTIONS }).ok).toBe(false);
+    const result = convertStructuredOutput(raw, {
+      sections: SECTIONS,
+      ignoreUnknownSections: true,
+    });
+    expect(result.ok && result.output.sections.map((section) => section.sectionKey)).toEqual([
+      'NECESSIDADE',
+      'JUSTIFICATIVA',
+    ]);
   });
 });

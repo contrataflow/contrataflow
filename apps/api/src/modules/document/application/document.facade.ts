@@ -14,6 +14,7 @@ import { ApiError } from '#shared/errors/api-error.js';
 
 import { DocumentAiTargets } from './document-ai-target.js';
 import type {
+  AiChainSource,
   AiDocumentTarget,
   AiDocumentTargetInput,
   AiDraftSource,
@@ -543,6 +544,60 @@ export class DocumentFacade {
       items: [...items]
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((item) => ({ processItemId: item.processItemId, quantity: item.quantity })),
+    };
+  }
+
+  /**
+   * Documento da cadeia como entrada de geração com IA (US-119 · RN-AI-33/38), no `tx` do chamador
+   * (RLS): o documento ativo (não cancelado nem excluído) do tipo de sistema no processo, pela
+   * precedência aprovada → versão (finalizado/em revisão) → rascunho. `null` sem documento. Só
+   * seções `FILLED` como texto puro (quem chama decide quais seções omitir). Leitura.
+   */
+  async aiChainSourceIn(
+    tx: TenantTx,
+    processId: string,
+    systemModule: SystemDocumentModule,
+  ): Promise<AiChainSource | null> {
+    const type = (await this.types.list(tx)).find(
+      (candidate) => candidate.systemModule === systemModule,
+    );
+    if (type === undefined) return null;
+    const document = await this.documents.findActiveOfType(tx, processId, type.id);
+    if (document === null) return null;
+    const textsOf = (
+      sections: Readonly<Record<string, { readonly state: string; readonly content: unknown }>>,
+    ) =>
+      Object.entries(sections).flatMap(([key, section]) => {
+        if (section.state !== 'FILLED' || section.content === null) return [];
+        const text = richTextPlainText(
+          section.content as Parameters<typeof richTextPlainText>[0],
+        ).trim();
+        return text === '' ? [] : [{ key, text }];
+      });
+    const versioned = document.status !== 'DRAFT' && document.status !== 'RETURNED';
+    const versionId = document.approvedVersionId ?? (versioned ? document.currentVersionId : null);
+    if (versionId !== null) {
+      const version = await this.documents.findVersion(tx, versionId);
+      if (version?.documentId === document.id && version.content !== null) {
+        return {
+          documentId: document.id,
+          documentTypeCode: type.code,
+          status: document.status,
+          source: versionId === document.approvedVersionId ? 'APPROVED_VERSION' : 'VERSION',
+          versionNumber: version.versionNumber,
+          draftRevision: null,
+          sections: textsOf(version.content.sections),
+        };
+      }
+    }
+    return {
+      documentId: document.id,
+      documentTypeCode: type.code,
+      status: document.status,
+      source: 'DRAFT',
+      versionNumber: null,
+      draftRevision: document.draftRevision,
+      sections: textsOf(document.draftContent.sections),
     };
   }
 

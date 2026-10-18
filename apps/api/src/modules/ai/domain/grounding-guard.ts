@@ -1,5 +1,10 @@
 import { TO_CONFIRM_DEFAULT_LABELS } from '@contrataflow/validation';
-import type { AiGenerationOutput, AiOutputSection, RichTextNode } from '@contrataflow/validation';
+import type {
+  AiGenerationOutput,
+  AiOutputSection,
+  AiProposedRisk,
+  RichTextNode,
+} from '@contrataflow/validation';
 
 import { CATEGORY_OF, FactSet, findFacts } from './fact-set.js';
 import { toConfirmNode } from './output-converter.js';
@@ -94,11 +99,58 @@ export function groundSection(section: AiOutputSection, facts: FactSet): AiOutpu
   };
 }
 
+/**
+ * Texto simples (riscos propostos — US-119): o fato não sustentado vira o marcador LITERAL
+ * "[a confirmar: <rótulo>]" (os campos do risco não são TipTap — entities.md §5.10). Trechos já
+ * marcados ficam como estão; idempotente.
+ */
+export function groundPlainText(text: string, facts: FactSet): string {
+  let out = '';
+  let last = 0;
+  const groundPiece = (piece: string): string => {
+    let result = '';
+    let cursor = 0;
+    for (const match of findFacts(piece)) {
+      if (match.kind === 'CITATION' || facts.supports(match)) continue;
+      result += `${piece.slice(cursor, match.start)}[a confirmar: ${TO_CONFIRM_DEFAULT_LABELS[CATEGORY_OF[match.kind]]}]`;
+      cursor = match.end;
+    }
+    return result + piece.slice(cursor);
+  };
+  for (const match of text.matchAll(LITERAL_TO_CONFIRM)) {
+    out += groundPiece(text.slice(last, match.index)) + match[0];
+    last = match.index + match[0].length;
+  }
+  return out + groundPiece(text.slice(last));
+}
+
+/** Risco proposto conferido contra os fatos (título, descrição, causa, consequência, tratamentos). */
+export function groundRisk(risk: AiProposedRisk, facts: FactSet): AiProposedRisk {
+  return {
+    ...risk,
+    title: groundPlainText(risk.title, facts),
+    description: groundPlainText(risk.description, facts),
+    cause: groundPlainText(risk.cause, facts),
+    consequence: groundPlainText(risk.consequence, facts),
+    rationale: groundPlainText(risk.rationale, facts),
+    treatments: risk.treatments.map((treatment) => ({
+      ...treatment,
+      description: groundPlainText(treatment.description, facts),
+    })),
+  };
+}
+
 export class GroundingGuard implements AiOutputPostProcessor {
   readonly name = 'grounding-guard';
 
   process({ output, context }: PostProcessingInput): AiGenerationOutput {
     const facts = FactSet.fromContext(context);
-    return { ...output, sections: output.sections.map((section) => groundSection(section, facts)) };
+    return {
+      ...output,
+      sections: output.sections.map((section) => groundSection(section, facts)),
+      ...(output.risks === undefined
+        ? {}
+        : { risks: output.risks.map((risk) => groundRisk(risk, facts)) }),
+    };
   }
 }

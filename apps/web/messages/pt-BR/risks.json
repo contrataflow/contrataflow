@@ -289,5 +289,33 @@
       "goToRisk": "Ir para o risco e criar o tratamento",
       "goToRiskNamed": "Ir para o risco {code} e criar o tratamento"
     }
+  },
+  "aiReview": {
+    "badge": {
+      "pending": "Gerado por IA · revisão pendente",
+      "reviewed": "Gerado por IA · revisado em {date}",
+      "reviewedByMe": "Gerado por IA · revisado por você em {date}",
+      "placeholder": "· há itens [a confirmar]"
+    },
+    "markReviewed": "Marcar como revisado",
+    "markReviewedFor": "Marcar o risco {code} como revisado",
+    "working": "Registrando…",
+    "reviewAll": {
+      "open": "Revisar todos ({count})",
+      "title": "Revisar os riscos gerados por IA",
+      "description": "{count, plural, one {Confirme que você leu o risco gerado por IA abaixo.} other {Confirme que você leu os # riscos gerados por IA abaixo.}} Os itens [a confirmar] continuam pendentes até serem resolvidos.",
+      "confirmLabel": "{count, plural, one {Li e revisei o risco} other {Li e revisei os # riscos}}",
+      "confirm": "{count, plural, one {Marcar o risco como revisado} other {Marcar os # riscos como revisados}}",
+      "cancel": "Cancelar"
+    },
+    "toast": {
+      "one": "Risco {code} marcado como revisado.",
+      "many": "{count, plural, one {# risco marcado como revisado.} other {# riscos marcados como revisados.}}"
+    },
+    "errors": {
+      "conflict": "O risco foi alterado por outra pessoa. Recarregue.",
+      "locked": "Os riscos estão bloqueados porque o Mapa de Riscos foi concluído.",
+      "unavailable": "Não foi possível registrar a revisão agora. Tente novamente."
+    }
   }
 }

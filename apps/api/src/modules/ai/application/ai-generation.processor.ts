@@ -319,6 +319,8 @@ export class AiGenerationProcessor {
       sections: prepared.context.sections,
       warnings: mergeWarnings(sanitized.warnings, prepared.context.warnings ?? []),
       ...(prepared.generator.responseSchema ? { schema: prepared.generator.responseSchema } : {}),
+      ...(prepared.context.refineRisks ? { refineRisks: prepared.context.refineRisks } : {}),
+      ...(prepared.context.ignoreUnknownSections ? { ignoreUnknownSections: true } : {}),
     };
     const base = {
       model,

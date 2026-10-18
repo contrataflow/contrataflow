@@ -30,6 +30,11 @@ import type {
 import type { InMemoryAiGenerationRepository } from '#modules/ai/infrastructure/in-memory-ai-generation.repository.js';
 import { InMemoryDfdRepository } from '#modules/dfd/infrastructure/dfd.repositories.js';
 import type { InMemoryJobQueue } from '#modules/platform/infrastructure/queues/in-memory-job-queue.js';
+import { RISK_TRANSACTIONS } from '#modules/risk/application/ports.js';
+import type { RiskTransactions } from '#modules/risk/application/ports.js';
+import { createRisk } from '#modules/risk/domain/risk.js';
+import type { NewRiskContext } from '#modules/risk/domain/risk.js';
+import { InMemoryRiskRepository } from '#modules/risk/infrastructure/in-memory-risk.repository.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { JOB_QUEUE } from '#shared/jobs/job-queue.js';
 
@@ -155,6 +160,24 @@ export function aiRepositoryOf(api: TestApi): InMemoryAiGenerationRepository {
 /** Cabeçalhos de DFD em memória (US-117: contexto do rascunho e "cabeçalho intacto"). */
 export function dfdRepositoryOf(api: TestApi): InMemoryDfdRepository {
   return api.app.get(InMemoryDfdRepository, { strict: false });
+}
+
+/** Token e porta das transações do `risk` (US-119: banco fora do ar no RSK-11). */
+export { RISK_TRANSACTIONS };
+export type { RiskTransactions };
+
+/** Riscos em memória (US-119: o que o RSK-11 gravou e o risco semeado de outro tenant). */
+export function riskRepositoryOf(api: TestApi): InMemoryRiskRepository {
+  return api.app.get(InMemoryRiskRepository, { strict: false });
+}
+
+/** Semeia um risco direto no repositório em memória (ex.: de outro tenant — US-119). */
+export async function seedRisk(
+  api: TestApi,
+  body: Parameters<typeof createRisk>[0],
+  context: NewRiskContext,
+): Promise<void> {
+  await riskRepositoryOf(api).insert({} as TenantTx, createRisk(body, context));
 }
 
 export function jobQueueOf(api: TestApi): InMemoryJobQueue {

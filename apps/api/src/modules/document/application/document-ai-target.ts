@@ -80,6 +80,22 @@ export interface AiDraftSource {
   readonly items: readonly { readonly processItemId: string; readonly quantity: string }[];
 }
 
+/**
+ * Documento da cadeia do planejamento lido como ENTRADA de outra geração (US-119 · RN-AI-33/38):
+ * a versão aprovada; senão a última versão de um documento finalizado/em revisão; senão o rascunho
+ * (`source = 'DRAFT'` — aviso `USED_DRAFT_INPUTS`). Só seções preenchidas, como texto puro; nunca
+ * pessoas, comentários nem o cabeçalho tipado.
+ */
+export interface AiChainSource {
+  readonly documentId: string;
+  readonly documentTypeCode: string;
+  readonly status: DocumentStatus;
+  readonly source: 'APPROVED_VERSION' | 'VERSION' | 'DRAFT';
+  readonly versionNumber: number | null;
+  readonly draftRevision: number | null;
+  readonly sections: readonly { readonly key: string; readonly text: string }[];
+}
+
 const TYPE_MISMATCH = 'O documento não corresponde ao tipo escolhido.';
 
 @Injectable()

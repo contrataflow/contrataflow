@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { sanitizeContext } from './context-sanitizer.js';
 import { FactSet, findFacts, parseDigits, parseSpelled } from './fact-set.js';
-import { GroundingGuard, groundSection } from './grounding-guard.js';
+import { GroundingGuard, groundPlainText, groundSection } from './grounding-guard.js';
 import { blocksToDoc } from './output-converter.js';
 import { runPostProcessors } from './post-processing.js';
 
@@ -180,6 +180,70 @@ describe('Cenário do Gherkin: entradas com 120 unidades e o ano 2026, sem valor
     expect(textOf(grounded)).toContain('art. 18, § 1º');
     expect(result).toMatchObject({ groundingReplacements: 2, placeholdersCount: 2 });
     expect(grounded).toMatchObject({ groundingReplacements: 2, placeholdersCount: 2 });
+  });
+});
+
+describe('GroundingGuard em texto simples — riscos propostos (US-119)', () => {
+  const facts = FactSet.of({ deliveryDays: 30 });
+
+  it('fato não sustentado vira o marcador literal; fato das entradas, citação e marcador existente ficam', () => {
+    expect(groundPlainText('Atraso de 45 dias na entrega.', facts)).toBe(
+      'Atraso de [a confirmar: prazo] na entrega.',
+    );
+    expect(groundPlainText('Entrega em 30 dias (Lei nº 14.133/2021).', facts)).toBe(
+      'Entrega em 30 dias (Lei nº 14.133/2021).',
+    );
+    const marked = 'Multa de R$ 5.000,00 e [a confirmar: prazo de 10 dias].';
+    const grounded = groundPlainText(marked, facts);
+    expect(grounded).toBe('Multa de [a confirmar: valor] e [a confirmar: prazo de 10 dias].');
+    expect(groundPlainText(grounded, facts)).toBe(grounded);
+  });
+
+  it('a cadeia conta as trocas nos riscos e o total de marcadores (seções + riscos)', () => {
+    const context = sanitizeContext(
+      [
+        {
+          ref: { kind: 'PROCESS', id: null },
+          label: 'Processo',
+          data: { prazoDeEntrega: '30 dias' },
+        },
+      ],
+      { isBudgetConfidential: false, maxChars: 10_000 },
+    );
+    const output: AiGenerationOutput = {
+      sections: [],
+      risks: [
+        {
+          proposalKey: 'R1',
+          title: 'Atraso na entrega',
+          description: 'Entrega em 30 dias pode não ser cumprida.',
+          categoryCode: 'PRAZO',
+          phase: 'CONTRACT_MANAGEMENT',
+          cause: 'Fornecedor com estoque de 200 unidades apenas.',
+          consequence: 'Interrupção do serviço: [a confirmar: impacto].',
+          probability: 3,
+          impact: 3,
+          rationale: '',
+          treatments: [
+            {
+              proposalKey: 'R1.T1',
+              type: 'PREVENTIVE',
+              description: 'Exigir garantia de R$ 10.000,00.',
+            },
+          ],
+        },
+      ],
+      warnings: [],
+    };
+    const result = runPostProcessors([new GroundingGuard()], output, context);
+    expect(result.output.risks?.[0]?.cause).toBe(
+      'Fornecedor com estoque de [a confirmar: quantidade] apenas.',
+    );
+    expect(result.output.risks?.[0]?.treatments[0]?.description).toBe(
+      'Exigir garantia de [a confirmar: valor].',
+    );
+    expect(result.output.risks?.[0]?.description).toContain('30 dias');
+    expect(result).toMatchObject({ groundingReplacements: 2, placeholdersCount: 3 });
   });
 });
 

@@ -1,7 +1,12 @@
 'use client';
 
 import { Alert, Button, Skeleton } from '@contrataflow/ui';
-import { RISK_MESSAGES, RISK_PHASE_LABELS, RISK_STATUS_LABELS } from '@contrataflow/validation';
+import {
+  RISK_MESSAGES,
+  RISK_PHASE_LABELS,
+  RISK_STATUS_LABELS,
+  isAiReviewPending,
+} from '@contrataflow/validation';
 import type { RiskDto, RiskListMetaDto } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -9,6 +14,7 @@ import { useEffect, useId, useState } from 'react';
 
 import { DeleteRiskDialog } from './delete-risk-dialog';
 import { LevelBadge } from './level-badge';
+import { MarkRiskReviewedButton, ReviewAllRisksDialog, RiskAiBadge } from './risk-ai-review';
 import { RiskFormDrawer } from './risk-form-drawer';
 import { lockStateOf, ownerLabelOf } from './risks-model';
 import type { RiskLockState } from './risks-model';
@@ -23,6 +29,7 @@ const riskRowId = (riskId: string) => `risk-row-${riskId}`;
 
 /** Uma linha (cartão abaixo de 768 px) com a avaliação, o responsável e as ações. */
 function RiskRow({
+  processId,
   risk,
   meta,
   lock,
@@ -33,6 +40,7 @@ function RiskRow({
   onRemove,
   onChanged,
 }: {
+  readonly processId: string;
   readonly risk: RiskDto;
   readonly meta: RiskListMetaDto;
   readonly lock: RiskLockState;
@@ -64,6 +72,7 @@ function RiskRow({
           <span className="block text-xs text-muted-foreground">
             {risk.category.label} · {RISK_PHASE_LABELS[risk.phase]}
           </span>
+          <RiskAiBadge risk={risk} />
           <button
             type="button"
             className="mt-1 text-xs text-primary underline"
@@ -135,6 +144,15 @@ function RiskRow({
               >
                 {t('actions.remove')}
               </Button>
+              {isAiReviewPending(risk) ? (
+                <MarkRiskReviewedButton
+                  processId={processId}
+                  risk={risk}
+                  disabled={lock.disabled}
+                  describedBy={describedBy}
+                  onChanged={onChanged}
+                />
+              ) : null}
             </div>
           </td>
         ) : null}
@@ -204,6 +222,7 @@ export function RiskList({
   const noticeId = useId();
   const [form, setForm] = useState<FormTarget | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [reviewingAll, setReviewingAll] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(focusRiskId === null ? [] : [focusRiskId]),
   );
@@ -251,6 +270,7 @@ export function RiskList({
   const editing = form?.mode === 'edit' ? (byId.get(form.riskId) ?? null) : null;
   const formOpen = form !== null && (form.mode === 'add' || editing !== null);
   const removing = removingId === null ? null : (byId.get(removingId) ?? null);
+  const aiPending = risks.filter((risk) => isAiReviewPending(risk));
   const toggle = (id: string) => {
     setExpanded((current) => {
       const next = new Set(current);
@@ -291,6 +311,18 @@ export function RiskList({
       {notice}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{t('count', { count: risks.length })}</p>
+        {lock.showActions && aiPending.length > 1 ? (
+          <Button
+            variant="secondary"
+            disabled={lock.disabled}
+            aria-describedby={lock.disabled ? noticeId : undefined}
+            onClick={() => {
+              setReviewingAll(true);
+            }}
+          >
+            {t('aiReview.reviewAll.open', { count: aiPending.length })}
+          </Button>
+        ) : null}
         {lock.showActions ? (
           <Button
             disabled={lock.disabled}
@@ -338,6 +370,7 @@ export function RiskList({
             {risks.map((risk) => (
               <RiskRow
                 key={risk.id}
+                processId={processId}
                 risk={risk}
                 meta={meta}
                 lock={lock}
@@ -368,6 +401,16 @@ export function RiskList({
         meta={meta}
         onChanged={invalidate}
       />
+      {reviewingAll && aiPending.length > 0 ? (
+        <ReviewAllRisksDialog
+          processId={processId}
+          risks={aiPending}
+          onClose={() => {
+            setReviewingAll(false);
+          }}
+          onChanged={invalidate}
+        />
+      ) : null}
       <DeleteRiskDialog
         risk={removing}
         scaleMax={meta.scale.max}

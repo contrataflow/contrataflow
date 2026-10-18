@@ -9,6 +9,8 @@ import { z } from 'zod';
 
 import { uuidV7Schema } from '../common/identifiers.js';
 import { cursorQuerySchema } from '../http/pagination.js';
+import { RISK_LIMITS, RISK_PHASES } from '../risk/risk.js';
+import { TREATMENT_LIMITS, TREATMENT_TYPES } from '../risk/treatment.js';
 
 /*
  * Geração com IA (US-115 · DEC-079 · entities.md §4.11/§5.10 · api/16-ai.md AI-01..04): o pedido,
@@ -178,11 +180,65 @@ export const aiOutputSectionSchema = z.strictObject({
 });
 export type AiOutputSection = z.infer<typeof aiOutputSectionSchema>;
 
+/**
+ * Limites da proposta do mapa de riscos (US-119 · RN-AI-39): até 15 riscos, de 1 a 3 tratamentos
+ * cada; os textos respeitam os limites de `Risk`/`RiskTreatment` (o RSK-11 grava como veio).
+ */
+export const AI_RISK_PROPOSAL_LIMITS = Object.freeze({
+  maxRisks: 15,
+  minTreatments: 1,
+  maxTreatments: 3,
+  rationaleMax: 500,
+  proposalKeyMax: 20,
+});
+
+const proposalKeySchema = z.string().min(1).max(AI_RISK_PROPOSAL_LIMITS.proposalKeyMax);
+
+/** Tratamento proposto (`PREVENTIVE`/`CONTINGENCY` + descrição): nunca responsável, prazo nem valor. */
+export const aiProposedTreatmentSchema = z
+  .strictObject({
+    proposalKey: proposalKeySchema,
+    type: z.enum(TREATMENT_TYPES),
+    description: z
+      .string()
+      .min(TREATMENT_LIMITS.descriptionMin)
+      .max(TREATMENT_LIMITS.descriptionMax),
+  })
+  .meta({ id: 'AiProposedTreatment' });
+export type AiProposedTreatment = z.infer<typeof aiProposedTreatmentSchema>;
+
+/**
+ * Risco proposto (entities.md §5.10 `AiGenerationOutput.risks`): `categoryCode` ativo do
+ * `RISK_CATEGORY` (desconhecido → `OUTRO`), graus na escala vigente, `similarToRiskId` quando
+ * parecido com risco já registrado. Só existe na proposta até o RSK-11 (`rationale` e
+ * `similarToRiskId` não viram coluna — lacuna 3 da US-119).
+ */
+export const aiProposedRiskSchema = z
+  .strictObject({
+    proposalKey: proposalKeySchema,
+    title: z.string().min(RISK_LIMITS.titleMin).max(RISK_LIMITS.titleMax),
+    description: z.string().max(RISK_LIMITS.descriptionMax),
+    categoryCode: z.string().min(1).max(60),
+    phase: z.enum(RISK_PHASES),
+    cause: z.string().min(RISK_LIMITS.causeMin).max(RISK_LIMITS.causeMax),
+    consequence: z.string().min(RISK_LIMITS.consequenceMin).max(RISK_LIMITS.consequenceMax),
+    probability: z.int().min(1).max(RISK_LIMITS.scaleMax),
+    impact: z.int().min(1).max(RISK_LIMITS.scaleMax),
+    rationale: z.string().max(AI_RISK_PROPOSAL_LIMITS.rationaleMax),
+    similarToRiskId: z.uuid().optional(),
+    treatments: z
+      .array(aiProposedTreatmentSchema)
+      .min(AI_RISK_PROPOSAL_LIMITS.minTreatments)
+      .max(AI_RISK_PROPOSAL_LIMITS.maxTreatments),
+  })
+  .meta({ id: 'AiProposedRisk' });
+export type AiProposedRisk = z.infer<typeof aiProposedRiskSchema>;
+
 /** `AiGenerationOutput` (a proposta): seções, riscos (só RISK_MAP — US-119) e avisos. */
 export const aiGenerationOutputSchema = z
   .strictObject({
     sections: z.array(aiOutputSectionSchema),
-    risks: z.array(z.record(z.string(), z.unknown())).optional(),
+    risks: z.array(aiProposedRiskSchema).max(AI_RISK_PROPOSAL_LIMITS.maxRisks).optional(),
     warnings: z.array(aiOutputWarningSchema),
   })
   .meta({ id: 'AiGenerationOutput' });

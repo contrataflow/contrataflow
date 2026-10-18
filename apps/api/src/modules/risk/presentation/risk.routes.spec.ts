@@ -503,6 +503,7 @@ describe('Feature: Registrar e avaliar riscos (US-033)', () => {
         completedAt: null,
         notes: null,
         sortOrder: 0,
+        aiGenerationId: null,
         createdAt: NOW,
         updatedAt: NOW,
         createdById: null,

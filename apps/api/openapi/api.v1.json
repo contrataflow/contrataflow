@@ -384,9 +384,9 @@
           "risks": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": {}
-            }
+              "$ref": "#/components/schemas/AiProposedRisk"
+            },
+            "maxItems": 15
           },
           "warnings": {
             "type": "array",
@@ -420,6 +420,116 @@
         "required": [
           "sections",
           "warnings"
+        ],
+        "additionalProperties": false
+      },
+      "AiProposedRisk": {
+        "type": "object",
+        "properties": {
+          "proposalKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "categoryCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "PLANNING",
+              "SELECTION",
+              "CONTRACT_MANAGEMENT"
+            ]
+          },
+          "cause": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "consequence": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          },
+          "probability": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "impact": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "similarToRiskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiProposedTreatment"
+            },
+            "minItems": 1,
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "proposalKey",
+          "title",
+          "description",
+          "categoryCode",
+          "phase",
+          "cause",
+          "consequence",
+          "probability",
+          "impact",
+          "rationale",
+          "treatments"
+        ],
+        "additionalProperties": false
+      },
+      "AiProposedTreatment": {
+        "type": "object",
+        "properties": {
+          "proposalKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PREVENTIVE",
+              "CONTINGENCY"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "proposalKey",
+          "type",
+          "description"
         ],
         "additionalProperties": false
       },
@@ -9266,6 +9376,39 @@
               "$ref": "#/components/schemas/RiskTreatment"
             }
           },
+          "aiGenerationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "aiReviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "aiReviewedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -9298,6 +9441,9 @@
           "status",
           "sortOrder",
           "treatments",
+          "aiGenerationId",
+          "aiReviewedAt",
+          "aiReviewedBy",
           "version"
         ]
       },
@@ -9611,6 +9757,111 @@
           "consequence",
           "probability",
           "impact"
+        ],
+        "additionalProperties": false
+      },
+      "ApplyAiRisksResult": {
+        "type": "object",
+        "properties": {
+          "risks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Risk"
+            }
+          }
+        },
+        "required": [
+          "risks"
+        ]
+      },
+      "ApplyAiRisksRequest": {
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "proposalKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "treatments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "proposalKey",
+                "treatments"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 15
+          }
+        },
+        "required": [
+          "generationId",
+          "risks"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewAiRisksResult": {
+        "type": "object",
+        "properties": {
+          "risks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Risk"
+            }
+          },
+          "reviewedRiskIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "risks",
+          "reviewedRiskIds"
+        ]
+      },
+      "ReviewAiRisksRequest": {
+        "type": "object",
+        "properties": {
+          "riskIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "expectedVersions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "riskIds",
+          "expectedVersions"
         ],
         "additionalProperties": false
       },
@@ -38898,6 +39149,289 @@
           },
           "409": {
             "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/risks/ai-apply": {
+      "post": {
+        "operationId": "RSK-11",
+        "summary": "Aplicar riscos propostos pela IA",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "risk.create",
+          "risk.treatment_create",
+          "ai.content_apply"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyAiRisksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Numa transação: cada risco escolhido vira `Risk` (próximo código `R{nn}`, escore/nível pelas faixas vigentes, `scaleSnapshot`, `aiGenerationId`, sem responsável — \"gerado por IA\" até o RSK-12) e cada tratamento escolhido vira `RiskTreatment` (`PLANNED`, sem responsável nem prazo; o risco com tratamento nasce `IN_TREATMENT`); a geração vai a `APPLIED` (`appliedTargets.riskIds` — as seções do `RISK_MAP` seguem pelo DOC-26). Grava `risk.create`, `risk.treatment_create` e `ai.content_apply`; eventos `RiskCreated`, `RiskTreatmentChanged` (`CREATED`) e `AiContentApplied` (timeline `AI_CONTENT_APPLIED`). Erros: 403 `PERMISSION_DENIED`/`NOT_PROCESS_CUSTODIAN`/`AI_GENERATION_NOT_OWNED`, 404 `NOT_FOUND`/`AI_GENERATION_NOT_FOUND`, 409 `DOCUMENT_NOT_EDITABLE`/`AI_GENERATION_NOT_APPLICABLE` (não `SUCCEEDED`, vencida, de outro processo ou riscos já aplicados), 422 `VALIDATION_ERROR` (seleção vazia, chave fora da proposta — `NOT_ALLOWED`, categoria inativa — `REFERENCE_INACTIVE`). Reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ApplyAiRisksResult"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/risks/ai-review": {
+      "post": {
+        "operationId": "RSK-12",
+        "summary": "Marcar riscos gerados por IA como revisados",
+        "tags": [
+          "Riscos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "ai.content_review"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewAiRisksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grava `aiReviewedAt`/`aiReviewedById` (`version + 1`) em cada risco gerado por IA ainda pendente; riscos sem `aiGenerationId` ou já revisados são ignorados (idempotente). Os tratamentos são revisados com o risco. Concorrência por risco (`expectedVersions`): divergência → 412 `VERSION_CONFLICT` com `meta.current`, sem revisar nenhum. Grava `ai.content_review` e `AiContentReviewed` (timeline `AI_CONTENT_REVIEWED`). Erros: 403, 404 `NOT_FOUND`, 409 `DOCUMENT_NOT_EDITABLE`, 422 `VALIDATION_ERROR` (lista vazia; risco de outro processo — `REFERENCE_NOT_FOUND`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReviewAiRisksResult"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
             "content": {
               "application/problem+json": {
                 "schema": {

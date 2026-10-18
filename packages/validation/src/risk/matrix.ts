@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { RISK_AI_MESSAGES, hasToConfirmMarker, isAiReviewPending } from './ai.js';
 import { RISK_LEVELS, RISK_PHASES, RISK_STATUSES, assessRisk } from './risk.js';
 import type { RiskLevel, RiskScaleSnapshot } from './risk.js';
 import type { TreatmentStatus } from './treatment.js';
@@ -149,13 +150,55 @@ export interface RiskMapCompletenessEntry {
   readonly id: string;
   readonly code: string;
   readonly level: RiskLevel;
-  readonly treatments: readonly { readonly status: TreatmentStatus }[];
+  readonly treatments: readonly {
+    readonly status: TreatmentStatus;
+    readonly description?: string;
+  }[];
+  /** US-119 (RN-AI-42): origem na IA e revisão humana. */
+  readonly aiGenerationId?: string | null;
+  readonly aiReviewedAt?: string | null;
+  /** Textos conferidos pelo marcador "[a confirmar" (`RISK_PLACEHOLDER_PENDING`). */
+  readonly title?: string;
+  readonly description?: string | null;
+  readonly cause?: string;
+  readonly consequence?: string;
+}
+
+/** Texto do risco ou de um tratamento ativo com o marcador literal "[a confirmar…". */
+function hasPlaceholder(risk: RiskMapCompletenessEntry): boolean {
+  return (
+    [risk.title, risk.description, risk.cause, risk.consequence].some(hasToConfirmMarker) ||
+    risk.treatments.some(
+      (treatment) => treatment.status !== 'CANCELED' && hasToConfirmMarker(treatment.description),
+    )
+  );
+}
+
+function riskViolation(
+  risk: RiskMapCompletenessEntry,
+  code: string,
+  message: string,
+  ruleId: string,
+  field: string,
+): Violation {
+  return {
+    code,
+    severity: 'BLOCKING',
+    message,
+    ruleId,
+    sectionKey: null,
+    field,
+    itemId: risk.id,
+    params: { code: risk.code, level: risk.level },
+  };
 }
 
 /**
  * RN-RISK-21: `RISK_LIST_EMPTY` (BLOCKING) sem nenhum risco; `RISK_TREATMENT_REQUIRED_FOR_LEVEL`
  * (BLOCKING, `itemId = riskId`) por risco `HIGH`/`EXTREME` sem tratamento com `status ≠ CANCELED`.
- * Riscos por código.
+ * RN-AI-42 (US-119): `RISK_AI_REVIEW_PENDING` por risco gerado por IA ainda não revisado e
+ * `RISK_PLACEHOLDER_PENDING` por risco com "[a confirmar" no texto dele ou de um tratamento ativo —
+ * ambos BLOCKING. Riscos por código.
  */
 export function evaluateRiskMapCompleteness(
   risks: readonly RiskMapCompletenessEntry[],
@@ -174,21 +217,44 @@ export function evaluateRiskMapCompleteness(
       },
     ];
   }
-  return [...risks]
-    .sort(byCode)
-    .filter(
-      (risk) =>
-        RISK_MAP_TREATMENT_REQUIRED_LEVELS.includes(risk.level) &&
-        !risk.treatments.some((treatment) => treatment.status !== 'CANCELED'),
-    )
-    .map((risk) => ({
-      code: 'RISK_TREATMENT_REQUIRED_FOR_LEVEL',
-      severity: 'BLOCKING' as const,
-      message: RISK_MAP_MESSAGES.treatmentRequired(risk.code),
-      ruleId: 'RN-RISK-21',
-      sectionKey: null,
-      field: 'treatments',
-      itemId: risk.id,
-      params: { code: risk.code, level: risk.level },
-    }));
+  return [...risks].sort(byCode).flatMap((risk) => {
+    const violations: Violation[] = [];
+    if (
+      RISK_MAP_TREATMENT_REQUIRED_LEVELS.includes(risk.level) &&
+      !risk.treatments.some((treatment) => treatment.status !== 'CANCELED')
+    ) {
+      violations.push(
+        riskViolation(
+          risk,
+          'RISK_TREATMENT_REQUIRED_FOR_LEVEL',
+          RISK_MAP_MESSAGES.treatmentRequired(risk.code),
+          'RN-RISK-21',
+          'treatments',
+        ),
+      );
+    }
+    if (isAiReviewPending(risk)) {
+      violations.push(
+        riskViolation(
+          risk,
+          'RISK_AI_REVIEW_PENDING',
+          RISK_AI_MESSAGES.reviewPending(risk.code),
+          'RN-AI-42',
+          'aiReviewedAt',
+        ),
+      );
+    }
+    if (hasPlaceholder(risk)) {
+      violations.push(
+        riskViolation(
+          risk,
+          'RISK_PLACEHOLDER_PENDING',
+          RISK_AI_MESSAGES.placeholderPending(risk.code),
+          'RN-AI-42',
+          'risks',
+        ),
+      );
+    }
+    return violations;
+  });
 }

@@ -1,8 +1,8 @@
-import { richTextProblem } from '@contrataflow/validation';
+import { aiProposedRiskSchema, richTextProblem } from '@contrataflow/validation';
 import type { AiGenerationOutput } from '@contrataflow/validation';
 
 import type { SanitizedContext } from './context-sanitizer.js';
-import { countToConfirm, plainTextLength } from './output-converter.js';
+import { countToConfirm, plainTextLength, riskPlaceholdersOf } from './output-converter.js';
 import type { SectionSpec } from './output-converter.js';
 
 /*
@@ -52,6 +52,12 @@ export function postProcessingIssues(
       issues.push(`sections.${String(index)}.content: too_long`);
     }
   }
+  // Riscos (US-119): a troca por "[a confirmar: …]" muda o tamanho dos textos — limites de novo.
+  for (const [index, risk] of (output.risks ?? []).entries()) {
+    if (!aiProposedRiskSchema.safeParse(risk).success) {
+      issues.push(`risks.${String(index)}: invalid_risk`);
+    }
+  }
   return issues;
 }
 
@@ -69,12 +75,14 @@ export function runPostProcessors(
     ...section,
     placeholdersCount: countToConfirm(section.content as Parameters<typeof countToConfirm>[0]),
   }));
+  // Riscos (US-119): texto simples — cada troca dos ganchos acrescenta um marcador literal.
+  const riskPlaceholders = riskPlaceholdersOf(processed.risks);
+  const riskReplacements = Math.max(0, riskPlaceholders - riskPlaceholdersOf(output.risks));
   return {
     output: { ...processed, sections },
-    placeholdersCount: sections.reduce((sum, section) => sum + section.placeholdersCount, 0),
-    groundingReplacements: sections.reduce(
-      (sum, section) => sum + section.groundingReplacements,
-      0,
-    ),
+    placeholdersCount:
+      sections.reduce((sum, section) => sum + section.placeholdersCount, 0) + riskPlaceholders,
+    groundingReplacements:
+      sections.reduce((sum, section) => sum + section.groundingReplacements, 0) + riskReplacements,
   };
 }

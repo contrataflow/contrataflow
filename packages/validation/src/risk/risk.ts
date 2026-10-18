@@ -317,6 +317,11 @@ export const riskSchema = z
     sortOrder: z.int(),
     /** Tratamentos não excluídos por `sortOrder`, prazo e criação (US-034 · RN-RISK-10). */
     treatments: z.array(riskTreatmentSchema),
+    /** Geração de origem (RSK-11 · US-119); `null` = registrado por uma pessoa. */
+    aiGenerationId: z.uuid().nullable(),
+    /** Revisão humana do risco gerado por IA (RSK-12 · RN-AI-42); `null` = revisão pendente. */
+    aiReviewedAt: z.iso.datetime().nullable(),
+    aiReviewedBy: namedRef.nullable(),
     /** `If-Match` de RSK-04/RSK-05. */
     version: z.int().min(1),
   })
