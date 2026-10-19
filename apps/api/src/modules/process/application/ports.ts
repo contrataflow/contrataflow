@@ -4,6 +4,7 @@ import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/proce
 import type { TenantTx } from '#shared/database/prisma.js';
 import type { CursorReader } from '#shared/database/transaction-stream.js';
 
+import type { AssignPlan } from '../domain/process-assign.js';
 import type { CancelPlan, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { ProcessItem } from '../domain/process-items.js';
@@ -295,6 +296,12 @@ export interface ProcessRepository {
    * escrita venceu (nada gravado).
    */
   recordClaim(tx: TenantTx, plan: ClaimPlan): Promise<boolean>;
+  /**
+   * US-050 (RN-TRAM-40/42): grava a atribuição no `tx` — as MESMAS escritas de `recordClaim`, com a
+   * responsabilidade `MANUAL` (o responsável pode ser `null` = fila da unidade) e a tramitação
+   * `ASSIGN`. `false` = outra escrita venceu (nada gravado).
+   */
+  recordAssign(tx: TenantTx, plan: AssignPlan): Promise<boolean>;
   /**
    * US-008 (RN-PROC-94/95): grava a suspensão no `tx` — o processo (`WHERE version =
    * expectedVersion`: status, `statusBeforeSuspension`, `suspendedAt/ById`, `suspensionReason`), a

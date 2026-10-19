@@ -286,6 +286,33 @@ ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade invá
   categorias, em memória) e `test/tenant-leak/process-claim.spec.ts` (PostgreSQL: falha induzida, 10
   simultâneos, índice único, evento `PENDING`, outro tenant).
 
+## Atribuir e reatribuir (US-050)
+
+- **Rota:** PRC-22 `POST /processes/{id}/assign` (`ProcessController`, `@RequireIfMatch` → 428;
+  `@ImplicitAccess` porque a chefia da unidade atribui sem a permissão; sem `Idempotency-Key`;
+  `ETag` = nova versão). Corpo `{ assigneeId: uuid | null, reason? }` (`assignProcessSchema`).
+- **Caso de uso:** `AssignProcessCommand` — `lockForUpdate` → visibilidade (404) → POL-05
+  (`assignCoversProcess`: `PROCESS_ASSIGN` em `TENANT`/`ORGANIZATION` do órgão, conferido com MFA por
+  `assertCanOnProcess`; senão titular/substituto da unidade atual lido no `tx` — log
+  `assign.not_head_or_deputy_fallback`; nenhum dos dois = 403 com `access.denied`
+  `reasonCode = PROCESS_ASSIGN`) → `IN_PROGRESS`/`RETURNED` fora de `APPROVAL` (409) → `If-Match`
+  (412) → pessoa sem vínculo no tenant (422 `VALIDATION_ERROR`/`REFERENCE_NOT_FOUND`) ou inelegível
+  (`StageTransitionSupport.isEligibleAssignee` → 422 `ASSIGNEE_NOT_ELIGIBLE`) → motivo quando já havia
+  responsável (RN-TRAM-39 → 422 em `reason`) → `recordAssign` → evento e `process.assign`
+  (`metadata.viaHeadOrDeputy`, `reasonLength`; nunca o texto).
+- **Gravação:** `recordAssign` = as escritas do `recordClaim` (passagem segue; só o responsável muda),
+  com a responsabilidade `MANUAL` (`assignedById` = ator; `assigneeId = null` = fila) e a tramitação
+  `ASSIGN` (motivo no `comment`).
+- **Efeitos:** `ProcessAssigned` (`MANUAL`, `hasReason`) → timeline `PROCESS_ASSIGNED` (mapeamento
+  existente), `ProcessAccessProjector` (`MANUAL` → `RESPONSIBLE`) e, no worker, a notificação
+  `PROCESS_ASSIGNED` ao novo responsável (o ator é excluído).
+- **Motor:** PRC-08 emite `ASSIGN` só em `IN_PROGRESS`/`RETURNED` fora de `APPROVAL`; o
+  `canAssignAnywhere` é calculado por processo (`engineViewerFor` — o escopo `ORGANIZATION` conta).
+- **Testes:** `domain/process-assign.spec.ts`, `application/process-viewer.spec.ts`,
+  `presentation/process-assign.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/process-assign.spec.ts` (PostgreSQL: falha induzida, simultâneos, `PENDING`,
+  outro tenant).
+
 ### Mudança de etapa reutilizável (`StageTransitionService`)
 
 Base de toda tramitação (encaminhar — US-047; devolver — US-048; decidir — US-052; concluir —

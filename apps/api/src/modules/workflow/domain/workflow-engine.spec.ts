@@ -269,7 +269,7 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       );
 
     it.each([
-      ['DRAFT', { CLAIM: false, ASSIGN: true, SUSPEND: false, CANCEL: true }],
+      ['DRAFT', { CLAIM: false, ASSIGN: false, SUSPEND: false, CANCEL: true }],
       ['IN_PROGRESS', { CLAIM: true, ASSIGN: true, SUSPEND: true, CANCEL: true }],
       ['AWAITING_APPROVAL', { CLAIM: false, ASSIGN: false, SUSPEND: true, CANCEL: true }],
       ['RETURNED', { CLAIM: true, ASSIGN: true, SUSPEND: true, CANCEL: true }],
@@ -373,6 +373,16 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
           {
             code: 'INVALID_PROCESS_STATUS',
             message: 'Este processo não pode ser assumido no momento.',
+          },
+        ],
+      });
+      // RN-TRAM-37 (US-050): atribuir segue a mesma regra de etapa.
+      expect(actionsOf(actions, 'ASSIGN')[0]).toMatchObject({
+        enabled: false,
+        reasons: [
+          {
+            code: 'INVALID_PROCESS_STATUS',
+            message: 'Este processo não pode ser atribuído no momento.',
           },
         ],
       });

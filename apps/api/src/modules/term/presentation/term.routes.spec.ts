@@ -244,6 +244,8 @@ describe('Feature: Criar TR e editar suas seções (US-036)', () => {
         originId: catalog.origin,
         priority: 'MEDIUM',
         pcaStatus: 'NOT_APPLICABLE',
+        // Os títulos aleatórios às vezes caem na detecção de duplicidade (US-003): fora do escopo.
+        confirmDuplicate: true,
       });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     const created = processRepositoryOf(api)

@@ -30,6 +30,30 @@ const ACTION_PERMISSIONS: readonly ProcessActionPermission[] = [
 export interface ResolvedViewer {
   readonly visibility: ProcessViewer;
   readonly engine: EngineViewer;
+  /** Órgãos em que `PROCESS_ASSIGN` vale com escopo `ORGANIZATION` (POL-05 · US-050). */
+  readonly assignOrganizationIds: readonly string[];
+}
+
+/**
+ * POL-05 (US-050 · RN-TRAM-36): `PROCESS_ASSIGN` com escopo `TENANT` ou `ORGANIZATION` do órgão do
+ * processo. Escopo de unidade não basta — a chefia da unidade atual é a outra via (§7).
+ */
+export function assignCoversProcess(
+  viewer: ResolvedViewer,
+  organizationId: string | null,
+): boolean {
+  return (
+    viewer.engine.canAssignAnywhere ||
+    (organizationId !== null && viewer.assignOrganizationIds.includes(organizationId))
+  );
+}
+
+/** O `EngineViewer` do processo: `canAssignAnywhere` pelo órgão dele (POL-05). */
+export function engineViewerFor(
+  viewer: ResolvedViewer,
+  organizationId: string | null,
+): EngineViewer {
+  return { ...viewer.engine, canAssignAnywhere: assignCoversProcess(viewer, organizationId) };
 }
 
 /**
@@ -55,6 +79,13 @@ export class ProcessViewerResolver {
         permissions: new Set(ACTION_PERMISSIONS.filter(grants)),
         canAssignAnywhere: permissions.coversTenantWide('PROCESS_ASSIGN'),
       },
+      assignOrganizationIds: permissions
+        .scopesOf('PROCESS_ASSIGN')
+        .flatMap((scope) =>
+          scope.type === 'ORGANIZATION' && scope.organizationId !== null
+            ? [scope.organizationId]
+            : [],
+        ),
     };
   }
 }

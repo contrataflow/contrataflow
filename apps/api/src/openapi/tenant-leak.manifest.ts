@@ -154,6 +154,9 @@ const PROCESS_RETURN_ROUTE =
 const PROCESS_CLAIM_ROUTE =
   'Assumir processo (US-049 · PRC-21): exige If-Match e um processo do tenant na fila de uma unidade, que a suíte genérica não tem. O isolamento (PRC-21 com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, lotado em outra unidade → 403 PERMISSION_DENIED com access.denied, RLS de processes/process_stages/process_assignments/process_movements/process_access e o índice único de responsabilidade ativa) é coberto em test/tenant-leak/process-claim.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-claim.routes.spec.ts.';
 
+const PROCESS_ASSIGN_ROUTE =
+  'Atribuir/reatribuir responsável (US-050 · PRC-22): exige If-Match e um processo do tenant numa etapa de tarefa com membros lotados na unidade atual, que a suíte genérica não tem. O isolamento (PRC-22 com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, assigneeId de usuário só de B → 422 VALIDATION_ERROR REFERENCE_NOT_FOUND sem revelar o registro, sem PROCESS_ASSIGN nem chefia → 403 PERMISSION_DENIED com access.denied, RLS de processes/process_stages/process_assignments/process_movements/process_access) é coberto em test/tenant-leak/process-assign.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-assign.routes.spec.ts.';
+
 const PROCESS_SUSPENSION_ROUTE =
   'Suspender e retomar processo (US-008 · PRC-23/PRC-24): exigem If-Match, Idempotency-Key e um processo do tenant numa etapa ativa com prazo, que a suíte genérica não tem. O isolamento (id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, sem PROCESS_SUSPEND → 403 PERMISSION_DENIED com access.denied, tenant suspenso → 403 TENANT_SUSPENDED, RLS de processes/process_stages/process_movements/approvals) é coberto em test/tenant-leak/process-suspension.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-suspension.routes.spec.ts.';
 
@@ -369,6 +372,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-19': { kind: 'exempt', reason: PROCESS_FORWARD_ROUTE },
   'PRC-20': { kind: 'exempt', reason: PROCESS_RETURN_ROUTE },
   'PRC-21': { kind: 'exempt', reason: PROCESS_CLAIM_ROUTE },
+  'PRC-22': { kind: 'exempt', reason: PROCESS_ASSIGN_ROUTE },
   'PRC-23': { kind: 'exempt', reason: PROCESS_SUSPENSION_ROUTE },
   'PRC-24': { kind: 'exempt', reason: PROCESS_SUSPENSION_ROUTE },
   'PRC-25': { kind: 'exempt', reason: PROCESS_CANCELLATION_ROUTE },

@@ -32,6 +32,7 @@ import { CreateEtpButton } from '../etp/create-etp-dialog';
 import { MovementTimeline } from '../movements/movement-timeline';
 import { CreatePriceResearchButton } from '../price-research/create-price-research-dialog';
 import { useAvailableActions } from '../process-actions/process-actions.api';
+import { AssignProcessDialog } from '../process-assign/assign-process-dialog';
 import {
   CancelProcessDialog,
   DiscardDraftDialog,
@@ -258,6 +259,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   const [returnStageId, setReturnStageId] = useState<string | null>(null);
   // US-049: "Assumir" é ação direta (PRC-21), sem diálogo.
   const claiming = useClaimProcess(processId);
+  // US-050: "Atribuir"/"Reatribuir" abre o diálogo SCR-115 (PRC-22).
+  const [assigning, setAssigning] = useState(false);
   // US-008: "Suspender" (menu "Mais") e "Retomar" (ação primária do suspenso) abrem o SCR-116.
   const [suspending, setSuspending] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -390,6 +393,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           }
           // US-049: "Assumir" chama o PRC-21 direto, com a versão do PRC-04 no `If-Match`.
           else if (action.action === 'CLAIM') void claiming.claim(detail.data?.version);
+          // US-050: "Atribuir responsável" abre o diálogo SCR-115.
+          else if (action.action === 'ASSIGN') setAssigning(true);
           // US-048: "Devolver" abre o diálogo SCR-104.
           else if (action.action === 'RETURN') {
             setReturnStageId('toStageId' in action ? (action.toStageId ?? null) : null);
@@ -422,6 +427,14 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         initialStageId={returnStageId}
         onReturned={() => {
           // Quem devolveu perde a custódia: foco ao cabeçalho de status, como no encaminhamento.
+          document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
+        }}
+      />
+      <AssignProcessDialog
+        processId={processId}
+        open={assigning}
+        onOpenChange={setAssigning}
+        onDone={() => {
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
         }}
       />

@@ -28,7 +28,7 @@ import type {
 } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
-import { ProcessViewerResolver } from './process-viewer.js';
+import { ProcessViewerResolver, engineViewerFor } from './process-viewer.js';
 import type { ResolvedViewer } from './process-viewer.js';
 import { processNotFoundError } from './process.errors.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
@@ -131,7 +131,11 @@ export class ProcessPanelReader {
 
   /** PRC-08 do usuário (o mesmo motor dos comandos). */
   actions(tx: TenantTx, runtime: ProcessRuntime, viewer: ResolvedViewer): Promise<ActionEntry[]> {
-    return this.workflow.getAvailableActions(tx, executionStateOf(runtime), viewer.engine);
+    return this.workflow.getAvailableActions(
+      tx,
+      executionStateOf(runtime),
+      engineViewerFor(viewer, runtime.organizationId ?? null),
+    );
   }
 
   /** Aprovações pendentes com o aprovador designado resolvido (rótulo e POL-03). */

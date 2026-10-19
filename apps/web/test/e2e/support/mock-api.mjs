@@ -995,6 +995,32 @@ const CANCELLATION_FIXTURES = [
     unit: 0,
   },
 ];
+// Atribuir responsável (US-050 · SCR-115): o 0094/2026 começa na fila da unidade. Elegibilidade,
+// POL-05, concorrência e outro tenant são cobertos nos testes da API; aqui vale a jornada (atribuir
+// da fila, reatribuir com motivo e devolver à fila). processId → { id, name } | null.
+const ASSIGN_FIXTURES = [
+  {
+    n: 94,
+    code: '0094/2026',
+    title: 'Aquisição de material de expediente',
+    status: 'IN_PROGRESS',
+    priority: 'MEDIUM',
+    overdue: false,
+    unit: 0,
+  },
+];
+const ASSIGN_MEMBERS = [
+  { id: '0192a000-0000-7000-8000-00000000a0a1', name: 'Ana Souza' },
+  { id: '0192a000-0000-7000-8000-00000000a0b2', name: 'Juliana Prado' },
+  { id: '0192a000-0000-7000-8000-00000000a0c3', name: 'Tiago Reis' },
+].map((member) => ({
+  ...member,
+  email: `${member.name.split(' ')[0].toLowerCase()}@saojose.sc.gov.br`,
+  membershipType: 'INTERNAL',
+  membershipExpiresAt: null,
+}));
+const assignedResponsibles = new Map();
+const isAssignFixture = (fixture) => ASSIGN_FIXTURES.includes(fixture);
 const cancellations = new Map();
 const discardedDrafts = new Set();
 const isCancellationFixture = (fixture) => CANCELLATION_FIXTURES.includes(fixture);
@@ -3189,6 +3215,12 @@ createServer(async (request, response) => {
       .map((unit) => ({ id: unit.id, name: unit.name, type: unit.type, path: unit.name }));
     return send(response, 200, { data: found });
   }
+  if (url.pathname === '/api/v1/users/lookup' && request.method === 'GET') {
+    // USR-02: com `departmentId`, os lotados da unidade (US-050); senão a busca por nome.
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const found = ASSIGN_MEMBERS.filter((item) => !q || item.name.toLowerCase().includes(q));
+    return send(response, 200, { data: found });
+  }
   if (url.pathname === '/api/v1/users' && request.method === 'GET') {
     const statuses = (url.searchParams.get('status') ?? '').split(',').filter(Boolean);
     const q = (url.searchParams.get('q') ?? '').toLowerCase();
@@ -5171,7 +5203,7 @@ createServer(async (request, response) => {
   }
   // Detalhe, painel e etiquetas dos processos da lista (US-004/US-007): PRC-04/07/08/10 e PRC-18.
   const listedRoute =
-    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume|\/cancel)?$/.exec(
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume|\/cancel|\/assign)?$/.exec(
       url.pathname,
     );
   const listedFixture = listedRoute
@@ -5181,6 +5213,7 @@ createServer(async (request, response) => {
         ...ETP_FIXTURES,
         ...TERM_FIXTURES,
         ...CANCELLATION_FIXTURES,
+        ...ASSIGN_FIXTURES,
       ].find((fixture) => listProcessId(fixture.n) === listedRoute[1])
     : undefined;
   if (listedRoute && listedFixture) {
@@ -5342,6 +5375,49 @@ createServer(async (request, response) => {
         ],
       });
     }
+    if (request.method === 'POST' && listedRoute[2] === '/assign') {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const current = assignedResponsibles.get(processId) ?? null;
+      const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+      if (current !== null && reason.length < 10) {
+        return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+      }
+      const next =
+        body.assigneeId === null
+          ? null
+          : (ASSIGN_MEMBERS.find((member) => member.id === body.assigneeId) ?? undefined);
+      if (next === undefined) {
+        return problem(response, 422, 'ASSIGNEE_NOT_ELIGIBLE', String(correlationId));
+      }
+      assignedResponsibles.set(processId, next === null ? null : { id: next.id, name: next.name });
+      processVersions.set(processId, processVersionOf(processId) + 1);
+      const item = listProcessItem(listedFixture);
+      return send(
+        response,
+        200,
+        {
+          data: {
+            ...item,
+            currentStage: null,
+            currentResponsible: assignedResponsibles.get(processId),
+            version: processVersionOf(processId),
+          },
+        },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
+    if (
+      request.method === 'GET' &&
+      listedRoute[2] === '/available-actions' &&
+      isAssignFixture(listedFixture)
+    ) {
+      return send(response, 200, {
+        data: [{ action: 'ASSIGN', label: 'Atribuir responsável', enabled: true, reasons: [] }],
+      });
+    }
     if (request.method === 'GET' && listedRoute[2] === '/available-actions') {
       const suspended = suspensions.has(processId);
       return send(response, 200, {
@@ -5407,12 +5483,27 @@ createServer(async (request, response) => {
             canceledAt: cancellation?.canceledAt ?? null,
             cancellationReason: cancellation?.reason ?? null,
           },
-          responsible: {
-            user: { id: '0192a000-0000-7000-8000-00000000a0a1', name: 'Ana Souza', jobTitle: null },
-            queueDepartment: null,
-            since: '2026-10-01T12:10:00.000Z',
-            approver: null,
-          },
+          responsible: isAssignFixture(listedFixture)
+            ? {
+                user: assignedResponsibles.get(processId)
+                  ? { ...assignedResponsibles.get(processId), jobTitle: null }
+                  : null,
+                queueDepartment: assignedResponsibles.get(processId)
+                  ? null
+                  : item.currentDepartment,
+                since: '2026-10-01T12:10:00.000Z',
+                approver: null,
+              }
+            : {
+                user: {
+                  id: '0192a000-0000-7000-8000-00000000a0a1',
+                  name: 'Ana Souza',
+                  jobTitle: null,
+                },
+                queueDepartment: null,
+                since: '2026-10-01T12:10:00.000Z',
+                approver: null,
+              },
           pending: { blockingCount: 0, warningCount: 0, items: [] },
           nextStep: {
             action: suspension
@@ -5455,7 +5546,7 @@ createServer(async (request, response) => {
             isPriceRegistration: false,
             currentStage: null,
             currentDepartment: item.currentDepartment,
-            currentResponsible: null,
+            currentResponsible: assignedResponsibles.get(processId) ?? null,
             workflow: { id: mockUuid(), name: 'Fluxo padrão', versionNumber: 1 },
             targetDate: item.targetDate,
             estimatedValue: item.estimatedValue,

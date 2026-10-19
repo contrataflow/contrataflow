@@ -16,6 +16,9 @@ import { OrganizationFacade } from '../../organization/application/organization.
 import { creationGrants } from '../domain/process-runtime-records.js';
 import { stageChangeAccess } from '../domain/stage-transition.js';
 
+/** Atribuições sem mudança de etapa: assumir (US-049) e atribuir (US-050). */
+const DIRECT_ASSIGNMENTS: ReadonlySet<string> = new Set(['CLAIM', 'MANUAL']);
+
 /** Campos cuja alteração muda as concessões `REQUESTING` (RN-PROC-62). */
 const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartmentId']);
 
@@ -27,8 +30,8 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * US-005: `process.updated` com a secretaria ou o setor solicitante alterado → revoga as concessões
  * `REQUESTING` anteriores e concede as novas (RN-PROC-62). US-047: `process.stage_changed.*` →
  * `CURRENT` da origem vira `HISTORICAL` (unidade mudou), `CURRENT` do destino e `RESPONSIBLE` do
- * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) → `RESPONSIBLE` de quem
- * assumiu; `approval.requested` (US-051) → `APPROVER` para o aprovador designado e, com
+ * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) ou `MANUAL` (US-050) →
+ * `RESPONSIBLE` do novo responsável; `approval.requested` (US-051) → `APPROVER` para o aprovador designado e, com
  * `allowDeputy`, o substituto da unidade (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já
  * tem o `CURRENT`).
  */
@@ -89,10 +92,10 @@ export class ProcessAccessProjector implements SyncEventHandler {
         return;
       }
       case ProcessAssigned.eventType: {
-        // US-049: o "assumir" não muda de etapa — o novo responsável ganha o `RESPONSIBLE`. A
-        // entrada em etapa e a devolução já concedem pelo `ProcessStageChanged`.
+        // US-049/US-050: assumir e atribuir não mudam de etapa — o novo responsável ganha o
+        // `RESPONSIBLE`. A entrada em etapa e a devolução já concedem pelo `ProcessStageChanged`.
         const payload = ProcessAssigned.payloadSchema.parse(event.payload);
-        if (payload.assignmentType !== 'CLAIM' || payload.toUserId === null) return;
+        if (!DIRECT_ASSIGNMENTS.has(payload.assignmentType) || payload.toUserId === null) return;
         await this.processes.grantAccess(
           tx,
           event.aggregateId,

@@ -7,7 +7,7 @@ import { ApiError } from '#shared/errors/api-error.js';
 import { ForwardPreviews } from './forward-previews.js';
 import { PROCESS_RUNTIME_READER, PROCESS_TRANSACTIONS } from './ports.js';
 import type { ProcessRuntimeReader, ProcessTransactions } from './ports.js';
-import { ProcessViewerResolver } from './process-viewer.js';
+import { ProcessViewerResolver, engineViewerFor } from './process-viewer.js';
 import type { ResolvedViewer } from './process-viewer.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import type { ProcessExecutionState } from '../../workflow/application/workflow.facade.js';
@@ -83,7 +83,7 @@ export class GetAvailableActionsHandler {
       const actions = await this.workflow.getAvailableActions(
         tx,
         executionStateOf(runtime),
-        viewer.engine,
+        engineViewerFor(viewer, runtime.organizationId ?? null),
       );
       return this.previews.enrich(tx, runtime, actions);
     });

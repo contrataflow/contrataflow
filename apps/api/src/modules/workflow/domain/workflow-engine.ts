@@ -99,7 +99,7 @@ export interface StageEvaluation {
 /** Ações de avanço que partem da etapa atual (RN-WF-23). */
 const ADVANCE: ReadonlySet<string> = new Set(['FORWARD', 'COMPLETE']);
 
-/** RN-TRAM-32 (US-049): status em que se assume o processo da fila. */
+/** RN-TRAM-32/37 (US-049/US-050): status em que se assume ou atribui o processo. */
 const CLAIMABLE_STATUSES: ReadonlySet<ProcessStatus> = new Set(['IN_PROGRESS', 'RETURNED']);
 
 /** POL-01: status em que a custódia permite tramitar. */
@@ -589,10 +589,23 @@ function claimEntry(
   return entry('CLAIM', LIFECYCLE_LABELS.CLAIM, reasons);
 }
 
-/** ASSIGN (POL-05): escopo amplo de `PROCESS_ASSIGN` ou chefia da unidade atual. */
-function assignEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry {
+/**
+ * ASSIGN (POL-05 · US-050): escopo amplo de `PROCESS_ASSIGN` ou chefia da unidade atual; como
+ * assumir, só em `IN_PROGRESS`/`RETURNED` fora de etapa `APPROVAL` (RN-TRAM-37).
+ */
+function assignEntry(
+  process: EngineProcess,
+  viewer: EngineViewer,
+  stage: WorkflowSnapshotStage | null,
+): ActionEntry {
   const reasons: ActionReason[] = [];
-  if (!CUSTODY_STATUSES.has(process.status)) reasons.push(statusReason(process.status));
+  if (!CLAIMABLE_STATUSES.has(process.status)) reasons.push(statusReason(process.status));
+  else if (stage?.type === 'APPROVAL') {
+    reasons.push({
+      code: 'INVALID_PROCESS_STATUS',
+      message: 'Este processo não pode ser atribuído no momento.',
+    });
+  }
   if (
     !viewer.canAssignAnywhere &&
     !viewer.headOfDepartmentIds.includes(process.currentDepartmentId)
@@ -619,7 +632,7 @@ function lifecycleEntries(
   const { permissions } = viewer;
   if (permissions.has('PROCESS_CLAIM')) entries.push(claimEntry(process, viewer, stage));
   if (permissions.has('PROCESS_ASSIGN') || viewer.headOfDepartmentIds.length > 0) {
-    entries.push(assignEntry(process, viewer));
+    entries.push(assignEntry(process, viewer, stage));
   }
   if (permissions.has('PROCESS_SUSPEND')) {
     entries.push(

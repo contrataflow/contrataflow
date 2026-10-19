@@ -597,6 +597,52 @@
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
     }
   },
+  "assign": {
+    "close": "Fechar",
+    "loading": "Carregando o processo…",
+    "cancel": "Cancelar",
+    "submit": "Atribuir",
+    "submitting": "Atribuindo…",
+    "counter": "{count, number} / {max, number}",
+    "title": {
+      "assign": "Atribuir responsável",
+      "reassign": "Reatribuir responsável"
+    },
+    "description": {
+      "queue": "O processo está na fila da unidade. Escolha quem passa a responder por ele.",
+      "current": "Responsável atual: {name}. Escolha outra pessoa da unidade ou deixe o processo na fila."
+    },
+    "assignee": {
+      "label": "Novo responsável",
+      "placeholder": "Selecione…",
+      "queue": "Deixar na fila da unidade",
+      "hint": "Pessoas com vínculo ativo lotadas na unidade atual do processo.",
+      "empty": "Nenhum outro membro ativo nesta unidade.",
+      "loading": "Carregando os membros da unidade…",
+      "loadError": "Não foi possível carregar os membros da unidade."
+    },
+    "reason": {
+      "label": "Motivo",
+      "optionalLabel": "Motivo (opcional)",
+      "hint": "De 10 a 2.000 caracteres. Fica registrado na tramitação."
+    },
+    "assigned": "Processo atribuído a {name}.",
+    "queued": "Processo devolvido para a fila da unidade.",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "notEligible": "Esta pessoa não pode ser responsável por este processo.",
+      "reference": "Selecione um responsável válido.",
+      "status": "Este processo não pode ser atribuído no momento.",
+      "permission": "Você não pode atribuir responsáveis neste processo.",
+      "notFound": "Processo não encontrado.",
+      "stale": "Os dados do processo mudaram. Atualize a página.",
+      "reload": "Recarregar",
+      "unavailable": "Não foi possível atribuir o processo agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
+  },
   "suspension": {
     "close": "Fechar",
     "loading": "Carregando o processo…",

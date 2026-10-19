@@ -162,7 +162,7 @@ Observação: os enums `TenantType`/`OrganizationType`/`DepartmentType`/`Catalog
 ### USR-02 — Buscar usuários para seleção (lookup)
 `GET /api/v1/users/lookup` · **Permissão:** implícita (vínculo ativo no tenant) · **Story:** US-092
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** query `q` (string, Sim, mín. 2 e máx. 100 caracteres — nome ou e-mail, sem acento e sem distinção de maiúsculas)
+- **Parâmetros:** query `q` (string, Sim — salvo com `departmentId` —, mín. 2 e máx. 100 caracteres — nome ou e-mail, sem acento e sem distinção de maiúsculas); `departmentId` (uuid, Não — US-050: restringe aos lotados na unidade, até 50, e torna `q` opcional; alimenta o `DepartmentMemberSelect` do SCR-115)
 - **Request:** —
 - **Response:** `200 { data: { id: string; name: string; email: string; membershipType: 'INTERNAL' | 'EXTERNAL'; membershipExpiresAt: string | null }[] }` — até 20 usuários com vínculo `ACTIVE` (e não vencido) no tenant ativo, por nome; `id` = `userId`. Vínculos de serviço ficam de fora.
 - **Erros:** 422 `VALIDATION_ERROR` (`q` ausente/curto)

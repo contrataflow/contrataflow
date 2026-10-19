@@ -642,7 +642,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessAssigned` (`process.assigned`, `assignmentType=MANUAL`, `fromUserId?`, `toUserId?`, `hasReason`). Projeção: timeline `PROCESS_ASSIGNED`; `ProcessAccess` (`RESPONSIBLE`) ao novo responsável. Auditoria: `process.assign` (`WORKFLOW`, `metadata.viaHeadOrDeputy`); `access.denied` em 403.
-- **Notas:** RN-TRAM-38/39; novo responsável deve estar lotado na unidade atual, com vínculo ativo e `PROCESS_VIEW`.
+- **Notas:** RN-TRAM-38/39; novo responsável deve estar lotado na unidade atual, com vínculo ativo e `PROCESS_VIEW`. Ordem das recusas: 404 → 403 (POL-05: escopo `TENANT`/`ORGANIZATION` do órgão do processo ou titular/substituto da unidade atual, lido no `tx`; escopo de unidade não basta) → 409 → 412 → 422 (`assigneeId` sem vínculo no tenant = `VALIDATION_ERROR`/`REFERENCE_NOT_FOUND`; com vínculo e inelegível = `ASSIGNEE_NOT_ELIGIBLE`) → 422 `reason`. Sem `Idempotency-Key`: o reenvio já aplicado responde 412 (FA-04). Os membros do diálogo SCR-115 vêm do USR-02 com `departmentId`.
 
 ### PRC-23 — Suspender processo
 `POST /api/v1/processes/{id}/suspend` · **Permissão:** `PROCESS_SUSPEND` + POL-07 · **Story:** US-008

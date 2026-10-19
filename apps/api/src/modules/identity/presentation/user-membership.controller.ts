@@ -84,7 +84,7 @@ export class UserMembershipController {
     responses: {
       200: {
         description:
-          'Até 20 pessoas com vínculo `ACTIVE` e não vencido no tenant ativo, por nome (`q` = nome ou e-mail, mín. 2 caracteres). Capacidade implícita do vínculo; `membershipType`/`membershipExpiresAt` orientam o papel Consultor (US-012 · RN-PROC-127).',
+          'Até 20 pessoas com vínculo `ACTIVE` e não vencido no tenant ativo, por nome (`q` = nome ou e-mail, mín. 2 caracteres). Com `departmentId` (US-050 · SCR-115), até 50 lotados na unidade e `q` opcional. Capacidade implícita do vínculo; `membershipType`/`membershipExpiresAt` orientam o papel Consultor (US-012 · RN-PROC-127).',
         schema: dataEnvelope(z.array(userLookupItemSchema)),
       },
     },

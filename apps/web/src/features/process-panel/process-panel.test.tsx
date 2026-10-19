@@ -758,6 +758,34 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
       expect(screen.getByRole('button', { name: 'Assumir' })).toBeTruthy();
     });
   });
+
+  it('[US-050] "Atribuir responsável" abre o diálogo SCR-115', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockProcessApi({
+        summary: () =>
+          jsonResponse({
+            data: summaryDto({
+              nextStep: {
+                action: {
+                  action: 'ASSIGN',
+                  label: 'Atribuir responsável',
+                  enabled: true,
+                  reasons: [],
+                },
+                instructions: null,
+              },
+            }),
+          }),
+      }),
+    );
+    renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Atribuir responsável' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Reatribuir responsável' })).toBeTruthy();
+    expect(await screen.findByLabelText('Novo responsável')).toBeTruthy();
+  });
 });
 
 describe('process-panel.api', () => {

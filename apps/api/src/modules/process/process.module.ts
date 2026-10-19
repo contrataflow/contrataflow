@@ -20,6 +20,7 @@ import {
 } from '#shared/process/process-item-catalog.js';
 import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 
+import { AssignProcessCommand } from './application/assign-process.command.js';
 import { ClaimProcessCommand } from './application/claim-process.command.js';
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
 import { CreateProcessCommand } from './application/create-process.command.js';
@@ -235,6 +236,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ForwardProcessCommand,
     ReturnProcessCommand,
     ClaimProcessCommand,
+    AssignProcessCommand,
     ProcessLifecycleSupport,
     SuspendProcessCommand,
     ResumeProcessCommand,

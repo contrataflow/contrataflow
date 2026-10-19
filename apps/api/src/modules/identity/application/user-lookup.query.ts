@@ -1,4 +1,4 @@
-import { USER_LOOKUP_LIMIT } from '@contrataflow/validation';
+import { DEPARTMENT_MEMBER_LOOKUP_LIMIT, USER_LOOKUP_LIMIT } from '@contrataflow/validation';
 import type { UserLookupItem, UserLookupQuery as UserLookupParams } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -24,13 +24,17 @@ export class UserLookupQuery {
 
   async execute(query: UserLookupParams): Promise<UserLookupItem[]> {
     const now = this.clock();
+    // US-050: com `departmentId`, os lotados na unidade (membros do diálogo de atribuição).
+    const limit =
+      query.departmentId === undefined ? USER_LOOKUP_LIMIT : DEPARTMENT_MEMBER_LOOKUP_LIMIT;
     const page = await this.transactions.read((tx) =>
       this.memberships.listTenantMemberships(tx, {
         q: query.q,
+        departmentId: query.departmentId,
         statuses: ['ACTIVE'],
         offset: 0,
         // Folga para os vencidos e os de serviço filtrados abaixo.
-        limit: USER_LOOKUP_LIMIT * 2,
+        limit: limit * 2,
       }),
     );
     return page.items
@@ -47,6 +51,6 @@ export class UserLookupQuery {
         membershipExpiresAt: view.expiresAt?.toISOString() ?? null,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-      .slice(0, USER_LOOKUP_LIMIT);
+      .slice(0, limit);
   }
 }

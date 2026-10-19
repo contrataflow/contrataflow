@@ -1,5 +1,6 @@
 import {
   PARTICIPANT_MESSAGES,
+  PROCESS_ASSIGN_MESSAGES,
   PROCESS_CLAIM_MESSAGES,
   PROCESS_FORWARD_MESSAGES,
   PROCESS_ITEM_MESSAGES,
@@ -544,6 +545,79 @@ export function recordClaimConflict(): void {
       description: 'Tentativas de assumir um processo que já tinha responsável (corrida de fila).',
     });
   claimConflictCounter.add(1);
+}
+
+/** 412 `VERSION_CONFLICT` (V-07 · FA-04 · DEC-104): o reenvio já aplicado também cai aqui. */
+export function assignVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_ASSIGN_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-TRAM-37 · V-06): status ou etapa não elegíveis. */
+export function processNotAssignable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_ASSIGN_MESSAGES.invalidStatus,
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `PERMISSION_DENIED` (RN-TRAM-36 · V-05 · POL-05), auditado como `access.denied`. */
+export function assignNotAllowed(): ApiError {
+  return new ApiError('PERMISSION_DENIED', {
+    detail: PROCESS_ASSIGN_MESSAGES.permissionDenied,
+    auditReasonCode: 'PROCESS_ASSIGN',
+  });
+}
+
+/** 422 `ASSIGNEE_NOT_ELIGIBLE` (RN-TRAM-38 · V-04) no campo `assigneeId`. */
+export function assignAssigneeNotEligible(): ApiError {
+  return new ApiError('ASSIGNEE_NOT_ELIGIBLE', {
+    detail: PROCESS_ASSIGN_MESSAGES.assigneeNotEligible,
+    errors: [
+      {
+        field: 'assigneeId',
+        code: 'NOT_ALLOWED',
+        message: PROCESS_ASSIGN_MESSAGES.assigneeNotEligible,
+      },
+    ],
+  });
+}
+
+/** 422 `VALIDATION_ERROR` com `REFERENCE_NOT_FOUND`: pessoa sem vínculo no tenant (não revela outro). */
+export function assignAssigneeNotFound(): ApiError {
+  return validationError([
+    {
+      field: 'assigneeId',
+      code: 'REFERENCE_NOT_FOUND',
+      message: PROCESS_ASSIGN_MESSAGES.assigneeNotFound,
+    },
+  ]);
+}
+
+/** 422 `VALIDATION_ERROR` no campo `reason` (RN-TRAM-39 · V-02). */
+export function assignReasonRequiredError(): ApiError {
+  return validationError([
+    { field: 'reason', code: 'REQUIRED', message: PROCESS_ASSIGN_MESSAGES.reasonRequired },
+  ]);
+}
+
+let assignedCounter: Counter | undefined;
+let assignDuration: Histogram | undefined;
+
+/** `cf_process_assigned_total` e `cf_process_assign_duration_ms` (DoD da US-050). */
+export function recordProcessAssigned(durationMs: number, viaHeadOrDeputy: boolean): void {
+  const meter = metrics.getMeter('contrataflow-api');
+  assignedCounter ??= meter.createCounter('cf_process_assigned_total', {
+    description: 'Responsáveis atribuídos/reatribuídos (commit do PRC-22).',
+  });
+  assignDuration ??= meter.createHistogram('cf_process_assign_duration_ms', {
+    description: 'Duração da atribuição (bloqueio, validações e gravação).',
+    unit: 'ms',
+  });
+  assignedCounter.add(1, { via_head_or_deputy: viaHeadOrDeputy });
+  assignDuration.record(durationMs);
 }
 
 let returnedCounter: Counter | undefined;

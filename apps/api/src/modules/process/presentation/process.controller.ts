@@ -23,6 +23,7 @@ import {
   resumeProcessSchema,
   returnedProcessSchema,
   returnProcessSchema,
+  assignProcessSchema,
   setProcessConfidentialitySchema,
   suspendProcessSchema,
   suspensionProcessSchema,
@@ -48,6 +49,7 @@ import type {
   ResumeProcess,
   ReturnedProcessDto,
   ReturnProcess,
+  AssignProcess,
   SetProcessConfidentiality,
   SuspendProcess,
   SuspensionProcessDto,
@@ -79,6 +81,7 @@ import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodQuery, ZodValidationPipe } from '#shared/validation/zod-validation.pipe.js';
 
+import { AssignProcessCommand } from '../application/assign-process.command.js';
 import { ClaimProcessCommand } from '../application/claim-process.command.js';
 import { CreateProcessCommand } from '../application/create-process.command.js';
 import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
@@ -160,6 +163,7 @@ export class ProcessController {
     private readonly forward: ForwardProcessCommand,
     private readonly returns: ReturnProcessCommand,
     private readonly claims: ClaimProcessCommand,
+    private readonly assignments: AssignProcessCommand,
     private readonly suspensions: SuspendProcessCommand,
     private readonly resumptions: ResumeProcessCommand,
     private readonly cancellations: CancelProcessCommand,
@@ -448,6 +452,41 @@ export class ProcessController {
   ): Promise<ProcessDto> {
     const result = await this.claims.execute({
       processId: id,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/assign')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'POL-05 conferida pelo caso de uso (US-050): PROCESS_ASSIGN com escopo TENANT/ORGANIZATION cobrindo o processo OU titular/substituto da unidade atual, que atribui sem a permissão (permissions.md §7); recusa = 403 PERMISSION_DENIED com access.denied.',
+  )
+  @ApiOperation({
+    operationId: 'PRC-22',
+    summary: 'Atribuir/reatribuir responsável',
+    tags: TAGS,
+    auditActions: ['process.assign'],
+    responses: {
+      200: {
+        description:
+          'Processo com o novo responsável (`currentResponsible`; `null` = de volta à fila da unidade) e `ETag` = nova versão. Uma transação: trava do processo, POL-05 (`PROCESS_ASSIGN` com escopo `TENANT`/`ORGANIZATION` cobrindo o processo ou titular/substituto da unidade atual — 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`RETURNED` em etapa que não seja `APPROVAL` (409 `INVALID_PROCESS_STATUS`), `If-Match` (412 `VERSION_CONFLICT`; o reenvio já aplicado cai aqui — sem `Idempotency-Key`), pessoa sem vínculo no tenant (422 `VALIDATION_ERROR` `REFERENCE_NOT_FOUND` em `assigneeId`), sem vínculo ativo/lotação na unidade atual/`PROCESS_VIEW` (422 `ASSIGNEE_NOT_ELIGIBLE`) e motivo (10–2.000) obrigatório quando já havia responsável (422 `VALIDATION_ERROR` em `reason`). Grava a responsabilidade `MANUAL`, a tramitação `ASSIGN`, `process.assign` e o evento `ProcessAssigned` (`assignmentType = MANUAL`).',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async assignProcess(
+    @ProcessId() id: string,
+    @ZodBody(assignProcessSchema) body: AssignProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const result = await this.assignments.execute({
+      processId: id,
+      body,
       expectedVersion: ifMatch?.value ?? 0,
     });
     response.setHeader('ETag', `"${result.dto.version}"`);

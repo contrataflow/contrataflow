@@ -25,6 +25,7 @@ import type {
   ProcessSituationRow,
 } from '../application/ports.js';
 import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
+import type { AssignPlan } from '../domain/process-assign.js';
 import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import {
@@ -280,6 +281,10 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.assignments.push(plan.assignment);
     this.movements.push(plan.movement);
     return Promise.resolve(true);
+  }
+
+  recordAssign(tx: TenantTx, plan: AssignPlan): Promise<boolean> {
+    return this.recordClaim(tx, plan);
   }
 
   recordSuspension(_tx: TenantTx, plan: SuspendPlan): Promise<boolean> {

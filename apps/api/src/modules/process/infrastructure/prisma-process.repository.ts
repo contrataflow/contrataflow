@@ -43,6 +43,7 @@ import type {
   ProcessTransactions,
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
+import type { AssignPlan } from '../domain/process-assign.js';
 import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
@@ -564,6 +565,11 @@ export class PrismaProcessRepository implements ProcessRepository {
     });
     await insertMovement(tx, plan.movement);
     return true;
+  }
+
+  recordAssign(tx: TenantTx, plan: AssignPlan): Promise<boolean> {
+    // As mesmas escritas do "assumir": a passagem segue, só o responsável muda (US-050).
+    return this.recordClaim(tx, plan);
   }
 
   async recordSuspension(tx: TenantTx, plan: SuspendPlan): Promise<boolean> {
