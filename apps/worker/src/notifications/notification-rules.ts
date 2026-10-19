@@ -8,6 +8,8 @@ import type {
 
 import { notificationContent } from './notification-templates.js';
 import type { NotificationContent } from './notification-templates.js';
+import { stageDeadlineRecipients } from './stage-deadline.js';
+import type { StageDeadlineType } from './stage-deadline.js';
 
 /*
  * Regras do registro `NotificationType` (events.md §6 · US-111): de cada evento de domínio, o tipo
@@ -72,14 +74,24 @@ export interface NotificationPlan {
    * (`AI_GENERATION_READY`/`AI_GENERATION_FAILED`) vão a ele.
    */
   readonly includeActor?: boolean;
+  /**
+   * US-114: passagem dos avisos de prazo. O dispatcher lê o nome da etapa e o fuso do tenant e
+   * reescreve o conteúdo (RN-NTF-32); também troca os logs genéricos pelos de prazo.
+   */
+  readonly stageDeadline?: StageDeadlineRef;
+}
+
+export interface StageDeadlineRef {
+  readonly processStageId: string | null;
+  readonly dueAt: string | null;
+  /** Só no atraso (`ProcessStageOverdue.overdueSince`). */
+  readonly overdueSince: string | null;
 }
 
 export type PlanOutcome =
   | NotificationPlan
   /** `eventType` fora do registro (RN-NTF-01 · V-03): log `warn`, nunca erro do job. */
   | { readonly kind: 'unmapped' }
-  /** Tipo do registro gerado por outra story (lembretes de prazo — US-114). */
-  | { readonly kind: 'deferred'; readonly type: NotificationType }
   /** Evento mapeado cuja variante não notifica (ex.: encaminhamento para etapa de aprovação). */
   | { readonly kind: 'ignored'; readonly reason: string };
 
@@ -297,8 +309,8 @@ const RULES: Readonly<Record<string, Rule>> = {
       link: processLink(event.processId),
     });
   },
-  ProcessStageDueSoon: () => ({ kind: 'deferred', type: 'STAGE_DUE_SOON' }),
-  ProcessStageOverdue: () => ({ kind: 'deferred', type: 'STAGE_OVERDUE' }),
+  ProcessStageDueSoon: (event) => stageDeadline('STAGE_DUE_SOON', event),
+  ProcessStageOverdue: (event) => stageDeadline('STAGE_OVERDUE', event),
   // US-012 · RN-PROC-130: sem `notify`, o participante não é avisado; quem segue o processo é o
   // próprio ator (RN-NTF-02 o exclui).
   ProcessParticipantAdded: (event) =>
@@ -353,6 +365,32 @@ const RULES: Readonly<Record<string, Rule>> = {
     });
   },
 };
+
+/**
+ * US-114 (RN-NTF-27): responsável e/ou titular da unidade da passagem (ver
+ * `stageDeadlineRecipients`); o evento é do ator `SYSTEM`, então ninguém é excluído como ator. O
+ * `STAGE_OVERDUE` tem e-mail por padrão no registro (RN-NTF-30) — a decisão segue a regra geral.
+ */
+function stageDeadline(type: StageDeadlineType, event: DomainEventEnvelope<Payload>): PlanOutcome {
+  const { payload, processId } = event;
+  const ref: StageDeadlineRef = {
+    processStageId: id(payload, 'processStageId'),
+    dueAt: text(payload, 'dueAt'),
+    overdueSince: type === 'STAGE_OVERDUE' ? text(payload, 'overdueSince') : null,
+  };
+  return {
+    ...plan(type, event, {
+      recipients: stageDeadlineRecipients(type, {
+        assigneeId: id(payload, 'assigneeId'),
+        departmentId: id(payload, 'departmentId'),
+      }),
+      entityType: 'ProcessStage',
+      entityId: ref.processStageId,
+      link: processLink(processId),
+    }),
+    stageDeadline: ref,
+  };
+}
 
 /**
  * US-115: o solicitante (`requestedById`, o próprio ator do envelope) recebe o aviso; o link abre o

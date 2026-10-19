@@ -24,6 +24,9 @@ export interface EmailTemplate {
 }
 
 const PROCESS_REASON = 'Você recebe este aviso porque participa deste processo.';
+/** US-114: o responsável da etapa ou o titular da unidade dela (escalonamento do atraso). */
+const STAGE_REASON =
+  'Você recebe este aviso porque a etapa está sob sua responsabilidade ou da unidade que você chefia.';
 
 export const EMAIL_TEMPLATES: Readonly<Record<NotificationType, EmailTemplate>> = Object.freeze({
   PROCESS_RECEIVED: {
@@ -50,14 +53,8 @@ export const EMAIL_TEMPLATES: Readonly<Record<NotificationType, EmailTemplate>> 
     action: 'Ver a resposta',
     reason: 'Você recebe este aviso porque responderam a um comentário seu.',
   },
-  STAGE_DUE_SOON: {
-    action: 'Abrir o processo',
-    reason: 'Você recebe este aviso porque a etapa está sob sua responsabilidade.',
-  },
-  STAGE_OVERDUE: {
-    action: 'Abrir o processo',
-    reason: 'Você recebe este aviso porque a etapa está sob sua responsabilidade.',
-  },
+  STAGE_DUE_SOON: { action: 'Abrir o processo', reason: STAGE_REASON },
+  STAGE_OVERDUE: { action: 'Abrir o processo', reason: STAGE_REASON },
   PARTICIPANT_ADDED: {
     action: 'Abrir o processo',
     reason: 'Você recebe este aviso porque foi incluído como participante do processo.',

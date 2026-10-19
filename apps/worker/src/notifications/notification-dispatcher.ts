@@ -16,12 +16,15 @@ import { NotificationStore } from './notification-store.js';
 import type { NotificationWriteOutcome } from './notification-store.js';
 import { notificationMetrics } from './notification-telemetry.js';
 import type { NotificationInstruments } from './notification-telemetry.js';
+import { notificationContent } from './notification-templates.js';
 import { REGISTRY_DEFAULT_PREFERENCES, RecipientResolver } from './recipient-resolver.js';
 import type {
   NotificationDirectory,
   NotificationPreferences,
   RecipientResolverDeps,
 } from './recipient-resolver.js';
+import { formatTenantDate, formatTenantDateTime } from './stage-deadline.js';
+import type { StageDeadlineSource } from './stage-deadline.js';
 import { PermanentJobError } from '../queues/job-errors.js';
 import type { HandlerResult, JobHandler, JobHandlerContext } from '../queues/run-job.js';
 
@@ -41,6 +44,8 @@ export interface NotificationDispatcherDeps extends Omit<RecipientResolverDeps, 
   readonly metrics?: NotificationInstruments;
   /** Efeitos nos módulos donos do evento (US-072: `Mention.notifiedAt`). */
   readonly effects?: readonly NotificationEffect[];
+  /** US-114: nome da etapa e fuso do tenant citados nos avisos de prazo (sem ela, texto genérico). */
+  readonly stageDeadlines?: StageDeadlineSource | null;
 }
 
 const payloadSchema = z.strictObject({ envelope: domainEventEnvelopeSchema });
@@ -92,9 +97,7 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       logger.log({
         event: 'notification.not_applicable',
         eventType: envelope.eventType,
-        ...(outcome.kind === 'deferred'
-          ? { notificationType: outcome.type, owner: 'US-114' }
-          : { reason: outcome.reason }),
+        reason: outcome.reason,
       });
       return 'skipped';
     }
@@ -109,6 +112,16 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       }
       for (const effect of this.effectsOf(envelope)) {
         effect.committed?.(logger, envelope, written, Date.now() - startedAt);
+      }
+      if (outcome.stageDeadline && written.length > 0) {
+        // US-114: quantos foram avisados da passagem (sem nomes nem dados do processo — POL-09).
+        logger.log({
+          event: 'notification.deadline_escalated',
+          processStageId: outcome.stageDeadline.processStageId,
+          notificationType: outcome.type,
+          recipientCount: written.length,
+          correlationId: envelope.correlationId,
+        });
       }
       if (written.length > 0) {
         logger.log({
@@ -145,6 +158,17 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
     if (tenantId === null) return [];
     const now = this.now();
     const { recipients, unresolved } = await this.resolver.resolve(client, plan, envelope, now);
+    if (recipients.length === 0 && plan.stageDeadline) {
+      // US-114 (FA-01 · RN-NTF-29): sem responsável nem titular (ou ninguém mais vê o processo).
+      context.logger.warn({
+        event: 'notification.deadline_recipient_missing',
+        processStageId: plan.stageDeadline.processStageId,
+        notificationType: plan.type,
+        reasons: unresolved.length > 0 ? unresolved : ['NO_RECIPIENT'],
+        correlationId: envelope.correlationId,
+      });
+      return [];
+    }
     if (recipients.length === 0) {
       context.logger.warn({
         event: 'notification.recipient_unresolved',
@@ -154,6 +178,7 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       });
       return [];
     }
+    const content = await this.contentOf(client, plan, tenantId, context);
     const tenantEmailEnabled = await this.deps.directory.tenantEmailEnabled(client);
     const preferences = await this.preferences.preferences(client, plan.type, recipients);
     const inAppLocked = NOTIFICATION_REGISTRY[plan.type].mandatory;
@@ -180,7 +205,7 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
         entityId: plan.entityId,
         sourceEventId: envelope.eventId,
         groupKey,
-        content: plan.content,
+        content,
         emailStatus,
         hiddenInApp,
         now,
@@ -197,6 +222,36 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       for (const effect of this.effectsOf(envelope)) await effect.apply(client, envelope, now);
     }
     return written;
+  }
+
+  /**
+   * US-114 (RN-NTF-32): os avisos de prazo citam o nome da etapa e as datas no fuso do tenant
+   * (DEC-003). Passagem não encontrada no tenant do evento (V-03 — a RLS não deixa ler a de outro)
+   * é corrupção: log `error` e texto genérico, sem deixar de avisar quem o evento indica.
+   */
+  private async contentOf(
+    client: SqlClient,
+    plan: NotificationPlan,
+    tenantId: string,
+    context: JobHandlerContext,
+  ): Promise<NotificationPlan['content']> {
+    const ref = plan.stageDeadline;
+    const source = this.deps.stageDeadlines;
+    if (!ref || !source || ref.processStageId === null) return plan.content;
+    const details = await source.details(client, tenantId, ref.processStageId);
+    if (details.stageName === null) {
+      context.logger.error({
+        event: 'notification.deadline_stage_missing',
+        processStageId: ref.processStageId,
+        notificationType: plan.type,
+      });
+    }
+    const stage = {
+      name: details.stageName,
+      dueDate: formatTenantDate(ref.dueAt, details.timezone),
+      overdueSince: formatTenantDateTime(ref.overdueSince, details.timezone),
+    };
+    return (groupCount) => notificationContent(plan.type, { groupCount, stage });
   }
 
   private effectsOf(envelope: DomainEventEnvelope<Payload>): readonly NotificationEffect[] {

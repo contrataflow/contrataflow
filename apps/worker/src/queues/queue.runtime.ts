@@ -64,6 +64,7 @@ import { RoleHoldersLookup } from '../notifications/role-holders.lookup.js';
 import { SqlNotificationDirectory } from '../notifications/sql-notification-directory.js';
 import { SqlNotificationPreferences } from '../notifications/sql-notification-preferences.js';
 import { SqlProcessVisibility } from '../notifications/sql-process-visibility.js';
+import { SqlStageDeadlineSource } from '../notifications/stage-deadline.js';
 import { OutboxPurgeJob } from '../outbox/outbox-purge.job.js';
 
 export const QUEUE_RUNTIME_CONFIG = Symbol('QueueRuntimeConfig');
@@ -208,6 +209,8 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
           // US-072: visibilidade do processo (DEC-024) e `Mention.notifiedAt`.
           visibility: new SqlProcessVisibility(),
           effects: [new MentionNotifiedEffect()],
+          // US-114: nome da etapa e fuso do tenant nos avisos de prazo.
+          stageDeadlines: new SqlStageDeadlineSource(),
           email: {
             enqueue: (notificationId) =>
               producer.enqueue(

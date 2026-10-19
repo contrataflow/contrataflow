@@ -326,17 +326,14 @@ describe('NotificationDispatcher (US-111)', () => {
     });
   });
 
-  it('variante que não notifica e tipo da US-114: concluem sem efeito', async () => {
+  it('variante que não notifica: conclui sem efeito', async () => {
     const { dispatcher, store, context, logs } = setup();
     await expect(
       dispatcher.handle({ envelope: envelope('CommentCreated', { commentId: testId() }) }, context),
     ).resolves.toBe('skipped');
-    await expect(
-      dispatcher.handle({ envelope: envelope('ProcessStageOverdue', {}) }, context),
-    ).resolves.toBe('skipped');
     expect(store.rows).toEqual([]);
     expect(logs.log).toHaveBeenCalledWith(
-      expect.objectContaining({ notificationType: 'STAGE_OVERDUE', owner: 'US-114' }),
+      expect.objectContaining({ event: 'notification.not_applicable', reason: 'not_a_reply' }),
     );
   });
 

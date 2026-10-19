@@ -20,6 +20,17 @@ export interface TemplateInput {
   /** Eventos agregados na notificação (agrupamento de 5 min — RN-NTF-04). */
   readonly groupCount: number;
   readonly variant?: string | undefined;
+  /** Passagem citada nos avisos de prazo (US-114 · RN-NTF-32), datas já no fuso do tenant. */
+  readonly stage?: StageTemplateInput | undefined;
+}
+
+export interface StageTemplateInput {
+  /** Nome da etapa no fluxo; nulo = não encontrada (o texto fica genérico). */
+  readonly name: string | null;
+  /** `dd/mm/aaaa` do vencimento. */
+  readonly dueDate: string | null;
+  /** `dd/mm/aaaa às HH:mm` do registro do atraso (`overdueSince`). */
+  readonly overdueSince: string | null;
 }
 
 type Template = (input: TemplateInput) => NotificationContent;
@@ -27,6 +38,12 @@ type Template = (input: TemplateInput) => NotificationContent;
 /** Sufixo padrão do agrupamento: "(3 avisos neste processo)". */
 const grouped = (body: string, count: number) =>
   count > 1 ? `${body} (${String(count)} avisos neste processo)` : body;
+
+/** "da etapa “Análise jurídica”" — sem o nome (passagem não encontrada), "de uma etapa". */
+const ofStage = (stage: StageTemplateInput | undefined) =>
+  stage?.name ? `da etapa “${stage.name}”` : 'de uma etapa';
+
+const onDate = (date: string | null | undefined) => (date ? ` em ${date}` : '');
 
 const STATUS_TITLES: Readonly<Record<string, string>> = {
   suspended: 'Processo suspenso',
@@ -90,13 +107,23 @@ const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
         ? `Há ${String(groupCount)} novas respostas a comentários seus neste processo.`
         : 'Responderam a um comentário seu.',
   }),
-  STAGE_DUE_SOON: ({ groupCount }) => ({
+  // US-114 (RN-NTF-32): nome da etapa e datas no fuso do tenant; nunca valores do processo. O
+  // mesmo texto serve ao responsável e ao titular da unidade (escalonamento do atraso).
+  STAGE_DUE_SOON: ({ groupCount, stage }) => ({
     title: 'Prazo da etapa perto do fim',
-    body: grouped('O prazo de uma etapa sob sua responsabilidade está terminando.', groupCount),
+    body:
+      groupCount > 1
+        ? `Há ${String(groupCount)} etapas com prazo perto do fim neste processo.`
+        : `O prazo ${ofStage(stage)} termina${onDate(stage?.dueDate)}. Abra o processo para dar andamento.`,
   }),
-  STAGE_OVERDUE: ({ groupCount }) => ({
+  STAGE_OVERDUE: ({ groupCount, stage }) => ({
     title: 'Prazo da etapa vencido',
-    body: grouped('O prazo de uma etapa sob sua responsabilidade venceu.', groupCount),
+    body:
+      groupCount > 1
+        ? `Há ${String(groupCount)} etapas com prazo vencido neste processo.`
+        : `O prazo ${ofStage(stage)} terminou${onDate(stage?.dueDate)}${
+            stage?.overdueSince ? `; o atraso foi registrado em ${stage.overdueSince}` : ''
+          }. Abra o processo para regularizar.`,
   }),
   PARTICIPANT_ADDED: ({ groupCount }) => ({
     title: 'Você agora participa de um processo',

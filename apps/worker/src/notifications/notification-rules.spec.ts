@@ -277,15 +277,53 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
     });
   });
 
-  it('STAGE_DUE_SOON/STAGE_OVERDUE ficam com a US-114', () => {
-    expect(planNotification(envelope('ProcessStageDueSoon', {}))).toEqual({
-      kind: 'deferred',
+  it('STAGE_DUE_SOON/STAGE_OVERDUE (US-114): responsável ou titular; no atraso, ambos', () => {
+    const stage = testId();
+    const payload = {
+      processStageId: stage,
+      stageKey: 'analise_juridica',
+      dueAt: '2026-10-16T23:59:59.999-03:00',
+      assigneeId: USER,
+      departmentId: DEPARTMENT,
+    };
+    const soon = notify(
+      planNotification(envelope('ProcessStageDueSoon', { ...payload, businessDaysLeft: 2 })),
+    );
+    expect(soon).toMatchObject({
       type: 'STAGE_DUE_SOON',
+      priority: 'NORMAL',
+      entityType: 'ProcessStage',
+      entityId: stage,
+      link: `/processos/${PROCESS}`,
+      stageDeadline: { processStageId: stage, dueAt: payload.dueAt, overdueSince: null },
     });
-    expect(planNotification(envelope('ProcessStageOverdue', {}))).toEqual({
-      kind: 'deferred',
+    expect(soon.recipients).toEqual([
+      {
+        kind: 'FIRST_OF',
+        specs: [
+          { kind: 'USER', userId: USER },
+          { kind: 'DEPARTMENT_HEADS', departmentId: DEPARTMENT, includeDeputy: false },
+        ],
+      },
+    ]);
+    const overdueSince = '2026-10-17T03:15:00.000Z';
+    const late = notify(
+      planNotification(
+        envelope('ProcessStageOverdue', { ...payload, assigneeId: null, overdueSince }),
+      ),
+    );
+    expect(late).toMatchObject({
       type: 'STAGE_OVERDUE',
+      stageDeadline: { processStageId: stage, dueAt: payload.dueAt, overdueSince },
     });
+    expect(late.recipients).toEqual([
+      { kind: 'USER', userId: null },
+      { kind: 'DEPARTMENT_HEADS', departmentId: DEPARTMENT, includeDeputy: false },
+    ]);
+    // Sem o enriquecimento do dispatcher, o texto é genérico (nunca valores — POL-09).
+    expect(late.content(1).body).toBe(
+      'O prazo de uma etapa terminou. Abra o processo para regularizar.',
+    );
   });
 
   it('PARTICIPANT_ADDED: participante usuário ou unidade', () => {

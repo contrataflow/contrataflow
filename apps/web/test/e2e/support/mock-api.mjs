@@ -2961,6 +2961,46 @@ function subject(authorization) {
   }
 }
 
+/**
+ * Notificações in-app por usuário (`sub`) — NTF-01..04 (US-111). `/__mock/stage-overdue` faz o
+ * papel do job `deadlines` + `NotificationDispatcher` da US-114: um `STAGE_OVERDUE` por
+ * destinatário distinto (responsável e titular da unidade; a mesma pessoa recebe um só).
+ */
+const notificationsBySub = new Map();
+
+function notificationsOf(sub) {
+  if (!notificationsBySub.has(sub)) notificationsBySub.set(sub, []);
+  return notificationsBySub.get(sub);
+}
+
+function simulateStageOverdue(body) {
+  const eventId = randomUUID();
+  for (const sub of new Set(body.recipients ?? [])) {
+    notificationsOf(sub).unshift({
+      id: randomUUID(),
+      type: 'STAGE_OVERDUE',
+      priority: 'NORMAL',
+      title: 'Prazo da etapa vencido',
+      body: `O prazo da etapa “${body.stageName}” terminou em ${body.dueDate}; o atraso foi registrado em ${body.overdueSince}. Abra o processo para regularizar.`,
+      link: `/processos/${body.processId}`,
+      processId: body.processId,
+      entityType: 'ProcessStage',
+      entityId: randomUUID(),
+      groupKey: `STAGE_OVERDUE:${body.processId}`,
+      groupCount: 1,
+      groupedEventIds: [],
+      readAt: null,
+      archivedAt: null,
+      emailStatus: 'PENDING',
+      emailSentAt: null,
+      createdAt: new Date().toISOString(),
+      sourceEventId: eventId,
+    });
+  }
+}
+
+const notificationView = ({ sourceEventId: _sourceEventId, ...view }) => view;
+
 createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', `http://localhost:${PORT}`);
   const correlationId = request.headers['x-correlation-id'] ?? randomUUID();
@@ -2982,6 +3022,10 @@ createServer(async (request, response) => {
     auditTampered = body.tampered === true;
     return send(response, 204);
   }
+  if (url.pathname === '/__mock/stage-overdue') {
+    simulateStageOverdue(JSON.parse((await readBody(request)) || '{}'));
+    return send(response, 204);
+  }
   const forced = failures.get(url.pathname);
   if (forced) return problem(response, forced.status, forced.code, String(correlationId));
 
@@ -2989,6 +3033,35 @@ createServer(async (request, response) => {
   if (!sub) return problem(response, 401, 'UNAUTHENTICATED', String(correlationId));
   const tenantId = request.headers['x-tenant-id'] ?? null;
 
+  if (url.pathname === '/api/v1/notifications/unread-count' && request.method === 'GET') {
+    const count = notificationsOf(sub).filter((item) => !item.readAt && !item.archivedAt).length;
+    return send(response, 200, { data: { count } });
+  }
+  if (url.pathname === '/api/v1/notifications' && request.method === 'GET') {
+    const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
+    const items = notificationsOf(sub).filter(
+      (item) => !item.archivedAt && (!unreadOnly || !item.readAt),
+    );
+    return send(response, 200, {
+      data: items.map(notificationView),
+      meta: { nextCursor: null, hasMore: false },
+    });
+  }
+  if (url.pathname === '/api/v1/notifications/read-all' && request.method === 'POST') {
+    const unread = notificationsOf(sub).filter((item) => !item.readAt);
+    for (const item of unread) item.readAt = new Date().toISOString();
+    return send(response, 200, { data: { updated: unread.length } });
+  }
+  const notificationRoute = /^\/api\/v1\/notifications\/([0-9a-f-]{36})\/(read|archive)$/.exec(
+    url.pathname,
+  );
+  if (notificationRoute && request.method === 'POST') {
+    const found = notificationsOf(sub).find((item) => item.id === notificationRoute[1]);
+    if (!found) return problem(response, 404, 'NOTIFICATION_NOT_FOUND', String(correlationId));
+    const field = notificationRoute[2] === 'read' ? 'readAt' : 'archivedAt';
+    found[field] ??= new Date().toISOString();
+    return send(response, 200, { data: notificationView(found) });
+  }
   if (url.pathname === '/api/v1/me/permissions') {
     // ME-03 (US-097): escopos como objetos; na Prefeitura B a Ana não tem perfil administrativo
     // (o menu muda ao trocar de instituição — e2e permissions.spec.ts).
