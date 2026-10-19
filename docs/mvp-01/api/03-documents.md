@@ -166,7 +166,7 @@
   | 422 | `VALIDATION_ERROR` | Quantidade ≤ 0/casas decimais (`OUT_OF_RANGE`/`INVALID_DECIMAL`); item repetido (`DUPLICATE_IN_LIST`); item inexistente/inativo/outro processo (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
   | 422 | `RICH_TEXT_INVALID` | `calculationMemo`/`specification`/`acceptanceCriteria` fora do schema |
 - **Efeitos:** Nenhum evento de domínio — auditoria `document.items_update` (`DATA_CHANGE`): itens incluídos/removidos/alterados (quantidades; texto como hash + tamanho); `metadata.itemsCount`.
-- **Notas:** Substituição completa da lista (não incremental). RN-ETP-26 (4 casas), RN-ETP-28/29 (sincronização de `estimatedTotalValue` com a pesquisa de preços, fora desta seção).
+- **Notas:** Substituição completa da lista (não incremental). RN-ETP-26 (4 casas), RN-ETP-28/29 (sincronização de `estimatedTotalValue` com a pesquisa de preços, fora desta seção). **Implementação (US-022, 2026-10-19):** `calculationMemo` ausente na linha mantém a memória gravada (a linha existente preserva id e `sortOrder`); `null` limpa. Acima de 1 MB → 413 `PAYLOAD_TOO_LARGE`; fora do schema → 422 `RICH_TEXT_INVALID`. A resposta (DOC-06/07) traz `calculationMemo` (TipTapDoc ou `null`) em todos os tipos. Na auditoria, a memória vai como `{ sha256, bytes }` em `items.<processItemId>.calculationMemo`.
 
 ### DOC-08 — Consultar validação de completude do documento
 `GET /api/v1/documents/{id}/validation` · **Permissão:** `PROCESS_VIEW` · **Story:** US-065

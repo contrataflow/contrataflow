@@ -4,7 +4,8 @@ import { Injectable, Module } from '@nestjs/common';
 import type { TenantTx } from '../database/prisma.js';
 
 /*
- * Pesquisas de preços vistas pelos outros artefatos do processo (US-036 · RN-TR-07/08 · DEC-032). O
+ * Pesquisas de preços vistas pelos outros artefatos do processo (US-036 · RN-TR-07/08 · DEC-032 ·
+ * US-022: o vínculo do valor estimado do ETP — `linkOf`). O
  * `term` (nível 4) precisa do total da pesquisa concluída para o valor estimado do TR, mas não pode
  * importar a fachada do `price-research` (mesmo nível — DEC-040): pergunta a esta porta do shared
  * kernel e o `price-research` registra o leitor no `onModuleInit` (mesmo arranjo do
@@ -29,7 +30,19 @@ export interface PriceResearchSummary {
 export interface PriceResearchSummaryReader {
   /** Pesquisas do processo (sem as canceladas/excluídas), mais recente primeiro (RLS: do tenant). */
   listByProcess(tx: TenantTx, processId: string): Promise<PriceResearchSummary[]>;
+  /**
+   * A pesquisa `id` INCLUSIVE cancelada (`status = CANCELED`) — o vínculo do ETP distingue
+   * cancelada (`REFERENCE_INACTIVE`) de inexistente (US-022 · V-06). Excluída ou de outro tenant
+   * (RLS) = `null`.
+   */
+  findById(tx: TenantTx, id: string): Promise<PriceResearchSummary | null>;
 }
+
+/** Pesquisa candidata ao vínculo do valor estimado (US-022 · RN-ETP-28 · V-06). */
+export type PriceResearchLink =
+  | { readonly kind: 'NOT_FOUND' }
+  | { readonly kind: 'CANCELED' }
+  | { readonly kind: 'ACTIVE'; readonly summary: PriceResearchSummary };
 
 /** A pesquisa está concluída e tem total (RN-TR-07). */
 export function isCompletedPriceResearch(summary: PriceResearchSummary): boolean {
@@ -49,6 +62,16 @@ export class PriceResearchSummaryRegistry {
     return this.reader ? this.reader.listByProcess(tx, processId) : Promise.resolve([]);
   }
 
+  /**
+   * V-06 da US-022: a pesquisa `id` do processo para o vínculo do ETP — inexistente, de outro
+   * processo ou de outro tenant = `NOT_FOUND` (sem revelar); cancelada = `CANCELED`.
+   */
+  async linkOf(tx: TenantTx, processId: string, id: string): Promise<PriceResearchLink> {
+    const summary = this.reader ? await this.reader.findById(tx, id) : null;
+    if (summary?.processId !== processId) return { kind: 'NOT_FOUND' };
+    return summary.status === 'CANCELED' ? { kind: 'CANCELED' } : { kind: 'ACTIVE', summary };
+  }
+
   /** A pesquisa concluída mais recente do processo (RN-TR-07), ou `null`. */
   async completedOf(tx: TenantTx, processId: string): Promise<PriceResearchSummary | null> {
     const all = await this.listByProcess(tx, processId);
@@ -66,7 +89,9 @@ export class PriceResearchSummaryRegistry {
   }
 }
 
-/** Importado por `term` (consumidor) e `price-research` (implementador); a instância é única. */
+/**
+ * Importado por `term`/`etp` (consumidores) e `price-research` (implementador); a instância é única.
+ */
 @Module({
   providers: [PriceResearchSummaryRegistry],
   exports: [PriceResearchSummaryRegistry],

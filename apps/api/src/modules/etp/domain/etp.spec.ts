@@ -2,7 +2,13 @@ import { richTextPlainText } from '@contrataflow/validation';
 import type { DocumentSnapshot } from '@contrataflow/validation';
 import { describe, expect, it } from 'vitest';
 
-import { createEtp, dfdImportPreview, pcaAlignmentText, planDfdImport } from './etp.js';
+import {
+  createEtp,
+  dfdImportPreview,
+  pcaAlignmentText,
+  planDfdImport,
+  setEtpEstimate,
+} from './etp.js';
 
 const ITEM_1 = '0192d019-0000-7000-8000-000000000001';
 const ITEM_2 = '0192d019-0000-7000-8000-000000000002';
@@ -162,5 +168,78 @@ describe('dfdImportPreview', () => {
       pcaStatus: null,
       itemsCount: 0,
     });
+  });
+});
+
+describe('setEtpEstimate (US-022 · RN-ETP-28 · FA-01/02/03)', () => {
+  const RESEARCH = '0192d022-0000-7000-8000-0000000000e1';
+  const LATER = new Date('2026-10-19T12:00:00.000Z');
+  const base = createEtp({
+    documentId: '0192d022-0000-7000-8000-0000000000d1',
+    tenantId: 't',
+    processId: 'p',
+    importedFromDfdVersionId: null,
+    creatorId: 'u0',
+    now: NOW,
+  });
+
+  it('MANUAL: grava valor e origem, sem pesquisa, com versão + 1 e os campos alterados', () => {
+    const { etp, changes } = setEtpEstimate(
+      base,
+      { source: 'MANUAL', value: '98000.50' },
+      { actorId: 'u1', now: LATER },
+    );
+    expect(etp).toMatchObject({
+      estimatedValueSource: 'MANUAL',
+      estimatedTotalValue: '98000.50',
+      priceResearchId: null,
+      updatedById: 'u1',
+      updatedAt: LATER,
+      version: 2,
+    });
+    expect(changes).toEqual([
+      { field: 'estimatedValueSource', old: null, new: 'MANUAL' },
+      { field: 'estimatedTotalValue', old: null, new: '98000.50' },
+    ]);
+  });
+
+  it('FA-01: manual → pesquisa descarta o manual pelo total da pesquisa', () => {
+    const manual = setEtpEstimate(
+      base,
+      { source: 'MANUAL', value: '1.00' },
+      { actorId: 'u1', now: LATER },
+    ).etp;
+    const { etp, changes } = setEtpEstimate(
+      manual,
+      { source: 'PRICE_RESEARCH', priceResearchId: RESEARCH, value: '125000.00' },
+      { actorId: 'u1', now: LATER },
+    );
+    expect(etp).toMatchObject({
+      estimatedValueSource: 'PRICE_RESEARCH',
+      estimatedTotalValue: '125000.00',
+      priceResearchId: RESEARCH,
+      version: 3,
+    });
+    expect(changes.map((change) => change.field)).toEqual([
+      'estimatedValueSource',
+      'estimatedTotalValue',
+      'priceResearchId',
+    ]);
+  });
+
+  it('FA-03: pesquisa sem cálculo deixa o valor ausente; reenvio igual não muda nada', () => {
+    const linked = setEtpEstimate(
+      base,
+      { source: 'PRICE_RESEARCH', priceResearchId: RESEARCH, value: null },
+      { actorId: 'u1', now: LATER },
+    ).etp;
+    expect(linked.estimatedTotalValue).toBeNull();
+    const again = setEtpEstimate(
+      linked,
+      { source: 'PRICE_RESEARCH', priceResearchId: RESEARCH, value: null },
+      { actorId: 'u2', now: LATER },
+    );
+    expect(again.changes).toEqual([]);
+    expect(again.etp).toBe(linked);
   });
 });

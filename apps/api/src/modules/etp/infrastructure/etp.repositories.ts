@@ -3,13 +3,15 @@ import { Injectable } from '@nestjs/common';
 import { currentRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 import { TenantTransaction } from '#shared/database/database.module.js';
+import { VersionConflictError } from '#shared/database/errors.js';
+import { updateVersioned } from '#shared/database/optimistic-concurrency.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
 
 import type { EtpRepository, EtpTransactions } from '../application/ports.js';
 import type { Etp } from '../domain/etp.js';
 
 /*
- * `etps` (US-019 · US-021 — a recomendada desnormalizada): no PostgreSQL sempre no `tx` da `TenantTransaction` (RLS do tenant + extensão de
+ * `etps` (US-019 · US-021 — a recomendada desnormalizada · US-022 — estimativas): no PostgreSQL sempre no `tx` da `TenantTransaction` (RLS do tenant + extensão de
  * isolamento); em memória para os testes e o modo de identidade fake (isolados pelo tenant do
  * contexto, como a RLS).
  */
@@ -91,6 +93,22 @@ export class PrismaEtpRepository implements EtpRepository {
       select: { id: true },
     });
   }
+
+  async updateEstimate(tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void> {
+    await updateVersioned({ aggregateType: 'Etp', aggregateId: etp.id, expectedVersion }, () =>
+      tx.etp.updateMany({
+        where: { id: etp.id, version: expectedVersion },
+        data: {
+          estimatedValueSource: etp.estimatedValueSource,
+          estimatedTotalValue: etp.estimatedTotalValue,
+          priceResearchId: etp.priceResearchId,
+          updatedAt: etp.updatedAt,
+          updatedById: etp.updatedById,
+          version: { increment: 1 },
+        },
+      }),
+    );
+  }
 }
 
 /** ETPs em memória: mesma semântica do adaptador Prisma, isolados pelo tenant do contexto. */
@@ -132,6 +150,34 @@ export class InMemoryEtpRepository implements EtpRepository {
       version: current.version + 1,
     });
     return Promise.resolve();
+  }
+
+  updateEstimate(_tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void> {
+    const current = this.inTenant().find((candidate) => candidate.id === etp.id);
+    if (current?.version !== expectedVersion) {
+      return Promise.reject(
+        new VersionConflictError({ aggregateType: 'Etp', aggregateId: etp.id, expectedVersion }),
+      );
+    }
+    this.rows.set(etp.id, {
+      ...current,
+      estimatedValueSource: etp.estimatedValueSource,
+      estimatedTotalValue: etp.estimatedTotalValue,
+      priceResearchId: etp.priceResearchId,
+      updatedAt: etp.updatedAt,
+      updatedById: etp.updatedById,
+      version: current.version + 1,
+    });
+    return Promise.resolve();
+  }
+
+  /**
+   * Inspeção/simulação de testes: o efeito do sincronizador do worker (RN-ETP-29/31) sobre a
+   * linha, sem passar pela API.
+   */
+  patch(id: string, changes: Partial<Etp>): void {
+    const current = this.rows.get(id);
+    if (current !== undefined) this.rows.set(id, { ...current, ...changes });
   }
 
   /** Inspeção de testes: todos os ETPs (de todos os tenants). */

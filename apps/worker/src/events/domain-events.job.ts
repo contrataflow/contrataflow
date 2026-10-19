@@ -26,7 +26,7 @@ export class DomainEventsJobHandler implements JobHandler<Payload> {
   }
 
   async handle(payload: Payload, context: JobHandlerContext): Promise<HandlerResult> {
-    await this.processor.process({ meta: context.meta, payload }, context.jobId);
+    await this.processor.process({ meta: context.meta, payload }, context.jobId, context);
     return 'completed';
   }
 }

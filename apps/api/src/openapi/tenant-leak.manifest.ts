@@ -238,6 +238,9 @@ const ETP_SECTIONS_ROUTE =
 const ETP_ALTERNATIVES_ROUTE =
   'Alternativas de solução do ETP (US-021): a suíte genérica não tem processo, ETP nem alternativa do tenant B. O isolamento (ETP-05/06 com ETP de B → 404 NOT_FOUND sem ler nem criar nada; ETP-07/08/09 com alternativa de B → 404 NOT_FOUND sem alterar nada; RLS e FKs compostas de etp_alternatives, índices únicos parciais e CHECK da justificativa) é coberto em test/tenant-leak/etp-alternatives.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp-alternative.routes.spec.ts.';
 
+const ETP_ESTIMATES_ROUTE =
+  'Estimativas do ETP (US-022): a suíte genérica não tem processo, ETP nem pesquisa de preços do tenant B. O isolamento (ETP-04 com ETP de B → 404 NOT_FOUND sem alterar nada; priceResearchId de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar que a pesquisa existe; DOC-07 com a memória de cálculo só no documento do tenant; RLS da atualização condicional de etps e da FK composta para price_research) é coberto em test/tenant-leak/etp-estimates.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp-estimates.routes.spec.ts; a sincronização assíncrona (RN-ETP-29/31, papel cf_worker com RLS) em apps/worker/test/tenant-leak/etp-estimate-sync.spec.ts.';
+
 const DFD_DUPLICATE_ROUTE =
   'Duplicar DFD (US-018): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-05 com DFD de B → 404 DFD_NOT_FOUND sem criar nada; targetProcessId de B ou inexistente → 422 REFERENCE_NOT_FOUND em targetProcessId sem revelar o registro; nada de B lido nem alterado; itens, documento e DFD criados só no tenant da requisição, com RLS e FKs compostas; transação única, índice único do DFD ativo sob concorrência e idempotência) é coberto em test/tenant-leak/dfd-duplicate.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd-duplicate.routes.spec.ts.';
 
@@ -465,6 +468,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'ETP-01': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-02': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-03': { kind: 'exempt', reason: ETP_SECTIONS_ROUTE },
+  'ETP-04': { kind: 'exempt', reason: ETP_ESTIMATES_ROUTE },
   'ETP-05': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
   'ETP-06': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
   'ETP-07': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },

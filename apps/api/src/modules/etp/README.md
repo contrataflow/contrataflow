@@ -80,3 +80,32 @@ DFD (`dfd/README.md`).
   categorias do Gherkin + FA-01..05, V-01..V-09) e `test/tenant-leak/etp-alternatives.spec.ts`
   (PostgreSQL: índices, CHECK, concorrência, outbox PENDING, RLS). Web:
   `apps/web/src/features/etp/etp-alternatives-section.tsx` (+ `.test.tsx`).
+
+## US-022 — Estimar quantidades e vincular valor à pesquisa de preços (ETP-04 · DOC-06/07)
+
+- **Itens** (DOC-07 genérico, `document`): a linha do ETP ganhou `calculationMemo` (RN-ETP-27 —
+  rich text ≤ 1 MB; 413 `PAYLOAD_TOO_LARGE`/422 `RICH_TEXT_INVALID`). Ausente no corpo = mantém a
+  gravada (id e `sortOrder` da linha preservados); `null` limpa. Auditoria `document.items_update`
+  com a memória como `{ sha256, bytes }`. Comparação da memória por JSON canônico (o `jsonb`
+  reordena as chaves).
+- **ETP-04** `PATCH /etps/{id}` (`UpdateEtpEstimateCommand`, `application/etp-estimate.command.ts`):
+  `editableTypedDocumentIn` (POL-02 + `DRAFT`/`RETURNED`, documento travado) → `If-Match` da versão
+  do ETP (412) → POL-09 (403) → `etpEstimateIssues` (422 — `packages/validation/src/etp/etp-estimate.ts`,
+  as mesmas regras no painel da SCR-008) → pesquisa pela porta `PriceResearchSummaryRegistry.linkOf`
+  do shared kernel (o `etp` não importa o `price-research` — mesmo nível) → `setEtpEstimate` (domínio
+  puro; FA-01/02/03) → `updateEstimate` condicional → `document.draft_update`. Sem evento.
+- **Sincronização** (RN-ETP-29/31): no worker, `EtpEstimateSynchronizer`
+  (`apps/worker/src/events/etp-estimate-synchronizer.ts`), handler leve do `domain-events` em
+  `price_research.recalculated`, `document.finalized.price_research` e
+  `document.canceled.price_research`, na transação do tenant do evento (os handlers leves recebem
+  agora o `InlineHandlerContext` do job). Copia o total atual para os ETPs `DRAFT`/`RETURNED`
+  vinculados (idempotente pelo estado: `IS DISTINCT FROM`), desfaz o vínculo no cancelamento e audita
+  como `SYSTEM`. Migração `20261019160000_etp_estimate_sync`: só o `GRANT UPDATE` de colunas de `etps`
+  ao `cf_worker`.
+- **Web** (`apps/web/src/features/etp/etp-estimates-section.tsx`): `ItemsEstimateTable` (quantidade +
+  memória por item, "Salvo às", 412 com "Ver diferenças"/"Recarregar") e `EstimatedValuePanel`
+  (manual × pesquisa, somente leitura quando vinculado, revalida a cada 5 s, FA-03/04/05).
+- **Testes**: `domain/etp.spec.ts`, `presentation/etp-estimates.routes.spec.ts` (8 categorias +
+  FA-01..05, V-01..V-08), `test/tenant-leak/etp-estimates.spec.ts` (PostgreSQL),
+  `apps/worker/test/tenant-leak/etp-estimate-sync.spec.ts` (reentrega, relay fora, RLS, cancelamento)
+  e `apps/web/src/features/etp/etp-estimates-section.test.tsx`.

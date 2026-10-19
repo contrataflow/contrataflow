@@ -1,7 +1,9 @@
+import type { RichTextDocValue } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
-import type { Prisma, TenantTx } from '#shared/database/prisma.js';
+import { Prisma } from '#shared/database/prisma.js';
+import type { TenantTx } from '#shared/database/prisma.js';
 
 import type {
   DocumentItemReference,
@@ -27,12 +29,18 @@ function toItem(row: ItemRow): DocumentItem {
     quantity: row.quantity.toFixed(4),
     notes: row.notes,
     sortOrder: row.sortOrder,
+    calculationMemo:
+      row.calculationMemo === null ? null : (row.calculationMemo as unknown as RichTextDocValue),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     createdById: row.createdById,
     updatedById: row.updatedById,
   };
 }
+
+/** `Prisma.DbNull` limpa a coluna JSON (um `null` cru não é aceito pelo Prisma). */
+const memoJson = (value: RichTextDocValue | null) =>
+  value === null ? Prisma.DbNull : (value as Prisma.InputJsonValue);
 
 const bySortOrder = (a: DocumentItem, b: DocumentItem) =>
   a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime();
@@ -67,6 +75,7 @@ export class PrismaDocumentItemRepository implements DocumentItemRepository {
             quantity: item.quantity,
             notes: item.notes,
             sortOrder: item.sortOrder,
+            calculationMemo: memoJson(item.calculationMemo),
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
             createdById: item.createdById,
@@ -81,6 +90,7 @@ export class PrismaDocumentItemRepository implements DocumentItemRepository {
             quantity: item.quantity,
             notes: item.notes,
             sortOrder: item.sortOrder,
+            calculationMemo: memoJson(item.calculationMemo),
             updatedAt: item.updatedAt,
             updatedById: item.updatedById,
           },

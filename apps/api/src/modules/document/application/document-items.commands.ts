@@ -1,4 +1,16 @@
-import type { DocumentItemDto, DocumentItemInput } from '@contrataflow/validation';
+import { createHash } from 'node:crypto';
+
+import {
+  calculationMemoBytes,
+  calculationMemoIssue,
+  DOCUMENT_ITEM_MESSAGES,
+  richTextPlainText,
+} from '@contrataflow/validation';
+import type {
+  DocumentItemDto,
+  DocumentItemInput,
+  RichTextDocValue,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
@@ -25,7 +37,11 @@ import { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS, DOCUMENT_TYPE_REPOSITORY } from 
 import type { DocumentClock, DocumentTransactions, DocumentTypeRepository } from './ports.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { planDocumentItems } from '../domain/document-items.js';
-import type { AvailableProcessItem, DocumentItem } from '../domain/document-items.js';
+import type {
+  AvailableProcessItem,
+  DocumentItem,
+  DocumentItemsPlan,
+} from '../domain/document-items.js';
 import { isEditable } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
 
@@ -37,6 +53,9 @@ import type { Document } from '../domain/document.js';
  * 409 `INVALID_PROCESS_STATUS`, 422 de etapa) → `If-Match` (412) → documento em `DRAFT`/`RETURNED`
  * (409 `DOCUMENT_NOT_EDITABLE`) → itens do processo travados `FOR SHARE` + regra da unidade (422)
  * → gravação → `version + 1` do documento (novo `ETag`) → `document.items_update`. Sem evento.
+ * US-022 (ETP): a memória de cálculo por item (RN-ETP-27) é conferida antes de tudo (413
+ * `PAYLOAD_TOO_LARGE` acima de 1 MB, 422 `RICH_TEXT_INVALID` fora do schema) e entra na auditoria
+ * só como hash + tamanho; ids e `sortOrder` das linhas existentes se preservam.
  */
 
 /** Itens do documento como o DOC-06/07 os devolve, com a versão do documento (`ETag`). */
@@ -101,6 +120,7 @@ export class DocumentItemsPresenter {
       quantity: line.quantity,
       notes: line.notes,
       sortOrder: index,
+      calculationMemo: null,
       createdAt: now,
       updatedAt: now,
       createdById: actorId,
@@ -168,6 +188,7 @@ export class DocumentItemsPresenter {
           quantity: row.quantity,
           notes: row.notes,
           sortOrder: row.sortOrder,
+          calculationMemo: row.calculationMemo,
         },
       ];
     });
@@ -205,6 +226,37 @@ interface ReplacedItems extends DocumentItemsResult {
   readonly itemsCount: number;
 }
 
+/**
+ * RN-ETP-27 · V-03: memória de cálculo acima de 1 MB → 413 `PAYLOAD_TOO_LARGE`; fora do schema →
+ * 422 `RICH_TEXT_INVALID` (o primeiro problema da lista decide).
+ */
+function assertCalculationMemos(items: readonly DocumentItemInput[]): void {
+  for (const item of items) {
+    const issue = calculationMemoIssue(item.calculationMemo);
+    if (issue === 'PAYLOAD_TOO_LARGE') {
+      throw new ApiError('PAYLOAD_TOO_LARGE', {
+        detail: DOCUMENT_ITEM_MESSAGES.calculationMemoTooLarge,
+      });
+    }
+    if (issue === 'RICH_TEXT_INVALID') {
+      throw new ApiError('RICH_TEXT_INVALID', {
+        detail: DOCUMENT_ITEM_MESSAGES.calculationMemoInvalid,
+      });
+    }
+  }
+}
+
+/** Impressão digital da memória na auditoria: hash do texto + tamanho serializado (nunca o texto). */
+function memoFingerprint(
+  memo: RichTextDocValue | null,
+): { readonly sha256: string; readonly bytes: number } | null {
+  if (memo === null) return null;
+  return {
+    sha256: createHash('sha256').update(richTextPlainText(memo), 'utf8').digest('hex'),
+    bytes: calculationMemoBytes(memo),
+  };
+}
+
 /** `ReplaceDocumentItemsCommand` — DOC-07 (RN-DFD-14 · V-09/V-10/V-11). */
 @Injectable()
 export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
@@ -231,6 +283,7 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
   }
 
   protected async handle(tx: TenantTx, input: ReplaceDocumentItemsInput): Promise<ReplacedItems> {
+    assertCalculationMemos(input.items);
     // A trava serializa duas gravações: a segunda relê a versão e recebe 412 (Concorrência).
     await this.documents.lockForUpdate(tx, input.documentId);
     const context = await this.lifecycle.load(tx, input.documentId);
@@ -273,7 +326,7 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
       { ...document, updatedAt: now, updatedById: userId },
       document.version,
     );
-    await this.recordAudit(tx, context, plan.changes, plan.items.length);
+    await this.recordAudit(tx, context, plan, plan.items.length);
     return {
       documentId: document.id,
       itemsCount: plan.items.length,
@@ -317,7 +370,7 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
   private async recordAudit(
     tx: TenantTx,
     context: DocumentContext,
-    changes: readonly { processItemId: string; old: string | null; new: string | null }[],
+    plan: Pick<DocumentItemsPlan, 'changes' | 'memoChanges'>,
     itemsCount: number,
   ): Promise<void> {
     await this.audit.record(tx, {
@@ -325,11 +378,19 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
       entityType: 'Document',
       entityId: context.document.id,
       processId: context.document.processId,
-      changes: changes.map((change) => ({
-        path: `items.${change.processItemId}.quantity`,
-        old: change.old,
-        new: change.new,
-      })),
+      changes: [
+        ...plan.changes.map((change) => ({
+          path: `items.${change.processItemId}.quantity`,
+          old: change.old,
+          new: change.new,
+        })),
+        // Memória de cálculo como hash + tamanho (story US-022 · "Auditoria").
+        ...plan.memoChanges.map((change) => ({
+          path: `items.${change.processItemId}.calculationMemo`,
+          old: memoFingerprint(change.old),
+          new: memoFingerprint(change.new),
+        })),
+      ],
       metadata: {
         documentCode: context.document.code,
         documentTypeCode: context.type.code,

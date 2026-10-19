@@ -19,6 +19,11 @@ export interface EtpRepository {
    * decisão, com o documento ETP travado pela guarda (sem `If-Match` próprio).
    */
   setRecommendedAlternative(tx: TenantTx, etp: Etp): Promise<void>;
+  /**
+   * US-022 · ETP-04: origem, valor e pesquisa vinculada com `version = expectedVersion + 1`,
+   * condicionado à versão (DEC-055). @throws VersionConflictError
+   */
+  updateEstimate(tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void>;
 }
 
 export const ETP_REPOSITORY = Symbol('EtpRepository');

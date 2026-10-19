@@ -2,7 +2,7 @@ import { localDateOf } from '@contrataflow/types';
 
 import type { SqlClient } from '#shared/database/outbox-database.js';
 
-import type { RecipientSpec } from './notification-rules.js';
+import type { RecipientSpec } from './recipient-spec.js';
 
 /*
  * Lembretes de prazo e alertas de atraso (US-114 · events.md §6 · RN-NTF-27..32). O job

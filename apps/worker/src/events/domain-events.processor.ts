@@ -3,7 +3,7 @@ import { domainEventJobSchema } from '@contrataflow/validation';
 import type { DomainEventJobData } from '@contrataflow/validation';
 import { UnrecoverableError } from 'bullmq';
 
-import type { InlineEventHandler } from './inline-handlers.js';
+import type { InlineEventHandler, InlineHandlerContext } from './inline-handlers.js';
 import { DOMAIN_EVENT_ROUTES, resolveRoutes } from './routes.js';
 import type { DomainEventRoutes, FanOutQueue, InlineHandlerName } from './routes.js';
 
@@ -48,7 +48,12 @@ export class DomainEventsProcessor {
     this.now = deps.now ?? (() => new Date());
   }
 
-  async process(data: unknown, jobId: string | undefined): Promise<FanOutResult> {
+  /** `context`: a transação do tenant e a tentativa do job (handlers que gravam — US-022). */
+  async process(
+    data: unknown,
+    jobId: string | undefined,
+    context?: InlineHandlerContext,
+  ): Promise<FanOutResult> {
     const parsed = domainEventJobSchema.safeParse(data);
     if (!parsed.success) {
       throw new UnrecoverableError('domain-events: job fora do contrato (meta/envelope)');
@@ -75,7 +80,7 @@ export class DomainEventsProcessor {
     for (const name of targets.inline) {
       const handler = this.handlers.get(name);
       if (!handler) throw new Error(`domain-events: handler leve ${name} não registrado`);
-      await handler.handle(envelope);
+      await handler.handle(envelope, context);
     }
     return targets;
   }

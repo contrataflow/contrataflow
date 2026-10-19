@@ -60,12 +60,13 @@ Consumidores assíncronos do MVP 1:
 | `EmailSender` | `email` | notificações com canal e-mail | `Notification.emailStatus` (só envia se `PENDING`) |
 | `PermissionCacheInvalidator` | `domain-events` (handler leve) | `role.*`, `membership.*`, `department.moved`, `department.updated` (titular/substituto — US-102), `department.deactivated` | Operação idempotente (DEL de chave) |
 | `BusinessMetricsCollector` | `domain-events` | `process.*`, `document.*`, `approval.*` | Contadores tolerantes a reentrega (deduplicação por `eventId` em Redis, 24 h) |
+| `EtpEstimateSynchronizer` (US-022) | `domain-events` (handler leve, transação do tenant do evento — papel `cf_worker`) | `price_research.recalculated`, `document.finalized.price_research`, `document.canceled.price_research` | Lê o estado atual (não o payload): `UPDATE etps … WHERE estimated_total_value IS DISTINCT FROM price_research.total_estimated_value` — reentrega não acha linha, não sobe versão nem audita (RN-ETP-29). Só ETPs em `DRAFT`/`RETURNED` recebem o valor novo; o cancelamento desfaz o vínculo de todo ETP não excluído preservando o último valor (RN-ETP-31). Cada mudança grava `document.draft_update` (`SYSTEM`, sem valores) |
 
 ---
 
 ## 4. Catálogo de eventos
 
-Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = notificações, C = invalidação de cache, M = métricas.
+Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = notificações, C = invalidação de cache, M = métricas, E = valor estimado do ETP vinculado (`EtpEstimateSynchronizer` — US-022).
 
 ### 4.1 Processo (módulo `process`)
 | Evento | Routing key | Produtor (story) | Payload (além do envelope) | Cons. |
@@ -134,7 +135,7 @@ Eventos próprios de módulos tipados:
 | Evento | Routing key | Produtor | Payload | Cons. |
 |---|---|---|---|---|
 | `EtpAlternativeRecommended` | `etp.alternative_recommended` | US-021 | `etpId`, `alternativeId`, `previousAlternativeId?` | T |
-| `PriceResearchRecalculated` | `price_research.recalculated` | US-029 | `priceResearchId`, `itemsCount`, `itemsWithAlertsCount` | — |
+| `PriceResearchRecalculated` | `price_research.recalculated` | US-029 | `priceResearchId`, `itemsCount`, `itemsWithAlertsCount` | E (US-022) |
 | `QuotationExcluded` | `price_research.quotation_excluded` | US-027 | `priceResearchId`, `quotationId`, `priceItemId`, `reason` | T |
 | `QuotationRestored` | `price_research.quotation_restored` | US-027 | `priceResearchId`, `quotationId`, `priceItemId` | T |
 | `RiskCreated` | `risk.created` | US-033 | `riskId`, `code`, `level`, `phase`, `categoryCode` | T |

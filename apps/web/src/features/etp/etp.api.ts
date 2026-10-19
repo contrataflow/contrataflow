@@ -5,6 +5,7 @@ import type {
   EtpDetailMeta,
   EtpDto,
   EtpSummaryDto,
+  EtpUpdate,
   ImportableDfdDto,
 } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
@@ -15,7 +16,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 /*
- * ETP (US-019/020 · SCR-006/SCR-008): ETP-01/02/03 de api/06-etp.md. O id do ETP é o do documento.
+ * ETP (US-019/020/022 · SCR-006/SCR-008): ETP-01/02/03/04 de api/06-etp.md. O id do ETP é o do documento.
  * Chaves `['t', tenantId, 'processes', processId, 'etps']` (ETP-01, sob a do processo: invalidar o
  * processo renova a lista e o DFD elegível) e `['t', tenantId, 'etps', id]` (ETP-03).
  */
@@ -41,13 +42,36 @@ export async function fetchEtp(etpId: string, signal?: AbortSignal): Promise<Etp
   };
 }
 
-export function useEtp(etpId: string) {
+/**
+ * `refetchInterval` (US-022): com o valor vinculado à pesquisa de preços, o painel revalida o ETP
+ * para refletir a sincronização do worker (RN-ETP-29) sem recarregar a página.
+ */
+export function useEtp(etpId: string, options: { readonly refetchInterval?: number | false } = {}) {
   const tenantId = useTenantId();
   return useQuery({
     queryKey: etpKeys.detail(tenantId, etpId),
     queryFn: ({ signal }) => fetchEtp(etpId, signal),
     throwOnError: false,
+    refetchInterval: options.refetchInterval ?? false,
   });
+}
+
+/** ETP-04 (US-022): origem e valor estimado com `If-Match` da versão do ETP. */
+export async function patchEtp(
+  etpId: string,
+  body: EtpUpdate,
+  version: number,
+): Promise<EtpResult> {
+  const result = await apiRequest<EtpDetailDto>(`/etps/${etpId}`, {
+    method: 'PATCH',
+    body,
+    ifMatch: `"${String(version)}"`,
+  });
+  const meta = etpDetailMetaSchema.safeParse(result.meta);
+  return {
+    etp: result.data,
+    meta: meta.success ? meta.data : { allowedActions: [], template: null },
+  };
 }
 
 /** ETP-01: os ETPs do processo e o DFD elegível para a importação (RN-ETP-04). */

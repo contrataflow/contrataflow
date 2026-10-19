@@ -6,15 +6,17 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
 import { EtpAlternativesSection } from './etp-alternatives-section';
+import { EtpEstimatesSection } from './etp-estimates-section';
 import { useDocumentItems } from '../dfd/dfd.api';
 import { LevelBadge } from '../risks/level-badge';
 import { useRisks } from '../risks/risks.api';
 
 /*
- * Quadros estruturados das seções do ETP (US-020 · RN-ETP-12): itens/quantidades
- * (`ItemsTableReadonly` — DOC-06) e riscos do processo (`RiskListReadonly` — RSK-01), somente
- * leitura (a edição acontece nas telas donas, com link), e as alternativas de solução
- * (`EtpAlternativesSection` — ETP-05..09, US-021), cadastradas e decididas aqui mesmo.
+ * Quadros estruturados das seções do ETP (US-020 · RN-ETP-12): as estimativas
+ * (`EtpEstimatesSection` — US-022: quantidade e memória de cálculo por item pelo DOC-07 e o valor
+ * estimado pelo ETP-04; sem edição, o quadro somente leitura `ItemsTableReadonly` — DOC-06), os
+ * riscos do processo (`RiskListReadonly` — RSK-01, somente leitura, editados no mapa de riscos) e as
+ * alternativas de solução (`EtpAlternativesSection` — ETP-05..09, US-021).
  */
 
 const formatQuantity = (value: string) =>
@@ -147,10 +149,13 @@ export function StructuredSectionContent({
   kind,
   processId,
   documentId,
+  editable,
 }: {
   readonly kind: EtpStructuredKind;
   readonly processId: string;
   readonly documentId: string;
+  /** ETP_UPDATE + POL-02 e o ETP em DRAFT/RETURNED (as estimativas são editadas aqui — US-022). */
+  readonly editable: boolean;
 }) {
   const t = useTranslations('etp.editor.structured');
   return (
@@ -160,12 +165,17 @@ export function StructuredSectionContent({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">{t(`${kind}.title`)}</h3>
-        {kind === 'ALTERNATIVES' ? null : (
+        {kind === 'ALTERNATIVES' || (kind === 'ITEMS' && editable) ? null : (
           <span className="text-xs text-muted-foreground">{t('readOnly')}</span>
         )}
       </div>
       {kind === 'ITEMS' ? (
-        <ItemsTableReadonly processId={processId} documentId={documentId} />
+        <EtpEstimatesSection
+          processId={processId}
+          documentId={documentId}
+          editable={editable}
+          readOnlyItems={<ItemsTableReadonly processId={processId} documentId={documentId} />}
+        />
       ) : null}
       {/* O id do ETP é o do documento (CHECK `etps_id_is_document`). */}
       {kind === 'ALTERNATIVES' ? <EtpAlternativesSection etpId={documentId} /> : null}

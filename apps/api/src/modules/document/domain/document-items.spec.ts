@@ -20,6 +20,7 @@ const existing = (processItemId: string, quantity: string, sortOrder = 0): Docum
   quantity,
   notes: null,
   sortOrder,
+  calculationMemo: null,
   createdAt: EARLIER,
   updatedAt: EARLIER,
   createdById: 'u0',
@@ -119,5 +120,49 @@ describe('planDocumentItems (RN-DFD-14 · V-09/V-10)', () => {
     const result = plan({ current: [existing(GLOVES, '1.0000')], next: [] });
     expect(result.items).toEqual([]);
     expect(result.changes).toEqual([{ processItemId: GLOVES, old: '1.0000', new: null }]);
+  });
+});
+
+describe('planDocumentItems — memória de cálculo do ETP (US-022 · RN-ETP-27)', () => {
+  const memo = (text: string) => ({
+    type: 'doc' as const,
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  });
+
+  it('grava a memória nova e a lista em memoChanges', () => {
+    const result = plan({
+      current: [existing(SOAP, '2.0000')],
+      next: [{ processItemId: SOAP, quantity: '2', calculationMemo: memo('50 × 10') }],
+    });
+    expect(result.items[0]?.calculationMemo).toEqual(memo('50 × 10'));
+    expect(result.items[0]?.id).toBe(`row-${SOAP}`);
+    expect(result.changes).toEqual([]);
+    expect(result.memoChanges).toEqual([{ processItemId: SOAP, old: null, new: memo('50 × 10') }]);
+  });
+
+  it('ausente no corpo mantém a memória gravada; null limpa', () => {
+    const saved = { ...existing(SOAP, '2.0000'), calculationMemo: memo('gravada') };
+    const kept = plan({ current: [saved], next: [{ processItemId: SOAP, quantity: '2' }] });
+    expect(kept.items[0]).toBe(saved);
+    expect(kept.memoChanges).toEqual([]);
+    const cleared = plan({
+      current: [saved],
+      next: [{ processItemId: SOAP, quantity: '2', calculationMemo: null }],
+    });
+    expect(cleared.items[0]?.calculationMemo).toBeNull();
+    expect(cleared.memoChanges).toEqual([{ processItemId: SOAP, old: memo('gravada'), new: null }]);
+  });
+
+  it('a mesma memória com as chaves em outra ordem (jsonb) não conta como alteração', () => {
+    const saved = {
+      ...existing(SOAP, '2.0000'),
+      calculationMemo: { content: memo('igual').content, type: 'doc' as const },
+    };
+    const result = plan({
+      current: [saved],
+      next: [{ processItemId: SOAP, quantity: '2', calculationMemo: memo('igual') }],
+    });
+    expect(result.items[0]).toBe(saved);
+    expect(result.memoChanges).toEqual([]);
   });
 });

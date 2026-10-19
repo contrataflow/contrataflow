@@ -7,6 +7,7 @@ import {
   etpMetaSchema,
   etpSchema,
   etpSummarySchema,
+  etpUpdateSchema,
   processIdParamsSchema,
 } from '@contrataflow/validation';
 import type {
@@ -17,18 +18,22 @@ import type {
   EtpListMeta,
   EtpMeta,
   EtpSummaryDto,
+  EtpUpdate,
 } from '@contrataflow/validation';
-import { Controller, Get, Headers, Post, Res } from '@nestjs/common';
+import { Controller, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
 
 import { ImplicitAccess, Policy } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
+import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
+import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
+import { UpdateEtpEstimateCommand } from '../application/etp-estimate.command.js';
 import { CreateEtpCommand } from '../application/etp.commands.js';
 import { GetEtpQuery, ListProcessEtpsQuery } from '../application/etp.queries.js';
 
@@ -38,11 +43,13 @@ const READ_ACCESS =
   'ETPs do processo (US-019 · DEC-024): visibilidade do processo (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente.';
 const DETAIL_ACCESS =
   'ETP do processo (US-020 · DEC-024): visibilidade do processo do ETP (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente. POL-09 no valor estimado.';
+const UPDATE_ACCESS =
+  'ETP_UPDATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied reasonCode ETP_UPDATE) + POL-02 (custódia atual OU participação COLLABORATOR/CONSULTANT — senão 403 com access.denied reasonCode POL-02; processo editável — senão 409; tipo ETP permitido na etapa — senão 422) e o ETP em DRAFT/RETURNED (409 DOCUMENT_NOT_EDITABLE), conferidos no caso de uso. POL-09: sem PROCESS_VIEW_CONFIDENTIAL_BUDGET nem custódia em processo sigiloso, 403 (reasonCode POL-09).';
 const CREATE_ACCESS =
   'ETP_CREATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied reasonCode ETP_CREATE) + POL-02 (RN-ETP-07: custódia atual OU participação COLLABORATOR/CONSULTANT — senão 403 PERMISSION_DENIED; processo em DRAFT/IN_PROGRESS/RETURNED — senão 409 DOCUMENT_NOT_EDITABLE; tipo ETP permitido na etapa — senão 422), conferidos no caso de uso.';
 
 /**
- * ETP (api/06-etp.md · US-019/020): ETP-01/02 sob `/processes/{id}/etps` e ETP-03 `/etps/{id}`. O
+ * ETP (api/06-etp.md · US-019/020/022): ETP-01/02 sob `/processes/{id}/etps` e ETP-03/04 `/etps/{id}`. O
  * id do ETP é o do documento:
  * seções (DOC-05), itens (DOC-06/07), validação (DOC-08) e versões usam os endpoints genéricos.
  */
@@ -53,6 +60,7 @@ export class EtpController {
     private readonly list: ListProcessEtpsQuery,
     private readonly get: GetEtpQuery,
     private readonly create: CreateEtpCommand,
+    private readonly updateEstimate: UpdateEtpEstimateCommand,
   ) {}
 
   @Get('etps/:id')
@@ -77,6 +85,40 @@ export class EtpController {
     response.setHeader('ETag', `"${String(view.dto.version)}"`);
     response.setHeader('Cache-Control', 'no-store');
     return new DataResult(view.dto, view.meta);
+  }
+
+  @Patch('etps/:id')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(UPDATE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'ETP-04',
+    summary: 'Atualizar ETP (estimativas)',
+    tags: TAGS,
+    auditActions: ['document.draft_update'],
+    responses: {
+      200: {
+        description:
+          'Painel "Valor estimado" (US-022 · RN-ETP-28): `estimatedValueSource` obrigatório (422 `REQUIRED`). `MANUAL` exige `estimatedTotalValue` ≥ 0 com até 2 casas (422 `REQUIRED`/`INVALID_DECIMAL`; `priceResearchId` junto = `NOT_ALLOWED`). `PRICE_RESEARCH` exige `priceResearchId` da pesquisa não cancelada do MESMO processo (422 `REFERENCE_NOT_FOUND` — inexistente, de outro processo ou de outro tenant, sem revelar — ou `REFERENCE_INACTIVE` se cancelada) e copia o `totalEstimatedValue` dela (`null` enquanto não calculada — FA-03); o valor fica somente leitura (enviar `estimatedTotalValue` = `NOT_ALLOWED`) e é sincronizado pelo worker a cada `PriceResearchRecalculated`/`PriceResearchCompleted` (RN-ETP-29); a pesquisa cancelada desfaz o vínculo e preserva o último valor (RN-ETP-31). Sem POL-09 em processo sigiloso = 403. `If-Match: "<version do ETP>"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion`). Grava `document.draft_update` (`metadata`: `estimatedValueSource`, `priceResearchId`; valor mascarado se sigiloso); reenvio igual não grava. Resposta = o `EtpDetail` do ETP-03 (`estimatedTotalValueMasked`); `ETag` = nova versão. `conclusion`/`parcelingDecision`: US-023.',
+        schema: z.object({ data: etpDetailSchema, meta: etpDetailMetaSchema }),
+      },
+    },
+  })
+  async updateEtp(
+    @ZodParams(etpIdParamsSchema) params: { id: string },
+    @ZodBody(etpUpdateSchema) body: EtpUpdate,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<EtpDetailDto, EtpDetailMeta>> {
+    const result = await this.updateEstimate.execute({
+      etpId: params.id,
+      expectedVersion: ifMatch?.kind === 'version' ? ifMatch.value : -1,
+      patch: body,
+    });
+    response.setHeader('ETag', `"${String(result.dto.version)}"`);
+    response.setHeader('Cache-Control', 'no-store');
+    return new DataResult(result.dto, result.meta);
   }
 
   @Get('processes/:id/etps')

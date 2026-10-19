@@ -10,11 +10,25 @@ import type { TenantRedisCache } from '#shared/cache/tenant-redis.js';
 
 import type { InlineHandlerName } from './routes.js';
 import type { JobProducer } from '../queues/job-producer.js';
+import type { JobHandlerContext } from '../queues/run-job.js';
+
+/**
+ * O que o job do `domain-events` empresta aos handlers leves: a transação com o `app.tenant_id` do
+ * evento (RLS — US-022: o `EtpEstimateSynchronizer` grava no tenant do evento), a correlação e a
+ * tentativa (a reentrega é a tentativa > 1 ou um novo job com o mesmo `eventId`).
+ */
+export type InlineHandlerContext = Pick<
+  JobHandlerContext,
+  'tenantTransaction' | 'meta' | 'attempt' | 'jobId'
+>;
 
 /** Handler leve e idempotente executado no job do `domain-events` (queues.md §4.1). */
 export interface InlineEventHandler {
   readonly name: InlineHandlerName;
-  handle(event: DomainEventEnvelope<Record<string, unknown>>): Promise<void>;
+  handle(
+    event: DomainEventEnvelope<Record<string, unknown>>,
+    context?: InlineHandlerContext,
+  ): Promise<void>;
 }
 
 /** Deduplicação por `eventId` dos efeitos não transacionais (queues.md §8, camada 4). */

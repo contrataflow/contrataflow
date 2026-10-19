@@ -511,7 +511,12 @@ function EtpSectionPanel({
       ) : (
         <>
           {kind === null ? null : (
-            <StructuredSectionContent kind={kind} processId={processId} documentId={documentId} />
+            <StructuredSectionContent
+              kind={kind}
+              processId={processId}
+              documentId={documentId}
+              editable={editable}
+            />
           )}
           {narrative ? (
             <div className="flex flex-col gap-1">

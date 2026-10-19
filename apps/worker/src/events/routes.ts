@@ -15,7 +15,8 @@ export type InlineHandlerName =
   | 'BusinessMetricsCollector'
   | 'SessionTerminationHandler'
   | 'ConfigCacheInvalidator'
-  | 'InvitationEmailEnqueuer';
+  | 'InvitationEmailEnqueuer'
+  | 'EtpEstimateSynchronizer';
 
 export interface DomainEventRoutes {
   readonly queues: readonly { readonly match: readonly string[]; readonly queue: FanOutQueue }[];
@@ -99,6 +100,16 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
       // o e-mail do convite na fila `email`; o `EmailSender` gera o link no envio (queues.md §4.3).
       match: ['membership.invited'],
       handler: 'InvitationEmailEnqueuer',
+    },
+    {
+      // US-022 (RN-ETP-29/31): o valor estimado do ETP vinculado acompanha o recálculo e a
+      // conclusão da pesquisa de preços; o cancelamento dela desfaz o vínculo.
+      match: [
+        'price_research.recalculated',
+        'document.finalized.price_research',
+        'document.canceled.price_research',
+      ],
+      handler: 'EtpEstimateSynchronizer',
     },
   ],
 };
@@ -279,12 +290,14 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     DocumentCreated: ['document.created.despacho'],
     DocumentVersionCreated: ['document.version_created.despacho'],
     DocumentSubmitted: ['document.submitted.despacho'],
-    DocumentFinalized: ['document.finalized.etp'],
+    // US-022: a conclusão (`finalized`) e o cancelamento da pesquisa de preços também sincronizam o
+    // valor estimado do ETP vinculado (`EtpEstimateSynchronizer`).
+    DocumentFinalized: ['document.finalized.etp', 'document.finalized.price_research'],
     DocumentApproved: ['document.approved.etp'],
     DocumentReturned: ['document.returned.etp'],
     DocumentRejected: ['document.rejected.etp'],
     DocumentReopened: ['document.reopened.etp'],
-    DocumentCanceled: ['document.canceled.etp'],
+    DocumentCanceled: ['document.canceled.etp', 'document.canceled.price_research'],
     // US-009: retirada automática do documento em análise (timeline `DOCUMENT_WITHDRAWN`); métricas.
     DocumentWithdrawn: ['document.withdrawn.etp'],
     // US-115: timeline projetada no mesmo `tx` (síncrona); no worker, métricas (`ai.*`) e os avisos
@@ -309,7 +322,7 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // (DOC-22); a falha também avisa quem pediu (`DOCUMENT_RENDER_FAILED`).
     DocumentRenditionReady: ['document.rendition_ready'],
     DocumentRenditionFailed: ['document.rendition_failed'],
-    // US-024: totais recalculados no mesmo `tx` (sem valores no payload); nenhum consumidor
-    // assíncrono no MVP 1 (events.md §4.3 · "Cons." vazio).
-    PriceResearchRecalculated: 'NO_ASYNC_CONSUMER',
+    // US-024: totais recalculados no mesmo `tx` (sem valores no payload). US-022: o
+    // `EtpEstimateSynchronizer` copia o total para o ETP vinculado (RN-ETP-29).
+    PriceResearchRecalculated: ['price_research.recalculated'],
   };

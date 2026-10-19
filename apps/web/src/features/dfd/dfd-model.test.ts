@@ -54,6 +54,7 @@ function documentItem(n: number, quantity: string, allowsDecimal = false): Docum
     quantity,
     notes: null,
     sortOrder: 0,
+    calculationMemo: null,
   };
 }
 

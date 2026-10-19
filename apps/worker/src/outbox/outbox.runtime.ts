@@ -14,6 +14,7 @@ import { observeRelayLeader } from './outbox-telemetry.js';
 import { BullFanOutQueues } from '../events/bull-fan-out.queues.js';
 import { DomainEventsJobHandler } from '../events/domain-events.job.js';
 import { DomainEventsProcessor } from '../events/domain-events.processor.js';
+import { EtpEstimateSynchronizer } from '../events/etp-estimate-synchronizer.js';
 import {
   BusinessMetricsCollector,
   ConfigCacheInvalidator,
@@ -81,6 +82,8 @@ export class OutboxRuntime implements OnModuleInit, OnApplicationBootstrap, OnMo
             this.queueRuntime.producer.enqueue(queue, name, payload, options),
         }),
         this.createSessionTermination(),
+        // US-022: valor estimado do ETP vinculado à pesquisa (transação do tenant do job).
+        new EtpEstimateSynchronizer(),
       ],
     });
     this.registry.register(new DomainEventsJobHandler(processor));

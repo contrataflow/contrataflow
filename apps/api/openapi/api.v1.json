@@ -3835,6 +3835,28 @@
           },
           "sortOrder": {
             "type": "integer"
+          },
+          "calculationMemo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "doc"
+                ]
+              },
+              "content": {
+                "type": "array",
+                "items": {}
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -3844,7 +3866,8 @@
           "unit",
           "quantity",
           "notes",
-          "sortOrder"
+          "sortOrder",
+          "calculationMemo"
         ]
       },
       "DocumentItemsReplace": {
@@ -3874,6 +3897,22 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 100000
+                },
+                "calculationMemo": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": {},
+                  "description": "TipTapDoc (DEC-056), até 1 MB serializado; `null` limpa."
                 }
               },
               "required": [
@@ -5040,6 +5079,27 @@
           "render",
           "allowNarrative"
         ]
+      },
+      "EtpUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "estimatedValueSource": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "PRICE_RESEARCH"
+            ]
+          },
+          "estimatedTotalValue": {
+            "type": "string",
+            "description": "Decimal ≥ 0 com até 2 casas, ponto como separador (ex.: \"125000.00\")."
+          },
+          "priceResearchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
       },
       "EtpAlternativeListMeta": {
         "type": "object",
@@ -32250,6 +32310,138 @@
         "responses": {
           "200": {
             "description": "Cabeçalho do ETP (conclusão, parcelamento, origem e valor estimado — `estimatedTotalValue = null` com `estimatedTotalValueMasked: true` sem POL-09 em processo sigiloso), o resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07 —, `itemsCount`) e o rascunho por seção (`draftContent.sections[key]`: `state`, `content`, `justification` e `revision` — o `If-Match: \"s<revision>\"` do DOC-05). `meta.allowedActions` (`UPDATE` só com `ETP_UPDATE` + POL-02 e o ETP em `DRAFT`/`RETURNED`; sem ela a SCR-008 abre somente leitura) e `meta.template` (seções da versão fixada no documento, com `requirement`, `minChars`/`maxChars`, `render` e `allowNarrative`). `ETag` = versão do ETP. Inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EtpDetail"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/EtpDetailMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "ETP-04",
+        "summary": "Atualizar ETP (estimativas)",
+        "tags": [
+          "ETP"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.draft_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EtpUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Painel \"Valor estimado\" (US-022 · RN-ETP-28): `estimatedValueSource` obrigatório (422 `REQUIRED`). `MANUAL` exige `estimatedTotalValue` ≥ 0 com até 2 casas (422 `REQUIRED`/`INVALID_DECIMAL`; `priceResearchId` junto = `NOT_ALLOWED`). `PRICE_RESEARCH` exige `priceResearchId` da pesquisa não cancelada do MESMO processo (422 `REFERENCE_NOT_FOUND` — inexistente, de outro processo ou de outro tenant, sem revelar — ou `REFERENCE_INACTIVE` se cancelada) e copia o `totalEstimatedValue` dela (`null` enquanto não calculada — FA-03); o valor fica somente leitura (enviar `estimatedTotalValue` = `NOT_ALLOWED`) e é sincronizado pelo worker a cada `PriceResearchRecalculated`/`PriceResearchCompleted` (RN-ETP-29); a pesquisa cancelada desfaz o vínculo e preserva o último valor (RN-ETP-31). Sem POL-09 em processo sigiloso = 403. `If-Match: \"<version do ETP>\"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion`). Grava `document.draft_update` (`metadata`: `estimatedValueSource`, `priceResearchId`; valor mascarado se sigiloso); reenvio igual não grava. Resposta = o `EtpDetail` do ETP-03 (`estimatedTotalValueMasked`); `ETag` = nova versão. `conclusion`/`parcelingDecision`: US-023.",
             "content": {
               "application/json": {
                 "schema": {

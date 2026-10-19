@@ -67,6 +67,62 @@ export function createEtp(input: {
   };
 }
 
+// --- Estimativas (US-022 · RN-ETP-28/29/31) -----------------------------------------------------
+
+/**
+ * Origem e valor estimado pedidos no ETP-04 (RN-ETP-28): manual (≥ 0, 2 casas) ou vinculado à
+ * pesquisa de preços — o valor é a CÓPIA do total da pesquisa (`null` enquanto ela não tem cálculo —
+ * FA-03), somente leitura daí em diante e sincronizado pelo worker (RN-ETP-29).
+ */
+export type EtpEstimate =
+  | { readonly source: 'MANUAL'; readonly value: string }
+  | {
+      readonly source: 'PRICE_RESEARCH';
+      readonly priceResearchId: string;
+      /** Decimal(18,2) como string; `null` = pesquisa ainda sem cálculo. */
+      readonly value: string | null;
+    };
+
+export type EtpEstimateField = 'estimatedValueSource' | 'estimatedTotalValue' | 'priceResearchId';
+
+export interface EtpEstimateChange {
+  readonly field: EtpEstimateField;
+  readonly old: string | null;
+  readonly new: string | null;
+}
+
+/**
+ * `Etp.setEstimate` (RN-ETP-28): FA-01 (manual → pesquisa: o manual é descartado pelo total da
+ * pesquisa) e FA-02 (pesquisa → manual: o valor enviado — a tela parte do último copiado). Devolve
+ * o ETP com `version + 1` e os campos alterados; nada mudou = o mesmo ETP e `changes` vazio.
+ */
+export function setEtpEstimate(
+  etp: Etp,
+  estimate: EtpEstimate,
+  options: { readonly actorId: string | null; readonly now: Date },
+): { readonly etp: Etp; readonly changes: EtpEstimateChange[] } {
+  const next = {
+    estimatedValueSource: estimate.source,
+    estimatedTotalValue: estimate.value,
+    priceResearchId: estimate.source === 'PRICE_RESEARCH' ? estimate.priceResearchId : null,
+  } as const;
+  const changes: EtpEstimateChange[] = [];
+  for (const field of ['estimatedValueSource', 'estimatedTotalValue', 'priceResearchId'] as const) {
+    if (etp[field] !== next[field]) changes.push({ field, old: etp[field], new: next[field] });
+  }
+  if (changes.length === 0) return { etp, changes };
+  return {
+    etp: {
+      ...etp,
+      ...next,
+      updatedAt: options.now,
+      updatedById: options.actorId,
+      version: etp.version + 1,
+    },
+    changes,
+  };
+}
+
 // --- Importação do DFD (RN-ETP-05/06) -----------------------------------------------------------
 
 /** Seções do ETP preenchidas pela importação. */

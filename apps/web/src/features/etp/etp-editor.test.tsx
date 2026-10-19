@@ -208,6 +208,7 @@ function mockApi(options: ApiOptions = {}) {
                 quantity: '10.0000',
                 notes: null,
                 sortOrder: 0,
+                calculationMemo: null,
               },
             ],
           },
@@ -331,17 +332,27 @@ describe('SCR-008 — editar seções do ETP (US-020)', () => {
     expect(navButton(/Levantamento de mercado, Vazia/)).toBeTruthy();
   });
 
-  it('[Sucesso] seção estruturada: os itens do ETP (DOC-06) em quadro somente leitura, com o texto complementar editável', async () => {
+  it('[Sucesso] seção estruturada: os itens do ETP (DOC-06) editáveis nas Estimativas (US-022), com o texto complementar editável', async () => {
     mockApi();
     const user = userEvent.setup();
     renderWithShell(<EtpEditor processId={PROCESS_ID} etpId={ETP_ID} />);
     await user.click(await screen.findByRole('button', { name: /^3\. Estimativas/ }));
-    const table = await screen.findByRole('table', { name: 'Itens do ETP (somente leitura)' });
-    expect(within(table).getByText('Tinta acrílica 18 L')).toBeTruthy();
-    expect(within(table).getByText('10')).toBeTruthy();
+    const list = await screen.findByRole('list', { name: 'Itens do ETP' });
+    expect(within(list).getByText(/Tinta acrílica 18 L/)).toBeTruthy();
+    expect(within(list).getByLabelText<HTMLInputElement>('Quantidade').value).toBe('10');
     expect(
       screen.getByLabelText('Texto complementar da seção Estimativas das quantidades e do valor'),
     ).toBeTruthy();
+  });
+
+  it('[Permissão] sem UPDATE: os itens das Estimativas ficam no quadro somente leitura', async () => {
+    mockApi({ meta: { ...META, allowedActions: [] } });
+    const user = userEvent.setup();
+    renderWithShell(<EtpEditor processId={PROCESS_ID} etpId={ETP_ID} />);
+    await user.click(await screen.findByRole('button', { name: /^3\. Estimativas/ }));
+    const table = await screen.findByRole('table', { name: 'Itens do ETP (somente leitura)' });
+    expect(within(table).getByText('10')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Salvar itens' })).toBeNull();
   });
 
   it('[Permissão] sem UPDATE (SOMENTE_LEITURA): todas as seções em modo leitura, sem "Não se aplica" nem gravação', async () => {

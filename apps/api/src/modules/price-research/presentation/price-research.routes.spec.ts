@@ -271,6 +271,7 @@ describe('Feature: Criar pesquisa de preços a partir dos itens do processo (US-
         processItemId,
         quantity,
         notes: null,
+        calculationMemo: null,
         sortOrder: 0,
         createdAt: NOW,
         updatedAt: NOW,

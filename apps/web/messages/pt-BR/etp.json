@@ -87,7 +87,7 @@
     },
     "structured": {
       "ITEMS": {
-        "title": "Itens e quantidades",
+        "title": "Estimativas das quantidades e do valor",
         "caption": "Itens do ETP (somente leitura)",
         "empty": "Nenhum item herdado do DFD.",
         "sequence": "Nº",
@@ -249,6 +249,62 @@
       "cancel": "Cancelar",
       "confirm": "Excluir",
       "toast": "Alternativa excluída."
+    }
+  },
+  "estimates": {
+    "items": {
+      "title": "Quantidades e memória de cálculo",
+      "caption": "Itens do ETP",
+      "empty": "Nenhum item herdado do DFD.",
+      "loadError": "Não foi possível carregar os itens.",
+      "sequence": "Item {sequence}",
+      "unit": "Unidade: {unit}",
+      "quantity": "Quantidade",
+      "memo": "Memória de cálculo",
+      "memoHint": "Recomendada quando a quantidade resulta de cálculo (art. 18, §1º, IV, da Lei 14.133/2021).",
+      "memoTooLarge": "A memória de cálculo atingiu o limite de 1 MB. Resuma o texto ou anexe uma planilha de apoio.",
+      "save": "Salvar itens",
+      "saving": "Salvando…",
+      "saved": "Salvo às {time}",
+      "dirty": "Alterações não salvas",
+      "conflict": "Os dados foram alterados por outra pessoa.",
+      "showDiff": "Ver diferenças",
+      "hideDiff": "Ocultar diferenças",
+      "reload": "Recarregar",
+      "diffItem": "Item",
+      "diffMine": "Minha versão",
+      "diffServer": "Versão salva",
+      "diffEmpty": "Nenhuma diferença nas quantidades; a memória de cálculo pode ter mudado.",
+      "retry": "Tentar novamente"
+    },
+    "value": {
+      "title": "Valor estimado",
+      "sourceLegend": "Origem do valor estimado",
+      "manual": "Valor manual",
+      "research": "Vincular à pesquisa de preços",
+      "valueLabel": "Valor estimado total",
+      "researchLabel": "Pesquisa de preços",
+      "researchPlaceholder": "Selecione a pesquisa",
+      "noResearch": "Este processo ainda não tem pesquisa de preços.",
+      "researchOption": "{code} ({status})",
+      "current": "Valor estimado atual",
+      "linked": "Calculado pela pesquisa de preços — somente leitura.",
+      "viewResearch": "Ver pesquisa de preços",
+      "notDefined": "Valor estimado não definido.",
+      "masked": "Valor sigiloso",
+      "save": "Salvar valor",
+      "saving": "Salvando…",
+      "saved": "Salvo às {time}",
+      "reload": "Recarregar"
+    },
+    "errors": {
+      "forbidden": "Você não tem permissão para editar este ETP.",
+      "notEditable": "Este ETP não pode ser editado no momento.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "memoInvalid": "Reduza o conteúdo da memória de cálculo.",
+      "formErrors": "Revise os campos destacados.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "retry": "Tentar novamente"
     }
   }
 }

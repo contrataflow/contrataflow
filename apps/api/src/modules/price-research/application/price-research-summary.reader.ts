@@ -13,7 +13,8 @@ import { DocumentFacade } from '../../document/application/document.facade.js';
 /**
  * Lado `price-research` da porta `PriceResearchSummaryRegistry` (US-036 · RN-TR-07): as pesquisas
  * do processo com o status do documento e o total — o valor estimado do TR. Canceladas e excluídas
- * (documento ausente) ficam de fora; a mais recente primeiro.
+ * (documento ausente) ficam de fora; a mais recente primeiro. `findById` (US-022) inclui a
+ * cancelada, para o vínculo do ETP responder `REFERENCE_INACTIVE`.
  */
 @Injectable()
 export class PriceResearchSummaryReaderImpl implements PriceResearchSummaryReader {
@@ -45,5 +46,22 @@ export class PriceResearchSummaryReaderImpl implements PriceResearchSummaryReade
         ];
       })
       .reverse();
+  }
+
+  async findById(tx: TenantTx, id: string): Promise<PriceResearchSummary | null> {
+    const research = await this.researches.findById(tx, id);
+    if (research === null) return null;
+    const state = (await this.documents.documentStatesIn(tx, [research.documentId])).get(
+      research.documentId,
+    );
+    if (state === undefined) return null;
+    return {
+      id: research.id,
+      processId: research.processId,
+      documentId: research.documentId,
+      code: state.code,
+      status: state.status,
+      totalEstimatedValue: research.totalEstimatedValue,
+    };
   }
 }

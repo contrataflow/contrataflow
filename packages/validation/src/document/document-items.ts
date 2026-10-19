@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { RICH_TEXT_MAX_BYTES, richTextProblem } from './rich-text.js';
 import { quantitySchema } from '../common/decimal.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 
@@ -27,7 +28,31 @@ export const DOCUMENT_ITEM_MESSAGES = Object.freeze({
   itemInvalid: 'Selecione itens deste processo, sem repetição.',
   itemsLimit: `O documento pode ter no máximo ${DOCUMENT_ITEM_LIMITS.itemsMax.toLocaleString('pt-BR')} itens.`,
   conflict: 'Os itens foram alterados por outra pessoa. Atualizamos a lista.',
+  /** US-022 · V-03 (RN-ETP-27): memória de cálculo fora do schema ou acima de 1 MB. */
+  calculationMemoInvalid: 'O conteúdo da memória de cálculo é inválido ou excede o limite.',
+  calculationMemoTooLarge: 'Reduza o conteúdo da memória de cálculo.',
 });
+
+/** Problema da memória de cálculo do item do ETP (RN-ETP-27 · V-03); `null` = aceita. */
+export type CalculationMemoIssue = 'RICH_TEXT_INVALID' | 'PAYLOAD_TOO_LARGE';
+
+/**
+ * RN-ETP-27 · DEC-056: a memória de cálculo é rich text opcional, até 1 MB serializado
+ * (`PAYLOAD_TOO_LARGE` — conferido antes do schema, para não percorrer um corpo enorme) e só com os
+ * nós/marks permitidos (`RICH_TEXT_INVALID`). A MESMA regra no editor (bloqueia novos caracteres —
+ * FA-06) e na API.
+ */
+export function calculationMemoIssue(memo: unknown): CalculationMemoIssue | null {
+  if (memo === null || memo === undefined) return null;
+  if (calculationMemoBytes(memo) > RICH_TEXT_MAX_BYTES) return 'PAYLOAD_TOO_LARGE';
+  return richTextProblem(memo) === null ? null : 'RICH_TEXT_INVALID';
+}
+
+/** Tamanho serializado (UTF-8) da memória de cálculo — o limite de 1 MB (DEC-056). */
+export function calculationMemoBytes(memo: unknown): number {
+  if (memo === null || memo === undefined) return 0;
+  return new TextEncoder().encode(JSON.stringify(memo)).length;
+}
 
 /** Problema de uma quantidade (V-09): código do campo e mensagem; `null` = válida. */
 export interface QuantityIssue {
@@ -85,6 +110,16 @@ export const documentItemInputSchema = z.strictObject({
     .nullable()
     .optional(),
   sortOrder: z.int().min(0).max(100_000).optional(),
+  /**
+   * ETP (US-022 · RN-ETP-27): memória de cálculo em rich text (TipTap, ≤ 1 MB). Ausente = mantém a
+   * gravada; `null` = limpa. O schema do conteúdo é conferido no caso de uso (422
+   * `RICH_TEXT_INVALID`/413 `PAYLOAD_TOO_LARGE`).
+   */
+  calculationMemo: z
+    .looseObject({ type: z.string() })
+    .nullable()
+    .optional()
+    .meta({ description: 'TipTapDoc (DEC-056), até 1 MB serializado; `null` limpa.' }),
 });
 export type DocumentItemInput = z.infer<typeof documentItemInputSchema>;
 
@@ -114,6 +149,10 @@ export const documentItemSchema = z
     quantity: quantitySchema,
     notes: z.string().nullable(),
     sortOrder: z.int(),
+    /** ETP (US-022 · RN-ETP-27): memória de cálculo (TipTapDoc) ou `null`. */
+    calculationMemo: z
+      .looseObject({ type: z.literal('doc'), content: z.array(z.unknown()).optional() })
+      .nullable(),
   })
   .meta({ id: 'DocumentItem' });
 export type DocumentItemDto = z.infer<typeof documentItemSchema>;
