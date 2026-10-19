@@ -1,4 +1,5 @@
-import { AI_MESSAGES } from '@contrataflow/validation';
+import { AI_MESSAGES, AI_SECTION_MESSAGES } from '@contrataflow/validation';
+import type { AiSectionAdjustProblem } from '@contrataflow/validation';
 
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
@@ -62,4 +63,12 @@ export function needSummaryRequired(): ApiError {
   return validationError([
     { field: 'needSummary', code: 'REQUIRED', message: AI_MESSAGES.needSummary },
   ]);
+}
+
+/** V-02/V-03 do ajuste de seção (US-121): 422 `AI_SECTION_EMPTY` / `AI_SECTION_NOT_SUPPORTED`. */
+export function sectionNotAdjustable(problem: AiSectionAdjustProblem): ApiError {
+  return new ApiError(problem, {
+    detail:
+      problem === 'AI_SECTION_EMPTY' ? AI_SECTION_MESSAGES.empty : AI_SECTION_MESSAGES.notSupported,
+  });
 }

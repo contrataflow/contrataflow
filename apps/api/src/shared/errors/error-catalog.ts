@@ -382,12 +382,18 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
   AI_SECTION_EMPTY: {
     status: 422,
     title: 'Seção sem conteúdo',
-    detail: 'A seção não tem conteúdo suficiente para esta ação.',
+    detail: "A seção precisa de ao menos 50 caracteres. Use 'Completar' ou escreva um pouco mais.",
   },
   AI_SECTION_NOT_SUPPORTED: {
     status: 422,
     title: 'Seção não suportada',
-    detail: 'Esta seção não aceita ajuste com IA.',
+    detail: 'Esta seção não pode ser ajustada com IA.',
+  },
+  // US-121: a seção mudou desde o pedido de ajuste (RN-AI-49 · DOC-26).
+  AI_SUGGESTION_STALE: {
+    status: 410,
+    title: 'Sugestão desatualizada',
+    detail: 'A seção mudou desde o pedido. Gere o ajuste novamente.',
   },
   AI_GENERATION_NOT_FOUND: {
     status: 404,

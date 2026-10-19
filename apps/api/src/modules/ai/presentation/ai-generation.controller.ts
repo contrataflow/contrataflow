@@ -83,7 +83,7 @@ export class AiGenerationController {
     responses: {
       202: {
         description:
-          'Geração registrada em `QUEUED` antes de qualquer chamada ao provedor e enfileirada após o commit (`Location` = AI-02; consulte a cada `meta.pollAfterMs`).',
+          'Geração registrada em `QUEUED` antes de qualquer chamada ao provedor e enfileirada após o commit (`Location` = AI-02; consulte a cada `meta.pollAfterMs`). Ajuste de seção (`kind = SECTION`, US-121): `action` + `sectionKey` + `documentId`, `baseRevision` = revisão da seção no pedido; 422 `AI_SECTION_EMPTY` (`REWRITE`/`SUMMARIZE` com menos de 50 caracteres) e `AI_SECTION_NOT_SUPPORTED` (fora do template, sem narrativa ou `NOT_APPLICABLE`).',
         schema: REQUESTED_RESPONSE,
       },
     },

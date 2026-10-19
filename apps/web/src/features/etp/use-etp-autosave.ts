@@ -5,6 +5,7 @@ import type { AutosaveFailure, LocalDraft, LocalDraftStore } from '@contrataflow
 import type {
   DocumentSectionSavedDto,
   DraftContent,
+  DraftSection,
   SectionConflictCurrent,
 } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -216,6 +217,19 @@ export function useEtpAutosave(input: UseEtpAutosaveInput) {
         });
       }
       await autosave.flush();
+    },
+    /**
+     * US-121: seção gravada fora do autosave (aplicação da IA — DOC-26 — ou o "Desfazer" pelo
+     * DOC-05). A versão do servidor passa a valer: nova revisão (o `If-Match` seguinte), texto no
+     * editor e pendência local apagada.
+     */
+    async adopt(
+      key: string,
+      section: Pick<DraftSection, 'revision' | 'state' | 'content' | 'justification'>,
+    ) {
+      revisions.current[key] = section.revision;
+      latest.current.onSection(key, sectionDraftOf(section));
+      await autosave.discard(sectionTarget(key));
     },
     /** FA-04 "Descartar": apaga as pendências locais do ETP. */
     async discardRecovered() {

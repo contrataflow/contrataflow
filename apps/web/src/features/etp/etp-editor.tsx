@@ -32,11 +32,13 @@ import { useId, useRef, useState } from 'react';
 
 import { useShellSession } from '@/lib/session/session-context';
 
-import { canEditEtp, EMPTY_SECTION_DRAFT, sectionDraftOf } from './etp-editor-model';
+import { canEditEtp, draftState, EMPTY_SECTION_DRAFT, sectionDraftOf } from './etp-editor-model';
 import type { EtpSectionDraft } from './etp-editor-model';
 import { StructuredSectionContent } from './etp-structured-sections';
 import { useEtp } from './etp.api';
 import { useEtpAutosave } from './use-etp-autosave';
+import { AiSectionMenu } from '../ai/ai-section-assistant';
+import type { AiSectionChange } from '../ai/ai-section-assistant';
 import { documentKeys, fetchDocumentValidation } from '../documents/documents.api';
 import { TEXTAREA_CLASS } from '../processes/form-field';
 
@@ -271,6 +273,10 @@ export function EtpEditorLoaded({ processId, etp, meta }: EtpEditorLoadedProps) 
             onBlur={() => {
               if (editable) void autosave.flush();
             }}
+            onAiChange={(aiChange) => {
+              setStates((previous) => ({ ...previous, [aiChange.key]: aiChange.state }));
+              void autosave.adopt(aiChange.key, aiChange);
+            }}
           />
         )}
       </div>
@@ -429,6 +435,8 @@ interface EtpSectionPanelProps {
   readonly onChange: (draft: EtpSectionDraft) => void;
   readonly onCommit: (draft: EtpSectionDraft) => Promise<void>;
   readonly onBlur: () => void;
+  /** US-121: seção ajustada com IA (aplicação ou "Desfazer") — o editor adota a do servidor. */
+  readonly onAiChange: (change: AiSectionChange) => void;
 }
 
 function EtpSectionPanel({
@@ -441,6 +449,7 @@ function EtpSectionPanel({
   onChange,
   onCommit,
   onBlur,
+  onAiChange,
 }: EtpSectionPanelProps) {
   const t = useTranslations('etp.editor');
   const id = useId();
@@ -454,9 +463,21 @@ function EtpSectionPanel({
       className="flex min-w-0 flex-1 flex-col gap-3 rounded-control border border-border p-4"
     >
       <header className="flex flex-col gap-1">
-        <h3 id={`${id}-title`} className="text-base font-semibold break-words">
-          {section.title}
-        </h3>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 id={`${id}-title`} className="text-base font-semibold break-words">
+            {section.title}
+          </h3>
+          <AiSectionMenu
+            processId={processId}
+            documentId={documentId}
+            targetModule="ETP"
+            section={section}
+            state={draftState(draft)}
+            text={draft.text}
+            editable={editable}
+            onSectionChanged={onAiChange}
+          />
+        </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
           <span>{t(`requirement.${section.requirement}`)}</span>
           <span>· {t(`state.${item?.state ?? 'EMPTY'}`)}</span>

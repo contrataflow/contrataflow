@@ -371,7 +371,7 @@ export class DocumentController {
     responses: {
       200: {
         description:
-          'Seções escolhidas aplicadas numa transação (`FILLED`, `revision + 1`, proveniência `ai` pendente de revisão), geração `APPLIED` e `AiContentApplied`. Substituir seção `FILLED`/`NOT_APPLICABLE` exige `confirmReplaceFilled: true` (422 `CONDITIONAL_REQUIRED`) e, no rascunho completo, cria antes uma versão `SYSTEM` (`versionCreated`). Erros: 404 `NOT_FOUND`/`AI_GENERATION_NOT_FOUND`, 403 `AI_GENERATION_NOT_OWNED`/`NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED`, 409 `AI_GENERATION_NOT_APPLICABLE`/`DOCUMENT_NOT_EDITABLE`, 412 `VERSION_CONFLICT`, 428 `PRECONDITION_REQUIRED`.',
+          'Seções escolhidas aplicadas numa transação (`FILLED`, `revision + 1`, proveniência `ai` pendente de revisão), geração `APPLIED` e `AiContentApplied`. Substituir seção `FILLED`/`NOT_APPLICABLE` exige `confirmReplaceFilled: true` (422 `CONDITIONAL_REQUIRED`) e, no rascunho completo, cria antes uma versão `SYSTEM` (`versionCreated`). Ajuste de seção (`SECTION`, US-121): só a seção da geração, sem versão (`versionCreated = null`), e a seção precisa estar na `baseRevision` do pedido — senão 410 `AI_SUGGESTION_STALE` (conferido depois do `If-Match`). Erros: 404 `NOT_FOUND`/`AI_GENERATION_NOT_FOUND`, 403 `AI_GENERATION_NOT_OWNED`/`NOT_PROCESS_CUSTODIAN`/`PERMISSION_DENIED`, 409 `AI_GENERATION_NOT_APPLICABLE`/`DOCUMENT_NOT_EDITABLE`, 412 `VERSION_CONFLICT`, 428 `PRECONDITION_REQUIRED`.',
         schema: dataEnvelope(documentAiApplyResultSchema),
       },
     },

@@ -97,6 +97,34 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
 - **Testes:** `domain/risk-map-draft-context.spec.ts`, `presentation/risk-map-draft.routes.spec.ts`
   (Gherkin completo em memória), `test/tenant-leak/ai-risk-map-draft.spec.ts` (PostgreSQL).
 
+## Ajuste de seção — `section.rewrite`/`complete`/`summarize` (US-121 · RN-AI-47..52)
+
+- **Gerador** `application/section-adjust.generator.ts`: uma instância de `SectionAdjustGenerator`
+  por `targetModule` (`DFD`, `ETP`, `RISK_MAP`, `TERM_OF_REFERENCE`), `kind = SECTION`, registradas
+  no `onModuleInit`. Reserva 6 mil tokens (`AI_SECTION_RESERVED_TOKENS`); o prompt é o da ação
+  (`AiGenerator.actionPrompts` + `promptOf` — o `promptKey` gravado e o renderizado no job). Modelo
+  `AI_MODEL_SECTION` (`settings.models.section`).
+- **Pedido** (`SectionAdjustPolicy`, regra comum ao web em `@contrataflow/validation`
+  `aiSectionAdjustProblem`): seção fora do template, sem narrativa (`render ≠ TEXT` e
+  `allowNarrative = false`) ou `NOT_APPLICABLE` → 422 `AI_SECTION_NOT_SUPPORTED`;
+  `REWRITE`/`SUMMARIZE` com menos de 50 caracteres → 422 `AI_SECTION_EMPTY`. `baseRevision` = revisão
+  da seção lida por `DocumentFacade.aiSectionSourceIn`. Uma ativa por seção (índice parcial
+  `ai_generations_active_section_key`); seções diferentes em paralelo.
+- **Contexto** `domain/section-adjust-context.ts` (puro): `SECTION` (texto atual, com a revisão —
+  obrigatório; o GroundingGuard o trata como fato, então valores escritos pela pessoa ficam) →
+  `TEMPLATE_VERSION` (guia da seção) → `PROCESS` → `DOCUMENT_DRAFT` (demais seções, opcional) →
+  antecessores da cadeia que existirem (`SECTION_ADJUST_CHAIN`: ETP ← DFD; mapa ← DFD, ETP; TR ← DFD,
+  ETP, mapa — sem `AI_PREREQUISITE_MISSING`; falta = `MISSING_OPTIONAL_INPUT`) → `ORGANIZATION`.
+  Seções de valor da cadeia nunca entram. Seção que deixou de ser ajustável no job →
+  `CANCELED_BY_POLICY`. A saída é UMA seção, a pedida, no `maxChars`.
+- **Aplicação** é do `document` (DOC-26): só a seção da geração (422 `NOT_ALLOWED`), `If-Match`
+  primeiro (412) e então a revisão da seção = `baseRevision` (senão 410 `AI_SUGGESTION_STALE` + log
+  `warn ai.section_adjust_stale`); nunca cria versão. "Desfazer" é do painel, pelo DOC-05.
+- **Testes:** `domain/section-adjust-context.spec.ts`, `prompts/section/prompts.spec.ts`,
+  `presentation/section-adjust.routes.spec.ts` (Gherkin completo em memória, quatro documentos),
+  `test/tenant-leak/ai-section-adjust.spec.ts` (PostgreSQL: 410 sem efeito, commit único, falha
+  induzida, RLS).
+
 ## GroundingGuard (US-122 · RN-AI-54)
 
 Pós-processador determinístico registrado pelo `AiModule`: todo valor monetário, quantidade com

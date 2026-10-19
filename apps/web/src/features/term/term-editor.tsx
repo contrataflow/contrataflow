@@ -36,8 +36,10 @@ import {
 import type { TermNavItem } from './term-editor-model';
 import { EstimatedValueText, TermGeneralDataPanel } from './term-general-data-panel';
 import { useTerm } from './term.api';
+import { AiSectionMenu } from '../ai/ai-section-assistant';
+import type { AiSectionChange } from '../ai/ai-section-assistant';
 import { NotApplicableSummary, NotApplicableToggle } from '../etp/etp-editor';
-import { EMPTY_SECTION_DRAFT, sectionDraftOf } from '../etp/etp-editor-model';
+import { draftState, EMPTY_SECTION_DRAFT, sectionDraftOf } from '../etp/etp-editor-model';
 import type { EtpSectionDraft } from '../etp/etp-editor-model';
 import { useEtpAutosave } from '../etp/use-etp-autosave';
 import { TEXTAREA_CLASS } from '../processes/form-field';
@@ -278,6 +280,10 @@ export function TermEditorLoaded({ processId, term, meta }: TermEditorLoadedProp
             onBlur={() => {
               if (editable) void autosave.flush();
             }}
+            onAiChange={(aiChange) => {
+              setStates((previous) => ({ ...previous, [aiChange.key]: aiChange.state }));
+              void autosave.adopt(aiChange.key, aiChange);
+            }}
           />
         )}
       </div>
@@ -474,6 +480,8 @@ interface TermSectionPanelProps {
   readonly onChange: (draft: EtpSectionDraft) => void;
   readonly onCommit: (draft: EtpSectionDraft) => Promise<void>;
   readonly onBlur: () => void;
+  /** US-121: seção ajustada com IA (aplicação ou "Desfazer") — o editor adota a do servidor. */
+  readonly onAiChange: (change: AiSectionChange) => void;
 }
 
 function TermSectionPanel({
@@ -488,6 +496,7 @@ function TermSectionPanel({
   onChange,
   onCommit,
   onBlur,
+  onAiChange,
 }: TermSectionPanelProps) {
   const t = useTranslations('term.editor');
   const id = useId();
@@ -500,9 +509,21 @@ function TermSectionPanel({
       className="flex min-w-0 flex-1 flex-col gap-3 rounded-control border border-border p-4"
     >
       <header className="flex flex-col gap-1">
-        <h3 id={`${id}-title`} className="text-base font-semibold break-words">
-          {section.title}
-        </h3>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 id={`${id}-title`} className="text-base font-semibold break-words">
+            {section.title}
+          </h3>
+          <AiSectionMenu
+            processId={term.processId}
+            documentId={term.documentId}
+            targetModule="TERM_OF_REFERENCE"
+            section={section}
+            state={draftState(draft)}
+            text={draft.text}
+            editable={editable}
+            onSectionChanged={onAiChange}
+          />
+        </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
           <span>{t(`requirement.${section.requirement}`)}</span>
           <span>· {t(`state.${item?.state ?? 'EMPTY'}`)}</span>

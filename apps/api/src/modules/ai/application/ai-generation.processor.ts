@@ -14,7 +14,7 @@ import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { AiCircuitBreaker } from './ai-circuit-breaker.js';
 import { AiPostProcessorRegistry, AiTenantGateRegistry } from './ai-extension-points.js';
-import { AiGeneratorRegistry, AiPolicyRevokedError } from './ai-generator.js';
+import { AiGeneratorRegistry, AiPolicyRevokedError, promptOf } from './ai-generator.js';
 import type { AiGenerator, AiGeneratorContext } from './ai-generator.js';
 import { AI_PROVIDER, AiProviderError } from './ai-provider.port.js';
 import type {
@@ -184,7 +184,7 @@ export class AiGenerationProcessor {
       return this.fail(claimed, new GenerationFailure('CONTEXT_TOO_LARGE', NO_USAGE), null, null);
     }
 
-    const prompt = renderPrompt(prepared.generator.prompt, {
+    const prompt = renderPrompt(promptOf(prepared.generator, claimed.action), {
       sections: prepared.context.sections,
       context: sanitized,
       action: claimed.action,

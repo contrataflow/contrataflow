@@ -8,6 +8,7 @@ import type {
   DfdHeaderField,
   DfdHeaderValues,
   DfdMeta,
+  DfdTemplateSectionDto,
   DfdWizardStep,
   DocumentDto,
   ProcessDto,
@@ -42,6 +43,7 @@ import { DfdReviewStep, useDfdValidation } from './dfd-review-step';
 import { useDfd, useDocumentItems } from './dfd.api';
 import { sectionText, useDfdAutosave } from './use-dfd-autosave';
 import { AiAssistant } from '../ai/ai-assistant';
+import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
 import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
@@ -306,6 +308,19 @@ function LoadedWizard({
     setErrors((previous) => ({ ...previous, [field]: undefined }));
     if (editable) autosave.changeHeader(draftOf(next));
   };
+  // US-121: "IA ▸ Reescrever / Completar / Resumir" no cabeçalho de cada seção narrativa.
+  const aiMenuFor = (section: DfdTemplateSectionDto) => (
+    <AiSectionMenu
+      processId={processId}
+      documentId={dfd.documentId}
+      targetModule="DFD"
+      section={{ key: section.key, title: section.title, render: 'TEXT', allowNarrative: true }}
+      state={(sections[section.key] ?? '').trim() === '' ? 'EMPTY' : 'FILLED'}
+      text={sections[section.key] ?? ''}
+      editable={editable}
+      onSectionChanged={(aiChange) => void autosave.adoptSection(aiChange.key, aiChange)}
+    />
+  );
   const changeSection = (key: string, value: string) => {
     setSections((previous) => ({ ...previous, [key]: value }));
     if (editable) autosave.changeSection(key, value);
@@ -441,6 +456,7 @@ function LoadedWizard({
             editable={editable}
             allowedActions={meta.allowedActions}
             onChange={changeSection}
+            aiMenuFor={aiMenuFor}
             uploadDeps={uploadDeps}
           />
         ) : null}
@@ -462,6 +478,10 @@ function LoadedWizard({
               change('estimatedValue', estimatedValueOf(text));
             }}
             onSectionChange={changeSection}
+            notesAiMenu={(() => {
+              const notes = templateSections.find((section) => section.key === 'NOTES');
+              return notes === undefined ? null : aiMenuFor(notes);
+            })()}
           />
         ) : null}
         {step === 'REVIEW' ? (

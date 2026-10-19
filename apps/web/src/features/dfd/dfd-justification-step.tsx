@@ -2,6 +2,7 @@
 
 import type { DfdTemplateSectionDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 
 import { AttachmentsSection } from '../attachments/attachments-section';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
@@ -12,6 +13,8 @@ export interface DfdSectionFieldProps {
   readonly value: string;
   readonly editable: boolean;
   readonly onChange: (key: string, value: string) => void;
+  /** US-121: o `AiSectionMenu` da seção (ajuste com IA), no cabeçalho do campo. */
+  readonly aiMenu?: ReactNode;
 }
 
 /**
@@ -19,12 +22,19 @@ export interface DfdSectionFieldProps {
  * (`helpText`) e base legal (`legalBasis`) associadas ao campo por `aria-describedby`. O `id`
  * `dfd-section-<KEY>` é o alvo do "Ir para o campo" da revisão.
  */
-export function DfdSectionField({ section, value, editable, onChange }: DfdSectionFieldProps) {
+export function DfdSectionField({
+  section,
+  value,
+  editable,
+  onChange,
+  aiMenu,
+}: DfdSectionFieldProps) {
   const t = useTranslations('dfd.justification');
   const id = `dfd-section-${section.key}`;
   const required = section.requirement !== 'OPTIONAL';
   return (
     <div className="flex min-w-0 flex-col gap-2">
+      {aiMenu ? <div className="flex justify-end">{aiMenu}</div> : null}
       <FormField
         id={id}
         label={`${section.title}${required ? ' *' : ''}`}
@@ -72,6 +82,8 @@ export interface DfdJustificationStepProps {
   readonly editable: boolean;
   readonly allowedActions: readonly string[];
   readonly onChange: (key: string, value: string) => void;
+  /** US-121: o menu de ajuste com IA de cada seção. */
+  readonly aiMenuFor?: ((section: DfdTemplateSectionDto) => ReactNode) | undefined;
   /** Testes: sondagem e XHR simulados do upload. */
   readonly uploadDeps?: UploadDeps | undefined;
 }
@@ -89,6 +101,7 @@ export function DfdJustificationStep({
   editable,
   allowedActions,
   onChange,
+  aiMenuFor,
   uploadDeps,
 }: DfdJustificationStepProps) {
   return (
@@ -100,6 +113,7 @@ export function DfdJustificationStep({
           value={values[section.key] ?? ''}
           editable={editable}
           onChange={onChange}
+          aiMenu={aiMenuFor?.(section)}
         />
       ))}
       <div id="dfd-field-attachments" tabIndex={-1}>

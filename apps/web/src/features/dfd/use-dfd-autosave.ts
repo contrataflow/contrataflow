@@ -13,6 +13,7 @@ import type {
   DfdMeta,
   DfdPatchField,
   DocumentDto,
+  DraftSection,
   SectionConflictCurrent,
 } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -298,6 +299,15 @@ export function useDfdAutosave(input: UseDfdAutosaveInput) {
         );
         await autosave.discard(sectionTarget(key));
       }
+    },
+    /**
+     * US-121: uma seção gravada fora do autosave (ajuste com IA — DOC-26 — ou o "Desfazer" pelo
+     * DOC-05): a revisão e o texto do servidor passam a valer e a pendência local é apagada.
+     */
+    async adoptSection(key: string, section: Pick<DraftSection, 'revision' | 'content'>) {
+      revisions.current[key] = section.revision;
+      latest.current.onSectionText(key, section.content ? richTextPlainText(section.content) : '');
+      await autosave.discard(sectionTarget(key));
     },
     /** FA-01 "Descartar a minha e recarregar": fica a do servidor; a pendência local é apagada. */
     async discardMine() {

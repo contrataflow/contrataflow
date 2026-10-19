@@ -19,6 +19,7 @@ import type {
   AiDocumentTarget,
   AiDocumentTargetInput,
   AiDraftSource,
+  AiSectionSource,
 } from './document-ai-target.js';
 import type {
   ApprovalDecisionInput,
@@ -598,6 +599,64 @@ export class DocumentFacade {
       items: [...items]
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((item) => ({ processItemId: item.processItemId, quantity: item.quantity })),
+    };
+  }
+
+  /**
+   * A seção a ajustar com IA (US-121 · RN-AI-48), no `tx` do chamador (RLS): definição no template
+   * fixado, estado, revisão, texto atual e as demais seções preenchidas como texto. `null` sem
+   * documento. Leitura; a POL-02 e o status são do `aiTargetIn`.
+   */
+  async aiSectionSourceIn(
+    tx: TenantTx,
+    documentId: string,
+    sectionKey: string,
+  ): Promise<AiSectionSource | null> {
+    const context = await this.lifecycle.loadInternal(tx, documentId);
+    if (context?.document.deletedAt !== null) return null;
+    const { document, template, type } = context;
+    const definitions = [...(template?.sections ?? [])].sort((a, b) => a.order - b.order);
+    const definition = definitions.find((section) => section.key === sectionKey);
+    const textOf = (key: string) => {
+      const section = document.draftContent.sections[key];
+      return section?.content ? richTextPlainText(section.content).trim() : '';
+    };
+    const current = document.draftContent.sections[sectionKey];
+    return {
+      documentId: document.id,
+      processId: document.processId,
+      documentTypeCode: type.code,
+      draftRevision: document.draftRevision,
+      template:
+        template === null
+          ? null
+          : { versionId: template.id, versionNumber: template.versionNumber },
+      definition:
+        definition === undefined
+          ? null
+          : {
+              key: definition.key,
+              title: definition.title,
+              requirement: definition.requirement,
+              helpText: definition.helpText ?? null,
+              legalBasis: definition.legalBasis ?? null,
+              defaultText:
+                definition.defaultContent === undefined
+                  ? null
+                  : richTextPlainText(definition.defaultContent).trim() || null,
+              maxChars: definition.maxChars,
+              render: definition.render,
+              allowNarrative: definition.allowNarrative,
+            },
+      state: current?.state ?? 'EMPTY',
+      revision: current?.revision ?? 0,
+      text: current?.state === 'FILLED' ? textOf(sectionKey) : '',
+      otherSections: definitions.flatMap((section) => {
+        if (section.key === sectionKey) return [];
+        if (document.draftContent.sections[section.key]?.state !== 'FILLED') return [];
+        const text = textOf(section.key);
+        return text === '' ? [] : [{ key: section.key, title: section.title, text }];
+      }),
     };
   }
 

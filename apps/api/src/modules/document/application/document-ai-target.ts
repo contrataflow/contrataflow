@@ -1,5 +1,6 @@
 import type {
   DocumentStatus,
+  SectionRender,
   SectionRequirement,
   SectionState,
   SystemDocumentModule,
@@ -78,6 +79,41 @@ export interface AiDraftSource {
   readonly sectionStates: Readonly<Record<string, SectionState>>;
   /** Linhas de item do documento (DOC-06): Decimal(18,4) como string. */
   readonly items: readonly { readonly processItemId: string; readonly quantity: string }[];
+}
+
+/**
+ * A seção a ajustar com IA (US-121 · RN-AI-47/48): a definição no template fixado (`null` = fora
+ * do template; documento sem template → `template: null`), o estado, a revisão e o texto atual
+ * (texto puro, com os "[a confirmar: …]" legíveis) e as demais seções preenchidas do documento como
+ * texto. Sem pessoas nem o cabeçalho tipado.
+ */
+export interface AiSectionSource {
+  readonly documentId: string;
+  readonly processId: string;
+  readonly documentTypeCode: string;
+  readonly draftRevision: number;
+  readonly template: { readonly versionId: string; readonly versionNumber: number } | null;
+  readonly definition: {
+    readonly key: string;
+    readonly title: string;
+    readonly requirement: SectionRequirement;
+    readonly helpText: string | null;
+    readonly legalBasis: string | null;
+    /** `defaultContent` como texto puro. */
+    readonly defaultText: string | null;
+    readonly maxChars: number;
+    readonly render: SectionRender;
+    readonly allowNarrative: boolean;
+  } | null;
+  readonly state: SectionState;
+  /** Revisão da seção (0 = nunca gravada) — a `baseRevision` do ajuste. */
+  readonly revision: number;
+  readonly text: string;
+  readonly otherSections: readonly {
+    readonly key: string;
+    readonly title: string;
+    readonly text: string;
+  }[];
 }
 
 /**

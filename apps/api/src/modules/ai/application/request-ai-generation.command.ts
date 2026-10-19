@@ -16,7 +16,7 @@ import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { AiCircuitBreaker } from './ai-circuit-breaker.js';
 import { AiTenantGateRegistry } from './ai-extension-points.js';
-import { AiGeneratorRegistry } from './ai-generator.js';
+import { AiGeneratorRegistry, promptOf } from './ai-generator.js';
 import type { AiGenerator } from './ai-generator.js';
 import { countGeneration } from './ai-telemetry.js';
 import {
@@ -171,6 +171,7 @@ export class RequestAiGenerationCommand extends TransactionalCommandHandler<
     if (active !== null) throw generationInProgress(active.id);
 
     if (body.kind === 'DRAFT') await this.discardPreviousProposals(tx, request, userId, now);
+    const prompt = promptOf(generator, request.action);
 
     const generation = requestGeneration({
       id: newId(),
@@ -185,8 +186,8 @@ export class RequestAiGenerationCommand extends TransactionalCommandHandler<
       needSummary: request.needSummary,
       instruction: request.instruction,
       provider: this.settings.provider,
-      promptKey: generator.prompt.key,
-      promptVersion: generator.prompt.version,
+      promptKey: prompt.key,
+      promptVersion: prompt.version,
       reservedTokens: generator.reservedTokens,
       createdById: userId,
       now,

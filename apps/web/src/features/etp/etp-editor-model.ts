@@ -8,6 +8,7 @@ import type {
   DocumentSectionSave,
   DocumentStatus,
   DraftSection,
+  SectionState,
 } from '@contrataflow/validation';
 
 /*
@@ -47,6 +48,12 @@ export function sectionDraftOf(
     notApplicable: section.state === 'NOT_APPLICABLE',
     justification: section.justification ?? '',
   };
+}
+
+/** Estado da seção pelo que está no editor (o menu de IA decide as ações — US-121). */
+export function draftState(draft: EtpSectionDraft): SectionState {
+  if (draft.notApplicable) return 'NOT_APPLICABLE';
+  return draft.text.trim() === '' ? 'EMPTY' : 'FILLED';
 }
 
 /** O corpo do DOC-05 (`overwrittenRevision` só em "Manter a minha versão"). */

@@ -11,6 +11,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
@@ -310,6 +311,8 @@ export interface DfdPlanningStepProps {
   readonly onChange: (field: DfdHeaderField, value: string | number | null) => void;
   readonly onEstimatedValueText: (text: string) => void;
   readonly onSectionChange: (key: string, value: string) => void;
+  /** US-121: o menu de ajuste com IA das observações. */
+  readonly notesAiMenu?: ReactNode;
 }
 
 /**
@@ -331,6 +334,7 @@ export function DfdPlanningStep({
   onChange,
   onEstimatedValueText,
   onSectionChange,
+  notesAiMenu,
 }: DfdPlanningStepProps) {
   const t = useTranslations('dfd.planning');
   const masked = header.estimatedValueMasked === true;
@@ -431,6 +435,7 @@ export function DfdPlanningStep({
           value={notes}
           editable={editable}
           onChange={onSectionChange}
+          aiMenu={notesAiMenu}
         />
       )}
     </div>

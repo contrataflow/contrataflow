@@ -198,7 +198,9 @@
     "PCA_LINK": "O vínculo com o Plano de Contratações Anual está incompleto.",
     "ETP": "O processo ainda não tem ETP; a proposta usou só o DFD e o que mais existir.",
     "TERM_OF_REFERENCE": "O Termo de Referência ainda não existe; prazos e critérios saíram como [a confirmar].",
-    "other": "Complete as informações marcadas como [a confirmar]."
+    "other": "Complete as informações marcadas como [a confirmar].",
+    "DFD": "O processo ainda não tem DFD; a sugestão usou só o que mais existir.",
+    "RISK_MAP": "O Mapa de Riscos ainda não existe; a sugestão usou os demais documentos."
   },
   "apply": {
     "legend": "Escolha as seções a aplicar",
@@ -254,5 +256,60 @@
     "discard": "Descartar",
     "discarding": "Descartando…",
     "done": "{count, plural, one {# risco criado a partir da proposta. Revise cada risco antes de concluir o mapa.} other {# riscos criados a partir da proposta. Revise cada risco antes de concluir o mapa.}}"
+  },
+  "section": {
+    "menu": "IA",
+    "menuLabel": "Ajustar a seção {title} com IA",
+    "actions": {
+      "REWRITE": "Reescrever",
+      "COMPLETE": "Completar",
+      "SUMMARIZE": "Resumir"
+    },
+    "actionHints": {
+      "REWRITE": "Mais clareza e linguagem administrativa, sem acrescentar fatos.",
+      "COMPLETE": "Preenche as lacunas com a orientação do modelo e os dados do processo.",
+      "SUMMARIZE": "Versão mais curta, mantendo os fatos essenciais."
+    },
+    "tooShort": "A seção precisa de ao menos 50 caracteres. Use 'Completar' ou escreva um pouco mais.",
+    "notSupported": "Esta seção não pode ser ajustada com IA.",
+    "notEditable": "O documento não pode ser editado no status atual.",
+    "panelTitle": "Ajustar seção: {title}",
+    "actionLegend": "Ação",
+    "instruction": "Orientação (opcional)",
+    "instructionHint": "Ex.: destacar o interesse público; usar parágrafos curtos. Não inclua dados pessoais.",
+    "instructionCount": "{count} de 500 caracteres",
+    "instructionInvalid": "Escolha uma ação e use até 500 caracteres na orientação.",
+    "inputsTitle": "Entradas que serão usadas",
+    "inputs": {
+      "section": "O texto atual desta seção",
+      "document": "As demais seções do documento e os documentos anteriores do processo",
+      "process": "Os dados do processo e a orientação do modelo do órgão"
+    },
+    "estimate": "Consumo estimado: {tokens} tokens",
+    "submit": "Gerar sugestão",
+    "submitting": "Enviando…",
+    "compareTitle": "Atual × Sugerido",
+    "current": "Atual",
+    "suggested": "Sugerido",
+    "placeholders": "{count, plural, =0 {Nenhum [a confirmar]} one {# [a confirmar] destacado} other {# [a confirmar] destacados}}",
+    "reviewedWarning": "Depois de aplicar, a seção precisará ser revisada novamente.",
+    "apply": "Aplicar",
+    "applying": "Aplicando…",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "regenerate": "Gerar de novo",
+    "applied": "Sugestão aplicada. A seção fica com revisão pendente até uma pessoa revisá-la.",
+    "undo": "Desfazer",
+    "undoing": "Desfazendo…",
+    "undone": "Texto anterior restaurado. A seção continua com revisão pendente.",
+    "undoConflict": "A seção foi editada depois da aplicação.",
+    "stale": "A seção mudou desde o pedido. Gere o ajuste novamente.",
+    "conflict": "O documento mudou. Confira a comparação e aplique de novo.",
+    "notOwned": "Só quem pediu o ajuste pode aplicá-lo.",
+    "discarded": "Sugestão descartada.",
+    "expired": "Esta sugestão expirou; gere novamente.",
+    "failed": "Não foi possível aplicar agora. Tente novamente.",
+    "inProgress": "Já há um ajuste em andamento nesta seção. Abrimos o acompanhamento dele.",
+    "close": "Fechar"
   }
 }

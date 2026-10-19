@@ -310,7 +310,15 @@ export function AiAssistantPanel({
   );
 }
 
-const MISSING_INPUTS = ['ITEMS', 'EXPECTED_DATE', 'PCA_LINK', 'ETP', 'TERM_OF_REFERENCE'] as const;
+const MISSING_INPUTS = [
+  'ITEMS',
+  'EXPECTED_DATE',
+  'PCA_LINK',
+  'DFD',
+  'ETP',
+  'RISK_MAP',
+  'TERM_OF_REFERENCE',
+] as const;
 type MissingInput = (typeof MISSING_INPUTS)[number] | 'other';
 
 /** Lacuna avisada pelo gerador (`MISSING_OPTIONAL_INPUT` · FA-07); desconhecida = `other`. */

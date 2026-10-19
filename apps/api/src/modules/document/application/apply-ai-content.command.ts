@@ -1,10 +1,11 @@
 import { AI_TARGET_MODULES } from '@contrataflow/types';
-import type { AiTargetModule } from '@contrataflow/types';
-import { AiContentApplied, DOCUMENT_MESSAGES } from '@contrataflow/validation';
+import type { AiGenerationKind, AiSectionAction, AiTargetModule } from '@contrataflow/types';
+import { AI_SECTION_MESSAGES, AiContentApplied, DOCUMENT_MESSAGES } from '@contrataflow/validation';
 import type { DocumentAction } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AiSuggestionSourceRegistry } from '#shared/ai/ai-suggestion-source.js';
+import type { AiSuggestion } from '#shared/ai/ai-suggestion-source.js';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { TransactionalCommandHandler } from '#shared/commands/transactional-command.js';
@@ -33,6 +34,10 @@ import type { Document } from '../domain/document.js';
  * "Antes de aplicar…" quando o rascunho completo substitui seção preenchida → gravação → geração
  * `APPLIED` (`markApplied`, mesma transação) → auditoria `ai.content_apply` → `AiContentApplied`
  * (timeline `AI_CONTENT_APPLIED` síncrona) → commit. Sem notificação. Nunca registra o texto.
+ *
+ * Ajuste de seção (`SECTION` · US-121 · RN-AI-49/50): exatamente a seção da geração e, depois do
+ * `If-Match` (412 primeiro), a revisão da seção igual à `baseRevision` do pedido — senão 410
+ * `AI_SUGGESTION_STALE`. Nunca cria versão: o "Desfazer" do painel restaura pelo DOC-05.
  */
 
 export interface ApplyAiContentInput {
@@ -53,6 +58,8 @@ export interface ApplyAiContentResult {
   readonly versionCreated: { readonly id: string; readonly versionNumber: number } | null;
   readonly generationId: string;
   readonly targetModule: AiTargetModule | null;
+  readonly kind: AiGenerationKind;
+  readonly action: AiSectionAction | null;
 }
 
 const AI_TARGETS: ReadonlySet<string> = new Set(AI_TARGET_MODULES);
@@ -102,6 +109,7 @@ export class ApplyAiContentCommand extends TransactionalCommandHandler<
     });
     if (suggestion.documentId !== document.id) throw this.notApplicable();
     this.lifecycle.assertVersion(context, input.expectedVersion);
+    if (suggestion.kind === 'SECTION') this.assertSectionAdjust(document, suggestion, input);
 
     const now = this.clock();
     const maxChars = new Map(
@@ -214,10 +222,26 @@ export class ApplyAiContentCommand extends TransactionalCommandHandler<
       versionCreated,
       generationId: suggestion.generationId,
       targetModule,
+      kind: suggestion.kind,
+      action: suggestion.action,
     };
   }
 
   protected override committed(result: ApplyAiContentResult, durationMs: number): void {
+    if (result.kind === 'SECTION') {
+      this.logger.log(
+        {
+          event: 'ai.section_adjust_applied',
+          generationId: result.generationId,
+          targetModule: result.targetModule,
+          sectionKey: result.appliedSectionKeys[0] ?? null,
+          action: result.action,
+          durationMs,
+          correlationId: requireRequestContext().correlationId,
+        },
+        'ai.section_adjust_applied',
+      );
+    }
     this.logger.log(
       {
         event: 'ai.content_applied',
@@ -232,6 +256,45 @@ export class ApplyAiContentCommand extends TransactionalCommandHandler<
       },
       'ai.content_applied',
     );
+  }
+
+  /**
+   * RN-AI-49/50 (V-08/V-09): o ajuste aplica só a própria seção, e só sobre o texto que a IA leu —
+   * a revisão da seção precisa ser a `baseRevision` do pedido (autosave no meio = 410).
+   */
+  private assertSectionAdjust(
+    document: Document,
+    suggestion: AiSuggestion,
+    input: ApplyAiContentInput,
+  ): void {
+    const sectionKey = suggestion.sectionKey;
+    if (
+      sectionKey === null ||
+      new Set(input.sectionKeys).size !== 1 ||
+      input.sectionKeys[0] !== sectionKey
+    ) {
+      throw validationError([
+        {
+          field: 'sectionKeys',
+          code: 'NOT_ALLOWED',
+          message: DOCUMENT_MESSAGES.aiApplySectionNotInProposal,
+        },
+      ]);
+    }
+    const revision = document.draftContent.sections[sectionKey]?.revision ?? 0;
+    if (suggestion.baseRevision === null || revision === suggestion.baseRevision) return;
+    this.logger.warn(
+      {
+        event: 'ai.section_adjust_stale',
+        generationId: suggestion.generationId,
+        sectionKey,
+        baseRevision: suggestion.baseRevision,
+        revision,
+        correlationId: requireRequestContext().correlationId,
+      },
+      'ai.section_adjust_stale',
+    );
+    throw new ApiError('AI_SUGGESTION_STALE', { detail: AI_SECTION_MESSAGES.stale });
   }
 
   private notApplicable(): ApiError {

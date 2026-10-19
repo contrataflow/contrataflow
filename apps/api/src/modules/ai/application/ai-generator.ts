@@ -1,4 +1,4 @@
-import type { AiGenerationKind, AiTargetModule } from '@contrataflow/types';
+import type { AiGenerationKind, AiSectionAction, AiTargetModule } from '@contrataflow/types';
 import type { AiOutputWarning } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
@@ -69,6 +69,11 @@ export interface AiGenerator {
   readonly targetModule: AiTargetModule;
   readonly kind: AiGenerationKind;
   readonly prompt: PromptTemplate;
+  /**
+   * Ajuste de seção (US-121 · RN-AI-47): um prompt por ação (`section.rewrite`, `section.complete`,
+   * `section.summarize`); sem ele, `prompt` vale para qualquer pedido.
+   */
+  readonly actionPrompts?: Readonly<Record<AiSectionAction, PromptTemplate>>;
   /** Reserva de tokens do pedido (RN-AI-18 — DEC-079). */
   readonly reservedTokens: number;
   /** `needSummary` obrigatório (rascunho do DFD) ou opcional. */
@@ -86,6 +91,16 @@ export interface AiGenerator {
    * @throws AiPolicyRevokedError pré-requisito perdido (FA-06)
    */
   buildContext(tx: TenantTx, generation: AiGeneration): Promise<AiGeneratorContext>;
+}
+
+/** O prompt do pedido: o da ação (ajuste de seção) ou o único do gerador. */
+export function promptOf(
+  generator: Pick<AiGenerator, 'prompt' | 'actionPrompts'>,
+  action: AiSectionAction | null,
+): PromptTemplate {
+  return action === null || generator.actionPrompts === undefined
+    ? generator.prompt
+    : generator.actionPrompts[action];
 }
 
 /** Gerador já registrado para o par (erro de programação). */
@@ -106,6 +121,8 @@ export class AiGeneratorRegistry {
     const key = `${generator.targetModule}/${generator.kind}`;
     if (this.generators.has(key)) throw new DuplicateAiGeneratorError(key);
     this.prompts.register(generator.prompt);
+    for (const prompt of Object.values(generator.actionPrompts ?? {}))
+      this.prompts.register(prompt);
     this.generators.set(key, generator);
   }
 
