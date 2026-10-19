@@ -159,6 +159,36 @@ describe('Feature: Decidir aprovação sobre PostgreSQL (US-052)', () => {
     ).id;
     const documentId = randomUUID();
     const versionId = randomUUID();
+    // Snapshot mínimo e válido: a decisão lê a versão analisada (`documentSnapshotSchema`).
+    const snapshot = {
+      schemaVersion: 1,
+      document: {
+        id: documentId,
+        code: null,
+        title: 'DFD da manutenção',
+        typeCode: 'DFD',
+        kind: 'STRUCTURED',
+        confidentiality: 'INTERNAL',
+        versionNumber: 1,
+      },
+      template: null,
+      process: {
+        id: process.id,
+        code: process.code,
+        title: process.title,
+        object: process.object,
+        organizationName: 'Prefeitura Municipal de São José',
+        organizationCnpj: null,
+        requestingSecretariatName: null,
+        requestingDepartmentName: null,
+        isBudgetConfidential: false,
+      },
+      header: {},
+      sections: {},
+      collections: {},
+      generatedAt: NOW.toISOString(),
+    };
+    const content = JSON.stringify(snapshot).replaceAll("'", "''");
     await db.admin(`
       BEGIN;
       INSERT INTO documents (id, tenant_id, process_id, document_type_id, title, status, singleton_key,
@@ -168,7 +198,7 @@ describe('Feature: Decidir aprovação sobre PostgreSQL (US-052)', () => {
       INSERT INTO document_versions (id, tenant_id, document_id, process_id, version_number, reason,
         status_at_creation, content, content_hash, created_by_id)
       VALUES ('${versionId}', '${A}', '${documentId}', '${process.id}', 1, 'FINALIZATION', 'FINALIZED',
-        '{}'::jsonb, '${'d'.repeat(64)}', '${ANA}');
+        '${content}'::jsonb, '${'d'.repeat(64)}', '${ANA}');
       COMMIT;`);
     facts.set(process.id, [
       {
