@@ -43,6 +43,10 @@ import {
 } from './application/document-items.commands.js';
 import { DOCUMENT_ITEM_REPOSITORY } from './application/document-items.ports.js';
 import { DocumentLifecycleService } from './application/document-lifecycle.service.js';
+import {
+  RegisterDocumentPresenceCommand,
+  RemoveDocumentPresenceCommand,
+} from './application/document-presence.commands.js';
 import { DocumentTypeCodesAdapter } from './application/document-type-codes.provider.js';
 import { DocumentTypeFacade } from './application/document-type.facade.js';
 import { SaveDocumentVersionCommand } from './application/document-version.commands.js';
@@ -136,6 +140,7 @@ import {
 import { PrismaDocumentRepository } from './infrastructure/prisma-document.repository.js';
 import { PrismaTemplateRepository } from './infrastructure/prisma-template.repository.js';
 import { DocumentItemsController } from './presentation/document-items.controller.js';
+import { DocumentPresenceController } from './presentation/document-presence.controller.js';
 import { DocumentSectionsController } from './presentation/document-sections.controller.js';
 import { DocumentTypeController } from './presentation/document-type.controller.js';
 import { DocumentVersionController } from './presentation/document-version.controller.js';
@@ -199,6 +204,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentController,
     DocumentItemsController,
     DocumentSectionsController,
+    DocumentPresenceController,
     DocumentVersionController,
     ProcessDocumentsController,
     DocumentPreviewController,
@@ -314,6 +320,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentItemUsageReader,
     // US-015: autosave de seção (DOC-05) — genérico para todos os tipos.
     SaveDocumentSectionCommand,
+    // US-070: indicador de edição concorrente (DOC-24/25 — presença efêmera no Redis).
+    RegisterDocumentPresenceCommand,
+    RemoveDocumentPresenceCommand,
     PrismaDocumentItemRepository,
     {
       provide: InMemoryDocumentItemRepository,

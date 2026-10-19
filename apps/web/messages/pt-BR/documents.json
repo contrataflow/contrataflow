@@ -446,6 +446,15 @@
         "generic": "Não foi possível salvar agora. Tente novamente em instantes.",
         "kept": "Suas últimas alterações foram guardadas neste navegador."
       }
+    },
+    "presence": {
+      "label": "Outras pessoas editando este documento",
+      "someone": "Outra pessoa",
+      "editingSection": "{name} está editando a seção {section}",
+      "openDocument": "{name} está com o documento aberto para edição",
+      "sameSectionOne": "{name} está editando esta seção agora",
+      "sameSectionMany": "{count} pessoas editando esta seção agora",
+      "count": "{count, plural, one {# pessoa editando} other {# pessoas editando}}"
     }
   }
 }

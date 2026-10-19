@@ -25,6 +25,10 @@ import {
 import { AUDIT_SAMPLING_STORE, InMemoryAuditSamplingStore } from '#shared/audit/sampling-store.js';
 import { TOKEN_VERIFIER } from '#shared/auth/ports.js';
 import { CACHE_STORE, InMemoryCacheStore } from '#shared/cache/cache-store.js';
+import {
+  DOCUMENT_PRESENCE_STORE,
+  InMemoryDocumentPresenceStore,
+} from '#shared/document/document-presence.js';
 import { IDEMPOTENCY_STORE } from '#shared/idempotency/idempotency.js';
 import { InMemoryIdempotencyStore } from '#shared/idempotency/in-memory-idempotency.store.js';
 import { InMemoryRateLimitStore } from '#shared/rate-limit/in-memory-rate-limit.store.js';
@@ -102,7 +106,9 @@ export async function createTestApi(options: TestApiOptions = {}): Promise<TestA
       .overrideProvider(DRAFT_AUDIT_WINDOW_STORE)
       .useValue(new InMemoryDraftAuditWindowStore())
       .overrideProvider(CACHE_STORE)
-      .useValue(new InMemoryCacheStore());
+      .useValue(new InMemoryCacheStore())
+      .overrideProvider(DOCUMENT_PRESENCE_STORE)
+      .useValue(new InMemoryDocumentPresenceStore());
   }
   for (const { token, value } of options.providers ?? []) {
     builder = builder.overrideProvider(token).useValue(value);

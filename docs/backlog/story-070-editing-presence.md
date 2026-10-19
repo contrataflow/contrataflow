@@ -54,7 +54,7 @@ Reduzir conflitos de revisão de seção percebidos pelo usuário como "surpresa
 
 ## Regras de negócio
 - **RN-DOC-87** — Aplica-se a documentos com seções editáveis por autosave (`FREE_TEXT` e `STRUCTURED`, mecanismo de `DOC-05`/US-015); documentos `UPLOADED` não participam (sem seções).
-- **RN-DOC-88** — Heartbeat (`PUT .../presence`): o cliente envia a cada 20 s enquanto o editor estiver em foco; a API exige a mesma permissão de edição do tipo + POL-02 de `DOC-05` (sem `If-Match`, pois não altera o recurso); grava a presença em chave Redis `presence:{tenantId}:document:{documentId}:{userId}` com TTL de 60 s e o `sectionKey` informado.
+- **RN-DOC-88** — Heartbeat (`PUT .../presence`): o cliente envia a cada 20 s enquanto o editor estiver em foco; a API exige a mesma permissão de edição do tipo + POL-02 de `DOC-05` (sem `If-Match`, pois não altera o recurso); grava a presença no Redis — chaves por documento prefixadas pelo tenant (`cf:{env}:t:{tenantId}:presence:document:{documentId}`, `ZSET` usuário → último heartbeat, e `…:sections`, `HASH` com o `sectionKey` e o `since` de cada usuário), uma entrada por usuário, com TTL de 60 s renovado a cada heartbeat.
 - **RN-DOC-89** — Expiração: sem heartbeat por 60 s (três ciclos perdidos), a presença expira automaticamente pelo TTL do Redis; não há obrigatoriedade de uma saída explícita, mas o front envia `DELETE` ao fechar o editor para expirar mais rápido (FA de melhor esforço, ex.: `navigator.sendBeacon`).
 - **RN-DOC-90** — A resposta do heartbeat (e nenhuma outra chamada) devolve os demais usuários com presença ativa no documento (`userId`, nome, `sectionKey`, `since`), sempre excluindo o próprio chamador; usuário sem heartbeat nos últimos 60 s nunca aparece.
 - **RN-DOC-91** — Isolamento por tenant: a chave Redis é prefixada por `tenantId`; documento não visível ao usuário (DEC-024) responde 404 e nunca aceita heartbeat.
@@ -185,7 +185,7 @@ Estrutura de dados sugerida em Redis: um `ZSET` por documento (`presence:{tenant
 ## API
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |
 |---|---|---|---|---|---|
-| DOC-24 | PUT | `/documents/{id}/presence` | `{ sectionKey? }` | `200 { data: { editors: [{ userId, name, sectionKey, since }] } }` | 200, 403, 404, 409, 422 |
+| DOC-24 | PUT | `/documents/{id}/presence` | `{ sectionKey? }` | `200 { data: { editors: [{ userId, name, sectionKey, since }] } }` | 200, 404, 409, 422 |
 | DOC-25 | DELETE | `/documents/{id}/presence` | — | `204` | 204, 404 |
 
 ## Logs

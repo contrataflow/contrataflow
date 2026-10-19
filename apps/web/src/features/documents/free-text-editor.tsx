@@ -31,6 +31,8 @@ import {
   sectionLimitProblem,
 } from './free-text-editor-model';
 import type { FreeTextNavItem } from './free-text-editor-model';
+import { PresenceIndicator } from './presence-indicator';
+import { useDocumentPresence } from './use-document-presence';
 import { NotApplicableSummary, NotApplicableToggle } from '../etp/etp-editor';
 import { EMPTY_SECTION_DRAFT, sectionDraftOf } from '../etp/etp-editor-model';
 import type { EtpSectionDraft } from '../etp/etp-editor-model';
@@ -45,7 +47,8 @@ import { TEXTAREA_CLASS } from '../processes/form-field';
  * `If-Match: "s<revision>"`, contingência local cifrada e o diálogo de conflito) e o "Não se aplica"
  * justificado (só em `REQUIRED_OR_JUSTIFY`/`OPTIONAL` — RN-DOC-28). O texto acima do limite fica só
  * no editor, com o aviso (FA-03). Somente leitura sem `UPDATE` ou fora de `DRAFT`/`RETURNED`.
- * Abaixo de 768 px a navegação recolhe para o menu "Seções".
+ * Abaixo de 768 px a navegação recolhe para o menu "Seções". Quem pode editar envia o heartbeat de
+ * presença da seção ativa e vê os demais editores (indicador de edição concorrente — US-070).
  */
 
 function timeOf(value: string | number, timeZone: string): string {
@@ -115,6 +118,14 @@ export function FreeTextEditor({ document, meta, template, store }: FreeTextEdit
   const active = sections.find((section) => section.key === activeKey) ?? sections[0];
   const activeIndex = nav.findIndex((item) => item.key === active?.key);
 
+  // US-070: heartbeat de presença com a seção ativa; só quem pode editar participa (FA-02).
+  const editors = useDocumentPresence({
+    documentId: document.id,
+    sectionKey: active?.key,
+    enabled: allowed,
+  });
+  const titleOf = (key: string) => sections.find((section) => section.key === key)?.title ?? key;
+
   const select = (key: string) => {
     void autosave.flush();
     setActiveKey(key);
@@ -167,6 +178,8 @@ export function FreeTextEditor({ document, meta, template, store }: FreeTextEdit
           />
         ) : null}
       </div>
+
+      <PresenceIndicator editors={editors} currentSectionKey={active?.key} sectionTitle={titleOf} />
 
       {readOnlyReason === null ? null : (
         <Alert tone="info" live={false} title={t('readOnly.title')}>

@@ -12,7 +12,8 @@ import { ApiError, apiErrorFromResponse } from './api-error';
  * ação do usuário (reutilizado nas retentativas — observability.md §3); expõe `ETag` em
  * `meta.etag` e converte problem+json em `ApiError`. Interceptador da sessão (US-088): toda ação do
  * usuário atendida reinicia o contador de ociosidade do shell (sondagens não), 401
- * `SESSION_EXPIRED` abre o modal e 503 de um comando, o banner de indisponibilidade (consultas com 5xx
+ * `SESSION_EXPIRED` abre o modal e 503 de um comando (não de uma sondagem de escrita, como o heartbeat
+ * de presença), o banner de indisponibilidade (consultas com 5xx
  * já vão ao `error.tsx` do segmento, que mostra a indisponibilidade com "Tentar novamente").
  */
 
@@ -113,7 +114,9 @@ export async function apiRequest<T>(
     });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
-    if (method !== 'GET') emitSessionSignal({ type: 'unavailable' });
+    if (method !== 'GET' && !isPollingRequest(method, path)) {
+      emitSessionSignal({ type: 'unavailable' });
+    }
     throw new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'Falha de rede.' });
   }
 
@@ -122,7 +125,7 @@ export async function apiRequest<T>(
     const error = apiErrorFromResponse(response.status, response.headers, body);
     if (error.status === 401 && error.code === 'SESSION_EXPIRED') {
       emitSessionSignal({ type: 'expired' });
-    } else if (error.status === 503 && method !== 'GET') {
+    } else if (error.status === 503 && method !== 'GET' && !isPollingRequest(method, path)) {
       emitSessionSignal({ type: 'unavailable' });
     }
     throw error;

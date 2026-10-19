@@ -115,6 +115,17 @@ export const FAKE_PERSONAS = {
     defaultTenantId: null,
     blocked: true,
   },
+  /**
+   * Lúcia: segunda redatora da Prefeitura A (GESTOR_CONTRATACOES no diretório fake da API) — duas
+   * sessões no mesmo documento (indicador de edição concorrente — US-070).
+   */
+  lucia: {
+    userId: '0192a000-0000-7000-8000-0000000000a6',
+    subject: 'sub-lucia',
+    displayName: 'Lúcia Matos',
+    memberships: [membership('0192a000-0000-7000-8000-0000000001a6', TENANTS.prefeituraA)],
+    defaultTenantId: TENANTS.prefeituraA.id,
+  },
   /** Gil: sem nenhum vínculo (sessão sem tenant → "sem vínculo"). */
   gil: {
     userId: '0192a000-0000-7000-8000-0000000000f1',

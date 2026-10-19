@@ -1,5 +1,6 @@
 export * from './document.js';
 export * from './document-items.js';
+export * from './document-presence.js';
 export * from './document-rendition.js';
 export * from './document-section.js';
 export * from './document-type.js';

@@ -2261,6 +2261,14 @@ const freeTextStates = new Map(
   ]),
 );
 let freeTextSequence = 0;
+
+// US-070: presença de edição por documento (DOC-24/25) — `sub` → seção, desde e último heartbeat.
+const PRESENCE_TTL_MS = 60_000;
+const presenceStates = new Map();
+const PRESENCE_USERS = {
+  'sub-ana': { id: '0192a000-0000-7000-8000-0000000000a1', name: 'Ana Souza' },
+  'sub-lucia': { id: '0192a000-0000-7000-8000-0000000000a6', name: 'Lúcia Matos' },
+};
 const freeTextDocumentOf = (documentId) =>
   [...freeTextStates.values()]
     .flatMap((state) => state.documents)
@@ -5405,6 +5413,41 @@ createServer(async (request, response) => {
       Location: `/api/v1/documents/${document.id}`,
       ETag: '"1"',
     });
+  }
+  // DOC-24/25 (US-070): heartbeat com TTL de 60 s, sem o próprio chamador; seção fora do modelo →
+  // 422 mantendo a anterior; saída idempotente.
+  const presenceRoute = /^\/api\/v1\/documents\/([0-9a-f-]{36})\/presence$/.exec(url.pathname);
+  const presenceDocument = presenceRoute ? freeTextDocumentOf(presenceRoute[1]) : undefined;
+  if (presenceDocument && (request.method === 'PUT' || request.method === 'DELETE')) {
+    const users = presenceStates.get(presenceDocument.id) ?? new Map();
+    presenceStates.set(presenceDocument.id, users);
+    const now = Date.now();
+    for (const [key, entry] of users) {
+      if (entry.lastSeenAt <= now - PRESENCE_TTL_MS) users.delete(key);
+    }
+    if (request.method === 'DELETE') {
+      users.delete(sub);
+      return send(response, 204);
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const previous = users.get(sub);
+    const valid =
+      body.sectionKey === undefined ||
+      presenceDocument.draftContent.sections[body.sectionKey] !== undefined;
+    const sectionKey = (valid ? body.sectionKey : undefined) ?? previous?.sectionKey ?? null;
+    const since =
+      previous && previous.sectionKey === sectionKey ? previous.since : new Date(now).toISOString();
+    users.set(sub, { sectionKey, since, lastSeenAt: now });
+    if (!valid) return problem(response, 422, 'SECTION_NOT_IN_TEMPLATE', String(correlationId));
+    const editors = [...users]
+      .filter(([key]) => key !== sub)
+      .map(([key, entry]) => ({
+        userId: PRESENCE_USERS[key]?.id ?? '0192a000-0000-7000-8000-0000000000ff',
+        name: PRESENCE_USERS[key]?.name ?? null,
+        sectionKey: entry.sectionKey,
+        since: entry.since,
+      }));
+    return send(response, 200, { data: { editors } }, { 'Cache-Control': 'no-store' });
   }
   const freeTextDocumentRoute =
     /^\/api\/v1\/documents\/([0-9a-f-]{36})(\/sections\/([A-Z_]+))?$/.exec(url.pathname);

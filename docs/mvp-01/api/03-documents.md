@@ -450,12 +450,12 @@
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem permissão de edição do tipo |
   | 404 | `NOT_FOUND` | Documento inexistente/outro tenant/não visível |
-  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento não pode ser editado pelo usuário (indicador não é exibido/enviado) |
-  | 422 | `SECTION_NOT_IN_TEMPLATE` | `sectionKey` informado não existe no template (silencioso) |
+  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento não pode ser editado pelo usuário — sem permissão de edição do tipo, sem custódia/participação, processo ou documento fora de edição, tipo fora da etapa (indicador não é exibido/enviado; sem 403 nem `access.denied`, para o heartbeat não gerar ruído) |
+  | 422 | `SECTION_NOT_IN_TEMPLATE` | `sectionKey` informado não existe no template (silencioso; a presença é renovada com a seção anterior) |
+  | 422 | `VALIDATION_ERROR` (`NOT_ALLOWED`) | Documento sem seções (`UPLOADED`) — V-02 |
 - **Efeitos:** Nenhum evento de domínio nem auditoria (RN-DOC-93) — dado puramente efêmero.
-- **Notas:** Estado mantido em **Redis, TTL 60 s** por usuário/documento; se o Redis estiver indisponível, a resposta é `200` degradada (indicador oculto, sem bloquear a edição) em vez de erro.
+- **Notas:** Estado mantido em **Redis, TTL 60 s** por usuário/documento (`ZSET` `cf:{env}:t:{tenantId}:presence:document:{documentId}` + `HASH` `…:sections`, atualizados num script atômico); se o Redis estiver indisponível, a resposta é `200` degradada (indicador oculto, sem bloquear a edição) em vez de erro.
 
 ### DOC-25 — Encerrar presença de edição
 `DELETE /api/v1/documents/{id}/presence` · **Permissão:** sessão autenticada (encerra apenas a própria presença) · **Story:** US-070

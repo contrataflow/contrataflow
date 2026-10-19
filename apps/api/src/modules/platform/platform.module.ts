@@ -17,6 +17,10 @@ import {
   FIELD_PROTECTION,
   LocalKeyWrapper,
 } from '#shared/crypto/field-protection.js';
+import {
+  DOCUMENT_PRESENCE_STORE,
+  InMemoryDocumentPresenceStore,
+} from '#shared/document/document-presence.js';
 import { IDEMPOTENCY_STORE } from '#shared/idempotency/idempotency.js';
 import { JOB_QUEUE } from '#shared/jobs/job-queue.js';
 import { OUTBOX_WRITER, SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
@@ -40,6 +44,7 @@ import { InMemoryAiCircuitStore } from './infrastructure/redis/in-memory-ai-circ
 import { RedisAiCircuitStore } from './infrastructure/redis/redis-ai-circuit.store.js';
 import { RedisAuditSamplingStore } from './infrastructure/redis/redis-audit-sampling.store.js';
 import { RedisCacheStore } from './infrastructure/redis/redis-cache.store.js';
+import { RedisDocumentPresenceStore } from './infrastructure/redis/redis-document-presence.store.js';
 import { RedisDraftAuditWindowStore } from './infrastructure/redis/redis-draft-audit-window.store.js';
 import { RedisHealthIndicator } from './infrastructure/redis/redis-health.indicator.js';
 import { RedisIdempotencyStore } from './infrastructure/redis/redis-idempotency.store.js';
@@ -66,7 +71,8 @@ function developmentKey(label: string): Buffer {
  * `StorageService` com a guarda de prefixo `tenants/{tenantId}/` (adaptador S3 da US-068). Desde a
  * US-115, o produtor de jobs do padrão B da API (`JOB_QUEUE`, BullMQ) e o estado de plataforma do
  * disjuntor do provedor de IA (`AI_CIRCUIT_STORE`, chave `cf:{env}:ai:circuit`). Desde a US-015, a
- * janela da auditoria coalescida de rascunho (`DRAFT_AUDIT_WINDOW_STORE`).
+ * janela da auditoria coalescida de rascunho (`DRAFT_AUDIT_WINDOW_STORE`). Desde a US-070, a presença
+ * de edição no documento (`DOCUMENT_PRESENCE_STORE`, efêmera com TTL).
  */
 @Global()
 @Module({
@@ -152,6 +158,14 @@ function developmentKey(label: string): Buffer {
       useFactory: (config: AppConfig, redis: RedisDraftAuditWindowStore) =>
         config.oidc.fakeSigningKey === null ? redis : new InMemoryDraftAuditWindowStore(),
     },
+    // US-070: presença de edição no documento (DEC-055 · RN-DOC-88 — heartbeat com TTL de 60 s).
+    RedisDocumentPresenceStore,
+    {
+      provide: DOCUMENT_PRESENCE_STORE,
+      inject: [APP_CONFIG, RedisDocumentPresenceStore],
+      useFactory: (config: AppConfig, redis: RedisDocumentPresenceStore) =>
+        config.oidc.fakeSigningKey === null ? redis : new InMemoryDocumentPresenceStore(),
+    },
   ],
   exports: [
     PlatformFacade,
@@ -169,6 +183,7 @@ function developmentKey(label: string): Buffer {
     JOB_QUEUE,
     AI_CIRCUIT_STORE,
     DRAFT_AUDIT_WINDOW_STORE,
+    DOCUMENT_PRESENCE_STORE,
   ],
 })
 export class PlatformModule {}
