@@ -1,5 +1,7 @@
 import type {
   DocumentAction,
+  EtpDetailDto,
+  EtpDetailMeta,
   EtpDto,
   EtpMeta,
   EtpSummaryDto,
@@ -10,11 +12,12 @@ import type {
   Document,
   DocumentState,
   ImportableDfdSource,
+  TypedDocumentView,
 } from '../../document/application/document.facade.js';
 import { dfdImportPreview } from '../domain/etp.js';
 import type { Etp } from '../domain/etp.js';
 
-/* Serialização do ETP (US-019 · api/06-etp.md ETP-01/02): o cabeçalho tipado + o resumo do documento. */
+/* Serialização do ETP (US-019/020 · api/06-etp.md ETP-01/02/03): o cabeçalho tipado + o resumo do documento. */
 
 export function toEtpDto(
   etp: Etp,
@@ -40,6 +43,60 @@ export function toEtpDto(
     createdAt: etp.createdAt.toISOString(),
     updatedAt: etp.updatedAt.toISOString(),
     version: etp.version,
+  };
+}
+
+/**
+ * ETP-03 (US-020): o `Etp` + conclusão/estimativa e o rascunho por seção. POL-09: sem a política
+ * em processo sigiloso, `estimatedTotalValue = null` e `estimatedTotalValueMasked = true`.
+ */
+export function toEtpDetailDto(
+  etp: Etp,
+  document: Document,
+  itemsCount: number,
+  options: { readonly masked: boolean },
+): EtpDetailDto {
+  return {
+    ...toEtpDto(etp, document, itemsCount),
+    recommendedAlternativeId: etp.recommendedAlternativeId,
+    parcelingDecision: etp.parcelingDecision,
+    estimatedValueSource: etp.estimatedValueSource,
+    estimatedTotalValue: options.masked ? null : etp.estimatedTotalValue,
+    estimatedTotalValueMasked: options.masked,
+    priceResearchId: etp.priceResearchId,
+    draftRevision: document.draftRevision,
+    draftContent: document.draftContent,
+  };
+}
+
+/** `meta` do ETP-03: ações e a versão do template FIXADA no documento (seções com `render`). */
+export function toEtpDetailMeta(
+  template: TypedDocumentView['template'],
+  allowedActions: readonly DocumentAction[],
+): EtpDetailMeta {
+  return {
+    allowedActions: [...allowedActions],
+    template:
+      template === null
+        ? null
+        : {
+            versionId: template.id,
+            versionNumber: template.versionNumber,
+            sections: [...template.sections]
+              .sort((a, b) => a.order - b.order)
+              .map((section) => ({
+                key: section.key,
+                title: section.title,
+                order: section.order,
+                requirement: section.requirement,
+                helpText: section.helpText ?? null,
+                legalBasis: section.legalBasis ?? null,
+                minChars: section.minChars ?? null,
+                maxChars: section.maxChars,
+                render: section.render,
+                allowNarrative: section.allowNarrative,
+              })),
+          },
   };
 }
 

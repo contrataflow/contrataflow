@@ -1,5 +1,8 @@
 import {
   etpCreateSchema,
+  etpDetailMetaSchema,
+  etpDetailSchema,
+  etpIdParamsSchema,
   etpListMetaSchema,
   etpMetaSchema,
   etpSchema,
@@ -8,6 +11,8 @@ import {
 } from '@contrataflow/validation';
 import type {
   EtpCreate,
+  EtpDetailDto,
+  EtpDetailMeta,
   EtpDto,
   EtpListMeta,
   EtpMeta,
@@ -25,17 +30,20 @@ import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
 import { CreateEtpCommand } from '../application/etp.commands.js';
-import { ListProcessEtpsQuery } from '../application/etp.queries.js';
+import { GetEtpQuery, ListProcessEtpsQuery } from '../application/etp.queries.js';
 
 const TAGS = ['ETP'];
 
 const READ_ACCESS =
   'ETPs do processo (US-019 · DEC-024): visibilidade do processo (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente.';
+const DETAIL_ACCESS =
+  'ETP do processo (US-020 · DEC-024): visibilidade do processo do ETP (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente. POL-09 no valor estimado.';
 const CREATE_ACCESS =
   'ETP_CREATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied reasonCode ETP_CREATE) + POL-02 (RN-ETP-07: custódia atual OU participação COLLABORATOR/CONSULTANT — senão 403 PERMISSION_DENIED; processo em DRAFT/IN_PROGRESS/RETURNED — senão 409 DOCUMENT_NOT_EDITABLE; tipo ETP permitido na etapa — senão 422), conferidos no caso de uso.';
 
 /**
- * ETP (api/06-etp.md · US-019): ETP-01/02 sob `/processes/{id}/etps`. O id do ETP é o do documento:
+ * ETP (api/06-etp.md · US-019/020): ETP-01/02 sob `/processes/{id}/etps` e ETP-03 `/etps/{id}`. O
+ * id do ETP é o do documento:
  * seções (DOC-05), itens (DOC-06/07), validação (DOC-08) e versões usam os endpoints genéricos.
  */
 @Controller()
@@ -43,8 +51,33 @@ const CREATE_ACCESS =
 export class EtpController {
   constructor(
     private readonly list: ListProcessEtpsQuery,
+    private readonly get: GetEtpQuery,
     private readonly create: CreateEtpCommand,
   ) {}
+
+  @Get('etps/:id')
+  @ImplicitAccess(DETAIL_ACCESS)
+  @ApiOperation({
+    operationId: 'ETP-03',
+    summary: 'Obter ETP',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Cabeçalho do ETP (conclusão, parcelamento, origem e valor estimado — `estimatedTotalValue = null` com `estimatedTotalValueMasked: true` sem POL-09 em processo sigiloso), o resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07 —, `itemsCount`) e o rascunho por seção (`draftContent.sections[key]`: `state`, `content`, `justification` e `revision` — o `If-Match: "s<revision>"` do DOC-05). `meta.allowedActions` (`UPDATE` só com `ETP_UPDATE` + POL-02 e o ETP em `DRAFT`/`RETURNED`; sem ela a SCR-008 abre somente leitura) e `meta.template` (seções da versão fixada no documento, com `requirement`, `minChars`/`maxChars`, `render` e `allowNarrative`). `ETag` = versão do ETP. Inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.',
+        schema: z.object({ data: etpDetailSchema, meta: etpDetailMetaSchema }),
+      },
+    },
+  })
+  async getEtp(
+    @ZodParams(etpIdParamsSchema) params: { id: string },
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<EtpDetailDto, EtpDetailMeta>> {
+    const view = await this.get.execute(params.id);
+    response.setHeader('ETag', `"${String(view.dto.version)}"`);
+    response.setHeader('Cache-Control', 'no-store');
+    return new DataResult(view.dto, view.meta);
+  }
 
   @Get('processes/:id/etps')
   @ImplicitAccess(READ_ACCESS)

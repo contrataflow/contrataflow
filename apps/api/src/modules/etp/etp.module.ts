@@ -5,7 +5,7 @@ import type { AppConfig } from '#config/env.js';
 
 import { CreateEtpCommand } from './application/etp.commands.js';
 import { EtpFacade } from './application/etp.facade.js';
-import { ListProcessEtpsQuery } from './application/etp.queries.js';
+import { GetEtpQuery, ListProcessEtpsQuery } from './application/etp.queries.js';
 import { ETP_CLOCK, ETP_REPOSITORY, ETP_TRANSACTIONS } from './application/ports.js';
 import {
   InMemoryEtpRepository,
@@ -21,7 +21,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `etp` (DEC-040, nível 4): outros módulos usam somente a fachada exportada. Dono de `Etp`
- * (US-019: ETP-01/02 — criação a partir do template com importação do DFD). O documento, a
+ * (US-019: ETP-01/02 — criação a partir do template com importação do DFD; US-020: ETP-03 — leitura
+ * do ETP com o rascunho por seção para o editor). O documento, a
  * numeração, as seções e os itens vêm do `document` pelo padrão de documento tipado
  * (`createStructuredIn`); o DFD de origem é lido do snapshot da versão (`importableDfdIn`), sem
  * depender do módulo `dfd`.
@@ -33,6 +34,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     EtpFacade,
     CreateEtpCommand,
     ListProcessEtpsQuery,
+    GetEtpQuery,
     PrismaEtpRepository,
     PrismaEtpTransactions,
     InMemoryEtpTransactions,

@@ -3367,6 +3367,288 @@
           "to"
         ]
       },
+      "EtpDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "conclusion": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "VIABLE",
+              "NOT_VIABLE"
+            ]
+          },
+          "importedFromDfdVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "templateVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentVersion": {
+            "type": "integer"
+          },
+          "itemsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "recommendedAlternativeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "parcelingDecision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PARCELED",
+              "NOT_PARCELED",
+              "NOT_APPLICABLE",
+              null
+            ]
+          },
+          "estimatedValueSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MANUAL",
+              "PRICE_RESEARCH",
+              null
+            ]
+          },
+          "estimatedTotalValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimatedTotalValueMasked": {
+            "type": "boolean"
+          },
+          "priceResearchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "draftContent": {
+            "$ref": "#/components/schemas/DraftContent"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "processId",
+          "code",
+          "title",
+          "status",
+          "conclusion",
+          "importedFromDfdVersionId",
+          "responsibleId",
+          "templateVersionId",
+          "documentVersion",
+          "itemsCount",
+          "createdAt",
+          "updatedAt",
+          "version",
+          "recommendedAlternativeId",
+          "parcelingDecision",
+          "estimatedValueSource",
+          "estimatedTotalValue",
+          "estimatedTotalValueMasked",
+          "priceResearchId",
+          "draftRevision",
+          "draftContent"
+        ]
+      },
+      "EtpDetailMeta": {
+        "type": "object",
+        "properties": {
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "UPDATE",
+                "FINALIZE",
+                "SUBMIT",
+                "REOPEN",
+                "CANCEL",
+                "DELETE"
+              ]
+            }
+          },
+          "template": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "versionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EtpTemplateSection"
+                }
+              }
+            },
+            "required": [
+              "versionId",
+              "versionNumber",
+              "sections"
+            ]
+          }
+        },
+        "required": [
+          "allowedActions",
+          "template"
+        ]
+      },
+      "EtpTemplateSection": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "requirement": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "REQUIRED_OR_JUSTIFY",
+              "OPTIONAL"
+            ]
+          },
+          "helpText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalBasis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minChars": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxChars": {
+            "type": "integer"
+          },
+          "render": {
+            "type": "string",
+            "enum": [
+              "TEXT",
+              "ITEMS_TABLE",
+              "ALTERNATIVES_TABLE",
+              "RISK_MATRIX",
+              "RISK_LIST",
+              "PRICE_SUMMARY",
+              "ESTIMATED_VALUE"
+            ]
+          },
+          "allowNarrative": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "order",
+          "requirement",
+          "helpText",
+          "legalBasis",
+          "minChars",
+          "maxChars",
+          "render",
+          "allowNarrative"
+        ]
+      },
       "AcceptedInvitation": {
         "type": "object",
         "properties": {
@@ -27741,6 +28023,127 @@
                   },
                   "required": [
                     "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etps/{id}": {
+      "get": {
+        "operationId": "ETP-03",
+        "summary": "Obter ETP",
+        "tags": [
+          "ETP"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cabeçalho do ETP (conclusão, parcelamento, origem e valor estimado — `estimatedTotalValue = null` com `estimatedTotalValueMasked: true` sem POL-09 em processo sigiloso), o resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07 —, `itemsCount`) e o rascunho por seção (`draftContent.sections[key]`: `state`, `content`, `justification` e `revision` — o `If-Match: \"s<revision>\"` do DOC-05). `meta.allowedActions` (`UPDATE` só com `ETP_UPDATE` + POL-02 e o ETP em `DRAFT`/`RETURNED`; sem ela a SCR-008 abre somente leitura) e `meta.template` (seções da versão fixada no documento, com `requirement`, `minChars`/`maxChars`, `render` e `allowNarrative`). `ETag` = versão do ETP. Inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EtpDetail"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/EtpDetailMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
                   ]
                 }
               }

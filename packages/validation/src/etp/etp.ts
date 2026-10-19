@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
 import { isoDateTimeSchema } from '../common/dates.js';
+import { uuidV7Schema } from '../common/identifiers.js';
 import { DOCUMENT_STATUSES } from '../document/document-type.js';
-import { DOCUMENT_ACTIONS } from '../document/document.js';
+import { DOCUMENT_ACTIONS, draftContentSchema } from '../document/document.js';
+import { SECTION_RENDERS, SECTION_REQUIREMENTS } from '../document/template.js';
 import { PCA_STATUSES } from '../process/process.js';
 
 /*
@@ -39,6 +41,8 @@ export const ETP_MESSAGES = Object.freeze({
   notCustodian: 'Você não pode criar o ETP neste processo.',
   idempotencyReused: 'Esta solicitação já foi enviada com outros dados. Recarregue a página.',
   unavailable: 'Não foi possível criar o ETP agora. Tente novamente em instantes.',
+  /** ETP-03 (US-020): inexistente, de outro tenant ou não visível — indistinguíveis. */
+  notFound: 'Documento não encontrado.',
 });
 
 /** Título do documento ETP a partir do código do processo. */
@@ -124,3 +128,65 @@ export const etpListMetaSchema = z
   .object({ importableDfd: importableDfdSchema.nullable() })
   .meta({ id: 'EtpListMeta' });
 export type EtpListMeta = z.infer<typeof etpListMetaSchema>;
+
+// --- ETP-03 — Obter ETP (US-020 · SCR-008) -----------------------------------------------------
+
+export const etpIdParamsSchema = z.strictObject({ id: uuidV7Schema });
+export type EtpIdParams = z.infer<typeof etpIdParamsSchema>;
+
+/**
+ * ETP-03: o cabeçalho (`Etp`) + o rascunho por seção (`draftContent.sections[key]` com `content`,
+ * `state`, `justification` e `revision` — o `If-Match: "s<revision>"` do DOC-05) e os campos da
+ * conclusão/estimativa. `estimatedTotalValue` = `null` + `estimatedTotalValueMasked: true` sem
+ * POL-09 em processo sigiloso (api.md §1.4).
+ */
+export const etpDetailSchema = etpSchema
+  .extend({
+    recommendedAlternativeId: z.uuid().nullable(),
+    parcelingDecision: z.enum(PARCELING_DECISIONS).nullable(),
+    estimatedValueSource: z.enum(ETP_ESTIMATED_VALUE_SOURCES).nullable(),
+    /** Decimal(18,2) como string; `null` se não informado ou mascarado. */
+    estimatedTotalValue: z.string().nullable(),
+    estimatedTotalValueMasked: z.boolean(),
+    priceResearchId: z.uuid().nullable(),
+    /** `draftRevision` do documento (cresce a cada gravação de seção). */
+    draftRevision: z.int().min(0),
+    draftContent: draftContentSchema,
+  })
+  .meta({ id: 'EtpDetail' });
+export type EtpDetailDto = z.infer<typeof etpDetailSchema>;
+
+/** Seção da versão do template FIXADA no ETP, como a SCR-008 a usa (navegação e editor). */
+export const etpTemplateSectionSchema = z
+  .object({
+    key: z.string(),
+    title: z.string(),
+    order: z.int(),
+    requirement: z.enum(SECTION_REQUIREMENTS),
+    helpText: z.string().nullable(),
+    legalBasis: z.string().nullable(),
+    minChars: z.int().nullable(),
+    maxChars: z.int(),
+    render: z.enum(SECTION_RENDERS),
+    allowNarrative: z.boolean(),
+  })
+  .meta({ id: 'EtpTemplateSection' });
+export type EtpTemplateSectionDto = z.infer<typeof etpTemplateSectionSchema>;
+
+/**
+ * `meta` do ETP-03: as ações do documento (RN-DOC-18) e a versão do template fixada no documento
+ * (seções com exigência, limites e `render`). Vem aqui porque o TPL-07 exige `TEMPLATE_VIEW`.
+ */
+export const etpDetailMetaSchema = z
+  .object({
+    allowedActions: z.array(z.enum(DOCUMENT_ACTIONS)),
+    template: z
+      .object({
+        versionId: z.uuid(),
+        versionNumber: z.int(),
+        sections: z.array(etpTemplateSectionSchema),
+      })
+      .nullable(),
+  })
+  .meta({ id: 'EtpDetailMeta' });
+export type EtpDetailMeta = z.infer<typeof etpDetailMetaSchema>;

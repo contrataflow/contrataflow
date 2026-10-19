@@ -88,15 +88,38 @@ Etp {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório)
 - **Request:** —
-- **Response:** `200 { data: Etp }` + `ETag` — cabeçalho, `draftContent.sections[key]` (`content`, `state`, `justification`, `revision`), `conclusion`, `parcelingDecision`, `estimatedTotalValue`/`estimatedTotalValueMasked`
+- **Response:** `200 { data: EtpDetail, meta: EtpDetailMeta }` + `ETag: "<version do ETP>"` + `Cache-Control: no-store`
+```ts
+EtpDetail = Etp & { // o Etp do ETP-02 (cabeçalho + resumo do documento: code, status, documentVersion, itemsCount)
+  recommendedAlternativeId: string | null; parcelingDecision: ParcelingDecision | null;
+  estimatedValueSource: "MANUAL" | "PRICE_RESEARCH" | null;
+  estimatedTotalValue: string | null; estimatedTotalValueMasked: boolean; // POL-09 (api.md §1.4)
+  priceResearchId: string | null;
+  draftRevision: number;
+  draftContent: { sections: Record<string, { state; content; justification; revision; updatedAt; updatedById }> };
+  // `revision` de cada seção = o `If-Match: "s<revision>"` do DOC-05 (US-020 · RN-ETP-10)
+}
+// Decidido na US-020 (2026-10-18): as seções da versão do template fixada no documento vêm no
+// `meta` (como no DFD-03), porque o TPL-07 exige TEMPLATE_VIEW. `allowedActions` sem UPDATE =
+// SCR-008 em modo somente leitura (sem ETP_UPDATE + POL-02, ou ETP fora de DRAFT/RETURNED).
+EtpDetailMeta {
+  allowedActions: DocumentAction[];
+  template: { versionId: string; versionNumber: number; sections: EtpTemplateSection[] } | null;
+}
+EtpTemplateSection {
+  key: string; title: string; order: number; requirement: SectionRequirement;
+  helpText: string | null; legalBasis: string | null; minChars: number | null; maxChars: number;
+  render: SectionRender; allowNarrative: boolean; // RN-ETP-12
+}
+```
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 404 | `NOT_FOUND` | Inexistente/outro tenant/não visível |
+| 404 | `NOT_FOUND` | Inexistente/outro tenant/não visível ("Documento não encontrado.") |
 
-- **Efeitos:** —
-- **Notas:** valores sigilosos seguem api.md §1.4 (sufixo `Masked`).
+- **Efeitos:** — (leitura sem auditoria nem eventos)
+- **Notas:** valores sigilosos seguem api.md §1.4 (sufixo `Masked`). A edição das seções usa o DOC-05 genérico (autosave, "não se aplica" com justificativa ≥ 20 caracteres — "Explique por que esta seção não se aplica (mín. 20 caracteres)."); as pendências da navegação lateral vêm do DOC-08, sem bloquear a edição (RN-ETP-13). Seções com quadro estruturado (RN-ETP-12): `render` `ITEMS_TABLE`/`ALTERNATIVES_TABLE`/`RISK_LIST`, ou a seção `TEXT` com a chave `ESTIMATES`/`ALTERNATIVES`/`RISKS` (a biblioteca padrão semeia as 16 seções como `TEXT`) — itens pelo DOC-06, riscos pelo RSK-01, alternativas pelo ETP-05 (US-021).
 
 ### ETP-04 — Atualizar ETP (estimativas e conclusão)
 `PATCH /api/v1/etps/{id}` · **Permissão:** `ETP_UPDATE` + POL-02 · **Story:** US-022, US-023

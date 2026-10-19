@@ -45,5 +45,116 @@
   },
   "page": {
     "title": "Estudo Técnico Preliminar"
+  },
+  "editor": {
+    "loading": "Carregando as seções do ETP…",
+    "sectionsNav": "Seções do ETP",
+    "sectionsMenu": "Seções",
+    "summary": "{done} de {total} seções resolvidas",
+    "pendingCount": "{count, plural, one {# seção com pendência} other {# seções com pendência}}",
+    "state": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "pending": "Com pendência",
+    "requirement": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou justificada",
+      "OPTIONAL": "Opcional"
+    },
+    "legalBasis": "Base legal: {basis}",
+    "help": "Orientação para o preenchimento",
+    "maxChars": "Até {max} caracteres.",
+    "textLabel": "Texto da seção {title}",
+    "narrativeLabel": "Texto complementar da seção {title}",
+    "issuesTitle": "Pendências desta seção (não impedem a edição)",
+    "readOnly": {
+      "title": "Somente leitura",
+      "notEditable": "Este ETP não pode ser editado no status atual.",
+      "forbidden": "Você não pode editar este ETP."
+    },
+    "notApplicable": {
+      "mark": "Não se aplica",
+      "title": "Esta seção não se aplica",
+      "justificationLabel": "Justificativa",
+      "justificationHint": "Explique por que esta seção não se aplica (mín. 20 caracteres).",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar",
+      "revert": "Voltar a preencher",
+      "revertHint": "A justificativa será descartada e você deverá informar o conteúdo da seção.",
+      "requiredNote": "Esta seção é obrigatória: \"não se aplica\" não a resolve na conclusão do ETP."
+    },
+    "structured": {
+      "ITEMS": {
+        "title": "Itens e quantidades",
+        "caption": "Itens do ETP (somente leitura)",
+        "empty": "Nenhum item herdado do DFD.",
+        "sequence": "Nº",
+        "description": "Descrição",
+        "unit": "Unidade",
+        "quantity": "Quantidade",
+        "manage": "Gerenciar os itens no processo",
+        "loadError": "Não foi possível carregar os itens."
+      },
+      "ALTERNATIVES": {
+        "title": "Alternativas avaliadas",
+        "empty": "Nenhuma alternativa cadastrada ainda.",
+        "hint": "O quadro comparativo de alternativas é mantido nesta seção do ETP."
+      },
+      "RISKS": {
+        "title": "Riscos do processo",
+        "caption": "Riscos do processo (somente leitura)",
+        "empty": "Nenhum risco cadastrado ainda.",
+        "code": "Código",
+        "risk": "Risco",
+        "level": "Nível",
+        "manage": "Abrir o mapa de riscos",
+        "loadError": "Não foi possível carregar os riscos."
+      },
+      "readOnly": "Conteúdo estruturado somente leitura nesta tela."
+    },
+    "retry": "Tentar novamente",
+    "autosave": {
+      "indicator": {
+        "dirty": "Alterações não salvas",
+        "saving": "Salvando…",
+        "saved": "Salvo às {time}",
+        "savedShort": "Salvo",
+        "error": "Erro ao salvar",
+        "offline": "Erro ao salvar — tentando novamente",
+        "offlineShort": "Erro ao salvar",
+        "conflict": "Conflito de edição — escolha qual versão manter",
+        "blocked": "Edição interrompida"
+      },
+      "conflict": {
+        "title": "Alguém salvou esta seção enquanto você editava",
+        "changedBy": "Alterado por {name} às {time}.",
+        "changedBySelf": "Você, em outra aba, às {time}.",
+        "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+        "showDiff": "Ver diferenças",
+        "hideDiff": "Ocultar diferenças",
+        "keepMine": "Manter a minha versão",
+        "discardMine": "Descartar a minha e recarregar",
+        "serverColumn": "Versão salva no servidor",
+        "mineColumn": "Minha versão",
+        "inserted": "inserido",
+        "removed": "removido",
+        "empty": "(vazio)",
+        "someone": "outra pessoa"
+      },
+      "recovered": {
+        "title": "Recuperamos alterações não salvas de {time}.",
+        "restore": "Restaurar",
+        "discard": "Descartar"
+      },
+      "blocked": {
+        "notEditable": "Este ETP não pode ser editado no status atual.",
+        "forbidden": "Você não pode editar este ETP.",
+        "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+        "generic": "Não foi possível continuar salvando este ETP.",
+        "kept": "Suas últimas alterações foram guardadas neste navegador."
+      }
+    }
   }
 }

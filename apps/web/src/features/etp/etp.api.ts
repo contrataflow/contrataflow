@@ -1,4 +1,12 @@
-import type { EtpCreate, EtpDto, EtpSummaryDto, ImportableDfdDto } from '@contrataflow/validation';
+import { etpDetailMetaSchema } from '@contrataflow/validation';
+import type {
+  EtpCreate,
+  EtpDetailDto,
+  EtpDetailMeta,
+  EtpDto,
+  EtpSummaryDto,
+  ImportableDfdDto,
+} from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 
 import { isApiError } from '@/lib/api/api-error';
@@ -7,15 +15,40 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 /*
- * ETP (US-019 · SCR-006/SCR-008): ETP-01/02 de api/06-etp.md. O id do ETP é o do documento. Chave
- * `['t', tenantId, 'processes', processId, 'etps']` (ETP-01, sob a do processo: invalidar o
- * processo renova a lista e o DFD elegível).
+ * ETP (US-019/020 · SCR-006/SCR-008): ETP-01/02/03 de api/06-etp.md. O id do ETP é o do documento.
+ * Chaves `['t', tenantId, 'processes', processId, 'etps']` (ETP-01, sob a do processo: invalidar o
+ * processo renova a lista e o DFD elegível) e `['t', tenantId, 'etps', id]` (ETP-03).
  */
 
 export const etpKeys = {
   ofProcess: (tenantId: string, processId: string) =>
     tenantKey(tenantId, 'processes', processId, 'etps'),
+  detail: (tenantId: string, etpId: string) => tenantKey(tenantId, 'etps', etpId),
 };
+
+/** ETP-03: o ETP com o rascunho por seção e `meta` (ações + seções do template). */
+export interface EtpResult {
+  readonly etp: EtpDetailDto;
+  readonly meta: EtpDetailMeta;
+}
+
+export async function fetchEtp(etpId: string, signal?: AbortSignal): Promise<EtpResult> {
+  const result = await apiRequest<EtpDetailDto>(`/etps/${etpId}`, { signal });
+  const meta = etpDetailMetaSchema.safeParse(result.meta);
+  return {
+    etp: result.data,
+    meta: meta.success ? meta.data : { allowedActions: [], template: null },
+  };
+}
+
+export function useEtp(etpId: string) {
+  const tenantId = useTenantId();
+  return useQuery({
+    queryKey: etpKeys.detail(tenantId, etpId),
+    queryFn: ({ signal }) => fetchEtp(etpId, signal),
+    throwOnError: false,
+  });
+}
 
 /** ETP-01: os ETPs do processo e o DFD elegível para a importação (RN-ETP-04). */
 export interface ProcessEtps {

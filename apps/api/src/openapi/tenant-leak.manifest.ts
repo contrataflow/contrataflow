@@ -214,6 +214,9 @@ const DOCUMENT_PANEL_ROUTE =
 const DFD_ROUTE =
   'DFD e itens de documento (US-014): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-03 com DFD de B → 404 DFD_NOT_FOUND; DFD-01/02 com processo de B e DOC-06/07 com documento de B → 404 NOT_FOUND sem alterar nada; DOC-07 com processItemId de outro processo/tenant → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks e índice único de dfds/document_items) é coberto em test/tenant-leak/dfds.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd.routes.spec.ts.';
 
+const ETP_SECTIONS_ROUTE =
+  'Editar seções do ETP (US-020): a suíte genérica não tem processo, documento nem ETP do tenant B. O isolamento (ETP-03 com ETP de B → 404 NOT_FOUND sem revelar o registro; DOC-05 numa seção do ETP de B → 404 NOT_FOUND sem alterar seção, revisão nem auditoria de nenhum tenant; RLS da leitura de etps/documents e da atualização condicional) é coberto em test/tenant-leak/etp-sections.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp-sections.routes.spec.ts.';
+
 const DFD_DUPLICATE_ROUTE =
   'Duplicar DFD (US-018): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-05 com DFD de B → 404 DFD_NOT_FOUND sem criar nada; targetProcessId de B ou inexistente → 422 REFERENCE_NOT_FOUND em targetProcessId sem revelar o registro; nada de B lido nem alterado; itens, documento e DFD criados só no tenant da requisição, com RLS e FKs compostas; transação única, índice único do DFD ativo sob concorrência e idempotência) é coberto em test/tenant-leak/dfd-duplicate.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd-duplicate.routes.spec.ts.';
 
@@ -414,6 +417,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DFD-05': { kind: 'exempt', reason: DFD_DUPLICATE_ROUTE },
   'ETP-01': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-02': { kind: 'exempt', reason: ETP_ROUTE },
+  'ETP-03': { kind: 'exempt', reason: ETP_SECTIONS_ROUTE },
   'PRS-01': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-02': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-03': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },

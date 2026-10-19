@@ -1,7 +1,20 @@
-import type { EtpListMeta, EtpSummaryDto } from '@contrataflow/validation';
+import { ETP_MESSAGES } from '@contrataflow/validation';
+import type {
+  EtpDetailDto,
+  EtpDetailMeta,
+  EtpListMeta,
+  EtpSummaryDto,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { toEtpSummaryDto, toImportableDfdDto } from './etp.presenter.js';
+import { ApiError } from '#shared/errors/api-error.js';
+
+import {
+  toEtpDetailDto,
+  toEtpDetailMeta,
+  toEtpSummaryDto,
+  toImportableDfdDto,
+} from './etp.presenter.js';
 import { ETP_REPOSITORY, ETP_TRANSACTIONS } from './ports.js';
 import type { EtpRepository, EtpTransactions } from './ports.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
@@ -41,6 +54,47 @@ export class ListProcessEtpsQuery {
       return {
         items,
         meta: { importableDfd: source === null ? null : toImportableDfdDto(source) },
+      };
+    });
+  }
+}
+
+/** 404 único do ETP-03: inexistente, de outro tenant, excluído ou de processo não visível. */
+export function etpNotFound(): ApiError {
+  return new ApiError('NOT_FOUND', { detail: ETP_MESSAGES.notFound });
+}
+
+export interface EtpView {
+  readonly dto: EtpDetailDto;
+  readonly meta: EtpDetailMeta;
+}
+
+/*
+ * ETP-03 — Obter ETP (US-020 · SCR-008): `PROCESS_VIEW` pela visibilidade do processo (DEC-024 —
+ * 404 `NOT_FOUND` indistinguível), POL-09 no valor estimado. O rascunho por seção (com a revisão
+ * do `If-Match` do DOC-05), as ações (`UPDATE` só com ETP_UPDATE + POL-02 e o ETP editável — a
+ * tela abre somente leitura sem ela) e as seções da versão do template. Sem auditoria nem eventos.
+ */
+@Injectable()
+export class GetEtpQuery {
+  constructor(
+    @Inject(ETP_TRANSACTIONS) private readonly transactions: EtpTransactions,
+    @Inject(ETP_REPOSITORY) private readonly etps: EtpRepository,
+    private readonly documents: DocumentFacade,
+  ) {}
+
+  execute(etpId: string): Promise<EtpView> {
+    return this.transactions.read(async (tx) => {
+      const etp = await this.etps.findById(tx, etpId);
+      if (etp === null) throw etpNotFound();
+      const view = await this.documents.typedDocumentIn(tx, etp.documentId);
+      if (view === null) throw etpNotFound();
+      const items = await this.documents.documentItemsIn(tx, etp.documentId);
+      return {
+        dto: toEtpDetailDto(etp, view.document, items.length, {
+          masked: view.isBudgetConfidential && !view.canViewConfidentialBudget,
+        }),
+        meta: toEtpDetailMeta(view.template, view.allowedActions),
       };
     });
   }

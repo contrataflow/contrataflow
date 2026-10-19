@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 
 import { ErrorView } from '@/components/errors/error-view';
 import { AiAssistant, isAiTarget } from '@/features/ai/ai-assistant';
@@ -28,6 +29,8 @@ export interface DocumentViewProps {
   readonly aiGenerationId?: string | null | undefined;
   /** Foco no título assim que o documento carrega (US-019: chegada à SCR-008 após criar o ETP). */
   readonly focusTitleOnLoad?: boolean | undefined;
+  /** Editor do módulo tipado (US-020: seções do ETP), entre o ciclo de vida e os anexos. */
+  readonly children?: ReactNode;
 }
 
 /**
@@ -41,6 +44,7 @@ export function DocumentView({
   documentId,
   aiGenerationId = null,
   focusTitleOnLoad = false,
+  children,
 }: DocumentViewProps) {
   const t = useTranslations('documents.view');
   const tErrors = useTranslations('errors');
@@ -182,6 +186,8 @@ export function DocumentView({
       <AiReviewPanel document={document} meta={meta} />
 
       <DocumentLifecycle document={document} meta={meta} fallbackFocus={focusHeading} />
+
+      {children}
 
       {/* US-064: o externo é o próprio arquivo — envio, versão corrente e prévia; os demais tipos
           recebem anexos (US-068: anexar exige poder editar — POL-02 → `UPDATE`). */}

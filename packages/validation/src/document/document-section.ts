@@ -33,8 +33,9 @@ export const DOCUMENT_SECTION_MESSAGES = Object.freeze({
   tooLong: (maxChars: number) => `O texto excede ${maxChars.toLocaleString('pt-BR')} caracteres.`,
   notEditable: 'Este documento não pode mais ser editado.',
   notCustodian: 'Somente quem está com o processo (ou colaboradores) pode editar.',
-  justificationRequired: `Justifique por que a seção não se aplica (mín. ${String(SECTION_NOT_APPLICABLE_JUSTIFICATION_MIN)} caracteres).`,
-  justificationTooShort: `A justificativa deve ter pelo menos ${String(SECTION_NOT_APPLICABLE_JUSTIFICATION_MIN)} caracteres.`,
+  // US-020 V-04: a mesma mensagem para ausente e curta.
+  justificationRequired: `Explique por que esta seção não se aplica (mín. ${String(SECTION_NOT_APPLICABLE_JUSTIFICATION_MIN)} caracteres).`,
+  justificationTooShort: `Explique por que esta seção não se aplica (mín. ${String(SECTION_NOT_APPLICABLE_JUSTIFICATION_MIN)} caracteres).`,
   justificationTooLong: `Informe no máximo ${SECTION_NOT_APPLICABLE_JUSTIFICATION_MAX.toLocaleString('pt-BR')} caracteres.`,
 });
 

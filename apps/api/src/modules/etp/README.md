@@ -29,3 +29,25 @@ DFD (`dfd/README.md`).
   falha induzida, concorrência, RLS, FKs).
 - **Fora desta story**: leitura/edição (ETP-03/04, US-020/022/023), alternativas (US-021), validador
   de completude e `snapshotParts` do ETP (US-023).
+
+## US-020 — Editar seções do ETP com autosave e "não se aplica" justificado (ETP-03 · DOC-05/08)
+
+- **ETP-03** `GET /etps/{id}` (`GetEtpQuery`): `typedDocumentIn` (visibilidade DEC-024 — 404
+  `NOT_FOUND` "Documento não encontrado." para inexistente/outro tenant/não visível) → `EtpDetail`
+  (`Etp` + conclusão/estimativa com POL-09 — `estimatedTotalValueMasked` — + `draftRevision` e
+  `draftContent`) e `meta` (`allowedActions` + seções da versão do template com `render` e
+  `allowNarrative`). Contratos `etpDetailSchema`/`etpDetailMetaSchema`/`etpIdParamsSchema`.
+- **Seções**: nada novo no servidor — o DOC-05 genérico (US-015) já cobre autosave, revisão por
+  seção, "não se aplica" (`notApplicable: true` ou `state: 'NOT_APPLICABLE'`, justificativa ≥ 20 —
+  mensagem da US-020 em `DOCUMENT_SECTION_MESSAGES`), `SECTION_NOT_IN_TEMPLATE`, `RICH_TEXT_INVALID`
+  e a auditoria coalescida `document.draft_update`; ETP_UPDATE vem de `domain/document-permissions.ts`.
+- **Regras puras da tela** (`packages/validation/src/etp/etp-sections.ts`): `etpStructuredKind`
+  (RN-ETP-12 — `render`, ou a chave `ESTIMATES`/`ALTERNATIVES`/`RISKS` em seção `TEXT`),
+  `etpSectionNav`/`etpCompletionSummary` (RN-ETP-13 — estado + pendências do DOC-08) e
+  `notApplicableJustificationProblem` (V-04).
+- **Web** (`apps/web/src/features/etp/`): `EtpEditor` (SCR-008, dentro do `DocumentView`) com
+  `SectionSidebarNav`, `NotApplicableToggle`, quadros somente leitura (`etp-structured-sections.tsx`)
+  e `useEtpAutosave` (o `useAutosave` de `@contrataflow/ui`, alvos `SECTION:<CHAVE>`).
+- **Testes**: `presentation/etp-sections.routes.spec.ts` (8 categorias do Gherkin + FA-02/05,
+  V-01/V-06), `test/tenant-leak/etp-sections.spec.ts` (PostgreSQL) e
+  `apps/web/src/features/etp/etp-editor.test.tsx`.
