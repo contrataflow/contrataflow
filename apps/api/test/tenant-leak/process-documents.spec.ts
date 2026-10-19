@@ -39,7 +39,7 @@ import {
 } from '../support/api-test-app.js';
 import type { TestApi } from '../support/api-test-app.js';
 import { documentFacadeOf, openStageForAnyType } from '../support/document-fixtures.js';
-import { runTenantSeeders } from '../support/process-fixtures.js';
+import { PROCESS_PREREQUISITE_SEEDERS, runTenantSeeders } from '../support/process-fixtures.js';
 
 const A = '0192c062-0000-7000-8000-00000000010a';
 const B = '0192c062-0000-7000-8000-00000000010b';
@@ -192,8 +192,10 @@ describe('Feature: Painel de documentos do processo sobre PostgreSQL (US-062)', 
       ],
     });
     membership.inner = api.app.get(PrismaIdentityRepository);
-    await runTenantSeeders(api, A);
-    await runTenantSeeders(api, B);
+    // US-063 · FA-05: o livre só entra no menu com template padrão publicado (biblioteca US-110).
+    const seeders = [...PROCESS_PREREQUISITE_SEEDERS, 'document.templateLibrary'];
+    await runTenantSeeders(api, A, seeders);
+    await runTenantSeeders(api, B, seeders);
     openStages = openStageForAnyType(api);
     const typeId = async (code: string) =>
       (

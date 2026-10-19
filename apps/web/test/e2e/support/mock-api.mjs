@@ -2213,6 +2213,117 @@ termStates.get(listProcessId(34)).term = buildTerm(TERM_FIXTURES[1], {
 const termOf = (termId) =>
   [...termStates.values()].find((state) => state.term?.id === termId)?.term;
 
+// Documento livre (US-063 · DOC-01/02/03/05): o processo 0036/2026, fora da lista (SCR-004), com o
+// Ofício no menu "Criar documento"; o DOC-02 cria o ofício do modelo padrão (duas seções, uma que
+// admite "não se aplica") e a SCR-105 o redige com o autosave. A numeração, a atomicidade, POL-02,
+// o template publicado e o isolamento por tenant são cobertos nos testes da API.
+const FREE_TEXT_TYPE = documentTypes.find((type) => type.code === 'OFICIO');
+const FREE_TEXT_TEMPLATE = {
+  versionId: '0192a000-0000-7000-8000-0000000e3601',
+  versionNumber: 1,
+  sections: [
+    {
+      key: 'CONTENT',
+      title: 'Conteúdo do ofício',
+      order: 1,
+      requirement: 'REQUIRED',
+      helpText: 'Identifique o destinatário, o assunto e o pedido ou a informação.',
+      legalBasis: 'Lei 14.133/2021, art. 12',
+      minChars: null,
+      maxChars: 50000,
+    },
+    {
+      key: 'ATTACHMENTS_NOTE',
+      title: 'Anexos referidos',
+      order: 2,
+      requirement: 'REQUIRED_OR_JUSTIFY',
+      helpText: 'Liste os documentos que acompanham o ofício.',
+      legalBasis: null,
+      minChars: null,
+      maxChars: 2000,
+    },
+  ],
+};
+const FREE_TEXT_FIXTURES = [
+  { n: 36, code: '0036/2026', title: 'Manutenção das praças do centro' },
+].map((fixture) => ({
+  ...fixture,
+  status: 'IN_PROGRESS',
+  priority: 'MEDIUM',
+  overdue: false,
+  unit: 0,
+}));
+/** processId → { fixture, documents, replays }. */
+const freeTextStates = new Map(
+  FREE_TEXT_FIXTURES.map((fixture) => [
+    listProcessId(fixture.n),
+    { fixture, documents: [], replays: new Map() },
+  ]),
+);
+let freeTextSequence = 0;
+const freeTextDocumentOf = (documentId) =>
+  [...freeTextStates.values()]
+    .flatMap((state) => state.documents)
+    .find((document) => document.id === documentId);
+
+function buildFreeTextDocument(state, title, responsibleId) {
+  const now = new Date().toISOString();
+  freeTextSequence += 1;
+  const number = freeTextSequence;
+  const paragraph = (text) => ({
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  });
+  const section = (extra) => ({
+    state: 'EMPTY',
+    content: null,
+    justification: null,
+    revision: 1,
+    updatedAt: now,
+    updatedById: TERM_AUTHOR_ID,
+    ...extra,
+  });
+  return {
+    ...versionedDocument,
+    id: mockUuid(),
+    processId: listProcessId(state.fixture.n),
+    documentType: {
+      id: FREE_TEXT_TYPE.id,
+      code: 'OFICIO',
+      name: 'Ofício',
+      kind: 'FREE_TEXT',
+      systemModule: null,
+      requiresApproval: false,
+    },
+    templateVersionId: FREE_TEXT_TEMPLATE.versionId,
+    number,
+    year: 2026,
+    code: `OF ${String(number).padStart(4, '0')}/2026`,
+    title,
+    status: 'DRAFT',
+    confidentiality: 'INTERNAL',
+    draftContent: {
+      sections: {
+        CONTENT: section({
+          state: 'FILLED',
+          content: paragraph(
+            `Processo ${state.fixture.code} — encaminhamos para as providências cabíveis.`,
+          ),
+        }),
+        ATTACHMENTS_NOTE: section({}),
+      },
+    },
+    draftRevision: 1,
+    currentVersionId: null,
+    currentVersionNumber: null,
+    responsibleId: responsibleId ?? TERM_AUTHOR_ID,
+    createdById: TERM_AUTHOR_ID,
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+  };
+}
+
 function termSummaryOf(term) {
   return {
     id: term.id,
@@ -5170,6 +5281,114 @@ createServer(async (request, response) => {
       { ETag: `"s${String(current.revision)}"` },
     );
   }
+  // Documento livre (US-063): DOC-01 (menu com o Ofício), DOC-02, DOC-03 e DOC-05.
+  const freeTextProcessRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/documents$/.exec(
+    url.pathname,
+  );
+  const freeTextState = freeTextProcessRoute
+    ? freeTextStates.get(freeTextProcessRoute[1])
+    : undefined;
+  if (freeTextProcessRoute && freeTextState && request.method === 'GET') {
+    return send(response, 200, {
+      data: freeTextState.documents.map(({ draftContent: _content, ...document }) => ({
+        ...document,
+        responsibleName: 'Ana Souza',
+        summary: null,
+        meta: { allowedActions: ['UPDATE', 'FINALIZE'] },
+      })),
+      meta: {
+        currentStage: { key: 'ESTUDOS', name: 'Estudos preliminares', documentTypeCodes: [] },
+        creatableTypeIds: [FREE_TEXT_TYPE.id],
+        pendingTypeIds: [],
+      },
+    });
+  }
+  if (freeTextProcessRoute && freeTextState && request.method === 'POST') {
+    // DOC-02: idempotente por chave; título de 5 a 250 caracteres (V-01).
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const key = String(request.headers['idempotency-key'] ?? '');
+    const replay = key ? freeTextState.replays.get(key) : undefined;
+    if (replay) {
+      return send(response, 201, replay, { 'Idempotent-Replayed': 'true', ETag: '"1"' });
+    }
+    const title = String(body.title ?? '').trim();
+    if (title.length < 5 || title.length > 250) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [
+          {
+            field: 'title',
+            code: title.length < 5 ? 'TOO_SHORT' : 'TOO_LONG',
+            message: 'O título deve ter entre 5 e 250 caracteres.',
+          },
+        ],
+      });
+    }
+    const document = buildFreeTextDocument(
+      freeTextState,
+      title,
+      typeof body.responsibleId === 'string' ? body.responsibleId : null,
+    );
+    freeTextState.documents.push(document);
+    const result = {
+      data: document,
+      meta: { allowedActions: ['UPDATE', 'FINALIZE'], template: FREE_TEXT_TEMPLATE },
+    };
+    if (key) freeTextState.replays.set(key, result);
+    return send(response, 201, result, {
+      Location: `/api/v1/documents/${document.id}`,
+      ETag: '"1"',
+    });
+  }
+  const freeTextDocumentRoute =
+    /^\/api\/v1\/documents\/([0-9a-f-]{36})(\/sections\/([A-Z_]+))?$/.exec(url.pathname);
+  const freeTextDocument = freeTextDocumentRoute
+    ? freeTextDocumentOf(freeTextDocumentRoute[1])
+    : undefined;
+  if (freeTextDocument && freeTextDocumentRoute?.[3] === undefined && request.method === 'GET') {
+    return send(
+      response,
+      200,
+      {
+        data: freeTextDocument,
+        meta: { allowedActions: ['UPDATE', 'FINALIZE'], template: FREE_TEXT_TEMPLATE },
+      },
+      { ETag: `"${String(freeTextDocument.version)}"` },
+    );
+  }
+  if (freeTextDocument && freeTextDocumentRoute?.[3] !== undefined && request.method === 'PUT') {
+    // DOC-05: revisão por seção (`If-Match: "s<revision>"`), sem versão nova (RN-DOC-27).
+    const sectionKey = freeTextDocumentRoute[3];
+    const current = freeTextDocument.draftContent.sections[sectionKey];
+    if (!current) {
+      return problem(response, 422, 'SECTION_NOT_IN_TEMPLATE', String(correlationId));
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"s${String(current.revision)}"`) {
+      return problem(response, 412, 'SECTION_REVISION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const filled = body.content !== null && body.content !== undefined;
+    current.state = body.notApplicable === true ? 'NOT_APPLICABLE' : filled ? 'FILLED' : 'EMPTY';
+    current.content = body.notApplicable === true ? null : (body.content ?? null);
+    current.justification = body.notApplicable === true ? (body.justification ?? null) : null;
+    current.revision += 1;
+    current.updatedAt = new Date().toISOString();
+    freeTextDocument.draftRevision += 1;
+    return send(
+      response,
+      200,
+      {
+        data: {
+          sectionKey,
+          state: current.state,
+          revision: current.revision,
+          updatedAt: current.updatedAt,
+          updatedBy: { id: TERM_AUTHOR_ID, name: 'Ana Souza' },
+          draftRevision: freeTextDocument.draftRevision,
+        },
+      },
+      { ETag: `"s${String(current.revision)}"` },
+    );
+  }
   // Pesquisa de preços (US-024): itens e documentos do processo, PRS-01/02 e PRS-03/05.
   const priceProcessRoute =
     /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(items|documents|price-research)$/.exec(url.pathname);
@@ -5318,6 +5537,7 @@ createServer(async (request, response) => {
         ...PRICE_FIXTURES,
         ...ETP_FIXTURES,
         ...TERM_FIXTURES,
+        ...FREE_TEXT_FIXTURES,
         ...CANCELLATION_FIXTURES,
         ...ASSIGN_FIXTURES,
       ].find((fixture) => listProcessId(fixture.n) === listedRoute[1])

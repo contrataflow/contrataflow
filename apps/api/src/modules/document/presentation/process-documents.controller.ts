@@ -47,7 +47,7 @@ const PANEL_RESPONSE = z.object({
 
 /**
  * DOC-01 (api/03-documents.md · US-062): documentos do processo para a aba "Documentos" de SCR-006;
- * DOC-02 (US-064 — `UPLOADED`; US-063 — `FREE_TEXT`): criar documento no processo. Dono: módulo
+ * DOC-02 (US-064 — `UPLOADED`; US-063 — `FREE_TEXT`, do template padrão publicado): criar documento no processo. Dono: módulo
  * `document`; o caminho fica sob `/processes/{id}` como as demais leituras do painel.
  */
 @Controller('processes')
@@ -93,7 +93,7 @@ export class ProcessDocumentsController {
     responses: {
       201: {
         description:
-          'Documento em `DRAFT` (`Location`, `ETag` = versão). Tipo `UPLOADED` nasce sem versão (`currentVersionId = null` — o arquivo vem pelo DOC-19). `DOCUMENT_CREATE` cobrindo o processo + custódia ou participação `COLLABORATOR`/`CONSULTANT` (POL-02); processo inexistente/de outro tenant/não visível → 404 `NOT_FOUND`; fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` → 409 `INVALID_PROCESS_STATUS`; tipo inexistente/inativo/de outro `kind` → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); fora da etapa → 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`; singular já existente → 409 `DOCUMENT_ALREADY_EXISTS`.',
+          'Documento em `DRAFT` (`Location`, `ETag` = versão). Tipo `UPLOADED` nasce sem versão (`currentVersionId = null` — o arquivo vem pelo DOC-19; `meta.template = null`). Tipo `FREE_TEXT` (US-063) nasce da versão publicada do template padrão do tipo, com `draftContent.sections` por seção do modelo (`revision = 1`; `FILLED` com `defaultContent` de variáveis resolvidas, senão `EMPTY`) e `meta.template` (seções na ordem); sem template padrão publicado → 422 `VALIDATION_ERROR` (`REFERENCE_INACTIVE` em `documentTypeId`). `DOCUMENT_CREATE` cobrindo o processo + custódia ou participação `COLLABORATOR`/`CONSULTANT` (POL-02); processo inexistente/de outro tenant/não visível → 404 `NOT_FOUND`; fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` → 409 `INVALID_PROCESS_STATUS`; tipo inexistente/inativo/de outro `kind` → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); fora da etapa → 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`; singular já existente → 409 `DOCUMENT_ALREADY_EXISTS`.',
         schema: z.object({ data: documentSchema, meta: documentMetaSchema }),
       },
     },
@@ -115,6 +115,7 @@ export class ProcessDocumentsController {
     response.setHeader('ETag', `"${result.document.version}"`);
     return new DataResult(toDocumentDto(result.document, result.type), {
       allowedActions: result.allowedActions,
+      template: result.template,
     });
   }
 }

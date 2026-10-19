@@ -35,6 +35,7 @@ import {
   CATALOG_CLOCK,
   catalogItemId,
   processRepositoryOf,
+  PROCESS_PREREQUISITE_SEEDERS,
   runTenantSeeders,
   seedProcessStructure,
 } from '../../../../test/support/process-fixtures.js';
@@ -208,7 +209,8 @@ describe('Feature: Painel de documentos do processo (US-062)', () => {
       ],
     });
     cache = api.app.get<InMemoryCacheStore>(CACHE_STORE, { strict: false });
-    await runTenantSeeders(api, A);
+    // US-063 · FA-05: o livre só entra no menu com template padrão publicado (biblioteca US-110).
+    await runTenantSeeders(api, A, [...PROCESS_PREREQUISITE_SEEDERS, 'document.templateLibrary']);
     await runTenantSeeders(api, B, [
       'catalog.items',
       'access.defaultRoles',

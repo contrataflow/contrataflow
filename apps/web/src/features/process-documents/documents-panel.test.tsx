@@ -222,12 +222,9 @@ describe('SCR-006 · aba "Documentos" (US-062)', () => {
       .map((item) => item.textContent);
     expect(options).toEqual(['Despacho', 'Ofício']);
     await user.click(within(menu).getByRole('menuitem', { name: 'Ofício' }));
-    // Destino de criação (US-063/064 e módulos tipados) ainda não entregue.
-    expect(
-      await screen.findByText(
-        'Esta ação abre o diálogo próprio, ainda não disponível nesta versão.',
-      ),
-    ).toBeTruthy();
+    // US-063: o livre abre o diálogo de criação (título + responsável) rumo ao editor da SCR-105.
+    const dialog = await screen.findByRole('dialog', { name: 'Novo documento: Ofício' });
+    expect(within(dialog).getByRole('button', { name: 'Criar e redigir' })).toBeTruthy();
   });
 
   it('US-024: "Pesquisa de preços" no menu abre o diálogo de criação (PRS-02)', async () => {

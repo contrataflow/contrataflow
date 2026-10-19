@@ -18,6 +18,7 @@ import { AiReviewPanel } from './ai-review';
 import { DocumentLifecycle } from './document-lifecycle';
 import { DocumentStatusBadge, PendingApprovalBadge } from './document-status-badge';
 import { documentKeys, documentVersionsHref, fetchDocument } from './documents.api';
+import { FreeTextEditor } from './free-text-editor';
 import { GeneratePdfButton } from './generate-pdf-button';
 import { SaveVersionAction } from './save-version-dialog';
 import { UploadedDocumentFile } from './uploaded-document-file';
@@ -35,9 +36,10 @@ export interface DocumentViewProps {
 
 /**
  * SCR-105 — visualizador do documento com o ciclo de vida (US-065): cabeçalho (código, título,
- * tipo, status, selo "Em aprovação" e versão corrente) e as ações do ciclo de vida; no externo, o
- * arquivo com versões e prévia (US-064). O editor de seções é da US-063. Estados: skeleton na primeira carga e erro com `correlationId` e "Tentar
- * novamente"; 404 mostra a mensagem única (não distingue inexistente de sem acesso).
+ * tipo, status, selo "Em aprovação" e versão corrente) e as ações do ciclo de vida; no livre, o
+ * editor de seções com autosave (US-063); no externo, o arquivo com versões e prévia (US-064).
+ * Estados: skeleton na primeira carga e erro com `correlationId` e "Tentar novamente"; 404 mostra a
+ * mensagem única (não distingue inexistente de sem acesso).
  */
 export function DocumentView({
   processId,
@@ -187,6 +189,16 @@ export function DocumentView({
 
       <DocumentLifecycle document={document} meta={meta} fallbackFocus={focusHeading} />
 
+      {/* US-063: o livre é redigido aqui, seção por seção (o template vem em `meta.template`). */}
+      {document.documentType.kind === 'FREE_TEXT' && meta.template ? (
+        <FreeTextEditor
+          key={document.id}
+          document={document}
+          meta={meta}
+          template={meta.template}
+        />
+      ) : null}
+
       {children}
 
       {/* US-064: o externo é o próprio arquivo — envio, versão corrente e prévia; os demais tipos
@@ -212,7 +224,11 @@ export function DocumentView({
           sections:
             document.documentType.kind === 'UPLOADED'
               ? []
-              : Object.keys(document.draftContent.sections).map((key) => ({ key, title: key })),
+              : Object.keys(document.draftContent.sections).map((key) => ({
+                  key,
+                  title:
+                    meta.template?.sections.find((section) => section.key === key)?.title ?? key,
+                })),
         }}
       />
     </div>

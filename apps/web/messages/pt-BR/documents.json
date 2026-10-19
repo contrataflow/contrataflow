@@ -372,9 +372,80 @@
     "hint": "Entre 5 e 250 caracteres.",
     "count": "{count} de {max} caracteres",
     "confirm": "Criar e enviar arquivo",
+    "descriptionFreeText": "Informe o título. O documento nasce do modelo do tipo e você o redige em seguida.",
+    "confirmFreeText": "Criar e redigir",
+    "responsibleDefault": "Em branco, o responsável é você.",
     "cancel": "Cancelar",
     "working": "Criando…",
     "notAllowed": "Não é possível criar este documento agora.",
     "notFound": "Processo não encontrado."
+  },
+  "editor": {
+    "heading": "Conteúdo do documento",
+    "sectionsNav": "Seções do documento",
+    "sectionsMenu": "Seções",
+    "state": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "requirement": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou justificada",
+      "OPTIONAL": "Opcional"
+    },
+    "requiredMark": "Obrigatória",
+    "legalBasis": "Base legal: {basis}",
+    "help": "Orientação para o preenchimento",
+    "textLabel": "Texto da seção {title}",
+    "count": "{count} de {max} caracteres",
+    "previous": "Seção anterior",
+    "next": "Próxima seção",
+    "readOnly": {
+      "title": "Somente leitura",
+      "notEditable": "Este documento não pode ser editado no momento.",
+      "forbidden": "Você não pode editar este documento agora."
+    },
+    "autosave": {
+      "indicator": {
+        "dirty": "Alterações não salvas",
+        "saving": "Salvando…",
+        "saved": "Salvo às {time}",
+        "savedShort": "Salvo",
+        "error": "Não foi possível salvar",
+        "offline": "Não foi possível salvar — tentando novamente",
+        "offlineShort": "Não foi possível salvar",
+        "conflict": "Conflito de edição — escolha qual versão manter",
+        "blocked": "Edição interrompida"
+      },
+      "conflict": {
+        "title": "Esta seção foi alterada por outra pessoa",
+        "changedBy": "Alterado por {name} às {time}.",
+        "changedBySelf": "Você, em outra aba, às {time}.",
+        "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+        "showDiff": "Ver diferenças",
+        "hideDiff": "Ocultar diferenças",
+        "keepMine": "Manter a minha versão",
+        "discardMine": "Descartar a minha e recarregar",
+        "serverColumn": "Versão salva no servidor",
+        "mineColumn": "Minha versão",
+        "inserted": "inserido",
+        "removed": "removido",
+        "empty": "(vazio)",
+        "someone": "outra pessoa"
+      },
+      "recovered": {
+        "title": "Recuperamos alterações não salvas de {time}.",
+        "restore": "Restaurar",
+        "discard": "Descartar"
+      },
+      "blocked": {
+        "notEditable": "O documento não pode ser editado no momento.",
+        "forbidden": "Você não pode editar este documento agora.",
+        "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+        "generic": "Não foi possível salvar agora. Tente novamente em instantes.",
+        "kept": "Suas últimas alterações foram guardadas neste navegador."
+      }
+    }
   }
 }

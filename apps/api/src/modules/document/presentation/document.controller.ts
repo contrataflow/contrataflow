@@ -135,7 +135,7 @@ export class DocumentController {
     responses: {
       200: {
         description:
-          'Documento com o rascunho de trabalho e `meta.allowedActions` (`ETag` = versão).',
+          'Documento com o rascunho de trabalho, `meta.allowedActions` e `meta.template` — a versão do template fixada no documento (seções na ordem, com exigência, orientação, base legal e limites; `null` no externo) para o editor da SCR-105 (US-063) sem `TEMPLATE_VIEW` (`ETag` = versão).',
         schema: DOCUMENT_RESPONSE,
       },
     },
@@ -144,7 +144,12 @@ export class DocumentController {
     @ZodParams(documentIdParamsSchema) params: { id: string },
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<DocumentResponse> {
-    return this.respond(await this.queries.get(params.id), response);
+    const result = await this.queries.get(params.id);
+    response.setHeader('ETag', `"${result.document.version}"`);
+    return new DataResult(toDocumentDto(result.document, result.type), {
+      allowedActions: result.allowedActions,
+      template: result.template,
+    });
   }
 
   @Patch(':id')

@@ -24,6 +24,7 @@ import type { Document } from '../domain/document.js';
 import {
   draftContentFromSource,
   initialDraftContent,
+  processTemplateVariables,
   withSectionContents,
 } from '../domain/structured-draft.js';
 
@@ -148,12 +149,7 @@ export class StructuredDocumentCreator {
     const initial = initialDraftContent(template.sections, {
       actorId: userId,
       now,
-      variables: {
-        'process.code': process.code ?? '',
-        'process.title': process.title,
-        'process.object': process.object,
-        'organization.name': process.organizationName ?? '',
-      },
+      variables: processTemplateVariables(process),
     });
     const seeded =
       input.sectionContents === undefined

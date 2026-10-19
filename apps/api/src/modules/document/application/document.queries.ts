@@ -1,8 +1,9 @@
-import type { DocumentValidationDto } from '@contrataflow/validation';
+import type { DocumentTemplateMetaDto, DocumentValidationDto } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import type { DocumentTransitionResult } from './document.commands.js';
+import { toDocumentTemplateMeta } from './document.view.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS } from './ports.js';
 import type { DocumentClock, DocumentTransactions } from './ports.js';
 
@@ -19,8 +20,15 @@ export class DocumentQueries {
     private readonly lifecycle: DocumentLifecycleService,
   ) {}
 
-  /** DOC-03: o documento com `meta.allowedActions` (RN-DOC-18). */
-  get(documentId: string): Promise<Omit<DocumentTransitionResult, 'transition'>> {
+  /**
+   * DOC-03: o documento com `meta.allowedActions` (RN-DOC-18) e `meta.template` — a versão do
+   * template fixada, para o editor de seções da SCR-105 (US-063) sem `TEMPLATE_VIEW`.
+   */
+  get(documentId: string): Promise<
+    Omit<DocumentTransitionResult, 'transition'> & {
+      readonly template: DocumentTemplateMetaDto | null;
+    }
+  > {
     return this.transactions.read(async (tx) => {
       const context = await this.lifecycle.load(tx, documentId);
       const actor = await this.lifecycle.actorOf(context);
@@ -28,6 +36,7 @@ export class DocumentQueries {
         document: context.document,
         type: context.type,
         allowedActions: this.lifecycle.allowedActions(context, actor),
+        template: toDocumentTemplateMeta(context.template),
       };
     });
   }

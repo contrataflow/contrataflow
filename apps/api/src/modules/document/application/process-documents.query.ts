@@ -12,6 +12,7 @@ import type { Histogram } from '@opentelemetry/api';
 import { isProcessVisible } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { isTransientDatabaseError } from '#shared/database/errors.js';
+import type { TenantTx } from '#shared/database/prisma.js';
 import { DocumentProcessContextRegistry } from '#shared/document/document-process-context.js';
 import type { DocumentProcessContext } from '#shared/document/document-process-context.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
@@ -25,6 +26,9 @@ import type { DocumentRepository } from './document.ports.js';
 import { toDocumentDto } from './document.view.js';
 import { DOCUMENT_TRANSACTIONS } from './ports.js';
 import type { DocumentTransactions } from './ports.js';
+import { publishedDefaultTemplate } from './published-default-template.js';
+import { TEMPLATE_REPOSITORY } from './template.ports.js';
+import type { TemplateRepository } from './template.ports.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { maskConfidentialRecord } from '../domain/confidential-snapshot.js';
@@ -76,6 +80,7 @@ export class GetProcessDocumentsHandler {
     private readonly lifecycle: DocumentLifecycleService,
     private readonly access: AccessFacade,
     private readonly identity: IdentityFacade,
+    @Inject(TEMPLATE_REPOSITORY) private readonly templates: TemplateRepository,
   ) {}
 
   async execute(processId: string, query: ProcessDocumentsQuery): Promise<ProcessDocumentsResult> {
@@ -180,7 +185,7 @@ export class GetProcessDocumentsHandler {
           },
         });
       }
-      return { items, meta: await this.metaOf(process, allTypes, documents) };
+      return { items, meta: await this.metaOf(tx, process, allTypes, documents) };
     });
   }
 
@@ -203,8 +208,12 @@ export class GetProcessDocumentsHandler {
       !canView && sensitive(document) ? maskConfidentialRecord(summary) : { ...summary };
   }
 
-  /** RN-DOC-13/14/16: etapa atual, menu "Criar documento" e singulares "Não iniciado". */
+  /**
+   * RN-DOC-13/14/16: etapa atual, menu "Criar documento" e singulares "Não iniciado". O livre só
+   * entra no menu com template padrão publicado (US-063 · FA-05 · RN-DOC-22 — a mesma regra do DOC-02).
+   */
   private async metaOf(
+    tx: TenantTx,
     process: DocumentProcessContext,
     allTypes: readonly DocumentType[],
     documents: readonly Document[],
@@ -219,12 +228,24 @@ export class GetProcessDocumentsHandler {
         permissions.set(permission, await this.access.canOnProcess(permission, process.access));
       }
     }
+    const withoutTemplate = new Set<string>();
+    if (pol02) {
+      for (const type of allTypes) {
+        if (type.kind !== 'FREE_TEXT' || !type.isActive) continue;
+        if ((await publishedDefaultTemplate(tx, this.templates, type)) === null) {
+          withoutTemplate.add(type.id);
+        }
+      }
+    }
     const { creatableTypeIds, pendingTypeIds } = panelTypes({
       types: allTypes,
       stage,
       processEditable: DOCUMENT_EDITABLE_PROCESS_STATUSES.has(process.status),
       documents,
-      canCreate: (type) => pol02 && permissions.get(createPermissionOf(type.systemModule)) === true,
+      canCreate: (type) =>
+        pol02 &&
+        !withoutTemplate.has(type.id) &&
+        permissions.get(createPermissionOf(type.systemModule)) === true,
     });
     return {
       currentStage:

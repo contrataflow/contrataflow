@@ -409,12 +409,13 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
   const [creatingEtp, setCreatingEtp] = useState(false);
   const [creatingTerm, setCreatingTerm] = useState(false);
 
-  // Destinos de criação: o diálogo da US-064 (UPLOADED → SCR-105 "Enviar arquivo"), o DFD-02 da
-  // US-014 (DFD → SCR-007), o diálogo do ETP (US-019 → SCR-008) e o da pesquisa de preços (US-024 →
-  // SCR-009), o do TR (US-036 → SCR-012); o da US-063 (FREE_TEXT) e os demais módulos tipados ainda não chegaram.
+  // Destinos de criação: o diálogo das US-063/064 (FREE_TEXT → editor de seções e UPLOADED → "Enviar
+  // arquivo", ambos na SCR-105), o DFD-02 da US-014 (DFD → SCR-007), o diálogo do ETP (US-019 →
+  // SCR-008) e o da pesquisa de preços (US-024 → SCR-009), o do TR (US-036 → SCR-012); os demais
+  // módulos tipados ainda não chegaram.
   const elaborate = useElaborateDfd(processId);
   const onCreate = (type: PanelType) => {
-    if (type.kind === 'UPLOADED') {
+    if (type.kind === 'UPLOADED' || type.kind === 'FREE_TEXT') {
       setCreating(type);
       return;
     }

@@ -1,5 +1,9 @@
-import { DOCUMENT_VERSION_MESSAGES } from '@contrataflow/validation';
-import type { DocumentAction, DocumentVersionDto } from '@contrataflow/validation';
+import { DOCUMENT_MESSAGES, DOCUMENT_VERSION_MESSAGES } from '@contrataflow/validation';
+import type {
+  DocumentAction,
+  DocumentTemplateMetaDto,
+  DocumentVersionDto,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 import { metrics } from '@opentelemetry/api';
 import type { Counter } from '@opentelemetry/api';
@@ -20,12 +24,17 @@ import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import type { DocumentContext } from './document-lifecycle.service.js';
 import { toDocumentVersionDto } from './document-version.view.js';
 import { recordDocumentVersion } from './document.commands.js';
+import { toDocumentTemplateMeta } from './document.view.js';
 import { DOCUMENT_CLOCK, DOCUMENT_TRANSACTIONS } from './ports.js';
 import type { DocumentClock, DocumentTransactions } from './ports.js';
+import { publishedDefaultTemplate } from './published-default-template.js';
+import { TEMPLATE_REPOSITORY } from './template.ports.js';
+import type { TemplateRepository } from './template.ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import type { DocumentType } from '../domain/document-type.js';
 import { DocumentTransitionError, recordManualVersion } from '../domain/document.js';
 import type { Document } from '../domain/document.js';
+import { initialDraftContent, processTemplateVariables } from '../domain/structured-draft.js';
 import { uploadedVersionFile } from '../domain/uploaded-version.js';
 
 /*
@@ -51,6 +60,18 @@ function recordUploadResult(result: 'created' | 'not_available'): void {
 
 // --- DOC-02 — Criar documento no processo ------------------------------------------------------
 
+let createdCounter: Counter | undefined;
+
+/** `cf_documents_created_total{kind}`: documentos criados pelo DOC-02 (DoD da US-063/US-064). */
+function recordCreated(kind: DocumentType['kind']): void {
+  createdCounter ??= metrics
+    .getMeter('contrataflow-api')
+    .createCounter('cf_documents_created_total', {
+      description: 'Documentos livres e externos criados pelo DOC-02, por kind.',
+    });
+  createdCounter.add(1, { kind });
+}
+
 export interface CreateProcessDocumentInput {
   readonly processId: string;
   readonly documentTypeId: string;
@@ -63,18 +84,26 @@ export interface CreatedProcessDocument {
   readonly document: Document;
   readonly type: DocumentType;
   readonly allowedActions: DocumentAction[];
+  /** `meta.template` (US-063): a versão do template fixada no documento livre; `null` no externo. */
+  readonly template: DocumentTemplateMetaDto | null;
 }
 
-const TYPE_MESSAGE = 'Selecione um tipo de documento válido.';
+const TYPE_MESSAGE = DOCUMENT_MESSAGES.typeInvalid;
+
+/** Os `kind` que o DOC-02 cria; `STRUCTURED` nasce pelos endpoints do módulo tipado. */
+const CREATABLE_KINDS: ReadonlySet<DocumentType['kind']> = new Set(['UPLOADED', 'FREE_TEXT']);
 
 /**
  * `CreateProcessDocumentCommand` — DOC-02 (RN-DOC-31/32 · POL-02), na ordem: processo visível
  * (404) → tipo ativo do tenant de `kind` aceito (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) →
  * `DOCUMENT_CREATE` cobrindo o processo + custódia ou participação (403) → processo editável (409)
  * → tipo na etapa (422) → responsável com vínculo ativo (422) → a fábrica única
- * (`DocumentCreationService`: singular 409, número, `document.create`, `DocumentCreated`). Nesta
- * story só `UPLOADED` (nasce sem versão — `currentVersionId = null`); o `FREE_TEXT` (template
- * publicado + seções do rascunho) entra com a US-063 neste mesmo comando.
+ * (`DocumentCreationService`: singular 409, número, `document.create`, `DocumentCreated`).
+ * `UPLOADED` (US-064) nasce sem versão nem template (`currentVersionId = null`); `FREE_TEXT`
+ * (US-063 · RN-DOC-21..26) nasce da versão publicada do template padrão do tipo — sem ela, 422
+ * `REFERENCE_INACTIVE` em `documentTypeId` (RN-DOC-22), conferido DEPOIS da autorização — com uma
+ * seção do rascunho por `SectionDefinition` (`revision = 1`; `FILLED` com `defaultContent` de
+ * variáveis resolvidas, senão `EMPTY` — RN-DOC-23).
  */
 @Injectable()
 export class CreateProcessDocumentCommand extends TransactionalCommandHandler<
@@ -88,6 +117,7 @@ export class CreateProcessDocumentCommand extends TransactionalCommandHandler<
     private readonly creation: DocumentCreationService,
     @Inject(DOCUMENT_CLOCK) private readonly clock: DocumentClock,
     private readonly identity: IdentityFacade,
+    @Inject(TEMPLATE_REPOSITORY) private readonly templates: TemplateRepository,
   ) {
     super('document.create', transactions);
   }
@@ -105,7 +135,7 @@ export class CreateProcessDocumentCommand extends TransactionalCommandHandler<
       input.processId,
       input.documentTypeId,
     );
-    if (type?.kind !== 'UPLOADED') {
+    if (type === null || !CREATABLE_KINDS.has(type.kind)) {
       throw validationError([
         { field: 'documentTypeId', code: 'REFERENCE_NOT_FOUND', message: TYPE_MESSAGE },
       ]);
@@ -115,31 +145,56 @@ export class CreateProcessDocumentCommand extends TransactionalCommandHandler<
         { field: 'documentTypeId', code: 'REFERENCE_INACTIVE', message: TYPE_MESSAGE },
       ]);
     }
-    await this.lifecycle.authorizeCreate(
-      { type, process },
-      await this.lifecycle.custodyOf(process),
-    );
+    const custody = await this.lifecycle.custodyOf(process);
+    await this.lifecycle.authorizeCreate({ type, process }, custody);
+    const template =
+      type.kind === 'FREE_TEXT' ? await publishedDefaultTemplate(tx, this.templates, type) : null;
+    if (type.kind === 'FREE_TEXT' && template === null) {
+      throw validationError([
+        {
+          field: 'documentTypeId',
+          code: 'REFERENCE_INACTIVE',
+          message: DOCUMENT_MESSAGES.templateNotPublished,
+        },
+      ]);
+    }
     if (input.responsibleId !== null) await this.assertResponsible(tx, input.responsibleId);
 
     const document = await this.creation.create(tx, {
       processId: process.id,
       documentTypeId: type.id,
       title: input.title,
-      templateVersionId: null,
+      templateVersionId: template?.id ?? null,
+      ...(template === null
+        ? {}
+        : {
+            draftContent: initialDraftContent(template.sections, {
+              actorId: custody.userId,
+              now: this.clock(),
+              variables: processTemplateVariables(process),
+            }),
+          }),
       ...(input.responsibleId === null ? {} : { responsibleId: input.responsibleId }),
       idempotencyKey: input.idempotencyKey,
     });
-    const context: DocumentContext = { document, type, template: null, process };
+    const context: DocumentContext = { document, type, template, process };
     const actor = await this.lifecycle.actorOf(context);
-    return { document, type, allowedActions: this.lifecycle.allowedActions(context, actor) };
+    return {
+      document,
+      type,
+      allowedActions: this.lifecycle.allowedActions(context, actor),
+      template: toDocumentTemplateMeta(template),
+    };
   }
 
   protected override committed(result: CreatedProcessDocument, durationMs: number): void {
+    recordCreated(result.type.kind);
     this.logger.log(
       {
         event: 'document.created',
         documentId: result.document.id,
         documentTypeCode: result.type.code,
+        code: result.document.code,
         durationMs,
         correlationId: requireRequestContext().correlationId,
       },

@@ -20,6 +20,7 @@ import type { DocumentOutcome } from '@/features/documents/document-errors';
 import { OutcomeAlert } from '@/features/documents/outcome-alert';
 import { createProcessDocument } from '@/features/documents/uploaded-documents.api';
 import { useReturnFocus } from '@/features/documents/use-return-focus';
+import { OwnerLookup } from '@/features/risks/owner-lookup';
 import { useIdempotentMutation } from '@/lib/api/use-idempotent-mutation';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -33,10 +34,12 @@ export interface CreateDocumentDialogProps {
 }
 
 /**
- * `CreateDocumentDialog` (US-064 · fluxo principal 1–3): título obrigatório (5–250 caracteres,
- * contador e erro por `aria-describedby`) → DOC-02 com `Idempotency-Key` por intenção ("Tentar
- * novamente" após 503 repete a chave) → SCR-105 do documento criado, no modo "Enviar arquivo".
- * 403/404/409/422 da API aparecem no diálogo; o menu volta a ser lido do DOC-01.
+ * `CreateDocumentDialog` (US-063/US-064 · fluxo principal 1–3): título obrigatório (5–250
+ * caracteres, contador e erro por `aria-describedby`) e, no livre, o responsável opcional (USR-02;
+ * em branco = quem cria — RN-DOC-26) → DOC-02 com `Idempotency-Key` por intenção ("Tentar
+ * novamente" após 503 repete a chave, sem duplicar — FA-04) → SCR-105 do documento criado: o editor
+ * de seções (livre) ou o modo "Enviar arquivo" (externo). 403/404/409/422 da API aparecem no
+ * diálogo; o menu volta a ser lido do DOC-01.
  */
 export function CreateDocumentDialog({ processId, type, onClose }: CreateDocumentDialogProps) {
   const t = useTranslations('documents.create');
@@ -47,13 +50,17 @@ export function CreateDocumentDialog({ processId, type, onClose }: CreateDocumen
   const id = useId();
   const field = useRef<HTMLInputElement>(null);
   const returnFocus = useReturnFocus();
+  const freeText = type.kind === 'FREE_TEXT';
   const [title, setTitle] = useState('');
+  const [responsible, setResponsible] = useState({ id: '', name: '' });
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<DocumentOutcome | null>(null);
 
   const mutation = useIdempotentMutation({
-    mutationFn: (body: { documentTypeId: string; title: string }, context) =>
-      createProcessDocument(processId, body, context),
+    mutationFn: (
+      body: { documentTypeId: string; title: string; responsibleId?: string },
+      context,
+    ) => createProcessDocument(processId, body, context),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({
         queryKey: processDocumentKeys.list(tenantId, processId),
@@ -72,7 +79,11 @@ export function CreateDocumentDialog({ processId, type, onClose }: CreateDocumen
     setError(null);
     setFeedback(null);
     try {
-      await mutation.submit({ documentTypeId: type.id, title: trimmed });
+      await mutation.submit({
+        documentTypeId: type.id,
+        title: trimmed,
+        ...(freeText && responsible.id !== '' ? { responsibleId: responsible.id } : {}),
+      });
     } catch (failure) {
       const outcome = describeDocumentError(failure, pathname);
       if (outcome.kind === 'field') {
@@ -109,7 +120,7 @@ export function CreateDocumentDialog({ processId, type, onClose }: CreateDocumen
         onCloseAutoFocus={returnFocus.restore}
       >
         <DialogTitle>{t('title', { type: type.name })}</DialogTitle>
-        <DialogDescription>{t('description')}</DialogDescription>
+        <DialogDescription>{t(freeText ? 'descriptionFreeText' : 'description')}</DialogDescription>
         <form
           noValidate
           className="flex flex-col gap-4"
@@ -149,6 +160,22 @@ export function CreateDocumentDialog({ processId, type, onClose }: CreateDocumen
             ) : null}
           </div>
 
+          {freeText ? (
+            <div className="flex flex-col gap-1">
+              <OwnerLookup
+                id={`${id}-responsible`}
+                kind="USER"
+                value={responsible.id}
+                name={responsible.name}
+                disabled={pending}
+                onChange={(userId, name) => {
+                  setResponsible({ id: userId, name });
+                }}
+              />
+              <p className="text-xs text-muted-foreground">{t('responsibleDefault')}</p>
+            </div>
+          ) : null}
+
           <div aria-live="assertive">
             {feedback?.kind === 'forbidden' || feedback?.kind === 'invalidState' ? (
               // 403 (POL-02) e 409 (processo fora de edição, tipo singular já criado): o motivo da API.
@@ -170,7 +197,7 @@ export function CreateDocumentDialog({ processId, type, onClose }: CreateDocumen
               {t('cancel')}
             </Button>
             <Button type="submit" variant="primary" disabled={pending} aria-busy={pending}>
-              {pending ? t('working') : t('confirm')}
+              {pending ? t('working') : t(freeText ? 'confirmFreeText' : 'confirm')}
             </Button>
           </DialogFooter>
         </form>

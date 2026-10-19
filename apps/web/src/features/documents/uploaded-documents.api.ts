@@ -1,7 +1,6 @@
 import type {
   DocumentCreate,
   DocumentDto,
-  DocumentMeta,
   DocumentUploadVersion,
   DocumentVersionDto,
 } from '@contrataflow/validation';
@@ -9,6 +8,7 @@ import type {
 import { apiRequest } from '@/lib/api/client';
 import type { IdempotentContext } from '@/lib/api/use-idempotent-mutation';
 
+import { documentMetaOf } from './documents.api';
 import type { DocumentResult } from './documents.api';
 
 /*
@@ -30,8 +30,7 @@ export async function createProcessDocument(
     idempotencyKey: context.idempotencyKey,
     correlationId: context.correlationId,
   });
-  const meta = result.meta as Partial<DocumentMeta>;
-  return { document: result.data, meta: { allowedActions: meta.allowedActions ?? [] } };
+  return { document: result.data, meta: documentMetaOf(result.meta) };
 }
 
 /** DOC-19. */

@@ -3437,10 +3437,92 @@
                 "DELETE"
               ]
             }
+          },
+          "template": {
+            "$ref": "#/components/schemas/DocumentTemplateMeta"
           }
         },
         "required": [
           "allowedActions"
+        ]
+      },
+      "DocumentTemplateMeta": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "type": "integer"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentTemplateSection"
+            }
+          }
+        },
+        "required": [
+          "versionId",
+          "versionNumber",
+          "sections"
+        ]
+      },
+      "DocumentTemplateSection": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "requirement": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "REQUIRED_OR_JUSTIFY",
+              "OPTIONAL"
+            ]
+          },
+          "helpText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalBasis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minChars": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxChars": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "order",
+          "requirement",
+          "helpText",
+          "legalBasis",
+          "minChars",
+          "maxChars"
         ]
       },
       "DocumentAiApplyResult": {
@@ -28755,7 +28837,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Documento com o rascunho de trabalho e `meta.allowedActions` (`ETag` = versão).",
+            "description": "Documento com o rascunho de trabalho, `meta.allowedActions` e `meta.template` — a versão do template fixada no documento (seções na ordem, com exigência, orientação, base legal e limites; `null` no externo) para o editor da SCR-105 (US-063) sem `TEMPLATE_VIEW` (`ETag` = versão).",
             "content": {
               "application/json": {
                 "schema": {
@@ -43635,7 +43717,7 @@
         },
         "responses": {
           "201": {
-            "description": "Documento em `DRAFT` (`Location`, `ETag` = versão). Tipo `UPLOADED` nasce sem versão (`currentVersionId = null` — o arquivo vem pelo DOC-19). `DOCUMENT_CREATE` cobrindo o processo + custódia ou participação `COLLABORATOR`/`CONSULTANT` (POL-02); processo inexistente/de outro tenant/não visível → 404 `NOT_FOUND`; fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` → 409 `INVALID_PROCESS_STATUS`; tipo inexistente/inativo/de outro `kind` → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); fora da etapa → 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`; singular já existente → 409 `DOCUMENT_ALREADY_EXISTS`.",
+            "description": "Documento em `DRAFT` (`Location`, `ETag` = versão). Tipo `UPLOADED` nasce sem versão (`currentVersionId = null` — o arquivo vem pelo DOC-19; `meta.template = null`). Tipo `FREE_TEXT` (US-063) nasce da versão publicada do template padrão do tipo, com `draftContent.sections` por seção do modelo (`revision = 1`; `FILLED` com `defaultContent` de variáveis resolvidas, senão `EMPTY`) e `meta.template` (seções na ordem); sem template padrão publicado → 422 `VALIDATION_ERROR` (`REFERENCE_INACTIVE` em `documentTypeId`). `DOCUMENT_CREATE` cobrindo o processo + custódia ou participação `COLLABORATOR`/`CONSULTANT` (POL-02); processo inexistente/de outro tenant/não visível → 404 `NOT_FOUND`; fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` → 409 `INVALID_PROCESS_STATUS`; tipo inexistente/inativo/de outro `kind` → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); fora da etapa → 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`; singular já existente → 409 `DOCUMENT_ALREADY_EXISTS`.",
             "content": {
               "application/json": {
                 "schema": {

@@ -30,6 +30,24 @@ function resolveNode(node: RichNode, variables: Readonly<Record<string, string>>
   return next;
 }
 
+/**
+ * Variáveis do `defaultContent` resolvidas na criação (entities.md §5.2): as do processo e do
+ * órgão. As do documento e da emissão (`{{document.*}}`, `{{today}}`…) ficam para o PDF (RN-DOC-65).
+ */
+export function processTemplateVariables(process: {
+  readonly code: string | null;
+  readonly title: string;
+  readonly object: string;
+  readonly organizationName: string | null;
+}): Record<string, string> {
+  return {
+    'process.code': process.code ?? '',
+    'process.title': process.title,
+    'process.object': process.object,
+    'organization.name': process.organizationName ?? '',
+  };
+}
+
 export function initialDraftContent(
   sections: readonly SectionDefinition[],
   input: {

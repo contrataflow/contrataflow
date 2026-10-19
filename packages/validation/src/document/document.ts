@@ -85,6 +85,12 @@ export const DOCUMENT_MESSAGES = {
   aiApplyConfirmReplace: 'Confirme a substituição do texto atual.',
   aiApplyNotApplicable: 'Esta proposta não pode mais ser aplicada. Gere novamente.',
   aiApplyVersionSummary: 'Antes de aplicar conteúdo gerado por IA',
+  // DOC-02/05 do documento livre (US-063 · V-02/V-03/V-06/V-07)
+  typeInvalid: 'Selecione um tipo de documento válido.',
+  templateNotPublished:
+    'Este tipo de documento não tem um modelo publicado. Fale com o administrador.',
+  sectionTooLong: 'O texto desta seção excede o limite permitido.',
+  justificationRequired: 'Justifique por que esta seção não se aplica (mín. 20 caracteres).',
 } as const;
 
 // --- Conteúdo (entities.md §5.3) ----------------------------------------------------------------
@@ -365,8 +371,40 @@ export const documentSchema = z
   .meta({ id: 'Document' });
 export type DocumentDto = z.infer<typeof documentSchema>;
 
+/** Seção da versão do template FIXADA no documento, como o editor da SCR-105 a usa (US-063). */
+export const documentTemplateSectionSchema = z
+  .object({
+    key: z.string(),
+    title: z.string(),
+    order: z.int(),
+    requirement: z.enum(SECTION_REQUIREMENTS),
+    helpText: z.string().nullable(),
+    legalBasis: z.string().nullable(),
+    minChars: z.int().nullable(),
+    maxChars: z.int(),
+  })
+  .meta({ id: 'DocumentTemplateSection' });
+export type DocumentTemplateSectionDto = z.infer<typeof documentTemplateSectionSchema>;
+
+/** A versão do template do documento e as suas seções na ordem (`null` no externo). */
+export const documentTemplateMetaSchema = z
+  .object({
+    versionId: z.uuid(),
+    versionNumber: z.int(),
+    sections: z.array(documentTemplateSectionSchema),
+  })
+  .meta({ id: 'DocumentTemplateMeta' });
+export type DocumentTemplateMetaDto = z.infer<typeof documentTemplateMetaSchema>;
+
+/**
+ * `meta` do documento: as ações (RN-DOC-18) e, no DOC-03 e no DOC-02 (US-063), a versão do
+ * template fixada (seções com exigência e limites) — vem aqui porque o TPL-07 exige `TEMPLATE_VIEW`.
+ */
 export const documentMetaSchema = z
-  .object({ allowedActions: z.array(z.enum(DOCUMENT_ACTIONS)) })
+  .object({
+    allowedActions: z.array(z.enum(DOCUMENT_ACTIONS)),
+    template: documentTemplateMetaSchema.nullable().optional(),
+  })
   .meta({ id: 'DocumentMeta' });
 export type DocumentMeta = z.infer<typeof documentMetaSchema>;
 

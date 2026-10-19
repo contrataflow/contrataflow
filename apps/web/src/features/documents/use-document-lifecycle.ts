@@ -192,7 +192,16 @@ export function useDocumentLifecycle(document: DocumentDto) {
         router.push(processDocumentsHref(processId));
       } else {
         // A resposta já traz o documento novo; o refetch confirma e traz o `allowedActions` atual.
-        if (result) queryClient.setQueryData(documentKeys.detail(tenantId, documentId), result);
+        // As transições não trazem `meta.template` (US-063): fica o lido no DOC-03.
+        if (result) {
+          queryClient.setQueryData<DocumentResult>(
+            documentKeys.detail(tenantId, documentId),
+            (previous) =>
+              previous?.meta.template === undefined
+                ? result
+                : { ...result, meta: { ...result.meta, template: previous.meta.template } },
+          );
+        }
         void queryClient.invalidateQueries({ queryKey: documentKeys.detail(tenantId, documentId) });
       }
       return { status: 'done' };

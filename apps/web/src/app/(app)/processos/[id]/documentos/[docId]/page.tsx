@@ -4,8 +4,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * SCR-105 — Documento (`/processos/[id]/documentos/[docId]`): visualizador com o ciclo de vida da
- * US-065 (finalizar, submeter, reabrir, cancelar, excluir rascunho). O editor de seções chega com
- * a US-063. `?ia=<generationId>` abre o assistente de IA (SCR-117) na geração — link da
+ * US-065 (finalizar, submeter, reabrir, cancelar, excluir rascunho) e, no documento livre, o
+ * editor de seções com autosave (US-063). `?ia=<generationId>` abre o assistente de IA (SCR-117) na geração — link da
  * notificação `AI_GENERATION_READY` (US-115).
  */
 export default async function ProcessDocumentPage({

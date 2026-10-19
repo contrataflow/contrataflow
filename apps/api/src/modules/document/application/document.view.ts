@@ -1,5 +1,10 @@
-import type { DocumentAction, DocumentDto } from '@contrataflow/validation';
+import type {
+  DocumentAction,
+  DocumentDto,
+  DocumentTemplateMetaDto,
+} from '@contrataflow/validation';
 
+import type { DocumentTemplateVersion } from '../domain/document-template.js';
 import type { DocumentType } from '../domain/document-type.js';
 import type { Document } from '../domain/document.js';
 
@@ -59,5 +64,28 @@ export function toDocumentDto(document: Document, type: DocumentType): DocumentD
     updatedAt: document.updatedAt.toISOString(),
     createdById: document.createdById,
     version: document.version,
+  };
+}
+
+/** `meta.template` (DOC-02/03 · US-063): a versão fixada no documento, seções na ordem. */
+export function toDocumentTemplateMeta(
+  template: DocumentTemplateVersion | null,
+): DocumentTemplateMetaDto | null {
+  if (template === null) return null;
+  return {
+    versionId: template.id,
+    versionNumber: template.versionNumber,
+    sections: [...template.sections]
+      .sort((a, b) => a.order - b.order)
+      .map((section) => ({
+        key: section.key,
+        title: section.title,
+        order: section.order,
+        requirement: section.requirement,
+        helpText: section.helpText ?? null,
+        legalBasis: section.legalBasis ?? null,
+        minChars: section.minChars ?? null,
+        maxChars: section.maxChars,
+      })),
   };
 }

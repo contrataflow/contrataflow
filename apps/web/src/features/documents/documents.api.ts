@@ -49,15 +49,26 @@ export const versionKeys = {
     tenantKey(tenantId, 'documents', documentId, 'versions', 'compare', from, to),
 };
 
-/** Documento e as ações permitidas (`meta.allowedActions` — a UI nunca recalcula a regra). */
+/**
+ * Documento e as ações permitidas (`meta.allowedActions` — a UI nunca recalcula a regra); o DOC-02 e
+ * o DOC-03 trazem também `meta.template` (seções do template fixado — US-063).
+ */
 export interface DocumentResult {
   readonly document: DocumentDto;
   readonly meta: DocumentMeta;
 }
 
 function toResult(result: ApiResult<DocumentDto>): DocumentResult {
-  const meta = result.meta as Partial<DocumentMeta>;
-  return { document: result.data, meta: { allowedActions: meta.allowedActions ?? [] } };
+  return { document: result.data, meta: documentMetaOf(result.meta) };
+}
+
+/** `meta` da resposta: as ações e, quando vier (DOC-02/03), o template fixado no documento. */
+export function documentMetaOf(raw: unknown): DocumentMeta {
+  const meta = (raw ?? {}) as Partial<DocumentMeta>;
+  return {
+    allowedActions: meta.allowedActions ?? [],
+    ...(meta.template === undefined ? {} : { template: meta.template }),
+  };
 }
 
 /** `If-Match` com a `version` lida no detalhe. */
