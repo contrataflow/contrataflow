@@ -247,6 +247,9 @@ const QUOTATION_IMPORT_ROUTE =
 const ETP_ROUTE =
   'ETP (US-019): a suíte genérica não tem processo, DFD nem ETP do tenant B. O isolamento (ETP-01/02 com processo de B → 404 NOT_FOUND sem criar nem ler nada; o DFD de origem só é lido no tenant do processo; RLS, FKs compostas — documento, processo, versão do DFD — e checks de etps) é coberto em test/tenant-leak/etps.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp.routes.spec.ts.';
 
+const TERM_ROUTE =
+  'Termo de Referência (US-036): a suíte genérica não tem processo, pesquisa de preços nem TR do tenant B. O isolamento (TRM-01/02 com processo de B → 404 NOT_FOUND sem criar nem ler nada; TRM-03/04 com TR de B → 404 NOT_FOUND sem revelar nem alterar; templateId de B → 422 REFERENCE_NOT_FOUND; a pesquisa concluída só é lida no tenant do processo; RLS, FKs compostas — documento, processo, pesquisa, critério, ETP e versão — e checks de terms_of_reference) é coberto em test/tenant-leak/terms.spec.ts, com PostgreSQL real, e em src/modules/term/presentation/term.routes.spec.ts.';
+
 /** Classificação por `operationId`. */
 const NOTIFICATION_ROUTE =
   'Central de notificações (US-111): só as notificações do próprio destinatário, sem referência no corpo; a suíte genérica ainda não tem fixture de notificação do tenant B. O isolamento (404 NOTIFICATION_NOT_FOUND em NTF-03/05 com ids de outro tenant e de outro usuário, lista e contador sem vazamento e RLS de notifications) é coberto em test/tenant-leak/notifications.spec.ts.';
@@ -432,6 +435,10 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'DFD-03': { kind: 'exempt', reason: DFD_ROUTE },
   'DFD-04': { kind: 'exempt', reason: DOCUMENT_AUTOSAVE_ROUTE },
   'DFD-05': { kind: 'exempt', reason: DFD_DUPLICATE_ROUTE },
+  'TRM-01': { kind: 'exempt', reason: TERM_ROUTE },
+  'TRM-02': { kind: 'exempt', reason: TERM_ROUTE },
+  'TRM-03': { kind: 'exempt', reason: TERM_ROUTE },
+  'TRM-04': { kind: 'exempt', reason: TERM_ROUTE },
   'ETP-01': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-02': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-03': { kind: 'exempt', reason: ETP_SECTIONS_ROUTE },

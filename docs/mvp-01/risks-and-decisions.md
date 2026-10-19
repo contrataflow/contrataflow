@@ -147,6 +147,10 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | A-31 | "O órgão pode desligar a IA" | IA **opt-in**: padrão desligado, ligada pelo administrador com aceite dos termos de uso (LGPD e transferência internacional); pode ser desligada a qualquer momento | DEC-037, US-116 |
 | A-32 | "Identificado como gerado por IA até ser revisado" | Proveniência por seção (e por risco) com revisão humana explícita; documento não é finalizado, submetido nem encaminhado com conteúdo não revisado; a marca não é impressa na versão final (fica nos metadados da versão, na auditoria e na timeline) | US-122 |
 | A-33 | "Limite de uso" | Tokens por mês por órgão (com reserva no pedido) e gerações por dia por usuário; custo registrado por geração; cobrança em PEND-22 | US-116, PEND-22 |
+| A-34 | TR: alínea *j* (adequação orçamentária) sem chave canônica | Seção adicional `BUDGET_ADEQUACY` (`REQUIRED_OR_JUSTIFY`) semeada pela biblioteca; dotação estruturada no MVP 2 (`BudgetAllocation`). A biblioteca do TR também passou a semear `DELIVERY` como `REQUIRED_OR_JUSTIFY` e `render` `ITEMS_TABLE`/`ESTIMATED_VALUE` em `SPECIFICATIONS`/`ESTIMATED_VALUE` (versão 2026.10.4) | US-036, US-110 |
+| A-35 | TR: justificativa do valor `MANUAL` | Sem campo próprio: a justificativa e a memória do valor ficam na narrativa da seção `ESTIMATED_VALUE` (cobrada na validação — US-039). `MANUAL` desvincula a pesquisa (`priceResearchId = null`); a pesquisa concluída continua indicada no TRM-03 (`completedPriceResearch`) para o aviso de precedência (DEC-032) | US-036 |
+| A-36 | TR: sigilo do documento | Com orçamento sigiloso o TR nasce `RESTRICTED` (contém o valor estimado), como a pesquisa de preços (DEC-030); a reclassificação quando o sigilo muda é da US-013 | US-036, DEC-030 |
+| A-37 | TR: "não se aplica" em seção `REQUIRED` | No TR o DOC-05 recusa na gravação (422 `NOT_ALLOWED` em `state` — RN-TR-12); no DFD/ETP a marcação é aceita e só a completude a recusa (RN-ETP-11) | US-036 |
 
 ## 8. Regras que precisam de decisão de produto
 

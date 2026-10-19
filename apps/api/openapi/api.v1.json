@@ -13836,6 +13836,381 @@
         ],
         "additionalProperties": false
       },
+      "TermSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "code",
+          "status",
+          "title",
+          "version"
+        ]
+      },
+      "TermListMeta": {
+        "type": "object",
+        "properties": {
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermTemplateOption"
+            }
+          },
+          "defaultTitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "templates",
+          "defaultTitle"
+        ]
+      },
+      "TermTemplateOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isDefault",
+          "versionId",
+          "versionNumber"
+        ]
+      },
+      "Term": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "inApproval": {
+            "type": "boolean"
+          },
+          "templateVersion": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "versionNumber"
+            ]
+          },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "objectDefinition": {
+            "type": "string"
+          },
+          "contractDurationMonths": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "executionDeadline": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "executionDeadlineType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BUSINESS",
+              "CALENDAR",
+              null
+            ]
+          },
+          "deliveryLocation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paymentTermDays": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "productWarrantyMonths": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "contractGuaranteePercent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "allowsSubcontracting": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "selectionCriterionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "awardType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BY_ITEM",
+              "BY_LOT",
+              "GLOBAL",
+              null
+            ]
+          },
+          "estimatedTotalValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimatedTotalValueMasked": {
+            "type": "boolean"
+          },
+          "estimatedValueSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PRICE_RESEARCH",
+              "ETP",
+              "MANUAL",
+              null
+            ]
+          },
+          "priceResearchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "importedFromEtpId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "importedFromEtpVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "importedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "importedById": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentVersion": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "processId",
+          "code",
+          "title",
+          "status",
+          "inApproval",
+          "templateVersion",
+          "responsibleId",
+          "objectDefinition",
+          "contractDurationMonths",
+          "executionDeadline",
+          "executionDeadlineType",
+          "deliveryLocation",
+          "paymentTermDays",
+          "productWarrantyMonths",
+          "contractGuaranteePercent",
+          "allowsSubcontracting",
+          "selectionCriterionId",
+          "awardType",
+          "estimatedTotalValue",
+          "estimatedTotalValueMasked",
+          "estimatedValueSource",
+          "priceResearchId",
+          "importedFromEtpId",
+          "importedFromEtpVersionId",
+          "importedAt",
+          "importedById",
+          "documentVersion",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "TermMeta": {
+        "type": "object",
+        "properties": {
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "UPDATE",
+                "FINALIZE",
+                "SUBMIT",
+                "REOPEN",
+                "CANCEL",
+                "DELETE"
+              ]
+            }
+          }
+        },
+        "required": [
+          "allowedActions"
+        ]
+      },
+      "TermCreateRequest": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 250
+          }
+        },
+        "additionalProperties": false
+      },
       "TimelineEntry": {
         "type": "object",
         "properties": {
@@ -15832,6 +16207,511 @@
           "updatedAt",
           "version"
         ]
+      },
+      "TermDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "inApproval": {
+            "type": "boolean"
+          },
+          "templateVersion": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "versionNumber"
+            ]
+          },
+          "responsibleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "objectDefinition": {
+            "type": "string"
+          },
+          "contractDurationMonths": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "executionDeadline": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "executionDeadlineType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BUSINESS",
+              "CALENDAR",
+              null
+            ]
+          },
+          "deliveryLocation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paymentTermDays": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "productWarrantyMonths": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "contractGuaranteePercent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "allowsSubcontracting": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "selectionCriterionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "awardType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BY_ITEM",
+              "BY_LOT",
+              "GLOBAL",
+              null
+            ]
+          },
+          "estimatedTotalValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimatedTotalValueMasked": {
+            "type": "boolean"
+          },
+          "estimatedValueSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PRICE_RESEARCH",
+              "ETP",
+              "MANUAL",
+              null
+            ]
+          },
+          "priceResearchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "importedFromEtpId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "importedFromEtpVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "importedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "importedById": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentVersion": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "draftRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "draftContent": {
+            "$ref": "#/components/schemas/DraftContent"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/TermCompleteness"
+          },
+          "priceResearch": {
+            "$ref": "#/components/schemas/TermPriceResearchRef"
+          },
+          "completedPriceResearch": {
+            "$ref": "#/components/schemas/TermPriceResearchRef"
+          },
+          "etpChangedSinceImport": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "processId",
+          "code",
+          "title",
+          "status",
+          "inApproval",
+          "templateVersion",
+          "responsibleId",
+          "objectDefinition",
+          "contractDurationMonths",
+          "executionDeadline",
+          "executionDeadlineType",
+          "deliveryLocation",
+          "paymentTermDays",
+          "productWarrantyMonths",
+          "contractGuaranteePercent",
+          "allowsSubcontracting",
+          "selectionCriterionId",
+          "awardType",
+          "estimatedTotalValue",
+          "estimatedTotalValueMasked",
+          "estimatedValueSource",
+          "priceResearchId",
+          "importedFromEtpId",
+          "importedFromEtpVersionId",
+          "importedAt",
+          "importedById",
+          "documentVersion",
+          "createdAt",
+          "updatedAt",
+          "version",
+          "draftRevision",
+          "draftContent",
+          "completeness",
+          "priceResearch",
+          "completedPriceResearch",
+          "etpChangedSinceImport"
+        ]
+      },
+      "TermCompleteness": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "satisfied": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "complete"
+              ]
+            }
+          }
+        },
+        "required": [
+          "required",
+          "satisfied",
+          "percent",
+          "sections"
+        ]
+      },
+      "TermPriceResearchRef": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "totalEstimatedValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "status",
+          "totalEstimatedValue",
+          "completed"
+        ]
+      },
+      "TermDetailMeta": {
+        "type": "object",
+        "properties": {
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "UPDATE",
+                "FINALIZE",
+                "SUBMIT",
+                "REOPEN",
+                "CANCEL",
+                "DELETE"
+              ]
+            }
+          },
+          "template": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "versionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TermTemplateSection"
+                }
+              }
+            },
+            "required": [
+              "versionId",
+              "versionNumber",
+              "sections"
+            ]
+          }
+        },
+        "required": [
+          "allowedActions",
+          "template"
+        ]
+      },
+      "TermTemplateSection": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "requirement": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "REQUIRED_OR_JUSTIFY",
+              "OPTIONAL"
+            ]
+          },
+          "helpText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalBasis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minChars": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxChars": {
+            "type": "integer"
+          },
+          "render": {
+            "type": "string",
+            "enum": [
+              "TEXT",
+              "ITEMS_TABLE",
+              "ALTERNATIVES_TABLE",
+              "RISK_MATRIX",
+              "RISK_LIST",
+              "PRICE_SUMMARY",
+              "ESTIMATED_VALUE"
+            ]
+          },
+          "allowNarrative": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "order",
+          "requirement",
+          "helpText",
+          "legalBasis",
+          "minChars",
+          "maxChars",
+          "render",
+          "allowNarrative"
+        ]
+      },
+      "TermPatchRequest": {
+        "type": "object",
+        "properties": {
+          "objectDefinition": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          },
+          "priceResearchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "estimatedTotalValue": {
+            "type": "string",
+            "description": "Decimal ≥ 0 com até 2 casas, ponto como separador (ex.: \"98000.00\")."
+          },
+          "estimatedValueSource": {
+            "type": "string",
+            "enum": [
+              "PRICE_RESEARCH",
+              "ETP",
+              "MANUAL"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "TenantMembership": {
         "type": "object",
@@ -45300,6 +46180,283 @@
         }
       }
     },
+    "/processes/{id}/terms": {
+      "get": {
+        "operationId": "TRM-01",
+        "summary": "Listar Termos de Referência do processo",
+        "tags": [
+          "Termo de Referência"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Singular por processo: 0 ou 1 TR ativo + os cancelados (histórico); excluídos logicamente ficam de fora. `meta.templates` = modelos ativos do tipo TR com versão publicada (o padrão do tipo primeiro, `isDefault`) e `meta.defaultTitle` = \"Termo de Referência — {título do processo}\" (diálogo \"Criar Termo de Referência\" — FA-01). Processo inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TermSummary"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/TermListMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "TRM-02",
+        "summary": "Criar Termo de Referência",
+        "tags": [
+          "Termo de Referência"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uma transação: template ativo do tipo TR com versão publicada (o padrão do tipo sem `templateId`; inválido/inativo/de outro tenant = 422 `VALIDATION_ERROR` com `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `templateId`), TR ativo único (409 `DOCUMENT_ALREADY_EXISTS` com `meta.existingTermId`), número `TR 0003/2026`, `Document` em `DRAFT` (sigilo `RESTRICTED` com orçamento sigiloso) com o rascunho de todas as seções do template e a versão fixada, e o `TermOfReference` com `objectDefinition` = objeto do processo e — havendo pesquisa de preços `FINALIZED`/`APPROVED` — `priceResearchId`, o total e `estimatedValueSource = PRICE_RESEARCH`. Grava `document.create`, `DocumentCreated` (`document.created.tr`) e a timeline `DOCUMENT_CREATED`. `Location: /api/v1/terms/{id}` e `ETag: \"1\"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Term"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/TermMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/processes/{id}/timeline": {
       "get": {
         "operationId": "PRC-12",
@@ -53300,6 +54457,259 @@
           },
           "409": {
             "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terms/{id}": {
+      "get": {
+        "operationId": "TRM-03",
+        "summary": "Obter Termo de Referência",
+        "tags": [
+          "Termo de Referência"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cabeçalho do TR (objeto, condições, origem e valor estimado — `estimatedTotalValue = null` com `estimatedTotalValueMasked: true` sem POL-09 em processo sigiloso), o resumo do documento (código, status, `inApproval`, versão do template, `documentVersion`), o rascunho por seção (`draftContent.sections[key]`: `state`, `content`, `justification` e `revision` — o `If-Match: \"s<revision>\"` do DOC-05), `completeness` (exigidas satisfeitas ÷ exigidas — a avaliação do DOC-08), a pesquisa vinculada e a concluída do processo (`priceResearch`/`completedPriceResearch`, total mascarado pela POL-09) e `etpChangedSinceImport`. `meta.allowedActions` (`UPDATE` só com `TERM_UPDATE` + POL-02 e o TR em `DRAFT`/`RETURNED`; sem ela a SCR-012 abre somente leitura) e `meta.template` (seções da versão fixada). `ETag` = versão do TR. Inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TermDetail"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/TermDetailMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "TRM-04",
+        "summary": "Atualizar Termo de Referência (objeto e valor estimado)",
+        "tags": [
+          "Termo de Referência"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "document.draft_update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Painel \"Dados do TR\" (US-036): `objectDefinition` (10–2.000; não altera o objeto do processo) e o valor estimado — `priceResearchId` (ou `estimatedValueSource: PRICE_RESEARCH`, sem id = a pesquisa concluída do processo) vincula a pesquisa do MESMO processo em `FINALIZED`/`APPROVED` e copia o total (somente leitura — 422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `priceResearchId`); `estimatedValueSource: MANUAL` + `estimatedTotalValue` (≥ 0, 2 casas — `INVALID_DECIMAL`) desvincula a pesquisa; a origem `ETP` vem só da importação (422 `NOT_ALLOWED`). Sem POL-09 em processo sigiloso, alterar o valor = 403. `If-Match: \"<version>\"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `meta.current`). Grava `document.draft_update` (objeto como hash + tamanho; valor mascarado se sigiloso). `ETag` = nova versão. Condições contratuais: US-038.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Term"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/TermMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
             "content": {
               "application/problem+json": {
                 "schema": {

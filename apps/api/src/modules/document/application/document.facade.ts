@@ -4,6 +4,7 @@ import type {
   DocumentAction,
   DocumentSnapshot,
   DocumentStatus,
+  SectionRequirement,
   SystemDocumentModule,
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
@@ -42,6 +43,7 @@ import { StructuredDocumentCreator } from './structured-document.creator.js';
 import type {
   CreateStructuredDocumentInput,
   CreatedStructuredDocument,
+  PublishedTemplateOption,
 } from './structured-document.creator.js';
 import { TypedCollectionGuard } from './typed-collection-guard.js';
 import type {
@@ -61,6 +63,7 @@ export type {
   TypedSnapshotParts,
 } from './document.ports.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
+export type { PublishedTemplateOption } from './structured-document.creator.js';
 export type {
   CreateStructuredDocumentInput,
   CreatedStructuredDocument,
@@ -124,10 +127,18 @@ export interface EditableTypedDocument extends TypedDocumentView {
   };
 }
 
+/** Completude de uma seção do template (DOC-08) como os módulos tipados a exibem (US-036). */
+export interface SectionCompletenessFact {
+  readonly key: string;
+  readonly requirement: SectionRequirement;
+  readonly complete: boolean;
+}
+
 /** Estado de um documento para listagens dos módulos tipados (DFD-01). */
 export interface DocumentState {
   readonly id: string;
   readonly code: string | null;
+  readonly title: string;
   readonly status: DocumentStatus;
   readonly version: number;
   readonly currentVersionNumber: number | null;
@@ -217,6 +228,33 @@ export class DocumentFacade {
     input: CreateStructuredDocumentInput,
   ): Promise<CreatedStructuredDocument> {
     return this.structured.create(tx, input);
+  }
+
+  /** Modelos publicados do tipo do módulo para o diálogo de criação (US-036 · FA-01). */
+  publishedTemplatesIn(
+    tx: TenantTx,
+    systemModule: SystemDocumentModule,
+  ): Promise<PublishedTemplateOption[]> {
+    return this.structured.publishedTemplates(tx, systemModule);
+  }
+
+  /**
+   * Completude por seção do documento (US-036 · RN-TR-13): a MESMA avaliação do DOC-08 (genérica +
+   * `DocumentValidator`), sem checar visibilidade — o chamador já leu o documento visível.
+   * `null` se o documento não existe no tenant.
+   */
+  async sectionCompletenessIn(
+    tx: TenantTx,
+    documentId: string,
+  ): Promise<readonly SectionCompletenessFact[] | null> {
+    const context = await this.lifecycle.loadInternal(tx, documentId);
+    if (context === null) return null;
+    const { sections } = await this.lifecycle.evaluate(tx, context);
+    return sections.map((section) => ({
+      key: section.key,
+      requirement: section.requirement,
+      complete: section.complete,
+    }));
   }
 
   /**
@@ -409,6 +447,7 @@ export class DocumentFacade {
       states.set(id, {
         id: document.id,
         code: document.code,
+        title: document.title,
         status: document.status,
         version: document.version,
         currentVersionNumber: document.currentVersionNumber,

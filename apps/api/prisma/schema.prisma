@@ -2436,6 +2436,54 @@ model EtpAlternative {
   @@map("etp_alternatives")
 }
 
+/// entities.md §2 — `AwardType` (US-036 · US-038).
+enum AwardType {
+  BY_ITEM
+  BY_LOT
+  GLOBAL
+
+  @@map("award_type")
+}
+
+/// entities.md §4.8 `TermOfReference` (módulo term · US-036): cabeçalho tipado 1:1 do `Document` do
+/// tipo TR (`id = documentId` — CHECK `terms_of_reference_id_is_document`). Valor estimado com origem
+/// (RN-TR-07/08), condições contratuais (US-038) e rastreabilidade da importação do ETP (US-037).
+/// Checks de limites, FKs compostas e gatilho de colunas imutáveis na migração.
+model TermOfReference {
+  id                       String                @id @db.Uuid
+  tenantId                 String                @map("tenant_id") @db.Uuid
+  processId                String                @map("process_id") @db.Uuid
+  documentId               String                @map("document_id") @db.Uuid
+  objectDefinition         String                @map("object_definition") @db.VarChar(2000)
+  contractDurationMonths   Int?                  @map("contract_duration_months")
+  executionDeadline        Int?                  @map("execution_deadline")
+  executionDeadlineType    DayCountType?         @map("execution_deadline_type")
+  deliveryLocation         String?               @map("delivery_location")
+  paymentTermDays          Int?                  @map("payment_term_days")
+  productWarrantyMonths    Int?                  @map("product_warranty_months")
+  contractGuaranteePercent Decimal?              @map("contract_guarantee_percent") @db.Decimal(9, 4)
+  allowsSubcontracting     Boolean?              @map("allows_subcontracting")
+  selectionCriterionId     String?               @map("selection_criterion_id") @db.Uuid
+  awardType                AwardType?            @map("award_type")
+  estimatedTotalValue      Decimal?              @map("estimated_total_value") @db.Decimal(18, 2)
+  estimatedValueSource     EstimatedValueSource? @map("estimated_value_source")
+  priceResearchId          String?               @map("price_research_id") @db.Uuid
+  importedFromEtpId        String?               @map("imported_from_etp_id") @db.Uuid
+  importedFromEtpVersionId String?               @map("imported_from_etp_version_id") @db.Uuid
+  importedAt               DateTime?             @map("imported_at") @db.Timestamptz(6)
+  importedById             String?               @map("imported_by_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById              String?               @map("created_by_id") @db.Uuid
+  updatedById              String?               @map("updated_by_id") @db.Uuid
+  version                  Int                   @default(1)
+
+  @@unique([tenantId, id], map: "terms_of_reference_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "terms_of_reference_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "terms_of_reference_process_idx")
+  @@map("terms_of_reference")
+}
+
 /// entities.md §2 — `PriceDefaultMethod` (DEC-020: `AUTO_CV` = mediana se CV > limite, senão média).
 enum PriceDefaultMethod {
   AUTO_CV

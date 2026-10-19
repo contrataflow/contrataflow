@@ -32,6 +32,7 @@ import shell from '../../messages/pt-BR/shell.json';
 import suppliers from '../../messages/pt-BR/suppliers.json';
 import tags from '../../messages/pt-BR/tags.json';
 import templates from '../../messages/pt-BR/templates.json';
+import term from '../../messages/pt-BR/term.json';
 import timeline from '../../messages/pt-BR/timeline.json';
 import users from '../../messages/pt-BR/users.json';
 import workflows from '../../messages/pt-BR/workflows.json';
@@ -78,6 +79,7 @@ export const messages = {
   suppliers,
   tags,
   templates,
+  term,
   timeline,
   users,
   workflows,

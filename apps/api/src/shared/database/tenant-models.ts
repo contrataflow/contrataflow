@@ -58,6 +58,7 @@ export const TENANT_SCOPED_MODELS = [
   'Tag',
   'TenantMembership',
   'TenantSetting',
+  'TermOfReference',
   'Workflow',
   'WorkflowRule',
   'WorkflowStage',

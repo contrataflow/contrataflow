@@ -34,7 +34,7 @@ import { FULL_VALIDATION, validateTemplateContent } from './template-content.val
  */
 
 /** Versão do conteúdo semeado, gravada no `seedVersions` da auditoria `tenant.provision`. */
-export const TEMPLATE_LIBRARY_VERSION = '2026.10.3';
+export const TEMPLATE_LIBRARY_VERSION = '2026.10.4';
 
 /** Definição de um modelo padrão (forma de entrada, antes dos padrões do schema). */
 export interface TemplateLibraryEntry {
@@ -294,6 +294,8 @@ export const TEMPLATE_LIBRARY: readonly TemplateLibraryEntry[] = [
       {
         key: 'SPECIFICATIONS',
         title: 'Descrição da solução e especificações',
+        // US-036: a tabela de itens do TR (US-038) com a narrativa das especificações.
+        render: 'ITEMS_TABLE',
         helpText:
           'Descreva a solução como um todo, considerado todo o ciclo de vida do objeto, e as especificações técnicas.',
         legalBasis: `${TR_BASE}, c`,
@@ -326,6 +328,8 @@ export const TEMPLATE_LIBRARY: readonly TemplateLibraryEntry[] = [
       {
         key: 'DELIVERY',
         title: 'Modelo de execução e entrega',
+        // US-036: serviço remoto ou sem entrega física admite "não se aplica" justificado.
+        requirement: 'REQUIRED_OR_JUSTIFY',
         helpText:
           'Descreva como o contrato deverá produzir os resultados pretendidos: local, forma e condições de entrega ou de execução.',
         legalBasis: `${TR_BASE}, e`,
@@ -365,9 +369,19 @@ export const TEMPLATE_LIBRARY: readonly TemplateLibraryEntry[] = [
       {
         key: 'ESTIMATED_VALUE',
         title: 'Estimativa do valor da contratação',
+        render: 'ESTIMATED_VALUE',
         helpText:
-          'Apresente as estimativas do valor da contratação, acompanhadas dos preços unitários referenciais e das memórias de cálculo.',
+          'Apresente as estimativas do valor da contratação, acompanhadas dos preços unitários referenciais e das memórias de cálculo. Valor informado manualmente exige aqui a justificativa e a memória do valor.',
         legalBasis: `${TR_BASE}, i`,
+      },
+      {
+        // US-036 (lacuna 1): alínea j — a dotação estruturada chega no MVP 2 (`BudgetAllocation`).
+        key: 'BUDGET_ADEQUACY',
+        title: 'Adequação orçamentária',
+        requirement: 'REQUIRED_OR_JUSTIFY',
+        helpText:
+          'Indique a adequação orçamentária da contratação ou justifique por que ela não se aplica nesta fase.',
+        legalBasis: `${TR_BASE}, j`,
       },
     ]),
   },

@@ -1251,7 +1251,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 - **Índices:** `(tenant_id, risk_id)`; `(tenant_id, responsible_id, status)`.
 
 #### TermOfReference (`terms_of_reference`) — módulo `term` · Padrão
-Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACCEPTANCE_CRITERIA`, `CONTRACTOR_OBLIGATIONS`, `CONTRACTING_PARTY_OBLIGATIONS`, `DEADLINES`, `DELIVERY`, `PAYMENT`, `OVERSIGHT`, `GUARANTEES`, `SANCTIONS`, `SELECTION_CRITERIA`, `ESTIMATED_VALUE`.
+Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACCEPTANCE_CRITERIA`, `CONTRACTOR_OBLIGATIONS`, `CONTRACTING_PARTY_OBLIGATIONS`, `DEADLINES`, `DELIVERY`, `PAYMENT`, `OVERSIGHT`, `GUARANTEES`, `SANCTIONS`, `SELECTION_CRITERIA`, `ESTIMATED_VALUE` e a adicional `BUDGET_ADEQUACY` (alínea *j*, semeada pela biblioteca — US-036).
 
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|

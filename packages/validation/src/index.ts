@@ -26,5 +26,6 @@ export * from './price-research/index.js';
 export * from './process/index.js';
 export * from './risk/index.js';
 export * from './supplier/index.js';
+export * from './term/index.js';
 export * from './tenancy/index.js';
 export * from './workflow/index.js';

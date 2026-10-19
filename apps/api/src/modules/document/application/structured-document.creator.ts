@@ -81,6 +81,15 @@ export interface CreateStructuredDocumentInput {
   readonly source?: { readonly documentId: string; readonly draftContent: DraftContent };
 }
 
+/** Modelo publicado do tipo para o diálogo de criação (US-036 · FA-01). */
+export interface PublishedTemplateOption {
+  readonly id: string;
+  readonly name: string;
+  readonly isDefault: boolean;
+  readonly versionId: string;
+  readonly versionNumber: number;
+}
+
 export interface CreatedStructuredDocument {
   readonly document: Document;
   readonly type: DocumentType;
@@ -169,6 +178,42 @@ export class StructuredDocumentCreator {
     const created = { document, type, template, process };
     const actor = await this.lifecycle.actorOf(created);
     return { ...created, allowedActions: this.lifecycle.allowedActions(created, actor) };
+  }
+
+  /**
+   * Templates ativos do tipo do módulo com versão publicada (US-036 · FA-01), o padrão do tipo
+   * primeiro e os demais por nome; tipo inativo = nenhum (a criação recusaria).
+   */
+  async publishedTemplates(
+    tx: TenantTx,
+    systemModule: SystemDocumentModule,
+  ): Promise<PublishedTemplateOption[]> {
+    const type = (await this.types.list(tx)).find(
+      (candidate) => candidate.systemModule === systemModule,
+    );
+    if (type?.isActive !== true) return [];
+    const { items } = await this.templates.list(tx, {
+      documentTypeId: type.id,
+      isActive: true,
+      skip: 0,
+      take: 100,
+    });
+    const options: PublishedTemplateOption[] = [];
+    for (const template of items) {
+      if (template.currentPublishedVersionId === null) continue;
+      const version = await this.templates.findVersionById(tx, template.currentPublishedVersionId);
+      if (version?.status !== 'PUBLISHED') continue;
+      options.push({
+        id: template.id,
+        name: template.name,
+        isDefault: template.id === type.defaultTemplateId,
+        versionId: version.id,
+        versionNumber: version.versionNumber,
+      });
+    }
+    return options.sort(
+      (a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, 'pt-BR'),
+    );
   }
 
   /** RN-DFD-03 · V-01: template ativo do tipo com versão publicada (o padrão do tipo sem escolha). */

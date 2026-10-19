@@ -7,6 +7,10 @@ import {
   AttachmentTargetModule,
   AttachmentTargetRegistry,
 } from '#shared/files/attachment-targets.js';
+import {
+  PriceResearchSummaryModule,
+  PriceResearchSummaryRegistry,
+} from '#shared/price-research/price-research-summary.js';
 import { ProcessItemCatalogModule } from '#shared/process/process-item-catalog.js';
 import {
   ProcessItemUsageModule,
@@ -21,6 +25,7 @@ import {
 } from './application/ports.js';
 import { PriceCalculationService } from './application/price-calculation.service.js';
 import { PriceItemUsageReader } from './application/price-item-usage.reader.js';
+import { PriceResearchSummaryReaderImpl } from './application/price-research-summary.reader.js';
 import {
   AddPriceItemsCommand,
   CreatePriceResearchCommand,
@@ -111,6 +116,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     AttachmentTargetModule,
     ProcessItemCatalogModule,
     ProcessItemUsageModule,
+    PriceResearchSummaryModule,
   ],
   controllers: [PriceResearchController, PriceSourceController, QuotationImportController],
   providers: [
@@ -131,6 +137,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     PriceResearchPresenter,
     PriceResearchRecorder,
     PriceItemUsageReader,
+    PriceResearchSummaryReaderImpl,
     CreatePriceSourceCommand,
     UpdatePriceSourceCommand,
     DeletePriceSourceCommand,
@@ -211,15 +218,19 @@ export class PriceResearchModule implements OnModuleInit {
     private readonly supplierUsage: PriceSourceSupplierUsage,
     private readonly attachmentTargets: AttachmentTargetRegistry,
     private readonly sourceAttachments: PriceSourceAttachmentTargets,
+    private readonly summaries: PriceResearchSummaryRegistry,
+    private readonly summaryReader: PriceResearchSummaryReaderImpl,
   ) {}
 
   /**
    * US-024: os itens do processo referenciados por pesquisas (ITEM_IN_USE — US-006). US-026: os
    * fornecedores referenciados por fontes (SUPPLIER_IN_USE — RN-PRICE-19) e o alvo de anexo
-   * `PRICE_SOURCE` (RN-PRICE-28).
+   * `PRICE_SOURCE` (RN-PRICE-28). US-036: as pesquisas concluídas para o valor estimado do TR
+   * (RN-TR-07 — `PriceResearchSummaryRegistry`).
    */
   onModuleInit(): void {
     this.itemUsage.register(this.priceItemUsage);
+    this.summaries.register(this.summaryReader);
     this.suppliers.registerUsageProvider(this.supplierUsage);
     this.attachmentTargets.register(this.sourceAttachments);
   }

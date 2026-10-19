@@ -54,6 +54,7 @@ import {
 import { fetchProcess, processKeys } from '../processes/processes.api';
 import { RisksLink } from '../risks/risks-link';
 import { ProcessTagsButton, ProcessTagsDialog } from '../tags/process-tags';
+import { CreateTermButton } from '../term/create-term-dialog';
 import { TimelineFeed } from '../timeline/timeline-feed';
 
 /** Contador da aba (RN-PROC-57): documentos, itens, comentários e participantes vêm do resumo. */
@@ -342,6 +343,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           <CreateEtpButton processId={processId} />
           {/* US-024: "Criar pesquisa de preços" / "Abrir pesquisa {código}" (DOC-01 + PRS-01). */}
           <CreatePriceResearchButton processId={processId} />
+          {/* US-036: "Criar Termo de Referência" / "Abrir TR {código}" (DOC-01 + TRM-01). */}
+          <CreateTermButton processId={processId} />
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* US-033: acesso à tela de riscos (SCR-011). */}
             <RisksLink processId={processId} />

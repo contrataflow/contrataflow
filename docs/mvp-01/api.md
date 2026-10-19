@@ -432,7 +432,7 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | TRM-01 | GET | `/processes/{id}/terms` | `PROCESS_VIEW` | 200 | — | US-036 |
 | TRM-02 | POST | `/processes/{id}/terms` | `TERM_CREATE` + POL-02 (Idem.) | 201 | `DocumentCreated` | US-036 |
 | TRM-03 | GET | `/terms/{id}` | `PROCESS_VIEW` (+POL-09) | 200 | — | US-036 |
-| TRM-04 | PATCH | `/terms/{id}` | `TERM_UPDATE` + POL-02 (IM) | 200 | — | US-038 |
+| TRM-04 | PATCH | `/terms/{id}` | `TERM_UPDATE` + POL-02 (IM) | 200 | — | US-036, US-038 |
 | TRM-05 | POST | `/terms/{id}/import-etp/preview` | `TERM_UPDATE` + POL-02 | 200 | — | US-037 |
 | TRM-06 | POST | `/terms/{id}/import-etp` | `TERM_UPDATE` + POL-02 (IM, Idem.) | 200 | `TermImportedFromEtp` | US-037 |
 

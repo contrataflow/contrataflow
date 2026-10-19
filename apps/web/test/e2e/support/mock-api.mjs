@@ -62,6 +62,8 @@ const documentTypes = [
   ['OFICIO', 'Ofício', 'FREE_TEXT', null, 70, 'OF {seq:4}/{year}'],
   ['PRICE_RESEARCH', 'Pesquisa de preços', 'STRUCTURED', 'PRICE_RESEARCH', 30, 'PP {seq:4}/{year}'],
   ['DOCUMENTO_EXTERNO', 'Documento externo', 'UPLOADED', null, 110, null],
+  // US-036: no fim, para não deslocar os ids (derivados do índice) dos tipos anteriores.
+  ['TR', 'Termo de Referência', 'STRUCTURED', 'TERM_OF_REFERENCE', 40, 'TR {seq:4}/{year}'],
 ].map(([code, name, kind, systemModule, sortOrder, numberingMask], index) => ({
   id: `0192a000-0000-7000-8000-00000000d0${String(index).padStart(2, '0')}`,
   code,
@@ -2055,6 +2057,216 @@ etpStates.get(listProcessId(28)).etp = buildEtp(ETP_FIXTURES[1], {
   imported: false,
 });
 const etpOf = (etpId) => [...etpStates.values()].find((state) => state.etp?.dto.id === etpId)?.etp;
+
+// Termo de Referência (US-036 · TRM-01..04 + DOC-03/05): dois processos dedicados, fora da lista
+// (SCR-004) — 0033/2026 sem TR (criar pelo painel, redigir seções, "não se aplica" em DELIVERY,
+// completude), 0034/2026 que já tem o TR 0002/2026 (FA-02) e 0035/2026 só para o diálogo em 360 px. A numeração, a atomicidade, POL-02/09,
+// a vinculação automática da pesquisa e o isolamento por tenant são cobertos nos testes da API.
+const TERM_TYPE_ID = documentTypes.find((type) => type.code === 'TR').id;
+const TERM_TEMPLATE = {
+  id: '0192a000-0000-7000-8000-0000000e2901',
+  name: 'TR — Modelo padrão',
+  versionId: '0192a000-0000-7000-8000-0000000e2902',
+};
+const TERM_RESEARCH = {
+  id: '0192a000-0000-7000-8000-0000000e2903',
+  code: 'PP 0002/2026',
+  status: 'FINALIZED',
+  totalEstimatedValue: '98000.00',
+  completed: true,
+};
+const TERM_SECTIONS = [
+  ['OBJECT', 'Definição do objeto', 'REQUIRED', 'TEXT', 'Lei 14.133/2021, art. 6º, XXIII, a'],
+  ['JUSTIFICATION', 'Fundamentação da contratação', 'REQUIRED', 'TEXT', 'Art. 6º, XXIII, b'],
+  [
+    'DELIVERY',
+    'Local e condições de entrega ou de execução',
+    'REQUIRED_OR_JUSTIFY',
+    'TEXT',
+    'Art. 6º, XXIII, e',
+  ],
+  ['PAYMENT', 'Critérios de medição e de pagamento', 'REQUIRED', 'TEXT', 'Art. 92, V e VI'],
+  [
+    'ESTIMATED_VALUE',
+    'Estimativa do valor da contratação',
+    'REQUIRED',
+    'ESTIMATED_VALUE',
+    'Art. 6º, XXIII, i',
+  ],
+].map(([key, title, requirement, render, legalBasis], index) => ({
+  key,
+  title,
+  order: index + 1,
+  requirement,
+  helpText: `Oriente-se pela base legal para redigir a seção "${title}".`,
+  legalBasis,
+  minChars: null,
+  maxChars: 50000,
+  render,
+  allowNarrative: true,
+}));
+const TERM_AUTHOR_ID = '0192a000-0000-7000-8000-00000000a0a1';
+const TERM_FIXTURES = [
+  { n: 33, code: '0033/2026', title: 'Contratação de manutenção predial das escolas' },
+  { n: 34, code: '0034/2026', title: 'Aquisição de mobiliário para a biblioteca' },
+  // Só o diálogo em 360 px (as jornadas acima mudam o estado do servidor simulado compartilhado).
+  { n: 35, code: '0035/2026', title: 'Contratação de vigilância patrimonial' },
+].map((fixture) => ({
+  ...fixture,
+  status: 'IN_PROGRESS',
+  priority: 'MEDIUM',
+  overdue: false,
+  unit: 0,
+}));
+
+function buildTerm(fixture, { id, code, title }) {
+  const now = new Date().toISOString();
+  const processId = listProcessId(fixture.n);
+  return {
+    id,
+    processId,
+    code,
+    title,
+    status: 'DRAFT',
+    version: 1,
+    objectDefinition: fixture.title,
+    estimatedTotalValue: TERM_RESEARCH.totalEstimatedValue,
+    estimatedValueSource: 'PRICE_RESEARCH',
+    priceResearchId: TERM_RESEARCH.id,
+    createdAt: now,
+    updatedAt: now,
+    sections: Object.fromEntries(
+      TERM_SECTIONS.map(({ key }) => [
+        key,
+        {
+          state: 'EMPTY',
+          content: null,
+          justification: null,
+          revision: 1,
+          updatedAt: now,
+          updatedById: TERM_AUTHOR_ID,
+        },
+      ]),
+    ),
+    document: {
+      ...versionedDocument,
+      id,
+      processId,
+      documentType: {
+        id: TERM_TYPE_ID,
+        code: 'TR',
+        name: 'Termo de Referência',
+        kind: 'STRUCTURED',
+        systemModule: 'TERM_OF_REFERENCE',
+        requiresApproval: false,
+      },
+      number: Number(code.slice(3, 7)),
+      code,
+      title,
+      confidentiality: 'INTERNAL',
+      draftRevision: 1,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    },
+  };
+}
+
+/** processId → { fixture, term (ou null), replays }. */
+const termStates = new Map(
+  TERM_FIXTURES.map((fixture) => [
+    listProcessId(fixture.n),
+    { fixture, term: null, replays: new Map() },
+  ]),
+);
+termStates.get(listProcessId(34)).term = buildTerm(TERM_FIXTURES[1], {
+  id: '0192a000-0000-7000-8000-0000000e2934',
+  code: 'TR 0002/2026',
+  title: 'Termo de Referência — 0034/2026',
+});
+const termOf = (termId) =>
+  [...termStates.values()].find((state) => state.term?.id === termId)?.term;
+
+function termSummaryOf(term) {
+  return {
+    id: term.id,
+    documentId: term.id,
+    code: term.code,
+    status: term.status,
+    title: term.title,
+    version: term.version,
+  };
+}
+
+function termDtoOf(term) {
+  return {
+    id: term.id,
+    documentId: term.id,
+    processId: term.processId,
+    code: term.code,
+    title: term.title,
+    status: term.status,
+    inApproval: false,
+    templateVersion: { id: TERM_TEMPLATE.versionId, versionNumber: 1 },
+    responsibleId: TERM_AUTHOR_ID,
+    objectDefinition: term.objectDefinition,
+    contractDurationMonths: null,
+    executionDeadline: null,
+    executionDeadlineType: null,
+    deliveryLocation: null,
+    paymentTermDays: null,
+    productWarrantyMonths: null,
+    contractGuaranteePercent: null,
+    allowsSubcontracting: null,
+    selectionCriterionId: null,
+    awardType: null,
+    estimatedTotalValue: term.estimatedTotalValue,
+    estimatedTotalValueMasked: false,
+    estimatedValueSource: term.estimatedValueSource,
+    priceResearchId: term.priceResearchId,
+    importedFromEtpId: null,
+    importedFromEtpVersionId: null,
+    importedAt: null,
+    importedById: null,
+    documentVersion: 1,
+    createdAt: term.createdAt,
+    updatedAt: term.updatedAt,
+    version: term.version,
+  };
+}
+
+/** RN-TR-13: `REQUIRED` preenchida; `REQUIRED_OR_JUSTIFY` preenchida ou "não se aplica". */
+function termCompletenessOf(term) {
+  const sections = TERM_SECTIONS.filter((section) => section.requirement !== 'OPTIONAL').map(
+    (section) => {
+      const state = term.sections[section.key].state;
+      return {
+        key: section.key,
+        complete:
+          state === 'FILLED' || (state === 'NOT_APPLICABLE' && section.requirement !== 'REQUIRED'),
+      };
+    },
+  );
+  const satisfied = sections.filter((section) => section.complete).length;
+  return {
+    required: sections.length,
+    satisfied,
+    percent: Math.floor((satisfied * 100) / sections.length),
+    sections,
+  };
+}
+
+function termDetailOf(term) {
+  return {
+    ...termDtoOf(term),
+    draftRevision: 1,
+    draftContent: { sections: term.sections },
+    completeness: termCompletenessOf(term),
+    priceResearch: term.priceResearchId === null ? null : TERM_RESEARCH,
+    completedPriceResearch: TERM_RESEARCH,
+    etpChangedSinceImport: false,
+  };
+}
 
 const priceResearchOf = (researchId) =>
   [...priceStates.values()].find((state) => state.research?.header.id === researchId)?.research;
@@ -4643,6 +4855,183 @@ createServer(async (request, response) => {
       { ETag: '"1"' },
     );
   }
+  // TR (US-036): documentos do processo (DOC-01), TRM-01/02, TRM-03/04, DOC-03 e DOC-05.
+  const termProcessRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(documents|terms)$/.exec(
+    url.pathname,
+  );
+  const termState = termProcessRoute ? termStates.get(termProcessRoute[1]) : undefined;
+  if (termProcessRoute && termState) {
+    const resource = termProcessRoute[2];
+    if (resource === 'documents' && request.method === 'GET') {
+      return send(response, 200, {
+        data: [],
+        meta: {
+          currentStage: {
+            key: 'TERMO_REFERENCIA',
+            name: 'Termo de Referência',
+            documentTypeCodes: ['TR'],
+          },
+          creatableTypeIds: termState.term === null ? [TERM_TYPE_ID] : [],
+          pendingTypeIds: [],
+        },
+      });
+    }
+    if (resource === 'terms' && request.method === 'GET') {
+      return send(response, 200, {
+        data: termState.term === null ? [] : [termSummaryOf(termState.term)],
+        meta: {
+          templates: [
+            {
+              id: TERM_TEMPLATE.id,
+              name: TERM_TEMPLATE.name,
+              isDefault: true,
+              versionId: TERM_TEMPLATE.versionId,
+              versionNumber: 1,
+            },
+          ],
+          defaultTitle: `Termo de Referência — ${termState.fixture.title}`,
+        },
+      });
+    }
+    if (resource === 'terms' && request.method === 'POST') {
+      // TRM-02: idempotente por chave; 409 com `existingTermId`.
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const key = String(request.headers['idempotency-key'] ?? '');
+      const replay = key ? termState.replays.get(key) : undefined;
+      if (replay) {
+        return send(response, 201, replay, { 'Idempotent-Replayed': 'true', ETag: '"1"' });
+      }
+      if (termState.term !== null) {
+        return problemWith(response, 409, 'DOCUMENT_ALREADY_EXISTS', String(correlationId), {
+          members: { meta: { existingTermId: termState.term.id } },
+        });
+      }
+      termState.term = buildTerm(termState.fixture, {
+        id: mockUuid(),
+        code: 'TR 0001/2026',
+        title:
+          typeof body.title === 'string' && body.title.trim() !== ''
+            ? body.title.trim()
+            : `Termo de Referência — ${termState.fixture.title}`,
+      });
+      const result = { data: termDtoOf(termState.term), meta: { allowedActions: ['UPDATE'] } };
+      if (key) termState.replays.set(key, result);
+      return send(response, 201, result, {
+        Location: `/api/v1/terms/${termState.term.id}`,
+        ETag: '"1"',
+      });
+    }
+  }
+  const termRoute = /^\/api\/v1\/terms\/([0-9a-f-]{36})$/.exec(url.pathname);
+  const termFound = termRoute ? termOf(termRoute[1]) : undefined;
+  if (termFound && request.method === 'GET') {
+    return send(
+      response,
+      200,
+      {
+        data: termDetailOf(termFound),
+        meta: {
+          allowedActions: ['UPDATE'],
+          template: {
+            versionId: TERM_TEMPLATE.versionId,
+            versionNumber: 1,
+            sections: TERM_SECTIONS,
+          },
+        },
+      },
+      { ETag: `"${String(termFound.version)}"` },
+    );
+  }
+  if (termFound && request.method === 'PATCH') {
+    // TRM-04: `If-Match` da versão do TR; objeto de 10 a 2.000 caracteres (RN-TR-14).
+    if (String(request.headers['if-match'] ?? '') !== `"${String(termFound.version)}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (typeof body.objectDefinition === 'string') {
+      const length = body.objectDefinition.trim().length;
+      if (length < 10 || length > 2000) {
+        return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+          errors: [
+            {
+              field: 'objectDefinition',
+              code: length < 10 ? 'TOO_SHORT' : 'TOO_LONG',
+              message: 'O objeto deve ter entre 10 e 2.000 caracteres.',
+            },
+          ],
+        });
+      }
+      termFound.objectDefinition = body.objectDefinition.trim();
+    }
+    if (body.estimatedValueSource === 'MANUAL') {
+      termFound.estimatedValueSource = 'MANUAL';
+      termFound.estimatedTotalValue = String(body.estimatedTotalValue);
+      termFound.priceResearchId = null;
+    } else if (typeof body.priceResearchId === 'string') {
+      termFound.estimatedValueSource = 'PRICE_RESEARCH';
+      termFound.estimatedTotalValue = TERM_RESEARCH.totalEstimatedValue;
+      termFound.priceResearchId = TERM_RESEARCH.id;
+    }
+    termFound.version += 1;
+    termFound.updatedAt = new Date().toISOString();
+    return send(
+      response,
+      200,
+      { data: termDtoOf(termFound), meta: { allowedActions: ['UPDATE'] } },
+      { ETag: `"${String(termFound.version)}"` },
+    );
+  }
+  const termDocumentRoute = /^\/api\/v1\/documents\/([0-9a-f-]{36})(\/sections\/([A-Z_]+))?$/.exec(
+    url.pathname,
+  );
+  const termDocument = termDocumentRoute ? termOf(termDocumentRoute[1]) : undefined;
+  if (termDocument && termDocumentRoute?.[3] === undefined && request.method === 'GET') {
+    return send(
+      response,
+      200,
+      { data: termDocument.document, meta: { allowedActions: ['UPDATE'] } },
+      { ETag: '"1"' },
+    );
+  }
+  if (termDocument && termDocumentRoute?.[3] !== undefined && request.method === 'PUT') {
+    // DOC-05: revisão por seção (`If-Match: "s<revision>"`); "não se aplica" só fora das REQUIRED.
+    const sectionKey = termDocumentRoute[3];
+    const rule = TERM_SECTIONS.find((section) => section.key === sectionKey);
+    const current = termDocument.sections[sectionKey];
+    if (!rule || !current) {
+      return problem(response, 422, 'SECTION_NOT_IN_TEMPLATE', String(correlationId));
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"s${String(current.revision)}"`) {
+      return problem(response, 412, 'SECTION_REVISION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (body.notApplicable === true && rule.requirement === 'REQUIRED') {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [{ field: 'state', code: 'NOT_ALLOWED', message: 'Seção obrigatória.' }],
+      });
+    }
+    const filled = body.content !== null && body.content !== undefined;
+    current.state = body.notApplicable === true ? 'NOT_APPLICABLE' : filled ? 'FILLED' : 'EMPTY';
+    current.content = body.notApplicable === true ? null : (body.content ?? null);
+    current.justification = body.notApplicable === true ? (body.justification ?? null) : null;
+    current.revision += 1;
+    current.updatedAt = new Date().toISOString();
+    return send(
+      response,
+      200,
+      {
+        data: {
+          sectionKey,
+          state: current.state,
+          revision: current.revision,
+          updatedAt: current.updatedAt,
+          updatedBy: { id: TERM_AUTHOR_ID, name: 'Ana Souza' },
+          draftRevision: current.revision,
+        },
+      },
+      { ETag: `"s${String(current.revision)}"` },
+    );
+  }
   // Pesquisa de preços (US-024): itens e documentos do processo, PRS-01/02 e PRS-03/05.
   const priceProcessRoute =
     /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(items|documents|price-research)$/.exec(url.pathname);
@@ -4786,9 +5175,13 @@ createServer(async (request, response) => {
       url.pathname,
     );
   const listedFixture = listedRoute
-    ? [...LIST_FIXTURES, ...PRICE_FIXTURES, ...ETP_FIXTURES, ...CANCELLATION_FIXTURES].find(
-        (fixture) => listProcessId(fixture.n) === listedRoute[1],
-      )
+    ? [
+        ...LIST_FIXTURES,
+        ...PRICE_FIXTURES,
+        ...ETP_FIXTURES,
+        ...TERM_FIXTURES,
+        ...CANCELLATION_FIXTURES,
+      ].find((fixture) => listProcessId(fixture.n) === listedRoute[1])
     : undefined;
   if (listedRoute && listedFixture) {
     const processId = listedRoute[1];

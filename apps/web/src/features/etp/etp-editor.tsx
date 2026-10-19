@@ -529,7 +529,7 @@ function EtpSectionPanel({
   );
 }
 
-function NotApplicableSummary({
+export function NotApplicableSummary({
   draft,
   editable,
   onRevert,
@@ -561,15 +561,20 @@ function NotApplicableSummary({
   );
 }
 
-/** `NotApplicableToggle` (RN-ETP-11 · V-04): justificativa ≥ 20 caracteres antes de gravar. */
+/**
+ * `NotApplicableToggle` (RN-ETP-11 · V-04): justificativa ≥ 20 caracteres antes de gravar. O TR
+ * (US-036 · V-08) reutiliza o controle com a própria mensagem em `validate` (`null` = válida).
+ */
 export function NotApplicableToggle({
   sectionKey,
   required,
   onConfirm,
+  validate,
 }: {
   readonly sectionKey: string;
   readonly required: boolean;
   readonly onConfirm: (justification: string) => Promise<void>;
+  readonly validate?: ((justification: string) => string | null) | undefined;
 }) {
   const t = useTranslations('etp.editor.notApplicable');
   const [open, setOpen] = useState(false);
@@ -593,9 +598,15 @@ export function NotApplicableToggle({
     );
   }
   const confirm = () => {
-    const problem = notApplicableJustificationProblem(text);
-    if (problem !== null) {
-      setError(notApplicableJustificationMessage(problem));
+    const etpProblem = validate === undefined ? notApplicableJustificationProblem(text) : null;
+    const message =
+      validate === undefined
+        ? etpProblem === null
+          ? null
+          : notApplicableJustificationMessage(etpProblem)
+        : validate(text);
+    if (message !== null) {
+      setError(message);
       field.current?.focus();
       return;
     }

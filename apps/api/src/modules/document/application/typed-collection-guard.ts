@@ -60,6 +60,8 @@ export interface TypedCollectionInput {
 
 export interface TypedCollectionState {
   readonly processId: string;
+  /** Título do processo (US-036: o título padrão do TR no diálogo de criação). */
+  readonly processTitle: string;
   readonly isBudgetConfidential: boolean;
   readonly owner: TypedCollectionOwner | null;
   readonly lockReason: TypedCollectionLockReason | null;
@@ -93,6 +95,7 @@ export class TypedCollectionGuard {
     const owner = await this.documents.findActiveOfType(tx, process.id, type.id);
     return {
       processId: process.id,
+      processTitle: process.title,
       isBudgetConfidential: process.isBudgetConfidential,
       owner: ownerOf(owner),
       lockReason: await this.lockReasonOf({ process, type }, owner, input.permission),

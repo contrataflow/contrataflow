@@ -11,6 +11,7 @@ import type {
   RichTextDoc,
   SectionDefinition,
   SectionState,
+  SystemDocumentModule,
 } from '@contrataflow/validation';
 
 import { canonicalJson, sha256Hex } from '#shared/integrity/canonical-json.js';
@@ -63,6 +64,26 @@ export function sectionDraftProblem(
       return { kind: 'JUSTIFICATION_TOO_SHORT' };
   }
   return null;
+}
+
+/**
+ * Tipos em que a seção `REQUIRED` não admite "não se aplica" na gravação (US-036 · RN-TR-12 · V-07:
+ * 422 `NOT_ALLOWED` em `state`). Nos demais (DFD, ETP — RN-ETP-11), a marcação é aceita e só a
+ * completude do DOC-08 a recusa como resolução.
+ */
+const REQUIRED_REJECTS_NOT_APPLICABLE: ReadonlySet<SystemDocumentModule> = new Set([
+  'TERM_OF_REFERENCE',
+]);
+
+export function rejectsNotApplicable(
+  systemModule: SystemDocumentModule | null,
+  definition: Pick<SectionDefinition, 'requirement'>,
+): boolean {
+  return (
+    definition.requirement === 'REQUIRED' &&
+    systemModule !== null &&
+    REQUIRED_REJECTS_NOT_APPLICABLE.has(systemModule)
+  );
 }
 
 /** O que a seção passa a guardar (estado derivado; justificativa só em "não se aplica"). */

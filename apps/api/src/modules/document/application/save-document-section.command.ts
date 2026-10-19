@@ -1,4 +1,8 @@
-import { DOCUMENT_SECTION_MESSAGES, sectionContentBytes } from '@contrataflow/validation';
+import {
+  DOCUMENT_SECTION_MESSAGES,
+  sectionContentBytes,
+  TERM_MESSAGES,
+} from '@contrataflow/validation';
 import type {
   DocumentSectionSavedDto,
   DraftSection,
@@ -16,7 +20,7 @@ import type { DraftAuditCoalescerPort, DraftAuditTicket } from '#shared/audit/dr
 import { TransactionalCommandHandler } from '#shared/commands/transactional-command.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
-import { ApiError } from '#shared/errors/api-error.js';
+import { ApiError, validationError } from '#shared/errors/api-error.js';
 
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
 import type { DocumentContext } from './document-lifecycle.service.js';
@@ -39,6 +43,7 @@ import type { Document } from '../domain/document.js';
 import {
   applySectionDraft,
   isIdenticalSave,
+  rejectsNotApplicable,
   sectionDraftProblem,
   sectionDraftValue,
   sectionValueHash,
@@ -163,6 +168,11 @@ export class SaveDocumentSectionCommand extends TransactionalCommandHandler<
       (section) => section.key === input.sectionKey,
     );
     if (definition === undefined) throw sectionNotInTemplate();
+    if (input.notApplicable && rejectsNotApplicable(context.type.systemModule, definition)) {
+      throw validationError([
+        { field: 'state', code: 'NOT_ALLOWED', message: TERM_MESSAGES.notApplicableNotAllowed },
+      ]);
+    }
     const draft = {
       content: input.content,
       notApplicable: input.notApplicable,

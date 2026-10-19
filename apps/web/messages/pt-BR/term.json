@@ -1,0 +1,154 @@
+{
+  "create": {
+    "action": "Criar Termo de Referência",
+    "open": "Abrir {code}",
+    "openNoCode": "Abrir Termo de Referência",
+    "title": "Criar Termo de Referência",
+    "description": "O TR nasce com as seções do modelo escolhido (art. 6º, XXIII, da Lei 14.133/2021), em rascunho e sob sua responsabilidade.",
+    "loading": "Carregando os modelos de TR…",
+    "loadError": "Não foi possível carregar os modelos de TR.",
+    "retry": "Tentar novamente",
+    "fields": {
+      "template": "Modelo",
+      "templateDefault": "{name} (padrão)",
+      "title": "Título"
+    },
+    "submit": "Criar TR",
+    "submitting": "Criando TR…",
+    "cancel": "Cancelar",
+    "openExisting": "Abrir TR existente",
+    "reused": "Esta solicitação já foi enviada com outros dados. Recarregue a página.",
+    "validation": "Revise os campos destacados.",
+    "unavailable": "Não foi possível criar o TR agora. Tente novamente em instantes.",
+    "failed": "Ocorreu um erro inesperado.",
+    "failedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "toast": {
+      "created": "{code} criado.",
+      "createdNoCode": "TR criado."
+    }
+  },
+  "page": {
+    "title": "Termo de Referência"
+  },
+  "editor": {
+    "loading": "Carregando as seções do TR…",
+    "retry": "Tentar novamente",
+    "heading": "Termo de Referência",
+    "sectionsNav": "Seções do TR",
+    "sectionsMenu": "Seções",
+    "completeness": {
+      "label": "Completude do TR",
+      "summary": "{percent}% — {satisfied} de {required} seções exigidas",
+      "progress": "Completude do TR: {percent}%"
+    },
+    "inApproval": "Em aprovação",
+    "state": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "requirement": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou justificada",
+      "OPTIONAL": "Opcional"
+    },
+    "requiredMark": "Obrigatória",
+    "pending": "Exigida e incompleta",
+    "legalBasis": "Base legal: {basis}",
+    "help": "Orientação para o preenchimento",
+    "maxChars": "Até {max} caracteres.",
+    "textLabel": "Texto da seção {title}",
+    "narrativeLabel": "Texto complementar da seção {title}",
+    "structured": {
+      "ITEMS_TABLE": "Os itens do TR são cadastrados à parte; aqui você descreve a solução e os requisitos.",
+      "ALTERNATIVES_TABLE": "As alternativas avaliadas ficam no ETP."
+    },
+    "previous": "Seção anterior",
+    "next": "Próxima seção",
+    "readOnly": {
+      "title": "Somente leitura",
+      "concluded": "Documento concluído — para alterar, reabra (US-039).",
+      "forbidden": "Você não pode editar este TR agora."
+    },
+    "autosave": {
+      "indicator": {
+        "dirty": "Alterações não salvas",
+        "saving": "Salvando…",
+        "saved": "Salvo às {time}",
+        "savedShort": "Salvo",
+        "error": "Erro ao salvar",
+        "offline": "Erro ao salvar — tentando novamente",
+        "offlineShort": "Erro ao salvar",
+        "conflict": "Conflito de edição — escolha qual versão manter",
+        "blocked": "Edição interrompida"
+      },
+      "conflict": {
+        "title": "Alguém salvou esta seção enquanto você editava",
+        "changedBy": "Alterado por {name} às {time}.",
+        "changedBySelf": "Você, em outra aba, às {time}.",
+        "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+        "showDiff": "Ver diferenças",
+        "hideDiff": "Ocultar diferenças",
+        "keepMine": "Manter a minha versão",
+        "discardMine": "Descartar a minha e recarregar",
+        "serverColumn": "Versão salva no servidor",
+        "mineColumn": "Minha versão",
+        "inserted": "inserido",
+        "removed": "removido",
+        "empty": "(vazio)",
+        "someone": "outra pessoa"
+      },
+      "recovered": {
+        "title": "Recuperamos alterações não salvas de {time}.",
+        "restore": "Restaurar",
+        "discard": "Descartar"
+      },
+      "blocked": {
+        "notEditable": "O TR está concluído. Reabra-o para editar.",
+        "forbidden": "Você não pode criar ou editar o TR deste processo agora.",
+        "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+        "generic": "Não foi possível continuar salvando este TR.",
+        "kept": "Suas últimas alterações foram guardadas neste navegador."
+      }
+    }
+  },
+  "general": {
+    "title": "Dados do TR",
+    "object": {
+      "label": "Objeto (resumo)",
+      "hint": "De 10 a 2.000 caracteres. Alterar o objeto do TR não altera o objeto do processo.",
+      "save": "Salvar objeto",
+      "saving": "Salvando…",
+      "saved": "Objeto salvo."
+    },
+    "value": {
+      "title": "Valor estimado",
+      "notInformed": "Não informado",
+      "masked": "Orçamento sigiloso: o valor estimado não é exibido para você.",
+      "source": "Origem do valor",
+      "sourceLabel": {
+        "PRICE_RESEARCH": "Pesquisa de preços",
+        "PRICE_RESEARCH_CODE": "Pesquisa de preços {code}",
+        "ETP": "Importado do ETP",
+        "MANUAL": "Informado manualmente",
+        "NONE": "Sem origem definida"
+      },
+      "openResearch": "Abrir a pesquisa de preços",
+      "manual": "Informar manualmente",
+      "manualLabel": "Valor estimado (R$)",
+      "manualHint": "A justificativa e a memória de cálculo do valor vão na seção \"Estimativa do valor da contratação\".",
+      "confirm": "Confirmar valor",
+      "cancel": "Cancelar",
+      "useResearch": "Usar o valor da pesquisa",
+      "useResearchWithValue": "Usar o valor da pesquisa ({value})",
+      "saving": "Salvando…",
+      "saved": "Valor estimado atualizado."
+    },
+    "errors": {
+      "versionConflict": "Os dados do TR foram alterados por outra pessoa. Recarregamos o painel; confira e salve de novo.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "unexpectedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}."
+    },
+    "readOnlyHint": "Os dados do TR estão em modo leitura."
+  }
+}

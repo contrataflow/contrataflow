@@ -56,6 +56,7 @@ const RN_TPL_29: Readonly<Record<string, readonly string[]>> = {
     'SANCTIONS',
     'SELECTION_CRITERIA',
     'ESTIMATED_VALUE',
+    'BUDGET_ADEQUACY',
   ],
   RISK_MAP: ['INTRODUCTION', 'METHODOLOGY', 'RISK_MATRIX', 'RISK_LIST', 'NOTES'],
   PRICE_RESEARCH: ['METHODOLOGY', 'PRICE_SUMMARY', 'CONCLUSION'],
@@ -133,7 +134,7 @@ describe('Feature: Biblioteca de templates padrão (US-110)', () => {
       expect(layoutDefinitionSchema.safeParse(DEFAULT_TEMPLATE_LAYOUT).success).toBe(true);
     });
 
-    it('blocos computados com o render de RN-TPL-29; o restante é TEXT', () => {
+    it('blocos computados com o render de RN-TPL-29 e os do TR da US-036; o restante é TEXT', () => {
       const renders = Object.fromEntries(
         library.flatMap((item) =>
           item.sections
@@ -145,6 +146,8 @@ describe('Feature: Biblioteca de templates padrão (US-110)', () => {
         'RISK_MAP.RISK_MATRIX': 'RISK_MATRIX',
         'RISK_MAP.RISK_LIST': 'RISK_LIST',
         'PRICE_RESEARCH.PRICE_SUMMARY': 'PRICE_SUMMARY',
+        'TR.SPECIFICATIONS': 'ITEMS_TABLE',
+        'TR.ESTIMATED_VALUE': 'ESTIMATED_VALUE',
       });
     });
 

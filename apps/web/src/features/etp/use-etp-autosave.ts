@@ -4,7 +4,7 @@ import { useAutosave } from '@contrataflow/ui';
 import type { AutosaveFailure, LocalDraft, LocalDraftStore } from '@contrataflow/ui';
 import type {
   DocumentSectionSavedDto,
-  EtpDetailDto,
+  DraftContent,
   SectionConflictCurrent,
 } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,15 +38,24 @@ export interface EtpRecoveredDrafts {
   readonly savedAt: number;
 }
 
+/**
+ * O documento que o autosave grava: só o id e o rascunho por seção (a revisão-base de cada uma).
+ * O ETP e o TR (US-036 — o mesmo DOC-05, nenhum mecanismo paralelo) satisfazem a forma.
+ */
+export interface AutosaveDocument {
+  readonly documentId: string;
+  readonly draftContent: DraftContent;
+}
+
 export interface UseEtpAutosaveInput {
-  readonly etp: EtpDetailDto;
+  readonly etp: AutosaveDocument;
   readonly tenantId: string;
   readonly userId: string;
   readonly enabled: boolean;
   /** A tela troca a seção (descartar a minha / restaurar). */
   readonly onSection: (key: string, draft: EtpSectionDraft) => void;
-  /** A gravação confirmada (estado e revisão — a navegação lateral se atualiza). */
-  readonly onSaved?: ((saved: DocumentSectionSavedDto) => void) | undefined;
+  /** A gravação confirmada (estado e revisão — a navegação lateral se atualiza) e o valor gravado. */
+  readonly onSaved?: ((saved: DocumentSectionSavedDto, value: EtpSectionDraft) => void) | undefined;
   /** Testes: contingência em memória. */
   readonly store?: LocalDraftStore | undefined;
 }
@@ -100,7 +109,7 @@ export function useEtpAutosave(input: UseEtpAutosaveInput) {
         revision,
       );
       revisions.current[key] = saved.revision;
-      latest.current.onSaved?.(saved);
+      latest.current.onSaved?.(saved, value);
       invalidateValidation();
     },
     classify: classifyDfdAutosaveError,
