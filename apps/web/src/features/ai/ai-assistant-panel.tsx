@@ -15,6 +15,7 @@ import type {
   RiskLevelThreshold,
 } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
@@ -95,6 +96,8 @@ export function AiAssistantPanel({
   const [needSummary, setNeedSummary] = useState('');
   const [instruction, setInstruction] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  /** `AI_PREREQUISITE_MISSING` (US-118 · FA-01): sem DFD, o atalho para os documentos. */
+  const [missingDfd, setMissingDfd] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const { generation, stalled } = useAiGeneration(generationId);
@@ -132,6 +135,7 @@ export function AiAssistantPanel({
       return;
     }
     setFormError(null);
+    setMissingDfd(false);
     try {
       const created = await request.submit(undefined);
       queryClient.setQueryData(aiKeys.generation(tenantId, created.id), created);
@@ -147,6 +151,11 @@ export function AiAssistantPanel({
         setGenerationId(activeId);
         setNotice(t('states.inProgress'));
         setTab('proposal');
+        return;
+      }
+      if (apiError?.code === 'AI_PREREQUISITE_MISSING') {
+        setMissingDfd(true);
+        setFormError(t('form.prerequisiteDfd'));
         return;
       }
       setFormError(
@@ -229,6 +238,7 @@ export function AiAssistantPanel({
       <div role="tabpanel" id={`${tabsId}-${tab}-panel`} aria-labelledby={`${tabsId}-${tab}`}>
         {tab === 'generate' ? (
           <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)} noValidate>
+            {targetModule === 'ETP' ? <EtpRequestGuide /> : null}
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium">{t('form.needSummary')}</span>
               <textarea
@@ -259,7 +269,11 @@ export function AiAssistantPanel({
             </label>
             {formError ? (
               <Alert tone="error" title={formError}>
-                {null}
+                {missingDfd ? (
+                  <Link href={`/processos/${processId}`} className="text-primary underline">
+                    {t('form.prerequisiteLink')}
+                  </Link>
+                ) : null}
               </Alert>
             ) : null}
             <div>
@@ -310,8 +324,40 @@ export function AiAssistantPanel({
   );
 }
 
+/**
+ * `AiRequestForm` do ETP (US-118 · passo 2): as entradas previstas, as decisões que continuam com a
+ * pessoa (RN-AI-35) e o consumo estimado (RN-AI-18). A API confere os pré-requisitos no AI-01 e
+ * devolve os avisos definitivos na proposta.
+ */
+function EtpRequestGuide() {
+  const t = useTranslations('ai.form.etp');
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-border p-3 text-sm">
+      <section className="flex flex-col gap-1">
+        <h3 className="font-medium">{t('inputsTitle')}</h3>
+        <ul className="list-disc pl-5">
+          {(['dfd', 'items', 'alternatives', 'priceResearch'] as const).map((key) => (
+            <li key={key}>{t(`inputs.${key}`)}</li>
+          ))}
+        </ul>
+      </section>
+      <section className="flex flex-col gap-1">
+        <h3 className="font-medium">{t('decisionsTitle')}</h3>
+        <ul className="list-disc pl-5">
+          {(['conclusion', 'solution', 'parceling'] as const).map((key) => (
+            <li key={key}>{t(`decisions.${key}`)}</li>
+          ))}
+        </ul>
+      </section>
+      <p className="text-xs text-muted-foreground">{t('estimate')}</p>
+    </div>
+  );
+}
+
 const MISSING_INPUTS = [
   'ITEMS',
+  'ETP_ITEMS',
+  'ALTERNATIVES',
   'EXPECTED_DATE',
   'PCA_LINK',
   'DFD',

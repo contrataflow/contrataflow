@@ -74,6 +74,41 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
   completo em memória), `test/tenant-leak/ai-dfd-draft.spec.ts` (PostgreSQL: commit único, falha
   induzida, RLS).
 
+## Rascunho do ETP — `draft.etp` (US-118 · RN-AI-33..37)
+
+- **Gerador** `application/etp-draft.generator.ts` (`ETP`/`DRAFT`, registrado no `onModuleInit`;
+  reserva 40 mil tokens; resumo opcional). Pedido: DFD não cancelado
+  (`DocumentFacade.aiChainSourceIn`) senão 422 `AI_PREREQUISITE_MISSING` com `meta.missing: ['DFD']`
+  (o ETP em `DRAFT`/`RETURNED`, POL-02 e etapa vêm do `aiTargetIn`). Job: o DFD pela precedência
+  aprovada → versão → rascunho (é o `DfdSourceResolver` da story — lacuna 4), `DfdFacade.aiDraftHeaderIn`,
+  `DocumentFacade.aiDraftSourceIn` (template com `render`, itens com a memória de cálculo em texto),
+  `EtpFacade.aiDraftContextIn` (decisões tipadas e alternativas SEM o custo) e
+  `PriceResearchFacade.aiCompletedResearchIn` (pesquisa concluída: total, método, cotações válidas
+  por item — nunca fornecedores nem cotações). DFD perdido entre o pedido e o job → `CANCELED_BY_POLICY`.
+- **Contexto** `domain/etp-draft-context.ts` (puro): partes/`inputRefs` `PROCESS`, `CATALOG`, o DFD
+  (`DOCUMENT_VERSION` com `versionNumber` ou `DOCUMENT_DRAFT` + `USED_DRAFT_INPUTS`), as decisões
+  do ETP (`DOCUMENT_DRAFT` do ETP), `PROCESS_ITEMS` e `ETP_ALTERNATIVES` (opcionais — saem primeiro
+  no corte) e `PRICE_RESEARCH` (só concluída; senão `MISSING_PRICE_RESEARCH`) e `TEMPLATE_VERSION`.
+  Valor estimado só da pesquisa concluída ou do valor do ETP vinculado a ela (RN-AI-36 — manual e
+  custo de alternativa nunca). Sigilo: nenhum valor, nem em texto livre (`withoutMoney` troca por
+  `[valor omitido]`). Seções `render ≠ TEXT` com narrativa entram como "texto complementar" no
+  guia; sem narrativa ficam fora (RN-AI-37). Avisos `MISSING_OPTIONAL_INPUT`: `ETP_ITEMS`,
+  `ALTERNATIVES`.
+- **A IA não decide** (RN-AI-35/36): `EtpDecisionGuard` — pós-processador do PRÓPRIO gerador
+  (`AiGeneratorContext.postProcessors`, roda antes da cadeia global/GroundingGuard) que garante o
+  `toConfirm` de `CONCLUSION` (conclusão pendente), `RECOMMENDED_SOLUTION` (sem alternativa
+  recomendada), `PARCELING` (sem decisão) e `ESTIMATES` (sem valor da pesquisa ou com sigilo);
+  faltando, acrescenta um parágrafo com a marcação. Idempotente. Nada é escrito em `etp`.
+- **Prompt** `prompts/draft.etp/prompt.ts` `1.0.0`; fixture `test/fixtures/ai/draft.etp/padrao.json`
+  (15 seções — a opcional `OBJECTIVE` fica de fora). `pnpm ai:eval --suite etp` avalia o prompt com
+  DFD aprovado, DFD em rascunho, sem pesquisa e sigiloso (`src/cli/ai-eval-etp.ts`).
+- **Web:** o assistente do ETP fica no `EtpEditor` (o `DocumentView` recebe
+  `showAiAssistant={false}`) para a aplicação ser adotada pelo autosave (`adoptSections`); a
+  notificação abre `/processos/{id}/etp/{etpId}?ia=`.
+- **Testes:** `domain/etp-draft-context.spec.ts`, `presentation/etp-draft.routes.spec.ts` (Gherkin
+  completo em memória), `test/tenant-leak/ai-etp-draft.spec.ts` (PostgreSQL: RLS no contexto e no
+  acesso, `etps` intacto).
+
 ## Proposta do mapa de riscos — `draft.risk_map` (US-119 · RN-AI-38..41)
 
 - **Gerador** `application/risk-map-draft.generator.ts` (`RISK_MAP`/`DRAFT`, registrado no

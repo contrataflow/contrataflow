@@ -3,6 +3,7 @@
 import { useAutosave } from '@contrataflow/ui';
 import type { AutosaveFailure, LocalDraft, LocalDraftStore } from '@contrataflow/ui';
 import type {
+  DocumentDto,
   DocumentSectionSavedDto,
   DraftContent,
   DraftSection,
@@ -230,6 +231,19 @@ export function useEtpAutosave(input: UseEtpAutosaveInput) {
       revisions.current[key] = section.revision;
       latest.current.onSection(key, sectionDraftOf(section));
       await autosave.discard(sectionTarget(key));
+    },
+    /**
+     * US-118: o rascunho com IA aplicado em várias seções (DOC-26). As seções com revisão nova
+     * passam a valer como as do servidor (texto, estado e `If-Match`); as demais ficam intactas,
+     * com as pendências locais.
+     */
+    async adoptSections(document: Pick<DocumentDto, 'draftContent'>) {
+      for (const [key, section] of Object.entries(document.draftContent.sections)) {
+        if (revisions.current[key] === section.revision) continue;
+        revisions.current[key] = section.revision;
+        latest.current.onSection(key, sectionDraftOf(section));
+        await autosave.discard(sectionTarget(key));
+      }
     },
     /** FA-04 "Descartar": apaga as pendências locais do ETP. */
     async discardRecovered() {

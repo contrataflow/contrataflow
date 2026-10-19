@@ -27,6 +27,8 @@ export interface SyntheticProcess {
   readonly isBudgetConfidential: boolean;
   readonly needSummary: string;
   readonly parts: readonly ContextPart[];
+  /** Ganchos do gerador do documento (ex.: guarda das decisões do ETP — US-118). */
+  readonly postProcessors?: readonly AiOutputPostProcessor[];
 }
 
 export interface EvalCaseResult {
@@ -124,6 +126,8 @@ export interface EvalOptions {
   readonly model: string;
   readonly pricing: PricingTable;
   readonly prompt?: PromptTemplate;
+  /** Seções pedidas (padrão: as do DFD de avaliação). */
+  readonly sections?: readonly SectionSpec[];
   readonly postProcessors?: readonly AiOutputPostProcessor[];
   readonly processes?: readonly SyntheticProcess[];
   readonly timeoutMs?: number;
@@ -146,6 +150,7 @@ function percentile95(values: readonly number[]): number {
 async function evaluate(process: SyntheticProcess, options: EvalOptions): Promise<EvalCaseResult> {
   const now = options.now ?? (() => performance.now());
   const prompt = options.prompt ?? EVAL_PROMPT;
+  const sections = options.sections ?? EVAL_SECTIONS;
   const context = sanitizeContext(
     [
       {
@@ -157,7 +162,7 @@ async function evaluate(process: SyntheticProcess, options: EvalOptions): Promis
     ],
     { isBudgetConfidential: process.isBudgetConfidential, maxChars: 240_000 },
   );
-  const rendered = renderPrompt(prompt, { sections: EVAL_SECTIONS, context, action: null });
+  const rendered = renderPrompt(prompt, { sections, context, action: null });
   const base = {
     model: options.model,
     system: rendered.system,
@@ -169,7 +174,7 @@ async function evaluate(process: SyntheticProcess, options: EvalOptions): Promis
       promptKey: prompt.key,
       promptVersion: prompt.version,
       contextHash: context.contextHash,
-      sectionKeys: EVAL_SECTIONS.map((section) => section.sectionKey),
+      sectionKeys: sections.map((section) => section.sectionKey),
     },
   };
   const startedAt = now();
@@ -182,7 +187,7 @@ async function evaluate(process: SyntheticProcess, options: EvalOptions): Promis
     });
     usage = first.usage;
     let conversion = convertStructuredOutput(first.output, {
-      sections: EVAL_SECTIONS,
+      sections,
       warnings: context.warnings,
     });
     const validOnFirstTry = conversion.ok;
@@ -201,12 +206,16 @@ async function evaluate(process: SyntheticProcess, options: EvalOptions): Promis
       });
       usage = sum(usage, repair.usage);
       conversion = convertStructuredOutput(repair.output, {
-        sections: EVAL_SECTIONS,
+        sections,
         warnings: context.warnings,
       });
     }
     const processed = conversion.ok
-      ? runPostProcessors(options.postProcessors ?? [], conversion.output, context)
+      ? runPostProcessors(
+          [...(process.postProcessors ?? []), ...(options.postProcessors ?? [])],
+          conversion.output,
+          context,
+        )
       : null;
     return {
       processId: process.id,

@@ -37,6 +37,7 @@ import type { EtpSectionDraft } from './etp-editor-model';
 import { StructuredSectionContent } from './etp-structured-sections';
 import { useEtp } from './etp.api';
 import { useEtpAutosave } from './use-etp-autosave';
+import { AiAssistant } from '../ai/ai-assistant';
 import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { AiSectionChange } from '../ai/ai-section-assistant';
 import { documentKeys, fetchDocumentValidation } from '../documents/documents.api';
@@ -66,9 +67,12 @@ const STATE_ICON: Readonly<Record<SectionState, string>> = {
 export function EtpEditor({
   processId,
   etpId,
+  aiGenerationId = null,
 }: {
   readonly processId: string;
   readonly etpId: string;
+  /** `?ia=<generationId>`: abre o assistente de IA na geração (US-118 · SCR-117). */
+  readonly aiGenerationId?: string | null | undefined;
 }) {
   const t = useTranslations('etp.editor');
   const query = useEtp(etpId);
@@ -103,6 +107,7 @@ export function EtpEditor({
       processId={processId}
       etp={query.data.etp}
       meta={query.data.meta}
+      aiGenerationId={aiGenerationId}
     />
   );
 }
@@ -111,9 +116,15 @@ export interface EtpEditorLoadedProps {
   readonly processId: string;
   readonly etp: EtpDetailDto;
   readonly meta: EtpDetailMeta;
+  readonly aiGenerationId?: string | null | undefined;
 }
 
-export function EtpEditorLoaded({ processId, etp, meta }: EtpEditorLoadedProps) {
+export function EtpEditorLoaded({
+  processId,
+  etp,
+  meta,
+  aiGenerationId = null,
+}: EtpEditorLoadedProps) {
   const t = useTranslations('etp.editor');
   const session = useShellSession();
   const timeZone = session.activeTenant.timezone;
@@ -195,6 +206,26 @@ export function EtpEditorLoaded({ processId, etp, meta }: EtpEditorLoadedProps) 
           })}
           {summary.pending > 0 ? ` · ${t('pendingCount', { count: summary.pending })}` : ''}
         </span>
+        {/* US-118: rascunho do ETP com IA (SCR-117) — aplicado pelo DOC-26, adotado pelo autosave. */}
+        <AiAssistant
+          processId={processId}
+          documentId={etp.documentId}
+          targetModule="ETP"
+          editable={etp.status === 'DRAFT' || etp.status === 'RETURNED'}
+          initialGenerationId={aiGenerationId}
+          onApplied={(document) => {
+            setStates((previous) => ({
+              ...previous,
+              ...Object.fromEntries(
+                Object.entries(document.draftContent.sections).map(([key, section]) => [
+                  key,
+                  section.state,
+                ]),
+              ),
+            }));
+            void autosave.adoptSections(document);
+          }}
+        />
         {allowed ? (
           <AutosaveIndicator
             className="ml-auto"

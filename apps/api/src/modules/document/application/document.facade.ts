@@ -629,6 +629,7 @@ export class DocumentFacade {
                       ? null
                       : richTextPlainText(section.defaultContent).trim() || null,
                   maxChars: section.maxChars,
+                  render: section.render,
                   allowNarrative: section.allowNarrative,
                 })),
             },
@@ -640,7 +641,13 @@ export class DocumentFacade {
       ),
       items: [...items]
         .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((item) => ({ processItemId: item.processItemId, quantity: item.quantity })),
+        .map((item) => ({
+          processItemId: item.processItemId,
+          quantity: item.quantity,
+          calculationMemo: item.calculationMemo
+            ? richTextPlainText(item.calculationMemo).trim() || null
+            : null,
+        })),
     };
   }
 

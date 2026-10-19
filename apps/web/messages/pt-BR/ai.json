@@ -22,7 +22,25 @@
     "instruction": "Orientações (opcional)",
     "instructionInvalid": "As orientações aceitam até 500 caracteres.",
     "submit": "Gerar com IA",
-    "submitting": "Enviando…"
+    "submitting": "Enviando…",
+    "prerequisiteDfd": "Elabore o DFD antes de gerar o ETP com IA.",
+    "prerequisiteLink": "Ir para os documentos do processo",
+    "etp": {
+      "inputsTitle": "O que a IA vai usar",
+      "inputs": {
+        "dfd": "O DFD do processo: a versão aprovada; sem ela, a finalizada; sem nenhuma, o rascunho atual.",
+        "items": "Os itens do ETP com as quantidades e as memórias de cálculo.",
+        "alternatives": "As alternativas cadastradas, com vantagens e desvantagens.",
+        "priceResearch": "A pesquisa de preços concluída: o valor estimado vem só dela."
+      },
+      "decisionsTitle": "Decisões que continuam com você",
+      "decisions": {
+        "conclusion": "A conclusão sobre a viabilidade da contratação.",
+        "solution": "A solução escolhida entre as alternativas.",
+        "parceling": "O parcelamento ou não da solução."
+      },
+      "estimate": "Consumo estimado: até 40 mil tokens."
+    }
   },
   "progress": {
     "title": "Gerando… você pode continuar editando",
@@ -200,7 +218,9 @@
     "TERM_OF_REFERENCE": "O Termo de Referência ainda não existe; prazos e critérios saíram como [a confirmar].",
     "other": "Complete as informações marcadas como [a confirmar].",
     "DFD": "O processo ainda não tem DFD; a sugestão usou só o que mais existir.",
-    "RISK_MAP": "O Mapa de Riscos ainda não existe; a sugestão usou os demais documentos."
+    "RISK_MAP": "O Mapa de Riscos ainda não existe; a sugestão usou os demais documentos.",
+    "ETP_ITEMS": "O ETP ainda não tem itens; as quantidades saíram como [a confirmar].",
+    "ALTERNATIVES": "Nenhuma alternativa cadastrada no ETP; a descrição da solução ficou como [a confirmar]."
   },
   "apply": {
     "legend": "Escolha as seções a aplicar",

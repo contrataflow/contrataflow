@@ -248,7 +248,7 @@ Feature: Gerar o rascunho do ETP com IA a partir do DFD
   1. *(Resolvida em entities.md §4.11 e api/16-ai.md, 2026-10-16.)* `needSummary` é opcional fora do DFD; quando informado, 20..2.000 caracteres.
   2. *(Decidida, sem novo endpoint.)* O cliente monta a lista de entradas e avisos com os dados já carregados (DFD-01, ETP-05, PRS-01); a API valida os pré-requisitos no AI-01 (`AI_PREREQUISITE_MISSING`) e devolve os avisos definitivos em `output.warnings`.
   3. *(Resolvida em entities.md §4.11.)* Pré-requisito perdido entre o pedido e a execução → `CANCELED` com `CANCELED_BY_POLICY`.
-  4. entities.md não define como localizar a "versão aprovada mais recente" nem a "finalizada" de um documento; assume-se a última `DocumentVersion` gerada com o documento em `APPROVED`/`FINALIZED`. Propor uma consulta na fachada de leitura do `document`.
+  4. *(Resolvida na implementação, 2026-10-19.)* A precedência fica na fachada de leitura do `document` (`DocumentFacade.aiChainSourceIn`, US-119): `approvedVersionId`; senão a versão corrente de um documento fora de `DRAFT`/`RETURNED`; senão o rascunho (`USED_DRAFT_INPUTS`).
 
 ## Impacto técnico
 - O gerador monta um conjunto de fatos normalizado (`EtpDraftContext`) que também alimenta o GroundingGuard: "valor que não está nas entradas" é decidido pelo mesmo conjunto enviado ao provedor.

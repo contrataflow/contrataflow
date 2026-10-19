@@ -9,6 +9,7 @@ import type { AiGenerationTarget } from './ports.js';
 import type { AiGeneration } from '../domain/ai-generation.js';
 import type { ContextPart } from '../domain/context-sanitizer.js';
 import type { RiskRefiner, SectionSpec } from '../domain/output-converter.js';
+import type { AiOutputPostProcessor } from '../domain/post-processing.js';
 import { PromptRegistry } from '../domain/prompts.js';
 import type { PromptTemplate } from '../domain/prompts.js';
 import type { StructuredResponse } from '../domain/structured-output.js';
@@ -52,6 +53,11 @@ export interface AiGeneratorContext {
   readonly refineRisks?: RiskRefiner;
   /** Descarta seções não pedidas (mapa de riscos sem documento — RN-AI-41). */
   readonly ignoreUnknownSections?: boolean;
+  /**
+   * Ganchos do próprio documento, rodados ANTES da cadeia global (GroundingGuard): ex.: a guarda das
+   * decisões do ETP (US-118 · RN-AI-35/36 — `[a confirmar]` da conclusão, solução e parcelamento).
+   */
+  readonly postProcessors?: readonly AiOutputPostProcessor[];
 }
 
 /**

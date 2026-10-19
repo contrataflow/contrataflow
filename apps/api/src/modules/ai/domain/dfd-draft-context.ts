@@ -161,7 +161,7 @@ export interface DfdDraftContext {
   readonly warnings: AiOutputWarning[];
 }
 
-const PCA_STATUS_LABELS: Readonly<Record<PcaStatus, string>> = {
+export const PCA_STATUS_LABELS: Readonly<Record<PcaStatus, string>> = {
   PLANNED: 'Prevista no Plano de Contratações Anual',
   NOT_PLANNED: 'Não prevista no Plano de Contratações Anual',
   NOT_APPLICABLE: 'Não se aplica',

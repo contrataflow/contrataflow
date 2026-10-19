@@ -32,6 +32,11 @@ export interface DocumentViewProps {
   readonly focusTitleOnLoad?: boolean | undefined;
   /** Editor do módulo tipado (US-020: seções do ETP), entre o ciclo de vida e os anexos. */
   readonly children?: ReactNode;
+  /**
+   * Assistente de IA no cabeçalho (padrão). `false` quando o editor tipado o traz junto das seções
+   * (US-118: ETP — a aplicação recarrega o editor).
+   */
+  readonly showAiAssistant?: boolean | undefined;
 }
 
 /**
@@ -47,6 +52,7 @@ export function DocumentView({
   aiGenerationId = null,
   focusTitleOnLoad = false,
   children,
+  showAiAssistant = true,
 }: DocumentViewProps) {
   const t = useTranslations('documents.view');
   const tErrors = useTranslations('errors');
@@ -165,7 +171,7 @@ export function DocumentView({
         {document.documentType.kind !== 'UPLOADED' ? (
           <GeneratePdfButton source={{ kind: 'preview', documentId: document.id }} />
         ) : null}
-        {isAiTarget(document.documentType.systemModule) ? (
+        {showAiAssistant && isAiTarget(document.documentType.systemModule) ? (
           <div>
             <AiAssistant
               processId={processId}

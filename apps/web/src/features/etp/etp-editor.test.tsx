@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type {
+  AiGenerationDto,
   DocumentValidationDto,
   EtpDetailDto,
   EtpDetailMeta,
@@ -167,14 +168,108 @@ interface ApiOptions {
   readonly etp?: EtpDetailDto;
   readonly meta?: EtpDetailMeta;
   readonly putSection?: (call: number, init?: RequestInit) => Response | Promise<Response>;
+  /** US-118: AI_GENERATE, AI-05, a proposta `GEN` (AI-02), o DOC-03 e o DOC-26. */
+  readonly ai?: boolean;
 }
 
+const GEN = ID(990);
+
+/** Proposta pronta do rascunho do ETP (US-118) só com a descrição da necessidade. */
+const AI_PROPOSAL = {
+  id: GEN,
+  processId: PROCESS_ID,
+  documentId: ETP_ID,
+  targetModule: 'ETP',
+  kind: 'DRAFT',
+  action: null,
+  sectionKey: null,
+  baseRevision: null,
+  status: 'SUCCEEDED',
+  requestedBy: { id: ANA, name: 'Ana Souza' },
+  createdAt: AT,
+  startedAt: AT,
+  completedAt: AT,
+  expiresAt: '2026-10-25T17:31:00.000Z',
+  provider: 'fake',
+  model: 'fake-draft-1',
+  promptKey: 'draft.etp',
+  promptVersion: '1.0.0',
+  usage: { inputTokens: 900, outputTokens: 300, totalTokens: 1200 },
+  placeholdersCount: 0,
+  groundingReplacements: 0,
+  inputRefs: [],
+  output: {
+    sections: [
+      {
+        sectionKey: 'NEED_DESCRIPTION',
+        title: 'Descrição da necessidade',
+        content: doc('Necessidade sugerida.'),
+        placeholdersCount: 0,
+        groundingReplacements: 0,
+      },
+    ],
+    warnings: [],
+  },
+  errorCode: null,
+  appliedAt: null,
+  appliedTargets: null,
+} satisfies AiGenerationDto;
+
 function mockApi(options: ApiOptions = {}) {
-  const base = mockProcessApi({ permissions: ['PROCESS_VIEW'] });
+  const base = mockProcessApi({
+    permissions:
+      options.ai === true ? ['PROCESS_VIEW', 'AI_GENERATE', 'ETP_UPDATE'] : ['PROCESS_VIEW'],
+  });
   let sectionCalls = 0;
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
     const url = requestUrl(input);
     const method = init?.method ?? 'GET';
+    if (options.ai === true) {
+      if (method === 'GET' && url.startsWith('/api/v1/ai/availability')) {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              enabled: true,
+              providerAvailable: true,
+              canGenerate: true,
+              reasons: [],
+              monthly: { percentUsed: 10 },
+              userDaily: { used: 1, limit: 40 },
+            },
+          }),
+        );
+      }
+      if (method === 'GET' && url === `/api/v1/ai-generations/${GEN}`) {
+        return Promise.resolve(jsonResponse({ data: AI_PROPOSAL }));
+      }
+      if (method === 'GET' && url === `/api/v1/documents/${ETP_ID}`) {
+        return Promise.resolve(
+          jsonResponse({
+            data: { id: ETP_ID, version: 1, draftContent: etpDto().draftContent },
+            meta: { allowedActions: ['UPDATE'] },
+          }),
+        );
+      }
+      if (method === 'POST' && url === `/api/v1/documents/${ETP_ID}/ai-apply`) {
+        const applied = {
+          ...etpDto().draftContent.sections,
+          NEED_DESCRIPTION: {
+            ...emptySection(5),
+            state: 'FILLED' as const,
+            content: doc('Necessidade sugerida.'),
+          },
+        };
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              document: { id: ETP_ID, version: 2, draftContent: { sections: applied } },
+              appliedSectionKeys: ['NEED_DESCRIPTION'],
+              versionCreated: null,
+            },
+          }),
+        );
+      }
+    }
     if (method === 'GET' && url === `/api/v1/etps/${ETP_ID}`) {
       return Promise.resolve(
         jsonResponse(
@@ -530,5 +625,32 @@ describe('etp-editor-model', () => {
     expect(canEditEtp('RETURNED', ['UPDATE'])).toBe(true);
     expect(canEditEtp('IN_REVIEW', ['UPDATE'])).toBe(false);
     expect(canEditEtp('DRAFT', [])).toBe(false);
+  });
+});
+
+describe('SCR-008 — rascunho do ETP com IA (US-118)', () => {
+  it('?ia= abre a proposta no editor; aplicar adota a seção (texto e If-Match "s5") sem tocar as demais', async () => {
+    const fetchMock = mockApi({ ai: true });
+    const user = userEvent.setup();
+    renderWithShell(<EtpEditor processId={PROCESS_ID} etpId={ETP_ID} aiGenerationId={GEN} />);
+    expect(await screen.findByRole('button', { name: 'Gerar rascunho com IA' })).toBeTruthy();
+    const panel = await screen.findByRole('complementary', {
+      name: 'Assistente de redação com IA',
+    });
+    await user.click(await within(panel).findByRole('button', { name: 'Aplicar 1 seção' }));
+    const field = screen.getByLabelText<HTMLTextAreaElement>(
+      'Texto da seção Descrição da necessidade',
+    );
+    await waitFor(() => {
+      expect(field.value).toBe('Necessidade sugerida.');
+    });
+    await waitFor(() => {
+      expect(navButton(/Descrição da necessidade, Preenchida/)).toBeTruthy();
+    });
+    await user.type(field, ' Revisada.');
+    await waitFor(() => {
+      expect(sectionPuts(fetchMock)).toHaveLength(1);
+    });
+    expect(ifMatchOf(sectionPuts(fetchMock)[0]?.[1])).toBe('"s5"');
   });
 });

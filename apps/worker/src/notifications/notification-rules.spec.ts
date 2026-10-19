@@ -408,6 +408,18 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
         ),
       );
       expect(riskMap.link).toBe(`/processos/${PROCESS}/riscos?ia=${generationId}`);
+      // Rascunho do ETP (US-118): o editor do ETP (SCR-008).
+      const etp = notify(
+        planNotification(
+          envelope(eventType, {
+            generationId,
+            documentId,
+            targetModule: 'ETP',
+            requestedById: USER,
+          }),
+        ),
+      );
+      expect(etp.link).toBe(`/processos/${PROCESS}/etp/${documentId}?ia=${generationId}`);
       const withoutProcess = notify(
         planNotification(envelope(eventType, { generationId }, { processId: null })),
       );

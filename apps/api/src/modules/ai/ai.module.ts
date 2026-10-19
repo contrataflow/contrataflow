@@ -27,6 +27,7 @@ import { AiTenantGateService } from './application/ai-tenant-gate.service.js';
 import { AiUsageQueries } from './application/ai-usage.queries.js';
 import { DfdDraftGenerator } from './application/dfd-draft.generator.js';
 import { DiscardAiGenerationCommand } from './application/discard-ai-generation.command.js';
+import { EtpDraftGenerator } from './application/etp-draft.generator.js';
 import {
   AI_CLOCK,
   AI_GENERATION_REPOSITORY,
@@ -60,8 +61,10 @@ import { CatalogModule } from '../catalog/catalog.module.js';
 import { DfdModule } from '../dfd/dfd.module.js';
 import { DocumentFacade } from '../document/application/document.facade.js';
 import { DocumentModule } from '../document/document.module.js';
+import { EtpModule } from '../etp/etp.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
+import { PriceResearchModule } from '../price-research/price-research.module.js';
 import { ProcessFacade } from '../process/application/process.facade.js';
 import { ProcessModule } from '../process/process.module.js';
 import { RiskModule } from '../risk/risk.module.js';
@@ -81,8 +84,8 @@ const MAX_CONTEXT_CHARS = 240_000;
  * `document`/`risk`, que leem a proposta pela porta `AiSuggestionSource` implementada aqui. US-115:
  * a camada (AI-01..04, pipeline, `AiProvider` + `FakeAiProvider`, disjuntor, custo, auditoria,
  * timeline e notificações). US-116: o portão do órgão (`AiTenantGateService`, registrado no
- * `AiTenantGateRegistry`) e AI-05/AI-06. Geradores concretos (US-117: `DfdDraftGenerator`; US-119: `RiskMapDraftGenerator`; US-121:
- * `SectionAdjustGenerator` por documento; US-118/120) e GroundingGuard
+ * `AiTenantGateRegistry`) e AI-05/AI-06. Geradores concretos (US-117: `DfdDraftGenerator`; US-118: `EtpDraftGenerator`; US-119:
+ * `RiskMapDraftGenerator`; US-121: `SectionAdjustGenerator` por documento; US-120) e GroundingGuard
  * (US-122) entram pelos registros `AiGeneratorRegistry` e `AiPostProcessorRegistry`.
  */
 @Module({
@@ -91,8 +94,10 @@ const MAX_CONTEXT_CHARS = 240_000;
     CatalogModule,
     DfdModule,
     DocumentModule,
+    EtpModule,
     IdentityModule,
     OrganizationModule,
+    PriceResearchModule,
     ProcessModule,
     RiskModule,
     TenancyModule,
@@ -155,6 +160,7 @@ const MAX_CONTEXT_CHARS = 240_000;
     AiTenantGateService,
     AiUsageQueries,
     DfdDraftGenerator,
+    EtpDraftGenerator,
     RiskMapDraftGenerator,
   ],
 })
@@ -167,6 +173,7 @@ export class AiModule implements OnModuleInit {
     private readonly postProcessors: AiPostProcessorRegistry,
     private readonly generators: AiGeneratorRegistry,
     private readonly dfdDraft: DfdDraftGenerator,
+    private readonly etpDraft: EtpDraftGenerator,
     private readonly riskMapDraft: RiskMapDraftGenerator,
     private readonly documents: DocumentFacade,
     private readonly processes: ProcessFacade,
@@ -178,7 +185,7 @@ export class AiModule implements OnModuleInit {
    * Implementa a porta `AiSuggestionSource` lida por `document`/`risk` (DEC-079) e registra o
    * portão do órgão (US-116: IA ligada, limites, reserva e avisos de consumo) e o GroundingGuard
    * na cadeia de pós-processamento (US-122 · RN-AI-54) e os geradores concretos (US-117: `DFD`/`DRAFT`;
-   * US-119: `RISK_MAP`/`DRAFT`; US-121: `<documento>`/`SECTION` nos quatro documentos).
+   * US-118: `ETP`/`DRAFT`; US-119: `RISK_MAP`/`DRAFT`; US-121: `<documento>`/`SECTION` nos quatro documentos).
    */
   onModuleInit(): void {
     this.suggestions.register(this.source);
@@ -192,7 +199,7 @@ export class AiModule implements OnModuleInit {
     const sectionAdjusts = AI_TARGET_MODULES.map(
       (targetModule) => new SectionAdjustGenerator(targetModule, deps),
     );
-    for (const generator of [this.dfdDraft, this.riskMapDraft, ...sectionAdjusts]) {
+    for (const generator of [this.dfdDraft, this.etpDraft, this.riskMapDraft, ...sectionAdjusts]) {
       if (this.generators.find(generator.targetModule, generator.kind) === undefined) {
         this.generators.register(generator);
       }

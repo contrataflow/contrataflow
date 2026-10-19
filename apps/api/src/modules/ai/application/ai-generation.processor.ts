@@ -392,7 +392,8 @@ export class AiGenerationProcessor {
   ): PostProcessingResult {
     let result: PostProcessingResult;
     try {
-      result = runPostProcessors(this.postProcessors.all(), output, sanitized);
+      const chain = [...(prepared.context.postProcessors ?? []), ...this.postProcessors.all()];
+      result = runPostProcessors(chain, output, sanitized);
     } catch (error) {
       this.groundingFailed(generation, error instanceof Error ? error.name : 'unknown');
       throw new GenerationFailure('OUTPUT_INVALID', usage);

@@ -73,12 +73,21 @@ export interface AiDraftSource {
       /** `defaultContent` como texto puro. */
       readonly defaultText: string | null;
       readonly maxChars: number;
+      /** US-118 (RN-AI-37): seção de renderização estruturada só recebe texto complementar. */
+      readonly render: SectionRender;
       readonly allowNarrative: boolean;
     }[];
   } | null;
   readonly sectionStates: Readonly<Record<string, SectionState>>;
-  /** Linhas de item do documento (DOC-06): Decimal(18,4) como string. */
-  readonly items: readonly { readonly processItemId: string; readonly quantity: string }[];
+  /**
+   * Linhas de item do documento (DOC-06): Decimal(18,4) como string; a memória de cálculo do ETP
+   * (US-022) como texto puro (`null` = sem memória).
+   */
+  readonly items: readonly {
+    readonly processItemId: string;
+    readonly quantity: string;
+    readonly calculationMemo: string | null;
+  }[];
 }
 
 /**

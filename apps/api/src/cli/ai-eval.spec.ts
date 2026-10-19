@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FakeAiProvider } from '#modules/ai/infrastructure/fake-ai.provider.js';
 
+import { etpEvalSuite } from './ai-eval-etp.js';
 import { EVAL_SECTIONS, formatEvalReport, runAiEval, syntheticProcesses } from './ai-eval.js';
 
 const PRICING = {
@@ -75,5 +76,26 @@ describe('pnpm ai:eval (US-115 · tests.md §3.10)', () => {
     });
     expect(report.summary.costUsd).toBeNull();
     expect(formatEvalReport(report)).toContain('sem preço na tabela');
+  });
+  it('suíte draft.etp (US-118): DFD em rascunho, sem pesquisa e sigilo, com a guarda das decisões', async () => {
+    const suite = etpEvalSuite();
+    expect(suite.prompt.key).toBe('draft.etp');
+    expect(suite.processes.map((process) => process.label)).toEqual([
+      'DFD aprovado e pesquisa concluída',
+      'DFD só em rascunho',
+      'Sem pesquisa de preços concluída',
+      'Orçamento sigiloso',
+    ]);
+    expect(JSON.stringify(suite.processes[3]?.parts)).not.toContain('125.000');
+    const report = await runAiEval({
+      provider: new FakeAiProvider(),
+      model: 'modelo-eval',
+      pricing: PRICING,
+      ...suite,
+    });
+    expect(report.promptKey).toBe('draft.etp');
+    expect(report.summary).toMatchObject({ total: 4, outputInvalid: 0, failures: 0 });
+    // A resposta genérica não decide nada: a guarda acrescenta conclusão, solução e parcelamento.
+    expect(report.summary.placeholders).toBeGreaterThanOrEqual(4 * 3);
   });
 });
