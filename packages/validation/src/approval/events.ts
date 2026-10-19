@@ -56,3 +56,43 @@ export const ApprovalCanceled = defineDomainEvent({
   }),
   routingKey: 'approval.canceled',
 });
+
+/*
+ * Decisão da aprovação (US-052 · events.md §4.2): `ApprovalCompleted` (`APPROVE`),
+ * `ApprovalReturned` (`RETURN`) e `ApprovalRejected` (`REJECT`). Consumidores: `TimelineProjector`
+ * (`APPROVAL_DECIDED`) no mesmo `tx`; no worker, `APPROVAL_DECIDED` ao solicitante e aos
+ * responsáveis dos documentos cobertos e métricas. Só ids — nunca o comentário da decisão.
+ */
+const approvalDecisionPayload = z.strictObject({
+  approvalId: uuid,
+  subjectType: z.enum(APPROVAL_SUBJECT_TYPES),
+  decidedById: uuid,
+  decidedAsDeputy: z.boolean(),
+  /** Versões exatas decididas (`ApprovalDocument.documentVersionId`). */
+  documentVersionIds: z.array(uuid).max(100),
+  hasComment: z.boolean(),
+});
+
+export const ApprovalCompleted = defineDomainEvent({
+  eventType: 'ApprovalCompleted',
+  eventVersion: 1,
+  aggregateType: 'Approval',
+  payload: approvalDecisionPayload,
+  routingKey: 'approval.completed',
+});
+
+export const ApprovalReturned = defineDomainEvent({
+  eventType: 'ApprovalReturned',
+  eventVersion: 1,
+  aggregateType: 'Approval',
+  payload: approvalDecisionPayload,
+  routingKey: 'approval.returned',
+});
+
+export const ApprovalRejected = defineDomainEvent({
+  eventType: 'ApprovalRejected',
+  eventVersion: 1,
+  aggregateType: 'Approval',
+  payload: approvalDecisionPayload,
+  routingKey: 'approval.rejected',
+});

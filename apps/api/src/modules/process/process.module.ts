@@ -3,6 +3,10 @@ import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import {
+  ApprovalSubjectModule,
+  ApprovalSubjectRegistry,
+} from '#shared/approval/approval-subject.js';
 import { ProcessAccessModule, ProcessAccessRegistry } from '#shared/auth/process-access.js';
 import {
   DocumentProcessContextModule,
@@ -20,6 +24,7 @@ import {
 } from '#shared/process/process-item-catalog.js';
 import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 
+import { ProcessApprovalSubjectHandler } from './application/approval-decision.subject.js';
 import { AssignProcessCommand } from './application/assign-process.command.js';
 import { ClaimProcessCommand } from './application/claim-process.command.js';
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
@@ -203,6 +208,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     AttachmentTargetModule,
     ProcessItemUsageModule,
     ProcessItemCatalogModule,
+    ApprovalSubjectModule,
   ],
   controllers: [
     // US-003: `/processes/export` antes de `/processes/:id`.
@@ -233,6 +239,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     SetProcessConfidentialityCommand,
     StageTransitionService,
     StageTransitionSupport,
+    ProcessApprovalSubjectHandler,
     ForwardProcessCommand,
     ReturnProcessCommand,
     ClaimProcessCommand,
@@ -380,6 +387,8 @@ export class ProcessModule implements OnModuleInit {
     private readonly processAttachmentTargets: ProcessAttachmentTargets,
     private readonly itemCatalog: ProcessItemCatalogRegistry,
     private readonly itemCatalogLoader: ProcessItemCatalogLoader,
+    private readonly approvalSubjects: ApprovalSubjectRegistry,
+    private readonly approvalSubject: ProcessApprovalSubjectHandler,
   ) {}
 
   onModuleInit(): void {
@@ -394,5 +403,7 @@ export class ProcessModule implements OnModuleInit {
     this.attachmentTargets.register(this.processAttachmentTargets);
     // US-014: os itens do processo lidos pelos itens de documento (DOC-06/07).
     this.itemCatalog.register(this.itemCatalogLoader);
+    // US-052: o dono do sujeito `PROCESS_STAGE` da decisão de aprovação (etapa, status, documentos).
+    this.approvalSubjects.register(this.approvalSubject);
   }
 }

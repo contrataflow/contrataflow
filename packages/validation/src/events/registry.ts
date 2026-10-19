@@ -6,7 +6,13 @@ import {
   AiGenerationRequested,
   AiUsageThresholdReached,
 } from '../ai/events.js';
-import { ApprovalCanceled, ApprovalRequested } from '../approval/events.js';
+import {
+  ApprovalCanceled,
+  ApprovalCompleted,
+  ApprovalRejected,
+  ApprovalRequested,
+  ApprovalReturned,
+} from '../approval/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import {
@@ -136,6 +142,9 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessDraftDiscarded,
   ApprovalRequested,
   ApprovalCanceled,
+  ApprovalCompleted,
+  ApprovalReturned,
+  ApprovalRejected,
   SupplierCreated,
   SupplierUpdated,
   PriceResearchRecalculated,

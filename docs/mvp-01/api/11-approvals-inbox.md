@@ -33,37 +33,41 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório)
 - **Request:** —
-- **Response:** `200 { data: Approval }` com `documents[]`, `meta.allowedActions` (api.md §1.5) · `ETag: "<version>"`
+- **Response:** `200 { data: Approval, meta }` · `ETag: "<version>"`. `data`: processo (`id`, `code`, `title`), solicitante, aprovador (`type`, ids e `label`), `allowDeputy`, decisão registrada (`decision`, `decidedBy`, `decidedAt`, `decisionComment`, `decidedAsDeputy`) e `documents[]` (documento coberto na versão exata analisada: `documentVersionId`, `versionNumber`, código, título, tipo e status atual). `meta` (api.md §1.5): `allowedActions` (`DECIDE` só para o designado — POL-03 — com `APPROVAL_DECIDE`, sem autoria de documento coberto e com o processo decidível), `decisionOptions[]` (as saídas do workflow: `decision`, `transitionId`, `label`, `toStage`, `requiresComment`, `enabled` e as regras `TRANSITION` não satisfeitas em `violations[]` — `BLOCKING` desabilita, `WARNING` exige reconhecimento; devolução: uma opção por etapa percorrida; avulsa: três opções sem transição), `decidesAsDeputy` e `decisionBlocker` (`NOT_PENDING`, `PERMISSION_DENIED`, `NOT_DESIGNATED_APPROVER`, `SELF_APPROVAL_FORBIDDEN`, `INVALID_PROCESS_STATUS` ou `null`).
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `APPROVAL_VIEW` nem designação |
-  | 404 | `NOT_FOUND` | Inexistente, outro tenant ou não visível |
+  | 403 | `PERMISSION_DENIED` | Processo visível, sem `APPROVAL_VIEW` nem designação (solicitante e decisor também veem) |
+  | 404 | `APPROVAL_NOT_FOUND` | Inexistente, outro tenant ou não visível |
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** leitura; não gera auditoria.
 
 ### APV-03 — Decidir aprovação
 `POST /api/v1/approvals/{id}/decide` · **Permissão:** `APPROVAL_DECIDE` + POL-03 (segregação de funções) · **Story:** US-052
 - **Cabeçalhos:** `Idempotency-Key` Obrigatório · `If-Match` Obrigatório
 - **Parâmetros:** path `id` (uuid, obrigatório)
-- **Request:** `{ decision: ApprovalDecision ('APPROVE'|'RETURN'|'REJECT', obrigatório); comment?: string (≥10 e ≤5000; condicional — obrigatório se decision ∈ {'RETURN','REJECT'}, RN-TRAM-55); acknowledgedWarnings?: uuid[] (padrão []; só enviado após confirmação explícita na UI) }`
-- **Response:** `200 { data: Approval }` com `processStage: { key, name }`, `processStatus`, `ETag` nova
+- **Request:** `{ decision: ApprovalDecision ('APPROVE'|'RETURN'|'REJECT', obrigatório); comment?: string (≥10 e ≤5000; condicional — obrigatório se decision ∈ {'RETURN','REJECT'} ou se a transição exigir, RN-TRAM-55); acknowledgedWarnings?: uuid[] (padrão []; só enviado após confirmação explícita na UI); transitionId?: uuid (obrigatório em 'RETURN' com mais de uma etapa de destino — RN-TRAM-56) }`
+- **Response:** `200 { data: Approval }` com `processStage: { key, name }` e `processStatus` (`null` na avulsa), `chainedApprovalId` (próxima aprovação aberta — RN-TRAM-60), `ETag` nova
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `NOT_DESIGNATED_APPROVER` | Usuário não é o aprovador designado (POL-03) |
   | 403 | `SELF_APPROVAL_FORBIDDEN` | Segregação de funções (autor de documento coberto) |
   | 403 | `MEMBERSHIP_INACTIVE` / `TENANT_SUSPENDED` | Vínculo ou tenant inativo |
-  | 409 | `APPROVAL_NOT_PENDING` | Aprovação já decidida |
-  | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-  | 422 | `VALIDATION_ERROR` | `decision` ausente/fora do enum; `comment` ausente/curto em `RETURN`/`REJECT` |
+  | 404 | `APPROVAL_NOT_FOUND` | Inexistente ou de outro tenant |
+  | 409 | `APPROVAL_NOT_PENDING` | Aprovação já decidida (verificado antes do `If-Match` — RN-TRAM-63) |
+  | 409 | `INVALID_PROCESS_STATUS` | Processo suspenso ou em status final (POL-03) |
+  | 412 | `VERSION_CONFLICT` | `If-Match` divergente com a aprovação ainda pendente |
+  | 422 | `VALIDATION_ERROR` | `decision` ausente/fora do enum; `comment` ausente/curto em `RETURN`/`REJECT`; `transitionId` ausente com mais de uma devolução |
+  | 422 | `TRANSITION_NOT_AVAILABLE` | `transitionId` de outra ação/etapa ou destino não percorrido |
   | 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Avisos `WARNING` não reconhecidos |
   | 422 | `TRANSITION_BLOCKED` | Regra `BLOCKING` não satisfeita |
   | 422 | `APPROVER_UNRESOLVED` | Aprovador da próxima etapa não resolvido |
   | 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave com corpo diferente |
 - **Efeitos:**
-  - Eventos: `ApprovalCompleted` (`approval.completed`, decisão `APPROVE`: `documentVersionIds[]`, `decidedAsDeputy`) · `ApprovalReturned` (`approval.returned`, decisão `RETURN`: idem + `hasComment: true`) · `ApprovalRejected` (`approval.rejected`, decisão `REJECT`) · `ProcessStageChanged` (`process.stage_changed.<cause>`, `cause` ∈ `APPROVAL_APPROVED`\|`APPROVAL_RETURNED`\|`APPROVAL_REJECTED`) · `ProcessStatusChanged` (`process.status_changed.<status>`, quando o status macro muda) · `ApprovalRequested` (`approval.requested`, se a próxima etapa também é `APPROVAL` — RN-TRAM-60)
-  - Timeline: entrada `PROCESS_STAGE_CHANGED` (ou equivalente); `ProcessAccess` `APPROVER` criado para a nova aprovação quando aplicável
+  - Eventos: `ApprovalCompleted` (`approval.completed`, decisão `APPROVE`: `subjectType`, `decidedById`, `documentVersionIds[]`, `decidedAsDeputy`, `hasComment`) · `ApprovalReturned` (`approval.returned`, decisão `RETURN`: idem) · `ApprovalRejected` (`approval.rejected`, decisão `REJECT`) · `ProcessStageChanged` (`process.stage_changed.<cause>`, `cause` ∈ `APPROVAL_APPROVED`\|`APPROVAL_RETURNED`\|`APPROVAL_REJECTED`) · `ProcessStatusChanged` (`process.status_changed.<status>`, quando o status macro muda) · `ApprovalRequested` (`approval.requested`, se a próxima etapa também é `APPROVAL` — RN-TRAM-60)
+  - Timeline: `APPROVAL_DECIDED` e `PROCESS_STAGE_CHANGED`; `ProcessAccess` `APPROVER` criado para a nova aprovação quando aplicável
+  - Documentos: status conforme DEC-018 (`DocumentApproved`/`DocumentReturned`/`DocumentRejected`); aprovado → `DocumentRendition` `APPROVAL_STAMPED` `PENDING` (fila `document-render` só depois do commit; fila fora não bloqueia — fica para o reconciliador)
   - Auditoria: `approval.decide` (`WORKFLOW`; `changes`: `status`, `decision`; `metadata`: `processCode`, `fromStatus`/`toStatus`, `documentIds[]`, `warningsAcknowledged`, `decidedAsDeputy`) · `access.denied` (`reasonCode = APPROVAL_DECIDE`, `approvalId`)
 - **Notas:** POL-03 exige que o decisor seja o aprovador designado (ou substituto elegível); segregação de funções impede autoaprovação de documento próprio.
 

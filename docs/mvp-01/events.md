@@ -94,8 +94,8 @@ Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = 
 | Evento | Routing key | Produtor | Payload | Cons. |
 |---|---|---|---|---|
 | `ApprovalRequested` | `approval.requested` | US-051 | `approvalId`, `subjectType`, `processStageId?`, `documentId?`, `documentVersionIds[]`, `approverType`, `approverUserId?`, `approverRoleId?`, `approverDepartmentId?`, `allowDeputy`, `dueAt?` | T A N |
-| `ApprovalCompleted` | `approval.completed` | US-052 (decisão `APPROVE`) | `approvalId`, `decidedById`, `decidedAsDeputy`, `documentVersionIds[]` | T N M |
-| `ApprovalReturned` | `approval.returned` | US-052 (decisão `RETURN`) | idem + `hasComment: true` | T N M |
+| `ApprovalCompleted` | `approval.completed` | US-052 (decisão `APPROVE`) | `approvalId`, `subjectType`, `decidedById`, `decidedAsDeputy`, `documentVersionIds[]`, `hasComment` | T N M |
+| `ApprovalReturned` | `approval.returned` | US-052 (decisão `RETURN`) | idem (`hasComment: true`) | T N M |
 | `ApprovalRejected` | `approval.rejected` | US-052 (decisão `REJECT`) | idem | T N M |
 | `ApprovalCanceled` | `approval.canceled` | US-053 (retirada), cancelamento do processo (US-009) | `approvalId`, `reason` (`WITHDRAWN`, `PROCESS_CANCELED`, `REASSIGNED`) | T |
 | `ApprovalReassigned` | `approval.reassigned` | US-053 (redirecionamento) | `approvalId`, `fromApproverUserId?`, `toApproverUserId?`, `toApproverRoleId?` | T A N |

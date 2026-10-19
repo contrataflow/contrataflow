@@ -121,6 +121,21 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Aprovação não pendente',
     detail: 'Já existe uma aprovação em andamento para este item.',
   },
+  APPROVAL_NOT_FOUND: {
+    status: 404,
+    title: 'Aprovação não encontrada',
+    detail: 'Não encontramos a aprovação solicitada.',
+  },
+  NOT_DESIGNATED_APPROVER: {
+    status: 403,
+    title: 'Aprovador não designado',
+    detail: 'Você não pode decidir esta aprovação.',
+  },
+  SELF_APPROVAL_FORBIDDEN: {
+    status: 403,
+    title: 'Autoaprovação vedada',
+    detail: 'Você não pode decidir esta aprovação: é autor de um documento coberto.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

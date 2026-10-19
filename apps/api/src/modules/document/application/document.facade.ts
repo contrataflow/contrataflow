@@ -21,6 +21,13 @@ import type {
   AiDraftSource,
   AiSectionSource,
 } from './document-ai-target.js';
+import { DocumentApprovalOutcomes } from './document-approval.outcomes.js';
+import type {
+  ApprovalOutcomeInput,
+  ApprovalOutcomeResult,
+  CoverageFacts,
+  DocumentApprovedListener,
+} from './document-approval.outcomes.js';
 import type {
   ApprovalDecisionInput,
   CanceledApprovalInput,
@@ -64,6 +71,12 @@ export type {
   TypedSnapshotParts,
 } from './document.ports.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
+export type {
+  ApprovalOutcomeInput,
+  ApprovalOutcomeResult,
+  CoverageFacts,
+  DocumentApprovedHookEvent,
+} from './document-approval.outcomes.js';
 export type { PublishedTemplateOption } from './structured-document.creator.js';
 export type {
   CreateStructuredDocumentInput,
@@ -203,6 +216,7 @@ export class DocumentFacade {
     private readonly structured: StructuredDocumentCreator,
     private readonly lifecycle: DocumentLifecycleService,
     private readonly itemRows: DocumentItemsPresenter,
+    private readonly outcomes: DocumentApprovalOutcomes,
   ) {}
 
   /**
@@ -534,6 +548,34 @@ export class DocumentFacade {
   /** RN-DOC-45: a decisão da aprovação pendente do documento (US-052). */
   applyApprovalDecisionIn(tx: TenantTx, input: ApprovalDecisionInput): Promise<Document> {
     return this.approvals.applyApprovalDecision(tx, input);
+  }
+
+  /**
+   * RN-TRAM-57/58 (US-052): a decisão no documento coberto e, quando ele passa a `APPROVED`, o selo
+   * `APPROVAL_STAMPED` `PENDING` (o job sai em `afterCommit`, depois do commit) e o gancho
+   * `onDocumentApproved` — no `tx` da decisão.
+   */
+  applyApprovalOutcomeIn(
+    tx: TenantTx,
+    input: ApprovalOutcomeInput,
+  ): Promise<ApprovalOutcomeResult> {
+    return this.outcomes.apply(tx, input);
+  }
+
+  /**
+   * US-052: os documentos cobertos de uma aprovação (código, tipo, versão analisada, status) e os
+   * autores — criador do documento e da versão analisada (segregação — RN-TRAM-62). Leitura.
+   */
+  approvalCoverageIn(
+    tx: TenantTx,
+    coverage: readonly { readonly documentId: string; readonly documentVersionId: string }[],
+  ): Promise<CoverageFacts> {
+    return this.outcomes.coverage(tx, coverage);
+  }
+
+  /** Gancho interno `onDocumentApproved` (US-052): integrações futuras, no `tx` da decisão. */
+  onDocumentApproved(listener: DocumentApprovedListener): void {
+    this.outcomes.onDocumentApproved(listener);
   }
 
   /**

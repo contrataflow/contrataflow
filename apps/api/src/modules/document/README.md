@@ -86,7 +86,14 @@ genéricas — a ausência de registro nunca falha a ação.
   com `allowDeputy`, `ROLE` com detentor no escopo, `USER` com vínculo ativo —, `approval.request`
   e `ApprovalRequested`; sem aprovador, 422 `APPROVER_UNRESOLVED` desfaz a submissão).
 - Tramitação/aprovação (US-047/051/052): `DocumentFacade.enterApprovalStageIn` (RN-DOC-44) e
-  `applyApprovalDecisionIn` (RN-DOC-45), no `tx` de quem chama.
+  `applyApprovalDecisionIn` (RN-DOC-45), no `tx` de quem chama. Na decisão (US-052),
+  `applyApprovalOutcomeIn` (`DocumentApprovalOutcomes`): o status (DEC-018) e, se aprovado, a
+  `DocumentRendition` `APPROVAL_STAMPED` `PENDING` da versão analisada (POL-09 de quem decide;
+  `UPLOADED` não tem selo) com o enfileiramento em `afterCommit` (fila fora = `warn
+rendition.enqueue_failed`, linha fica para o reconciliador) e o gancho interno
+  `onDocumentApproved` (sem ouvinte no MVP 1); `approvalCoverageIn` lê os cobertos e os autores
+  (segregação). O dono do sujeito `DOCUMENT` (`DocumentApprovalSubjectHandler`) se registra no
+  `ApprovalSubjectRegistry`.
 - **Banco:** migração `20261016130000_documents` — `documents`, `document_versions` (só INSERT,
   gatilho `document_versions_append_only`), `approvals`, `approval_documents`; RLS; FKs compostas
   por tenant; cancelado é final (gatilho); exclusão só lógica. Testes com PostgreSQL:

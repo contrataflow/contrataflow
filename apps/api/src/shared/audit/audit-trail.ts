@@ -109,4 +109,7 @@ export const AUDITED_DENIAL_CODES: ReadonlySet<string> = new Set([
   'LAST_ADMIN_REQUIRED',
   // US-096: POL-15 (perfil não permitido para vínculo externo) na atribuição de perfis.
   'EXTERNAL_HIGH_RISK_ROLE',
+  // US-052: POL-03 (designação e segregação de funções) na decisão da aprovação.
+  'NOT_DESIGNATED_APPROVER',
+  'SELF_APPROVAL_FORBIDDEN',
 ]);

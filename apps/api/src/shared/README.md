@@ -24,6 +24,7 @@ como `#shared/<caminho>.js`; **nunca** importa `src/modules/**` (dependency-crui
 | `storage/`        | `StorageKeyBuilder` (`tenants/{tenantId}/…`) e a guarda de tenant do `StorageService` (adaptador S3 na US-068) — US-100                                                         |
 | `jobs/`           | `JobMeta` (`buildJobMeta`) e a base `TenantJob` que restaura o contexto do job — US-100 (importável pelo worker)                                                                |
 | `spreadsheet/`    | ZIP e XLSX de uma aba (escrita determinística, leitura defensiva) sobre `node:zlib` — importação de cotações (US-028) e mapa comparativo (US-031)                               |
+| `approval/`       | Porta `ApprovalSubjectRegistry`: o dono do sujeito da aprovação (`process` — etapa; `document` — avulsa) aplica os efeitos da decisão no `tx` do `approval` (US-052)            |
 | `price-research/` | Porta `PriceResearchSummaryRegistry`: as pesquisas de preços do processo (status e total) para os outros artefatos do mesmo nível — valor estimado do TR (US-036 · RN-TR-07)    |
 
 Guia de uso: [`docs/engineering/data-access.md`](../../../../docs/engineering/data-access.md).

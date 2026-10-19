@@ -2,12 +2,26 @@ import type { ApprovalCancelReason, ApprovalDecision } from '@contrataflow/valid
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { ApprovalRecord } from '../domain/approval-decision.js';
 import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
 /*
  * Portas do módulo `approval` (US-065 → US-051/052): `approvals` e `approval_documents` no
- * PostgreSQL ou em memória (testes e modo de identidade fake).
+ * PostgreSQL ou em memória (testes e modo de identidade fake), as transações do comando de decisão
+ * (US-052) e o relógio.
  */
+
+/** Transações de escrita/leitura do módulo (Prisma `TenantTransaction` ou simulada em memória). */
+export interface ApprovalTransactions {
+  run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+}
+
+export const APPROVAL_TRANSACTIONS = Symbol('ApprovalTransactions');
+
+export type ApprovalClock = () => Date;
+
+export const APPROVAL_CLOCK = Symbol('ApprovalClock');
 
 /** Já existe aprovação `PENDING` para a etapa/documento (índices únicos parciais — RN-TRAM-43). */
 export class PendingApprovalExistsError extends Error {
@@ -25,7 +39,25 @@ export interface ApprovalSummaryRow {
   readonly decision: ApprovalDecision | null;
 }
 
+/** A aprovação com a cobertura (`ApprovalDocument`, na ordem de gravação). */
+export interface ApprovalWithCoverage {
+  readonly approval: ApprovalRecord;
+  readonly coverage: readonly ApprovalCoverage[];
+}
+
 export interface ApprovalRepository {
+  /** US-052 (APV-02/03): a aprovação do tenant da transação e a cobertura; `null` = inexistente. */
+  findById(tx: TenantTx, approvalId: string): Promise<ApprovalWithCoverage | null>;
+  /**
+   * US-052 (passo 6.1): `SELECT … FOR UPDATE` na aprovação e a releitura sob a trava — o estado é o
+   * do vencedor de qualquer corrida. `null` = inexistente no tenant.
+   */
+  lockForUpdate(tx: TenantTx, approvalId: string): Promise<ApprovalRecord | null>;
+  /**
+   * US-052 (RN-TRAM-54/63): grava a decisão SE a aprovação ainda está `PENDING` na versão lida
+   * (`UPDATE … WHERE status = 'PENDING' AND version = $lida`). `false` = perdeu a corrida.
+   */
+  recordDecision(tx: TenantTx, decided: ApprovalRecord, expectedVersion: number): Promise<boolean>;
   /**
    * Grava a aprovação e os documentos cobertos no `tx` do chamador.
    * @throws PendingApprovalExistsError

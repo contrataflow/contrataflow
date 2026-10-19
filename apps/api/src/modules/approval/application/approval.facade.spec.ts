@@ -33,10 +33,18 @@ const approval: Approval = {
   createdById: '0192d004-0000-7000-8000-000000000005',
 };
 
+/** US-052: a decisão não é exercida por estes testes da fachada. */
+const DECISION_STUBS = {
+  findById: () => Promise.resolve(null),
+  lockForUpdate: () => Promise.resolve(null),
+  recordDecision: () => Promise.resolve(false),
+} satisfies Pick<ApprovalRepository, 'findById' | 'lockForUpdate' | 'recordDecision'>;
+
 describe('ApprovalFacade', () => {
   it('listPendingForProcess: as aprovações pendentes do processo, sem o comentário do pedido', async () => {
     const asked: string[] = [];
     const repository: ApprovalRepository = {
+      ...DECISION_STUBS,
       insert: () => Promise.resolve(),
       cancelPendingByProcess: () => Promise.resolve([]),
       findPendingForStage: () => Promise.resolve(null),
@@ -76,6 +84,7 @@ describe('ApprovalFacade', () => {
   it('approvalSummaries (US-054): uma leitura para os ids distintos; sem ids, nenhuma', async () => {
     const asked: (readonly string[])[] = [];
     const repository: ApprovalRepository = {
+      ...DECISION_STUBS,
       insert: () => Promise.resolve(),
       cancelPendingByProcess: () => Promise.resolve([]),
       findPendingForStage: () => Promise.resolve(null),
@@ -109,6 +118,7 @@ describe('ApprovalFacade', () => {
     const pending = { ...approval, dueAt: new Date('2026-10-09T02:59:59.999Z') };
     const updates: unknown[] = [];
     const repository: ApprovalRepository = {
+      ...DECISION_STUBS,
       insert: () => Promise.resolve(),
       cancelPendingByProcess: () => Promise.resolve([]),
       coversDocumentVersion: () => Promise.resolve(false),

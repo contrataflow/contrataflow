@@ -160,6 +160,23 @@ describe('Feature: Mudança de etapa — plano puro (US-047 · StageTransitionSe
     expect(plan.process).toMatchObject({ status: 'RETURNED', currentResponsibleId: RUI });
   });
 
+  it('decisão de aprovação (US-052): tramitação APPROVE com a aprovação; passagem ativa sem conclusão', () => {
+    const approvalId = id('c1');
+    const plan = planStageTransition(input({ action: 'APPROVE', approvalId }));
+    expect(plan.movement).toMatchObject({ action: 'APPROVE', approvalId });
+    expect(plan.entered.finishedAt).toBeNull();
+    expect(plan.completion).toBeNull();
+  });
+
+  it('DOM-09 · RN-PROC-116 (US-052): destino END conclui — passagem encerrada na entrada e processo COMPLETED', () => {
+    const plan = planStageTransition(
+      input({ action: 'APPROVE', statusTo: 'COMPLETED', completesProcess: true, toUserId: null }),
+    );
+    expect(plan.entered).toMatchObject({ enteredAt: NOW, finishedAt: NOW, assigneeId: null });
+    expect(plan.completion).toEqual({ completedAt: NOW, completedById: PAULA });
+    expect(plan.process).toMatchObject({ status: 'COMPLETED', currentStageId: plan.entered.id });
+  });
+
   it('prazo sobrescrito fica marcado com o motivo (RN-TRAM-10)', () => {
     const plan = planStageTransition(input({ dueDateOverrideReason: 'Volume alto de itens' }));
     expect(plan.entered).toMatchObject({

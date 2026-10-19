@@ -256,8 +256,20 @@ export class InMemoryProcessRepository implements ProcessRepository {
         this.endedAssignments.set(assignment.id, plan.closed.exitedAt);
       }
     }
-    this.stages.set(plan.entered.id, plan.entered);
+    const { entered, completion } = plan;
+    this.stages.set(
+      entered.id,
+      entered.finishedAt === null
+        ? entered
+        : { ...entered, status: 'COMPLETED', exitedAt: entered.finishedAt },
+    );
     this.assignments.push(plan.assignment);
+    if (entered.finishedAt !== null) {
+      this.endedAssignments.set(plan.assignment.id, entered.finishedAt);
+    }
+    if (completion !== null) {
+      this.setSituation(plan.process.id, { completedAt: completion.completedAt });
+    }
     this.movements.push(plan.movement);
     return Promise.resolve(true);
   }

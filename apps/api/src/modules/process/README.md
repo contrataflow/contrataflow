@@ -363,6 +363,24 @@ const plan = await this.transitions.apply(tx, {
   `ProcessStageChanged` (`process.stage_changed.<cause>`), `ProcessStatusChanged` só quando o status
   muda e `ProcessAssigned` (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
 - A auditoria da ação (`process.forward`, `process.return`…) e eventos específicos ficam com quem chama.
+- `completesProcess` (US-052 → etapa `END`): a passagem de destino nasce `COMPLETED` (`exitedAt =
+enteredAt`), a responsabilidade nasce encerrada e o processo grava `completedAt`/`completedById`
+  (DOM-09 · RN-PROC-116).
+
+### Decisão de aprovação de etapa (US-052)
+
+`ProcessApprovalSubjectHandler` (`application/approval-decision.subject.ts`) é o dono do sujeito
+`PROCESS_STAGE` na porta `ApprovalSubjectRegistry` (o coordenador é o `approval`):
+`prepareDecision` trava o processo; `planDecision` (sem escrita) avalia a saída pela ação
+(`WorkflowFacade.evaluateDecision` — `RETURN`/`REJECT` só para etapa percorrida; mais de uma
+devolução exige `transitionId`) e as regras `TRANSITION`, resolve unidade (`CHOSEN_ON_FORWARD`:
+última passagem pela etapa ou a de quem encaminhou à aprovação), responsável (devolução/indeferimento:
+`PREVIOUS_ASSIGNEE`; aprovação: `assignmentPolicy`), prazo, status (`APPROVE` → `IN_PROGRESS`/
+`AWAITING_APPROVAL`/`COMPLETED`; `RETURN`/`REJECT` → `RETURNED`) e o aprovador da próxima etapa
+`APPROVAL`; `applyDecision` aplica os documentos (`DocumentFacade.applyApprovalOutcomeIn`), submete
+os cobertos da próxima etapa, chama o `StageTransitionService` (tramitação `APPROVE`/`RETURN`/
+`REJECT` com `approvalId`; causas `APPROVAL_*`, `statusCause = APPROVAL_DECISION`) e abre a
+aprovação encadeada (`ApprovalFacade.requestForStageIn`).
 
 ## Suspender e retomar (US-008)
 

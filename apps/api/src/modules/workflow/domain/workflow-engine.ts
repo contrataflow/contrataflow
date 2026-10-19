@@ -555,6 +555,118 @@ export function evaluateReturn(
   return target === undefined ? null : { ...target, fromStage: stage };
 }
 
+/** Decisão de uma aprovação de etapa (US-052 · RN-TRAM-54/56): a ação da transição de saída. */
+export type DecisionAction = 'APPROVE' | 'RETURN' | 'REJECT';
+
+/** Uma saída de decisão da etapa `APPROVAL` atual e as regras `TRANSITION` não satisfeitas. */
+export interface DecisionTarget {
+  readonly transition: WorkflowSnapshotTransition;
+  readonly toStage: WorkflowSnapshotStage;
+  /** RN-TRAM-05/DEC-016: regras `TRANSITION` da própria saída — bloqueantes antes dos avisos. */
+  readonly violations: readonly ChecklistViolation[];
+}
+
+/** A saída escolhida pela decisão, com a etapa de onde parte. */
+export interface DecisionEvaluation extends DecisionTarget {
+  readonly fromStage: WorkflowSnapshotStage;
+}
+
+/**
+ * Resultado da escolha da saída: indisponível (sem saída da ação, destino ausente ou — `RETURN`/
+ * `REJECT` — etapa não percorrida), escolha obrigatória (mais de uma devolução e nenhuma
+ * `transitionId`) ou a saída avaliada.
+ */
+export type DecisionChoice =
+  | { readonly kind: 'UNAVAILABLE' }
+  | { readonly kind: 'CHOICE_REQUIRED'; readonly targets: readonly DecisionTarget[] }
+  | { readonly kind: 'RESOLVED'; readonly evaluation: DecisionEvaluation };
+
+/** Ordem das decisões nas opções do SCR-015. */
+const DECISION_ORDER: readonly DecisionAction[] = ['APPROVE', 'RETURN', 'REJECT'];
+
+/** Regras `TRANSITION` ativas de uma saída de decisão, avaliadas sobre os fatos do processo. */
+function decisionRuleResults(input: EngineInput, transition: WorkflowSnapshotTransition) {
+  const rules = input.definition.rules
+    .filter(
+      (rule) => rule.isActive && rule.scope === 'TRANSITION' && rule.transitionId === transition.id,
+    )
+    .sort(byRuleOrder);
+  const facts = evaluationFactsOf(input.definition, input.facts, rules);
+  return rules.map((rule) => ({ rule, transition, outcome: evaluateRule(rule, facts) }));
+}
+
+/**
+ * RN-TRAM-56 (US-052): as saídas de decisão da etapa atual — se for `APPROVAL` —, na ordem de
+ * exibição. `APPROVE` vale para qualquer destino; `RETURN`/`REJECT` só para etapas já percorridas
+ * (DEC-015), uma devolução por etapa DISTINTA.
+ */
+export function decisionTargets(
+  input: EngineInput,
+  evaluation: StageEvaluation = evaluateStage(input),
+): DecisionTarget[] {
+  const { stage } = evaluation;
+  if (stage?.type !== 'APPROVAL') return [];
+  const passed = new Set(
+    input.facts.passes
+      .filter((pass) => pass.status === 'COMPLETED' || pass.status === 'RETURNED')
+      .map((pass) => pass.workflowStageId),
+  );
+  const targets: DecisionTarget[] = [];
+  for (const action of DECISION_ORDER) {
+    const outgoing = input.definition.transitions
+      .filter((transition) => transition.fromStageId === stage.id && transition.action === action)
+      .sort(byDisplay);
+    for (const transition of outgoing) {
+      const toStage = input.definition.stages.find(
+        (candidate) => candidate.id === transition.toStageId,
+      );
+      if (toStage === undefined) continue;
+      if (action !== 'APPROVE' && !passed.has(toStage.id)) continue;
+      if (
+        targets.some(
+          (target) => target.transition.action === action && target.toStage.id === toStage.id,
+        )
+      ) {
+        continue;
+      }
+      const violations = checklistOf({
+        ...evaluation,
+        results: decisionRuleResults(input, transition),
+      });
+      targets.push({ transition, toStage, violations });
+    }
+  }
+  return targets;
+}
+
+/**
+ * RN-TRAM-56 (US-052): a saída da decisão — a `transitionId` informada (da ação pedida) ou, sem
+ * ela, a única saída da ação; mais de uma devolução sem escolha = `CHOICE_REQUIRED`.
+ */
+export function evaluateDecision(
+  input: EngineInput,
+  request: { readonly action: DecisionAction; readonly transitionId: string | null },
+  evaluation: StageEvaluation = evaluateStage(input),
+): DecisionChoice {
+  const { stage } = evaluation;
+  if (stage === null) return { kind: 'UNAVAILABLE' };
+  const candidates = decisionTargets(input, evaluation).filter(
+    (target) => target.transition.action === request.action,
+  );
+  const chosen =
+    request.transitionId === null
+      ? candidates.length === 1
+        ? candidates[0]
+        : undefined
+      : candidates.find((target) => target.transition.id === request.transitionId);
+  if (chosen !== undefined)
+    return { kind: 'RESOLVED', evaluation: { ...chosen, fromStage: stage } };
+  if (request.transitionId === null && candidates.length > 1) {
+    return { kind: 'CHOICE_REQUIRED', targets: candidates };
+  }
+  return { kind: 'UNAVAILABLE' };
+}
+
 /**
  * CLAIM (POL-04 · RN-TRAM-31/32): lotado na unidade atual, processo na fila, status com custódia e
  * etapa que não seja de aprovação (a decisão é da `Approval`/POL-03, não de uma responsabilidade).

@@ -31,6 +31,9 @@ import type {
 } from '../domain/stage-destination.js';
 import type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
 import type {
+  DecisionAction,
+  DecisionChoice,
+  DecisionTarget,
   EngineViewer,
   ReturnEvaluation,
   TransitionEvaluation,
@@ -58,6 +61,10 @@ export type {
 } from '../domain/stage-destination.js';
 export type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
 export type {
+  DecisionAction,
+  DecisionChoice,
+  DecisionEvaluation,
+  DecisionTarget,
   EngineViewer,
   ProcessActionPermission,
   ReturnEvaluation,
@@ -184,6 +191,24 @@ export class WorkflowFacade {
     request: { readonly targetStageId: string },
   ): Promise<ReturnEvaluation | null> {
     return this.engine.evaluateReturn(tx, state, request);
+  }
+
+  /**
+   * RN-TRAM-56 (US-052): a saída da decisão da aprovação de etapa — `transitionId` informada ou a
+   * única da ação; mais de uma devolução sem escolha = `CHOICE_REQUIRED`; indisponível (etapa não
+   * percorrida, sem saída) = `UNAVAILABLE`. Com as regras `TRANSITION` não satisfeitas.
+   */
+  evaluateDecision(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    request: { readonly action: DecisionAction; readonly transitionId: string | null },
+  ): Promise<DecisionChoice> {
+    return this.engine.evaluateDecision(tx, state, request);
+  }
+
+  /** US-052 (APV-02): todas as saídas de decisão da etapa `APPROVAL` atual, com as regras. */
+  decisionTargets(tx: TenantTx, state: ProcessExecutionState): Promise<DecisionTarget[]> {
+    return this.engine.decisionTargets(tx, state);
   }
 
   /**

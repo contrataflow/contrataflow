@@ -446,12 +446,16 @@ export class PrismaProcessRepository implements ProcessRepository {
   }
 
   async recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
-    const { process, closed, entered, assignment, movement } = plan;
+    const { process, closed, entered, assignment, movement, completion } = plan;
     // O processo primeiro: a versão lida sob a trava é a rede contra uma escrita fora da trava.
     const updated = await tx.process.updateMany({
       where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
       data: {
         status: process.status,
+        // DOM-09 · RN-PROC-116 (US-052): a mudança para a etapa `END` conclui o processo.
+        ...(completion === null
+          ? {}
+          : { completedAt: completion.completedAt, completedById: completion.completedById }),
         currentStageId: process.currentStageId,
         currentWorkflowStageId: process.currentWorkflowStageId,
         currentDepartmentId: process.currentDepartmentId,
@@ -491,7 +495,8 @@ export class PrismaProcessRepository implements ProcessRepository {
         processId: entered.processId,
         workflowStageId: entered.workflowStageId,
         sequence: entered.sequence,
-        status: entered.status,
+        status: entered.finishedAt === null ? entered.status : 'COMPLETED',
+        exitedAt: entered.finishedAt,
         departmentId: entered.departmentId,
         assigneeId: entered.assigneeId,
         enteredAt: entered.enteredAt,
@@ -515,6 +520,7 @@ export class PrismaProcessRepository implements ProcessRepository {
         type: assignment.type,
         assignedById: assignment.assignedById,
         startedAt: assignment.startedAt,
+        ...(entered.finishedAt === null ? {} : { isActive: false, endedAt: entered.finishedAt }),
       },
       select: { id: true },
     });

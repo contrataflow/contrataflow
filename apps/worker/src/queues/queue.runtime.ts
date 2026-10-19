@@ -52,6 +52,7 @@ import { HolidayYearGeneratorTask } from '../maintenance/holiday-year-generator.
 import { ParticipantsExpireTask } from '../maintenance/participants-expire.js';
 import { PreviewsExpireTask } from '../maintenance/previews-expire.js';
 import { TenantHousekeepingJob } from '../maintenance/tenant-housekeeping.job.js';
+import { ApprovalStakeholdersLookup } from '../notifications/approval-stakeholders.lookup.js';
 import { EmailSender } from '../notifications/email/email-sender.js';
 import { EmailTemplateRegistry } from '../notifications/email/email-templates.js';
 import { InvitationEmailSource } from '../notifications/email/invitation-email-source.js';
@@ -201,6 +202,8 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
             new RoleHoldersLookup(),
             // US-008: criador, responsável e participantes com `notify` (PROCESS_STATUS_CHANGED).
             new ProcessStakeholdersLookup(),
+            // US-052: solicitante e responsáveis dos documentos cobertos (APPROVAL_DECIDED).
+            new ApprovalStakeholdersLookup(),
           ],
           // US-072: visibilidade do processo (DEC-024) e `Mention.notifiedAt`.
           visibility: new SqlProcessVisibility(),

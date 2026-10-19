@@ -55,6 +55,10 @@ export const DOMAIN_EVENT_NAMES = [
   'ProcessDraftDiscarded',
   'ApprovalRequested',
   'ApprovalCanceled',
+  // US-052: decisão da aprovação (aprovar, devolver, indeferir).
+  'ApprovalCompleted',
+  'ApprovalReturned',
+  'ApprovalRejected',
   'DocumentCreated',
   'DocumentVersionCreated',
   'DocumentSubmitted',

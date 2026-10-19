@@ -41,6 +41,17 @@ export interface ClosedPass {
 export interface EnteredPass extends ProcessStageRecord {
   readonly dueDateOverridden: boolean;
   readonly dueDateOverrideReason: string | null;
+  /**
+   * DOM-09 · RN-PROC-116: a passagem pela etapa `END` nasce encerrada (`COMPLETED`, `exitedAt =
+   * enteredAt`) com a responsabilidade encerrada; `null` = passagem ativa.
+   */
+  readonly finishedAt: Date | null;
+}
+
+/** Conclusão do processo junto com a mudança de etapa (US-052 → etapa `END` — RN-PROC-112). */
+export interface ProcessCompletion {
+  readonly completedAt: Date;
+  readonly completedById: string;
 }
 
 export interface StageTransitionInput {
@@ -75,6 +86,8 @@ export interface StageTransitionInput {
   readonly metadata: Readonly<Record<string, unknown>>;
   /** Autuação junto com a mudança (RN-TRAM-18); `null` = sem número novo. */
   readonly numbering: ProcessNumber | null;
+  /** RN-PROC-112/116: a etapa de destino é `END` — o processo conclui (`statusTo = COMPLETED`). */
+  readonly completesProcess?: boolean;
   readonly actor: {
     readonly userId: string;
     readonly ip: string | null;
@@ -95,6 +108,8 @@ export interface StageTransitionPlan {
   readonly entered: EnteredPass;
   readonly assignment: ProcessAssignmentRecord;
   readonly movement: ProcessMovementRecord;
+  /** `completedAt`/`completedById` do processo quando a mudança o conclui; senão `null`. */
+  readonly completion: ProcessCompletion | null;
 }
 
 /** RN-TRAM-14..16: o plano completo da mudança de etapa. */
@@ -118,6 +133,7 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
     ...stage,
     dueDateOverridden: input.dueDateOverrideReason !== null,
     dueDateOverrideReason: input.dueDateOverrideReason,
+    finishedAt: input.completesProcess === true ? now : null,
   };
   const movement: ProcessMovementRecord = {
     id: ids.movement,
@@ -190,6 +206,10 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
       input.assignmentType ?? 'STAGE_ENTRY',
     ),
     movement,
+    completion:
+      input.completesProcess === true
+        ? { completedAt: now, completedById: input.actor.userId }
+        : null,
   };
 }
 

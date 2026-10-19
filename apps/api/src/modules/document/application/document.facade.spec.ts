@@ -4,6 +4,7 @@ import { runWithRequestContext, updateRequestContext } from '#shared/context/req
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 
 import type { DocumentAiTargets } from './document-ai-target.js';
+import type { DocumentApprovalOutcomes } from './document-approval.outcomes.js';
 import type { DocumentApprovalTransitions } from './document-approval.transitions.js';
 import type { DocumentCommentTargets } from './document-comment-target.js';
 import type { CreateDocumentInput, DocumentCreationService } from './document-creation.service.js';
@@ -46,6 +47,7 @@ function facadeWith(creation: Partial<DocumentCreationService> = {}) {
     {} as StructuredDocumentCreator,
     {} as DocumentLifecycleService,
     {} as DocumentItemsPresenter,
+    {} as DocumentApprovalOutcomes,
   );
   return { facade, documents, types, validators };
 }

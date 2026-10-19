@@ -155,8 +155,11 @@ export class ApproverResolver {
     return { department, activeMemberIds, roleHolderIds };
   }
 
-  /** Rótulo do aprovador: a pessoa, o perfil ou "{titular} (titular da {unidade})". */
-  private async labelOf(tx: TenantTx, approver: ResolvedApprover): Promise<string> {
+  /**
+   * Rótulo do aprovador: a pessoa, o perfil ou "{titular} (titular da {unidade})" — também o do
+   * detalhe da aprovação (APV-02 — US-052).
+   */
+  async labelOf(tx: TenantTx, approver: ResolvedApprover): Promise<string> {
     const userName = async (userId: string | null) =>
       userId === null
         ? null

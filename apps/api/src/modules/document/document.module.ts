@@ -4,6 +4,10 @@ import type { OnModuleInit } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { AiSuggestionSourceModule } from '#shared/ai/ai-suggestion-source.js';
+import {
+  ApprovalSubjectModule,
+  ApprovalSubjectRegistry,
+} from '#shared/approval/approval-subject.js';
 import { DocumentApprovalModule } from '#shared/document/document-approval.js';
 import { DocumentProcessContextModule } from '#shared/document/document-process-context.js';
 import { DocumentTypeCatalogModule } from '#shared/document/document-type-catalog.js';
@@ -23,6 +27,10 @@ import { ApplyAiContentCommand } from './application/apply-ai-content.command.js
 import { ApprovalPolicyValidator } from './application/approval-policy.validator.js';
 import { CreateDocumentTypeCommand } from './application/create-document-type.command.js';
 import { DocumentAiTargets } from './application/document-ai-target.js';
+import {
+  DocumentApprovalOutcomes,
+  DocumentApprovalSubjectHandler,
+} from './application/document-approval.outcomes.js';
 import { DocumentApprovalTransitions } from './application/document-approval.transitions.js';
 import { DocumentAttachmentTargets } from './application/document-attachment-targets.js';
 import { DocumentCommentTargets } from './application/document-comment-target.js';
@@ -177,6 +185,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentTypeCatalogModule,
     DocumentProcessContextModule,
     DocumentApprovalModule,
+    ApprovalSubjectModule,
     TenantSeedingModule,
     AttachmentTargetModule,
     ProcessItemCatalogModule,
@@ -277,6 +286,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentLifecycleService,
     DocumentCreationService,
     DocumentApprovalTransitions,
+    DocumentApprovalOutcomes,
+    DocumentApprovalSubjectHandler,
     DocumentAiTargets,
     DocumentCommentTargets,
     TypedCollectionGuard,
@@ -373,6 +384,8 @@ export class DocumentModule implements OnModuleInit {
     private readonly templateAssetTargets: TemplateAssetAttachmentTargets,
     private readonly itemUsage: ProcessItemUsageRegistry,
     private readonly documentItemUsage: DocumentItemUsageReader,
+    private readonly approvalSubjects: ApprovalSubjectRegistry,
+    private readonly documentApprovalSubject: DocumentApprovalSubjectHandler,
   ) {}
 
   /**
@@ -387,5 +400,7 @@ export class DocumentModule implements OnModuleInit {
     this.attachmentTargets.register(this.templateAssetTargets);
     // US-014: os itens do processo referenciados por documentos (ITEM_IN_USE — US-006).
     this.itemUsage.register(this.documentItemUsage);
+    // US-052: o dono do sujeito `DOCUMENT` (decisão da submissão avulsa — FA-01).
+    this.approvalSubjects.register(this.documentApprovalSubject);
   }
 }

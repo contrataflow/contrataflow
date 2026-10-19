@@ -237,7 +237,15 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // `awaiting_approval` não notificam (a regra do dispatcher os ignora).
     // US-048: a devolução notifica `PROCESS_RETURNED` (responsável de destino ou membros da
     // unidade) e, com responsável resolvido, `PROCESS_ASSIGNED` (`assignmentType = RETURN`).
-    ProcessStageChanged: ['process.stage_changed.forward', 'process.stage_changed.return'],
+    // US-052: a decisão de aprovação muda a etapa (`approval_*`); devolução e indeferimento
+    // notificam `PROCESS_RETURNED` (as mesmas regras da devolução).
+    ProcessStageChanged: [
+      'process.stage_changed.forward',
+      'process.stage_changed.return',
+      'process.stage_changed.approval_approved',
+      'process.stage_changed.approval_returned',
+      'process.stage_changed.approval_rejected',
+    ],
     // US-008: suspensão e retomada notificam `PROCESS_STATUS_CHANGED` (`PROCESS_STAKEHOLDERS`).
     // US-009: o cancelamento também (criador, responsável e participantes com `notify`).
     ProcessStatusChanged: [
@@ -247,6 +255,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
       'process.status_changed.suspended',
       'process.status_changed.resumed',
       'process.status_changed.canceled',
+      // US-052: aprovação com próxima etapa `END` conclui o processo (`PROCESS_STATUS_CHANGED`).
+      'process.status_changed.completed',
     ],
     // US-009: o descarte não notifica nem tem timeline; no worker só o `BusinessMetricsCollector`.
     ProcessDraftDiscarded: ['process.draft_discarded'],
@@ -259,6 +269,11 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     ApprovalRequested: ['approval.requested'],
     // US-009: timeline (`APPROVAL_CANCELED`) no mesmo `tx`; no worker só métricas (`approval.*`).
     ApprovalCanceled: ['approval.canceled'],
+    // US-052: timeline (`APPROVAL_DECIDED`) no mesmo `tx`; no worker, `APPROVAL_DECIDED` ao
+    // solicitante e aos responsáveis dos documentos cobertos (`APPROVAL_STAKEHOLDERS`) e métricas.
+    ApprovalCompleted: ['approval.completed'],
+    ApprovalReturned: ['approval.returned'],
+    ApprovalRejected: ['approval.rejected'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

@@ -680,6 +680,818 @@
           "params"
         ]
       },
+      "Approval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectType": {
+            "type": "string",
+            "enum": [
+              "PROCESS_STAGE",
+              "DOCUMENT"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "RETURNED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "process": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "title"
+            ]
+          },
+          "processStageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approver": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "USER",
+                  "ROLE",
+                  "DEPARTMENT_HEAD"
+                ]
+              },
+              "userId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "roleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "departmentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "userId",
+              "roleId",
+              "departmentId",
+              "label"
+            ]
+          },
+          "allowDeputy": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "APPROVE",
+              "RETURN",
+              "REJECT",
+              null
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedAsDeputy": {
+            "type": "boolean"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalDocument"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "subjectType",
+          "status",
+          "title",
+          "process",
+          "processStageId",
+          "documentId",
+          "requestedBy",
+          "requestedAt",
+          "requestComment",
+          "dueAt",
+          "approver",
+          "allowDeputy",
+          "decision",
+          "decidedBy",
+          "decidedAt",
+          "decisionComment",
+          "decidedAsDeputy",
+          "documents",
+          "version"
+        ]
+      },
+      "ApprovalDocument": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "typeCode": {
+            "type": "string"
+          },
+          "typeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "RETURNED",
+              "FINALIZED",
+              "APPROVED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          }
+        },
+        "required": [
+          "documentId",
+          "documentVersionId",
+          "versionNumber",
+          "code",
+          "title",
+          "typeCode",
+          "typeName",
+          "status"
+        ]
+      },
+      "ApprovalMeta": {
+        "type": "object",
+        "properties": {
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "DECIDE"
+              ]
+            }
+          },
+          "decisionOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalDecisionOption"
+            }
+          },
+          "decidesAsDeputy": {
+            "type": "boolean"
+          },
+          "decisionBlocker": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "NOT_PENDING",
+              "PERMISSION_DENIED",
+              "NOT_DESIGNATED_APPROVER",
+              "SELF_APPROVAL_FORBIDDEN",
+              "INVALID_PROCESS_STATUS",
+              null
+            ]
+          }
+        },
+        "required": [
+          "allowedActions",
+          "decisionOptions",
+          "decidesAsDeputy",
+          "decisionBlocker"
+        ]
+      },
+      "ApprovalDecisionOption": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "APPROVE",
+              "RETURN",
+              "REJECT"
+            ]
+          },
+          "transitionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "toStage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "START",
+                  "TASK",
+                  "APPROVAL",
+                  "END"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "type"
+            ]
+          },
+          "requiresComment": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistViolation"
+            }
+          }
+        },
+        "required": [
+          "decision",
+          "transitionId",
+          "label",
+          "toStage",
+          "requiresComment",
+          "enabled",
+          "violations"
+        ]
+      },
+      "ChecklistViolation": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "WORKFLOW_RULE"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "BLOCKING",
+              "WARNING"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sectionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "itemId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "REQUIRED_DOCUMENT",
+              "REQUIRED_FIELD",
+              "REQUIRED_APPROVAL",
+              "CONDITION"
+            ]
+          },
+          "satisfied": {
+            "type": "boolean"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "STAGE_EXIT",
+              "TRANSITION"
+            ]
+          },
+          "transitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transitionKey": {
+            "type": "string"
+          },
+          "evaluationFailed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message",
+          "ruleId",
+          "sectionKey",
+          "field",
+          "itemId",
+          "params",
+          "name",
+          "type",
+          "satisfied",
+          "scope"
+        ]
+      },
+      "DecidedApproval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectType": {
+            "type": "string",
+            "enum": [
+              "PROCESS_STAGE",
+              "DOCUMENT"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "RETURNED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "process": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "title"
+            ]
+          },
+          "processStageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approver": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "USER",
+                  "ROLE",
+                  "DEPARTMENT_HEAD"
+                ]
+              },
+              "userId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "roleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "departmentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "userId",
+              "roleId",
+              "departmentId",
+              "label"
+            ]
+          },
+          "allowDeputy": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "APPROVE",
+              "RETURN",
+              "REJECT",
+              null
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedAsDeputy": {
+            "type": "boolean"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalDocument"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "processStage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "name"
+            ]
+          },
+          "processStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "DRAFT",
+              "IN_PROGRESS",
+              "AWAITING_APPROVAL",
+              "RETURNED",
+              "SUSPENDED",
+              "CANCELED",
+              "COMPLETED",
+              "PUBLISHED",
+              null
+            ]
+          },
+          "chainedApprovalId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "subjectType",
+          "status",
+          "title",
+          "process",
+          "processStageId",
+          "documentId",
+          "requestedBy",
+          "requestedAt",
+          "requestComment",
+          "dueAt",
+          "approver",
+          "allowDeputy",
+          "decision",
+          "decidedBy",
+          "decidedAt",
+          "decisionComment",
+          "decidedAsDeputy",
+          "documents",
+          "version",
+          "processStage",
+          "processStatus",
+          "chainedApprovalId"
+        ]
+      },
+      "DecideApprovalRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "APPROVE",
+              "RETURN",
+              "REJECT"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "acknowledgedWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100
+          },
+          "transitionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "additionalProperties": false
+      },
       "AttachmentDownload": {
         "type": "object",
         "properties": {
@@ -8621,99 +9433,6 @@
         },
         "required": [
           "violations"
-        ]
-      },
-      "ChecklistViolation": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "enum": [
-              "WORKFLOW_RULE"
-            ]
-          },
-          "severity": {
-            "type": "string",
-            "enum": [
-              "BLOCKING",
-              "WARNING"
-            ]
-          },
-          "message": {
-            "type": "string"
-          },
-          "ruleId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "sectionKey": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "field": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "itemId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "params": {
-            "type": "object",
-            "additionalProperties": {}
-          },
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "REQUIRED_DOCUMENT",
-              "REQUIRED_FIELD",
-              "REQUIRED_APPROVAL",
-              "CONDITION"
-            ]
-          },
-          "satisfied": {
-            "type": "boolean"
-          },
-          "scope": {
-            "type": "string",
-            "enum": [
-              "STAGE_EXIT",
-              "TRANSITION"
-            ]
-          },
-          "transitionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "transitionKey": {
-            "type": "string"
-          },
-          "evaluationFailed": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "code",
-          "severity",
-          "message",
-          "ruleId",
-          "sectionKey",
-          "field",
-          "itemId",
-          "params",
-          "name",
-          "type",
-          "satisfied",
-          "scope"
         ]
       },
       "CommentThread": {
@@ -18847,6 +19566,281 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/approvals/{id}": {
+      "get": {
+        "operationId": "APV-02",
+        "summary": "Obter aprovação",
+        "tags": [
+          "Aprovações"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aprovação (`ETag` = versão) com os documentos cobertos na versão exata analisada e `meta`: `allowedActions` (`DECIDE` só para o designado — POL-03 — com `APPROVAL_DECIDE`, sem autoria de documento coberto e processo decidível), `decisionOptions` (saídas do workflow: devolução uma por etapa percorrida, destino e regras `TRANSITION` não satisfeitas), `decidesAsDeputy` e `decisionBlocker`. Visível sem `APPROVAL_VIEW` nem designação = 403 `PERMISSION_DENIED`; inexistente, de outro tenant ou não visível = 404 `APPROVAL_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Approval"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ApprovalMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/approvals/{id}/decide": {
+      "post": {
+        "operationId": "APV-03",
+        "summary": "Decidir aprovação",
+        "tags": [
+          "Aprovações"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "approval.decide",
+          "approval.request",
+          "document.version_create",
+          "document.submit"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aprovação decidida (`ETag` = nova versão) com a etapa e o status do processo (`processStage`, `processStatus`; `null` na avulsa) e a próxima aprovação encadeada (`chainedApprovalId`). Uma transação: trava do processo e da aprovação; já decidida = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); POL-03 (403 `NOT_DESIGNATED_APPROVER`/`SELF_APPROVAL_FORBIDDEN`, auditados como `access.denied`); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`; mais de uma devolução sem `transitionId` = 422 `VALIDATION_ERROR`); aprovador da próxima etapa (422 `APPROVER_UNRESOLVED`). Efeitos: documentos cobertos (DEC-018), renderização `APPROVAL_STAMPED` `PENDING` (fila só depois do commit), mudança de etapa/status (destino `END` conclui o processo) e eventos `ApprovalCompleted`/`ApprovalReturned`/`ApprovalRejected`, `ProcessStageChanged`, `ProcessStatusChanged`, `ApprovalRequested`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DecidedApproval"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

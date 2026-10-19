@@ -27,11 +27,16 @@ import {
   activePassOf,
   availableActions,
   checklistOf,
+  decisionTargets,
+  evaluateDecision,
   evaluateReturn,
   evaluateStage,
   evaluateTransition,
 } from '../domain/workflow-engine.js';
 import type {
+  DecisionAction,
+  DecisionChoice,
+  DecisionTarget,
   EngineInput,
   EngineProcess,
   EngineViewer,
@@ -163,6 +168,34 @@ export class WorkflowEngineService {
       const result = evaluateReturn(input, request, evaluation);
       recordEngine('transition', performance.now() - startedAt);
       return result;
+    });
+  }
+
+  /**
+   * `evaluateDecision` (US-052 · RN-TRAM-56): a saída da decisão da aprovação de etapa — a
+   * transição da ação partindo da etapa `APPROVAL` atual (devolução/indeferimento só para etapa já
+   * percorrida) e as regras `TRANSITION` não satisfeitas. O `state` deve ter sido lido DEPOIS do
+   * bloqueio do processo.
+   */
+  evaluateDecision(
+    tx: TenantTx,
+    state: ProcessExecutionState,
+    request: { readonly action: DecisionAction; readonly transitionId: string | null },
+  ): Promise<DecisionChoice> {
+    return withSpan('workflow.evaluate_decision', this.spanAttributes(state), async () => {
+      const startedAt = performance.now();
+      const { input, evaluation } = await this.evaluate(tx, state);
+      const result = evaluateDecision(input, request, evaluation);
+      recordEngine('transition', performance.now() - startedAt);
+      return result;
+    });
+  }
+
+  /** `decisionTargets` (US-052 · APV-02): as saídas de decisão da etapa atual, com as regras. */
+  decisionTargets(tx: TenantTx, state: ProcessExecutionState): Promise<DecisionTarget[]> {
+    return withSpan('workflow.decision_targets', this.spanAttributes(state), async () => {
+      const { input, evaluation } = await this.evaluate(tx, state);
+      return decisionTargets(input, evaluation);
     });
   }
 

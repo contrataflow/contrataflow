@@ -105,7 +105,7 @@ describe('PermissionProvider + usePermission (ME-03)', () => {
           <button type="button">Novo processo</button>
         </Gate>
         <Can permission="PROCESS_VIEW">
-          <a href="/aprovacoes">Processos</a>
+          <a href="#processos">Processos</a>
         </Can>
         <Gate permission="PROCESS_CANCEL">
           <button type="button">Cancelar</button>

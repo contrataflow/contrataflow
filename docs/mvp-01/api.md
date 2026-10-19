@@ -169,6 +169,7 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `SECTION_REVISION_CONFLICT` | 412 | Autosave concorrente na mesma seção |
 | `SECTION_NOT_IN_TEMPLATE` | 422 | Chave de seção inexistente no template da versão |
 | `RICH_TEXT_INVALID` | 422 | Conteúdo TipTap fora do schema permitido |
+| `APPROVAL_NOT_FOUND` | 404 | Aprovação inexistente, de outro tenant ou não visível (US-052) |
 | `APPROVAL_NOT_PENDING` | 409 | |
 | `NOT_DESIGNATED_APPROVER` | 403 | POL-03 |
 | `SELF_APPROVAL_FORBIDDEN` | 403 | Segregação de funções |
