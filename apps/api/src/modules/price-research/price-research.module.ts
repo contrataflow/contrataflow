@@ -19,11 +19,14 @@ import {
   PRICE_RESEARCH_TRANSACTIONS,
   PRICE_SOURCE_REPOSITORY,
 } from './application/ports.js';
+import { PriceCalculationService } from './application/price-calculation.service.js';
 import { PriceItemUsageReader } from './application/price-item-usage.reader.js';
 import {
   AddPriceItemsCommand,
   CreatePriceResearchCommand,
+  RecalculatePriceResearchCommand,
   RemovePriceItemCommand,
+  UpdatePriceItemCommand,
   UpdatePriceResearchHeaderCommand,
 } from './application/price-research.commands.js';
 import { PriceResearchFacade } from './application/price-research.facade.js';
@@ -90,7 +93,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 
 /**
  * Módulo `price-research` (DEC-040, nível 4): outros módulos usam somente a fachada exportada. Dono
- * de `PriceResearch` e `PriceItem` (US-024: PRS-01..06/08). O documento, a numeração, a POL-02
+ * de `PriceResearch` e `PriceItem` (US-024: PRS-01..06/08; US-029: PRS-07/20 e o motor de cálculo). O documento, a numeração, a POL-02
  * estendida e as quantidades de ETP/DFD vêm do `document` (padrão de documento tipado); os itens do
  * processo, da porta `ProcessItemCatalogRegistry`; as unidades, os tipos de fonte e o fuso, do
  * `catalog`; os parâmetros, do `tenancy`; os fornecedores, do `supplier`. O uso dos itens
@@ -116,6 +119,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     UpdatePriceResearchHeaderCommand,
     AddPriceItemsCommand,
     RemovePriceItemCommand,
+    UpdatePriceItemCommand,
+    RecalculatePriceResearchCommand,
+    PriceCalculationService,
     GetPriceResearchQuery,
     ListProcessPriceResearchQuery,
     ListPriceItemsQuery,

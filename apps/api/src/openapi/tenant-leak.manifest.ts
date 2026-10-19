@@ -232,6 +232,9 @@ const DOCUMENT_AUTOSAVE_ROUTE =
 const PRICE_RESEARCH_ROUTE =
   'Pesquisa de preços (US-024): a suíte genérica não tem processo, pesquisa nem item de processo do tenant B. O isolamento (PRS-01/02 com processo de B e PRS-03/04/05/06 com pesquisa de B → 404 NOT_FOUND, PRS-08 com item de B → 404 NOT_FOUND, sem alterar nada nem revelar o código; processItemId de outro processo/tenant no corpo do PRS-02/06 → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas, checks, índice único e cascata de price_research/price_items) é coberto em test/tenant-leak/price-research.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/price-research.routes.spec.ts.';
 
+const PRICE_CALCULATION_ROUTE =
+  'Cálculo da pesquisa de preços (US-029): a suíte genérica não tem pesquisa nem item do tenant B. O isolamento (PRS-07 com item de B e PRS-20 com pesquisa de B → 404 NOT_FOUND sem ler nem alterar estatísticas; RLS de price_items e CHECK do método manual; estatísticas nas colunas decimais, auditoria price_research.method_change/recalculate e PriceResearchRecalculated PENDING na mesma transação, falha induzida não deixa nada) é coberto em test/tenant-leak/price-calculation.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/price-calculation.routes.spec.ts.';
+
 const PRICE_SOURCE_ROUTE =
   'Fontes e cotações (US-026): a suíte genérica não tem pesquisa, fonte, cotação nem fornecedor do tenant B. O isolamento (PRS-09/10 com pesquisa de B → 404 NOT_FOUND, PRS-11/12/13 com fonte de B e PRS-14/15 com cotação de B → 404 NOT_FOUND sem alterar nada; supplierId/sourceTypeId de B no corpo do PRS-10/11 → 422 REFERENCE_NOT_FOUND sem revelar; RLS, FKs compostas para catalog_items/suppliers, índice único (item, fonte), checks e cascatas de price_sources/quotations) é coberto em test/tenant-leak/price-sources.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/price-sources.routes.spec.ts.';
 
@@ -443,6 +446,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRS-04': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-05': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-06': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
+  'PRS-07': { kind: 'exempt', reason: PRICE_CALCULATION_ROUTE },
   'PRS-08': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-09': { kind: 'exempt', reason: PRICE_SOURCE_ROUTE },
   'PRS-10': { kind: 'exempt', reason: PRICE_SOURCE_ROUTE },
@@ -455,6 +459,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRS-17': { kind: 'exempt', reason: QUOTATION_EXCLUSION_ROUTE },
   'PRS-18': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
   'PRS-19': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
+  'PRS-20': { kind: 'exempt', reason: PRICE_CALCULATION_ROUTE },
   'PRS-24': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

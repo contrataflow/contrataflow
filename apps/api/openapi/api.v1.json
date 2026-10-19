@@ -4719,6 +4719,286 @@
           "createdAt"
         ]
       },
+      "PriceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceResearchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "lotNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lotName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "label": {
+                "type": "string"
+              },
+              "allowsDecimal": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "allowsDecimal"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,13})(?:\\.\\d{1,4})?$"
+          },
+          "methodOverride": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MEAN",
+              "MEDIAN",
+              "LOWEST",
+              "MANUAL",
+              null
+            ]
+          },
+          "effectiveMethod": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MEAN",
+              "MEDIAN",
+              "LOWEST",
+              "MANUAL",
+              null
+            ]
+          },
+          "validQuotationsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "quotationsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "meanPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "medianPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lowestPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "highestPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stdDeviation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "coefficientOfVariation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "manualUnitPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "manualJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recommendedUnitPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recommendedUnitPriceMasked": {
+            "type": "boolean"
+          },
+          "totalPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valuesMasked": {
+            "type": "boolean"
+          },
+          "belowMinimumJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "NO_VALID_QUOTES",
+                    "BELOW_MINIMUM_QUOTES",
+                    "HIGH_CV",
+                    "HAS_OUTLIERS",
+                    "EXPIRED_QUOTES"
+                  ]
+                }
+              },
+              "required": [
+                "code"
+              ]
+            }
+          },
+          "calculatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "priceResearchId",
+          "processItemId",
+          "sequence",
+          "lotNumber",
+          "lotName",
+          "description",
+          "unit",
+          "quantity",
+          "methodOverride",
+          "effectiveMethod",
+          "validQuotationsCount",
+          "quotationsCount",
+          "meanPrice",
+          "medianPrice",
+          "lowestPrice",
+          "highestPrice",
+          "stdDeviation",
+          "coefficientOfVariation",
+          "manualUnitPrice",
+          "manualJustification",
+          "recommendedUnitPrice",
+          "recommendedUnitPriceMasked",
+          "totalPrice",
+          "valuesMasked",
+          "belowMinimumJustification",
+          "alerts",
+          "calculatedAt",
+          "sortOrder",
+          "version"
+        ]
+      },
+      "PriceItemUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "methodOverride": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MEAN",
+              "MEDIAN",
+              "LOWEST",
+              "MANUAL",
+              null
+            ]
+          },
+          "manualUnitPrice": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "manualJustification": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "effectiveMethod": {},
+          "validQuotationsCount": {},
+          "meanPrice": {},
+          "medianPrice": {},
+          "lowestPrice": {},
+          "highestPrice": {},
+          "stdDeviation": {},
+          "coefficientOfVariation": {},
+          "recommendedUnitPrice": {},
+          "totalPrice": {},
+          "calculatedAt": {},
+          "alerts": {}
+        },
+        "additionalProperties": false
+      },
       "PriceResearch": {
         "type": "object",
         "properties": {
@@ -5065,15 +5345,57 @@
             "minLength": 5,
             "maxLength": 250
           },
-          "defaultMethod": {},
-          "cvThresholdPercent": {},
-          "minQuotations": {},
+          "defaultMethod": {
+            "type": "string",
+            "enum": [
+              "AUTO_CV",
+              "MEAN",
+              "MEDIAN",
+              "LOWEST"
+            ]
+          },
+          "cvThresholdPercent": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,4})(?:\\.\\d{1,4})?$"
+          },
+          "minQuotations": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "outlierLowerPercent": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,4})(?:\\.\\d{1,4})?$"
+          },
+          "outlierUpperPercent": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,4})(?:\\.\\d{1,4})?$"
+          },
+          "unitPriceDecimals": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  4
+                ]
+              }
+            ]
+          },
+          "roundingMode": {
+            "type": "string",
+            "enum": [
+              "HALF_UP",
+              "HALF_EVEN"
+            ]
+          },
           "directQuoteMaxAgeDays": {},
-          "similarContractMaxAgeDays": {},
-          "outlierLowerPercent": {},
-          "outlierUpperPercent": {},
-          "unitPriceDecimals": {},
-          "roundingMode": {}
+          "similarContractMaxAgeDays": {}
         },
         "additionalProperties": false
       },
@@ -5324,237 +5646,6 @@
           "file"
         ]
       },
-      "PriceItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "priceResearchId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "processItemId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "sequence": {
-            "type": "integer"
-          },
-          "lotNumber": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "lotName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "description": {
-            "type": "string"
-          },
-          "unit": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "label": {
-                "type": "string"
-              },
-              "allowsDecimal": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "id",
-              "label",
-              "allowsDecimal"
-            ]
-          },
-          "quantity": {
-            "type": "string",
-            "pattern": "^(?:0|[1-9]\\d{0,13})(?:\\.\\d{1,4})?$"
-          },
-          "methodOverride": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "MEAN",
-              "MEDIAN",
-              "LOWEST",
-              "MANUAL",
-              null
-            ]
-          },
-          "effectiveMethod": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "MEAN",
-              "MEDIAN",
-              "LOWEST",
-              "MANUAL",
-              null
-            ]
-          },
-          "validQuotationsCount": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "quotationsCount": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "meanPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "medianPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "lowestPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "highestPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "stdDeviation": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "coefficientOfVariation": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "manualUnitPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "manualJustification": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "recommendedUnitPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "recommendedUnitPriceMasked": {
-            "type": "boolean"
-          },
-          "totalPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "valuesMasked": {
-            "type": "boolean"
-          },
-          "belowMinimumJustification": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "alerts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "enum": [
-                    "NO_VALID_QUOTES",
-                    "BELOW_MINIMUM_QUOTES",
-                    "HIGH_CV",
-                    "HAS_OUTLIERS",
-                    "EXPIRED_QUOTES"
-                  ]
-                }
-              },
-              "required": [
-                "code"
-              ]
-            }
-          },
-          "calculatedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "sortOrder": {
-            "type": "integer"
-          },
-          "version": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "priceResearchId",
-          "processItemId",
-          "sequence",
-          "lotNumber",
-          "lotName",
-          "description",
-          "unit",
-          "quantity",
-          "methodOverride",
-          "effectiveMethod",
-          "validQuotationsCount",
-          "quotationsCount",
-          "meanPrice",
-          "medianPrice",
-          "lowestPrice",
-          "highestPrice",
-          "stdDeviation",
-          "coefficientOfVariation",
-          "manualUnitPrice",
-          "manualJustification",
-          "recommendedUnitPrice",
-          "recommendedUnitPriceMasked",
-          "totalPrice",
-          "valuesMasked",
-          "belowMinimumJustification",
-          "alerts",
-          "calculatedAt",
-          "sortOrder",
-          "version"
-        ]
-      },
       "PriceItemsAddRequest": {
         "type": "object",
         "properties": {
@@ -5583,6 +5674,33 @@
         "required": [
           "items"
         ],
+        "additionalProperties": false
+      },
+      "PriceResearchRecalculation": {
+        "type": "object",
+        "properties": {
+          "itemsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "itemsWithAlertsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastCalculatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "itemsCount",
+          "itemsWithAlertsCount",
+          "lastCalculatedAt"
+        ]
+      },
+      "PriceResearchRecalculateRequest": {
+        "type": "object",
+        "properties": {},
         "additionalProperties": false
       },
       "PriceSource": {
@@ -35242,6 +35360,135 @@
             }
           }
         }
+      },
+      "patch": {
+        "operationId": "PRS-07",
+        "summary": "Atualizar item da pesquisa (quantidade e método)",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.method_change",
+          "price_research.recalculate"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceItemUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quantidade (> 0; inteira se a unidade não admite decimais — 422 `OUT_OF_RANGE`/`INVALID_DECIMAL`), `methodOverride` (`MEAN`|`MEDIAN`|`LOWEST`|`MANUAL`; `null` volta ao método padrão e apaga o valor manual — FA-02; fora do enum = 422 `INVALID_ENUM`) e, com `MANUAL`, `manualUnitPrice` (> 0, até `unitPriceDecimals` casas — 422 `INVALID_DECIMAL`) + `manualJustification` (≥ 20) obrigatórios (422 `CONDITIONAL_REQUIRED`). Campos calculados no corpo → 422 `NOT_ALLOWED`. Responde o item já recalculado (RN-PRICE-41..44); reenvio sem mudança = 200 sem gravar. Grava `price_research.method_change` quando o método muda, `price_research.recalculate` e `PriceResearchRecalculated`. `If-Match` = versão do item (412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428); `ETag` = versão nova. Item inexistente/de outro tenant → 404 `NOT_FOUND`. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PriceItem"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/price-research/{id}": {
@@ -35366,7 +35613,7 @@
       },
       "patch": {
         "operationId": "PRS-04",
-        "summary": "Atualizar pesquisa de preços (data-base e título)",
+        "summary": "Atualizar pesquisa de preços (data-base, título e parâmetros de cálculo)",
         "tags": [
           "Pesquisa de preços"
         ],
@@ -35377,7 +35624,9 @@
         ],
         "x-tenant-scope": "TENANT",
         "x-audit-actions": [
-          "document.draft_update"
+          "document.draft_update",
+          "price_research.method_change",
+          "price_research.recalculate"
         ],
         "parameters": [
           {
@@ -35413,7 +35662,7 @@
         },
         "responses": {
           "200": {
-            "description": "Data-base (≤ hoje; 422 `OUT_OF_RANGE`) e título (5–250). A nova data-base reavalia a validade das cotações e recalcula os alertas (FA-07), emitindo `PriceResearchRecalculated` (`price_research.recalculated`). Parâmetros do snapshot (RN-PRICE-05) no corpo → 422 `NOT_ALLOWED`. Grava `document.draft_update`. `If-Match` divergente → 412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`).",
+            "description": "Data-base (≤ hoje; 422 `OUT_OF_RANGE`), título (5–250) e parâmetros de cálculo (US-029 · RN-PRICE-47: `defaultMethod`, `cvThresholdPercent`, `minQuotations`, `outlierLowerPercent`/`outlierUpperPercent`, `unitPriceDecimals`, `roundingMode` nas faixas de `priceResearch.*`). Data-base nova reavalia a validade das cotações (FA-07); data-base ou parâmetro novos recalculam todos os itens (estatísticas, método efetivo, recomendado e total — o preço `MANUAL` não muda) e emitem `PriceResearchRecalculated` (`price_research.recalculated`). Prazos de validade do snapshot no corpo → 422 `NOT_ALLOWED`. Grava `document.draft_update` (data-base/título), `price_research.method_change` (parâmetros) e `price_research.recalculate`. `If-Match` divergente → 412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -36110,6 +36359,136 @@
                       "items": {
                         "$ref": "#/components/schemas/PriceItem"
                       }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-research/{id}/recalculate": {
+      "post": {
+        "operationId": "PRS-20",
+        "summary": "Recalcular estatísticas da pesquisa",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.recalculate"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceResearchRecalculateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recálculo sob demanda (FA-04 · RN-PRICE-45) de todos os itens a partir das cotações válidas, numa transação dedicada: estatísticas, método efetivo, recomendado, total, alertas e contadores. Grava `price_research.recalculate` (`trigger = MANUAL`) e emite `PriceResearchRecalculated`. `ETag` = versão nova da pesquisa. Banco indisponível → 503 `DEPENDENCY_UNAVAILABLE` sem alterar nada. Pesquisa inexistente/de outro tenant → 404 `NOT_FOUND`. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PriceResearchRecalculation"
                     }
                   },
                   "required": [

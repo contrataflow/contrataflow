@@ -1109,7 +1109,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `completedAt` / `completedById` | timestamptz / uuid | sim | — | Conclusão = finalização do documento |
 
 - **Unique:** `(tenant_id, document_id)`.
-- **Check:** `id = document_id` (`price_research_id_is_document` — como o DFD, a pesquisa usa o id do documento; decidido na US-024, 2026-10-18); `min_quotations >= 1`; `unit_price_decimals IN (2, 4)`; `rounding_mode IN ('HALF_UP','HALF_EVEN')`; `items_with_alerts_count` entre 0 e `items_count`. Os parâmetros do snapshot e `tenant_id`/`process_id`/`document_id` não mudam depois da criação (gatilho de colunas imutáveis para os ids).
+- **Check:** `id = document_id` (`price_research_id_is_document` — como o DFD, a pesquisa usa o id do documento; decidido na US-024, 2026-10-18); `min_quotations >= 1`; `unit_price_decimals IN (2, 4)`; `rounding_mode IN ('HALF_UP','HALF_EVEN')`; `items_with_alerts_count` entre 0 e `items_count`. `tenant_id`/`process_id`/`document_id` não mudam depois da criação (gatilho de colunas imutáveis para os ids). Dos parâmetros do snapshot, os prazos de validade (`directQuoteMaxAgeDays`/`similarContractMaxAgeDays`) ficam fixos; os de cálculo (`defaultMethod`, `cvThresholdPercent`, `minQuotations`, `outlierLowerPercent`/`outlierUpperPercent`, `unitPriceDecimals`, `roundingMode`) são editáveis pelo PRS-04 e recalculam todos os itens (RN-PRICE-47 — decidido na US-029, 2026-10-19). `totalEstimatedValue` = soma dos `totalPrice` calculados (`null` se nenhum item tem total).
 
 #### PriceItem (`price_items`) — módulo `price-research` · Padrão
 | Campo | Tipo | Null | Default | Regras |

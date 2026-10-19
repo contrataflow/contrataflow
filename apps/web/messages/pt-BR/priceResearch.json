@@ -117,6 +117,15 @@
     "roundingModes": {
       "HALF_UP": "Comercial (metade para cima)",
       "HALF_EVEN": "Bancário (metade para o par)"
+    },
+    "edit": {
+      "action": "Editar parâmetros",
+      "cancel": "Cancelar",
+      "save": "Salvar e recalcular",
+      "saving": "Salvando…",
+      "saved": "Parâmetros salvos e itens recalculados",
+      "failed": "Não foi possível salvar os parâmetros agora. Tente novamente.",
+      "hint": "Alterar os parâmetros de cálculo recalcula todos os itens (o valor manual não muda)."
     }
   },
   "items": {
@@ -350,5 +359,53 @@
     "description": "O documento reúne a metodologia, o resumo dos preços e a conclusão da pesquisa de preços.",
     "open": "Abrir documento",
     "code": "Documento {code}"
+  },
+  "calculation": {
+    "title": "Cálculo do item {number}",
+    "empty": "Sem cotações válidas",
+    "masked": "Sigiloso",
+    "notAvailable": "—",
+    "percent": "{value} %",
+    "stats": {
+      "count": "Cotações válidas",
+      "mean": "Média",
+      "median": "Mediana",
+      "lowest": "Menor",
+      "highest": "Maior",
+      "stdDeviation": "Desvio-padrão",
+      "cv": "Coeficiente de variação"
+    },
+    "recommended": "Valor recomendado (unitário)",
+    "totalLabel": "Total do item",
+    "effectiveMethod": "Método aplicado: {method}",
+    "methods": {
+      "MEAN": "Média",
+      "MEDIAN": "Mediana",
+      "LOWEST": "Menor preço",
+      "MANUAL": "Valor manual"
+    },
+    "badges": {
+      "AUTOMATIC": "Automático",
+      "OVERRIDE": "Método do item",
+      "MANUAL": "Valor manual"
+    },
+    "manualJustification": "Justificativa: {text}",
+    "method": "Método do item",
+    "methodHint": "Vazio segue o método padrão da pesquisa.",
+    "followDefault": "Seguir o método padrão da pesquisa",
+    "manualLegend": "Valor manual",
+    "manualUnitPrice": "Valor manual (R$)",
+    "manualUnitPriceHint": "Maior que zero, com até {decimals} casas decimais.",
+    "manualJustificationLabel": "Justificativa do valor manual",
+    "save": "Salvar método",
+    "saving": "Salvando…",
+    "saved": "Método do item {number} salvo",
+    "failed": "Não foi possível salvar o método agora. Tente novamente.",
+    "details": "Ver cálculo",
+    "detailsItem": "Ver o cálculo do item {number}",
+    "recalculate": "Recalcular agora",
+    "recalculating": "Recalculando…",
+    "recalculated": "Estatísticas recalculadas",
+    "correlation": "Código: {id}"
   }
 }

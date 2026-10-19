@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
-import { priceItem, processItem } from '@test/support/price-research-fixtures';
+import { priceItem, priceResearchDto, processItem } from '@test/support/price-research-fixtures';
 import { ID } from '@test/support/process-fixtures';
 
 import {
@@ -12,7 +12,14 @@ import {
   headerIssues,
   isItemsRequired,
   mapValidationErrors,
+  methodBadge,
+  methodBodyOf,
+  methodChanged,
+  methodDraftOf,
+  methodIssues,
   missingProcessItems,
+  parametersDraftOf,
+  parametersPatchOf,
   researchRows,
   rowIssue,
 } from './price-research-model';
@@ -153,5 +160,97 @@ describe('itens faltantes (FA-04)', () => {
       { processItemId: ID(902) },
       { processItemId: ID(903), quantity: '2.5' },
     ]);
+  });
+});
+
+describe('método do item e parâmetros (US-029)', () => {
+  const JUSTIFICATION = 'Valor de ata vigente do consórcio regional';
+  const manualItem = priceItem(1, {
+    methodOverride: 'MANUAL',
+    manualUnitPrice: '95.5000',
+    manualJustification: JUSTIFICATION,
+  });
+
+  it('rascunho a partir do item e detecção de mudança (reenvio igual não grava)', () => {
+    expect(methodDraftOf(priceItem(1))).toEqual({
+      methodOverride: '',
+      manualUnitPrice: '',
+      manualJustification: '',
+    });
+    const draft = methodDraftOf(manualItem);
+    expect(draft).toEqual({
+      methodOverride: 'MANUAL',
+      manualUnitPrice: '95.5',
+      manualJustification: JUSTIFICATION,
+    });
+    expect(methodChanged(draft, manualItem)).toBe(false);
+    expect(methodChanged({ ...draft, manualUnitPrice: '95,6' }, manualItem)).toBe(true);
+    expect(methodChanged({ ...draft, methodOverride: '' }, manualItem)).toBe(true);
+    expect(methodChanged(methodDraftOf(priceItem(1)), priceItem(1))).toBe(false);
+  });
+
+  it('V-01/V-02 só com MANUAL; corpo do PRS-07 (vírgula vira ponto; vazio = null)', () => {
+    expect(
+      methodIssues({ methodOverride: 'MEAN', manualUnitPrice: '', manualJustification: '' }, 2),
+    ).toEqual({});
+    expect(
+      methodIssues(
+        { methodOverride: 'MANUAL', manualUnitPrice: '1,234', manualJustification: 'x' },
+        2,
+      ),
+    ).toEqual({
+      manualUnitPrice: 'Informe um valor válido, com até 2 casas decimais.',
+      manualJustification: 'Informe o valor manual e a justificativa (mín. 20 caracteres).',
+    });
+    expect(
+      methodBodyOf({ methodOverride: '', manualUnitPrice: '1', manualJustification: 'x' }),
+    ).toEqual({
+      methodOverride: null,
+    });
+    expect(
+      methodBodyOf({
+        methodOverride: 'MANUAL',
+        manualUnitPrice: '9,5',
+        manualJustification: ` ${JUSTIFICATION} `,
+      }),
+    ).toEqual({
+      methodOverride: 'MANUAL',
+      manualUnitPrice: '9.5',
+      manualJustification: JUSTIFICATION,
+    });
+  });
+
+  it('selo do método', () => {
+    expect(methodBadge(priceItem(1))).toBe('AUTOMATIC');
+    expect(methodBadge(priceItem(1, { methodOverride: 'LOWEST' }))).toBe('OVERRIDE');
+    expect(methodBadge(manualItem)).toBe('MANUAL');
+  });
+
+  it('PRS-04: só os parâmetros alterados e erros de faixa', () => {
+    const { parameters } = priceResearchDto();
+    const draft = parametersDraftOf(parameters);
+    expect(parametersPatchOf(draft, parameters)).toEqual({ body: {}, issues: {} });
+    expect(
+      parametersPatchOf(
+        {
+          ...draft,
+          defaultMethod: 'MEDIAN',
+          cvThresholdPercent: '30,5',
+          minQuotations: '4',
+          unitPriceDecimals: 4,
+          roundingMode: 'HALF_EVEN',
+        },
+        parameters,
+      ).body,
+    ).toEqual({
+      defaultMethod: 'MEDIAN',
+      cvThresholdPercent: '30.5',
+      minQuotations: 4,
+      unitPriceDecimals: 4,
+      roundingMode: 'HALF_EVEN',
+    });
+    expect(parametersPatchOf({ ...draft, cvThresholdPercent: '0' }, parameters).issues).toEqual({
+      cvThresholdPercent: 'Informe um valor dentro da faixa permitida.',
+    });
   });
 });

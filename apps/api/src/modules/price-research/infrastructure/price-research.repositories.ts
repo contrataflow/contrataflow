@@ -97,10 +97,22 @@ function toItem(row: ItemRow): PriceItem {
   };
 }
 
-/** Colunas mutáveis do cabeçalho (sem tenant, processo, documento nem snapshot — DEC-020). */
+/**
+ * Colunas mutáveis do cabeçalho (sem tenant, processo e documento — DEC-020). Dos parâmetros do
+ * snapshot, só os de cálculo mudam depois da criação (RN-PRICE-47 · US-029); os prazos de validade
+ * ficam fixos.
+ */
 function researchChanges(research: PriceResearch) {
+  const { parameters } = research;
   return {
     referenceDate: asDate(research.referenceDate),
+    defaultMethod: parameters.defaultMethod,
+    cvThresholdPercent: parameters.cvThresholdPercent,
+    minQuotations: parameters.minQuotations,
+    outlierLowerPercent: parameters.outlierLowerPercent,
+    outlierUpperPercent: parameters.outlierUpperPercent,
+    unitPriceDecimals: parameters.unitPriceDecimals,
+    roundingMode: parameters.roundingMode,
     totalEstimatedValue: research.totalEstimatedValue,
     itemsCount: research.itemsCount,
     itemsWithAlertsCount: research.itemsWithAlertsCount,
@@ -145,6 +157,26 @@ function itemData(item: PriceItem) {
   };
 }
 
+/** Colunas calculadas do item (US-029) — regravadas pelo recálculo. */
+function calculatedData(item: PriceItem) {
+  return {
+    effectiveMethod: item.effectiveMethod,
+    validQuotationsCount: item.validQuotationsCount,
+    meanPrice: item.meanPrice,
+    medianPrice: item.medianPrice,
+    lowestPrice: item.lowestPrice,
+    highestPrice: item.highestPrice,
+    stdDeviation: item.stdDeviation,
+    coefficientOfVariation: item.coefficientOfVariation,
+    recommendedUnitPrice: item.recommendedUnitPrice,
+    totalPrice: item.totalPrice,
+    alerts: item.alerts as unknown as Prisma.InputJsonValue,
+    calculatedAt: item.calculatedAt,
+    updatedAt: item.updatedAt,
+    updatedById: item.updatedById,
+  };
+}
+
 function itemWhere(priceResearchId: string, filter: PriceItemFilter): Prisma.PriceItemWhereInput {
   return {
     priceResearchId,
@@ -170,15 +202,8 @@ export class PrismaPriceResearchRepository implements PriceResearchRepository {
         tenantId: research.tenantId,
         processId: research.processId,
         documentId: research.documentId,
-        defaultMethod: parameters.defaultMethod,
-        cvThresholdPercent: parameters.cvThresholdPercent,
-        minQuotations: parameters.minQuotations,
         directQuoteMaxAgeDays: parameters.directQuoteMaxAgeDays,
         similarContractMaxAgeDays: parameters.similarContractMaxAgeDays,
-        outlierLowerPercent: parameters.outlierLowerPercent,
-        outlierUpperPercent: parameters.outlierUpperPercent,
-        unitPriceDecimals: parameters.unitPriceDecimals,
-        roundingMode: parameters.roundingMode,
         createdAt: research.createdAt,
         createdById: research.createdById,
         version: research.version,
@@ -258,16 +283,27 @@ export class PrismaPriceResearchRepository implements PriceResearchRepository {
     for (const item of items) {
       await tx.priceItem.updateMany({
         where: { id: item.id },
-        data: {
-          alerts: item.alerts,
-          validQuotationsCount: item.validQuotationsCount,
-          calculatedAt: item.calculatedAt,
-          updatedAt: item.updatedAt,
-          updatedById: item.updatedById,
-          version: { increment: 1 },
-        },
+        data: { ...calculatedData(item), version: { increment: 1 } },
       });
     }
+  }
+
+  async updateItem(tx: TenantTx, item: PriceItem, expectedVersion: number): Promise<void> {
+    await updateVersioned(
+      { aggregateType: 'PriceItem', aggregateId: item.id, expectedVersion },
+      () =>
+        tx.priceItem.updateMany({
+          where: { id: item.id, version: expectedVersion },
+          data: {
+            ...calculatedData(item),
+            quantity: item.quantity,
+            methodOverride: item.methodOverride,
+            manualUnitPrice: item.manualUnitPrice,
+            manualJustification: item.manualJustification,
+            version: { increment: 1 },
+          },
+        }),
+    );
   }
 
   async deleteItem(tx: TenantTx, item: PriceItem, expectedVersion: number): Promise<void> {
@@ -284,6 +320,26 @@ export class PrismaPriceResearchRepository implements PriceResearchRepository {
     });
     return rows.map(toItem);
   }
+}
+
+/** As colunas calculadas do item (as mesmas de `calculatedData`) para o adaptador em memória. */
+function calculatedOf(item: PriceItem) {
+  return {
+    effectiveMethod: item.effectiveMethod,
+    validQuotationsCount: item.validQuotationsCount,
+    meanPrice: item.meanPrice,
+    medianPrice: item.medianPrice,
+    lowestPrice: item.lowestPrice,
+    highestPrice: item.highestPrice,
+    stdDeviation: item.stdDeviation,
+    coefficientOfVariation: item.coefficientOfVariation,
+    recommendedUnitPrice: item.recommendedUnitPrice,
+    totalPrice: item.totalPrice,
+    alerts: item.alerts,
+    calculatedAt: item.calculatedAt,
+    updatedAt: item.updatedAt,
+    updatedById: item.updatedById,
+  };
 }
 
 /** Pesquisas em memória: mesma semântica do adaptador Prisma, isoladas pelo tenant do contexto. */
@@ -363,7 +419,12 @@ export class InMemoryPriceResearchRepository implements PriceResearchRepository 
     this.researches.set(research.id, {
       ...current,
       ...research,
-      parameters: current.parameters,
+      // Prazos de validade do snapshot fixos (RN-PRICE-47): só os parâmetros de cálculo mudam.
+      parameters: {
+        ...research.parameters,
+        directQuoteMaxAgeDays: current.parameters.directQuoteMaxAgeDays,
+        similarContractMaxAgeDays: current.parameters.similarContractMaxAgeDays,
+      },
       version: expectedVersion + 1,
     });
     return Promise.resolve();
@@ -418,16 +479,31 @@ export class InMemoryPriceResearchRepository implements PriceResearchRepository 
     for (const item of items) {
       const current = this.items.get(item.id);
       if (current === undefined) continue;
-      this.items.set(item.id, {
-        ...current,
-        alerts: item.alerts,
-        validQuotationsCount: item.validQuotationsCount,
-        calculatedAt: item.calculatedAt,
-        updatedAt: item.updatedAt,
-        updatedById: item.updatedById,
-        version: current.version + 1,
-      });
+      this.items.set(item.id, { ...current, ...calculatedOf(item), version: current.version + 1 });
     }
+    return Promise.resolve();
+  }
+
+  updateItem(_tx: TenantTx, item: PriceItem, expectedVersion: number): Promise<void> {
+    const current = this.itemsInTenant().find((candidate) => candidate.id === item.id);
+    if (current?.version !== expectedVersion) {
+      return Promise.reject(
+        new VersionConflictError({
+          aggregateType: 'PriceItem',
+          aggregateId: item.id,
+          expectedVersion,
+        }),
+      );
+    }
+    this.items.set(item.id, {
+      ...current,
+      ...calculatedOf(item),
+      quantity: item.quantity,
+      methodOverride: item.methodOverride,
+      manualUnitPrice: item.manualUnitPrice,
+      manualJustification: item.manualJustification,
+      version: expectedVersion + 1,
+    });
     return Promise.resolve();
   }
 

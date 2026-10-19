@@ -74,13 +74,16 @@ export interface PriceItemsTableProps {
   readonly canRemove: boolean;
   readonly removing: boolean;
   readonly onRemove: (item: PriceItemDto) => void;
+  /** US-029: item cujo cálculo está aberto abaixo da tabela. */
+  readonly selectedId?: string | null;
+  readonly onSelect?: (item: PriceItemDto) => void;
 }
 
 /**
  * `PriceItemsTable` (US-024 · SCR-009 aba "Itens"): nº, lote, descrição, unidade, quantidade,
  * alertas e valor recomendado ("Sigiloso" sob POL-09). Tabela com `caption` a partir de 768 px;
  * abaixo disso, um cartão por item. "Remover" só com `REMOVE_ITEMS` e nunca no último item
- * (RN-PRICE-11).
+ * (RN-PRICE-11). "Ver cálculo" (US-029) abre as estatísticas e o método do item.
  */
 export function PriceItemsTable({
   items,
@@ -88,8 +91,11 @@ export function PriceItemsTable({
   canRemove,
   removing,
   onRemove,
+  selectedId = null,
+  onSelect,
 }: PriceItemsTableProps) {
   const t = useTranslations('priceResearch.items');
+  const tCalc = useTranslations('priceResearch.calculation');
   const format = priceFormat(unitPriceDecimals);
   const isLast = items.length <= 1;
   return (
@@ -118,6 +124,11 @@ export function PriceItemsTable({
           <th scope="col" className="px-3 py-2 text-right">
             {t('columns.recommended')}
           </th>
+          {onSelect === undefined ? null : (
+            <th scope="col" className="px-3 py-2">
+              <span className="sr-only">{tCalc('details')}</span>
+            </th>
+          )}
           {canRemove ? (
             <th scope="col" className="px-3 py-2">
               {t('columns.actions')}
@@ -164,6 +175,21 @@ export function PriceItemsTable({
               <span className="text-muted-foreground md:hidden">{t('columns.recommended')}: </span>
               <RecommendedValue item={item} format={format} />
             </td>
+            {onSelect === undefined ? null : (
+              <td className="md:table-cell md:px-3 md:py-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-expanded={selectedId === item.id}
+                  aria-label={tCalc('detailsItem', { number: item.sequence })}
+                  onClick={() => {
+                    onSelect(item);
+                  }}
+                >
+                  {tCalc('details')}
+                </Button>
+              </td>
+            )}
             {canRemove ? (
               <td className="md:table-cell md:px-3 md:py-2">
                 {isLast ? (

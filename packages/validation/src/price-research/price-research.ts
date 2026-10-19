@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
-import { quantitySchema } from '../common/decimal.js';
+import { percentageSchema, quantitySchema } from '../common/decimal.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 import { dfdTemplateSectionSchema } from '../dfd/dfd.js';
 import { DOCUMENT_ITEM_LIMITS, documentItemQuantityIssue } from '../document/document-items.js';
@@ -97,6 +97,17 @@ export const PRICE_RESEARCH_MESSAGES = Object.freeze({
   instructions: 'Registre as fontes consultadas e os preços de cada item',
   parametersNote: (date: string) =>
     `Definidos pelo órgão em ${date}. Alterações posteriores nas configurações não afetam esta pesquisa.`,
+  // US-029 — cálculo (V-01..V-05 · "Casos de erro").
+  manualRequired: 'Informe o valor manual e a justificativa (mín. 20 caracteres).',
+  manualPriceInvalid: (decimals: number) =>
+    `Informe um valor válido, com até ${String(decimals)} casas decimais.`,
+  methodInvalid: 'Selecione um método válido.',
+  calculatedField: 'Este campo é calculado pelo sistema e não pode ser alterado diretamente.',
+  quantityPositive: 'Informe uma quantidade maior que zero.',
+  itemVersionConflict:
+    'Este item foi alterado por outra pessoa. Recarregue para ver a versão atual.',
+  recalculateUnavailable: 'Não foi possível calcular agora. Tente novamente em instantes.',
+  parameterInvalid: 'Informe um valor dentro da faixa permitida.',
 });
 
 /** Título sugerido (RN-PRICE-07): "Pesquisa de preços — {código do processo}". */
@@ -141,6 +152,56 @@ export function referenceDateIssue(referenceDate: string, today: string): Quanti
   return referenceDate > today
     ? { code: 'OUT_OF_RANGE', message: PRICE_RESEARCH_MESSAGES.referenceDateFuture }
     : null;
+}
+
+/** RN-PRICE-43: justificativa mínima do valor manual (entities.md `PriceItem.manualJustification`). */
+export const MANUAL_JUSTIFICATION_MIN = 20;
+
+/** Erro de campo do método manual (V-01/V-02), com o código da API. */
+export interface ManualPriceIssue {
+  readonly field: 'manualUnitPrice' | 'manualJustification';
+  readonly code: 'CONDITIONAL_REQUIRED' | 'INVALID_DECIMAL';
+  readonly message: string;
+}
+
+/**
+ * V-01/V-02 (RN-PRICE-43): com `MANUAL`, o valor (> 0, até `unitPriceDecimals` casas) e a
+ * justificativa (≥ 20 caracteres sem os espaços das pontas) são obrigatórios. A MESMA regra no
+ * formulário da SCR-009 e no PRS-07.
+ */
+export function manualPriceIssues(
+  input: {
+    readonly manualUnitPrice: string | null | undefined;
+    readonly manualJustification: string | null | undefined;
+  },
+  unitPriceDecimals: 2 | 4,
+): ManualPriceIssue[] {
+  const issues: ManualPriceIssue[] = [];
+  const price = input.manualUnitPrice?.trim() ?? '';
+  if (price === '') {
+    issues.push({
+      field: 'manualUnitPrice',
+      code: 'CONDITIONAL_REQUIRED',
+      message: PRICE_RESEARCH_MESSAGES.manualRequired,
+    });
+  } else {
+    const pattern = new RegExp(String.raw`^\d{1,14}(?:\.\d{1,${String(unitPriceDecimals)}})?$`);
+    if (!pattern.test(price) || !/[1-9]/.test(price)) {
+      issues.push({
+        field: 'manualUnitPrice',
+        code: 'INVALID_DECIMAL',
+        message: PRICE_RESEARCH_MESSAGES.manualPriceInvalid(unitPriceDecimals),
+      });
+    }
+  }
+  if ((input.manualJustification?.trim() ?? '').length < MANUAL_JUSTIFICATION_MIN) {
+    issues.push({
+      field: 'manualJustification',
+      code: 'CONDITIONAL_REQUIRED',
+      message: PRICE_RESEARCH_MESSAGES.manualRequired,
+    });
+  }
+  return issues;
 }
 
 // --- Contratos ---------------------------------------------------------------------------------
@@ -206,7 +267,7 @@ export const createPriceResearchSchema = z
   .meta({ id: 'PriceResearchCreateRequest' });
 export type CreatePriceResearch = z.infer<typeof createPriceResearchSchema>;
 
-/** Parâmetros do snapshot (RN-PRICE-05): somente leitura no PRS-04 desta story (V-10). */
+/** Parâmetros do snapshot (RN-PRICE-05). */
 export const PRICE_RESEARCH_SNAPSHOT_FIELDS = [
   'defaultMethod',
   'cvThresholdPercent',
@@ -220,20 +281,52 @@ export const PRICE_RESEARCH_SNAPSHOT_FIELDS = [
 ] as const;
 
 /**
- * PRS-04 — `PATCH /price-research/{id}` (`If-Match` obrigatório): data-base e título. Os parâmetros
- * do snapshot são aceitos no corpo só para responder 422 `NOT_ALLOWED` com a mensagem de V-10 (o
- * `defaultMethod` passa a editável com o cálculo — US-029).
+ * RN-PRICE-47 (US-029): parâmetros de cálculo editáveis no PRS-04 — alterá-los recalcula todos os
+ * itens. Os prazos de validade (`directQuoteMaxAgeDays`/`similarContractMaxAgeDays`) seguem fixados
+ * na criação (422 `NOT_ALLOWED`).
+ */
+export const PRICE_RESEARCH_CALCULATION_FIELDS = [
+  'defaultMethod',
+  'cvThresholdPercent',
+  'minQuotations',
+  'outlierLowerPercent',
+  'outlierUpperPercent',
+  'unitPriceDecimals',
+  'roundingMode',
+] as const;
+export type PriceResearchCalculationField = (typeof PRICE_RESEARCH_CALCULATION_FIELDS)[number];
+
+const FIXED_SNAPSHOT_FIELDS = PRICE_RESEARCH_SNAPSHOT_FIELDS.filter(
+  (field) => !(PRICE_RESEARCH_CALCULATION_FIELDS as readonly string[]).includes(field),
+);
+
+/** Percentual `numeric(9,4)` como string, numa faixa (mesmas faixas de `priceResearch.*`). */
+const percentInRange = (check: (value: number) => boolean) =>
+  percentageSchema.refine((value) => check(Number(value)), {
+    error: PRICE_RESEARCH_MESSAGES.parameterInvalid,
+    params: { code: 'OUT_OF_RANGE' },
+  });
+
+/**
+ * PRS-04 — `PATCH /price-research/{id}` (`If-Match` obrigatório): data-base, título e (US-029) os
+ * parâmetros de cálculo, nas faixas das configurações `priceResearch.*`. Os prazos de validade do
+ * snapshot no corpo → 422 `NOT_ALLOWED` (V-10 da US-024).
  */
 export const updatePriceResearchSchema = z
   .strictObject({
     referenceDate: isoDateSchema.optional(),
     title: titleSchema.optional(),
-    ...Object.fromEntries(
-      PRICE_RESEARCH_SNAPSHOT_FIELDS.map((field) => [field, z.unknown().optional()]),
-    ),
+    defaultMethod: z.enum(PRICE_DEFAULT_METHODS).optional(),
+    cvThresholdPercent: percentInRange((value) => value > 0 && value <= 1000).optional(),
+    minQuotations: z.int().min(1).max(10).optional(),
+    outlierLowerPercent: percentInRange((value) => value > 0 && value <= 100).optional(),
+    outlierUpperPercent: percentInRange((value) => value >= 100 && value <= 1000).optional(),
+    unitPriceDecimals: z.union([z.literal(2), z.literal(4)]).optional(),
+    roundingMode: z.enum(PRICE_ROUNDING_MODES).optional(),
+    ...Object.fromEntries(FIXED_SNAPSHOT_FIELDS.map((field) => [field, z.unknown().optional()])),
   })
   .superRefine((value, context) => {
-    for (const field of PRICE_RESEARCH_SNAPSHOT_FIELDS) {
+    for (const field of FIXED_SNAPSHOT_FIELDS) {
       if ((value as Record<string, unknown>)[field] === undefined) continue;
       context.addIssue({
         code: 'custom',
@@ -244,10 +337,85 @@ export const updatePriceResearchSchema = z
     }
   })
   .meta({ id: 'PriceResearchUpdateRequest' });
-export interface UpdatePriceResearch {
+
+/** Parâmetros de cálculo alterados no PRS-04 (US-029). */
+export type PriceResearchCalculationPatch = Partial<
+  Pick<PriceResearchParameters, PriceResearchCalculationField>
+>;
+
+export interface UpdatePriceResearch extends PriceResearchCalculationPatch {
   readonly referenceDate?: string | undefined;
   readonly title?: string | undefined;
 }
+
+/** Campos calculados do `PriceItem` — somente leitura no PRS-07 (V-04 · `NOT_ALLOWED`). */
+export const PRICE_ITEM_CALCULATED_FIELDS = [
+  'effectiveMethod',
+  'validQuotationsCount',
+  'meanPrice',
+  'medianPrice',
+  'lowestPrice',
+  'highestPrice',
+  'stdDeviation',
+  'coefficientOfVariation',
+  'recommendedUnitPrice',
+  'totalPrice',
+  'calculatedAt',
+  'alerts',
+] as const;
+
+/**
+ * PRS-07 — `PATCH /price-items/{itemId}` (`If-Match` = versão do item): quantidade e método do item
+ * (US-029). `methodOverride: null` volta ao método padrão da pesquisa (FA-02); as regras do valor
+ * manual (V-01/V-02) e da quantidade (unidade inteira) são conferidas no caso de uso.
+ */
+export const updatePriceItemSchema = z
+  .strictObject({
+    quantity: z.string().max(40).optional(),
+    methodOverride: z
+      .enum(PRICE_CALCULATION_METHODS, { error: PRICE_RESEARCH_MESSAGES.methodInvalid })
+      .nullable()
+      .optional(),
+    manualUnitPrice: z.string().max(40).nullable().optional(),
+    manualJustification: z.string().max(4000).nullable().optional(),
+    ...Object.fromEntries(
+      PRICE_ITEM_CALCULATED_FIELDS.map((field) => [field, z.unknown().optional()]),
+    ),
+  })
+  .superRefine((value, context) => {
+    for (const field of PRICE_ITEM_CALCULATED_FIELDS) {
+      if ((value as Record<string, unknown>)[field] === undefined) continue;
+      context.addIssue({
+        code: 'custom',
+        path: [field],
+        params: { code: 'NOT_ALLOWED' },
+        message: PRICE_RESEARCH_MESSAGES.calculatedField,
+      });
+    }
+  })
+  .meta({ id: 'PriceItemUpdateRequest' });
+
+export interface UpdatePriceItem {
+  readonly quantity?: string | undefined;
+  readonly methodOverride?: PriceCalculationMethod | null | undefined;
+  readonly manualUnitPrice?: string | null | undefined;
+  readonly manualJustification?: string | null | undefined;
+}
+
+/** PRS-20 — `POST /price-research/{id}/recalculate` (corpo `{}`). */
+export const recalculatePriceResearchSchema = z
+  .strictObject({})
+  .meta({ id: 'PriceResearchRecalculateRequest' });
+
+/** Resposta do PRS-20 (RN-PRICE-45). */
+export const priceResearchRecalculationSchema = z
+  .object({
+    itemsCount: z.int().min(0),
+    itemsWithAlertsCount: z.int().min(0),
+    lastCalculatedAt: isoDateTimeSchema,
+  })
+  .meta({ id: 'PriceResearchRecalculation' });
+export type PriceResearchRecalculationDto = z.infer<typeof priceResearchRecalculationSchema>;
 
 /** PRS-06 — `POST /price-research/{id}/items`. */
 export const addPriceItemsSchema = z

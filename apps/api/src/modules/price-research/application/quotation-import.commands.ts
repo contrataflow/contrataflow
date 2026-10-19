@@ -501,7 +501,7 @@ export class ApplyQuotationImportCommand extends TransactionalCommandHandler<
       },
     });
     // RN-PRICE-40: um único recálculo ao final (`PriceResearchRecalculated`), mesmo sem mudanças.
-    await this.recalculator.recalculate(tx, research, stamp);
+    await this.recalculator.recalculate(tx, research, stamp, 'IMPORT');
     return { appliedCount, skippedCount, priceResearchId: research.id, previewToken };
   }
 

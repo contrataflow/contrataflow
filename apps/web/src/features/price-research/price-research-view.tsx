@@ -27,6 +27,7 @@ import { formatCivilDate, formatMoney } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { ParametersPanel } from './parameters-panel';
+import { PriceItemCalculation, RecalculateButton } from './price-item-calculation';
 import { PriceItemsTable } from './price-items-table';
 import { addItemsPayload, missingProcessItems } from './price-research-model';
 import {
@@ -257,6 +258,7 @@ function LoadedView({
                 items={items}
                 status={itemsStatus}
                 canAdd={canAdd}
+                canUpdate={canUpdate}
                 canRemove={canRemove}
                 removing={remove.isPending}
                 onRetry={onRetryItems}
@@ -281,9 +283,14 @@ function LoadedView({
           </div>
         </section>
         <ParametersPanel
+          researchId={research.id}
           parameters={research.parameters}
           createdAt={research.createdAt}
           timeZone={timeZone}
+          version={result.version}
+          canUpdate={canUpdate}
+          onSaved={refresh}
+          onWriteError={handleWriteError}
         />
       </div>
       <Dialog
@@ -525,6 +532,7 @@ function ItemsPanel({
   items,
   status,
   canAdd,
+  canUpdate,
   canRemove,
   removing,
   onRetry,
@@ -538,6 +546,7 @@ function ItemsPanel({
   readonly items: readonly PriceItemDto[] | undefined;
   readonly status: 'pending' | 'error' | 'ready';
   readonly canAdd: boolean;
+  readonly canUpdate: boolean;
   readonly canRemove: boolean;
   readonly removing: boolean;
   readonly onRetry: () => void;
@@ -547,6 +556,8 @@ function ItemsPanel({
   readonly refresh: () => Promise<void>;
 }) {
   const t = useTranslations('priceResearch.items');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = items?.find((item) => item.id === selectedId) ?? null;
   if (items === undefined) {
     if (status === 'pending') {
       return (
@@ -581,14 +592,36 @@ function ItemsPanel({
         <p className="text-sm text-muted-foreground">{t('empty')}</p>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">{t('count', { count: items.length })}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">{t('count', { count: items.length })}</p>
+            {canUpdate ? (
+              <RecalculateButton
+                researchId={research.id}
+                onDone={refresh}
+                onWriteError={onWriteError}
+              />
+            ) : null}
+          </div>
           <PriceItemsTable
             items={items}
             unitPriceDecimals={research.parameters.unitPriceDecimals}
             canRemove={canRemove}
             removing={removing}
             onRemove={onRemove}
+            selectedId={selectedId}
+            onSelect={(item) => {
+              setSelectedId((current) => (current === item.id ? null : item.id));
+            }}
           />
+          {selected === null ? null : (
+            <PriceItemCalculation
+              item={selected}
+              unitPriceDecimals={research.parameters.unitPriceDecimals}
+              canUpdate={canUpdate}
+              onSaved={refresh}
+              onWriteError={onWriteError}
+            />
+          )}
         </>
       )}
     </div>

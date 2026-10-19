@@ -1,15 +1,23 @@
 import {
   PRICE_RESEARCH_MESSAGES,
   createPriceResearchSchema,
+  manualPriceIssues,
   priceItemQuantityIssue,
   referenceDateIssue,
+  updatePriceResearchSchema,
 } from '@contrataflow/validation';
 import type {
   CreatePriceResearch,
+  PriceCalculationMethod,
+  PriceDefaultMethod,
   PriceItemDto,
   PriceItemInput,
   PriceResearchLockReason,
+  PriceResearchParameters,
+  PriceRoundingMode,
   ProcessItemDto,
+  UpdatePriceItem,
+  UpdatePriceResearch,
 } from '@contrataflow/validation';
 
 import type { ApiError } from '@/lib/api/api-error';
@@ -254,4 +262,131 @@ export function lockReasonKey(reason: PriceResearchLockReason | null): string {
 /** Texto do valor "Sigiloso"? — o valor recomendado está mascarado (POL-09 · RN-PRICE-12). */
 export function isItemMasked(item: PriceItemDto): boolean {
   return item.valuesMasked || item.recommendedUnitPriceMasked;
+}
+
+// --- US-029: método do item e parâmetros de cálculo (SCR-009) -----------------------------------
+
+/** Rascunho do `MethodSelect` + `ManualPriceFieldset` (`''` = segue o método padrão da pesquisa). */
+export interface MethodDraft {
+  readonly methodOverride: PriceCalculationMethod | '';
+  readonly manualUnitPrice: string;
+  readonly manualJustification: string;
+}
+
+/** O rascunho inicial a partir do item gravado. */
+export function methodDraftOf(item: PriceItemDto): MethodDraft {
+  return {
+    methodOverride: item.methodOverride ?? '',
+    manualUnitPrice: item.manualUnitPrice === null ? '' : displayQuantity(item.manualUnitPrice),
+    manualJustification: item.manualJustification ?? '',
+  };
+}
+
+export type MethodIssues = Partial<Record<'manualUnitPrice' | 'manualJustification', string>>;
+
+/** V-01/V-02 na tela — a MESMA regra da API (`manualPriceIssues`), só com `MANUAL`. */
+export function methodIssues(draft: MethodDraft, unitPriceDecimals: 2 | 4): MethodIssues {
+  if (draft.methodOverride !== 'MANUAL') return {};
+  const issues: MethodIssues = {};
+  for (const issue of manualPriceIssues(
+    {
+      manualUnitPrice: normalizeQuantity(draft.manualUnitPrice),
+      manualJustification: draft.manualJustification,
+    },
+    unitPriceDecimals,
+  )) {
+    issues[issue.field] ??= issue.message;
+  }
+  return issues;
+}
+
+/** Corpo do PRS-07: o método e, só com `MANUAL`, valor e justificativa. */
+export function methodBodyOf(draft: MethodDraft): UpdatePriceItem {
+  if (draft.methodOverride !== 'MANUAL') {
+    return { methodOverride: draft.methodOverride === '' ? null : draft.methodOverride };
+  }
+  return {
+    methodOverride: 'MANUAL',
+    manualUnitPrice: normalizeQuantity(draft.manualUnitPrice),
+    manualJustification: draft.manualJustification.trim(),
+  };
+}
+
+/** O rascunho difere do item gravado? (reenviar o mesmo método não grava — [Duplicidade]). */
+export function methodChanged(draft: MethodDraft, item: PriceItemDto): boolean {
+  const saved = methodDraftOf(item);
+  if (draft.methodOverride !== saved.methodOverride) return true;
+  if (draft.methodOverride !== 'MANUAL') return false;
+  return (
+    normalizeQuantity(draft.manualUnitPrice) !== normalizeQuantity(saved.manualUnitPrice) ||
+    draft.manualJustification.trim() !== saved.manualJustification
+  );
+}
+
+/** "Valor manual" × "Automático" × método fixado no item (o selo do `MethodSelect`). */
+export function methodBadge(item: PriceItemDto): 'MANUAL' | 'AUTOMATIC' | 'OVERRIDE' {
+  if (item.methodOverride === 'MANUAL') return 'MANUAL';
+  return item.methodOverride === null ? 'AUTOMATIC' : 'OVERRIDE';
+}
+
+/** Rascunho do editor de parâmetros (FA-03 · RN-PRICE-47). */
+export interface ParametersDraft {
+  readonly defaultMethod: PriceDefaultMethod;
+  readonly cvThresholdPercent: string;
+  readonly minQuotations: string;
+  readonly unitPriceDecimals: 2 | 4;
+  readonly roundingMode: PriceRoundingMode;
+}
+
+export function parametersDraftOf(parameters: PriceResearchParameters): ParametersDraft {
+  return {
+    defaultMethod: parameters.defaultMethod,
+    cvThresholdPercent: displayQuantity(parameters.cvThresholdPercent),
+    minQuotations: String(parameters.minQuotations),
+    unitPriceDecimals: parameters.unitPriceDecimals,
+    roundingMode: parameters.roundingMode,
+  };
+}
+
+/** Corpo do PRS-04 com os parâmetros alterados (vazio = nada a enviar) e os erros de faixa. */
+export function parametersPatchOf(
+  draft: ParametersDraft,
+  current: PriceResearchParameters,
+): {
+  readonly body: UpdatePriceResearch;
+  readonly issues: Partial<Record<keyof ParametersDraft, string>>;
+} {
+  const candidate = {
+    defaultMethod: draft.defaultMethod,
+    cvThresholdPercent: normalizeQuantity(draft.cvThresholdPercent),
+    minQuotations: Number(draft.minQuotations),
+    unitPriceDecimals: draft.unitPriceDecimals,
+    roundingMode: draft.roundingMode,
+  };
+  const parsed = updatePriceResearchSchema.safeParse(candidate);
+  const issues: Partial<Record<keyof ParametersDraft, string>> = {};
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      const field = issue.path[0] as keyof ParametersDraft;
+      issues[field] ??= PRICE_RESEARCH_MESSAGES.parameterInvalid;
+    }
+  }
+  const body: { -readonly [K in keyof UpdatePriceResearch]: UpdatePriceResearch[K] } = {};
+  if (candidate.defaultMethod !== current.defaultMethod) {
+    body.defaultMethod = candidate.defaultMethod;
+  }
+  if (
+    issues.cvThresholdPercent === undefined &&
+    Number(candidate.cvThresholdPercent) !== Number(current.cvThresholdPercent)
+  ) {
+    body.cvThresholdPercent = candidate.cvThresholdPercent;
+  }
+  if (candidate.minQuotations !== current.minQuotations) {
+    body.minQuotations = candidate.minQuotations;
+  }
+  if (candidate.unitPriceDecimals !== current.unitPriceDecimals) {
+    body.unitPriceDecimals = candidate.unitPriceDecimals;
+  }
+  if (candidate.roundingMode !== current.roundingMode) body.roundingMode = candidate.roundingMode;
+  return { body, issues };
 }

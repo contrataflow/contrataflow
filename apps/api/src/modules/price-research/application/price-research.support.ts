@@ -448,6 +448,56 @@ export class PriceResearchRecorder {
     );
   }
 
+  /**
+   * `price_research.recalculate` (US-029 · RN-PRICE-45): a cada recálculo concluído — contadores e o
+   * gatilho, nunca valores.
+   */
+  async recalculationAudited(
+    tx: TenantTx,
+    research: PriceResearch,
+    trigger: string,
+  ): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'price_research.recalculate',
+      entityType: 'PriceResearch',
+      entityId: research.id,
+      processId: research.processId,
+      metadata: {
+        priceResearchId: research.id,
+        itemsCount: research.itemsCount,
+        itemsWithAlertsCount: research.itemsWithAlertsCount,
+        trigger,
+      },
+    });
+  }
+
+  /**
+   * `price_research.method_change` (US-029): o `methodOverride` do item (PRS-07) ou os parâmetros de
+   * cálculo da pesquisa (PRS-04), antigos e novos. Sem preço manual nem justificativa em claro.
+   */
+  async methodChanged(
+    tx: TenantTx,
+    research: PriceResearch,
+    input: {
+      readonly entityType: 'PriceItem' | 'PriceResearch';
+      readonly entityId: string;
+      readonly changes: readonly AuditChange[];
+      readonly priceItemId?: string;
+    },
+  ): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'price_research.method_change',
+      entityType: input.entityType,
+      entityId: input.entityId,
+      processId: research.processId,
+      changes: input.changes,
+      metadata: {
+        priceResearchId: research.id,
+        ...(input.priceItemId === undefined ? {} : { priceItemId: input.priceItemId }),
+      },
+    });
+  }
+
   /** `document.draft_update` (PRS-04): data-base/título antigos e novos. */
   async headerUpdated(
     tx: TenantTx,

@@ -8,9 +8,12 @@ import {
   priceItemSchema,
   priceResearchIdParamsSchema,
   priceResearchMetaSchema,
+  priceResearchRecalculationSchema,
   priceResearchSchema,
   priceResearchSummarySchema,
   processIdParamsSchema,
+  recalculatePriceResearchSchema,
+  updatePriceItemSchema,
   updatePriceResearchSchema,
 } from '@contrataflow/validation';
 import type {
@@ -20,7 +23,9 @@ import type {
   PriceItemListQuery,
   PriceResearchDto,
   PriceResearchMeta,
+  PriceResearchRecalculationDto,
   PriceResearchSummaryDto,
+  UpdatePriceItem,
   UpdatePriceResearch,
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
@@ -40,7 +45,9 @@ import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.
 import {
   AddPriceItemsCommand,
   CreatePriceResearchCommand,
+  RecalculatePriceResearchCommand,
   RemovePriceItemCommand,
+  UpdatePriceItemCommand,
   UpdatePriceResearchHeaderCommand,
 } from '../application/price-research.commands.js';
 import {
@@ -82,6 +89,8 @@ export class PriceResearchController {
     private readonly update: UpdatePriceResearchHeaderCommand,
     private readonly addItems: AddPriceItemsCommand,
     private readonly removeItem: RemovePriceItemCommand,
+    private readonly updateItem: UpdatePriceItemCommand,
+    private readonly recalculate: RecalculatePriceResearchCommand,
   ) {}
 
   @Get('processes/:id/price-research')
@@ -171,12 +180,16 @@ export class PriceResearchController {
   @Policy('POL-02')
   @ApiOperation({
     operationId: 'PRS-04',
-    summary: 'Atualizar pesquisa de preços (data-base e título)',
+    summary: 'Atualizar pesquisa de preços (data-base, título e parâmetros de cálculo)',
     tags: TAGS,
-    auditActions: ['document.draft_update'],
+    auditActions: [
+      'document.draft_update',
+      'price_research.method_change',
+      'price_research.recalculate',
+    ],
     responses: {
       200: {
-        description: `Data-base (≤ hoje; 422 \`OUT_OF_RANGE\`) e título (5–250). A nova data-base reavalia a validade das cotações e recalcula os alertas (FA-07), emitindo \`PriceResearchRecalculated\` (\`price_research.recalculated\`). Parâmetros do snapshot (RN-PRICE-05) no corpo → 422 \`NOT_ALLOWED\`. Grava \`document.draft_update\`. \`If-Match\` divergente → 412 \`VERSION_CONFLICT\` com \`currentVersion\`; ausente → 428. ${WRITE_RULES}`,
+        description: `Data-base (≤ hoje; 422 \`OUT_OF_RANGE\`), título (5–250) e parâmetros de cálculo (US-029 · RN-PRICE-47: \`defaultMethod\`, \`cvThresholdPercent\`, \`minQuotations\`, \`outlierLowerPercent\`/\`outlierUpperPercent\`, \`unitPriceDecimals\`, \`roundingMode\` nas faixas de \`priceResearch.*\`). Data-base nova reavalia a validade das cotações (FA-07); data-base ou parâmetro novos recalculam todos os itens (estatísticas, método efetivo, recomendado e total — o preço \`MANUAL\` não muda) e emitem \`PriceResearchRecalculated\` (\`price_research.recalculated\`). Prazos de validade do snapshot no corpo → 422 \`NOT_ALLOWED\`. Grava \`document.draft_update\` (data-base/título), \`price_research.method_change\` (parâmetros) e \`price_research.recalculate\`. \`If-Match\` divergente → 412 \`VERSION_CONFLICT\` com \`currentVersion\`; ausente → 428. ${WRITE_RULES}`,
         schema: RESEARCH_RESPONSE,
       },
     },
@@ -189,7 +202,7 @@ export class PriceResearchController {
   ): Promise<DataResult<PriceResearchDto, PriceResearchMeta>> {
     const result = await this.update.execute({
       researchId: params.id,
-      patch: { referenceDate: body.referenceDate, title: body.title },
+      patch: body,
       expectedVersion: ifMatch?.value ?? 0,
     });
     response.setHeader('ETag', `"${String(result.dto.version)}"`);
@@ -240,6 +253,64 @@ export class PriceResearchController {
     @ZodBody(addPriceItemsSchema) body: AddPriceItems,
   ): Promise<PriceItemDto[]> {
     return (await this.addItems.execute({ researchId: params.id, body })).items;
+  }
+
+  @Patch('price-items/:itemId')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(WRITE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'PRS-07',
+    summary: 'Atualizar item da pesquisa (quantidade e método)',
+    tags: TAGS,
+    auditActions: ['price_research.method_change', 'price_research.recalculate'],
+    responses: {
+      200: {
+        description: `Quantidade (> 0; inteira se a unidade não admite decimais — 422 \`OUT_OF_RANGE\`/\`INVALID_DECIMAL\`), \`methodOverride\` (\`MEAN\`|\`MEDIAN\`|\`LOWEST\`|\`MANUAL\`; \`null\` volta ao método padrão e apaga o valor manual — FA-02; fora do enum = 422 \`INVALID_ENUM\`) e, com \`MANUAL\`, \`manualUnitPrice\` (> 0, até \`unitPriceDecimals\` casas — 422 \`INVALID_DECIMAL\`) + \`manualJustification\` (≥ 20) obrigatórios (422 \`CONDITIONAL_REQUIRED\`). Campos calculados no corpo → 422 \`NOT_ALLOWED\`. Responde o item já recalculado (RN-PRICE-41..44); reenvio sem mudança = 200 sem gravar. Grava \`price_research.method_change\` quando o método muda, \`price_research.recalculate\` e \`PriceResearchRecalculated\`. \`If-Match\` = versão do item (412 \`VERSION_CONFLICT\` com \`currentVersion\`; ausente → 428); \`ETag\` = versão nova. Item inexistente/de outro tenant → 404 \`NOT_FOUND\`. ${WRITE_RULES}`,
+        schema: dataEnvelope(priceItemSchema),
+      },
+    },
+  })
+  async updateResearchItem(
+    @ZodParams(priceItemIdParamsSchema) params: { itemId: string },
+    @ZodBody(updatePriceItemSchema) body: UpdatePriceItem,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<PriceItemDto> {
+    const result = await this.updateItem.execute({
+      itemId: params.itemId,
+      patch: body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${String(result.dto.version)}"`);
+    return result.dto;
+  }
+
+  @Post('price-research/:id/recalculate')
+  @HttpCode(200)
+  @ImplicitAccess(WRITE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'PRS-20',
+    summary: 'Recalcular estatísticas da pesquisa',
+    tags: TAGS,
+    auditActions: ['price_research.recalculate'],
+    responses: {
+      200: {
+        description: `Recálculo sob demanda (FA-04 · RN-PRICE-45) de todos os itens a partir das cotações válidas, numa transação dedicada: estatísticas, método efetivo, recomendado, total, alertas e contadores. Grava \`price_research.recalculate\` (\`trigger = MANUAL\`) e emite \`PriceResearchRecalculated\`. \`ETag\` = versão nova da pesquisa. Banco indisponível → 503 \`DEPENDENCY_UNAVAILABLE\` sem alterar nada. Pesquisa inexistente/de outro tenant → 404 \`NOT_FOUND\`. ${WRITE_RULES}`,
+        schema: dataEnvelope(priceResearchRecalculationSchema),
+      },
+    },
+  })
+  async recalculateResearch(
+    @ZodParams(priceResearchIdParamsSchema) params: { id: string },
+    @ZodBody(recalculatePriceResearchSchema) _body: Record<string, never>,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<PriceResearchRecalculationDto> {
+    const result = await this.recalculate.execute({ researchId: params.id });
+    response.setHeader('ETag', `"${String(result.version)}"`);
+    return result.dto;
   }
 
   @Delete('price-items/:itemId')

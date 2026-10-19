@@ -120,3 +120,35 @@ Pesquisa de preços: itens, fontes, cotações e estatística (DEC-040, nível 4
   min), `#shared/spreadsheet/xlsx.spec.ts`, `#shared/http/multipart.spec.ts`,
   `presentation/quotation-import.routes.spec.ts` (8 categorias + FA-01..06) e
   `test/tenant-leak/quotation-import.spec.ts` (PostgreSQL).
+
+## US-029 — Calcular estatísticas e valor estimado por item (PRS-04/05/07/20)
+
+- **Motor** (`domain/price-calculation.ts`, puro, `decimal.js` com contexto próprio de 28 dígitos):
+  `priceStatistics` (RN-PRICE-41: n, média, mediana, menor, maior; desvio amostral `n − 1` e CV só
+  com n ≥ 2), `effectiveMethodOf` (RN-PRICE-42: `methodOverride` → padrão; `AUTO_CV` = `MEDIAN` se
+  o CV gravado (4 casas) > limiar, senão `MEAN`), `calculatePriceItem` (RN-PRICE-43/44: recomendado
+  a partir do valor sem arredondar, `unitPriceDecimals` casas pelo `roundingMode`; `MANUAL` usa o
+  valor informado como está; total `round(unit × qtd, 2)`) e `totalEstimatedValueOf` (soma dos
+  totais). Estatísticas pelo `roundingMode` do snapshot, na escala das colunas.
+- **`recalculate`/`recalculateItem`** (`domain/price-research.ts`): idempotentes — só as linhas cujo
+  resultado mudou voltam em `changedItems`. O item já nasce calculado (`createPriceItem`), para que
+  o primeiro recálculo não regrave (e mude a versão de) todos os itens.
+- **`PriceCalculationService`** (`application/price-calculation.service.ts`): o recálculo da pesquisa
+  dentro da transação de quem chama (linha travada pela guarda), com `price_research.recalculate`
+  (`trigger`), `PriceResearchRecalculated`, log `price_research.recalculated`/`_slow` (> 1 s)/
+  `_failed` e o histograma `price_research_recalculate_duration_ms` — sem valores. O
+  `QuotationRecalculator` (US-026/027/028) e os PRS-04/06/08 delegam a ele.
+- **PRS-07** (`UpdatePriceItemCommand`): guarda → item relido depois da trava (`If-Match` do item) →
+  `planPriceItemUpdate` (V-01/V-02/V-05, FA-01/FA-02; reenvio igual não grava) → item gravado já
+  recalculado (`updateItem`, `version + 1`) → `price_research.method_change` se o método mudou →
+  recálculo da pesquisa. Regras do valor manual compartilhadas com a SCR-009 (`manualPriceIssues`).
+- **PRS-04** (RN-PRICE-47): parâmetros de cálculo editáveis (`calculationParameterChanges`); prazos de
+  validade seguem fixos. Recálculo com o cabeçalho novo numa única gravação.
+- **PRS-20** (`RecalculatePriceResearchCommand`): transação dedicada; 503 sem alterar nada.
+- **SCR-009**: `PriceItemStatsCard`/`MethodSelect`/`ManualPriceFieldset`/`RecalculateButton`
+  (`apps/web/src/features/price-research/price-item-calculation.tsx`) e o editor de parâmetros no
+  `ParametersPanel`.
+- **Testes**: `domain/price-calculation.spec.ts` (0/1/2/N cotações, `AUTO_CV`, arredondamentos),
+  `domain/price-item-update.spec.ts`, `presentation/price-calculation.routes.spec.ts` (8 categorias +
+  FA-01..06) e `test/tenant-leak/price-calculation.spec.ts` (PostgreSQL: colunas decimais, falha
+  induzida, concorrência, RLS e CHECK do manual).

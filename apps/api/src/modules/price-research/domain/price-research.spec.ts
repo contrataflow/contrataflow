@@ -238,10 +238,12 @@ describe('Alertas, contadores e criação', () => {
       '2026-10-01',
     );
     const later = new Date('2026-10-07T00:00:00.000Z');
-    const result = recalculate(research, [stale, second], {
-      now: later,
-      userId: 'v',
-    });
+    const result = recalculate(
+      research,
+      [stale, second],
+      { now: later, userId: 'v' },
+      new Map([['p-i2', ['10.0000', '12.0000', '11.0000']]]),
+    );
     expect(result.research).toMatchObject({
       referenceDate: '2026-10-01',
       itemsCount: 2,
@@ -249,7 +251,8 @@ describe('Alertas, contadores e criação', () => {
       lastCalculatedAt: later,
       updatedById: 'v',
     });
-    expect(result.changedItems.map((changed) => changed.id)).toEqual(['p-i1']);
+    // i1 ganha os alertas; i2 ganha as estatísticas (US-029).
+    expect(result.changedItems.map((changed) => changed.id)).toEqual(['p-i1', 'p-i2']);
   });
 
   it('V-10: o último item não pode ser removido', () => {

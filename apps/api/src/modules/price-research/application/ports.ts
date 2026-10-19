@@ -41,8 +41,13 @@ export interface PriceResearchRepository {
     window: { readonly skip: number; readonly take: number },
   ): Promise<{ readonly items: PriceItem[]; readonly total: number }>;
   findItem(tx: TenantTx, itemId: string): Promise<PriceItem | null>;
-  /** Regrava os alertas/contadores calculados das linhas (`version + 1` em cada). */
+  /** Regrava as colunas calculadas e os alertas das linhas (`version + 1` em cada). */
   updateItems(tx: TenantTx, items: readonly PriceItem[]): Promise<void>;
+  /**
+   * PRS-07 (US-029): quantidade, método, valor manual e as colunas calculadas do item, com a versão
+   * do `If-Match` (`version + 1`); `VersionConflictError` se a versão mudou.
+   */
+  updateItem(tx: TenantTx, item: PriceItem, expectedVersion: number): Promise<void>;
   /**
    * Remoção física da linha (RN-PRICE-11) com a versão do `If-Match`; as cotações vão em cascata
    * (`ON DELETE CASCADE`). `VersionConflictError` se a versão mudou.

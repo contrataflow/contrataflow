@@ -26,6 +26,14 @@ export function priceResearchVersionConflict(currentVersion: number): ApiError {
   });
 }
 
+/** 412 `VERSION_CONFLICT` do item (PRS-07 · US-029) com a versão atual. */
+export function priceItemVersionConflict(currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PRICE_RESEARCH_MESSAGES.itemVersionConflict,
+    extensions: { currentVersion },
+  });
+}
+
 /** V-08 (RN-PRICE-02): 422 `BUSINESS_RULE_VIOLATION` com `PRICE_ITEMS_REQUIRED`. */
 export function priceItemsRequired(): ApiError {
   return businessRuleViolation([

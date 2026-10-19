@@ -10,27 +10,23 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditChange, AuditTrailPort } from '#shared/audit/audit-trail.js';
-import { VersionConflictError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
 import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
-import { PRICE_RESEARCH_REPOSITORY, PRICE_SOURCE_REPOSITORY } from './ports.js';
-import type { PriceResearchRepository, PriceSourceRepository } from './ports.js';
-import {
-  priceResearchVersionConflict,
-  priceSourceNotFound,
-  priceSourceVersionConflict,
-} from './price-research.errors.js';
-import { PriceResearchGate, PriceResearchRecorder } from './price-research.support.js';
+import { PRICE_SOURCE_REPOSITORY } from './ports.js';
+import type { PriceSourceRepository } from './ports.js';
+import { PriceCalculationService } from './price-calculation.service.js';
+import type { RecalculationTrigger } from './price-calculation.service.js';
+import { priceSourceNotFound, priceSourceVersionConflict } from './price-research.errors.js';
+import { PriceResearchGate } from './price-research.support.js';
 import type { PriceResearchReadContext, WritableOptions } from './price-research.support.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import type { PriceSourceTypeRef } from '../../catalog/application/catalog.facade.js';
 import { SupplierFacade } from '../../supplier/application/supplier.facade.js';
-import { recalculate } from '../domain/price-research.js';
 import type { PriceResearch } from '../domain/price-research.js';
-import { isSourceExpired, validQuotationCounts } from '../domain/price-source.js';
+import { isSourceExpired } from '../domain/price-source.js';
 import type {
   PriceSource,
   PriceSourceEditableField,
@@ -133,10 +129,9 @@ export class PriceSourceRulesReader {
 @Injectable()
 export class QuotationRecalculator {
   constructor(
-    @Inject(PRICE_RESEARCH_REPOSITORY) private readonly researches: PriceResearchRepository,
     @Inject(PRICE_SOURCE_REPOSITORY) private readonly sources: PriceSourceRepository,
     private readonly rules: PriceSourceRulesReader,
-    private readonly recorder: PriceResearchRecorder,
+    private readonly calculation: PriceCalculationService,
   ) {}
 
   /**
@@ -185,31 +180,17 @@ export class QuotationRecalculator {
   }
 
   /**
-   * RN-PRICE-27: depois de qualquer gravação de fonte/cotação, as cotações válidas e os alertas dos
-   * itens, os contadores e `lastCalculatedAt` do cabeçalho (`version + 1` — a linha está travada) e
-   * `PriceResearchRecalculated` (só ids e contadores). A estatística é da US-029.
+   * RN-PRICE-27/45: depois de qualquer gravação de fonte/cotação, o recálculo completo da pesquisa
+   * pelo `PriceCalculationService` (estatísticas, método, totais, alertas, contadores, `version + 1`
+   * do cabeçalho — a linha está travada —, auditoria e `PriceResearchRecalculated`).
    */
-  async recalculate(
+  recalculate(
     tx: TenantTx,
     research: PriceResearch,
     stamp: { readonly now: Date; readonly userId: string | null },
+    trigger: RecalculationTrigger = 'QUOTATION',
   ): Promise<PriceResearch> {
-    const items = await this.researches.listItems(tx, research.id);
-    const quotations = await this.sources.listQuotations(tx, research.id);
-    const result = recalculate(research, items, stamp, validQuotationCounts(quotations));
-    await this.researches.updateItems(tx, result.changedItems);
-    try {
-      await this.researches.update(tx, result.research, research.version);
-    } catch (error) {
-      if (error instanceof VersionConflictError) {
-        const latest = await this.researches.findById(tx, research.id);
-        throw priceResearchVersionConflict(latest?.version ?? research.version + 1);
-      }
-      throw error;
-    }
-    const saved = { ...result.research, version: research.version + 1 };
-    await this.recorder.recalculated(tx, saved);
-    return saved;
+    return this.calculation.recalculateResearch(tx, research, { stamp, trigger });
   }
 }
 

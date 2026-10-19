@@ -660,11 +660,12 @@ describe('Feature: Criar pesquisa de preços a partir dos itens do processo (US-
         ['templateId', 'REFERENCE_NOT_FOUND'],
       ]);
       const research = await createOk(process.id, {});
-      const fixed = await patchResearch(research.id, { minQuotations: 5 }, '"1"');
+      // US-029: os parâmetros de cálculo passaram a editáveis; os prazos de validade seguem fixos.
+      const fixed = await patchResearch(research.id, { directQuoteMaxAgeDays: 90 }, '"1"');
       expectProblem(fixed, 422, 'VALIDATION_ERROR');
       expect(problemDetailsSchema.parse(fixed.body).errors).toMatchObject([
         {
-          field: 'minQuotations',
+          field: 'directQuoteMaxAgeDays',
           code: 'NOT_ALLOWED',
           message: 'Este parâmetro foi fixado na criação da pesquisa.',
         },

@@ -489,6 +489,20 @@ export function restoreQuotation(
 }
 
 /** Cotações válidas por item (`status = VALID`) — o `validQuotationsCount` do recálculo. */
+/** RN-PRICE-41 (US-029): os preços das cotações `VALID` de cada item — a base das estatísticas. */
+export function validPricesByItem(
+  quotations: readonly Pick<Quotation, 'priceItemId' | 'status' | 'unitPrice'>[],
+): Map<string, string[]> {
+  const prices = new Map<string, string[]>();
+  for (const quotation of quotations) {
+    if (quotation.status !== 'VALID') continue;
+    const list = prices.get(quotation.priceItemId) ?? [];
+    list.push(quotation.unitPrice);
+    prices.set(quotation.priceItemId, list);
+  }
+  return prices;
+}
+
 export function validQuotationCounts(
   quotations: readonly Pick<Quotation, 'priceItemId' | 'status'>[],
 ): Map<string, number> {

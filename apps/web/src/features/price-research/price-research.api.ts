@@ -4,7 +4,9 @@ import type {
   PriceItemDto,
   PriceResearchDto,
   PriceResearchMeta,
+  PriceResearchRecalculationDto,
   PriceResearchSummaryDto,
+  UpdatePriceItem,
   UpdatePriceResearch,
 } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
@@ -16,7 +18,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 /*
- * Pesquisa de preços (US-024 · SCR-009): PRS-01..08 de api/07-price-research.md. O id da pesquisa é
+ * Pesquisa de preços (US-024 · US-029 · SCR-009): PRS-01..08 e PRS-20 de api/07-price-research.md. O id da pesquisa é
  * o do documento. Chaves `['t', tenantId, 'price-research', id]` (cabeçalho) e
  * `['t', tenantId, 'price-research', id, 'items']` (sob a do cabeçalho: invalidar a pesquisa renova
  * os itens) e `['t', tenantId, 'processes', processId, 'price-research']` (PRS-01, sob a do processo).
@@ -213,4 +215,29 @@ export async function deletePriceItem(itemId: string, version: number): Promise<
     method: 'DELETE',
     ifMatch: ifMatchOf(version),
   });
+}
+
+/** PRS-07 (US-029) com a versão do item: responde o item já recalculado. */
+export async function updatePriceItem(
+  itemId: string,
+  body: UpdatePriceItem,
+  version: number,
+): Promise<PriceItemDto> {
+  const result = await apiRequest<PriceItemDto>(`/price-items/${itemId}`, {
+    method: 'PATCH',
+    body,
+    ifMatch: ifMatchOf(version),
+  });
+  return result.data;
+}
+
+/** PRS-20 (US-029 · FA-04): "Recalcular agora". */
+export async function recalculatePriceResearch(
+  researchId: string,
+): Promise<PriceResearchRecalculationDto> {
+  const result = await apiRequest<PriceResearchRecalculationDto>(
+    `/price-research/${researchId}/recalculate`,
+    { method: 'POST', body: {} },
+  );
+  return result.data;
 }
