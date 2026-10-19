@@ -281,6 +281,41 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
       expect(lifecycle(status)).toEqual(expected);
     });
 
+    it('US-009 · DISCARD: só rascunho sem número, para o criador com PROCESS_CREATE ou quem tem PROCESS_CANCEL', () => {
+      const discard = (process: Partial<EngineProcess>, who: Partial<EngineViewer> = {}) =>
+        actionsOf(
+          availableActions(
+            engineInput(builder, { passes: studies }, { status: 'DRAFT', ...process }),
+            viewer(who),
+          ),
+          'DISCARD',
+        );
+      // Gestor com PROCESS_CANCEL (não é o criador): descarta o rascunho sem número.
+      expect(discard({ numbered: false })).toEqual([
+        { action: 'DISCARD', label: 'Descartar rascunho', enabled: true, reasons: [] },
+      ]);
+      // FA-01: rascunho numerado ou numeração desconhecida → só "Cancelar processo".
+      expect(discard({ numbered: true })).toEqual([]);
+      expect(discard({})).toEqual([]);
+      expect(discard({ numbered: false, status: 'IN_PROGRESS' })).toEqual([]);
+      // FA-05: o criador sem PROCESS_CANCEL vê "Descartar rascunho" (e não "Cancelar processo").
+      const creatorOnly = { userId: CREATOR_ID, permissions: new Set(['PROCESS_CREATE'] as const) };
+      expect(discard({ numbered: false }, creatorOnly)).toHaveLength(1);
+      expect(
+        actionsOf(
+          availableActions(
+            engineInput(builder, { passes: studies }, { status: 'DRAFT', numbered: false }),
+            viewer(creatorOnly),
+          ),
+          'CANCEL',
+        ),
+      ).toEqual([]);
+      // Sem PROCESS_CANCEL e sem ser o criador: omitida.
+      expect(
+        discard({ numbered: false }, { permissions: new Set(['PROCESS_CREATE'] as const) }),
+      ).toEqual([]);
+    });
+
     it('status inválido explica em pt-BR; avanço em processo suspenso fica desabilitado', () => {
       const input = engineInput(
         builder,

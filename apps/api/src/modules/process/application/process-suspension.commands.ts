@@ -7,6 +7,7 @@ import {
 import type {
   DayCountType,
   MovementMetadata,
+  ProcessDto,
   ProcessStatus,
   ResumeMeta,
   SuspensionProcessDto,
@@ -91,7 +92,11 @@ interface Prepared {
   readonly now: Date;
 }
 
-/** Leitura comum: trava, visibilidade, `PROCESS_SUSPEND` (POL-07) e a passagem ativa. */
+/**
+ * Leitura comum dos comandos de ciclo de vida (US-008 · US-009): trava, visibilidade, a permissão
+ * do comando cobrindo o processo (`PROCESS_SUSPEND` — POL-07; `PROCESS_CANCEL` — POL-06) e a
+ * passagem ativa.
+ */
 @Injectable()
 export class ProcessLifecycleSupport {
   constructor(
@@ -103,19 +108,26 @@ export class ProcessLifecycleSupport {
     private readonly transitions: StageTransitionSupport,
   ) {}
 
-  /** Trava e autoriza; 404 antes de 403 (não revela processo invisível). */
-  async lockAndAuthorize(
+  /** Trava e carrega o processo visível (404 = inexistente, de outro tenant ou invisível). */
+  async lockAndLoad(
     tx: TenantTx,
     processId: string,
   ): Promise<{ readonly rows: ProcessAggregateRows; readonly runtime: ProcessRuntime }> {
     if (!(await this.processes.lockForUpdate(tx, processId))) throw processNotFoundError();
     const { rows, runtime } = await this.panel.load(tx, processId);
-    await this.access.assertCanOnProcess(
-      'PROCESS_SUSPEND',
-      accessTargetOf(runtime),
-      PROCESS_SUSPENSION_MESSAGES.permissionDenied,
-    );
     return { rows, runtime };
+  }
+
+  /** Trava e autoriza; 404 antes de 403 (não revela processo invisível). */
+  async lockAndAuthorize(
+    tx: TenantTx,
+    processId: string,
+    permission: 'PROCESS_SUSPEND' | 'PROCESS_CANCEL' = 'PROCESS_SUSPEND',
+    detail: string = PROCESS_SUSPENSION_MESSAGES.permissionDenied,
+  ): Promise<{ readonly rows: ProcessAggregateRows; readonly runtime: ProcessRuntime }> {
+    const loaded = await this.lockAndLoad(tx, processId);
+    await this.access.assertCanOnProcess(permission, accessTargetOf(loaded.runtime), detail);
+    return loaded;
   }
 
   /** A passagem ativa do processo travado (`null` = processo sem etapa ativa). */
@@ -156,6 +168,17 @@ export class ProcessLifecycleSupport {
     });
   }
 
+  /** O `Process` sobre o NOVO estado, com o valor sigiloso conforme a POL-09. */
+  async presentProcess(
+    tx: TenantTx,
+    rows: ProcessAggregateRows,
+    runtime: ProcessRuntime,
+    process: Process,
+  ): Promise<ProcessDto> {
+    const canSeeBudget = await this.panel.canSeeBudget({ ...rows, process }, runtime);
+    return this.presenter.present(tx, process, canSeeBudget);
+  }
+
   /** O `Process` de PRC-23/24 sobre o NOVO estado (POL-09 e os campos da suspensão). */
   async present(
     tx: TenantTx,
@@ -165,8 +188,7 @@ export class ProcessLifecycleSupport {
     suspension: SuspensionFields,
     pausedAt: Date | null,
   ): Promise<SuspensionProcessDto> {
-    const canSeeBudget = await this.panel.canSeeBudget({ ...rows, process }, runtime);
-    const dto = await this.presenter.present(tx, process, canSeeBudget);
+    const dto = await this.presentProcess(tx, rows, runtime, process);
     return {
       ...dto,
       currentStage:
@@ -184,7 +206,7 @@ export class ProcessLifecycleSupport {
   }
 }
 
-function actorOf(): {
+export function actorOf(): {
   userId: string;
   ip: string | null;
   userAgent: string | null;
@@ -200,7 +222,7 @@ function actorOf(): {
 }
 
 /** `warn process.lifecycle_conflict` nos 409/412 (story · Logs) — só ids e códigos. */
-function logConflict(logger: Logger, processId: string, error: unknown): void {
+export function logConflict(logger: Logger, processId: string, error: unknown): void {
   if (!(error instanceof ApiError) || (error.status !== 409 && error.status !== 412)) return;
   logger.warn(
     {

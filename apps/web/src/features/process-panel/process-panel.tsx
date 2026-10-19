@@ -32,6 +32,10 @@ import { CreateEtpButton } from '../etp/create-etp-dialog';
 import { MovementTimeline } from '../movements/movement-timeline';
 import { CreatePriceResearchButton } from '../price-research/create-price-research-dialog';
 import { useAvailableActions } from '../process-actions/process-actions.api';
+import {
+  CancelProcessDialog,
+  DiscardDraftDialog,
+} from '../process-cancellation/cancellation-dialogs';
 import { useClaimProcess } from '../process-claim/use-claim-process';
 import { ConfidentialBudgetToggle } from '../process-confidentiality/confidential-budget-toggle';
 import { DocumentsPanel } from '../process-documents/documents-panel';
@@ -256,6 +260,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   // US-008: "Suspender" (menu "Mais") e "Retomar" (ação primária do suspenso) abrem o SCR-116.
   const [suspending, setSuspending] = useState(false);
   const [resuming, setResuming] = useState(false);
+  // US-009: "Cancelar processo" e "Descartar rascunho" (menu "Mais") abrem o SCR-116.
+  const [canceling, setCanceling] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -388,6 +395,9 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           // US-008: "Suspender"/"Retomar" abrem os diálogos SCR-116.
           else if (action.action === 'SUSPEND') setSuspending(true);
           else if (action.action === 'RESUME') setResuming(true);
+          // US-009: "Cancelar processo"/"Descartar rascunho" abrem os diálogos SCR-116.
+          else if (action.action === 'CANCEL') setCanceling(true);
+          else if (action.action === 'DISCARD') setDiscarding(true);
           else toast({ title: t('actions.notYet') });
         }}
       />
@@ -430,6 +440,20 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         }}
         onDone={() => {
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
+        }}
+      />
+      <CancelProcessDialog
+        processId={processId}
+        open={canceling}
+        onOpenChange={setCanceling}
+        summary={data}
+      />
+      <DiscardDraftDialog
+        processId={processId}
+        open={discarding}
+        onOpenChange={setDiscarding}
+        onCancelInstead={() => {
+          setCanceling(true);
         }}
       />
       <ProcessTagsDialog

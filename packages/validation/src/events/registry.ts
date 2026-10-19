@@ -6,7 +6,7 @@ import {
   AiGenerationRequested,
   AiUsageThresholdReached,
 } from '../ai/events.js';
-import { ApprovalRequested } from '../approval/events.js';
+import { ApprovalCanceled, ApprovalRequested } from '../approval/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
 import {
@@ -30,6 +30,7 @@ import {
   DocumentSubmitted,
   DocumentTypeChanged,
   DocumentVersionCreated,
+  DocumentWithdrawn,
   TemplateVersionPublished,
   TemplateVersionRetired,
 } from '../document/events.js';
@@ -54,6 +55,7 @@ import {
   ProcessAssigned,
   ProcessConfidentialityChanged,
   ProcessCreated,
+  ProcessDraftDiscarded,
   ProcessDuplicated,
   ProcessItemsChanged,
   ProcessNumberAssigned,
@@ -127,7 +129,9 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessStageOverdue,
   ProcessAssigned,
   ProcessNumberAssigned,
+  ProcessDraftDiscarded,
   ApprovalRequested,
+  ApprovalCanceled,
   SupplierCreated,
   SupplierUpdated,
   PriceResearchRecalculated,
@@ -166,6 +170,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   DocumentRejected,
   DocumentReopened,
   DocumentCanceled,
+  DocumentWithdrawn,
   DocumentRenditionReady,
   DocumentRenditionFailed,
 };

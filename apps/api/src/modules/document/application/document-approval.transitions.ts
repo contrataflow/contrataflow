@@ -4,6 +4,7 @@ import {
   DocumentReturned,
   DocumentSubmitted,
   DocumentVersionCreated,
+  DocumentWithdrawn,
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -27,7 +28,11 @@ import type { DocumentRepository } from './document.ports.js';
 import { DOCUMENT_CLOCK } from './ports.js';
 import type { DocumentClock } from './ports.js';
 import { gateCompleteness } from '../domain/document-completeness.js';
-import { applyApprovalDecision, enterApprovalStage } from '../domain/document.js';
+import {
+  applyApprovalDecision,
+  enterApprovalStage,
+  releaseCanceledApproval,
+} from '../domain/document.js';
 import type { ApprovalOutcome, Document } from '../domain/document.js';
 
 /*
@@ -62,6 +67,14 @@ export interface ApprovalDecisionInput {
   readonly outcome: ApprovalOutcome;
   /** Versão exata analisada (`ApprovalDocument.documentVersionId`). */
   readonly analyzedVersionId: string;
+}
+
+export interface CanceledApprovalInput {
+  readonly documentId: string;
+  /** A aprovação cancelada (só o documento que ainda a tem em `pendingApprovalId` muda). */
+  readonly approvalId: string;
+  /** Texto fixo da timeline ("Processo cancelado") — nunca texto do usuário. */
+  readonly reason: string;
 }
 
 @Injectable()
@@ -219,6 +232,59 @@ export class DocumentApprovalTransitions {
     } else {
       await this.outbox.record(tx, DocumentRejected.of({ ...base, payload: common }));
     }
+    return saved;
+  }
+
+  /**
+   * RN-PROC-106 · DEC-018 (US-009): a aprovação que cobria o documento foi cancelada com o processo.
+   * `IN_REVIEW` volta a `DRAFT` com `document.withdraw` e `DocumentWithdrawn` (timeline
+   * `DOCUMENT_WITHDRAWN` com o motivo); `FINALIZED`/`APPROVED` só perdem `pendingApprovalId`.
+   * Documento inexistente ou sem essa pendência: `null`, nada muda.
+   */
+  async releaseCanceledApproval(
+    tx: TenantTx,
+    input: CanceledApprovalInput,
+  ): Promise<Document | null> {
+    const document = await this.documents.findById(tx, input.documentId);
+    if (document === null) return null;
+    const next = this.lifecycle.transition(() =>
+      releaseCanceledApproval(document, {
+        actorId: this.actorId(),
+        now: this.clock(),
+        approvalId: input.approvalId,
+      }),
+    );
+    if (next === null) return null;
+    const saved = await this.lifecycle.save(tx, next, document.version);
+    if (document.status !== 'IN_REVIEW') return saved;
+    const type = (await this.lifecycle.loadFor(tx, document)).type;
+    await this.audit.record(tx, {
+      action: 'document.withdraw',
+      entityType: 'Document',
+      entityId: saved.id,
+      processId: saved.processId,
+      changes: [{ path: 'status', old: document.status, new: saved.status }],
+      metadata: {
+        approvalId: input.approvalId,
+        automatic: true,
+        reason: input.reason,
+        documentCode: saved.code,
+        documentTypeCode: type.code,
+      },
+    });
+    await this.outbox.record(
+      tx,
+      DocumentWithdrawn.of({
+        aggregateId: saved.id,
+        processId: saved.processId,
+        payload: {
+          documentId: saved.id,
+          documentTypeCode: type.code,
+          approvalId: input.approvalId,
+          reason: input.reason,
+        },
+      }),
+    );
     return saved;
   }
 }

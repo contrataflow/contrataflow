@@ -43,6 +43,7 @@ import type {
   ProcessTransactions,
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
+import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
@@ -239,6 +240,25 @@ function toSituation(row: ProcessRow): ProcessSituationRow {
 }
 
 /** Tramitação (só INSERT — gatilho `process_movements_append_only`). */
+/** RN-PROC-107/109: a passagem ativa vira `CANCELED` e a responsabilidade ativa é encerrada. */
+async function closeActivePass(tx: TenantTx, processId: string, stage: ClosedPass): Promise<void> {
+  const ended = await tx.processStage.updateMany({
+    where: { id: stage.id, status: 'ACTIVE' },
+    data: {
+      status: 'CANCELED',
+      exitedAt: stage.exitedAt,
+      exitedViaMovementId: stage.exitedViaMovementId,
+      updatedAt: stage.exitedAt,
+      version: { increment: 1 },
+    },
+  });
+  if (ended.count !== 1) throw new Error('Passagem ativa ausente ao encerrar o processo.');
+  await tx.processAssignment.updateMany({
+    where: { processId, isActive: true },
+    data: { isActive: false, endedAt: stage.exitedAt },
+  });
+}
+
 async function insertMovement(tx: TenantTx, movement: ProcessMovementRecord): Promise<void> {
   await tx.processMovement.create({
     data: {
@@ -604,6 +624,66 @@ export class PrismaProcessRepository implements ProcessRepository {
     });
     if (staged.count !== 1) throw new Error('Passagem ativa ausente ao retomar o processo.');
     await insertMovement(tx, plan.movement);
+    return true;
+  }
+
+  async recordCancellation(tx: TenantTx, plan: CancelPlan): Promise<boolean> {
+    const { process, cancellation, stage } = plan;
+    const updated = await tx.process.updateMany({
+      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      data: {
+        status: process.status,
+        canceledAt: cancellation.canceledAt,
+        canceledById: cancellation.canceledById,
+        cancellationReason: cancellation.cancellationReason,
+        // FA-03: o status anterior à suspensão é descartado junto com o cancelamento.
+        statusBeforeSuspension: null,
+        overdueSince: null,
+        updatedAt: process.updatedAt,
+        updatedById: process.updatedById,
+        version: process.version,
+      },
+    });
+    if (updated.count !== 1) return false;
+    await closeActivePass(tx, process.id, stage);
+    await insertMovement(tx, plan.movement);
+    return true;
+  }
+
+  async statusOf(tx: TenantTx, processId: string): Promise<ProcessStatus | null> {
+    const row = await tx.process.findFirst({
+      where: { id: processId, deletedAt: null },
+      select: { status: true },
+    });
+    return row?.status ?? null;
+  }
+
+  async recordDraftDiscard(tx: TenantTx, plan: DiscardPlan): Promise<boolean> {
+    const updated = await tx.process.updateMany({
+      where: {
+        id: plan.processId,
+        version: plan.expectedVersion,
+        status: 'DRAFT',
+        code: null,
+        deletedAt: null,
+      },
+      data: {
+        deletedAt: plan.deletedAt,
+        deletedById: plan.deletedById,
+        updatedAt: plan.deletedAt,
+        updatedById: plan.deletedById,
+        version: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1) return false;
+    if (plan.stage === null) {
+      await tx.processAssignment.updateMany({
+        where: { processId: plan.processId, isActive: true },
+        data: { isActive: false, endedAt: plan.deletedAt },
+      });
+    } else {
+      await closeActivePass(tx, plan.processId, plan.stage);
+    }
     return true;
   }
 

@@ -42,6 +42,8 @@ export interface EngineProcess {
   readonly currentResponsibleId: string | null;
   readonly requestingDepartmentId: string;
   readonly requestingSecretariatId: string;
+  /** Já tem `number`/`code` (US-009 · RN-PROC-105); ausente = numerado (sem `DISCARD`). */
+  readonly numbered?: boolean;
 }
 
 /** Permissões de ação sobre o processo (permissions.md §1.2). */
@@ -643,6 +645,19 @@ function lifecycleEntries(
 }
 
 /**
+ * DISCARD (US-009 · RN-PROC-105/110 · FA-05): "Descartar rascunho" só no `DRAFT` sem número, para o
+ * criador com `PROCESS_CREATE` ou quem tem `PROCESS_CANCEL` (o escopo é conferido pela API). O
+ * rascunho numerado não mostra a ação — cancela-se (FA-01).
+ */
+function discardEntry(process: EngineProcess, viewer: EngineViewer): ActionEntry[] {
+  if (process.status !== 'DRAFT' || process.numbered !== false) return [];
+  const { permissions } = viewer;
+  const creator = process.createdById === viewer.userId && permissions.has('PROCESS_CREATE');
+  if (!creator && !permissions.has('PROCESS_CANCEL')) return [];
+  return [entry('DISCARD', 'Descartar rascunho', [])];
+}
+
+/**
  * EDIT (US-005 · RN-PROC-59 · POL-01): "Editar dados" com `PROCESS_UPDATE`; desabilitada com o
  * motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia (a API repete as checagens).
  */
@@ -737,6 +752,7 @@ export function availableActions(
     ...advanceEntries(input, viewer, evaluation),
     ...returnEntries(input, viewer, evaluation),
     ...lifecycleEntries(input.process, viewer, evaluation.stage),
+    ...discardEntry(input.process, viewer),
     ...editEntry(input.process, viewer),
     ...manageItemsEntry(input.process, viewer),
     ...manageTagsEntry(input.process, viewer),

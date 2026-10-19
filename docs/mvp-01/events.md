@@ -112,7 +112,7 @@ Eventos genéricos com `documentTypeCode`; routing key `document.<fato>.<tipo_em
 | `DocumentApproved` | `document.approved.<type>` | US-052 (via aprovação) | `documentId`, `documentVersionId`, `approvalId` | T M |
 | `DocumentReturned` | `document.returned.<type>` | US-052 | `documentId`, `approvalId` | T |
 | `DocumentRejected` | `document.rejected.<type>` | US-052 | `documentId`, `approvalId` | T |
-| `DocumentWithdrawn` | `document.withdrawn.<type>` | US-053 | `documentId`, `approvalId` | T |
+| `DocumentWithdrawn` | `document.withdrawn.<type>` | US-053, retirada automática no cancelamento do processo (US-009) | `documentId`, `documentTypeCode`, `approvalId`, `reason?` (texto fixo "Processo cancelado" na retirada automática — nunca texto do usuário) | T |
 | `DocumentReopened` | `document.reopened.<type>` | US-065 | `documentId`, `fromStatus`, `baseVersionId` | T |
 | `DocumentCanceled` | `document.canceled.<type>` | US-065 | `documentId`, `fromStatus` | T |
 | `DocumentRenditionReady` | `document.rendition_ready` | Worker `document-render` (US-067) | `documentId`, `documentVersionId?`, `renditionId`, `kind`, `sha256`, `pageCount` | — |

@@ -1,5 +1,5 @@
 import { localDateOf } from '@contrataflow/types';
-import type { ProcessStageStatus } from '@contrataflow/validation';
+import type { ProcessStageStatus, ProcessStatus } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { isProcessVisible } from '#shared/auth/process-access.js';
@@ -25,6 +25,7 @@ import type {
   ProcessSituationRow,
 } from '../application/ports.js';
 import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
+import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import {
   canViewConfidentialBudget,
@@ -111,6 +112,10 @@ export class InMemoryProcessRepository implements ProcessRepository {
   private readonly extras = new Map<string, ProcessListExtras>();
   /** `processes.suspended_by_id` (US-008). */
   private readonly suspendedBy = new Map<string, string | null>();
+  /** `processes.canceled_by_id` (US-009). */
+  private readonly canceledBy = new Map<string, string>();
+  /** Exclusão lógica do rascunho (`deleted_at`/`deleted_by_id` — US-009): some das leituras. */
+  private readonly deleted = new Map<string, { readonly at: Date; readonly by: string }>();
 
   constructor(
     private readonly participants: InMemoryProcessParticipantRepository,
@@ -179,7 +184,9 @@ export class InMemoryProcessRepository implements ProcessRepository {
   }
 
   lockForUpdate(_tx: TenantTx, processId: string): Promise<boolean> {
-    return Promise.resolve(this.processes.get(processId)?.tenantId === tenantOfContext());
+    return Promise.resolve(
+      this.processes.get(processId)?.tenantId === tenantOfContext() && !this.deleted.has(processId),
+    );
   }
 
   updateProcess(_tx: TenantTx, process: Process, expectedVersion: number): Promise<boolean> {
@@ -325,6 +332,81 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.suspendedBy.delete(plan.process.id);
     this.movements.push(plan.movement);
     return Promise.resolve(true);
+  }
+
+  recordCancellation(_tx: TenantTx, plan: CancelPlan): Promise<boolean> {
+    const current = this.processes.get(plan.process.id);
+    if (
+      current?.tenantId !== tenantOfContext() ||
+      current.version !== plan.expectedVersion ||
+      this.deleted.has(current.id)
+    ) {
+      return Promise.resolve(false);
+    }
+    if (this.stages.get(plan.stage.id)?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao encerrar o processo.'));
+    }
+    this.processes.set(plan.process.id, plan.process);
+    this.closeActivePass(plan.process.id, plan.stage);
+    this.setSituation(plan.process.id, {
+      canceledAt: plan.cancellation.canceledAt,
+      cancellationReason: plan.cancellation.cancellationReason,
+      statusBeforeSuspension: null,
+      overdueSince: null,
+    });
+    this.canceledBy.set(plan.process.id, plan.cancellation.canceledById);
+    this.movements.push(plan.movement);
+    return Promise.resolve(true);
+  }
+
+  statusOf(_tx: TenantTx, processId: string): Promise<ProcessStatus | null> {
+    const process = this.processes.get(processId);
+    if (process?.tenantId !== tenantOfContext() || this.deleted.has(processId)) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(process.status);
+  }
+
+  recordDraftDiscard(_tx: TenantTx, plan: DiscardPlan): Promise<boolean> {
+    const current = this.processes.get(plan.processId);
+    if (
+      current?.tenantId !== tenantOfContext() ||
+      current.version !== plan.expectedVersion ||
+      current.status !== 'DRAFT' ||
+      current.code !== null ||
+      this.deleted.has(current.id)
+    ) {
+      return Promise.resolve(false);
+    }
+    if (plan.stage !== null && this.stages.get(plan.stage.id)?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao encerrar o processo.'));
+    }
+    this.processes.set(current.id, {
+      ...current,
+      updatedAt: plan.deletedAt,
+      updatedById: plan.deletedById,
+      version: current.version + 1,
+    });
+    if (plan.stage === null) this.endActiveAssignments(current.id, plan.deletedAt);
+    else this.closeActivePass(current.id, plan.stage);
+    this.deleted.set(current.id, { at: plan.deletedAt, by: plan.deletedById });
+    return Promise.resolve(true);
+  }
+
+  private closeActivePass(processId: string, closed: ClosedPass): void {
+    const stage = this.stages.get(closed.id);
+    if (stage !== undefined) {
+      this.stages.set(stage.id, { ...stage, status: 'CANCELED', exitedAt: closed.exitedAt });
+    }
+    this.endActiveAssignments(processId, closed.exitedAt);
+  }
+
+  private endActiveAssignments(processId: string, endedAt: Date): void {
+    for (const assignment of this.assignments) {
+      if (assignment.processId === processId && !this.endedAssignments.has(assignment.id)) {
+        this.endedAssignments.set(assignment.id, endedAt);
+      }
+    }
   }
 
   previousAssignments(
@@ -593,7 +675,9 @@ export class InMemoryProcessRepository implements ProcessRepository {
 
   loadAggregate(_tx: TenantTx, processId: string): Promise<ProcessAggregateRows | null> {
     const process = this.processes.get(processId);
-    if (process?.tenantId !== tenantOfContext()) return Promise.resolve(null);
+    if (process?.tenantId !== tenantOfContext() || this.deleted.has(processId)) {
+      return Promise.resolve(null);
+    }
     const stages = [...this.stages.values()]
       .filter((stage) => stage.processId === processId)
       .sort((a, b) => a.sequence - b.sequence)
@@ -745,6 +829,16 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.stages.set(stage.id, stage);
   }
 
+  /** Quem cancelou o processo (`canceledById` — US-009). */
+  canceledByOf(processId: string): string | null {
+    return this.canceledBy.get(processId) ?? null;
+  }
+
+  /** Exclusão lógica do rascunho (`deletedAt`/`deletedById` — US-009), `null` se não descartado. */
+  deletionOf(processId: string): { readonly at: Date; readonly by: string } | null {
+    return this.deleted.get(processId) ?? null;
+  }
+
   /** Quem suspendeu o processo (`suspendedById` — US-008). */
   suspendedByOf(processId: string): string | null {
     return this.suspendedBy.get(processId) ?? null;
@@ -766,6 +860,8 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.stages.clear();
     this.situations.clear();
     this.suspendedBy.clear();
+    this.canceledBy.clear();
+    this.deleted.clear();
     this.assignments.length = 0;
     this.endedAssignments.clear();
     this.movements.length = 0;
@@ -775,7 +871,9 @@ export class InMemoryProcessRepository implements ProcessRepository {
 
   private owned(): Process[] {
     const tenantId = tenantOfContext();
-    return [...this.processes.values()].filter((process) => process.tenantId === tenantId);
+    return [...this.processes.values()].filter(
+      (process) => process.tenantId === tenantId && !this.deleted.has(process.id),
+    );
   }
 
   private grantsOf(processId: string): { departmentIds: string[]; userIds: string[] } {

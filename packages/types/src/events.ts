@@ -51,7 +51,10 @@ export const DOMAIN_EVENT_NAMES = [
   // US-055: job `deadlines` (vencimento próximo e atraso da etapa).
   'ProcessStageDueSoon',
   'ProcessStageOverdue',
+  // US-009: descarte de rascunho sem número e cancelamento (aprovação cancelada, documento retirado).
+  'ProcessDraftDiscarded',
   'ApprovalRequested',
+  'ApprovalCanceled',
   'DocumentCreated',
   'DocumentVersionCreated',
   'DocumentSubmitted',
@@ -61,6 +64,7 @@ export const DOMAIN_EVENT_NAMES = [
   'DocumentRejected',
   'DocumentReopened',
   'DocumentCanceled',
+  'DocumentWithdrawn',
   'SupplierCreated',
   'SupplierUpdated',
   'PriceResearchRecalculated',

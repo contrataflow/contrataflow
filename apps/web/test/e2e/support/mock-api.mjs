@@ -959,8 +959,47 @@ const processVersionOf = (processId) => processVersions.get(processId) ?? 9;
 // prazo, congelamento, permissões e concorrência são cobertos nos testes da API; aqui vale a
 // jornada J-06 (suspender, ver o painel, retomar e conferir o novo prazo).
 const suspensions = new Map();
-const statusOfListed = (processId, fixture) =>
-  suspensions.has(processId) ? 'SUSPENDED' : fixture.status;
+// Cancelamento e descarte (US-009 · SCR-116 — jornada J-07): processos próprios, fora da lista
+// padrão (cancelar é definitivo e o servidor simulado é compartilhado pelas jornadas). O 0093/2026
+// é um rascunho já numerado que ainda oferece "Descartar rascunho" (ações lidas antes da numeração)
+// para exercitar o 409 `CANNOT_DISCARD_NUMBERED_PROCESS` (FA-01). Efeitos sobre aprovações,
+// documentos, auditoria, permissões e concorrência são cobertos nos testes da API.
+const CANCELLATION_FIXTURES = [
+  {
+    n: 91,
+    code: '0091/2026',
+    title: 'Aquisição de mobiliário escolar',
+    status: 'AWAITING_APPROVAL',
+    priority: 'MEDIUM',
+    overdue: false,
+    unit: 0,
+  },
+  {
+    n: 92,
+    code: null,
+    title: 'Rascunho de compra de uniformes',
+    status: 'DRAFT',
+    priority: 'LOW',
+    overdue: false,
+    unit: 0,
+  },
+  {
+    n: 93,
+    code: '0093/2026',
+    title: 'Rascunho numerado de compra de toners',
+    status: 'DRAFT',
+    priority: 'LOW',
+    overdue: false,
+    unit: 0,
+  },
+];
+const cancellations = new Map();
+const discardedDrafts = new Set();
+const isCancellationFixture = (fixture) => CANCELLATION_FIXTURES.includes(fixture);
+const statusOfListed = (processId, fixture) => {
+  if (cancellations.has(processId)) return 'CANCELED';
+  return suspensions.has(processId) ? 'SUSPENDED' : fixture.status;
+};
 const WEEKDAY = (date) => {
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
   return day >= 1 && day <= 5;
@@ -994,7 +1033,7 @@ function listProcessItem(fixture) {
   return {
     id: listProcessId(fixture.n),
     code: fixture.code,
-    number: fixture.n,
+    number: fixture.code === null ? null : fixture.n,
     year: 2026,
     internalCode: null,
     title: fixture.title,
@@ -4503,16 +4542,64 @@ createServer(async (request, response) => {
   }
   // Detalhe, painel e etiquetas dos processos da lista (US-004/US-007): PRC-04/07/08/10 e PRC-18.
   const listedRoute =
-    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume)?$/.exec(
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume|\/cancel)?$/.exec(
       url.pathname,
     );
   const listedFixture = listedRoute
-    ? [...LIST_FIXTURES, ...PRICE_FIXTURES, ...ETP_FIXTURES].find(
+    ? [...LIST_FIXTURES, ...PRICE_FIXTURES, ...ETP_FIXTURES, ...CANCELLATION_FIXTURES].find(
         (fixture) => listProcessId(fixture.n) === listedRoute[1],
       )
     : undefined;
   if (listedRoute && listedFixture) {
     const processId = listedRoute[1];
+    // RN-PROC-108: o rascunho descartado deixa de existir para efeitos práticos.
+    if (discardedDrafts.has(processId)) {
+      return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    }
+    if (request.method === 'POST' && listedRoute[2] === '/cancel') {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      if (cancellations.has(processId)) {
+        return problem(response, 409, 'INVALID_PROCESS_STATUS', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const reason = String(body.cancellationReason ?? '').trim();
+      if (reason.length < 20) {
+        return problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+      }
+      const canceledAt = new Date().toISOString();
+      cancellations.set(processId, { canceledAt, reason });
+      processVersions.set(processId, processVersionOf(processId) + 1);
+      return send(
+        response,
+        200,
+        {
+          data: {
+            id: processId,
+            status: 'CANCELED',
+            canceledAt,
+            cancellationReason: reason,
+            version: processVersionOf(processId),
+          },
+        },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
+    if (request.method === 'DELETE' && listedRoute[2] === undefined) {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      if (statusOfListed(processId, listedFixture) !== 'DRAFT') {
+        return problem(response, 409, 'INVALID_PROCESS_STATUS', String(correlationId));
+      }
+      if (listedFixture.code !== null) {
+        return problem(response, 409, 'CANNOT_DISCARD_NUMBERED_PROCESS', String(correlationId));
+      }
+      discardedDrafts.add(processId);
+      response.writeHead(204);
+      return response.end();
+    }
     const tagsDto = tagsOfProcess(processId).map((tag) => ({
       id: tag.id,
       name: tag.name,
@@ -4601,6 +4688,27 @@ createServer(async (request, response) => {
         { ETag: `"${processVersionOf(processId)}"` },
       );
     }
+    if (
+      request.method === 'GET' &&
+      listedRoute[2] === '/available-actions' &&
+      isCancellationFixture(listedFixture)
+    ) {
+      const canceled = cancellations.has(processId);
+      const finalReason = { code: 'INVALID_PROCESS_STATUS', message: 'O processo está cancelado.' };
+      return send(response, 200, {
+        data: [
+          {
+            action: 'CANCEL',
+            label: 'Cancelar processo',
+            enabled: !canceled,
+            reasons: canceled ? [finalReason] : [],
+          },
+          ...(listedFixture.status === 'DRAFT' && !canceled
+            ? [{ action: 'DISCARD', label: 'Descartar rascunho', enabled: true, reasons: [] }]
+            : []),
+        ],
+      });
+    }
     if (request.method === 'GET' && listedRoute[2] === '/available-actions') {
       const suspended = suspensions.has(processId);
       return send(response, 200, {
@@ -4618,7 +4726,23 @@ createServer(async (request, response) => {
     if (request.method === 'GET' && listedRoute[2] === '/summary') {
       const item = listProcessItem(listedFixture);
       const suspension = suspensions.get(processId);
+      const cancellation = cancellations.get(processId);
       const status = statusOfListed(processId, listedFixture);
+      // FA-02: o 0091/2026 aguarda 1 aprovação até ser cancelado.
+      const pendingApprovals =
+        listedFixture.n === 91 && !cancellation
+          ? [
+              {
+                id: '0192a000-0000-7000-8000-0000000a0091',
+                title: 'Aprovação da autoridade',
+                approverLabel: 'Roberto Lima',
+                requestedAt: '2026-10-04T12:00:00.000Z',
+                dueAt: null,
+                isOverdue: false,
+                isMine: false,
+              },
+            ]
+          : [];
       return send(response, 200, {
         data: {
           header: {
@@ -4647,8 +4771,8 @@ createServer(async (request, response) => {
             suspensionReason: suspension?.reason ?? null,
             suspendedAt: suspension?.suspendedAt ?? null,
             completedAt: null,
-            canceledAt: null,
-            cancellationReason: null,
+            canceledAt: cancellation?.canceledAt ?? null,
+            cancellationReason: cancellation?.reason ?? null,
           },
           responsible: {
             user: { id: '0192a000-0000-7000-8000-00000000a0a1', name: 'Ana Souza', jobTitle: null },
@@ -4666,7 +4790,7 @@ createServer(async (request, response) => {
           deadline: { ...item.deadline, isPaused: suspension !== undefined },
           target: { targetDate: '2026-11-30', isOverdue: false, overdueDays: null },
           documents: [],
-          approvals: [],
+          approvals: pendingApprovals,
           counts: { documents: 0, items: 0, comments: 0, participants: 0 },
           version: processVersionOf(processId),
         },

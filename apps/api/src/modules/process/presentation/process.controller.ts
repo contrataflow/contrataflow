@@ -1,7 +1,10 @@
 import {
+  canceledProcessSchema,
+  cancelProcessSchema,
   checkDuplicateProcessesSchema,
   createProcessSchema,
   dataEnvelope,
+  discardProcessDraftSchema,
   duplicateCheckResultSchema,
   duplicateProcessSchema,
   forwardedProcessSchema,
@@ -13,6 +16,7 @@ import {
   processSchema,
   processStageEntrySchema,
   processSummarySchema,
+  PROCESS_CANCELLATION_MESSAGES,
   PROCESS_CONFIDENTIALITY_MESSAGES,
   PROCESS_SUSPENSION_MESSAGES,
   resumeMetaSchema,
@@ -25,8 +29,11 @@ import {
   updateProcessSchema,
 } from '@contrataflow/validation';
 import type {
+  CancelProcess,
+  CanceledProcessDto,
   CheckDuplicateProcesses,
   CreateProcess,
+  DiscardProcessDraft,
   DuplicateCheckResult,
   DuplicateProcess,
   ForwardProcess,
@@ -46,7 +53,19 @@ import type {
   SuspensionProcessDto,
   UpdateProcess,
 } from '@contrataflow/validation';
-import { Controller, Get, Headers, HttpCode, Param, Patch, Post, Put, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Res,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
@@ -58,13 +77,17 @@ import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
-import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
+import { ZodBody, ZodQuery, ZodValidationPipe } from '#shared/validation/zod-validation.pipe.js';
 
 import { ClaimProcessCommand } from '../application/claim-process.command.js';
 import { CreateProcessCommand } from '../application/create-process.command.js';
 import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
 import { ForwardProcessCommand } from '../application/forward-process.command.js';
 import { ListProcessesHandler } from '../application/list-processes.query.js';
+import {
+  CancelProcessCommand,
+  DiscardDraftProcessCommand,
+} from '../application/process-cancellation.commands.js';
 import {
   GetProcessSummaryQuery,
   ListProcessStagesQuery,
@@ -90,6 +113,19 @@ function ProcessId(): ParameterDecorator {
   };
 }
 
+/** Corpo OPCIONAL (DELETE sem corpo = `{}`), validado e documentado como o `@ZodBody`. */
+function OptionalZodBody(schema: z.ZodType): ParameterDecorator {
+  const pipe = new ZodValidationPipe(schema);
+  return (target, propertyKey, index) => {
+    Body({ transform: (value: unknown) => pipe.transform(value ?? {}) })(
+      target,
+      propertyKey,
+      index,
+    );
+    if (propertyKey !== undefined) recordRequestSchema(target, propertyKey, 'body', schema);
+  };
+}
+
 /** DEC-024 · RN-PROC-47: a visibilidade (inclusive concessão própria) é conferida no caso de uso. */
 const PANEL_ACCESS =
   'Detalhe e painel do processo (US-004 · DEC-024): PROCESS_VIEW com escopo que cubra o processo, concessão USER (criador, responsável, aprovador) ou participação ativa, conferidos no caso de uso sobre o runtime do mesmo tx; não visível = 404 PROCESS_NOT_FOUND igual ao inexistente, sem access.denied.';
@@ -103,8 +139,8 @@ function noStore(response: HttpResponse): void {
  * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
  * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
  * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-19
- * (encaminhar — US-047), PRC-23/PRC-24 (suspender e retomar — US-008), PRC-27 (duplicar —
- * US-011) e PRC-33 (sigilo do orçamento — US-013).
+ * (encaminhar — US-047), PRC-23/PRC-24 (suspender e retomar — US-008), PRC-25/PRC-06 (cancelar e
+ * descartar rascunho — US-009), PRC-27 (duplicar — US-011) e PRC-33 (sigilo do orçamento — US-013).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -126,6 +162,8 @@ export class ProcessController {
     private readonly claims: ClaimProcessCommand,
     private readonly suspensions: SuspendProcessCommand,
     private readonly resumptions: ResumeProcessCommand,
+    private readonly cancellations: CancelProcessCommand,
+    private readonly discards: DiscardDraftProcessCommand,
   ) {}
 
   @Get()
@@ -571,5 +609,70 @@ export class ProcessController {
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);
     return new DataResult(result.dto, result.meta);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_CANCEL', { detail: PROCESS_CANCELLATION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-25',
+    summary: 'Cancelar processo',
+    tags: TAGS,
+    auditActions: ['process.cancel', 'approval.cancel', 'document.withdraw'],
+    responses: {
+      200: {
+        description:
+          'Processo `CANCELED` (`ETag` = nova versão) com `canceledAt` e `cancellationReason`. Uma transação: trava do processo, `PROCESS_CANCEL` cobrindo o processo sem exigir custódia (POL-06: 403 `PERMISSION_DENIED`, auditado), status não final (409 `INVALID_PROCESS_STATUS`, antes do `If-Match` — o reenvio de um cancelamento já feito é 409) e `If-Match` (412 `VERSION_CONFLICT`). Cancela toda aprovação `PENDING` do processo (`ApprovalCanceled`, motivo `PROCESS_CANCELED`), devolve a `DRAFT` o documento `IN_REVIEW` coberto (`DocumentWithdrawn`), encerra a etapa ativa (`CANCELED`) e a responsabilidade ativa, descarta o status anterior à suspensão e registra a tramitação `CANCEL` com a justificativa. Evento `ProcessStatusChanged` (`process.status_changed.canceled`); timeline `PROCESS_CANCELED`.',
+        schema: dataEnvelope(canceledProcessSchema),
+      },
+    },
+  })
+  async cancelProcess(
+    @ProcessId() id: string,
+    @ZodBody(cancelProcessSchema) body: CancelProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<CanceledProcessDto> {
+    const result = await this.cancellations.execute({
+      processId: id,
+      reason: body.cancellationReason,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'Descartar rascunho (US-009 · PRC-06 · RN-PROC-110): o criador com PROCESS_CREATE ou quem tem PROCESS_CANCEL cobrindo o processo, conferido no caso de uso (403 PERMISSION_DENIED com access.denied e reasonCode PROCESS_CANCEL).',
+  )
+  @ApiOperation({
+    operationId: 'PRC-06',
+    summary: 'Descartar rascunho de processo',
+    tags: TAGS,
+    auditActions: ['process.discard_draft'],
+    responses: {
+      204: {
+        description:
+          'Exclusão lógica do rascunho sem número (`deletedAt`/`deletedById`): some das listagens e buscas; nada é removido fisicamente (DEC-034). Uma transação: trava do processo e visibilidade (404 `PROCESS_NOT_FOUND`), o criador com `PROCESS_CREATE` ou `PROCESS_CANCEL` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), `DRAFT` (409 `INVALID_PROCESS_STATUS`) sem `number`/`code` (409 `CANNOT_DISCARD_NUMBERED_PROCESS` — cancele em vez de descartar) e `If-Match` (412 `VERSION_CONFLICT`). Encerra a etapa e a responsabilidade ativas. Corpo opcional `{ reason? }` (até 500), só na auditoria `process.discard_draft`. Evento `ProcessDraftDiscarded` (`process.draft_discarded`); sem timeline nem notificação.',
+      },
+    },
+  })
+  async discardProcessDraft(
+    @ProcessId() id: string,
+    @OptionalZodBody(discardProcessDraftSchema) body: DiscardProcessDraft,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<void> {
+    await this.discards.execute({
+      processId: id,
+      reason: body.reason === undefined || body.reason === '' ? null : body.reason,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    noStore(response);
   }
 }

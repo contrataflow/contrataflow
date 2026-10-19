@@ -21,6 +21,7 @@ import type {
 } from './document-ai-target.js';
 import type {
   ApprovalDecisionInput,
+  CanceledApprovalInput,
   StageEntryInput,
   StageEntryResult,
 } from './document-approval.transitions.js';
@@ -80,6 +81,7 @@ export type {
 } from './typed-collection-guard.js';
 export type {
   ApprovalDecisionInput,
+  CanceledApprovalInput,
   StageEntryInput,
   StageEntryResult,
 } from './document-approval.transitions.js';
@@ -492,6 +494,14 @@ export class DocumentFacade {
   /** RN-DOC-45: a decisão da aprovação pendente do documento (US-052). */
   applyApprovalDecisionIn(tx: TenantTx, input: ApprovalDecisionInput): Promise<Document> {
     return this.approvals.applyApprovalDecision(tx, input);
+  }
+
+  /**
+   * RN-PROC-106 · DEC-018 (US-009): a aprovação que cobria o documento foi cancelada com o processo —
+   * `IN_REVIEW` volta a `DRAFT` (retirada automática); `null` = nada mudou.
+   */
+  releaseCanceledApprovalIn(tx: TenantTx, input: CanceledApprovalInput): Promise<Document | null> {
+    return this.approvals.releaseCanceledApproval(tx, input);
   }
 
   /**

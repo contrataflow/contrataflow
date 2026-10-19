@@ -57,6 +57,8 @@ export interface ProcessExecutionState {
   readonly createdById: string;
   readonly currentDepartmentId: string;
   readonly currentResponsibleId: string | null;
+  /** Já tem número (US-009 — `DISCARD` só no rascunho sem número); ausente = numerado. */
+  readonly numbered?: boolean;
   /** `process.*` do RuleContext v1 (o `status` acima prevalece). */
   readonly ruleProcess: RuleContextV1['process'];
   /** Todas as passagens do processo (`ProcessStage`), a ativa inclusive. */
@@ -210,6 +212,7 @@ export class WorkflowEngineService {
       createdById: state.createdById,
       currentDepartmentId: state.currentDepartmentId,
       currentResponsibleId: state.currentResponsibleId,
+      numbered: state.numbered ?? true,
       requestingDepartmentId: state.ruleProcess.requestingDepartmentId,
       requestingSecretariatId: state.ruleProcess.requestingSecretariatId,
     };

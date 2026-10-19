@@ -4,6 +4,7 @@ import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/proce
 import type { TenantTx } from '#shared/database/prisma.js';
 import type { CursorReader } from '#shared/database/transaction-stream.js';
 
+import type { CancelPlan, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { ProcessItem } from '../domain/process-items.js';
 import type {
@@ -307,6 +308,24 @@ export interface ProcessRepository {
    * `false` = outra escrita venceu.
    */
   recordResume(tx: TenantTx, plan: ResumePlan): Promise<boolean>;
+  /**
+   * US-009 (RN-PROC-104/107): grava o cancelamento no `tx` — o processo (`WHERE version =
+   * expectedVersion`: `CANCELED`, `canceledAt/ById`, `cancellationReason`, `statusBeforeSuspension`
+   * e `overdueSince` limpos), a passagem ativa (`CANCELED`, `exitedAt`, `exitedViaMovementId`), a
+   * responsabilidade ativa encerrada e a tramitação `CANCEL`. `false` = outra escrita venceu.
+   */
+  recordCancellation(tx: TenantTx, plan: CancelPlan): Promise<boolean>;
+  /**
+   * US-009: o status do processo não excluído, sem trava (`null` = inexistente, excluído ou de outro
+   * tenant) — a leitura "na chegada" que separa a corrida perdida (412) do reenvio (409).
+   */
+  statusOf(tx: TenantTx, processId: string): Promise<ProcessStatus | null>;
+  /**
+   * US-009 (RN-PROC-108/109): exclusão lógica do rascunho sem número (`deletedAt`, `deletedById`,
+   * `version + 1`, só se ainda `DRAFT` sem `code` na versão esperada), a passagem ativa encerrada
+   * como `CANCELED` e a responsabilidade ativa encerrada. `false` = outra escrita venceu.
+   */
+  recordDraftDiscard(tx: TenantTx, plan: DiscardPlan): Promise<boolean>;
   /**
    * US-048 (RN-TRAM-28): as responsabilidades (`ProcessAssignment`) das passagens ENCERRADAS do
    * processo pela etapa de workflow `workflowStageId` — a base de `PREVIOUS_ASSIGNEE`.

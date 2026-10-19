@@ -113,6 +113,7 @@ export class ProcessRuntimeLoader implements ProcessRuntimeReader {
       currentDepartmentId: process.currentDepartmentId,
       currentResponsibleId: process.currentResponsibleId,
       organizationId: process.organizationId,
+      numbered: process.number !== null || process.code !== null,
       ruleProcess: {
         status: process.status,
         priority: process.priority,

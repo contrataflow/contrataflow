@@ -4,6 +4,7 @@ import {
   PROCESS_FORWARD_MESSAGES,
   PROCESS_ITEM_MESSAGES,
   PROCESS_RETURN_MESSAGES,
+  PROCESS_CANCELLATION_MESSAGES,
   PROCESS_SUSPENSION_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
   TAG_MESSAGES,
@@ -587,17 +588,53 @@ export function processNotSuspended(status: ProcessStatus): ApiError {
   });
 }
 
+/** 412 `VERSION_CONFLICT` do cancelamento/descarte (V-05). */
+export function cancellationVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_CANCELLATION_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-PROC-103 · V-02): cancelar processo já encerrado. */
+export function processAlreadyFinal(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_CANCELLATION_MESSAGES.finalStatus,
+    extensions: { processStatus: status },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS`: descartar o que não é rascunho (RN-PROC-105). */
+export function processNotDraft(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_CANCELLATION_MESSAGES.notDraft,
+    extensions: { processStatus: status },
+  });
+}
+
+/** 409 `CANNOT_DISCARD_NUMBERED_PROCESS` (RN-PROC-105 · V-03 · FA-01). */
+export function processAlreadyNumbered(): ApiError {
+  return new ApiError('CANNOT_DISCARD_NUMBERED_PROCESS', {
+    detail: PROCESS_CANCELLATION_MESSAGES.numbered,
+    extensions: { processStatus: 'DRAFT' },
+  });
+}
+
 let suspensionCounter: Counter | undefined;
 let suspensionDuration: Histogram | undefined;
 
-/** `cf_process_lifecycle_total{action}` e `cf_process_lifecycle_duration_ms` (US-008). */
-export function recordProcessLifecycle(action: 'SUSPEND' | 'RESUME', durationMs: number): void {
+/** `cf_process_lifecycle_total{action}` e `cf_process_lifecycle_duration_ms` (US-008/US-009). */
+export function recordProcessLifecycle(
+  action: 'SUSPEND' | 'RESUME' | 'CANCEL' | 'DISCARD',
+  durationMs: number,
+): void {
   const meter = metrics.getMeter('contrataflow-api');
   suspensionCounter ??= meter.createCounter('cf_process_lifecycle_total', {
-    description: 'Suspensões e retomadas de processo (commit do PRC-23/PRC-24).',
+    description:
+      'Suspensões, retomadas, cancelamentos e descartes de processo (commit do PRC-23/24/25/06).',
   });
   suspensionDuration ??= meter.createHistogram('cf_process_lifecycle_duration_ms', {
-    description: 'Duração da suspensão/retomada (bloqueio, calendário e gravação).',
+    description: 'Duração do comando de ciclo de vida (bloqueio, efeitos e gravação).',
     unit: 'ms',
   });
   suspensionCounter.add(1, { action });

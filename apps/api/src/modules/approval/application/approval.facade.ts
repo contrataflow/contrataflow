@@ -3,6 +3,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { ApprovalCancellationService } from './approval-cancellation.service.js';
+import type { CanceledApproval } from './approval-cancellation.service.js';
 import { ApprovalRequestService } from './approval-request.service.js';
 import type { StageApprovalRequest } from './approval-request.service.js';
 import { ApproverResolver } from './approver-resolver.js';
@@ -11,6 +13,7 @@ import { APPROVAL_REPOSITORY } from './ports.js';
 import type { ApprovalRepository, ApprovalSummaryRow } from './ports.js';
 import type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
+export type { CanceledApproval } from './approval-cancellation.service.js';
 export type { StageApprovalRequest, StageCoverage } from './approval-request.service.js';
 export type { StageApprover } from './approver-resolver.js';
 export type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
@@ -52,6 +55,7 @@ export class ApprovalFacade {
     @Inject(APPROVAL_REPOSITORY) private readonly approvals: ApprovalRepository,
     private readonly resolver: ApproverResolver,
     private readonly requests: ApprovalRequestService,
+    private readonly cancellations: ApprovalCancellationService,
   ) {}
 
   /**
@@ -124,6 +128,25 @@ export class ApprovalFacade {
     if (to.getTime() === from.getTime()) return null;
     if (!(await this.approvals.updatePendingDueAt(tx, approval.id, to, at, userId))) return null;
     return { approvalId: approval.id, from, to };
+  }
+
+  /**
+   * US-009 (RN-PROC-106 · POL-06): cancela as aprovações `PENDING` do processo com o motivo
+   * `PROCESS_CANCELED` (`approval.cancel` e `ApprovalCanceled`), no `tx` do cancelamento, e devolve
+   * os documentos cobertos para a retirada automática (DEC-018).
+   */
+  cancelPendingForProcessIn(
+    tx: TenantTx,
+    processId: string,
+    at: Date,
+    userId: string,
+  ): Promise<CanceledApproval[]> {
+    return this.cancellations.cancelPendingForProcess(tx, {
+      processId,
+      reason: 'PROCESS_CANCELED',
+      at,
+      userId,
+    });
   }
 
   /** Aprovações `PENDING` do processo (mais antigas primeiro), no `tx` do chamador. Leitura. */

@@ -8,6 +8,7 @@ import {
   DocumentApprovalRegistry,
 } from '#shared/document/document-approval.js';
 
+import { ApprovalCancellationService } from './application/approval-cancellation.service.js';
 import { ApprovalRequestService } from './application/approval-request.service.js';
 import { ApprovalFacade } from './application/approval.facade.js';
 import { ApproverResolver } from './application/approver-resolver.js';
@@ -36,6 +37,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApprovalFacade,
     ApproverResolver,
     ApprovalRequestService,
+    ApprovalCancellationService,
     PrismaApprovalRepository,
     InMemoryApprovalRepository,
     {

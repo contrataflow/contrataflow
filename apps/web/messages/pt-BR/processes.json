@@ -653,5 +653,53 @@
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
       "copyCode": "Copiar código"
     }
+  },
+  "cancellation": {
+    "close": "Fechar",
+    "back": "Voltar",
+    "counter": "{count, number} / {max, number}",
+    "canceled": "Processo cancelado",
+    "discarded": "Rascunho descartado",
+    "cancel": {
+      "title": "Cancelar processo",
+      "description": "O cancelamento é definitivo: o processo deixa de tramitar e fica registrado como cancelado, com a justificativa.",
+      "impactTitle": "Ao confirmar:",
+      "impact": {
+        "approvals": "{count, plural, one {# aprovação pendente será cancelada} other {# aprovações pendentes serão canceladas}}",
+        "documents": "{count, plural, one {# documento em aprovação voltará a rascunho ou perderá o selo de aprovação} other {# documentos em aprovação voltarão a rascunho ou perderão o selo de aprovação}}",
+        "stage": "A etapa atual e a responsabilidade serão encerradas.",
+        "final": "O processo não poderá ser retomado."
+      },
+      "submit": "Cancelar processo",
+      "submitting": "Cancelando…",
+      "reason": {
+        "label": "Justificativa",
+        "hint": "Obrigatória, com pelo menos 20 caracteres."
+      }
+    },
+    "discard": {
+      "title": "Descartar rascunho",
+      "description": "O rascunho será excluído e deixará de aparecer nas listas e buscas. Esta ação não pode ser desfeita.",
+      "submit": "Descartar",
+      "submitting": "Descartando…",
+      "reason": {
+        "label": "Motivo (opcional)",
+        "hint": "Até 500 caracteres."
+      }
+    },
+    "errors": {
+      "status": "Este processo já foi encerrado.",
+      "numbered": "Este processo já tem número; cancele-o.",
+      "cancelInstead": "Cancelar processo",
+      "permission": "Você não tem permissão para esta ação.",
+      "notFound": "Processo não encontrado.",
+      "access": "Seu acesso a este órgão não está ativo.",
+      "stale": "Este processo foi alterado por outra pessoa. Recarregue a página e tente novamente.",
+      "reload": "Recarregar",
+      "unavailable": "Não foi possível concluir a ação agora.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
   }
 }

@@ -235,13 +235,17 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // unidade) e, com responsável resolvido, `PROCESS_ASSIGNED` (`assignmentType = RETURN`).
     ProcessStageChanged: ['process.stage_changed.forward', 'process.stage_changed.return'],
     // US-008: suspensão e retomada notificam `PROCESS_STATUS_CHANGED` (`PROCESS_STAKEHOLDERS`).
+    // US-009: o cancelamento também (criador, responsável e participantes com `notify`).
     ProcessStatusChanged: [
       'process.status_changed.in_progress',
       'process.status_changed.awaiting_approval',
       'process.status_changed.returned',
       'process.status_changed.suspended',
       'process.status_changed.resumed',
+      'process.status_changed.canceled',
     ],
+    // US-009: o descarte não notifica nem tem timeline; no worker só o `BusinessMetricsCollector`.
+    ProcessDraftDiscarded: ['process.draft_discarded'],
     ProcessAssigned: ['process.assigned'],
     // US-055: emitidos pelo job `deadlines` (timeline `STAGE_OVERDUE` gravada na mesma transação);
     // no worker, os avisos `STAGE_DUE_SOON`/`STAGE_OVERDUE` (US-114) e métricas.
@@ -249,6 +253,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     ProcessStageOverdue: ['process.stage_overdue'],
     ProcessNumberAssigned: ['process.number_assigned'],
     ApprovalRequested: ['approval.requested'],
+    // US-009: timeline (`APPROVAL_CANCELED`) no mesmo `tx`; no worker só métricas (`approval.*`).
+    ApprovalCanceled: ['approval.canceled'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],
@@ -260,6 +266,8 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     DocumentRejected: ['document.rejected.etp'],
     DocumentReopened: ['document.reopened.etp'],
     DocumentCanceled: ['document.canceled.etp'],
+    // US-009: retirada automática do documento em análise (timeline `DOCUMENT_WITHDRAWN`); métricas.
+    DocumentWithdrawn: ['document.withdrawn.etp'],
     // US-115: timeline projetada no mesmo `tx` (síncrona); no worker, métricas (`ai.*`) e os avisos
     // ao solicitante (`AI_GENERATION_READY`/`AI_GENERATION_FAILED`). O pedido só conta nas métricas.
     AiGenerationRequested: ['ai.generation_requested'],

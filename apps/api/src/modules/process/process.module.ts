@@ -48,6 +48,10 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import {
+  CancelProcessCommand,
+  DiscardDraftProcessCommand,
+} from './application/process-cancellation.commands.js';
 import { ProcessDfdDuplication } from './application/process-dfd-duplication.js';
 import { ProcessItemCatalogLoader } from './application/process-item-catalog.loader.js';
 import {
@@ -175,6 +179,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * resolvido por `PREVIOUS_ASSIGNEE`.
  * US-008: suspender e retomar (PRC-23/PRC-24 — `SuspendProcessCommand`/`ResumeProcessCommand`), com
  * a extensão do prazo pelo `BusinessCalendarFacade` e da aprovação pendente pela `ApprovalFacade`.
+ * US-009: cancelar e descartar rascunho (PRC-25/PRC-06 — `CancelProcessCommand`/
+ * `DiscardDraftProcessCommand`), com as aprovações pendentes canceladas pela `ApprovalFacade` e os
+ * documentos em análise devolvidos a `DRAFT` pela `DocumentFacade`.
  * US-054: histórico de tramitações (PRC-11 — `ListProcessMovementsHandler`), leitura de
  * `ProcessMovement` com os nomes hidratados em lote pelas fachadas de `workflow`, `organization`,
  * `identity` e `approval`, e o `ip` só com `AUDIT_VIEW` (`AccessFacade.revealsField`).
@@ -231,6 +238,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessLifecycleSupport,
     SuspendProcessCommand,
     ResumeProcessCommand,
+    CancelProcessCommand,
+    DiscardDraftProcessCommand,
     ListProcessMovementsHandler,
     ForwardPreviews,
     CheckDuplicateProcessesQuery,

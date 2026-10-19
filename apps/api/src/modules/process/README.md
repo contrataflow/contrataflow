@@ -367,6 +367,45 @@ const plan = await this.transitions.apply(tx, {
 - **Testes:** `domain/process-suspension.spec.ts`, `presentation/process-suspension.routes.spec.ts`
   (8 categorias, em memória) e `test/tenant-leak/process-suspension.spec.ts` (PostgreSQL).
 
+## Cancelar e descartar rascunho (US-009)
+
+- **Rotas:** PRC-25 `POST /processes/{id}/cancel` (`{ cancellationReason }` 20–5.000, trim) com
+  `@RequireIfMatch` e `PROCESS_CANCEL` em algum escopo no guard; PRC-06 `DELETE /processes/{id}`
+  (corpo opcional `{ reason? }` até 500, só na auditoria) com `@ImplicitAccess` — a autorização é do
+  caso de uso. Sem `@Idempotent` (api.md: `Idempotency-Key —`): o reenvio depois do sucesso é 409.
+  Esquemas em `packages/validation/src/process/process-cancellation.ts`.
+- **Casos de uso** (`application/process-cancellation.commands.ts`, logs `process.cancel_failed`/
+  `process.discard_failed`): reaproveitam o `ProcessLifecycleSupport` da US-008 (`lockAndAuthorize`
+  agora recebe a permissão; `lockAndLoad` sem autorizar).
+  - **Cancelar:** trava → visibilidade (404) → `PROCESS_CANCEL` cobrindo o processo, sem custódia
+    (403 auditado) → status não final → `If-Match` → `planCancellation` (`domain/process-cancellation.ts`)
+    → `recordCancellation` (processo `CANCELED` com autor/justificativa, `statusBeforeSuspension` e
+    `overdueSince` limpos, passagem ativa `CANCELED` com `exitedViaMovementId`, responsabilidade
+    encerrada, tramitação `CANCEL`) → `ApprovalFacade.cancelPendingForProcessIn` (toda `PENDING`
+    vira `CANCELED`, `approval.cancel` + `ApprovalCanceled` `PROCESS_CANCELED`) →
+    `DocumentFacade.releaseCanceledApprovalIn` por documento coberto (`IN_REVIEW` → `DRAFT` com
+    `document.withdraw` + `DocumentWithdrawn` "Processo cancelado"; `FINALIZED`/`APPROVED` só perdem
+    `pendingApprovalId`) → `ProcessStatusChanged` (`cause = CANCEL`) → `process.cancel` (hash da
+    justificativa, nunca o texto). Etapa, unidade e responsável ficam no processo (histórico e
+    destinatários do aviso `PROCESS_STATUS_CHANGED`).
+  - **409 × 412 do Gherkin:** o `prepare` lê o status SEM trava (`ProcessRepository.statusOf`). Final
+    sob a trava mas não na chegada = corrida perdida para outra aba → 412 `VERSION_CONFLICT`; já
+    final na chegada = reenvio → 409 `INVALID_PROCESS_STATUS`.
+  - **Descartar:** trava → visibilidade → criador com `PROCESS_CREATE` (sem MFA) ou `PROCESS_CANCEL`
+    cobrindo o processo (senão 403 com `reasonCode = PROCESS_CANCEL`) → `DRAFT` (409
+    `INVALID_PROCESS_STATUS`) sem `number`/`code` (409 `CANNOT_DISCARD_NUMBERED_PROCESS`) →
+    `If-Match` → `recordDraftDiscard` (`deletedAt`/`deletedById`, `version + 1`, passagem ativa
+    `CANCELED` sem tramitação, responsabilidade encerrada) → `ProcessDraftDiscarded` →
+    `process.discard_draft`. Sem timeline nem notificação. Todas as leituras do processo já filtram
+    `deleted_at IS NULL` (no repositório em memória, o mapa `deleted`).
+- **Ações (PRC-08):** `DISCARD` vem do motor (`workflow-engine.ts · discardEntry`) com o novo
+  `EngineProcess.numbered` (do `ProcessRuntime.numbered`): só `DRAFT` sem número, para o criador com
+  `PROCESS_CREATE` ou quem tem `PROCESS_CANCEL`. `CANCEL` já existia (desabilitada em status final).
+- **Timeline:** `APPROVAL_CANCELED` usa a nova fonte de nomes `APPROVAL`
+  (`timeline/infrastructure/approval-lookup.source.ts`).
+- **Testes:** `domain/process-cancellation.spec.ts`, `presentation/process-cancellation.routes.spec.ts`
+  (8 categorias, em memória) e `test/tenant-leak/process-cancellation.spec.ts` (PostgreSQL).
+
 ## Histórico de tramitações (US-054)
 
 - **Rota:** PRC-11 `GET /processes/{id}/movements` (`ProcessMovementsController` →

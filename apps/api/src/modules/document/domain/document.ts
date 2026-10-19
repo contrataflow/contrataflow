@@ -21,6 +21,7 @@ import type {
  * | FINALIZED/APPROVED          | (mesmo)    | `enterApprovalStage` (só `pendingApprovalId`)|
  * | IN_REVIEW/FINALIZED/APPROVED| APPROVED…  | `applyApprovalDecision`                     |
  * | IN_REVIEW                   | DRAFT      | `withdrawSubmission` (US-053)               |
+ * | IN_REVIEW (aprovação cancel.)| DRAFT      | `releaseCanceledApproval` (US-009)          |
  * | APPROVED/FINALIZED/REJECTED | DRAFT      | `reopenDocument`                            |
  * | DRAFT/RETURNED              | CANCELED   | `cancelDocument` (final)                    |
  * | DRAFT nunca submetido       | (excluído) | `deleteDocument` (lógica — DEC-034)         |
@@ -393,6 +394,21 @@ export function applyApprovalDecision(
 export function withdrawSubmission(document: Document, input: TransitionStamp): Document {
   assertFrom(document, new Set(['IN_REVIEW']));
   return { ...document, ...touched(input), status: 'DRAFT', pendingApprovalId: null };
+}
+
+/**
+ * RN-PROC-106 · DEC-018 (cancelamento do processo — US-009): a aprovação `approvalId` que cobria o
+ * documento foi cancelada. `IN_REVIEW` volta a `DRAFT` (retirada automática, como a RN-DOC-46);
+ * `FINALIZED`/`APPROVED` só perdem o selo "Em aprovação". Documento sem essa pendência (ou
+ * excluído) fica intacto — `null`.
+ */
+export function releaseCanceledApproval(
+  document: Document,
+  input: TransitionStamp & { readonly approvalId: string },
+): Document | null {
+  if (document.deletedAt !== null || document.pendingApprovalId !== input.approvalId) return null;
+  if (document.status === 'IN_REVIEW') return withdrawSubmission(document, input);
+  return { ...document, ...touched(input), pendingApprovalId: null };
 }
 
 /**

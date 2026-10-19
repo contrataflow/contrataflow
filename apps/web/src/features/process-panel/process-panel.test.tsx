@@ -814,3 +814,31 @@ describe('US-008 — suspensão no painel (SCR-006)', () => {
     ).toBeTruthy();
   });
 });
+
+describe('US-009 — cancelar e descartar no painel (SCR-006)', () => {
+  it('"Cancelar processo" e "Descartar rascunho" (menu "Mais") abrem os diálogos SCR-116', async () => {
+    const user = userEvent.setup();
+    mockProcessApi({
+      actions: () =>
+        jsonResponse({
+          data: [
+            { action: 'CANCEL', label: 'Cancelar processo', enabled: true, reasons: [] },
+            { action: 'DISCARD', label: 'Descartar rascunho', enabled: true, reasons: [] },
+          ],
+        }),
+    });
+    renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Mais ações do processo' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancelar processo' }));
+    expect(await screen.findByRole('dialog', { name: 'Cancelar processo' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Voltar' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Cancelar processo' })).toBeNull();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Mais ações do processo' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Descartar rascunho' }));
+    expect(await screen.findByRole('dialog', { name: 'Descartar rascunho' })).toBeTruthy();
+  });
+});

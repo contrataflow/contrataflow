@@ -66,6 +66,8 @@ export interface ProcessRuntime {
   readonly currentResponsibleId: string | null;
   /** Órgão do processo (escopo `ORGANIZATION` — US-097); ausente até a US-001 expô-lo. */
   readonly organizationId?: string | null;
+  /** Já tem `number`/`code` (US-009 · RN-PROC-105: só o rascunho sem número é descartável). */
+  readonly numbered?: boolean;
   /** `process.*` do RuleContext v1 (entities.md §5.4). */
   readonly ruleProcess: RuleContextV1['process'];
   readonly passes: readonly ProcessStagePass[];

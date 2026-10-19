@@ -1,3 +1,4 @@
+import type { ApprovalCancelReason } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
@@ -108,6 +109,47 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     return updated.count === 1;
   }
 
+  async cancelPendingByProcess(
+    tx: TenantTx,
+    processId: string,
+    reason: ApprovalCancelReason,
+    at: Date,
+    userId: string,
+  ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]> {
+    const pending = await tx.approval.findMany({
+      where: { processId, status: 'PENDING' },
+      select: { id: true, documentId: true },
+      orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
+    });
+    if (pending.length === 0) return [];
+    const ids = pending.map((row) => row.id);
+    await tx.approval.updateMany({
+      where: { id: { in: ids }, status: 'PENDING' },
+      data: {
+        status: 'CANCELED',
+        canceledAt: at,
+        canceledById: userId,
+        cancellationReason: reason,
+        updatedAt: at,
+        updatedById: userId,
+        version: { increment: 1 },
+      },
+    });
+    const coverage = await tx.approvalDocument.findMany({
+      where: { approvalId: { in: ids } },
+      select: { approvalId: true, documentId: true },
+    });
+    return pending.map((row) => ({
+      approvalId: row.id,
+      documentIds: [
+        ...new Set([
+          ...(row.documentId === null ? [] : [row.documentId]),
+          ...coverage.filter((item) => item.approvalId === row.id).map((item) => item.documentId),
+        ]),
+      ],
+    }));
+  }
+
   async listPendingByProcess(tx: TenantTx, processId: string): Promise<Approval[]> {
     const rows = await tx.approval.findMany({
       where: { processId, status: 'PENDING' },
@@ -186,6 +228,23 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     );
   }
 
+  async cancelPendingByProcess(
+    tx: TenantTx,
+    processId: string,
+  ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]> {
+    const pending = await this.listPendingByProcess(tx, processId);
+    for (const row of pending) this.rows.set(row.id, { ...row, status: 'CANCELED' });
+    return pending.map((row) => ({
+      approvalId: row.id,
+      documentIds: [
+        ...new Set([
+          ...(row.documentId === null ? [] : [row.documentId]),
+          ...(this.coverage.get(row.id) ?? []).map((item) => item.documentId),
+        ]),
+      ],
+    }));
+  }
+
   summariesByIds(_tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]> {
     const tenantId = currentRequestContext()?.tenantId;
     const wanted = new Set(ids);
@@ -239,9 +298,10 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     );
   }
 
-  /** Carga de teste: aprovação já aberta. */
-  seed(approval: Approval): void {
+  /** Carga de teste: aprovação já aberta (com os documentos cobertos, quando houver). */
+  seed(approval: Approval, coverage: readonly ApprovalCoverage[] = []): void {
     this.rows.set(approval.id, approval);
+    if (coverage.length > 0) this.coverage.set(approval.id, coverage);
   }
 
   /** Inspeção de testes: aprovações do tenant do contexto (ou todas, fora de contexto). */

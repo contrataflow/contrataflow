@@ -69,6 +69,8 @@ export const ERROR_CODES = [
   // US-049: assumir processo (POL-04 · api/02-processes.md PRC-21).
   'PROCESS_ALREADY_ASSIGNED',
   'INVALID_PROCESS_STATUS',
+  // US-009: descartar rascunho que já tem número (api/02-processes.md PRC-06).
+  'CANNOT_DISCARD_NUMBERED_PROCESS',
   'DOCUMENT_INCOMPLETE',
   'WARNINGS_NOT_ACKNOWLEDGED',
   'DOCUMENT_ALREADY_EXISTS',

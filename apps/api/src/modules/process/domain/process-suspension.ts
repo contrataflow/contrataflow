@@ -39,14 +39,14 @@ export interface SuspendedPass {
   readonly overdueSince: Date | null;
 }
 
-interface MovementActor {
+export interface MovementActor {
   readonly userId: string;
   readonly ip: string | null;
   readonly userAgent: string | null;
   readonly correlationId: string;
 }
 
-interface LifecycleInput {
+export interface LifecycleInput {
   /** O processo travado (`SELECT … FOR UPDATE`). */
   readonly process: Process;
   readonly active: SuspendedPass;
@@ -58,10 +58,13 @@ interface LifecycleInput {
   readonly movementId: string;
 }
 
-/** Tramitação de ciclo de vida na mesma passagem (sem mudança de etapa, unidade nem responsável). */
-function lifecycleMovement(
+/**
+ * Tramitação de ciclo de vida na mesma passagem (sem mudança de etapa, unidade nem responsável) —
+ * também a `CANCEL` da US-009.
+ */
+export function lifecycleMovement(
   input: LifecycleInput,
-  action: 'SUSPEND' | 'RESUME',
+  action: 'SUSPEND' | 'RESUME' | 'CANCEL',
   statusTo: ProcessStatus,
   comment: string | null,
   dueAt: Date | null,

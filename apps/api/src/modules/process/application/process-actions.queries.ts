@@ -35,6 +35,7 @@ export function executionStateOf(runtime: ProcessRuntime): ProcessExecutionState
     createdById: runtime.createdById,
     currentDepartmentId: runtime.currentDepartmentId,
     currentResponsibleId: runtime.currentResponsibleId,
+    numbered: runtime.numbered ?? true,
     ruleProcess: runtime.ruleProcess,
     passes: runtime.passes,
     approvals: runtime.approvals,

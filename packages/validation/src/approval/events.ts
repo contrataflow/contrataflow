@@ -35,3 +35,24 @@ export const ApprovalRequested = defineDomainEvent({
   }),
   routingKey: 'approval.requested',
 });
+
+/** Por que a aprovação pendente foi cancelada (events.md §4.2 · `ApprovalCanceled.reason`). */
+export const APPROVAL_CANCEL_REASONS = ['WITHDRAWN', 'PROCESS_CANCELED', 'REASSIGNED'] as const;
+export type ApprovalCancelReason = (typeof APPROVAL_CANCEL_REASONS)[number];
+
+/**
+ * `ApprovalCanceled` (events.md §4.2): a aprovação `PENDING` foi encerrada sem decisão — retirada da
+ * submissão (US-053), cancelamento do processo (US-009, `PROCESS_CANCELED`, no mesmo `tx`) ou
+ * reatribuição. Consumidor: `TimelineProjector` (`APPROVAL_CANCELED`) no mesmo `tx`; no worker, só
+ * métricas. Só ids e o motivo codificado.
+ */
+export const ApprovalCanceled = defineDomainEvent({
+  eventType: 'ApprovalCanceled',
+  eventVersion: 1,
+  aggregateType: 'Approval',
+  payload: z.strictObject({
+    approvalId: uuid,
+    reason: z.enum(APPROVAL_CANCEL_REASONS),
+  }),
+  routingKey: 'approval.canceled',
+});

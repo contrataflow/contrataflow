@@ -282,6 +282,19 @@ export const ProcessStatusChanged = defineDomainEvent({
     `process.status_changed.${payload.cause === 'RESUME' ? 'resumed' : payload.toStatus.toLowerCase()}`,
 });
 
+/**
+ * `ProcessDraftDiscarded` (US-009 · PRC-06 · DEC-034): o rascunho sem número foi descartado
+ * (exclusão lógica). Sem timeline (o processo deixa de ser visível) e sem notificação; no worker só
+ * métricas. O motivo opcional fica só na auditoria.
+ */
+export const ProcessDraftDiscarded = defineDomainEvent({
+  eventType: 'ProcessDraftDiscarded',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({ reasonProvided: z.boolean() }),
+  routingKey: 'process.draft_discarded',
+});
+
 /** `ProcessAssignment.type` (entities.md §4.4). */
 export const ASSIGNMENT_TYPES = ['STAGE_ENTRY', 'CLAIM', 'MANUAL', 'RETURN'] as const;
 

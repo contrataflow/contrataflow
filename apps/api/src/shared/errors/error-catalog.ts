@@ -282,6 +282,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Status do processo incompatível',
     detail: 'Esta ação não está disponível para o status atual do processo.',
   },
+  CANNOT_DISCARD_NUMBERED_PROCESS: {
+    status: 409,
+    title: 'Processo já numerado',
+    detail: 'Este processo já tem número; cancele-o em vez de descartar.',
+  },
   DOCUMENT_INCOMPLETE: {
     status: 422,
     title: 'Documento incompleto',

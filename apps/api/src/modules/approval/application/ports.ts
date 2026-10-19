@@ -1,4 +1,4 @@
-import type { ApprovalDecision } from '@contrataflow/validation';
+import type { ApprovalCancelReason, ApprovalDecision } from '@contrataflow/validation';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
@@ -46,6 +46,18 @@ export interface ApprovalRepository {
     at: Date,
     userId: string | null,
   ): Promise<boolean>;
+  /**
+   * US-009 (RN-PROC-106): cancela TODAS as aprovações `PENDING` do processo (`canceledAt`,
+   * `canceledById`, `cancellationReason` = o motivo, `version + 1`) e devolve cada uma com os
+   * documentos que cobria (`ApprovalDocument` e o sujeito da avulsa), mais antigas primeiro.
+   */
+  cancelPendingByProcess(
+    tx: TenantTx,
+    processId: string,
+    reason: ApprovalCancelReason,
+    at: Date,
+    userId: string,
+  ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]>;
   /** Resumos das aprovações do tenant da transação por id, numa leitura; ids de fora não voltam. */
   summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]>;
   /** A aprovação cobre exatamente esta versão do documento (selo de aprovação — US-067)? */

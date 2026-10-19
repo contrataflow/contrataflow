@@ -174,6 +174,25 @@ export const DocumentCanceled = defineDomainEvent({
 });
 
 /**
+ * `DocumentWithdrawn` — `IN_REVIEW` → `DRAFT` com a aprovação pendente cancelada (RN-DOC-46): a
+ * retirada pelo usuário (DOC-11 · US-053) ou a automática do cancelamento do processo (US-009 ·
+ * RN-PROC-106). `reason` é o texto fixo exibido na timeline ("Processo cancelado"), nunca texto do
+ * usuário.
+ */
+export const DocumentWithdrawn = defineDomainEvent({
+  eventType: 'DocumentWithdrawn',
+  eventVersion: 1,
+  aggregateType: 'Document',
+  payload: z.strictObject({
+    documentId: z.uuid(),
+    documentTypeCode,
+    approvalId: z.uuid(),
+    reason: z.string().min(1).max(200).nullish(),
+  }),
+  routingKey: documentRoutingKey('withdrawn'),
+});
+
+/**
  * `AiContentReviewed` — DOC-27 (US-122 · RN-AI-56) e RSK-12 (US-119): revisão humana do conteúdo
  * gerado por IA (events.md §4.7). Só ids e contagens — nunca o texto. Routing key
  * `document.ai_content_reviewed.<tipo>` (`dfd`, `etp`, `risk_map`, `tr`). Projeta

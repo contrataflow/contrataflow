@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { ApprovalCancellationService } from './approval-cancellation.service.js';
 import type { ApprovalRequestService } from './approval-request.service.js';
 import { ApprovalFacade } from './approval.facade.js';
 import type { ApproverResolver } from './approver-resolver.js';
@@ -37,6 +38,7 @@ describe('ApprovalFacade', () => {
     const asked: string[] = [];
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
+      cancelPendingByProcess: () => Promise.resolve([]),
       findPendingForStage: () => Promise.resolve(null),
       updatePendingDueAt: () => Promise.resolve(false),
       coversDocumentVersion: () => Promise.resolve(false),
@@ -50,6 +52,7 @@ describe('ApprovalFacade', () => {
       repository,
       {} as ApproverResolver,
       {} as ApprovalRequestService,
+      {} as ApprovalCancellationService,
     );
     const pending = await facade.listPendingForProcess({} as TenantTx, PROCESS);
     expect(asked).toEqual([PROCESS]);
@@ -74,6 +77,7 @@ describe('ApprovalFacade', () => {
     const asked: (readonly string[])[] = [];
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
+      cancelPendingByProcess: () => Promise.resolve([]),
       findPendingForStage: () => Promise.resolve(null),
       updatePendingDueAt: () => Promise.resolve(false),
       coversDocumentVersion: () => Promise.resolve(false),
@@ -89,6 +93,7 @@ describe('ApprovalFacade', () => {
       repository,
       {} as ApproverResolver,
       {} as ApprovalRequestService,
+      {} as ApprovalCancellationService,
     );
     await expect(facade.approvalSummaries({} as TenantTx, [])).resolves.toEqual(new Map());
     const summaries = await facade.approvalSummaries({} as TenantTx, [approval.id, approval.id]);
@@ -105,6 +110,7 @@ describe('ApprovalFacade', () => {
     const updates: unknown[] = [];
     const repository: ApprovalRepository = {
       insert: () => Promise.resolve(),
+      cancelPendingByProcess: () => Promise.resolve([]),
       coversDocumentVersion: () => Promise.resolve(false),
       summariesByIds: () => Promise.resolve([]),
       listPendingByProcess: () => Promise.resolve([]),
@@ -119,6 +125,7 @@ describe('ApprovalFacade', () => {
       repository,
       {} as ApproverResolver,
       {} as ApprovalRequestService,
+      {} as ApprovalCancellationService,
     );
     const to = new Date('2026-10-14T02:59:59.999Z');
     const at = new Date('2026-10-08T12:00:00.000Z');

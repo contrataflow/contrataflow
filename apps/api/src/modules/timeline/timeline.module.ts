@@ -13,6 +13,7 @@ import type { AnyTimelineLookupSource } from './application/ports.js';
 import { TimelineLookupResolver } from './application/timeline-lookup.resolver.js';
 import { TimelineProjector } from './application/timeline-projector.js';
 import { TimelineFacade } from './application/timeline.facade.js';
+import { ApprovalLookupSource } from './infrastructure/approval-lookup.source.js';
 import { AttachmentLookupSource } from './infrastructure/attachment-lookup.source.js';
 import {
   DocumentLookupSource,
@@ -36,6 +37,7 @@ import {
 } from './infrastructure/timeline-transactions.js';
 import { TimelineController } from './presentation/timeline.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { ApprovalModule } from '../approval/approval.module.js';
 import { DocumentModule } from '../document/document.module.js';
 import { EtpModule } from '../etp/etp.module.js';
 import { CommentLookupSource } from './infrastructure/comment-lookup.source.js';
@@ -57,6 +59,7 @@ import { RiskModule } from '../risk/risk.module.js';
 @Module({
   imports: [
     AccessModule,
+    ApprovalModule,
     IdentityModule,
     OrganizationModule,
     ProcessModule,
@@ -98,6 +101,7 @@ import { RiskModule } from '../risk/risk.module.js';
     RiskLookupSource,
     CommentLookupSource,
     RoleLookupSource,
+    ApprovalLookupSource,
     EtpAlternativeLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
@@ -105,8 +109,8 @@ import { RiskModule } from '../risk/risk.module.js';
       // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`). US-012: participante
       // (`PARTICIPANT_REMOVED`). US-033: risco (`RISK_ADDED`/`RISK_LEVEL_CHANGED`/`RISK_REMOVED`).
       // US-071: comentário (`COMMENT_ADDED` — trecho e sigilo do documento-alvo). US-051: perfil
-      // aprovador (`APPROVAL_REQUESTED` com `approverType = ROLE`). US-021: nome da alternativa
-      // (`ETP_ALTERNATIVE_RECOMMENDED`).
+      // aprovador (`APPROVAL_REQUESTED` com `approverType = ROLE`). US-009: título da aprovação
+      // (`APPROVAL_CANCELED`). US-021: nome da alternativa (`ETP_ALTERNATIVE_RECOMMENDED`).
       inject: [
         IdentityUserLookupSource,
         DepartmentLookupSource,
@@ -119,6 +123,7 @@ import { RiskModule } from '../risk/risk.module.js';
         RiskLookupSource,
         CommentLookupSource,
         RoleLookupSource,
+        ApprovalLookupSource,
         EtpAlternativeLookupSource,
       ],
       useFactory: (...sources: AnyTimelineLookupSource[]): AnyTimelineLookupSource[] => sources,

@@ -207,7 +207,7 @@ Campos de unidade/órgão só editáveis com processo em `DRAFT`; demais campos 
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** path `id`
-- **Request:** —
+- **Request:** corpo opcional `{ reason?: string }` — até 500 caracteres (só auditoria)
 - **Response:** `204` (sem corpo)
 - **Erros:**
 
@@ -215,6 +215,7 @@ Campos de unidade/órgão só editáveis com processo em `DRAFT`; demais campos 
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão para a ação |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
+| 409 | `INVALID_PROCESS_STATUS` | Processo fora de `DRAFT` |
 | 409 | `CANNOT_DISCARD_NUMBERED_PROCESS` | Rascunho já tem número; cancelar em vez de descartar |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
@@ -687,8 +688,8 @@ Exemplo de 409 `ITEM_IN_USE`:
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** path `id`
-- **Request:** `{ cancellationReason: string }` — ≥20 caracteres, trim
-- **Response:** `200 { data: Process }`
+- **Request:** `{ cancellationReason: string }` — 20–5.000 caracteres, trim
+- **Response:** `200 { data: Process }` com `canceledAt` e `cancellationReason` + `ETag`
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -696,8 +697,8 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 422 | `VALIDATION_ERROR` (`TOO_SHORT`) | Justificativa ausente/curta |
 | 403 | `PERMISSION_DENIED` | Sem permissão |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
-| 409 | `INVALID_PROCESS_STATUS` | Processo já em status final |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 409 | `INVALID_PROCESS_STATUS` | Processo já em status final quando a requisição chegou (reenvio) |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente — inclusive quando outra requisição cancelou o processo enquanto esta esperava a trava (corrida entre abas) |
 
 - **Efeitos:** Eventos: `ProcessStatusChanged`/`ProcessCanceled` (`toStatus=CANCELED`, `reasonProvided=true`); `ApprovalCanceled` para aprovação(ões) pendente(s), na mesma transação (`motivo=PROCESS_CANCELED`). Projeção: timeline `PROCESS_CANCELED`. Auditoria: `process.cancel` (`DATA_CHANGE`, `changes.status`, `metadata`: hash da justificativa, `pendingApprovalsCanceled`); `access.denied` em 403.
 - **Notas:** —

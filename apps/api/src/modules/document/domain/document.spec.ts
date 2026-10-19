@@ -19,6 +19,7 @@ import {
   reopenDocument,
   submitDocument,
   recordManualVersion,
+  releaseCanceledApproval,
   updateDocumentHeader,
   withdrawSubmission,
 } from './document.js';
@@ -359,6 +360,35 @@ describe('retirar submissão avulsa (RN-DOC-46 · DOC-11 da US-053)', () => {
 
   it.each(others(['IN_REVIEW']))('recusa a partir de %s', (status) => {
     expect(refusal(() => withdrawSubmission(inStatus(status), stamp)).failure).toBe('STATUS');
+  });
+});
+
+describe('aprovação cancelada com o processo (RN-PROC-106 · DEC-018 · US-009)', () => {
+  const canceled = { ...stamp, approvalId: 'apv' };
+
+  it('IN_REVIEW coberto volta a DRAFT (retirada automática)', () => {
+    expect(
+      releaseCanceledApproval(inStatus('IN_REVIEW', { pendingApprovalId: 'apv' }), canceled),
+    ).toMatchObject({ status: 'DRAFT', pendingApprovalId: null, updatedAt: LATER });
+  });
+
+  it.each(['FINALIZED', 'APPROVED'] as const)('%s só perde o selo "Em aprovação"', (status) => {
+    expect(
+      releaseCanceledApproval(inStatus(status, { pendingApprovalId: 'apv' }), canceled),
+    ).toMatchObject({ status, pendingApprovalId: null });
+  });
+
+  it('documento sem essa pendência ou excluído fica intacto', () => {
+    expect(
+      releaseCanceledApproval(inStatus('IN_REVIEW', { pendingApprovalId: 'outra' }), canceled),
+    ).toBeNull();
+    expect(releaseCanceledApproval(inStatus('DRAFT'), canceled)).toBeNull();
+    expect(
+      releaseCanceledApproval(
+        inStatus('IN_REVIEW', { pendingApprovalId: 'apv', deletedAt: LATER }),
+        canceled,
+      ),
+    ).toBeNull();
   });
 });
 
