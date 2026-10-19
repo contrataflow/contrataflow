@@ -98,9 +98,7 @@
         "loadError": "Não foi possível carregar os itens."
       },
       "ALTERNATIVES": {
-        "title": "Alternativas avaliadas",
-        "empty": "Nenhuma alternativa cadastrada ainda.",
-        "hint": "O quadro comparativo de alternativas é mantido nesta seção do ETP."
+        "title": "Alternativas avaliadas"
       },
       "RISKS": {
         "title": "Riscos do processo",
@@ -155,6 +153,102 @@
         "generic": "Não foi possível continuar salvando este ETP.",
         "kept": "Suas últimas alterações foram guardadas neste navegador."
       }
+    }
+  },
+  "alternatives": {
+    "caption": "Quadro comparativo das alternativas de solução",
+    "empty": "Nenhuma alternativa cadastrada ainda.",
+    "hint": "Registre as alternativas levantadas e decida qual é a recomendada (art. 18, § 1º, V e VII, da Lei 14.133/2021).",
+    "readOnly": "Somente leitura: você não pode editar as alternativas deste ETP agora.",
+    "maskedHint": "Orçamento sigiloso: os custos estimados não são exibidos para você.",
+    "masked": "Sigiloso",
+    "lowestCost": "menor custo",
+    "add": "Nova alternativa",
+    "loadError": "Não foi possível carregar as alternativas.",
+    "retry": "Tentar novamente",
+    "columns": {
+      "name": "Alternativa",
+      "decision": "Decisão",
+      "cost": "Custo estimado",
+      "risk": "Risco",
+      "actions": "Ações"
+    },
+    "actions": {
+      "edit": "Editar",
+      "editNamed": "Editar {name}",
+      "recommend": "Recomendar",
+      "recommendNamed": "Recomendar {name}",
+      "discard": "Descartar",
+      "discardNamed": "Descartar {name}",
+      "reopen": "Voltar à análise",
+      "reopenNamed": "Voltar {name} à análise",
+      "moveUp": "Mover {name} para cima",
+      "moveDown": "Mover {name} para baixo",
+      "remove": "Excluir",
+      "removeNamed": "Excluir {name}"
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "unexpected": "Ocorreu um erro inesperado."
+    },
+    "toast": {
+      "added": "Alternativa cadastrada.",
+      "updated": "Alternativa atualizada."
+    },
+    "form": {
+      "close": "Fechar",
+      "addTitle": "Nova alternativa",
+      "editTitle": "Editar alternativa",
+      "fields": {
+        "name": "Nome",
+        "description": "Descrição",
+        "advantages": "Vantagens",
+        "disadvantages": "Desvantagens",
+        "estimatedCost": "Custo estimado",
+        "riskLevel": "Nível de risco",
+        "observations": "Observações"
+      },
+      "noRisk": "Não informado",
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "saving": "Salvando…"
+    },
+    "decide": {
+      "title": {
+        "RECOMMENDED": "Recomendar alternativa",
+        "DISCARDED": "Descartar alternativa",
+        "UNDER_ANALYSIS": "Voltar alternativa à análise"
+      },
+      "description": {
+        "RECOMMENDED": "A alternativa recomendada é a solução escolhida pelo ETP (art. 18, § 1º, VII).",
+        "DISCARDED": "A alternativa descartada continua no quadro comparativo, com a justificativa.",
+        "UNDER_ANALYSIS": "A alternativa volta a ficar em análise."
+      },
+      "justification": "Justificativa (mín. 20 caracteres)",
+      "justificationOptional": "Observação (opcional)",
+      "confirm": {
+        "RECOMMENDED": "Recomendar",
+        "DISCARDED": "Descartar",
+        "UNDER_ANALYSIS": "Voltar à análise"
+      },
+      "cancel": "Cancelar",
+      "replace": {
+        "title": "Substituir a alternativa recomendada?",
+        "current": "Recomendada atual: {name}. Ela volta a ficar em análise.",
+        "confirm": "Substituir recomendação"
+      },
+      "toast": {
+        "RECOMMENDED": "{name} é agora a alternativa recomendada.",
+        "DISCARDED": "{name} foi descartada.",
+        "UNDER_ANALYSIS": "{name} voltou à análise."
+      }
+    },
+    "remove": {
+      "title": "Excluir alternativa",
+      "description": "A alternativa {name} sai do quadro comparativo; o registro continua na auditoria.",
+      "cancel": "Cancelar",
+      "confirm": "Excluir",
+      "toast": "Alternativa excluída."
     }
   }
 }

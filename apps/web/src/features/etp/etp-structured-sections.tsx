@@ -5,15 +5,16 @@ import type { EtpStructuredKind } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
+import { EtpAlternativesSection } from './etp-alternatives-section';
 import { useDocumentItems } from '../dfd/dfd.api';
 import { LevelBadge } from '../risks/level-badge';
 import { useRisks } from '../risks/risks.api';
 
 /*
- * Quadros estruturados somente leitura das seções do ETP (US-020 · RN-ETP-12): itens/quantidades
- * (`ItemsTableReadonly` — DOC-06), alternativas (`AlternativesTableReadonly` — o cadastro e o
- * ETP-05 são da US-021) e riscos do processo (`RiskListReadonly` — RSK-01). Só leitura: a edição
- * desse conteúdo acontece nas telas donas, com link quando ela existe.
+ * Quadros estruturados das seções do ETP (US-020 · RN-ETP-12): itens/quantidades
+ * (`ItemsTableReadonly` — DOC-06) e riscos do processo (`RiskListReadonly` — RSK-01), somente
+ * leitura (a edição acontece nas telas donas, com link), e as alternativas de solução
+ * (`EtpAlternativesSection` — ETP-05..09, US-021), cadastradas e decididas aqui mesmo.
  */
 
 const formatQuantity = (value: string) =>
@@ -102,17 +103,6 @@ export function ItemsTableReadonly({
   );
 }
 
-/** Sem o cadastro de alternativas (US-021), o quadro mostra o estado vazio da SCR-008. */
-export function AlternativesTableReadonly() {
-  const t = useTranslations('etp.editor.structured.ALTERNATIVES');
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="text-sm text-muted-foreground">{t('empty')}</p>
-      <p className="text-xs text-muted-foreground">{t('hint')}</p>
-    </div>
-  );
-}
-
 export function RiskListReadonly({ processId }: { readonly processId: string }) {
   const t = useTranslations('etp.editor.structured.RISKS');
   const risks = useRisks(processId);
@@ -170,12 +160,15 @@ export function StructuredSectionContent({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">{t(`${kind}.title`)}</h3>
-        <span className="text-xs text-muted-foreground">{t('readOnly')}</span>
+        {kind === 'ALTERNATIVES' ? null : (
+          <span className="text-xs text-muted-foreground">{t('readOnly')}</span>
+        )}
       </div>
       {kind === 'ITEMS' ? (
         <ItemsTableReadonly processId={processId} documentId={documentId} />
       ) : null}
-      {kind === 'ALTERNATIVES' ? <AlternativesTableReadonly /> : null}
+      {/* O id do ETP é o do documento (CHECK `etps_id_is_document`). */}
+      {kind === 'ALTERNATIVES' ? <EtpAlternativesSection etpId={documentId} /> : null}
       {kind === 'RISKS' ? <RiskListReadonly processId={processId} /> : null}
     </section>
   );

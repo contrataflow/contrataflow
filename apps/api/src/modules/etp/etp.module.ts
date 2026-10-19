@@ -3,16 +3,37 @@ import { Module } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 
+import {
+  CreateEtpAlternativeCommand,
+  DecideEtpAlternativeCommand,
+  DeleteEtpAlternativeCommand,
+  UpdateEtpAlternativeCommand,
+} from './application/etp-alternative.commands.js';
+import { ListEtpAlternativesQuery } from './application/etp-alternative.queries.js';
+import {
+  EtpAlternativeGate,
+  EtpAlternativeRecorder,
+} from './application/etp-alternative.support.js';
 import { CreateEtpCommand } from './application/etp.commands.js';
 import { EtpFacade } from './application/etp.facade.js';
 import { GetEtpQuery, ListProcessEtpsQuery } from './application/etp.queries.js';
-import { ETP_CLOCK, ETP_REPOSITORY, ETP_TRANSACTIONS } from './application/ports.js';
+import {
+  ETP_ALTERNATIVE_REPOSITORY,
+  ETP_CLOCK,
+  ETP_REPOSITORY,
+  ETP_TRANSACTIONS,
+} from './application/ports.js';
+import {
+  InMemoryEtpAlternativeRepository,
+  PrismaEtpAlternativeRepository,
+} from './infrastructure/etp-alternative.repositories.js';
 import {
   InMemoryEtpRepository,
   InMemoryEtpTransactions,
   PrismaEtpRepository,
   PrismaEtpTransactions,
 } from './infrastructure/etp.repositories.js';
+import { EtpAlternativeController } from './presentation/etp-alternative.controller.js';
 import { EtpController } from './presentation/etp.controller.js';
 import { DocumentModule } from '../document/document.module.js';
 
@@ -22,19 +43,42 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
 /**
  * Módulo `etp` (DEC-040, nível 4): outros módulos usam somente a fachada exportada. Dono de `Etp`
  * (US-019: ETP-01/02 — criação a partir do template com importação do DFD; US-020: ETP-03 — leitura
- * do ETP com o rascunho por seção para o editor). O documento, a
+ * do ETP com o rascunho por seção para o editor) e de `EtpAlternative` (US-021: ETP-05..09 —
+ * alternativas de solução, pela POL-02 estendida às coleções tipadas; a fachada é a fonte
+ * `ETP_ALTERNATIVE` da timeline). O documento, a
  * numeração, as seções e os itens vêm do `document` pelo padrão de documento tipado
  * (`createStructuredIn`); o DFD de origem é lido do snapshot da versão (`importableDfdIn`), sem
  * depender do módulo `dfd`.
  */
 @Module({
   imports: [DocumentModule],
-  controllers: [EtpController],
+  controllers: [EtpController, EtpAlternativeController],
   providers: [
     EtpFacade,
     CreateEtpCommand,
     ListProcessEtpsQuery,
     GetEtpQuery,
+    ListEtpAlternativesQuery,
+    CreateEtpAlternativeCommand,
+    UpdateEtpAlternativeCommand,
+    DeleteEtpAlternativeCommand,
+    DecideEtpAlternativeCommand,
+    EtpAlternativeGate,
+    EtpAlternativeRecorder,
+    PrismaEtpAlternativeRepository,
+    {
+      provide: InMemoryEtpAlternativeRepository,
+      useFactory: () => new InMemoryEtpAlternativeRepository(),
+    },
+    {
+      provide: ETP_ALTERNATIVE_REPOSITORY,
+      inject: [APP_CONFIG, PrismaEtpAlternativeRepository, InMemoryEtpAlternativeRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaEtpAlternativeRepository,
+        memory: InMemoryEtpAlternativeRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
     PrismaEtpRepository,
     PrismaEtpTransactions,
     InMemoryEtpTransactions,

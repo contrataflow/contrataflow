@@ -302,6 +302,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Documento não editável',
     detail: 'O documento não pode ser editado no status atual.',
   },
+  RECOMMENDED_ALTERNATIVE_EXISTS: {
+    status: 409,
+    title: 'Alternativa recomendada existente',
+    detail: 'Já existe uma alternativa recomendada. Substituir pela atual?',
+  },
   DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE: {
     status: 422,
     title: 'Tipo não permitido na etapa',

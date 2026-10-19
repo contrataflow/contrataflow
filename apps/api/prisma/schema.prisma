@@ -2369,7 +2369,7 @@ enum ParcelingDecision {
 /// entities.md §4.8 `Etp` (módulo etp · US-019): cabeçalho tipado 1:1 do `Document` do tipo ETP
 /// (Lei 14.133/2021, art. 18, §1º). `id = documentId` (CHECK `etps_id_is_document`). Checks, FKs
 /// compostas (documento, processo, versão do DFD de origem, pesquisa de preços) e o gatilho de
-/// colunas imutáveis na migração. `recommendedAlternativeId` ganha FK com `etp_alternatives` (US-021).
+/// colunas imutáveis na migração. `recommendedAlternativeId` tem FK composta com `etp_alternatives` (US-021).
 model Etp {
   id                       String                @id @db.Uuid
   tenantId                 String                @map("tenant_id") @db.Uuid
@@ -2392,6 +2392,48 @@ model Etp {
   @@unique([tenantId, documentId], map: "etps_tenant_id_document_id_key")
   @@index([tenantId, processId], map: "etps_process_idx")
   @@map("etps")
+}
+
+/// entities.md §2 — `AlternativeDecision` (RN-ETP-19).
+enum AlternativeDecision {
+  UNDER_ANALYSIS
+  RECOMMENDED
+  DISCARDED
+
+  @@map("alternative_decision")
+}
+
+/// entities.md §4.8 `EtpAlternative` (módulo etp · US-021): coleção tipada do ETP (DEC-017), com
+/// exclusão lógica (RN-ETP-22). A unicidade parcial da `RECOMMENDED` por ETP (RN-ETP-20), a do nome
+/// sem diferenciar maiúsculas (`lower(name)` — RN-ETP-18), o CHECK da justificativa (RN-ETP-19), as
+/// FKs compostas (ETP, processo e `etps.recommended_alternative_id`) e o gatilho de colunas
+/// imutáveis estão na migração.
+model EtpAlternative {
+  id                    String              @id @db.Uuid
+  tenantId              String              @map("tenant_id") @db.Uuid
+  etpId                 String              @map("etp_id") @db.Uuid
+  processId             String              @map("process_id") @db.Uuid
+  name                  String              @db.VarChar(150)
+  description           Json
+  advantages            Json?
+  disadvantages         Json?
+  estimatedCost         Decimal?            @map("estimated_cost") @db.Decimal(18, 2)
+  riskLevel             RiskLevel?          @map("risk_level")
+  observations          String?
+  decision              AlternativeDecision @default(UNDER_ANALYSIS)
+  decisionJustification String?             @map("decision_justification")
+  sortOrder             Int                 @default(0) @map("sort_order")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById           String?             @map("created_by_id") @db.Uuid
+  updatedById           String?             @map("updated_by_id") @db.Uuid
+  deletedAt             DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedById           String?             @map("deleted_by_id") @db.Uuid
+  version               Int                 @default(1)
+
+  @@unique([tenantId, id], map: "etp_alternatives_tenant_id_id_key")
+  @@index([tenantId, etpId, sortOrder], map: "etp_alternatives_etp_idx")
+  @@map("etp_alternatives")
 }
 
 /// entities.md §2 — `PriceDefaultMethod` (DEC-020: `AUTO_CV` = mediana se CV > limite, senão média).

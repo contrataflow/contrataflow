@@ -1082,7 +1082,8 @@ Seções de template (chaves): `NEED_DESCRIPTION`, `PROBLEM`, `OBJECTIVE`, `PCA_
 | `sortOrder` | int | não | `0` | |
 
 - **Unique:** `(tenant_id, etp_id) WHERE decision = 'RECOMMENDED' AND deleted_at IS NULL`; `(tenant_id, etp_id, lower(name)) WHERE deleted_at IS NULL`.
-- **Check:** `decision = 'UNDER_ANALYSIS' OR decision_justification IS NOT NULL`.
+- **Check:** `decision = 'UNDER_ANALYSIS' OR decision_justification IS NOT NULL`; `estimated_cost >= 0`; `btrim(name) <> ''`.
+- **FKs compostas (tenant):** ETP, processo; `etps.recommended_alternative_id → etp_alternatives` (US-021). `tenant_id`/`etp_id`/`process_id` imutáveis (gatilho). Sem `DELETE` para `cf_app` (só exclusão lógica — RN-ETP-22).
 
 #### PriceResearch (`price_research`) — módulo `price-research` · Padrão
 Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION` (narrativas) e `PRICE_SUMMARY` (computada na renderização a partir de `PriceItem`/`PriceSource`/`Quotation` — mapa comparativo, US-031). Parâmetros copiados das configurações na criação (DEC-020).

@@ -64,6 +64,8 @@ export const DOMAIN_EVENT_NAMES = [
   'SupplierCreated',
   'SupplierUpdated',
   'PriceResearchRecalculated',
+  // US-021: decisão RECOMMENDED de alternativa do ETP (RN-ETP-21).
+  'EtpAlternativeRecommended',
   'RiskCreated',
   'RiskAssessed',
   'RiskDeleted',

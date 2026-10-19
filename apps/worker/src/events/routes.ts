@@ -146,6 +146,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-025: cadastro de apoio; nenhum consumidor assíncrono no MVP 1.
     SupplierCreated: 'NO_ASYNC_CONSUMER',
     SupplierUpdated: 'NO_ASYNC_CONSUMER',
+    // US-021: timeline (`ETP_ALTERNATIVE_RECOMMENDED`) projetada no mesmo `tx`; nenhum consumidor
+    // assíncrono nem notificação (story · "Notificações").
+    EtpAlternativeRecommended: 'NO_ASYNC_CONSUMER',
     // US-033: timeline (`RISK_ADDED`/`RISK_LEVEL_CHANGED`/`RISK_REMOVED`) projetada no mesmo `tx`;
     // nenhum consumidor assíncrono nem notificação (story · "Notificações").
     RiskCreated: 'NO_ASYNC_CONSUMER',

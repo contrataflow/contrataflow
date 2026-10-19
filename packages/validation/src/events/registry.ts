@@ -33,6 +33,7 @@ import {
   TemplateVersionPublished,
   TemplateVersionRetired,
 } from '../document/events.js';
+import { EtpAlternativeRecommended } from '../etp/events.js';
 import { AttachmentDeleted, AttachmentRejected, AttachmentUploaded } from '../files/events.js';
 import {
   MembershipActivated,
@@ -130,6 +131,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   SupplierCreated,
   SupplierUpdated,
   PriceResearchRecalculated,
+  EtpAlternativeRecommended,
   RiskCreated,
   RiskAssessed,
   RiskDeleted,

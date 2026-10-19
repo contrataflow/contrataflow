@@ -18,6 +18,7 @@ import {
   DocumentLookupSource,
   DocumentVersionLookupSource,
 } from './infrastructure/document-lookup.sources.js';
+import { EtpAlternativeLookupSource } from './infrastructure/etp-alternative-lookup.source.js';
 import { IdentityUserLookupSource } from './infrastructure/identity-user.lookup-source.js';
 import { InMemoryTimelineEntryStore } from './infrastructure/in-memory-timeline-entry.store.js';
 import { PrismaTimelineEntryStore } from './infrastructure/prisma-timeline-entry.store.js';
@@ -36,6 +37,7 @@ import {
 import { TimelineController } from './presentation/timeline.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { DocumentModule } from '../document/document.module.js';
+import { EtpModule } from '../etp/etp.module.js';
 import { CommentLookupSource } from './infrastructure/comment-lookup.source.js';
 import { CollaborationModule } from '../collaboration/collaboration.module.js';
 import { FilesModule } from '../files/files.module.js';
@@ -61,6 +63,7 @@ import { RiskModule } from '../risk/risk.module.js';
     DocumentModule,
     FilesModule,
     RiskModule,
+    EtpModule,
     CollaborationModule,
   ],
   controllers: [TimelineController],
@@ -95,13 +98,15 @@ import { RiskModule } from '../risk/risk.module.js';
     RiskLookupSource,
     CommentLookupSource,
     RoleLookupSource,
+    EtpAlternativeLookupSource,
     {
       provide: TIMELINE_LOOKUP_SOURCES,
       // US-001: unidade, processo e etapa das referências de `ProcessCreated`. US-065: documento e
       // versão dos eventos `Document*`. US-068: anexo (`ATTACHMENT_REMOVED`). US-012: participante
       // (`PARTICIPANT_REMOVED`). US-033: risco (`RISK_ADDED`/`RISK_LEVEL_CHANGED`/`RISK_REMOVED`).
       // US-071: comentário (`COMMENT_ADDED` — trecho e sigilo do documento-alvo). US-051: perfil
-      // aprovador (`APPROVAL_REQUESTED` com `approverType = ROLE`).
+      // aprovador (`APPROVAL_REQUESTED` com `approverType = ROLE`). US-021: nome da alternativa
+      // (`ETP_ALTERNATIVE_RECOMMENDED`).
       inject: [
         IdentityUserLookupSource,
         DepartmentLookupSource,
@@ -114,6 +119,7 @@ import { RiskModule } from '../risk/risk.module.js';
         RiskLookupSource,
         CommentLookupSource,
         RoleLookupSource,
+        EtpAlternativeLookupSource,
       ],
       useFactory: (...sources: AnyTimelineLookupSource[]): AnyTimelineLookupSource[] => sources,
     },

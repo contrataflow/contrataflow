@@ -217,6 +217,9 @@ const DFD_ROUTE =
 const ETP_SECTIONS_ROUTE =
   'Editar seções do ETP (US-020): a suíte genérica não tem processo, documento nem ETP do tenant B. O isolamento (ETP-03 com ETP de B → 404 NOT_FOUND sem revelar o registro; DOC-05 numa seção do ETP de B → 404 NOT_FOUND sem alterar seção, revisão nem auditoria de nenhum tenant; RLS da leitura de etps/documents e da atualização condicional) é coberto em test/tenant-leak/etp-sections.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp-sections.routes.spec.ts.';
 
+const ETP_ALTERNATIVES_ROUTE =
+  'Alternativas de solução do ETP (US-021): a suíte genérica não tem processo, ETP nem alternativa do tenant B. O isolamento (ETP-05/06 com ETP de B → 404 NOT_FOUND sem ler nem criar nada; ETP-07/08/09 com alternativa de B → 404 NOT_FOUND sem alterar nada; RLS e FKs compostas de etp_alternatives, índices únicos parciais e CHECK da justificativa) é coberto em test/tenant-leak/etp-alternatives.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp-alternative.routes.spec.ts.';
+
 const DFD_DUPLICATE_ROUTE =
   'Duplicar DFD (US-018): a suíte genérica não tem processo, DFD nem item de processo do tenant B. O isolamento (DFD-05 com DFD de B → 404 DFD_NOT_FOUND sem criar nada; targetProcessId de B ou inexistente → 422 REFERENCE_NOT_FOUND em targetProcessId sem revelar o registro; nada de B lido nem alterado; itens, documento e DFD criados só no tenant da requisição, com RLS e FKs compostas; transação única, índice único do DFD ativo sob concorrência e idempotência) é coberto em test/tenant-leak/dfd-duplicate.spec.ts, com PostgreSQL real, e em src/modules/dfd/presentation/dfd-duplicate.routes.spec.ts.';
 
@@ -418,6 +421,11 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'ETP-01': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-02': { kind: 'exempt', reason: ETP_ROUTE },
   'ETP-03': { kind: 'exempt', reason: ETP_SECTIONS_ROUTE },
+  'ETP-05': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
+  'ETP-06': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
+  'ETP-07': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
+  'ETP-08': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
+  'ETP-09': { kind: 'exempt', reason: ETP_ALTERNATIVES_ROUTE },
   'PRS-01': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-02': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },
   'PRS-03': { kind: 'exempt', reason: PRICE_RESEARCH_ROUTE },

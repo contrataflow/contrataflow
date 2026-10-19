@@ -120,6 +120,8 @@ export const ERROR_CODES = [
   'SECTION_REVISION_CONFLICT',
   // US-026: campos exigidos pelo tipo de fonte de pesquisa ausentes (api/07 PRS-10/11 · RN-PRICE-21).
   'QUOTATION_REQUIRED_FIELDS',
+  // US-021: recomendar com outra alternativa já recomendada (api/06-etp.md ETP-09 · RN-ETP-20).
+  'RECOMMENDED_ALTERNATIVE_EXISTS',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

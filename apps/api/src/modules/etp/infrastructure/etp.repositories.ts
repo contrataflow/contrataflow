@@ -9,7 +9,7 @@ import type { EtpRepository, EtpTransactions } from '../application/ports.js';
 import type { Etp } from '../domain/etp.js';
 
 /*
- * `etps` (US-019): no PostgreSQL sempre no `tx` da `TenantTransaction` (RLS do tenant + extensão de
+ * `etps` (US-019 · US-021 — a recomendada desnormalizada): no PostgreSQL sempre no `tx` da `TenantTransaction` (RLS do tenant + extensão de
  * isolamento); em memória para os testes e o modo de identidade fake (isolados pelo tenant do
  * contexto, como a RLS).
  */
@@ -78,6 +78,19 @@ export class PrismaEtpRepository implements EtpRepository {
     });
     return rows.map(toEtp);
   }
+
+  async setRecommendedAlternative(tx: TenantTx, etp: Etp): Promise<void> {
+    await tx.etp.update({
+      where: { id: etp.id },
+      data: {
+        recommendedAlternativeId: etp.recommendedAlternativeId,
+        updatedAt: etp.updatedAt,
+        updatedById: etp.updatedById,
+        version: { increment: 1 },
+      },
+      select: { id: true },
+    });
+  }
 }
 
 /** ETPs em memória: mesma semântica do adaptador Prisma, isolados pelo tenant do contexto. */
@@ -106,6 +119,19 @@ export class InMemoryEtpRepository implements EtpRepository {
         .filter((etp) => etp.processId === processId)
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
     );
+  }
+
+  setRecommendedAlternative(_tx: TenantTx, etp: Etp): Promise<void> {
+    const current = this.inTenant().find((candidate) => candidate.id === etp.id);
+    if (current === undefined) return Promise.reject(new Error('etps: ETP ausente'));
+    this.rows.set(etp.id, {
+      ...current,
+      recommendedAlternativeId: etp.recommendedAlternativeId,
+      updatedAt: etp.updatedAt,
+      updatedById: etp.updatedById,
+      version: current.version + 1,
+    });
+    return Promise.resolve();
   }
 
   /** Inspeção de testes: todos os ETPs (de todos os tenants). */

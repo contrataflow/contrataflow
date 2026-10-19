@@ -155,14 +155,20 @@ EtpTemplateSection {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório) — ETP
 - **Request:** —
-- **Response:** `200 { data: EtpAlternative[] }` ordenado por `sortOrder` (sem paginação/ordenação adicional documentada)
+- **Response:** `200 { data: EtpAlternative[], meta }` ordenado por `sortOrder` (empate: criação, id; sem paginação)
 ```ts
 EtpAlternative {
-  id: string; name: string; description: object; advantages?: object; disadvantages?: object;
-  estimatedCost?: string | null; estimatedCostMasked?: boolean; riskLevel?: string;
-  observations?: string; sortOrder: number;
-  decision: "UNDER_ANALYSIS" | "RECOMMENDED" | "DISCARDED"; decisionJustification?: string;
-  version: number;
+  id: string; etpId: string; processId: string; name: string; description: object;
+  advantages: object | null; disadvantages: object | null;
+  estimatedCost: string | null; estimatedCostMasked: boolean; riskLevel: string | null;
+  observations: string | null; sortOrder: number;
+  decision: "UNDER_ANALYSIS" | "RECOMMENDED" | "DISCARDED"; decisionJustification: string | null;
+  createdAt: string; updatedAt: string; version: number;   // `version` = ETag/If-Match de ETP-07/08/09
+}
+meta: {
+  canManage: boolean;                       // ETP_UPDATE + POL-02 e o ETP ativo em DRAFT/RETURNED
+  recommendedAlternativeId: string | null;  // Etp.recommendedAlternativeId
+  estimatedCostMasked: boolean;             // POL-09 para este usuário
 }
 ```
 - **Erros:**
@@ -172,7 +178,7 @@ EtpAlternative {
 | 404 | `NOT_FOUND` | ETP inexistente/outro tenant |
 
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** `Cache-Control: no-store` (`meta.canManage` é por usuário). Sem `meta.canManage`, a seção "Alternativas" da SCR-008 abre somente leitura (Permissão · FA-05 da US-021).
 
 ### ETP-06 — Criar alternativa de solução
 `POST /api/v1/etps/{id}/alternatives` · **Permissão:** `ETP_UPDATE` + POL-02 · **Story:** US-021
@@ -200,8 +206,8 @@ EtpAlternative {
 | 404 | `NOT_FOUND` | ETP inexistente/outro tenant |
 | 422 | `VALIDATION_ERROR` | `name` ausente/duplicado (`DUPLICATE_IN_LIST`)/>150; `description` ausente (`REQUIRED`); `estimatedCost` inválido (`INVALID_DECIMAL`) |
 
-- **Efeitos:** Auditoria: `etp.alternative_create` (`DATA_CHANGE`) — `changes`: campos não sensíveis; textos longos como hash + tamanho.
-- **Notas:** não há evento de domínio na criação; só na decisão `RECOMMENDED` (ver ETP-09).
+- **Efeitos:** Auditoria: `etp.alternative_create` (`DATA_CHANGE`) — `changes`: campos não sensíveis; textos longos como hash + tamanho; `estimatedCost` só como `"[sigiloso]"` (POL-09).
+- **Notas:** não há evento de domínio na criação; só na decisão `RECOMMENDED` (ver ETP-09). `201` com `Location: /api/v1/etp-alternatives/{id}` e `ETag: "1"`. Erros da POL-02 estendida às coleções tipadas (os mesmos de ETP-07/08/09): 409 `DOCUMENT_NOT_EDITABLE` (ETP fora de `DRAFT`/`RETURNED` ou cancelado), 409 `INVALID_PROCESS_STATUS`, 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`. Em processo sigiloso, quem não atende a POL-09 recebe o custo mascarado e não pode enviar `estimatedCost` (403 `PERMISSION_DENIED`, "Você não pode alterar o custo estimado deste processo sigiloso." — decisão da US-021, 2026-10-18: evita gravar às cegas ou apagar um valor que a pessoa não vê).
 
 ### ETP-07 — Atualizar alternativa de solução
 `PATCH /api/v1/etp-alternatives/{alternativeId}` · **Permissão:** `ETP_UPDATE` + POL-02 · **Story:** US-021
@@ -221,7 +227,7 @@ EtpAlternative {
 | 422 | `VALIDATION_ERROR` | Ver ETP-06 |
 
 - **Efeitos:** Auditoria: `etp.alternative_update` (`DATA_CHANGE`) — `changes`: campos alterados.
-- **Notas:** —
+- **Notas:** `null` limpa os opcionais; `name`/`description` não aceitam `null`. A decisão só muda pelo ETP-09 (`decision` aqui → 422 `NOT_ALLOWED`). Sem mudança efetiva → `200` com a mesma versão e sem auditoria. 412 traz `currentVersion`; sem `If-Match` → 428.
 
 ### ETP-08 — Excluir alternativa de solução
 `DELETE /api/v1/etp-alternatives/{alternativeId}` · **Permissão:** `ETP_UPDATE` + POL-02 · **Story:** US-021
@@ -241,7 +247,7 @@ EtpAlternative {
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Auditoria: `etp.alternative_delete` (`DATA_CHANGE`) — exclusão lógica; `metadata.alternativeId`.
-- **Notas:** —
+- **Notas:** a excluída sai das leituras e da unicidade de nome, mas continua auditável (e nomeável na timeline).
 
 ### ETP-09 — Decidir alternativa (recomendar/descartar)
 `POST /api/v1/etp-alternatives/{alternativeId}/decide` · **Permissão:** `ETP_UPDATE` + POL-02 · **Story:** US-021
@@ -269,4 +275,4 @@ EtpAlternative {
 | 422 | `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`/`TOO_SHORT`) | Justificativa ausente/curta para `RECOMMENDED`/`DISCARDED` |
 
 - **Efeitos:** Eventos: `EtpAlternativeRecommended` (`etp.alternative_recommended`), quando `RECOMMENDED` confirmado — `etpId`, `alternativeId`, `previousAlternativeId?`. Auditoria: `etp.alternative_decide` (`DATA_CHANGE`) — `metadata`: `decision`, `replaceRecommended`, `previousAlternativeId?`.
-- **Notas:** —
+- **Notas:** o 409 `RECOMMENDED_ALTERNATIVE_EXISTS` traz `meta.recommendedAlternativeId`. Com `replaceRecommended: true`, a antiga volta a `UNDER_ANALYSIS` (a justificativa dela é preservada como histórico) antes da nova, na mesma transação. Recomendar grava `Etp.recommendedAlternativeId` (a versão do ETP sobe); tirar a recomendada da decisão limpa o campo. Repetir a mesma decisão com a mesma justificativa → `200` sem auditoria nem evento. Concorrência: o documento ETP fica travado na transação (decisões simultâneas se enfileiram) e o índice único parcial é a última barreira — a perdedora recebe o mesmo 409.
