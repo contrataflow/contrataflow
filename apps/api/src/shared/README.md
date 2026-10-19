@@ -10,7 +10,7 @@ como `#shared/<caminho>.js`; **nunca** importa `src/modules/**` (dependency-crui
 | `auth/`        | Portas `TokenVerifierPort`/`UserPort`/`MembershipPort`/`TenantStatusPort`, guards globais e `@WithoutTenant`/`@RequireMfa` (RN-FND-33)                                          |
 | `rate-limit/`  | `RateLimitGuard`, `@RateLimit(classe)` e a porta do armazenamento (Redis em `modules/platform`) (RN-FND-36)                                                                     |
 | `idempotency/` | `@Idempotent()`, interceptor e a porta do armazenamento (RN-FND-35)                                                                                                             |
-| `http/`        | Corpo JSON, envelope, paginação (`PageResult`/`CursorResult`) e `@RequireIfMatch` (RN-FND-37 · DEC-104)                                                                         |
+| `http/`        | Corpo JSON, upload multipart (rotas listadas — US-028), envelope, paginação (`PageResult`/`CursorResult`) e `@RequireIfMatch` (RN-FND-37 · DEC-104)                             |
 | `validation/`  | `ZodValidationPipe`, `@ZodBody`/`@ZodQuery`/`@ZodParams` e a tradução Zod → `errors[]` (RN-FND-32)                                                                              |
 | `openapi/`     | `@ApiOperation` — metadados lidos pelo `openapi:generate` (RN-FND-38)                                                                                                           |
 | `database/`    | `TenantTransaction` (Prisma 7 + `app.tenant_id` por transação), UUIDv7, decimais, concorrência otimista e travas (US-081 — `prisma/README.md`)                                  |
@@ -23,5 +23,6 @@ como `#shared/<caminho>.js`; **nunca** importa `src/modules/**` (dependency-crui
 | `cache/`       | `TenantCache`/`PlatformCache` (chave `cf:{env}:t:{tenantId}:…` do contexto) e a porta `CACHE_STORE` (Redis em `modules/platform`) — US-100                                      |
 | `storage/`     | `StorageKeyBuilder` (`tenants/{tenantId}/…`) e a guarda de tenant do `StorageService` (adaptador S3 na US-068) — US-100                                                         |
 | `jobs/`        | `JobMeta` (`buildJobMeta`) e a base `TenantJob` que restaura o contexto do job — US-100 (importável pelo worker)                                                                |
+| `spreadsheet/` | ZIP e XLSX de uma aba (escrita determinística, leitura defensiva) sobre `node:zlib` — importação de cotações (US-028) e mapa comparativo (US-031)                               |
 
 Guia de uso: [`docs/engineering/data-access.md`](../../../../docs/engineering/data-access.md).

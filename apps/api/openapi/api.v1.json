@@ -5077,6 +5077,253 @@
         },
         "additionalProperties": false
       },
+      "QuotationImportResult": {
+        "type": "object",
+        "properties": {
+          "appliedCount": {
+            "type": "integer"
+          },
+          "skippedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "appliedCount",
+          "skippedCount"
+        ]
+      },
+      "QuotationImportApplyRequest": {
+        "type": "object",
+        "properties": {
+          "previewToken": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "previewToken"
+        ],
+        "additionalProperties": false
+      },
+      "QuotationImportPreview": {
+        "type": "object",
+        "properties": {
+          "previewToken": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotationImportColumn"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotationImportRow"
+            }
+          },
+          "columnIssues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotationImportIssue"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/QuotationImportSummary"
+          }
+        },
+        "required": [
+          "previewToken",
+          "expiresAt",
+          "fileName",
+          "columns",
+          "rows",
+          "columnIssues",
+          "summary"
+        ]
+      },
+      "QuotationImportColumn": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "header": {
+            "type": "string"
+          },
+          "priceSourceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "column",
+          "header",
+          "priceSourceId"
+        ]
+      },
+      "QuotationImportRow": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer"
+          },
+          "sequence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "priceItemId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "valid": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "empty": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "integer"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotationImportIssue"
+            }
+          }
+        },
+        "required": [
+          "row",
+          "sequence",
+          "priceItemId",
+          "valid",
+          "errors",
+          "empty",
+          "warnings",
+          "issues"
+        ]
+      },
+      "QuotationImportIssue": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "ERROR",
+              "WARNING"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "REFERENCE_NOT_FOUND",
+              "INVALID_DECIMAL",
+              "DUPLICATE_IN_LIST",
+              "QUOTATION_EXCLUDED"
+            ]
+          },
+          "row": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "header": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priceSourceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "code",
+          "row",
+          "column",
+          "header",
+          "priceSourceId",
+          "message"
+        ]
+      },
+      "QuotationImportSummary": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "valid": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "empty": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "valid",
+          "errors",
+          "empty",
+          "warnings",
+          "rows"
+        ]
+      },
+      "QuotationImportUpload": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Planilha .xlsx (binário) gerada a partir do modelo PRS-24."
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
       "PriceItem": {
         "type": "object",
         "properties": {
@@ -35183,6 +35430,394 @@
                     "data",
                     "meta"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-research/{id}/import": {
+      "post": {
+        "operationId": "PRS-19",
+        "summary": "Aplicar importação de cotações",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.import"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotationImportApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aplica, numa transação só, as células válidas da prévia (`previewToken` do PRS-18): cria a cotação do item na fonte ou atualiza o preço da `VALID`; células vazias não alteram nada; cotação `EXCLUDED`, preço igual ao gravado e item/fonte removidos depois da prévia são ignorados (RN-PRICE-38/39). A edição manual feita entre a prévia e a aplicação é sobrescrita (o último valor aplicado vale). Token de outra pesquisa, de outra pessoa ou de outro tenant → 404 `NOT_FOUND`; vencido (15 min) ou já aplicado → 410 `IMPORT_PREVIEW_EXPIRED`. As fontes alteradas ganham versão nova; um único recálculo ao final emite `PriceResearchRecalculated` (`price_research.recalculated`) e grava `price_research.import` (`metadata`: `appliedCount`, `skippedCount`, nome do arquivo). `skippedCount` = células preenchidas não aplicadas (com erro ou aviso na prévia, iguais à gravada ou sem referência). Reenvio com a mesma `Idempotency-Key` = mesma resposta com `Idempotent-Replayed: true`, sem aplicar de novo. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Pesquisa inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/QuotationImportResult"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-research/{id}/import-preview": {
+      "post": {
+        "operationId": "PRS-18",
+        "summary": "Pré-visualizar importação de cotações por planilha",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-exempt": "Prévia somente leitura (RN-PRICE-37): não grava nada nem gera evento; a gravação e a auditoria price_research.import ficam no PRS-19.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotationImportUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lê a planilha (campo `file`) sem gravar nada e devolve o `previewToken` (válido por 15 minutos, consumido no PRS-19) com o resumo por linha/célula: válidas, com erro, vazias e com aviso. Planilha de uma aba: linha 1 = cabeçalho; colunas `Item` (sequência do item do processo), `Descrição do item` e `Unidade` (informativas), depois uma coluna por fonte com o cabeçalho = descrição da fonte (descrições repetidas ganham ` (n)`). Até 500 itens e 50 fontes. Colunas reconhecidas pelo cabeçalho em qualquer ordem; coluna sem fonte = aviso `REFERENCE_NOT_FOUND` (FA-02). Por linha: item inexistente → erro `REFERENCE_NOT_FOUND`; repetido → `DUPLICATE_IN_LIST`; por célula: preço ausente, ≤ 0 ou com mais casas que `unitPriceDecimals` → `INVALID_DECIMAL`; cotação `EXCLUDED` → aviso `QUOTATION_EXCLUDED` (RN-PRICE-39). Arquivo que não é `.xlsx` ou corrompido → 415 `FILE_TYPE_NOT_ALLOWED`; acima de `uploads.maxFileSizeMb` → 413 `FILE_TOO_LARGE`; sem a coluna `Item`, sem coluna de fonte, ou acima de 500 itens/50 fontes → 422 `VALIDATION_ERROR` em `file`. Sem preços na resposta. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Pesquisa inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/QuotationImportPreview"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-research/{id}/import-template": {
+      "get": {
+        "operationId": "PRS-24",
+        "summary": "Obter modelo de planilha para importação",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo `.xlsx` (`Content-Disposition: attachment`, `cotacoes-<código>.xlsx`) com a matriz itens × fontes já cadastradas e os preços atuais pré-preenchidos (células sem cotação em branco — RN-PRICE-35). Planilha de uma aba: linha 1 = cabeçalho; colunas `Item` (sequência do item do processo), `Descrição do item` e `Unidade` (informativas), depois uma coluna por fonte com o cabeçalho = descrição da fonte (descrições repetidas ganham ` (n)`). Até 500 itens e 50 fontes. Acima disso → 422 `EXPORT_TOO_LARGE`. Somente leitura. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Pesquisa inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

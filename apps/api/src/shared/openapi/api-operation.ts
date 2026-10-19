@@ -32,6 +32,11 @@ export interface ApiOperationSpec {
   readonly auditActions?: readonly AuditAction[];
   /** Rota mutável sem auditoria própria, com a justificativa (`x-audit-exempt`). */
   readonly auditExempt?: string;
+  /**
+   * Corpo que não é JSON (ex.: `multipart/form-data` do upload da planilha — PRS-18), documentado no
+   * lugar do schema do `@ZodBody`.
+   */
+  readonly requestBody?: { readonly contentType: string; readonly schema: z.ZodType };
 }
 
 /** Metadados de documentação lidos pelo `openapi:generate` (RN-FND-38). */

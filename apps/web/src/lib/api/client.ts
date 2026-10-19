@@ -93,7 +93,9 @@ export async function apiRequest<T>(
 ): Promise<ApiResult<T>> {
   const method = options.method ?? 'GET';
   const headers = new Headers({ Accept: 'application/json', 'X-CF-Request': '1' });
-  if (options.body !== undefined) headers.set('Content-Type', 'application/json');
+  // `FormData` (upload multipart — PRS-18): o navegador monta o `Content-Type` com o `boundary`.
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (options.body !== undefined && !isForm) headers.set('Content-Type', 'application/json');
   if (options.ifMatch) headers.set('If-Match', options.ifMatch);
   if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey);
   if (options.correlationId) headers.set(CORRELATION_HEADER, options.correlationId);
@@ -105,7 +107,8 @@ export async function apiRequest<T>(
       headers,
       credentials: 'same-origin',
       cache: 'no-store',
-      body: options.body === undefined ? null : JSON.stringify(options.body),
+      body:
+        options.body === undefined ? null : isForm ? options.body : JSON.stringify(options.body),
       signal: options.signal ?? null,
     });
   } catch (cause) {

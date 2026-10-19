@@ -22,6 +22,7 @@ import { isApiError } from '@/lib/api/api-error';
 import { formatCivilDate, formatDateTime } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
 
+import { ImportQuotationsDialog } from './import-quotations-dialog';
 import { priceResearchKeys } from './price-research.api';
 import { PriceSourceFormDialog } from './price-source-form-dialog';
 import { optionOfSource, sourceTypeOptions } from './price-source-model';
@@ -40,7 +41,8 @@ type FormTarget =
 
 /**
  * Aba "Fontes" da SCR-009 (US-026): `PriceSourceList` com "Nova fonte", edição e remoção (FA-01/02),
- * a grade de preços de cada fonte (`QuotationGrid`) e o anexo de evidência pelo fluxo genérico de
+ * a grade de preços de cada fonte (`QuotationGrid`), a importação por planilha com ao menos uma
+ * fonte (US-028 — `ImportQuotationsDialog`) e o anexo de evidência pelo fluxo genérico de
  * upload (US-068, alvo `PRICE_SOURCE` — só depois de a fonte existir, RN-PRICE-28). Sem
  * `meta.allowedActions` (permissão, etapa, documento não editável ou POL-09) tudo fica somente
  * leitura. Estados: skeleton, vazio, erro com "Tentar novamente".
@@ -76,6 +78,7 @@ export function PriceSourcesPanel({
   const [removing, setRemoving] = useState<PriceSourceDto | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   /** Fontes, itens (cotações válidas, alertas) e o cabeçalho (totais — US-029) depois de gravar. */
   const refresh = async () => {
@@ -136,13 +139,25 @@ export function PriceSourcesPanel({
         <p className="text-sm text-muted-foreground">{PRICE_RESEARCH_MESSAGES.instructions}</p>
       </div>
       {editable ? (
-        <Button
-          onClick={() => {
-            setForm({ mode: 'create' });
-          }}
-        >
-          {t('register')}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {sources.data !== undefined && sources.data.length > 0 ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setImporting(true);
+              }}
+            >
+              {t('import.open')}
+            </Button>
+          ) : null}
+          <Button
+            onClick={() => {
+              setForm({ mode: 'create' });
+            }}
+          >
+            {t('register')}
+          </Button>
+        </div>
       ) : null}
     </div>
   );
@@ -298,6 +313,26 @@ export function PriceSourcesPanel({
           }}
         />
       )}
+      <ImportQuotationsDialog
+        open={importing}
+        researchId={research.id}
+        onClose={() => {
+          setImporting(false);
+        }}
+        onImported={async (result) => {
+          setNotice(null);
+          toast({ title: t('import.toast', { count: result.appliedCount }), tone: 'success' });
+          await refresh();
+        }}
+        onBlocked={(code) => {
+          setNotice(
+            code === 'PERMISSION_DENIED'
+              ? PRICE_SOURCE_MESSAGES.permissionDenied
+              : PRICE_SOURCE_MESSAGES.notEditable,
+          );
+          void refresh();
+        }}
+      />
       <Dialog
         open={removing !== null}
         onOpenChange={(open) => {

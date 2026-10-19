@@ -60,6 +60,13 @@ import {
   QuotationRecalculator,
 } from './application/price-source.support.js';
 import {
+  ApplyQuotationImportCommand,
+  GetImportTemplateQuery,
+  ImportItemsReader,
+  PreviewQuotationImportCommand,
+} from './application/quotation-import.commands.js';
+import { QuotationImportStore } from './application/quotation-import.store.js';
+import {
   InMemoryPriceResearchRepository,
   InMemoryPriceResearchTransactions,
   PrismaPriceResearchRepository,
@@ -71,6 +78,7 @@ import {
 } from './infrastructure/price-source.repositories.js';
 import { PriceResearchController } from './presentation/price-research.controller.js';
 import { PriceSourceController } from './presentation/price-source.controller.js';
+import { QuotationImportController } from './presentation/quotation-import.controller.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { DocumentModule } from '../document/document.module.js';
 import { SupplierFacade } from '../supplier/application/supplier.facade.js';
@@ -88,7 +96,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * `catalog`; os parâmetros, do `tenancy`; os fornecedores, do `supplier`. O uso dos itens
  * (`ITEM_IN_USE`) é publicado ao `process` pela porta `ProcessItemUsageRegistry`; o dos fornecedores
  * (US-026: PRS-09..15), pela `SupplierFacade`; o alvo de anexo `PRICE_SOURCE`, pela
- * `AttachmentTargetRegistry`.
+ * `AttachmentTargetRegistry`. A importação por planilha (US-028: PRS-18/19/24) guarda o token da
+ * prévia no Redis pelo `TenantCache`.
  */
 @Module({
   imports: [
@@ -100,7 +109,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessItemCatalogModule,
     ProcessItemUsageModule,
   ],
-  controllers: [PriceResearchController, PriceSourceController],
+  controllers: [PriceResearchController, PriceSourceController, QuotationImportController],
   providers: [
     PriceResearchFacade,
     CreatePriceResearchCommand,
@@ -132,6 +141,11 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     QuotationRecalculator,
     PriceSourceAttachmentTargets,
     PriceSourceSupplierUsage,
+    GetImportTemplateQuery,
+    PreviewQuotationImportCommand,
+    ApplyQuotationImportCommand,
+    ImportItemsReader,
+    QuotationImportStore,
     PrismaPriceSourceRepository,
     PrismaPriceResearchRepository,
     PrismaPriceResearchTransactions,

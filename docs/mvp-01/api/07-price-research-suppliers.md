@@ -457,20 +457,24 @@ PriceSource {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório)
 - **Request:** multipart `.xlsx` (`file`, obrigatório)
-- **Response:** `200 { data: { previewToken: string, rows: [...], summary: { total: number, valid: number, errors: number } } }`
+- **Response:** `200 { data: { previewToken: string, expiresAt: string, fileName: string, columns: [...], rows: [...], columnIssues: [...], summary: { total: number, valid: number, errors: number, empty: number, warnings: number, rows: number } } }`
+```ts
+QuotationImportRow { row: number; sequence: number | null; priceItemId: string | null; valid: number; errors: number; empty: number; warnings: number; issues: QuotationImportIssue[] }
+QuotationImportIssue { severity: "ERROR" | "WARNING"; code: "REFERENCE_NOT_FOUND" | "INVALID_DECIMAL" | "DUPLICATE_IN_LIST" | "QUOTATION_EXCLUDED"; row: number | null; column: string | null; header: string | null; priceSourceId: string | null; message: string }
+```
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão |
 | 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
 | 413 | `FILE_TOO_LARGE` | Arquivo acima do limite |
-| 415 | `FILE_TYPE_NOT_ALLOWED` | Extensão/MIME fora de `.xlsx` |
-| 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`) | Linha/coluna com item ou fonte não encontrada |
-| 422 | `VALIDATION_ERROR` (`INVALID_DECIMAL`) | Preço inválido |
+| 415 | `FILE_TYPE_NOT_ALLOWED` | Extensão/MIME fora de `.xlsx` ou arquivo corrompido |
+| 422 | `VALIDATION_ERROR` (em `file`) | Sem a coluna `Item` (`REQUIRED`), sem coluna de fonte reconhecida (`REFERENCE_NOT_FOUND`), acima de 500 itens ou 50 fontes (`OUT_OF_RANGE`) |
 
 - **Efeitos:** — (não grava nada, não gera evento).
-- **Notas:** `previewToken` válido por 15 min; consumido em PRS-19.
+- **Notas:** `previewToken` válido por 15 min (Redis, chave do tenant), amarrado à pesquisa e ao usuário; consumido em PRS-19. Os erros por linha/célula vêm no `200` (`rows[].issues`, `columnIssues`) com os códigos de `errors[].code` (api.md §2.1.1): item não encontrado (`REFERENCE_NOT_FOUND`) ou repetido (`DUPLICATE_IN_LIST`) invalidam a linha; preço inválido (`INVALID_DECIMAL`) invalida a célula; coluna sem fonte (`REFERENCE_NOT_FOUND`, aviso — FA-02) e cotação `EXCLUDED` (`QUOTATION_EXCLUDED`, aviso — RN-PRICE-39) são ignoradas. Corpo `multipart/form-data` (campo `file`); sem preços na resposta.
 
 ### PRS-19 — Aplicar importação de cotações
 `POST /api/v1/price-research/{id}/import` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-028
@@ -487,13 +491,13 @@ PriceSource {
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão |
-| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant; token de outra pesquisa, de outro usuário ou de outro tenant |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
-| 410 | `IMPORT_PREVIEW_EXPIRED` | Token expirado (15 min) ou origem alterada desde a prévia |
+| 410 | `IMPORT_PREVIEW_EXPIRED` | Token expirado (15 min) ou já aplicado |
 | 422 | `VALIDATION_ERROR` / `IDEMPOTENCY_KEY_REUSED` | Corpo inválido / chave reutilizada |
 
-- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit. Auditoria: `price_research.import` (`DATA_CHANGE`) — `metadata`: `appliedCount`, `skippedCount`, nome do arquivo.
-- **Notas:** —
+- **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit (um único). Auditoria: `price_research.import` (`DATA_CHANGE`) — `metadata`: `appliedCount`, `skippedCount`, `createdCount`, `updatedCount`, `fileName`. As fontes com cotações alteradas ganham versão nova.
+- **Notas:** aplica sobre as cotações vigentes: a edição manual feita entre a prévia e a aplicação é sobrescrita (vale o último valor aplicado); cotação desconsiderada, preço igual ao gravado e item/fonte removidos depois da prévia são ignorados. `appliedCount` = cotações criadas ou com preço alterado; `skippedCount` = células preenchidas não aplicadas (erro/aviso na prévia, iguais à gravada ou sem referência).
 
 ### PRS-20 — Recalcular estatísticas da pesquisa
 `POST /api/v1/price-research/{id}/recalculate` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-029
@@ -582,7 +586,7 @@ PriceSource {
 | 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
 
 - **Efeitos:** —
-- **Notas:** planilha gerada serve de base para a importação via PRS-18/PRS-19; layout exato (colunas/abas) não detalhado na story além da matriz itens × fontes — a definir na implementação.
+- **Notas:** planilha de uma aba (`Cotações`), cabeçalho na linha 1 e congelado: `Item` (sequência do item do processo), `Descrição do item`, `Unidade` e uma coluna por fonte com o cabeçalho = descrição da fonte (descrições repetidas ganham ` (n)` pela ordem das fontes); preços atuais como número com as casas de `unitPriceDecimals`. Nome `cotacoes-<código da pesquisa>.xlsx`. Acima de 500 itens ou 50 fontes → 422 `EXPORT_TOO_LARGE`. Também 409 `DOCUMENT_NOT_EDITABLE` (POL-02).
 
 ### SUP-01 — Listar fornecedores
 `GET /api/v1/suppliers` · **Permissão:** `SUPPLIER_VIEW` · **Story:** US-025

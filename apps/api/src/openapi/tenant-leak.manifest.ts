@@ -238,6 +238,9 @@ const PRICE_SOURCE_ROUTE =
 const QUOTATION_EXCLUSION_ROUTE =
   'Desconsiderar e restaurar cotação (US-027): a suíte genérica não tem pesquisa nem cotação do tenant B. O isolamento (PRS-16/17 com cotação de B → 404 NOT_FOUND sem alterar nada nem revelar a cotação; RLS de quotations e CHECK de motivo e justificativa da exclusão; estado, recálculo, auditoria, timeline e eventos PENDING na mesma transação, com a justificativa fora da auditoria, do outbox e da timeline) é coberto em test/tenant-leak/quotation-exclusion.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/quotation-exclusion.routes.spec.ts.';
 
+const QUOTATION_IMPORT_ROUTE =
+  'Importação de cotações por planilha (US-028): a suíte genérica não tem pesquisa nem fonte do tenant B e o corpo do PRS-18 é multipart. O isolamento (PRS-18/19/24 com pesquisa de B → 404 NOT_FOUND sem ler nem gravar nada; o token da prévia fica no Redis sob a chave do tenant do contexto — o de outro tenant não existe — e é amarrado à pesquisa e ao usuário: token de outra pesquisa → 404 sem alterar cotações; aplicação atômica com RLS de quotations/price_sources, um único PriceResearchRecalculated PENDING e a auditoria price_research.import na mesma transação, falha induzida não deixa nada) é coberto em test/tenant-leak/quotation-import.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/quotation-import.routes.spec.ts.';
+
 const ETP_ROUTE =
   'ETP (US-019): a suíte genérica não tem processo, DFD nem ETP do tenant B. O isolamento (ETP-01/02 com processo de B → 404 NOT_FOUND sem criar nem ler nada; o DFD de origem só é lido no tenant do processo; RLS, FKs compostas — documento, processo, versão do DFD — e checks de etps) é coberto em test/tenant-leak/etps.spec.ts, com PostgreSQL real, e em src/modules/etp/presentation/etp.routes.spec.ts.';
 
@@ -450,6 +453,9 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRS-15': { kind: 'exempt', reason: PRICE_SOURCE_ROUTE },
   'PRS-16': { kind: 'exempt', reason: QUOTATION_EXCLUSION_ROUTE },
   'PRS-17': { kind: 'exempt', reason: QUOTATION_EXCLUSION_ROUTE },
+  'PRS-18': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
+  'PRS-19': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
+  'PRS-24': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-03': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

@@ -306,6 +306,43 @@
         "NON_COMPLIANT": "não conforme",
         "OTHER": "outro motivo"
       }
+    },
+    "import": {
+      "open": "Importar planilha",
+      "title": "Importar cotações por planilha",
+      "description": "Baixe o modelo com os itens e as fontes desta pesquisa, preencha os preços e envie a planilha. Antes de gravar, você revisa a prévia com os erros por linha e coluna.",
+      "downloadTemplate": "Baixar modelo",
+      "downloadingTemplate": "Gerando o modelo…",
+      "file": "Planilha (.xlsx)",
+      "fileHint": "Use o modelo baixado: os itens são identificados pela coluna \"Item\" e as fontes, pelo cabeçalho de cada coluna. Células vazias não alteram os preços.",
+      "send": "Enviar planilha",
+      "sending": "Lendo a planilha…",
+      "cancel": "Cancelar",
+      "back": "Enviar outra planilha",
+      "apply": "Aplicar importação",
+      "applying": "Aplicando a importação…",
+      "retry": "Tentar novamente",
+      "fileName": "Arquivo: {name}",
+      "summaryTitle": "Prévia da importação",
+      "summary": "{valid, plural, =0 {Nenhuma célula válida} one {# célula válida} other {# células válidas}} para aplicar, {errors, plural, =0 {nenhuma com erro} one {# com erro} other {# com erro}}, {empty, plural, =0 {nenhuma vazia} one {# vazia} other {# vazias}} e {warnings, plural, =0 {nenhum aviso} one {# aviso} other {# avisos}}.",
+      "counts": {
+        "valid": "Válidas",
+        "errors": "Com erro",
+        "empty": "Vazias",
+        "warnings": "Com aviso"
+      },
+      "issuesLabel": "Problemas encontrados na planilha",
+      "severity": {
+        "ERROR": "Erro",
+        "WARNING": "Aviso"
+      },
+      "noIssues": "Nenhum problema encontrado na planilha.",
+      "toast": "Importação concluída: {count, plural, =0 {nenhum preço atualizado} one {# preço atualizado} other {# preços atualizados}}",
+      "errors": {
+        "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+        "unexpected": "Ocorreu um erro inesperado.",
+        "template": "Não foi possível gerar o modelo agora. Tente novamente."
+      }
     }
   },
   "document": {

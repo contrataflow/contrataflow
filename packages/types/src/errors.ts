@@ -124,6 +124,8 @@ export const ERROR_CODES = [
   'QUOTATION_REQUIRED_FIELDS',
   // US-021: recomendar com outra alternativa já recomendada (api/06-etp.md ETP-09 · RN-ETP-20).
   'RECOMMENDED_ALTERNATIVE_EXISTS',
+  // US-028: token da prévia de importação de cotações vencido (api/07 PRS-19 · api.md §2.2).
+  'IMPORT_PREVIEW_EXPIRED',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

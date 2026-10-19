@@ -17,6 +17,8 @@ const CREATE_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100024';
 const EXISTING_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100025';
 /** Processo 0026/2026: sem itens (FA-02). */
 const EMPTY_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100026';
+/** Processo 0029/2026: pesquisa "PP 0005/2026" com a fonte "Painel de Preços" (US-028). */
+const IMPORT_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100029';
 const RESEARCH_PATH = /\/processos\/[0-9a-f-]{36}\/pesquisa-precos\/[0-9a-f-]{36}$/;
 
 async function openProcess(page: Page, path: string, title: string): Promise<void> {
@@ -255,4 +257,39 @@ test('cotação: desconsiderar com justificativa, ver a célula esmaecida e rest
   await expect(page.getByText('Preço restaurado')).toBeVisible();
   await expect(grid.getByText('Desconsiderada')).toHaveCount(0);
   await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
+});
+
+test('importar planilha: baixar o modelo, revisar a prévia com erro, corrigir e aplicar', async ({
+  page,
+}) => {
+  await openProcess(page, IMPORT_PROCESS_PATH, 'Aquisição de material de pintura para as escolas');
+  await page.getByRole('link', { name: 'Abrir pesquisa PP 0005/2026' }).click();
+  await expect(page).toHaveURL(RESEARCH_PATH);
+  await page.getByRole('tab', { name: 'Fontes' }).click();
+
+  await page.getByRole('button', { name: 'Importar planilha' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Importar cotações por planilha' });
+  const download = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Baixar modelo' }).click();
+  expect((await download).suggestedFilename()).toBe('cotacoes-pp-0005-2026.xlsx');
+
+  const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  await dialog
+    .getByLabel(/Planilha \(\.xlsx\)/)
+    .setInputFiles({ name: 'cotacoes-com-erro.xlsx', mimeType: xlsx, buffer: Buffer.from('PK') });
+  await dialog.getByRole('button', { name: 'Enviar planilha' }).click();
+  const issues = dialog.getByRole('region', { name: 'Problemas encontrados na planilha' });
+  await expect(issues.getByText(/Linha 2, fonte '.+': preço inválido\./)).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'diálogo Importar planilha com a prévia');
+
+  // Corrige a planilha e envia de novo: sem erros, aplica.
+  await dialog.getByRole('button', { name: 'Enviar outra planilha' }).click();
+  await dialog
+    .getByLabel(/Planilha \(\.xlsx\)/)
+    .setInputFiles({ name: 'cotacoes.xlsx', mimeType: xlsx, buffer: Buffer.from('PK') });
+  await dialog.getByRole('button', { name: 'Enviar planilha' }).click();
+  await expect(dialog.getByText('Nenhum problema encontrado na planilha.')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Aplicar importação' }).click();
+  await expect(page.getByText('Importação concluída: 3 preços atualizados')).toBeVisible();
+  await expect(dialog).toBeHidden();
 });

@@ -3,6 +3,7 @@ import type { NestMiddleware } from '@nestjs/common';
 
 import { headerValue } from './http-types.js';
 import type { HttpRequest, HttpResponse } from './http-types.js';
+import { acceptsMultipart } from './multipart.js';
 import { ApiError } from '../errors/api-error.js';
 
 /** Limite padrão do corpo (DEC-056 · architecture.md §6.3); seções de documento: 1 MB na rota. */
@@ -19,6 +20,11 @@ const JSON_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
 @Injectable()
 export class JsonBodyMiddleware implements NestMiddleware<HttpRequest, HttpResponse> {
   async use(request: HttpRequest, _response: HttpResponse, next: () => void): Promise<void> {
+    // Upload multipart nas rotas que o aceitam (US-028): o controller lê o arquivo.
+    if (acceptsMultipart(request)) {
+      next();
+      return;
+    }
     request.body = await readJsonBody(request);
     next();
   }

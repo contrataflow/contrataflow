@@ -1778,6 +1778,8 @@ const PRICE_FIXTURES = [
   { n: 24, code: '0024/2026', title: 'Aquisição de cimento e agregados para vias' },
   { n: 25, code: '0025/2026', title: 'Aquisição de agregados para a obra da escola' },
   { n: 26, code: '0026/2026', title: 'Contratação de serviços de jardinagem' },
+  // US-028: pesquisa só da jornada "Importar planilha" (não disputa estado com as outras).
+  { n: 29, code: '0029/2026', title: 'Aquisição de material de pintura para as escolas' },
 ].map((fixture) => ({
   ...fixture,
   status: 'IN_PROGRESS',
@@ -1927,6 +1929,40 @@ const priceMeta = () => ({
   });
 }
 
+// A pesquisa do processo 0029/2026 (US-028), com a fonte "Painel de Preços" já cadastrada: a
+// importação por planilha não cria fontes.
+{
+  const state = priceStates.get(listProcessId(29));
+  state.research = buildPriceResearch(state, {
+    id: '0192a000-0000-7000-8000-0000000e0029',
+    code: 'PP 0005/2026',
+    title: 'Pesquisa de preços — 0029/2026',
+    referenceDate: '2026-10-06',
+    quantities: new Map(state.items.map((item) => [item.id, '10.0000'])),
+  });
+  state.research.sources = [
+    {
+      id: '0192a000-0000-7000-8000-0000000e0291',
+      priceResearchId: state.research.header.id,
+      sourceTypeId: '0192a000-0000-7000-8000-00000000c300',
+      description: 'Painel de Preços',
+      supplierId: null,
+      quoteDate: null,
+      accessedAt: '2026-09-12T14:32:00.000Z',
+      url: 'https://paineldeprecos.planejamento.gov.br',
+      referenceOrganization: null,
+      referenceDocument: null,
+      supplierChoiceJustification: null,
+      notes: null,
+      sortOrder: 0,
+      createdAt: '2026-10-06T15:00:00.000Z',
+      updatedAt: '2026-10-06T15:00:00.000Z',
+      version: 1,
+    },
+  ];
+  state.research.quotations = [];
+}
+
 // ETP (US-019 · ETP-01/02 + DOC-01/DOC-03): dois processos dedicados, fora da lista (SCR-004) —
 // 0027/2026 com o DFD 0005/2026 finalizado (o cartão "Importar dados do DFD") e 0028/2026 que já tem
 // o ETP 0002/2026 (FA-03). A importação (seções, itens, PCA), a atomicidade, POL-02 e o isolamento
@@ -2050,8 +2086,162 @@ const unitPriceOf = (value) => {
   return `${integer}.${fraction.padEnd(4, '0')}`;
 };
 
+/** Corpo bruto (bytes) — o upload multipart da planilha (PRS-18). */
+function readRawBody(request) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    request.on('data', (chunk) => chunks.push(chunk));
+    request.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
+  });
+}
+
+/**
+ * Importação por planilha (US-028 · PRS-18/19/24): o modelo é um arquivo qualquer; a prévia não lê
+ * o XLSX — um arquivo cujo nome contém "erro" traz um preço inválido no item 1 da primeira fonte, os
+ * demais preenchem todas as células (10,00 + linha). Leitura da planilha, token de 15 minutos,
+ * atomicidade e as 8 categorias são cobertos nos testes da API.
+ */
+async function handleQuotationImport(request, response, url, correlationId) {
+  const match =
+    /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/(import-template|import-preview|import)$/.exec(
+      url.pathname,
+    );
+  if (!match) return false;
+  const research = priceResearchOf(match[1]);
+  if (!research) {
+    problem(response, 404, 'NOT_FOUND', String(correlationId));
+    return true;
+  }
+  research.sources ??= [];
+  research.quotations ??= [];
+  research.importPreviews ??= new Map();
+  if (match[2] === 'import-template' && request.method === 'GET') {
+    response.writeHead(200, {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="cotacoes-${research.header.code.replaceAll(/[^0-9A-Za-z]+/g, '-').toLowerCase()}.xlsx"`,
+    });
+    response.end(Buffer.from('PK'));
+    return true;
+  }
+  if (match[2] === 'import-preview' && request.method === 'POST') {
+    const raw = (await readRawBody(request)).toString('latin1');
+    const fileName = /filename="([^"]+)"/.exec(raw)?.[1] ?? 'planilha.xlsx';
+    const withError = fileName.includes('erro');
+    const cells = [];
+    const rows = research.items.map((item, index) => {
+      const issues = [];
+      let valid = 0;
+      research.sources.forEach((source, column) => {
+        if (withError && index === 0 && column === 0) {
+          issues.push({
+            severity: 'ERROR',
+            code: 'INVALID_DECIMAL',
+            row: index + 2,
+            column: String.fromCharCode(68 + column),
+            header: source.description,
+            priceSourceId: source.id,
+            message: `Linha ${String(index + 2)}, fonte '${source.description}': preço inválido.`,
+          });
+          return;
+        }
+        valid += 1;
+        cells.push({
+          priceItemId: item.id,
+          priceSourceId: source.id,
+          unitPrice: `${String(10 + index)}.00`,
+        });
+      });
+      return {
+        row: index + 2,
+        sequence: item.sequence,
+        priceItemId: issues.length > 0 ? null : item.id,
+        valid,
+        errors: issues.length,
+        empty: 0,
+        warnings: 0,
+        issues,
+      };
+    });
+    const token = mockUuid();
+    research.importPreviews.set(token, cells);
+    const errors = rows.reduce((total, row) => total + row.errors, 0);
+    send(response, 200, {
+      data: {
+        previewToken: token,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        fileName,
+        columns: research.sources.map((source, column) => ({
+          column: String.fromCharCode(68 + column),
+          header: source.description,
+          priceSourceId: source.id,
+        })),
+        rows,
+        columnIssues: [],
+        summary: {
+          total: rows.length * research.sources.length,
+          valid: cells.length,
+          errors,
+          empty: 0,
+          warnings: 0,
+          rows: rows.length,
+        },
+      },
+    });
+    return true;
+  }
+  if (match[2] === 'import' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const cells = research.importPreviews.get(body.previewToken);
+    if (!cells) {
+      problem(response, 410, 'IMPORT_PREVIEW_EXPIRED', String(correlationId));
+      return true;
+    }
+    research.importPreviews.delete(body.previewToken);
+    const now = new Date().toISOString();
+    for (const cell of cells) {
+      const current = research.quotations.find(
+        (quotation) =>
+          quotation.priceSourceId === cell.priceSourceId &&
+          quotation.priceItemId === cell.priceItemId,
+      );
+      if (current) {
+        Object.assign(current, {
+          unitPrice: unitPriceOf(cell.unitPrice),
+          updatedAt: now,
+          version: current.version + 1,
+        });
+        continue;
+      }
+      research.quotations.push({
+        id: mockUuid(),
+        priceResearchId: research.header.id,
+        priceItemId: cell.priceItemId,
+        priceSourceId: cell.priceSourceId,
+        unitPrice: unitPriceOf(cell.unitPrice),
+        unitPriceMasked: false,
+        brandModel: null,
+        status: 'VALID',
+        exclusionReason: null,
+        exclusionJustification: null,
+        outlierFlag: 'NONE',
+        isExpired: false,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      });
+    }
+    for (const source of research.sources) source.version += 1;
+    send(response, 200, { data: { appliedCount: cells.length, skippedCount: 0 } });
+    return true;
+  }
+  return false;
+}
+
 /** PRS-09..15 sobre a pesquisa simulada; `true` quando respondeu. */
 async function handlePriceSources(request, response, url, correlationId) {
+  if (await handleQuotationImport(request, response, url, correlationId)) return true;
   const list = /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/sources$/.exec(url.pathname);
   if (list) {
     const research = priceResearchOf(list[1]);

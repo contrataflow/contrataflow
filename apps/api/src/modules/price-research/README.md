@@ -89,3 +89,34 @@ Pesquisa de preços: itens, fontes, cotações e estatística (DEC-040, nível 4
 - **Sem migração**: colunas e o CHECK `quotations_excluded_reason` vêm da US-026.
 - **Testes**: `domain/price-source.spec.ts`, `presentation/quotation-exclusion.routes.spec.ts`
   (8 categorias + FA-01..03) e `test/tenant-leak/quotation-exclusion.spec.ts` (PostgreSQL).
+
+## US-028 — Importar cotações por planilha (PRS-18/19/24)
+
+- **Rotas** (`presentation/quotation-import.controller.ts`): PRS-24 `GET /price-research/{id}/import-template`
+  (modelo `.xlsx`), PRS-18 `POST …/import-preview` (corpo `multipart/form-data`, campo `file`) e PRS-19
+  `POST …/import` (`{ previewToken }`, Idem.). Contratos em
+  `packages/validation/src/price-research/quotation-import.ts` (limites, cabeçalhos e mensagens — os
+  mesmos no web).
+- **Planilha** (`#shared/spreadsheet/`): ZIP e XLSX próprios sobre `node:zlib` (sem dependência nova):
+  escrita determinística de uma aba e leitura defensiva (limite de entradas e de bytes descompactados,
+  varredura linear do XML — sem retrocesso de regex sobre o conteúdo do usuário; textos compartilhados,
+  texto rico, fórmulas com resultado). É a camada que o mapa comparativo (US-031, PRS-22) deve reaproveitar.
+- **Upload**: o `JsonBodyMiddleware` deixa o corpo multipart sem ler só nas rotas de `MULTIPART_ROUTES`
+  (`#shared/http/multipart.ts`); o controller lê o arquivo depois da guarda, com o limite
+  `uploads.maxFileSizeMb` do tenant (413), e drena o corpo quando a requisição é recusada antes.
+- **Domínio** (`domain/quotation-import.ts`): cabeçalhos normalizados (acento, caixa, espaços); a coluna
+  do item é `Item` (ou `Sequência`) e as das fontes, pela descrição (FA-02 — ordem livre; coluna sem
+  fonte = aviso). Preço: número arredondado a 15 dígitos significativos (ruído de ponto flutuante do
+  Excel) ou texto com `R$`/milhar/vírgula decimal; depois a mesma validação da grade (`unitPriceIssue`).
+  `planImportApplication` aplica sobre as cotações vigentes (a pesquisa está travada).
+- **Token** (`application/quotation-import.store.ts`): `TenantCache` módulo `price-import`, prévia com as
+  células válidas (TTL 15 min) + marcador `issued:` (24 h) que distingue vencido (410) de desconhecido
+  (404); amarrado à pesquisa e ao usuário; consumido depois da aplicação (reuso com outra chave = 410;
+  com a mesma chave a idempotência repete a resposta).
+- **Aplicação** (`ApplyQuotationImportCommand`): guarda (`PriceSourceGate.writable`) → token → cria/atualiza
+  as cotações em lote → versão nova das fontes tocadas → `price_research.import` → um único recálculo
+  (`PriceResearchRecalculated`). Sem auditoria por cotação (seria uma linha por célula).
+- **Testes**: `domain/quotation-import.spec.ts`, `application/quotation-import.store.spec.ts` (TTL de 15
+  min), `#shared/spreadsheet/xlsx.spec.ts`, `#shared/http/multipart.spec.ts`,
+  `presentation/quotation-import.routes.spec.ts` (8 categorias + FA-01..06) e
+  `test/tenant-leak/quotation-import.spec.ts` (PostgreSQL).

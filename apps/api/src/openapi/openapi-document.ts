@@ -175,9 +175,20 @@ export function buildOpenApiDocument(
       ...(operation.spec.auditExempt ? { 'x-audit-exempt': operation.spec.auditExempt } : {}),
       request: {
         headers: z.object(headers),
-        ...(body
-          ? { body: { required: true, content: { 'application/json': { schema: body } } } }
-          : {}),
+        ...(operation.spec.requestBody
+          ? {
+              body: {
+                required: true,
+                content: {
+                  [operation.spec.requestBody.contentType]: {
+                    schema: operation.spec.requestBody.schema,
+                  },
+                },
+              },
+            }
+          : body
+            ? { body: { required: true, content: { 'application/json': { schema: body } } } }
+            : {}),
         ...(query ? { query: query as z.ZodObject } : {}),
         ...(params ? { params: params as z.ZodObject } : {}),
       },

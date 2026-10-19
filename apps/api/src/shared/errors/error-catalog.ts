@@ -490,6 +490,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Campos obrigatórios da fonte',
     detail: 'Informe os campos exigidos por este tipo de fonte.',
   },
+  // US-028: prévia da importação de cotações vencida (api/07 PRS-19 · RN-PRICE-38).
+  IMPORT_PREVIEW_EXPIRED: {
+    status: 410,
+    title: 'Prévia expirada',
+    detail: 'A prévia expirou. Envie a planilha novamente.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,
