@@ -7,15 +7,18 @@
 SET ROLE cf_owner;
 
 -- 1. Riscos.
+-- `NOT VALID` nas FKs: `risks` e `risk_treatments` já têm RLS forçada (a validação das linhas
+-- existentes exigiria o contexto de tenant) e as colunas nascem nulas; toda escrita nova é
+-- conferida.
 ALTER TABLE "risks"
   ADD COLUMN "ai_generation_id" UUID,
   ADD COLUMN "ai_reviewed_at" TIMESTAMPTZ(6),
   ADD COLUMN "ai_reviewed_by_id" UUID,
   ADD CONSTRAINT "risks_ai_generation_fkey"
     FOREIGN KEY ("tenant_id", "ai_generation_id") REFERENCES "ai_generations"("tenant_id", "id")
-    ON DELETE RESTRICT,
+    ON DELETE RESTRICT NOT VALID,
   ADD CONSTRAINT "risks_ai_reviewed_by_fkey"
-    FOREIGN KEY ("ai_reviewed_by_id") REFERENCES "users"("id") ON DELETE RESTRICT,
+    FOREIGN KEY ("ai_reviewed_by_id") REFERENCES "users"("id") ON DELETE RESTRICT NOT VALID,
   ADD CONSTRAINT "risks_ai_review_pair"
     CHECK (("ai_reviewed_at" IS NULL) = ("ai_reviewed_by_id" IS NULL)),
   ADD CONSTRAINT "risks_ai_review_needs_generation"
@@ -31,7 +34,7 @@ ALTER TABLE "risk_treatments"
   ADD COLUMN "ai_generation_id" UUID,
   ADD CONSTRAINT "risk_treatments_ai_generation_fkey"
     FOREIGN KEY ("tenant_id", "ai_generation_id") REFERENCES "ai_generations"("tenant_id", "id")
-    ON DELETE RESTRICT;
+    ON DELETE RESTRICT NOT VALID;
 
 -- 3. A origem da IA é imutável (o risco não "deixa de ter sido gerado por IA").
 CREATE OR REPLACE FUNCTION cf_risks_immutable_columns() RETURNS trigger

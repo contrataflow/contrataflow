@@ -95,10 +95,12 @@ CREATE TRIGGER "etp_alternatives_immutable_columns" BEFORE UPDATE ON "etp_altern
   FOR EACH ROW EXECUTE FUNCTION cf_etp_alternatives_immutable_columns();
 
 -- 4. A recomendada do cabeçalho do ETP (RN-ETP-21) aponta para uma alternativa do tenant.
+-- `NOT VALID`: `etps` já tem RLS forçada (a validação das linhas existentes exigiria o contexto
+-- de tenant); toda escrita nova é conferida.
 ALTER TABLE "etps"
   ADD CONSTRAINT "etps_recommended_alternative_fkey"
   FOREIGN KEY ("tenant_id", "recommended_alternative_id")
-  REFERENCES "etp_alternatives"("tenant_id", "id") ON DELETE RESTRICT;
+  REFERENCES "etp_alternatives"("tenant_id", "id") ON DELETE RESTRICT NOT VALID;
 
 -- 5. RLS (DEC-082 · RN-TEN-25), depois das FKs.
 SELECT cf_apply_tenant_rls('etp_alternatives');

@@ -44,9 +44,6 @@ CREATE TABLE "comments" (
     CONSTRAINT "comments_document_fkey"
       FOREIGN KEY ("tenant_id", "document_id") REFERENCES "documents"("tenant_id", "id")
       ON DELETE RESTRICT,
-    CONSTRAINT "comments_parent_fkey"
-      FOREIGN KEY ("tenant_id", "parent_id") REFERENCES "comments"("tenant_id", "id")
-      ON DELETE RESTRICT,
     CONSTRAINT "comments_author_fkey"
       FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT,
     CONSTRAINT "comments_resolved_by_fkey"
@@ -84,6 +81,12 @@ CREATE TABLE "comments" (
 
 -- Alvo das FKs compostas (DEC-081): respostas e menções (US-072) referenciam o comentário.
 CREATE UNIQUE INDEX "comments_tenant_id_id_key" ON "comments"("tenant_id", "id");
+-- A FK das respostas referencia a própria tabela: entra depois do índice único que ela exige
+-- (e antes da RLS, para a validação não depender do contexto de tenant).
+ALTER TABLE "comments"
+  ADD CONSTRAINT "comments_parent_fkey"
+  FOREIGN KEY ("tenant_id", "parent_id") REFERENCES "comments"("tenant_id", "id")
+  ON DELETE RESTRICT;
 CREATE INDEX "comments_process_created_idx"
   ON "comments"("tenant_id", "process_id", "created_at" DESC);
 CREATE INDEX "comments_document_section_idx"
