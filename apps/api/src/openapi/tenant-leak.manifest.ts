@@ -133,6 +133,9 @@ const PROCESS_ACTIONS_ROUTE =
 const PROCESS_PANEL_ROUTE =
   'Painel situacional do processo (US-004): a suíte genérica não tem processo do tenant B. O isolamento (PRC-04/PRC-07/PRC-10 com id de processo de B → 404 PROCESS_NOT_FOUND com o corpo do inexistente, sem access.denied, e a leitura REPEATABLE READ READ ONLY sob a RLS do tenant sem gravar auditoria nem outbox) é coberto em test/tenant-leak/process-panel.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-panel.routes.spec.ts.';
 
+const TASK_INBOX_ROUTE =
+  'Caixa de tarefas (US-056 · TSK-01/TSK-02): sem id no caminho nem corpo; a suíte genérica não tem processos, aprovações nem participações do tenant B. O isolamento (processo de outro tenant atribuído a um usuário com o mesmo e-mail nunca aparece em nenhuma visão nem nos contadores, RLS das views security_invoker v_inbox_* com app.tenant_id diferente retornando vazio) é coberto em test/tenant-leak/task-inbox.spec.ts, com PostgreSQL real, e em src/modules/inbox/presentation/tasks.routes.spec.ts.';
+
 const PROCESS_LIST_ROUTE =
   'Lista de processos (US-002): a suíte genérica não tem processos do tenant B. O isolamento (filtros com unidade/órgão/ids de B → 200 com data vazio sem revelar nada, RLS com app.tenant_id diferente retornando vazio e X-Tenant-Id sem vínculo → 403) é coberto em test/tenant-leak/process-list.spec.ts, com PostgreSQL real.';
 
@@ -356,6 +359,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-21': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
   'WF-22': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
   'WF-23': { kind: 'exempt', reason: WORKFLOW_RULE_TEST_ROUTE },
+  'TSK-01': { kind: 'exempt', reason: TASK_INBOX_ROUTE },
+  'TSK-02': { kind: 'exempt', reason: TASK_INBOX_ROUTE },
   'PRC-01': { kind: 'exempt', reason: PROCESS_LIST_ROUTE },
   'PRC-02': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-03': { kind: 'exempt', reason: PROCESS_ROUTE },

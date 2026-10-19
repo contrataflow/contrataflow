@@ -1,5 +1,5 @@
 import { localDateOf } from '@contrataflow/types';
-import type { ProcessListItemDto } from '@contrataflow/validation';
+import type { ProcessDeadlineDto, ProcessListItemDto } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -29,6 +29,14 @@ const WARN_SETTING = 'deadlines.warnBeforeBusinessDays';
 const SECRETARIAT_LABEL_SETTING = 'labels.secretariat';
 const DEPARTMENT_LABEL_SETTING = 'labels.department';
 
+/** O contexto do DTO `deadline`: hoje e fuso do tenant e o aviso de "a vencer". */
+export interface StageDeadlineContext {
+  /** Hoje no fuso do tenant (`YYYY-MM-DD`). */
+  readonly today: string;
+  readonly timezone: string;
+  readonly warnBeforeBusinessDays: number;
+}
+
 export interface ProcessListContext {
   readonly now: Date;
   /** Hoje no fuso do tenant (`YYYY-MM-DD`). */
@@ -54,6 +62,19 @@ export class ProcessListPresenter {
     private readonly catalog: CatalogFacade,
     private readonly identity: IdentityFacade,
   ) {}
+
+  /** Só o que o DTO `deadline` precisa (US-056: linhas da caixa de tarefas). */
+  async loadDeadlineContext(tx: TenantTx): Promise<StageDeadlineContext> {
+    const settings = await this.tenancy.settingValues(tx, [WARN_SETTING]);
+    const timezone = await this.calendar.timezone(tx);
+    const now = this.clock();
+    const warn = settings.get(WARN_SETTING);
+    return {
+      today: localDateOf(now, timezone),
+      timezone,
+      warnBeforeBusinessDays: typeof warn === 'number' ? warn : 2,
+    };
+  }
 
   async loadContext(tx: TenantTx): Promise<ProcessListContext> {
     const settings = await this.tenancy.settingValues(tx, [
@@ -122,7 +143,6 @@ export class ProcessListPresenter {
       rows.map((row) => row.id),
     );
     const stageById = new Map(context.stages.map((stage) => [stage.id, stage]));
-    const localDate = (instant: Date) => localDateOf(instant, context.timezone);
     const inputOf = (row: ProcessListRow): StageDeadlineInput => ({
       dueAt: row.currentStageDueAt,
       slaType: row.slaType,
@@ -130,18 +150,7 @@ export class ProcessListPresenter {
       isOverdue: isProcessOverdue(row, context.now),
       overdueSince: row.overdueSince,
     });
-    const inputs = rows.map(inputOf);
-
-    const range = deadlineDateRange(inputs, { today: context.today, localDate });
-    const businessDays = new Set(
-      await this.calendar.listBusinessDaysBetween(tx, range.from, range.to),
-    );
-    const calendar = {
-      today: context.today,
-      localDate,
-      isBusinessDay: (date: string) => businessDays.has(date),
-      warnBeforeBusinessDays: context.warnBeforeBusinessDays,
-    };
+    const deadlineOf = await this.deadlineCalculator(tx, rows.map(inputOf), context);
     const unit = (id: string) => ({ id, name: departmentNames.get(id) ?? id });
     const catalogRef = (id: string) => {
       const item = catalog.get(id);
@@ -175,7 +184,7 @@ export class ProcessListPresenter {
                 id: row.currentResponsibleId,
                 name: userNames.get(row.currentResponsibleId) ?? row.currentResponsibleId,
               },
-        deadline: stageDeadline(inputOf(row), calendar),
+        deadline: deadlineOf(inputOf(row)),
         contractingType: catalogRef(row.contractingTypeId),
         modality: row.modalityId === null ? null : catalogRef(row.modalityId),
         origin: catalogRef(row.originId),
@@ -195,5 +204,28 @@ export class ProcessListPresenter {
         updatedAt: row.updatedAt.toISOString(),
       };
     });
+  }
+
+  /**
+   * O cálculo do DTO `deadline` para as entradas do lote, com uma única leitura dos dias úteis do
+   * intervalo que elas cobrem.
+   */
+  async deadlineCalculator(
+    tx: TenantTx,
+    inputs: readonly StageDeadlineInput[],
+    context: StageDeadlineContext,
+  ): Promise<(input: StageDeadlineInput) => ProcessDeadlineDto> {
+    const localDate = (instant: Date) => localDateOf(instant, context.timezone);
+    const range = deadlineDateRange(inputs, { today: context.today, localDate });
+    const businessDays = new Set(
+      await this.calendar.listBusinessDaysBetween(tx, range.from, range.to),
+    );
+    const calendar = {
+      today: context.today,
+      localDate,
+      isBusinessDay: (date: string) => businessDays.has(date),
+      warnBeforeBusinessDays: context.warnBeforeBusinessDays,
+    };
+    return (input) => stageDeadline(input, calendar);
   }
 }

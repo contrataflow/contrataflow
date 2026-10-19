@@ -51,6 +51,31 @@ describe('OrganizationFacade (US-102)', () => {
     await expect(inTenant(A, () => facade.departmentsHeadedBy(tx, ORG))).resolves.toEqual([]);
   });
 
+  it('departmentLeadership: titular e substituto separados, só do tenant (US-056 · POL-03)', async () => {
+    const DEPUTY = '0192a000-0000-7000-8000-0000000000a5';
+    const OTHER = '0192a000-0000-7000-8000-0000000200a2';
+    repository.seed({
+      ...createDepartment(
+        { organizationId: ORG, type: 'SECTOR', name: 'Setor de Manutenção', headUserId: DEPUTY },
+        { id: OTHER, tenantId: A, parent: null, now: new Date(), userId: null },
+      ),
+      deputyUserId: HEAD,
+      isActive: false,
+    });
+    await expect(inTenant(A, () => facade.departmentLeadership(tx, HEAD))).resolves.toEqual({
+      headOf: [UNIT],
+      deputyOf: [OTHER],
+    });
+    await expect(inTenant(A, () => facade.departmentLeadership(tx, DEPUTY))).resolves.toEqual({
+      headOf: [OTHER],
+      deputyOf: [],
+    });
+    await expect(inTenant(B, () => facade.departmentLeadership(tx, HEAD))).resolves.toEqual({
+      headOf: [],
+      deputyOf: [],
+    });
+  });
+
   it('departmentReferences e departmentNames (US-001): só unidades do tenant da transação', async () => {
     const references = await inTenant(A, () => facade.departmentReferences(tx, [UNIT, ORG, UNIT]));
     expect([...references.values()]).toEqual([

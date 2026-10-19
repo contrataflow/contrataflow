@@ -4,7 +4,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { DEPARTMENT_REPOSITORY } from './department-ports.js';
-import type { DepartmentRepository } from './department-ports.js';
+import type { DepartmentLeadership, DepartmentRepository } from './department-ports.js';
+
+export type { DepartmentLeadership } from './department-ports.js';
 
 /** Unidade vista por quem valida designações de aprovador (US-061 · RN-DOC-07). */
 export interface DepartmentForApproval {
@@ -99,6 +101,14 @@ export class OrganizationFacade {
    */
   departmentsHeadedBy(tx: TenantTx, userId: string): Promise<string[]> {
     return this.departments.idsHeadedBy(tx, userId);
+  }
+
+  /**
+   * Titularidades e substituições do usuário no tenant da transação (US-056 · POL-03): a caixa de
+   * tarefas lista as aprovações `DEPARTMENT_HEAD` do titular e, com `allowDeputy`, do substituto.
+   */
+  departmentLeadership(tx: TenantTx, userId: string): Promise<DepartmentLeadership> {
+    return this.departments.leadershipOf(tx, userId);
   }
 
   async findDepartmentForApproval(

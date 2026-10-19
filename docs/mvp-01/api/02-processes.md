@@ -606,7 +606,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 ### PRC-21 — Assumir processo
 `POST /api/v1/processes/{id}/claim` · **Permissão:** `PROCESS_CLAIM` + POL-04 · **Story:** US-049
 
-- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Cabeçalhos:** `Idempotency-Key` opcional (US-056: a ação rápida "Assumir" da caixa de tarefas envia; o reenvio com a mesma chave reproduz a resposta com `Idempotent-Replayed: true`) · `If-Match` obrigatório
 - **Parâmetros:** path `id`
 - **Request:** — (corpo vazio)
 - **Response:** `200 { data: Process }` com `currentResponsible`, `version`
@@ -621,7 +621,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessAssigned` (`process.assigned`, `assignmentType=CLAIM`, `fromUserId=null`). Projeção: timeline `PROCESS_CLAIMED`; `ProcessAccess` (`RESPONSIBLE`). Auditoria: `process.claim` (`WORKFLOW`); `access.denied` em 403.
-- **Notas:** só elegível para quem está lotado na unidade atual do processo; `TASK`/`START` em `IN_PROGRESS`/`RETURNED` (RN-TRAM-32). O 409 `PROCESS_ALREADY_ASSIGNED` traz `currentResponsible { id, name }` e vale antes do `If-Match` (a corrida de fila manda o mesmo `If-Match` dos dois lados); já assumido por quem chama com `If-Match` vencido é o reenvio do clique duplo e responde 412 `VERSION_CONFLICT` (FA-03). Sem `Idempotency-Key`, sem corpo, sem notificação (RN-TRAM-34/35).
+- **Notas:** só elegível para quem está lotado na unidade atual do processo; `TASK`/`START` em `IN_PROGRESS`/`RETURNED` (RN-TRAM-32). O 409 `PROCESS_ALREADY_ASSIGNED` traz `currentResponsible { id, name }` e vale antes do `If-Match` (a corrida de fila manda o mesmo `If-Match` dos dois lados); já assumido por quem chama com `If-Match` vencido é o reenvio do clique duplo e responde 412 `VERSION_CONFLICT` (FA-03). Sem corpo, sem notificação (RN-TRAM-34/35); a `Idempotency-Key` é opcional (US-056) — sem ela, o clique duplo continua barrado pelo `If-Match`.
 
 ### PRC-22 — Atribuir/reatribuir responsável
 `POST /api/v1/processes/{id}/assign` · **Permissão:** `PROCESS_ASSIGN` ou titular/substituto + POL-05 · **Story:** US-050

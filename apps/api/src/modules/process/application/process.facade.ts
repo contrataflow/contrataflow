@@ -1,4 +1,10 @@
-import type { EstimatedValueSource, PcaStatus, Priority } from '@contrataflow/validation';
+import type {
+  DayCountType,
+  EstimatedValueSource,
+  PcaStatus,
+  Priority,
+  ProcessDeadlineDto,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -16,6 +22,7 @@ import type {
   DuplicateProcessForDfdInput,
   ProcessCreatedForDfd,
 } from './process-dfd-duplication.js';
+import { ProcessListPresenter } from './process-list.presenter.js';
 import { accessGrantsOf } from './process-runtime.loader.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -64,6 +71,15 @@ export interface ProcessAiContext {
   readonly isBudgetConfidential: boolean;
 }
 
+/** A passagem ativa como o DTO `deadline` a lê (US-056: linhas da caixa de tarefas). */
+export interface StageDeadlineFacts {
+  readonly dueAt: Date | null;
+  readonly slaType: DayCountType | null;
+  readonly pausedAt: Date | null;
+  /** Atraso detectado pelo job `deadlines` (US-106). */
+  readonly overdueSince: Date | null;
+}
+
 /**
  * API pública do módulo `process` para os demais módulos (DEC-041): métodos de intenção,
  * nunca exposição de repositório. US-001: as leituras de nomes congelados da timeline (fontes
@@ -81,7 +97,30 @@ export class ProcessFacade {
     private readonly participants: ProcessParticipantRepository,
     @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
     private readonly dfdDuplication: ProcessDfdDuplication,
+    private readonly listPresenter: ProcessListPresenter,
   ) {}
+
+  /**
+   * DTO `deadline` (US-055 · `DueDateBadge`) de cada passagem ativa informada, no `tx` do chamador
+   * (US-056: linhas da caixa de tarefas) — o mesmo cálculo da lista de processos, com o atraso
+   * derivado de `overdueSince`.
+   */
+  async stageDeadlinesIn(
+    tx: TenantTx,
+    stages: readonly StageDeadlineFacts[],
+  ): Promise<ProcessDeadlineDto[]> {
+    if (stages.length === 0) return [];
+    const inputs = stages.map((stage) => ({
+      dueAt: stage.dueAt,
+      slaType: stage.slaType,
+      isPaused: stage.pausedAt !== null,
+      isOverdue: stage.overdueSince !== null,
+      overdueSince: stage.overdueSince,
+    }));
+    const context = await this.listPresenter.loadDeadlineContext(tx);
+    const deadlineOf = await this.listPresenter.deadlineCalculator(tx, inputs, context);
+    return inputs.map(deadlineOf);
+  }
 
   /**
    * Duplicação do DFD para um NOVO processo (US-018 · RN-DFD-74), no `tx` do chamador: cria o

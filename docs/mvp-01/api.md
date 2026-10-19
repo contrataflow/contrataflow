@@ -275,7 +275,7 @@ Rotas do BFF (não fazem parte da API NestJS; especificadas em [authentication.m
 | PRC-18 | PUT | `/processes/{id}/tags` | `PROCESS_UPDATE` + POL-01 (IM) | 200 | `ProcessUpdated` | US-007 |
 | PRC-19 | POST | `/processes/{id}/forward` | `PROCESS_FORWARD` + POL-01 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged`, `ProcessAssigned`, `ProcessNumberAssigned`, `DocumentSubmitted`, `DocumentVersionCreated`, `ApprovalRequested` | US-047 |
 | PRC-20 | POST | `/processes/{id}/return` | `PROCESS_RETURN` + POL-01 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged`, `ProcessAssigned` | US-048 |
-| PRC-21 | POST | `/processes/{id}/claim` | `PROCESS_CLAIM` + POL-04 (IM) | 200 | `ProcessAssigned` | US-049 |
+| PRC-21 | POST | `/processes/{id}/claim` | `PROCESS_CLAIM` + POL-04 (IM, Idem.) | 200 | `ProcessAssigned` | US-049 |
 | PRC-22 | POST | `/processes/{id}/assign` | `PROCESS_ASSIGN` ou titular + POL-05 (IM) | 200 | `ProcessAssigned` | US-050 |
 | PRC-23 | POST | `/processes/{id}/suspend` | `PROCESS_SUSPEND` + POL-07 (IM, Idem.) | 200 | `ProcessStatusChanged` | US-008 |
 | PRC-24 | POST | `/processes/{id}/resume` | `PROCESS_SUSPEND` + POL-07 (IM, Idem.) | 200 | `ProcessStatusChanged` | US-008 |

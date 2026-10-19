@@ -14,6 +14,7 @@ import { defineDomainEvent } from '../events/define.js';
 const uuid = z.uuid();
 
 export const APPROVAL_SUBJECT_TYPES = ['PROCESS_STAGE', 'DOCUMENT'] as const;
+export type ApprovalSubjectType = (typeof APPROVAL_SUBJECT_TYPES)[number];
 
 export const ApprovalRequested = defineDomainEvent({
   eventType: 'ApprovalRequested',

@@ -172,3 +172,68 @@ describe('ApprovalCompetenceService.roleHolders', () => {
     ]);
   });
 });
+
+describe('ApprovalCompetenceService.competenceOf (US-056 · RN-INBOX-07)', () => {
+  const INACTIVE_ROLE = id(8);
+  const MEMBER = id(900);
+  const USER = 'user-ana';
+
+  function competenceService(assignments: readonly RoleAssignment[], own: readonly string[]) {
+    const roles = {
+      findById: (_tx: TenantTx, roleId: string) =>
+        Promise.resolve(role({ id: roleId, isActive: roleId !== INACTIVE_ROLE })),
+    } as unknown as RoleRepository;
+    const repository = {
+      listByMembership: (_tx: TenantTx, membershipId: string) =>
+        Promise.resolve(assignments.filter((row) => row.membershipId === membershipId)),
+    } as unknown as RoleAssignmentRepository;
+    const identity = {
+      departmentsOfUser: () => Promise.resolve([...own]),
+    } as unknown as IdentityFacade;
+    const references = {
+      subtreeIds: (_tx: TenantTx, roots: readonly string[]) =>
+        Promise.resolve(
+          new Map(roots.map((root) => [root, root === GABINETE ? [GABINETE, SEC, SETOR] : [root]])),
+        ),
+    } as unknown as MembershipReferences;
+    return new ApprovalCompetenceService(roles, repository, identity, references);
+  }
+
+  it('cobertura de cada atribuição vigente de perfil ativo, com subárvores e lotações expandidas', async () => {
+    const mine = (overrides: Partial<RoleAssignment>) =>
+      assignment({ membershipId: MEMBER, ...overrides });
+    const competence = competenceService(
+      [
+        mine({}),
+        mine({ scopeType: 'ORGANIZATION', scopeOrganizationId: ORG }),
+        mine({ scopeType: 'DEPARTMENT', scopeDepartmentId: GABINETE }),
+        mine({ scopeType: 'OWN_DEPARTMENTS', includeSubtree: false }),
+        mine({ revokedAt: new Date('2026-02-01T00:00:00.000Z') }),
+        mine({ roleId: INACTIVE_ROLE }),
+        assignment({}),
+      ],
+      [SETOR],
+    );
+    expect(await competence.competenceOf(TX, { membershipId: MEMBER, userId: USER }, NOW)).toEqual([
+      { roleId: ROLE, tenantWide: true, organizationId: null, departmentIds: [] },
+      { roleId: ROLE, tenantWide: false, organizationId: ORG, departmentIds: [] },
+      {
+        roleId: ROLE,
+        tenantWide: false,
+        organizationId: null,
+        departmentIds: [GABINETE, SEC, SETOR].sort(),
+      },
+      { roleId: ROLE, tenantWide: false, organizationId: null, departmentIds: [SETOR] },
+    ]);
+  });
+
+  it('sem atribuição vigente de perfil ativo = nenhuma cobertura', async () => {
+    const competence = competenceService(
+      [assignment({ membershipId: MEMBER, roleId: INACTIVE_ROLE })],
+      [],
+    );
+    expect(await competence.competenceOf(TX, { membershipId: MEMBER, userId: USER }, NOW)).toEqual(
+      [],
+    );
+  });
+});

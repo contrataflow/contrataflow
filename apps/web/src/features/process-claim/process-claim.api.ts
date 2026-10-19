@@ -9,10 +9,16 @@ import { apiRequest } from '@/lib/api/client';
  * aplicado). A versão vem do PRC-04, lido pelo painel.
  */
 
-export async function claimProcess(processId: string, version: number): Promise<ProcessDto> {
+export async function claimProcess(
+  processId: string,
+  version: number,
+  /** US-056: a ação rápida da caixa de tarefas envia a chave (reenvio = mesma resposta). */
+  idempotencyKey?: string,
+): Promise<ProcessDto> {
   const result = await apiRequest<ProcessDto>(`/processes/${processId}/claim`, {
     method: 'POST',
     ifMatch: `"${String(version)}"`,
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
   });
   return result.data;
 }

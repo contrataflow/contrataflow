@@ -1437,6 +1437,8 @@ model ProcessParticipant {
   @@index([tenantId, processId, userId], map: "process_participants_active_user_key")
   @@index([tenantId, processId, departmentId], map: "process_participants_active_department_key")
   @@index([tenantId, expiresAt], map: "process_participants_expiring_idx")
+  // US-056 (visão "Acompanhando"): parcial na migração (`WHERE revoked_at IS NULL AND user_id IS NOT NULL`).
+  @@index([tenantId, userId], map: "process_participants_following_idx")
   @@map("process_participants")
 }
 

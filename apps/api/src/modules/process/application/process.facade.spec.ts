@@ -4,6 +4,7 @@ import { runWithRequestContext, updateRequestContext } from '#shared/context/req
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { ProcessDfdDuplication } from './process-dfd-duplication.js';
+import type { ProcessListPresenter } from './process-list.presenter.js';
 import { ProcessFacade } from './process.facade.js';
 import type { AccessFacade } from '../../access/application/access.facade.js';
 import type { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
@@ -64,6 +65,7 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
     participants,
     () => NOW,
     {} as ProcessDfdDuplication,
+    {} as ProcessListPresenter,
   );
   const viewer = (
     userId: string,

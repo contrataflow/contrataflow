@@ -428,6 +428,8 @@ export class ProcessController {
 
   @Post(':id/claim')
   @HttpCode(200)
+  // US-056: a ação rápida "Assumir" da caixa de tarefas envia `Idempotency-Key` (opcional).
+  @Idempotent()
   @RequireIfMatch()
   @RequirePermission('PROCESS_CLAIM', {
     detail: 'Você não tem permissão para assumir processos.',
@@ -436,6 +438,7 @@ export class ProcessController {
     operationId: 'PRC-21',
     summary: 'Assumir processo',
     tags: TAGS,
+    idempotent: true,
     auditActions: ['process.claim'],
     responses: {
       200: {

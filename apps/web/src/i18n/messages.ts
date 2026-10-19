@@ -32,6 +32,7 @@ import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
 import suppliers from '../../messages/pt-BR/suppliers.json';
 import tags from '../../messages/pt-BR/tags.json';
+import taskInbox from '../../messages/pt-BR/taskInbox.json';
 import templates from '../../messages/pt-BR/templates.json';
 import term from '../../messages/pt-BR/term.json';
 import timeline from '../../messages/pt-BR/timeline.json';
@@ -80,6 +81,7 @@ export const messages = {
   shell,
   suppliers,
   tags,
+  taskInbox,
   templates,
   term,
   timeline,

@@ -2654,6 +2654,72 @@ async function handlePriceSources(request, response, url, correlationId) {
   return false;
 }
 
+// Caixa de tarefas (US-056 · TSK-01/TSK-02): dois processos com a Ana, um na fila da unidade
+// (0012/2026, que o "Assumir" — PRC-21 — move para "Comigo") e uma aprovação pendente.
+const INBOX_QUEUE_PROCESS_ID = '0192a000-0000-7000-8000-000000560012';
+const inboxState = { claimed: false };
+
+function inboxItem(n, overrides = {}) {
+  const id = `0192a000-0000-7000-8000-0000005600${String(n).padStart(2, '0')}`;
+  return {
+    id,
+    processId: id,
+    code: `${String(n).padStart(4, '0')}/2026`,
+    title: `Aquisição para a caixa de tarefas ${String(n)}`,
+    status: 'IN_PROGRESS',
+    version: 3,
+    currentStage: { key: 'ESTUDOS_PRELIMINARES', name: 'Estudos preliminares' },
+    currentDepartment: { id: '0192a000-0000-7000-8000-0000000000d1', name: 'Gabinete' },
+    currentResponsible: { id: '0192a000-0000-7000-8000-0000000000a1', name: 'Ana Souza' },
+    enteredAt: '2026-10-01T12:00:00.000Z',
+    dueAt: '2026-10-30T02:59:59.000Z',
+    isOverdue: false,
+    overdueSince: null,
+    deadline: {
+      dueAt: '2026-10-30T02:59:59.000Z',
+      slaType: 'BUSINESS',
+      daysLeft: 8,
+      overdueDays: null,
+      isDueSoon: false,
+      isOverdue: false,
+      isPaused: false,
+    },
+    isBudgetConfidential: false,
+    canClaim: false,
+    ...overrides,
+  };
+}
+
+function inboxViews() {
+  const queued = inboxItem(12, { currentResponsible: null, canClaim: true });
+  const mine = [inboxItem(1), inboxItem(2)];
+  const claimed = {
+    ...queued,
+    currentResponsible: inboxItem(1).currentResponsible,
+    canClaim: false,
+  };
+  return {
+    MINE: inboxState.claimed ? [...mine, claimed] : mine,
+    UNIT_QUEUE: inboxState.claimed ? [] : [queued],
+    PENDING_APPROVALS: [
+      inboxItem(3, {
+        id: '0192a000-0000-7000-8000-000000562003',
+        approval: {
+          id: '0192a000-0000-7000-8000-000000562003',
+          title: 'Aprovação do DFD',
+          subjectType: 'PROCESS_STAGE',
+          requestedBy: { id: '0192a000-0000-7000-8000-0000000000b1', name: 'Bruno Lima' },
+          requestedAt: '2026-10-12T12:00:00.000Z',
+          dueAt: null,
+        },
+      }),
+    ],
+    RETURNED: [],
+    OVERDUE: [],
+    FOLLOWING: [],
+  };
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   response.end(body === undefined ? '' : JSON.stringify(body));
@@ -2791,6 +2857,8 @@ createServer(async (request, response) => {
             { code: 'SUPPLIER_MANAGE', scopes: [] },
             { code: 'PROCESS_UPDATE', scopes: [] },
             { code: 'TAG_MANAGE', scopes: [] },
+            { code: 'INBOX_VIEW', scopes: [] },
+            { code: 'PROCESS_CLAIM', scopes: [] },
           ]
         : [];
     return send(response, 200, {
@@ -4540,6 +4608,44 @@ createServer(async (request, response) => {
       201,
       { data: view },
       { Location: `/api/v1/processes/${view.id}`, ETag: '"1"' },
+    );
+  }
+  if (url.pathname === '/api/v1/tasks/counters' && request.method === 'GET') {
+    const views = inboxViews();
+    return send(response, 200, {
+      data: {
+        mine: views.MINE.length,
+        unitQueue: views.UNIT_QUEUE.length,
+        pendingApprovals: views.PENDING_APPROVALS.length,
+        returned: 0,
+        overdue: 0,
+        following: 0,
+      },
+    });
+  }
+  if (url.pathname === '/api/v1/tasks' && request.method === 'GET') {
+    const items = inboxViews()[url.searchParams.get('view') ?? 'MINE'] ?? [];
+    const descending = (url.searchParams.get('sort') ?? '-dueAt').startsWith('-');
+    const sorted = [...items].sort((a, b) =>
+      descending ? b.code.localeCompare(a.code) : a.code.localeCompare(b.code),
+    );
+    return send(response, 200, {
+      data: sorted,
+      meta: { page: 1, pageSize: 20, totalItems: sorted.length, totalPages: 1 },
+    });
+  }
+  if (
+    url.pathname === `/api/v1/processes/${INBOX_QUEUE_PROCESS_ID}/claim` &&
+    request.method === 'POST'
+  ) {
+    if (inboxState.claimed)
+      return problem(response, 409, 'PROCESS_ALREADY_ASSIGNED', correlationId);
+    inboxState.claimed = true;
+    return send(
+      response,
+      200,
+      { data: { id: INBOX_QUEUE_PROCESS_ID, version: 4 } },
+      { ETag: '"4"' },
     );
   }
   if (url.pathname === '/api/v1/audit' && request.method === 'GET') {

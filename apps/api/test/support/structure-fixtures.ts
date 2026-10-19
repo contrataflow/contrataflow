@@ -110,6 +110,9 @@ export function seedDepartment(
     readonly isActive?: boolean;
     /** Unidade-mãe já semeada (US-097: escopos com subárvore); padrão = raiz do órgão. */
     readonly parent?: Pick<Department, 'id' | 'path' | 'depth'>;
+    /** Titular e substituto (US-056: fila da unidade e aprovações `DEPARTMENT_HEAD`). */
+    readonly headUserId?: string | null;
+    readonly deputyUserId?: string | null;
   },
 ): Department {
   const repository = api.app.get(InMemoryDepartmentRepository, { strict: false });
@@ -125,6 +128,8 @@ export function seedDepartment(
       },
     ),
     isActive: department.isActive ?? true,
+    ...(department.headUserId === undefined ? {} : { headUserId: department.headUserId }),
+    ...(department.deputyUserId === undefined ? {} : { deputyUserId: department.deputyUserId }),
   };
   repository.seed(seeded);
   return seeded;

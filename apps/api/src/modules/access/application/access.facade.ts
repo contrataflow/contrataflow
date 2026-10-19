@@ -17,14 +17,14 @@ import { ROLE_REPOSITORY } from './ports.js';
 import type { RoleRepository } from './ports.js';
 import { SeedDefaultRolesHandler } from './seed-default-roles.handler.js';
 import type { SeedDefaultRolesResult } from './seed-default-roles.handler.js';
-import type { RequestingUnits } from '../domain/approval-competence.js';
+import type { RequestingUnits, RoleCompetence } from '../domain/approval-competence.js';
 import { DEFAULT_ROLES } from '../domain/default-roles.js';
 import { EffectivePermissionSet } from '../domain/effective-permissions.js';
 import { PERMISSION_RISKS, rolesGrant } from '../domain/permission-grants.js';
 import type { Role } from '../domain/role.js';
 
 export type { ConfidentialBudgetAccess } from './authorization.service.js';
-export type { RequestingUnits } from '../domain/approval-competence.js';
+export type { RequestingUnits, RoleCompetence } from '../domain/approval-competence.js';
 
 /** Perfis padrão atribuídos com escopo `TENANT` (permissions.md §3.1). */
 const TENANT_WIDE_ROLE_KEYS: ReadonlySet<string> = new Set(
@@ -66,6 +66,21 @@ export class AccessFacade {
     now: Date,
   ): Promise<string[]> {
     return this.competence.roleHolders(tx, roleId, target, now);
+  }
+
+  /**
+   * Cobertura dos perfis do usuário da requisição (US-056 · "Aprovações pendentes" da caixa de
+   * tarefas): por atribuição vigente de perfil ativo, o que ela alcança — o mesmo predicado de
+   * `roleHoldersInScopeIn`, lido no `tx` do chamador.
+   */
+  approverCompetenceIn(tx: TenantTx, now: Date): Promise<RoleCompetence[]> {
+    const { actor } = requireRequestContext();
+    if (actor.userId === null || actor.membershipId === null) return Promise.resolve([]);
+    return this.competence.competenceOf(
+      tx,
+      { membershipId: actor.membershipId, userId: actor.userId },
+      now,
+    );
   }
 
   /**

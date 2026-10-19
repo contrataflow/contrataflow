@@ -38,6 +38,40 @@ export function competenceSubtreeRoots(
   return scope.includeSubtree ? scopeRoots(scope, ownDepartmentIds) : [];
 }
 
+/**
+ * Cobertura de uma atribuição vista por quem a detém (US-056 · "Aprovações pendentes"): o inverso
+ * de `scopeCoversRequestingUnits` — o processo está coberto se `tenantWide`, se é do órgão
+ * `organizationId` ou se a secretaria/setor solicitante está em `departmentIds` (expandidas).
+ */
+export interface RoleCompetence {
+  readonly roleId: string;
+  readonly tenantWide: boolean;
+  readonly organizationId: string | null;
+  readonly departmentIds: readonly string[];
+}
+
+export function competenceOf(
+  assignment: AssignmentScope & { readonly roleId: string },
+  holder: HolderUnits,
+): RoleCompetence {
+  const departmentIds =
+    assignment.scopeType === 'DEPARTMENT' || assignment.scopeType === 'OWN_DEPARTMENTS'
+      ? [
+          ...new Set(
+            scopeRoots(assignment, holder.ownDepartmentIds).flatMap((id) =>
+              assignment.includeSubtree ? (holder.subtrees.get(id) ?? [id]) : [id],
+            ),
+          ),
+        ].sort()
+      : [];
+  return {
+    roleId: assignment.roleId,
+    tenantWide: assignment.scopeType === 'TENANT',
+    organizationId: assignment.scopeType === 'ORGANIZATION' ? assignment.scopeOrganizationId : null,
+    departmentIds,
+  };
+}
+
 /** A atribuição dá competência sobre as unidades solicitantes do processo (DEC-022)? */
 export function scopeCoversRequestingUnits(
   scope: AssignmentScope,

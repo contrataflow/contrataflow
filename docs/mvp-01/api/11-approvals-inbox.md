@@ -113,16 +113,16 @@
 ### TSK-01 — Listar tarefas (caixa de tarefas)
 `GET /api/v1/tasks` · **Permissão:** `INBOX_VIEW` · **Story:** US-056
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Parâmetros:** query `view` (enum `MINE`\|`UNIT_QUEUE`\|`PENDING_APPROVALS`\|`RETURNED`\|`OVERDUE`\|`FOLLOWING`, opcional, padrão `MINE` — RN-INBOX-02); `page` (int ≥1, padrão 1); `pageSize` (int 1–100, padrão 20); `sort` (texto, padrão `-dueAt`, campos permitidos por visão conforme RN-INBOX-10 — lista completa não enumerada na story: a definir na implementação)
+- **Parâmetros:** query `view` (enum `MINE`\|`UNIT_QUEUE`\|`PENDING_APPROVALS`\|`RETURNED`\|`OVERDUE`\|`FOLLOWING`, opcional, padrão `MINE` — RN-INBOX-02); `page` (int ≥1, padrão 1); `pageSize` (int 1–100, padrão 20); `sort` (texto, um campo, `-` = decrescente, padrão `-dueAt` com nulos por último; campos permitidos por visão — RN-INBOX-10: `dueAt`, `code` e `enteredAt` (entrada na etapa); em `PENDING_APPROVALS`, `dueAt`, `code` e `requestedAt`)
 - **Request:** —
-- **Response:** `200 { data: [{ processId, code, title, currentStage, currentDepartment, currentResponsible?, dueAt, isOverdue, approval? }], meta: { page, pageSize, totalItems, totalPages } }`
+- **Response:** `200 { data: [{ id, processId, code, title, status, version, currentStage, currentDepartment, currentResponsible, enteredAt, dueAt, isOverdue, overdueSince, deadline, isBudgetConfidential, canClaim, approval? }], meta: { page, pageSize, totalItems, totalPages } }` — `id` é a chave da linha (o processo; em `PENDING_APPROVALS`, a aprovação — um processo com duas aprovações pendentes para o usuário tem duas linhas); `version` é o `If-Match` do "Assumir" (PRC-21); `deadline` é o DTO calculado do PRC-01 (`DueDateBadge`, US-055); `canClaim` = ação rápida "Assumir" disponível (RN-INBOX-11: sem responsável, lotado na unidade atual com `PROCESS_CLAIM` e status `IN_PROGRESS`/`RETURNED`); `approval { id, title, subjectType, requestedBy { id, name }, requestedAt, dueAt }` só em `PENDING_APPROVALS` (o `dueAt` da linha é o da aprovação, ou o da etapa quando a aprovação não tem prazo). Nenhum valor monetário é exposto (FA-05).
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `INBOX_VIEW` |
   | 422 | `VALIDATION_ERROR` | `view`/`sort` fora do enum; `pageSize` acima de 100 |
 - **Efeitos:** — (leitura; a ação rápida "Assumir" é `PRC-21`, reaproveitada de US-049, fora desta seção)
-- **Notas:** `isOverdue` derivado de `overdueSince`.
+- **Notas:** `isOverdue` derivado de `overdueSince` da etapa ativa. Todas as visões aplicam a visibilidade de DEC-024. `UNIT_QUEUE` para quem não se enquadra em RN-INBOX-04 responde `200` com `data: []` (a aba não é exibida). Página e total vêm de uma única instrução SQL (mesmo snapshot) sobre as views publicadas `v_inbox_processes`, `v_inbox_pending_approvals` e `v_inbox_participations` (entities.md §4).
 
 ### TSK-02 — Obter contadores da caixa de tarefas
 `GET /api/v1/tasks/counters` · **Permissão:** `INBOX_VIEW` · **Story:** US-056
@@ -135,7 +135,7 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `INBOX_VIEW` |
 - **Efeitos:** —
-- **Notas:** `unitQueue` presente apenas quando a visão de fila da unidade é aplicável ao usuário.
+- **Notas:** `unitQueue` presente apenas quando a visão de fila da unidade é aplicável ao usuário. Todos os contadores saem de uma única instrução SQL (mesmo snapshot), com os mesmos predicados do TSK-01 (RN-INBOX-09).
 
 ### TSK-03 — Assumir processos em lote
 `POST /api/v1/tasks/bulk-claim` · **Permissão:** `PROCESS_CLAIM` · **Story:** US-058

@@ -13,6 +13,7 @@ import {
   DepartmentReferencedError,
 } from '../application/department-ports.js';
 import type {
+  DepartmentLeadership,
   DepartmentListFilter,
   DepartmentLookupFilter,
   DepartmentReferenceKind,
@@ -172,6 +173,18 @@ export class PrismaDepartmentRepository implements DepartmentRepository {
       select: { id: true },
     });
     return rows.map((row) => row.id);
+  }
+
+  async leadershipOf(tx: TenantTx, userId: string): Promise<DepartmentLeadership> {
+    const rows = await tx.department.findMany({
+      where: { OR: [{ headUserId: userId }, { deputyUserId: userId }] },
+      select: { id: true, headUserId: true, deputyUserId: true },
+      orderBy: { id: 'asc' },
+    });
+    return {
+      headOf: rows.filter((row) => row.headUserId === userId).map((row) => row.id),
+      deputyOf: rows.filter((row) => row.deputyUserId === userId).map((row) => row.id),
+    };
   }
 
   async subtreeIds(tx: TenantTx, rootIds: readonly string[]): Promise<Map<string, string[]>> {

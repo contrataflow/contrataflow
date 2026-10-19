@@ -48,6 +48,12 @@ export interface DepartmentLookupFilter {
   readonly limit: number;
 }
 
+/** Titularidades e substituições de um usuário (`leadershipOf`). */
+export interface DepartmentLeadership {
+  readonly headOf: readonly string[];
+  readonly deputyOf: readonly string[];
+}
+
 export interface DepartmentRepository {
   /** Todas as unidades do tenant que casam com o filtro (a ordem da árvore é da aplicação). */
   listAll(tx: TenantTx, filter: DepartmentListFilter): Promise<Department[]>;
@@ -68,6 +74,11 @@ export interface DepartmentRepository {
   countChildren(tx: TenantTx, id: string): Promise<number>;
   /** Unidades ATIVAS de que o usuário é titular ou substituto (US-041 · POL-05 · permissions.md §7). */
   idsHeadedBy(tx: TenantTx, userId: string): Promise<string[]>;
+  /**
+   * Unidades (ativas ou não) de que o usuário é titular e as de que é substituto, separadas
+   * (US-056: aprovações `DEPARTMENT_HEAD` pendentes — o substituto só com `allowDeputy`, POL-03).
+   */
+  leadershipOf(tx: TenantTx, userId: string): Promise<DepartmentLeadership>;
   /**
    * Cada raiz de `rootIds` existente no tenant com ela e as descendentes (`path LIKE '<path>%'` —
    * US-097: escopos com subárvore).

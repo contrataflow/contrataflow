@@ -11,6 +11,7 @@ import {
   DepartmentReferencedError,
 } from '../application/department-ports.js';
 import type {
+  DepartmentLeadership,
   DepartmentListFilter,
   DepartmentLookupFilter,
   DepartmentRepository,
@@ -116,6 +117,14 @@ export class InMemoryDepartmentRepository implements DepartmentRepository {
         .filter((d) => d.isActive && (d.headUserId === userId || d.deputyUserId === userId))
         .map((d) => d.id),
     );
+  }
+
+  leadershipOf(_tx: TenantTx, userId: string): Promise<DepartmentLeadership> {
+    const rows = [...this.inTenant()].sort((a, b) => a.id.localeCompare(b.id));
+    return Promise.resolve({
+      headOf: rows.filter((d) => d.headUserId === userId).map((d) => d.id),
+      deputyOf: rows.filter((d) => d.deputyUserId === userId).map((d) => d.id),
+    });
   }
 
   subtreeIds(_tx: TenantTx, rootIds: readonly string[]): Promise<Map<string, string[]>> {

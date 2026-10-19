@@ -7,10 +7,11 @@ import { ROLE_ASSIGNMENT_REPOSITORY, ROLE_REPOSITORY } from './ports.js';
 import type { RoleAssignmentRepository, RoleRepository } from './ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import {
+  competenceOf,
   competenceSubtreeRoots,
   scopeCoversRequestingUnits,
 } from '../domain/approval-competence.js';
-import type { RequestingUnits } from '../domain/approval-competence.js';
+import type { RequestingUnits, RoleCompetence } from '../domain/approval-competence.js';
 import { isEffective } from '../domain/role-assignment.js';
 
 /**
@@ -88,5 +89,44 @@ export class ApprovalCompetenceService {
       )
       .map(({ userId }) => userId);
     return [...new Set(holders)].sort();
+  }
+  /**
+   * O inverso de `roleHolders` para um vínculo (US-056 · RN-INBOX-07): a cobertura de cada
+   * atribuição gravada e vigente de perfil ATIVO — as aprovações `ROLE` pendentes que o usuário
+   * decide são as do perfil cujo processo a cobertura alcança. Mesmo predicado de `roleHolders`.
+   */
+  async competenceOf(
+    tx: TenantTx,
+    subject: { readonly membershipId: string; readonly userId: string },
+    now: Date,
+  ): Promise<RoleCompetence[]> {
+    const effective = (await this.assignments.listByMembership(tx, subject.membershipId)).filter(
+      (assignment) => isEffective(assignment, now),
+    );
+    const active: typeof effective = [];
+    const roleActive = new Map<string, boolean>();
+    for (const assignment of effective) {
+      if (!roleActive.has(assignment.roleId)) {
+        roleActive.set(
+          assignment.roleId,
+          (await this.roles.findById(tx, assignment.roleId))?.isActive === true,
+        );
+      }
+      if (roleActive.get(assignment.roleId) === true) active.push(assignment);
+    }
+    if (active.length === 0) return [];
+    const own = active.some((assignment) => assignment.scopeType === 'OWN_DEPARTMENTS')
+      ? await this.identity.departmentsOfUser(tx, subject.userId)
+      : [];
+    const roots = [
+      ...new Set(active.flatMap((assignment) => competenceSubtreeRoots(assignment, own))),
+    ].sort();
+    const subtrees =
+      roots.length === 0
+        ? new Map<string, readonly string[]>()
+        : await this.references.subtreeIds(tx, roots);
+    return active.map((assignment) =>
+      competenceOf(assignment, { ownDepartmentIds: own, subtrees }),
+    );
   }
 }

@@ -615,6 +615,11 @@ Acesso explícito por processo (DEC-036).
 
 - **Check:** `(user_id IS NULL) <> (department_id IS NULL)`; `role <> 'CONSULTANT' OR expires_at IS NOT NULL`; `role <> 'CONSULTANT' OR user_id IS NOT NULL`.
 - **Unique:** `(tenant_id, process_id, user_id) WHERE revoked_at IS NULL AND user_id IS NOT NULL`; `(tenant_id, process_id, department_id) WHERE revoked_at IS NULL AND department_id IS NOT NULL`.
+- **Índice (US-056 · visão "Acompanhando"):** `(tenant_id, user_id) WHERE revoked_at IS NULL AND user_id IS NOT NULL`.
+- **Views publicadas para a caixa de tarefas (US-056 · DEC-026 · domains.md `inbox`):** contrato público lido pelo módulo `inbox`, todas `security_invoker` (a RLS das tabelas vale para quem consulta):
+  - `v_inbox_processes` (dono `process`): o processo não excluído com a passagem ativa (`process_stages` `ACTIVE` — `stage_id`, `entered_at`, `due_at`, `overdue_since`, `sla_type`, `paused_at`) e a responsabilidade ativa (`process_assignments` `is_active` — `assignment_department_id`, `assignee_id`, `assignment_type`), ambas opcionais.
+  - `v_inbox_participations` (dono `process`): participações individuais não revogadas (`process_id`, `user_id`, `role`, `expires_at`).
+  - `v_inbox_pending_approvals` (dono `approval`): aprovações `PENDING` com o aprovador registrado (`approver_type`, `approver_user_id`, `approver_role_id`, `approver_department_id`, `allow_deputy`), o solicitante e o prazo.
 
 #### Tag (`tags`) — módulo `process` · Padrão
 | Campo | Tipo | Null | Default | Regras |

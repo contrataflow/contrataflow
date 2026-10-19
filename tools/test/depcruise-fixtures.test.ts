@@ -72,8 +72,10 @@ describe('fixtures do dependency-cruiser (RN-FND-05)', () => {
     expect([...configured].sort()).toEqual([...new Set(Object.values(EXPECTED))].sort());
   });
 
+  // O cruzeiro do repositório inteiro cresce a cada story (~130 s no Windows dentro da suíte de
+  // `tools`, em 2026-10-19): limite próprio, acima do `testTimeout` padrão de 120 s.
   it('o repositório real não tem violações', async () => {
     const real = await cruiseTree(REPO_ROOT, ['apps', 'packages']);
     expect(real.map((v) => `${v.rule.name}: ${v.from} → ${v.to}`)).toEqual([]);
-  });
+  }, 300_000);
 });
