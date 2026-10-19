@@ -2,6 +2,7 @@ import { localDateOf } from '@contrataflow/types';
 import { unitPriceIssue } from '@contrataflow/validation';
 import type {
   CreatePriceSource,
+  ExcludeQuotation,
   PriceSourceDto,
   QuotationDto,
   UpdatePriceSource,
@@ -34,11 +35,14 @@ import {
   priceSourceNotFound,
   priceSourceVersionConflict,
   quotationExcluded,
+  quotationInvalidState,
   quotationNotFound,
   quotationRequiredFields,
   quotationVersionConflict,
   recordQuotationGridDuration,
 } from './price-research.errors.js';
+import { EXCLUDE_QUOTATION_OPTIONS } from './price-research.support.js';
+import type { WritableOptions } from './price-research.support.js';
 import {
   PriceSourceGate,
   PriceSourcePresenter,
@@ -55,10 +59,14 @@ import {
   applySourcePatch,
   createPriceSource,
   createQuotation,
+  excludeBlockedBy,
+  excludeQuotation,
   isSourceExpired,
   missingRequiredFields,
   normalizeUnitPrice,
   planQuotationGrid,
+  restoreBlockedBy,
+  restoreQuotation,
   sourceDateErrors,
   withPrice,
   withSourceFields,
@@ -590,10 +598,11 @@ async function writableQuotation(
   gate: PriceSourceGate,
   quotationId: string,
   expectedVersion: number,
+  options: WritableOptions = {},
 ) {
   const found = await sources.findQuotation(tx, quotationId);
   if (found === null) throw quotationNotFound();
-  const context = await gate.writable(tx, found.priceResearchId, quotationNotFound);
+  const context = await gate.writable(tx, found.priceResearchId, quotationNotFound, options);
   const quotation = await sources.findQuotation(tx, quotationId);
   if (quotation === null) throw quotationNotFound();
   if (quotation.version !== expectedVersion) throw quotationVersionConflict(quotation.version);
@@ -726,5 +735,197 @@ export class DeleteQuotationCommand extends PriceSourceCommand<DeleteQuotationIn
     );
     await this.recalculator.recalculate(tx, context.research, stamp);
     return quotation;
+  }
+}
+
+// --- PRS-16/17 (US-027) ------------------------------------------------------------------------
+
+export interface ExcludeQuotationInput {
+  readonly quotationId: string;
+  readonly body: ExcludeQuotation;
+  /** Versão da COTAÇÃO no `If-Match`. */
+  readonly expectedVersion: number;
+}
+
+export interface RestoreQuotationInput {
+  readonly quotationId: string;
+  readonly expectedVersion: number;
+}
+
+/** Cotação gravada na transação, com o que os logs pós-commit precisam. */
+interface QuotationChange {
+  readonly dto: QuotationDto;
+  readonly quotation: Quotation;
+}
+
+/**
+ * Efeito comum das duas transições (RN-PRICE-33/34): a cotação gravada com `If-Match` da cotação, a
+ * fonte com versão nova (a grade em tela deixa de valer — PRS-13), auditoria + evento da transição
+ * e o recálculo da pesquisa (`PriceResearchRecalculated` logo depois). Tudo na transação do comando.
+ */
+async function persistTransition(
+  deps: {
+    readonly sources: PriceSourceRepository;
+    readonly recalculator: QuotationRecalculator;
+    readonly presenter: PriceSourcePresenter;
+  },
+  tx: TenantTx,
+  input: {
+    readonly before: Quotation;
+    readonly next: Quotation;
+    readonly source: PriceSource;
+    readonly research: PriceResearch;
+    readonly expectedVersion: number;
+    readonly stamp: { readonly now: Date; readonly userId: string | null };
+    readonly record: (saved: Quotation) => Promise<void>;
+  },
+): Promise<QuotationChange> {
+  try {
+    await deps.sources.updateQuotation(tx, input.next, input.expectedVersion);
+  } catch (error) {
+    if (error instanceof VersionConflictError) {
+      const latest = await deps.sources.findQuotation(tx, input.before.id);
+      if (latest === null) throw quotationNotFound();
+      throw quotationVersionConflict(latest.version);
+    }
+    throw error;
+  }
+  const saved = { ...input.next, version: input.expectedVersion + 1 };
+  await touchSource(deps.sources, tx, input.source, input.stamp, input.source.version);
+  await input.record(saved);
+  await deps.recalculator.recalculate(tx, input.research, input.stamp);
+  return { dto: deps.presenter.quotation(saved, { masked: false }), quotation: saved };
+}
+
+/** `ExcludeQuotationCommand` — PRS-16 (fluxo principal 3 · FA-01/02/03 · RN-PRICE-30..34). */
+@Injectable()
+export class ExcludeQuotationCommand extends PriceSourceCommand<
+  ExcludeQuotationInput,
+  QuotationChange
+> {
+  constructor(
+    @Inject(PRICE_RESEARCH_TRANSACTIONS) transactions: PriceResearchTransactions,
+    @Inject(PRICE_RESEARCH_CLOCK) clock: PriceResearchClock,
+    @Inject(PRICE_SOURCE_REPOSITORY) private readonly sources: PriceSourceRepository,
+    private readonly gate: PriceSourceGate,
+    private readonly recalculator: QuotationRecalculator,
+    private readonly presenter: PriceSourcePresenter,
+    private readonly recorder: PriceSourceRecorder,
+  ) {
+    // `<nome>_failed` = `price_research.exclude_failed` ("Logs").
+    super('price_research.exclude', transactions, clock);
+  }
+
+  protected async handle(
+    tx: TenantTx,
+    { quotationId, body, expectedVersion }: ExcludeQuotationInput,
+    { now }: Prepared,
+  ): Promise<QuotationChange> {
+    const { context, quotation, source } = await writableQuotation(
+      tx,
+      this.sources,
+      this.gate,
+      quotationId,
+      expectedVersion,
+      EXCLUDE_QUOTATION_OPTIONS,
+    );
+    const blocked = excludeBlockedBy(quotation);
+    if (blocked !== null) throw quotationInvalidState(blocked);
+    const stamp = this.stamp(now);
+    const next = excludeQuotation(quotation, {
+      reason: body.exclusionReason,
+      justification: body.exclusionJustification,
+      ...stamp,
+    });
+    return persistTransition(
+      { sources: this.sources, recalculator: this.recalculator, presenter: this.presenter },
+      tx,
+      {
+        before: quotation,
+        next,
+        source,
+        research: context.research,
+        expectedVersion,
+        stamp,
+        record: (saved) => this.recorder.quotationExcluded(tx, saved, context.research.processId),
+      },
+    );
+  }
+
+  protected override committed({ quotation }: QuotationChange): void {
+    // Nunca a justificativa (texto livre — "Logs").
+    this.logger.log(
+      {
+        event: 'price_research.quotation_excluded',
+        quotationId: quotation.id,
+        priceItemId: quotation.priceItemId,
+        reason: quotation.exclusionReason,
+        ...logContext(),
+      },
+      'price_research.quotation_excluded',
+    );
+  }
+}
+
+/** `RestoreQuotationCommand` — PRS-17 (fluxo principal 5 · RN-PRICE-32). */
+@Injectable()
+export class RestoreQuotationCommand extends PriceSourceCommand<
+  RestoreQuotationInput,
+  QuotationChange
+> {
+  constructor(
+    @Inject(PRICE_RESEARCH_TRANSACTIONS) transactions: PriceResearchTransactions,
+    @Inject(PRICE_RESEARCH_CLOCK) clock: PriceResearchClock,
+    @Inject(PRICE_SOURCE_REPOSITORY) private readonly sources: PriceSourceRepository,
+    private readonly gate: PriceSourceGate,
+    private readonly recalculator: QuotationRecalculator,
+    private readonly presenter: PriceSourcePresenter,
+    private readonly recorder: PriceSourceRecorder,
+  ) {
+    super('price_research.restore', transactions, clock);
+  }
+
+  protected async handle(
+    tx: TenantTx,
+    { quotationId, expectedVersion }: RestoreQuotationInput,
+    { now }: Prepared,
+  ): Promise<QuotationChange> {
+    const { context, quotation, source } = await writableQuotation(
+      tx,
+      this.sources,
+      this.gate,
+      quotationId,
+      expectedVersion,
+      EXCLUDE_QUOTATION_OPTIONS,
+    );
+    const blocked = restoreBlockedBy(quotation);
+    if (blocked !== null) throw quotationInvalidState(blocked);
+    const stamp = this.stamp(now);
+    const next = restoreQuotation(quotation, stamp);
+    return persistTransition(
+      { sources: this.sources, recalculator: this.recalculator, presenter: this.presenter },
+      tx,
+      {
+        before: quotation,
+        next,
+        source,
+        research: context.research,
+        expectedVersion,
+        stamp,
+        record: (saved) => this.recorder.quotationRestored(tx, saved, context.research.processId),
+      },
+    );
+  }
+
+  protected override committed({ quotation }: QuotationChange): void {
+    this.logger.log(
+      {
+        event: 'price_research.quotation_restored',
+        quotationId: quotation.id,
+        priceItemId: quotation.priceItemId,
+        ...logContext(),
+      },
+      'price_research.quotation_restored',
+    );
   }
 }

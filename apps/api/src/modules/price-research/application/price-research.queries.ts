@@ -38,10 +38,18 @@ export class GetPriceResearchQuery {
   /** PRS-03: cabeçalho, resumo do documento, snapshot e `meta.allowedActions`. */
   execute(researchId: string): Promise<PriceResearchView> {
     return this.transactions.read(async (tx) => {
-      const { research, view, masked, lockReason } = await this.gate.readable(tx, researchId);
+      const { research, view, masked, lockReason, canExcludeQuotation } = await this.gate.readable(
+        tx,
+        researchId,
+      );
       return {
         dto: this.presenter.research(research, view.document, { masked }),
-        meta: this.presenter.meta(view.template, view.allowedActions, lockReason),
+        meta: this.presenter.meta(
+          view.template,
+          view.allowedActions,
+          lockReason,
+          canExcludeQuotation,
+        ),
       };
     });
   }

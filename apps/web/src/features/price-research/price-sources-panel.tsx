@@ -92,7 +92,8 @@ export function PriceSourcesPanel({
     } else if (isApiError(error) && error.code === 'DOCUMENT_NOT_EDITABLE') {
       setNotice(PRICE_SOURCE_MESSAGES.notEditable);
     } else if (isApiError(error) && error.code === 'INVALID_STATE') {
-      setNotice(PRICE_SOURCE_MESSAGES.quotationExcluded);
+      // O `detail` do 409 traz o estado atual ("Esta cotação já está {estado}.").
+      setNotice(error.problem?.detail ?? PRICE_SOURCE_MESSAGES.quotationExcluded);
     } else if (isApiError(error) && error.status === 403) {
       setNotice(PRICE_SOURCE_MESSAGES.permissionDenied);
     } else if (isApiError(error) && error.status === 422) {
@@ -245,6 +246,7 @@ export function PriceSourcesPanel({
                       items={items}
                       decimals={research.parameters.unitPriceDecimals}
                       editable={editable}
+                      canExclude={allowedActions.includes('EXCLUDE_QUOTATION')}
                       onSaved={async () => {
                         setNotice(null);
                         await refresh();

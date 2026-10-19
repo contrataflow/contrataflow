@@ -1,4 +1,9 @@
-import { PRICE_RESEARCH_MESSAGES, PriceResearchRecalculated } from '@contrataflow/validation';
+import type { PermissionCode } from '@contrataflow/types';
+import {
+  PRICE_RESEARCH_MESSAGES,
+  PRICE_SOURCE_MESSAGES,
+  PriceResearchRecalculated,
+} from '@contrataflow/validation';
 import type {
   PriceItemDto,
   PriceResearchAction,
@@ -47,6 +52,20 @@ const COLLECTION = {
   lockedDetail: PRICE_RESEARCH_MESSAGES.locked,
 } as const;
 
+/** US-027: desconsiderar/restaurar cotação tem permissão própria (permissions.md — risco M). */
+export const EXCLUDE_QUOTATION_PERMISSION: PermissionCode = 'PRICE_RESEARCH_EXCLUDE_QUOTATION';
+
+/** Troca da permissão de edição pela de desconsiderar/restaurar cotação (PRS-16/17). */
+export interface WritableOptions {
+  readonly permission?: PermissionCode;
+  readonly deniedDetail?: string;
+}
+
+export const EXCLUDE_QUOTATION_OPTIONS: WritableOptions = {
+  permission: EXCLUDE_QUOTATION_PERMISSION,
+  deniedDetail: PRICE_SOURCE_MESSAGES.excludePermissionDenied,
+};
+
 const EDITABLE_STATUSES = new Set(['DRAFT', 'RETURNED']);
 
 const isNotFound = (error: unknown) => error instanceof ApiError && error.code === 'NOT_FOUND';
@@ -57,6 +76,8 @@ export interface PriceResearchReadContext {
   readonly view: TypedDocumentView;
   readonly masked: boolean;
   readonly lockReason: PriceResearchLockReason | null;
+  /** US-027: o usuário pode desconsiderar/restaurar cotações agora (permissão + travas de edição). */
+  readonly canExcludeQuotation: boolean;
 }
 
 @Injectable()
@@ -76,7 +97,27 @@ export class PriceResearchGate {
     const view = await this.documents.typedDocumentIn(tx, research.documentId);
     if (view === null) throw priceResearchNotFound();
     const masked = view.isBudgetConfidential && !view.canViewConfidentialBudget;
-    return { research, view, masked, lockReason: await this.lockReasonOf(tx, research, view) };
+    return {
+      research,
+      view,
+      masked,
+      lockReason: await this.lockReasonOf(tx, research, view),
+      canExcludeQuotation: await this.canExcludeQuotation(tx, research, view),
+    };
+  }
+
+  /**
+   * US-027: o usuário pode desconsiderar/restaurar cotações agora — `PRICE_RESEARCH_EXCLUDE_QUOTATION`
+   * cobrindo o processo + as travas de edição da POL-02 (a `meta.allowedActions` da SCR-009).
+   */
+  async canExcludeQuotation(
+    tx: TenantTx,
+    research: PriceResearch,
+    view: TypedDocumentView,
+  ): Promise<boolean> {
+    return (
+      (await this.lockReasonOf(tx, research, view, EXCLUDE_QUOTATION_OPTIONS.permission)) === null
+    );
   }
 
   /**
@@ -86,13 +127,18 @@ export class PriceResearchGate {
    * `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`); POL-09 em processo sigiloso (403). Por fim
    * trava a linha da pesquisa (`FOR UPDATE`) e a devolve relida.
    */
-  async writable(tx: TenantTx, researchId: string): Promise<PriceResearchReadContext> {
+  async writable(
+    tx: TenantTx,
+    researchId: string,
+    options: WritableOptions = {},
+  ): Promise<PriceResearchReadContext> {
     const found = await this.researches.findById(tx, researchId);
     if (found === null) throw priceResearchNotFound();
     try {
       await this.documents.assertTypedCollectionWritableIn(tx, {
         processId: found.processId,
         ...COLLECTION,
+        ...options,
       });
     } catch (error) {
       if (isNotFound(error)) throw priceResearchNotFound();
@@ -111,7 +157,7 @@ export class PriceResearchGate {
     }
     const research = await this.researches.lockById(tx, researchId);
     if (research === null) throw priceResearchNotFound();
-    return { research, view, masked: false, lockReason: null };
+    return { research, view, masked: false, lockReason: null, canExcludeQuotation: true };
   }
 
   /** O processo visível (404) e o estado da coleção — PRS-01. */
@@ -123,8 +169,13 @@ export class PriceResearchGate {
     tx: TenantTx,
     research: PriceResearch,
     view: TypedDocumentView,
+    permission?: PermissionCode,
   ): Promise<PriceResearchLockReason | null> {
-    const state = await this.collection(tx, research.processId);
+    const state = await this.documents.typedCollectionStateIn(tx, {
+      processId: research.processId,
+      ...COLLECTION,
+      ...(permission === undefined ? {} : { permission }),
+    });
     if (state.lockReason !== null && state.lockReason !== 'DOCUMENT_NOT_EDITABLE') {
       return state.lockReason;
     }
@@ -209,7 +260,7 @@ type DocumentSummary = Pick<
   | 'pendingApprovalId'
 >;
 
-const ALL_ACTIONS: readonly PriceResearchAction[] = ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS'];
+const EDIT_ACTIONS: readonly PriceResearchAction[] = ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS'];
 
 @Injectable()
 export class PriceResearchPresenter {
@@ -274,9 +325,14 @@ export class PriceResearchPresenter {
     template: TypedDocumentView['template'],
     documentActions: TypedDocumentView['allowedActions'],
     lockReason: PriceResearchLockReason | null,
+    canExcludeQuotation = false,
   ): PriceResearchMeta {
     return {
-      allowedActions: lockReason === null ? [...ALL_ACTIONS] : [],
+      // `lockReason` explica só a edição; desconsiderar cotação tem permissão própria (US-027).
+      allowedActions: [
+        ...(lockReason === null ? EDIT_ACTIONS : []),
+        ...(canExcludeQuotation ? (['EXCLUDE_QUOTATION'] as const) : []),
+      ],
       documentActions: [...documentActions],
       lockReason,
       template:

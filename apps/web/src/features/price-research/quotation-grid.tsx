@@ -10,9 +10,15 @@ import type { KeyboardEvent } from 'react';
 import { isApiError } from '@/lib/api/api-error';
 import { newIdempotencyKey } from '@/lib/api/client';
 
+import { ExcludeQuotationDialog } from './exclude-quotation-dialog';
 import { gridLines, gridRows, initialGridCells, toInputDecimal } from './price-source-model';
-import type { GridCell } from './price-source-model';
-import { deleteQuotation, saveQuotationGrid, updateQuotation } from './price-sources.api';
+import type { GridCell, GridRow } from './price-source-model';
+import {
+  deleteQuotation,
+  restoreQuotation,
+  saveQuotationGrid,
+  updateQuotation,
+} from './price-sources.api';
 
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 });
 
@@ -23,7 +29,8 @@ type Column = 'unitPrice' | 'brandModel';
  * "Preço unitário" e "Marca/modelo"; edição local e um único envio em "Salvar preços" (PRS-13 com o
  * `If-Match` da fonte e a mesma `Idempotency-Key` ao reenviar os mesmos dados). Uma única célula já
  * gravada vai pelo PRS-14 (FA-03); "Remover" numa célula usa o PRS-15 (FA-04). Cotação desconsiderada
- * fica somente leitura com o motivo (FA-05). Setas para cima/baixo mudam de item; para os lados,
+ * fica esmaecida e somente leitura, com o motivo em dica (FA-05); "Desconsiderar" (diálogo com motivo e
+ * justificativa — PRS-16) e "Restaurar" (PRS-17) são de quem tem `EXCLUDE_QUOTATION` (US-027). Setas para cima/baixo mudam de item; para os lados,
  * mudam de coluna nas bordas do texto. Em telas estreitas a grade rola na horizontal com a coluna
  * "Item" fixa.
  */
@@ -32,6 +39,7 @@ export function QuotationGrid({
   items,
   decimals,
   editable,
+  canExclude,
   onSaved,
   onWriteError,
 }: {
@@ -39,6 +47,8 @@ export function QuotationGrid({
   readonly items: readonly PriceItemDto[];
   readonly decimals: 2 | 4;
   readonly editable: boolean;
+  /** `EXCLUDE_QUOTATION` em `meta.allowedActions` (US-027): desconsiderar e restaurar. */
+  readonly canExclude: boolean;
   /** Recarregar fontes, itens e totais (US-029) depois de gravar. */
   readonly onSaved: () => Promise<void>;
   readonly onWriteError: (error: unknown, fallback: string) => void;
@@ -52,6 +62,8 @@ export function QuotationGrid({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
+  const [excluding, setExcluding] = useState<GridRow | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
   const attempt = useRef<{ readonly json: string; readonly key: string } | null>(null);
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const editableRows = rows.filter((row) => !row.excluded);
@@ -152,6 +164,20 @@ export function QuotationGrid({
     }
   };
 
+  /** PRS-17 (fluxo principal 5): "Restaurar" volta a cotação ao cálculo, sem diálogo. */
+  const restore = async (quotation: QuotationDto) => {
+    setRestoring(quotation.id);
+    try {
+      await restoreQuotation(quotation.id, quotation.version);
+      toast({ title: t('toast.restored'), tone: 'success' });
+      await onSaved();
+    } catch (error) {
+      onWriteError(error, t('errors.restoreFailed'));
+    } finally {
+      setRestoring(null);
+    }
+  };
+
   const reasonOf = (quotation: QuotationDto | null) =>
     t(`reasons.${quotation?.exclusionReason ?? 'OTHER'}` as 'reasons.OTHER');
 
@@ -188,7 +214,13 @@ export function QuotationGrid({
               const masked = row.quotation?.unitPriceMasked === true;
               const readOnly = !editable || row.excluded || masked;
               return (
-                <tr key={row.item.id} className="border-b border-border align-top last:border-b-0">
+                <tr
+                  key={row.item.id}
+                  className={cx(
+                    'border-b border-border align-top last:border-b-0',
+                    row.excluded && 'text-muted-foreground opacity-60',
+                  )}
+                >
                   <th
                     scope="row"
                     className="sticky left-0 bg-surface px-3 py-2 text-left font-normal"
@@ -281,6 +313,31 @@ export function QuotationGrid({
                           {t('expired')}
                         </span>
                       ) : null}
+                      {canExclude && row.quotation?.status === 'VALID' ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={t('excludeQuotation', { number: row.item.sequence })}
+                          onClick={() => {
+                            setExcluding(row);
+                          }}
+                        >
+                          {t('exclude')}
+                        </Button>
+                      ) : null}
+                      {canExclude && row.excluded && row.quotation !== null ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={restoring === row.quotation.id}
+                          aria-label={t('restoreQuotation', { number: row.item.sequence })}
+                          onClick={() => {
+                            if (row.quotation) void restore(row.quotation);
+                          }}
+                        >
+                          {t('restore')}
+                        </Button>
+                      ) : null}
                       {editable && row.quotation !== null ? (
                         <Button
                           size="sm"
@@ -302,6 +359,14 @@ export function QuotationGrid({
         </table>
       </div>
       {info === null ? null : <Alert tone="info" title={info} />}
+      <ExcludeQuotationDialog
+        row={excluding}
+        onClose={() => {
+          setExcluding(null);
+        }}
+        onExcluded={onSaved}
+        onWriteError={onWriteError}
+      />
       {editable ? (
         <div>
           <Button

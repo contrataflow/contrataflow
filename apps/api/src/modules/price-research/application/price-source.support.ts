@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { PRICE_SOURCE_MESSAGES } from '@contrataflow/validation';
+import {
+  PRICE_SOURCE_MESSAGES,
+  QuotationExcluded,
+  QuotationRestored,
+} from '@contrataflow/validation';
 import type { PriceSourceDto, QuotationDto } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -9,6 +13,8 @@ import type { AuditChange, AuditTrailPort } from '#shared/audit/audit-trail.js';
 import { VersionConflictError } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
+import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
+import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
 import { PRICE_RESEARCH_REPOSITORY, PRICE_SOURCE_REPOSITORY } from './ports.js';
 import type { PriceResearchRepository, PriceSourceRepository } from './ports.js';
@@ -18,7 +24,7 @@ import {
   priceSourceVersionConflict,
 } from './price-research.errors.js';
 import { PriceResearchGate, PriceResearchRecorder } from './price-research.support.js';
-import type { PriceResearchReadContext } from './price-research.support.js';
+import type { PriceResearchReadContext, WritableOptions } from './price-research.support.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import type { PriceSourceTypeRef } from '../../catalog/application/catalog.facade.js';
 import { SupplierFacade } from '../../supplier/application/supplier.facade.js';
@@ -68,9 +74,10 @@ export class PriceSourceGate {
     tx: TenantTx,
     researchId: string,
     notFound: () => ApiError,
+    options: WritableOptions = {},
   ): Promise<PriceResearchReadContext> {
     try {
-      return await this.gate.writable(tx, researchId);
+      return await this.gate.writable(tx, researchId, options);
     } catch (error) {
       if (isNotFound(error)) throw notFound();
       if (error instanceof ApiError && error.code === 'DOCUMENT_NOT_EDITABLE') {
@@ -325,7 +332,10 @@ const auditValue = (field: PriceSourceEditableField, value: unknown) => {
  */
 @Injectable()
 export class PriceSourceRecorder {
-  constructor(@Inject(AUDIT_TRAIL) private readonly audit: AuditTrailPort) {}
+  constructor(
+    @Inject(AUDIT_TRAIL) private readonly audit: AuditTrailPort,
+    @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
+  ) {}
 
   async sourceCreated(
     tx: TenantTx,
@@ -400,5 +410,74 @@ export class PriceSourceRecorder {
         priceResearchId: quotation.priceResearchId,
       },
     });
+  }
+
+  /**
+   * PRS-16 (US-027): `price_research.quotation_exclude` (motivo em `metadata`; a justificativa só
+   * como impressão digital) e `QuotationExcluded` — ids e código do motivo, nunca o texto.
+   */
+  async quotationExcluded(tx: TenantTx, quotation: Quotation, processId: string): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'price_research.quotation_exclude',
+      entityType: 'Quotation',
+      entityId: quotation.id,
+      processId,
+      changes: [
+        { path: 'status', old: 'VALID', new: 'EXCLUDED' },
+        {
+          path: 'exclusionJustification',
+          old: null,
+          new: fingerprint(quotation.exclusionJustification),
+        },
+      ],
+      metadata: {
+        reason: quotation.exclusionReason,
+        priceItemId: quotation.priceItemId,
+        priceSourceId: quotation.priceSourceId,
+        priceResearchId: quotation.priceResearchId,
+      },
+    });
+    if (quotation.exclusionReason === null) return;
+    await this.outbox.record(
+      tx,
+      QuotationExcluded.of({
+        aggregateId: quotation.id,
+        processId,
+        payload: {
+          priceResearchId: quotation.priceResearchId,
+          quotationId: quotation.id,
+          priceItemId: quotation.priceItemId,
+          reason: quotation.exclusionReason,
+        },
+      }),
+    );
+  }
+
+  /** PRS-17 (US-027): `price_research.quotation_restore` e `QuotationRestored`. */
+  async quotationRestored(tx: TenantTx, quotation: Quotation, processId: string): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'price_research.quotation_restore',
+      entityType: 'Quotation',
+      entityId: quotation.id,
+      processId,
+      changes: [{ path: 'status', old: 'EXCLUDED', new: 'VALID' }],
+      metadata: {
+        priceItemId: quotation.priceItemId,
+        priceSourceId: quotation.priceSourceId,
+        priceResearchId: quotation.priceResearchId,
+      },
+    });
+    await this.outbox.record(
+      tx,
+      QuotationRestored.of({
+        aggregateId: quotation.id,
+        processId,
+        payload: {
+          priceResearchId: quotation.priceResearchId,
+          quotationId: quotation.id,
+          priceItemId: quotation.priceItemId,
+        },
+      }),
+    );
   }
 }

@@ -111,7 +111,7 @@ O "mapa comparativo" em PDF é a renderização do documento `PRICE_RESEARCH` (`
 
 - **Efeitos:** —
 - **Notas:** leitura de valores sigilosos sujeita a POL-09/RN-PRICE-12 (api.md §1.4): quem não atende a política recebe `totalEstimatedValue: null` + `totalEstimatedValueMasked: true`.
-- **Implementação (US-024):** `meta = { allowedActions: ('UPDATE'|'ADD_ITEMS'|'REMOVE_ITEMS')[], documentActions: DOCUMENT_ACTIONS[], lockReason, template }`. `lockReason` explica os botões desabilitados: `PERMISSION_DENIED`, `NOT_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`, `DOCUMENT_NOT_EDITABLE` ou `CONFIDENTIAL_BUDGET` (sem POL-09 em processo sigiloso — RN-PRICE-12). `complete`/`reopen` seguem em `documentActions` (`FINALIZE`/`REOPEN`) até a US-032. `meta.template` = versão de template fixada (seções `METHODOLOGY`/`CONCLUSION`/`PRICE_SUMMARY`).
+- **Implementação (US-024):** `meta = { allowedActions: ('UPDATE'|'ADD_ITEMS'|'REMOVE_ITEMS'|'EXCLUDE_QUOTATION')[], documentActions: DOCUMENT_ACTIONS[], lockReason, template }`. `lockReason` explica os botões desabilitados: `PERMISSION_DENIED`, `NOT_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`, `DOCUMENT_NOT_EDITABLE` ou `CONFIDENTIAL_BUDGET` (sem POL-09 em processo sigiloso — RN-PRICE-12). `complete`/`reopen` seguem em `documentActions` (`FINALIZE`/`REOPEN`) até a US-032. `meta.template` = versão de template fixada (seções `METHODOLOGY`/`CONCLUSION`/`PRICE_SUMMARY`). **US-027:** `EXCLUDE_QUOTATION` entra em `allowedActions` quando o usuário tem `PRICE_RESEARCH_EXCLUDE_QUOTATION` cobrindo o processo e passa pelas mesmas travas de edição (custódia/participação, processo editável, etapa, documento `DRAFT`/`RETURNED`, POL-09); é independente de `UPDATE` (um perfil pode ter uma sem a outra) e `lockReason` continua explicando só a edição.
 
 ### PRS-04 — Atualizar pesquisa de preços (data-base, título e parâmetros de cálculo)
 `PATCH /api/v1/price-research/{id}` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-024, US-029
@@ -428,6 +428,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `QuotationExcluded` (`price_research.quotation_excluded`) — `priceResearchId`, `quotationId`, `priceItemId`, `reason`; seguido de `PriceResearchRecalculated`. Auditoria: `price_research.quotation_exclude` (`DATA_CHANGE`) — `metadata.reason`; justificativa como hash + tamanho.
 - **Notas:** —
+- **Implementação (US-027):** permissão `PRICE_RESEARCH_EXCLUDE_QUOTATION` no lugar da de edição (403 `PERMISSION_DENIED`, `access.denied` com `reasonCode = PRICE_RESEARCH_EXCLUDE_QUOTATION`); demais travas da POL-02 estendida e POL-09 como no PRS-14. `exclusionJustification` é aparada e exige 20–4000 caracteres (422 `TOO_SHORT`/`TOO_LONG`); `exclusionReason` ausente → 422 `REQUIRED`, fora do enum → `INVALID_ENUM`. Ordem: 404 → permissão/travas → 412 (`If-Match` = versão da COTAÇÃO) → 409 `INVALID_STATE` (`detail` "Esta cotação já está desconsiderada." e `meta.status`). Grava `excludedById`/`excludedAt`, **sobe a versão da fonte** (a grade PRS-13 aberta com a versão antiga recebe 412) e recalcula a pesquisa (`validQuotationsCount` sem a cotação, alertas, contadores). Última cotação válida do item: permitido (RN-PRICE-33) — o item passa a `NO_VALID_QUOTES`. A cotação segue em PRS-09 com `exclusionReason`/`exclusionJustification`. Auditoria: `changes` = `status` (`VALID` → `EXCLUDED`) e `exclusionJustification` como `{ sha256, length }`; o evento leva só ids e o código do motivo. Timeline: `QUOTATION_EXCLUDED` (item, fonte e motivo). Resposta: `ETag` = nova versão da cotação.
 
 ### PRS-17 — Restaurar cotação
 `POST /api/v1/quotations/{quotationId}/restore` · **Permissão:** `PRICE_RESEARCH_EXCLUDE_QUOTATION` + POL-02 · **Story:** US-027
@@ -448,6 +449,7 @@ PriceSource {
 
 - **Efeitos:** Eventos: `QuotationRestored` (`price_research.quotation_restored`) — `priceResearchId`, `quotationId`, `priceItemId`; seguido de `PriceResearchRecalculated`. Auditoria: `price_research.quotation_restore` (`DATA_CHANGE`) — `metadata.priceItemId`.
 - **Notas:** —
+- **Implementação (US-027):** mesmas permissão, travas e ordem de validação do PRS-16 (409 `INVALID_STATE` com "Esta cotação já está válida."); limpa `exclusionReason`, `exclusionJustification`, `excludedById` e `excludedAt`, sobe a versão da fonte e recalcula a pesquisa. Auditoria com `changes` = `status` (`EXCLUDED` → `VALID`); timeline `QUOTATION_RESTORED`. `ETag` = nova versão da cotação.
 
 ### PRS-18 — Pré-visualizar importação de cotações por planilha
 `POST /api/v1/price-research/{id}/import-preview` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-028

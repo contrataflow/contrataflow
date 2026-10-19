@@ -5,18 +5,22 @@ import { priceItem } from '@test/support/price-research-fixtures';
 import { ID } from '@test/support/process-fixtures';
 
 import {
+  EMPTY_EXCLUSION_FORM,
   EMPTY_SOURCE_FORM,
   createSourceBody,
+  excludeBodyOf,
   formFromSource,
   gridLines,
   gridRows,
   initialGridCells,
   isoToLocalDateTime,
+  leavesItemWithoutValidQuotation,
   localDateTimeToIso,
   sourceTypeOptions,
   toApiDecimal,
   toInputDecimal,
   updateSourceBody,
+  validateExclusionForm,
   validateSourceForm,
 } from './price-source-model';
 
@@ -217,5 +221,57 @@ describe('grade de preços (RN-PRICE-24/25 · V-06)', () => {
       [ID(952)]: 'Informe um preço válido, maior que zero.',
     });
     expect(invalid.lines).toEqual([]);
+  });
+});
+
+describe('desconsiderar cotação (US-027 · V-01/V-02)', () => {
+  const JUSTIFICATION = 'Preço muito acima das demais cotações do mesmo item';
+
+  it('validateExclusionForm: motivo escolhido e justificativa com 20+ caracteres (aparada)', () => {
+    expect(validateExclusionForm(EMPTY_EXCLUSION_FORM)).toEqual({
+      reason: 'Selecione o motivo.',
+      justification: 'A justificativa deve ter no mínimo 20 caracteres.',
+    });
+    expect(validateExclusionForm({ reason: 'EXCESSIVE', justification: 'Preço alto' })).toEqual({
+      justification: 'A justificativa deve ter no mínimo 20 caracteres.',
+    });
+    // Só espaços não conta; 20 caracteres exatos passam.
+    expect(
+      validateExclusionForm({ reason: 'EXCESSIVE', justification: `  ${'a'.repeat(19)}  ` }),
+    ).toHaveProperty('justification');
+    expect(validateExclusionForm({ reason: 'OTHER', justification: 'a'.repeat(20) })).toEqual({});
+    expect(validateExclusionForm({ reason: 'INCONSISTENT', justification: JUSTIFICATION })).toEqual(
+      {},
+    );
+  });
+
+  it('excludeBodyOf: corpo do PRS-16 com a justificativa aparada; sem motivo não há corpo', () => {
+    expect(excludeBodyOf({ reason: 'INCONSISTENT', justification: `  ${JUSTIFICATION} ` })).toEqual(
+      {
+        exclusionReason: 'INCONSISTENT',
+        exclusionJustification: JUSTIFICATION,
+      },
+    );
+    expect(excludeBodyOf({ reason: '', justification: JUSTIFICATION })).toBeNull();
+  });
+
+  it('FA-01: só a última cotação válida do item deixa o item sem cotação válida', () => {
+    const [last, many, excluded] = gridRows(
+      [
+        priceItem(1, { validQuotationsCount: 1 }),
+        priceItem(2, { validQuotationsCount: 3 }),
+        priceItem(3, { validQuotationsCount: 0 }),
+      ],
+      {
+        quotations: [
+          quotation(1),
+          quotation(2),
+          quotation(3, { status: 'EXCLUDED', exclusionReason: 'OTHER' }),
+        ],
+      },
+    );
+    expect(last && leavesItemWithoutValidQuotation(last)).toBe(true);
+    expect(many && leavesItemWithoutValidQuotation(many)).toBe(false);
+    expect(excluded && leavesItemWithoutValidQuotation(excluded)).toBe(false);
   });
 });

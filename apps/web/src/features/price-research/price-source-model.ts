@@ -9,6 +9,8 @@ import {
 import type {
   CatalogItemDto,
   CreatePriceSource,
+  ExcludeQuotation,
+  ExclusionReason,
   PriceItemDto,
   PriceSourceDto,
   PriceSourceRequiredField,
@@ -316,4 +318,46 @@ export function gridLines(
     });
   }
   return { lines, errors };
+}
+
+// --- Desconsiderar cotação (US-027 · RN-PRICE-30 · V-01/V-02) -----------------------------------
+
+export interface ExclusionFormValues {
+  readonly reason: ExclusionReason | '';
+  readonly justification: string;
+}
+
+export const EMPTY_EXCLUSION_FORM: ExclusionFormValues = { reason: '', justification: '' };
+
+export interface ExclusionFormErrors {
+  readonly reason?: string;
+  readonly justification?: string;
+}
+
+/** V-01/V-02 antes de enviar (a API confere de novo): motivo escolhido e justificativa ≥ 20. */
+export function validateExclusionForm(values: ExclusionFormValues): ExclusionFormErrors {
+  const justification = values.justification.trim();
+  return {
+    ...(values.reason === '' ? { reason: PRICE_SOURCE_MESSAGES.exclusionReasonRequired } : {}),
+    ...(Array.from(justification).length < PRICE_SOURCE_LIMITS.exclusionJustificationMin
+      ? { justification: PRICE_SOURCE_MESSAGES.exclusionJustificationShort }
+      : {}),
+  };
+}
+
+/** Corpo do PRS-16 a partir do formulário já validado. */
+export function excludeBodyOf(values: ExclusionFormValues): ExcludeQuotation | null {
+  if (values.reason === '') return null;
+  return {
+    exclusionReason: values.reason,
+    exclusionJustification: values.justification.trim(),
+  };
+}
+
+/**
+ * FA-01: desconsiderar a única cotação válida do item deixa o item sem cotação válida — permitido,
+ * mas o diálogo avisa antes de confirmar.
+ */
+export function leavesItemWithoutValidQuotation(row: GridRow): boolean {
+  return row.quotation?.status === 'VALID' && row.item.validQuotationsCount <= 1;
 }

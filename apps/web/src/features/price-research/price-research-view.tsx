@@ -153,7 +153,9 @@ function LoadedView({
   const canUpdate = meta.allowedActions.includes('UPDATE');
   const canAdd = meta.allowedActions.includes('ADD_ITEMS');
   const canRemove = meta.allowedActions.includes('REMOVE_ITEMS');
-  const readOnly = meta.allowedActions.length === 0;
+  // `EXCLUDE_QUOTATION` (US-027) é independente da edição: sem as ações de edição a tela segue em
+  // leitura e `lockReason` explica o porquê.
+  const readOnly = !canUpdate && !canAdd && !canRemove;
 
   const refresh = async () => {
     await Promise.all([

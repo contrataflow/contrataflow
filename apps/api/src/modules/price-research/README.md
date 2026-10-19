@@ -65,3 +65,27 @@ Pesquisa de preços: itens, fontes, cotações e estatística (DEC-040, nível 4
   `quotation_status`/`exclusion_reason`/`outlier_flag`), RLS, FKs compostas e cascatas; remoção física.
 - **Testes**: `domain/price-source.spec.ts` (todos os tipos semeados), `presentation/price-sources.routes.spec.ts`
   (8 categorias + FA-01..08) e `test/tenant-leak/price-sources.spec.ts` (PostgreSQL).
+
+## US-027 — Desconsiderar e restaurar cotação com justificativa (PRS-16/17)
+
+- **Rotas** (`presentation/price-source.controller.ts`): PRS-16 `POST /quotations/{id}/exclude`
+  (`exclusionReason` + `exclusionJustification` ≥ 20, `If-Match` da cotação) e PRS-17
+  `POST /quotations/{id}/restore`. Contrato em `excludeQuotationSchema`
+  (`packages/validation/src/price-research/price-sources.ts`) e eventos `QuotationExcluded`/
+  `QuotationRestored` (`price-research/events.ts`).
+- **Permissão própria**: `PRICE_RESEARCH_EXCLUDE_QUOTATION` no lugar da de edição. O
+  `TypedCollectionInput.permission` (fachada do `document`) troca só a permissão da POL-02 estendida;
+  as demais travas (custódia, processo, etapa, documento `DRAFT`/`RETURNED`, POL-09) valem iguais.
+  `meta.allowedActions` ganhou `EXCLUDE_QUOTATION` (`PriceResearchGate.canExcludeQuotation`).
+- **Domínio** (`domain/price-source.ts`): `excludeQuotation`/`restoreQuotation` e
+  `excludeBlockedBy`/`restoreBlockedBy` (409 `INVALID_STATE` com o estado atual).
+- **Escrita** (`ExcludeQuotationCommand`/`RestoreQuotationCommand`): mesma guarda das demais
+  gravações (linha da pesquisa travada); numa transação só — cotação (`If-Match`), versão nova da
+  fonte (invalida a grade aberta), auditoria + evento da transição, recálculo
+  (`PriceResearchRecalculated` logo depois) e a timeline pelo projetor síncrono. Justificativa nunca
+  em log, evento nem timeline; na auditoria, hash + tamanho.
+- **Timeline**: `PriceResearchFacade.priceItemSequences`/`quotationSourceLabels` alimentam as fontes
+  `PRICE_ITEM`/`QUOTATION` do `TimelineProjector` (`QUOTATION_EXCLUDED`/`QUOTATION_RESTORED`).
+- **Sem migração**: colunas e o CHECK `quotations_excluded_reason` vêm da US-026.
+- **Testes**: `domain/price-source.spec.ts`, `presentation/quotation-exclusion.routes.spec.ts`
+  (8 categorias + FA-01..03) e `test/tenant-leak/quotation-exclusion.spec.ts` (PostgreSQL).

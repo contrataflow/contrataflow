@@ -208,3 +208,51 @@ test('fontes: registrar fonte de sítio eletrônico, lançar preços na grade, e
   await expect(page.getByText('Fonte removida')).toBeVisible();
   await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
 });
+
+// US-027 — desconsiderar uma cotação com motivo e justificativa (a célula fica esmaecida, com o motivo
+// em dica) e restaurá-la; o diálogo passa pela verificação de acessibilidade (axe).
+test('cotação: desconsiderar com justificativa, ver a célula esmaecida e restaurar', async ({
+  page,
+}) => {
+  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
+  await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
+  await expect(page).toHaveURL(RESEARCH_PATH);
+  await page.getByRole('tab', { name: 'Fontes' }).click();
+  await page.getByRole('button', { name: 'Nova fonte' }).click();
+  const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
+  await form
+    .getByLabel(/Tipo de fonte/)
+    .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+  await form.getByLabel(/Descrição/).fill('Painel de Preços');
+  await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
+  await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
+  await form.getByRole('button', { name: 'Salvar fonte' }).click();
+  const grid = page.getByRole('table', { name: 'Preços da fonte Painel de Preços' });
+  await grid.getByLabel('Preço unitário do item 1').fill('25,90');
+  await grid.getByLabel('Preço unitário do item 2').fill('120');
+  await page.getByRole('button', { name: 'Salvar preços' }).click();
+  await expect(page.getByText('Preços salvos')).toBeVisible();
+
+  await grid.getByRole('button', { name: 'Desconsiderar preço do item 1' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Desconsiderar o preço do item 1' });
+  await expect(dialog.getByLabel(/Motivo/)).toBeFocused();
+  await expectNoSeriousA11yViolations(page, 'diálogo Desconsiderar cotação');
+  await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
+  await expect(dialog.getByText('Selecione o motivo.')).toBeVisible();
+  await dialog.getByLabel(/Motivo/).selectOption({ label: 'Excessivo' });
+  await dialog
+    .getByLabel(/Justificativa/)
+    .fill('Preço muito acima das demais cotações do mesmo item');
+  await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
+  await expect(page.getByText('Preço desconsiderado')).toBeVisible();
+
+  const excludedCell = grid.getByText('Desconsiderada');
+  await expect(excludedCell).toBeVisible();
+  await expect(excludedCell).toHaveAttribute('title', /excessivo/);
+  await expect(grid.getByLabel('Preço unitário do item 1')).toHaveCount(0);
+
+  await grid.getByRole('button', { name: 'Restaurar preço do item 1' }).click();
+  await expect(page.getByText('Preço restaurado')).toBeVisible();
+  await expect(grid.getByText('Desconsiderada')).toHaveCount(0);
+  await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
+});

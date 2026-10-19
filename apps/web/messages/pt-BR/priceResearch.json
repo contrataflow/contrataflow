@@ -245,6 +245,31 @@
       "saving": "Salvando…",
       "saveFailed": "Não foi possível salvar agora. Tente novamente em instantes."
     },
+    "excludeDialog": {
+      "title": "Desconsiderar o preço do item {number}",
+      "description": "A cotação continua listada, com o motivo e a justificativa, mas deixa de entrar nos cálculos do valor estimado. Você pode restaurá-la depois.",
+      "lastValid": "Este item ficará sem cotação válida.",
+      "reason": "Motivo",
+      "reasonPlaceholder": "Selecione o motivo",
+      "reasons": {
+        "UNFEASIBLE": "Inexequível",
+        "EXCESSIVE": "Excessivo",
+        "INCONSISTENT": "Inconsistente",
+        "EXPIRED": "Vencido",
+        "NON_COMPLIANT": "Não conforme",
+        "OTHER": "Outro motivo"
+      },
+      "justification": "Justificativa",
+      "justificationHint": "Explique a decisão (mínimo de {min} caracteres).",
+      "cancel": "Cancelar",
+      "confirm": "Desconsiderar",
+      "saving": "Salvando…",
+      "toast": "Preço desconsiderado",
+      "errors": {
+        "failed": "Não foi possível desconsiderar o preço agora. Tente novamente.",
+        "unavailable": "Não foi possível concluir agora. Tente novamente em instantes."
+      }
+    },
     "grid": {
       "label": "Preços da fonte {description}",
       "item": "Item",
@@ -259,6 +284,16 @@
       "unitPriceLabel": "Preço unitário do item {number}",
       "brandModelLabel": "Marca/modelo do item {number}",
       "removeQuotation": "Remover preço do item {number}",
+      "exclude": "Desconsiderar",
+      "excludeQuotation": "Desconsiderar preço do item {number}",
+      "restore": "Restaurar",
+      "restoreQuotation": "Restaurar preço do item {number}",
+      "toast": {
+        "restored": "Preço restaurado"
+      },
+      "errors": {
+        "restoreFailed": "Não foi possível restaurar o preço agora. Tente novamente."
+      },
       "save": "Salvar preços",
       "saving": "Salvando…",
       "nothingToSave": "Nenhum preço alterado.",

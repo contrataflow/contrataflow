@@ -5,12 +5,16 @@ import {
   createPriceSource,
   createQuotation,
   effectiveMaxAgeDays,
+  excludeBlockedBy,
+  excludeQuotation,
   fieldsOf,
   isSourceExpired,
   minusDays,
   missingRequiredFields,
   normalizeUnitPrice,
   planQuotationGrid,
+  restoreBlockedBy,
+  restoreQuotation,
   sourceDateErrors,
   validQuotationCounts,
   withPrice,
@@ -316,5 +320,68 @@ describe('cotações: preço e contagem', () => {
         { priceItemId: 'i2', status: 'EXCLUDED' },
       ]),
     ).toEqual(new Map([['i1', 2]]));
+  });
+});
+
+describe('desconsiderar e restaurar (US-027 · RN-PRICE-30..32)', () => {
+  const LATER = new Date('2026-10-07T09:00:00.000Z');
+  const exclude = (source: Quotation = quotation()) =>
+    excludeQuotation(source, {
+      reason: 'INCONSISTENT',
+      justification: 'Preço muito acima das demais cotações do mesmo item',
+      userId: 'diego',
+      now: LATER,
+    });
+
+  it('excludeQuotation: EXCLUDED com motivo, justificativa, autor e momento; preço e versão intactos', () => {
+    const excluded = exclude();
+    expect(excluded).toMatchObject({
+      status: 'EXCLUDED',
+      exclusionReason: 'INCONSISTENT',
+      exclusionJustification: 'Preço muito acima das demais cotações do mesmo item',
+      excludedById: 'diego',
+      excludedAt: LATER,
+      updatedAt: LATER,
+      updatedById: 'diego',
+      unitPrice: '150.0000',
+      version: 1,
+    });
+  });
+
+  it('restoreQuotation: volta a VALID e limpa os quatro campos da exclusão', () => {
+    const restored = restoreQuotation(exclude(), { now: LATER, userId: 'diego' });
+    expect(restored).toMatchObject({
+      status: 'VALID',
+      exclusionReason: null,
+      exclusionJustification: null,
+      excludedById: null,
+      excludedAt: null,
+      unitPrice: '150.0000',
+    });
+  });
+
+  it('transições inválidas: excludeBlockedBy/restoreBlockedBy devolvem o estado atual', () => {
+    expect(excludeBlockedBy(quotation())).toBeNull();
+    expect(excludeBlockedBy(exclude())).toBe('EXCLUDED');
+    expect(restoreBlockedBy(exclude())).toBeNull();
+    expect(restoreBlockedBy(quotation())).toBe('VALID');
+  });
+
+  it('as funções recusam a transição inválida (erro de programação — o caso de uso confere antes)', () => {
+    expect(() => exclude(exclude())).toThrow();
+    expect(() => restoreQuotation(quotation(), { now: LATER, userId: 'diego' })).toThrow();
+  });
+
+  it('RN-PRICE-31: a cotação desconsiderada sai da contagem de válidas e volta ao restaurar', () => {
+    const excluded = exclude();
+    const other = quotation({ id: 'q2', priceItemId: 'i2' });
+    expect(validQuotationCounts([excluded, other])).toEqual(new Map([['i2', 1]]));
+    const restored = restoreQuotation(excluded, { now: LATER, userId: 'diego' });
+    expect(validQuotationCounts([restored, other])).toEqual(
+      new Map([
+        ['i1', 1],
+        ['i2', 1],
+      ]),
+    );
   });
 });

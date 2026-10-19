@@ -134,3 +134,19 @@ export function recordQuotationGridDuration(durationMs: number, lines: number): 
     });
   gridDuration.record(durationMs, { lines: lines > 50 ? '>50' : lines > 10 ? '11-50' : '1-10' });
 }
+
+// --- US-027: desconsiderar e restaurar cotação --------------------------------------------------
+
+/**
+ * V-03 (RN-PRICE-32): desconsiderar uma cotação já `EXCLUDED` ou restaurar uma já `VALID` — 409
+ * `INVALID_STATE` com o estado atual ("Esta cotação já está {estado}.").
+ */
+export function quotationInvalidState(current: 'VALID' | 'EXCLUDED'): ApiError {
+  return new ApiError('INVALID_STATE', {
+    detail:
+      current === 'EXCLUDED'
+        ? PRICE_SOURCE_MESSAGES.alreadyExcluded
+        : PRICE_SOURCE_MESSAGES.alreadyValid,
+    extensions: { meta: { status: current } },
+  });
+}

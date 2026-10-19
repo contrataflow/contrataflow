@@ -247,10 +247,11 @@ export class DocumentLifecycleService {
     kind: 'edit' | 'submit',
     deniedDetail?: string,
     notCustodian: () => Error = notCustodianNorCollaborator,
+    permission?: PermissionCode,
   ): Promise<void> {
     const permissions = typePermissionsOf(context.type.systemModule);
     await this.access.assertCanOnProcess(
-      kind === 'edit' ? permissions.edit : permissions.submit,
+      permission ?? (kind === 'edit' ? permissions.edit : permissions.submit),
       context.process.access,
       deniedDetail,
     );

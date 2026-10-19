@@ -423,6 +423,71 @@ export function withPrice(
   };
 }
 
+// --- Desconsiderar e restaurar (US-027 · RN-PRICE-30..33) ---------------------------------------
+
+/**
+ * `Quotation.exclude` (RN-PRICE-30/32): só uma cotação `VALID` pode ser desconsiderada. Devolve o
+ * estado atual quando a transição é inválida (a API responde `INVALID_STATE` com o estado), senão
+ * `null`.
+ */
+export function excludeBlockedBy(quotation: Pick<Quotation, 'status'>): QuotationStatus | null {
+  return quotation.status === 'VALID' ? null : quotation.status;
+}
+
+/** `Quotation.restore` (RN-PRICE-32): só uma cotação `EXCLUDED` pode ser restaurada. */
+export function restoreBlockedBy(quotation: Pick<Quotation, 'status'>): QuotationStatus | null {
+  return quotation.status === 'EXCLUDED' ? null : quotation.status;
+}
+
+/**
+ * Desconsidera a cotação: `EXCLUDED` com motivo, justificativa, autor e momento (o `CHECK` do banco
+ * exige motivo e justificativa). A versão sobe no repositório. O chamador confere
+ * `excludeBlockedBy` antes.
+ */
+export function excludeQuotation(
+  quotation: Quotation,
+  input: {
+    readonly reason: ExclusionReason;
+    readonly justification: string;
+    readonly userId: string | null;
+    readonly now: Date;
+  },
+): Quotation {
+  if (excludeBlockedBy(quotation) !== null) {
+    throw new Error(`Cotação ${quotation.id} não pode ser desconsiderada em ${quotation.status}.`);
+  }
+  return {
+    ...quotation,
+    status: 'EXCLUDED',
+    exclusionReason: input.reason,
+    exclusionJustification: input.justification,
+    excludedById: input.userId,
+    excludedAt: input.now,
+    updatedAt: input.now,
+    updatedById: input.userId,
+  };
+}
+
+/** Restaura a cotação: volta a `VALID` e limpa os campos de exclusão (RN-PRICE-32). */
+export function restoreQuotation(
+  quotation: Quotation,
+  stamp: { readonly now: Date; readonly userId: string | null },
+): Quotation {
+  if (restoreBlockedBy(quotation) !== null) {
+    throw new Error(`Cotação ${quotation.id} não pode ser restaurada em ${quotation.status}.`);
+  }
+  return {
+    ...quotation,
+    status: 'VALID',
+    exclusionReason: null,
+    exclusionJustification: null,
+    excludedById: null,
+    excludedAt: null,
+    updatedAt: stamp.now,
+    updatedById: stamp.userId,
+  };
+}
+
 /** Cotações válidas por item (`status = VALID`) — o `validQuotationsCount` do recálculo. */
 export function validQuotationCounts(
   quotations: readonly Pick<Quotation, 'priceItemId' | 'status'>[],

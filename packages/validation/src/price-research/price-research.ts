@@ -38,7 +38,13 @@ export const PRICE_ITEM_ALERT_CODES = [
 export type PriceItemAlertCode = (typeof PRICE_ITEM_ALERT_CODES)[number];
 
 /** Ações da pesquisa para o usuário (`meta.allowedActions` do PRS-03 — botões da SCR-009). */
-export const PRICE_RESEARCH_ACTIONS = ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS'] as const;
+export const PRICE_RESEARCH_ACTIONS = [
+  'UPDATE',
+  'ADD_ITEMS',
+  'REMOVE_ITEMS',
+  // US-027: `PRICE_RESEARCH_EXCLUDE_QUOTATION` cobrindo o processo + as mesmas travas de edição.
+  'EXCLUDE_QUOTATION',
+] as const;
 export type PriceResearchAction = (typeof PRICE_RESEARCH_ACTIONS)[number];
 
 /** Por que a pesquisa não pode ser alterada pelo usuário agora (explicação dos botões). */

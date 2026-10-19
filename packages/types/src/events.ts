@@ -68,6 +68,9 @@ export const DOMAIN_EVENT_NAMES = [
   'SupplierCreated',
   'SupplierUpdated',
   'PriceResearchRecalculated',
+  // US-027: desconsiderar e restaurar cotação (PRS-16/17).
+  'QuotationExcluded',
+  'QuotationRestored',
   // US-021: decisão RECOMMENDED de alternativa do ETP (RN-ETP-21).
   'EtpAlternativeRecommended',
   'RiskCreated',

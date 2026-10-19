@@ -1,5 +1,6 @@
 import type {
   CreatePriceSource,
+  ExcludeQuotation,
   PriceSourceDto,
   QuotationDto,
   QuotationLine,
@@ -13,7 +14,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 /*
- * Fontes de pesquisa e cotações (US-026 · SCR-009, aba "Fontes"): PRS-09..15 de
+ * Fontes de pesquisa e cotações (US-026 · SCR-009, aba "Fontes"): PRS-09..17 de
  * api/07-price-research-suppliers.md. Chave `['t', tenantId, 'price-research', id, 'sources']` (sob a
  * do cabeçalho: invalidar a pesquisa renova as fontes). O `If-Match` do PRS-11/12/13 é a `version` da
  * fonte; o do PRS-14/15, a `version` da cotação. A grade (PRS-13) leva `Idempotency-Key` — o mesmo
@@ -127,4 +128,30 @@ export async function deleteQuotation(quotationId: string, version: number): Pro
     method: 'DELETE',
     ifMatch: ifMatchOf(version),
   });
+}
+
+/** PRS-16 (US-027): desconsidera a cotação com motivo e justificativa; `If-Match` = versão da cotação. */
+export async function excludeQuotation(
+  quotationId: string,
+  body: ExcludeQuotation,
+  version: number,
+): Promise<QuotationDto> {
+  const result = await apiRequest<QuotationDto>(`/quotations/${quotationId}/exclude`, {
+    method: 'POST',
+    body,
+    ifMatch: ifMatchOf(version),
+  });
+  return result.data;
+}
+
+/** PRS-17 (US-027): restaura a cotação desconsiderada; `If-Match` = versão da cotação. */
+export async function restoreQuotation(
+  quotationId: string,
+  version: number,
+): Promise<QuotationDto> {
+  const result = await apiRequest<QuotationDto>(`/quotations/${quotationId}/restore`, {
+    method: 'POST',
+    ifMatch: ifMatchOf(version),
+  });
+  return result.data;
 }

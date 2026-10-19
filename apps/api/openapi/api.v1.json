@@ -4935,7 +4935,8 @@
               "enum": [
                 "UPDATE",
                 "ADD_ITEMS",
-                "REMOVE_ITEMS"
+                "REMOVE_ITEMS",
+                "EXCLUDE_QUOTATION"
               ]
             }
           },
@@ -13574,6 +13575,25 @@
             "maxLength": 200
           }
         },
+        "additionalProperties": false
+      },
+      "QuotationExcludeRequest": {
+        "type": "object",
+        "properties": {
+          "exclusionReason": {
+            "type": "string",
+            "description": "ExclusionReason: UNFEASIBLE | EXCESSIVE | INCONSISTENT | EXPIRED | NON_COMPLIANT | OTHER."
+          },
+          "exclusionJustification": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "exclusionReason",
+          "exclusionJustification"
+        ],
         "additionalProperties": false
       },
       "UpdateRiskTreatmentRequest": {
@@ -44620,6 +44640,256 @@
         "responses": {
           "200": {
             "description": "Preço (> 0, casas do snapshot — 422 `INVALID_DECIMAL` em `unitPrice`) e/ou marca/modelo (≤ 200). Cotação `EXCLUDED` → 409 `INVALID_STATE`. `If-Match` = versão da cotação (412 `VERSION_CONFLICT`); a fonte ganha versão nova. Grava `price_research.quotation_update`. `PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Quotation"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quotations/{quotationId}/exclude": {
+      "post": {
+        "operationId": "PRS-16",
+        "summary": "Desconsiderar cotação",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.quotation_exclude"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "quotationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotationExcludeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Desconsidera a cotação (`VALID` → `EXCLUDED`, RN-PRICE-30): `exclusionReason` (enum `ExclusionReason` — ausente → 422 `VALIDATION_ERROR` `REQUIRED`) e `exclusionJustification` com no mínimo 20 caracteres (422 `TOO_SHORT`). Grava motivo, justificativa, autor e momento; a cotação permanece listada, fora dos cálculos (RN-PRICE-31). Já `EXCLUDED` → 409 `INVALID_STATE`. Desconsiderar a última cotação válida do item não é bloqueado (RN-PRICE-33). Grava `price_research.quotation_exclude` (`metadata.reason`; justificativa só como impressão digital) e emite `QuotationExcluded` (`price_research.quotation_excluded`) + entrada na timeline. `PRICE_RESEARCH_EXCLUDE_QUOTATION` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). `If-Match` = versão da cotação (412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428). Responde a cotação; `ETag` = nova versão. A fonte ganha versão nova. Recalcula a pesquisa (RN-PRICE-34) e emite `PriceResearchRecalculated` (`price_research.recalculated`) logo depois do evento da transição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Quotation"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quotations/{quotationId}/restore": {
+      "post": {
+        "operationId": "PRS-17",
+        "summary": "Restaurar cotação",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.quotation_restore"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "quotationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restaura a cotação (`EXCLUDED` → `VALID`, RN-PRICE-32): limpa motivo, justificativa, autor e momento da exclusão; volta a participar do cálculo. Já `VALID` → 409 `INVALID_STATE`. Sem corpo. Grava `price_research.quotation_restore` (`metadata.priceItemId`) e emite `QuotationRestored` (`price_research.quotation_restored`) + entrada na timeline. `PRICE_RESEARCH_EXCLUDE_QUOTATION` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). `If-Match` = versão da cotação (412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428). Responde a cotação; `ETag` = nova versão. A fonte ganha versão nova. Recalcula a pesquisa (RN-PRICE-34) e emite `PriceResearchRecalculated` (`price_research.recalculated`) logo depois do evento da transição.",
             "content": {
               "application/json": {
                 "schema": {

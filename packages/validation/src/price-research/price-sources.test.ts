@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createPriceSourceSchema,
+  EXCLUSION_REASONS,
+  excludeQuotationSchema,
   isHttpsUrl,
   missingPriceSourceFields,
   PRICE_SOURCE_MESSAGES,
@@ -110,5 +112,77 @@ describe('contratos (PRS-10/11/13/14)', () => {
       ],
     });
     expect(codes(result)).toEqual([['items.1.priceItemId', 'DUPLICATE_IN_LIST']]);
+  });
+});
+
+describe('excludeQuotationSchema (US-027 · V-01/V-02)', () => {
+  const JUSTIFICATION = 'Preço muito acima das demais cotações do mesmo item';
+
+  it('aceita motivo do enum e justificativa com 20+ caracteres (aparada)', () => {
+    const parsed = excludeQuotationSchema.parse({
+      exclusionReason: 'INCONSISTENT',
+      exclusionJustification: `  ${JUSTIFICATION}  `,
+    });
+    expect(parsed).toEqual({
+      exclusionReason: 'INCONSISTENT',
+      exclusionJustification: JUSTIFICATION,
+    });
+    for (const reason of EXCLUSION_REASONS) {
+      expect(
+        excludeQuotationSchema.safeParse({
+          exclusionReason: reason,
+          exclusionJustification: JUSTIFICATION,
+        }).success,
+      ).toBe(true);
+    }
+  });
+
+  it('justificativa curta → too_small (TOO_SHORT na API); 20 caracteres exatos passam', () => {
+    const short = excludeQuotationSchema.safeParse({
+      exclusionReason: 'EXCESSIVE',
+      exclusionJustification: 'Preço alto',
+    });
+    expect(codes(short)).toEqual([['exclusionJustification', 'too_small']]);
+    expect(short.error?.issues[0]?.message).toBe(PRICE_SOURCE_MESSAGES.exclusionJustificationShort);
+    expect(
+      excludeQuotationSchema.safeParse({
+        exclusionReason: 'EXCESSIVE',
+        exclusionJustification: 'a'.repeat(20),
+      }).success,
+    ).toBe(true);
+    // Só espaços conta como vazio.
+    expect(
+      excludeQuotationSchema.safeParse({
+        exclusionReason: 'OTHER',
+        exclusionJustification: ' '.repeat(40),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('motivo ausente → invalid_type (REQUIRED); fora do enum → invalid_value; campo extra recusado', () => {
+    const missing = excludeQuotationSchema.safeParse({ exclusionJustification: JUSTIFICATION });
+    expect(codes(missing)).toEqual([['exclusionReason', 'invalid_type']]);
+    expect(missing.error?.issues[0]?.message).toBe(PRICE_SOURCE_MESSAGES.exclusionReasonRequired);
+    const unknown = excludeQuotationSchema.safeParse({
+      exclusionReason: 'OUTRO',
+      exclusionJustification: JUSTIFICATION,
+    });
+    expect(codes(unknown)).toEqual([['exclusionReason', 'invalid_value']]);
+    expect(
+      excludeQuotationSchema.safeParse({
+        exclusionReason: 'OTHER',
+        exclusionJustification: JUSTIFICATION,
+        status: 'EXCLUDED',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('limita a justificativa a 4000 caracteres', () => {
+    expect(
+      excludeQuotationSchema.safeParse({
+        exclusionReason: 'OTHER',
+        exclusionJustification: 'a'.repeat(4001),
+      }).success,
+    ).toBe(false);
   });
 });

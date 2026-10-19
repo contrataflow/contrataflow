@@ -1,6 +1,7 @@
 import {
   createPriceSourceSchema,
   dataEnvelope,
+  excludeQuotationSchema,
   pageMetaSchema,
   pageQuerySchema,
   priceResearchIdParamsSchema,
@@ -14,6 +15,7 @@ import {
 } from '@contrataflow/validation';
 import type {
   CreatePriceSource,
+  ExcludeQuotation,
   PageQuery,
   PriceSourceDto,
   QuotationDto,
@@ -38,6 +40,8 @@ import {
   CreatePriceSourceCommand,
   DeletePriceSourceCommand,
   DeleteQuotationCommand,
+  ExcludeQuotationCommand,
+  RestoreQuotationCommand,
   UpdatePriceSourceCommand,
   UpdateQuotationCommand,
   UpsertQuotationsCommand,
@@ -52,6 +56,10 @@ const WRITE_ACCESS =
   'PRICE_RESEARCH_UPDATE cobrindo o processo — por perfil ou por participação COLLABORATOR/CONSULTANT — com a POL-02 estendida e POL-09 em processo sigiloso (RN-PRICE-10/12), conferidas no caso de uso; sem permissão = 403 PERMISSION_DENIED com access.denied.';
 const WRITE_RULES =
   '`PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). Todo commit recalcula a pesquisa (RN-PRICE-27: cotações válidas, alertas, contadores, `lastCalculatedAt`) e emite `PriceResearchRecalculated` (`price_research.recalculated`).';
+const EXCLUDE_ACCESS =
+  'PRICE_RESEARCH_EXCLUDE_QUOTATION cobrindo o processo — por perfil ou por participação COLLABORATOR/CONSULTANT — com a POL-02 estendida e POL-09 em processo sigiloso, conferidas no caso de uso; sem permissão = 403 PERMISSION_DENIED com access.denied (reasonCode = PRICE_RESEARCH_EXCLUDE_QUOTATION).';
+const EXCLUDE_RULES =
+  '`PRICE_RESEARCH_EXCLUDE_QUOTATION` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`). `If-Match` = versão da cotação (412 `VERSION_CONFLICT` com `currentVersion`; ausente → 428). Responde a cotação; `ETag` = nova versão. A fonte ganha versão nova. Recalcula a pesquisa (RN-PRICE-34) e emite `PriceResearchRecalculated` (`price_research.recalculated`) logo depois do evento da transição.';
 const SOURCE_RULES =
   'Tipo ativo do catálogo `PRICE_SOURCE_TYPE` do tenant (422 `VALIDATION_ERROR` `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `sourceTypeId`); descrição 1–300; `url` iniciada por `https://` (422 `INVALID_FORMAT`); `quoteDate`/`accessedAt` não futuras (422 `DATE_IN_PAST`); campos de `requiredFields` do tipo presentes (422 `QUOTATION_REQUIRED_FIELDS`, um erro `CONDITIONAL_REQUIRED` por campo — o anexo segue o ATT-02 com alvo `PRICE_SOURCE` depois de a fonte existir, RN-PRICE-28); `supplierId` de fornecedor ativo do tenant (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`).';
 
@@ -70,6 +78,8 @@ export class PriceSourceController {
     private readonly upsert: UpsertQuotationsCommand,
     private readonly updateOne: UpdateQuotationCommand,
     private readonly removeOne: DeleteQuotationCommand,
+    private readonly exclude: ExcludeQuotationCommand,
+    private readonly restore: RestoreQuotationCommand,
   ) {}
 
   @Get('price-research/:id/sources')
@@ -268,5 +278,67 @@ export class PriceSourceController {
       quotationId: params.quotationId,
       expectedVersion: ifMatch?.value ?? 0,
     });
+  }
+
+  @Post('quotations/:quotationId/exclude')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(EXCLUDE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'PRS-16',
+    summary: 'Desconsiderar cotação',
+    tags: TAGS,
+    auditActions: ['price_research.quotation_exclude'],
+    responses: {
+      200: {
+        description: `Desconsidera a cotação (\`VALID\` → \`EXCLUDED\`, RN-PRICE-30): \`exclusionReason\` (enum \`ExclusionReason\` — ausente → 422 \`VALIDATION_ERROR\` \`REQUIRED\`) e \`exclusionJustification\` com no mínimo 20 caracteres (422 \`TOO_SHORT\`). Grava motivo, justificativa, autor e momento; a cotação permanece listada, fora dos cálculos (RN-PRICE-31). Já \`EXCLUDED\` → 409 \`INVALID_STATE\`. Desconsiderar a última cotação válida do item não é bloqueado (RN-PRICE-33). Grava \`price_research.quotation_exclude\` (\`metadata.reason\`; justificativa só como impressão digital) e emite \`QuotationExcluded\` (\`price_research.quotation_excluded\`) + entrada na timeline. ${EXCLUDE_RULES}`,
+        schema: dataEnvelope(quotationSchema),
+      },
+    },
+  })
+  async excludeQuotation(
+    @ZodParams(quotationIdParamsSchema) params: { quotationId: string },
+    @ZodBody(excludeQuotationSchema) body: ExcludeQuotation,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<QuotationDto> {
+    const { dto } = await this.exclude.execute({
+      quotationId: params.quotationId,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${String(dto.version)}"`);
+    return dto;
+  }
+
+  @Post('quotations/:quotationId/restore')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(EXCLUDE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'PRS-17',
+    summary: 'Restaurar cotação',
+    tags: TAGS,
+    auditActions: ['price_research.quotation_restore'],
+    responses: {
+      200: {
+        description: `Restaura a cotação (\`EXCLUDED\` → \`VALID\`, RN-PRICE-32): limpa motivo, justificativa, autor e momento da exclusão; volta a participar do cálculo. Já \`VALID\` → 409 \`INVALID_STATE\`. Sem corpo. Grava \`price_research.quotation_restore\` (\`metadata.priceItemId\`) e emite \`QuotationRestored\` (\`price_research.quotation_restored\`) + entrada na timeline. ${EXCLUDE_RULES}`,
+        schema: dataEnvelope(quotationSchema),
+      },
+    },
+  })
+  async restoreQuotation(
+    @ZodParams(quotationIdParamsSchema) params: { quotationId: string },
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<QuotationDto> {
+    const { dto } = await this.restore.execute({
+      quotationId: params.quotationId,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${String(dto.version)}"`);
+    return dto;
   }
 }

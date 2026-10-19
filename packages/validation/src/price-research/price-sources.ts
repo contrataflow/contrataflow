@@ -40,6 +40,9 @@ export const PRICE_SOURCE_LIMITS = Object.freeze({
   referenceDocumentMax: 120,
   longTextMax: 4000,
   brandModelMax: 200,
+  /** Justificativa de desconsideração (US-027 · RN-PRICE-30). */
+  exclusionJustificationMin: 20,
+  exclusionJustificationMax: 4000,
   /** Linhas por grade: uma por item da pesquisa (o teto dos itens). */
   gridMax: PRICE_RESEARCH_LIMITS.itemsMax,
 });
@@ -86,6 +89,13 @@ export const PRICE_SOURCE_MESSAGES = Object.freeze({
   permissionDenied: 'Você não tem permissão para editar esta pesquisa de preços.',
   emptyPatch: 'Informe ao menos um campo para alterar.',
   attachmentFailed: 'Não foi possível enviar o anexo agora. Tente novamente.',
+  // US-027 (V-01..V-04).
+  exclusionReasonRequired: 'Selecione o motivo.',
+  exclusionJustificationShort: `A justificativa deve ter no mínimo ${String(PRICE_SOURCE_LIMITS.exclusionJustificationMin)} caracteres.`,
+  exclusionJustificationLong: `Informe no máximo ${String(PRICE_SOURCE_LIMITS.exclusionJustificationMax)} caracteres.`,
+  alreadyExcluded: 'Esta cotação já está desconsiderada.',
+  alreadyValid: 'Esta cotação já está válida.',
+  excludePermissionDenied: 'Você não tem permissão para desconsiderar ou restaurar cotações.',
 });
 
 // --- Regras compartilhadas (RN-PRICE-21/23/24 · V-01/V-04/V-05/V-06) ----------------------------
@@ -252,6 +262,31 @@ export const updateQuotationSchema = z
   })
   .meta({ id: 'QuotationUpdateRequest' });
 export type UpdateQuotation = z.infer<typeof updateQuotationSchema>;
+
+/**
+ * PRS-16 — `POST /quotations/{quotationId}/exclude` (`If-Match` = versão da cotação): motivo
+ * (`ExclusionReason`) e justificativa de no mínimo 20 caracteres (RN-PRICE-30 · V-01/V-02).
+ */
+export const excludeQuotationSchema = z
+  .strictObject({
+    // Ausente → `REQUIRED` (V-01); presente e fora do enum → `INVALID_ENUM`. O `pipe` a partir de
+    // `string` é o que dá o `REQUIRED` (um `z.enum` ausente vira `INVALID_ENUM`).
+    exclusionReason: z
+      .string({ error: PRICE_SOURCE_MESSAGES.exclusionReasonRequired })
+      .pipe(z.enum(EXCLUSION_REASONS, { error: PRICE_SOURCE_MESSAGES.exclusionReasonRequired }))
+      .meta({ description: `ExclusionReason: ${EXCLUSION_REASONS.join(' | ')}.` }),
+    exclusionJustification: z
+      .string({ error: PRICE_SOURCE_MESSAGES.exclusionJustificationShort })
+      .trim()
+      .min(PRICE_SOURCE_LIMITS.exclusionJustificationMin, {
+        error: PRICE_SOURCE_MESSAGES.exclusionJustificationShort,
+      })
+      .max(PRICE_SOURCE_LIMITS.exclusionJustificationMax, {
+        error: PRICE_SOURCE_MESSAGES.exclusionJustificationLong,
+      }),
+  })
+  .meta({ id: 'QuotationExcludeRequest' });
+export type ExcludeQuotation = z.infer<typeof excludeQuotationSchema>;
 
 export const priceSourceIdParamsSchema = z.strictObject({ sourceId: uuidV7Schema });
 export const quotationIdParamsSchema = z.strictObject({ quotationId: uuidV7Schema });

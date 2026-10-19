@@ -1,3 +1,4 @@
+import type { PermissionCode } from '@contrataflow/types';
 import type { DocumentStatus, SystemDocumentModule } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -50,6 +51,11 @@ export interface TypedCollectionInput {
   readonly deniedDetail?: string;
   /** Mensagem do 409 `DOCUMENT_NOT_EDITABLE` (FA-04 do módulo dono). */
   readonly lockedDetail?: string;
+  /**
+   * Permissão exigida no lugar da de edição do tipo (ex.: `PRICE_RESEARCH_EXCLUDE_QUOTATION` — US-027);
+   * as demais condições da POL-02 valem iguais.
+   */
+  readonly permission?: PermissionCode;
 }
 
 export interface TypedCollectionState {
@@ -89,7 +95,7 @@ export class TypedCollectionGuard {
       processId: process.id,
       isBudgetConfidential: process.isBudgetConfidential,
       owner: ownerOf(owner),
-      lockReason: await this.lockReasonOf({ process, type }, owner),
+      lockReason: await this.lockReasonOf({ process, type }, owner, input.permission),
     };
   }
 
@@ -103,7 +109,14 @@ export class TypedCollectionGuard {
   async assertWritable(tx: TenantTx, input: TypedCollectionInput): Promise<TypedCollectionWrite> {
     const context = await this.visible(tx, input);
     const actor = await this.lifecycle.actorOf(context);
-    await this.lifecycle.authorizePol02(context, actor, 'edit', input.deniedDetail);
+    await this.lifecycle.authorizePol02(
+      context,
+      actor,
+      'edit',
+      input.deniedDetail,
+      undefined,
+      input.permission,
+    );
     const found = await this.documents.findActiveOfType(tx, context.process.id, context.type.id);
     let owner: Document | null = null;
     if (found !== null) {
@@ -140,8 +153,9 @@ export class TypedCollectionGuard {
   private async lockReasonOf(
     context: { readonly process: DocumentProcessContext; readonly type: DocumentType },
     owner: Document | null,
+    permission?: PermissionCode,
   ): Promise<TypedCollectionLockReason | null> {
-    const { edit } = typePermissionsOf(context.type.systemModule);
+    const edit = permission ?? typePermissionsOf(context.type.systemModule).edit;
     if (!(await this.access.canOnProcess(edit, context.process.access))) {
       return 'PERMISSION_DENIED';
     }

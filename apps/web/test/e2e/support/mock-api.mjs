@@ -1907,7 +1907,7 @@ function buildPriceResearch(state, { id, code, title, referenceDate, quantities 
 }
 
 const priceMeta = () => ({
-  allowedActions: ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS'],
+  allowedActions: ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS', 'EXCLUDE_QUOTATION'],
   documentActions: [],
   lockReason: null,
   template: null,
@@ -2094,6 +2094,56 @@ async function handlePriceSources(request, response, url, correlationId) {
       send(response, 201, { data: sourceDto(research, source) }, { ETag: '"1"' });
       return true;
     }
+  }
+  // Desconsiderar e restaurar cotação (US-027 · PRS-16/17): estado, motivo e versões; o recálculo, a
+  // POL-02/POL-09 e as 8 categorias são cobertos nos testes da API.
+  const transition = /^\/api\/v1\/quotations\/([0-9a-f-]{36})\/(exclude|restore)$/.exec(
+    url.pathname,
+  );
+  if (transition && request.method === 'POST') {
+    const owner = [...priceStates.values()]
+      .map((state) => state.research)
+      .find((candidate) =>
+        candidate?.quotations?.some((quotation) => quotation.id === transition[1]),
+      );
+    const quotation = owner?.quotations.find((candidate) => candidate.id === transition[1]);
+    if (!owner || !quotation) {
+      problem(response, 404, 'NOT_FOUND', String(correlationId));
+      return true;
+    }
+    const expected = Number(String(request.headers['if-match'] ?? '').replaceAll('"', ''));
+    if (expected !== quotation.version) {
+      problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      return true;
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    if (transition[2] === 'exclude') {
+      if (quotation.status === 'EXCLUDED') {
+        problem(response, 409, 'INVALID_STATE', String(correlationId));
+        return true;
+      }
+      Object.assign(quotation, {
+        status: 'EXCLUDED',
+        exclusionReason: body.exclusionReason,
+        exclusionJustification: body.exclusionJustification,
+      });
+    } else {
+      if (quotation.status === 'VALID') {
+        problem(response, 409, 'INVALID_STATE', String(correlationId));
+        return true;
+      }
+      Object.assign(quotation, {
+        status: 'VALID',
+        exclusionReason: null,
+        exclusionJustification: null,
+      });
+    }
+    quotation.version += 1;
+    quotation.updatedAt = new Date().toISOString();
+    const source = owner.sources.find((candidate) => candidate.id === quotation.priceSourceId);
+    if (source) source.version += 1;
+    send(response, 200, { data: quotation }, { ETag: `"${String(quotation.version)}"` });
+    return true;
   }
   const one = /^\/api\/v1\/price-sources\/([0-9a-f-]{36})(\/quotations)?$/.exec(url.pathname);
   if (!one) return false;

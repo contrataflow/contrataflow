@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { Toaster, clearToasts } from '@contrataflow/ui';
 import { PRICE_SOURCE_MESSAGES } from '@contrataflow/validation';
-import type { PriceSourceDto } from '@contrataflow/validation';
+import type { PriceItemDto, PriceResearchMeta, PriceSourceDto } from '@contrataflow/validation';
 import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -39,6 +39,7 @@ import { AttachmentsSection } from '../attachments/attachments-section';
  * US-026 — aba "Fontes" da SCR-009: lista de fontes, formulário com campos por tipo (FA-06), grade de
  * preços com um único envio (PRS-13 com If-Match e Idempotency-Key), célula desconsiderada somente
  * leitura (FA-05), remoção com confirmação (FA-02), 412, somente leitura/POL-09 e a falha do anexo.
+ * US-027 — desconsiderar (diálogo com motivo e justificativa, PRS-16) e restaurar (PRS-17) cotação.
  */
 
 configure({ asyncUtilTimeout: 10_000 });
@@ -87,6 +88,9 @@ async function renderSources(
     sources?: readonly PriceSourceDto[] | (() => readonly PriceSourceDto[]);
     routes?: Route[];
     readOnly?: boolean;
+    /** `meta.allowedActions` da pesquisa (padrão: as de edição, sem `EXCLUDE_QUOTATION`). */
+    actions?: PriceResearchMeta['allowedActions'];
+    items?: readonly PriceItemDto[];
   } = {},
 ) {
   const api = mockProcessApi({
@@ -97,11 +101,14 @@ async function renderSources(
     api,
     ...(options.routes ?? []),
     sourcesRoute(options.sources ?? []),
-    readRoutes(
-      options.readOnly === true
+    readRoutes({
+      ...(options.readOnly === true
         ? { meta: priceResearchMeta({ allowedActions: [], lockReason: 'DOCUMENT_NOT_EDITABLE' }) }
-        : {},
-    ),
+        : options.actions === undefined
+          ? {}
+          : { meta: priceResearchMeta({ allowedActions: options.actions }) }),
+      ...(options.items === undefined ? {} : { items: options.items }),
+    }),
     processItemsRoute,
     supplierSearch,
   );
@@ -388,6 +395,250 @@ describe('Aba "Fontes" da SCR-009 (US-026)', () => {
     expect(within(grid).getByText('Sigiloso')).toBeTruthy();
     expect(within(grid).queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Salvar preços' })).toBeNull();
+  });
+});
+
+const EXCLUDE_ACTIONS: PriceResearchMeta['allowedActions'] = [
+  'UPDATE',
+  'ADD_ITEMS',
+  'REMOVE_ITEMS',
+  'EXCLUDE_QUOTATION',
+];
+const quotationUrl = (n: number, action: 'exclude' | 'restore') =>
+  `/api/v1/quotations/${quotationDto(n).id}/${action}`;
+const JUSTIFICATION = 'Preço muito acima das demais cotações do mesmo item';
+
+describe('Desconsiderar e restaurar cotação (US-027)', () => {
+  it('fluxo principal 1–4: o diálogo pede motivo e justificativa; PRS-16 com If-Match da cotação; a grade recarrega', async () => {
+    let excluded = false;
+    const { fetchMock, user } = await renderSources({
+      actions: EXCLUDE_ACTIONS,
+      items: [priceItem(1, { validQuotationsCount: 2 }), priceItem(2), priceItem(3)],
+      sources: () => [
+        priceSourceDto({
+          version: excluded ? 3 : 2,
+          quotations: [
+            excluded
+              ? quotationDto(1, {
+                  status: 'EXCLUDED',
+                  exclusionReason: 'INCONSISTENT',
+                  exclusionJustification: JUSTIFICATION,
+                  version: 3,
+                })
+              : quotationDto(1, { version: 2 }),
+            quotationDto(2),
+          ],
+        }),
+      ],
+      routes: [
+        (url, init) => {
+          if (url !== quotationUrl(1, 'exclude') || init?.method !== 'POST') return undefined;
+          excluded = true;
+          return jsonResponse({ data: quotationDto(1, { status: 'EXCLUDED', version: 3 }) });
+        },
+      ],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
+    await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 1' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Desconsiderar o preço do item 1' });
+    // O foco vai para o campo "Motivo" e a acessibilidade do diálogo é verificada.
+    expect(document.activeElement).toBe(within(dialog).getByRole('combobox', { name: /Motivo/ }));
+    expect(within(dialog).queryByText('Este item ficará sem cotação válida.')).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+
+    // V-01/V-02: nada é enviado e os erros são anunciados.
+    await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
+    expect(await within(dialog).findByText('Selecione o motivo.')).toBeTruthy();
+    expect(
+      within(dialog).getByText('A justificativa deve ter no mínimo 20 caracteres.'),
+    ).toBeTruthy();
+    expect(callsTo(fetchMock, 'POST', quotationUrl(1, 'exclude'))).toHaveLength(0);
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /Motivo/ }),
+      'INCONSISTENT',
+    );
+    await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), 'Preço alto');
+    await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
+    expect(
+      await within(dialog).findByText('A justificativa deve ter no mínimo 20 caracteres.'),
+    ).toBeTruthy();
+    expect(callsTo(fetchMock, 'POST', quotationUrl(1, 'exclude'))).toHaveLength(0);
+
+    await user.clear(within(dialog).getByRole('textbox', { name: /Justificativa/ }));
+    await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), JUSTIFICATION);
+    await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
+    expect(await screen.findByText('Preço desconsiderado')).toBeTruthy();
+    const [call] = callsTo(fetchMock, 'POST', quotationUrl(1, 'exclude'));
+    expect(call?.headers.get('If-Match')).toBe('"2"');
+    expect(bodyOf(call?.init)).toEqual({
+      exclusionReason: 'INCONSISTENT',
+      exclusionJustification: JUSTIFICATION,
+    });
+    // Fluxo 4: a célula fica esmaecida com o motivo em dica e o botão "Restaurar".
+    const grid = await screen.findByRole('table');
+    expect(await within(grid).findByText('Desconsiderada')).toBeTruthy();
+    expect(within(grid).getByText('Desconsiderada').getAttribute('title')).toBe(
+      'Cotação desconsiderada (inconsistente). Restaure-a para editar o preço.',
+    );
+    expect(within(grid).getByRole('button', { name: 'Restaurar preço do item 1' })).toBeTruthy();
+    expect(
+      within(grid).queryByRole('button', { name: 'Desconsiderar preço do item 1' }),
+    ).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('FA-01: a última cotação válida do item avisa antes de confirmar, sem bloquear', async () => {
+    const { user } = await renderSources({
+      actions: EXCLUDE_ACTIONS,
+      items: [priceItem(1, { validQuotationsCount: 1 }), priceItem(2, { validQuotationsCount: 2 })],
+      sources: [priceSourceDto({ quotations: [quotationDto(1), quotationDto(2)] })],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
+    await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 2' }));
+    const second = await screen.findByRole('dialog');
+    expect(within(second).queryByText('Este item ficará sem cotação válida.')).toBeNull();
+    await user.click(within(second).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 1' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Este item ficará sem cotação válida.')).toBeTruthy();
+    expect(
+      within(dialog).getByRole('button', { name: 'Desconsiderar' }).hasAttribute('disabled'),
+    ).toBe(false);
+  });
+
+  it('fluxo principal 5: "Restaurar" envia PRS-17 com If-Match da cotação e recarrega; FA-02: só em cotação desconsiderada', async () => {
+    let restored = false;
+    const excludedQuotation = quotationDto(1, {
+      status: 'EXCLUDED',
+      exclusionReason: 'EXCESSIVE',
+      exclusionJustification: JUSTIFICATION,
+      version: 3,
+    });
+    const { fetchMock, user } = await renderSources({
+      actions: EXCLUDE_ACTIONS,
+      sources: () => [
+        priceSourceDto({
+          quotations: [restored ? quotationDto(1, { version: 4 }) : excludedQuotation],
+        }),
+      ],
+      routes: [
+        (url, init) => {
+          if (url !== quotationUrl(1, 'restore') || init?.method !== 'POST') return undefined;
+          restored = true;
+          return jsonResponse({ data: quotationDto(1, { version: 4 }) });
+        },
+      ],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
+    const grid = await screen.findByRole('table');
+    expect(
+      within(grid).queryByRole('button', { name: 'Desconsiderar preço do item 1' }),
+    ).toBeNull();
+    await user.click(within(grid).getByRole('button', { name: 'Restaurar preço do item 1' }));
+    expect(await screen.findByText('Preço restaurado')).toBeTruthy();
+    const [call] = callsTo(fetchMock, 'POST', quotationUrl(1, 'restore'));
+    expect(call?.headers.get('If-Match')).toBe('"3"');
+    expect(call?.init?.body ?? null).toBeNull();
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).queryByText('Desconsiderada')).toBeNull();
+    });
+    const refreshed = screen.getByRole('table');
+    expect(
+      within(refreshed).getByRole('button', { name: 'Desconsiderar preço do item 1' }),
+    ).toBeTruthy();
+    expect(
+      within(refreshed).queryByRole('button', { name: 'Restaurar preço do item 1' }),
+    ).toBeNull();
+  });
+
+  it('sem EXCLUDE_QUOTATION os botões ficam ocultos (FA-03: pesquisa não editável também)', async () => {
+    const { user } = await renderSources({
+      sources: [
+        priceSourceDto({
+          quotations: [
+            quotationDto(1),
+            quotationDto(2, { status: 'EXCLUDED', exclusionReason: 'OTHER' }),
+          ],
+        }),
+      ],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
+    const grid = await screen.findByRole('table');
+    expect(within(grid).queryByRole('button', { name: /Desconsiderar preço/ })).toBeNull();
+    expect(within(grid).queryByRole('button', { name: /Restaurar preço/ })).toBeNull();
+  });
+
+  it('INVALID_STATE (409) fecha o diálogo, mostra o estado atual e recarrega; 503 mantém o diálogo com os dados', async () => {
+    let attempt = 0;
+    const { user } = await renderSources({
+      actions: EXCLUDE_ACTIONS,
+      sources: [priceSourceDto({ quotations: [quotationDto(1)] })],
+      routes: [
+        (url, init) => {
+          if (url !== quotationUrl(1, 'exclude') || init?.method !== 'POST') return undefined;
+          attempt += 1;
+          return attempt === 1
+            ? problemResponse(503, 'DEPENDENCY_UNAVAILABLE')
+            : problemResponse(409, 'INVALID_STATE', {
+                detail: 'Esta cotação já está desconsiderada.',
+              });
+        },
+      ],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
+    await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 1' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /Motivo/ }), 'EXCESSIVE');
+    await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), JUSTIFICATION);
+    await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
+    expect(
+      await within(dialog).findByText(
+        'Não foi possível concluir agora. Tente novamente em instantes.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole<HTMLTextAreaElement>('textbox', { name: /Justificativa/ }).value,
+    ).toBe(JUSTIFICATION);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
+    expect(await screen.findByText('Esta cotação já está desconsiderada.')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  it('erro de campo da API (422 TOO_SHORT) volta ao diálogo aberto', async () => {
+    const { user } = await renderSources({
+      actions: EXCLUDE_ACTIONS,
+      sources: [priceSourceDto({ quotations: [quotationDto(1)] })],
+      routes: [
+        (url, init) =>
+          url === quotationUrl(1, 'exclude') && init?.method === 'POST'
+            ? problemResponse(422, 'VALIDATION_ERROR', {
+                errors: [
+                  {
+                    field: 'exclusionJustification',
+                    code: 'TOO_SHORT',
+                    message: 'A justificativa deve ter no mínimo 20 caracteres.',
+                  },
+                ],
+              })
+            : undefined,
+      ],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
+    await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 1' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /Motivo/ }), 'OTHER');
+    await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), JUSTIFICATION);
+    await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
+    expect(
+      await within(dialog).findByText('A justificativa deve ter no mínimo 20 caracteres.'),
+    ).toBeTruthy();
+    expect(screen.getByRole('dialog')).toBeTruthy();
   });
 });
 

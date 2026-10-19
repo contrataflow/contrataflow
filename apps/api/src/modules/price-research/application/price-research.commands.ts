@@ -452,7 +452,12 @@ export class UpdatePriceResearchHeaderCommand extends PriceResearchCommand<
     if (view === null) throw priceResearchNotFound();
     return {
       dto: this.presenter.research(next, view.document, { masked: false }),
-      meta: this.presenter.meta(view.template, view.allowedActions, null),
+      meta: this.presenter.meta(
+        view.template,
+        view.allowedActions,
+        null,
+        await this.gate.canExcludeQuotation(tx, next, view),
+      ),
     };
   }
 }
