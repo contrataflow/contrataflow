@@ -4,7 +4,7 @@
 
 | ID | Método | Rota | Permissão | Story |
 |---|---|---|---|---|
-| APV-01 | GET | `/approvals` | `APPROVAL_VIEW` (ou designado) | US-057 |
+| APV-01 | GET | `/approvals` | Cobertura de aprovador (POL-03) | US-057 |
 | APV-02 | GET | `/approvals/{id}` | `APPROVAL_VIEW` ou designado | US-052 |
 | APV-03 | POST | `/approvals/{id}/decide` | `APPROVAL_DECIDE` + POL-03 | US-052 |
 | APV-04 | POST | `/approvals/{id}/withdraw` | `PROCESS_FORWARD` + POL-17 | US-053 |
@@ -15,18 +15,19 @@
 | TSK-04 | POST | `/tasks/bulk-assign` | `PROCESS_ASSIGN` (ou titular) | US-058 |
 
 ### APV-01 — Listar aprovações
-`GET /api/v1/approvals` · **Permissão:** `APPROVAL_VIEW` (ou designado à aprovação) · **Story:** US-057
+`GET /api/v1/approvals` · **Permissão:** cobertura de aprovador (POL-03) como filtro da consulta — sem cobertura, lista vazia (nunca 403) · **Story:** US-057
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Parâmetros:** query `status` (enum múltiplo `ApprovalStatus`, opcional, padrão `PENDING`); `subjectType` (enum `ApprovalSubjectType`, opcional); `requestingDepartmentId` (uuid, opcional, unidade ativa do tenant); `requestedFrom`/`requestedTo` (data, opcional, `requestedFrom` ≤ `requestedTo`); `q` (texto, opcional, ≥2 caracteres); paginação padrão; ordenação: `sort` (padrão `-requestedAt`, campos permitidos conforme RN-INBOX-18 — lista completa não enumerada na story: a definir na implementação)
+- **Parâmetros:** query `status` (enum múltiplo `ApprovalStatus` — repetição ou vírgula, OU entre os valores; opcional, padrão `PENDING`); `subjectType` (enum `ApprovalSubjectType`, opcional); `requestingDepartmentId` (uuid, opcional — secretaria OU setor solicitante do processo; precisa existir no tenant); `requestedFrom`/`requestedTo` (data `AAAA-MM-DD` no fuso do tenant, inclusive; `requestedFrom` ≤ `requestedTo`); `q` (texto, opcional, 2..200 caracteres — código do processo, título do processo ou da aprovação, sem acento nem caixa); paginação padrão (`pageSize` ≤ 100); ordenação: `sort` (padrão `-requestedAt`; campos `requestedAt`, `dueAt`, `code` — RN-INBOX-18; nulos por último; desempate pelo id)
 - **Request:** —
-- **Response:** `200 { data: [{ id, subjectType, process: { id, code, title }, document?, requestingDepartment, requestedBy, requestedAt, dueAt?, status }], meta: { page, pageSize, totalItems, totalPages } }`
+- **Response:** `200 { data: [{ id, subjectType, title, status, process: { id, code, title }, document: { id } | null, requestingDepartment: { id, name }, requestedBy: { id, name }, requestedAt, dueAt, isOverdue, approver: { type, label }, isBudgetConfidential }], meta: { page, pageSize, totalItems, totalPages } }` · `Cache-Control: no-store`. `requestingDepartment` = setor solicitante; `isOverdue` = `dueAt` anterior a agora enquanto `PENDING` (RN-INBOX-16); `approver.label` no perfil = "Aguardando: qualquer titular de {perfil}" (FA-02). Sem valores monetários.
+- **Cobertura (RN-INBOX-14):** entram as aprovações em que o usuário é aprovador designado AGORA (`USER` direto; `DEPARTMENT_HEAD` titular atual da unidade aprovadora ou substituto com `allowDeputy`; `ROLE` com atribuição vigente cujo escopo cobre o órgão ou a secretaria/setor solicitante) e as que ele decidiu (`decidedById` — o histórico não some quando a titularidade muda depois). Uma linha por aprovação, ainda que coberta por mais de um caminho.
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `APPROVAL_VIEW` nem designação |
-  | 422 | `VALIDATION_ERROR` | Enum inválido; período invertido; `requestingDepartmentId` de outro tenant (`REFERENCE_NOT_FOUND`) |
+  | 422 | `VALIDATION_ERROR` | Enum inválido (`INVALID_ENUM`); `sort` fora da lista; período invertido ("O período informado é inválido."); `requestingDepartmentId` inexistente ou de outro tenant (`REFERENCE_NOT_FOUND`) |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível ou consulta acima do teto (`statement_timeout` 3 s), com `Retry-After` |
 - **Efeitos:** —
-- **Notas:** leitura; não gera auditoria.
+- **Notas:** leitura; não gera auditoria. Logs `approvals.query` (forma dos filtros, sem `q` nem título) e `approvals.query_failed`; métrica `cf_approval_list_query_duration_ms`. Lê `approvals` com o processo pela view `v_inbox_processes` (publicada pelo `process`).
 
 ### APV-02 — Obter aprovação
 `GET /api/v1/approvals/{id}` · **Permissão:** `APPROVAL_VIEW` ou designado · **Story:** US-052

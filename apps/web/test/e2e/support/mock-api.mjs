@@ -2767,6 +2767,51 @@ async function handlePriceSources(request, response, url, correlationId) {
 
 // Caixa de tarefas (US-056 · TSK-01/TSK-02): dois processos com a Ana, um na fila da unidade
 // (0012/2026, que o "Assumir" — PRC-21 — move para "Comigo") e uma aprovação pendente.
+/** APV-01 (US-057): aprovações da cobertura da Ana (SCR-014). */
+const APPROVAL_LIST = [
+  [
+    '0192e057-0000-7000-8000-000000000001',
+    '0007/2026',
+    'Reforma da praça central',
+    'PENDING',
+    '2026-10-12T12:00:00.000Z',
+    '2026-10-15T02:59:59.000Z',
+    true,
+  ],
+  [
+    '0192e057-0000-7000-8000-000000000002',
+    '0003/2026',
+    'Aquisição de cadeiras',
+    'PENDING',
+    '2026-10-14T12:00:00.000Z',
+    null,
+    false,
+  ],
+  [
+    '0192e057-0000-7000-8000-000000000003',
+    '0005/2026',
+    'Pavimentação da avenida',
+    'APPROVED',
+    '2026-10-01T12:00:00.000Z',
+    null,
+    false,
+  ],
+].map(([id, code, title, status, requestedAt, dueAt, isOverdue], index) => ({
+  id,
+  subjectType: 'PROCESS_STAGE',
+  title: 'Aprovação do DFD',
+  status,
+  process: { id: `0192e057-0000-7000-8000-00000000100${String(index + 1)}`, code, title },
+  document: null,
+  requestingDepartment: { id: '0192e057-0000-7000-8000-0000000000a1', name: 'Secretaria de Obras' },
+  requestedBy: { id: '0192e057-0000-7000-8000-0000000000b1', name: 'Bruno Lima' },
+  requestedAt,
+  dueAt,
+  isOverdue,
+  approver: { type: 'DEPARTMENT_HEAD', label: 'Ana Souza (titular da Secretaria de Obras)' },
+  isBudgetConfidential: false,
+}));
+
 const INBOX_QUEUE_PROCESS_ID = '0192a000-0000-7000-8000-000000560012';
 const inboxState = { claimed: false };
 
@@ -4720,6 +4765,28 @@ createServer(async (request, response) => {
       { data: view },
       { Location: `/api/v1/processes/${view.id}`, ETag: '"1"' },
     );
+  }
+  if (url.pathname === '/api/v1/approvals' && request.method === 'GET') {
+    // APV-01 (US-057): a cobertura vem pronta da API; aqui só status, tipo, busca e ordenação.
+    const statuses = (url.searchParams.get('status') ?? 'PENDING').split(',');
+    const subjectType = url.searchParams.get('subjectType');
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const sort = url.searchParams.get('sort') ?? '-requestedAt';
+    const field = sort.replace(/^-/, '');
+    const items = APPROVAL_LIST.filter(
+      (item) =>
+        statuses.includes(item.status) &&
+        (subjectType === null || item.subjectType === subjectType) &&
+        (q === '' ||
+          `${item.process.code} ${item.process.title} ${item.title}`.toLowerCase().includes(q)),
+    ).sort((a, b) => {
+      const key = (item) => (field === 'code' ? item.process.code : (item[field] ?? '~'));
+      return sort.startsWith('-') ? key(b).localeCompare(key(a)) : key(a).localeCompare(key(b));
+    });
+    return send(response, 200, {
+      data: items,
+      meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 },
+    });
   }
   if (url.pathname === '/api/v1/tasks/counters' && request.method === 'GET') {
     const views = inboxViews();

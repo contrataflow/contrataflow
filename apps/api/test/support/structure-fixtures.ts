@@ -176,6 +176,13 @@ export function assignRole(
   return record;
 }
 
+/** Remove a atribuição criada por `assignRole` (cenários que precisam dela só por um tempo). */
+export function unassignRole(api: TestApi, assignment: RoleAssignment): void {
+  const assignments = api.app.get(InMemoryRoleAssignmentRepository, { strict: false }).assignments;
+  const index = assignments.indexOf(assignment);
+  if (index >= 0) assignments.splice(index, 1);
+}
+
 /** Runtime de processos em memória (US-041/US-097): o agregado real chega com a US-001. */
 export function processRuntimeStore(api: TestApi): InMemoryProcessRuntimeStore {
   return api.app.get(InMemoryProcessRuntimeStore, { strict: false });

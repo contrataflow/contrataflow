@@ -1,4 +1,6 @@
 import {
+  approvalListQuerySchema,
+  approvalListResponseSchema,
   approvalMetaSchema,
   approvalSchema,
   dataEnvelope,
@@ -7,6 +9,8 @@ import {
 } from '@contrataflow/validation';
 import type {
   ApprovalDto,
+  ApprovalListItemDto,
+  ApprovalListQuery,
   ApprovalMeta,
   DecideApproval,
   DecidedApprovalDto,
@@ -17,15 +21,17 @@ import { z } from 'zod';
 import { ImplicitAccess, Policy, RequirePermission } from '#shared/auth/authorization.js';
 import { DataResult } from '#shared/http/envelope.interceptor.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
+import { PageResult } from '#shared/http/pagination.js';
 import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
 import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
-import { ZodBody } from '#shared/validation/zod-validation.pipe.js';
+import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import { DecideApprovalCommand } from '../application/decide-approval.command.js';
 import { GetApprovalQuery } from '../application/get-approval.query.js';
+import { ListApprovalsHandler } from '../application/list-approvals.query.js';
 
 const TAGS = ['Aprovações'];
 
@@ -47,7 +53,7 @@ function noStore(response: HttpResponse): void {
 }
 
 /**
- * Aprovações (api/11-approvals-inbox.md · US-052): APV-02 (detalhe com `meta.allowedActions`,
+ * Aprovações (api/11-approvals-inbox.md): APV-01 (lista da cobertura de aprovador — US-057), APV-02 (detalhe com `meta.allowedActions`,
  * opções de decisão e o motivo de não poder decidir) e APV-03 (decidir — aprovar, devolver ou
  * indeferir, com os efeitos atômicos no processo e nos documentos). `APPROVAL_DECIDE` em algum
  * escopo no guard (com o 2º fator — risco H, POL-14); POL-03 no caso de uso.
@@ -56,9 +62,35 @@ function noStore(response: HttpResponse): void {
 @TenantScope('TENANT')
 export class ApprovalController {
   constructor(
+    private readonly list: ListApprovalsHandler,
     private readonly detail: GetApprovalQuery,
     private readonly decideCommand: DecideApprovalCommand,
   ) {}
+
+  @Get()
+  @ImplicitAccess(
+    'APV-01 (US-057): a cobertura de aprovador (POL-03 — direto, titular/substituto, perfil com escopo sobre a unidade solicitante) é o filtro da consulta; sem cobertura, lista vazia (nunca 403).',
+  )
+  @ApiOperation({
+    operationId: 'APV-01',
+    summary: 'Listar aprovações',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Aprovações em que o usuário é aprovador designado (POL-03 · RN-INBOX-14 — direto, titular ou substituto com `allowDeputy`, detentor do perfil com escopo sobre o órgão ou a unidade solicitante) ou que ele decidiu, uma linha por aprovação. Filtros (RN-INBOX-15): `status` múltiplo (padrão `PENDING`), `subjectType`, `requestingDepartmentId` (secretaria ou setor solicitante; inexistente/de outro tenant = 422 `REFERENCE_NOT_FOUND`), `requestedFrom`/`requestedTo` (datas locais do tenant; invertido = 422) e `q` (código ou título, ≥ 2). Ordenação `requestedAt`, `dueAt`, `code` (padrão `-requestedAt`, nulos por último). `isOverdue` = `dueAt` vencido enquanto pendente (RN-INBOX-16). Sem cobertura: `data: []`. Sem valores monetários.',
+        schema: approvalListResponseSchema,
+      },
+    },
+  })
+  async listApprovals(
+    @ZodQuery(approvalListQuerySchema) query: ApprovalListQuery,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<PageResult<ApprovalListItemDto>> {
+    const result = await this.list.execute(query);
+    noStore(response);
+    return new PageResult(result.items, result.meta);
+  }
 
   @Get(':id')
   @ImplicitAccess(

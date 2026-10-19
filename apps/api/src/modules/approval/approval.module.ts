@@ -18,7 +18,17 @@ import { ApprovalPresenter } from './application/approval.presenter.js';
 import { ApproverResolver } from './application/approver-resolver.js';
 import { DecideApprovalCommand } from './application/decide-approval.command.js';
 import { GetApprovalQuery } from './application/get-approval.query.js';
-import { APPROVAL_CLOCK, APPROVAL_REPOSITORY, APPROVAL_TRANSACTIONS } from './application/ports.js';
+import { ApprovalListPresenter, ListApprovalsHandler } from './application/list-approvals.query.js';
+import {
+  APPROVAL_CLOCK,
+  APPROVAL_LIST_READER,
+  APPROVAL_REPOSITORY,
+  APPROVAL_TRANSACTIONS,
+} from './application/ports.js';
+import {
+  InMemoryApprovalListReader,
+  PrismaApprovalListReader,
+} from './infrastructure/approval-list.readers.js';
 import {
   InMemoryApprovalRepository,
   InMemoryApprovalTransactions,
@@ -27,6 +37,7 @@ import {
 } from './infrastructure/approval.repositories.js';
 import { ApprovalController } from './presentation/approval.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
@@ -41,7 +52,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * de documento pela porta `DocumentApprovalRegistry` do shared kernel (`document` está no mesmo
  * nível — US-065). US-052: a decisão (APV-02/APV-03 — `DecideApprovalCommand`, coordenador da
  * transação) com POL-03, delegando os efeitos ao dono do sujeito pela porta
- * `ApprovalSubjectRegistry` (`process` para `PROCESS_STAGE`, `document` para `DOCUMENT`).
+ * `ApprovalSubjectRegistry` (`process` para `PROCESS_STAGE`, `document` para `DOCUMENT`). US-057:
+ * a lista (APV-01 — `ListApprovalsHandler`) sobre `approvals` e a view `v_inbox_processes`.
  */
 @Module({
   imports: [
@@ -49,6 +61,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApprovalSubjectModule,
     ProcessAccessModule,
     AccessModule,
+    CatalogModule,
     IdentityModule,
     OrganizationModule,
     TenancyModule,
@@ -63,6 +76,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApprovalPresenter,
     DecideApprovalCommand,
     GetApprovalQuery,
+    ListApprovalsHandler,
+    ApprovalListPresenter,
+    PrismaApprovalListReader,
+    {
+      provide: APPROVAL_LIST_READER,
+      inject: [APP_CONFIG, PrismaApprovalListReader],
+      useFactory: (config: AppConfig, prisma: PrismaApprovalListReader) =>
+        inMemory(config) ? new InMemoryApprovalListReader() : prisma,
+    },
     PrismaApprovalRepository,
     InMemoryApprovalRepository,
     {

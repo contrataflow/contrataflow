@@ -1,8 +1,17 @@
-import type { ApprovalCancelReason, ApprovalDecision } from '@contrataflow/validation';
+import type {
+  ApprovalCancelReason,
+  ApprovalDecision,
+  ApprovalListSort,
+} from '@contrataflow/validation';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import type { ApprovalRecord } from '../domain/approval-decision.js';
+import type {
+  ApprovalListCriteria,
+  ApprovalListRow,
+  ApproverCoverage,
+} from '../domain/approval-list.js';
 import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
 /*
@@ -102,3 +111,27 @@ export interface ApprovalRepository {
 }
 
 export const APPROVAL_REPOSITORY = Symbol('ApprovalRepository');
+
+/** US-057 (APV-01): a página pedida, já restrita à cobertura de quem consulta (POL-03). */
+export interface ApprovalListSearch {
+  readonly coverage: ApproverCoverage;
+  readonly criteria: ApprovalListCriteria;
+  readonly sort: ApprovalListSort;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+export interface ApprovalListPage {
+  readonly rows: ApprovalListRow[];
+  readonly totalItems: number;
+}
+
+/**
+ * Leitura da lista de aprovações (US-057): `approvals` com o processo publicado em
+ * `v_inbox_processes` (SQL sobre PostgreSQL ou memória no modo fake). Página e total numa leitura.
+ */
+export interface ApprovalListReader {
+  page(tx: TenantTx, search: ApprovalListSearch): Promise<ApprovalListPage>;
+}
+
+export const APPROVAL_LIST_READER = Symbol('ApprovalListReader');

@@ -4,7 +4,8 @@ import type { Counter, Histogram } from '@opentelemetry/api';
 /*
  * Métricas da solicitação de aprovação (DoD da US-051 — orçamento de p95 < 150 ms da lógica
  * embutida no PRC-19/DOC-09) e da decisão (US-052 — p95 < 1,5 s sem encadeamento). Convenção do
- * repositório: `cf_<módulo>_<fato>`.
+ * repositório: `cf_<módulo>_<fato>`. A lista (US-057 — APV-01, p95 < 400 ms com os filtros padrão)
+ * tem o histograma `cf_approval_list_query_duration_ms`.
  */
 
 interface Instruments {
@@ -14,6 +15,7 @@ interface Instruments {
   readonly decided: Counter;
   readonly decideDuration: Histogram;
   readonly decideFailed: Counter;
+  readonly listDuration: Histogram;
 }
 
 let instruments: Instruments | undefined;
@@ -41,6 +43,10 @@ function approvalMetrics(): Instruments {
     }),
     decideFailed: meter.createCounter('cf_approval_decide_failed_total', {
       description: 'Decisões de aprovação que falharam por indisponibilidade ou erro inesperado.',
+    }),
+    listDuration: meter.createHistogram('cf_approval_list_query_duration_ms', {
+      description: 'Duração da consulta da lista de aprovações (APV-01).',
+      unit: 'ms',
     }),
   };
   return instruments;
@@ -79,4 +85,8 @@ export function recordApprovalDecided(
 
 export function recordApprovalDecideFailed(errorCode: string): void {
   approvalMetrics().decideFailed.add(1, { error_code: errorCode });
+}
+
+export function recordApprovalListQuery(durationMs: number, outcome: 'ok' | 'error'): void {
+  approvalMetrics().listDuration.record(durationMs, { outcome });
 }

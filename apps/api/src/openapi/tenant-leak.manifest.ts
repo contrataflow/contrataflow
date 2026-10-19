@@ -151,6 +151,9 @@ const PROCESS_UPDATE_ROUTE =
 const PROCESS_FORWARD_ROUTE =
   'Encaminhamento do processo (US-047 · PRC-19): exige If-Match, Idempotency-Key e um processo do tenant numa etapa com transição, que a suíte genérica não tem. O isolamento (PRC-19 com id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, unidade de B em toDepartmentId → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS de processes/process_stages/process_movements/process_access) é coberto em test/tenant-leak/process-forward.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-forward.routes.spec.ts. A aprovação aberta no destino APPROVAL (US-051 — titular/perfil só do tenant do processo, RLS de approvals) em test/tenant-leak/approval-request.spec.ts.';
 
+const APPROVAL_LIST_ROUTE =
+  'Lista de aprovações (US-057 · APV-01): sem id no caminho nem corpo; a suíte genérica não tem aprovações nem processos do tenant B. O isolamento (aprovação da mesma usuária em outro tenant nunca aparece, requestingDepartmentId de B → 422 REFERENCE_NOT_FOUND, a consulta de APV-01 com app.tenant_id diferente só enxerga o próprio tenant pela RLS de approvals e da view security_invoker v_inbox_processes) é coberto em test/tenant-leak/approvals-list.spec.ts, com PostgreSQL real, e em src/modules/approval/presentation/approvals.routes.spec.ts.';
+
 const APPROVAL_DECISION_ROUTE =
   'Decidir aprovação (US-052 · APV-02/APV-03): exigem uma aprovação PENDING do tenant aberta numa etapa APPROVAL (ou submissão avulsa), If-Match e Idempotency-Key, que a suíte genérica não tem. O isolamento (id de aprovação de B → 404 APPROVAL_NOT_FOUND no detalhe e na decisão sem alterar nada, RLS de approvals/approval_documents/documents/document_renditions/processes/process_stages/process_movements com app.tenant_id diferente retornando vazio e a decisão atômica com falha induzida) é coberto em test/tenant-leak/approval-decision.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/approval-decision.routes.spec.ts.';
 
@@ -377,6 +380,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-15': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-16': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-17': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
+  'APV-01': { kind: 'exempt', reason: APPROVAL_LIST_ROUTE },
   'APV-02': { kind: 'exempt', reason: APPROVAL_DECISION_ROUTE },
   'APV-03': { kind: 'exempt', reason: APPROVAL_DECISION_ROUTE },
   'PRC-19': { kind: 'exempt', reason: PROCESS_FORWARD_ROUTE },

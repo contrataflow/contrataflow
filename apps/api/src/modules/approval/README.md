@@ -79,3 +79,21 @@ unidade atual.
   `process/presentation/approval-decision.routes.spec.ts` (8 categorias, em memória — no `process`,
   que pode depender do `approval`, como o da US-051) e `test/tenant-leak/approval-decision.spec.ts`
   (PostgreSQL: falha induzida, corrida, RLS).
+
+## Lista de aprovações (US-057)
+
+- **Rota:** APV-01 `GET /approvals` (`@ImplicitAccess` — sem cobertura, `data: []`, nunca 403).
+  Contrato em `packages/validation/src/approval/approval-list.ts` (`approvalListQuerySchema` —
+  `status` múltiplo com padrão `PENDING`, período invertido = 422, `sort` `requestedAt|dueAt|code`).
+- **Cobertura (POL-03 · RN-INBOX-14) como predicado, nunca pós-filtro:** `domain/approval-list.ts`
+  (`isDesignatedApprover`/`isInApprovalList`, puros) e `infrastructure/approval-list.sql.ts`
+  (`designatedSql`/`coverageSql`, linha a linha o mesmo). Entra quem é designado AGORA (titular e
+  substituto atuais — `OrganizationFacade.departmentLeadership`; perfis — `AccessFacade.approverCompetenceIn`)
+  e quem decidiu (`decided_by_id`). O mesmo predicado vive em `inbox` (`task-inbox.sql.ts`, visão
+  `PENDING_APPROVALS`): mudou a regra, mude os dois.
+- **Leitura:** `approvals` com o processo pela view `v_inbox_processes` (do `process`), página e total
+  numa instrução, `statement_timeout` 3 s (→ 503). `ListApprovalsHandler` resolve a cobertura, valida
+  `requestingDepartmentId` (`departmentReferences` → 422 `REFERENCE_NOT_FOUND`) e o fuso do tenant
+  (`BusinessCalendarFacade.timezone`) para o período. Leitor em memória no modo de identidade fake.
+- **Observabilidade:** `info approvals.query` (forma dos filtros; nunca `q` nem título),
+  `error approvals.query_failed`, histograma `cf_approval_list_query_duration_ms`.

@@ -467,7 +467,7 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 ### 3.11 Aprovações e caixa de tarefas (`approval`, `inbox`)
 | # | Método | Rota | Perm. | Sucesso | Eventos | Story |
 |---|---|---|---|---|---|---|
-| APV-01 | GET | `/approvals` | `APPROVAL_VIEW` (ou designado) | 200 | — | US-057 |
+| APV-01 | GET | `/approvals` | Cobertura de aprovador (POL-03) | 200 | — | US-057 |
 | APV-02 | GET | `/approvals/{id}` | `APPROVAL_VIEW` ou designado | 200 | — | US-052 |
 | APV-03 | POST | `/approvals/{id}/decide` | `APPROVAL_DECIDE` + POL-03 (IM, Idem.) | 200 | `ApprovalCompleted`/`ApprovalReturned`/`ApprovalRejected`, `DocumentApproved`/`Returned`/`Rejected`, `ProcessStageChanged`, `ProcessStatusChanged`, `ApprovalRequested` (próxima etapa) | US-052 |
 | APV-04 | POST | `/approvals/{id}/withdraw` | `PROCESS_FORWARD` + POL-17 (IM) | 200 | `ApprovalCanceled`, `ProcessStageChanged` | US-053 |
