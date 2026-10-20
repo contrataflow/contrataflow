@@ -115,6 +115,14 @@ describe('resolveTemplateVariables', () => {
   it('não confunde propriedades do protótipo com variáveis', () => {
     expect(resolveTemplateVariables('{{constructor}}', {})).toBe('{{constructor}}');
   });
+
+  it('entrada adversarial ({{ seguido de muitos espaços, sem fechamento) roda em tempo linear', () => {
+    const text = `{{{{${' '.repeat(100_000)}`;
+    const startedAt = performance.now();
+    expect(resolveTemplateVariables(text, { today: '20/10/2026' })).toBe(text);
+    expect(resolveTemplateVariables('{{\ttoday\n}}', { today: '20/10/2026' })).toBe('20/10/2026');
+    expect(performance.now() - startedAt).toBeLessThan(500);
+  });
 });
 
 describe('escapeHtml', () => {

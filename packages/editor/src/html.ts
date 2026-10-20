@@ -177,13 +177,16 @@ export function richTextToPlainText(doc: HtmlRichTextNode | null | undefined): s
 
 /**
  * Resolve variáveis `{{nome}}` (espaços internos ignorados — `templateVariablesIn`). Variável sem
- * valor conhecido fica como está: a publicação do template já recusa as desconhecidas (V-05).
+ * valor conhecido fica como está: a publicação do template já recusa as desconhecidas (V-05). Os
+ * espaços saem no `trim`: `\s*` em volta do nome é quadrático em `{{` seguido de muitos espaços sem
+ * fechamento (CodeQL `js/polynomial-redos`).
  */
 export function resolveTemplateVariables(
   text: string,
   values: Readonly<Record<string, string>>,
 ): string {
-  return text.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (match, name: string) =>
-    Object.hasOwn(values, name) ? (values[name] ?? '') : match,
-  );
+  return text.replace(/\{\{([^{}]*)\}\}/g, (match, inner: string) => {
+    const name = inner.trim();
+    return Object.hasOwn(values, name) ? (values[name] ?? '') : match;
+  });
 }
