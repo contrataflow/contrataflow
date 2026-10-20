@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 import type { CiReporter } from './annotations.js';
+import { quoteWindowsArg } from '../../lib/process.js';
 
 export interface RetryOptions {
   /** Serviço contatado, para a mensagem ("Falha ao contatar {serviço}…"). */
@@ -100,10 +101,6 @@ export async function withRetry(
   return outcome;
 }
 
-function quote(arg: string): string {
-  return /[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg;
-}
-
 /**
  * Tentativa real: executa o comando herdando o terminal e o encerra no tempo limite. No Windows,
  * comandos do PATH (`pnpm`, `docker`) podem ser shims `.cmd` e passam pelo shell, como em
@@ -115,7 +112,7 @@ export function spawnAttempt(command: string, args: readonly string[]): Attempt 
     new Promise((resolve) => {
       const options = { stdio: 'inherit', windowsHide: true } as const;
       const child = viaShell
-        ? spawn([command, ...args].map(quote).join(' '), { ...options, shell: true })
+        ? spawn([command, ...args].map(quoteWindowsArg).join(' '), { ...options, shell: true })
         : spawn(command, args, options);
       let timedOut = false;
       const timer =

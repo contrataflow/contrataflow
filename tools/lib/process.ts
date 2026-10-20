@@ -30,8 +30,14 @@ export function isolatedEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return { ...env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0', ...extra };
 }
 
-function quote(arg: string): string {
-  return /[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg;
+/**
+ * Argumento da linha montada para o shell no Windows, nas regras do `CommandLineToArgvW`: aspas só
+ * quando há espaço ou aspas; a aspa interna vira `\"` e as barras imediatamente antes dela (ou da
+ * aspa final) são dobradas. Escapar só a aspa fazia `C:\dir com espaço\` engolir a aspa final.
+ */
+export function quoteWindowsArg(arg: string): string {
+  if (!/[\s"]/.test(arg)) return arg;
+  return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`;
 }
 
 /**
@@ -51,7 +57,7 @@ export function run(command: string, args: readonly string[], options: RunOption
   } as const;
   const result =
     IS_WINDOWS && !path.isAbsolute(command)
-      ? spawnSync([command, ...args].map(quote).join(' '), { ...common, shell: true })
+      ? spawnSync([command, ...args].map(quoteWindowsArg).join(' '), { ...common, shell: true })
       : spawnSync(command, args, common);
   const stdout = result.stdout;
   const stderr = result.stderr;
