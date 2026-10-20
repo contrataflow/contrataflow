@@ -1,0 +1,76 @@
+{
+  "title": "Aprovações",
+  "description": "As aprovações em que você precisa atuar ou já atuou como aprovador.",
+  "loading": "Carregando as aprovações…",
+  "refreshing": "Atualizando…",
+  "filters": {
+    "label": "Filtrar aprovações",
+    "status": "Status",
+    "subjectType": "Tipo de assunto",
+    "any": "Todos",
+    "department": "Unidade solicitante",
+    "anyDepartment": "Todas as unidades",
+    "requestedFrom": "Solicitada de",
+    "requestedTo": "Solicitada até",
+    "search": "Buscar por código ou título",
+    "searchPlaceholder": "Ex.: 0012/2026 ou reforma",
+    "apply": "Buscar",
+    "invalidPeriod": "O período informado é inválido."
+  },
+  "status": {
+    "PENDING": "Pendente",
+    "APPROVED": "Aprovada",
+    "RETURNED": "Devolvida",
+    "REJECTED": "Indeferida",
+    "CANCELED": "Cancelada"
+  },
+  "subjectType": {
+    "PROCESS_STAGE": "Etapa do processo",
+    "DOCUMENT": "Documento avulso"
+  },
+  "sort": {
+    "label": "Ordenar por",
+    "-requestedAt": "Solicitação (mais recente primeiro)",
+    "requestedAt": "Solicitação (mais antiga primeiro)",
+    "-dueAt": "Prazo (mais distante primeiro)",
+    "dueAt": "Prazo (mais próximo primeiro)",
+    "code": "Código (mais antigo primeiro)",
+    "-code": "Código (mais recente primeiro)"
+  },
+  "table": {
+    "caption": "Aprovações",
+    "approval": "Aprovação",
+    "open": "Abrir {title} do processo {code}",
+    "noCode": "Sem número",
+    "department": "Unidade solicitante",
+    "requestedBy": "Solicitante",
+    "requestedAt": "Solicitada em",
+    "dueAt": "Prazo",
+    "noDueAt": "Sem prazo",
+    "status": "Status",
+    "overdue": "Em atraso"
+  },
+  "empty": {
+    "pending": "Nenhuma aprovação pendente. Você está em dia!",
+    "filtered": "Nenhuma aprovação encontrada para os filtros selecionados.",
+    "clear": "Limpar filtros"
+  },
+  "pagination": {
+    "label": "Paginação das aprovações",
+    "previous": "Anterior",
+    "next": "Próxima",
+    "status": "Página {page} de {total}"
+  },
+  "errors": {
+    "invalidDepartment": "Selecione uma unidade válida.",
+    "invalidFilter": "Revise os filtros selecionados.",
+    "unavailable": "Não foi possível carregar as aprovações agora.",
+    "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+    "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "code": "Código: {correlationId}.",
+    "copy": "Copiar código",
+    "copied": "Código copiado.",
+    "retry": "Tentar novamente",
+    "clearDepartment": "Limpar unidade"
+  }
+}

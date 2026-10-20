@@ -1,0 +1,59 @@
+{
+  "title": "Preferências de notificação",
+  "description": "Escolha por quais canais você recebe cada aviso. As mudanças valem a partir do próximo aviso gerado, nesta instituição.",
+  "loading": "Carregando suas preferências de notificação…",
+  "loadFailed": "Não foi possível carregar as preferências de notificação.",
+  "channels": {
+    "IN_APP": "No sistema",
+    "EMAIL": "Por e-mail"
+  },
+  "areas": {
+    "processes": "Processos",
+    "approvals": "Aprovações",
+    "collaboration": "Colaboração",
+    "deadlines": "Prazos",
+    "security": "Segurança"
+  },
+  "types": {
+    "PROCESS_RECEIVED": "Processo recebido na sua unidade",
+    "PROCESS_RETURNED": "Processo devolvido para você",
+    "PROCESS_ASSIGNED": "Processo atribuído a você",
+    "PROCESS_STATUS_CHANGED": "Situação do processo alterada",
+    "APPROVAL_REQUESTED": "Aprovação solicitada a você",
+    "APPROVAL_DECIDED": "Decisão sobre uma aprovação",
+    "APPROVAL_REASSIGNED": "Aprovação reatribuída",
+    "MENTIONED": "Você foi mencionado",
+    "COMMENT_REPLY": "Resposta ao seu comentário",
+    "STAGE_DUE_SOON": "Prazo da etapa se aproximando",
+    "STAGE_OVERDUE": "Prazo da etapa vencido",
+    "PARTICIPANT_ADDED": "Você foi adicionado a um processo",
+    "ATTACHMENT_REJECTED": "Anexo rejeitado",
+    "DOCUMENT_RENDER_FAILED": "Falha ao gerar o PDF de um documento",
+    "ROLE_CHANGED": "Seus perfis de acesso mudaram",
+    "AI_GENERATION_READY": "Conteúdo gerado por IA pronto para revisão",
+    "AI_GENERATION_FAILED": "Falha na geração com IA que você pediu",
+    "AI_USAGE_LIMIT_WARNING": "Consumo de IA do órgão perto do limite mensal"
+  },
+  "notes": {
+    "mandatory": "Este aviso não pode ser desligado.",
+    "emailDisabled": "E-mails estão desligados para este órgão."
+  },
+  "emailDisabledBanner": "E-mails estão desligados para este órgão. Suas escolhas de e-mail ficam salvas, mas não têm efeito por enquanto.",
+  "actions": {
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "discard": "Desfazer alterações",
+    "useDefault": "Usar padrão",
+    "useDefaultOf": "Usar padrão: {type}",
+    "retry": "Tentar novamente"
+  },
+  "toast": {
+    "saved": "Preferências salvas"
+  },
+  "errors": {
+    "unavailable": "Não foi possível salvar agora. Tente novamente.",
+    "generic": "Não foi possível salvar as preferências. Tente novamente.",
+    "notAllowed": "Este aviso não pode ser desligado.",
+    "invalidType": "Tipo de notificação inválido. Recarregamos a lista."
+  }
+}

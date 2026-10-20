@@ -4,7 +4,7 @@
 > Estimativa: `XS` ≤ ½ dia · `S` 1–2 dias · `M` 3–5 dias · `L` 6–10 dias · `XL` > 10 dias (deve ser quebrada). Prioridade: `P0` bloqueia o MVP · `P1` necessária ao release · `P2` desejável · `P3` oportunidade.
 > Pontos de referência para planejamento: XS = 1, S = 2, M = 5, L = 8, XL = 13.
 
-Totais: **19 épicos · 59 features · 114 stories** (P0: 84 · P1: 22 · P2: 8).
+Totais: **20 épicos · 62 features · 122 stories** (P0: 84 · P1: 30 · P2: 8). O EP-020 (IA para documentos do planejamento — prd-3, DEC-037) entrou em 2026-10-16.
 
 ### Arquivos dos épicos
 | Épico | Título | Área das regras (RN) | Arquivo |
@@ -28,6 +28,7 @@ Totais: **19 épicos · 59 features · 114 stories** (P0: 84 · P1: 22 · P2: 8)
 | EP-017 | Tenant e estrutura organizacional | `TEN` | `epic-017-tenancy-organization.md` |
 | EP-018 | Templates de documentos | `TPL` | `epic-018-document-templates.md` |
 | EP-019 | Notificações | `NTF` | `epic-019-notifications.md` |
+| EP-020 | IA para documentos do planejamento | `AI` | `epic-020-ai-document-generation.md` |
 
 ---
 
@@ -356,6 +357,25 @@ Totais: **19 épicos · 59 features · 114 stories** (P0: 84 · P1: 22 · P2: 8)
 | US-113 | Preferências de notificação | FT-059 | P2 | S | US-111 | `story-113-notification-preferences.md` |
 | US-114 | Lembretes de prazo e alertas de atraso | FT-059 | P1 | M | US-055, US-111, US-112 | `story-114-deadline-reminders.md` |
 
+## EP-020 — IA para documentos do planejamento
+
+| Feature | Descrição | Arquivo |
+|---|---|---|
+| FT-060 Camada de IA e governança | `AiProvider`, registro e rastreabilidade das gerações, ativação, limites e consumo por órgão | `feature-060-ai-layer-governance.md` |
+| FT-061 Rascunhos com IA | Rascunho completo de DFD, ETP, mapa de riscos e TR, em cadeia | `feature-061-ai-document-drafts.md` |
+| FT-062 Ajuste por seção e revisão | Reescrever/completar/resumir seção; marcações "gerado por IA" e "[a confirmar]"; revisão humana | `feature-062-ai-section-adjust-review.md` |
+
+| Story | Título | Feature | Prio | Est | Depende de | Arquivo |
+|---|---|---|---|---|---|---|
+| US-115 | Camada de IA com registro e rastreabilidade das gerações | FT-060 | P1 | L | US-059, US-065, US-073, US-083, US-097 | `story-115-ai-provider-layer.md` |
+| US-116 | Configurar a IA no órgão: ativação, limites e consumo | FT-060 | P1 | M | US-094, US-103, US-111, US-115 | `story-116-ai-tenant-settings.md` |
+| US-117 | Gerar o rascunho do DFD com IA a partir do resumo da necessidade | FT-061 | P1 | L | US-015, US-116, US-122 | `story-117-ai-draft-dfd.md` |
+| US-118 | Gerar o rascunho do ETP com IA a partir do DFD | FT-061 | P1 | M | US-020, US-022, US-117 | `story-118-ai-draft-etp.md` |
+| US-119 | Gerar a proposta do mapa de riscos com IA | FT-061 | P1 | M | US-034, US-035, US-117 | `story-119-ai-draft-risk-map.md` |
+| US-120 | Gerar o rascunho do TR com IA a partir do ETP | FT-061 | P1 | M | US-036, US-038, US-117 | `story-120-ai-draft-tr.md` |
+| US-121 | Ajustar seção com IA: reescrever, completar e resumir | FT-062 | P1 | M | US-020, US-035, US-036, US-117 | `story-121-ai-section-adjust.md` |
+| US-122 | Marcar conteúdo gerado por IA e pendências "[a confirmar]" e exigir revisão humana | FT-062 | P1 | M | US-065, US-067, US-115 | `story-122-ai-review-markers.md` |
+
 ---
 
 ## Apêndice A — Inventário canônico de telas do MVP 1
@@ -370,12 +390,12 @@ IDs `SCR-001`…`SCR-041` seguem a numeração das 41 telas pedidas pelo produto
 | SCR-004 | Processos | `/processos` | US-002, US-003 |
 | SCR-005 | Novo processo (wizard) | `/processos/novo` | US-001 |
 | SCR-006 | Detalhe do processo (painel situacional + abas Resumo, Documentos, Itens, Tramitação, Timeline, Comentários, Participantes) | `/processos/[id]` | US-004, US-005, US-006, US-054, US-060, US-062, US-071 |
-| SCR-007 | DFD (wizard/editor) | `/processos/[id]/dfd/[dfdId]` | US-014, US-015, US-016 |
-| SCR-008 | ETP (editor por seções) | `/processos/[id]/etp/[etpId]` | US-019 a US-023 |
+| SCR-007 | DFD (wizard/editor) | `/processos/[id]/dfd/[dfdId]` | US-014, US-015, US-016, US-117 |
+| SCR-008 | ETP (editor por seções) | `/processos/[id]/etp/[etpId]` | US-019 a US-023, US-118 |
 | SCR-009 | Pesquisa de preços | `/processos/[id]/pesquisa-precos/[researchId]` | US-024 a US-030, US-032 |
 | SCR-010 | Mapa comparativo | `/processos/[id]/pesquisa-precos/[researchId]/mapa` | US-031 |
-| SCR-011 | Riscos (mapa de riscos) | `/processos/[id]/riscos` | US-033 a US-035 |
-| SCR-012 | TR (editor) | `/processos/[id]/tr/[termId]` | US-036 a US-039 |
+| SCR-011 | Riscos (mapa de riscos) | `/processos/[id]/riscos` | US-033 a US-035, US-119 |
+| SCR-012 | TR (editor) | `/processos/[id]/tr/[termId]` | US-036 a US-039, US-120 |
 | SCR-013 | Caixa de tarefas | `/tarefas` | US-056, US-058 |
 | SCR-014 | Aprovações | `/aprovacoes` | US-057 |
 | SCR-015 | Detalhe da aprovação | `/aprovacoes/[id]` | US-052, US-053 |
@@ -389,7 +409,7 @@ IDs `SCR-001`…`SCR-041` seguem a numeração das 41 telas pedidas pelo produto
 | SCR-036 | Notificações | `/notificacoes` | US-111 (atalho para preferências: US-113) |
 | SCR-037 | Auditoria | `/auditoria` | US-074, US-075 |
 | SCR-039 | Perfil (meu perfil) | `/perfil` | US-098, US-113, US-090 |
-| SCR-041 | Configurações gerais | `/admin/configuracoes` | US-103, US-105 |
+| SCR-041 | Configurações gerais | `/admin/configuracoes` | US-103, US-105, US-116 |
 | SCR-101 | Seleção de órgão | `/selecionar-orgao` | US-093 |
 | SCR-102 | Aceite de convite / primeiro acesso | `/convite/[token]` | US-091 |
 | SCR-103 | Encaminhar processo (painel lateral) | diálogo em SCR-006 | US-047, US-016 |
@@ -406,3 +426,4 @@ IDs `SCR-001`…`SCR-041` seguem a numeração das 41 telas pedidas pelo produto
 | SCR-114 | Editor de template (seções e layout) | `/admin/templates/[id]/versoes/[versionId]` | US-107, US-109 |
 | SCR-115 | Atribuir responsável / assumir (diálogo) | diálogo em SCR-006 e SCR-013 | US-049, US-050, US-058 |
 | SCR-116 | Suspender, retomar, cancelar e concluir (diálogos) | diálogos em SCR-006 | US-008, US-009, US-010 |
+| SCR-117 | Assistente de redação com IA (painel lateral) | painel em SCR-007, SCR-008, SCR-011 e SCR-012 (`?ia=<generationId>` abre a proposta) | US-117 a US-122 |

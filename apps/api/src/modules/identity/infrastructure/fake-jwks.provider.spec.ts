@@ -36,6 +36,8 @@ describe('FakeJwksProvider (FA-02)', () => {
       subject: 'sub-ana',
       amr: ['pwd', 'otp'],
       authTime: new Date(NOW - 60_000),
+      email: null,
+      emailVerified: false,
     });
   });
 

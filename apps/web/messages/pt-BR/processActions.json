@@ -1,0 +1,25 @@
+{
+  "actions": {
+    "heading": "Ações disponíveis",
+    "loading": "Carregando as ações do processo…",
+    "empty": "Nenhuma ação disponível para você nesta etapa.",
+    "unavailable": "Indisponível: {reasons}",
+    "primary": "Ação principal"
+  },
+  "checklist": {
+    "heading": "Pendências da etapa",
+    "summary": "{count, plural, =0 {Nenhuma pendência} one {# pendência} other {# pendências}}",
+    "loading": "Carregando as pendências da etapa…",
+    "empty": "Nenhuma pendência nesta etapa.",
+    "blocking": "Bloqueante",
+    "warning": "Aviso",
+    "blockingHint": "Impede o avanço até ser resolvida.",
+    "warningHint": "Não impede o avanço; você confirma ciência ao encaminhar."
+  },
+  "errors": {
+    "notFound": "Processo não encontrado.",
+    "unavailable": "Não foi possível calcular as ações agora. Tente novamente em instantes.",
+    "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "retry": "Tentar novamente"
+  }
+}

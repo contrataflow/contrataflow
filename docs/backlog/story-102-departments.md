@@ -202,20 +202,21 @@ Feature: Gerenciar secretarias e setores
 
 ## Backend
 - **Módulo(s):** `organization` (dono); usa `access` (`AuthorizationService`, invalidação de cache de escopo), `tenancy` (`Organization.assertActive`).
-- **Casos de uso:** `CreateDepartmentCommand`, `UpdateDepartmentCommand`, `MoveDepartmentCommand`, `ActivateDepartmentCommand`, `DeactivateDepartmentCommand`, `DeleteDepartmentCommand`; `ListDepartmentsQuery`, `LookupDepartmentsQuery`, `GetDepartmentQuery`.
+- **Casos de uso:** `CreateDepartmentCommand`, `UpdateDepartmentCommand`, `MoveDepartmentCommand`, `ActivateDepartmentCommand`, `DeactivateDepartmentCommand`, `DeleteDepartmentCommand`; `ListDepartmentsQuery`, `LookupDepartmentsQuery`, `GetDepartmentQuery`. Exceção de nível registrada em decisions.md (DEC-041): `organization` importa as fachadas de `access`, `identity` e `tenancy` (`TenancyFacade.organizationStatus`, `IdentityFacade.usersAssignedToDepartment`/`hasDepartmentAssignments`, `AccessFacade.rolesCoverAllDepartments`).
+- **Ponte até a US-096:** o "escopo que cobre a unidade" de RN-TEN-48 é, por ora, o escopo padrão do perfil do vínculo (`defaultAssignmentScope = TENANT`); a US-096 troca pela atribuição real (`DEPARTMENT`/`OWN_DEPARTMENTS`/`ORGANIZATION`/`TENANT`) sem mudar quem chama. A lotação (`membership_departments`) já vale.
 - **Domínio:** `Department.create/update/move(props)` aplicando RN-TEN-44..51; `DepartmentTree` (serviço de recálculo de `path`/`depth` por subárvore).
-- **Transação:** criação/edição/movimentação, auditoria e outbox na mesma transação; `move` bloqueia as linhas da subárvore (`SELECT … FOR UPDATE`) para evitar condição de corrida com outro `move` concorrente.
+- **Transação:** criação/edição/movimentação, auditoria e outbox na mesma transação; `move` bloqueia as linhas da subárvore (`SELECT … FOR UPDATE`) para evitar condição de corrida com outro `move` concorrente. Implementação: criação e movimentação tomam antes uma trava consultiva por (tenant, órgão) (`pg_advisory_xact_lock`) e releem a unidade e o destino depois dela — o segundo de dois `move` cruzados vê o caminho já movido e falha com `DEPARTMENT_CYCLE`. A edição comum nunca reescreve `parentId`/`path`/`depth`.
 
 ## Frontend
 - **Tela(s):** SCR-032 (`/admin/estrutura`), aba "Secretarias".
-- **Componentes:** `DepartmentTree` (arrastar e soltar, expandir/colapsar), `DepartmentFormDialog`, `UserLookupSelect` (titular/substituto), `MoveDepartmentDialog`.
+- **Componentes:** `DepartmentTree` (arrastar e soltar, expandir/colapsar), `DepartmentFormDialog`, `UserLookupSelect` (titular/substituto), `MoveDepartmentDialog`. Até o `USR-02` (US-092) existir, o `UserLookupSelect` só mostra/remove a pessoa definida (mesmo padrão dos seletores de usuário da US-061).
 - **Estados:** skeleton na árvore; vazio ("Nenhuma unidade cadastrada para este órgão"); erro com "Tentar novamente"; indicador de movimentação em progresso.
 - **Acessibilidade e responsividade:** árvore navegável por teclado (setas/Enter); "Mover para…" como alternativa acessível ao arrastar; em telas < 768 px, árvore em lista indentada.
 
 ## Banco de dados
 - **Tabelas:** `departments`.
-- **Migrações:** nenhuma nova (tabela já definida em entities.md §4).
-- **Índices/constraints relevantes:** `UNIQUE (tenant_id, organization_id, acronym) WHERE acronym IS NOT NULL`; `UNIQUE (tenant_id, organization_id, COALESCE(parent_id, '0…0'), lower(name))`; índice `(tenant_id, path text_pattern_ops)`; checks `head_user_id IS DISTINCT FROM deputy_user_id` e `parent_id <> id`.
+- **Migrações:** `20261015290000_departments` — enum `department_type`, tabela `departments` (checks de caminho/profundidade, unicidades, FKs compostas do órgão e do pai do mesmo órgão, trigger de imutabilidade de tenant/órgão, RLS, `DELETE` só para `cf_app`) e as FKs `ON DELETE RESTRICT` pendentes de `membership_departments.department_id` e de `workflow_stages.fixed_department_id`/`approver_fixed_department_id`. Processos e `ProcessAccess` ganham as suas na US-001/US-053.
+- **Índices/constraints relevantes:** `UNIQUE (tenant_id, organization_id, acronym) WHERE acronym IS NOT NULL`; `UNIQUE (tenant_id, organization_id, COALESCE(parent_id, '0…0'), lower(name))`; índice `(tenant_id, path text_pattern_ops)`; checks `head_user_id <> deputy_user_id` (nulos permitidos — `IS DISTINCT FROM` recusaria a unidade sem titular nem substituto) e `parent_id <> id`.
 
 ## API
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |

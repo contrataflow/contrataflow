@@ -53,7 +53,9 @@ export async function withLock<T>(
   let notified = false;
   for (;;) {
     try {
-      const handle = await open(file, 'wx');
+      // Nome previsível no diretório temporário compartilhado: `wx` recusa arquivo (ou link)
+      // plantado antes e 0o600 deixa a trava só com o dono.
+      const handle = await open(file, 'wx', 0o600);
       await handle.writeFile(String(process.pid));
       await handle.close();
       break;

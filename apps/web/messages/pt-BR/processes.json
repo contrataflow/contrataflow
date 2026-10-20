@@ -1,0 +1,790 @@
+{
+  "newButton": {
+    "label": "Novo processo"
+  },
+  "wizard": {
+    "title": "Novo processo",
+    "description": "Informe os dados essenciais para abrir o processo. O restante você completa depois, no painel do processo.",
+    "stepperLabel": "Passos para criar o processo",
+    "progress": "Passo {current} de {total}",
+    "stepDone": "concluído",
+    "steps": {
+      "identification": "Identificação",
+      "origin": "Origem e planejamento",
+      "review": "Revisão"
+    },
+    "stepHints": {
+      "identification": "Diga o que será contratado e o tipo de contratação.",
+      "origin": "Informe quem solicita, a origem da demanda e a situação no PCA.",
+      "review": "Confira os dados antes de criar o processo."
+    },
+    "actions": {
+      "back": "Voltar",
+      "next": "Continuar",
+      "cancel": "Cancelar",
+      "create": "Criar processo",
+      "creating": "Criando processo…",
+      "retry": "Tentar novamente",
+      "edit": "Editar"
+    },
+    "footerLabel": "Ações do formulário",
+    "required": "obrigatório",
+    "optional": "opcional",
+    "formErrors": "Revise os campos destacados.",
+    "stepInvalid": "Há campos a corrigir em “{step}”. Volte a esse passo para continuar.",
+    "goToStep": "Ir para “{step}”"
+  },
+  "fields": {
+    "title": "Título *",
+    "titleHint": "Resuma a demanda em uma frase (de 5 a 200 caracteres).",
+    "object": "Objeto *",
+    "objectHint": "Descreva o que será contratado (de 10 a 2.000 caracteres).",
+    "description": "Descrição",
+    "descriptionHint": "Contexto adicional, se houver.",
+    "contractingTypeId": "Tipo de contratação *",
+    "modalityId": "Modalidade prevista",
+    "modalityUndefined": "A definir",
+    "isPriceRegistration": "Registro de preços (SRP)",
+    "isPriceRegistrationHint": "Marque se a contratação será feita por sistema de registro de preços.",
+    "organizationId": "Órgão/entidade *",
+    "requestingSecretariatId": "{secretariat} solicitante *",
+    "requestingDepartmentId": "{department} solicitante *",
+    "ownDepartments": "Suas lotações",
+    "otherDepartments": "Demais unidades",
+    "priority": "Prioridade *",
+    "targetDate": "Prazo alvo",
+    "targetDateHint": "Opcional. Não pode ser anterior a hoje.",
+    "estimatedValue": "Valor estimado",
+    "estimatedValueHint": "Opcional. Em reais, com até 2 casas decimais.",
+    "originId": "Origem *",
+    "select": "Selecione",
+    "pcaStatus": "Situação no PCA *",
+    "pcaYear": "Exercício do PCA *",
+    "pcaItemCode": "Item do PCA",
+    "pcaItemCodeHint": "Código do item no plano, se houver.",
+    "pcaJustification": "Justificativa *",
+    "pcaJustificationHint": "Explique por que a contratação não está prevista no PCA (mín. 20 caracteres).",
+    "internalCode": "Código interno",
+    "internalCodeRequired": "Código interno *",
+    "internalCodeHint": "Número do protocolo ou de controle do órgão.",
+    "notes": "Observações"
+  },
+  "priorities": {
+    "LOW": "Baixa",
+    "MEDIUM": "Média",
+    "HIGH": "Alta",
+    "URGENT": "Urgente"
+  },
+  "pcaStatuses": {
+    "PLANNED": "Previsto no PCA",
+    "NOT_PLANNED": "Não previsto no PCA",
+    "NOT_APPLICABLE": "Não se aplica"
+  },
+  "statuses": {
+    "DRAFT": "Rascunho",
+    "IN_PROGRESS": "Em andamento",
+    "AWAITING_APPROVAL": "Aguardando aprovação",
+    "RETURNED": "Devolvido",
+    "SUSPENDED": "Suspenso",
+    "CANCELED": "Cancelado",
+    "COMPLETED": "Concluído",
+    "PUBLISHED": "Publicado"
+  },
+  "loading": {
+    "label": "Carregando as opções do formulário…",
+    "options": "Carregando…",
+    "failed": "Não foi possível carregar as opções do formulário.",
+    "retry": "Tentar novamente"
+  },
+  "empty": {
+    "contractingType": "Nenhum tipo de contratação ativo. Fale com o administrador.",
+    "origin": "Nenhuma origem ativa. Fale com o administrador.",
+    "organization": "Nenhum órgão ativo. Fale com o administrador.",
+    "departments": "Nenhuma unidade disponível para você abrir processos. Fale com o administrador.",
+    "noOptions": "Sem opções disponíveis."
+  },
+  "review": {
+    "summary": "Resumo",
+    "moreInfo": "Mais informações",
+    "moreInfoHint": "Código interno e observações (opcional).",
+    "numberingByOrganization": "A numeração deste processo é por órgão.",
+    "values": {
+      "none": "Não informado",
+      "yes": "Sim",
+      "no": "Não"
+    },
+    "pcaDetail": {
+      "PLANNED": "Previsto no PCA — exercício {year}",
+      "PLANNED_ITEM": "Previsto no PCA — exercício {year}, item {item}",
+      "NOT_PLANNED": "Não previsto no PCA — {justification}",
+      "NOT_APPLICABLE": "Não se aplica"
+    }
+  },
+  "duplicates": {
+    "title": "Encontramos processos parecidos criados recentemente.",
+    "description": "Confira se algum deles já é a demanda que você quer abrir.",
+    "listLabel": "Processos parecidos",
+    "noNumber": "Rascunho (sem número)",
+    "meta": "{status} · criado por {name} em {date}",
+    "open": "Abrir processo existente",
+    "openNamed": "Abrir processo existente {code}",
+    "createAnyway": "Criar mesmo assim",
+    "checking": "Verificando processos parecidos…"
+  },
+  "workflow": {
+    "title": "Fluxo do processo",
+    "loading": "Verificando o fluxo aplicável…",
+    "preview": "Este processo seguirá o fluxo <strong>{name}</strong>, começando em <strong>{stage}</strong>.",
+    "none": "Não há fluxo configurado para este tipo de contratação. Fale com o administrador do órgão.",
+    "unavailable": "Não foi possível verificar o fluxo agora. Você ainda pode criar o processo; o sistema escolherá o fluxo na criação.",
+    "retry": "Tentar novamente"
+  },
+  "draft": {
+    "recovered": "Recuperamos o que você estava preenchendo",
+    "recoveredHint": "Revise os dados antes de continuar.",
+    "discard": "Começar do zero",
+    "dismiss": "Entendi"
+  },
+  "cancel": {
+    "title": "Descartar o que você preencheu?",
+    "description": "Os dados digitados serão apagados deste navegador e nenhum processo será criado.",
+    "keep": "Continuar preenchendo",
+    "discard": "Descartar e sair"
+  },
+  "errors": {
+    "generic": "Não foi possível criar o processo. Tente novamente.",
+    "unavailable": "Não foi possível criar o processo agora. Tente novamente em instantes.",
+    "unexpected": "Ocorreu um erro inesperado.",
+    "permission": "Você não tem permissão para abrir processos para este setor.",
+    "permissionHint": "Volte ao passo “Origem e planejamento” e escolha outro setor.",
+    "keyReused": "Esta solicitação já foi enviada com outros dados. Revise os dados e confirme novamente.",
+    "inProgress": "Estamos concluindo a criação. Aguarde.",
+    "internalCodeDuplicate": "Já existe um processo com o código interno {code}.",
+    "noWorkflow": "Não há fluxo configurado para este tipo de contratação. Fale com o administrador do órgão.",
+    "referenceInvalid": "Alguma opção escolhida não está mais disponível. As opções foram recarregadas; revise a seleção."
+  },
+  "toast": {
+    "created": "Processo {code} criado",
+    "createdNoNumber": "Processo criado (sem número)"
+  },
+  "panel": {
+    "loading": "Carregando o processo…",
+    "cancelSuggestion": {
+      "title": "Considere cancelar este processo",
+      "body": "O DFD foi indeferido. Se a demanda não for mais necessária, cancele o processo pelo menu \"Mais\"; para seguir, reabra o DFD e ajuste a demanda."
+    },
+    "noNumber": "Rascunho (sem número)",
+    "backToList": "Processos",
+    "header": {
+      "estimatedValue": "Valor estimado",
+      "valueSource": "Origem: {source}",
+      "sources": {
+        "MANUAL": "Manual",
+        "DFD": "DFD",
+        "ETP": "ETP",
+        "PRICE_RESEARCH": "Pesquisa de preços",
+        "TERM": "TR"
+      },
+      "organization": "Órgão: {name}",
+      "tags": "Etiquetas",
+      "statusLabel": "Situação do processo"
+    },
+    "actions": {
+      "label": "Ações do processo",
+      "more": "Mais",
+      "moreLabel": "Mais ações do processo",
+      "withResponsible": "Com {name} — {department}",
+      "inQueue": "Na fila de {department}",
+      "readOnly": "Processo em modo leitura.",
+      "seePending": "Ver pendências",
+      "blockedHint": "{action} — {reason}",
+      "verbs": {
+        "FORWARD": "Encaminhar",
+        "COMPLETE": "Concluir",
+        "CLAIM": "Assumir",
+        "RESUME": "Retomar",
+        "DECIDE_APPROVAL": "Decidir aprovação"
+      },
+      "unavailable": "Indisponível: {reasons}",
+      "notYet": "Esta ação abre o diálogo próprio, ainda não disponível nesta versão.",
+      "stale": "Exibindo dados de {time}. Não foi possível atualizar.",
+      "conflict": "Este processo foi atualizado por outra pessoa."
+    },
+    "where": {
+      "title": "Onde está",
+      "summary": "{stage} — {department} — {status}",
+      "noStage": "O processo ainda não tem uma etapa ativa.",
+      "suspended": "Suspenso em {date} — motivo: {reason}",
+      "completed": "{stage} em {date}",
+      "canceled": "Cancelado em {date} — motivo: {reason}",
+      "group": "Fase: {group}"
+    },
+    "responsible": {
+      "title": "Responsável",
+      "since": "desde {date}",
+      "queue": "Na fila de {department}",
+      "awaiting": "Aguardando decisão de {name}",
+      "approvalFrozen": "Processo suspenso — decisão indisponível até a retomada",
+      "none": "Sem responsável definido"
+    },
+    "pending": {
+      "title": "O que falta",
+      "counts": "{blocking, plural, =0 {Nenhuma pendência obrigatória} one {# pendência obrigatória} other {# pendências obrigatórias}} e {warnings, plural, =0 {nenhuma recomendação} one {# recomendação} other {# recomendações}}",
+      "none": "Nenhuma pendência nesta etapa.",
+      "blocking": "Obrigatória",
+      "warning": "Recomendação",
+      "openDocument": "Abrir documento",
+      "createDocument": "Criar {type}",
+      "restricted": "Documento restrito",
+      "checklist": "Ver checklist completo",
+      "checklistDescription": "Regras da etapa atual e das saídas que ainda não foram cumpridas."
+    },
+    "next": {
+      "title": "Próximo passo",
+      "none": "Nenhuma orientação cadastrada para esta etapa.",
+      "instructions": "Orientações da etapa"
+    },
+    "deadlines": {
+      "title": "Prazos",
+      "stage": "Prazo da etapa",
+      "dueAt": "Vence em {date}",
+      "target": "Prazo alvo: {date}",
+      "targetOverdue": "{count, plural, one {Prazo alvo vencido há # dia} other {Prazo alvo vencido há # dias}}",
+      "noTarget": "Sem prazo alvo",
+      "final": "Processo encerrado — sem prazos em curso."
+    },
+    "documents": {
+      "title": "Documentos",
+      "empty": "Nenhum documento ainda",
+      "create": "Criar DFD",
+      "version": "v{number}",
+      "inApproval": "Em aprovação",
+      "restricted": "Conteúdo restrito (orçamento sigiloso)",
+      "noCode": "Sem número",
+      "item": "{code} — {status}"
+    },
+    "approvals": {
+      "title": "Aprovações pendentes",
+      "empty": "Nenhuma aprovação pendente",
+      "mine": "Aguardando sua decisão",
+      "approver": "Aprovador: {name}",
+      "requestedAt": "Solicitada em {date}",
+      "dueAt": "Prazo: {date}",
+      "overdue": "Atrasada"
+    },
+    "stepper": {
+      "title": "Etapas do processo",
+      "toggle": "Etapas",
+      "current": "etapa atual",
+      "notStarted": "Não percorrida",
+      "statuses": {
+        "ACTIVE": "Em andamento",
+        "COMPLETED": "Concluída",
+        "RETURNED": "Devolvida",
+        "CANCELED": "Cancelada"
+      },
+      "sla": "{days, plural, one {SLA de # dia útil} other {SLA de # dias úteis}}",
+      "slaCalendar": "{days, plural, one {SLA de # dia} other {SLA de # dias}}",
+      "passes": "{count, plural, one {# passagem} other {# passagens}}",
+      "pass": "{sequence}ª passagem — {department}, entrada em {entered}",
+      "exited": "saída em {date}",
+      "assignee": "responsável: {name}",
+      "overridden": "prazo ajustado",
+      "overdue": "atrasada desde {date}"
+    },
+    "data": {
+      "title": "Dados do processo",
+      "object": "Objeto",
+      "contractingType": "Tipo de contratação",
+      "modality": "Modalidade",
+      "origin": "Origem",
+      "workflow": "Fluxo",
+      "workflowValue": "{name} (versão {version})",
+      "estimatedValue": "Valor estimado",
+      "undefinedModality": "A definir"
+    },
+    "tabs": {
+      "label": "Seções do processo",
+      "resumo": "Resumo",
+      "documentos": "Documentos",
+      "itens": "Itens",
+      "tramitacao": "Tramitação",
+      "timeline": "Timeline",
+      "comentarios": "Comentários",
+      "participantes": "Participantes",
+      "count": "{label} ({count})"
+    },
+    "errors": {
+      "notFound": "Processo não encontrado ou você não tem acesso a ele.",
+      "backToList": "Voltar para Processos",
+      "unavailable": "Não foi possível carregar o processo agora.",
+      "code": "Código: {correlationId}",
+      "retry": "Tentar novamente",
+      "block": "Não foi possível carregar este bloco.",
+      "rateLimited": "Muitas atualizações seguidas. Aguarde alguns segundos."
+    },
+    "confidentiality": {
+      "label": "Orçamento sigiloso",
+      "hint": "Os valores estimados ficam visíveis só a quem tem a permissão específica ou está com o processo; órgãos de controle continuam vendo normalmente.",
+      "noPermission": "Só o gestor ou a autoridade competente pode alterar",
+      "enableTitle": "Marcar o orçamento como sigiloso?",
+      "disableTitle": "Tornar o orçamento público?",
+      "enableDescription": "Os valores estimados deste processo ficarão visíveis só a quem tem a permissão específica ou está com o processo; órgãos de controle continuam vendo normalmente.",
+      "disableDescription": "Os valores estimados deste processo voltarão a ser visíveis a todos que podem ver o processo, e a pesquisa de preços volta à confidencialidade padrão.",
+      "confirmEnable": "Marcar como sigiloso",
+      "confirmDisable": "Tornar público",
+      "cancel": "Cancelar",
+      "close": "Fechar",
+      "enabled": "Orçamento marcado como sigiloso",
+      "disabled": "Orçamento deixou de ser sigiloso",
+      "errors": {
+        "conflict": "Este processo foi alterado por outra pessoa. Recarregue e tente novamente.",
+        "precondition": "Não foi possível confirmar a versão do processo.",
+        "permission": "Você não tem permissão para definir o sigilo deste processo.",
+        "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+        "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+        "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+      }
+    }
+  },
+  "edit": {
+    "title": "Editar dados do processo",
+    "close": "Fechar",
+    "loading": "Carregando os dados do processo…",
+    "save": "Salvar alterações",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "modified": "Alterado",
+    "confidential": "Sigiloso",
+    "confidentialHint": "O valor estimado deste processo é sigiloso.",
+    "estimatedFromSource": "Valor obtido de {source}. Para alterá-lo, ajuste o documento de origem.",
+    "requestingChanged": "O DFD já criado não é alterado automaticamente; revise o campo Setor no DFD.",
+    "requestingStays": "O processo continua com {department} até ser encaminhado.",
+    "copyTexts": "Copiar meus textos",
+    "copied": "Textos copiados.",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "permission": "Você não tem permissão para editar este processo."
+    },
+    "conflict": {
+      "title": "Este processo foi alterado por {name} às {time}.",
+      "titleUnknown": "Este processo foi alterado por outra pessoa.",
+      "noOverlap": "Nenhum dos campos que você alterou foi mudado pela outra pessoa.",
+      "field": "Campo",
+      "mine": "Seu valor",
+      "current": "Valor atual",
+      "reapply": "Reaplicar minhas alterações",
+      "discard": "Descartar e recarregar"
+    },
+    "discard": {
+      "title": "Descartar as alterações?",
+      "description": "As alterações não salvas serão perdidas.",
+      "keep": "Continuar editando",
+      "confirm": "Descartar"
+    }
+  },
+  "duplicate": {
+    "title": "Duplicar processo",
+    "description": "Abre um novo processo com os mesmos dados, itens e etiquetas. O novo processo recebe número próprio, segue o fluxo aplicável aos dados informados e fica com você.",
+    "close": "Fechar",
+    "loading": "Carregando os dados do processo…",
+    "options": "O que mais copiar",
+    "copyDocuments": "Copiar documentos estruturados (como rascunho)",
+    "copyDocumentsHint": "DFD, ETP, TR e demais documentos estruturados entram como novos rascunhos, com o conteúdo mais recente. Pesquisa de preços: só itens e fontes, nunca cotações.",
+    "noDocuments": "Nenhum documento estruturado para copiar",
+    "documentsList": "Documentos que serão copiados",
+    "copyAttachments": "Copiar anexos",
+    "copyAttachmentsHint": "Os anexos do processo (e dos documentos copiados) são vinculados ao novo processo, sem duplicar os arquivos.",
+    "neverCopied": "Nunca são copiados: número, aprovações, tramitações, histórico, comentários, auditoria, participantes e valor estimado.",
+    "submit": "Duplicar",
+    "submitting": "Duplicando…",
+    "cancel": "Cancelar",
+    "toast": "Processo {code} criado a partir de {sourceCode}",
+    "toastNoNumber": "Processo criado a partir de {sourceCode}",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "source": "Há dados copiados da origem que precisam de ajuste:",
+      "sourceHint": "Corrija o processo de origem em \"Editar dados\" e tente duplicar novamente.",
+      "permissionHint": "Escolha outro setor solicitante ou peça acesso ao administrador.",
+      "unavailable": "Não foi possível duplicar o processo agora.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "notFound": "Processo não encontrado."
+    }
+  },
+  "forward": {
+    "title": "Encaminhar processo",
+    "close": "Fechar",
+    "loading": "Carregando as opções de encaminhamento…",
+    "loadFailed": "Não foi possível carregar o encaminhamento.",
+    "retry": "Tentar novamente",
+    "empty": "Não há encaminhamentos disponíveis nesta etapa.",
+    "cancel": "Cancelar",
+    "submit": "Encaminhar",
+    "submitting": "Encaminhando…",
+    "submitBlocked": "Resolva as pendências obrigatórias para encaminhar.",
+    "transition": {
+      "legend": "Para onde",
+      "stage": "Etapa: {stage}",
+      "department": "Unidade: {department}",
+      "approver": "Aprovação: {approver}",
+      "unavailable": "Indisponível: {reasons}"
+    },
+    "destination": {
+      "title": "Unidade e responsável",
+      "department": "Unidade de destino",
+      "departmentHint": "Obrigatório. Busque e escolha a unidade que receberá o processo.",
+      "byWorkflow": "Definida pelo fluxo de trabalho",
+      "approver": "Aprovador: {approver}",
+      "approverUndefined": "O aprovador será definido pelo fluxo de trabalho.",
+      "assignee": "Atribuir diretamente a",
+      "assigneeHint": "Opcional. Digite ao menos 2 letras do nome. Sem escolha, vale a regra de atribuição da etapa."
+    },
+    "lookup": {
+      "selected": "Selecionado: {name}",
+      "change": "Trocar",
+      "searching": "Buscando…",
+      "searchFailed": "Não foi possível buscar agora.",
+      "noResults": "Nenhum resultado.",
+      "results": "Resultados da busca: {label}"
+    },
+    "due": {
+      "title": "Prazo",
+      "none": "Sem prazo definido",
+      "until": "Até {date}",
+      "untilSla": "Até {date} ({type, select, CALENDAR {{days, plural, one {# dia corrido} other {# dias corridos}}} other {{days, plural, one {# dia útil} other {# dias úteis}}}})",
+      "change": "Alterar prazo",
+      "keep": "Manter o prazo calculado",
+      "date": "Novo prazo",
+      "dateHint": "Entre hoje e {limit}.",
+      "reason": "Motivo da alteração do prazo",
+      "reasonHint": "Obrigatório, de 10 a 1.000 caracteres."
+    },
+    "comment": {
+      "label": "Comentário",
+      "labelRequired": "Comentário (obrigatório)",
+      "hintRequired": "Informe ao menos 10 caracteres.",
+      "counter": "{count, number} / {max, number}"
+    },
+    "documents": {
+      "legend": "Documentos que acompanham",
+      "hint": "Vêm marcados os documentos criados ou alterados nesta etapa.",
+      "hintApproval": "Os documentos cobertos pela aprovação seguem automaticamente e não podem ser desmarcados.",
+      "empty": "Este processo ainda não tem documentos.",
+      "willSubmit": "Será submetido para aprovação",
+      "inApproval": "Em aprovação",
+      "count": "{count, plural, =0 {Nenhum documento selecionado} one {# documento selecionado} other {# documentos selecionados}} (máx. 50)"
+    },
+    "rules": {
+      "title": "Pendências e avisos",
+      "none": "Nenhuma pendência nesta etapa.",
+      "counts": "{blocking, plural, =0 {Nenhuma pendência obrigatória} one {# pendência obrigatória} other {# pendências obrigatórias}} e {warnings, plural, =0 {nenhum aviso} one {# aviso} other {# avisos}}.",
+      "blockingList": "Pendências obrigatórias",
+      "warningList": "Avisos",
+      "blocking": "Obrigatória",
+      "warning": "Aviso",
+      "resolve": "Resolver",
+      "acknowledge": "Estou ciente e desejo prosseguir"
+    },
+    "summary": {
+      "title": "Resumo",
+      "queue": "O processo irá para <b>{stage} — {department}</b>, na fila da unidade, com prazo até <b>{date}</b>.",
+      "queueNoDue": "O processo irá para <b>{stage} — {department}</b>, na fila da unidade, sem prazo definido.",
+      "assigned": "O processo irá para <b>{stage} — {department}</b>, atribuído a <b>{assignee}</b>, com prazo até <b>{date}</b>.",
+      "assignedNoDue": "O processo irá para <b>{stage} — {department}</b>, atribuído a <b>{assignee}</b>, sem prazo definido.",
+      "pickDepartment": "O processo irá para <b>{stage}</b>. Escolha a unidade de destino para ver o resumo completo.",
+      "stageOnly": "O processo irá para <b>{stage}</b>.",
+      "approval": "O processo irá para aprovação de <b>{approver}</b>.",
+      "approvalUndefined": "O processo irá para <b>{stage}</b>, para aprovação.",
+      "submitOne": "O {document} será submetido na versão {version}.",
+      "submitMany": "{count} documentos serão submetidos para aprovação."
+    },
+    "toast": {
+      "forwarded": "Processo encaminhado para {stage} — {department}",
+      "numbered": "Processo autuado sob o nº {code} e encaminhado para {stage} — {department}",
+      "approval": "Processo encaminhado para aprovação de {approver}",
+      "numberedApproval": "Processo autuado sob o nº {code} e encaminhado para aprovação de {approver}"
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "versionConflict": "O processo foi alterado. Recarregue para continuar.",
+      "versionConflictHint": "Já recarregamos os dados e o que você digitou foi mantido. Revise e envie de novo.",
+      "transitionNotAvailable": "Este caminho não está disponível agora.",
+      "transitionNotAvailableHint": "Atualizamos as opções de encaminhamento. Escolha de novo.",
+      "blocked": "{count, plural, =0 {Há pendências na etapa.} one {Há # pendência obrigatória na etapa.} other {Há # pendências obrigatórias na etapa.}}",
+      "blockedHint": "Resolva as pendências obrigatórias para encaminhar.",
+      "warnings": "Confirme que está ciente dos avisos antes de encaminhar.",
+      "dueNotAllowed": "Esta etapa não permite alterar o prazo.",
+      "dueRestored": "O prazo calculado foi restaurado.",
+      "documentsIncomplete": "Há documentos incompletos.",
+      "documentFallback": "documento",
+      "completeDocument": "Complete o {document} antes de enviar.",
+      "openDocument": "Abrir documento",
+      "approverUnresolved": "Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.",
+      "idempotencyReused": "Esta solicitação já foi enviada com outros dados.",
+      "inProgress": "Estamos concluindo o encaminhamento.",
+      "unavailable": "Não foi possível encaminhar agora. Tente novamente em instantes.",
+      "code": "Código: {correlationId}",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente",
+      "custody": "Você não está com este processo.",
+      "notFound": "Processo não encontrado.",
+      "assigneeNotEligible": "Esta pessoa não pode receber o processo nesta unidade."
+    },
+    "stale": {
+      "title": "Processo movimentado",
+      "description": "Este processo acabou de ser movimentado por outra pessoa. Recarregue para ver a situação atual.",
+      "reload": "Recarregar"
+    },
+    "discard": {
+      "title": "Descartar o encaminhamento?",
+      "description": "O que você preencheu será perdido.",
+      "keep": "Continuar editando",
+      "confirm": "Descartar"
+    }
+  },
+  "return": {
+    "title": "Devolver processo",
+    "description": "Devolva o processo para uma etapa já percorrida, para que seja corrigido ou complementado.",
+    "close": "Fechar",
+    "loading": "Carregando as etapas para devolução…",
+    "loadFailed": "Não foi possível carregar as etapas para devolução.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhuma etapa anterior disponível para devolução.",
+    "cancel": "Cancelar",
+    "submit": "Devolver",
+    "submitting": "Devolvendo…",
+    "returned": "Processo devolvido para {stage}",
+    "target": {
+      "legend": "Etapa de destino",
+      "lastPassed": "Última passagem em {date}"
+    },
+    "comment": {
+      "label": "Motivo da devolução",
+      "hint": "Obrigatório, de 10 a 5.000 caracteres.",
+      "counter": "{count, number} / {max, number}"
+    },
+    "due": {
+      "label": "Prazo (opcional)",
+      "hint": "Sem alteração, vale o prazo calculado pela etapa."
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "targetNotAvailable": "Esta etapa não está disponível como destino da devolução.",
+      "dueNotAllowed": "O prazo desta devolução não pode ser alterado.",
+      "status": "Este processo não pode ser devolvido no status atual.",
+      "custody": "Você não está com este processo.",
+      "notFound": "Processo não encontrado.",
+      "stageChanged": "Este processo foi tramitado por outra pessoa. Atualize a página.",
+      "versionConflict": "Os dados do processo mudaram. Atualize a página.",
+      "precondition": "Não foi possível confirmar a versão atual. Recarregue a página.",
+      "reload": "Atualizar",
+      "unavailable": "Não foi possível devolver o processo agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
+  },
+  "claim": {
+    "claimed": "Você assumiu este processo.",
+    "errors": {
+      "alreadyAssigned": "Este processo já foi assumido.",
+      "alreadyAssignedBy": "Este processo já foi assumido por {name}.",
+      "status": "Este processo não pode ser assumido no momento.",
+      "denied": "Você não pertence à unidade responsável por este processo.",
+      "notFound": "Processo não encontrado.",
+      "reload": "Os dados do processo ainda estão carregando. Tente novamente em instantes.",
+      "unavailable": "Não foi possível assumir o processo agora. Tente novamente em instantes.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    }
+  },
+  "assign": {
+    "close": "Fechar",
+    "loading": "Carregando o processo…",
+    "cancel": "Cancelar",
+    "submit": "Atribuir",
+    "submitting": "Atribuindo…",
+    "counter": "{count, number} / {max, number}",
+    "title": {
+      "assign": "Atribuir responsável",
+      "reassign": "Reatribuir responsável"
+    },
+    "description": {
+      "queue": "O processo está na fila da unidade. Escolha quem passa a responder por ele.",
+      "current": "Responsável atual: {name}. Escolha outra pessoa da unidade ou deixe o processo na fila."
+    },
+    "assignee": {
+      "label": "Novo responsável",
+      "placeholder": "Selecione…",
+      "queue": "Deixar na fila da unidade",
+      "hint": "Pessoas com vínculo ativo lotadas na unidade atual do processo.",
+      "empty": "Nenhum outro membro ativo nesta unidade.",
+      "loading": "Carregando os membros da unidade…",
+      "loadError": "Não foi possível carregar os membros da unidade."
+    },
+    "reason": {
+      "label": "Motivo",
+      "optionalLabel": "Motivo (opcional)",
+      "hint": "De 10 a 2.000 caracteres. Fica registrado na tramitação."
+    },
+    "assigned": "Processo atribuído a {name}.",
+    "queued": "Processo devolvido para a fila da unidade.",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "notEligible": "Esta pessoa não pode ser responsável por este processo.",
+      "reference": "Selecione um responsável válido.",
+      "status": "Este processo não pode ser atribuído no momento.",
+      "permission": "Você não pode atribuir responsáveis neste processo.",
+      "notFound": "Processo não encontrado.",
+      "stale": "Os dados do processo mudaram. Atualize a página.",
+      "reload": "Recarregar",
+      "unavailable": "Não foi possível atribuir o processo agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
+  },
+  "suspension": {
+    "close": "Fechar",
+    "loading": "Carregando o processo…",
+    "cancel": "Cancelar",
+    "counter": "{count, number} / {max, number}",
+    "suspended": "Processo suspenso. Os prazos estão pausados.",
+    "resumed": "Processo retomado.",
+    "resumedWithDue": "Processo retomado. Novo prazo da etapa: {date}.",
+    "banner": "Suspenso desde {date} — {reason}",
+    "suspend": {
+      "title": "Suspender processo",
+      "description": "Os prazos ficam pausados e ninguém poderá tramitar ou decidir aprovações até a retomada.",
+      "submit": "Suspender",
+      "submitting": "Suspendendo…",
+      "reason": {
+        "label": "Motivo",
+        "hint": "Obrigatório, de 20 a 5.000 caracteres."
+      }
+    },
+    "resume": {
+      "title": "Retomar processo",
+      "description": "O processo volta à situação anterior e o prazo da etapa é estendido pelos dias em que ficou suspenso.",
+      "submit": "Retomar",
+      "submitting": "Retomando…",
+      "period": "Período suspenso",
+      "since": "Suspenso desde {date}",
+      "deadline": "Prazo da etapa",
+      "noDeadline": "Esta etapa não tem prazo definido.",
+      "noDays": "Nenhum dia útil será acrescentado.",
+      "calculating": "Calculando o novo prazo…",
+      "previewFailed": "Não foi possível calcular a prévia agora; o novo prazo é confirmado na retomada.",
+      "businessDays": "{count, plural, one {# dia útil será acrescentado} other {# dias úteis serão acrescentados}}. Novo prazo: {date}.",
+      "calendarDays": "{count, plural, one {# dia corrido será acrescentado} other {# dias corridos serão acrescentados}}. Novo prazo: {date}.",
+      "target": "Prazo alvo",
+      "targetKept": "O prazo alvo continua {date}.",
+      "reviewTarget": "Revisar prazo alvo",
+      "comment": {
+        "label": "Comentário (opcional)",
+        "hint": "Até 5.000 caracteres."
+      }
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "status": "Ação indisponível com o processo na situação atual.",
+      "permission": "Você não tem permissão para suspender ou retomar este processo.",
+      "notFound": "Processo não encontrado.",
+      "access": "Seu acesso a este órgão não está ativo.",
+      "stale": "O processo foi alterado por outra pessoa. Recarregue e tente novamente.",
+      "reload": "Recarregar",
+      "inProgress": "Estamos concluindo a operação.",
+      "keyReused": "Esta solicitação já foi enviada com outros dados.",
+      "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
+  },
+  "cancellation": {
+    "close": "Fechar",
+    "back": "Voltar",
+    "counter": "{count, number} / {max, number}",
+    "canceled": "Processo cancelado",
+    "discarded": "Rascunho descartado",
+    "cancel": {
+      "title": "Cancelar processo",
+      "description": "O cancelamento é definitivo: o processo deixa de tramitar e fica registrado como cancelado, com a justificativa.",
+      "impactTitle": "Ao confirmar:",
+      "impact": {
+        "approvals": "{count, plural, one {# aprovação pendente será cancelada} other {# aprovações pendentes serão canceladas}}",
+        "documents": "{count, plural, one {# documento em aprovação voltará a rascunho ou perderá o selo de aprovação} other {# documentos em aprovação voltarão a rascunho ou perderão o selo de aprovação}}",
+        "stage": "A etapa atual e a responsabilidade serão encerradas.",
+        "final": "O processo não poderá ser retomado."
+      },
+      "submit": "Cancelar processo",
+      "submitting": "Cancelando…",
+      "reason": {
+        "label": "Justificativa",
+        "hint": "Obrigatória, com pelo menos 20 caracteres."
+      }
+    },
+    "discard": {
+      "title": "Descartar rascunho",
+      "description": "O rascunho será excluído e deixará de aparecer nas listas e buscas. Esta ação não pode ser desfeita.",
+      "submit": "Descartar",
+      "submitting": "Descartando…",
+      "reason": {
+        "label": "Motivo (opcional)",
+        "hint": "Até 500 caracteres."
+      }
+    },
+    "errors": {
+      "status": "Este processo já foi encerrado.",
+      "numbered": "Este processo já tem número; cancele-o.",
+      "cancelInstead": "Cancelar processo",
+      "permission": "Você não tem permissão para esta ação.",
+      "notFound": "Processo não encontrado.",
+      "access": "Seu acesso a este órgão não está ativo.",
+      "stale": "Este processo foi alterado por outra pessoa. Recarregue a página e tente novamente.",
+      "reload": "Recarregar",
+      "unavailable": "Não foi possível concluir a ação agora.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
+  },
+  "completion": {
+    "close": "Fechar",
+    "back": "Voltar",
+    "counter": "{count, number} / {max, number}",
+    "title": "Concluir processo",
+    "description": "A conclusão encerra a fase preparatória: o processo passa a Concluído e não aceita mais tramitações, edições nem documentos.",
+    "finalStage": "Etapa final: {stage}",
+    "comment": {
+      "label": "Observação (opcional)",
+      "hint": "Até 5.000 caracteres. Fica registrada na tramitação."
+    },
+    "acknowledge": "Entendo os avisos e quero continuar",
+    "blockedHint": "Há pendências que impedem a conclusão. Resolva-as no painel para continuar.",
+    "warningsHint": "Confirme que está ciente dos avisos para continuar.",
+    "submit": "Concluir processo",
+    "submitting": "Concluindo…",
+    "completed": "Processo concluído",
+    "errors": {
+      "notCustodian": "Apenas quem está com o processo pode concluí-lo.",
+      "permission": "Você não tem permissão para concluir este processo.",
+      "status": "Retome o processo antes de concluí-lo.",
+      "notFound": "Processo não encontrado.",
+      "access": "Seu acesso a este órgão não está ativo.",
+      "transition": "A conclusão não está disponível na etapa atual.",
+      "blocked": "Há pendências que impedem a conclusão.",
+      "warnings": "Confirme que está ciente dos avisos para continuar.",
+      "stale": "Este processo foi alterado por outra pessoa. Recarregue a página e tente novamente.",
+      "reload": "Recarregar",
+      "reused": "Esta solicitação já foi enviada com outros dados. Tente novamente.",
+      "unavailable": "Não foi possível concluir a ação agora.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
+  }
+}

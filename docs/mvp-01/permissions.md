@@ -33,11 +33,11 @@ Um escopo cobre o processo P quando:
 - `DEPARTMENT = D` (`includeSubtree`): existe `ProcessAccess` ativo de P para alguma unidade em `{D}` ∪ subárvore(D) com motivo `REQUESTING`, `CURRENT` ou `HISTORICAL` (este último somente se `access.historicalDepartmentsCanView = true`).
 - `OWN_DEPARTMENTS`: igual a `DEPARTMENT`, usando as unidades de lotação (`MembershipDepartment`) do usuário (com subárvore se `includeSubtree`).
 
-Para permissões não ligadas a processo (ex.: `USER_MANAGE`), apenas os escopos `TENANT` e `ORGANIZATION` são considerados.
+Para permissões não ligadas a processo (ex.: `USER_MANAGE`), apenas os escopos `TENANT` e `ORGANIZATION` são considerados quando a ação recai sobre um recurso de um órgão. Permissões **não escopáveis** do catálogo (`scopable = false` — administração, catálogos, `INBOX_VIEW`, `SUPPLIER_VIEW`, `TEMPLATE_VIEW`…) não são restringidas pelo escopo da atribuição: valem em qualquer atribuição vigente (é o que a matriz §3.2 pressupõe para perfis com escopo `OWN_DEPARTMENTS`, como `REQUISITANTE` com `INBOX_VIEW`) — US-097.
 
 ### 1.2 Cálculo e cache
 - `EffectivePermissions(membership)` = lista de pares `(permission, scope)` das atribuições válidas (`validFrom ≤ now < validUntil`, não revogadas, perfil ativo).
-- Cache Redis `cf:{env}:t:{tenantId}:access:eff:{membershipId}` (TTL 5 min), invalidado pelos eventos `RoleUpdated`, `RoleAssigned`, `RoleRevoked`, `MembershipUpdated`, `MembershipSuspended`, `MembershipRevoked`, `DepartmentMoved`.
+- Cache Redis `cf:{env}:t:{tenantId}:access:eff:{membershipId}` (TTL 5 min), invalidado pelos eventos `RoleUpdated`, `RoleAssigned`, `RoleRevoked`, `MembershipUpdated`, `MembershipSuspended`, `MembershipRevoked`, `DepartmentMoved`. O retrato guarda os tokens de geração lidos antes do cálculo (`access:eff-gen` do tenant e `access:eff-gen:{membershipId}` do vínculo); toda invalidação troca o token, e retrato com token antigo é descartado — um cálculo concorrente a uma revogação nunca volta a conceder o acesso revogado (US-097). Os casos de uso de atribuição, vínculo e perfil invalidam já no commit; o `PermissionCacheInvalidator` repete pelo evento.
 - Toda negação gera auditoria `access.denied` (`result = DENIED`, `reasonCode = <permissão ou política>`), com amostragem de no máximo 1 registro por usuário/rota/minuto para evitar inundação.
 
 ---
@@ -136,9 +136,14 @@ Legenda: **Risco** `L`/`M`/`H` (`H` exige MFA quando `security.mfaPolicy ∈ {AD
 | `DEPARTMENT_MANAGE` | Gerenciar secretarias e setores | M | — | |
 | `CATALOG_MANAGE` | Gerenciar catálogos | M | — | |
 | `CALENDAR_MANAGE` | Gerenciar calendário | M | — | |
-| `SETTINGS_MANAGE` | Gerenciar configurações gerais | H | — | |
+| `SETTINGS_MANAGE` | Gerenciar configurações gerais | H | — | Inclui ligar/desligar a IA, limites e consumo (US-116) |
 
-**Total MVP 1: 67 permissões.** Fonte em código: `packages/types/src/permissions.ts` (constante `PERMISSIONS` com `code`, `module`, `riskLevel`, `scopable`, `introducedIn`), sincronizada com a tabela `permissions` por migração.
+### 2.7 Inteligência artificial (`ai`)
+| Código | Nome | Risco | Esc. | Descrição |
+|---|---|---|---|---|
+| `AI_GENERATE` | Gerar conteúdo com IA | M | ✔ | Pedir rascunho completo ou ajuste de seção de DFD, ETP, mapa de riscos e TR (POL-18). Aplicar e revisar o conteúdo usam a permissão de edição do tipo (US-115..US-122) |
+
+**Total MVP 1: 69 permissões** (a contagem anterior, 67, estava errada — corrigida na US-094; `AI_GENERATE` entrou com o EP-020 em 2026-10-16). Fonte em código: `packages/types/src/permissions.ts` (constante `PERMISSIONS` com `code`, `module`, `riskLevel`, `scopable`, `introducedIn`), sincronizada com a tabela `permissions` por migração.
 
 ---
 
@@ -235,8 +240,11 @@ Legenda: **Risco** `L`/`M`/`H` (`H` exige MFA quando `security.mfaPolicy ∈ {AD
 | `CATALOG_MANAGE` | ✔ | ✔ | | | | | | | | | | | | | |
 | `CALENDAR_MANAGE` | ✔ | | | | | | | | | | | | | | |
 | `SETTINGS_MANAGE` | ✔ | | | | | | | | | | | | | | |
+| `AI_GENERATE` | | ✔ | ✔ | ✔ | ✔ | | | | | | | ✔ | | | |
 
 > Para o `CONSULTOR_EXTERNO`, as permissões marcadas só têm efeito em processos onde ele é participante ativo (o escopo `OWN_DEPARTMENTS` sem lotação não cobre nenhum processo). Vínculos `EXTERNAL` só recebem perfis com `allowExternalAssignment` (POL-15), por isso o EXT não recebe `*_SUBMIT`, `APPROVAL_DECIDE` etc.
+>
+> `AI_GENERATE` acompanha os perfis que elaboram DFD, ETP, riscos e TR; não é concedida ao `CONSULTOR_EXTERNO` nem pela participação no processo (§4), e só tem efeito com a IA ligada no órgão (`ai.enabled` — US-116).
 >
 > `PROCESS_VIEW_CONFIDENTIAL_BUDGET` está em `CONTROLE_INTERNO` e `AUDITOR` por padrão porque o sigilo do orçamento não prevalece para os órgãos de controle interno e externo (Lei 14.133, art. 24, I).
 
@@ -252,7 +260,7 @@ Participantes ativos (`ProcessParticipant`, não revogados e não expirados) rec
 | `COLLABORATOR` | `OBSERVER` + `ATTACHMENT_UPLOAD`, `DOCUMENT_UPDATE`, `DFD_UPDATE`, `ETP_UPDATE`, `PRICE_RESEARCH_UPDATE`, `RISK_MANAGE`, `TERM_UPDATE` (somente documentos em `DRAFT`/`RETURNED`, POL-02) |
 | `CONSULTANT` | Igual a `COLLABORATOR`, obrigatoriamente com `expiresAt` (≤ validade do vínculo) |
 
-Participantes **nunca** encaminham, devolvem, assumem, concluem, cancelam, decidem aprovações ou veem orçamento sigiloso por força da participação.
+Participantes **nunca** encaminham, devolvem, assumem, concluem, cancelam, decidem aprovações, geram conteúdo com IA (`AI_GENERATE`) ou veem orçamento sigiloso por força da participação. Aplicar conteúdo de IA é exclusivo de quem o gerou (RN-AI-13); revisar conteúdo de IA já aplicado segue a permissão de edição do tipo + POL-02, que a participação `COLLABORATOR`/`CONSULTANT` concede (US-122).
 
 ---
 
@@ -270,10 +278,17 @@ AND (
    OR EXISTS (SELECT 1 FROM process_access pa
               WHERE pa.tenant_id = p.tenant_id AND pa.process_id = p.id AND pa.revoked_at IS NULL
                 AND (   (pa.principal_type = 'DEPARTMENT' AND pa.department_id = ANY(:deptIds)
-                         AND pa.reason IN ('REQUESTING','CURRENT','HISTORICAL'))
-                     OR (pa.principal_type = 'USER' AND pa.user_id = :userId)))
+                         AND pa.reason IN ('REQUESTING','CURRENT','HISTORICAL','PARTICIPANT'))
+                     OR (pa.principal_type = 'USER' AND pa.user_id = :userId
+                         -- RN-PROC-135: consultor vencido perde a visibilidade antes do job
+                         AND NOT (pa.reason = 'PARTICIPANT' AND EXISTS (
+                               SELECT 1 FROM process_participants pp
+                                WHERE pp.tenant_id = pa.tenant_id AND pp.id = pa.source_id
+                                  AND pp.expires_at IS NOT NULL AND pp.expires_at <= now())))))
 )
 ```
+
+- **Unidade participante (US-012):** a concessão `DEPARTMENT/PARTICIPANT` dá visibilidade a quem tem `PROCESS_VIEW` com escopo que cubra a unidade (como `REQUESTING`/`CURRENT`) e, para a §4, as permissões do papel valem para os usuários **lotados** na unidade participante. Ela não entra no escopo de unidade do perfil (§1.1): permissões de perfil com escopo de unidade não passam a cobrir o processo por força da participação (RN-PROC-131).
 
 | Evento | Concessões `ProcessAccess` mantidas (mesma transação) |
 |---|---|
@@ -308,10 +323,11 @@ Regras complementares:
 | POL-11 | **Reabrir documento** | `DOCUMENT_REOPEN` + custódia + processo em status editável + tipo permitido na etapa; justificativa obrigatória; não reabre documento coberto por aprovação `PENDING` |
 | POL-12 | **Anti-bloqueio** | O tenant deve manter ≥ 1 vínculo `ACTIVE` com `ADMIN_ORGAO` vigente; operações que violem isso retornam `LAST_ADMIN_REQUIRED` (409) |
 | POL-13 | **Anti-escalonamento** | `ROLE_ASSIGN`/`ROLE_MANAGE`: um usuário só pode atribuir perfis (ou adicionar a perfis permissões) que já possua com escopo igual ou mais amplo — exceto `ADMIN_ORGAO`. Erro `PRIVILEGE_ESCALATION_FORBIDDEN` (403) |
-| POL-14 | **MFA** | Permissão `HIGH` + `security.mfaPolicy` `ADMINS` (perfis com alguma permissão `HIGH`) ou `ALL` → exige sessão com MFA; senão `MFA_REQUIRED` (403) |
+| POL-14 | **MFA** | Permissão `HIGH` + `security.mfaPolicy` `ADMINS` (perfis com alguma permissão `HIGH`) ou `ALL` → exige sessão com MFA; senão `MFA_REQUIRED` (403). **Exceção — desmascaramento em leituras (US-002 · FA-12):** `PROCESS_VIEW_CONFIDENTIAL_BUDGET` usada só para desmascarar valores em listas/consultas sem MFA exigido **não é considerada** (valores mascarados, sem 403); a resposta sinaliza `meta.confidentialStepUpAvailable` e a UI oferece o step-up |
 | POL-15 | **Externos** | Vínculos `EXTERNAL` só recebem perfis com `allowExternalAssignment = true` (semeado em `AUDITOR` e `CONSULTOR_EXTERNO`); fora desses, perfis com permissões `HIGH` não podem ser atribuídos a externos (`EXTERNAL_HIGH_RISK_ROLE`). O caso típico de `AUDITOR` externo é o **órgão de controle externo** (TCE), a quem o sigilo do orçamento não se aplica (Lei 14.133, art. 24, I). Acesso expira automaticamente em `expiresAt` |
 | POL-16 | **Autoproteção** | Usuário não pode suspender/revogar o próprio vínculo nem remover de si o último perfil administrativo |
 | POL-17 | **Retirar solicitação de aprovação** | `APV-04`: `PROCESS_FORWARD` + ser o solicitante (`Approval.requestedById`) **ou** pertencer à unidade de origem do movimento que levou o processo à etapa `APPROVAL` atual (custódia anterior), com escopo sobre essa unidade; `Approval` em `PENDING`. Retirada de submissão avulsa (`DOC-11`): permissão de submissão do tipo do documento (US-053) |
+| POL-18 | **Gerar com IA** | `AI-01`: `AI_GENERATE` cobrindo o processo + permissão de edição do tipo do documento alvo (`DFD_UPDATE`, `ETP_UPDATE`, `RISK_MANAGE`, `TERM_UPDATE`) + POL-02 sobre o alvo + IA ligada no órgão (`ai.enabled`) + provedor disponível + limites mensal do órgão e diário do usuário (US-116). Revalidada no worker antes da chamada ao provedor (falhou → geração `CANCELED`). Aplicar (`DOC-26`, `RSK-11`) e descartar (`AI-04`) são exclusivos do solicitante; revisar (`DOC-27`, `RSK-12`) exige a permissão de edição do tipo + POL-02. Erros: `AI_DISABLED` (403), `AI_PROVIDER_UNAVAILABLE` (503), `AI_USAGE_LIMIT_REACHED` / `AI_USER_DAILY_LIMIT_REACHED` (422), `AI_GENERATION_NOT_OWNED` (403) |
 
 ---
 
@@ -321,7 +337,7 @@ Não dependem de perfil (somente de vínculo ativo):
 - Ver e editar o próprio perfil e preferências (`/me`), ver as próprias notificações, sessões e permissões.
 - Titular (`headUserId`) e substituto (`deputyUserId`) de uma unidade podem **atribuir/reatribuir** processos sob custódia da sua unidade (POL-05) e veem a fila da unidade na caixa de tarefas.
 - Buscar usuários e unidades para seletores (`GET /users/lookup`, `GET /departments/lookup`) — retorna apenas nome, cargo, unidade e id de vínculos ativos.
-- Ver processos em que possui concessão `USER` (criador, responsável, aprovador, participante).
+- Ver processos em que possui concessão `USER` (criador, responsável, aprovador, participante). Na lista (PRC-01 · US-002), basta `PROCESS_VIEW` em algum escopo **ou** ao menos uma concessão `USER` ativa; sem nenhum dos dois → 403 `PERMISSION_DENIED` (`access.denied`, `reasonCode = PROCESS_VIEW`).
 
 ---
 
@@ -340,7 +356,7 @@ Não fazem parte de perfis de tenant; concedidas a `User.isPlatformOperator` com
 
 ## 9. Uso no frontend
 
-- `GET /api/v1/me/permissions` retorna `{ permissions: [{ code, scopes: [{ type, organizationId?, departmentId?, includeSubtree }] }], implicit: { headOfDepartmentIds: [] } }`.
+- `GET /api/v1/me/permissions` retorna `{ permissions: [{ code, scopes: [{ type, organizationId?, departmentId?, includeSubtree }] }], implicit: { headOfDepartmentIds: [], ownDepartmentIds: [] } }` (`ownDepartmentIds` = lotações do vínculo, base do escopo `OWN_DEPARTMENTS` — US-001).
 - Hooks `usePermission(code)` (tem em algum escopo) e `useProcessCapabilities(processId)` (usa `GET /processes/{id}/available-actions`, que já aplica escopo + políticas e retorna os motivos de indisponibilidade para tooltip).
 - Itens de menu/rotas protegidos:
 

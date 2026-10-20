@@ -1,10 +1,427 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
+import { APP_CONFIG } from '#config/config.module.js';
+import type { AppConfig } from '#config/env.js';
+import {
+  ApprovalSubjectModule,
+  ApprovalSubjectRegistry,
+} from '#shared/approval/approval-subject.js';
+import { ProcessAccessModule, ProcessAccessRegistry } from '#shared/auth/process-access.js';
+import {
+  DocumentProcessContextModule,
+  DocumentProcessContextRegistry,
+} from '#shared/document/document-process-context.js';
+import {
+  AttachmentTargetModule,
+  AttachmentTargetRegistry,
+} from '#shared/files/attachment-targets.js';
+import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
+import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
+import {
+  ProcessItemCatalogModule,
+  ProcessItemCatalogRegistry,
+} from '#shared/process/process-item-catalog.js';
+import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
+
+import { ProcessApprovalSubjectHandler } from './application/approval-decision.subject.js';
+import { AssignProcessCommand } from './application/assign-process.command.js';
+import { ClaimProcessCommand } from './application/claim-process.command.js';
+import { CompleteProcessCommand } from './application/complete-process.command.js';
+import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
+import { CreateProcessCommand } from './application/create-process.command.js';
+import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
+import { DuplicateCandidatesFinder } from './application/duplicate-candidates.js';
+import { DuplicateProcessCommand } from './application/duplicate-process.command.js';
+import { ExportProcessesQuery } from './application/export-processes.query.js';
+import { ForwardPreviews } from './application/forward-previews.js';
+import { ForwardProcessCommand } from './application/forward-process.command.js';
+import { ListProcessMovementsHandler } from './application/list-process-movements.query.js';
+import { ListProcessesHandler } from './application/list-processes.query.js';
+import {
+  PROCESS_CLOCK,
+  PROCESS_ITEM_REPOSITORY,
+  PROCESS_PARTICIPANT_REPOSITORY,
+  PROCESS_REPOSITORY,
+  PROCESS_RUNTIME_READER,
+  PROCESS_TRANSACTIONS,
+  SAVED_VIEW_REPOSITORY,
+  TAG_REPOSITORY,
+} from './application/ports.js';
+import { ProcessAccessProjector } from './application/process-access.projector.js';
+import { ProcessRuntimeAccessReader } from './application/process-access.reader.js';
+import {
+  EvaluateStageRulesHandler,
+  GetAvailableActionsHandler,
+} from './application/process-actions.queries.js';
+import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import {
+  CancelProcessCommand,
+  DiscardDraftProcessCommand,
+} from './application/process-cancellation.commands.js';
+import { ProcessCompletionRecorder } from './application/process-completion.recorder.js';
+import { ProcessDfdApprovalSync } from './application/process-dfd-approval.sync.js';
+import { ProcessDfdDuplication } from './application/process-dfd-duplication.js';
+import { ProcessItemCatalogLoader } from './application/process-item-catalog.loader.js';
+import {
+  AddProcessItemCommand,
+  RemoveProcessItemCommand,
+  ReorderProcessItemsCommand,
+  UpdateProcessItemCommand,
+} from './application/process-items.commands.js';
+import { ListProcessItemsQuery } from './application/process-items.queries.js';
+import {
+  ProcessItemPresenter,
+  ProcessItemsChangeRecorder,
+  ProcessItemsGate,
+} from './application/process-items.support.js';
+import { ProcessListPresenter } from './application/process-list.presenter.js';
+import {
+  GetProcessSummaryQuery,
+  ListProcessStagesQuery,
+  ProcessPanelReader,
+} from './application/process-panel.queries.js';
+import {
+  AddProcessParticipantCommand,
+  FollowProcessCommand,
+  ListProcessParticipantsQuery,
+  RemoveProcessParticipantCommand,
+  UnfollowProcessCommand,
+} from './application/process-participants.commands.js';
+import {
+  ProcessParticipantPresenter,
+  ProcessParticipantRecorder,
+} from './application/process-participants.support.js';
+import { ProcessRuntimeLoader } from './application/process-runtime.loader.js';
+import {
+  ProcessLifecycleSupport,
+  ResumeProcessCommand,
+  SuspendProcessCommand,
+} from './application/process-suspension.commands.js';
+import { ProcessViewerResolver } from './application/process-viewer.js';
 import { ProcessFacade } from './application/process.facade.js';
+import { ProcessPresenter } from './application/process.presenter.js';
+import { CheckDuplicateProcessesQuery, GetProcessQuery } from './application/process.queries.js';
+import { ReturnProcessCommand } from './application/return-process.command.js';
+import { RuleTestProcessReader } from './application/rule-test-process.source.js';
+import {
+  CreateSavedViewCommand,
+  DeleteSavedViewCommand,
+  ListSavedViewsQuery,
+  SavedViewSupport,
+  UpdateSavedViewCommand,
+} from './application/saved-views.commands.js';
+import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
+import { StageTransitionSupport } from './application/stage-transition-support.js';
+import { StageTransitionService } from './application/stage-transition.service.js';
+import {
+  CreateTagCommand,
+  ListTagsQuery,
+  SetProcessTagsCommand,
+  UpdateTagCommand,
+} from './application/tags.commands.js';
+import {
+  BulkAssignProcessesCommand,
+  BulkClaimProcessesCommand,
+} from './application/task-bulk.commands.js';
+import { UpdateProcessCommand } from './application/update-process.command.js';
+import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
+import {
+  PrismaProcessRepository,
+  PrismaProcessTransactions,
+} from './infrastructure/prisma-process.repository.js';
+import {
+  InMemoryProcessItemRepository,
+  PrismaProcessItemRepository,
+} from './infrastructure/process-item.repositories.js';
+import {
+  InMemoryProcessParticipantRepository,
+  PrismaProcessParticipantRepository,
+} from './infrastructure/process-participant.repositories.js';
+import {
+  InMemoryProcessRuntimeReader,
+  InMemoryProcessRuntimeStore,
+  InMemoryProcessTransactions,
+} from './infrastructure/process-runtime.readers.js';
+import {
+  InMemorySavedViewRepository,
+  PrismaSavedViewRepository,
+} from './infrastructure/saved-view.repositories.js';
+import { InMemoryTagRepository, PrismaTagRepository } from './infrastructure/tag.repositories.js';
+import { ProcessActionsController } from './presentation/process-actions.controller.js';
+import { ProcessExportController } from './presentation/process-export.controller.js';
+import { ProcessItemsController } from './presentation/process-items.controller.js';
+import { ProcessMovementsController } from './presentation/process-movements.controller.js';
+import { ProcessParticipantsController } from './presentation/process-participants.controller.js';
+import { ProcessController } from './presentation/process.controller.js';
+import { SavedViewsController } from './presentation/saved-views.controller.js';
+import { ProcessTagsController, TagsController } from './presentation/tags.controller.js';
+import { TaskBulkController } from './presentation/task-bulk.controller.js';
+import { AccessModule } from '../access/access.module.js';
+import { ApprovalModule } from '../approval/approval.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
+import { DocumentModule } from '../document/document.module.js';
+import { FilesModule } from '../files/files.module.js';
+import { IdentityModule } from '../identity/identity.module.js';
+import { OrganizationModule } from '../organization/organization.module.js';
+import { TenancyModule } from '../tenancy/tenancy.module.js';
+import { WorkflowFacade } from '../workflow/application/workflow.facade.js';
+import { WorkflowModule } from '../workflow/workflow.module.js';
 
-/** Módulo `process` (DEC-040): outros módulos usam somente a fachada exportada. */
+/** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): processos em memória. */
+const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
+
+/**
+ * Módulo `process` (DEC-040, nível 3 — agregado central): outros módulos usam somente a fachada
+ * exportada. US-002: lista de processos (PRC-01 — `ListProcessesHandler`). US-001: criação do processo (PRC-02, com o padrão `TransactionalCommandHandler`); US-005: edição (PRC-05),
+ * verificação de duplicidade (PRC-03), detalhe (PRC-04), as tabelas do agregado e do runtime da
+ * tramitação e o `ProcessAccessProjector` (handler síncrono do outbox — DEC-024). US-041: PRC-08/09
+ * sobre a `WorkflowFacade`. US-004: painel situacional (PRC-07/PRC-10 e `meta.allowedActions` de
+ * PRC-04) sobre as fachadas de `workflow`, `document` e `approval`. US-097: leitor do processo na porta de autorização. US-044: fonte do
+ * processo de referência de "Testar regra" (WF-23) na `WorkflowFacade`. US-065: leitor do processo
+ * na porta `DocumentProcessContextRegistry` do ciclo de vida do documento. US-006: itens da
+ * contratação (PRC-13..17), com o uso dos itens perguntado à porta `ProcessItemUsageRegistry`.
+ * US-011: duplicação (PRC-27) sobre a criação da US-001 e as fachadas de `document` e `files`.
+ * US-012: participantes (PRC-28..32) — `ProcessAccess` `PARTICIPANT`, seguir/deixar de seguir.
+ * US-003: visões salvas (PRC-35..38) e exportação CSV em *streaming* (PRC-34).
+ * US-007: etiquetas (TAG-01..03) e o conjunto de etiquetas do processo (PRC-18).
+ * US-014: leitor dos itens na porta `ProcessItemCatalogRegistry` (itens do DFD — DOC-06/07) e os
+ * valores iniciais do DFD (`ProcessFacade.dfdDefaultsIn`).
+ * US-047: encaminhamento (PRC-19 — `ForwardProcessCommand`) sobre o `StageTransitionService`
+ * (mudança de etapa reutilizada por devolução, decisão e conclusão) e as prévias de PRC-08.
+ * US-048: devolução (PRC-20 — `ReturnProcessCommand`) sobre o mesmo serviço, com o responsável
+ * resolvido por `PREVIOUS_ASSIGNEE`.
+ * US-008: suspender e retomar (PRC-23/PRC-24 — `SuspendProcessCommand`/`ResumeProcessCommand`), com
+ * a extensão do prazo pelo `BusinessCalendarFacade` e da aprovação pendente pela `ApprovalFacade`.
+ * US-009: cancelar e descartar rascunho (PRC-25/PRC-06 — `CancelProcessCommand`/
+ * `DiscardDraftProcessCommand`), com as aprovações pendentes canceladas pela `ApprovalFacade` e os
+ * documentos em análise devolvidos a `DRAFT` pela `DocumentFacade`.
+ * US-010: concluir (PRC-26 — `CompleteProcessCommand`) pela transição `COMPLETE` ou na etapa `END`
+ * já ativa, com a rotina de domínio e a auditoria `process.complete` (`ProcessCompletionRecorder`)
+ * compartilhadas com a conclusão automática da decisão de aprovação (US-052).
+ * US-054: histórico de tramitações (PRC-11 — `ListProcessMovementsHandler`), leitura de
+ * `ProcessMovement` com os nomes hidratados em lote pelas fachadas de `workflow`, `organization`,
+ * `identity` e `approval`, e o `ip` só com `AUDIT_VIEW` (`AccessFacade.revealsField`).
+ */
 @Module({
-  providers: [ProcessFacade],
+  imports: [
+    AccessModule,
+    ApprovalModule,
+    CatalogModule,
+    DocumentModule,
+    FilesModule,
+    IdentityModule,
+    OrganizationModule,
+    TenancyModule,
+    WorkflowModule,
+    ProcessAccessModule,
+    DocumentProcessContextModule,
+    AttachmentTargetModule,
+    ProcessItemUsageModule,
+    ProcessItemCatalogModule,
+    ApprovalSubjectModule,
+  ],
+  controllers: [
+    // US-003: `/processes/export` antes de `/processes/:id`.
+    ProcessExportController,
+    ProcessController,
+    SavedViewsController,
+    ProcessActionsController,
+    ProcessMovementsController,
+    ProcessItemsController,
+    ProcessParticipantsController,
+    TagsController,
+    ProcessTagsController,
+    // US-058: TSK-03/TSK-04 (ações em lote da caixa de tarefas sobre o PRC-21/PRC-22).
+    TaskBulkController,
+  ],
+  providers: [
+    ProcessAttachmentTargets,
+    ProcessItemCatalogLoader,
+    ProcessFacade,
+    ProcessPresenter,
+    ProcessViewerResolver,
+    ProcessRuntimeAccessReader,
+    ProcessRuntimeLoader,
+    ProcessAccessProjector,
+    DuplicateCandidatesFinder,
+    CreateProcessCommand,
+    DuplicateProcessCommand,
+    ProcessDfdDuplication,
+    ProcessDfdApprovalSync,
+    UpdateProcessCommand,
+    SetProcessConfidentialityCommand,
+    StageTransitionService,
+    StageTransitionSupport,
+    ProcessApprovalSubjectHandler,
+    ForwardProcessCommand,
+    ReturnProcessCommand,
+    ClaimProcessCommand,
+    AssignProcessCommand,
+    BulkClaimProcessesCommand,
+    BulkAssignProcessesCommand,
+    ProcessLifecycleSupport,
+    SuspendProcessCommand,
+    ResumeProcessCommand,
+    CancelProcessCommand,
+    DiscardDraftProcessCommand,
+    ProcessCompletionRecorder,
+    CompleteProcessCommand,
+    ListProcessMovementsHandler,
+    ForwardPreviews,
+    CheckDuplicateProcessesQuery,
+    GetProcessQuery,
+    ListProcessesHandler,
+    ProcessListPresenter,
+    ExportProcessesQuery,
+    SavedViewSupport,
+    ListSavedViewsQuery,
+    CreateSavedViewCommand,
+    UpdateSavedViewCommand,
+    DeleteSavedViewCommand,
+    PrismaSavedViewRepository,
+    InMemorySavedViewRepository,
+    ListTagsQuery,
+    CreateTagCommand,
+    UpdateTagCommand,
+    SetProcessTagsCommand,
+    PrismaTagRepository,
+    InMemoryTagRepository,
+    ProcessPanelReader,
+    GetProcessSummaryQuery,
+    ListProcessStagesQuery,
+    ConfidentialViewRecorder,
+    GetAvailableActionsHandler,
+    EvaluateStageRulesHandler,
+    RuleTestProcessReader,
+    DocumentProcessContextLoader,
+    ProcessItemsGate,
+    ProcessItemPresenter,
+    ProcessItemsChangeRecorder,
+    ListProcessItemsQuery,
+    AddProcessItemCommand,
+    UpdateProcessItemCommand,
+    RemoveProcessItemCommand,
+    ReorderProcessItemsCommand,
+    PrismaProcessItemRepository,
+    InMemoryProcessItemRepository,
+    ProcessParticipantPresenter,
+    ProcessParticipantRecorder,
+    ListProcessParticipantsQuery,
+    AddProcessParticipantCommand,
+    RemoveProcessParticipantCommand,
+    FollowProcessCommand,
+    UnfollowProcessCommand,
+    PrismaProcessParticipantRepository,
+    InMemoryProcessParticipantRepository,
+    PrismaProcessRepository,
+    InMemoryProcessRepository,
+    InMemoryProcessRuntimeStore,
+    InMemoryProcessRuntimeReader,
+    PrismaProcessTransactions,
+    InMemoryProcessTransactions,
+    {
+      provide: PROCESS_REPOSITORY,
+      inject: [APP_CONFIG, PrismaProcessRepository, InMemoryProcessRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaProcessRepository,
+        memory: InMemoryProcessRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PROCESS_ITEM_REPOSITORY,
+      inject: [APP_CONFIG, PrismaProcessItemRepository, InMemoryProcessItemRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaProcessItemRepository,
+        memory: InMemoryProcessItemRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PROCESS_PARTICIPANT_REPOSITORY,
+      inject: [
+        APP_CONFIG,
+        PrismaProcessParticipantRepository,
+        InMemoryProcessParticipantRepository,
+      ],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaProcessParticipantRepository,
+        memory: InMemoryProcessParticipantRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: SAVED_VIEW_REPOSITORY,
+      inject: [APP_CONFIG, PrismaSavedViewRepository, InMemorySavedViewRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaSavedViewRepository,
+        memory: InMemorySavedViewRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: TAG_REPOSITORY,
+      inject: [APP_CONFIG, PrismaTagRepository, InMemoryTagRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaTagRepository,
+        memory: InMemoryTagRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    {
+      provide: PROCESS_RUNTIME_READER,
+      inject: [APP_CONFIG, ProcessRuntimeLoader, InMemoryProcessRuntimeReader],
+      useFactory: (
+        config: AppConfig,
+        loader: ProcessRuntimeLoader,
+        memory: InMemoryProcessRuntimeReader,
+      ) => (inMemory(config) ? memory : loader),
+    },
+    {
+      provide: PROCESS_TRANSACTIONS,
+      inject: [APP_CONFIG, PrismaProcessTransactions, InMemoryProcessTransactions],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaProcessTransactions,
+        memory: InMemoryProcessTransactions,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    { provide: PROCESS_CLOCK, useValue: () => new Date() },
+  ],
   exports: [ProcessFacade],
 })
-export class ProcessModule {}
+export class ProcessModule implements OnModuleInit {
+  constructor(
+    private readonly registry: ProcessAccessRegistry,
+    private readonly reader: ProcessRuntimeAccessReader,
+    @Inject(SYNC_EVENT_HANDLERS) private readonly syncHandlers: SyncEventHandlerRegistryPort,
+    private readonly accessProjector: ProcessAccessProjector,
+    private readonly workflow: WorkflowFacade,
+    private readonly ruleTestProcesses: RuleTestProcessReader,
+    private readonly documentContexts: DocumentProcessContextRegistry,
+    private readonly documentContextLoader: DocumentProcessContextLoader,
+    private readonly attachmentTargets: AttachmentTargetRegistry,
+    private readonly processAttachmentTargets: ProcessAttachmentTargets,
+    private readonly itemCatalog: ProcessItemCatalogRegistry,
+    private readonly itemCatalogLoader: ProcessItemCatalogLoader,
+    private readonly approvalSubjects: ApprovalSubjectRegistry,
+    private readonly approvalSubject: ProcessApprovalSubjectHandler,
+  ) {}
+
+  onModuleInit(): void {
+    this.registry.register(this.reader);
+    // US-044: processo de referência de "Testar regra" (WF-23).
+    this.workflow.registerRuleTestProcessSource(this.ruleTestProcesses);
+    // DEC-024 · DEC-161: concessões `ProcessAccess` no mesmo `tx` do fato.
+    this.syncHandlers.register(this.accessProjector);
+    // US-065: o processo visto pelo ciclo de vida do documento (POL-01/02/11 · snapshot).
+    this.documentContexts.register(this.documentContextLoader);
+    // US-068: o processo como alvo de anexo (`PROCESS`) lido pelo `files`.
+    this.attachmentTargets.register(this.processAttachmentTargets);
+    // US-014: os itens do processo lidos pelos itens de documento (DOC-06/07).
+    this.itemCatalog.register(this.itemCatalogLoader);
+    // US-052: o dono do sujeito `PROCESS_STAGE` da decisão de aprovação (etapa, status, documentos).
+    this.approvalSubjects.register(this.approvalSubject);
+  }
+}

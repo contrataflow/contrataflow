@@ -1,0 +1,152 @@
+{
+  "output": {
+    "sections": [
+      {
+        "sectionKey": "NEED_DESCRIPTION",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A área requisitante precisa da contratação descrita no DFD para manter a continuidade do serviço público, considerado o problema a resolver sob a perspectiva do interesse público."
+          }
+        ]
+      },
+      {
+        "sectionKey": "PROBLEM",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Os equipamentos e serviços atuais não atendem à necessidade descrita no DFD, com impacto direto na prestação do serviço à população."
+          }
+        ]
+      },
+      {
+        "sectionKey": "PCA_ALIGNMENT",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A contratação está alinhada à situação informada no Plano de Contratações Anual, conforme o cabeçalho do DFD."
+          }
+        ]
+      },
+      {
+        "sectionKey": "REQUIREMENTS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Os requisitos decorrem dos itens do ETP e das orientações do modelo do órgão."
+          },
+          {
+            "type": "bulletList",
+            "items": [
+              "Atendimento integral às quantidades registradas nos itens do ETP.",
+              "Requisitos de sustentabilidade: [a confirmar: critérios de sustentabilidade aplicáveis]."
+            ]
+          }
+        ]
+      },
+      {
+        "sectionKey": "MARKET_SURVEY",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O levantamento de mercado considerou a pesquisa de preços do processo, pelo método e pelas cotações válidas nela registrados."
+          }
+        ]
+      },
+      {
+        "sectionKey": "ALTERNATIVES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "As alternativas cadastradas foram comparadas pelas vantagens e desvantagens registradas, conforme a tabela de alternativas do ETP."
+          }
+        ]
+      },
+      {
+        "sectionKey": "ESTIMATES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "As quantidades seguem as memórias de cálculo dos itens do ETP; a estimativa do valor consta da pesquisa de preços do processo."
+          }
+        ]
+      },
+      {
+        "sectionKey": "RECOMMENDED_SOLUTION",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "As alternativas avaliadas estão descritas com suas vantagens e desvantagens, sem recomendação da IA."
+          },
+          {
+            "type": "paragraph",
+            "text": "Solução: [a confirmar: solução escolhida]."
+          }
+        ]
+      },
+      {
+        "sectionKey": "PARCELING",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A análise do parcelamento depende da decisão da equipe de planejamento: [a confirmar: decisão sobre o parcelamento]."
+          }
+        ]
+      },
+      {
+        "sectionKey": "RELATED_CONTRACTS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Não constam dos dados do processo contratações correlatas ou interdependentes: [a confirmar: contratações correlatas]."
+          }
+        ]
+      },
+      {
+        "sectionKey": "EXPECTED_RESULTS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Espera-se economicidade e melhor aproveitamento dos recursos, conforme os resultados descritos no DFD."
+          }
+        ]
+      },
+      {
+        "sectionKey": "ENVIRONMENTAL_IMPACTS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Os impactos ambientais e as medidas mitigadoras dependem de informações não presentes nos dados: [a confirmar: impactos ambientais]."
+          }
+        ]
+      },
+      {
+        "sectionKey": "PRIOR_MEASURES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Providências prévias à contratação: [a confirmar: providências e capacitação necessárias]."
+          }
+        ]
+      },
+      {
+        "sectionKey": "RISKS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Os principais riscos serão detalhados no mapa de riscos do processo."
+          }
+        ]
+      },
+      {
+        "sectionKey": "CONCLUSION",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O posicionamento conclusivo cabe à equipe responsável pelo ETP: [a confirmar: conclusão sobre a viabilidade]."
+          }
+        ]
+      }
+    ]
+  }
+}

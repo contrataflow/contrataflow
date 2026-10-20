@@ -1,0 +1,191 @@
+import {
+  NOTIFICATION_BODY_MAX,
+  NOTIFICATION_TITLE_MAX,
+  scrubNotificationText,
+} from '@contrataflow/types';
+import type { NotificationType } from '@contrataflow/types';
+
+/*
+ * Templates das notificações in-app (queues.md §4.2 · RN-NTF-07): pt-BR, só rótulos fixos — nada
+ * de valores, nomes de terceiros nem trechos do processo (POL-09). Quem precisa do detalhe abre o
+ * link. `variant` distingue as especializações do mesmo tipo (decisão, situação, perfil).
+ */
+
+export interface NotificationContent {
+  readonly title: string;
+  readonly body: string;
+}
+
+export interface TemplateInput {
+  /** Eventos agregados na notificação (agrupamento de 5 min — RN-NTF-04). */
+  readonly groupCount: number;
+  readonly variant?: string | undefined;
+  /** Passagem citada nos avisos de prazo (US-114 · RN-NTF-32), datas já no fuso do tenant. */
+  readonly stage?: StageTemplateInput | undefined;
+}
+
+export interface StageTemplateInput {
+  /** Nome da etapa no fluxo; nulo = não encontrada (o texto fica genérico). */
+  readonly name: string | null;
+  /** `dd/mm/aaaa` do vencimento. */
+  readonly dueDate: string | null;
+  /** `dd/mm/aaaa às HH:mm` do registro do atraso (`overdueSince`). */
+  readonly overdueSince: string | null;
+}
+
+type Template = (input: TemplateInput) => NotificationContent;
+
+/** Sufixo padrão do agrupamento: "(3 avisos neste processo)". */
+const grouped = (body: string, count: number) =>
+  count > 1 ? `${body} (${String(count)} avisos neste processo)` : body;
+
+/** "da etapa “Análise jurídica”" — sem o nome (passagem não encontrada), "de uma etapa". */
+const ofStage = (stage: StageTemplateInput | undefined) =>
+  stage?.name ? `da etapa “${stage.name}”` : 'de uma etapa';
+
+const onDate = (date: string | null | undefined) => (date ? ` em ${date}` : '');
+
+const STATUS_TITLES: Readonly<Record<string, string>> = {
+  suspended: 'Processo suspenso',
+  resumed: 'Processo retomado',
+  canceled: 'Processo cancelado',
+  completed: 'Processo concluído',
+};
+
+const DECISION_TITLES: Readonly<Record<string, string>> = {
+  approved: 'Aprovação concluída',
+  returned: 'Aprovação devolvida',
+  rejected: 'Aprovação rejeitada',
+};
+
+const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
+  PROCESS_RECEIVED: ({ groupCount }) => ({
+    title: 'Processo recebido',
+    body: grouped(
+      'Um processo chegou para você ou para a sua unidade. Abra-o para dar andamento.',
+      groupCount,
+    ),
+  }),
+  PROCESS_RETURNED: ({ groupCount }) => ({
+    title: 'Processo devolvido',
+    body: grouped('Um processo foi devolvido para ajustes. Abra-o para ver o motivo.', groupCount),
+  }),
+  PROCESS_ASSIGNED: ({ groupCount }) => ({
+    title: 'Processo atribuído a você',
+    body: grouped('Você é o novo responsável por um processo.', groupCount),
+  }),
+  PROCESS_STATUS_CHANGED: ({ groupCount, variant }) => ({
+    title: STATUS_TITLES[variant ?? ''] ?? 'Situação do processo alterada',
+    body: grouped('A situação de um processo que você acompanha mudou.', groupCount),
+  }),
+  APPROVAL_REQUESTED: ({ groupCount }) => ({
+    title: 'Aprovação pendente',
+    body: grouped('Há uma aprovação aguardando a sua decisão.', groupCount),
+  }),
+  APPROVAL_DECIDED: ({ groupCount, variant }) => ({
+    title: DECISION_TITLES[variant ?? ''] ?? 'Aprovação decidida',
+    body: grouped('Uma aprovação que envolve você foi decidida.', groupCount),
+  }),
+  APPROVAL_REASSIGNED: ({ groupCount }) => ({
+    title: 'Aprovação redirecionada',
+    body: grouped('Uma aprovação que envolve você foi redirecionada.', groupCount),
+  }),
+  // US-072 (FA-01): a variante `department` avisa que a menção foi à unidade do destinatário.
+  MENTIONED: ({ groupCount, variant }) => ({
+    title: variant === 'department' ? 'Sua unidade foi mencionada' : 'Você foi mencionado',
+    body:
+      groupCount > 1
+        ? `Mencionaram você (ou a sua unidade) ${String(groupCount)} vezes em comentários deste processo.`
+        : variant === 'department'
+          ? 'Mencionaram uma unidade da qual você faz parte em um comentário. Abra-o para ver.'
+          : 'Mencionaram você em um comentário. Abra-o para ver.',
+  }),
+  COMMENT_REPLY: ({ groupCount }) => ({
+    title: 'Nova resposta ao seu comentário',
+    body:
+      groupCount > 1
+        ? `Há ${String(groupCount)} novas respostas a comentários seus neste processo.`
+        : 'Responderam a um comentário seu.',
+  }),
+  // US-114 (RN-NTF-32): nome da etapa e datas no fuso do tenant; nunca valores do processo. O
+  // mesmo texto serve ao responsável e ao titular da unidade (escalonamento do atraso).
+  STAGE_DUE_SOON: ({ groupCount, stage }) => ({
+    title: 'Prazo da etapa perto do fim',
+    body:
+      groupCount > 1
+        ? `Há ${String(groupCount)} etapas com prazo perto do fim neste processo.`
+        : `O prazo ${ofStage(stage)} termina${onDate(stage?.dueDate)}. Abra o processo para dar andamento.`,
+  }),
+  STAGE_OVERDUE: ({ groupCount, stage }) => ({
+    title: 'Prazo da etapa vencido',
+    body:
+      groupCount > 1
+        ? `Há ${String(groupCount)} etapas com prazo vencido neste processo.`
+        : `O prazo ${ofStage(stage)} terminou${onDate(stage?.dueDate)}${
+            stage?.overdueSince ? `; o atraso foi registrado em ${stage.overdueSince}` : ''
+          }. Abra o processo para regularizar.`,
+  }),
+  PARTICIPANT_ADDED: ({ groupCount }) => ({
+    title: 'Você agora participa de um processo',
+    body: grouped(
+      'Você (ou a sua unidade) foi incluído como participante de um processo.',
+      groupCount,
+    ),
+  }),
+  ATTACHMENT_REJECTED: ({ groupCount, variant }) => ({
+    title: 'Anexo recusado',
+    body: grouped(
+      variant === 'infected'
+        ? 'O arquivo enviado foi recusado pela verificação de segurança e não foi armazenado.'
+        : 'O arquivo enviado foi recusado e não foi armazenado.',
+      groupCount,
+    ),
+  }),
+  DOCUMENT_RENDER_FAILED: ({ groupCount }) => ({
+    title: 'Falha ao gerar o PDF',
+    body: grouped(
+      'Não foi possível gerar o PDF de um documento. Tente novamente mais tarde.',
+      groupCount,
+    ),
+  }),
+  ROLE_CHANGED: ({ variant }) => ({
+    title:
+      variant === 'revoked'
+        ? 'Um perfil de acesso seu foi removido'
+        : 'Você recebeu um novo perfil de acesso',
+    body: 'Seus perfis de acesso mudaram. Se você não reconhece a alteração, procure o administrador do órgão.',
+  }),
+  AI_GENERATION_READY: () => ({
+    title: 'Conteúdo gerado por IA pronto para revisão',
+    body: 'A proposta que você pediu está pronta. Revise o texto antes de aplicar ao documento.',
+  }),
+  AI_GENERATION_FAILED: () => ({
+    title: 'Não foi possível gerar o conteúdo com IA',
+    body: 'A geração que você pediu não foi concluída. Abra o documento para tentar novamente.',
+  }),
+  // `variant` = `<faixa>|<YYYY-MM>` (US-116): o mês e a faixa, sem dados pessoais.
+  AI_USAGE_LIMIT_WARNING: ({ variant }) => {
+    const [threshold = '', month = ''] = (variant ?? '').split('|');
+    const reached = threshold === '100';
+    return {
+      title: reached
+        ? 'Limite mensal de IA do órgão atingido'
+        : 'Consumo de IA do órgão chegou a 80% do limite',
+      body: reached
+        ? `O consumo de IA de ${month} atingiu o limite mensal. Novos pedidos ficam bloqueados até o próximo mês ou até o limite ser aumentado.`
+        : `O consumo de IA de ${month} chegou a 80% do limite mensal. Revise o limite em Configurações.`,
+    };
+  },
+};
+
+/** Título e corpo do tipo, já mascarados e dentro dos limites das colunas (RN-NTF-07). */
+export function notificationContent(
+  type: NotificationType,
+  input: TemplateInput,
+): NotificationContent {
+  const content = TEMPLATES[type](input);
+  return {
+    title: scrubNotificationText(content.title, NOTIFICATION_TITLE_MAX),
+    body: scrubNotificationText(content.body, NOTIFICATION_BODY_MAX),
+  };
+}

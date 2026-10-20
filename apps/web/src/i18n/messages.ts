@@ -1,7 +1,45 @@
+import ai from '../../messages/pt-BR/ai.json';
+import approvalList from '../../messages/pt-BR/approvalList.json';
+import approvals from '../../messages/pt-BR/approvals.json';
+import attachments from '../../messages/pt-BR/attachments.json';
+import audit from '../../messages/pt-BR/audit.json';
 import auth from '../../messages/pt-BR/auth.json';
+import calendar from '../../messages/pt-BR/calendar.json';
+import catalogs from '../../messages/pt-BR/catalogs.json';
+import comments from '../../messages/pt-BR/comments.json';
+import dashboard from '../../messages/pt-BR/dashboard.json';
+import departments from '../../messages/pt-BR/departments.json';
+import dfd from '../../messages/pt-BR/dfd.json';
+import documents from '../../messages/pt-BR/documents.json';
+import documentTypes from '../../messages/pt-BR/documentTypes.json';
 import errors from '../../messages/pt-BR/errors.json';
+import etp from '../../messages/pt-BR/etp.json';
 import example from '../../messages/pt-BR/example.json';
+import implementationAssistant from '../../messages/pt-BR/implementationAssistant.json';
+import movements from '../../messages/pt-BR/movements.json';
+import notificationPreferences from '../../messages/pt-BR/notificationPreferences.json';
+import notifications from '../../messages/pt-BR/notifications.json';
+import organizations from '../../messages/pt-BR/organizations.json';
+import permissions from '../../messages/pt-BR/permissions.json';
+import priceResearch from '../../messages/pt-BR/priceResearch.json';
+import processActions from '../../messages/pt-BR/processActions.json';
+import processes from '../../messages/pt-BR/processes.json';
+import processItems from '../../messages/pt-BR/processItems.json';
+import processList from '../../messages/pt-BR/processList.json';
+import processParticipants from '../../messages/pt-BR/processParticipants.json';
+import profile from '../../messages/pt-BR/profile.json';
+import risks from '../../messages/pt-BR/risks.json';
+import roles from '../../messages/pt-BR/roles.json';
+import settings from '../../messages/pt-BR/settings.json';
 import shell from '../../messages/pt-BR/shell.json';
+import suppliers from '../../messages/pt-BR/suppliers.json';
+import tags from '../../messages/pt-BR/tags.json';
+import taskInbox from '../../messages/pt-BR/taskInbox.json';
+import templates from '../../messages/pt-BR/templates.json';
+import term from '../../messages/pt-BR/term.json';
+import timeline from '../../messages/pt-BR/timeline.json';
+import users from '../../messages/pt-BR/users.json';
+import workflows from '../../messages/pt-BR/workflows.json';
 
 /** Locale único do MVP 1 (architecture.md §8.10 · RN-FND-95). */
 export const LOCALE = 'pt-BR';
@@ -10,6 +48,49 @@ export const LOCALE = 'pt-BR';
 export const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
 
 /** Mensagens por namespace de feature (`messages/pt-BR/<namespace>.json`). */
-export const messages = { auth, errors, example, shell };
+export const messages = {
+  ai,
+  approvalList,
+  approvals,
+  attachments,
+  audit,
+  auth,
+  calendar,
+  catalogs,
+  comments,
+  dashboard,
+  departments,
+  dfd,
+  documents,
+  documentTypes,
+  errors,
+  etp,
+  example,
+  implementationAssistant,
+  movements,
+  notificationPreferences,
+  notifications,
+  organizations,
+  permissions,
+  priceResearch,
+  processActions,
+  processList,
+  processes,
+  processItems,
+  processParticipants,
+  profile,
+  risks,
+  roles,
+  settings,
+  shell,
+  suppliers,
+  tags,
+  taskInbox,
+  templates,
+  term,
+  timeline,
+  users,
+  workflows,
+};
 
 export type Messages = typeof messages;

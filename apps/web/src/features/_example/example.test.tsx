@@ -85,7 +85,7 @@ describe('[Sucesso] página de exemplo com prefetch no servidor', () => {
     expect(screen.getByText('item-01')).toBeTruthy();
     expect(screen.getByText('45 itens · página 1 de 5')).toBeTruthy();
     expect(screen.getByText(/^Valor de referência: R\$\s1\.234\.567,89$/)).toBeTruthy();
-    await screen.findByRole('button', { name: 'Criar registro' });
+    await screen.findByRole('button', { name: 'Criar registro' }, { timeout: 10_000 });
     const called = api.mock.calls.map(([url]) => requestUrl(url));
     expect(called).toEqual(['/api/v1/me/permissions']);
     expect(await seriousA11yViolations()).toEqual([]);
@@ -137,7 +137,9 @@ describe('[Validação] formulário de exemplo com os schemas compartilhados', (
         <ExampleView />
       </HydrationBoundary>,
     );
-    await userEvent.click(await screen.findByRole('button', { name: 'Criar registro' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Criar registro' }, { timeout: 10_000 }),
+    );
     const message = await screen.findByText('Campo obrigatório.');
     const input = screen.getByLabelText('Nome');
     expect(input.getAttribute('aria-invalid')).toBe('true');

@@ -1,0 +1,2679 @@
+// Schema único da API (US-081 · DEC-001/002/003/083). Convenções:
+// - modelo PascalCase singular e campo camelCase no código; tabela snake_case plural e coluna
+//   snake_case no banco, sempre por @map/@@map (DEC-001 · RN-FND-40);
+// - chave primária UUIDv7 gerada pela aplicação (`newId()`), nunca pelo banco (DEC-002 · RN-FND-39);
+// - datas em timestamptz; dinheiro Decimal(18,2), preço unitário/quantidade Decimal(18,4) e
+//   percentual Decimal(9,4), convertidos para decimal.js nos mapeadores (DEC-003 · RN-FND-41);
+// - colunas padrão de DEC-083 e `version` em agregados mutáveis (DEC-055 · RN-FND-42);
+// - RLS, papéis, GRANTs e triggers vivem em SQL bruto nas migrações (RN-FND-45/47).
+// Guia: apps/api/prisma/README.md.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/shared/database/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+  generatedFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// entities.md §1 — situação de um evento do outbox (DEC-161 · ADR-004).
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+
+  @@map("outbox_status")
+}
+
+/// entities.md `OutboxEvent` (módulo platform). Escrito na transação do caso de uso (US-082);
+/// `tenantId` nulo só para eventos de plataforma (DEC-080). Imutável para a aplicação: só o relay
+/// (`cf_relay`) atualiza status/tentativas.
+model OutboxEvent {
+  id            String       @id @db.Uuid
+  tenantId      String?      @map("tenant_id") @db.Uuid
+  eventType     String       @map("event_type") @db.VarChar(80)
+  routingKey    String       @map("routing_key") @db.VarChar(120)
+  eventVersion  Int          @default(1) @map("event_version")
+  aggregateType String       @map("aggregate_type") @db.VarChar(60)
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  processId     String?      @map("process_id") @db.Uuid
+  payload       Json         @db.JsonB
+  metadata      Json         @db.JsonB
+  occurredAt    DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  nextAttemptAt DateTime?    @map("next_attempt_at") @db.Timestamptz(6)
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(6)
+  lastError     String?      @map("last_error")
+
+  @@index([status, occurredAt], map: "outbox_events_pending_idx")
+  @@index([tenantId, aggregateType, aggregateId, occurredAt], map: "outbox_events_aggregate_idx")
+  @@map("outbox_events")
+}
+
+/// entities.md §2 — `OrganizationType`.
+enum OrganizationType {
+  DIRECT_ADMINISTRATION
+  FUND
+  AUTARCHY
+  FOUNDATION
+  PUBLIC_COMPANY
+  MIXED_CAPITAL_COMPANY
+  PUBLIC_CONSORTIUM
+  LEGISLATIVE
+  OTHER
+
+  @@map("organization_type")
+}
+
+/// entities.md §2 — `TenantType`.
+enum TenantType {
+  MUNICIPALITY
+  CITY_COUNCIL
+  AUTARCHY
+  PUBLIC_CONSORTIUM
+  FOUNDATION
+  PUBLIC_COMPANY
+  OTHER
+
+  @@map("tenant_type")
+}
+
+/// entities.md §2 — `TenantStatus` (DEC-132: requisições de usuários só com `ACTIVE`;
+/// `OFFBOARDING` em leitura para `ADMIN_ORGAO`/`AUDITOR`).
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  OFFBOARDING
+  DEACTIVATED
+
+  @@map("tenant_status")
+}
+
+/// entities.md §2 — `UserStatus` (`BLOCKED` = bloqueio de plataforma).
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  DEACTIVATED
+
+  @@map("user_status")
+}
+
+/// entities.md §2 — `MembershipType`.
+enum MembershipType {
+  INTERNAL
+  EXTERNAL
+  SERVICE
+
+  @@map("membership_type")
+}
+
+/// entities.md §2 — `MembershipStatus`.
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  EXPIRED
+
+  @@map("membership_status")
+}
+
+/// entities.md `Tenant` (módulo tenancy) · tabela de plataforma, sem RLS (DEC-080). Criada na
+/// US-087; a FK composta `(id, primaryOrganizationId)` → `organizations(tenantId, id)` (US-101) vive
+/// só na migração (o Prisma não modela a FK que reutiliza a chave primária).
+model Tenant {
+  id                      String       @id @db.Uuid
+  slug                    String       @unique(map: "tenants_slug_key") @db.VarChar(63)
+  name                    String       @db.VarChar(200)
+  legalName               String?      @map("legal_name") @db.VarChar(250)
+  type                    TenantType
+  status                  TenantStatus @default(PROVISIONING)
+  stateCode               String       @map("state_code") @db.Char(2)
+  ibgeCityCode            String?      @map("ibge_city_code") @db.Char(7)
+  timezone                String       @default("America/Sao_Paulo") @db.VarChar(64)
+  locale                  String       @default("pt-BR") @db.VarChar(10)
+  plan                    String       @default("STANDARD") @db.VarChar(40)
+  primaryOrganizationId   String?      @map("primary_organization_id") @db.Uuid
+  activatedAt             DateTime?    @map("activated_at") @db.Timestamptz(6)
+  suspendedAt             DateTime?    @map("suspended_at") @db.Timestamptz(6)
+  suspensionReason        String?      @map("suspension_reason")
+  deactivatedAt           DateTime?    @map("deactivated_at") @db.Timestamptz(6)
+  offboardingStartedAt    DateTime?    @map("offboarding_started_at") @db.Timestamptz(6)
+  offboardingEndsAt       DateTime?    @map("offboarding_ends_at") @db.Timestamptz(6)
+  /// SHA-256 de slug + CNPJ do órgão principal + e-mail do primeiro administrador (US-099 · FA-01):
+  /// a retomada só continua o mesmo pedido. Só o cf_platform lê (sem GRANT para cf_app/cf_worker).
+  provisioningFingerprint String?      @map("provisioning_fingerprint") @db.Char(64)
+  createdAt               DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int          @default(1)
+
+  memberships     TenantMembership[]
+  organizations   Organization[]
+  settings        TenantSetting[]
+  catalogItems    CatalogItem[]
+  holidays        Holiday[]
+  numberSequences NumberSequence[]
+
+  @@index([status], map: "tenants_status_idx")
+  @@map("tenants")
+}
+
+/// entities.md `User` (módulo identity) · identidade global, tabela de plataforma (DEC-012).
+model User {
+  id                 String     @id @db.Uuid
+  externalSubject    String?    @unique(map: "users_external_subject_key") @map("external_subject") @db.VarChar(255)
+  authentikUserId    String?    @unique(map: "users_authentik_user_id_key") @map("authentik_user_id") @db.VarChar(64)
+  email              String     @unique(map: "users_email_key") @db.Citext
+  emailVerified      Boolean    @default(false) @map("email_verified")
+  name               String     @db.VarChar(200)
+  socialName         String?    @map("social_name") @db.VarChar(200)
+  cpfEncrypted       Bytes?     @map("cpf_encrypted")
+  cpfHash            String?    @unique(map: "users_cpf_hash_key") @map("cpf_hash") @db.VarChar(64)
+  phone              String?    @db.VarChar(20)
+  status             UserStatus @default(ACTIVE)
+  isPlatformOperator Boolean    @default(false) @map("is_platform_operator")
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  preferences        Json       @default("{}") @db.JsonB
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int        @default(1)
+
+  memberships            TenantMembership[]     @relation("MembershipUser")
+  invitedMemberships     TenantMembership[]     @relation("MembershipInvitedBy")
+  revokedMemberships     TenantMembership[]     @relation("MembershipRevokedBy")
+  createdMemberships     TenantMembership[]     @relation("MembershipCreatedBy")
+  updatedMemberships     TenantMembership[]     @relation("MembershipUpdatedBy")
+  createdDepartmentLinks MembershipDepartment[] @relation("MembershipDepartmentCreatedBy")
+
+  @@map("users")
+}
+
+/// entities.md `TenantMembership` (módulo identity) · vínculo do usuário com o tenant; RLS
+/// ENABLE + FORCE. Leitura entre tenants só pela função `cf_user_memberships` (US-087).
+model TenantMembership {
+  id                 String           @id @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  userId             String           @map("user_id") @db.Uuid
+  type               MembershipType   @default(INTERNAL)
+  status             MembershipStatus @default(INVITED)
+  jobTitle           String?          @map("job_title") @db.VarChar(150)
+  registrationNumber String?          @map("registration_number") @db.VarChar(40)
+  invitedById        String?          @map("invited_by_id") @db.Uuid
+  invitedAt          DateTime?        @map("invited_at") @db.Timestamptz(6)
+  inviteTokenHash    String?          @map("invite_token_hash") @db.VarChar(64)
+  inviteExpiresAt    DateTime?        @map("invite_expires_at") @db.Timestamptz(6)
+  /// Reenvios do convite atual (RN-IAM-53: no máximo 5; zerado a cada novo convite).
+  inviteResendCount  Int              @default(0) @map("invite_resend_count")
+  activatedAt        DateTime?        @map("activated_at") @db.Timestamptz(6)
+  expiresAt          DateTime?        @map("expires_at") @db.Timestamptz(6)
+  suspendedAt        DateTime?        @map("suspended_at") @db.Timestamptz(6)
+  suspensionReason   String?          @map("suspension_reason")
+  revokedAt          DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  revokedById        String?          @map("revoked_by_id") @db.Uuid
+  revocationReason   String?          @map("revocation_reason")
+  lastAccessAt       DateTime?        @map("last_access_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?          @map("created_by_id") @db.Uuid
+  updatedById        String?          @map("updated_by_id") @db.Uuid
+  version            Int              @default(1)
+
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user            User                   @relation("MembershipUser", fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy       User?                  @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+  revokedBy       User?                  @relation("MembershipRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+  createdBy       User?                  @relation("MembershipCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?                  @relation("MembershipUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  departments     MembershipDepartment[]
+  roleAssignments RoleAssignment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@index([tenantId, status])
+  // Parcial na migração (`WHERE type = 'EXTERNAL'`).
+  @@index([tenantId, expiresAt], map: "tenant_memberships_external_expiry_idx")
+  @@index([userId])
+  @@map("tenant_memberships")
+}
+
+/// entities.md `MembershipDepartment` (módulo identity) · lotação do vínculo; RLS ENABLE + FORCE.
+/// FK composta de `departmentId` → `departments` (`ON DELETE RESTRICT`) na migração da US-102.
+model MembershipDepartment {
+  id           String   @id @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  membershipId String   @map("membership_id") @db.Uuid
+  departmentId String   @map("department_id") @db.Uuid
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by_id") @db.Uuid
+
+  membership TenantMembership @relation(fields: [tenantId, membershipId], references: [tenantId, id], onDelete: Cascade)
+  createdBy  User?            @relation("MembershipDepartmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, membershipId, departmentId])
+  // Parcial na migração (`WHERE is_primary`): uma lotação principal por vínculo.
+  @@unique([tenantId, membershipId], map: "membership_departments_primary_key")
+  @@index([tenantId, departmentId])
+  @@map("membership_departments")
+}
+
+/// entities.md §2 — `ActorType`.
+enum ActorType {
+  USER
+  SYSTEM
+  PLATFORM_OPERATOR
+  INTEGRATION
+
+  @@map("actor_type")
+}
+
+/// entities.md §2 — `AuditCategory` (fixa por ação: `AUDIT_ACTIONS` em packages/types).
+enum AuditCategory {
+  DATA_CHANGE
+  WORKFLOW
+  ACCESS
+  SECURITY
+  EXPORT
+  CONFIGURATION
+  SYSTEM
+
+  @@map("audit_category")
+}
+
+/// entities.md §2 — `AuditResult`.
+enum AuditResult {
+  SUCCESS
+  DENIED
+  FAILURE
+
+  @@map("audit_result")
+}
+
+/// entities.md `AuditLog` (módulo audit · US-073): append-only (trigger + só INSERT/SELECT),
+/// particionada por mês em `occurred_at` na migração (o Prisma não expressa partições), RLS por
+/// tenant e `tenantId` nulo só para registros de plataforma. Escrita exclusiva do `AuditService`
+/// por SQL bruto (sem RETURNING — DEC-071); `id` e `occurredAt` vêm da aplicação (entram no hash).
+model AuditLog {
+  id                String        @db.Uuid
+  occurredAt        DateTime      @map("occurred_at") @db.Timestamptz(6)
+  tenantId          String?       @map("tenant_id") @db.Uuid
+  actorType         ActorType     @map("actor_type")
+  actorUserId       String?       @map("actor_user_id") @db.Uuid
+  actorName         String?       @map("actor_name") @db.VarChar(200)
+  actorMembershipId String?       @map("actor_membership_id") @db.Uuid
+  onBehalfOfUserId  String?       @map("on_behalf_of_user_id") @db.Uuid
+  action            String        @db.VarChar(80)
+  category          AuditCategory
+  result            AuditResult
+  entityType        String?       @map("entity_type") @db.VarChar(60)
+  entityId          String?       @map("entity_id") @db.Uuid
+  processId         String?       @map("process_id") @db.Uuid
+  changes           Json?         @db.JsonB
+  metadata          Json          @default("{}") @db.JsonB
+  reasonCode        String?       @map("reason_code") @db.VarChar(80)
+  ip                String?       @db.Inet
+  userAgent         String?       @map("user_agent") @db.VarChar(512)
+  correlationId     String?       @map("correlation_id") @db.VarChar(64)
+  requestId         String?       @map("request_id") @db.VarChar(64)
+  sessionIdHash     String?       @map("session_id_hash") @db.VarChar(64)
+  rowHash           String        @map("row_hash") @db.VarChar(64)
+
+  @@id([id, occurredAt], map: "audit_logs_pkey")
+  @@index([tenantId, occurredAt(sort: Desc)], map: "audit_logs_tenant_occurred_idx")
+  @@index([tenantId, entityType, entityId, occurredAt(sort: Desc)], map: "audit_logs_entity_idx")
+  @@index([tenantId, processId, occurredAt(sort: Desc)], map: "audit_logs_process_idx")
+  @@index([tenantId, actorUserId, occurredAt(sort: Desc)], map: "audit_logs_actor_idx")
+  @@index([tenantId, action, occurredAt(sort: Desc)], map: "audit_logs_action_idx")
+  @@map("audit_logs")
+}
+
+/// entities.md §4 `AuditSeal` (módulo audit · US-074 · ADR-009): selo horário encadeado da trilha
+/// de um tenant — `digest` = SHA-256 dos `rowHash` do período ordenados por `(occurredAt, id)`;
+/// `chainHash` = SHA-256(`chainHash` anterior ∥ `digest`). Imutável (trigger + só INSERT/SELECT),
+/// RLS por tenant, idempotente por `(tenantId, periodStart)` (RN-AUD-13). Gravado só pelo worker
+/// (`AuditSealer`); a API lê (AUD-04) e recalcula (AUD-05). O selo de plataforma (tenant nulo)
+/// fica para quando houver leitura de plataforma da trilha.
+model AuditSeal {
+  id             String      @id @db.Uuid
+  tenantId       String      @map("tenant_id") @db.Uuid
+  periodStart    DateTime    @map("period_start") @db.Timestamptz(6)
+  periodEnd      DateTime    @map("period_end") @db.Timestamptz(6)
+  firstAuditId   String      @map("first_audit_id") @db.Uuid
+  lastAuditId    String      @map("last_audit_id") @db.Uuid
+  recordCount    Int         @map("record_count")
+  digest         String      @db.VarChar(64)
+  previousSealId String?     @map("previous_seal_id") @db.Uuid
+  chainHash      String      @map("chain_hash") @db.VarChar(64)
+  sealedAt       DateTime    @map("sealed_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  previousSeal   AuditSeal?  @relation("AuditSealChain", fields: [tenantId, previousSealId], references: [tenantId, id], onDelete: Restrict, onUpdate: Restrict)
+  nextSeals      AuditSeal[] @relation("AuditSealChain")
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, periodStart])
+  @@map("audit_seals")
+}
+
+/// entities.md §2 — `TimelineVisibility` (POL-09).
+enum TimelineVisibility {
+  STANDARD
+  BUDGET_RESTRICTED
+
+  @@map("timeline_visibility")
+}
+
+/// entities.md `ProcessTimelineEntry` (módulo timeline · US-059): narrativa curada do processo
+/// (DEC-025), gravada só pelo `TimelineProjector` na transação do caso de uso (DEC-161), com nomes
+/// congelados no momento do fato. Imutável (trigger + só INSERT/SELECT), RLS por tenant e
+/// idempotente por `(tenantId, sourceEventId, type)`. `type` é o registro `TimelineEntryType`
+/// (`packages/types`). A FK de `processId` → `processes` entra com a US-001.
+model ProcessTimelineEntry {
+  id                  String             @id @db.Uuid
+  tenantId            String             @map("tenant_id") @db.Uuid
+  processId           String             @map("process_id") @db.Uuid
+  occurredAt          DateTime           @map("occurred_at") @db.Timestamptz(6)
+  type                String             @db.VarChar(60)
+  actorType           ActorType          @map("actor_type")
+  actorId             String?            @map("actor_id") @db.Uuid
+  actorName           String?            @map("actor_name") @db.VarChar(200)
+  actorDepartmentName String?            @map("actor_department_name") @db.VarChar(200)
+  entityType          String?            @map("entity_type") @db.VarChar(40)
+  entityId            String?            @map("entity_id") @db.Uuid
+  movementId          String?            @map("movement_id") @db.Uuid
+  params              Json               @default("{}") @db.JsonB
+  visibility          TimelineVisibility @default(STANDARD)
+  sourceEventId       String             @map("source_event_id") @db.Uuid
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, sourceEventId, type], map: "process_timeline_entries_source_key")
+  @@index([tenantId, processId, occurredAt(sort: Desc), id(sort: Desc)], map: "process_timeline_entries_process_idx")
+  // US-076 (RECENT_ACTIVITY do dashboard): as últimas entradas do tenant.
+  @@index([tenantId, occurredAt(sort: Desc), id(sort: Desc)], map: "process_timeline_entries_tenant_recent_idx")
+  @@map("process_timeline_entries")
+}
+
+/// entities.md §2 — `DocumentKind` (DEC-017).
+enum DocumentKind {
+  STRUCTURED
+  FREE_TEXT
+  UPLOADED
+
+  @@map("document_kind")
+}
+
+/// entities.md §2 — `SystemDocumentModule` (módulos tipados que dependem de código).
+enum SystemDocumentModule {
+  DFD
+  ETP
+  TERM_OF_REFERENCE
+  RISK_MAP
+  PRICE_RESEARCH
+
+  @@map("system_document_module")
+}
+
+/// entities.md §2 — `Confidentiality`.
+enum Confidentiality {
+  PUBLIC
+  INTERNAL
+  RESTRICTED
+
+  @@map("confidentiality")
+}
+
+/// entities.md `DocumentType` (módulo document · US-061): catálogo de tipos do tenant, nunca
+/// excluído (RN-DOC-11). `code`, `kind`, `systemModule` e `isSystem` são imutáveis por trigger.
+/// A FK composta de `defaultTemplateId` → `document_templates` vem da US-107. Checks, trigger e RLS
+/// ficam em SQL bruto na migração; o índice `(tenantId, code)` aqui é o único de unicidade.
+model DocumentType {
+  id                      String                @id @db.Uuid
+  tenantId                String                @map("tenant_id") @db.Uuid
+  code                    String                @db.VarChar(40)
+  name                    String                @db.VarChar(120)
+  description             String?
+  kind                    DocumentKind
+  systemModule            SystemDocumentModule? @map("system_module")
+  isSystem                Boolean               @default(false) @map("is_system")
+  isActive                Boolean               @default(true) @map("is_active")
+  allowMultiplePerProcess Boolean               @default(true) @map("allow_multiple_per_process")
+  numberingEnabled        Boolean               @default(true) @map("numbering_enabled")
+  numberingMask           String?               @map("numbering_mask") @db.VarChar(60)
+  requiresApproval        Boolean               @default(false) @map("requires_approval")
+  approvalPolicy          Json?                 @map("approval_policy") @db.JsonB
+  defaultTemplateId       String?               @map("default_template_id") @db.Uuid
+  defaultConfidentiality  Confidentiality       @default(INTERNAL) @map("default_confidentiality")
+  sortOrder               Int                   @default(0) @map("sort_order")
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?               @map("created_by_id") @db.Uuid
+  updatedById             String?               @map("updated_by_id") @db.Uuid
+  version                 Int                   @default(1)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, sortOrder], map: "document_types_active_order_idx")
+  @@map("document_types")
+}
+
+/// entities.md §2 — `PermissionRiskLevel`.
+enum PermissionRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("permission_risk_level")
+}
+
+/// entities.md `Permission` (módulo access · US-094): catálogo GLOBAL de permissões (tabela de
+/// plataforma, sem `tenantId`), sincronizado por migração a partir de
+/// `packages/types/src/permissions.ts` (upsert por `code`; nunca DELETE — RN-IAM-73).
+model Permission {
+  code         String              @id @db.VarChar(80)
+  module       String              @db.VarChar(40)
+  name         String              @db.VarChar(120)
+  description  String
+  riskLevel    PermissionRiskLevel @map("risk_level")
+  scopable     Boolean
+  isDeprecated Boolean             @default(false) @map("is_deprecated")
+  introducedIn String              @map("introduced_in") @db.VarChar(10)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  grants RolePermission[]
+
+  @@map("permissions")
+}
+
+/// entities.md `Role` (módulo access · US-094): perfis do tenant — os 15 padrão (`isSystem`),
+/// semeados no provisionamento (US-099), e os personalizados (US-095). A unicidade do nome sem
+/// diferenciar maiúsculas (`(tenant_id, lower(name))`) é índice de expressão na migração.
+model Role {
+  id                      String   @id @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  key                     String   @db.VarChar(60)
+  name                    String   @db.VarChar(120)
+  description             String?
+  isSystem                Boolean  @default(false) @map("is_system")
+  isProtected             Boolean  @default(false) @map("is_protected")
+  allowExternalAssignment Boolean  @default(false) @map("allow_external_assignment")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?  @map("created_by_id") @db.Uuid
+  updatedById             String?  @map("updated_by_id") @db.Uuid
+  version                 Int      @default(1)
+
+  permissions RolePermission[]
+  assignments RoleAssignment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, key])
+  @@map("roles")
+}
+
+/// entities.md §2 — `ScopeType` (DEC-134).
+enum ScopeType {
+  TENANT
+  ORGANIZATION
+  DEPARTMENT
+  OWN_DEPARTMENTS
+
+  @@map("scope_type")
+}
+
+/// entities.md `RoleAssignment` (módulo access): perfil atribuído a um vínculo com escopo e vigência.
+/// Criada na US-091 (perfil inicial do convite — RN-IAM-51); a gestão é da US-096. Checks de
+/// escopo, unicidade parcial das vigentes e as FKs de órgão/unidade/usuários vivem só na migração.
+model RoleAssignment {
+  id                  String    @id @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  membershipId        String    @map("membership_id") @db.Uuid
+  roleId              String    @map("role_id") @db.Uuid
+  scopeType           ScopeType @map("scope_type")
+  scopeOrganizationId String?   @map("scope_organization_id") @db.Uuid
+  scopeDepartmentId   String?   @map("scope_department_id") @db.Uuid
+  includeSubtree      Boolean   @default(true) @map("include_subtree")
+  validFrom           DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validUntil          DateTime? @map("valid_until") @db.Timestamptz(6)
+  grantedById         String    @map("granted_by_id") @db.Uuid
+  reason              String?
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedById         String?   @map("revoked_by_id") @db.Uuid
+  revocationReason    String?   @map("revocation_reason")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById         String?   @map("created_by_id") @db.Uuid
+  updatedById         String?   @map("updated_by_id") @db.Uuid
+  version             Int       @default(1)
+
+  membership TenantMembership @relation(fields: [tenantId, membershipId], references: [tenantId, id], onDelete: Restrict, map: "role_assignments_membership_fkey")
+  role       Role             @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Restrict, map: "role_assignments_role_fkey")
+
+  @@unique([tenantId, id])
+  @@index([tenantId, roleId], map: "role_assignments_role_idx")
+  @@map("role_assignments")
+}
+
+/// entities.md `RolePermission` (módulo access · US-094): concessão de uma permissão do catálogo a
+/// um perfil. PK `(tenant_id, role_id, permission_code)`; o `id` existe só para a unicidade
+/// `(tenant_id, id)` exigida de toda tabela de tenant (DEC-081).
+model RolePermission {
+  id             String   @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  permissionCode String   @map("permission_code") @db.VarChar(80)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById    String?  @map("created_by_id") @db.Uuid
+
+  role       Role       @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Restrict)
+
+  @@id([tenantId, roleId, permissionCode])
+  @@unique([tenantId, id])
+  @@index([permissionCode])
+  @@map("role_permissions")
+}
+
+/// entities.md `Organization` (módulo tenancy · US-101) · órgão/entidade com CNPJ dentro do tenant
+/// (DEC-011); RLS ENABLE + FORCE e sem exclusão (SELECT/INSERT/UPDATE). Checks de formato e o
+/// trigger de imutabilidade do tenant ficam em SQL bruto na migração. A FK de `logoAttachmentId` →
+/// `attachments` entra com a US-068.
+model Organization {
+  id                String           @id @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  name              String           @db.VarChar(250)
+  shortName         String           @map("short_name") @db.VarChar(30)
+  cnpj              String           @db.VarChar(14)
+  type              OrganizationType
+  isActive          Boolean          @default(true) @map("is_active")
+  email             String?          @db.Citext
+  phone             String?          @db.VarChar(20)
+  website           String?          @db.VarChar(255)
+  addressStreet     String?          @map("address_street") @db.VarChar(200)
+  addressNumber     String?          @map("address_number") @db.VarChar(20)
+  addressComplement String?          @map("address_complement") @db.VarChar(100)
+  addressDistrict   String?          @map("address_district") @db.VarChar(100)
+  addressCity       String?          @map("address_city") @db.VarChar(100)
+  addressState      String?          @map("address_state") @db.Char(2)
+  addressZipCode    String?          @map("address_zip_code") @db.Char(8)
+  ibgeCityCode      String?          @map("ibge_city_code") @db.Char(7)
+  logoAttachmentId  String?          @map("logo_attachment_id") @db.Uuid
+  metadata          Json             @default("{}") @db.JsonB
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?          @map("created_by_id") @db.Uuid
+  updatedById       String?          @map("updated_by_id") @db.Uuid
+  version           Int              @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, cnpj], map: "organizations_tenant_id_cnpj_key")
+  @@unique([tenantId, shortName], map: "organizations_tenant_id_short_name_key")
+  @@index([tenantId, isActive, name], map: "organizations_active_name_idx")
+  @@map("organizations")
+}
+
+/// entities.md §2 — `DepartmentType` (DEC-011).
+enum DepartmentType {
+  SECRETARIAT
+  BOARD
+  DEPARTMENT
+  DIVISION
+  SECTOR
+  COMMITTEE
+  OTHER
+
+  @@map("department_type")
+}
+
+/// entities.md `Department` (módulo organization · US-102) · unidade em árvore dentro do órgão,
+/// com caminho materializado (`path` `/<idRaiz>/…/<id>/`, `depth` 0 na raiz — RN-TEN-45) mantido
+/// pela aplicação. FKs compostas (órgão, pai do mesmo órgão, `ON DELETE RESTRICT`), checks de
+/// caminho, a unicidade de nome entre irmãos (índice de expressão com `lower(name)`), o índice
+/// `text_pattern_ops` do caminho, o trigger de imutabilidade e a RLS ficam em SQL bruto na migração.
+/// Exclusão física só sem referências (RN-TEN-51).
+model Department {
+  id             String         @id @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  parentId       String?        @map("parent_id") @db.Uuid
+  type           DepartmentType
+  name           String         @db.VarChar(200)
+  acronym        String?        @db.VarChar(30)
+  code           String?        @db.VarChar(40)
+  email          String?        @db.Citext
+  phone          String?        @db.VarChar(20)
+  headUserId     String?        @map("head_user_id") @db.Uuid
+  deputyUserId   String?        @map("deputy_user_id") @db.Uuid
+  path           String
+  depth          Int
+  isActive       Boolean        @default(true) @map("is_active")
+  sortOrder      Int            @default(0) @map("sort_order")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by_id") @db.Uuid
+  updatedById    String?        @map("updated_by_id") @db.Uuid
+  version        Int            @default(1)
+
+  @@unique([tenantId, id], map: "departments_tenant_id_id_key")
+  @@unique([tenantId, organizationId, id], map: "departments_tenant_id_organization_id_id_key")
+  // Parcial na migração (`WHERE acronym IS NOT NULL`).
+  @@index([tenantId, organizationId, acronym], map: "departments_acronym_key")
+  @@index([tenantId, organizationId, parentId], map: "departments_parent_idx")
+  @@index([tenantId, headUserId], map: "departments_head_user_idx")
+  @@index([tenantId, deputyUserId], map: "departments_deputy_user_idx")
+  @@map("departments")
+}
+
+/// entities.md `TenantSetting` (módulo tenancy · US-103): configuração tipada chave-valor do tenant.
+/// A chave deve existir no registro (`SettingsRegistry`) e o valor é validado pelo schema Zod da
+/// chave; `version` é a concorrência otimista POR CHAVE (RN-TEN-54). Nunca excluída. Checks e RLS
+/// ficam em SQL bruto na migração.
+model TenantSetting {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  key         String   @db.VarChar(120)
+  value       Json     @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  version     Int      @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, key], map: "tenant_settings_tenant_id_key_key")
+  @@map("tenant_settings")
+}
+
+/// entities.md §2 — `CatalogType`.
+enum CatalogType {
+  CONTRACTING_TYPE
+  MODALITY
+  PROCESS_ORIGIN
+  UNIT_OF_MEASURE
+  RISK_CATEGORY
+  PRICE_SOURCE_TYPE
+  JUDGMENT_CRITERION
+  ATTACHMENT_CATEGORY
+
+  @@map("catalog_type")
+}
+
+/// entities.md §4 `CatalogItem` (módulo catalog · US-104): item de catálogo parametrizável do
+/// tenant. `code` único por `(tenant, catalogType)` e imutável; itens de sistema (`isSystem`) nunca
+/// são excluídos e nenhum item é excluído pela API (desativação — RN-TEN-64). A FK composta
+/// `(tenant_id, catalog_type, parent_id)` → `(tenant_id, catalog_type, id)` garante o pai no mesmo
+/// tenant e catálogo (RN-TEN-63); checks, gatilhos e RLS ficam em SQL bruto na migração.
+model CatalogItem {
+  id          String      @id @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  catalogType CatalogType @map("catalog_type")
+  code        String      @db.VarChar(60)
+  label       String      @db.VarChar(150)
+  description String?
+  isSystem    Boolean     @default(false) @map("is_system")
+  isActive    Boolean     @default(true) @map("is_active")
+  sortOrder   Int         @default(0) @map("sort_order")
+  parentId    String?     @map("parent_id") @db.Uuid
+  metadata    Json        @default("{}") @db.JsonB
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?     @map("created_by_id") @db.Uuid
+  updatedById String?     @map("updated_by_id") @db.Uuid
+  version     Int         @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, catalogType, code], map: "catalog_items_tenant_id_catalog_type_code_key")
+  @@unique([tenantId, catalogType, id], map: "catalog_items_tenant_id_catalog_type_id_key")
+  @@index([tenantId, catalogType, isActive, sortOrder], map: "catalog_items_list_idx")
+  @@map("catalog_items")
+}
+
+/// entities.md §2 — `HolidayScope`.
+enum HolidayScope {
+  NATIONAL
+  STATE
+  MUNICIPAL
+  OPTIONAL
+
+  @@map("holiday_scope")
+}
+
+/// entities.md §4 `Holiday` (módulo catalog · US-106): feriado ou ponto facultativo do calendário do
+/// tenant. A unicidade `(tenant_id, date, lower(name))` é índice de expressão na migração, assim
+/// como o índice parcial de ativos, o gatilho de imutabilidade (tenant, data, `isSystem`) e a
+/// proteção contra a exclusão de feriado de sistema (RN-TEN-77).
+model Holiday {
+  id          String       @id @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  date        DateTime     @db.Date
+  name        String       @db.VarChar(120)
+  scope       HolidayScope
+  isRecurring Boolean      @default(false) @map("is_recurring")
+  isSystem    Boolean      @default(false) @map("is_system")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?      @map("created_by_id") @db.Uuid
+  updatedById String?      @map("updated_by_id") @db.Uuid
+  version     Int          @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "holidays_tenant_id_id_key")
+  @@map("holidays")
+}
+
+/// entities.md §4 `NumberSequence` (módulo catalog · US-105 · DEC-028): última numeração emitida por
+/// `(tenant, sequenceKey)`. Incrementada só por SQL (`UPDATE … RETURNING`) na transação do recurso
+/// numerado; o formato da chave, o gatilho de imutabilidade (tenant, chave, valor nunca diminui) e a
+/// ausência de DELETE ficam na migração.
+model NumberSequence {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  sequenceKey String   @map("sequence_key") @db.VarChar(120)
+  lastValue   Int      @default(0) @map("last_value")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, sequenceKey], map: "number_sequences_tenant_id_sequence_key_key")
+  @@map("number_sequences")
+}
+
+/// entities.md §2 — enums da definição de workflow (US-040).
+enum WorkflowVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+
+  @@map("workflow_version_status")
+}
+
+enum StageType {
+  START
+  TASK
+  APPROVAL
+  END
+
+  @@map("stage_type")
+}
+
+enum DepartmentResolution {
+  FIXED
+  REQUESTING_DEPARTMENT
+  REQUESTING_SECRETARIAT
+  CHOSEN_ON_FORWARD
+
+  @@map("department_resolution")
+}
+
+enum StageAssignmentPolicy {
+  UNASSIGNED
+  CREATOR
+  DEPARTMENT_HEAD
+  PREVIOUS_ASSIGNEE
+
+  @@map("stage_assignment_policy")
+}
+
+enum ApproverType {
+  USER
+  ROLE
+  DEPARTMENT_HEAD
+
+  @@map("approver_type")
+}
+
+enum TransitionAction {
+  FORWARD
+  RETURN
+  APPROVE
+  REJECT
+  COMPLETE
+
+  @@map("transition_action")
+}
+
+enum DayCountType {
+  BUSINESS
+  CALENDAR
+
+  @@map("day_count_type")
+}
+
+enum RuleScope {
+  STAGE_EXIT
+  TRANSITION
+
+  @@map("rule_scope")
+}
+
+enum RuleType {
+  REQUIRED_DOCUMENT
+  REQUIRED_FIELD
+  REQUIRED_APPROVAL
+  CONDITION
+
+  @@map("rule_type")
+}
+
+enum RuleSeverity {
+  BLOCKING
+  WARNING
+
+  @@map("rule_severity")
+}
+
+/// entities.md §4.5 `Workflow` (módulo workflow · US-040). Nunca excluído (RN-WF-01). As FKs
+/// compostas (inclusive a circular e deferível `current_published_version_id` → versão do próprio
+/// workflow), o índice parcial do padrão e o gatilho de `key` imutável estão na migração.
+model Workflow {
+  id                        String   @id @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  key                       String   @db.VarChar(60)
+  name                      String   @db.VarChar(150)
+  description               String?
+  isActive                  Boolean  @default(true) @map("is_active")
+  isDefault                 Boolean  @default(false) @map("is_default")
+  applicabilityRule         Json?    @map("applicability_rule") @db.JsonB
+  applicabilityPriority     Int      @default(100) @map("applicability_priority")
+  currentPublishedVersionId String?  @map("current_published_version_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?  @map("created_by_id") @db.Uuid
+  updatedById               String?  @map("updated_by_id") @db.Uuid
+  version                   Int      @default(1)
+
+  @@unique([tenantId, id], map: "workflows_tenant_id_id_key")
+  @@unique([tenantId, key], map: "workflows_tenant_id_key_key")
+  @@map("workflows")
+}
+
+/// entities.md §4.5 `WorkflowVersion`: `DRAFT` → `PUBLISHED` → `RETIRED`. Fora de `DRAFT` só a
+/// aposentadoria muda a linha (gatilho `trg_wf_version_immutable`); `definitionSnapshot` é o JSON
+/// canônico (RFC 8785) e `definitionHash`, o SHA-256 dele. O índice parcial de rascunho único fica
+/// na migração (RN-WF-04).
+model WorkflowVersion {
+  id                 String                @id @db.Uuid
+  tenantId           String                @map("tenant_id") @db.Uuid
+  workflowId         String                @map("workflow_id") @db.Uuid
+  versionNumber      Int                   @map("version_number")
+  status             WorkflowVersionStatus @default(DRAFT)
+  initialStageId     String?               @map("initial_stage_id") @db.Uuid
+  changeNotes        String?               @map("change_notes")
+  publishedAt        DateTime?             @map("published_at") @db.Timestamptz(6)
+  publishedById      String?               @map("published_by_id") @db.Uuid
+  retiredAt          DateTime?             @map("retired_at") @db.Timestamptz(6)
+  retiredById        String?               @map("retired_by_id") @db.Uuid
+  definitionSnapshot Json?                 @map("definition_snapshot") @db.JsonB
+  definitionHash     String?               @map("definition_hash") @db.VarChar(64)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?               @map("created_by_id") @db.Uuid
+  updatedById        String?               @map("updated_by_id") @db.Uuid
+  version            Int                   @default(1)
+
+  @@unique([tenantId, id], map: "workflow_versions_tenant_id_id_key")
+  @@unique([tenantId, workflowId, id], map: "workflow_versions_tenant_id_workflow_id_id_key")
+  @@unique([tenantId, workflowId, versionNumber], map: "workflow_versions_tenant_id_workflow_id_version_number_key")
+  @@index([tenantId, workflowId], map: "workflow_versions_single_draft_key")
+  @@map("workflow_versions")
+}
+
+/// entities.md §4.5 `WorkflowStage`: escrita só em versão `DRAFT` (gatilho
+/// `trg_wf_definition_immutable`); no máximo uma `START` por versão (índice parcial na migração).
+model WorkflowStage {
+  id                           String                @id @db.Uuid
+  tenantId                     String                @map("tenant_id") @db.Uuid
+  workflowVersionId            String                @map("workflow_version_id") @db.Uuid
+  key                          String                @db.VarChar(60)
+  name                         String                @db.VarChar(150)
+  instructions                 String?
+  type                         StageType
+  groupLabel                   String?               @map("group_label") @db.VarChar(60)
+  displayOrder                 Int                   @map("display_order")
+  departmentResolution         DepartmentResolution  @map("department_resolution")
+  fixedDepartmentId            String?               @map("fixed_department_id") @db.Uuid
+  assignmentPolicy             StageAssignmentPolicy @default(UNASSIGNED) @map("assignment_policy")
+  approverType                 ApproverType?         @map("approver_type")
+  approverUserId               String?               @map("approver_user_id") @db.Uuid
+  approverRoleId               String?               @map("approver_role_id") @db.Uuid
+  approverDepartmentResolution DepartmentResolution? @map("approver_department_resolution")
+  approverFixedDepartmentId    String?               @map("approver_fixed_department_id") @db.Uuid
+  allowDeputy                  Boolean               @default(true) @map("allow_deputy")
+  approvalDocumentTypeCodes    String[]              @default([]) @map("approval_document_type_codes") @db.VarChar(40)
+  documentTypeCodes            String[]              @default([]) @map("document_type_codes") @db.VarChar(40)
+  slaDays                      Int?                  @map("sla_days")
+  slaType                      DayCountType          @default(BUSINESS) @map("sla_type")
+  color                        String?               @db.VarChar(7)
+  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                  String?               @map("created_by_id") @db.Uuid
+  updatedById                  String?               @map("updated_by_id") @db.Uuid
+  version                      Int                   @default(1)
+
+  @@unique([tenantId, id], map: "workflow_stages_tenant_id_id_key")
+  @@unique([tenantId, workflowVersionId, id], map: "workflow_stages_tenant_id_workflow_version_id_id_key")
+  @@unique([tenantId, workflowVersionId, key], map: "workflow_stages_tenant_id_workflow_version_id_key_key")
+  @@index([tenantId, workflowVersionId], map: "workflow_stages_single_start_key")
+  @@map("workflow_stages")
+}
+
+/// entities.md §4.5 `WorkflowTransition`: origem e destino da mesma versão (FKs compostas na
+/// migração, com `ON DELETE CASCADE` a partir da etapa).
+model WorkflowTransition {
+  id                   String           @id @db.Uuid
+  tenantId             String           @map("tenant_id") @db.Uuid
+  workflowVersionId    String           @map("workflow_version_id") @db.Uuid
+  key                  String           @db.VarChar(60)
+  name                 String           @db.VarChar(150)
+  description          String?
+  fromStageId          String           @map("from_stage_id") @db.Uuid
+  toStageId            String           @map("to_stage_id") @db.Uuid
+  action               TransitionAction
+  displayOrder         Int              @default(0) @map("display_order")
+  isPrimary            Boolean          @default(false) @map("is_primary")
+  requiresComment      Boolean          @default(false) @map("requires_comment")
+  allowDueDateOverride Boolean          @default(true) @map("allow_due_date_override")
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?          @map("created_by_id") @db.Uuid
+  updatedById          String?          @map("updated_by_id") @db.Uuid
+  version              Int              @default(1)
+
+  @@unique([tenantId, id], map: "workflow_transitions_tenant_id_id_key")
+  @@unique([tenantId, workflowVersionId, id], map: "workflow_transitions_tenant_id_workflow_version_id_id_key")
+  @@unique([tenantId, workflowVersionId, key], map: "workflow_transitions_tenant_id_workflow_version_id_key_key")
+  @@unique([tenantId, workflowVersionId, fromStageId, toStageId, action], map: "workflow_transitions_unique_edge_key")
+  @@map("workflow_transitions")
+}
+
+/// entities.md §4.5 `WorkflowRule`: `config` por tipo (§5.5); alvo coerente com o escopo (check).
+model WorkflowRule {
+  id                String       @id @db.Uuid
+  tenantId          String       @map("tenant_id") @db.Uuid
+  workflowVersionId String       @map("workflow_version_id") @db.Uuid
+  scope             RuleScope
+  stageId           String?      @map("stage_id") @db.Uuid
+  transitionId      String?      @map("transition_id") @db.Uuid
+  type              RuleType
+  name              String       @db.VarChar(150)
+  description       String?
+  severity          RuleSeverity @default(BLOCKING)
+  config            Json         @db.JsonB
+  message           String       @db.VarChar(500)
+  isActive          Boolean      @default(true) @map("is_active")
+  displayOrder      Int          @default(0) @map("display_order")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?      @map("created_by_id") @db.Uuid
+  updatedById       String?      @map("updated_by_id") @db.Uuid
+  version           Int          @default(1)
+
+  @@unique([tenantId, id], map: "workflow_rules_tenant_id_id_key")
+  @@index([tenantId, workflowVersionId], map: "workflow_rules_version_idx")
+  @@map("workflow_rules")
+}
+
+/// entities.md §2 — `TemplateVersionStatus`.
+enum TemplateVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+
+  @@map("template_version_status")
+}
+
+/// entities.md `DocumentTemplate` (módulo document · US-107): modelo de documento por tipo. O
+/// `documentTypeId` é imutável (gatilho) e a unicidade do nome por tipo sem diferenciar maiúsculas
+/// (`(tenant_id, document_type_id, lower(name))`) é índice de expressão na migração.
+model DocumentTemplate {
+  id                        String   @id @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  documentTypeId            String   @map("document_type_id") @db.Uuid
+  name                      String   @db.VarChar(150)
+  description               String?
+  isActive                  Boolean  @default(true) @map("is_active")
+  isSystem                  Boolean  @default(false) @map("is_system")
+  currentPublishedVersionId String?  @map("current_published_version_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?  @map("created_by_id") @db.Uuid
+  updatedById               String?  @map("updated_by_id") @db.Uuid
+  version                   Int      @default(1)
+
+  @@unique([tenantId, id], map: "document_templates_tenant_id_id_key")
+  @@index([tenantId, documentTypeId], map: "document_templates_type_idx")
+  @@map("document_templates")
+}
+
+/// entities.md `DocumentTemplateVersion` (módulo document · US-107/US-108): conteúdo versionado do
+/// template. Só o rascunho é editável (gatilho `trg_template_version_immutable`); no máximo um
+/// rascunho por template (índice único parcial na migração).
+model DocumentTemplateVersion {
+  id             String                @id @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  templateId     String                @map("template_id") @db.Uuid
+  versionNumber  Int                   @map("version_number")
+  status         TemplateVersionStatus @default(DRAFT)
+  sections       Json                  @default("[]") @db.JsonB
+  layout         Json                  @db.JsonB
+  fieldConfig    Json                  @default("{}") @map("field_config") @db.JsonB
+  importMappings Json?                 @map("import_mappings") @db.JsonB
+  changeNotes    String?               @map("change_notes")
+  publishedAt    DateTime?             @map("published_at") @db.Timestamptz(6)
+  publishedById  String?               @map("published_by_id") @db.Uuid
+  retiredAt      DateTime?             @map("retired_at") @db.Timestamptz(6)
+  retiredById    String?               @map("retired_by_id") @db.Uuid
+  contentHash    String?               @map("content_hash") @db.VarChar(64)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?               @map("created_by_id") @db.Uuid
+  updatedById    String?               @map("updated_by_id") @db.Uuid
+  version        Int                   @default(1)
+
+  @@unique([tenantId, id], map: "document_template_versions_tenant_id_id_key")
+  @@unique([tenantId, templateId, versionNumber], map: "document_template_versions_number_key")
+  @@index([tenantId, templateId], map: "document_template_versions_single_draft_key")
+  @@map("document_template_versions")
+}
+
+/// entities.md §2 — `NotificationPriority`.
+enum NotificationPriority {
+  NORMAL
+  HIGH
+
+  @@map("notification_priority")
+}
+
+/// entities.md §2 — `EmailDeliveryStatus`.
+enum EmailDeliveryStatus {
+  NOT_APPLICABLE
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+
+  @@map("email_delivery_status")
+}
+
+/// entities.md `Notification` (módulo notification · US-111): projeção de sistema gravada só pelo
+/// `NotificationDispatcher` (worker), idempotente por `(tenantId, recipientId, sourceEventId, type)`
+/// e agrupada em 5 min por `groupKey` (`{type}:{processId}`). A API só lê e marca leitura e
+/// arquivamento (GRANT por coluna). `type` é o registro `NotificationType` (`packages/types`). A FK
+/// `(tenantId, recipientId)` → `tenant_memberships (tenant_id, user_id)` fica na migração.
+model Notification {
+  id              String               @id @db.Uuid
+  tenantId        String               @map("tenant_id") @db.Uuid
+  recipientId     String               @map("recipient_id") @db.Uuid
+  type            String               @db.VarChar(60)
+  priority        NotificationPriority @default(NORMAL)
+  title           String               @db.VarChar(200)
+  body            String               @db.VarChar(1000)
+  link            String?              @db.VarChar(500)
+  processId       String?              @map("process_id") @db.Uuid
+  entityType      String?              @map("entity_type") @db.VarChar(40)
+  entityId        String?              @map("entity_id") @db.Uuid
+  sourceEventId   String               @map("source_event_id") @db.Uuid
+  groupKey        String?              @map("group_key") @db.VarChar(120)
+  groupCount      Int                  @default(1) @map("group_count")
+  groupedEventIds String[]             @default([]) @map("grouped_event_ids") @db.Uuid
+  emailStatus     EmailDeliveryStatus  @default(NOT_APPLICABLE) @map("email_status")
+  emailSentAt     DateTime?            @map("email_sent_at") @db.Timestamptz(6)
+  emailError      String?              @map("email_error") @db.VarChar(500)
+  readAt          DateTime?            @map("read_at") @db.Timestamptz(6)
+  archivedAt      DateTime?            @map("archived_at") @db.Timestamptz(6)
+  expiresAt       DateTime?            @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "notifications_tenant_id_id_key")
+  @@unique([tenantId, recipientId, sourceEventId, type], map: "notifications_source_key")
+  @@index([tenantId, recipientId, readAt, createdAt(sort: Desc)], map: "notifications_recipient_idx")
+  @@map("notifications")
+}
+
+/// entities.md §2 — `NotificationChannel`.
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+
+  @@map("notification_channel")
+}
+
+/// entities.md §4 `NotificationPreference` (módulo notification · US-113): preferência por
+/// (usuário, tipo, canal); ausência de linha = padrão do registro `NotificationType`.
+model NotificationPreference {
+  id               String              @id @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  notificationType String              @map("notification_type") @db.VarChar(60)
+  channel          NotificationChannel
+  enabled          Boolean
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "notification_preferences_tenant_id_id_key")
+  @@unique([tenantId, userId, notificationType, channel], map: "notification_preferences_key")
+  @@map("notification_preferences")
+}
+
+/// entities.md §2 — enums do processo (US-001 · DEC-013).
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+
+  @@map("priority")
+}
+
+enum PcaStatus {
+  PLANNED
+  NOT_PLANNED
+  NOT_APPLICABLE
+
+  @@map("pca_status")
+}
+
+enum EstimatedValueSource {
+  MANUAL
+  DFD
+  ETP
+  PRICE_RESEARCH
+  TERM
+
+  @@map("estimated_value_source")
+}
+
+enum CreationChannel {
+  WEB
+  DUPLICATION
+  IMPORT
+  API
+
+  @@map("creation_channel")
+}
+
+enum ProcessStatus {
+  DRAFT
+  IN_PROGRESS
+  AWAITING_APPROVAL
+  RETURNED
+  SUSPENDED
+  CANCELED
+  COMPLETED
+  PUBLISHED
+
+  @@map("process_status")
+}
+
+enum ProcessStageStatus {
+  ACTIVE
+  COMPLETED
+  RETURNED
+  CANCELED
+
+  @@map("process_stage_status")
+}
+
+enum AssignmentType {
+  STAGE_ENTRY
+  CLAIM
+  MANUAL
+  RETURN
+
+  @@map("assignment_type")
+}
+
+enum MovementAction {
+  CREATE
+  FORWARD
+  RETURN
+  CLAIM
+  ASSIGN
+  APPROVE
+  REJECT
+  COMPLETE
+  CANCEL
+  SUSPEND
+  RESUME
+
+  @@map("movement_action")
+}
+
+enum PrincipalType {
+  DEPARTMENT
+  USER
+
+  @@map("principal_type")
+}
+
+enum ProcessAccessReason {
+  REQUESTING
+  CURRENT
+  HISTORICAL
+  CREATOR
+  RESPONSIBLE
+  PARTICIPANT
+  APPROVER
+
+  @@map("process_access_reason")
+}
+
+/// entities.md §4.4 `Process` (US-001 · DEC-010): agregado central. FKs compostas, checks, RLS,
+/// `search_vector` (coluna gerada) e índices parciais/trigram ficam em SQL bruto na migração
+/// `20261016100000_processes`; `current_stage_id` → `process_stages` é DEFERRABLE.
+model Process {
+  id                      String                   @id @db.Uuid
+  tenantId                String                   @map("tenant_id") @db.Uuid
+  organizationId          String                   @map("organization_id") @db.Uuid
+  number                  Int?
+  year                    Int
+  code                    String?                  @db.VarChar(40)
+  internalCode            String?                  @map("internal_code") @db.VarChar(60)
+  title                   String                   @db.VarChar(200)
+  object                  String
+  description             String?
+  contractingTypeId       String                   @map("contracting_type_id") @db.Uuid
+  modalityId              String?                  @map("modality_id") @db.Uuid
+  isPriceRegistration     Boolean                  @default(false) @map("is_price_registration")
+  requestingSecretariatId String                   @map("requesting_secretariat_id") @db.Uuid
+  requestingDepartmentId  String                   @map("requesting_department_id") @db.Uuid
+  currentDepartmentId     String                   @map("current_department_id") @db.Uuid
+  currentResponsibleId    String?                  @map("current_responsible_id") @db.Uuid
+  priority                Priority                 @default(MEDIUM)
+  status                  ProcessStatus            @default(DRAFT)
+  statusBeforeSuspension  ProcessStatus?           @map("status_before_suspension")
+  workflowVersionId       String                   @map("workflow_version_id") @db.Uuid
+  currentStageId          String?                  @map("current_stage_id") @db.Uuid
+  currentWorkflowStageId  String?                  @map("current_workflow_stage_id") @db.Uuid
+  currentStageDueAt       DateTime?                @map("current_stage_due_at") @db.Timestamptz(6)
+  overdueSince            DateTime?                @map("overdue_since") @db.Timestamptz(6)
+  openedAt                DateTime?                @map("opened_at") @db.Timestamptz(6)
+  targetDate              DateTime?                @map("target_date") @db.Date
+  estimatedValue          Decimal?                 @map("estimated_value") @db.Decimal(18, 2)
+  estimatedValueSource    EstimatedValueSource?    @map("estimated_value_source")
+  isBudgetConfidential    Boolean                  @default(false) @map("is_budget_confidential")
+  originId                String                   @map("origin_id") @db.Uuid
+  creationChannel         CreationChannel          @default(WEB) @map("creation_channel")
+  pcaStatus               PcaStatus                @map("pca_status")
+  pcaYear                 Int?                     @map("pca_year")
+  pcaItemCode             String?                  @map("pca_item_code") @db.VarChar(60)
+  pcaJustification        String?                  @map("pca_justification")
+  notes                   String?
+  duplicatedFromId        String?                  @map("duplicated_from_id") @db.Uuid
+  completedAt             DateTime?                @map("completed_at") @db.Timestamptz(6)
+  completedById           String?                  @map("completed_by_id") @db.Uuid
+  canceledAt              DateTime?                @map("canceled_at") @db.Timestamptz(6)
+  canceledById            String?                  @map("canceled_by_id") @db.Uuid
+  cancellationReason      String?                  @map("cancellation_reason")
+  suspendedAt             DateTime?                @map("suspended_at") @db.Timestamptz(6)
+  suspendedById           String?                  @map("suspended_by_id") @db.Uuid
+  suspensionReason        String?                  @map("suspension_reason")
+  /// Coluna GERADA (`to_tsvector('portuguese', cf_unaccent(...))`) — nunca escrita pela aplicação.
+  searchVector            Unsupported("tsvector")? @map("search_vector")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String                   @map("created_by_id") @db.Uuid
+  updatedById             String?                  @map("updated_by_id") @db.Uuid
+  version                 Int                      @default(1)
+  deletedAt               DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  deletedById             String?                  @map("deleted_by_id") @db.Uuid
+
+  @@unique([tenantId, id], map: "processes_tenant_id_id_key")
+  // Parciais na migração (`WHERE code IS NOT NULL` · `WHERE internal_code IS NOT NULL AND deleted_at IS NULL`).
+  @@index([tenantId, code], map: "processes_code_key")
+  @@index([tenantId, internalCode], map: "processes_internal_code_key")
+  @@index([tenantId, status, updatedAt(sort: Desc)], map: "processes_status_idx")
+  @@index([tenantId, currentDepartmentId, status], map: "processes_current_department_idx")
+  @@index([tenantId, currentResponsibleId, status], map: "processes_current_responsible_idx")
+  @@index([tenantId, requestingSecretariatId, status], map: "processes_requesting_secretariat_idx")
+  @@index([tenantId, organizationId, year, number], map: "processes_organization_year_number_idx")
+  @@index([tenantId, currentStageDueAt], map: "processes_current_stage_due_idx")
+  @@index([tenantId, overdueSince], map: "processes_overdue_idx")
+  @@index([tenantId, targetDate], map: "processes_target_date_idx")
+  @@index([tenantId, createdAt(sort: Desc)], map: "processes_created_at_idx")
+  @@map("processes")
+}
+
+/// entities.md §2 — `ItemKind` (natureza do item — US-006).
+enum ItemKind {
+  GOOD
+  SERVICE
+  ENGINEERING_SERVICE
+  WORK
+
+  @@map("item_kind")
+}
+
+/// entities.md §2 — `ItemCatalogSystem` (CATMAT/CATSER — art. 19, II).
+enum ItemCatalogSystem {
+  CATMAT
+  CATSER
+  OTHER
+
+  @@map("item_catalog_system")
+}
+
+/// entities.md §4.4 `ProcessItem` (US-006 · DEC-019): item canônico da contratação. Índice único
+/// parcial `(tenant_id, process_id, sequence) WHERE deleted_at IS NULL`, FKs compostas (processo,
+/// unidade de medida e documentos de origem), checks, gatilho de colunas imutáveis e RLS ficam em
+/// SQL bruto na migração. Exclusão só lógica (RN-PROC-79).
+model ProcessItem {
+  id                                 String             @id @db.Uuid
+  tenantId                           String             @map("tenant_id") @db.Uuid
+  processId                          String             @map("process_id") @db.Uuid
+  sequence                           Int
+  lotNumber                          Int?               @map("lot_number")
+  lotName                            String?            @map("lot_name") @db.VarChar(150)
+  kind                               ItemKind
+  description                        String             @db.VarChar(2000)
+  unitOfMeasureId                    String             @map("unit_of_measure_id") @db.Uuid
+  catalogSystem                      ItemCatalogSystem? @map("catalog_system")
+  catalogCode                        String?            @map("catalog_code") @db.VarChar(30)
+  referenceQuantity                  Decimal?           @map("reference_quantity") @db.Decimal(18, 4)
+  referenceQuantitySourceDocumentId  String?            @map("reference_quantity_source_document_id") @db.Uuid
+  referenceUnitPrice                 Decimal?           @map("reference_unit_price") @db.Decimal(18, 4)
+  referenceUnitPriceSourceDocumentId String?            @map("reference_unit_price_source_document_id") @db.Uuid
+  notes                              String?
+  createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                        String?            @map("created_by_id") @db.Uuid
+  updatedById                        String?            @map("updated_by_id") @db.Uuid
+  deletedAt                          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  deletedById                        String?            @map("deleted_by_id") @db.Uuid
+  version                            Int                @default(1)
+
+  @@unique([tenantId, id], map: "process_items_tenant_id_id_key")
+  // Parcial na migração (`WHERE deleted_at IS NULL`).
+  @@index([tenantId, processId, sequence], map: "process_items_sequence_key")
+  @@index([tenantId, processId], map: "process_items_process_idx")
+  @@map("process_items")
+}
+
+/// entities.md §2 — `ParticipantRole` (DEC-036 · permissions.md §4).
+enum ParticipantRole {
+  OBSERVER
+  COLLABORATOR
+  CONSULTANT
+
+  @@map("participant_role")
+}
+
+/// entities.md §4.4 `ProcessParticipant` (US-012 · DEC-036): acesso explícito por processo a um
+/// usuário ou unidade. Índices únicos parciais (ativos por usuário/unidade), FKs compostas, checks,
+/// gatilho de colunas imutáveis e RLS ficam em SQL bruto na migração. Revogação só lógica.
+model ProcessParticipant {
+  id               String          @id @db.Uuid
+  tenantId         String          @map("tenant_id") @db.Uuid
+  processId        String          @map("process_id") @db.Uuid
+  userId           String?         @map("user_id") @db.Uuid
+  departmentId     String?         @map("department_id") @db.Uuid
+  role             ParticipantRole
+  notify           Boolean         @default(true)
+  grantedById      String          @map("granted_by_id") @db.Uuid
+  grantedAt        DateTime        @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt        DateTime?       @map("expires_at") @db.Timestamptz(6)
+  reason           String?
+  revokedAt        DateTime?       @map("revoked_at") @db.Timestamptz(6)
+  revokedById      String?         @map("revoked_by_id") @db.Uuid
+  revocationReason String?         @map("revocation_reason")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_participants_tenant_id_id_key")
+  // Parciais na migração (`WHERE revoked_at IS NULL AND … IS NOT NULL`).
+  @@index([tenantId, processId, userId], map: "process_participants_active_user_key")
+  @@index([tenantId, processId, departmentId], map: "process_participants_active_department_key")
+  @@index([tenantId, expiresAt], map: "process_participants_expiring_idx")
+  // US-056 (visão "Acompanhando"): parcial na migração (`WHERE revoked_at IS NULL AND user_id IS NOT NULL`).
+  @@index([tenantId, userId], map: "process_participants_following_idx")
+  @@map("process_participants")
+}
+
+/// entities.md §4.4 `ProcessStage`: cada passagem por uma etapa do workflow (uma ACTIVE por processo).
+model ProcessStage {
+  id                    String             @id @db.Uuid
+  tenantId              String             @map("tenant_id") @db.Uuid
+  processId             String             @map("process_id") @db.Uuid
+  workflowStageId       String             @map("workflow_stage_id") @db.Uuid
+  sequence              Int
+  status                ProcessStageStatus @default(ACTIVE)
+  departmentId          String             @map("department_id") @db.Uuid
+  assigneeId            String?            @map("assignee_id") @db.Uuid
+  enteredAt             DateTime           @default(now()) @map("entered_at") @db.Timestamptz(6)
+  exitedAt              DateTime?          @map("exited_at") @db.Timestamptz(6)
+  dueAt                 DateTime?          @map("due_at") @db.Timestamptz(6)
+  slaDays               Int?               @map("sla_days")
+  slaType               DayCountType?      @map("sla_type")
+  dueDateOverridden     Boolean            @default(false) @map("due_date_overridden")
+  dueDateOverrideReason String?            @map("due_date_override_reason")
+  pausedAt              DateTime?          @map("paused_at") @db.Timestamptz(6)
+  pausedTotalSeconds    Int                @default(0) @map("paused_total_seconds")
+  overdueSince          DateTime?          @map("overdue_since") @db.Timestamptz(6)
+  dueSoonNotifiedAt     DateTime?          @map("due_soon_notified_at") @db.Timestamptz(6)
+  overdueNotifiedAt     DateTime?          @map("overdue_notified_at") @db.Timestamptz(6)
+  enteredViaMovementId  String?            @map("entered_via_movement_id") @db.Uuid
+  exitedViaMovementId   String?            @map("exited_via_movement_id") @db.Uuid
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                @default(1)
+
+  @@unique([tenantId, id], map: "process_stages_tenant_id_id_key")
+  @@unique([tenantId, processId, sequence], map: "process_stages_sequence_key")
+  // Parciais na migração (`WHERE status = 'ACTIVE'`).
+  @@index([tenantId, processId], map: "process_stages_single_active_key")
+  @@index([tenantId, departmentId], map: "process_stages_department_idx")
+  @@index([tenantId, assigneeId], map: "process_stages_assignee_idx")
+  @@index([tenantId, dueAt], map: "process_stages_due_idx")
+  // US-076 (AVG_STAGE_DURATION do dashboard): parcial na migração (`WHERE exited_at IS NOT NULL`).
+  @@index([tenantId, exitedAt, workflowStageId], map: "process_stages_exited_idx")
+  @@map("process_stages")
+}
+
+/// entities.md §4.4 `ProcessAssignment`: histórico de responsabilidade (um ativo por processo).
+model ProcessAssignment {
+  id             String         @id @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  processId      String         @map("process_id") @db.Uuid
+  processStageId String         @map("process_stage_id") @db.Uuid
+  departmentId   String         @map("department_id") @db.Uuid
+  assigneeId     String?        @map("assignee_id") @db.Uuid
+  type           AssignmentType
+  assignedById   String?        @map("assigned_by_id") @db.Uuid
+  reason         String?
+  startedAt      DateTime       @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt        DateTime?      @map("ended_at") @db.Timestamptz(6)
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_assignments_tenant_id_id_key")
+  // Parciais na migração (`WHERE is_active` …).
+  @@index([tenantId, processId], map: "process_assignments_single_active_key")
+  @@index([tenantId, assigneeId], map: "process_assignments_assignee_idx")
+  @@index([tenantId, departmentId], map: "process_assignments_queue_idx")
+  @@map("process_assignments")
+}
+
+/// entities.md §4.4 `ProcessMovement`: tramitação, imutável (gatilho na migração).
+model ProcessMovement {
+  id                   String         @id @db.Uuid
+  tenantId             String         @map("tenant_id") @db.Uuid
+  processId            String         @map("process_id") @db.Uuid
+  sequence             Int
+  action               MovementAction
+  workflowTransitionId String?        @map("workflow_transition_id") @db.Uuid
+  fromProcessStageId   String?        @map("from_process_stage_id") @db.Uuid
+  toProcessStageId     String?        @map("to_process_stage_id") @db.Uuid
+  fromWorkflowStageId  String?        @map("from_workflow_stage_id") @db.Uuid
+  toWorkflowStageId    String?        @map("to_workflow_stage_id") @db.Uuid
+  fromDepartmentId     String?        @map("from_department_id") @db.Uuid
+  toDepartmentId       String?        @map("to_department_id") @db.Uuid
+  fromUserId           String?        @map("from_user_id") @db.Uuid
+  toUserId             String?        @map("to_user_id") @db.Uuid
+  statusFrom           ProcessStatus? @map("status_from")
+  statusTo             ProcessStatus? @map("status_to")
+  actorType            ActorType      @default(USER) @map("actor_type")
+  actorId              String?        @map("actor_id") @db.Uuid
+  actorDepartmentId    String?        @map("actor_department_id") @db.Uuid
+  comment              String?
+  dueAt                DateTime?      @map("due_at") @db.Timestamptz(6)
+  documents            Json           @default("[]") @db.JsonB
+  approvalId           String?        @map("approval_id") @db.Uuid
+  ip                   String?        @db.Inet
+  userAgent            String?        @map("user_agent") @db.VarChar(512)
+  correlationId        String         @map("correlation_id") @db.VarChar(64)
+  metadata             Json           @default("{}") @db.JsonB
+  occurredAt           DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_movements_tenant_id_id_key")
+  @@unique([tenantId, processId, sequence], map: "process_movements_sequence_key")
+  @@index([tenantId, processId, occurredAt(sort: Desc)], map: "process_movements_process_idx")
+  @@index([tenantId, toDepartmentId, occurredAt(sort: Desc)], map: "process_movements_to_department_idx")
+  @@index([tenantId, actorId, occurredAt(sort: Desc)], map: "process_movements_actor_idx")
+  @@map("process_movements")
+}
+
+/// entities.md §4.4 `ProcessAccess`: concessões de visibilidade (DEC-024), mantidas pelo
+/// `ProcessAccessProjector` no mesmo `tx` do fato.
+model ProcessAccess {
+  id            String              @id @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  processId     String              @map("process_id") @db.Uuid
+  principalType PrincipalType       @map("principal_type")
+  departmentId  String?             @map("department_id") @db.Uuid
+  userId        String?             @map("user_id") @db.Uuid
+  reason        ProcessAccessReason
+  sourceId      String?             @map("source_id") @db.Uuid
+  grantedAt     DateTime            @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt     DateTime?           @map("revoked_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "process_access_tenant_id_id_key")
+  // Parciais na migração (`WHERE revoked_at IS NULL`).
+  @@index([tenantId, departmentId, processId], map: "process_access_department_idx")
+  @@index([tenantId, userId, processId], map: "process_access_user_idx")
+  @@index([tenantId, processId], map: "process_access_process_idx")
+  // Parcial na migração (`WHERE source_id IS NOT NULL` — US-012).
+  @@index([tenantId, sourceId], map: "process_access_source_idx")
+  @@map("process_access")
+}
+
+/// entities.md §2 — `DocumentStatus` (DEC-018: ciclo de vida único de documento).
+enum DocumentStatus {
+  DRAFT
+  IN_REVIEW
+  RETURNED
+  FINALIZED
+  APPROVED
+  REJECTED
+  CANCELED
+
+  @@map("document_status")
+}
+
+/// entities.md §2 — `VersionReason`.
+enum VersionReason {
+  MANUAL
+  SUBMISSION
+  FINALIZATION
+  IMPORT
+  UPLOAD
+  REOPEN
+  SYSTEM
+
+  @@map("version_reason")
+}
+
+/// entities.md §2 — `ApprovalSubjectType` (DEC-022).
+enum ApprovalSubjectType {
+  PROCESS_STAGE
+  DOCUMENT
+
+  @@map("approval_subject_type")
+}
+
+/// entities.md §2 — `ApprovalStatus`.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  RETURNED
+  REJECTED
+  CANCELED
+
+  @@map("approval_status")
+}
+
+/// entities.md §2 — `ApprovalDecision`.
+enum ApprovalDecision {
+  APPROVE
+  RETURN
+  REJECT
+
+  @@map("approval_decision")
+}
+
+/// entities.md §4.7 `Document` (módulo document · US-065): artefato genérico do processo com o
+/// rascunho de trabalho e o status de DEC-018. FKs compostas, checks, o índice único parcial do
+/// tipo singular (`singleton_key` — RN-DOC-50) e o gatilho de colunas imutáveis ficam em SQL bruto
+/// na migração. Exclusão só lógica (`deletedAt` — DEC-034).
+model Document {
+  id                 String          @id @db.Uuid
+  tenantId           String          @map("tenant_id") @db.Uuid
+  processId          String          @map("process_id") @db.Uuid
+  documentTypeId     String          @map("document_type_id") @db.Uuid
+  templateVersionId  String?         @map("template_version_id") @db.Uuid
+  number             Int?
+  year               Int?
+  code               String?         @db.VarChar(60)
+  title              String          @db.VarChar(250)
+  status             DocumentStatus  @default(DRAFT)
+  confidentiality    Confidentiality @default(INTERNAL)
+  draftContent       Json            @default("{\"sections\":{}}") @map("draft_content") @db.JsonB
+  draftRevision      Int             @default(1) @map("draft_revision")
+  singletonKey       String?         @map("singleton_key") @db.Uuid
+  currentVersionId   String?         @map("current_version_id") @db.Uuid
+  approvedVersionId  String?         @map("approved_version_id") @db.Uuid
+  pendingApprovalId  String?         @map("pending_approval_id") @db.Uuid
+  responsibleId      String?         @map("responsible_id") @db.Uuid
+  submittedAt        DateTime?       @map("submitted_at") @db.Timestamptz(6)
+  submittedById      String?         @map("submitted_by_id") @db.Uuid
+  finalizedAt        DateTime?       @map("finalized_at") @db.Timestamptz(6)
+  finalizedById      String?         @map("finalized_by_id") @db.Uuid
+  approvedAt         DateTime?       @map("approved_at") @db.Timestamptz(6)
+  returnedAt         DateTime?       @map("returned_at") @db.Timestamptz(6)
+  rejectedAt         DateTime?       @map("rejected_at") @db.Timestamptz(6)
+  reopenedAt         DateTime?       @map("reopened_at") @db.Timestamptz(6)
+  reopenedById       String?         @map("reopened_by_id") @db.Uuid
+  reopenReason       String?         @map("reopen_reason")
+  canceledAt         DateTime?       @map("canceled_at") @db.Timestamptz(6)
+  canceledById       String?         @map("canceled_by_id") @db.Uuid
+  cancellationReason String?         @map("cancellation_reason")
+  sourceDocumentId   String?         @map("source_document_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String          @map("created_by_id") @db.Uuid
+  updatedById        String?         @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  version            Int             @default(1)
+
+  @@unique([tenantId, id], map: "documents_tenant_id_id_key")
+  // Parciais na migração: `code IS NOT NULL` e o tipo singular ativo (RN-DOC-50).
+  @@index([tenantId, code], map: "documents_code_key")
+  @@index([tenantId, processId, singletonKey], map: "documents_singleton_key")
+  @@index([tenantId, processId, documentTypeId], map: "documents_process_type_idx")
+  @@index([tenantId, status], map: "documents_status_idx")
+  @@index([tenantId, responsibleId, status], map: "documents_responsible_idx")
+  @@map("documents")
+}
+
+/// entities.md §4.7 `DocumentVersion` (módulo document · US-065 · DEC-017/084): snapshot imutável
+/// (gatilho `document_versions_append_only`; o papel da aplicação só tem SELECT/INSERT).
+model DocumentVersion {
+  id                String         @id @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  documentId        String         @map("document_id") @db.Uuid
+  processId         String         @map("process_id") @db.Uuid
+  versionNumber     Int            @map("version_number")
+  reason            VersionReason
+  statusAtCreation  DocumentStatus @map("status_at_creation")
+  content           Json?          @db.JsonB
+  contentHash       String         @map("content_hash") @db.VarChar(64)
+  attachmentId      String?        @map("attachment_id") @db.Uuid
+  templateVersionId String?        @map("template_version_id") @db.Uuid
+  changeSummary     String?        @map("change_summary") @db.VarChar(500)
+  createdById       String         @map("created_by_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "document_versions_tenant_id_id_key")
+  @@unique([tenantId, documentId, id], map: "document_versions_tenant_id_document_id_id_key")
+  @@unique([tenantId, documentId, versionNumber], map: "document_versions_number_key")
+  @@index([tenantId, processId], map: "document_versions_process_idx")
+  @@index([tenantId, contentHash], map: "document_versions_hash_idx")
+  @@map("document_versions")
+}
+
+/// entities.md §4.6 `Approval` (módulo approval · DEC-022): aprovação de etapa (`PROCESS_STAGE`) ou
+/// submissão avulsa de documento (`DOCUMENT` — US-065). Uma pendência por etapa/documento (índices
+/// únicos parciais na migração); a decisão é da US-052.
+model Approval {
+  id                   String              @id @db.Uuid
+  tenantId             String              @map("tenant_id") @db.Uuid
+  processId            String              @map("process_id") @db.Uuid
+  subjectType          ApprovalSubjectType @map("subject_type")
+  processStageId       String?             @map("process_stage_id") @db.Uuid
+  documentId           String?             @map("document_id") @db.Uuid
+  title                String              @db.VarChar(200)
+  requestedById        String              @map("requested_by_id") @db.Uuid
+  requestedAt          DateTime            @default(now()) @map("requested_at") @db.Timestamptz(6)
+  requestComment       String?             @map("request_comment")
+  approverType         ApproverType        @map("approver_type")
+  approverUserId       String?             @map("approver_user_id") @db.Uuid
+  approverRoleId       String?             @map("approver_role_id") @db.Uuid
+  approverDepartmentId String?             @map("approver_department_id") @db.Uuid
+  allowDeputy          Boolean             @map("allow_deputy")
+  dueAt                DateTime?           @map("due_at") @db.Timestamptz(6)
+  status               ApprovalStatus      @default(PENDING)
+  decision             ApprovalDecision?
+  decidedById          String?             @map("decided_by_id") @db.Uuid
+  decidedAt            DateTime?           @map("decided_at") @db.Timestamptz(6)
+  decisionComment      String?             @map("decision_comment")
+  decidedAsDeputy      Boolean             @default(false) @map("decided_as_deputy")
+  canceledAt           DateTime?           @map("canceled_at") @db.Timestamptz(6)
+  canceledById         String?             @map("canceled_by_id") @db.Uuid
+  cancellationReason   String?             @map("cancellation_reason")
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?             @map("created_by_id") @db.Uuid
+  updatedById          String?             @map("updated_by_id") @db.Uuid
+  version              Int                 @default(1)
+
+  @@unique([tenantId, id], map: "approvals_tenant_id_id_key")
+  // Parciais na migração (`WHERE status = 'PENDING'`).
+  @@index([tenantId, processStageId], map: "approvals_pending_stage_key")
+  @@index([tenantId, documentId], map: "approvals_pending_document_key")
+  @@index([tenantId, approverUserId], map: "approvals_approver_user_idx")
+  @@index([tenantId, approverDepartmentId], map: "approvals_approver_department_idx")
+  @@index([tenantId, approverRoleId], map: "approvals_approver_role_idx")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "approvals_process_idx")
+  @@index([tenantId, decidedById, decidedAt(sort: Desc)], map: "approvals_decided_by_idx")
+  @@map("approvals")
+}
+
+/// entities.md §4.6 `ApprovalDocument`: documentos cobertos pela aprovação e a versão exata analisada.
+model ApprovalDocument {
+  id                String   @id @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  approvalId        String   @map("approval_id") @db.Uuid
+  documentId        String   @map("document_id") @db.Uuid
+  documentVersionId String   @map("document_version_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "approval_documents_tenant_id_id_key")
+  @@unique([tenantId, approvalId, documentId], map: "approval_documents_approval_document_key")
+  @@index([tenantId, documentId], map: "approval_documents_document_idx")
+  @@map("approval_documents")
+}
+
+/// entities.md §2 — `AiGenerationKind` (US-115).
+enum AiGenerationKind {
+  DRAFT
+  SECTION
+
+  @@map("ai_generation_kind")
+}
+
+/// entities.md §2 — `AiSectionAction` (US-115/US-121).
+enum AiSectionAction {
+  REWRITE
+  COMPLETE
+  SUMMARIZE
+
+  @@map("ai_section_action")
+}
+
+/// entities.md §2 — `AiGenerationStatus` (transições condicionais — RN-AI-03).
+enum AiGenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  APPLIED
+  DISCARDED
+  EXPIRED
+
+  @@map("ai_generation_status")
+}
+
+/// entities.md §4.11 `AiGeneration` (módulo ai · US-115 · DEC-079): registro de cada geração com
+/// IA, gravado ANTES da chamada ao provedor e nunca excluído (o papel da aplicação não tem DELETE).
+model AiGeneration {
+  id                    String               @id @db.Uuid
+  tenantId              String               @map("tenant_id") @db.Uuid
+  processId             String               @map("process_id") @db.Uuid
+  documentId            String?              @map("document_id") @db.Uuid
+  targetModule          SystemDocumentModule @map("target_module")
+  kind                  AiGenerationKind
+  action                AiSectionAction?
+  sectionKey            String?              @map("section_key") @db.VarChar(60)
+  baseRevision          Int?                 @map("base_revision")
+  status                AiGenerationStatus   @default(QUEUED)
+  needSummary           String?              @map("need_summary")
+  instruction           String?              @db.VarChar(500)
+  provider              String               @db.VarChar(30)
+  model                 String?              @db.VarChar(100)
+  promptKey             String               @map("prompt_key") @db.VarChar(60)
+  promptVersion         String               @map("prompt_version") @db.VarChar(20)
+  inputRefs             Json                 @default("[]") @map("input_refs") @db.JsonB
+  contextHash           String?              @map("context_hash") @db.VarChar(64)
+  output                Json?                @db.JsonB
+  outputHash            String?              @map("output_hash") @db.VarChar(64)
+  placeholdersCount     Int                  @default(0) @map("placeholders_count")
+  groundingReplacements Int                  @default(0) @map("grounding_replacements")
+  reservedTokens        Int                  @map("reserved_tokens")
+  inputTokens           Int?                 @map("input_tokens")
+  outputTokens          Int?                 @map("output_tokens")
+  totalTokens           Int?                 @map("total_tokens")
+  costUsd               Decimal?             @map("cost_usd") @db.Decimal(12, 6)
+  pricingVersion        String?              @map("pricing_version") @db.VarChar(20)
+  latencyMs             Int?                 @map("latency_ms")
+  attempts              Int                  @default(0) @db.SmallInt
+  providerRequestId     String?              @map("provider_request_id") @db.VarChar(200)
+  errorCode             String?              @map("error_code") @db.VarChar(40)
+  startedAt             DateTime?            @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime?            @map("completed_at") @db.Timestamptz(6)
+  expiresAt             DateTime?            @map("expires_at") @db.Timestamptz(6)
+  appliedAt             DateTime?            @map("applied_at") @db.Timestamptz(6)
+  appliedById           String?              @map("applied_by_id") @db.Uuid
+  appliedTargets        Json?                @map("applied_targets") @db.JsonB
+  discardedAt           DateTime?            @map("discarded_at") @db.Timestamptz(6)
+  discardedById         String?              @map("discarded_by_id") @db.Uuid
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  createdById           String               @map("created_by_id") @db.Uuid
+
+  @@unique([tenantId, id], map: "ai_generations_tenant_id_id_key")
+  // Parciais na migração (RN-AI-12): uma ativa por alvo (`status IN ('QUEUED','RUNNING')`).
+  @@index([tenantId, processId, targetModule], map: "ai_generations_active_draft_key")
+  @@index([tenantId, documentId, sectionKey], map: "ai_generations_active_section_key")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "ai_generations_process_idx")
+  @@index([tenantId, createdById, createdAt], map: "ai_generations_requester_idx")
+  @@index([tenantId, createdAt], map: "ai_generations_created_idx")
+  @@index([tenantId, status, expiresAt], map: "ai_generations_status_expires_idx")
+  @@map("ai_generations")
+}
+
+/// entities.md §2 — `SupplierDocumentType`.
+enum SupplierDocumentType {
+  CNPJ
+  CPF
+  FOREIGN
+
+  @@map("supplier_document_type")
+}
+
+/// entities.md §4 `Supplier` (módulo supplier · US-025 · DEC-010/034/086): cadastro de fornecedores
+/// do tenant, sem processo. CPF: `documentNumber` mascarado, número cifrado em `documentNumberEncrypted`
+/// (AES-256-GCM, envelope) e `documentNumberHash` (blind index HMAC) para unicidade e busca. Índice
+/// único parcial `(tenant_id, document_type, document_number_hash) WHERE deleted_at IS NULL`, GIN
+/// trigram de razão social/nome fantasia, checks e gatilho de documento imutável ficam em SQL bruto
+/// na migração. Exclusão só lógica (`deletedAt` — RN-PRICE-19).
+model Supplier {
+  id                      String               @id @db.Uuid
+  tenantId                String               @map("tenant_id") @db.Uuid
+  documentType            SupplierDocumentType @map("document_type")
+  documentNumber          String               @map("document_number") @db.VarChar(20)
+  documentNumberEncrypted Bytes?               @map("document_number_encrypted")
+  documentNumberHash      String               @map("document_number_hash") @db.VarChar(64)
+  legalName               String               @map("legal_name") @db.VarChar(250)
+  tradeName               String?              @map("trade_name") @db.VarChar(250)
+  email                   String?              @db.Citext
+  phone                   String?              @db.VarChar(20)
+  website                 String?              @db.VarChar(255)
+  contactName             String?              @map("contact_name") @db.VarChar(150)
+  addressStreet           String?              @map("address_street") @db.VarChar(200)
+  addressNumber           String?              @map("address_number") @db.VarChar(20)
+  addressComplement       String?              @map("address_complement") @db.VarChar(100)
+  addressDistrict         String?              @map("address_district") @db.VarChar(100)
+  addressCity             String?              @map("address_city") @db.VarChar(100)
+  addressState            String?              @map("address_state") @db.Char(2)
+  addressZipCode          String?              @map("address_zip_code") @db.Char(8)
+  isActive                Boolean              @default(true) @map("is_active")
+  notes                   String?
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?              @map("created_by_id") @db.Uuid
+  updatedById             String?              @map("updated_by_id") @db.Uuid
+  deletedAt               DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version                 Int                  @default(1)
+
+  @@unique([tenantId, id], map: "suppliers_tenant_id_id_key")
+  // Parcial na migração (`WHERE deleted_at IS NULL`).
+  @@index([tenantId, documentType, documentNumberHash], map: "suppliers_document_key")
+  @@index([tenantId, documentNumber], map: "suppliers_document_number_idx")
+  @@index([tenantId, isActive, legalName], map: "suppliers_active_name_idx")
+  @@map("suppliers")
+}
+
+// --- Anexos (US-068 · entities.md §4 `Attachment` · storage.md §5) ---------------------------
+
+enum AttachmentTargetType {
+  PROCESS
+  DOCUMENT
+  DOCUMENT_VERSION
+  PRICE_SOURCE
+  COMMENT
+  MOVEMENT
+  RISK
+  TENANT_ASSET
+  TEMPLATE_VERSION
+
+  @@map("attachment_target_type")
+}
+
+enum AttachmentStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  SCANNING
+  AVAILABLE
+  INFECTED
+  REJECTED
+  DELETED
+
+  @@map("attachment_status")
+}
+
+model Attachment {
+  id                 String               @id @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  processId          String?              @map("process_id") @db.Uuid
+  targetType         AttachmentTargetType @map("target_type")
+  targetId           String?              @map("target_id") @db.Uuid
+  categoryId         String?              @map("category_id") @db.Uuid
+  fileName           String               @map("file_name") @db.VarChar(255)
+  extension          String               @db.VarChar(10)
+  declaredMimeType   String               @map("declared_mime_type") @db.VarChar(120)
+  detectedMimeType   String?              @map("detected_mime_type") @db.VarChar(120)
+  sizeBytes          BigInt               @map("size_bytes")
+  sha256             String?              @db.VarChar(64)
+  storageKey         String               @map("storage_key") @db.VarChar(512)
+  quarantineKey      String?              @map("quarantine_key") @db.VarChar(512)
+  status             AttachmentStatus     @default(PENDING_UPLOAD)
+  scanResult         Json?                @map("scan_result")
+  scannedAt          DateTime?            @map("scanned_at") @db.Timestamptz(6)
+  description        String?              @db.VarChar(500)
+  uploadedById       String               @map("uploaded_by_id") @db.Uuid
+  uploadedAt         DateTime?            @map("uploaded_at") @db.Timestamptz(6)
+  deletionReason     String?              @map("deletion_reason")
+  sourceAttachmentId String?              @map("source_attachment_id") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?              @map("created_by_id") @db.Uuid
+  updatedById        String?              @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  deletedById        String?              @map("deleted_by_id") @db.Uuid
+  version            Int                  @default(1)
+
+  @@unique([tenantId, id], map: "attachments_tenant_id_id_key")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "attachments_process_created_idx")
+  @@index([tenantId, targetType, targetId], map: "attachments_target_idx")
+  @@index([tenantId, sha256], map: "attachments_sha256_idx")
+  // Parcial na migração (`WHERE status IN ('PENDING_UPLOAD','UPLOADED','SCANNING')`).
+  @@index([tenantId, status], map: "attachments_pending_status_idx")
+  @@map("attachments")
+}
+
+/// entities.md §2 — `RenditionKind` (US-067 · RN-DOC-63): `SIGNED` reservado ao MVP 3.
+enum RenditionKind {
+  PREVIEW
+  CONTENT
+  APPROVAL_STAMPED
+  SIGNED
+
+  @@map("rendition_kind")
+}
+
+/// entities.md §2 — `RenditionStatus` (US-067 · RN-DOC-65/68).
+enum RenditionStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+
+  @@map("rendition_status")
+}
+
+/// entities.md §4 `DocumentRendition` (módulo document · US-067 · ADR-007): PDF do rascunho
+/// (`PREVIEW`), da versão (`CONTENT`) ou do selo de aprovação (`APPROVAL_STAMPED`). A linha é a
+/// "outbox do trabalho" do `document-render`; o binário fica no bucket `renditions`.
+model DocumentRendition {
+  id                String          @id @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  processId         String          @map("process_id") @db.Uuid
+  documentId        String          @map("document_id") @db.Uuid
+  documentVersionId String?         @map("document_version_id") @db.Uuid
+  draftRevision     Int?            @map("draft_revision")
+  approvalId        String?         @map("approval_id") @db.Uuid
+  kind              RenditionKind
+  status            RenditionStatus @default(PENDING)
+  masked            Boolean         @default(false)
+  storageKey        String?         @map("storage_key") @db.VarChar(512)
+  sha256            String?         @db.VarChar(64)
+  sizeBytes         BigInt?         @map("size_bytes")
+  pageCount         Int?            @map("page_count")
+  errorCode         String?         @map("error_code") @db.VarChar(60)
+  errorMessage      String?         @map("error_message")
+  attempts          Int             @default(0)
+  requestedById     String?         @map("requested_by_id") @db.Uuid
+  requestedAt       DateTime        @default(now()) @map("requested_at") @db.Timestamptz(6)
+  startedAt         DateTime?       @map("started_at") @db.Timestamptz(6)
+  readyAt           DateTime?       @map("ready_at") @db.Timestamptz(6)
+  expiresAt         DateTime?       @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version           Int             @default(1)
+
+  @@unique([tenantId, id], map: "document_renditions_tenant_id_id_key")
+  @@index([tenantId, documentId, kind, createdAt(sort: Desc)], map: "document_renditions_document_idx")
+  // Parciais na migração: `document_renditions_content_key`/`_stamped_key` (únicos, sem `FAILED`),
+  // `document_renditions_pending_idx` e `document_renditions_preview_expiry_idx`.
+  @@index([status, requestedAt], map: "document_renditions_pending_idx")
+  @@index([tenantId, expiresAt], map: "document_renditions_preview_expiry_idx")
+  @@map("document_renditions")
+}
+
+/// entities.md §2 — `RiskPhase` (US-033).
+enum RiskPhase {
+  PLANNING
+  SELECTION
+  CONTRACT_MANAGEMENT
+
+  @@map("risk_phase")
+}
+
+/// entities.md §2 — `RiskLevel` (DEC-021).
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  EXTREME
+
+  @@map("risk_level")
+}
+
+/// entities.md §2 — `RiskStatus` (RN-RISK-07).
+enum RiskStatus {
+  OPEN
+  IN_TREATMENT
+  MITIGATED
+  MATERIALIZED
+  CLOSED
+
+  @@map("risk_status")
+}
+
+/// entities.md §2 — `TreatmentType` (US-034).
+enum TreatmentType {
+  PREVENTIVE
+  CONTINGENCY
+
+  @@map("treatment_type")
+}
+
+/// entities.md §2 — `TreatmentStatus` (US-034).
+enum TreatmentStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  CANCELED
+
+  @@map("treatment_status")
+}
+
+/// entities.md §5 `Risk` (US-033 · DEC-021): risco do processo, com código sequencial `R01`… (único
+/// por processo, nunca reaproveitado — RN-RISK-02), `score`/`level` calculados e a escala usada
+/// (`scaleSnapshot` — RN-RISK-04). FKs compostas, checks (`score = probability * impact`), gatilho
+/// de colunas imutáveis e RLS ficam em SQL bruto na migração. Exclusão só lógica.
+model Risk {
+  id                  String      @id @db.Uuid
+  tenantId            String      @map("tenant_id") @db.Uuid
+  processId           String      @map("process_id") @db.Uuid
+  code                String      @db.VarChar(10)
+  title               String      @db.VarChar(200)
+  description         String?
+  categoryId          String      @map("category_id") @db.Uuid
+  phase               RiskPhase
+  cause               String
+  consequence         String
+  probability         Int         @db.SmallInt
+  impact              Int         @db.SmallInt
+  score               Int         @db.SmallInt
+  level               RiskLevel
+  scaleSnapshot       Json        @map("scale_snapshot")
+  ownerId             String?     @map("owner_id") @db.Uuid
+  ownerDepartmentId   String?     @map("owner_department_id") @db.Uuid
+  status              RiskStatus  @default(OPEN)
+  residualProbability Int?        @map("residual_probability") @db.SmallInt
+  residualImpact      Int?        @map("residual_impact") @db.SmallInt
+  residualScore       Int?        @map("residual_score") @db.SmallInt
+  residualLevel       RiskLevel?  @map("residual_level")
+  sortOrder           Int         @default(0) @map("sort_order")
+  aiGenerationId      String?     @map("ai_generation_id") @db.Uuid
+  aiReviewedAt        DateTime?   @map("ai_reviewed_at") @db.Timestamptz(6)
+  aiReviewedById      String?     @map("ai_reviewed_by_id") @db.Uuid
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById         String?     @map("created_by_id") @db.Uuid
+  updatedById         String?     @map("updated_by_id") @db.Uuid
+  deletedAt           DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  deletedById         String?     @map("deleted_by_id") @db.Uuid
+  version             Int         @default(1)
+
+  @@unique([tenantId, id], map: "risks_tenant_id_id_key")
+  @@unique([tenantId, processId, code], map: "risks_code_key")
+  @@index([tenantId, processId, level], map: "risks_process_level_idx")
+  // Parcial na migração (US-119): só riscos gerados por IA não excluídos.
+  @@index([tenantId, processId], map: "risks_ai_generation_idx")
+  @@map("risks")
+}
+
+/// entities.md §5 `RiskTreatment` (US-034): ação de tratamento do risco. Criada nesta migração para
+/// a exclusão em cascata lógica do risco (RN-RISK-10 · US-033); o CRUD é da US-034.
+model RiskTreatment {
+  id                      String          @id @db.Uuid
+  tenantId                String          @map("tenant_id") @db.Uuid
+  riskId                  String          @map("risk_id") @db.Uuid
+  processId               String          @map("process_id") @db.Uuid
+  type                    TreatmentType
+  description             String
+  responsibleId           String?         @map("responsible_id") @db.Uuid
+  responsibleDepartmentId String?         @map("responsible_department_id") @db.Uuid
+  dueDate                 DateTime?       @map("due_date") @db.Date
+  status                  TreatmentStatus @default(PLANNED)
+  completedAt             DateTime?       @map("completed_at") @db.Timestamptz(6)
+  notes                   String?
+  sortOrder               Int             @default(0) @map("sort_order")
+  aiGenerationId          String?         @map("ai_generation_id") @db.Uuid
+  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?         @map("created_by_id") @db.Uuid
+  updatedById             String?         @map("updated_by_id") @db.Uuid
+  deletedAt               DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  deletedById             String?         @map("deleted_by_id") @db.Uuid
+  version                 Int             @default(1)
+
+  @@unique([tenantId, id], map: "risk_treatments_tenant_id_id_key")
+  @@index([tenantId, riskId], map: "risk_treatments_risk_idx")
+  @@index([tenantId, responsibleId, status], map: "risk_treatments_responsible_idx")
+  @@map("risk_treatments")
+}
+
+/// entities.md §2 `CommentTargetType` (US-071): processo ou documento do processo.
+enum CommentTargetType {
+  PROCESS
+  DOCUMENT
+
+  @@map("comment_target_type")
+}
+
+/// entities.md §4.9 `Comment` (US-071 · DEC-040): comentário no processo ou em documento (com
+/// seção opcional), com respostas de um nível. Rich text restrito em `body` (RN-CMT-03); exclusão
+/// só lógica (DEC-034) — pelo autor ou por moderação (`deletionReason`).
+model Comment {
+  id             String            @id @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  processId      String            @map("process_id") @db.Uuid
+  targetType     CommentTargetType @map("target_type")
+  documentId     String?           @map("document_id") @db.Uuid
+  sectionKey     String?           @map("section_key") @db.VarChar(60)
+  parentId       String?           @map("parent_id") @db.Uuid
+  authorId       String            @map("author_id") @db.Uuid
+  body           Json
+  bodyText       String            @map("body_text")
+  editedAt       DateTime?         @map("edited_at") @db.Timestamptz(6)
+  deletionReason String?           @map("deletion_reason")
+  resolvedAt     DateTime?         @map("resolved_at") @db.Timestamptz(6)
+  resolvedById   String?           @map("resolved_by_id") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?           @map("created_by_id") @db.Uuid
+  updatedById    String?           @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  deletedById    String?           @map("deleted_by_id") @db.Uuid
+  version        Int               @default(1)
+
+  @@unique([tenantId, id], map: "comments_tenant_id_id_key")
+  @@index([tenantId, processId, createdAt(sort: Desc)], map: "comments_process_created_idx")
+  @@index([tenantId, documentId, sectionKey], map: "comments_document_section_idx")
+  @@index([tenantId, parentId], map: "comments_parent_idx")
+  @@map("comments")
+}
+
+/// entities.md §4.9 `Mention` (US-072 · RN-CMT-22/23): um registro por alvo distinto e válido do
+/// comentário — usuário xor unidade (CHECK na migração). Índices únicos parciais por alvo só na
+/// migração. `notifiedAt` é gravado pelo worker ao enviar `MENTIONED`.
+model Mention {
+  id                    String    @id @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  commentId             String    @map("comment_id") @db.Uuid
+  processId             String    @map("process_id") @db.Uuid
+  mentionedUserId       String?   @map("mentioned_user_id") @db.Uuid
+  mentionedDepartmentId String?   @map("mentioned_department_id") @db.Uuid
+  notifiedAt            DateTime? @map("notified_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id], map: "mentions_tenant_id_id_key")
+  @@index([tenantId, mentionedUserId, createdAt(sort: Desc)], map: "mentions_user_created_idx")
+  @@map("mentions")
+}
+
+/// entities.md §2 — `SavedViewScope` (US-003).
+enum SavedViewScope {
+  PROCESS_LIST
+  INBOX
+
+  @@map("saved_view_scope")
+}
+
+/// entities.md §4.4 `SavedView` (US-003 · DEC-040 · P2): critérios salvos da lista de processos
+/// (`filters` versionado, `sort`, `columns`) por dono e escopo. Índices únicos `lower(name)` e da
+/// visão padrão (parcial) e o das compartilhadas só existem na migração.
+model SavedView {
+  id          String         @id @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  ownerId     String         @map("owner_id") @db.Uuid
+  scope       SavedViewScope
+  name        String         @db.VarChar(80)
+  filters     Json
+  sort        String?        @db.VarChar(120)
+  columns     Json
+  isShared    Boolean        @default(false) @map("is_shared")
+  isDefault   Boolean        @default(false) @map("is_default")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?        @map("created_by_id") @db.Uuid
+  updatedById String?        @map("updated_by_id") @db.Uuid
+  version     Int            @default(1)
+
+  @@unique([tenantId, id], map: "saved_views_tenant_id_id_key")
+  @@map("saved_views")
+}
+
+/// entities.md §4.4 `Tag` (US-007 · DEC-040 · P2): etiqueta do órgão, nunca excluída (só `isActive`).
+/// O índice único `(tenant_id, lower(name))` só existe na migração; o nome é aparado e a cor
+/// pertence à paleta acessível (validação de aplicação — `TAG_PALETTE`).
+model Tag {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(40)
+  color       String   @default("#64748B") @db.VarChar(7)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  version     Int      @default(1)
+
+  @@unique([tenantId, id], map: "tags_tenant_id_id_key")
+  @@map("tags")
+}
+
+/// entities.md §4.4 `ProcessTag` (US-007): associação processo × etiqueta (máximo de 10 por
+/// processo — regra de aplicação). FKs compostas e o índice `(tenant_id, tag_id, process_id)` na
+/// migração.
+model ProcessTag {
+  tenantId    String   @map("tenant_id") @db.Uuid
+  processId   String   @map("process_id") @db.Uuid
+  tagId       String   @map("tag_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by_id") @db.Uuid
+
+  @@id([tenantId, processId, tagId], map: "process_tags_pkey")
+  @@map("process_tags")
+}
+
+/// entities.md §4.7 `DocumentItem` (módulo document · US-014 · DEC-019): linha de item de um
+/// documento tipado (DFD, ETP, TR) que referencia um `ProcessItem` do mesmo processo, uma vez por
+/// documento. Substituída inteira pelo DOC-07 (DELETE + INSERT no `tx`, com o documento travado).
+model DocumentItem {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  documentId         String   @map("document_id") @db.Uuid
+  processItemId      String   @map("process_item_id") @db.Uuid
+  quantity           Decimal  @db.Decimal(18, 4)
+  specification      Json?    @db.JsonB
+  acceptanceCriteria Json?    @map("acceptance_criteria") @db.JsonB
+  calculationMemo    Json?    @map("calculation_memo") @db.JsonB
+  notes              String?
+  sortOrder          Int      @default(0) @map("sort_order")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?  @map("created_by_id") @db.Uuid
+  updatedById        String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, documentId, processItemId], map: "document_items_document_process_item_key")
+  @@index([tenantId, processItemId], map: "document_items_process_item_idx")
+  @@map("document_items")
+}
+
+/// entities.md §2 — `DfdWizardStep` (RN-DFD-21).
+enum DfdWizardStep {
+  IDENTIFICATION
+  JUSTIFICATION
+  PLANNING
+  REVIEW
+  CONCLUSION
+
+  @@map("dfd_wizard_step")
+}
+
+/// entities.md §4.8 `Dfd` (módulo dfd · US-014): cabeçalho tipado 1:1 do `Document` do tipo DFD
+/// (Decreto 10.947/2022, art. 8º). `id = documentId` (CHECK `dfds_id_is_document`). Checks de PCA e
+/// de datas, FKs compostas por tenant e o gatilho de colunas imutáveis na migração.
+model Dfd {
+  id                     String          @id @db.Uuid
+  tenantId               String          @map("tenant_id") @db.Uuid
+  processId              String          @map("process_id") @db.Uuid
+  documentId             String          @map("document_id") @db.Uuid
+  requestingDepartmentId String          @map("requesting_department_id") @db.Uuid
+  responsibleId          String          @map("responsible_id") @db.Uuid
+  requestDate            DateTime        @map("request_date") @db.Date
+  objectSummary          String          @map("object_summary") @db.VarChar(2000)
+  priority               Priority
+  expectedDate           DateTime?       @map("expected_date") @db.Date
+  estimatedValue         Decimal?        @map("estimated_value") @db.Decimal(18, 2)
+  pcaStatus              PcaStatus       @map("pca_status")
+  pcaYear                Int?            @map("pca_year")
+  pcaItemCode            String?         @map("pca_item_code") @db.VarChar(60)
+  pcaJustification       String?         @map("pca_justification")
+  wizardStep             DfdWizardStep   @default(IDENTIFICATION) @map("wizard_step")
+  completedSteps         DfdWizardStep[] @default([]) @map("completed_steps")
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?         @map("created_by_id") @db.Uuid
+  updatedById            String?         @map("updated_by_id") @db.Uuid
+  version                Int             @default(1)
+
+  @@unique([tenantId, id], map: "dfds_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "dfds_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "dfds_process_idx")
+  @@map("dfds")
+}
+
+/// entities.md §2 — `EtpConclusion`.
+enum EtpConclusion {
+  PENDING
+  VIABLE
+  NOT_VIABLE
+
+  @@map("etp_conclusion")
+}
+
+/// entities.md §2 — `ParcelingDecision`.
+enum ParcelingDecision {
+  PARCELED
+  NOT_PARCELED
+  NOT_APPLICABLE
+
+  @@map("parceling_decision")
+}
+
+/// entities.md §4.8 `Etp` (módulo etp · US-019): cabeçalho tipado 1:1 do `Document` do tipo ETP
+/// (Lei 14.133/2021, art. 18, §1º). `id = documentId` (CHECK `etps_id_is_document`). Checks, FKs
+/// compostas (documento, processo, versão do DFD de origem, pesquisa de preços) e o gatilho de
+/// colunas imutáveis na migração. `recommendedAlternativeId` tem FK composta com `etp_alternatives` (US-021).
+model Etp {
+  id                       String                @id @db.Uuid
+  tenantId                 String                @map("tenant_id") @db.Uuid
+  processId                String                @map("process_id") @db.Uuid
+  documentId               String                @map("document_id") @db.Uuid
+  recommendedAlternativeId String?               @map("recommended_alternative_id") @db.Uuid
+  parcelingDecision        ParcelingDecision?    @map("parceling_decision")
+  conclusion               EtpConclusion         @default(PENDING)
+  estimatedTotalValue      Decimal?              @map("estimated_total_value") @db.Decimal(18, 2)
+  estimatedValueSource     EstimatedValueSource? @map("estimated_value_source")
+  priceResearchId          String?               @map("price_research_id") @db.Uuid
+  importedFromDfdVersionId String?               @map("imported_from_dfd_version_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById              String?               @map("created_by_id") @db.Uuid
+  updatedById              String?               @map("updated_by_id") @db.Uuid
+  version                  Int                   @default(1)
+
+  @@unique([tenantId, id], map: "etps_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "etps_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "etps_process_idx")
+  @@map("etps")
+}
+
+/// entities.md §2 — `AlternativeDecision` (RN-ETP-19).
+enum AlternativeDecision {
+  UNDER_ANALYSIS
+  RECOMMENDED
+  DISCARDED
+
+  @@map("alternative_decision")
+}
+
+/// entities.md §4.8 `EtpAlternative` (módulo etp · US-021): coleção tipada do ETP (DEC-017), com
+/// exclusão lógica (RN-ETP-22). A unicidade parcial da `RECOMMENDED` por ETP (RN-ETP-20), a do nome
+/// sem diferenciar maiúsculas (`lower(name)` — RN-ETP-18), o CHECK da justificativa (RN-ETP-19), as
+/// FKs compostas (ETP, processo e `etps.recommended_alternative_id`) e o gatilho de colunas
+/// imutáveis estão na migração.
+model EtpAlternative {
+  id                    String              @id @db.Uuid
+  tenantId              String              @map("tenant_id") @db.Uuid
+  etpId                 String              @map("etp_id") @db.Uuid
+  processId             String              @map("process_id") @db.Uuid
+  name                  String              @db.VarChar(150)
+  description           Json
+  advantages            Json?
+  disadvantages         Json?
+  estimatedCost         Decimal?            @map("estimated_cost") @db.Decimal(18, 2)
+  riskLevel             RiskLevel?          @map("risk_level")
+  observations          String?
+  decision              AlternativeDecision @default(UNDER_ANALYSIS)
+  decisionJustification String?             @map("decision_justification")
+  sortOrder             Int                 @default(0) @map("sort_order")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById           String?             @map("created_by_id") @db.Uuid
+  updatedById           String?             @map("updated_by_id") @db.Uuid
+  deletedAt             DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedById           String?             @map("deleted_by_id") @db.Uuid
+  version               Int                 @default(1)
+
+  @@unique([tenantId, id], map: "etp_alternatives_tenant_id_id_key")
+  @@index([tenantId, etpId, sortOrder], map: "etp_alternatives_etp_idx")
+  @@map("etp_alternatives")
+}
+
+/// entities.md §2 — `AwardType` (US-036 · US-038).
+enum AwardType {
+  BY_ITEM
+  BY_LOT
+  GLOBAL
+
+  @@map("award_type")
+}
+
+/// entities.md §4.8 `TermOfReference` (módulo term · US-036): cabeçalho tipado 1:1 do `Document` do
+/// tipo TR (`id = documentId` — CHECK `terms_of_reference_id_is_document`). Valor estimado com origem
+/// (RN-TR-07/08), condições contratuais (US-038) e rastreabilidade da importação do ETP (US-037).
+/// Checks de limites, FKs compostas e gatilho de colunas imutáveis na migração.
+model TermOfReference {
+  id                       String                @id @db.Uuid
+  tenantId                 String                @map("tenant_id") @db.Uuid
+  processId                String                @map("process_id") @db.Uuid
+  documentId               String                @map("document_id") @db.Uuid
+  objectDefinition         String                @map("object_definition") @db.VarChar(2000)
+  contractDurationMonths   Int?                  @map("contract_duration_months")
+  executionDeadline        Int?                  @map("execution_deadline")
+  executionDeadlineType    DayCountType?         @map("execution_deadline_type")
+  deliveryLocation         String?               @map("delivery_location")
+  paymentTermDays          Int?                  @map("payment_term_days")
+  productWarrantyMonths    Int?                  @map("product_warranty_months")
+  contractGuaranteePercent Decimal?              @map("contract_guarantee_percent") @db.Decimal(9, 4)
+  allowsSubcontracting     Boolean?              @map("allows_subcontracting")
+  selectionCriterionId     String?               @map("selection_criterion_id") @db.Uuid
+  awardType                AwardType?            @map("award_type")
+  estimatedTotalValue      Decimal?              @map("estimated_total_value") @db.Decimal(18, 2)
+  estimatedValueSource     EstimatedValueSource? @map("estimated_value_source")
+  priceResearchId          String?               @map("price_research_id") @db.Uuid
+  importedFromEtpId        String?               @map("imported_from_etp_id") @db.Uuid
+  importedFromEtpVersionId String?               @map("imported_from_etp_version_id") @db.Uuid
+  importedAt               DateTime?             @map("imported_at") @db.Timestamptz(6)
+  importedById             String?               @map("imported_by_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById              String?               @map("created_by_id") @db.Uuid
+  updatedById              String?               @map("updated_by_id") @db.Uuid
+  version                  Int                   @default(1)
+
+  @@unique([tenantId, id], map: "terms_of_reference_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "terms_of_reference_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "terms_of_reference_process_idx")
+  @@map("terms_of_reference")
+}
+
+/// entities.md §2 — `PriceDefaultMethod` (DEC-020: `AUTO_CV` = mediana se CV > limite, senão média).
+enum PriceDefaultMethod {
+  AUTO_CV
+  MEAN
+  MEDIAN
+  LOWEST
+
+  @@map("price_default_method")
+}
+
+/// entities.md §2 — `PriceCalculationMethod`.
+enum PriceCalculationMethod {
+  MEAN
+  MEDIAN
+  LOWEST
+  MANUAL
+
+  @@map("price_calculation_method")
+}
+
+/// entities.md §4.8 `PriceResearch` (módulo price-research · US-024): cabeçalho tipado 1:1 do
+/// `Document` do tipo PRICE_RESEARCH com o snapshot de `priceResearch.*` (DEC-020). `id = documentId`
+/// (CHECK `price_research_id_is_document`). Checks, FKs compostas e gatilho de colunas imutáveis na
+/// migração. Sem status próprio: usa o do documento e `completedAt` (DEC-018).
+model PriceResearch {
+  id                        String             @id @db.Uuid
+  tenantId                  String             @map("tenant_id") @db.Uuid
+  processId                 String             @map("process_id") @db.Uuid
+  documentId                String             @map("document_id") @db.Uuid
+  referenceDate             DateTime           @map("reference_date") @db.Date
+  defaultMethod             PriceDefaultMethod @map("default_method")
+  cvThresholdPercent        Decimal            @map("cv_threshold_percent") @db.Decimal(9, 4)
+  minQuotations             Int                @map("min_quotations")
+  directQuoteMaxAgeDays     Int                @map("direct_quote_max_age_days")
+  similarContractMaxAgeDays Int                @map("similar_contract_max_age_days")
+  outlierLowerPercent       Decimal            @map("outlier_lower_percent") @db.Decimal(9, 4)
+  outlierUpperPercent       Decimal            @map("outlier_upper_percent") @db.Decimal(9, 4)
+  unitPriceDecimals         Int                @map("unit_price_decimals") @db.SmallInt
+  roundingMode              String             @map("rounding_mode") @db.VarChar(10)
+  totalEstimatedValue       Decimal?           @map("total_estimated_value") @db.Decimal(18, 2)
+  itemsCount                Int                @default(0) @map("items_count")
+  itemsWithAlertsCount      Int                @default(0) @map("items_with_alerts_count")
+  lastCalculatedAt          DateTime?          @map("last_calculated_at") @db.Timestamptz(6)
+  completedAt               DateTime?          @map("completed_at") @db.Timestamptz(6)
+  completedById             String?            @map("completed_by_id") @db.Uuid
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?            @map("created_by_id") @db.Uuid
+  updatedById               String?            @map("updated_by_id") @db.Uuid
+  version                   Int                @default(1)
+
+  @@unique([tenantId, id], map: "price_research_tenant_id_id_key")
+  @@unique([tenantId, documentId], map: "price_research_tenant_id_document_id_key")
+  @@index([tenantId, processId], map: "price_research_process_idx")
+  @@map("price_research")
+}
+
+/// entities.md §4.8 `PriceItem` (módulo price-research · US-024): a linha do item canônico
+/// (`ProcessItem` — DEC-019) na pesquisa. `ON DELETE CASCADE` a partir de `price_research`; FKs
+/// compostas, checks e gatilho de colunas imutáveis na migração.
+model PriceItem {
+  id                        String                  @id @db.Uuid
+  tenantId                  String                  @map("tenant_id") @db.Uuid
+  priceResearchId           String                  @map("price_research_id") @db.Uuid
+  processItemId             String                  @map("process_item_id") @db.Uuid
+  quantity                  Decimal                 @db.Decimal(18, 4)
+  methodOverride            PriceCalculationMethod? @map("method_override")
+  effectiveMethod           PriceCalculationMethod? @map("effective_method")
+  validQuotationsCount      Int                     @default(0) @map("valid_quotations_count")
+  meanPrice                 Decimal?                @map("mean_price") @db.Decimal(18, 4)
+  medianPrice               Decimal?                @map("median_price") @db.Decimal(18, 4)
+  lowestPrice               Decimal?                @map("lowest_price") @db.Decimal(18, 4)
+  highestPrice              Decimal?                @map("highest_price") @db.Decimal(18, 4)
+  stdDeviation              Decimal?                @map("std_deviation") @db.Decimal(18, 4)
+  coefficientOfVariation    Decimal?                @map("coefficient_of_variation") @db.Decimal(9, 4)
+  recommendedUnitPrice      Decimal?                @map("recommended_unit_price") @db.Decimal(18, 4)
+  manualUnitPrice           Decimal?                @map("manual_unit_price") @db.Decimal(18, 4)
+  manualJustification       String?                 @map("manual_justification")
+  totalPrice                Decimal?                @map("total_price") @db.Decimal(18, 2)
+  belowMinimumJustification String?                 @map("below_minimum_justification")
+  alerts                    Json                    @default("[]") @db.JsonB
+  notes                     String?
+  sortOrder                 Int                     @default(0) @map("sort_order")
+  calculatedAt              DateTime?               @map("calculated_at") @db.Timestamptz(6)
+  createdAt                 DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById               String?                 @map("created_by_id") @db.Uuid
+  updatedById               String?                 @map("updated_by_id") @db.Uuid
+  version                   Int                     @default(1)
+
+  @@unique([tenantId, id], map: "price_items_tenant_id_id_key")
+  @@unique([tenantId, priceResearchId, processItemId], map: "price_items_research_process_item_key")
+  @@index([tenantId, processItemId], map: "price_items_process_item_idx")
+  @@map("price_items")
+}
+
+enum QuotationStatus {
+  VALID
+  EXCLUDED
+
+  @@map("quotation_status")
+}
+
+enum ExclusionReason {
+  UNFEASIBLE
+  EXCESSIVE
+  INCONSISTENT
+  EXPIRED
+  NON_COMPLIANT
+  OTHER
+
+  @@map("exclusion_reason")
+}
+
+enum OutlierFlag {
+  NONE
+  LOW
+  HIGH
+
+  @@map("outlier_flag")
+}
+
+/// entities.md §4.8 `PriceSource` (módulo price-research · US-026): a evidência da pesquisa (art. 23,
+/// § 1º, da Lei 14.133/2021). Campos exigidos pelo tipo (`PRICE_SOURCE_TYPE.requiredFields`)
+/// conferidos na aplicação; remoção física (RN-PRICE-29) com as cotações em cascata. FKs compostas,
+/// checks e gatilho de colunas imutáveis na migração.
+model PriceSource {
+  id                          String    @id @db.Uuid
+  tenantId                    String    @map("tenant_id") @db.Uuid
+  priceResearchId             String    @map("price_research_id") @db.Uuid
+  processId                   String    @map("process_id") @db.Uuid
+  sourceTypeId                String    @map("source_type_id") @db.Uuid
+  supplierId                  String?   @map("supplier_id") @db.Uuid
+  description                 String    @db.VarChar(300)
+  quoteDate                   DateTime? @map("quote_date") @db.Date
+  accessedAt                  DateTime? @map("accessed_at") @db.Timestamptz(6)
+  url                         String?   @db.VarChar(2048)
+  referenceOrganization       String?   @map("reference_organization") @db.VarChar(250)
+  referenceDocument           String?   @map("reference_document") @db.VarChar(120)
+  supplierChoiceJustification String?   @map("supplier_choice_justification")
+  notes                       String?
+  sortOrder                   Int       @default(0) @map("sort_order")
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                 String?   @map("created_by_id") @db.Uuid
+  updatedById                 String?   @map("updated_by_id") @db.Uuid
+  version                     Int       @default(1)
+
+  @@unique([tenantId, id], map: "price_sources_tenant_id_id_key")
+  @@index([tenantId, priceResearchId], map: "price_sources_research_idx")
+  @@index([tenantId, supplierId], map: "price_sources_supplier_idx")
+  @@map("price_sources")
+}
+
+/// entities.md §4.8 `Quotation` (módulo price-research · US-026): o preço de um item numa fonte,
+/// único por `(price_item_id, price_source_id)`; `ON DELETE CASCADE` a partir do item e da fonte.
+model Quotation {
+  id                     String           @id @db.Uuid
+  tenantId               String           @map("tenant_id") @db.Uuid
+  priceResearchId        String           @map("price_research_id") @db.Uuid
+  priceItemId            String           @map("price_item_id") @db.Uuid
+  priceSourceId          String           @map("price_source_id") @db.Uuid
+  unitPrice              Decimal          @map("unit_price") @db.Decimal(18, 4)
+  brandModel             String?          @map("brand_model") @db.VarChar(200)
+  status                 QuotationStatus  @default(VALID)
+  exclusionReason        ExclusionReason? @map("exclusion_reason")
+  exclusionJustification String?          @map("exclusion_justification")
+  excludedById           String?          @map("excluded_by_id") @db.Uuid
+  excludedAt             DateTime?        @map("excluded_at") @db.Timestamptz(6)
+  outlierFlag            OutlierFlag      @default(NONE) @map("outlier_flag")
+  isExpired              Boolean          @default(false) @map("is_expired")
+  notes                  String?
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?          @map("created_by_id") @db.Uuid
+  updatedById            String?          @map("updated_by_id") @db.Uuid
+  version                Int              @default(1)
+
+  @@unique([tenantId, id], map: "quotations_tenant_id_id_key")
+  @@unique([tenantId, priceItemId, priceSourceId], map: "quotations_item_source_key")
+  @@index([tenantId, priceResearchId], map: "quotations_research_idx")
+  @@index([tenantId, priceSourceId], map: "quotations_source_idx")
+  @@map("quotations")
+}

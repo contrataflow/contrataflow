@@ -23,11 +23,11 @@ Visualizar diagrama do workflow
 ## Descrição
 **Como** administrador do órgão ou gestor de contratações, **quero** ver o workflow desenhado como um diagrama de etapas e transições, **para** entender rapidamente o fluxo completo sem ler a lista de etapas e transições uma a uma.
 
-A aba "Diagrama" do editor (SCR-034) renderiza, somente leitura, o grafo da `WorkflowVersion` selecionada — etapas como nós e transições como arestas — usando React Flow para a interação (zoom, pan, seleção) e elkjs para calcular automaticamente o layout. Nenhuma posição é persistida: o diagrama é recalculado a cada carregamento a partir da estrutura de etapas e transições.
+A aba "Diagrama" do editor (SCR-034) renderiza, somente leitura, o grafo da `WorkflowVersion` selecionada — etapas como nós e transições como arestas — num quadro próprio com zoom, pan, seleção e minimapa e com o layout calculado automaticamente por um layout hierárquico em camadas próprio (o React Flow e o elkjs previstos não entraram — dependências novas fora do catálogo, RN-FND-11, decisão de 2026-10-16, a mesma do `ConditionBuilder` da US-044). Nenhuma posição é persistida: o diagrama é recalculado a cada carregamento a partir da estrutura de etapas e transições.
 
 ## Contexto
 - O editor (US-043) já apresenta etapas e transições em tabela e painel lateral; para workflows com muitas etapas (ex.: o segundo workflow semeado, contratação direta — DEC-015) uma visão gráfica ajuda a entender ciclos de devolução e aprovações mais rápido do que a lista.
-- `WorkflowStage`/`WorkflowTransition` (entities.md §4) não têm campos de posição (x/y); por isso o layout é sempre automático (elkjs), nunca editável manualmente — mantém a story simples e somente leitura, sem risco de desenhos "quebrados" por edição manual.
+- `WorkflowStage`/`WorkflowTransition` (entities.md §4) não têm campos de posição (x/y); por isso o layout é sempre automático, nunca editável manualmente — mantém a story simples e somente leitura, sem risco de desenhos "quebrados" por edição manual.
 - Reaproveita a mesma leitura (`WF-09`) já usada pelo editor (US-043) e pela validação (US-045) para montar o grafo.
 
 ## Objetivo
@@ -44,8 +44,8 @@ Permitir que qualquer usuário com `WORKFLOW_VIEW` visualize o diagrama de qualq
 ## Fluxo principal
 1. No editor do workflow (SCR-034), o usuário abre a aba **"Diagrama"**.
 2. O front chama `GET /api/v1/workflow-versions/{versionId}` (`WF-09`), que traz etapas e transições da versão selecionada (a corrente, por padrão).
-3. O front monta o grafo (nós = etapas, arestas = transições) e delega o cálculo de posição ao elkjs (layout hierárquico, direção conforme `displayOrder`/dependências).
-4. O React Flow renderiza os nós (cor de `WorkflowStage.color`, ícone por `StageType`, nome e SLA) e as arestas (rótulo da transição, destaque para `isPrimary`).
+3. O front monta o grafo (nós = etapas, arestas = transições) e calcula as posições (layout hierárquico em camadas da esquerda para a direita, conforme as transições de avanço; desempate por `displayOrder`; devoluções desenhadas por baixo).
+4. O diagrama renderiza os nós (cor de `WorkflowStage.color`, ícone por `StageType`, nome e SLA) e as arestas (rótulo da transição, destaque para `isPrimary`).
 5. O usuário pode aplicar zoom, arrastar o canvas (pan) e clicar em um nó/aresta para ver os detalhes (mesmos dados do painel lateral de US-043), sem poder editá-los.
 6. Para comparar versões, o usuário troca a versão selecionada (lista de `WF-07`, US-045); o diagrama é recalculado para a versão escolhida.
 
@@ -53,11 +53,11 @@ Permitir que qualquer usuário com `WORKFLOW_VIEW` visualize o diagrama de qualq
 - **FA-01 — Workflow com etapa inalcançável:** etapas sem transição de entrada a partir do `START`, ou sem saída até um `END`, são destacadas com contorno de aviso (mesmo critério de `WF_STAGE_UNREACHABLE`/`WF_END_UNREACHABLE`, US-040/US-045), sem impedir a visualização.
 - **FA-02 — Workflow grande:** acima de 20 etapas, o diagrama abre com zoom ajustado ("fit view") e oferece minimapa para navegação.
 - **FA-03 — Versão aposentada:** o diagrama é exibido normalmente, com um aviso "Esta versão está aposentada" no topo.
-- **FA-04 — Layout automático falha:** se o elkjs não conseguir calcular o layout (grafo malformado), o front cai para uma lista simples de etapas e transições com aviso "Não foi possível desenhar o diagrama; veja a lista abaixo", sem travar a tela.
+- **FA-04 — Layout automático falha:** se o layout automático não puder ser calculado (grafo malformado — ex.: transição apontando para etapa ausente), o front cai para uma lista simples de etapas e transições com aviso "Não foi possível desenhar o diagrama; veja a lista abaixo", sem travar a tela.
 
 ## Regras de negócio
 - **RN-WF-70** — O diagrama é somente leitura: nenhuma ação de criar, editar ou excluir etapa, transição ou regra está disponível a partir dele (essas ações continuam exclusivamente em US-043/US-044).
-- **RN-WF-71** — O diagrama consome `WF-09` (etapas e transições da versão) e, para trocar de versão, `WF-07`; nenhuma posição x/y é persistida — o layout é recalculado em runtime pelo elkjs a cada carregamento.
+- **RN-WF-71** — O diagrama consome `WF-09` (etapas e transições da versão) e, para trocar de versão, `WF-07`; nenhuma posição x/y é persistida — o layout é recalculado em runtime, no navegador, a cada carregamento.
 - **RN-WF-72** — Cada nó representa uma `WorkflowStage` (cor de `color`, ícone de `type`, nome, `groupLabel` quando preenchido); cada aresta representa uma `WorkflowTransition` (rótulo de `name`, destaque visual quando `isPrimary = true`); etapas `APPROVAL` exibem um indicador distinto de `TASK`/`START`/`END`.
 - **RN-WF-73** — O diagrama está disponível para `WorkflowVersion` em qualquer `status` (`DRAFT`, `PUBLISHED`, `RETIRED`), respeitando apenas `WORKFLOW_VIEW` — não exige `WORKFLOW_MANAGE`.
 - **RN-WF-74** — Etapas inalcançáveis a partir da etapa `START` ou sem transição de saída até uma etapa `END` são destacadas visualmente como aviso (mesma lógica de `WF_STAGE_UNREACHABLE`/`WF_END_UNREACHABLE`), sem bloquear a renderização.
@@ -143,7 +143,7 @@ Feature: Visualizar diagrama do workflow
     And o front deve exibir "Não foi possível carregar o diagrama agora. Tente novamente." com botão de nova tentativa
 
   Scenario: [Falha de integração] Cálculo automático de layout falha no navegador
-    Given que o grafo da versão tem uma estrutura que o elkjs não consegue organizar
+    Given que o grafo da versão tem uma estrutura que o layout automático não consegue organizar
     When "Elisa" abrir a aba "Diagrama"
     Then o front deve exibir a lista simples de etapas e transições
     And deve registrar um log de aviso no console sem travar a tela
@@ -165,11 +165,12 @@ Feature: Visualizar diagrama do workflow
 
 ## Impacto técnico
 - Sem persistência de posição, qualquer mudança futura para edição visual (arrastar etapas) exigirá nova modelagem (campos x/y) — fora do escopo desta story.
-- elkjs roda no cliente; grafos muito grandes (> 100 nós, fora do cenário atual do produto) podem exigir mover o cálculo para o servidor — não necessário no MVP 1.
+- O layout roda no cliente; grafos muito grandes (> 100 nós, fora do cenário atual do produto) podem exigir mover o cálculo para o servidor — não necessário no MVP 1.
 - Reaproveita o mesmo payload de `WF-09` já consumido por US-043/US-045; nenhuma mudança de contrato de API é necessária.
+- O cenário de Concorrência exigiu uma correção na leitura do WF-09 (sem mudança de contrato): em `READ COMMITTED` cada SELECT vê o seu instante, então o rascunho é lido conferindo `WorkflowVersion.version` antes e depois da definição e refeito (até 3 vezes) se mudou — ver api/10-workflow.md, WF-09.
 
 ## Backend
-- **Módulo(s):** `workflow` (nenhuma mudança; reaproveita `WF-07`/`WF-09` existentes).
+- **Módulo(s):** `workflow` (reaproveita `WF-07`/`WF-09` existentes; só a leitura consistente do WF-09 — Impacto técnico).
 - **Casos de uso:** nenhum novo (reaproveita `GetWorkflowVersionQuery`, `ListWorkflowVersionsQuery`).
 - **Domínio:** nenhuma mudança de domínio.
 - **Integrações internas:** nenhuma.
@@ -177,7 +178,7 @@ Feature: Visualizar diagrama do workflow
 
 ## Frontend
 - **Tela(s):** SCR-034 (`/admin/workflows/[id]`), aba "Diagrama".
-- **Componentes:** `WorkflowDiagram` (React Flow), `useElkLayout` (hook de layout com elkjs), `StageNode`, `TransitionEdge`, `VersionSwitcher` (reaproveita `WF-07`), `DiagramFallbackList`.
+- **Componentes:** `WorkflowDiagram` (quadro com zoom/pan/minimapa), `useDiagramLayout` (hook do layout em camadas), `StageNode`, `TransitionEdge`, `VersionSwitcher` (reaproveita `WF-07`), `DiagramFallbackList`.
 - **Estados:** skeleton enquanto `WF-09` carrega; vazio ("Nenhuma etapa criada ainda"); erro com "Tentar novamente"; fallback de lista (FA-04).
 - **Acessibilidade e responsividade:** nós e arestas com `aria-label` descritivo; navegação por teclado entre nós (tab); em telas < 768 px, zoom inicial ajustado e minimapa oculto por padrão.
 
@@ -194,7 +195,7 @@ Feature: Visualizar diagrama do workflow
 
 ## Logs
 - `info` `workflow.diagram_viewed` — `workflowVersionId`, quantidade de nós/arestas, `durationMs`.
-- `warn` `workflow.diagram_layout_failed` — quando o elkjs falha no cliente (log de front, enviado ao coletor de erros).
+- `warn` `workflow.diagram_layout_failed` — quando o layout falha no cliente (log de front no console — sem instrumentação de browser no MVP 1, observability.md §4; `apps/web/src/lib/client-log.ts` é o ponto único a trocar quando houver coletor).
 - **Nunca logar:** nenhum dado sensível (story somente leitura de estrutura de workflow).
 
 ## Auditoria
@@ -223,7 +224,7 @@ Feature: Visualizar diagrama do workflow
 - [ ] Documentação (este card e fontes canônicas) atualizada
 
 ## Estimativa
-**M** — sem mudanças de backend (reaproveita `WF-07`/`WF-09`), mas o layout automático (elkjs), a interação do React Flow e os estados de fallback exigem trabalho de frontend não trivial.
+**M** — sem mudanças de backend (reaproveita `WF-07`/`WF-09`), mas o layout automático, a interação do quadro (zoom, pan, minimapa) e os estados de fallback exigem trabalho de frontend não trivial.
 
 ## Prioridade
 **P2** — melhora o entendimento do fluxo, mas o editor em tabela (US-043) já é suficiente para configurar e operar o workflow sem o diagrama.

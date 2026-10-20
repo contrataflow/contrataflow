@@ -124,7 +124,7 @@ export interface StorageService {
 ```
 
 Regras obrigatórias da implementação:
-- **Guarda de tenant:** toda operação valida `ref.key.startsWith(\`tenants/${ctx.tenantId}/\`)` contra o tenant do contexto (AsyncLocalStorage). Violação = erro de programação (`TenantIsolationViolation`): log `error`, métrica `cf_storage_tenant_guard_violations_total` e alerta de segurança. Chaves são construídas **somente** pelo `StorageKeyBuilder` no servidor; nenhuma chave vem do cliente.
+- **Guarda de tenant:** toda operação valida `ref.key.startsWith(\`tenants/${ctx.tenantId}/\`)` contra o tenant do contexto (AsyncLocalStorage). Violação = erro de programação (`TenantIsolationViolationError`): log `error security.tenant_isolation_violation` com `barrier = storage`, métrica `cf_tenant_isolation_violations_total{barrier="storage"}` e alerta de segurança (A19). Implementada na US-100 em `apps/api/src/shared/storage` (`StorageKeyBuilder` + `StorageService`), antes de chegar ao adaptador — o adaptador S3/MinIO desta seção é da US-068 (DEC-076). Chaves são construídas **somente** pelo `StorageKeyBuilder` no servidor; nenhuma chave vem do cliente.
 - **Expiração máxima de 300 s** em URLs (DEC-136); valores maiores são recusados.
 - **URLs pré-assinadas são credenciais ao portador:** nunca são logadas, persistidas, enviadas por e-mail nem incluídas em notificações (e-mails apontam para a aplicação).
 - `purge` recusa `documents` e qualquer rendition que não seja `PREVIEW`; eliminação de evidência só por processo futuro de temporalidade (PEND-07).
@@ -139,6 +139,13 @@ Regras obrigatórias da implementação:
 | `InMemoryStorageService` | Testes unitários | Bootstrap falha se usada fora de `NODE_ENV=test` |
 
 Testes de integração usam MinIO via Testcontainers, com a mesma implementação de produção.
+
+**Implementação (US-068, 2026-10-17):**
+- O serviço de isolamento é o `StorageService` do shared kernel (guarda `tenants/{tenantId}/` em `presignPut`/`presignGet`/`head`/`openRead`/`copy`/`delete`); o adaptador `S3ObjectStorage` (`modules/platform`) usa dois clientes — o interno (`S3_ENDPOINT`) e o que só assina URLs para o navegador (`S3_PUBLIC_ENDPOINT`) — com o checksum automático do SDK desligado (`WHEN_REQUIRED`: o PUT é do navegador). Sem `S3_BUCKET_*` o adaptador recusa tudo (rotas → 503). O duplo de testes é o `InMemoryObjectStorage`.
+- Detecção de tipo: inspetor próprio por *magic bytes* + checagens estruturais incrementais (`ContentInspector`, `modules/files/domain`) no mesmo *tee* do SHA-256 e do INSTREAM — no lugar do pacote `file-type`, que precisaria ler o contêiner ZIP de novo para distinguir DOCX/XLSX/ODF e não cobre as checagens da §7 (macros, `/Encrypt`, dimensões, texto). Conteúdo divergente da extensão declarada → `TYPE_MISMATCH`; extensão que o tenant deixou de permitir entre a intenção e o scan → `TYPE_NOT_ALLOWED`.
+- `reasonCode` de malware é `INFECTED` (o da story; `MALWARE_DETECTED` da proposta abaixo não é usado). O conjunto efetivo está em `ATTACHMENT_REASON_CODES` (`packages/types`); `UPLOAD_EXPIRED`/`MALFORMED_FILE` não são emitidos — objeto expirado na quarentena vira `EMPTY_FILE`.
+- Trava da varredura: `scan_result.claim = { attempt, at }` + gravação condicional por `version` (duas entregas da mesma tentativa → só uma processa; tentativa seguinte ou trava com mais de 90 s assume). Antivírus fora do ar devolve a trava (o anexo fica `SCANNING`) e o job pausa sem consumir tentativa (`ScanDeferredError.consumesAttempt = false`).
+- Cliente ClamAV próprio sobre `node:net` (protocolo INSTREAM/VERSION, ~100 linhas); disjuntor em processo (5 falhas, 30 s, meia-abertura com uma varredura).
 
 ### 2.2 Configuração
 
@@ -227,7 +234,8 @@ Descartado: bucket único com prefixos — filtros de lifecycle por prefixo são
 | documents | `tenants/{tenantId}/processes/{processId}/attachments/{attachmentId}/{nome-sanitizado}` | Anexos com `processId` (todos os `AttachmentTargetType` de processo: `PROCESS`, `DOCUMENT`, `DOCUMENT_VERSION`, `PRICE_SOURCE`, `COMMENT`, `MOVEMENT`, `RISK`) — `Attachment.storageKey` |
 | documents | `tenants/{tenantId}/assets/{attachmentId}/{nome-sanitizado}` | Ativos sem processo: `TENANT_ASSET` (logo, timbre, brasão — `branding.logoAttachmentId`, `LayoutDefinition.logo`) e `TEMPLATE_VERSION` |
 | renditions | `tenants/{tenantId}/processes/{processId}/documents/{documentId}/versions/{versionNumber}/renditions/content.pdf` | `CONTENT` (uma por versão — *unique* em entities.md) |
-| renditions | `…/versions/{versionNumber}/renditions/approval-stamped-{approvalId}.pdf` | `APPROVAL_STAMPED` (uma por versão × aprovação; a mesma versão pode ser aprovada mais de uma vez — DEC-018) |
+| renditions | `…/versions/{versionNumber}/renditions/content-masked.pdf` | `CONTENT` com os valores sigilosos ocultos (POL-09 — quem pediu não pode ver o orçamento; US-067) |
+| renditions | `…/versions/{versionNumber}/renditions/approval-stamped-{approvalId}.pdf` | `APPROVAL_STAMPED` (uma por versão × aprovação; a mesma versão pode ser aprovada mais de uma vez — DEC-018); `-masked` no fim do nome para a forma com POL-09 |
 | renditions | `…/versions/{versionNumber}/renditions/signed-{signatureRequestId}.pdf` | `SIGNED` (MVP 3) |
 | renditions | `tenants/{tenantId}/previews/{documentId}/{renditionId}.pdf` | `PREVIEW` de rascunho (por `draftRevision`), tag `cf-retention=ephemeral` |
 | renditions | `tenants/{tenantId}/template-previews/{templateVersionId}/{renditionId}.pdf` | `PREVIEW` de template (US-109; estado efêmero em Redis, sem linha em `document_renditions`), tag `cf-retention=ephemeral` |

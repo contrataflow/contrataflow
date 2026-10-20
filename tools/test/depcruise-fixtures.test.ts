@@ -14,10 +14,13 @@ const EXPECTED: Record<string, string> = {
   'apps/api/src/modules/process/domain/uses-application.ts': 'domain-is-pure',
   'apps/api/src/modules/dfd/application/reads-process-internals.ts': 'cross-module-only-via-facade',
   'apps/api/src/modules/workflow/application/uses-process-facade.ts': 'module-levels',
+  'apps/api/src/modules/ai/application/runs-document-command.ts': 'ai-read-only',
   'apps/api/src/modules/catalog/application/cycle-a.ts': 'no-circular',
   'apps/api/src/shared/uses-module.ts': 'shared-kernel-is-independent',
   'apps/api/src/modules/process/application/uses-redis.ts': 'redis-only-in-cache-or-platform',
   'apps/api/src/modules/process/infrastructure/uses-system-prisma.ts': 'system-prisma-allowlist',
+  'apps/api/src/modules/process/infrastructure/uses-platform-transaction.ts':
+    'platform-transaction-allowlist',
   'apps/worker/src/processors/loads-controller.ts': 'worker-never-loads-presentation',
   'apps/worker/src/processors/loads-api-main.ts': 'worker-only-api-allowed-paths',
   'apps/web/src/app/imports-api.ts': 'web-never-imports-api',
@@ -27,16 +30,20 @@ const EXPECTED: Record<string, string> = {
   'packages/validation/src/imports-editor.ts': 'validation-only-types',
   'packages/editor/src/imports-ui.ts': 'editor-only-types-validation',
   'packages/ui/src/imports-validation.ts': 'ui-only-types',
+  'packages/observability/src/imports-validation.ts': 'observability-only-types',
   'apps/api/src/modules/process/application/imports-missing.ts': 'not-to-unresolvable',
 };
 
 /** Usos legítimos que não podem ser reprovados. */
 const ALLOWED = [
   'apps/api/src/modules/dfd/application/dfd.facade.ts',
+  'apps/api/src/modules/ai/application/reads-document-facade.ts',
+  'apps/api/src/modules/identity/infrastructure/prisma-identity.repository.ts',
   'apps/worker/src/outbox/relay.ts',
   'packages/validation/src/index.ts',
   'packages/editor/src/index.ts',
   'packages/ui/src/index.ts',
+  'packages/observability/src/index.ts',
 ];
 
 describe('fixtures do dependency-cruiser (RN-FND-05)', () => {
@@ -65,8 +72,10 @@ describe('fixtures do dependency-cruiser (RN-FND-05)', () => {
     expect([...configured].sort()).toEqual([...new Set(Object.values(EXPECTED))].sort());
   });
 
+  // O cruzeiro do repositório inteiro cresce a cada story (~130 s no Windows dentro da suíte de
+  // `tools`, em 2026-10-19): limite próprio, acima do `testTimeout` padrão de 120 s.
   it('o repositório real não tem violações', async () => {
     const real = await cruiseTree(REPO_ROOT, ['apps', 'packages']);
     expect(real.map((v) => `${v.rule.name}: ${v.from} → ${v.to}`)).toEqual([]);
-  });
+  }, 300_000);
 });

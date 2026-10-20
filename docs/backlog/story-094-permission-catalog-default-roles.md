@@ -23,7 +23,7 @@ Catálogo de permissões e perfis padrão
 ## Descrição
 **Como** administrador do órgão, **quero** que o tenant já nasça com o catálogo de permissões e os 15 perfis padrão corretamente configurados, **para** poder liberar o acesso da equipe desde o primeiro dia, sem precisar montar perfis do zero nem entender cada permissão individualmente.
 
-Esta story não tem tela própria de criação: o catálogo de 67 permissões é definido em código e sincronizado por migração, e os 15 perfis padrão (`Role.isSystem = true`) são semeados automaticamente durante o provisionamento do tenant (US-099), já com a matriz de concessões (`RolePermission`) de permissions.md §3.2. O catálogo também é exposto por `GET /permissions` (ROL-01), consumido pela tela de perfis (SCR-031) para exibir nome, descrição, módulo e `riskLevel` de cada permissão ao administrador que for montar ou ajustar um perfil (US-095).
+Esta story não tem tela própria de criação: o catálogo de 68 permissões é definido em código e sincronizado por migração, e os 15 perfis padrão (`Role.isSystem = true`) são semeados automaticamente durante o provisionamento do tenant (US-099), já com a matriz de concessões (`RolePermission`) de permissions.md §3.2. O catálogo também é exposto por `GET /permissions` (ROL-01), consumido pela tela de perfis (SCR-031) para exibir nome, descrição, módulo e `riskLevel` de cada permissão ao administrador que for montar ou ajustar um perfil (US-095).
 
 ## Contexto
 - A Lei 14.133/2021 distribui competências entre várias áreas (requisitante, planejamento, compras, licitações, contabilidade, jurídico, controle interno, autoridade competente...); sem perfis prontos, cada órgão recém-provisionado ficaria sem nenhum usuário capaz de operar o sistema além do administrador.
@@ -31,14 +31,14 @@ Esta story não tem tela própria de criação: o catálogo de 67 permissões é
 - Esta story estabelece a base (catálogo + seeds) sobre a qual US-095 (gestão de perfis), US-096 (atribuição) e US-097 (enforcement) são construídas; é por isso que US-095 depende desta.
 
 ## Objetivo
-Garantir que 100% dos tenants provisionados fiquem, ao final do provisionamento (US-099), com as 67 permissões sincronizadas e os 15 perfis padrão semeados com a matriz correta — incluindo `allowExternalAssignment = true` apenas em `AUDITOR` e `CONSULTOR_EXTERNO` — de forma idempotente e auditável, e com o catálogo consultável por `GET /permissions` em até 200 ms (p95).
+Garantir que 100% dos tenants provisionados fiquem, ao final do provisionamento (US-099), com as 68 permissões sincronizadas e os 15 perfis padrão semeados com a matriz correta — incluindo `allowExternalAssignment = true` apenas em `AUDITOR` e `CONSULTOR_EXTERNO` — de forma idempotente e auditável, e com o catálogo consultável por `GET /permissions` em até 200 ms (p95).
 
 ## Persona
 - **Principal:** Administrador do órgão (perfil `ADMIN_ORGAO`) — consulta o catálogo ao montar ou revisar perfis (US-095).
 - **Secundária:** Processo de provisionamento do tenant (ator `SYSTEM`, US-099) — executa o seeder `access.defaultRoles`.
 
 ## Pré-condições
-- Migração de `permissions` aplicada (catálogo de 67 permissões sincronizado a partir de `packages/types/src/permissions.ts`).
+- Migração de `permissions` aplicada (catálogo de 68 permissões sincronizado a partir de `packages/types/src/permissions.ts`).
 - Tenant em `PROVISIONING` (DEC-132) executando o checklist da US-099, que inclui a chamada ao seeder `access.defaultRoles`.
 - Para a consulta do catálogo (ROL-01): usuário autenticado, tenant `ACTIVE`, vínculo `ACTIVE`, permissão `ROLE_VIEW`.
 
@@ -48,7 +48,7 @@ Garantir que 100% dos tenants provisionados fiquem, ao final do provisionamento 
 3. Para cada perfil, o seeder insere as linhas de `RolePermission` correspondentes à coluna do perfil na matriz §3.2 (upsert por `(tenantId, roleId, permissionCode)`).
 4. O seeder registra auditoria `role.create` (categoria `SECURITY`, `actorType = SYSTEM`) para cada perfil criado, com `metadata.seeded = true`.
 5. O checklist da US-099 segue para o próximo item; falha neste passo propaga a falha ao provisionamento (RN-IAM-77).
-6. (Consulta, a qualquer momento) O administrador abre SCR-031; o front chama `GET /permissions` (ROL-01); a API autoriza `ROLE_VIEW` e retorna as 67 permissões com `code`, `module`, `name`, `description`, `riskLevel`, `scopable`; o front agrupa por `module` e exibe o selo de risco.
+6. (Consulta, a qualquer momento) O administrador abre SCR-031; o front chama `GET /permissions` (ROL-01); a API autoriza `ROLE_VIEW` e retorna as 68 permissões com `code`, `module`, `name`, `description`, `riskLevel`, `scopable`; o front agrupa por `module` e exibe o selo de risco.
 
 ## Fluxos alternativos
 - **FA-01 — Reexecução idempotente do provisionamento:** se o job de provisionamento for reprocessado (ex.: retry após falha em um item posterior do checklist), o seeder não duplica perfis nem concessões (upsert por chave); `Role.updatedAt` não muda quando o conteúdo já é idêntico.
@@ -56,9 +56,9 @@ Garantir que 100% dos tenants provisionados fiquem, ao final do provisionamento 
 - **FA-03 — Permissão descontinuada:** permissões com `isDeprecated = true` continuam retornadas (para perfis legados que ainda as referenciam), mas o front as exibe com o selo "Descontinuada" e não as oferece para novos perfis (US-095).
 
 ## Regras de negócio
-- **RN-IAM-73** — O catálogo de permissões é definido em código (`packages/types/src/permissions.ts`, constante `PERMISSIONS`) com exatamente 67 entradas no MVP 1; cada entrada tem `code` (`RESOURCE_ACTION`, estável), `module`, `name` (pt-BR), `description`, `riskLevel` (`LOW`|`MEDIUM`|`HIGH`), `scopable`, `isDeprecated` (padrão `false`) e `introducedIn` (ex.: `MVP1`); é sincronizado com a tabela `permissions` por migração (upsert por `code`; nunca `DELETE` de código em uso por algum `RolePermission`).
+- **RN-IAM-73** — O catálogo de permissões é definido em código (`packages/types/src/permissions.ts`, constante `PERMISSIONS`) com exatamente 68 entradas no MVP 1; cada entrada tem `code` (`RESOURCE_ACTION`, estável), `module`, `name` (pt-BR), `description`, `riskLevel` (`LOW`|`MEDIUM`|`HIGH`), `scopable`, `isDeprecated` (padrão `false`) e `introducedIn` (ex.: `MVP1`); é sincronizado com a tabela `permissions` por migração (upsert por `code`; nunca `DELETE` de código em uso por algum `RolePermission`).
 - **RN-IAM-74** — No provisionamento do tenant (US-099), o seeder `access.defaultRoles` cria, em uma única transação, os 15 perfis padrão (`Role.isSystem = true`) com `key`, `name` e escopo padrão de atribuição conforme permissions.md §3.1, e concede a cada perfil as permissões da sua coluna na matriz §3.2 (`RolePermission`).
-- **RN-IAM-75** — `ADMIN_ORGAO` é semeado com `isProtected = true`; `AUDITOR` e `CONSULTOR_EXTERNO` são semeados com `allowExternalAssignment = true` (POL-15); os demais 12 perfis são semeados com `allowExternalAssignment = false`; todos os 15 nascem `isActive = true`.
+- **RN-IAM-75** — `ADMIN_ORGAO` é semeado com `isProtected = true`; `AUDITOR` e `CONSULTOR_EXTERNO` são semeados com `allowExternalAssignment = true` (POL-15); os demais 13 perfis são semeados com `allowExternalAssignment = false`; todos os 15 nascem `isActive = true`.
 - **RN-IAM-76** — O seeder é idempotente: reexecução (reprocessamento do job de provisionamento) não cria perfis nem concessões duplicadas — upsert por `(tenantId, key)` em `Role` e por `(tenantId, roleId, permissionCode)` em `RolePermission`; nenhuma concessão da matriz é removida por reexecução.
 - **RN-IAM-77** — Falha em qualquer etapa da semeadura desfaz a criação dos 15 perfis e de todas as concessões já inseridas naquela execução (mesma transação do item do checklist da US-099); o checklist registra o item como pendente para nova tentativa.
 - **RN-IAM-78** — `GET /permissions` (ROL-01) lista o catálogo completo (global, não filtrado por tenant), somente leitura; aceita filtros opcionais `module` e `riskLevel`; parâmetro inválido é ignorado silenciosamente (não quebra a listagem).
@@ -107,19 +107,19 @@ Feature: Catálogo de permissões e perfis padrão
     Then devem existir 15 perfis com "isSystem" igual a verdadeiro
     And o perfil "ADMIN_ORGAO" deve ter "isProtected" igual a verdadeiro
     And os perfis "AUDITOR" e "CONSULTOR_EXTERNO" devem ter "allowExternalAssignment" igual a verdadeiro
-    And os demais 12 perfis devem ter "allowExternalAssignment" igual a falso
+    And os demais 13 perfis devem ter "allowExternalAssignment" igual a falso
     And cada perfil deve conceder exatamente as permissões da sua coluna em permissions.md §3.2
     And deve existir um registro de auditoria "role.create" com "actorType" "SYSTEM" para cada perfil
 
   Scenario: [Sucesso] Consultar o catálogo de permissões
     Given que "Ana" possui o perfil "ADMIN_ORGAO"
     When "Ana" chamar "GET /permissions"
-    Then a API deve responder 200 com 67 permissões
+    Then a API deve responder 200 com 68 permissões
     And cada permissão deve conter "code", "module", "name", "description", "riskLevel" e "scopable"
 
   Scenario: [Validação] Filtro com valor desconhecido é ignorado
     When "Ana" chamar "GET /permissions?riskLevel=EXTREME"
-    Then a API deve responder 200 com a lista completa de 67 permissões
+    Then a API deve responder 200 com a lista completa de 68 permissões
 
   Scenario: [Permissão] Usuário sem ROLE_VIEW
     Given que "Bruno" possui apenas o perfil "SOMENTE_LEITURA" sem "ROLE_VIEW"
@@ -172,7 +172,7 @@ Feature: Catálogo de permissões e perfis padrão
 ## Impacto técnico
 - Estabelece o **catálogo global de permissões** como dado versionado em código + migração — toda nova permissão do roadmap passa pela mesma esteira (constante `PERMISSIONS` → migração → seed/matriz).
 - Seeder deve ser **idempotente e transacional** (upsert), pois é reexecutável pelo checklist de provisionamento (US-099) em caso de retry de itens posteriores.
-- `GET /permissions` é um catálogo pequeno e estável (67 linhas): candidato a cache de aplicação de longa duração (ex.: `staleTime` alto no front), sem necessidade de cache Redis dedicado.
+- `GET /permissions` é um catálogo pequeno e estável (68 linhas): candidato a cache de aplicação de longa duração (ex.: `staleTime` alto no front), sem necessidade de cache Redis dedicado.
 
 ## Backend
 - **Módulo(s):** `access` (dono do catálogo e do seeder); consumido por `platform` (checklist de provisionamento, US-099).
@@ -211,7 +211,7 @@ Feature: Catálogo de permissões e perfis padrão
 ## Testes necessários
 - **Unitários:** fábrica `Role.seedDefaults()` cobrindo os 15 perfis e a matriz §3.2 linha a linha (snapshot); `ADMIN_ORGAO.isProtected`; `AUDITOR`/`CONSULTOR_EXTERNO.allowExternalAssignment`.
 - **Integração (Testcontainers PostgreSQL):** seed real contra o banco; reexecução idempotente (RN-IAM-76); rollback em falha simulada (RN-IAM-77); RLS por tenant.
-- **API/contrato:** `GET /permissions` retorna exatamente 67 itens e os campos do catálogo; filtros `module`/`riskLevel`.
+- **API/contrato:** `GET /permissions` retorna exatamente 68 itens e os campos do catálogo; filtros `module`/`riskLevel`.
 - **RBAC e multi-tenant:** `ROLE_VIEW` exigido; vínculo inativo → 403; catálogo idêntico entre tenants.
 - **Concorrência:** duas execuções simultâneas do seeder para o mesmo tenant não duplicam `roles`/`role_permissions`.
 - **E2E (Playwright):** provisionamento de um tenant de teste confirma, ponta a ponta, os 15 perfis na tela de perfis.
@@ -219,7 +219,7 @@ Feature: Catálogo de permissões e perfis padrão
 
 ## Definition of Done
 - [ ] Todos os cenários Gherkin automatizados (integração + API) e passando no CI
-- [ ] Catálogo de 67 permissões sincronizado por migração e validado contra `packages/types/src/permissions.ts`
+- [ ] Catálogo de 68 permissões sincronizado por migração e validado contra `packages/types/src/permissions.ts`
 - [ ] Seeder idempotente e transacional comprovado por teste de reexecução e de falha induzida
 - [ ] Auditoria `role.create` (ator SYSTEM) verificada em teste
 - [ ] Teste de isolamento incluído na suíte "tenant leak"

@@ -1,0 +1,362 @@
+{
+  "title": "Templates de documento",
+  "description": "Modelos por tipo de documento com as seções, as orientações ao redator e a base legal do órgão.",
+  "new": "Novo template",
+  "loading": "Carregando templates…",
+  "loadFailed": "Não foi possível carregar os templates.",
+  "retry": "Tentar novamente",
+  "empty": "Nenhum template cadastrado. Crie o primeiro.",
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para consultar templates."
+  },
+  "filters": {
+    "type": "Tipo de documento",
+    "allTypes": "Todos os tipos",
+    "search": "Buscar por nome",
+    "noResults": "Nenhum template encontrado com esses filtros."
+  },
+  "table": {
+    "caption": "Templates do órgão",
+    "name": "Nome",
+    "type": "Tipo de documento",
+    "status": "Situação",
+    "versions": "Versões",
+    "actions": "Ações"
+  },
+  "badges": {
+    "active": "Ativo",
+    "inactive": "Inativo",
+    "system": "Modelo padrão da plataforma",
+    "systemHint": "Semeado pela biblioteca padrão da plataforma; pode ser revisado e publicado em nova versão pelo órgão.",
+    "default": "Padrão do tipo"
+  },
+  "values": {
+    "draft": "Rascunho v{number} ({sections, plural, =0 {sem seções} one {# seção} other {# seções}})",
+    "published": "Publicada v{number}",
+    "noVersion": "—"
+  },
+  "actions": {
+    "editContent": "Editar conteúdo de {name}",
+    "editContentLabel": "Editar conteúdo",
+    "viewContent": "Ver conteúdo de {name}",
+    "viewContentLabel": "Ver",
+    "editData": "Editar dados de {name}",
+    "editDataLabel": "Editar dados",
+    "versions": "Versões de {name}",
+    "versionsLabel": "Versões"
+  },
+  "form": {
+    "createTitle": "Novo template",
+    "editTitle": "Editar dados do template",
+    "createDescription": "Informe o nome e o tipo de documento. A versão 1 nasce em rascunho, sem seções.",
+    "editDescription": "Nome, descrição e situação. O tipo de documento não muda depois da criação.",
+    "name": "Nome",
+    "type": "Tipo de documento",
+    "typePlaceholder": "Selecione…",
+    "typeLocked": "O tipo de documento não muda depois da criação.",
+    "description": "Descrição",
+    "isActive": "Ativo (disponível para novos documentos)",
+    "required": "Informe o {field}.",
+    "nameLength": "O nome deve ter entre 3 e 150 caracteres.",
+    "descriptionLength": "Informe no máximo 2.000 caracteres.",
+    "duplicate": "Já existe um template chamado \"{name}\" para este tipo de documento.",
+    "invalidType": "Selecione um tipo de documento válido.",
+    "cancel": "Cancelar",
+    "create": "Criar e editar seções",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "conflict": "Este template foi alterado por outra pessoa. Recarregue para continuar.",
+    "reload": "Recarregar",
+    "generic": "Não foi possível salvar agora. Tente novamente em instantes.",
+    "fieldName": "nome",
+    "fieldType": "tipo de documento"
+  },
+  "toast": {
+    "created": "Template \"{name}\" criado.",
+    "updated": "Dados do template atualizados.",
+    "saved": "Alterações salvas."
+  },
+  "editor": {
+    "back": "Voltar para templates",
+    "heading": "{name} — versão {number}",
+    "loading": "Carregando a versão do template…",
+    "loadFailed": "Não foi possível carregar a versão do template.",
+    "notFound": "Versão do template não encontrada.",
+    "tabs": {
+      "label": "Abas do editor",
+      "content": "Conteúdo",
+      "layout": "Layout"
+    },
+    "readOnly": {
+      "published": "Esta versão está publicada. Para alterar, inicie uma nova versão.",
+      "retired": "Esta versão foi aposentada e não pode ser alterada.",
+      "noPermission": "Você pode consultar este template, mas não tem permissão para editá-lo."
+    },
+    "status": {
+      "DRAFT": "Rascunho",
+      "PUBLISHED": "Publicada",
+      "RETIRED": "Aposentada"
+    },
+    "saveState": {
+      "saved": "Todas as alterações salvas.",
+      "dirty": "Alterações não salvas.",
+      "saving": "Salvando…",
+      "blocked": "Corrija os campos destacados para salvar."
+    },
+    "save": "Salvar alterações",
+    "conflict": "Este template foi alterado por outra pessoa. Recarregue para continuar.",
+    "reload": "Recarregar",
+    "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+    "tryAgain": "Tentar novamente",
+    "invalid": "O template tem problemas de conteúdo. Revise as seções destacadas.",
+    "notDraft": "Esta versão está publicada e não pode ser alterada.",
+    "forbidden": "Você não tem permissão para editar templates.",
+    "changeNotes": "Notas da alteração",
+    "changeNotesHint": "Opcional. Registradas na publicação como o que mudou (até 1.000 caracteres)."
+  },
+  "sections": {
+    "title": "Seções",
+    "listLabel": "Seções do template, em ordem",
+    "empty": "Nenhuma seção. Adicione a primeira.",
+    "add": "Adicionar seção",
+    "untitled": "Seção sem título",
+    "noKey": "sem chave",
+    "select": "Editar a seção {title}",
+    "moveUp": "Mover {title} para cima",
+    "moveDown": "Mover {title} para baixo",
+    "duplicate": "Duplicar {title}",
+    "duplicateLabel": "Duplicar",
+    "remove": "Remover {title}",
+    "removeLabel": "Remover",
+    "dragHint": "Arraste para reordenar ou use os botões de mover.",
+    "moved": "Seção {title} movida para a posição {position}.",
+    "hasErrors": "com problemas"
+  },
+  "section": {
+    "panelTitle": "Seção {position}",
+    "nonePanel": "Selecione uma seção na lista para editar.",
+    "key": "Chave",
+    "keyHint": "Letras maiúsculas, números e _ (ex.: OBJETO). Única nesta versão.",
+    "title": "Título",
+    "requirement": "Obrigatoriedade",
+    "requirements": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou com justificativa",
+      "OPTIONAL": "Opcional"
+    },
+    "helpText": "Texto de ajuda ao redator",
+    "legalBasis": "Base legal",
+    "legalBasisPlaceholder": "Ex.: Lei 14.133/2021, art. 18, §1º, I",
+    "defaultContent": "Conteúdo padrão",
+    "defaultContentHint": "Um parágrafo por linha. As variáveis são preenchidas ao criar o documento.",
+    "minChars": "Mínimo de caracteres",
+    "maxChars": "Máximo de caracteres",
+    "render": "Tipo de bloco",
+    "renders": {
+      "TEXT": "Texto",
+      "ITEMS_TABLE": "Tabela de itens",
+      "ALTERNATIVES_TABLE": "Tabela de alternativas",
+      "RISK_MATRIX": "Matriz de riscos",
+      "RISK_LIST": "Lista de riscos",
+      "PRICE_SUMMARY": "Resumo de preços",
+      "ESTIMATED_VALUE": "Valor estimado"
+    },
+    "allowNarrative": "Permite texto complementar",
+    "variables": "Variáveis",
+    "insertVariable": "Inserir a variável {variable} no conteúdo padrão"
+  },
+  "fieldConfig": {
+    "title": "Campos do cabeçalho",
+    "description": "Rótulo, obrigatoriedade e valor padrão dos campos tipados deste tipo de documento.",
+    "empty": "Este tipo de documento não tem campos tipados.",
+    "field": "Campo",
+    "label": "Rótulo de {field}",
+    "required": "{field} obrigatório",
+    "defaultValue": "Valor padrão de {field}",
+    "columns": {
+      "field": "Campo",
+      "label": "Rótulo",
+      "required": "Obrigatório",
+      "defaultValue": "Valor padrão"
+    }
+  },
+  "importMappings": {
+    "title": "Importação do ETP",
+    "description": "Seções e campos do ETP copiados para o TR ao importar.",
+    "none": "Sem mapeamento de importação.",
+    "enable": "Usar mapeamento de importação",
+    "target": "Seção do TR",
+    "sources": "Seções do ETP para {target}",
+    "mode": "Modo de {target}",
+    "modes": {
+      "REPLACE": "Substituir",
+      "APPEND": "Acrescentar"
+    },
+    "add": "Adicionar mapeamento",
+    "remove": "Remover o mapeamento de {target}",
+    "removeLabel": "Remover",
+    "copyQuantities": "Copiar as quantidades dos itens",
+    "copyCalculationMemoToNotes": "Copiar a memória de cálculo para as observações dos itens",
+    "fields": "Campos importados: {fields}",
+    "targetPlaceholder": "Selecione a seção…"
+  },
+  "violations": {
+    "general": "Problemas no template"
+  },
+  "versions": {
+    "back": "Voltar para templates",
+    "loading": "Carregando o histórico de versões…",
+    "loadFailed": "Não foi possível carregar o histórico de versões.",
+    "heading": "Versões",
+    "subtitle": "Tipo: {type}",
+    "newVersion": "Iniciar nova versão",
+    "creating": "Criando…",
+    "draftExists": "Já existe um rascunho em edição para este template.",
+    "openDraft": "Abrir rascunho",
+    "caption": "Histórico de versões do template",
+    "empty": "Nenhuma versão.",
+    "table": {
+      "number": "Versão",
+      "status": "Situação",
+      "publishedAt": "Publicada em",
+      "retiredAt": "Aposentada em",
+      "hash": "Hash do conteúdo",
+      "notes": "Notas da versão",
+      "actions": "Ações"
+    },
+    "status": {
+      "DRAFT": "Rascunho",
+      "PUBLISHED": "Publicada",
+      "RETIRED": "Aposentada"
+    },
+    "current": "Corrente",
+    "number": "v{number}",
+    "noValue": "—",
+    "actions": {
+      "edit": "Editar rascunho v{number}",
+      "editLabel": "Editar",
+      "view": "Ver versão {number}",
+      "viewLabel": "Ver",
+      "publish": "Publicar versão {number}",
+      "publishLabel": "Publicar versão",
+      "retire": "Aposentar versão {number}",
+      "retireLabel": "Aposentar"
+    },
+    "publishBlocked": "Resolva as pendências do rascunho no editor antes de publicar.",
+    "retireBlocked": "Única versão publicada de um template padrão: publique outra versão antes de aposentar esta.",
+    "publish": {
+      "title": "Publicar a versão {number}?",
+      "description": "A versão publicada fica imutável e passa a ser usada nos documentos novos. Documentos já criados continuam com a versão da sua criação.",
+      "checking": "Conferindo o conteúdo do rascunho…",
+      "violationsTitle": "O template tem pendências que impedem a publicação.",
+      "confirm": "Publicar",
+      "publishing": "Publicando…",
+      "cancel": "Cancelar",
+      "openEditor": "Abrir no editor"
+    },
+    "retire": {
+      "title": "Aposentar a versão {number}?",
+      "description": "A versão aposentada não poderá ser usada em novos documentos. Os documentos existentes continuam a referenciá-la.",
+      "inUse": "Publique outra versão antes de aposentar esta, pois ela é a versão padrão do tipo \"{type}\".",
+      "confirm": "Aposentar",
+      "retiring": "Aposentando…",
+      "cancel": "Cancelar"
+    },
+    "errors": {
+      "conflict": "O recurso foi alterado por outra pessoa. Recarregue e tente novamente.",
+      "state": "Esta ação não é permitida no estado atual da versão.",
+      "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente",
+      "generic": "Não foi possível concluir a ação."
+    },
+    "toast": {
+      "published": "Versão {number} publicada (hash {hash}).",
+      "retired": "Versão {number} aposentada.",
+      "created": "Versão {number} criada em rascunho."
+    }
+  },
+  "layout": {
+    "saved": "Layout salvo.",
+    "reload": "Recarregar",
+    "tryAgain": "Tentar novamente",
+    "problems": {
+      "conflict": "O layout foi alterado por outra pessoa. Recarregue.",
+      "invalid": "Revise os valores destacados.",
+      "notDraft": "Esta versão está publicada e não pode ser alterada.",
+      "forbidden": "Você não tem permissão para editar o layout.",
+      "logoInvalid": "Selecione um logo válido.",
+      "unavailable": "Não foi possível salvar o layout agora.",
+      "generic": "Não foi possível salvar o layout."
+    },
+    "page": {
+      "title": "Página",
+      "orientation": "Orientação",
+      "orientations": {
+        "portrait": "Retrato",
+        "landscape": "Paisagem"
+      },
+      "size": "Tamanho da página: A4",
+      "margins": {
+        "top": "Margem superior (mm)",
+        "right": "Margem direita (mm)",
+        "bottom": "Margem inferior (mm)",
+        "left": "Margem esquerda (mm)"
+      }
+    },
+    "typography": {
+      "title": "Tipografia",
+      "fontFamily": "Fonte",
+      "fontSize": "Tamanho da fonte (pt)",
+      "lineHeight": "Entrelinha"
+    },
+    "headerFooter": {
+      "title": "Cabeçalho e rodapé",
+      "header": "Cabeçalho",
+      "footer": "Rodapé",
+      "hint": "Cada linha vira um parágrafo. Use as variáveis abaixo; page e pages numeram as páginas.",
+      "variables": "Variáveis do campo {field}",
+      "insertVariable": "Inserir a variável {variable} no campo {field}",
+      "showPageNumbers": "Numeração de página",
+      "showDocumentHashInFooter": "Hash da versão no rodapé",
+      "draftWatermark": "Marca d'água de rascunho nos documentos",
+      "hashHint": "O hash só aparece nos PDFs de versões de documento; a prévia do template sempre sai com a marca d'água \"RASCUNHO\"."
+    },
+    "logo": {
+      "title": "Timbre (logo)",
+      "none": "Sem logo: os documentos saem sem timbre.",
+      "current": "Logo definido para este template.",
+      "upload": "Enviar logo",
+      "replace": "Trocar logo",
+      "remove": "Remover logo",
+      "uploading": "Enviando e verificando o logo…",
+      "uploadFailed": "Não foi possível usar este arquivo como logo. Envie uma imagem PNG, JPEG ou SVG.",
+      "position": "Posição do logo",
+      "positions": {
+        "left": "Esquerda",
+        "center": "Centro",
+        "right": "Direita"
+      },
+      "maxHeight": "Altura máxima do logo (mm)"
+    },
+    "preview": {
+      "title": "Prévia em PDF",
+      "description": "Gera um PDF de exemplo com o layout e as seções deste rascunho. A prévia vale por {hours} h.",
+      "generate": "Gerar prévia",
+      "generating": "Gerando prévia…",
+      "retry": "Tentar novamente",
+      "ready": "Prévia pronta.",
+      "failed": "Não foi possível gerar a prévia agora. Tente novamente.",
+      "invalid": "Corrija as pendências do template antes de gerar a prévia.",
+      "rateLimited": "Muitas prévias solicitadas. Aguarde um pouco.",
+      "requestFailed": "Não foi possível solicitar a prévia agora. Tente novamente.",
+      "expired": "Esta prévia não está mais disponível. Gere novamente.",
+      "outdated": "O layout mudou depois desta prévia. Gere uma nova prévia para ver as alterações.",
+      "pages": "Páginas",
+      "validUntil": "Válida até",
+      "watermark": "A prévia sai com a marca d'água \"RASCUNHO\" e dados de exemplo do processo e do documento.",
+      "download": "Baixar prévia",
+      "downloadFailed": "Não foi possível baixar a prévia agora."
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "loading": "Carregando itens…",
+  "empty": "Nenhum item ainda. Adicione os itens que serão contratados.",
+  "add": "Adicionar item",
+  "count": "{count, plural, one {# item} other {# itens}}",
+  "noLot": "Sem lote",
+  "lot": "Lote {number}",
+  "lotNamed": "Lote {number} — {name}",
+  "itemsWithoutLot": "Há itens sem lote.",
+  "readOnly": "Somente leitura",
+  "columns": {
+    "sequence": "Nº",
+    "description": "Descrição",
+    "kind": "Natureza",
+    "unit": "Unidade",
+    "catalog": "CATMAT/CATSER",
+    "quantity": "Quantidade de referência",
+    "price": "Preço unitário de referência",
+    "actions": "Ações"
+  },
+  "reference": {
+    "none": "—",
+    "confidential": "Sigiloso",
+    "confidentialHint": "Preço de referência sigiloso: visível a quem tem acesso ao orçamento sigiloso ou está com o processo.",
+    "fromDocument": "Valor do documento de origem do processo."
+  },
+  "actions": {
+    "edit": "Editar",
+    "remove": "Excluir",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "itemActions": "Ações do item {sequence}",
+    "drag": "Arrastar item {sequence}",
+    "saveOrder": "Salvar ordem",
+    "cancelOrder": "Desfazer ordem",
+    "reorder": "Reordenar"
+  },
+  "announce": {
+    "moved": "Item {sequence} movido para a posição {position}"
+  },
+  "gaps": {
+    "message": "Os itens têm numeração com lacunas ({sequences}).",
+    "renumber": "Renumerar"
+  },
+  "form": {
+    "addTitle": "Adicionar item",
+    "editTitle": "Editar item {sequence}",
+    "close": "Fechar",
+    "save": "Salvar item",
+    "cancel": "Cancelar",
+    "saving": "Salvando…",
+    "loadingOptions": "Carregando opções…",
+    "loadError": "Não foi possível carregar as opções.",
+    "retry": "Tentar novamente",
+    "select": "Selecione",
+    "noUnits": "Nenhuma unidade de medida ativa. Peça ao administrador para cadastrar.",
+    "fields": {
+      "description": "Descrição *",
+      "kind": "Natureza *",
+      "unitOfMeasureId": "Unidade de medida *",
+      "lotNumber": "Lote (número)",
+      "lotName": "Nome do lote",
+      "catalogSystem": "Sistema de catálogo",
+      "catalogCode": "Código CATMAT/CATSER",
+      "notes": "Observações"
+    },
+    "lotNameHint": "O nome vale para todos os itens do lote.",
+    "unusualKind": "Natureza incomum para o tipo de contratação {type}.",
+    "noSystem": "Nenhum",
+    "systems": {
+      "CATMAT": "CATMAT",
+      "CATSER": "CATSER",
+      "OTHER": "Outro"
+    }
+  },
+  "snapshot": {
+    "title": "Alterar item usado em documentos concluídos?",
+    "description": "Os documentos {documents} manterão a descrição anterior nas versões já geradas.",
+    "confirm": "Salvar mesmo assim",
+    "cancel": "Voltar"
+  },
+  "remove": {
+    "title": "Excluir o item {sequence}?",
+    "description": "O item sai da lista do processo. A numeração dos demais não muda.",
+    "confirm": "Excluir",
+    "cancel": "Cancelar"
+  },
+  "inUse": {
+    "title": "Item em uso",
+    "intro": "Este item está {documents}. Remova-o desses documentos antes de excluir.",
+    "reopen": "O {document} está {status}; é preciso reabri-lo antes.",
+    "close": "Entendi"
+  },
+  "documentStatuses": {
+    "DRAFT": "Rascunho",
+    "IN_REVIEW": "Em revisão",
+    "RETURNED": "Devolvido",
+    "FINALIZED": "Finalizado",
+    "APPROVED": "Aprovado",
+    "REJECTED": "Rejeitado",
+    "CANCELED": "Cancelado"
+  },
+  "documentStatusesInline": {
+    "IN_REVIEW": "em revisão",
+    "FINALIZED": "finalizado",
+    "APPROVED": "aprovado",
+    "REJECTED": "rejeitado",
+    "CANCELED": "cancelado"
+  },
+  "toast": {
+    "added": "Item adicionado",
+    "updated": "Item atualizado",
+    "removed": "Item excluído",
+    "reordered": "Ordem dos itens salva"
+  },
+  "errors": {
+    "load": "Não foi possível carregar os itens.",
+    "retry": "Tentar novamente",
+    "unavailable": "Não foi possível salvar o item agora. Tente novamente em instantes.",
+    "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "permission": "Você não tem permissão para alterar os itens deste processo.",
+    "notFound": "Item não encontrado.",
+    "formErrors": "Revise os campos destacados."
+  }
+}

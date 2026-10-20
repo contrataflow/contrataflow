@@ -1,0 +1,137 @@
+import type {
+  AiAvailabilityDto,
+  DocumentAiApply,
+  DocumentAiApplyResultDto,
+  AiGenerationDto,
+  AiGenerationListItemDto,
+  AiUsageDto,
+  RequestAiGeneration,
+} from '@contrataflow/validation';
+
+import { apiRequest } from '@/lib/api/client';
+import type { IdempotentContext } from '@/lib/api/use-idempotent-mutation';
+import { tenantKey } from '@/lib/query/keys';
+
+/*
+ * Geração com IA (US-115 · SCR-117 · api/16-ai.md AI-01..04). Chaves de screens.md SCR-117:
+ * `['t', tenantId, 'ai', 'generations', generationId]` e
+ * `['t', tenantId, 'processes', processId, 'ai-generations']`.
+ */
+
+export const aiKeys = {
+  generation: (tenantId: string, generationId: string) =>
+    tenantKey(tenantId, 'ai', 'generations', generationId),
+  history: (tenantId: string, processId: string) =>
+    tenantKey(tenantId, 'processes', processId, 'ai-generations'),
+  /** AI-05 (US-116): todas as disponibilidades do tenant (invalidadas após AI-01 e SET-02). */
+  availabilityAll: (tenantId: string) => tenantKey(tenantId, 'ai', 'availability'),
+  availability: (tenantId: string, processId: string | null, documentId: string | null) =>
+    tenantKey(tenantId, 'ai', 'availability', processId ?? '-', documentId ?? '-'),
+  /** AI-06 (US-116): consumo do mês. */
+  usage: (tenantId: string, month: string | null) =>
+    tenantKey(tenantId, 'ai', 'usage', month ?? 'current'),
+};
+
+/** Cache curto de AI-05 no cliente (api/16-ai.md). */
+export const AI_AVAILABILITY_STALE_MS = 30_000;
+
+/** AI-05: o usuário pode gerar agora? (indicativo — AI-01 decide). */
+export async function fetchAiAvailability(
+  target: { readonly processId: string | null; readonly documentId: string | null },
+  signal?: AbortSignal,
+): Promise<AiAvailabilityDto> {
+  return (
+    await apiRequest<AiAvailabilityDto>('/ai/availability', {
+      query: {
+        processId: target.processId ?? undefined,
+        documentId: target.documentId ?? undefined,
+      },
+      signal,
+    })
+  ).data;
+}
+
+/** AI-06 (`SETTINGS_MANAGE`): consumo do mês (`YYYY-MM`; padrão: mês corrente do órgão). */
+export async function fetchAiUsage(
+  month: string | null,
+  signal?: AbortSignal,
+): Promise<AiUsageDto> {
+  return (
+    await apiRequest<AiUsageDto>('/ai/usage', {
+      query: { month: month ?? undefined },
+      signal,
+    })
+  ).data;
+}
+
+/** `QUEUED`/`RUNNING`: ainda gerando (o painel acompanha por AI-02). */
+export function isGenerating(status: AiGenerationDto['status']): boolean {
+  return status === 'QUEUED' || status === 'RUNNING';
+}
+
+/** AI-01: `202` com a geração `QUEUED` (`Idempotency-Key` por intenção). */
+export async function requestAiGeneration(
+  processId: string,
+  body: RequestAiGeneration,
+  context: IdempotentContext,
+): Promise<AiGenerationDto> {
+  return (
+    await apiRequest<AiGenerationDto>(`/processes/${processId}/ai-generations`, {
+      method: 'POST',
+      body,
+      idempotencyKey: context.idempotencyKey,
+      correlationId: context.correlationId,
+    })
+  ).data;
+}
+
+/** AI-02 (polling). */
+export async function fetchAiGeneration(
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<AiGenerationDto> {
+  return (await apiRequest<AiGenerationDto>(`/ai-generations/${generationId}`, { signal })).data;
+}
+
+/** AI-03 (histórico do processo, primeira página — sem `output`). */
+export async function fetchAiHistory(
+  processId: string,
+  signal?: AbortSignal,
+): Promise<readonly AiGenerationListItemDto[]> {
+  return (
+    await apiRequest<AiGenerationListItemDto[]>(`/processes/${processId}/ai-generations?limit=50`, {
+      signal,
+    })
+  ).data;
+}
+
+/** AI-04: descarta a proposta (`SUCCEEDED`) ou cancela a geração (`QUEUED`/`RUNNING`). */
+export async function discardAiGeneration(generationId: string): Promise<AiGenerationDto> {
+  return (
+    await apiRequest<AiGenerationDto>(`/ai-generations/${generationId}/discard`, {
+      method: 'POST',
+      body: {},
+    })
+  ).data;
+}
+
+/**
+ * DOC-26 (US-117): aplica as seções escolhidas da proposta (`If-Match` = versão do documento lida
+ * no DOC-03; `Idempotency-Key` por intenção). 412 = o documento mudou: recarregar e repetir.
+ */
+export async function applyAiContent(
+  documentId: string,
+  body: DocumentAiApply,
+  version: number,
+  context: IdempotentContext,
+): Promise<DocumentAiApplyResultDto> {
+  return (
+    await apiRequest<DocumentAiApplyResultDto>(`/documents/${documentId}/ai-apply`, {
+      method: 'POST',
+      body,
+      ifMatch: `"${String(version)}"`,
+      idempotencyKey: context.idempotencyKey,
+      correlationId: context.correlationId,
+    })
+  ).data;
+}

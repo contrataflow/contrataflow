@@ -1,0 +1,42 @@
+{
+  "title": "Timeline",
+  "loading": "Carregando a timeline…",
+  "loadingMore": "Carregando mais eventos…",
+  "loadMore": "Carregar mais",
+  "end": "Início da timeline.",
+  "listLabel": "Eventos do processo",
+  "today": "Hoje",
+  "yesterday": "Ontem",
+  "entryLabel": "{message}, às {time}",
+  "department": "{name}",
+  "groups": {
+    "PROCESSO": "Processo",
+    "TRAMITACAO": "Tramitação",
+    "DOCUMENTOS": "Documentos",
+    "APROVACOES": "Aprovações",
+    "COMENTARIOS": "Comentários e anexos"
+  },
+  "filters": {
+    "label": "Filtros da timeline",
+    "toggle": "Filtros",
+    "toggleActive": "Filtros ({count})",
+    "group": "Grupo",
+    "actor": "Autor",
+    "noActors": "Os autores aparecem conforme os eventos são carregados.",
+    "period": "Período",
+    "from": "De",
+    "to": "Até",
+    "periodInverted": "O período final deve ser igual ou posterior ao inicial.",
+    "clear": "Limpar filtros"
+  },
+  "empty": "Nenhum evento registrado ainda.",
+  "emptyFiltered": "Nenhum evento encontrado para os filtros selecionados.",
+  "errors": {
+    "unavailable": "Não foi possível carregar a timeline agora. Tente novamente em instantes.",
+    "cursor": "Não foi possível continuar a listagem. Role novamente desde o início.",
+    "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+    "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "retry": "Tentar novamente",
+    "copy": "Copiar código"
+  }
+}

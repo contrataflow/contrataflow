@@ -1,0 +1,103 @@
+{
+  "title": "Perfis e permissões",
+  "description": "Crie, ajuste, duplique e desative os perfis do seu órgão. Os 15 perfis padrão sempre existem; o Administrador do órgão mantém as permissões com que foi criado.",
+  "list": {
+    "title": "Perfis",
+    "new": "Novo perfil",
+    "loading": "Carregando os perfis…",
+    "loadFailed": "Não foi possível carregar os perfis.",
+    "retry": "Tentar novamente",
+    "emptyCustom": "Nenhum perfil personalizado ainda",
+    "emptyCustomHint": "Use \"Novo perfil\" ou duplique um perfil padrão para começar.",
+    "caption": "Perfis da instituição",
+    "name": "Perfil",
+    "key": "Chave",
+    "status": "Situação",
+    "assignments": "Vínculos ativos",
+    "actions": "Ações",
+    "assignmentsCount": "{count, plural, =0 {Nenhum vínculo} one {# vínculo} other {# vínculos}}"
+  },
+  "badges": {
+    "system": "Padrão",
+    "custom": "Personalizado",
+    "protected": "Protegido",
+    "inactive": "Inativo",
+    "active": "Ativo",
+    "external": "Aceita vínculo externo"
+  },
+  "actions": {
+    "open": "Abrir {name}",
+    "duplicate": "Duplicar {name}",
+    "duplicateLabel": "Duplicar",
+    "deactivate": "Desativar {name}",
+    "deactivateLabel": "Desativar",
+    "edit": "Editar perfil",
+    "back": "Voltar para os perfis"
+  },
+  "form": {
+    "createTitle": "Novo perfil",
+    "editTitle": "Editar perfil",
+    "description": "O nome deve ser único na instituição. A chave técnica é gerada a partir do nome e não muda depois.",
+    "name": "Nome *",
+    "descriptionField": "Descrição",
+    "allowExternalAssignment": "Permite atribuição a vínculos externos",
+    "allowExternalAssignmentHint": "Ao ligar em um perfil com permissão de risco alto, será pedida a confirmação da sua identidade.",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "create": "Criar perfil"
+  },
+  "matrix": {
+    "title": "Matriz de permissões",
+    "description": "Ative as permissões deste perfil. Permissões protegidas e as que você não possui ficam travadas.",
+    "loading": "Carregando a matriz de permissões…",
+    "save": "Salvar matriz",
+    "saving": "Salvando…",
+    "discard": "Descartar alterações",
+    "pending": "{added, plural, =0 {} one {# a conceder} other {# a conceder}}{separator}{removed, plural, =0 {} one {# a remover} other {# a remover}}",
+    "noChanges": "Nenhuma alteração pendente.",
+    "groupLabel": "Permissões do módulo {module}",
+    "protectedHint": "Permissão protegida — não pode ser removida do Administrador do órgão.",
+    "outOfReachHint": "Você não possui esta permissão e por isso não pode concedê-la.",
+    "readonlyHint": "Somente leitura: você não tem permissão para gerenciar perfis.",
+    "readonlyNotice": "Você pode consultar a matriz, mas não alterá-la."
+  },
+  "detail": {
+    "loadFailed": "Não foi possível carregar o perfil.",
+    "notFound": "Perfil não encontrado.",
+    "key": "Chave: {key}",
+    "inactiveNotice": "Este perfil está desativado: as atribuições existentes não concedem nenhuma permissão enquanto ele estiver inativo."
+  },
+  "deactivate": {
+    "title": "Desativar o perfil {name}?",
+    "description": "O perfil deixa de ser usado, mas não é excluído: o histórico e as atribuições são preservados. Perfis desativados não podem ser reativados nesta versão — duplique-o se precisar dele de novo.",
+    "affected": "{count, plural, one {# vínculo ativo usa este perfil e ficará sem as permissões dele.} other {# vínculos ativos usam este perfil e ficarão sem as permissões dele.}}",
+    "noneAffected": "Nenhum vínculo ativo usa este perfil.",
+    "confirmAffected": "Entendo que {count, plural, one {# vínculo ficará} other {# vínculos ficarão}} sem as permissões deste perfil.",
+    "cancel": "Cancelar",
+    "confirm": "Desativar perfil",
+    "adminBlocked": "Não é possível desativar o perfil Administrador do órgão: o tenant precisa manter ao menos um administrador ativo."
+  },
+  "toast": {
+    "created": "Perfil \"{name}\" criado.",
+    "updated": "Perfil \"{name}\" atualizado.",
+    "matrixUpdated": "Matriz atualizada.",
+    "duplicated": "Cópia \"{name}\" criada.",
+    "deactivated": "Perfil \"{name}\" desativado."
+  },
+  "errors": {
+    "generic": "Não foi possível concluir. Tente novamente.",
+    "permission": "Você não tem permissão para gerenciar perfis.",
+    "escalation": "Você não pode conceder uma permissão que você mesmo não possui.",
+    "protected": "Esta permissão é protegida e não pode ser removida do Administrador do órgão.",
+    "conflict": "Este perfil foi alterado por outra pessoa. Recarregue para ver a versão atual.",
+    "reload": "Recarregar",
+    "mfa": "Confirme sua identidade para continuar.",
+    "stepUp": "Confirmar identidade",
+    "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+    "invalidPermissions": "Selecione permissões válidas."
+  },
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para ver perfis e permissões."
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "title": "Participantes",
+  "loading": "Carregando participantes…",
+  "empty": "Nenhum participante além da tramitação. Adicione alguém para dar visibilidade.",
+  "emptyReadOnly": "Nenhum participante além da tramitação.",
+  "count": "{count, plural, one {# participante} other {# participantes}}",
+  "add": "Adicionar participante",
+  "roles": {
+    "OBSERVER": "Observador",
+    "COLLABORATOR": "Colaborador",
+    "CONSULTANT": "Consultor"
+  },
+  "columns": {
+    "principal": "Participante",
+    "role": "Papel",
+    "expiresAt": "Validade",
+    "grantedBy": "Concedido por",
+    "actions": "Ações"
+  },
+  "unit": "Unidade",
+  "external": "Externo",
+  "notifyOff": "Sem notificações",
+  "noExpiry": "Sem validade",
+  "grantedBy": "{name} em {date}",
+  "actions": {
+    "remove": "Remover",
+    "removeLabel": "Remover {name}"
+  },
+  "dialog": {
+    "title": "Adicionar participante",
+    "description": "O participante acompanha o processo sem assumir a custódia: não tramita nem aprova.",
+    "targetType": "Tipo de participante",
+    "targetUser": "Usuário",
+    "targetDepartment": "Unidade",
+    "searchUser": "Buscar usuário",
+    "searchDepartment": "Buscar unidade",
+    "searchHint": "Digite ao menos 2 caracteres.",
+    "searching": "Buscando…",
+    "noResults": "Nenhum resultado.",
+    "searchFailed": "Não foi possível buscar agora.",
+    "selected": "Selecionado: {name}",
+    "change": "Trocar",
+    "external": "externo",
+    "role": "Papel",
+    "roleHints": {
+      "OBSERVER": "Vê o processo, comenta e acompanha as aprovações.",
+      "COLLABORATOR": "Também edita documentos em rascunho ou devolvidos e envia anexos.",
+      "CONSULTANT": "Como Colaborador, para vínculo externo e com validade obrigatória."
+    },
+    "consultantSuggested": "Usuário com vínculo externo: sugerimos o papel Consultor.",
+    "expiresAt": "Validade",
+    "expiresAtHint": "Até a validade do vínculo externo ({date}).",
+    "notify": "Notificar o participante",
+    "reason": "Motivo (opcional)",
+    "cancel": "Cancelar",
+    "submit": "Adicionar",
+    "exists": "Esta pessoa (ou unidade) já participa do processo como {role}. Para mudar o papel, remova a participação atual e adicione de novo.",
+    "existsUnknown": "Esta pessoa (ou unidade) já participa do processo. Para mudar o papel, remova a participação atual e adicione de novo.",
+    "unavailable": "Não foi possível concluir agora. Tente novamente em instantes."
+  },
+  "remove": {
+    "title": "Remover {name}?",
+    "description": "O acesso ao processo pela participação é revogado agora.",
+    "reason": "Motivo da remoção (opcional)",
+    "cancel": "Cancelar",
+    "confirm": "Remover"
+  },
+  "follow": {
+    "follow": "Seguir",
+    "following": "Seguindo",
+    "unfollowLabel": "Seguindo — deixar de seguir",
+    "participating": "Participando como {role}",
+    "followed": "Você está seguindo este processo.",
+    "unfollowed": "Você deixou de seguir este processo."
+  },
+  "toast": {
+    "added": "Participante adicionado.",
+    "removed": "Participante removido."
+  },
+  "errors": {
+    "load": "Não foi possível carregar os participantes.",
+    "retry": "Tentar novamente",
+    "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+    "notFound": "Este participante não existe mais."
+  }
+}

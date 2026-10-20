@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Toaster } from '@contrataflow/ui';
 import { QueryClient } from '@tanstack/react-query';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -6,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Can, resolveCanState } from '@/lib/permissions/can';
 import { tenantKey } from '@/lib/query/keys';
-import { publishSessionEvent } from '@/lib/session/session-channel';
 import { SessionSync } from '@/lib/session/session-sync';
 import { seriousA11yViolations } from '@test/support/axe';
 import {
@@ -18,13 +18,14 @@ import {
   requestUrl,
   shellSession,
 } from '@test/support/render';
+import { postFromOtherTab } from '@test/support/session-tabs';
 
 import { AppProviders } from './app-providers';
 import { AppShell } from './app-shell';
 import { AdminNav } from './main-nav';
 import { isActivePath } from './navigation';
 
-const router = { refresh: vi.fn() };
+const router = { refresh: vi.fn(), push: vi.fn() };
 let pathname = '/exemplo';
 
 vi.mock('next/navigation', () => ({
@@ -34,6 +35,7 @@ vi.mock('next/navigation', () => ({
 
 beforeEach(() => {
   router.refresh.mockClear();
+  router.push.mockClear();
   pathname = '/exemplo';
 });
 
@@ -50,6 +52,27 @@ function stubFetch(handler: (url: string, init?: RequestInit) => Response) {
 }
 
 describe('[Sucesso] AppShell', () => {
+  it('esconde o item da página de exemplo fora de local/dev/test', () => {
+    vi.stubEnv('APP_ENV', 'production');
+    try {
+      const session = shellSession();
+      render(
+        <IntlProvider>
+          <AppProviders session={session}>
+            <AppShell session={session}>
+              <h1>Conteúdo</h1>
+            </AppShell>
+          </AppProviders>
+        </IntlProvider>,
+      );
+      const nav = screen.getByRole('navigation', { name: 'Menu principal' });
+      expect(within(nav).queryByRole('link', { name: 'Exemplo do shell' })).toBeNull();
+      expect(within(nav).getByRole('link', { name: 'Processos' })).toBeTruthy();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('renderiza menu, busca, notificações, seletor de instituição e usuário — sem violação de a11y', async () => {
     stubFetch(() => jsonResponse({ data: { permissions: [] } }));
     const session = shellSession();
@@ -111,8 +134,23 @@ describe('[Sucesso] AppShell', () => {
   });
 });
 
-describe('[Tenant incorreto] seletor de instituição', () => {
-  it('troca para a Prefeitura B limpando o cache antes do refresh', async () => {
+describe('[Tenant incorreto] seletor de instituição (US-093)', () => {
+  /** Shell com o `<Toaster>` (que no app vem do `AppProviders`). */
+  function renderSwitcher(options: Parameters<typeof renderWithShell>[1] = {}) {
+    return renderWithShell(
+      <>
+        <AppShell session={options.session ?? shellSession()}>x</AppShell>
+        <Toaster label="Notificações" closeLabel="Fechar" />
+      </>,
+      options,
+    );
+  }
+
+  async function openSwitcher() {
+    await userEvent.click(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }));
+  }
+
+  it('[Sucesso] troca para a Prefeitura B: limpa o cache antes de navegar ao início e avisa', async () => {
     const fetchMock = stubFetch((url) =>
       url === '/api/auth/switch-tenant'
         ? jsonResponse({ data: shellSession({ activeTenant: TENANT_B }) })
@@ -120,33 +158,100 @@ describe('[Tenant incorreto] seletor de instituição', () => {
     );
     const queryClient = new QueryClient();
     queryClient.setQueryData(tenantKey(TENANT_A.id, 'processes'), ['dado da Prefeitura A']);
-    renderWithShell(<AppShell session={shellSession()}>x</AppShell>, { queryClient });
-    await userEvent.click(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }));
+    const order: string[] = [];
+    router.push.mockImplementation(() => {
+      order.push(`push:${String(queryClient.getQueryCache().getAll().length)}`);
+    });
+    renderSwitcher({ queryClient });
+    await openSwitcher();
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Prefeitura B' }));
     await waitFor(() => {
       expect(router.refresh).toHaveBeenCalled();
     });
-    expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/switch-tenant')).toBe(true);
+    // RN-IAM-72: nenhum dado do tenant anterior quando a navegação começa.
+    expect(order).toEqual(['push:0']);
+    expect(router.push).toHaveBeenCalledWith('/painel');
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/auth/switch-tenant');
+    const body = call?.[1]?.body;
+    expect(JSON.parse(typeof body === 'string' ? body : '')).toEqual({ membershipId: 'm-b' });
     expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'processes'))).toBeUndefined();
+    expect(await screen.findByText('Agora você está em Prefeitura B.')).toBeTruthy();
   });
 
-  it('escolher a instituição atual não faz nada; falha avisa sem limpar', async () => {
+  it('a instituição atual fica desabilitada; recusa MEMBERSHIP_INACTIVE avisa, remove da lista e mantém o cache', async () => {
     const fetchMock = stubFetch(() =>
       jsonResponse({ code: 'MEMBERSHIP_INACTIVE' }, { status: 403 }),
     );
     const queryClient = new QueryClient();
     queryClient.setQueryData(tenantKey(TENANT_A.id, 'x'), 1);
-    renderWithShell(<AppShell session={shellSession()}>x</AppShell>, { queryClient });
-    await userEvent.click(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /Prefeitura A/ }));
-    expect(fetchMock).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }));
+    renderSwitcher({ queryClient });
+    await openSwitcher();
+    const current = await screen.findByRole('menuitem', { name: /Prefeitura A/ });
+    expect(current.getAttribute('aria-disabled')).toBe('true');
+    expect(current.getAttribute('aria-current')).toBe('true');
+    await userEvent.click(current);
+    // O sininho consulta o contador (NTF-02); a troca de instituição não é chamada.
+    expect(
+      fetchMock.mock.calls.filter(([input]) => requestUrl(input) === '/api/auth/switch-tenant'),
+    ).toEqual([]);
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Prefeitura B' }));
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
-    });
+    expect(await screen.findByText('Você não tem mais acesso a esta instituição.')).toBeTruthy();
     expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'x'))).toBe(1);
     expect(router.refresh).not.toHaveBeenCalled();
+    await openSwitcher();
+    await screen.findByRole('menuitem', { name: 'Ver todas as instituições' });
+    expect(screen.queryByRole('menuitem', { name: 'Prefeitura B' })).toBeNull();
+    // Sem outra instituição utilizável: o seletor mostra só a atual (FA-03).
+    expect(screen.getByText('Você tem acesso só a esta instituição.')).toBeTruthy();
+  });
+
+  it.each([
+    [422, 'VALIDATION_ERROR', 'Selecione uma instituição válida.', true],
+    [403, 'TENANT_SUSPENDED', 'Esta instituição está indisponível no momento.', false],
+    [503, 'DEPENDENCY_UNAVAILABLE', 'Não foi possível trocar agora. Tente novamente.', false],
+    [500, 'INTERNAL_ERROR', 'Não foi possível trocar de instituição.', false],
+  ] as const)('recusa %s %s → toast "%s"', async (status, code, message, reloads) => {
+    stubFetch(() => jsonResponse({ code }, { status }));
+    renderSwitcher();
+    await openSwitcher();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Prefeitura B' }));
+    expect(await screen.findByText(message)).toBeTruthy();
+    // 422: a lista é recarregada do servidor ("Recarrega a lista").
+    expect(router.refresh).toHaveBeenCalledTimes(reloads ? 1 : 0);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('[Falha de integração] destino exige MFA: segue ao step-up sem limpar nada', async () => {
+    stubFetch(() =>
+      jsonResponse(
+        { code: 'MFA_REQUIRED', stepUpUrl: '/api/auth/step-up?returnTo=%2Fprocessos' },
+        { status: 403 },
+      ),
+    );
+    const assign = vi.fn();
+    vi.stubGlobal('location', { href: window.location.href, assign });
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(tenantKey(TENANT_A.id, 'x'), 1);
+    renderSwitcher({ queryClient });
+    await openSwitcher();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Prefeitura B' }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/api/auth/step-up?returnTo=%2Fprocessos');
+    });
+    expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'x'))).toBe(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('FA-03: com um único vínculo, mostra a instituição atual sem opção de troca', async () => {
+    const session = shellSession();
+    renderSwitcher({ session: { ...session, memberships: session.memberships.slice(0, 1) } });
+    await openSwitcher();
+    expect(
+      (await screen.findByRole('menuitem', { name: /Prefeitura A/ })).getAttribute('aria-disabled'),
+    ).toBe('true');
+    expect(screen.getByText('Você tem acesso só a esta instituição.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Ver todas as instituições' }));
+    expect(router.push).toHaveBeenCalledWith('/selecionar-orgao');
   });
 });
 
@@ -160,7 +265,7 @@ describe('[Concorrência] duas abas com tenants diferentes', () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(false);
     renderWithShell(<SessionSync onNavigate={vi.fn()} />, { queryClient });
 
-    publishSessionEvent({ type: 'tenant-switched', tenantId: TENANT_B.id });
+    postFromOtherTab({ type: 'tenant-switched', tenantId: TENANT_B.id });
     await waitFor(() => {
       expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     });
@@ -172,7 +277,7 @@ describe('[Concorrência] duas abas com tenants diferentes', () => {
     await waitFor(() => {
       expect(router.refresh).toHaveBeenCalledTimes(1);
     });
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/auth/session?keepalive=1');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/auth/session');
   });
 
   it('aba visível recarrega na hora; mensagem do próprio tenant é ignorada', async () => {
@@ -180,26 +285,22 @@ describe('[Concorrência] duas abas com tenants diferentes', () => {
     queryClient.setQueryData(tenantKey(TENANT_A.id, 'x'), 1);
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     renderWithShell(<SessionSync onNavigate={vi.fn()} />, { queryClient });
-    publishSessionEvent({ type: 'tenant-switched', tenantId: TENANT_A.id });
+    postFromOtherTab({ type: 'tenant-switched', tenantId: TENANT_A.id });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(queryClient.getQueryData(tenantKey(TENANT_A.id, 'x'))).toBe(1);
-    publishSessionEvent({ type: 'tenant-switched', tenantId: TENANT_B.id });
+    postFromOtherTab({ type: 'tenant-switched', tenantId: TENANT_B.id });
     await waitFor(() => {
       expect(router.refresh).toHaveBeenCalledTimes(1);
     });
   });
 
-  it('logout/expiração em outra aba levam ao login; foco sem sessão também', async () => {
+  it('logout em outra aba leva à SCR-001; foco sem sessão leva ao login', async () => {
     const navigate = vi.fn();
     stubFetch(() => jsonResponse({}, { status: 401 }));
     renderWithShell(<SessionSync onNavigate={navigate} />);
-    publishSessionEvent({ type: 'logout' });
+    postFromOtherTab({ type: 'logout' });
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith('/entrar?motivo=saiu');
-    });
-    publishSessionEvent({ type: 'expired' });
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('/entrar?motivo=sessao-expirada');
     });
     act(() => {
       window.dispatchEvent(new Event('focus'));

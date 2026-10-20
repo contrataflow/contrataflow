@@ -141,6 +141,7 @@ Concorrência é **por réplica do worker**; limites por tenant em §13; timeout
 | `email` | Trabalho (padrão B) | `NotificationDispatcher`; casos de uso com e-mail transacional (convite) | `EmailSender` | 5 | 10 envios/s global | 5 · 5 s + pausa por breaker | 30 s | `jobId = notificationId`; só envia se `emailStatus = PENDING` | Falha > 5% em 15 min |
 | `document-render` | Trabalho (padrão B) | Módulo `document` (DOC-20, DOC-21) | `RenderDocumentHandler` | 4 | 2 simultâneos por tenant | 5 · 5 s | 60 s | `jobId = renditionId`; transição condicional de `RenditionStatus` | p95 acima do SLO; falhas |
 | `file-scan` | Trabalho (padrão B) | Módulo `files` (ATT-03) | `ScanFileHandler` | 4 | 3 simultâneos por tenant | 5 · 5 s + pausa por breaker | 90 s | `jobId = attachmentId`; transição condicional de `AttachmentStatus` | Anexo preso > 30 min |
+| `ai-generation` | Trabalho (padrão B) | Módulo `ai` (AI-01) | `AiGenerationHandler` | 4 | 2 simultâneos por tenant; disjuntor do provedor | 3 · 10 s | 120 s por chamada ao provedor (job: 300 s) | `jobId = generationId`; transição condicional `QUEUED → RUNNING` | p95 do rascunho > 90 s; falhas do provedor > 5% em 15 min; circuito aberto |
 | `deadlines` | Agendada (15 min) | Scheduler `deadlines-tick` | `DeadlineScanner` | 5 | — | 5 · 5 s | 5 min | `UPDATE` condicionais em `ProcessStage` | Scheduler sem sucesso > 45 min |
 | `audit-seal` | Agendada (1 h) | Scheduler `audit-seal-tick` | `AuditSealer` | 2 | — | 5 · 5 s | 10 min | UNIQUE `(tenant_id, period_start)` em `audit_seals` | Selo atrasado > 3 h; verificação falhou |
 | `maintenance` | Agendada (diária) | Scheduler `maintenance-daily` | `MaintenanceRunner` | 2 | — | 5 · 5 s | 30 min | Operações condicionais/idempotentes | Execução ausente > 26 h |
@@ -161,14 +162,15 @@ Os nomes de consumidores `NotificationDispatcher`, `EmailSender`, `PermissionCac
 
 ### 4.3 `email`
 - **Produtores:** `NotificationDispatcher` e casos de uso com e-mail transacional (convite de usuário — `UserInvited`, USR-03/USR-04). **Consumidor:** `EmailSender` via abstração `MailProvider` (SMTP/Mailpit em dev, Amazon SES em produção — DEC-050).
-- **Payload:** `JobData<{ kind: 'NOTIFICATION'; notificationId: string } | { kind: 'INVITATION'; membershipId: string }>`. O endereço é resolvido no envio (minimização). **Segredos não trafegam no payload:** o link de convite é gerado pelo `EmailSender` no momento do envio, que grava apenas o hash do token **(proposta)**.
+- **Payload:** `JobData<{ kind: 'NOTIFICATION'; notificationId: string } | { kind: 'INVITATION'; membershipId: string }>`. O endereço é resolvido no envio (minimização). **Segredos não trafegam no payload:** o link de convite é gerado pelo `EmailSender` no momento do envio, que grava apenas o hash do token (US-091: `InvitationEmailSource` — o convite pendente é `status = INVITED` com `invite_token_hash` nulo; o hash é gravado depois do aceite do provedor, condicionado à mesma `invite_expires_at` lida — um reenvio no meio invalida o envio antigo; convite é e-mail obrigatório, sem `notifications.emailEnabled`).
 - **Idempotência:** só envia se `Notification.emailStatus = 'PENDING'` (events.md §3); após aceite do provedor grava `SENT` + `emailSentAt`. Risco residual aceito: e-mail duplicado se o worker cair entre o aceite e a gravação.
 - **Erros:** SMTP 4xx (421/450/451/452), *throttling* do SES e falhas de rede → transitórios (política padrão de DEC-163); provedor fora do ar → breaker e pausa da fila sem consumir tentativas (§10.3). A re-tentativa de entrega ao servidor do destinatário (ex.: *greylisting*) é feita pelo próprio provedor (SES/relay SMTP), não pela fila. Tentativas esgotadas → `emailStatus = FAILED` + cópia na DLQ + alerta. SMTP 5xx (550/553), `MessageRejected` e endereço inválido → **falha de entrega tratada**: `emailStatus = FAILED` + `emailError` sanitizado e job concluído **sem** DLQ (resultado de negócio, não falha técnica).
 - **Cabeçalhos técnicos:** `Message-ID` derivado do `notificationId` (rastreio e deduplicação), `X-Correlation-Id`, `X-CF-Notification-Id`, `Auto-Submitted: auto-generated` (RFC 3834, evita respostas automáticas em laço).
 - **Rate limit:** `limiter: { max: EMAIL_RATE_PER_SECOND, duration: 1000 }` (padrão 10/s), alinhado à cota de envio do provedor.
+- **Implementação (US-112, 2026-10-15):** `EmailSender` em `apps/worker/src/notifications/email/`; `MailProvider` SMTP (`nodemailer`) — o SES de produção é usado pela sua **interface SMTP** (`smtps://…@email-smtp.<região>.amazonaws.com:465`), sem SDK da AWS; um adaptador da API do SES cabe atrás da mesma interface. Dois workers com o mesmo job (reentrega de *stalled*) são serializados por `pg_try_advisory_lock` de sessão por origem, segurado durante o envio **sem** transação aberta: quem não pega a trava encerra sem enviar. A falha do provedor segue a retentativa da fila (5 · 5 s) até `FAILED` + DLQ, como no Gherkin da US-112; o *breaker* de dependência para o provedor (pausa sem consumir tentativas) fica para o endurecimento. Tenant fora de `ACTIVE` ou `notifications.emailEnabled` desligado no momento do envio → `SKIPPED` (o handler roda mesmo com o tenant suspenso para gravar o estado).
 
 ### 4.4 `document-render`
-- **Produtor (padrão B):** o módulo `document` cria `DocumentRendition` (`PENDING`, `requestedById`, `requestedAt`) na mesma transação do pedido — DOC-20 (`PREVIEW` do rascunho), DOC-21 (`CONTENT`/`APPROVAL_STAMPED` de uma versão) — e enfileira após o commit com `jobId = renditionId`. Auditoria `document.render_request`. **(proposta)** gerar `CONTENT` automaticamente na finalização/submissão, para o aprovador já encontrar o PDF — decidir em US-067.
+- **Produtor (padrão B):** o módulo `document` cria `DocumentRendition` (`PENDING`, `requestedById`, `requestedAt`) na mesma transação do pedido — DOC-20 (`PREVIEW` do rascunho), DOC-21 (`CONTENT`/`APPROVAL_STAMPED` de uma versão) — e enfileira após o commit com `jobId = renditionId`. Auditoria `document.render_request`. Gerar `CONTENT` automaticamente na finalização/submissão ficou **fora do MVP 1** (decidido na US-067): DOC-21 é sempre por pedido explícito. O mascaramento POL-09 é decidido no pedido e gravado na linha (`masked`); o worker não reavalia permissões.
 - **Payload:** `JobData<{ renditionId: string; documentId: string; kind: RenditionKind; documentVersionId?: string; draftRevision?: number; approvalId?: string }>`.
 - **Consumidor:** `RenderDocumentHandler` — `UPDATE … SET status = 'PROCESSING', started_at = now(), attempts = attempts + 1 WHERE id = $1 AND status IN ('PENDING','PROCESSING')`; carrega o snapshot (`DocumentVersion.content`) ou o rascunho (`PREVIEW`); gera HTML com `packages/editor` + `LayoutDefinition`; chama o Gotenberg; grava o PDF no S3 ([storage.md](storage.md) §10); `READY` + `DocumentRenditionReady`. Detalhes em [ADR-007](../adr/adr-007-pdf-generation.md).
 - **Prioridade:** `PREVIEW` = 1 (usuário esperando), `CONTENT`/`APPROVAL_STAMPED` = 5, re-renderização em lote = 10.
@@ -180,6 +182,27 @@ Os nomes de consumidores `NotificationDispatcher`, `EmailSender`, `PermissionCac
 - **Consumidor:** `ScanFileHandler` — fluxo completo em [storage.md](storage.md) §5: trava de estado condicional, stream único (tipo + SHA-256 + ClamAV), promoção, `AttachmentUploaded`/`AttachmentRejected`.
 - **Disponibilidade do ClamAV:** breaker com *health check* `PING`/`PONG`; aberto → *rate limit* manual da fila (§10.3), anexos permanecem `UPLOADED`/`SCANNING` e **nunca** são liberados sem scan.
 - Timeout de 90 s (100 MB em clamd leva poucos segundos; a folga cobre a leitura do S3) e menor que o `stopTimeout` do contêiner (§14).
+- **Implementação (US-068, 2026-10-17):** produtor no ATT-03 (`ConfirmAttachmentUploadCommand`, 5 tentativas, base 5 s; fila fora → log `attachment.enqueue_deferred` e o anexo fica `UPLOADED`). Consumidor `ScanFileJob` (base `TenantJob` da API) → `ScanFileProcessor` (`modules/files`). **Pendente — mesma ligação da §4.5.1:** o worker ainda não carrega os módulos da API, então `file-scan/scan` não tem consumidor em execução real; ao ligar, traduzir `ScanDeferredError` (`consumesAttempt = false`) para a pausa da fila sem consumir tentativa e aplicar a concorrência 3/tenant. A tarefa `attachments-abandon` (RN-DOC-78) já roda no worker como tarefa diária do `tenant-housekeeping` (SQL).
+
+### 4.5.1 `ai-generation` (DEC-079, EP-020)
+- **Produtor (padrão B):** o módulo `ai` grava `AiGeneration` (`QUEUED`, `reservedTokens`) na transação de AI-01 e enfileira após o commit com `jobId = generationId`. **Payload:** `JobData<{ generationId: string }>`, com ator = solicitante (DEC-164).
+- **Consumidor:** `AiGenerationHandler`, em 4 passos:
+  1. **Claim e revalidação:** `UPDATE … SET status = 'RUNNING', started_at = now(), attempts = attempts + 1 WHERE id = $1 AND status IN ('QUEUED','RUNNING')`. Em seguida revalida a POL-18 (IA ligada, permissão, limites), em transação curta de leitura; se falhar, `CANCELED`/`CANCELED_BY_POLICY` sem chamar o provedor.
+  2. **Montagem do contexto:** monta o contexto pelas fachadas de leitura, também em transação curta de leitura (`ContextSanitizer`, prompt versionado).
+  3. **Chamada ao provedor:** **fora de transação**, com timeout de 120 s.
+  4. **Gravação:** valida a saída, converte para TipTap e aplica o *GroundingGuard*; grava `SUCCEEDED` com `AiGenerationCompleted`, auditoria e timeline na mesma transação curta.
+- **Erros:**
+  - Transitórios (429, 5xx, *timeout*, rede): retentativa (3 tentativas, base 10 s); com o disjuntor aberto, o job pausa sem consumir tentativas (§10.3).
+  - Permanentes (`CONTENT_FILTERED`, `CONTEXT_TOO_LARGE`, saída inválida após 1 reparo): `FAILED`.
+  - Ao esgotar as tentativas ou falhar de forma permanente: `FAILED` + `errorCode` + `AiGenerationFailed` (notificação `AI_GENERATION_FAILED`). Não há cópia na DLQ para erro do provedor, só para exceção técnica.
+- **Cancelamento:** AI-04 em `RUNNING` faz o handler descartar a resposta ao terminar (o status já é `CANCELED`); os tokens contam no uso.
+- **Estado do disjuntor:** chave de plataforma `cf:{env}:ai:circuit`, compartilhada com a API (AI-01 → 503 `AI_PROVIDER_UNAVAILABLE` com o circuito aberto).
+- **SLO:** rascunho completo p95 ≤ 90 s; ajuste de seção p95 ≤ 20 s, do pedido ao `SUCCEEDED`.
+- **Implementação (US-115, 2026-10-16):**
+  - Produtor: porta `JOB_QUEUE` do shared kernel da API (`#shared/jobs/job-queue.ts`), adaptador BullMQ em `modules/platform` (prefixo `cf:{env}:q`, Redis principal, sem fila offline, `add` com teto de 2 s); fila fora → log `ai.enqueue_deferred` e a geração fica `QUEUED`.
+  - Consumidor: `AiGenerationJob` (base `TenantJob` da API) → `AiGenerationProcessor`. Relê o vínculo do solicitante (perfis vigentes) antes da revalidação. Falha transitória antes da última tentativa lança `AiRetryableError` para a fila tentar de novo; o claim aceita `RUNNING` só com `attempts = tentativa − 1`.
+  - **Pendente:** o worker ainda não carrega módulos da API (o `#shared/*` do worker colide com o da API — ver "Como o worker importa código da API"); até essa ligação, o job `ai-generation/generate` não tem consumidor em execução real e `ai-generations-timeout` existe só como `AiMaintenanceService.failStaleRunning` na API. `ai-proposals-expire` já roda no worker como tarefa do `tenant-housekeeping` (SQL).
+  - Concorrência 2 por tenant e "pausar sem consumir tentativa com o circuito aberto" dependem dessa ligação (o processador já sinaliza `AiRetryableError.consumesAttempt`).
 
 ### 4.6 `deadlines` (a cada 15 min)
 - **Scheduler** `deadlines-tick` (`*/15 * * * *`, UTC) gera o job de plataforma `tick`, que lista tenants `ACTIVE` (tabela de plataforma `tenants`) e enfileira um `scan-tenant` por tenant com `jobId = deadlines.{tenantId}.{slot}` (slot = início do intervalo de 15 min em epoch).
@@ -190,23 +213,26 @@ Os nomes de consumidores `NotificationDispatcher`, `EmailSender`, `PermissionCac
 
 ### 4.7 `audit-seal` (a cada 1 h)
 - **Scheduler** `audit-seal-tick` (`5 * * * *`, UTC — minuto 5 dá margem). O `tick` enfileira `seal-tenant` por tenant (`jobId = audit-seal.{tenantId}.{periodStart}`) e um `seal-platform` (registros com `tenant_id` nulo, papel de plataforma — entities.md, `AuditLog` RLS).
-- **`AuditSealer`**, sob trava por tenant, sela **em ordem** cada período horário fechado ainda não selado (`periodEnd ≤ now() − 10 min`): `digest` = SHA-256 sobre os `rowHash` do período ordenados por `(occurred_at, id)`; `chainHash` = SHA-256(`chainHash` anterior ∥ `digest`); `INSERT` em `audit_seals` (UNIQUE `(tenant_id, period_start)` → idempotente) + auditoria `audit.seal` (`SYSTEM`). Períodos vazios também são selados (`recordCount = 0`) para manter a cadeia contínua. Fundamentos em [ADR-009](../adr/adr-009-audit-trail.md).
+- **`AuditSealer`** (US-074), sob trava consultiva por tenant, sela **em ordem** cada hora fechada com atividade posterior ao último selo (`periodEnd ≤ now() − 2 min`; até 168 por execução): `digest` = SHA-256 sobre os `rowHash` do período ordenados por `(occurred_at, id)`; `chainHash` = SHA-256(`chainHash` anterior ∥ `digest`); `INSERT … ON CONFLICT DO NOTHING` em `audit_seals` (UNIQUE `(tenant_id, period_start)` → idempotente) + auditoria `audit.seal` (`SYSTEM`) na mesma transação. Períodos vazios — ou só com `audit.seal` — **não** são selados; o próximo selo encadeia no último existente (RN-AUD-12). `seal-platform` (registros de `tenant_id` nulo) fica para quando houver leitura de plataforma da trilha. Fundamentos em [ADR-009](../adr/adr-009-audit-trail.md).
 
 ### 4.8 `maintenance` (diária, 03:00 America/Sao_Paulo)
 O scheduler `maintenance-daily` gera `daily`, que enfileira jobs de plataforma e um `tenant-housekeeping` por tenant `ACTIVE`/`SUSPENDED`.
 
 | Job | Escopo | Papel de banco | O que faz | Base |
 |---|---|---|---|---|
-| `outbox-purge` | Plataforma | `cf_maintenance` **(proposta)**: `DELETE` só em `outbox_events` | Remove `PUBLISHED` com `published_at` > 7 dias, em lotes de 5.000 | DEC-085 |
+| `outbox-purge` | Plataforma | `cf_maintenance` (DEC-072): `SELECT`/`DELETE` só em `outbox_events` | Remove `PUBLISHED` com `published_at` > 7 dias, em lotes de 5.000 | DEC-085 |
 | `processed-events-purge` | Plataforma | `cf_maintenance` | Remove registros de idempotência > 30 dias (§8) | — |
 | `audit-partitions-ensure` | Plataforma | Papel de migração | Garante partições mensais de `audit_logs` para os próximos 3 meses | DEC-085 |
 | `uploads-expire` | Tenant | Aplicação | `PENDING_UPLOAD` > 24 h → `DELETED` (sistema) | DEC-136 |
 | `previews-expire` | Tenant | Aplicação | `PREVIEW` com `expiresAt` vencido → `EXPIRED` | DEC-060, DEC-085 |
+| `ai-proposals-expire` | Tenant | Aplicação | `AiGeneration` `SUCCEEDED` com `expiresAt` vencido → `EXPIRED` (conteúdo mantido para rastreabilidade) | DEC-079, RN-AI-11 |
+| `ai-generations-timeout` | Tenant | Aplicação | `AiGeneration` `RUNNING` há mais de 10 min → `FAILED` (`TIMEOUT`) + `AiGenerationFailed`; libera a reserva de tokens | DEC-079, RN-AI-08 |
 | `notifications-archive` | Tenant | Aplicação | Notificações lidas há > 180 dias → `archivedAt` | DEC-085 |
 | `memberships-expire` | Tenant | Aplicação | Vínculos `EXTERNAL` vencidos → `EXPIRED` + `MembershipExpired` + auditoria `membership.expire` + invalidação de cache e encerramento de sessões | DEC-012, DEC-139, POL-15 |
 | `participants-expire` | Tenant | Aplicação | `CONSULTANT` com `expiresAt` vencido → remoção + `ProcessAccess.revokedAt` na mesma transação + `ProcessParticipantRemoved` (`reason = EXPIRED`) + auditoria `process.participant_remove` | DEC-024, DEC-036 |
 | `storage-usage-reconcile` | Tenant | Aplicação | Recalcula o uso de storage (quota — PEND-17) | [storage.md](storage.md) §8 |
 | `storage-fixity-sample` | Tenant | Aplicação | Amostra de verificação de fixidez | [storage.md](storage.md) §9.2 |
+| `holiday-year` | Tenant | Aplicação (`cf_worker`: `SELECT`/`INSERT` em `holidays`) | Garante as ocorrências do ano corrente (fuso do tenant) e do seguinte dos feriados recorrentes — fixos repetem dia e mês, os móveis de sistema são recalculados pela Páscoa (Meeus/Butcher) — herdando escopo e situação da ocorrência anterior; `ON CONFLICT DO NOTHING` (idempotente); nunca recalcula `dueAt` (RN-TEN-79); loga `calendar.year_generated` | US-106 · RN-TEN-76 |
 
 - **Expiração não é controle de acesso:** a autorização verifica validade em toda requisição (DEC-132: vínculo `ACTIVE` e não expirado; participação com `expiresAt`). O job apenas materializa o estado, emite eventos e notifica.
 - **Reconciliador (proposta — acréscimo a DEC-163):** scheduler `maintenance-reconcile` a cada 15 min com o job `reconcile`, que reenfileira trabalhos do padrão B sem job ativo: `Attachment` `UPLOADED`/`SCANNING` há > 15 min; `DocumentRendition` `PENDING`/`PROCESSING` há > 10 min (índice `(status, requested_at)`); `Notification.emailStatus = PENDING` há > 15 min (índice parcial em `email_status`). Usa `queue.getJob(id)`: ausente → `add`; `failed` → não reenfileira (já está na DLQ); demais estados → nada a fazer.
@@ -221,9 +247,9 @@ Fila de **estacionamento**, sem consumidor automático. Contrato e operação em
 ### 5.1 Tabela
 `OutboxEvent` (`outbox_events`, módulo `platform`) está definida em [entities.md](../mvp-01/entities.md) §4.10: `id` (= `eventId`), `tenantId` (nulo só para eventos de plataforma), `eventType`, `routingKey`, `eventVersion`, `aggregateType`, `aggregateId`, `processId`, `payload`, `metadata` (`actor`, `correlationId`, `causationId`, `traceparent`), `occurredAt`, `status` (`PENDING`, `PUBLISHED`, `FAILED`), `attempts`, `nextAttemptAt`, `publishedAt`, `lastError`; índice parcial `(status, occurred_at) WHERE status = 'PENDING'`. A aplicação só insere no próprio tenant; o relay usa o papel `cf_relay` (`SELECT`/`UPDATE` apenas nesta tabela, com `BYPASSRLS`).
 
-Ajustes **(proposta)**:
+Ajustes adotados na US-082 (DEC-072):
 - Gravar `occurred_at` com `clock_timestamp()` no `INSERT` (após o lock do agregado), em vez do *default* `now()` — `now()` é o instante de **início** da transação e pode inverter a ordem entre duas transações concorrentes sobre o mesmo agregado.
-- Papel `cf_maintenance` com `DELETE` apenas em `outbox_events` (e `processed_events`) para a purga de 7 dias, já que `cf_relay` não tem `DELETE`.
+- Papel `cf_maintenance` com `SELECT`/`DELETE` apenas em `outbox_events` (e `processed_events`, quando existir) para a purga de 7 dias, já que `cf_relay` não tem `DELETE`.
 
 ### 5.2 Escrita (mesma transação)
 
@@ -394,7 +420,7 @@ Nomes especializados (DEC-162) **não** são mensagens extras: `DFDApproved` é 
 | subconjunto público (contratos estáveis) | fila `webhooks` | `WebhookDispatcher` (MVP 3) | DEC-161; events.md §8 |
 | a definir | `search-index` (futuro), `ai` (MVP 5) | — | DEC-161 |
 
-`UserInvited` não tem consumidor assíncrono: o e-mail de convite é enfileirado em `email` pelo próprio caso de uso (events.md §4.6), no padrão B.
+`UserInvited` (US-091): o handler inline `InvitationEmailEnqueuer` enfileira `email` (`{ kind: 'INVITATION', membershipId }`, `jobId = eventId`). Decisão da US-091: a API não tem produtor BullMQ, e o outbox garante o e-mail só com o convite comitado (e sempre com ele).
 
 ### 7.3 Comportamento do router
 - Calcula o **conjunto** de filas-destino (cada fila recebe no máximo um job por evento, mesmo que várias rotas casem) e enfileira com `addBulk` atômico e `jobId = eventId` — o `jobId` é único **por fila**.
@@ -522,14 +548,16 @@ Com base 5 s e 5 tentativas, as esperas ficam em ≈ 2,5–5 s, 5–10 s, 10–2
 | Desconhecido | `TypeError`, exceção não mapeada | Transitório até esgotar → DLQ com stack |
 
 ### 10.3 Pausa por dependência indisponível (circuit breaker)
-Cada dependência externa do worker tem um breaker (`cockatiel`: timeout + retry curto + `circuitBreaker` com meia-abertura após 30 s). Com o breaker aberto, o processador pausa a fila inteira sem gastar a tentativa do job:
+Cada dependência externa do worker tem um breaker (5 falhas de conexão seguidas abrem o circuito; meia-abertura após 30 s, uma tentativa por vez). Com o breaker aberto, o `runJob` adia o job por 30 s sem gastar a tentativa; os demais jobs da fila encontram o mesmo breaker aberto e também são adiados na hora, sem chamar a dependência — na prática, a fila fica parada até a meia-abertura:
 
 ```ts
-if (gotenbergBreaker.state === CircuitState.Open) {
-  await worker.rateLimit(30_000);     // pausa a fila por 30 s (todas as réplicas respeitam o limite global)
-  throw Worker.RateLimitError();      // devolve o job à espera sem consumir tentativa
+if (error instanceof DependencyUnavailableError) {   // breaker aberto
+  await job.moveToDelayed(Date.now() + 30_000, token); // volta em 30 s
+  throw new DelayedError();                            // sem consumir tentativa
 }
 ```
+
+**Por que não `rateLimit` + `RateLimitError` (US-083):** no BullMQ 5.81, com concorrência > 1, o job devolvido pelo *rate limit* manual é retomado para `active` por outro *slot* e fica parado até o fim da pausa sem renovar a trava; com pausa ≥ `lockDuration` (30 s) a trava expira (`Missing lock … moveToFinished`) e, com `maxStalledCount: 1`, o job viraria um falso *poison job*. O adiamento por job não tem esse efeito.
 
 Métrica `cf_circuit_breaker_state{dependency}` (0 fechado, 1 meia-aberto, 2 aberto); breaker aberto por mais de 5 min dispara alerta e runbook ([observability.md](observability.md)).
 
@@ -638,7 +666,9 @@ Regras complementares: timeouts de jobs interativos (≤ 90 s) cabem na janela d
 
 ### 15.1 Bull Board
 - `@bull-board/api` + adaptador HTTP montados no worker em porta interna (`WORKER_ADMIN_PORT`), **nunca** expostos à internet (sub-rede privada; acesso por VPN ou *port forwarding* via SSM).
-- Autenticação de plataforma: login OIDC no Authentik com cliente dedicado de operação; exige `User.isPlatformOperator` com `PLATFORM_QUEUE_ADMIN` e MFA ([permissions.md](../mvp-01/permissions.md) §8). Acesso registrado em auditoria de plataforma (`queue_dashboard.access` **(proposta)**).
+- Autenticação de plataforma: login OIDC no Authentik com cliente dedicado de operação; exige `User.isPlatformOperator` com `PLATFORM_QUEUE_ADMIN` e MFA ([permissions.md](../mvp-01/permissions.md) §8). Acesso registrado em auditoria de plataforma (`queue_dashboard.access`, concedido ou negado — events.md §7).
+- **Verificação adotada no MVP 1 (US-083):** o painel e a CLI recebem o *access token* do cliente de operação (`Authorization: Bearer`, ou cookie `cf_ops_token` no navegador; na CLI, `CF_OPS_TOKEN`), validado pelo JWKS do emissor (`iss`, `aud` = `WORKER_ADMIN_OIDC_AUDIENCE`, `exp`, RS256/ES256). `PLATFORM_QUEUE_ADMIN` vem da *claim* `cf_platform_permissions` (grupo do Authentik mapeado no cliente de operação); `isPlatformOperator` é relido em `users` (`external_subject = sub`, `status = ACTIVE`); MFA pelo `amr` (RFC 8176). Sem permissão → 403 `PERMISSION_DENIED`; sem MFA → 403 `MFA_REQUIRED`. O fluxo de login interativo (*authorization code*) no próprio painel fica para o endurecimento.
+- **Limite de taxa (code scanning, 2026-10-20):** antes da autenticação, no máximo 300 requisições por minuto por endereço de origem (janela fixa em memória, por réplica); o excedente recebe 429 `RATE_LIMITED` com `Retry-After`. A verificação do token relê `users` a cada chamada: o limite protege o banco e o JWKS de uma varredura de tokens a partir da rede interna. `/health` fica fora do limite.
 - Adaptadores em `readOnlyMode: true`: mutações (retry, descarte, limpeza) só pela CLI auditada (§11.2).
 
 ### 15.2 Métricas

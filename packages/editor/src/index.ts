@@ -9,3 +9,12 @@ export const editorSchemaVersion = 1;
  * Vazias até a story do editor rico.
  */
 export const editorExtensions: readonly unknown[] = Object.freeze([]);
+
+export {
+  escapeHtml,
+  resolveTemplateVariables,
+  richTextToHtml,
+  richTextToPlainText,
+  toConfirmLabelOf,
+} from './html.js';
+export type { HtmlRichTextNode, RichTextHtmlOptions } from './html.js';

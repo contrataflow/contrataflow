@@ -21,7 +21,7 @@ Quando uma entidade indicar **Padrão**, ela contém:
 | `updatedAt` | timestamptz | não | `now()` | `@updatedAt` |
 | `createdById` | uuid | sim | — | FK `users.id` (nulo quando ação de sistema) |
 | `updatedById` | uuid | sim | — | FK `users.id` |
-| `version` | int | não | `1` | Concorrência otimista; incrementado a cada alteração; exposto como `ETag` |
+| `version` | int | não | `1` | Concorrência otimista; incrementado a cada alteração; exposto como `ETag`. Exceção (US-015 · RN-DFD-26 · DEC-055): a gravação de seção do rascunho (DOC-05) **não** incrementa `Document.version` — incrementa a `revision` da seção e `draftRevision` |
 
 Marcadores adicionais:
 - **+SD** → possui `deletedAt timestamptz NULL` (exclusão lógica; `deletedById uuid NULL`). Unicidades usam índice parcial `WHERE deleted_at IS NULL`.
@@ -127,6 +127,9 @@ Marcadores adicionais:
 | `AuditCategory` | `DATA_CHANGE`, `WORKFLOW`, `ACCESS`, `SECURITY`, `EXPORT`, `CONFIGURATION`, `SYSTEM` |
 | `AuditResult` | `SUCCESS`, `DENIED`, `FAILURE` |
 | `OutboxStatus` | `PENDING`, `PUBLISHED`, `FAILED` |
+| `AiGenerationKind` | `DRAFT`, `SECTION` (US-115) |
+| `AiSectionAction` | `REWRITE`, `COMPLETE`, `SUMMARIZE` (US-121) |
+| `AiGenerationStatus` | `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED`, `APPLIED`, `DISCARDED`, `EXPIRED` (US-115) |
 | `NotificationType` *(registro)* | ver [events.md §6](events.md#6-notificações-derivadas-de-eventos) |
 | `TimelineEntryType` *(registro)* | ver [events.md §5](events.md#5-projeção-na-timeline) |
 | `DashboardWidgetKey` *(registro)* | `PENDING_ITEMS`, `BY_STATUS`, `BY_STAGE`, `OVERDUE`, `DUE_SOON`, `AVG_STAGE_DURATION`, `OPENED_BY_MONTH`, `VALUE_BY_SECRETARIAT`, `RECENT_ACTIVITY` (US-076; `DSH-02`) |
@@ -261,6 +264,7 @@ Cliente/conta do SaaS e fronteira de isolamento (DEC-011). Sem `tenant_id` e sem
 | `deactivatedAt` | timestamptz | sim | — | |
 | `offboardingStartedAt` | timestamptz | sim | — | Início do encerramento (`OFFBOARDING`) |
 | `offboardingEndsAt` | timestamptz | sim | — | Fim do prazo de leitura/exportação (DEC-132); obrigatório em `OFFBOARDING` |
+| `provisioningFingerprint` | char(64) | sim | — | SHA-256 de slug + CNPJ do órgão principal + e-mail do primeiro administrador (US-099 · DEC-078): a retomada do provisionamento só continua o mesmo pedido. Só o `cf_platform` lê; nunca exposto |
 | `createdAt`, `updatedAt`, `version` | — | não | — | |
 
 - **Unique:** `slug`.
@@ -275,8 +279,9 @@ Configuração tipada chave-valor; chaves e schemas no registro de configuraçõ
 | `key` | varchar(120) | não | — | Deve existir no registro |
 | `value` | jsonb | não | — | Validado pelo schema Zod da chave |
 
-- **Unique:** `(tenant_id, key)`.
-- **Auditoria:** toda alteração gera `settings.update` com valor anterior e novo.
+- **Unique:** `(tenant_id, key)`. `tenant_id` e `key` são imutáveis (trigger); sem `DELETE` para a aplicação.
+- **Concorrência:** `version` por chave (RN-TEN-54): chave sem linha tem `version = 0` na leitura; a primeira gravação cria a versão 1.
+- **Auditoria:** toda alteração gera `settings.update` com valor anterior e novo, uma entrada por chave (`entityType = Tenant`, `entityId = tenantId`, `metadata.key`/`group`).
 
 #### Organization (`organizations`) — módulo `tenancy` · Padrão
 Órgão/entidade com CNPJ dentro do tenant (DEC-011).
@@ -327,7 +332,7 @@ Unidade administrativa em árvore (secretaria, diretoria, setor…).
 
 - **Unique:** `(tenant_id, organization_id, acronym) WHERE acronym IS NOT NULL`; `(tenant_id, organization_id, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'), lower(name))`.
 - **Índices:** `(tenant_id, path text_pattern_ops)`; `(tenant_id, organization_id, parent_id)`; `(tenant_id, head_user_id)`; `(tenant_id, deputy_user_id)`.
-- **Check:** `head_user_id IS DISTINCT FROM deputy_user_id`; `parent_id <> id`.
+- **Check:** `head_user_id <> deputy_user_id` (nulos permitidos; `IS DISTINCT FROM` recusaria titular e substituto ambos vazios); `parent_id <> id`.
 - **Regras:** proibido ciclo (validação pelo `path`); mover unidade recalcula `path`/`depth` da subárvore na mesma transação; exclusão física só sem referências — caso contrário, desativação.
 
 ### 4.2 Identidade e acesso
@@ -369,6 +374,7 @@ Vínculo do usuário com o tenant.
 | `invitedAt` | timestamptz | sim | — | |
 | `inviteTokenHash` | varchar(64) | sim | — | SHA-256 do token do convite |
 | `inviteExpiresAt` | timestamptz | sim | — | Padrão 7 dias |
+| `inviteResendCount` | int | não | `0` | Reenvios do convite atual (RN-IAM-53: máx. 5; zerado a cada novo convite) — US-091 |
 | `activatedAt` | timestamptz | sim | — | |
 | `expiresAt` | timestamptz | sim | — | Obrigatório para `EXTERNAL` (≤ `security.externalMembershipMaxDays`) |
 | `suspendedAt` | timestamptz | sim | — | |
@@ -380,7 +386,8 @@ Vínculo do usuário com o tenant.
 
 - **Unique:** `(tenant_id, user_id)`.
 - **Índices:** `(tenant_id, status)`; `(tenant_id, expires_at) WHERE type = 'EXTERNAL'`.
-- **Check:** `type <> 'EXTERNAL' OR expires_at IS NOT NULL`; `status <> 'REVOKED' OR revoked_at IS NOT NULL`.
+- **Check:** `type <> 'EXTERNAL' OR expires_at IS NOT NULL`; `status <> 'REVOKED' OR revoked_at IS NOT NULL`; `invite_resend_count BETWEEN 0 AND 5`.
+- **Unique parcial (US-091):** `invite_token_hash WHERE invite_token_hash IS NOT NULL` (aceite por hash).
 
 #### MembershipDepartment (`membership_departments`) — módulo `identity`
 Lotação do vínculo em unidades (1 principal + N adicionais).
@@ -429,6 +436,7 @@ Catálogo global de permissões, definido em código (`packages/types/permission
 #### RolePermission (`role_permissions`) — módulo `access`
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
+| `id` | uuid | não | UUIDv7 (aplicação) | Só para a unicidade `(tenant_id, id)` de toda tabela de tenant (DEC-081 · US-094); a PK continua composta |
 | `tenantId` | uuid | não | — | |
 | `roleId` | uuid | não | — | FK → `roles` (`ON DELETE CASCADE`) |
 | `permissionCode` | varchar(80) | não | — | FK → `permissions.code` |
@@ -438,7 +446,7 @@ Catálogo global de permissões, definido em código (`packages/types/permission
 - **PK:** `(tenant_id, role_id, permission_code)`.
 
 #### RoleAssignment (`role_assignments`) — módulo `access` · Padrão
-Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
+Atribuição de perfil a um vínculo com escopo e vigência (DEC-134). Tabela criada na US-091 (migração `20261015330000_invitations_role_assignments`), com o perfil inicial do convite no escopo padrão do perfil (§3.1; personalizado → `TENANT`); a gestão é da US-096.
 
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
@@ -475,8 +483,10 @@ Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
 | `parentId` | uuid | sim | — | FK → `catalog_items` (mesmo `catalogType`) |
 | `metadata` | jsonb | não | `{}` | Schema por tipo (§5.9) |
 
-- **Unique:** `(tenant_id, catalog_type, code)`.
+- **Unique:** `(tenant_id, catalog_type, code)`; também `(tenant_id, catalog_type, id)` (alvo da FK do pai) e `(tenant_id, id)` (alvo das FKs de outros módulos).
 - **Índices:** `(tenant_id, catalog_type, is_active, sort_order)`.
+- **Integridade:** FK composta `(tenant_id, catalog_type, parent_id)` → `catalog_items` (o pai é do mesmo tenant e catálogo); `parent_id <> id`; `code` em `SCREAMING_SNAKE_CASE`; `tenant_id`, `catalog_type`, `code` e `is_system` são imutáveis (trigger); sem `DELETE` para a aplicação (RN-TEN-64). Item novo: `sortOrder = max + 1`.
+- **Auditoria/eventos:** `catalog.create`/`catalog.update`/`catalog.deactivate` e `CatalogItemChanged` (US-104).
 
 #### Holiday (`holidays`) — módulo `catalog` · Padrão
 | Campo | Tipo | Null | Default | Regras |
@@ -488,8 +498,10 @@ Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
 | `isSystem` | boolean | não | `false` | Semeado; não pode ser excluído (`CATALOG_ITEM_SYSTEM`), só desativado/editado (US-106) |
 | `isActive` | boolean | não | `true` | |
 
-- **Unique:** `(tenant_id, date, lower(name))`.
+- **Unique:** `(tenant_id, date, lower(name))`; também `(tenant_id, id)` (alvo das FKs de outros módulos — DEC-081).
 - **Índices:** `(tenant_id, date) WHERE is_active`.
+- **Integridade:** `tenant_id`, `date` e `is_system` são imutáveis (trigger; para mudar a data, exclui-se e recadastra-se) e o `name` de feriado de sistema também (é a chave natural do seeder); feriado de sistema não é excluído (trigger de `DELETE` — RN-TEN-77). A aplicação tem `DELETE` (CAL-04, só feriado do administrador); o worker, só `SELECT`/`INSERT` (geração do ano seguinte). `NATIONAL` só nasce do seed.
+- **Auditoria/eventos:** `holiday.create`/`holiday.update`/`holiday.delete` e `HolidayChanged` (US-106).
 
 #### NumberSequence (`number_sequences`) — módulo `catalog`
 | Campo | Tipo | Null | Default | Regras |
@@ -501,6 +513,7 @@ Atribuição de perfil a um vínculo com escopo e vigência (DEC-134).
 | `createdAt`, `updatedAt` | timestamptz | não | — | |
 
 - **Unique:** `(tenant_id, sequence_key)`. Linha criada sob demanda com `INSERT … ON CONFLICT DO NOTHING`.
+- **Integridade:** formato da chave conferido por check; `tenant_id` e `sequence_key` imutáveis e `last_value` nunca diminui (trigger); sem `DELETE` para a aplicação; o worker só lê. No MVP 1 documentos usam sempre `*` (por tipo e ano no tenant — DEC-028/US-105).
 
 ### 4.4 Processo
 
@@ -602,6 +615,11 @@ Acesso explícito por processo (DEC-036).
 
 - **Check:** `(user_id IS NULL) <> (department_id IS NULL)`; `role <> 'CONSULTANT' OR expires_at IS NOT NULL`; `role <> 'CONSULTANT' OR user_id IS NOT NULL`.
 - **Unique:** `(tenant_id, process_id, user_id) WHERE revoked_at IS NULL AND user_id IS NOT NULL`; `(tenant_id, process_id, department_id) WHERE revoked_at IS NULL AND department_id IS NOT NULL`.
+- **Índice (US-056 · visão "Acompanhando"):** `(tenant_id, user_id) WHERE revoked_at IS NULL AND user_id IS NOT NULL`.
+- **Views publicadas para a caixa de tarefas (US-056 · DEC-026 · domains.md `inbox`):** contrato público lido pelo módulo `inbox`, todas `security_invoker` (a RLS das tabelas vale para quem consulta):
+  - `v_inbox_processes` (dono `process`): o processo não excluído com a passagem ativa (`process_stages` `ACTIVE` — `stage_id`, `entered_at`, `due_at`, `overdue_since`, `sla_type`, `paused_at`) e a responsabilidade ativa (`process_assignments` `is_active` — `assignment_department_id`, `assignee_id`, `assignment_type`), ambas opcionais.
+  - `v_inbox_participations` (dono `process`): participações individuais não revogadas (`process_id`, `user_id`, `role`, `expires_at`).
+  - `v_inbox_pending_approvals` (dono `approval`): aprovações `PENDING` com o aprovador registrado (`approver_type`, `approver_user_id`, `approver_role_id`, `approver_department_id`, `allow_deputy`), o solicitante e o prazo.
 
 #### Tag (`tags`) — módulo `process` · Padrão
 | Campo | Tipo | Null | Default | Regras |
@@ -613,7 +631,7 @@ Acesso explícito por processo (DEC-036).
 - **Unique:** `(tenant_id, lower(name))`.
 
 #### ProcessTag (`process_tags`) — módulo `process`
-`tenantId`, `processId` (FK, `CASCADE`), `tagId` (FK), `createdAt`, `createdById`. **PK:** `(tenant_id, process_id, tag_id)`. Máx. 10 etiquetas por processo (regra de aplicação).
+`tenantId`, `processId` (FK, `CASCADE`), `tagId` (FK), `createdAt`, `createdById`. **PK:** `(tenant_id, process_id, tag_id)`. **Índice:** `(tenant_id, tag_id, process_id)` — filtro por etiqueta da lista de processos (US-002, lacuna 2; criado junto com a tabela na US-007). Máx. 10 etiquetas por processo (regra de aplicação).
 
 #### ProcessStage (`process_stages`) — módulo `process`
 Instância de etapa do workflow no processo (cada passagem cria uma nova linha).
@@ -720,7 +738,7 @@ Concessões de visibilidade (DEC-024), mantidas na mesma transação.
 - **Índices:** `(tenant_id, department_id, process_id) WHERE revoked_at IS NULL`; `(tenant_id, user_id, process_id) WHERE revoked_at IS NULL`.
 
 #### SavedView (`saved_views`) — módulo `process` · Padrão (P2)
-`ownerId` (uuid, não), `scope` (SavedViewScope), `name` (varchar(80)), `filters` (jsonb), `sort` (varchar(120)), `columns` (jsonb), `isShared` (boolean, `false`), `isDefault` (boolean, `false`). **Unique:** `(tenant_id, owner_id, scope, lower(name))`.
+`ownerId` (uuid, não), `scope` (SavedViewScope), `name` (varchar(80)), `filters` (jsonb), `sort` (varchar(120)), `columns` (jsonb), `isShared` (boolean, `false`), `isDefault` (boolean, `false`). **Unique:** `(tenant_id, owner_id, scope, lower(name))`; `(tenant_id, owner_id, scope) WHERE is_default` (uma única padrão — US-003). **Índices:** `(tenant_id, scope) WHERE is_shared` (compartilhadas). `filters` sempre com `v` (versão do contrato de filtros); exclusão física.
 
 ### 4.5 Workflow (definição)
 
@@ -964,12 +982,14 @@ Concessões de visibilidade (DEC-024), mantidas na mesma transação.
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
 | `id`, `tenantId` | uuid | não | — | |
+| `processId` | uuid | não | — | Processo do documento (chave de storage, auditoria e evento — US-067) |
 | `documentId` | uuid | não | — | |
 | `documentVersionId` | uuid | sim | — | Nulo em `PREVIEW` de rascunho |
 | `draftRevision` | int | sim | — | Revisão do rascunho (PREVIEW) |
 | `approvalId` | uuid | sim | — | `APPROVAL_STAMPED` |
 | `kind` | RenditionKind | não | — | |
 | `status` | RenditionStatus | não | `PENDING` | |
+| `masked` | boolean | não | `false` | POL-09: PDF gerado com os valores sigilosos ocultos (decidido no pedido, pelo solicitante — US-067) |
 | `storageKey` | varchar(512) | sim | — | |
 | `sha256` | varchar(64) | sim | — | Hash do PDF |
 | `sizeBytes` | bigint | sim | — | |
@@ -982,9 +1002,11 @@ Concessões de visibilidade (DEC-024), mantidas na mesma transação.
 | `startedAt` / `readyAt` | timestamptz | sim | — | |
 | `expiresAt` | timestamptz | sim | — | `PREVIEW`: +24 h |
 | `createdAt`, `updatedAt` | timestamptz | não | — | |
+| `version` | int | não | `1` | Gravação condicional da trava do worker (US-067) |
 
-- **Unique:** `(tenant_id, document_version_id) WHERE kind = 'CONTENT'`; `(tenant_id, document_version_id, approval_id) WHERE kind = 'APPROVAL_STAMPED'`.
-- **Índices:** `(tenant_id, document_id, kind, created_at DESC)`; `(status, requested_at) WHERE status IN ('PENDING','PROCESSING')`.
+- **Unique:** `(tenant_id, document_version_id, masked) WHERE kind = 'CONTENT' AND status <> 'FAILED'`; `(tenant_id, document_version_id, approval_id, masked) WHERE kind = 'APPROVAL_STAMPED' AND status <> 'FAILED'` — um PDF por versão (e por par versão × aprovação) em cada forma de POL-09; a falha não ocupa o lugar ("Tentar novamente" cria outra linha). Decidido na US-067 (2026-10-17).
+- **Índices:** `(tenant_id, document_id, kind, created_at DESC)`; `(status, requested_at) WHERE status IN ('PENDING','PROCESSING')`; `(tenant_id, expires_at) WHERE kind = 'PREVIEW' AND status <> 'EXPIRED'` (`previews-expire`).
+- **Gatilho `document_renditions_guard`:** `PENDING → PROCESSING | FAILED | EXPIRED`, `PROCESSING → READY | FAILED | EXPIRED`, `READY → EXPIRED` (só `PREVIEW`); origem, tipo, `masked` e solicitante imutáveis; PDF `READY` de escrita única. Sem DELETE.
 
 #### DocumentItem (`document_items`) — módulo `document` · Padrão
 Linha de item em um documento (DFD, ETP, TR).
@@ -1001,7 +1023,7 @@ Linha de item em um documento (DFD, ETP, TR).
 | `sortOrder` | int | não | `0` | |
 
 - **Unique:** `(tenant_id, document_id, process_item_id)`.
-- **Regra:** editável somente com o documento em `DRAFT`/`RETURNED`.
+- **Regra:** editável somente com o documento em `DRAFT`/`RETURNED`. O DOC-07 substitui a coleção inteira (DELETE + INSERT/UPDATE no `tx`, com o documento travado e `documents.version + 1` — o novo `ETag`); o papel da aplicação tem DELETE nesta tabela (US-014).
 
 ### 4.8 Documentos tipados
 
@@ -1027,7 +1049,8 @@ Cabeçalho tipado do DFD. Seções de template: `JUSTIFICATION`, `EXPECTED_RESUL
 | `completedSteps` | DfdWizardStep[] | não | `{}` | |
 
 - **Unique:** `(tenant_id, document_id)`.
-- **Check:** mesmas regras de PCA de `Process`; `expected_date IS NULL OR expected_date >= request_date`.
+- **Check:** mesmas regras de PCA de `Process`; `expected_date IS NULL OR expected_date >= request_date`; `id = document_id` (`dfds_id_is_document` — o DFD usa o id do documento; decidido na US-014, 2026-10-17).
+- **Obrigatoriedade de `expectedDate`/`estimatedValue` (RN-DFD-08):** padrão do módulo — previsão obrigatória, estimativa opcional — enquanto o `fieldConfig` do template não disser outra coisa (o template semeado traz `fieldConfig = {}`, RN-TPL-31).
 
 #### Etp (`etps`) — módulo `etp` · Padrão
 Seções de template (chaves): `NEED_DESCRIPTION`, `PROBLEM`, `OBJECTIVE`, `PCA_ALIGNMENT`, `REQUIREMENTS`, `MARKET_SURVEY`, `ALTERNATIVES`, `ESTIMATES`, `RECOMMENDED_SOLUTION`, `PARCELING`, `RELATED_CONTRACTS`, `EXPECTED_RESULTS`, `ENVIRONMENTAL_IMPACTS`, `PRIOR_MEASURES`, `RISKS`, `CONCLUSION`.
@@ -1045,6 +1068,7 @@ Seções de template (chaves): `NEED_DESCRIPTION`, `PROBLEM`, `OBJECTIVE`, `PCA_
 | `importedFromDfdVersionId` | uuid | sim | — | FK → `document_versions` |
 
 - **Unique:** `(tenant_id, document_id)`.
+- **Check:** `id = document_id` (`etps_id_is_document` — como o DFD e a pesquisa de preços, o ETP usa o id do documento; decidido na US-019, 2026-10-18); `estimated_value_source IN ('MANUAL','PRICE_RESEARCH')`; `estimated_total_value >= 0`. `recommendedAlternativeId` ganha a FK quando `etp_alternatives` for criada (US-021). `tenant_id`/`process_id`/`document_id` imutáveis (gatilho).
 
 #### EtpAlternative (`etp_alternatives`) — módulo `etp` · Padrão + SD
 | Campo | Tipo | Null | Default | Regras |
@@ -1063,7 +1087,8 @@ Seções de template (chaves): `NEED_DESCRIPTION`, `PROBLEM`, `OBJECTIVE`, `PCA_
 | `sortOrder` | int | não | `0` | |
 
 - **Unique:** `(tenant_id, etp_id) WHERE decision = 'RECOMMENDED' AND deleted_at IS NULL`; `(tenant_id, etp_id, lower(name)) WHERE deleted_at IS NULL`.
-- **Check:** `decision = 'UNDER_ANALYSIS' OR decision_justification IS NOT NULL`.
+- **Check:** `decision = 'UNDER_ANALYSIS' OR decision_justification IS NOT NULL`; `estimated_cost >= 0`; `btrim(name) <> ''`.
+- **FKs compostas (tenant):** ETP, processo; `etps.recommended_alternative_id → etp_alternatives` (US-021). `tenant_id`/`etp_id`/`process_id` imutáveis (gatilho). Sem `DELETE` para `cf_app` (só exclusão lógica — RN-ETP-22).
 
 #### PriceResearch (`price_research`) — módulo `price-research` · Padrão
 Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION` (narrativas) e `PRICE_SUMMARY` (computada na renderização a partir de `PriceItem`/`PriceSource`/`Quotation` — mapa comparativo, US-031). Parâmetros copiados das configurações na criação (DEC-020).
@@ -1089,6 +1114,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `completedAt` / `completedById` | timestamptz / uuid | sim | — | Conclusão = finalização do documento |
 
 - **Unique:** `(tenant_id, document_id)`.
+- **Check:** `id = document_id` (`price_research_id_is_document` — como o DFD, a pesquisa usa o id do documento; decidido na US-024, 2026-10-18); `min_quotations >= 1`; `unit_price_decimals IN (2, 4)`; `rounding_mode IN ('HALF_UP','HALF_EVEN')`; `items_with_alerts_count` entre 0 e `items_count`. `tenant_id`/`process_id`/`document_id` não mudam depois da criação (gatilho de colunas imutáveis para os ids). Dos parâmetros do snapshot, os prazos de validade (`directQuoteMaxAgeDays`/`similarContractMaxAgeDays`) ficam fixos; os de cálculo (`defaultMethod`, `cvThresholdPercent`, `minQuotations`, `outlierLowerPercent`/`outlierUpperPercent`, `unitPriceDecimals`, `roundingMode`) são editáveis pelo PRS-04 e recalculam todos os itens (RN-PRICE-47 — decidido na US-029, 2026-10-19). `totalEstimatedValue` = soma dos `totalPrice` calculados (`null` se nenhum item tem total).
 
 #### PriceItem (`price_items`) — módulo `price-research` · Padrão
 | Campo | Tipo | Null | Default | Regras |
@@ -1114,6 +1140,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 
 - **Unique:** `(tenant_id, price_research_id, process_item_id)`.
 - **Check:** `method_override IS DISTINCT FROM 'MANUAL' OR (manual_unit_price IS NOT NULL AND manual_justification IS NOT NULL)`.
+- **Implementação (US-024):** FK composta `(tenant_id, price_research_id)` com `ON DELETE CASCADE` e `(tenant_id, process_item_id)` → `process_items` `ON DELETE RESTRICT`; `CHECK (quantity > 0)` e `alerts` sempre array. O PRS-08 apaga a linha fisicamente (o papel da aplicação tem DELETE); as `quotations` da US-026 entram com `ON DELETE CASCADE` a partir de `price_items`. O item referenciado não pode ser excluído do processo (`ITEM_IN_USE`, via `ProcessItemUsageRegistry`).
 
 #### PriceSource (`price_sources`) — módulo `price-research` · Padrão + SD
 "FontePesquisa" (instância/evidência).
@@ -1135,6 +1162,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `sortOrder` | int | não | `0` | |
 
 - **Índices:** `(tenant_id, price_research_id)`; `(tenant_id, supplier_id)`.
+- **Implementação (US-026, 2026-10-18):** remoção física, sem `deleted_at` (RN-PRICE-29: "não pode ser desfeita" e leva as cotações em cascata — a exclusão lógica cedeu à regra da story). FKs compostas por tenant para `price_research` (`ON DELETE CASCADE`), `processes`, `catalog_items` (tipo) e `suppliers`; CHECK `url ILIKE 'https://%'` e descrição não vazia; gatilho de colunas imutáveis (tenant, pesquisa, processo). Os campos exigidos vêm de `PRICE_SOURCE_TYPE.metadata.requiredFields`, lidos na gravação. O uso do fornecedor (SUP-05 → `SUPPLIER_IN_USE`) conta qualquer fonte que o referencie.
 
 #### Quotation (`quotations`) — módulo `price-research` · Padrão
 "Cotação": preço de um item em uma fonte.
@@ -1157,6 +1185,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 - **Unique:** `(tenant_id, price_item_id, price_source_id)`.
 - **Índices:** `(tenant_id, price_research_id)`.
 - **Check:** `status <> 'EXCLUDED' OR (exclusion_reason IS NOT NULL AND exclusion_justification IS NOT NULL)`.
+- **Implementação (US-026):** FKs compostas por tenant com `ON DELETE CASCADE` a partir de `price_research`, `price_items` (PRS-08) e `price_sources` (PRS-12); CHECK `unit_price > 0`; gatilho de colunas imutáveis (tenant, pesquisa, item, fonte); índice extra `(tenant_id, price_source_id)`. `unitPrice` normalizado com 4 casas (`decimal.js`); `isExpired` recalculado a cada gravação da fonte/cotação e quando a data-base muda (PRS-04). **US-030:** todo recálculo da pesquisa (`PriceCalculationService`) reavalia `outlierFlag` (mediana das demais `VALID` do item — RN-PRICE-48; `EXCLUDED` fica `NONE`) e `isExpired` (regra atual do tipo no catálogo — RN-PRICE-49, o que cobre mudança de metadados via PRS-20) e grava só as que mudaram, sem `version + 1`.
 
 #### Supplier (`suppliers`) — módulo `supplier` · Padrão + SD
 | Campo | Tipo | Null | Default | Regras |
@@ -1201,6 +1230,8 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `residualScore` | smallint | sim | — | |
 | `residualLevel` | RiskLevel | sim | — | |
 | `sortOrder` | int | não | `0` | |
+| `aiGenerationId` | uuid | sim | — | FK composta → `ai_generations`; risco criado a partir de proposta de IA (US-119) |
+| `aiReviewedAt` / `aiReviewedById` | timestamptz / uuid | sim | — | Revisão humana do risco gerado por IA (RSK-12); nulo com `aiGenerationId` preenchido = "gerado por IA — revisão pendente" |
 
 - **Unique:** `(tenant_id, process_id, code)`.
 - **Índices:** `(tenant_id, process_id, level)`.
@@ -1220,11 +1251,12 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 | `completedAt` | timestamptz | sim | — | Obrigatório se `DONE` |
 | `notes` | text | sim | — | |
 | `sortOrder` | int | não | `0` | |
+| `aiGenerationId` | uuid | sim | — | FK composta → `ai_generations`; tratamento proposto pela IA (US-119), revisado junto com o risco |
 
 - **Índices:** `(tenant_id, risk_id)`; `(tenant_id, responsible_id, status)`.
 
 #### TermOfReference (`terms_of_reference`) — módulo `term` · Padrão
-Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACCEPTANCE_CRITERIA`, `CONTRACTOR_OBLIGATIONS`, `CONTRACTING_PARTY_OBLIGATIONS`, `DEADLINES`, `DELIVERY`, `PAYMENT`, `OVERSIGHT`, `GUARANTEES`, `SANCTIONS`, `SELECTION_CRITERIA`, `ESTIMATED_VALUE`.
+Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACCEPTANCE_CRITERIA`, `CONTRACTOR_OBLIGATIONS`, `CONTRACTING_PARTY_OBLIGATIONS`, `DEADLINES`, `DELIVERY`, `PAYMENT`, `OVERSIGHT`, `GUARANTEES`, `SANCTIONS`, `SELECTION_CRITERIA`, `ESTIMATED_VALUE` e a adicional `BUDGET_ADEQUACY` (alínea *j*, semeada pela biblioteca — US-036).
 
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
@@ -1248,6 +1280,7 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 | `importedFromEtpVersionId` | uuid | sim | — | Versão do ETP usada na importação |
 | `importedAt` / `importedById` | timestamptz / uuid | sim | — | |
 
+- **Derivado (não persistido — US-037 · RN-TR-24):** `etpChangedSinceImport` (TRM-03) = houve importação e a versão vigente do ETP (`Document.currentVersionId`) é outra que `importedFromEtpVersionId`; mesmo padrão dos `...Masked` (DEC-030). `importedFromEtpVersionId` fica nulo quando o ETP importado ainda não tinha versão (FA-02 — o rascunho).
 - **Unique:** `(tenant_id, document_id)`.
 - **Check:** `execution_deadline IS NULL OR execution_deadline_type IS NOT NULL`; `contract_guarantee_percent IS NULL OR contract_guarantee_percent BETWEEN 0 AND 10`.
 
@@ -1352,10 +1385,11 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 | `createdAt` | timestamptz | não | `now()` | |
 
 - **Unique:** `(tenant_id, recipient_id, source_event_id, type)`.
-- **Índices:** `(tenant_id, recipient_id, read_at, created_at DESC)`; `(email_status) WHERE email_status = 'PENDING'`; `(tenant_id, recipient_id, group_key, created_at DESC) WHERE archived_at IS NULL`.
+- **Índices:** `(tenant_id, recipient_id, read_at, created_at DESC)`; `(email_status) WHERE email_status = 'PENDING'`; `(tenant_id, recipient_id, group_key, created_at DESC) WHERE archived_at IS NULL`; GIN em `grouped_event_ids` (reentrega de evento já agregado, mesmo após a janela ou o arquivamento — US-111).
+- **FK:** `(tenant_id, recipient_id)` → `tenant_memberships (tenant_id, user_id)`. A API (`cf_app`) só tem `SELECT` e `UPDATE (read_at, archived_at)`; quem grava é o worker (US-111).
 
 #### NotificationPreference (`notification_preferences`) — módulo `notification`
-`id`, `tenantId`, `userId`, `notificationType` (varchar(60)), `channel` (NotificationChannel), `enabled` (boolean), `createdAt`, `updatedAt`. **Unique:** `(tenant_id, user_id, notification_type, channel)`. Ausência de linha = padrão do registro; tipos obrigatórios (ex.: `APPROVAL_REQUESTED` in-app) não podem ser desativados.
+`id`, `tenantId`, `userId`, `notificationType` (varchar(60)), `channel` (NotificationChannel), `enabled` (boolean), `createdAt`, `updatedAt`. **Unique:** `(tenant_id, user_id, notification_type, channel)`. Ausência de linha = padrão do registro; tipos obrigatórios (ex.: `APPROVAL_REQUESTED` in-app) não podem ser desativados. **FK:** `(tenant_id, user_id)` → `tenant_memberships (tenant_id, user_id)`. A API (`cf_app`) tem `SELECT`, `INSERT`, `DELETE` e `UPDATE (enabled, updated_at)` ("usar padrão" apaga a linha); o worker (`cf_worker`) só lê, a cada despacho (US-113).
 
 #### AuditLog (`audit_logs`) — módulo `audit` · Imutável · particionada por mês (`occurred_at`)
 | Campo | Tipo | Null | Default | Regras |
@@ -1414,6 +1448,52 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 - **Índices:** `(status, occurred_at) WHERE status = 'PENDING'`; `(tenant_id, aggregate_type, aggregate_id, occurred_at)`.
 - **RLS:** a aplicação só insere no próprio tenant; o relay usa papel `cf_relay` (apenas `SELECT`/`UPDATE` nesta tabela, com `BYPASSRLS`).
 
+### 4.11 Inteligência artificial
+
+#### AiGeneration (`ai_generations`) — módulo `ai` · Padrão
+Registro de cada geração com IA (rascunho completo ou ajuste de seção) — DEC-037, DEC-079, US-115. `createdById` = solicitante (obrigatório). Nunca é excluído; só o status muda (RN-AI-03).
+
+| Campo | Tipo | Null | Default | Regras |
+|---|---|---|---|---|
+| `processId` | uuid | não | — | |
+| `documentId` | uuid | sim | — | Documento alvo; nulo só para `RISK_MAP` sem documento emitido |
+| `targetModule` | SystemDocumentModule | não | — | `DFD`, `ETP`, `RISK_MAP`, `TERM_OF_REFERENCE` |
+| `kind` | AiGenerationKind | não | — | |
+| `action` | AiSectionAction | sim | — | Obrigatório se `SECTION` |
+| `sectionKey` | varchar(60) | sim | — | Obrigatório se `SECTION` |
+| `baseRevision` | int | sim | — | Revisão da seção no pedido de ajuste (`SECTION`); diferente na aplicação → `AI_SUGGESTION_STALE` |
+| `status` | AiGenerationStatus | não | `QUEUED` | Transições condicionais (RN-AI-03) |
+| `needSummary` | text | sim | — | Resumo da necessidade: obrigatório no rascunho do DFD; opcional nos demais; quando informado, 20..2.000 caracteres |
+| `instruction` | varchar(500) | sim | — | Orientação opcional do usuário |
+| `provider` | varchar(30) | não | — | `fake`, `anthropic`, `bedrock`, `openai`, `azure-openai` |
+| `model` | varchar(100) | sim | — | Preenchido na execução |
+| `promptKey` | varchar(60) | não | — | `draft.dfd`, `draft.etp`, `draft.risk_map`, `draft.tr`, `section.rewrite`, `section.complete`, `section.summarize` |
+| `promptVersion` | varchar(20) | não | — | Versão semântica do prompt (`1.0.0`) |
+| `inputRefs` | jsonb | não | `[]` | `AiInputRef[]` (§5.10) — entradas usadas, sem conteúdo |
+| `contextHash` | varchar(64) | sim | — | SHA-256 do contexto canônico enviado ao provedor |
+| `output` | jsonb | sim | — | `AiGenerationOutput` (§5.10) — a proposta |
+| `outputHash` | varchar(64) | sim | — | |
+| `placeholdersCount` | int | não | `0` | Marcações `toConfirm` na proposta |
+| `groundingReplacements` | int | não | `0` | Números/valores/prazos trocados por `toConfirm` (RN-AI-54) |
+| `reservedTokens` | int | não | — | Estimativa reservada no pedido (RN-AI-18) |
+| `inputTokens` / `outputTokens` / `totalTokens` | int | sim | — | Somatório das tentativas |
+| `costUsd` | numeric(12,6) | sim | — | Pela tabela de preços (`pricingVersion`) — RN-AI-09 |
+| `pricingVersion` | varchar(20) | sim | — | |
+| `latencyMs` | int | sim | — | |
+| `attempts` | smallint | não | `0` | |
+| `providerRequestId` | varchar(200) | sim | — | Identificador da chamada no provedor |
+| `errorCode` | varchar(40) | sim | — | `PROVIDER_UNAVAILABLE`, `PROVIDER_RATE_LIMITED`, `TIMEOUT`, `CONTENT_FILTERED`, `CONTEXT_TOO_LARGE`, `OUTPUT_INVALID`; em `CANCELED`, `CANCELED_BY_POLICY` quando a revalidação no worker falha (IA desligada, permissão, limites ou pré-requisito da cadeia perdido — ex.: DFD cancelado depois do pedido) |
+| `startedAt` / `completedAt` | timestamptz | sim | — | |
+| `expiresAt` | timestamptz | sim | — | `completedAt` + 7 dias (RN-AI-11) |
+| `appliedAt` / `appliedById` | timestamptz / uuid | sim | — | |
+| `appliedTargets` | jsonb | sim | — | `{ sectionKeys: string[], riskIds: uuid[] }`; uma aplicação por geração, exceto `RISK_MAP` (riscos por RSK-11 e seções por DOC-26, cada parte uma vez — acumula) |
+| `discardedAt` / `discardedById` | timestamptz / uuid | sim | — | |
+
+- **Unique (parciais):** `(tenant_id, process_id, target_module) WHERE kind = 'DRAFT' AND status IN ('QUEUED','RUNNING')`; `(tenant_id, document_id, section_key) WHERE kind = 'SECTION' AND status IN ('QUEUED','RUNNING')` (RN-AI-12).
+- **Índices:** `(tenant_id, process_id, created_at DESC)`; `(tenant_id, created_by_id, created_at)`; `(tenant_id, created_at)` (consumo do mês — RN-AI-18); `(tenant_id, status, expires_at)`.
+- **Check:** `kind <> 'SECTION' OR (action IS NOT NULL AND section_key IS NOT NULL AND document_id IS NOT NULL)`; `status <> 'FAILED' OR error_code IS NOT NULL`; `document_id IS NOT NULL OR target_module = 'RISK_MAP'`; `target_module IN ('DFD','ETP','RISK_MAP','TERM_OF_REFERENCE')`.
+- **Conteúdo:** `needSummary`, `instruction` e `output` são conteúdo de documento — nunca vão para logs, eventos ou auditoria (só hashes); valores de orçamento sigiloso nunca entram no contexto (RN-AI-05).
+
 ---
 
 ## 5. Estruturas JSON canônicas
@@ -1434,7 +1514,7 @@ type SectionDefinition = {
   maxChars?: number;           // padrão 50.000
   render?: 'TEXT' | 'ITEMS_TABLE' | 'ALTERNATIVES_TABLE' | 'RISK_MATRIX' | 'RISK_LIST' | 'PRICE_SUMMARY' | 'ESTIMATED_VALUE';
   allowNarrative?: boolean;    // seções com render ≠ TEXT podem ter texto complementar (padrão true)
-  aiHints?: string;            // reservado MVP 5
+  aiHints?: string;            // orientação extra ao prompt de IA (opcional; uso pleno no MVP 5)
 };
 ```
 
@@ -1468,8 +1548,15 @@ type DraftContent = {
     revision: number;                // concorrência por seção
     updatedAt: string;               // ISO
     updatedById: string;
+    ai?: SectionAiProvenance;        // conteúdo aplicado de uma geração de IA (US-122); ausente/null = sem IA
   }>;
 };
+type SectionAiProvenance = {
+  generationId: string;            // AiGeneration aplicada
+  appliedAt: string; appliedById: string;
+  reviewedAt: string | null;       // null = "Gerado por IA — revisão pendente" (bloqueia a conclusão — RN-AI-57)
+  reviewedById: string | null;
+} | null;
 ```
 #### 5.3.2 Snapshot de `DocumentVersion.content` (`documentSnapshotSchema`)
 ```ts
@@ -1479,7 +1566,7 @@ type DocumentSnapshot = {
   template: { templateId; versionId; versionNumber } | null;
   process: { id; code; title; object; organizationName; organizationCnpj; requestingSecretariatName; requestingDepartmentName; isBudgetConfidential };
   header: Record<string, unknown>;   // campos do cabeçalho tipado (Dfd/Etp/TermOfReference/PriceResearch)
-  sections: DraftContent['sections']; // sem revision/updatedBy
+  sections: DraftContent['sections']; // sem revision/updatedBy; mantém `ai` (proveniência revisada)
   collections: {
     items?: Array<{ processItemId; sequence; lotNumber; description; unit; quantity; specification?; acceptanceCriteria?; calculationMemo? }>;
     alternatives?: Array<EtpAlternativeSnapshot>;
@@ -1527,7 +1614,7 @@ type MovementDocumentRef = { documentId; documentVersionId: string | null; versi
 `ProcessMovement.metadata` (todos opcionais; definido por US-047, US-048, US-053 e US-055):
 ```ts
 type MovementMetadata = {
-  warningsAcknowledged?: string[];          // ids de WorkflowRule WARNING reconhecidas
+  warningsAcknowledged?: Array<{ ruleId: string; message: string }>; // regras WARNING reconhecidas, com a mensagem exibida (DEC-016)
   computedDueAt?: string | null;            // prazo calculado pelo SLA antes de eventual sobrescrita
   dueDateOverridden?: boolean; dueDateOverrideReason?: string;
   approvalRequestedId?: string;             // Approval criada pelo encaminhamento a etapa APPROVAL (approvalId fica para decisões)
@@ -1547,6 +1634,7 @@ type ApprovalPolicy = {
   allowDeputy: boolean; slaDays?: number; slaType?: 'BUSINESS' | 'CALENDAR';
 };
 ```
+Na solicitação (US-051 · RN-TRAM-48), a `Approval` grava `allowDeputy = true` sempre que `approverType = DEPARTMENT_HEAD` e `false` para `USER`/`ROLE` — a mesma regra da etapa `APPROVAL`; o `allowDeputy` da política fica como preferência registrada do tipo.
 
 ### 5.8 `DocumentTemplateVersion.importMappings` (TR ← ETP)
 ```ts
@@ -1571,6 +1659,46 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `PROCESS_ORIGIN` | `{ requiresPcaStatus?: PcaStatus }` |
 | `ATTACHMENT_CATEGORY` | `{}` |
 
+### 5.10 Geração com IA (`aiInputRefSchema`, `aiGenerationOutputSchema`, nó `toConfirm`)
+```ts
+type AiInputRef = {
+  kind: 'USER_SUMMARY' | 'USER_INSTRUCTION' | 'PROCESS' | 'PROCESS_ITEMS' | 'ORGANIZATION' | 'TEMPLATE_VERSION'
+      | 'DOCUMENT_VERSION' | 'DOCUMENT_DRAFT' | 'SECTION' | 'ETP_ALTERNATIVES' | 'PRICE_RESEARCH' | 'RISKS'
+      | 'TERM_CONDITIONS' | 'CATALOG';
+  id: string | null;               // id do recurso (nulo para USER_*)
+  documentTypeCode?: string;       // DFD, ETP, TR, RISK_MAP
+  versionNumber?: number;          // DOCUMENT_VERSION / TEMPLATE_VERSION
+  revision?: number;               // DOCUMENT_DRAFT (draftRevision) / SECTION (revision)
+  contentHash: string;             // SHA-256 da parte do contexto derivada desta entrada
+};
+type AiGenerationOutput = {
+  sections: Array<{ sectionKey: string; title: string; content: TipTapDoc; placeholdersCount: number; groundingReplacements: number }>;
+  risks?: Array<{                  // só RISK_MAP (US-119)
+    proposalKey: string; title: string; description: string; categoryCode: string; phase: RiskPhase;
+    cause: string; consequence: string; probability: number; impact: number; rationale: string;
+    similarToRiskId?: string;
+    treatments: Array<{ proposalKey: string; type: TreatmentType; description: string }>;
+  }>;
+  warnings: Array<{ code: 'USED_DRAFT_INPUTS' | 'MISSING_PRICE_RESEARCH' | 'BUDGET_CONFIDENTIAL_VALUES_OMITTED'
+                        | 'MISSING_OPTIONAL_INPUT' | 'CONTEXT_TRUNCATED'; params?: Record<string, string> }>;
+};
+// Nó inline do editor (packages/editor — DEC-056): "[a confirmar: label]" (US-122)
+type ToConfirmNode = { type: 'toConfirm'; attrs: {
+  label: string;                   // 1..120
+  category: 'QUANTITY' | 'VALUE' | 'DEADLINE' | 'DATE' | 'DATA' | 'DECISION' | 'OTHER';
+  origin: 'AI' | 'USER';
+} };
+```
+Seções com `toConfirm` ou com `ai.reviewedAt = null` geram violações bloqueantes em DOC-08 (`SECTION_PLACEHOLDER_PENDING`, `SECTION_AI_REVIEW_PENDING` — RN-AI-57).
+
+Regras de conservação da proveniência (US-122):
+- **Cópias:** duplicar DFD (DFD-05) e importar do ETP para o TR (TRM-06) levam a proveniência pendente (`reviewedAt = null`, mesmo `generationId`) e mantêm os `toConfirm`. Conteúdo já revisado na origem chega sem pendência (`ai = null`). Assim, nenhuma cópia "lava" conteúdo de IA não revisado.
+- **Riscos:** os campos de texto de `Risk`/`RiskTreatment` não são TipTap; neles a marcação é o texto literal "[a confirmar: …]", detectado por `RISK_PLACEHOLDER_PENDING` (US-119).
+- **Importação do ETP no TR (TRM-06):** `REPLACE` leva a proveniência da seção de origem (pendente) ou nenhuma, se a origem estiver revisada; `APPEND` mantém a proveniência do destino e deixa a seção pendente se a origem estiver pendente.
+- **Limpeza:** salvar a seção vazia (`EMPTY`) ou marcá-la `NOT_APPLICABLE` (DOC-05) limpa `ai`; editar o texto mantém a proveniência e não conta como revisão.
+
+Categoria do `toConfirm` gerada pelo *GroundingGuard* e rótulo padrão: valor monetário e percentual → `VALUE` ("valor"); quantidade → `QUANTITY` ("quantidade"); prazo ou duração → `DEADLINE` ("prazo"); data → `DATE` ("data"); dado do órgão ou do processo → `DATA` ("dado do órgão"); decisão da equipe → `DECISION` ("decisão da equipe"); demais casos → `OTHER` ("informação").
+
 ---
 
 ## 6. Registro de configurações do tenant (`TenantSetting`)
@@ -1579,12 +1707,13 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 |---|---|---|---|
 | `labels.secretariat` | string | `"Secretaria"` | Rótulo do nível de unidade requisitante |
 | `labels.department` | string | `"Setor"` | |
-| `branding.primaryColor` | string | `"#1D4ED8"` | Contraste validado (WCAG AA) |
+| `branding.primaryColor` | string | `"#005BF9"` | Contraste validado (WCAG AA) |
 | `branding.logoAttachmentId` | uuid \| null | `null` | |
 | `numbering.process.mask` | string | `"{seq:4}/{year}"` | Deve conter `{seq:N}` e `{year}` |
 | `numbering.process.scope` | `"TENANT"` \| `"ORGANIZATION"` | `"TENANT"` | Alterável só no início do exercício (aviso) |
 | `numbering.process.assignOn` | `"CREATE"` \| `"START"` | `"CREATE"` | DEC-028 |
 | `numbering.document.defaultMask` | string | `"{type} {seq:4}/{year}"` | |
+| `numbering.document.<TYPE>.mask` | string | — (ausente = `defaultMask`) | Chave dinâmica por código de tipo (US-105 · RN-TEN-72); máscara de documento; não semeada |
 | `process.duplicateDetectionWindowMinutes` | int | `10` | 0 desativa |
 | `process.requireInternalCode` | boolean | `false` | |
 | `access.historicalDepartmentsCanView` | boolean | `true` | |
@@ -1610,6 +1739,10 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `uploads.allowedExtensions` | string[] | `pdf, docx, xlsx, odt, ods, csv, txt, png, jpg, jpeg` | Subconjunto da allowlist da plataforma |
 | `notifications.emailEnabled` | boolean | `true` | |
 | `features.<flag>` | boolean | por flag | DEC-059 |
+| `ai.enabled` | boolean | `false` | Liga a geração assistida por IA no órgão (opt-in — DEC-037, US-116); ligar exige `ai.termsAcceptedVersion` vigente; não pública |
+| `ai.termsAcceptedVersion` | string \| null | `null` | Versão dos termos de uso da IA aceita (`AI_TERMS_VERSION` da plataforma); quem e quando ficam na auditoria `settings.update` |
+| `ai.monthlyTokenLimit` | int | `2000000` | 50.000..`AI_TENANT_MAX_MONTHLY_TOKENS` (plataforma, padrão 20.000.000); mês civil no fuso do tenant (RN-AI-18; PEND-22) |
+| `ai.userDailyRequestLimit` | int | `40` | 1..500 gerações por usuário por dia (RN-AI-19) |
 
 ---
 
@@ -1621,7 +1754,7 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | Estrutura | Nenhuma unidade obrigatória; assistente de implantação sugere "Gabinete", "Secretaria de Administração" → "Setor de Compras" |
 | Perfis | 15 perfis de DEC-035 com permissões de [permissions.md](permissions.md) |
 | Catálogos | `CONTRACTING_TYPE`: AQUISICAO_BENS, SERVICO_COMUM, SERVICO_ESPECIAL, SERVICO_CONTINUO_SEM_DEDICACAO, SERVICO_CONTINUO_COM_DEDICACAO, SERVICO_ENGENHARIA_COMUM, SERVICO_ENGENHARIA_ESPECIAL, OBRA, LOCACAO_IMOVEL, SOLUCAO_TIC, OUTRO · `MODALITY`: PREGAO, CONCORRENCIA, CONCURSO, LEILAO, DIALOGO_COMPETITIVO, DISPENSA, INEXIGIBILIDADE (`Process.modalityId` nulo = "A definir") · `PROCESS_ORIGIN`: PCA, DEMANDA_NAO_PREVISTA, RENOVACAO_CONTRATO, EMERGENCIAL, DETERMINACAO_LEGAL_JUDICIAL, OUTRA · `UNIT_OF_MEASURE`: UN, CX, PCT, KIT, PAR, RESMA, ROLO, FRASCO, AMPOLA, COMPRIMIDO, KG, G, T, L, ML, M, M2, M3, KM, HORA, DIA, DIARIA, MES, ANO, SERVICO, GLOBAL · `RISK_CATEGORY`: PLANEJAMENTO, ORCAMENTARIO_FINANCEIRO, MERCADO_FORNECEDOR, TECNICO_OPERACIONAL, LEGAL_CONFORMIDADE, PRAZO, AMBIENTAL, REPUTACIONAL, SEGURANCA_INFORMACAO, OUTRO · `PRICE_SOURCE_TYPE`: PAINEL_PRECOS_PNCP (art. 23, §1º, I), CONTRATACAO_SIMILAR (II; 365 dias), MIDIA_ESPECIALIZADA (III), SITIO_ELETRONICO (III; exige `url` + `accessedAt`), TABELA_REFERENCIA (III), PESQUISA_DIRETA_FORNECEDOR (IV; exige fornecedor, data, anexo e justificativa de escolha; 180 dias), NOTA_FISCAL_ELETRONICA (V), OUTRA · `JUDGMENT_CRITERION` (art. 33): MENOR_PRECO, MAIOR_DESCONTO, MELHOR_TECNICA_CONTEUDO_ARTISTICO, TECNICA_E_PRECO, MAIOR_LANCE, MAIOR_RETORNO_ECONOMICO · `ATTACHMENT_CATEGORY`: ORCAMENTO, PROPOSTA, NOTA_TECNICA, PARECER, OFICIO, PLANILHA, FOTO, PROJETO, CERTIDAO, OUTRO |
-| Tipos de documento | `DFD` (STRUCTURED/DFD), `ETP` (STRUCTURED/ETP), `TR` (STRUCTURED/TERM_OF_REFERENCE), `RISK_MAP` (STRUCTURED/RISK_MAP; `numberingMask = "MR {seq:4}/{year}"`), `PRICE_RESEARCH` (STRUCTURED/PRICE_RESEARCH; `defaultConfidentiality = INTERNAL`; `numberingMask = "PP {seq:4}/{year}"`), `DESPACHO`, `OFICIO`, `NOTA_TECNICA`, `AUTORIZACAO`, `DECLARACAO` (FREE_TEXT), `DOCUMENTO_EXTERNO` (UPLOADED). Todos com `requiresApproval = false` (DEC-018) |
+| Tipos de documento | `DFD` (STRUCTURED/DFD), `ETP` (STRUCTURED/ETP), `TR` (STRUCTURED/TERM_OF_REFERENCE), `RISK_MAP` (STRUCTURED/RISK_MAP; `numberingMask = "MR {seq:4}/{year}"`), `PRICE_RESEARCH` (STRUCTURED/PRICE_RESEARCH; `defaultConfidentiality = INTERNAL`; `numberingMask = "PP {seq:4}/{year}"`), `DESPACHO` (`DESP {seq:4}/{year}`), `OFICIO` (`OF {seq:4}/{year}`), `NOTA_TECNICA` (`NT {seq:4}/{year}`), `AUTORIZACAO` (`AUT {seq:4}/{year}`), `DECLARACAO` (`DECL {seq:4}/{year}`) (FREE_TEXT), `DOCUMENTO_EXTERNO` (UPLOADED; `numberingEnabled = false`). Demais tipos sem máscara própria (usam `numbering.document.defaultMask`). Todos com `requiresApproval = false` (DEC-018) |
 | Templates | Biblioteca padrão publicada (v1) para cada tipo acima, com seções, orientações e base legal (US-110) |
 | Workflows | (1) "Fase preparatória — Lei 14.133/2021" publicado (v1) e `isDefault` (DEC-015); etapa `PESQUISA_PRECOS` com `CHOSEN_ON_FORWARD` até o administrador configurar a unidade de Compras. (2) "Contratação direta — Lei 14.133/2021, art. 72" publicado (v1) com `applicabilityRule` = modalidade `DISPENSA` ou `INEXIGIBILIDADE` e `applicabilityPriority` menor que o padrão |
 | Calendário | Feriados nacionais do ano corrente e do seguinte: 01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 20/11 (Lei 14.759/2023), 25/12 (`NATIONAL`, recorrentes); Carnaval (2ª e 3ª), Quarta-feira de Cinzas e Corpus Christi como `OPTIONAL`; Sexta-feira Santa como `MUNICIPAL` sugerido (revisar com o órgão) |
@@ -1653,7 +1786,7 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | `ContractMeasurement` | 4 | Medições | `Contract`, `ContractItem` |
 | `ContractOccurrence` | 4 | Ocorrências da fiscalização | `Contract` |
 | `ContractAmendment` | 4 | Aditivos, reajustes, renovações | `Contract` |
-| `AIAnalysis` | 5 | Execução de análise de IA (prompt versionado, modelo, custo, resultado) | `Process`, `DocumentVersion` |
+| `AIAnalysis` | 5 | Execução de análise de IA (prompt versionado, modelo, custo, resultado). A geração de documentos já usa `AiGeneration` no MVP 1 (§4.11); no MVP 5, avaliar estender `AiGeneration` em vez de criar entidade paralela (e alinhar o nome — DOM-01 em domains.md) | `Process`, `DocumentVersion`, `AiGeneration` |
 | `ValidationResult` | 5 | Resultado de validação automática (ex.: divergência de quantidade ETP × TR por `processItemId`) | `Process`, `DocumentItem` |
 | `Embedding` | 5 | Vetores (pgvector) de documentos/itens para similaridade | `DocumentVersion`, `ProcessItem` |
 
@@ -1668,4 +1801,4 @@ Mapeamento padrão semeado: `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION �
 | 2 | `Approval.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`) com padrão `ANY` | Compatível |
 | 3 | Habilitar transição `COMPLETED → PUBLISHED`; `RenditionKind.SIGNED` passa a ser usado; `MembershipType.SERVICE` | Enums já existem |
 | 4 | `Supplier` ganha vínculos com `Contract`; `ProcessItem` → `ContractItem` | Nenhum |
-| 5 | `CREATE EXTENSION vector` já instalada; tabelas de embeddings; `SectionDefinition.aiHints` passa a ser usado | Nenhum |
+| 5 | `CREATE EXTENSION vector` já instalada; tabelas de embeddings; `SectionDefinition.aiHints` passa a ser usado (os prompts do MVP 1 já podem lê-lo, se preenchido) | `ai_generations` reaproveitada |

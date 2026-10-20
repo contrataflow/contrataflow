@@ -21,16 +21,17 @@ export default nest({ tsconfigRootDir: import.meta.dirname });
 
 ## Proibições de segurança (RN-FND-06)
 
-| Regra                                           | Proíbe                                     | Permitido em                                    |
-| ----------------------------------------------- | ------------------------------------------ | ----------------------------------------------- |
-| `contrataflow/no-unsafe-raw-query`              | `$queryRawUnsafe` / `$executeRawUnsafe`    | —                                               |
-| `contrataflow/no-dangerous-html`                | `dangerouslySetInnerHTML`                  | `**/sanitized-html-preview.tsx`                 |
-| `contrataflow/no-console`                       | `console.*`                                | arquivos `*.config.*`; scripts de `tools/`      |
-| `contrataflow/no-process-env`                   | `process.env`                              | `**/src/config/**`, arquivos `*.config.*`       |
-| `contrataflow/no-dynamic-code`                  | `eval`, `new Function`, timers com string  | —                                               |
-| `contrataflow/no-direct-redis`                  | `ioredis`, `redis`, `@redis/*`, `iovalkey` | `**/shared/cache/**`, `**/modules/platform/**`  |
-| `contrataflow/no-prisma-outside-infrastructure` | `@prisma/client`                           | `**/infrastructure/**`, `**/shared/database/**` |
-| `contrataflow/require-server-only`              | arquivo do BFF sem `import 'server-only'`  | obrigatório em `**/src/bff/**`                  |
+| Regra                                            | Proíbe                                                                | Permitido em                                    |
+| ------------------------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------- |
+| `contrataflow/no-unsafe-raw-query`               | `$queryRawUnsafe` / `$executeRawUnsafe`                               | —                                               |
+| `contrataflow/no-dangerous-html`                 | `dangerouslySetInnerHTML`                                             | `**/sanitized-html-preview.tsx`                 |
+| `contrataflow/no-console`                        | `console.*`                                                           | arquivos `*.config.*`; scripts de `tools/`      |
+| `contrataflow/no-process-env`                    | `process.env`                                                         | `**/src/config/**`, arquivos `*.config.*`       |
+| `contrataflow/no-dynamic-code`                   | `eval`, `new Function`, timers com string                             | —                                               |
+| `contrataflow/no-direct-redis`                   | `ioredis`, `redis`, `@redis/*`, `iovalkey`                            | `**/shared/cache/**`, `**/modules/platform/**`  |
+| `contrataflow/no-prisma-outside-infrastructure`  | `@prisma/client`                                                      | `**/infrastructure/**`, `**/shared/database/**` |
+| `contrataflow/no-prisma-client-outside-database` | cliente Prisma gerado, `prisma-client.js`, `@prisma/adapter-pg`, `pg` | `**/shared/database/**`, `**/test/**`           |
+| `contrataflow/require-server-only`               | arquivo do BFF sem `import 'server-only'`                             | obrigatório em `**/src/bff/**`                  |
 
 Também: `@typescript-eslint/no-explicit-any` e `@typescript-eslint/ban-ts-comment`
 (`@ts-expect-error` só com descrição ≥ 10 caracteres). As _fixtures_ de violação ficam em

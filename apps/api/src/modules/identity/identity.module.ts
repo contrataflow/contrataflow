@@ -1,38 +1,270 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit, Provider } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
-import { MEMBERSHIP_PORT, TOKEN_VERIFIER, USER_PORT } from '#shared/auth/ports.js';
+import { MembershipReferencesModule } from '#shared/auth/membership-references.js';
+import {
+  MEMBERSHIP_PORT,
+  PLATFORM_OPERATOR_PORT,
+  TOKEN_VERIFIER,
+  USER_PORT,
+} from '#shared/auth/ports.js';
+import { TenantMfaSettings, TenantMfaSettingsModule } from '#shared/auth/tenant-mfa-settings.js';
+import { TenantCache } from '#shared/cache/tenant-cache.js';
+import { TenantSeederRegistry, TenantSeedingModule } from '#shared/tenancy/tenant-seeding.js';
 
+import { FirstAdminSeeder } from './application/first-admin.seeder.js';
 import { IdentityFacade } from './application/identity.facade.js';
+import {
+  AUTHENTIK_PROVISIONING,
+  INVITATION_REPOSITORY,
+  MEMBERSHIP_SETTINGS,
+} from './application/invitation-ports.js';
+import {
+  AcceptInvitationCommand,
+  CancelInvitationCommand,
+  InviteUserCommand,
+  ListMembershipsQuery,
+  PreviewInvitationQuery,
+  ResendInvitationCommand,
+} from './application/invitation.commands.js';
+import { GetMyProfileQuery, ListMyMembershipsQuery } from './application/me.queries.js';
+import { MEMBERSHIP_REPOSITORY } from './application/membership-ports.js';
+import {
+  ChangeMembershipStatusCommand,
+  GetMembershipQuery,
+  UpdateMembershipCommand,
+  UpdateMembershipDepartmentsCommand,
+} from './application/membership.commands.js';
+import {
+  AUTHENTIK_DIRECTORY,
+  AUTHENTIK_MFA,
+  FIRST_ADMIN_STORE,
+  IDENTITY_CLOCK,
+  IDENTITY_REPOSITORY,
+  IDENTITY_TENANT_TRANSACTIONS,
+  SESSION_AUDIT,
+  TENANT_MFA_POLICY,
+} from './application/ports.js';
+import { RecordSessionEndingsCommand } from './application/record-session-endings.command.js';
+import { RecordSessionTenantCommand } from './application/record-session-tenant.command.js';
+import { ResetUserMfaCommand } from './application/reset-user-mfa.command.js';
+import { StartSessionCommand } from './application/start-session.command.js';
+import { UpdateMyProfileCommand } from './application/update-my-profile.command.js';
+import { UserLookupQuery } from './application/user-lookup.query.js';
+import { AuditTrailSessionRecorder } from './infrastructure/audit-trail-session.recorder.js';
+import {
+  AuthentikAdminClient,
+  DisabledAuthentikDirectory,
+} from './infrastructure/authentik-admin.client.js';
 import { FakeJwksProvider } from './infrastructure/fake-jwks.provider.js';
 import {
-  InMemoryMembershipRepository,
-  InMemoryUserRepository,
+  InMemoryFirstAdminStore,
+  PrismaFirstAdminStore,
+  PrismaIdentityTenantTransactions,
+} from './infrastructure/first-admin.store.js';
+import {
+  InMemoryAuthentikDirectory,
+  InMemoryIdentityRepository,
 } from './infrastructure/in-memory-identity.repositories.js';
+import { JwksHealthIndicator } from './infrastructure/jwks-health.indicator.js';
+import { JwksTokenVerifier } from './infrastructure/jwks-token-verifier.js';
+import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repository.js';
+import {
+  InMemoryMembershipSettings,
+  PrismaInvitationRepository,
+  PrismaMembershipSettings,
+} from './infrastructure/prisma-invitation.repository.js';
+import { PrismaMembershipRepository } from './infrastructure/prisma-membership.repository.js';
+import { SessionSweepScheduler } from './infrastructure/session-sweep.scheduler.js';
+import {
+  InMemoryTenantMfaPolicy,
+  SettingsTenantMfaPolicy,
+} from './infrastructure/tenant-mfa-policy.js';
+import {
+  InvitationAcceptController,
+  UserInvitationController,
+} from './presentation/invitation.controller.js';
+import { MeController } from './presentation/me.controller.js';
+import { SessionEventsController } from './presentation/session-events.controller.js';
+import { UserMembershipController } from './presentation/user-membership.controller.js';
+
+/** Repositório de identidade efetivo (Prisma, ou em memória no modo de identidade fake). */
+const IDENTITY_STORE = Symbol('IdentityStore');
+/** Primeiro administrador e operadores de plataforma (US-099), Prisma ou em memória. */
+const FIRST_ADMIN_BACKEND = Symbol('FirstAdminBackend');
 
 /**
- * Módulo `identity` (DEC-040): outros módulos usam somente a fachada exportada. Implementa as
- * portas do pipeline de autenticação (`TokenVerifierPort`, `UserPort`, `MembershipPort`) com
- * adaptadores temporários — Prisma na US-081 e JWKS do Authentik na US-087.
+ * Modo de identidade fake (`OIDC_FAKE_SIGNING_KEY`, só local/dev/test — FA-02 da US-080): token
+ * HS256 e diretório em memória. Sem a chave (padrão e único caminho em staging/produção): JWKS do
+ * Authentik e as tabelas reais (US-087).
  */
-@Module({
-  providers: [
-    IdentityFacade,
+function identityProviders(): Provider[] {
+  return [
     {
       provide: TOKEN_VERIFIER,
       inject: [APP_CONFIG],
       useFactory: (config: AppConfig) =>
-        new FakeJwksProvider({
-          signingKey: config.oidc.fakeSigningKey,
-          issuer: config.oidc.issuerUrl,
-          audiences: config.oidc.audiences,
-          clockToleranceSeconds: config.oidc.clockToleranceSeconds,
-        }),
+        config.oidc.fakeSigningKey
+          ? new FakeJwksProvider({
+              signingKey: config.oidc.fakeSigningKey,
+              issuer: config.oidc.issuerUrl,
+              audiences: config.oidc.audiences,
+              clockToleranceSeconds: config.oidc.clockToleranceSeconds,
+            })
+          : new JwksTokenVerifier({
+              issuer: config.oidc.issuerUrl,
+              audiences: config.oidc.audiences,
+              clockToleranceSeconds: config.oidc.clockToleranceSeconds,
+            }),
     },
-    { provide: USER_PORT, useFactory: () => new InMemoryUserRepository() },
-    { provide: MEMBERSHIP_PORT, useFactory: () => new InMemoryMembershipRepository() },
+    PrismaIdentityRepository,
+    {
+      provide: IDENTITY_STORE,
+      inject: [APP_CONFIG, PrismaIdentityRepository],
+      useFactory: (config: AppConfig, prisma: PrismaIdentityRepository) =>
+        config.oidc.fakeSigningKey ? new InMemoryIdentityRepository() : prisma,
+    },
+    { provide: IDENTITY_REPOSITORY, useExisting: IDENTITY_STORE },
+    { provide: USER_PORT, useExisting: IDENTITY_STORE },
+    { provide: MEMBERSHIP_PORT, useExisting: IDENTITY_STORE },
+    {
+      provide: AUTHENTIK_DIRECTORY,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) => {
+        if (config.oidc.fakeSigningKey) return new InMemoryAuthentikDirectory();
+        return config.authentik
+          ? new AuthentikAdminClient(config.authentik)
+          : new DisabledAuthentikDirectory();
+      },
+    },
+    // Convite e vínculos (US-091): o diretório do Authentik também provisiona as contas.
+    PrismaInvitationRepository,
+    {
+      provide: INVITATION_REPOSITORY,
+      inject: [APP_CONFIG, IDENTITY_STORE, PrismaInvitationRepository],
+      useFactory: (
+        config: AppConfig,
+        memory: InMemoryIdentityRepository,
+        prisma: PrismaInvitationRepository,
+      ) => (config.oidc.fakeSigningKey ? memory : prisma),
+    },
+    { provide: AUTHENTIK_PROVISIONING, useExisting: AUTHENTIK_DIRECTORY },
+    // Redefinição do MFA (US-090 · USR-13): a mesma API administrativa.
+    { provide: AUTHENTIK_MFA, useExisting: AUTHENTIK_DIRECTORY },
+    // Gestão de vínculos (US-092): mesma escolha Prisma/memória do convite.
+    PrismaMembershipRepository,
+    {
+      provide: MEMBERSHIP_REPOSITORY,
+      inject: [APP_CONFIG, IDENTITY_STORE, PrismaMembershipRepository],
+      useFactory: (
+        config: AppConfig,
+        memory: InMemoryIdentityRepository,
+        prisma: PrismaMembershipRepository,
+      ) => (config.oidc.fakeSigningKey ? memory : prisma),
+    },
+    PrismaMembershipSettings,
+    {
+      provide: MEMBERSHIP_SETTINGS,
+      inject: [APP_CONFIG, PrismaMembershipSettings],
+      useFactory: (config: AppConfig, prisma: PrismaMembershipSettings) =>
+        config.oidc.fakeSigningKey ? new InMemoryMembershipSettings() : prisma,
+    },
+    PrismaFirstAdminStore,
+    PrismaIdentityTenantTransactions,
+    {
+      provide: FIRST_ADMIN_BACKEND,
+      inject: [APP_CONFIG, PrismaFirstAdminStore],
+      useFactory: (config: AppConfig, prisma: PrismaFirstAdminStore) =>
+        config.oidc.fakeSigningKey ? new InMemoryFirstAdminStore() : prisma,
+    },
+    { provide: FIRST_ADMIN_STORE, useExisting: FIRST_ADMIN_BACKEND },
+    { provide: PLATFORM_OPERATOR_PORT, useExisting: FIRST_ADMIN_BACKEND },
+    {
+      provide: IDENTITY_TENANT_TRANSACTIONS,
+      inject: [FIRST_ADMIN_BACKEND, PrismaIdentityTenantTransactions],
+      useFactory: (
+        backend: InMemoryFirstAdminStore | PrismaFirstAdminStore,
+        prisma: PrismaIdentityTenantTransactions,
+      ) => (backend instanceof InMemoryFirstAdminStore ? backend : prisma),
+    },
+    { provide: SESSION_AUDIT, useClass: AuditTrailSessionRecorder },
+    // `security.mfaPolicy` do tenant (RN-IAM-42): fonte registrada pelo `tenancy`, com cache.
+    {
+      provide: SettingsTenantMfaPolicy,
+      inject: [TenantMfaSettings, TenantCache],
+      useFactory: (settings: TenantMfaSettings, cache: TenantCache) =>
+        new SettingsTenantMfaPolicy(settings, cache),
+    },
+    {
+      provide: TENANT_MFA_POLICY,
+      inject: [APP_CONFIG, SettingsTenantMfaPolicy],
+      useFactory: (config: AppConfig, settings: SettingsTenantMfaPolicy) =>
+        config.oidc.fakeSigningKey ? new InMemoryTenantMfaPolicy() : settings,
+    },
+    { provide: IDENTITY_CLOCK, useValue: () => new Date() },
+  ];
+}
+
+/**
+ * Módulo `identity` (DEC-040): outros módulos usam somente a fachada exportada. Dono de `User`,
+ * `TenantMembership` e `MembershipDepartment`; implementa as portas do pipeline de autenticação
+ * (`TokenVerifierPort`, `UserPort`, `MembershipPort`), o início de sessão (`POST
+ * /internal/session-events`) e ME-01/ME-04 (US-087; ME-02 na US-098). Desde a US-088 também roda a varredura de
+ * encerramentos de sessão (`SessionSweepScheduler`, 1 min), que audita logout e expiração a partir
+ * do Redis de sessões (`SESSION_REGISTRY`, fornecido pelo módulo `platform`). Desde a US-099: a
+ * porta `PlatformOperatorPort` (rotas `/platform/*` e CLI) e o seeder `identity.firstAdmin`. Desde a
+ * US-091: convite e aceite (USR-01/03..06/14), com a autorização, o perfil inicial e as unidades
+ * da lotação pela porta `MembershipReferences` (implementada por `access` e `organization`). Desde
+ * a US-092: detalhe e ciclo de vida do vínculo (USR-07..12), com POL-12/16. Desde a US-090: a
+ * redefinição do MFA da conta no Authentik (USR-13).
+ */
+@Module({
+  imports: [TenantSeedingModule, MembershipReferencesModule, TenantMfaSettingsModule],
+  controllers: [
+    MeController,
+    SessionEventsController,
+    UserInvitationController,
+    UserMembershipController,
+    InvitationAcceptController,
   ],
-  exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT],
+  providers: [
+    IdentityFacade,
+    ...identityProviders(),
+    JwksHealthIndicator,
+    StartSessionCommand,
+    RecordSessionTenantCommand,
+    RecordSessionEndingsCommand,
+    SessionSweepScheduler,
+    GetMyProfileQuery,
+    UpdateMyProfileCommand,
+    ListMyMembershipsQuery,
+    FirstAdminSeeder,
+    InviteUserCommand,
+    ResendInvitationCommand,
+    CancelInvitationCommand,
+    AcceptInvitationCommand,
+    PreviewInvitationQuery,
+    ListMembershipsQuery,
+    GetMembershipQuery,
+    UpdateMembershipCommand,
+    UpdateMembershipDepartmentsCommand,
+    ChangeMembershipStatusCommand,
+    ResetUserMfaCommand,
+    UserLookupQuery,
+  ],
+  exports: [IdentityFacade, TOKEN_VERIFIER, USER_PORT, MEMBERSHIP_PORT, PLATFORM_OPERATOR_PORT],
 })
-export class IdentityModule {}
+export class IdentityModule implements OnModuleInit {
+  constructor(
+    private readonly seeders: TenantSeederRegistry,
+    private readonly firstAdmin: FirstAdminSeeder,
+  ) {}
+
+  /** Seeder `identity.firstAdmin` e convite do primeiro administrador (US-099). */
+  onModuleInit(): void {
+    this.seeders.register(this.firstAdmin);
+    this.seeders.registerFirstAdminInvitation(this.firstAdmin);
+  }
+}

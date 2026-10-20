@@ -63,7 +63,7 @@ Permitir que o administrador leia e altere qualquer chave do registro com valida
 - **RN-TEN-53** — O valor de cada chave é validado pelo schema Zod registrado pelo módulo dono (tipo, intervalo, enum do §6); o módulo pode emitir um código de violação próprio (ex.: `NUMBERING_MASK_INVALID` para `numbering.*`, US-105) em vez do genérico `VALIDATION_ERROR`.
 - **RN-TEN-54** — Concorrência por chave: `PATCH` informa o `version` esperado de cada chave alterada; qualquer divergência cancela o lote inteiro (`VERSION_CONFLICT`, 412, identificando a(s) chave(s) em conflito) — tudo ou nada.
 - **RN-TEN-55** — Toda alteração grava o `TenantSetting` da chave e a auditoria `settings.update` (valor anterior/novo, por chave) na mesma transação; um único evento `TenantSettingsChanged` é publicado por requisição, com `keys[]` de todas as chaves alteradas.
-- **RN-TEN-56** — `SET-03` expõe somente as chaves marcadas **públicas** no registro (grupos "Identidade" e "Marca": `labels.*`, `branding.*`) a qualquer vínculo `ACTIVE`, sem exigir `SETTINGS_MANAGE`; as demais chaves nunca aparecem nessa rota.
+- **RN-TEN-56** — `SET-03` expõe somente as chaves marcadas **públicas** no registro (grupos "Identidade" e "Marca": `labels.*`, `branding.*`; e `process.requireInternalCode`, que só muda o formulário de criação de processo — US-001 FA-09) a qualquer vínculo `ACTIVE`, sem exigir `SETTINGS_MANAGE`; as demais chaves nunca aparecem nessa rota.
 - **RN-TEN-57** — Chave sem linha persistida (tenant provisionado antes de ela existir no registro) retorna o valor padrão do registro em `GET`; o seeder `tenancy.settings` (módulo `tenancy`, `applyToExistingTenants = true`) grava o padrão de toda chave nova em tenants existentes (US-099, RN-TEN-07) e de todas as chaves no provisionamento.
 - **RN-TEN-58** — Alterar chaves de numeração (`numbering.*`) não afeta números já emitidos; a UI exibe aviso não bloqueante de que o efeito pleno de `numbering.process.scope` ocorre a partir do próximo exercício (DEC-028).
 
@@ -183,7 +183,7 @@ Feature: Configurações gerais do tenant
 - `PATCH` em lote é transacional: todas as chaves do corpo são validadas e gravadas juntas, ou nenhuma é.
 
 ## Backend
-- **Módulo(s):** `tenancy` (dono do mecanismo genérico e do seeder `tenancy.settings`); cada módulo registra suas chaves (`catalog`, `organization`, `process`, `document`, `access`, `risk`, `priceResearch`…) no `SettingsRegistry`.
+- **Módulo(s):** `tenancy` (dono do mecanismo genérico e do seeder `tenancy.settings`); cada módulo registra suas chaves (`catalog`, `organization`, `process`, `document`, `access`, `risk`, `priceResearch`…) no `SettingsRegistry`. Implementação: as definições (schema, padrão, grupo, módulo dono, leitura pública) estão em `packages/validation/src/tenancy/settings.ts` (`SETTING_DEFINITIONS`), compartilhadas com a SCR-041 — ver DEC-059 em decisions.md.
 - **Casos de uso:** `GetSettingsQuery`, `GetPublicSettingsQuery`, `UpdateSettingsCommand` (lote).
 - **Domínio:** `SettingsRegistry` (chave → schema Zod, padrão, grupo, `isPublic`); `TenantSetting.upsert(key, value, expectedVersion)`.
 - **Contrato de seeder:** `tenancy.settings` implementa `TenantSeeder` (US-099): `seed()` grava toda chave ausente com o padrão; `verify()` confere que todas as chaves do registro têm linha.
@@ -198,7 +198,7 @@ Feature: Configurações gerais do tenant
 
 ## Banco de dados
 - **Tabelas:** `tenant_settings`.
-- **Migrações:** nenhuma nova (tabela já definida em entities.md §4).
+- **Migrações:** `20261015240000_tenant_settings` — tabela `tenant_settings` (entities.md §4: check do formato da chave, trigger de imutabilidade de tenant e chave, RLS, sem `DELETE`).
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, key)`.
 
 ## API

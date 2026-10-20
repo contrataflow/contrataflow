@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import GlobalError from '@/app/global-error';
 import { ApiError } from '@/lib/api/api-error';
 import { seriousA11yViolations } from '@test/support/axe';
-import { IntlProvider, jsonResponse, shellSession } from '@test/support/render';
+import { IntlProvider, jsonResponse, requestUrl, shellSession } from '@test/support/render';
 
 import { ConflictDialog } from './conflict-dialog';
 import { CorrelationCode } from './correlation-code';
@@ -175,9 +175,17 @@ describe('FA-05 — diálogo de conflito padrão (412)', () => {
   it('429 em mutação vira aviso com o tempo de espera', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>(() =>
+      vi.fn<typeof fetch>((input, init) =>
         Promise.resolve(
-          jsonResponse({ code: 'RATE_LIMITED' }, { status: 429, headers: { 'Retry-After': '12' } }),
+          // O shell lê ME-03 (US-097) e o perfil (US-098) ao montar; só a mutação é limitada.
+          requestUrl(input).startsWith('/api/v1/me/permissions')
+            ? jsonResponse({ data: { permissions: [], implicit: { headOfDepartmentIds: [] } } })
+            : init?.method === 'POST'
+              ? jsonResponse(
+                  { code: 'RATE_LIMITED' },
+                  { status: 429, headers: { 'Retry-After': '12' } },
+                )
+              : jsonResponse({ data: {} }),
         ),
       ),
     );

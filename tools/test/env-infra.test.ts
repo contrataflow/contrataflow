@@ -205,6 +205,104 @@ describe('[RN-FND-17] blueprints do Authentik', () => {
   });
 });
 
+interface BlueprintEntry {
+  readonly model: string;
+  readonly id?: string;
+  readonly identifiers: Readonly<Record<string, unknown>>;
+  readonly attrs?: Readonly<Record<string, unknown>>;
+}
+
+describe('US-089 — recuperação de senha no Authentik (blueprint 12)', () => {
+  const text = read('infra/authentik/blueprints/12-contrataflow-recovery.yaml');
+  const { entries } = parse(text, { logLevel: 'silent' }) as { entries: BlueprintEntry[] };
+  const byName = (model: string, name: string) =>
+    entries.find((entry) => entry.model === model && entry.identifiers.name === name)?.attrs ?? {};
+  const login = read('infra/authentik/blueprints/15-contrataflow-login.yaml');
+
+  it('flow de recuperação com o slug usado pelo BFF, no tema do login', () => {
+    const flow = entries.find((entry) => entry.model === 'authentik_flows.flow');
+    expect(flow?.identifiers.slug).toBe('contrataflow-recovery');
+    expect(flow?.attrs).toMatchObject({
+      designation: 'recovery',
+      title: 'Esqueceu sua senha?',
+      layout: 'sidebar_right',
+    });
+  });
+
+  it('RN-IAM-36: mínimo de 12 caracteres e recusa de senha vazada, aplicada à nova senha', () => {
+    expect(
+      byName('authentik_policies_password.passwordpolicy', 'contrataflow-password-policy'),
+    ).toMatchObject({
+      password_field: 'password',
+      check_static_rules: true,
+      length_min: 12,
+      check_have_i_been_pwned: true,
+      hibp_allowed_count: 0,
+      error_message:
+        'Escolha uma senha com pelo menos 12 caracteres, que não tenha sido exposta em vazamentos conhecidos.',
+    });
+    expect(
+      byName('authentik_stages_prompt.promptstage', 'contrataflow-recovery-new-password')
+        .validation_policies,
+    ).toHaveLength(1);
+  });
+
+  it('RN-IAM-35: só o e-mail, resposta genérica e sem mostrar a conta encontrada', () => {
+    expect(
+      byName(
+        'authentik_stages_identification.identificationstage',
+        'contrataflow-recovery-identification',
+      ),
+    ).toMatchObject({
+      user_fields: ['email'],
+      pretend_user_exists: true,
+      show_matched_user: false,
+    });
+  });
+
+  it('RN-IAM-37: link de 30 min no e-mail do ContrataFlow (o texto acompanha o prazo); conta desativada não é reativada', () => {
+    const email = byName('authentik_stages_email.emailstage', 'contrataflow-recovery-email');
+    expect(email).toMatchObject({
+      use_global_settings: true,
+      template: 'contrataflow/password-reset.html',
+      token_expiry: 'minutes=30',
+      activate_user_on_success: false,
+    });
+    const template = read('infra/authentik/templates/contrataflow/password-reset.html');
+    expect(template).toContain('O link vale por 30 minutos e só pode ser usado uma vez.');
+    expect(template).toContain('href="{{ url }}"');
+    expect(template).not.toMatch(/https?:\/\//);
+  });
+
+  it('passos 6–7: na gravação da senha, encerra sessões e refresh tokens e volta a SCR-001', () => {
+    const finish = byName(
+      'authentik_policies_expression.expressionpolicy',
+      'contrataflow-recovery-finish',
+    );
+    const [expression] = finish.expression as string[];
+    expect(expression).toContain(
+      'context["flow_plan"].context["redirect"] = "%s/entrar?motivo=senha-redefinida"',
+    );
+    expect(expression).toContain('Session.objects.filter(authenticatedsession__user=user)');
+    expect(expression).toContain('RefreshToken.objects.filter(user=user).delete()');
+    expect(expression).toMatch(/return True\s*$/);
+    // Nenhum estágio de login: o fluxo não cria sessão no IdP.
+    expect(entries.map((entry) => entry.model)).not.toContain(
+      'authentik_stages_user_login.userloginstage',
+    );
+  });
+
+  it('"Esqueci minha senha" no formulário do login e na marca; templates montados no Compose', () => {
+    const recovery = '!Find [authentik_flows.flow, [slug, contrataflow-recovery]]';
+    expect(login).toContain(`recovery_flow: ${recovery}`);
+    expect(login).toContain(`flow_recovery: ${recovery}`);
+    expect(login).toContain("name: 'ContrataFlow — recuperação de senha'");
+    for (const service of ['authentik-server', 'authentik-worker']) {
+      expect(base.services[service]?.volumes).toContain('./authentik/templates:/templates:ro');
+    }
+  });
+});
+
 describe('[Permissão] nenhum segredo real versionado (RN-FND-19)', () => {
   const blueprintsDir = 'infra/authentik/blueprints';
   const blueprints = readdirSync(path.join(REPO_ROOT, blueprintsDir)).map((file) =>

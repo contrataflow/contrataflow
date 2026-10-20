@@ -1,4 +1,5 @@
 import { AccessModule } from './access/access.module.js';
+import { AiModule } from './ai/ai.module.js';
 import { ApprovalModule } from './approval/approval.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
@@ -50,4 +51,5 @@ export const API_MODULES = [
   InboxModule,
   DashboardModule,
   NotificationModule,
+  AiModule,
 ] as const;

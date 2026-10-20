@@ -1,0 +1,321 @@
+{
+  "title": "Riscos",
+  "link": "Riscos",
+  "backToProcess": "Voltar ao processo",
+  "processLine": "Processo {code} — {title}",
+  "draftCode": "(sem número)",
+  "listSection": "Lista de riscos",
+  "matrixSection": "Matriz",
+  "tabs": {
+    "label": "Seções dos riscos"
+  },
+  "listCaption": "Riscos do processo",
+  "loading": "Carregando riscos…",
+  "empty": "Nenhum risco registrado. Comece identificando o primeiro risco.",
+  "add": "Novo risco",
+  "count": "{count, plural, one {# risco} other {# riscos}}",
+  "columns": {
+    "code": "Código",
+    "risk": "Risco",
+    "assessment": "Avaliação",
+    "owner": "Responsável",
+    "status": "Situação",
+    "actions": "Ações"
+  },
+  "assessment": {
+    "formula": "probabilidade {probability} × impacto {impact}",
+    "residual": "Residual:"
+  },
+  "actions": {
+    "edit": "Editar",
+    "remove": "Excluir",
+    "showDetails": "Ver detalhes",
+    "hideDetails": "Ocultar detalhes",
+    "riskActions": "Ações do risco {code}",
+    "editRisk": "Editar {code}",
+    "removeRisk": "Excluir {code}",
+    "showDetailsFor": "Ver detalhes {code}",
+    "hideDetailsFor": "Ocultar detalhes {code}"
+  },
+  "details": {
+    "description": "Descrição",
+    "cause": "Causa",
+    "consequence": "Consequência",
+    "scale": "Escala da avaliação",
+    "scaleUsed": "Avaliado na escala {size}.",
+    "scaleChanged": "A escala do tenant mudou; reavalie o risco para aplicar a escala vigente."
+  },
+  "locked": {
+    "openDocument": "Abrir o Mapa de Riscos",
+    "openDocumentNamed": "Abrir o Mapa de Riscos {code}"
+  },
+  "locks": {
+    "NOT_CUSTODIAN": "Somente quem está com o processo, ou participa dele como colaborador ou consultor, pode alterar os riscos.",
+    "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE": "O Mapa de Riscos não pode ser alterado na etapa atual do processo."
+  },
+  "errors": {
+    "load": "Não foi possível carregar os riscos agora.",
+    "retry": "Tentar novamente"
+  },
+  "toast": {
+    "added": "Risco {code} registrado",
+    "updated": "Risco {code} atualizado",
+    "reassessed": "Risco {code} reavaliado: {transition}"
+  },
+  "remove": {
+    "title": "Excluir o risco {code}?",
+    "description": "O risco {code} — {title} será excluído do processo. O código não será reaproveitado.",
+    "treatments": "{count, plural, one {Este risco tem # ação de tratamento, que também será excluída:} other {Este risco tem # ações de tratamento, que também serão excluídas:}}",
+    "treatmentStatus": {
+      "PLANNED": "Planejada",
+      "IN_PROGRESS": "Em andamento",
+      "DONE": "Concluída",
+      "CANCELED": "Cancelada"
+    },
+    "cancel": "Cancelar",
+    "confirm": "Excluir risco",
+    "confirmWithTreatments": "Excluir risco e tratamentos",
+    "retry": "Tentar novamente",
+    "toast": "Risco {code} excluído",
+    "unavailable": "Não foi possível excluir o risco agora. Tente novamente em instantes.",
+    "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+  },
+  "form": {
+    "addTitle": "Novo risco",
+    "editTitle": "Editar risco {code}",
+    "close": "Fechar",
+    "save": "Salvar risco",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "select": "Selecione",
+    "loadingOptions": "Carregando opções…",
+    "loadError": "Não foi possível carregar as opções.",
+    "noCategories": "Nenhuma categoria de risco ativa. Peça ao administrador para cadastrar.",
+    "statusHint": "A situação também muda pelas ações de tratamento; use este ajuste só quando necessário.",
+    "fields": {
+      "title": "Título *",
+      "description": "Descrição",
+      "categoryId": "Categoria *",
+      "phase": "Fase *",
+      "cause": "Causa *",
+      "consequence": "Consequência *",
+      "status": "Situação"
+    },
+    "fieldNames": {
+      "title": "Título",
+      "description": "Descrição",
+      "categoryId": "Categoria",
+      "phase": "Fase",
+      "cause": "Causa",
+      "consequence": "Consequência",
+      "probability": "Probabilidade",
+      "impact": "Impacto",
+      "ownerId": "Responsável",
+      "ownerDepartmentId": "Unidade responsável",
+      "residualProbability": "Probabilidade residual",
+      "residualImpact": "Impacto residual",
+      "status": "Situação"
+    },
+    "grid": {
+      "probability": "Probabilidade",
+      "impact": "Impacto"
+    },
+    "assessment": {
+      "title": "Avaliação do risco",
+      "hint": "Escolha a célula que combina a probabilidade (linhas) e o impacto (colunas). Use as setas do teclado para navegar e Enter para selecionar.",
+      "gridLabel": "Probabilidade × impacto",
+      "incomplete": "Selecione a probabilidade e o impacto para ver o escore e o nível.",
+      "score": "Escore {score}",
+      "transition": "Nível: {transition}",
+      "sameLevel": "O nível continua {level}."
+    },
+    "residual": {
+      "title": "Avaliação residual (opcional)",
+      "hint": "Depois de uma ação de tratamento, informe a probabilidade e o impacto que restam. Os dois valores são informados juntos.",
+      "gridLabel": "Probabilidade × impacto residuais",
+      "none": "Sem avaliação residual.",
+      "clear": "Limpar avaliação residual"
+    },
+    "owner": {
+      "userLabel": "Responsável",
+      "departmentLabel": "Unidade responsável",
+      "hint": "Opcional. Digite ao menos 2 caracteres para buscar.",
+      "defined": "Definido",
+      "remove": "Remover",
+      "searching": "Buscando…",
+      "searchFailed": "Não foi possível buscar agora.",
+      "noResults": "Nenhum resultado.",
+      "removeField": "Remover {field}"
+    },
+    "conflict": {
+      "changed": "Campos alterados por outra pessoa: {fields}.",
+      "load": "Carregar versão atual"
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "keyReused": "Esta solicitação já foi enviada com outros dados. Revise e salve novamente.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "notFound": "Este risco não existe mais."
+    }
+  },
+  "treatments": {
+    "title": "Ações de tratamento",
+    "listLabel": "Ações de tratamento do risco {code}",
+    "empty": "Nenhuma ação de tratamento. Adicione a primeira ação.",
+    "add": "Nova ação de tratamento",
+    "addFor": "Nova ação de tratamento para {code}",
+    "noResponsible": "Sem responsável",
+    "labels": {
+      "responsible": "Responsável",
+      "dueDate": "Prazo",
+      "completedAt": "Conclusão"
+    },
+    "noDueDate": "Sem prazo",
+    "dueDate": "Prazo {date}",
+    "completedAt": "Concluída em {date}",
+    "notes": "Observações",
+    "due": {
+      "overdue": "Atrasado",
+      "today": "Vence hoje",
+      "soon": "{days, plural, one {Vence amanhã} other {Vence em # dias}}"
+    },
+    "status": {
+      "label": "Atualizar status",
+      "labelFor": "Status da ação {position} do risco {code}",
+      "terminal": "Status final; não pode ser alterado."
+    },
+    "actions": {
+      "group": "Ações da ação {position} do risco {code}",
+      "edit": "Editar",
+      "editFor": "Editar a ação {position} do risco {code}",
+      "remove": "Excluir",
+      "removeFor": "Excluir a ação {position} do risco {code}",
+      "moveUp": "Subir",
+      "moveUpFor": "Mover a ação {position} do risco {code} para cima",
+      "moveDown": "Descer",
+      "moveDownFor": "Mover a ação {position} do risco {code} para baixo"
+    },
+    "toast": {
+      "added": "Ação de tratamento adicionada ao risco {code}",
+      "updated": "Ação de tratamento atualizada",
+      "status": "Status alterado para {status}",
+      "removed": "Ação de tratamento excluída",
+      "reordered": "Ordem das ações atualizada",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    },
+    "remove": {
+      "title": "Excluir a ação de tratamento?",
+      "description": "A ação será removida do risco {code}. Para manter o histórico, prefira mudar o status para Cancelada.",
+      "cancel": "Cancelar",
+      "confirm": "Excluir ação",
+      "retry": "Tentar novamente"
+    },
+    "form": {
+      "addTitle": "Nova ação de tratamento — {code}",
+      "editTitle": "Editar ação de tratamento — {code}",
+      "close": "Fechar",
+      "save": "Salvar ação",
+      "saving": "Salvando…",
+      "cancel": "Cancelar",
+      "select": "Selecione",
+      "fields": {
+        "type": "Tipo *",
+        "description": "Descrição *",
+        "dueDate": "Prazo",
+        "notes": "Observações"
+      },
+      "hints": {
+        "type": "Prevenção reduz a probabilidade ou o impacto; contingência prepara a resposta se o risco ocorrer.",
+        "dueDate": "Opcional. Pode ser uma data passada."
+      },
+      "errors": {
+        "formErrors": "Revise os campos destacados.",
+        "keyReused": "Esta solicitação já foi enviada com outros dados. Revise e salve novamente.",
+        "retry": "Tentar novamente",
+        "unexpected": "Ocorreu um erro inesperado.",
+        "notFound": "Esta ação de tratamento não existe mais.",
+        "reload": "Recarregar"
+      }
+    }
+  },
+  "matrix": {
+    "intro": "Distribuição dos riscos do processo por probabilidade e impacto, com a escala vigente. A matriz reflete sempre os riscos atuais.",
+    "caption": "Matriz de riscos: probabilidade nas linhas e impacto nas colunas",
+    "axes": "Probabilidade ↓ / Impacto →",
+    "probability": "Probabilidade",
+    "impact": "Impacto",
+    "openRisk": "Abrir o risco {code} — {title} na lista",
+    "empty": "Nenhum risco registrado. Volte para a lista de riscos e registre o primeiro.",
+    "loading": "Carregando a matriz de riscos…",
+    "errors": {
+      "load": "Não foi possível carregar a matriz de riscos.",
+      "retry": "Tentar novamente"
+    },
+    "filters": {
+      "legend": "Filtrar a matriz",
+      "phase": "Fase",
+      "category": "Categoria",
+      "status": "Situação",
+      "all": "Todas",
+      "clear": "Limpar filtros"
+    }
+  },
+  "riskMap": {
+    "emit": "Emitir Mapa de Riscos",
+    "emitting": "Emitindo…",
+    "emptyHint": "Registre ao menos um risco para emitir o Mapa de Riscos.",
+    "open": "Abrir o Mapa de Riscos",
+    "openNamed": "Abrir o Mapa de Riscos {code}",
+    "openExisting": "Abrir o Mapa de Riscos existente",
+    "completed": "Mapa de Riscos concluído",
+    "rejected": "Mapa de Riscos rejeitado",
+    "completedHint": "Os riscos e tratamentos ficam bloqueados para edição até a reabertura do documento.",
+    "toast": {
+      "created": "Mapa de Riscos {code} emitido.",
+      "createdNoCode": "Mapa de Riscos emitido."
+    },
+    "errors": {
+      "notEditable": "Este processo não permite emitir o Mapa de Riscos agora.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {code}."
+    },
+    "completeness": {
+      "title": "Pendências para concluir o Mapa de Riscos",
+      "none": "Nenhuma pendência de risco: todos os riscos de nível Alto ou Extremo têm ação de tratamento.",
+      "listLabel": "Pendências do Mapa de Riscos",
+      "loading": "Verificando as pendências do Mapa de Riscos…",
+      "blocking": "Bloqueante",
+      "warning": "Aviso",
+      "goToRisk": "Ir para o risco e criar o tratamento",
+      "goToRiskNamed": "Ir para o risco {code} e criar o tratamento"
+    }
+  },
+  "aiReview": {
+    "badge": {
+      "pending": "Gerado por IA · revisão pendente",
+      "reviewed": "Gerado por IA · revisado em {date}",
+      "reviewedByMe": "Gerado por IA · revisado por você em {date}",
+      "placeholder": "· há itens [a confirmar]"
+    },
+    "markReviewed": "Marcar como revisado",
+    "markReviewedFor": "Marcar o risco {code} como revisado",
+    "working": "Registrando…",
+    "reviewAll": {
+      "open": "Revisar todos ({count})",
+      "title": "Revisar os riscos gerados por IA",
+      "description": "{count, plural, one {Confirme que você leu o risco gerado por IA abaixo.} other {Confirme que você leu os # riscos gerados por IA abaixo.}} Os itens [a confirmar] continuam pendentes até serem resolvidos.",
+      "confirmLabel": "{count, plural, one {Li e revisei o risco} other {Li e revisei os # riscos}}",
+      "confirm": "{count, plural, one {Marcar o risco como revisado} other {Marcar os # riscos como revisados}}",
+      "cancel": "Cancelar"
+    },
+    "toast": {
+      "one": "Risco {code} marcado como revisado.",
+      "many": "{count, plural, one {# risco marcado como revisado.} other {# riscos marcados como revisados.}}"
+    },
+    "errors": {
+      "conflict": "O risco foi alterado por outra pessoa. Recarregue.",
+      "locked": "Os riscos estão bloqueados porque o Mapa de Riscos foi concluído.",
+      "unavailable": "Não foi possível registrar a revisão agora. Tente novamente."
+    }
+  }
+}

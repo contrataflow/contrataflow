@@ -1,12 +1,6 @@
-import { randomUUID } from 'node:crypto';
-
-/** Cabeçalho de correlação, fixo por contrato (api.md §1.1 · `CORRELATION_HEADER_NAME`). */
-export const CORRELATION_HEADER = 'X-Correlation-Id';
-
-/** Valor aceito do cliente: curto e sem caracteres que permitam injeção em logs/cabeçalhos. */
-const ACCEPTED = /^[A-Za-z0-9._:-]{1,128}$/;
-
-/** Usa o `X-Correlation-Id` recebido quando válido; senão gera um novo (FA-05). */
-export function resolveCorrelationId(received: string | undefined): string {
-  return received !== undefined && ACCEPTED.test(received) ? received : randomUUID();
-}
+/*
+ * Correlação (RN-FND-74 · observability.md §3): a API aplica a mesma regra do BFF a quem a chama
+ * — `X-Correlation-Id` aceito só se casar `^[A-Za-z0-9._:-]{8,64}$`; ausente ou inválido, o valor
+ * é descartado (nunca logado) e um UUIDv7 é gerado.
+ */
+export { CORRELATION_HEADER, resolveCorrelationId } from '@contrataflow/observability';

@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from './api-error';
 import {
+  apiDownload,
   apiRequest,
   apiUrl,
+  fileNameFromDisposition,
   isRetryableMutationError,
+  newCorrelationId,
   newIdempotencyKey,
   retryIdempotent,
 } from './client';
@@ -36,6 +39,16 @@ describe('apiRequest (same-origin via proxy)', () => {
     expect(headers.get('Content-Type')).toBeNull();
     expect(init?.credentials).toBe('same-origin');
     expect(init?.cache).toBe('no-store');
+  });
+
+  it('membros irmãos de `data` fixados no contrato (ATT-02: `{ data, upload }`)', async () => {
+    const fetchImpl = fetchReturning(
+      new Response(JSON.stringify({ data: { id: 'a' }, upload: { url: 'https://s3.test/x' } }), {
+        status: 201,
+      }),
+    );
+    const result = await apiRequest('/attachments', { method: 'POST', body: {}, fetchImpl });
+    expect(result.members).toEqual({ upload: { url: 'https://s3.test/x' } });
   });
 
   it('mutação reenvia If-Match e Idempotency-Key; 204 sem corpo', async () => {
@@ -92,6 +105,56 @@ describe('apiRequest (same-origin via proxy)', () => {
   });
 });
 
+describe('apiDownload (arquivo — AUD-03 · US-075)', () => {
+  it('GET com query e X-CF-Request; devolve o blob e o nome do Content-Disposition', async () => {
+    const fetchImpl = fetchReturning(
+      new Response('id,action;', {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="auditoria-20260901-20260907.csv"',
+          'X-Correlation-Id': 'c-9',
+        },
+      }),
+    );
+    const file = await apiDownload('/audit/export', {
+      query: { format: 'csv', action: undefined },
+      fetchImpl,
+    });
+    expect(await file.blob.text()).toBe('id,action;');
+    expect(file).toMatchObject({
+      fileName: 'auditoria-20260901-20260907.csv',
+      contentType: 'text/csv; charset=utf-8',
+      correlationId: 'c-9',
+    });
+    const [url, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(url).toBe('/api/v1/audit/export?format=csv');
+    expect(new Headers(init?.headers).get('X-CF-Request')).toBe('1');
+  });
+
+  it('erro → ApiError do problem+json; rede fora → 503', async () => {
+    const fetchImpl = fetchReturning(
+      new Response(JSON.stringify({ code: 'EXPORT_TOO_LARGE', detail: 'Muitos' }), {
+        status: 422,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    );
+    await expect(apiDownload('/audit/export', { fetchImpl })).rejects.toMatchObject({
+      status: 422,
+      code: 'EXPORT_TOO_LARGE',
+    });
+    const offline = vi.fn<typeof fetch>(() => Promise.reject(new TypeError('Failed to fetch')));
+    await expect(apiDownload('/x', { fetchImpl: offline })).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('nome do arquivo com e sem aspas; ausente → null', () => {
+    expect(fileNameFromDisposition('attachment; filename="a.csv"')).toBe('a.csv');
+    expect(fileNameFromDisposition('attachment; filename=b.ndjson')).toBe('b.ndjson');
+    expect(fileNameFromDisposition(null)).toBeNull();
+    expect(fileNameFromDisposition('inline')).toBeNull();
+  });
+});
+
 describe('Idempotency-Key por intenção (DEC-105)', () => {
   it('reenvia a mesma chave em IDEMPOTENCY_IN_PROGRESS e 503', async () => {
     const key = newIdempotencyKey();
@@ -140,5 +203,40 @@ describe('Idempotency-Key por intenção (DEC-105)', () => {
       .mockRejectedValueOnce(new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE' }))
       .mockResolvedValueOnce(1);
     await expect(retryIdempotent(run, { baseDelayMs: 1 })).resolves.toBe(1);
+  });
+});
+
+describe('correlationId por ação do usuário (US-084 — cenário "Duplicidade")', () => {
+  it('a retentativa automática após falha de rede reenvia o mesmo X-Correlation-Id', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(Response.json({ data: { id: 1 } }, { status: 201 }));
+    const correlationId = newCorrelationId();
+    const result = await retryIdempotent(
+      () =>
+        apiRequest('/processes', {
+          method: 'POST',
+          body: {},
+          idempotencyKey: 'k-retry',
+          correlationId,
+          fetchImpl,
+        }),
+      { sleep: () => Promise.resolve() },
+    );
+    expect(result.status).toBe(201);
+    const sent = fetchImpl.mock.calls.map(([, init]) =>
+      new Headers(init?.headers).get('X-Correlation-Id'),
+    );
+    expect(sent).toEqual([correlationId, correlationId]);
+  });
+
+  it('gera UUIDv7 aceito pelo BFF e omite o cabeçalho quando não há ação', async () => {
+    expect(newCorrelationId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    const fetchImpl = fetchReturning(Response.json({ data: null }));
+    await apiRequest('/x', { fetchImpl });
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).has('X-Correlation-Id')).toBe(false);
   });
 });

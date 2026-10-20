@@ -1,0 +1,161 @@
+{
+  "output": {
+    "sections": [
+      {
+        "sectionKey": "INTRODUCTION",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Este Mapa de Riscos identifica e avalia os eventos que podem comprometer a contratação descrita no DFD, desde o planejamento até a gestão do contrato, conforme a Lei 14.133/2021, art. 18, X."
+          }
+        ]
+      },
+      {
+        "sectionKey": "METHODOLOGY",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Cada risco foi avaliado pela combinação de probabilidade e impacto na escala adotada pelo órgão; o nível resultante orienta a prioridade das ações de prevenção e de contingência."
+          }
+        ]
+      },
+      {
+        "sectionKey": "NOTES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O mapa deve ser revisto sempre que houver mudança relevante no objeto ou no cronograma: [a confirmar: periodicidade de revisão]."
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "title": "Especificação técnica insuficiente",
+        "description": "A especificação pode não refletir a necessidade descrita no DFD.",
+        "categoryCode": "PLANEJAMENTO",
+        "phase": "PLANNING",
+        "cause": "Levantamento de requisitos feito sem participação da área técnica.",
+        "consequence": "Aquisição de itens que não atendem à finalidade pretendida.",
+        "probability": 3,
+        "impact": 4,
+        "rationale": "O DFD descreve a necessidade de forma geral.",
+        "treatments": [
+          {
+            "type": "PREVENTIVE",
+            "description": "Validar a especificação com a área técnica antes da pesquisa de preços."
+          },
+          {
+            "type": "CONTINGENCY",
+            "description": "Revisar o termo de referência e republicar o edital se necessário."
+          }
+        ]
+      },
+      {
+        "title": "Pesquisa de preços pouco representativa",
+        "description": "Poucas fontes podem distorcer o valor estimado da contratação.",
+        "categoryCode": "ORCAMENTARIO_FINANCEIRO",
+        "phase": "PLANNING",
+        "cause": "Baixa disponibilidade de contratações similares nas bases públicas.",
+        "consequence": "Valor estimado incompatível com o praticado no mercado.",
+        "probability": 3,
+        "impact": 3,
+        "rationale": "Mercado regional restrito para o objeto.",
+        "treatments": [
+          {
+            "type": "PREVENTIVE",
+            "description": "Ampliar as fontes da pesquisa com cotações de fornecedores e painéis públicos."
+          },
+          {
+            "type": "CONTINGENCY",
+            "description": "Refazer a pesquisa de preços antes da publicação do edital."
+          }
+        ]
+      },
+      {
+        "title": "Licitação deserta ou fracassada",
+        "description": "Ausência de propostas válidas na fase de seleção do fornecedor.",
+        "categoryCode": "MERCADO_FORNECEDOR",
+        "phase": "SELECTION",
+        "cause": "Exigências de habilitação desproporcionais ao objeto.",
+        "consequence": "Atraso no atendimento da necessidade e retrabalho da equipe.",
+        "probability": 2,
+        "impact": 4,
+        "rationale": "Objeto com poucos fornecedores habilitados na região.",
+        "treatments": [
+          {
+            "type": "PREVENTIVE",
+            "description": "Revisar as exigências de habilitação com a assessoria jurídica."
+          },
+          {
+            "type": "CONTINGENCY",
+            "description": "Avaliar a contratação direta nas hipóteses legais cabíveis."
+          }
+        ]
+      },
+      {
+        "title": "Impugnação do edital",
+        "description": "Questionamentos sobre cláusulas restritivas podem suspender o certame.",
+        "categoryCode": "LEGAL_CONFORMIDADE",
+        "phase": "SELECTION",
+        "cause": "Cláusulas do edital interpretadas como restritivas à competição.",
+        "consequence": "Suspensão do certame e necessidade de republicação.",
+        "probability": 2,
+        "impact": 3,
+        "rationale": "Especificações com marca de referência no ETP.",
+        "treatments": [
+          {
+            "type": "PREVENTIVE",
+            "description": "Submeter a minuta do edital à análise jurídica prévia."
+          },
+          {
+            "type": "CONTINGENCY",
+            "description": "Responder às impugnações e ajustar as cláusulas questionadas."
+          }
+        ]
+      },
+      {
+        "title": "Atraso na entrega pelo fornecedor",
+        "description": "Descumprimento do cronograma de entrega previsto no contrato.",
+        "categoryCode": "PRAZO",
+        "phase": "CONTRACT_MANAGEMENT",
+        "cause": "Dificuldade logística do fornecedor contratado.",
+        "consequence": "Interrupção do serviço público que depende dos itens.",
+        "probability": 3,
+        "impact": 3,
+        "rationale": "Prazo de entrega a confirmar no termo de referência.",
+        "treatments": [
+          {
+            "type": "PREVENTIVE",
+            "description": "Definir cronograma de entrega com marcos de acompanhamento pelo fiscal."
+          },
+          {
+            "type": "CONTINGENCY",
+            "description": "Aplicar as sanções contratuais e acionar o segundo colocado."
+          }
+        ]
+      },
+      {
+        "title": "Recebimento de itens fora da especificação",
+        "description": "Itens entregues podem não atender aos critérios de aceitação.",
+        "categoryCode": "TECNICO_OPERACIONAL",
+        "phase": "CONTRACT_MANAGEMENT",
+        "cause": "Critérios de aceitação pouco objetivos no termo de referência.",
+        "consequence": "Uso de itens inadequados ou necessidade de substituição.",
+        "probability": 2,
+        "impact": 2,
+        "rationale": "Critérios de aceitação ainda não detalhados.",
+        "treatments": [
+          {
+            "type": "PREVENTIVE",
+            "description": "Detalhar os critérios de aceitação e o procedimento de recebimento provisório."
+          },
+          {
+            "type": "CONTINGENCY",
+            "description": "Recusar os itens e exigir a substituição no prazo contratual."
+          }
+        ]
+      }
+    ]
+  }
+}

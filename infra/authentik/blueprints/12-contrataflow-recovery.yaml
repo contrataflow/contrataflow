@@ -1,0 +1,183 @@
+# Recuperação de senha no Authentik (US-089 · SCR-002 · RN-IAM-34..37 · DEC-130).
+# O fluxo é todo do IdP: o BFF só redireciona para /if/flow/contrataflow-recovery/ (sem dado do
+# usuário) e o recebe de volta em /entrar?motivo=senha-redefinida, sem sessão nova. Etapas: e-mail
+# (mensagem genérica, exista ou não a conta — RN-IAM-35) → e-mail com link de uso único e 30 min
+# (RN-IAM-37; o Authentik intercala uma confirmação que consome o token, contra varredores de
+# e-mail) → nova senha com a política RN-IAM-36 → gravação, com o encerramento das sessões
+# anteriores → SCR-001. Mesma moldura e marca do login (blueprint 15). Idempotente; sem segredo.
+version: 1
+metadata:
+  name: 'ContrataFlow — recuperação de senha'
+  labels:
+    blueprints.goauthentik.io/description: 'Fluxo de recuperação de senha do ContrataFlow (US-089). Somente ambiente local/CI; em produção o mesmo conteúdo é aplicado pela infraestrutura.'
+entries:
+  # RN-IAM-36: mínimo de 12 caracteres; recusa senha presente em vazamentos conhecidos (Have I
+  # Been Pwned por k-anonimato: só o prefixo do hash sai do IdP) e senha trivial (zxcvbn 0–1).
+  # O HIBP exige saída à internet: sem ela, a política falha fechada (nenhuma senha é aceita).
+  - model: authentik_policies_password.passwordpolicy
+    id: password-policy
+    identifiers:
+      name: contrataflow-password-policy
+    attrs:
+      password_field: password
+      check_static_rules: true
+      length_min: 12
+      error_message: 'Escolha uma senha com pelo menos 12 caracteres, que não tenha sido exposta em vazamentos conhecidos.'
+      check_have_i_been_pwned: true
+      hibp_allowed_count: 0
+      check_zxcvbn: true
+      zxcvbn_score_threshold: 1
+
+  # Passos 6–7, avaliados na hora da gravação da senha: (a) o fim do fluxo vai para SCR-001 —
+  # `redirect` no contexto faz o próprio executor concluir o plano e redirecionar, sem sessão nova
+  # (um estágio de redirecionamento deixaria o plano parado na sessão do navegador); (b) encerra
+  # as sessões do usuário no Authentik e revoga os refresh tokens emitidos — sessões abertas do
+  # ContrataFlow terminam na renovação seguinte (REFRESH_FAILED, US-088). A sessão deste
+  # navegador fica de fora: o fluxo não autentica ninguém. Sempre devolve True: uma falha aqui
+  # não pode pular a gravação da senha.
+  - model: authentik_policies_expression.expressionpolicy
+    id: finish
+    identifiers:
+      name: contrataflow-recovery-finish
+    attrs:
+      execution_logging: false
+      expression: !Format
+        - |
+          context["flow_plan"].context["redirect"] = "%s/entrar?motivo=senha-redefinida"
+          user = context.get("pending_user")
+          if user is not None and user.pk:
+              try:
+                  from authentik.core.models import Session
+                  from authentik.providers.oauth2.models import RefreshToken
+
+                  current = request.http_request.session.session_key
+                  Session.objects.filter(authenticatedsession__user=user).exclude(
+                      session_key=current
+                  ).delete()
+                  RefreshToken.objects.filter(user=user).delete()
+              except Exception as error:
+                  ak_logger.warning("contrataflow: sessões não encerradas", error=str(error))
+          return True
+        - !Env CF_APP_BASE_URL
+
+  # Só o e-mail; resposta idêntica para conta inexistente (RN-IAM-18/35).
+  - model: authentik_stages_identification.identificationstage
+    id: identification
+    identifiers:
+      name: contrataflow-recovery-identification
+    attrs:
+      user_fields:
+        - email
+      case_insensitive_matching: true
+      pretend_user_exists: true
+      show_matched_user: false
+
+  # Link de uso único com 30 min; no máximo 5 envios por e-mail a cada 5 min. A conta desativada
+  # no IdP não é reativada pela recuperação.
+  - model: authentik_stages_email.emailstage
+    id: email
+    identifiers:
+      name: contrataflow-recovery-email
+    attrs:
+      use_global_settings: true
+      subject: 'Redefinição de senha do ContrataFlow'
+      template: contrataflow/password-reset.html
+      token_expiry: minutes=30
+      activate_user_on_success: false
+      recovery_max_attempts: 5
+      recovery_cache_timeout: minutes=5
+
+  - model: authentik_stages_prompt.prompt
+    id: field-password
+    identifiers:
+      name: contrataflow-recovery-field-password
+    attrs:
+      field_key: password
+      label: 'Nova senha'
+      type: password
+      required: true
+      placeholder: 'Nova senha'
+      placeholder_expression: false
+      order: 0
+  - model: authentik_stages_prompt.prompt
+    id: field-password-repeat
+    identifiers:
+      name: contrataflow-recovery-field-password-repeat
+    attrs:
+      field_key: password_repeat
+      label: 'Repita a nova senha'
+      type: password
+      required: true
+      placeholder: 'Repita a nova senha'
+      placeholder_expression: false
+      order: 1
+  - model: authentik_stages_prompt.promptstage
+    id: new-password
+    identifiers:
+      name: contrataflow-recovery-new-password
+    attrs:
+      fields:
+        - !KeyOf field-password
+        - !KeyOf field-password-repeat
+      validation_policies:
+        - !KeyOf password-policy
+
+  - model: authentik_stages_user_write.userwritestage
+    id: write
+    identifiers:
+      name: contrataflow-recovery-write
+    attrs:
+      user_creation_mode: never_create
+
+  - model: authentik_flows.flow
+    id: flow
+    identifiers:
+      slug: contrataflow-recovery
+    attrs:
+      name: 'ContrataFlow — recuperar senha'
+      title: 'Esqueceu sua senha?'
+      designation: recovery
+      # Também a partir de uma sessão do Authentik ainda aberta (ex.: depois de "saiu-parcial").
+      authentication: none
+      layout: sidebar_right
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf identification
+      order: 10
+    attrs:
+      invalid_response_action: retry
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf email
+      order: 20
+    attrs:
+      invalid_response_action: retry
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf new-password
+      order: 30
+    attrs:
+      invalid_response_action: retry
+  - model: authentik_flows.flowstagebinding
+    id: write-binding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf write
+      order: 40
+    attrs:
+      # A política roda na hora da gravação (depois da nova senha), não no planejamento.
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf finish
+      target: !KeyOf write-binding
+      order: 0
+    attrs:
+      enabled: true
+      negate: false
+      timeout: 30

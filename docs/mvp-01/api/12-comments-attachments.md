@@ -21,11 +21,11 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `cursor` (opaco, opcional); `limit` (int ≤100, opcional); `targetType` (`CommentTargetType`, opcional); `documentId` (uuid, opcional); `sectionKey` (texto, opcional); `parentId` (uuid, opcional)
 - **Request:** —
-- **Response:** `200 { data: [Comment], meta: { nextCursor, hasMore } }`, cada item com `replies[]` e `replyCount`; `Comment { id, processId, targetType, document: { id, code, title } | null, sectionKey, parentId, author: { id, name, departmentName }, body | null, bodyMasked, createdAt, editedAt, isDeleted, deletedByModerator, deletionReason (só autor/moderador), canEdit, editableUntil, canDelete, canModerate, version }`
+- **Response:** `200 { data: [Comment], meta: { nextCursor, hasMore, canComment, readOnly, isBudgetConfidential } }` (US-071: `meta` informa o compositor — FA-05/FA-07 e "Sem permissão"), cada item com `replies[]` e `replyCount`; `Comment { id, processId, targetType, document: { id, code, title } | null, sectionKey, parentId, author: { id, name, departmentName }, body | null, bodyMasked, createdAt, editedAt, isDeleted, deletedByModerator, deletionReason (só autor/moderador), canEdit, editableUntil, canDelete, canModerate, version, mentions: [{ id, kind: 'USER'|'DEPARTMENT', targetId }] }` (US-072: só menções válidas no commit e ainda presentes no `body`; vazio se excluído/mascarado — nó `mention` sem par é rótulo simples)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 404 | `NOT_FOUND` | Processo inexistente, outro tenant ou não visível |
+  | 404 | `PROCESS_NOT_FOUND` | Processo inexistente, outro tenant ou não visível (US-071: mesmo código de CMT-02) |
   | 422 | `VALIDATION_ERROR` | `cursor`/`limit`/filtros inválidos |
 - **Efeitos:** —
 - **Notas:** leitura; não gera auditoria.
@@ -69,7 +69,7 @@
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `VALIDATION_ERROR` / `RICH_TEXT_INVALID` | Corpo inválido (mesmas regras de CMT-02) |
 - **Efeitos:** Evento `CommentUpdated` (`comment.updated`; `commentId`) e, se houver novas menções, `UserMentioned`; auditoria `comment.update` (`DATA_CHANGE`; `changes.body` antes/depois como `{ sha256, length }`)
-- **Notas:** api.md §2.2 define o código dedicado `COMMENT_EDIT_WINDOW_EXPIRED` (409) para o vencimento da janela de edição, mas a tabela de validações/erros da própria US-071 (V-10) usa `INVALID_STATE` para esse caso — inconsistência entre a story e o catálogo genérico; esta especificação segue a story (fonte principal da tarefa) e sinaliza a divergência para reconciliação na implementação.
+- **Notas:** reconciliado na implementação (US-071, 2026-10-17): janela vencida → 409 `COMMENT_EDIT_WINDOW_EXPIRED` (api.md §2.2 e V-10 da story); comentário já excluído → 409 `INVALID_STATE`. A versão (`If-Match`) é conferida antes do estado: edição com versão antiga de comentário moderado → 412 `VERSION_CONFLICT`.
 
 ### CMT-04 — Excluir ou moderar comentário
 `DELETE /api/v1/comments/{id}` · **Permissão:** autor do comentário ou `COMMENT_MODERATE` · **Story:** US-071
@@ -82,6 +82,8 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Nem autor nem `COMMENT_MODERATE` |
   | 404 | `COMMENT_NOT_FOUND` | Inexistente/outro tenant |
+  | 409 | `INVALID_PROCESS_STATUS` | Exclusão pelo autor com o processo em status final (a moderação é permitida) |
+  | 409 | `INVALID_STATE` | Comentário já excluído |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `VALIDATION_ERROR` (`REQUIRED`) | `reason` ausente ou fora de 10–1.000 na moderação |
 - **Efeitos:** Evento `CommentDeleted` (`comment.deleted`; `byModerator: boolean`); projeção síncrona `COMMENT_REMOVED` quando moderação; auditoria `comment.delete` (`DATA_CHANGE`; exclusão pelo autor; `metadata`: `processCode`, `hadReplies`) ou `comment.moderate` (`DATA_CHANGE`; remoção por moderador; `metadata`: `processCode`, `authorId`, `reason`); `access.denied` (`reasonCode = COMMENT_MODERATE`)
@@ -92,7 +94,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `q` (texto, obrigatório, mín. 1 caractere, digitado após "@")
 - **Request:** —
-- **Response:** `200 { data: [{ kind: 'USER'|'DEPARTMENT', id, label, secondaryLabel? }] }` (máx. 10 itens)
+- **Response:** `200 { data: [{ kind: 'USER'|'DEPARTMENT', id, label, secondaryLabel? }] }` (máx. 10 itens, ordem alfabética; `secondaryLabel` = unidade de lotação do usuário ou sigla da unidade; `Cache-Control: no-store`)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -107,7 +109,7 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório); query `targetType?` (`AttachmentTargetType`: `DOCUMENT`\|`DOCUMENT_VERSION`\|`PROCESS`\|`MOVEMENT`\|`RISK`\|`PRICE_SOURCE`\|`COMMENT`); `targetId?` (uuid, exige `targetType`); `categoryId?` (uuid, item ativo do catálogo); paginação padrão (api.md §1.2)
 - **Request:** —
-- **Response:** `200 { data: Attachment[], meta }`; `Attachment { id, targetType, targetId, fileName, declaredMimeType, sizeBytes, categoryId?, description?, status: AttachmentStatus, sha256?, createdAt, uploadedById, version }`
+- **Response:** `200 { data: Attachment[], meta }`; `Attachment { id, processId, targetType, targetId, fileName, extension, declaredMimeType, sizeBytes, categoryId?, description?, status: AttachmentStatus, reasonCode?, sha256?, createdAt, uploadedAt?, scannedAt?, uploadedById, version }` — `reasonCode` (US-068) é o motivo resumido de `INFECTED`/`REJECTED` (`AttachmentReasonCode`, nunca a assinatura do malware); chaves de storage e o resultado bruto do antivírus nunca saem na API
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
@@ -116,6 +118,7 @@
   | 422 | `VALIDATION_ERROR` | `targetType` fora do enum ou paginação fora dos limites |
 - **Efeitos:** —
 - **Notas:** —
+- **Implementação (US-069):** processo inexistente, de outro tenant ou não visível (DEC-024) → `404 NOT_FOUND` igual; só metadados (sem URL — ATT-05) e sem os `DELETED`; ordenação fixa `-createdAt`; `targetId` sem `targetType` → 422. A lista traz também os anexos de alvo `RESTRICTED`; o bloqueio por POL-09 vale no detalhe (ATT-04) e no download (ATT-05).
 
 ### ATT-02 — Registrar intenção de upload
 `POST /api/v1/attachments` · **Permissão:** `ATTACHMENT_UPLOAD` + alvo editável · **Story:** US-068
@@ -136,6 +139,7 @@
   | 422 | `STORAGE_QUOTA_EXCEEDED` | Upload acima do limite de armazenamento do tenant (api.md §2.2; limite técnico — valor em `storage.md` §8, PEND-17) |
 - **Efeitos:** Auditoria `attachment.upload_intent` (`DATA_CHANGE`; `metadata`: `targetType`, `targetId`, `fileName`, `sizeBytes`); nenhum evento de domínio nesta chamada
 - **Notas:** quando o alvo é um documento com confidencialidade `RESTRICTED`, o acesso ao anexo (download, ver ATT-05) herda a exigência de POL-09 do documento — não há mascaramento de campo, apenas bloqueio de acesso.
+- **Implementação (US-068):** `upload.headers` traz o `Content-Type` assinado (o navegador o envia exatamente assim; o `Content-Length` também é assinado e o S3 recusa outro tamanho). Alvos com leitor registrado: `PROCESS` (processo visível e fora de status final) e `DOCUMENT`/`DOCUMENT_VERSION` (POL-02 de edição + documento `DRAFT`/`RETURNED`); os demais tipos respondem 404 até o módulo dono registrar o seu leitor (`AttachmentTargetRegistry` — `price-research`, `collaboration`, `risk`, ativos do tenant). A quota compara a soma de `sizeBytes` em `UPLOADED`/`SCANNING`/`AVAILABLE`/`DELETED` com `STORAGE_TENANT_QUOTA_GB` (padrão 50 — PEND-17).
 
 ### ATT-03 — Confirmar upload
 `POST /api/v1/attachments/{id}/confirm` · **Permissão:** uploader (autor da intenção) · **Story:** US-068
@@ -164,7 +168,7 @@
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `PROCESS_VIEW` |
+  | 403 | `PERMISSION_DENIED` | Sem `PROCESS_VIEW`, ou alvo `RESTRICTED` sem POL-09 (`reasonCode = POL-09`) |
   | 404 | `NOT_FOUND` | Inexistente/outro tenant/não visível |
 - **Efeitos:** —
 - **Notas:** para baixar o arquivo, ver ATT-05 (inclui herança de POL-09 quando o alvo é documento `RESTRICTED`).
@@ -183,6 +187,7 @@
   | 409 | `ATTACHMENT_NOT_AVAILABLE` | Anexo ainda não está `AVAILABLE` |
 - **Efeitos:** Auditoria `attachment.download` (`EXPORT`; registrada antes de devolver a URL; `metadata`: `fileName`, `sizeBytes`, `targetType`, `targetId`)
 - **Notas:** anexos de documentos com confidencialidade `RESTRICTED` herdam a exigência de POL-09 do documento (acesso bloqueado por completo em 403, sem campo mascarado — diferente da máscara monetária de api.md §1.4).
+- **Implementação (US-069):** ordem das checagens — visibilidade do processo (404) → POL-09 do alvo (403, antes de qualquer auditoria de download) → `AVAILABLE` agora (409) → auditoria → assinatura (≤ 300 s). Falha ao auditar → 503 sem URL; falha do storage → 503 com `Retry-After`.
 
 ### ATT-06 — Excluir anexo
 `DELETE /api/v1/attachments/{id}` · **Permissão:** `ATTACHMENT_UPLOAD` (próprio) ou `ATTACHMENT_DELETE` · **Story:** US-068
@@ -195,6 +200,7 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Nem uploader nem `ATTACHMENT_DELETE` |
   | 404 | `NOT_FOUND` | Inexistente/outro tenant |
+  | 409 | `ATTACHMENT_NOT_AVAILABLE` | Anexo fora de `AVAILABLE` (ainda em verificação ou rejeitado — US-068) |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `VALIDATION_ERROR` (`REQUIRED`) | `deletionReason` ausente |
 - **Efeitos:** Evento `AttachmentDeleted` (`attachment.deleted`; `attachmentId`, `hasReason`); auditoria `attachment.delete` (`DATA_CHANGE`; `metadata.deletionReason` armazenado como hash + tamanho, não o texto)

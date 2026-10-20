@@ -46,11 +46,12 @@ for f in files:
     unk = lambda found, known: sorted(set(found) - known)
     allowed_dyn = lambda c: c.endswith('_NOT_FOUND') or c.startswith(('DFD_','ETP_','TR_','PRICE_','RISK_','SECTION_','FIELD_')) or '_MAX' in c
     p = unk(re.findall(r'`((?:PROCESS|DOCUMENT|DFD|ETP|PRICE_RESEARCH|RISK|TERM|TAG|ATTACHMENT|SUPPLIER|TEMPLATE|WORKFLOW|APPROVAL|COMMENT|INBOX|DASHBOARD|AUDIT|USER|ROLE|ORGANIZATION|DEPARTMENT|CATALOG|CALENDAR|SETTINGS|PLATFORM)_[A-Z_]+)`', s), perms | errcodes | notif_types)
-    p = [c for c in p if not allowed_dyn(c)]
+    # constantes de código citadas nas notas de implementação (não são permissões nem códigos de erro)
+    p = [c for c in p if not allowed_dyn(c) and c not in {'PROCESS_RUNTIME_READER', 'PROCESS_MASK_RULES', 'DOCUMENT_SETTING_MASK_RULES'}]
     if p: issues.append(f'permissões/códigos desconhecidos: {p}')
     e = unk(re.findall(r'\b(US-\d{3})\b', s), stories);  e and issues.append(f'stories inexistentes: {e}')
     e = unk(re.findall(r'\b(SCR-\d{3})\b', s), screens); e and issues.append(f'telas inexistentes: {e}')
-    e = unk(re.findall(r'(?<![A-Z]-)(?<!RN-)(?<!V-)\b((?:ME|PRC|TAG|DOC|DTY|TPL|DFD|ETP|PRS|SUP|RSK|TRM|WF|APV|TSK|CMT|ATT|DSH|NTF|AUD|USR|ROL|ORG|DEP|SET|CAT|CAL|PLT|HLT)-\d\d)\b', s), endpoints); e and issues.append(f'endpoints inexistentes: {e}')
+    e = unk(re.findall(r'(?<![A-Z]-)(?<!RN-)(?<!V-)\b((?:ME|PRC|TAG|DOC|DTY|TPL|DFD|ETP|PRS|SUP|RSK|TRM|WF|APV|TSK|CMT|ATT|DSH|NTF|AUD|USR|ROL|ORG|DEP|SET|CAT|CAL|PLT|HLT|AI)-\d\d)\b', s), endpoints); e and issues.append(f'endpoints inexistentes: {e}')
     e = unk(re.findall(r'\b(DEC-\d{3})\b', s), decs); e and issues.append(f'DEC inexistentes: {e}')
     e = unk(re.findall(r'\b(POL-\d\d)\b', s), pols); e and issues.append(f'POL inexistentes: {e}')
     e = unk(re.findall(r'\b(PEND-\d\d)\b', s), pends); e and issues.append(f'PEND inexistentes: {e}')

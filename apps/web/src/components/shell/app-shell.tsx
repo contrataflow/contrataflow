@@ -1,8 +1,12 @@
-import { Alert, SkipLink, brandingTheme } from '@contrataflow/ui';
+import { Alert, BrandLogo, SkipLink, brandingTheme } from '@contrataflow/ui';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { CSSProperties, ReactNode } from 'react';
 
+import { isExamplePageEnabled } from '@/config/env';
+import { NotificationBell } from '@/features/notifications/notification-bell';
+import { NewProcessButton } from '@/features/processes/new-process-button';
+import { HOME_PATH } from '@/lib/routes';
 import type { ActiveShellSession } from '@/lib/session/types';
 
 import { Icon } from './icons';
@@ -17,7 +21,8 @@ export const MAIN_CONTENT_ID = 'conteudo';
 /**
  * Shell autenticado de `(app)` (architecture.md §8.2): menu, busca, notificações, seletor de
  * instituição e usuário. Server Component; só as folhas interativas são client (RN-FND-88).
- * Tema do tenant restrito à cor primária com contraste validado (RN-FND-91).
+ * Tema do tenant restrito à cor primária com contraste validado (RN-FND-91). Menu lateral em navy
+ * com a marca oficial (DEC-185); o item ativo usa a primária, que o tenant pode trocar.
  */
 export function AppShell({
   session,
@@ -27,6 +32,7 @@ export function AppShell({
   readonly children: ReactNode;
 }) {
   const t = useTranslations('shell');
+  const showExample = isExamplePageEnabled();
   const theme = brandingTheme(session.activeTenant.primaryColor);
   return (
     <div
@@ -36,25 +42,21 @@ export function AppShell({
       <SkipLink targetId={MAIN_CONTENT_ID}>{t('skipLink')}</SkipLink>
       <RouteFocus targetId={MAIN_CONTENT_ID} />
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-64 flex-none flex-col border-r border-border bg-surface md:flex">
+        <aside className="sticky top-0 hidden h-screen w-64 flex-none flex-col border-r border-border bg-sidebar text-sidebar-foreground md:flex">
           <Link
-            href="/exemplo"
-            className="flex h-14 flex-none items-center gap-2 border-b border-border px-4"
+            href={HOME_PATH}
+            className="flex h-14 flex-none items-center border-b border-sidebar-foreground/10 px-4 focus-visible:outline-sidebar-accent"
           >
-            <span
-              aria-hidden="true"
-              className="grid size-8 place-items-center rounded-control bg-primary text-sm font-bold text-primary-foreground"
-            >
-              CF
-            </span>
-            <span className="text-base font-semibold tracking-tight">{t('appName')}</span>
+            <BrandLogo tone="onDark" size="sm" name={t('appName')} />
           </Link>
-          <MainNav />
-          <p className="border-t border-border p-3 text-xs text-muted-foreground">{t('footer')}</p>
+          <MainNav showExample={showExample} />
+          <p className="border-t border-sidebar-foreground/10 p-3 text-xs text-sidebar-muted">
+            {t('footer')}
+          </p>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4">
-            <MobileNav />
+            <MobileNav showExample={showExample} />
             <form role="search" action="/processos" className="hidden md:block">
               <label className="relative block">
                 <span className="sr-only">{t('search.label')}</span>
@@ -71,14 +73,9 @@ export function AppShell({
               </label>
             </form>
             <div className="ml-auto flex flex-none items-center gap-2">
+              <NewProcessButton />
               <TenantSwitcher />
-              <Link
-                href="/notificacoes"
-                aria-label={t('notifications.label')}
-                className="grid size-9 place-items-center rounded-control hover:bg-muted"
-              >
-                <Icon name="bell" className="size-5 text-muted-foreground" />
-              </Link>
+              <NotificationBell />
               <UserMenu />
             </div>
           </header>

@@ -1,0 +1,117 @@
+{
+  "title": "Secretarias e setores",
+  "organization": "Órgão",
+  "organizationsLoading": "Carregando os órgãos…",
+  "noOrganizations": "Cadastre um órgão na aba Órgãos para montar a estrutura.",
+  "new": "Nova unidade",
+  "loading": "Carregando as unidades…",
+  "loadFailed": "Não foi possível carregar as unidades.",
+  "retry": "Tentar novamente",
+  "empty": "Nenhuma unidade cadastrada para este órgão",
+  "emptyHint": "Cadastre a primeira secretaria para poder abrir processos.",
+  "moving": "Movendo {name}…",
+  "dropHint": "Arraste uma unidade para dentro de outra para movê-la, ou use \"Mover para…\".",
+  "dropRoot": "Solte aqui para mover para o primeiro nível do órgão",
+  "tree": {
+    "label": "Estrutura de {organization}",
+    "expand": "Expandir {name}",
+    "collapse": "Recolher {name}",
+    "actions": "Ações de {name}",
+    "inactive": "Inativa",
+    "head": "Titular definido"
+  },
+  "actions": {
+    "addChild": "Nova subunidade",
+    "edit": "Editar",
+    "move": "Mover para…",
+    "deactivate": "Desativar",
+    "activate": "Ativar",
+    "delete": "Excluir"
+  },
+  "types": {
+    "SECRETARIAT": "Secretaria",
+    "BOARD": "Diretoria",
+    "DEPARTMENT": "Departamento",
+    "DIVISION": "Divisão",
+    "SECTOR": "Setor",
+    "COMMITTEE": "Comissão",
+    "OTHER": "Outro"
+  },
+  "form": {
+    "createTitle": "Nova unidade",
+    "createChildTitle": "Nova unidade em {parent}",
+    "editTitle": "Editar {name}",
+    "description": "Defina tipo, nome e responsáveis da unidade. A posição na árvore muda por \"Mover para…\".",
+    "parent": "Unidade superior",
+    "root": "Primeiro nível do órgão",
+    "type": "Tipo *",
+    "typePlaceholder": "Selecione o tipo",
+    "name": "Nome *",
+    "acronym": "Sigla",
+    "acronymHint": "Até 30 caracteres, única no órgão.",
+    "code": "Código",
+    "codeHint": "Código interno ou da unidade orçamentária.",
+    "email": "E-mail da unidade",
+    "phone": "Telefone",
+    "sortOrder": "Ordem",
+    "headUserId": "Titular",
+    "deputyUserId": "Substituto",
+    "people": "Responsáveis",
+    "cancel": "Cancelar",
+    "submit": "Salvar",
+    "submitting": "Salvando…"
+  },
+  "people": {
+    "defined": "Pessoa definida",
+    "none": "Não definido",
+    "clear": "Remover {field}",
+    "pending": "A busca de pessoas chega com o cadastro de usuários; por ora o titular e o substituto são definidos pela API."
+  },
+  "validation": {
+    "required": "Informe o {field}.",
+    "invalidEmail": "Informe um e-mail válido."
+  },
+  "move": {
+    "title": "Mover {name}",
+    "description": "Escolha a nova unidade superior. A unidade leva junto todas as suas subunidades.",
+    "target": "Nova unidade superior",
+    "submit": "Mover",
+    "cancel": "Cancelar",
+    "noTargets": "Não há outra unidade ativa para onde mover."
+  },
+  "deactivate": {
+    "title": "Desativar {name}?",
+    "description": "A unidade deixa de aparecer para novos vínculos e processos. Processos existentes mantêm o acesso histórico.",
+    "confirm": "Desativar",
+    "cancel": "Cancelar"
+  },
+  "delete": {
+    "title": "Excluir {name}?",
+    "description": "A exclusão é definitiva e só é possível para unidades sem uso (criadas por engano).",
+    "confirm": "Excluir",
+    "cancel": "Cancelar",
+    "inUse": "Esta unidade está em uso. Desative-a em vez de excluir.",
+    "deactivateInstead": "Desativar"
+  },
+  "conflict": {
+    "title": "Esta unidade foi alterada por outra pessoa.",
+    "description": "Recarregue para ver a versão atual. As suas alterações serão reaplicadas.",
+    "reapply": "Recarregar e reaplicar minhas alterações"
+  },
+  "toast": {
+    "created": "Unidade {name} criada.",
+    "updated": "Unidade {name} atualizada.",
+    "moved": "Unidade {name} movida.",
+    "deactivated": "Unidade {name} desativada.",
+    "activated": "Unidade {name} ativada.",
+    "deleted": "Unidade {name} excluída."
+  },
+  "errors": {
+    "generic": "Não foi possível salvar agora. Tente novamente.",
+    "cycle": "Esta movimentação criaria um ciclo.",
+    "permission": "Você não tem permissão para gerenciar a estrutura.",
+    "notFound": "A unidade não foi encontrada. Recarregue a página.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente.",
+    "conflict": "Esta unidade foi alterada por outra pessoa. Recarregue."
+  }
+}

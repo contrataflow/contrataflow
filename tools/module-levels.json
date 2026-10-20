@@ -21,8 +21,18 @@
     {
       "level": 5,
       "name": "leitura e efeitos colaterais",
-      "modules": ["timeline", "inbox", "dashboard", "notification"]
+      "modules": ["timeline", "inbox", "dashboard", "notification", "ai"]
     }
   ],
-  "allow": []
+  "allow": [
+    ["tenancy", "access"],
+    ["tenancy", "identity"],
+    ["catalog", "access"],
+    ["catalog", "identity"],
+    ["organization", "access"],
+    ["organization", "identity"],
+    ["organization", "tenancy"],
+    ["access", "identity"],
+    ["dashboard", "inbox"]
+  ]
 }

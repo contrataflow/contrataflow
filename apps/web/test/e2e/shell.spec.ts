@@ -1,5 +1,6 @@
-// E2E do shell (US-086): login (provedor fake — FA-06) → shell → página de exemplo → classes de
-// erro de architecture.md §8.12 → logout, com axe-core em cada tela. A API é simulada
+// E2E do shell (US-086/US-088): login (provedor fake — FA-06) → shell → página de exemplo →
+// classes de erro de architecture.md §8.12 → aviso de ociosidade e expiração (relógio simulado) →
+// logout, com axe-core em cada tela. A API é simulada
 // (support/mock-api.mjs); o login real com Authentik é coberto pela US-087.
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -58,12 +59,12 @@ test('jornada do shell: dados pré-carregados, CSP com nonce, permissões e logo
 
   await page.getByLabel('Nome').fill('Registro E2E');
   await page.getByRole('button', { name: 'Criar registro' }).click();
-  await expect(page.getByText('Registro “Registro E2E” criado.')).toBeVisible();
+  await expect(page.getByText('Registro “Registro E2E” criado.', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Menu do usuário Ana Souza' }).click();
   await page.getByRole('menuitem', { name: 'Sair' }).click();
   await expect(page).toHaveURL(/\/entrar\?motivo=saiu$/);
-  await expect(page.getByRole('status')).toContainText('Você saiu do ContrataFlow.');
+  await expect(page.getByRole('status')).toContainText('Você saiu com segurança.');
   expect(consoleErrors.filter((text) => text.includes('Content Security Policy'))).toEqual([]);
 });
 
@@ -83,15 +84,26 @@ test('cabeçalhos de segurança em página e em /api/*', async ({ page, request 
   expect(api.headers()['content-security-policy']).toContain("default-src 'none'");
 });
 
-test('troca de instituição apaga os dados da anterior', async ({ page }) => {
+test('troca de instituição (US-093): mesma sessão, dados do novo tenant e aviso', async ({
+  page,
+}) => {
   await signIn(page);
   await expect(page.getByText('item-01')).toBeVisible();
+  const cookiesBefore = await page.context().cookies();
   await page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }).click();
   await page.getByRole('menuitem', { name: 'Prefeitura B' }).click();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura B' })).toBeVisible();
-  await expect(
-    page.getByText('Instituição alterada para Prefeitura B.', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('Agora você está em Prefeitura B.', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/exemplo$/);
+  // A API passa a receber o X-Tenant-Id da Prefeitura B, na MESMA sessão (RN-IAM-66).
+  const ping = await page.request.get('/api/v1/_internal/ping');
+  expect(((await ping.json()) as { data: { tenantId: string } }).data.tenantId).toBe(
+    '0192a000-0000-7000-8000-00000000000b',
+  );
+  const session = (cookies: typeof cookiesBefore) =>
+    cookies.find((cookie) => cookie.name === '__Host-cf_session')?.value;
+  expect(session(await page.context().cookies())).toBe(session(cookiesBefore));
+  await expectNoSeriousA11yViolations(page, 'troca de instituição');
 });
 
 test('503 da API: error.tsx com correlationId copiável e "Tentar novamente"', async ({ page }) => {
@@ -111,19 +123,57 @@ test('503 da API: error.tsx com correlationId copiável e "Tentar novamente"', a
   await expect(page.getByRole('heading', { level: 1, name: 'Exemplo do shell' })).toBeVisible();
 });
 
-test('401 da API após renovar: sessão destruída e volta ao login com returnTo', async ({
+test('401 da API após renovar: modal "Sua sessão expirou" e nova entrada com returnTo', async ({
   page,
 }) => {
   await signIn(page);
   await expect(page.getByText('item-01')).toBeVisible();
   await failApi('/api/v1/_internal/items', 401, 'SESSION_EXPIRED');
-  const login = page.waitForRequest((request) =>
-    request.url().includes('/api/auth/login?returnTo=%2Fexemplo'),
-  );
   await page.getByRole('button', { name: /Próxima página/ }).click();
+  // A tela fica onde estava (o que foi digitado é preservado); o modal bloqueia (CA-T-09).
+  const modal = page.getByRole('dialog', { name: 'Sua sessão expirou' });
+  await expect(modal).toBeVisible();
+  await expect(page).toHaveURL(/\/exemplo$/);
+  await expectNoSeriousA11yViolations(page, 'sessão expirada');
+  const login = page.waitForRequest((request) =>
+    request.url().includes('/api/auth/login?returnTo=%2Fexemplo&reauth=1'),
+  );
+  await modal.getByRole('link', { name: 'Entrar novamente' }).click();
   await login;
   await failApi('/api/v1/_internal/items');
   await expect(page.getByRole('heading', { level: 1, name: 'Exemplo do shell' })).toBeVisible();
+});
+
+test('aviso de ociosidade 2 min antes e "Continuar conectado" (relógio simulado)', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await signIn(page);
+  await expect(page.getByText('item-01')).toBeVisible();
+  // Página carregada por completo (permissões incluídas): nenhuma requisição em voo durante o salto
+  // do relógio — uma resposta atrasada contaria como atividade e fecharia o aviso (FA-02).
+  await expect(page.getByRole('button', { name: 'Criar registro' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Contexto da requisição' })).toContainText(
+    'Correlação',
+  );
+  // O contador confere o BFF (sondagem, sem renovar) antes de avisar.
+  const probe = page.waitForResponse((response) => response.url().endsWith('/api/auth/session'));
+  await page.clock.fastForward('28:30');
+  const before = ((await (await probe).json()) as { data: { idleExpiresAt: string } }).data;
+  const dialog = page.getByRole('dialog', { name: 'Você continua aí?' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Sua sessão será encerrada por inatividade em 2 minutos.');
+  await expectNoSeriousA11yViolations(page, 'aviso de ociosidade');
+  const keepalive = page.waitForResponse((response) =>
+    response.url().includes('/api/auth/session?keepalive=true'),
+  );
+  await dialog.getByRole('button', { name: 'Continuar conectado' }).click();
+  const renewed = await keepalive;
+  expect(renewed.status()).toBe(200);
+  // O BFF renovou a ociosidade (FA-01). O fechamento do diálogo depende do relógio do BFF, que
+  // aqui é o real (o do navegador está 28 min à frente) — coberto no teste de unidade.
+  const after = ((await renewed.json()) as { data: { idleExpiresAt: string } }).data;
+  expect(Date.parse(after.idleExpiresAt)).toBeGreaterThan(Date.parse(before.idleExpiresAt));
 });
 
 for (const variante of [
@@ -133,6 +183,7 @@ for (const variante of [
   'sessao-expirada',
   'manutencao',
   'sem-vinculo',
+  'vinculo-inativo',
   'acesso-indisponivel',
 ]) {
   test(`SCR-111 /erro/${variante} acessível`, async ({ page }) => {

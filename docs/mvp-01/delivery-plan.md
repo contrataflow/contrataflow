@@ -19,6 +19,8 @@ Sumário: [1. Premissas](#1-premissas-de-planejamento) · [2. Estimativas](#2-es
 | Definição de pronto | [release-checklist.md §1](release-checklist.md) e DoD de cada card |
 | Cliente-piloto | 1 prefeitura de porte médio para validação contínua a partir do marco M3 |
 
+**EP-020 — IA para documentos do planejamento (prd-3, DEC-037, decisão do usuário de 2026-10-14):** entra no MVP 1, antes do lançamento, logo depois dos editores dos quatro documentos (o último, US-035, fecha na sprint 15). São 8 stories P1 e 46 pontos nas sprints 16 e 17. **Impacto no prazo: +1 sprint (+2 semanas)** — o release (M5) passa da sprint 18 para a sprint 19, ≈ 40 semanas no squad de referência (§5, §6 e §8). O provedor de IA (PEND-21) precisa estar decidido até o início da sprint 16 para que a US-115 entregue o adaptador real; sem ele, a camada fica pronta com o `FakeAiProvider` e o adaptador entra no endurecimento (sprint 18).
+
 Decisões de sprint 0 (bloqueavam a implementação) **fechadas em 2026-10-07** com os padrões adotados: PEND-01 → DEC-028 (numeração na criação), PEND-04 → DEC-020 (método `AUTO_CV`, faixas 70%/130%), PEND-06 → DEC-141 (domínio único), PEND-10 → DEC-061 (GitHub Actions), PEND-15 → DEC-021 (escala 5×5). As demais têm padrão adotado e podem ser decididas até a sprint indicada em [risks-and-decisions.md §8](risks-and-decisions.md#8-regras-que-precisam-de-decisão-de-produto).
 
 ## 2. Estimativas consolidadas
@@ -44,9 +46,10 @@ Decisões de sprint 0 (bloqueavam a implementação) **fechadas em 2026-10-07** 
 | EP-017 Tenant e estrutura organizacional | 8 | 7 | 1 | 0 | 37 |
 | EP-018 Templates de documentos | 4 | 3 | 1 | 0 | 23 |
 | EP-019 Notificações | 4 | 2 | 1 | 1 | 17 |
-| **Total** | **114** | **84** | **22** | **8** | **615** |
+| EP-020 IA para documentos do planejamento | 8 | 0 | 8 | 0 | 46 |
+| **Total** | **122** | **84** | **30** | **8** | **661** |
 
-Por prioridade: **P0 = 480 pts** · **P1 = 104 pts** · **P2 = 31 pts**. Escopo do release do MVP 1 = P0 + P1 = **584 pts**.
+Por prioridade: **P0 = 480 pts** · **P1 = 150 pts** (104 + 46 do EP-020) · **P2 = 31 pts**. Escopo do release do MVP 1 = P0 + P1 = **630 pts** (era 584 antes do EP-020).
 
 ## 3. Backlog priorizado
 
@@ -151,23 +154,31 @@ Ordem de prioridade = prioridade de negócio (P0 → P2) **ajustada pelo caminho
 | 95 | US-053 | Retirar ou redirecionar aprovação | P1 | M | 5 | 15 |
 | 96 | US-090 | Política de MFA e step-up | P1 | M | 5 | 15 |
 | 97 | US-093 | Selecionar órgão ativo | P1 | S | 2 | 15 |
-| 98 | US-043 | Editor de workflow | P1 | L | 8 | 16 |
-| 99 | US-044 | Regras de etapa e transição | P1 | M | 5 | 16 |
-| 100 | US-045 | Publicar, versionar e aposentar workflow | P1 | M | 5 | 16 |
-| 101 | US-063 | Documento livre a partir de template | P1 | M | 5 | 16 |
-| 102 | US-064 | Documento externo (upload) com versões | P1 | M | 5 | 16 |
+| 98 | US-115 | Camada de IA com registro e rastreabilidade das gerações | P1 | L | 8 | 16 |
+| 99 | US-116 | Configurar a IA no órgão: ativação, limites e consumo | P1 | M | 5 | 16 |
+| 100 | US-122 | Marcações "gerado por IA" e "[a confirmar]" e revisão humana | P1 | M | 5 | 16 |
+| 101 | US-117 | Rascunho do DFD com IA a partir do resumo da necessidade | P1 | L | 8 | 16 |
+| 102 | US-063 | Documento livre a partir de template | P1 | M | 5 | 16 |
 | 103 | US-072 | Mencionar usuários e unidades | P1 | M | 5 | 16 |
-| 104 | US-074 | Selagem de integridade da auditoria | P1 | M | 5 | 17 |
-| 105 | US-098 | Meu perfil e preferências | P1 | S | 2 | 17 |
-| 106 | US-109 | Layout de impressão | P1 | M | 5 | 17 |
-| 107 | US-003 | Visões salvas e exportação CSV | P2 | M | 5 | pós-release |
-| 108 | US-007 | Etiquetas do processo | P2 | S | 2 | pós-release |
-| 109 | US-018 | Duplicar DFD | P2 | S | 2 | pós-release |
-| 110 | US-028 | Importar cotações por planilha | P2 | M | 5 | pós-release |
-| 111 | US-046 | Diagrama do workflow | P2 | M | 5 | pós-release |
-| 112 | US-058 | Ações em lote na caixa | P2 | M | 5 | pós-release |
-| 113 | US-070 | Indicador de edição concorrente | P2 | M | 5 | pós-release |
-| 114 | US-113 | Preferências de notificação | P2 | S | 2 | pós-release |
+| 104 | US-118 | Rascunho do ETP com IA a partir do DFD | P1 | M | 5 | 17 |
+| 105 | US-119 | Proposta do mapa de riscos com IA | P1 | M | 5 | 17 |
+| 106 | US-120 | Rascunho do TR com IA a partir do ETP | P1 | M | 5 | 17 |
+| 107 | US-121 | Ajustar seção com IA: reescrever, completar e resumir | P1 | M | 5 | 17 |
+| 108 | US-043 | Editor de workflow | P1 | L | 8 | 17 |
+| 109 | US-044 | Regras de etapa e transição | P1 | M | 5 | 17 |
+| 110 | US-064 | Documento externo (upload) com versões | P1 | M | 5 | 17 |
+| 111 | US-045 | Publicar, versionar e aposentar workflow | P1 | M | 5 | 18 |
+| 112 | US-074 | Selagem de integridade da auditoria | P1 | M | 5 | 18 |
+| 113 | US-098 | Meu perfil e preferências | P1 | S | 2 | 18 |
+| 114 | US-109 | Layout de impressão | P1 | M | 5 | 18 |
+| 115 | US-003 | Visões salvas e exportação CSV | P2 | M | 5 | pós-release |
+| 116 | US-007 | Etiquetas do processo | P2 | S | 2 | pós-release |
+| 117 | US-018 | Duplicar DFD | P2 | S | 2 | pós-release |
+| 118 | US-028 | Importar cotações por planilha | P2 | M | 5 | pós-release |
+| 119 | US-046 | Diagrama do workflow | P2 | M | 5 | pós-release |
+| 120 | US-058 | Ações em lote na caixa | P2 | M | 5 | pós-release |
+| 121 | US-070 | Indicador de edição concorrente | P2 | M | 5 | pós-release |
+| 122 | US-113 | Preferências de notificação | P2 | S | 2 | pós-release |
 
 ¹ US-061 e US-106 são P1 como funcionalidade de **administração**, mas seus núcleos técnicos (tipos de documento semeados e `BusinessCalendarFacade`) são pré-requisitos de stories P0 (US-040/US-065 e US-047/US-055); por isso entram cedo. Se a capacidade apertar, implementa-se primeiro o núcleo (seed + fachada) e a tela administrativa depois.
 
@@ -221,7 +232,24 @@ flowchart LR
       U015 --> U036[US-036 TR] --> U037[US-037 Importar ETP] --> U039[US-039 Concluir TR]
       U020 --> U037
     end
+    subgraph IA["IA para documentos (EP-020)"]
+      U083 --> U115[US-115 Camada de IA] --> U116[US-116 Configuração da IA]
+      U115 --> U122[US-122 Marcações e revisão]
+      U116 --> U117[US-117 DFD com IA]
+      U122 --> U117
+      U117 --> U118[US-118 ETP com IA]
+      U117 --> U119[US-119 Riscos com IA]
+      U117 --> U120[US-120 TR com IA]
+      U117 --> U121[US-121 Ajuste por seção]
+    end
+    U015 --> U117
+    U020 --> U118
+    U036 --> U120
     U039 --> REL((Release MVP 1))
+    U118 --> REL
+    U119 --> REL
+    U120 --> REL
+    U121 --> REL
     U032 --> REL
     U023 --> REL
     U017 --> REL
@@ -250,12 +278,14 @@ flowchart LR
 | 13 | Pesquisa e ETP (II), TR (I) | US-029, US-031, US-032, US-022, US-023, US-034, US-036 | 38 | Valor estimado calculado; ETP concluído; tratamentos de risco; TR iniciado |
 | 14 | TR e indicadores | US-037, US-038, US-039, US-076, US-085, US-114, US-013 | 38 | **Marco M4:** planejamento da contratação concluído (até a aprovação da autoridade); dashboard |
 | 15 | P1 de processo e aprovação | US-008, US-012, US-011, US-030, US-035, US-053, US-090, US-093 | 37 | Suspensão, participantes, duplicação, outliers, mapa de riscos, MFA |
-| 16 | P1 de administração e documentos | US-043, US-044, US-045, US-063, US-064, US-072 | 33 | Editor de workflow e regras; documentos livres/externos; menções |
-| 17 | P1 finais + endurecimento | US-074, US-098, US-109 + correções de performance/segurança | 12 + hardening | Selagem de auditoria; layout de impressão; testes de carga e pentest |
-| 18 | Release | UAT com o piloto, migração de dados iniciais (estrutura/usuários), treinamento, go-live | — | **Marco M5: Release do MVP 1** |
+| 16 | IA (I) + P1 de documentos | US-115, US-116, US-122, US-117, US-063, US-072 | 36 | **Camada de IA** com rastreabilidade, ativação e limites por órgão; **DFD gerado com IA** a partir do resumo, com marcações e revisão; documentos livres; menções |
+| 17 | IA (II) + P1 de administração | US-118, US-119, US-120, US-121, US-043, US-044, US-064 | 38 | **ETP, mapa de riscos e TR gerados com IA em cadeia**; ajuste por seção; editor de workflow e regras; documentos externos |
+| 18 | P1 finais + endurecimento | US-045, US-074, US-098, US-109 + correções de performance/segurança (inclui avaliação da IA com o provedor decidido, teste de injeção de instruções e carga do worker de IA) | 17 + hardening | Publicação de workflow; selagem de auditoria; layout de impressão; testes de carga e pentest |
+| 19 | Release | UAT com o piloto, migração de dados iniciais (estrutura/usuários), treinamento (inclui uso responsável da IA), go-live | — | **Marco M5: Release do MVP 1** |
 
 Observações:
-- As sprints 15–17 têm folga deliberada (≈ 33–37 pts contra capacidade de 40–45) para absorver riscos do caminho crítico e o *hardening*.
+- As sprints 15–18 têm folga deliberada (≈ 17–38 pts contra capacidade de 40–45) para absorver riscos do caminho crítico e o *hardening*. A entrada do EP-020 (46 pts) consumiu parte da folga das antigas sprints 16–17 e acrescentou uma sprint: o release passou da sprint 18 para a 19 (+2 semanas).
+- **Contingência do EP-020:** se o provedor (PEND-21) não estiver decidido no início da sprint 16, a US-115 conclui com o `FakeAiProvider` e o adaptador real entra na sprint 18. Se a velocidade cair, a ordem de corte é US-121 (ajuste por seção) e depois US-119 (mapa de riscos), mantendo DFD, ETP e TR com revisão obrigatória.
 - Se a velocidade real ficar abaixo de 38 pts nas sprints 3–6, aplicar o plano de contingência: (1) adiar US-109 e US-074 para pós-release; (2) entregar US-043/US-044/US-045 como "edição assistida por configuração" (sem editor visual) mantendo o workflow padrão; (3) adiar US-064 e US-063 (documentos livres e externos podem entrar como anexos no MVP 1).
 - Cada sprint termina com demo para o cliente-piloto a partir da sprint 6.
 
@@ -267,7 +297,7 @@ Observações:
 | **M2 — Tramitação digital** | 8 | Processo criado, encaminhado, devolvido, atribuído, com prazos, timeline e caixa de unidade | Alfa com o piloto (dados sintéticos) |
 | **M3 — Demanda formalizada** | 11 | DFD fim a fim com aprovação e PDF; comentários; auditoria consultável | Beta fechado com 1 secretaria do piloto |
 | **M4 — Planejamento da contratação concluído** | 14 | ETP, pesquisa de preços, riscos, TR e aprovação da autoridade até `COMPLETED` | Beta ampliado no piloto |
-| **M5 — Release MVP 1** | 18 | Todos os P0 e P1; checklist de release completo | Produção para pilotos (até 3 órgãos) |
+| **M5 — Release MVP 1** | 19 | Todos os P0 e P1 (inclui a IA para documentos — EP-020); checklist de release completo | Produção para pilotos (até 3 órgãos) |
 
 ## 7. Trilhas paralelas e alocação
 
@@ -279,16 +309,17 @@ Observações:
 | Documentos e planejamento | 1 back/full-stack + 1 front | US-061, 107, 108, 110, 065, 066, 067, 068, 069, 062, 014, 015, 016, 017, 019, 020, 021, 022, 023, 036, 037, 038, 039, 109, 063, 064 |
 | Pesquisa de preços e riscos | 1 back/full-stack (entra na sprint 11) | US-024, 025, 026, 027, 029, 031, 032, 033, 034, 030, 035 |
 | Colaboração, notificações e painel | front + back de apoio | US-059, 060, 111, 112, 071, 114, 076, 072 |
+| IA para documentos (EP-020) | 1 back sênior + 1 front (equipe de documentos a partir da sprint 16) | US-115, 116, 122, 117, 118, 119, 120, 121 |
 | Qualidade | QA/SDET | Suíte "tenant leak" (desde a sprint 2), matriz RBAC (sprint 4), E2E por marco, carga (sprints 14 e 17) |
 | UX | Designer | Protótipos 1–2 sprints à frente do desenvolvimento; testes de usabilidade com o piloto a cada marco |
 
 ## 8. Cenários de capacidade
 
-| Cenário | Capacidade | Duração estimada para P0 + P1 (584 pts) |
+| Cenário | Capacidade | Duração estimada para P0 + P1 (630 pts, com o EP-020) |
 |---|---|---|
-| Squad de referência (6 devs) | 40–45 pts/sprint | **Sprint 0 + 17 sprints de desenvolvimento + 1 de release ≈ 38 semanas** |
-| Squad enxuto (4 devs) | 26–30 pts/sprint | ≈ 22 sprints (≈ 46 semanas) — recomenda-se reduzir o escopo P1 |
-| Dois squads (10–11 devs, trilhas paralelas) | 70–75 pts/sprint | ≈ 10–11 sprints (≈ 24 semanas) — exige Tech Lead dedicado por squad e contratos de API congelados cedo |
+| Squad de referência (6 devs) | 40–45 pts/sprint | **Sprint 0 + 18 sprints de desenvolvimento + 1 de release ≈ 40 semanas** (eram 38 antes do EP-020) |
+| Squad enxuto (4 devs) | 26–30 pts/sprint | ≈ 24 sprints (≈ 50 semanas) — recomenda-se reduzir o escopo P1 (inclusive cortar US-121 e US-119) |
+| Dois squads (10–11 devs, trilhas paralelas) | 70–75 pts/sprint | ≈ 11–12 sprints (≈ 26 semanas) — exige Tech Lead dedicado por squad e contratos de API congelados cedo |
 
 ## 9. Itens postergados
 
@@ -304,3 +335,6 @@ Observações:
 | Importação de catálogo CATMAT/CATSER e consulta ao painel de preços | Integrações externas | MVP 3/MVP 5 |
 | Recalcular prazos em aberto após alteração de feriados | P2 (documentado em US-106) | Pós-release |
 | Conversão DOCX → PDF para pré-visualização | P2 (documentado em US-064) | Pós-release |
+| Geração por IA de parecer jurídico e edital | Os documentos ainda não existem (DEC-037) | MVP 2 |
+| Validações cruzadas por IA, saúde do processo, recomendações, benchmark e busca semântica | Escopo do MVP 5 (DEC-037) | MVP 5 |
+| Escolha de provedor de IA por órgão | Um provedor por ambiente no MVP 1 (ADR-013) | Avaliar após o MVP 1 |

@@ -112,7 +112,7 @@ describe('trava de execução ([Concorrência] subida reentrante)', () => {
   });
 
   it('remove a trava de um processo que já morreu', async () => {
-    writeFileSync(file, '999999');
+    writeFileSync(file, '999999', { mode: 0o600 });
     await expect(
       withLock(file, () => Promise.resolve('ok'), { timeoutMs: 1000, isAlive: () => false }),
     ).resolves.toBe('ok');
@@ -125,7 +125,7 @@ describe('trava de execução ([Concorrência] subida reentrante)', () => {
   });
 
   it('desiste após o tempo limite se o dono continua vivo', async () => {
-    writeFileSync(file, String(process.pid));
+    writeFileSync(file, String(process.pid), { mode: 0o600 });
     await expect(
       withLock(file, () => Promise.resolve(1), { timeoutMs: 20, pollMs: 5 }),
     ).rejects.toThrow(/ocupada pelo processo/);

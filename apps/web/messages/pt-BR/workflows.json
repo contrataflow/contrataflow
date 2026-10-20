@@ -1,0 +1,581 @@
+{
+  "title": "Workflows",
+  "description": "Fluxos de tramitação do órgão. O sistema escolhe o fluxo de cada processo pela regra de aplicabilidade, na ordem de prioridade; o workflow padrão vale quando nenhuma regra se aplica.",
+  "loading": "Carregando os workflows…",
+  "loadFailed": "Não foi possível carregar os workflows.",
+  "retry": "Tentar novamente",
+  "empty": "Nenhum workflow cadastrado ainda.",
+  "caption": "Workflows do órgão, na ordem em que a aplicabilidade é avaliada",
+  "forbidden": {
+    "title": "Acesso restrito",
+    "description": "Você não tem permissão para consultar os workflows."
+  },
+  "columns": {
+    "name": "Workflow",
+    "applicability": "Aplica-se a",
+    "priority": "Prioridade",
+    "version": "Versão publicada",
+    "status": "Situação",
+    "actions": "Ações",
+    "draft": "Versão em edição"
+  },
+  "badges": {
+    "default": "Padrão",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "values": {
+    "anyProcess": "Qualquer processo",
+    "customRule": "Regra personalizada",
+    "modalities": "Modalidade: {modalities}",
+    "noPublished": "Nenhuma versão publicada",
+    "published": "v{number}",
+    "priority": "Prioridade {value}",
+    "draft": "Rascunho v{number}",
+    "noDraft": "Sem rascunho",
+    "noEditableVersion": "Sem versão em edição"
+  },
+  "setDefault": {
+    "action": "Tornar padrão",
+    "actionFor": "Tornar {name} o workflow padrão",
+    "ineligible": "Publique uma versão e ative o workflow antes de torná-lo padrão.",
+    "title": "Tornar \"{name}\" o workflow padrão?",
+    "description": "O padrão é usado nos processos para os quais nenhuma regra de aplicabilidade se aplica. Processos já criados não mudam de fluxo.",
+    "current": "Hoje o padrão é \"{name}\".",
+    "confirm": "Tornar padrão",
+    "cancel": "Cancelar",
+    "success": "Workflow {name} agora é o padrão."
+  },
+  "errors": {
+    "conflict": "Este workflow foi alterado por outra pessoa. Atualize a página.",
+    "permission": "Você não tem permissão para alterar o workflow padrão.",
+    "ineligible": "Publique uma versão e ative o workflow antes de torná-lo padrão.",
+    "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+    "mfa": "Confirme sua identidade com o segundo fator para alterar o workflow padrão.",
+    "generic": "Não foi possível tornar o workflow padrão.",
+    "mfaManage": "Confirme sua identidade com o segundo fator para editar workflows.",
+    "permissionManage": "Você não tem permissão para editar workflows.",
+    "unavailableSave": "Não foi possível salvar agora. Tente novamente em instantes."
+  },
+  "form": {
+    "open": "Novo workflow",
+    "title": "Novo workflow",
+    "description": "O workflow nasce com a versão 1 em rascunho. Depois de criado, você adiciona as etapas e as transições no editor.",
+    "fields": {
+      "name": "Nome",
+      "key": "Chave técnica",
+      "description": "Descrição"
+    },
+    "keyHint": "Gerada a partir do nome; pode ser ajustada até salvar e não muda depois.",
+    "required": "Preencha o campo \"{field}\".",
+    "keyPattern": "Use letras maiúsculas, números e _ (ex.: OBRAS_RITO_SIMPLIFICADO), com ao menos 3 caracteres.",
+    "nameLength": "O nome deve ter entre 3 e 150 caracteres.",
+    "descriptionLength": "A descrição deve ter no máximo 2.000 caracteres.",
+    "keyTaken": "Esta chave já está em uso em outro workflow.",
+    "cancel": "Cancelar",
+    "submit": "Criar e abrir o editor",
+    "created": "Workflow {name} criado."
+  },
+  "editor": {
+    "back": "Voltar para Workflows",
+    "loading": "Carregando o workflow…",
+    "notFound": "Workflow não encontrado.",
+    "loadFailed": "Não foi possível carregar o workflow.",
+    "noVersion": "Sem versão em edição: este workflow não tem rascunho nem versão publicada.",
+    "versionDraft": "Rascunho v{number}",
+    "versionReadOnly": "Versão publicada v{number} — somente leitura",
+    "readOnly": {
+      "published": "Esta é a versão publicada, usada pelos processos em andamento. Para alterar o fluxo, crie um rascunho."
+    },
+    "draft": {
+      "hint": "Para editar etapas e transições, crie um rascunho a partir da versão publicada. Os processos em andamento continuam na versão publicada.",
+      "action": "Criar rascunho",
+      "created": "Rascunho v{number} criado.",
+      "exists": "Já existe um rascunho deste workflow. Continue a edição dele.",
+      "continue": "Continuar o rascunho existente",
+      "nothingToCopy": "Este workflow não tem versão publicada para copiar.",
+      "failed": "Não foi possível criar o rascunho."
+    },
+    "tabs": {
+      "label": "Partes do workflow",
+      "stages": "Etapas",
+      "transitions": "Transições",
+      "versions": "Versões",
+      "diagram": "Diagrama"
+    },
+    "warnings": {
+      "title": "Avisos do fluxo",
+      "hint": "Os avisos não impedem salvar o rascunho; a publicação faz a validação completa.",
+      "noStart": "Nenhuma etapa do tipo Início.",
+      "noExit": "A etapa {name} não tem transição de saída.",
+      "unreachable": "A etapa {name} não é alcançável a partir do início."
+    },
+    "problems": {
+      "conflict": "Os dados foram alterados por outra pessoa. Recarregue.",
+      "notDraft": "Esta versão não pode mais ser editada.",
+      "forbidden": "Você não tem permissão para editar workflows.",
+      "mfa": "Confirme sua identidade com o segundo fator para editar workflows.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "generic": "Não foi possível salvar a alteração.",
+      "reload": "Recarregar e tentar novamente"
+    },
+    "stages": {
+      "add": "Adicionar etapa",
+      "empty": "Nenhuma etapa ainda — adicione a primeira.",
+      "caption": "Etapas do workflow, na ordem de exibição",
+      "columns": {
+        "order": "Ordem",
+        "name": "Etapa",
+        "type": "Tipo",
+        "department": "Unidade",
+        "sla": "SLA"
+      },
+      "reorder": "Reordenar {name} (posição {position})",
+      "reorderHint": "Arraste as linhas ou use as setas para cima e para baixo no botão de reordenar.",
+      "open": "Abrir as propriedades de {name}",
+      "moved": "Etapa {name} movida para a posição {position}.",
+      "created": "Etapa {name} adicionada.",
+      "deleted": "Etapa excluída.",
+      "sla": {
+        "BUSINESS": "{days, plural, one {# dia útil} other {# dias úteis}}",
+        "CALENDAR": "{days, plural, one {# dia corrido} other {# dias corridos}}"
+      }
+    },
+    "panel": {
+      "title": "Etapa {name}",
+      "newTitle": "Nova etapa",
+      "position": "Posição {position} na ordem",
+      "legend": "Propriedades da etapa",
+      "close": "Fechar o painel",
+      "saving": "Salvando…",
+      "saved": "Alterações salvas.",
+      "save": "Salvar",
+      "create": "Adicionar etapa"
+    },
+    "fields": {
+      "name": "Nome",
+      "key": "Chave",
+      "type": "Tipo",
+      "instructions": "Instruções",
+      "departmentResolution": "Unidade responsável",
+      "fixedDepartmentId": "Unidade fixa",
+      "assignmentPolicy": "Atribuição",
+      "approverType": "Quem aprova",
+      "approverUserId": "Usuário aprovador",
+      "approverRoleId": "Perfil aprovador",
+      "approverDepartmentResolution": "Unidade do titular aprovador",
+      "approverFixedDepartmentId": "Unidade fixa do titular",
+      "allowDeputy": "Substituto pode aprovar",
+      "approvalDocumentTypeCodes": "Documentos cobertos pela aprovação",
+      "documentTypeCodes": "Documentos da etapa",
+      "slaDays": "SLA (dias)",
+      "slaType": "Contagem do SLA",
+      "color": "Cor"
+    },
+    "hints": {
+      "key": "Gerada a partir do nome; pode ser ajustada até salvar.",
+      "keyImmutable": "A chave não muda depois de criada.",
+      "documentTypeCodes": "Nenhum marcado = todos os tipos de documento.",
+      "returnComment": "Devolver sempre exige comentário."
+    },
+    "validation": {
+      "required": "Preencha o campo \"{field}\".",
+      "keyPattern": "Use letras maiúsculas, números e _ (ex.: ANALISE_TECNICA).",
+      "nameLength": "O nome deve ter entre 3 e 150 caracteres.",
+      "slaRange": "Informe um SLA entre 1 e 365 dias.",
+      "tooLong": "O texto excede o tamanho máximo.",
+      "invalid": "Revise este campo.",
+      "keyTaken": "Esta chave já está em uso nesta versão."
+    },
+    "values": {
+      "select": "Selecione…",
+      "currentSelection": "Seleção atual",
+      "optionsUnavailable": "Não foi possível carregar as opções. A seleção atual é mantida.",
+      "noDocumentTypes": "Nenhum tipo de documento ativo."
+    },
+    "stageTypes": {
+      "START": "Início",
+      "TASK": "Tarefa",
+      "APPROVAL": "Aprovação",
+      "END": "Fim"
+    },
+    "departmentResolutions": {
+      "FIXED": "Unidade fixa",
+      "REQUESTING_DEPARTMENT": "Unidade do requisitante",
+      "REQUESTING_SECRETARIAT": "Secretaria do requisitante",
+      "CHOSEN_ON_FORWARD": "Escolhida ao encaminhar"
+    },
+    "assignmentPolicies": {
+      "UNASSIGNED": "Sem responsável (fila da unidade)",
+      "CREATOR": "Quem criou o processo",
+      "DEPARTMENT_HEAD": "Titular da unidade",
+      "PREVIOUS_ASSIGNEE": "Responsável anterior na etapa"
+    },
+    "approverTypes": {
+      "USER": "Usuário específico",
+      "ROLE": "Perfil",
+      "DEPARTMENT_HEAD": "Titular da unidade"
+    },
+    "dayCountTypes": {
+      "BUSINESS": "Dias úteis",
+      "CALENDAR": "Dias corridos"
+    },
+    "colors": {
+      "none": "Sem cor",
+      "custom": "Personalizada ({value})",
+      "blue": "Azul",
+      "green": "Verde",
+      "yellow": "Amarelo",
+      "orange": "Laranja",
+      "red": "Vermelho",
+      "purple": "Roxo",
+      "cyan": "Ciano",
+      "gray": "Cinza"
+    },
+    "delete": {
+      "action": "Excluir etapa",
+      "confirmTitle": "Excluir a etapa {name}",
+      "confirm": "Excluir a etapa {name} do rascunho?",
+      "cancel": "Cancelar",
+      "confirmAction": "Excluir",
+      "blocked": "Remova primeiro as transições que usam esta etapa."
+    },
+    "actions": {
+      "FORWARD": "Encaminhar",
+      "RETURN": "Devolver",
+      "COMPLETE": "Concluir",
+      "APPROVE": "Aprovar",
+      "REJECT": "Indeferir"
+    },
+    "transitions": {
+      "add": "Adicionar transição",
+      "needStages": "Crie ao menos duas etapas para ligá-las.",
+      "empty": "Nenhuma transição ainda.",
+      "caption": "Transições do workflow",
+      "primary": "Ação principal",
+      "comment": "Exige comentário",
+      "route": "{from} → {to}",
+      "edit": "Editar",
+      "editFor": "Editar a transição {name}",
+      "delete": "Excluir",
+      "deleteFor": "Excluir a transição {name}",
+      "blocked": "A transição {name} não pode ser excluída: remova primeiro as regras que a usam.",
+      "newTitle": "Nova transição",
+      "editTitle": "Transição {name}",
+      "formHint": "Liga duas etapas desta versão. Aprovar e indeferir são criadas pelas etapas de aprovação.",
+      "automatic": "(automática da etapa de aprovação)",
+      "cancel": "Cancelar",
+      "save": "Salvar transição",
+      "create": "Adicionar transição"
+    },
+    "transitionFields": {
+      "name": "Rótulo do botão",
+      "key": "Chave",
+      "fromStageId": "Etapa de origem",
+      "toStageId": "Etapa de destino",
+      "action": "Ação",
+      "isPrimary": "É a ação principal",
+      "requiresComment": "Exige comentário",
+      "allowDueDateOverride": "Permite alterar o prazo"
+    },
+    "rulesLink": "Regras da versão"
+  },
+  "rules": {
+    "title": "Regras — {name}",
+    "description": "Configure o que precisa estar pronto para o processo sair de uma etapa ou seguir por uma transição. Teste a regra contra um processo real antes de publicar a versão.",
+    "back": "Voltar ao editor do workflow",
+    "loading": "Carregando as regras…",
+    "loadFailed": "Não foi possível carregar as regras.",
+    "notFound": "Workflow não encontrado.",
+    "noVersion": "Este workflow ainda não tem versão em edição.",
+    "readOnly": "Esta versão está publicada: as regras ficam só para consulta. Crie um rascunho no editor para alterá-las.",
+    "targets": {
+      "label": "Etapas e transições",
+      "stages": "Saída de etapa",
+      "transitions": "Transições",
+      "count": "{count, plural, =0 {nenhuma regra} one {# regra} other {# regras}}",
+      "none": "Crie etapas e transições no editor antes de configurar regras."
+    },
+    "list": {
+      "title": "Regras de {name}",
+      "empty": "Nenhuma regra configurada para esta etapa.",
+      "emptyTransition": "Nenhuma regra configurada para esta transição.",
+      "add": "Nova regra",
+      "edit": "Editar",
+      "editFor": "Editar a regra {name}",
+      "delete": "Excluir",
+      "deleteFor": "Excluir a regra {name}",
+      "inactive": "Inativa",
+      "reorder": "Reordenar {name} (posição {position}). Use as setas para cima e para baixo.",
+      "reorderHint": "Arraste as regras ou use as setas ↑/↓ no ícone de reordenar para mudar a ordem.",
+      "moved": "{name} movida para a posição {position}.",
+      "created": "Regra {name} criada.",
+      "saved": "Regra {name} salva.",
+      "deleted": "Regra excluída.",
+      "caption": "Regras na ordem de avaliação",
+      "columns": {
+        "order": "Ordem",
+        "rule": "Regra",
+        "actions": "Ações"
+      }
+    },
+    "types": {
+      "REQUIRED_DOCUMENT": "Documento obrigatório",
+      "REQUIRED_FIELD": "Campo obrigatório",
+      "REQUIRED_APPROVAL": "Aprovação obrigatória",
+      "CONDITION": "Condição"
+    },
+    "severities": {
+      "BLOCKING": "Bloqueante",
+      "WARNING": "Aviso"
+    },
+    "minStatuses": {
+      "EXISTS": "Existe (qualquer situação)",
+      "COMPLETE": "Completo",
+      "SUBMITTED": "Enviado para revisão",
+      "FINAL": "Finalizado",
+      "APPROVED": "Aprovado"
+    },
+    "form": {
+      "newTitle": "Nova regra",
+      "editTitle": "Editar regra {name}",
+      "hint": "A regra é avaliada quando alguém tenta avançar o processo. Bloqueante impede o avanço; aviso só aparece no checklist.",
+      "type": "Tipo",
+      "name": "Nome",
+      "description": "Descrição",
+      "severity": "Severidade",
+      "message": "Mensagem ao usuário",
+      "messageHint": "Exibida no checklist do processo quando a regra não for satisfeita.",
+      "isActive": "Regra ativa",
+      "isActiveHint": "Desative para suspender a exigência sem perder a configuração.",
+      "documentTypeCode": "Tipo de documento",
+      "minStatus": "Situação mínima",
+      "minCount": "Quantidade mínima",
+      "minCountHint": "Deixe em branco para exigir 1.",
+      "field": "Campo obrigatório",
+      "fieldHint": "Só os campos do contexto de regras são listados.",
+      "stageKey": "Etapa de aprovação",
+      "noApprovalStages": "Esta versão não tem etapa de aprovação.",
+      "cancel": "Cancelar",
+      "create": "Criar regra",
+      "save": "Salvar regra",
+      "select": "Selecione"
+    },
+    "condition": {
+      "legend": "Condição",
+      "combinator": "Combinar as condições com",
+      "and": "E — todas devem ser verdadeiras",
+      "or": "OU — basta uma ser verdadeira",
+      "field": "Campo da condição {position}",
+      "operator": "Operador da condição {position}",
+      "value": "Valor da condição {position}",
+      "add": "Adicionar condição",
+      "remove": "Remover a condição {position}",
+      "empty": "Adicione ao menos uma condição.",
+      "jsonMode": "Editar como JSON",
+      "builderMode": "Voltar ao construtor",
+      "json": "Expressão JSON Logic",
+      "jsonHint": "Somente operações permitidas pelo sistema; a API confere a expressão.",
+      "notRepresentable": "Esta condição foi criada em formato avançado e é editada como JSON.",
+      "true": "Verdadeiro",
+      "false": "Falso",
+      "operators": {
+        "==": "é igual a",
+        "!=": "é diferente de",
+        ">": "é maior que",
+        ">=": "é maior ou igual a",
+        "<": "é menor que",
+        "<=": "é menor ou igual a",
+        "contains": "contém",
+        "filled": "está preenchido",
+        "empty": "está vazio"
+      }
+    },
+    "schema": {
+      "loading": "Carregando os campos disponíveis…",
+      "failed": "Não foi possível carregar os campos disponíveis. Tente novamente.",
+      "retry": "Tentar novamente"
+    },
+    "test": {
+      "title": "Testar regra",
+      "hint": "Avalia a regra do formulário contra um processo existente. Nada é salvo.",
+      "search": "Processo de referência",
+      "searchHint": "Busque pelo código ou pelo título (mínimo de 2 caracteres).",
+      "searching": "Buscando processos…",
+      "noResults": "Nenhum processo encontrado.",
+      "selected": "Processo selecionado: {label}",
+      "change": "Trocar processo",
+      "run": "Testar regra",
+      "satisfied": "Satisfeita",
+      "notSatisfied": "Não satisfeita — {message}",
+      "contextUsed": "Valores usados na avaliação",
+      "noContext": "Nenhum valor do processo foi lido.",
+      "warning": "Atenção: {message}",
+      "fixForm": "Preencha a configuração da regra antes de testar.",
+      "processNotFound": "Selecione um processo válido.",
+      "operatorForbidden": "Esta condição usa um operador não permitido.",
+      "invalidConfig": "Revise a configuração da regra.",
+      "failed": "Não foi possível testar a regra agora."
+    },
+    "validation": {
+      "nameLength": "O nome deve ter de 3 a 150 caracteres.",
+      "messageLength": "A mensagem deve ter de 5 a 500 caracteres.",
+      "minCount": "Informe um número inteiro maior ou igual a 1.",
+      "condition": "Complete a condição {position}.",
+      "json": "Informe uma expressão JSON válida.",
+      "invalid": "Valor inválido.",
+      "requiredFields": {
+        "name": "Informe o nome.",
+        "message": "Informe a mensagem ao usuário.",
+        "documentTypeCode": "Selecione o tipo de documento.",
+        "field": "Informe o campo.",
+        "stageKey": "Selecione a etapa de aprovação."
+      }
+    },
+    "problems": {
+      "conflict": "Os dados foram alterados. Recarregue e tente novamente.",
+      "notDraft": "Esta versão não pode mais ser editada.",
+      "createDraft": "Criar novo rascunho",
+      "reload": "Recarregar",
+      "forbidden": "Você não tem permissão para editar regras.",
+      "mfa": "Confirme sua identidade com o segundo fator para editar regras.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "generic": "Não foi possível concluir a operação."
+    }
+  },
+  "versions": {
+    "title": "Versões",
+    "loading": "Carregando versões…",
+    "loadFailed": "Não foi possível carregar as versões.",
+    "retry": "Tentar novamente",
+    "empty": "Este workflow ainda não tem versões.",
+    "caption": "Histórico de versões do workflow",
+    "draftHint": "Versão {number} em rascunho. Valide antes de publicar: a versão publicada passa a valer para novos processos; os processos em andamento continuam na versão em que começaram.",
+    "validate": "Validar",
+    "validating": "Validando…",
+    "publish": "Publicar",
+    "validateFirst": "Valide a versão antes de publicar.",
+    "publishBlocked": "Corrija os problemas indicados antes de publicar.",
+    "publishForbidden": "Você não tem permissão para publicar workflows.",
+    "retire": "Aposentar",
+    "retireLabel": "Aposentar a versão {number}",
+    "retireBlocked": "Publique uma nova versão antes de aposentar esta.",
+    "retireForbidden": "Você não tem permissão para aposentar versões de workflow.",
+    "number": "Versão {number}",
+    "current": "Corrente",
+    "noValue": "—",
+    "byWhom": "{date} por {name}",
+    "status": {
+      "DRAFT": "Rascunho",
+      "PUBLISHED": "Publicada",
+      "RETIRED": "Aposentada"
+    },
+    "columns": {
+      "number": "Versão",
+      "status": "Situação",
+      "publishedAt": "Publicada em",
+      "retiredAt": "Aposentada em",
+      "notes": "Notas da versão",
+      "hash": "Hash",
+      "actions": "Ações"
+    },
+    "validation": {
+      "ok": "Nenhum problema encontrado. A versão pode ser publicada.",
+      "noErrors": "Nenhum erro bloqueante. A versão pode ser publicada.",
+      "errorsTitle": "{count, plural, one {# problema impede} other {# problemas impedem}} a publicação",
+      "warningsTitle": "{count, plural, one {# aviso} other {# avisos}} (não impedem a publicação)",
+      "goTo": {
+        "stage": "Ir para as etapas",
+        "transition": "Ir para as transições",
+        "rule": "Ir para as regras"
+      }
+    },
+    "publishDialog": {
+      "title": "Publicar a versão {number}",
+      "description": "A versão publicada fica somente leitura e passa a valer para novos processos. A versão publicada anterior é aposentada.",
+      "notesRequired": "Notas da versão (obrigatório)",
+      "notesOptional": "Notas da versão (opcional na primeira versão)",
+      "warnings": "A validação apontou {count, plural, one {# aviso} other {# avisos}}. Eles não impedem a publicação.",
+      "cancel": "Cancelar",
+      "confirm": "Publicar",
+      "publishing": "Publicando…"
+    },
+    "retireDialog": {
+      "title": "Aposentar a versão {number}",
+      "description": "A versão deixa de ser oferecida. Os processos que já a usam continuam nela.",
+      "cancel": "Cancelar",
+      "confirm": "Aposentar",
+      "retiring": "Aposentando…"
+    },
+    "toast": {
+      "published": "Versão {number} publicada",
+      "retired": "Versão {number} aposentada"
+    },
+    "errors": {
+      "conflict": "Os dados foram alterados. Recarregue e tente novamente.",
+      "state": "Esta versão não pode mais ser publicada/aposentada.",
+      "inUse": "Publique uma nova versão antes de aposentar esta.",
+      "forbidden": "Você não tem permissão para publicar workflows.",
+      "mfa": "Confirme sua identidade com o segundo fator para publicar workflows.",
+      "unavailable": "Serviço temporariamente indisponível. Tente novamente em instantes.",
+      "generic": "Não foi possível concluir a operação."
+    }
+  },
+  "diagram": {
+    "title": "Diagrama",
+    "hint": "Visão somente leitura das etapas e transições da versão. Para alterar, use as abas Etapas e Transições.",
+    "loading": "Carregando o diagrama…",
+    "loadFailed": "Não foi possível carregar o diagrama agora. Tente novamente.",
+    "retry": "Tentar novamente",
+    "notFound": "Workflow não encontrado.",
+    "backToList": "Voltar para a lista de workflows",
+    "forbidden": "Você não tem permissão para ver este workflow.",
+    "empty": "Nenhuma etapa criada ainda",
+    "retired": "Esta versão está aposentada",
+    "layoutFailed": "Não foi possível desenhar o diagrama; veja a lista abaixo.",
+    "version": "Versão exibida",
+    "versionOption": "Versão {number} — {status}",
+    "stagesLabel": "Etapas do diagrama",
+    "transitionsLabel": "Transições do diagrama",
+    "minimap": "Minimapa: clique para centralizar o diagrama nesse ponto",
+    "controls": {
+      "label": "Controles do diagrama",
+      "zoomIn": "Aproximar",
+      "zoomOut": "Afastar",
+      "fit": "Ajustar à tela",
+      "minimap": "Minimapa",
+      "zoomLevel": "Zoom {percent}%",
+      "hint": "Arraste o fundo para mover o desenho e use a roda do mouse ou os botões para o zoom. Clique numa etapa ou transição para ver os detalhes."
+    },
+    "node": {
+      "label": "Etapa {name}, tipo {type}",
+      "group": "Grupo {group}",
+      "sla": "SLA {sla}"
+    },
+    "edge": {
+      "label": "Transição {name}: {from} → {to}",
+      "primary": "Ação principal"
+    },
+    "warnings": {
+      "unreachable": "Aviso: não pode ser alcançada a partir da etapa inicial",
+      "noEnd": "Aviso: a partir dela não é possível chegar ao fim do fluxo",
+      "both": "Aviso: não pode ser alcançada a partir da etapa inicial nem leva ao fim do fluxo"
+    },
+    "details": {
+      "stageTitle": "Etapa {name}",
+      "transitionTitle": "Transição {name}",
+      "readOnly": "Somente leitura. Para alterar, use as abas Etapas e Transições.",
+      "close": "Fechar",
+      "group": "Grupo",
+      "sla": "SLA",
+      "route": "Origem → destino",
+      "yes": "Sim",
+      "no": "Não"
+    },
+    "fallback": {
+      "stages": "Etapas",
+      "transitions": "Transições",
+      "none": "Nenhuma transição."
+    }
+  }
+}

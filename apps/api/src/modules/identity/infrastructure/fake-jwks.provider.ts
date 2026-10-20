@@ -22,6 +22,8 @@ export interface FakeTokenClaims {
   readonly iat?: number;
   readonly auth_time?: number;
   readonly amr?: readonly string[];
+  readonly email?: string;
+  readonly email_verified?: boolean;
 }
 
 const HEADER = { alg: 'HS256', typ: 'JWT' } as const;
@@ -36,8 +38,9 @@ function decodeJson(segment: string): unknown {
 
 /**
  * Verificador de token determinístico com chave simétrica (FA-02 da US-080) atrás da porta
- * definitiva `TokenVerifierPort`. Substituído pelo verificador JWKS do Authentik (RS256) na
- * US-087, sem mudar o guard. Valida assinatura, `alg`, `iss`, `aud`, `exp` e `nbf` com tolerância.
+ * `TokenVerifierPort`: testes e modo de identidade fake de local/dev/test. Em staging/produção o
+ * verificador é sempre o `JwksTokenVerifier` (US-087). Valida assinatura, `alg`, `iss`, `aud`,
+ * `exp` e `nbf` com tolerância.
  */
 export class FakeJwksProvider implements TokenVerifierPort {
   private readonly key: Buffer;
@@ -108,6 +111,8 @@ export class FakeJwksProvider implements TokenVerifierPort {
       subject: claims.sub,
       amr: Array.isArray(claims.amr) ? claims.amr.filter((value) => typeof value === 'string') : [],
       authTime: typeof claims.auth_time === 'number' ? new Date(claims.auth_time * 1000) : null,
+      email: typeof claims.email === 'string' ? claims.email : null,
+      emailVerified: claims.email_verified === true,
     };
   }
 

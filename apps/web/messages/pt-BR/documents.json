@@ -1,0 +1,472 @@
+{
+  "statuses": {
+    "DRAFT": "Rascunho",
+    "IN_REVIEW": "Em revisão",
+    "RETURNED": "Devolvido",
+    "FINALIZED": "Finalizado",
+    "APPROVED": "Aprovado",
+    "REJECTED": "Indeferido",
+    "CANCELED": "Cancelado"
+  },
+  "view": {
+    "loading": "Carregando o documento…",
+    "backToProcess": "Voltar ao processo",
+    "noNumber": "Sem número",
+    "type": "Tipo: {type}",
+    "version": "Versão {number}",
+    "noVersion": "Nenhuma versão registrada",
+    "pendingApproval": "Em aprovação",
+    "cancellationReason": "Motivo do cancelamento",
+    "loadFailedTitle": "Não foi possível carregar o documento",
+    "loadFailedDescription": "Tente novamente; se o problema continuar, informe o código ao suporte.",
+    "notFoundTitle": "Documento não encontrado.",
+    "notFoundDescription": "O documento pode ter sido excluído ou você pode não ter acesso a ele.",
+    "retry": "Tentar novamente",
+    "versionsLink": "Ver versões"
+  },
+  "actions": {
+    "label": "Ações do documento",
+    "none": "Nenhuma ação disponível para você neste documento.",
+    "more": "Mais ações",
+    "FINALIZE": "Finalizar",
+    "SUBMIT": "Submeter",
+    "REOPEN": "Reabrir",
+    "CANCEL": "Cancelar documento",
+    "DELETE": "Excluir rascunho"
+  },
+  "completeness": {
+    "heading": {
+      "FINALIZE": "Pendências para finalizar o documento",
+      "SUBMIT": "Pendências para submeter o documento"
+    },
+    "loading": "Verificando as pendências do documento…",
+    "loadFailed": "Não foi possível verificar as pendências agora.",
+    "retry": "Tentar novamente",
+    "clean": {
+      "FINALIZE": "Nenhuma pendência encontrada. O documento está pronto para ser finalizado.",
+      "SUBMIT": "Nenhuma pendência encontrada. O documento está pronto para ser submetido."
+    },
+    "summaryBlocking": "{count, plural, one {# pendência bloqueante} other {# pendências bloqueantes}}",
+    "summaryWarnings": "{count, plural, one {# aviso} other {# avisos}}",
+    "warningsHint": "Os avisos não impedem a ação, mas precisam ser reconhecidos para continuar.",
+    "listLabel": "Pendências do documento",
+    "blocking": "Bloqueante",
+    "warning": "Aviso",
+    "section": "Seção: {key}",
+    "field": "Campo: {field}",
+    "confirm": {
+      "FINALIZE": "Confirmar finalização",
+      "SUBMIT": "Confirmar submissão"
+    },
+    "working": "Enviando…",
+    "continue": "Continuar",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "goToSection": "Ir para a seção {key}"
+  },
+  "acknowledge": {
+    "title": "Reconhecer os avisos",
+    "description": "Os avisos abaixo não impedem a ação, mas você precisa reconhecê-los para continuar.",
+    "listLabel": "Avisos do documento",
+    "checkbox": "Reconheço os avisos",
+    "cancel": "Cancelar"
+  },
+  "reason": {
+    "hint": "Mínimo de {min} caracteres.",
+    "count": "{count, number} de {max, number} caracteres",
+    "working": "Enviando…",
+    "reopen": {
+      "title": "Reabrir documento",
+      "description": "A reabertura fica registrada com a justificativa informada.",
+      "label": "Justificativa da reabertura",
+      "confirm": "Confirmar reabertura",
+      "cancel": "Cancelar"
+    },
+    "cancel": {
+      "title": "Cancelar documento",
+      "description": "O cancelamento é definitivo e fica registrado com o motivo informado.",
+      "label": "Motivo do cancelamento",
+      "confirm": "Confirmar cancelamento",
+      "cancel": "Voltar"
+    }
+  },
+  "delete": {
+    "title": "Excluir rascunho?",
+    "description": "O rascunho será excluído e não poderá ser recuperado.",
+    "confirm": "Confirmar exclusão",
+    "cancel": "Cancelar",
+    "working": "Excluindo…"
+  },
+  "toasts": {
+    "FINALIZE": "Documento finalizado.",
+    "SUBMIT": "Documento submetido.",
+    "REOPEN": "Documento reaberto.",
+    "CANCEL": "Documento cancelado.",
+    "DELETE": "Rascunho excluído."
+  },
+  "errors": {
+    "notFound": "Documento não encontrado.",
+    "forbidden": "Você não tem permissão para esta ação.",
+    "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+    "unavailable": "Não foi possível concluir a ação agora.",
+    "unexpected": "Ocorreu um erro inesperado.",
+    "retry": "Tentar novamente"
+  },
+  "renditions": {
+    "status": {
+      "PENDING": "Gerando PDF…",
+      "PROCESSING": "Gerando PDF…",
+      "READY": "PDF pronto",
+      "FAILED": "Falha ao gerar",
+      "EXPIRED": "Prévia expirada"
+    },
+    "generate": {
+      "preview": "Gerar prévia em PDF",
+      "version": "Gerar PDF desta versão",
+      "again": {
+        "preview": "Gerar nova prévia",
+        "version": "Gerar novamente"
+      }
+    },
+    "target": "(versão {number})",
+    "retry": "Tentar novamente",
+    "download": "Baixar PDF",
+    "downloading": "Preparando o download…",
+    "previewExpiredAction": "Prévia expirada — gere novamente",
+    "panel": {
+      "label": "Resumo do PDF gerado",
+      "pages": "Páginas",
+      "size": "Tamanho",
+      "hash": "SHA-256",
+      "validUntil": "Válida até",
+      "previewNote": "A prévia reflete o rascunho no momento do pedido e fica disponível por {hours} horas.",
+      "masked": "Valores sigilosos ocultos neste PDF",
+      "units": {
+        "B": "{value} B",
+        "KB": "{value} KB",
+        "MB": "{value} MB"
+      }
+    },
+    "errors": {
+      "forbidden": "Você não tem permissão para baixar este PDF.",
+      "unexpected": "Ocorreu um erro inesperado."
+    }
+  },
+  "versions": {
+    "save": "Salvar versão",
+    "saved": "Versão {number} salva",
+    "notAllowed": "Não foi possível salvar a versão no estado atual do documento.",
+    "dialog": {
+      "title": "Salvar versão",
+      "description": "A versão registra um retrato permanente do documento, que não poderá ser alterado nem excluído. O status do documento não muda.",
+      "label": "Resumo da alteração (opcional)",
+      "hint": "Descreva brevemente o que mudou desde a versão anterior.",
+      "count": "{count} de {max} caracteres",
+      "confirm": "Salvar versão",
+      "cancel": "Cancelar",
+      "working": "Salvando…"
+    },
+    "title": "Versões do documento",
+    "backToDocument": "Voltar ao documento",
+    "backToProcess": "Voltar ao processo",
+    "notFoundTitle": "Versões não encontradas.",
+    "loading": "Carregando as versões…",
+    "loadFailed": "Não foi possível carregar as versões.",
+    "reload": "Recarregar",
+    "empty": "Nenhuma versão salva ainda",
+    "listLabel": "Versões do documento",
+    "number": "Versão {number}",
+    "by": "Por {author} em {date}",
+    "unknownAuthor": "Usuário desconhecido",
+    "hash": "Hash:",
+    "compareWithPrevious": "Comparar com a anterior",
+    "compareWithPreviousTarget": "(versão {number})",
+    "reasons": {
+      "MANUAL": "Salva manualmente",
+      "SUBMISSION": "Submissão",
+      "FINALIZATION": "Finalização",
+      "IMPORT": "Importação",
+      "UPLOAD": "Envio de arquivo",
+      "REOPEN": "Reabertura",
+      "SYSTEM": "Sistema"
+    },
+    "picker": {
+      "label": "Comparar duas versões",
+      "from": "Versão de origem",
+      "to": "Versão de destino",
+      "compare": "Comparar"
+    },
+    "changes": {
+      "ADDED": "Adicionado",
+      "REMOVED": "Removido",
+      "CHANGED": "Alterado",
+      "UNCHANGED": "Sem alteração",
+      "MASKED": "Valor sigiloso"
+    },
+    "sectionStates": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "fields": {
+      "document": {
+        "title": "Título",
+        "code": "Código",
+        "confidentiality": "Sigilo"
+      },
+      "template": {
+        "versionNumber": "Versão do template"
+      },
+      "file": {
+        "attachmentId": "Arquivo",
+        "sha256": "SHA-256 do arquivo"
+      }
+    },
+    "diff": {
+      "title": "Comparação",
+      "loading": "Comparando as versões…",
+      "failed": "Não foi possível comparar as versões.",
+      "empty": "Nada a comparar entre estas versões.",
+      "uploadedNote": "Documento externo: a comparação mostra apenas os metadados do arquivo de cada versão.",
+      "header": "Cabeçalho",
+      "sections": "Seções",
+      "collections": "Coleções",
+      "field": "Campo",
+      "item": "Item",
+      "status": "Situação",
+      "absent": "Ausente nesta versão",
+      "openText": "Ver texto completo",
+      "justification": "Justificativa: {text}",
+      "changedFields": "Campos alterados: {fields}",
+      "maskedFields": "Campos sigilosos: {fields}"
+    }
+  },
+  "panel": {
+    "title": "Documentos do processo",
+    "loading": "Carregando os documentos…",
+    "create": "Criar documento",
+    "createMenu": "Tipos de documento que você pode criar",
+    "noNumber": "Sem número",
+    "noResponsible": "sem responsável",
+    "meta": "Responsável: {responsible} · Atualizado em {updatedAt}",
+    "totalValue": "Valor total:",
+    "confidential": "Sigiloso",
+    "count": "{count, plural, =0 {Nenhum documento} one {# documento} other {# documentos}}",
+    "notStarted": "Não iniciado",
+    "start": "Iniciar {type}",
+    "empty": "Nenhum documento ainda.",
+    "emptyHint": "Comece criando um documento.",
+    "noMatches": "Nenhum documento corresponde aos filtros.",
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "Título ou número (mín. 2 caracteres)",
+      "type": "Tipo",
+      "status": "Status",
+      "responsible": "Responsável",
+      "all": "Todos"
+    },
+    "errors": {
+      "notFound": "Processo não encontrado.",
+      "backToList": "Voltar para Processos",
+      "unavailable": "Não foi possível carregar os documentos agora.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "retry": "Tentar novamente"
+    }
+  },
+  "aiReview": {
+    "title": "Conteúdo gerado por IA",
+    "summary": "{pending, plural, =0 {Nenhuma seção aguarda revisão} one {# seção aguarda revisão} other {# seções aguardam revisão}} · {marks, plural, =0 {nenhum item [a confirmar]} one {# item [a confirmar]} other {# itens [a confirmar]}}. O documento só pode ser finalizado, submetido ou encaminhado depois disso.",
+    "summaryDone": "Todo o conteúdo gerado por IA foi revisado e não há itens [a confirmar].",
+    "badge": {
+      "pending": "Gerado por IA · revisão pendente",
+      "marks": "· {count, plural, one {# pendência} other {# pendências}}",
+      "reviewed": "Gerado por IA · revisada em {date}",
+      "reviewedByMe": "Gerado por IA · revisada por você em {date}"
+    },
+    "chip": {
+      "text": "[a confirmar: {label}]",
+      "ariaLabel": "Pendência a confirmar: {label}"
+    },
+    "marksHint": "{count, plural, one {Substitua o item abaixo pelo dado confirmado no editor da seção.} other {Substitua os # itens abaixo pelos dados confirmados no editor da seção.}}",
+    "markReviewed": "Marcar seção como revisada",
+    "working": "Registrando…",
+    "reviewAll": {
+      "open": "Revisar todas ({count})",
+      "title": "Revisar todas as seções",
+      "description": "{count, plural, one {Confirme que você leu a seção gerada por IA abaixo.} other {Confirme que você leu as # seções geradas por IA abaixo.}} Os itens [a confirmar] continuam pendentes até serem resolvidos.",
+      "confirmLabel": "{count, plural, one {Li e revisei a seção} other {Li e revisei as # seções}}",
+      "confirm": "{count, plural, one {Marcar a seção como revisada} other {Marcar as # seções como revisadas}}",
+      "cancel": "Cancelar"
+    },
+    "toast": {
+      "one": "Seção marcada como revisada.",
+      "many": "{count, plural, =0 {Nenhuma seção precisava de revisão.} one {# seção marcada como revisada.} other {# seções marcadas como revisadas.}}"
+    },
+    "announce": {
+      "one": "Seção {section} marcada como revisada.",
+      "many": "{count, plural, =0 {Nenhuma seção precisava de revisão.} one {# seção marcada como revisada.} other {# seções marcadas como revisadas.}}"
+    },
+    "errors": {
+      "conflict": "A seção foi alterada. Leia a versão atual antes de revisar.",
+      "notAllowed": "Você não tem permissão para editar este documento.",
+      "notFound": "Documento não encontrado.",
+      "rateLimited": "Muitas tentativas seguidas. Aguarde um instante e tente de novo.",
+      "unavailable": "Não foi possível registrar a revisão agora. Tente novamente em instantes.",
+      "retry": "Tentar novamente"
+    }
+  },
+  "upload": {
+    "title": "Arquivo do documento",
+    "description": "Envie o arquivo produzido fora do sistema (parecer, laudo, planilha). Cada envio vira uma nova versão, e as anteriores ficam no histórico.",
+    "noFile": "Rascunho sem arquivo. Envie o arquivo para poder finalizar o documento.",
+    "versionBadge": "v{number} · enviado por {user} em {date}",
+    "unknownUser": "usuário sem acesso",
+    "loadingFile": "Carregando o arquivo atual…",
+    "loadFailed": "Não foi possível carregar o arquivo atual.",
+    "retryLoad": "Tentar novamente",
+    "send": "Enviar arquivo",
+    "sendNew": "Enviar nova versão",
+    "dropzone": "Arraste o arquivo para cá ou use o botão.",
+    "hint": "Tipos aceitos: {types}. Até {maxMb} MB.",
+    "notEditable": "Este documento não pode receber uma nova versão agora.",
+    "uploading": "Enviando {fileName}… {progress}%",
+    "progressLabel": "Envio de {fileName}",
+    "progressAnnouncement": "{progress}% enviado",
+    "scanning": "Verificando o arquivo…",
+    "registering": "Registrando a nova versão…",
+    "done": "Versão {number} enviada.",
+    "rejected": "Não foi possível usar este arquivo. Verifique e tente novamente.",
+    "typeNotAllowed": "Este tipo de arquivo não é permitido. Tipos aceitos: {types}.",
+    "tooLarge": "O arquivo excede o tamanho máximo permitido ({maxMb} MB). Reduza ou compacte o arquivo.",
+    "empty": "Selecione um arquivo válido.",
+    "retry": "Tentar novamente",
+    "chooseAnother": "Escolher outro arquivo",
+    "errors": {
+      "UPLOAD_NOT_RECEIVED": "Não encontramos o arquivo enviado. Tente novamente.",
+      "ATTACHMENT_NOT_AVAILABLE": "Este arquivo ainda não pode ser usado.",
+      "DOCUMENT_NOT_EDITABLE": "Este documento não pode receber uma nova versão agora.",
+      "VERSION_CONFLICT": "O documento foi atualizado por outra pessoa. Tente novamente.",
+      "PERMISSION_DENIED": "Você não tem permissão para esta ação.",
+      "FILE_TYPE_NOT_ALLOWED": "Este tipo de arquivo não é permitido.",
+      "FILE_TOO_LARGE": "O arquivo excede o tamanho máximo permitido.",
+      "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE": "Este tipo de documento não é permitido na etapa atual.",
+      "DEPENDENCY_UNAVAILABLE": "Não foi possível concluir o envio agora. Tente novamente em instantes.",
+      "NETWORK": "Não foi possível concluir o envio agora. Tente novamente em instantes.",
+      "default": "Ocorreu um erro inesperado ao enviar o arquivo."
+    },
+    "preview": {
+      "label": "Prévia de {fileName}",
+      "loading": "Carregando a prévia…",
+      "failed": "Não foi possível carregar a prévia. Baixe o arquivo.",
+      "unsupported": "Sem prévia disponível para este tipo de arquivo — baixe o arquivo.",
+      "pdfPending": "A prévia de PDF na tela chega com o visualizador de documentos. Baixe o arquivo para conferir.",
+      "download": "Baixar arquivo",
+      "downloading": "Preparando o download…",
+      "downloadFailed": "Não foi possível baixar o arquivo agora. Tente novamente."
+    }
+  },
+  "create": {
+    "title": "Novo documento: {type}",
+    "description": "Informe o título. Em seguida, você envia o arquivo.",
+    "label": "Título",
+    "hint": "Entre 5 e 250 caracteres.",
+    "count": "{count} de {max} caracteres",
+    "confirm": "Criar e enviar arquivo",
+    "descriptionFreeText": "Informe o título. O documento nasce do modelo do tipo e você o redige em seguida.",
+    "confirmFreeText": "Criar e redigir",
+    "responsibleDefault": "Em branco, o responsável é você.",
+    "cancel": "Cancelar",
+    "working": "Criando…",
+    "notAllowed": "Não é possível criar este documento agora.",
+    "notFound": "Processo não encontrado."
+  },
+  "editor": {
+    "heading": "Conteúdo do documento",
+    "sectionsNav": "Seções do documento",
+    "sectionsMenu": "Seções",
+    "state": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "requirement": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou justificada",
+      "OPTIONAL": "Opcional"
+    },
+    "requiredMark": "Obrigatória",
+    "legalBasis": "Base legal: {basis}",
+    "help": "Orientação para o preenchimento",
+    "textLabel": "Texto da seção {title}",
+    "count": "{count} de {max} caracteres",
+    "previous": "Seção anterior",
+    "next": "Próxima seção",
+    "readOnly": {
+      "title": "Somente leitura",
+      "notEditable": "Este documento não pode ser editado no momento.",
+      "forbidden": "Você não pode editar este documento agora."
+    },
+    "autosave": {
+      "indicator": {
+        "dirty": "Alterações não salvas",
+        "saving": "Salvando…",
+        "saved": "Salvo às {time}",
+        "savedShort": "Salvo",
+        "error": "Não foi possível salvar",
+        "offline": "Não foi possível salvar — tentando novamente",
+        "offlineShort": "Não foi possível salvar",
+        "conflict": "Conflito de edição — escolha qual versão manter",
+        "blocked": "Edição interrompida"
+      },
+      "conflict": {
+        "title": "Esta seção foi alterada por outra pessoa",
+        "changedBy": "Alterado por {name} às {time}.",
+        "changedBySelf": "Você, em outra aba, às {time}.",
+        "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+        "showDiff": "Ver diferenças",
+        "hideDiff": "Ocultar diferenças",
+        "keepMine": "Manter a minha versão",
+        "discardMine": "Descartar a minha e recarregar",
+        "serverColumn": "Versão salva no servidor",
+        "mineColumn": "Minha versão",
+        "inserted": "inserido",
+        "removed": "removido",
+        "empty": "(vazio)",
+        "someone": "outra pessoa"
+      },
+      "recovered": {
+        "title": "Recuperamos alterações não salvas de {time}.",
+        "restore": "Restaurar",
+        "discard": "Descartar"
+      },
+      "blocked": {
+        "notEditable": "O documento não pode ser editado no momento.",
+        "forbidden": "Você não pode editar este documento agora.",
+        "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+        "generic": "Não foi possível salvar agora. Tente novamente em instantes.",
+        "kept": "Suas últimas alterações foram guardadas neste navegador."
+      }
+    },
+    "presence": {
+      "label": "Outras pessoas editando este documento",
+      "someone": "Outra pessoa",
+      "editingSection": "{name} está editando a seção {section}",
+      "openDocument": "{name} está com o documento aberto para edição",
+      "sameSectionOne": "{name} está editando esta seção agora",
+      "sameSectionMany": "{count} pessoas editando esta seção agora",
+      "count": "{count, plural, one {# pessoa editando} other {# pessoas editando}}"
+    }
+  },
+  "typed": {
+    "ETP": {
+      "FINALIZE": "Concluir ETP",
+      "finalized": "ETP concluído. Próximo passo: aguarde a etapa de aprovação ou encaminhe o processo."
+    },
+    "TERM_OF_REFERENCE": {
+      "FINALIZE": "Concluir TR",
+      "SUBMIT": "Submeter para aprovação",
+      "finalized": "TR concluído. Próximo passo: aguarde a etapa de aprovação ou encaminhe o processo.",
+      "submitted": "TR enviado para aprovação."
+    }
+  }
+}

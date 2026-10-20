@@ -85,18 +85,19 @@ describe('política de erros (architecture.md §8.12 · RN-FND-93)', () => {
     resolveErrorAction({ status, code, retryAfterSeconds }, path);
 
   it.each([
+    // Sessão expirada: modal (US-088), a tela e o que foi digitado continuam.
+    [401, 'SESSION_EXPIRED', { kind: 'session-expired' }],
     [
       401,
-      'SESSION_EXPIRED',
+      'UNAUTHENTICATED',
       { kind: 'redirect', href: '/api/auth/login?returnTo=%2Fprocessos%3Fpage%3D2' },
     ],
-    [401, 'UNAUTHENTICATED', { kind: 'redirect', href: loginHref(path) }],
     [
       403,
       'MFA_REQUIRED',
       { kind: 'redirect', href: '/api/auth/step-up?returnTo=%2Fprocessos%3Fpage%3D2' },
     ],
-    [403, 'MEMBERSHIP_INACTIVE', { kind: 'redirect', href: '/selecionar-orgao' }],
+    [403, 'MEMBERSHIP_INACTIVE', { kind: 'redirect', href: '/erro/vinculo-inativo' }],
     [403, 'TENANT_SUSPENDED', { kind: 'redirect', href: '/erro/acesso-indisponivel' }],
     [403, 'USER_BLOCKED', { kind: 'redirect', href: '/erro/403' }],
     [403, 'CSRF_REJECTED', { kind: 'reload' }],
@@ -104,17 +105,47 @@ describe('política de erros (architecture.md §8.12 · RN-FND-93)', () => {
     [404, 'NOT_FOUND', { kind: 'not-found' }],
     [409, 'CONFLICT', { kind: 'conflict' }],
     [409, 'IDEMPOTENCY_IN_PROGRESS', { kind: 'inline' }],
+    [409, 'LAST_ADMIN_REQUIRED', { kind: 'inline' }],
+    [409, 'ROLE_ASSIGNMENT_ALREADY_EXISTS', { kind: 'inline' }],
+    [409, 'POSSIBLE_DUPLICATE_PROCESS', { kind: 'inline' }],
+    [409, 'DUPLICATE_INTERNAL_CODE', { kind: 'inline' }],
+    [409, 'INVALID_STATE', { kind: 'conflict' }],
     [412, 'VERSION_CONFLICT', { kind: 'conflict' }],
     [422, 'VALIDATION_ERROR', { kind: 'inline' }],
     [500, 'INTERNAL_ERROR', { kind: 'boundary' }],
-    [503, 'DEPENDENCY_UNAVAILABLE', { kind: 'boundary' }],
+    // Indisponibilidade: banner com "Tentar novamente", nunca "sessão expirada" (RN-IAM-33).
+    [503, 'DEPENDENCY_UNAVAILABLE', { kind: 'unavailable' }],
+    [504, 'GATEWAY_TIMEOUT', { kind: 'boundary' }],
   ])('%i %s', (status, code, expected) => {
     expect(action(status, code)).toEqual(expected);
+  });
+
+  it('US-100: 400 sem instituição ativa (X-Tenant-Id) refaz a seleção; outro 400 fica na tela', () => {
+    const tenantHeader = {
+      status: 400,
+      code: 'MALFORMED_REQUEST',
+      retryAfterSeconds: null,
+      errors: [
+        {
+          field: 'X-Tenant-Id',
+          code: 'REQUIRED' as const,
+          message: 'Não foi possível identificar a instituição ativa. Entre novamente.',
+        },
+      ],
+    };
+    expect(resolveErrorAction(tenantHeader, path)).toEqual({
+      kind: 'redirect',
+      href: '/selecionar-orgao',
+    });
+    expect(resolveErrorAction({ ...tenantHeader, errors: [] }, path)).toEqual({ kind: 'inline' });
   });
 
   it('429 carrega o Retry-After', () => {
     expect(action(429, 'RATE_LIMITED', 8)).toEqual({ kind: 'rate-limited', retryAfterSeconds: 8 });
     expect(stepUpHref('/a')).toBe('/api/auth/step-up?returnTo=%2Fa');
+    expect(loginHref('/a', { reauthenticate: true })).toBe(
+      '/api/auth/login?returnTo=%2Fa&reauth=1',
+    );
   });
 });
 
@@ -134,21 +165,32 @@ describe('efeitos globais', () => {
         unexpected: 'inesperado',
         notFound: 'não encontrado',
         correlation: (id) => `Código: ${id}`,
+        stepUp: 'confirme sua identidade',
       },
     };
   }
 
-  it('[Falha de integração] 401 SESSION_EXPIRED leva ao login com a rota atual', () => {
+  it('[US-090] 403 MFA_REQUIRED avisa (aria-live do Toaster) e segue ao step-up da página atual', () => {
     const d = deps();
-    applyErrorEffect(new ApiError({ status: 401, code: 'SESSION_EXPIRED' }), 'query', d);
+    applyErrorEffect(new ApiError({ status: 403, code: 'MFA_REQUIRED' }), 'mutation', d);
+    expect(d.calls.notify).toEqual([{ title: 'confirme sua identidade', tone: 'info' }]);
+    expect(d.calls.navigate).toEqual(['/api/auth/step-up?returnTo=%2Fexemplo']);
+  });
+
+  it('401 UNAUTHENTICATED leva ao login; SESSION_EXPIRED e 503 não navegam (modal/banner)', () => {
+    const d = deps();
+    applyErrorEffect(new ApiError({ status: 401, code: 'UNAUTHENTICATED' }), 'query', d);
+    applyErrorEffect(new ApiError({ status: 401, code: 'SESSION_EXPIRED' }), 'mutation', d);
+    applyErrorEffect(new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE' }), 'mutation', d);
     expect(d.calls.navigate).toEqual(['/api/auth/login?returnTo=%2Fexemplo']);
+    expect(d.calls.notify).toEqual([]);
   });
 
   it('mutação: conflito abre o diálogo; 5xx vira toast com correlationId', () => {
     const d = deps();
     applyErrorEffect(new ApiError({ status: 412, code: 'VERSION_CONFLICT' }), 'mutation', d);
     applyErrorEffect(
-      new ApiError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', correlationId: 'c-9' }),
+      new ApiError({ status: 500, code: 'INTERNAL_ERROR', correlationId: 'c-9' }),
       'mutation',
       d,
     );

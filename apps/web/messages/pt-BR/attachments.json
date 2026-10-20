@@ -1,0 +1,77 @@
+{
+  "section": {
+    "title": "Anexos",
+    "description": "Comprovantes, propostas, atas e imagens. Todo arquivo passa por verificação de segurança antes de ficar disponível.",
+    "empty": "Nenhum arquivo enviado nesta sessão. A lista completa de anexos do processo chega em breve."
+  },
+  "uploader": {
+    "button": "Anexar arquivo",
+    "dropzone": "Arraste arquivos para cá ou use o botão \"Anexar arquivo\".",
+    "hint": "Tipos aceitos: {types}. Até {maxMb} MB por arquivo.",
+    "typeNotAllowed": "Este tipo de arquivo não é permitido. Tipos aceitos: {types}.",
+    "tooLarge": "O arquivo excede o limite de {maxMb} MB.",
+    "empty": "Selecione um arquivo válido."
+  },
+  "item": {
+    "uploading": "Enviando… {progress}%",
+    "progressLabel": "Envio de {fileName}",
+    "scanning": "Verificando segurança do arquivo…",
+    "available": "Disponível",
+    "deleted": "Excluído",
+    "failed": "Não foi possível enviar o arquivo agora. Tente novamente.",
+    "uploadNotReceived": "Não encontramos o arquivo enviado. Tente novamente.",
+    "notEditable": "Não é possível anexar arquivos neste momento.",
+    "permissionDenied": "Você não tem permissão para anexar arquivos aqui.",
+    "quotaExceeded": "O órgão atingiu o limite de armazenamento de arquivos. Procure o administrador.",
+    "retry": "Enviar novamente",
+    "dismiss": "Remover da lista",
+    "delete": "Excluir",
+    "progressAnnouncement": "{fileName}: {progress}% enviado"
+  },
+  "rejected": {
+    "INFECTED": "Arquivo rejeitado pela verificação de segurança.",
+    "TYPE_MISMATCH": "O conteúdo do arquivo não corresponde a um tipo permitido.",
+    "TYPE_NOT_ALLOWED": "O conteúdo do arquivo não corresponde a um tipo permitido.",
+    "SIZE_MISMATCH": "O arquivo enviado não corresponde ao esperado. Envie novamente.",
+    "default": "O arquivo foi rejeitado pela verificação. Envie outro arquivo."
+  },
+  "delete": {
+    "title": "Excluir anexo",
+    "description": "O anexo \"{fileName}\" deixa de aparecer no processo. A exclusão fica registrada com o motivo.",
+    "label": "Motivo da exclusão",
+    "required": "Informe o motivo da exclusão.",
+    "confirm": "Excluir anexo",
+    "cancel": "Cancelar",
+    "working": "Excluindo…",
+    "failed": "Não foi possível excluir o anexo agora. Tente novamente."
+  },
+  "list": {
+    "label": "Anexos já enviados",
+    "loading": "Carregando anexos…",
+    "loadFailed": "Não foi possível carregar os anexos agora.",
+    "retryLoad": "Recarregar anexos",
+    "empty": "Nenhum anexo",
+    "uploadedAt": "Enviado em {date}",
+    "verifying": "Arquivo em verificação. Tente novamente em instantes.",
+    "rejected": "Arquivo rejeitado pela verificação de segurança.",
+    "noPreview": "Sem prévia disponível — baixar arquivo.",
+    "download": "Baixar",
+    "downloading": "Preparando o download…",
+    "downloadLabel": "Baixar {fileName}",
+    "preview": "Visualizar",
+    "closePreview": "Fechar prévia",
+    "previewLabel": "Visualizar {fileName}",
+    "closePreviewLabel": "Fechar a prévia de {fileName}",
+    "previewLoading": "Carregando a prévia…",
+    "previewFailed": "Não foi possível carregar a prévia. Baixe o arquivo.",
+    "previewAlt": "Prévia de {fileName}",
+    "pdfPending": "A prévia de PDF na tela chega com o visualizador de documentos. Baixe o arquivo para conferir.",
+    "correlation": "Código de suporte: {id}",
+    "errors": {
+      "notAvailable": "Arquivo em verificação. Tente novamente em instantes.",
+      "forbidden": "Você não tem permissão para baixar este arquivo.",
+      "notFound": "Anexo não encontrado.",
+      "unavailable": "Não foi possível baixar o arquivo agora. Tente novamente em instantes."
+    }
+  }
+}

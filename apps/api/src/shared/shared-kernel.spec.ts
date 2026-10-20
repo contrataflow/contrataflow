@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { HttpException, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, Logger, NotFoundException, StreamableFile } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -14,12 +14,14 @@ import {
   RequestContextMissingError,
   requireRequestContext,
   runWithRequestContext,
+  runWithTenantScope,
+  TenantContextImmutableError,
   updateRequestContext,
 } from './context/request-context.js';
 import { ApiError, businessRuleViolation } from './errors/api-error.js';
 import { problemType } from './errors/error-catalog.js';
 import { toApiError } from './errors/problem-details.filter.js';
-import { toEnvelope } from './http/envelope.interceptor.js';
+import { DataWithMembers, toEnvelope } from './http/envelope.interceptor.js';
 import type { HttpRequest } from './http/http-types.js';
 import { readJsonBody } from './http/json-body.middleware.js';
 import {
@@ -54,6 +56,23 @@ describe('RequestContext (AsyncLocalStorage)', () => {
       await Promise.resolve();
       updateRequestContext({ tenantId: 't-1' });
       expect(requireRequestContext().tenantId).toBe('t-1');
+    });
+  });
+
+  it('RN-TEN-21: o tenant é imutável depois de definido; contexto filho não muda de tenant', async () => {
+    const A = '0192a000-0000-7000-8000-00000000000a';
+    const B = '0192a000-0000-7000-8000-00000000000b';
+    await runWithRequestContext(context, async () => {
+      updateRequestContext({ tenantId: A });
+      expect(() => updateRequestContext({ tenantId: B })).toThrow(TenantContextImmutableError);
+      updateRequestContext({ tenantId: A, accessMode: 'READ_EXPORT' });
+      expect(requireRequestContext()).toMatchObject({ tenantId: A, accessMode: 'READ_EXPORT' });
+      const scope = { tenantId: B, userId: 'u', membershipId: 'm' };
+      expect(() => runWithTenantScope(scope, () => 'x')).toThrow(TenantContextImmutableError);
+      expect(
+        runWithTenantScope({ ...scope, tenantId: A }, () => requireRequestContext().tenantId),
+      ).toBe(A);
+      await Promise.resolve();
     });
   });
 
@@ -117,12 +136,13 @@ describe('erros (RFC 9457)', () => {
           params: {},
         },
       ],
-      'DOCUMENT_INCOMPLETE',
+      // Código de domínio ainda fora do catálogo: o título cai no próprio código.
+      'EXAMPLE_RULE_INCOMPLETE',
     );
     expect(error).toMatchObject({
       status: 422,
-      code: 'DOCUMENT_INCOMPLETE',
-      title: 'DOCUMENT_INCOMPLETE',
+      code: 'EXAMPLE_RULE_INCOMPLETE',
+      title: 'EXAMPLE_RULE_INCOMPLETE',
     });
     expect(
       new ApiError('STAGE_CHANGED', { status: 409, title: 'Etapa alterada', detail: 'd' }).status,
@@ -222,10 +242,17 @@ describe('paginação, envelope e If-Match', () => {
   it('envelope de DEC-106', () => {
     expect(toEnvelope({ id: 1 })).toEqual({ data: { id: 1 } });
     expect(toEnvelope(undefined)).toBeUndefined();
+    // Membros irmãos fixados no contrato (ATT-02: `{ data, upload }`); `data` não é sobrescrito.
+    expect(toEnvelope(new DataWithMembers({ id: 1 }, { upload: { url: 'u' }, data: 'x' }))).toEqual(
+      { data: { id: 1 }, upload: { url: 'u' } },
+    );
     expect(toEnvelope(pageResult([1], { page: 1, pageSize: 1 }, 1))).toEqual({
       data: [1],
       meta: { page: 1, pageSize: 1, totalItems: 1, totalPages: 1 },
     });
+    // Arquivo em *streaming* (AUD-03 · US-075): o corpo é o arquivo, sem envelope.
+    const file = new StreamableFile(Buffer.from('a,b'));
+    expect(toEnvelope(file)).toBe(file);
   });
 
   it('If-Match: versão, revisão de seção, ETag fraca e valores inválidos', () => {

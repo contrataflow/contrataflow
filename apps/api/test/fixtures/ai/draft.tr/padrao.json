@@ -1,0 +1,166 @@
+{
+  "output": {
+    "sections": [
+      {
+        "sectionKey": "OBJECT",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Contratação da solução descrita no ETP do processo, nas quantidades registradas nos itens do TR, com vigência de 12 meses, admitida a prorrogação nos termos da Lei 14.133/2021."
+          }
+        ]
+      },
+      {
+        "sectionKey": "JUSTIFICATION",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A contratação fundamenta-se na necessidade demonstrada no Estudo Técnico Preliminar, que concluiu pela solução descrita neste Termo de Referência como a mais adequada ao interesse público."
+          }
+        ]
+      },
+      {
+        "sectionKey": "SPECIFICATIONS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A solução compreende o fornecimento dos itens relacionados na tabela, observadas as especificações técnicas de cada item e todo o ciclo de vida do objeto."
+          }
+        ]
+      },
+      {
+        "sectionKey": "ACCEPTANCE_CRITERIA",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O recebimento será provisório, para posterior verificação da conformidade com as especificações, e definitivo, após a conferência dos critérios de aceitação de cada item pelo fiscal do contrato."
+          }
+        ]
+      },
+      {
+        "sectionKey": "CONTRACTOR_OBLIGATIONS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Constituem obrigações da contratada:"
+          },
+          {
+            "type": "bulletList",
+            "items": [
+              "Entregar o objeto conforme as especificações e os prazos definidos nas condições contratuais.",
+              "Substituir, às suas expensas, o objeto entregue com defeito ou fora das especificações.",
+              "Manter, durante a execução, as condições de habilitação exigidas na contratação."
+            ]
+          }
+        ]
+      },
+      {
+        "sectionKey": "CONTRACTING_PARTY_OBLIGATIONS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Constituem obrigações da contratante:"
+          },
+          {
+            "type": "bulletList",
+            "items": [
+              "Designar o gestor e o fiscal do contrato.",
+              "Prestar as informações necessárias à execução do objeto.",
+              "Efetuar o pagamento nas condições estabelecidas neste Termo de Referência."
+            ]
+          }
+        ]
+      },
+      {
+        "sectionKey": "DEADLINES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O contrato terá vigência de 12 meses, contados da data de sua assinatura. O prazo de execução segue as condições contratuais deste Termo de Referência."
+          }
+        ]
+      },
+      {
+        "sectionKey": "DELIVERY",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O objeto será entregue de forma integral, acompanhado da nota fiscal, no local e no prazo definidos nas condições contratuais deste Termo de Referência."
+          }
+        ]
+      },
+      {
+        "sectionKey": "PAYMENT",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O pagamento será efetuado em até 30 dias contados do atesto da nota fiscal pelo fiscal do contrato, mediante a comprovação da regularidade fiscal da contratada."
+          }
+        ]
+      },
+      {
+        "sectionKey": "OVERSIGHT",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A execução será acompanhada pelo gestor e pelo fiscal do contrato designados pela contratante, nos termos do art. 117 da Lei 14.133/2021, que registrarão as ocorrências e determinarão a regularização das falhas observadas."
+          }
+        ]
+      },
+      {
+        "sectionKey": "GUARANTEES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A garantia do objeto e a garantia contratual observam as condições contratuais deste Termo de Referência e os arts. 96 a 102 da Lei 14.133/2021."
+          }
+        ]
+      },
+      {
+        "sectionKey": "SANCTIONS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Pelo descumprimento das obrigações, a contratada ficará sujeita às sanções previstas no art. 156 da Lei 14.133/2021, assegurados o contraditório e a ampla defesa:"
+          },
+          {
+            "type": "bulletList",
+            "items": [
+              "advertência;",
+              "multa de [a confirmar: percentual da multa] sobre o valor do contrato;",
+              "impedimento de licitar e contratar;",
+              "declaração de inidoneidade para licitar ou contratar."
+            ]
+          }
+        ]
+      },
+      {
+        "sectionKey": "SELECTION_CRITERIA",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O fornecedor será selecionado por licitação, observados o critério de julgamento e a forma de adjudicação definidos nas condições contratuais deste Termo de Referência."
+          }
+        ]
+      },
+      {
+        "sectionKey": "ESTIMATED_VALUE",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "O valor estimado da contratação decorre da pesquisa de preços concluída no processo, com os preços unitários referenciais e as memórias de cálculo apresentados na tabela."
+          }
+        ]
+      },
+      {
+        "sectionKey": "BUDGET_ADEQUACY",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "As despesas decorrentes da contratação correrão à conta da [a confirmar: dotação orçamentária] do exercício."
+          }
+        ]
+      }
+    ]
+  }
+}

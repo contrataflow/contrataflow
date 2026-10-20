@@ -51,14 +51,14 @@ Garantir que 100% das versões publicadas: (a) passaram pelo validador sem erros
 3. O administrador adiciona etapas (`POST /workflow-versions/{versionId}/stages` — WF-10). A API valida os campos condicionais por tipo (RN-WF-08); se a etapa for `START`, preenche `WorkflowVersion.initialStageId` (RN-WF-07); incrementa `WorkflowVersion.version` (RN-WF-06); audita `workflow.update`.
 4. O administrador adiciona transições (WF-13), informando origem, destino e ação. A API aplica as validações locais (mesma versão, origem ≠ destino, compatibilidade ação × tipo — RN-WF-09/RN-WF-10) e força `requiresComment = true` em `RETURN`/`REJECT`.
 5. O administrador adiciona regras (WF-16). A API valida `config` pelo schema do tipo (entities.md §5.5), os caminhos do RuleContext v1 e a whitelist de operações JSON Logic (RN-WF-17).
-6. Alterações e exclusões (WF-11/12, WF-14/15, WF-17/18) exigem `If-Match` da linha; exclusão de etapa remove em cascata suas transições e regras (só em `DRAFT`).
+6. Alterações e exclusões (WF-11/12, WF-14/15, WF-17/18) exigem `If-Match` da linha; exclusão de etapa só em `DRAFT` e restritiva — bloqueada enquanto transições ou regras a referenciarem (RN-WF-50, US-043, que substituiu a cascata original).
 7. A qualquer momento, o validador completo (`WorkflowDefinitionValidator.validate(versionId)`) avalia o grafo e devolve `errors[]` e `warnings[]` agrupados por etapa/transição/regra (exposto pelo WF-20 na US-045).
 8. Na publicação (WF-21 na US-045, ou seeder da US-042), o `WorkflowVersionPublisher`, em uma transação com `SELECT … FOR UPDATE` na versão: revalida; monta o snapshot canônico; calcula `definitionHash`; muda a versão para `PUBLISHED` (`publishedAt`, `publishedById`); aponta `Workflow.currentPublishedVersionId` para ela; muda a publicada anterior para `RETIRED`; grava auditoria (`workflow.version_publish`, `workflow.version_retire`) e eventos (`WorkflowVersionPublished`, `WorkflowVersionRetired`).
 9. Para evoluir o fluxo, o administrador cria nova versão (`POST /workflows/{id}/versions` — WF-08); a API clona a versão de origem (padrão: a publicada atual) em `DRAFT` nº N+1 (RN-WF-22). Processos em andamento continuam na versão que fixaram.
 
 ## Fluxos alternativos
 - **FA-01 — Cópia de outro workflow:** com `copyFromVersionId` de versão `PUBLISHED`/`RETIRED` de outro workflow do tenant, a v1 nasce com a definição copiada (novos IDs). Versão de origem `DRAFT` ou de outro tenant → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`).
-- **FA-02 — Já existe rascunho:** WF-08 com uma versão `DRAFT` existente → 409 `CONFLICT` com `meta.draftVersionId`; a UI oferece "Abrir rascunho existente".
+- **FA-02 — Já existe rascunho:** WF-08 com uma versão `DRAFT` existente → 409 `WORKFLOW_DRAFT_EXISTS` com `meta.draftVersionId`; a UI oferece "Abrir rascunho existente".
 - **FA-03 — Etapa inicial trocada:** mudar o tipo da etapa `START` para outro tipo limpa `initialStageId`; criar outra `START` com uma já existente → 422 (RN-WF-07).
 - **FA-04 — Exclusão de etapa referenciada:** excluir etapa referenciada por regra `REQUIRED_APPROVAL` de outra etapa é permitido no rascunho; o validador acusa `WF_RULE_SCOPE_INVALID` até a regra ser corrigida.
 - **FA-05 — Tipo de documento desativado depois da escrita:** a escrita aceitou o código, mas o tipo foi desativado (US-061); o validador acusa `WF_DOCUMENT_TYPE_UNKNOWN` e bloqueia a publicação.
@@ -82,12 +82,12 @@ Garantir que 100% das versões publicadas: (a) passaram pelo validador sem erros
 - **RN-WF-14** — No máximo uma transição `isPrimary = true` por etapa de origem entre `FORWARD`/`COMPLETE`.
 - **RN-WF-15** — Todo código em `documentTypeCodes`, `approvalDocumentTypeCodes` e `config.documentTypeCode` existe e está ativo no tenant (`DocumentType.code`).
 - **RN-WF-16** — Aprovador resolvível: `USER` com vínculo `ACTIVE`; `ROLE` existente, ativo e com `APPROVAL_DECIDE`; `DEPARTMENT_HEAD`/`FIXED` com unidade ativa (sem titular → aviso). A cobertura do perfil é verificada em tempo de execução pela unidade solicitante (DEC-022 — US-041/US-051).
-- **RN-WF-17** — Regras: `config` válido pelo schema do tipo (entities.md §5.5); `REQUIRED_FIELD.field` e variáveis de `CONDITION` restritos aos caminhos do RuleContext v1; `CONDITION` só com operações da whitelist (sem `method`/`log`), profundidade ≤ 20 e tamanho ≤ 10 KB; `REQUIRED_APPROVAL.stageKey` aponta para etapa `APPROVAL` da mesma versão; regras `TRANSITION` só em `FORWARD`/`COMPLETE`/`APPROVE`; `STAGE_EXIT` não se aplica a `END`.
+- **RN-WF-17** — Regras: `config` válido pelo schema do tipo (entities.md §5.5); `REQUIRED_FIELD.field` e variáveis de `CONDITION` restritos aos caminhos do RuleContext v1 (na escrita, `REQUIRED_FIELD.field` fora do schema é aceito no rascunho e só barrado na validação/publicação — RN-WF-56, US-044); `CONDITION` só com operações da whitelist (sem `method`/`log`), profundidade ≤ 20 e tamanho ≤ 10 KB; `REQUIRED_APPROVAL.stageKey` aponta para etapa `APPROVAL` da mesma versão; regras `TRANSITION` só em `FORWARD`/`COMPLETE`/`APPROVE`; `STAGE_EXIT` não se aplica a `END`.
 - **RN-WF-18** — Limites por versão: 50 etapas, 200 transições, 200 regras; `instructions` até 5.000 caracteres (Markdown restrito).
 - **RN-WF-19** — A validação completa reporta **todos** os erros (não para no primeiro), cada um com `code`, `stageKey`/`transitionKey`/`ruleId` e mensagem pt-BR; avisos (`warnings[]`) não bloqueiam a publicação.
 - **RN-WF-20** — Publicação interna (`WorkflowVersionPublisher`): exige validação sem erros; snapshot canônico (arrays ordenados por `key`, RFC 8785) com SHA-256 em `definitionHash`; status `PUBLISHED` com `publishedAt`/`publishedById`; `Workflow.currentPublishedVersionId` atualizado; versão publicada anterior → `RETIRED` (supersedida); tudo atômico.
 - **RN-WF-21** — Versão não `DRAFT` é imutável: o único update permitido é `PUBLISHED` → `RETIRED` (`retiredAt`, `retiredById`); `DELETE` de versão não `DRAFT` é bloqueado (trigger).
-- **RN-WF-22** — Nova versão: `versionNumber = max + 1`; clona etapas, transições e regras da versão de origem (padrão: `currentPublishedVersionId`; sem publicada, a última versão) com **novos IDs** e referências remapeadas (`initialStageId`, `fromStageId`/`toStageId`, `stageId`/`transitionId`); `changeNotes` vazio; nenhum processo é afetado (DEC-014).
+- **RN-WF-22** — Nova versão: `versionNumber = max + 1`; clona etapas, transições e regras da versão de origem (padrão: `currentPublishedVersionId`; sem publicada e sem origem informada → 422, RN-WF-47 da US-043) com **novos IDs** e referências remapeadas (`initialStageId`, `fromStageId`/`toStageId`, `stageId`/`transitionId`); `changeNotes` vazio; nenhum processo é afetado (DEC-014).
 
 ## Campos
 | Campo (UI) | Campo técnico | Tipo | Obrigatório | Regras | Padrão/origem |
@@ -126,7 +126,7 @@ Garantir que 100% das versões publicadas: (a) passaram pelo validador sem erros
 | V-06 | Ação incompatível com os tipos de origem/destino (RN-WF-10) | API | "Esta ação não é permitida a partir de uma etapa {tipo}." | `VALIDATION_ERROR` (`NOT_ALLOWED`, campo `action`) |
 | V-07 | `config` de regra inválido, caminho desconhecido ou operação proibida | API | "A condição usa um campo ou operação não permitidos." | `VALIDATION_ERROR` (campo `config`) |
 | V-08 | Escrita em versão não `DRAFT` | API + trigger | "Esta versão já foi publicada e não pode ser alterada. Crie uma nova versão." | `WORKFLOW_VERSION_NOT_DRAFT` |
-| V-09 | Segunda versão em rascunho | API (+ índice parcial) | "Já existe uma versão em rascunho deste workflow." | `CONFLICT` |
+| V-09 | Segunda versão em rascunho | API (+ índice parcial) | "Já existe uma versão em rascunho deste workflow." | `WORKFLOW_DRAFT_EXISTS` (409, `meta.draftVersionId`) |
 | V-10 | `If-Match` divergente / ausente | API | "Outra pessoa alterou este item. Recarregue para continuar." | `VERSION_CONFLICT` / `PRECONDITION_REQUIRED` |
 | V-11 | Validação completa do grafo (RN-WF-11..19) | Domínio | Lista por etapa/transição/regra (tabela abaixo) | `WORKFLOW_INVALID` (`errors[]`) |
 
@@ -252,7 +252,7 @@ Feature: Modelo de definição de workflow versionado
   Scenario: [Duplicidade] Segunda versão em rascunho e chave repetida
     Given que o workflow "OBRAS_ENGENHARIA" já possui a versão 2 em "DRAFT"
     When "Rafael" solicitar uma nova versão
-    Then a API deve responder 409 com código "CONFLICT" e "meta.draftVersionId" da versão 2
+    Then a API deve responder 409 com código "WORKFLOW_DRAFT_EXISTS" e "meta.draftVersionId" da versão 2
     When "Rafael" criar outro workflow com a chave "OBRAS_ENGENHARIA"
     Then a API deve responder 409 com código "CONFLICT"
 
@@ -306,7 +306,7 @@ Feature: Modelo de definição de workflow versionado
 - **Consumidores:** US-041, US-042, US-043, US-044, US-045, US-046.
 - **Decisões/ADRs:** DEC-014, DEC-015, DEC-016, DEC-022, DEC-040, DEC-041, DEC-055, DEC-081, DEC-082, DEC-084, DEC-104; ADR-005, ADR-008.
 - **Configurações:** `security.mfaPolicy`.
-- **Lacunas nas fontes canônicas:** (1) códigos `WF_*` de `errors[]`/`warnings[]` do `WORKFLOW_INVALID` não constam do api.md — propor §2.1.3; (2) não há código específico para chave duplicada nem para "rascunho já existente" — adotado `CONFLICT` (409); propor `WORKFLOW_DRAFT_EXISTS`; (3) não há rota para descartar rascunho de versão — propor `DELETE /workflow-versions/{versionId}` (somente `DRAFT`); (4) a coluna "Story" do api.md §3.10 atribui WF-07..WF-18 às stories de interface; o back-end desses endpoints é entregue aqui (propor incluir US-040); (5) não há ações de auditoria granulares para etapa/transição/regra — adotado `workflow.update` com `entityType`.
+- **Lacunas nas fontes canônicas:** (1) códigos `WF_*` de `errors[]`/`warnings[]` do `WORKFLOW_INVALID` — catalogados em api.md §2.3 (membro `validation`); (2) não há código específico para chave duplicada — adotado `CONFLICT` (409); "rascunho já existente" usa `WORKFLOW_DRAFT_EXISTS` (api.md §2.2); (3) não há rota para descartar rascunho de versão — propor `DELETE /workflow-versions/{versionId}` (somente `DRAFT`); (4) a coluna "Story" do api.md §3.10 inclui a US-040 em WF-02..04 e WF-07..18; (5) não há ações de auditoria granulares para etapa/transição/regra — adotado `workflow.update` com `entityType`.
 
 ## Impacto técnico
 - Estabelece o padrão de **definição imutável com snapshot e hash** (reutilizável por templates — US-108) e o validador de grafo usado em escrita, validação (WF-20), publicação (WF-21) e seed (US-042).

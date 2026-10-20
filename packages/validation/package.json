@@ -2,7 +2,7 @@
   "name": "@contrataflow/validation",
   "version": "0.0.0",
   "private": true,
-  "description": "Schemas Zod de contrato compartilhados entre web e api (DEC-054).",
+  "description": "Schemas Zod de contrato compartilhados entre web, api e worker (DEC-054).",
   "type": "module",
   "sideEffects": false,
   "exports": {

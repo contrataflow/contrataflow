@@ -1,0 +1,557 @@
+import type { PermissionCode } from '@contrataflow/types';
+
+import type { Role, RolePermission, ScopeType } from './role.js';
+import { grantPermission } from './role.js';
+
+/*
+ * Os 15 perfis padrão (permissions.md §3.1 · DEC-035) e a matriz de concessões padrão
+ * (permissions.md §3.2), semeados em todo tenant no provisionamento (US-094 · RN-IAM-74/75).
+ * Mudou a matriz no documento? Atualize aqui e o snapshot do teste no mesmo PR — tenants já
+ * provisionados só recebem concessões novas pela reexecução do seeder (nunca perdem as existentes).
+ */
+
+/** Matriz §3.2: coluna de cada perfil, na ordem das linhas do documento. */
+export const DEFAULT_ROLE_GRANTS = {
+  ADMIN_ORGAO: [
+    'PROCESS_VIEW',
+    'PROCESS_FOLLOW',
+    'TAG_MANAGE',
+    'TEMPLATE_VIEW',
+    'TEMPLATE_MANAGE',
+    'TEMPLATE_PUBLISH',
+    'DOCUMENT_TYPE_MANAGE',
+    'WORKFLOW_VIEW',
+    'WORKFLOW_MANAGE',
+    'WORKFLOW_PUBLISH',
+    'COMMENT_MODERATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AUDIT_VIEW',
+    'AUDIT_EXPORT',
+    'USER_VIEW',
+    'USER_INVITE',
+    'USER_MANAGE',
+    'ROLE_VIEW',
+    'ROLE_MANAGE',
+    'ROLE_ASSIGN',
+    'ORGANIZATION_MANAGE',
+    'DEPARTMENT_MANAGE',
+    'CATALOG_MANAGE',
+    'CALENDAR_MANAGE',
+    'SETTINGS_MANAGE',
+  ],
+  GESTOR_CONTRATACOES: [
+    'PROCESS_VIEW',
+    'PROCESS_CREATE',
+    'PROCESS_UPDATE',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_ASSIGN',
+    'PROCESS_SUSPEND',
+    'PROCESS_CANCEL',
+    'PROCESS_COMPLETE',
+    'PROCESS_DUPLICATE',
+    'PROCESS_MANAGE_PARTICIPANTS',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'PROCESS_SET_CONFIDENTIAL_BUDGET',
+    'PROCESS_EXPORT',
+    'TAG_MANAGE',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'DOCUMENT_REOPEN',
+    'DOCUMENT_CANCEL',
+    'ATTACHMENT_UPLOAD',
+    'ATTACHMENT_DELETE',
+    'SUPPLIER_VIEW',
+    'SUPPLIER_MANAGE',
+    'TEMPLATE_VIEW',
+    'TEMPLATE_MANAGE',
+    'TEMPLATE_PUBLISH',
+    'DFD_CREATE',
+    'DFD_UPDATE',
+    'DFD_SUBMIT',
+    'ETP_CREATE',
+    'ETP_UPDATE',
+    'ETP_SUBMIT',
+    'PRICE_RESEARCH_CREATE',
+    'PRICE_RESEARCH_UPDATE',
+    'PRICE_RESEARCH_EXCLUDE_QUOTATION',
+    'PRICE_RESEARCH_COMPLETE',
+    'RISK_MANAGE',
+    'RISK_MAP_SUBMIT',
+    'TERM_CREATE',
+    'TERM_UPDATE',
+    'TERM_SUBMIT',
+    'WORKFLOW_VIEW',
+    'WORKFLOW_MANAGE',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'APPROVAL_REASSIGN',
+    'COMMENT_CREATE',
+    'COMMENT_MODERATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'USER_VIEW',
+    'CATALOG_MANAGE',
+    'AI_GENERATE',
+  ],
+  REQUISITANTE: [
+    'PROCESS_VIEW',
+    'PROCESS_CREATE',
+    'PROCESS_UPDATE',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_DUPLICATE',
+    'PROCESS_MANAGE_PARTICIPANTS',
+    'PROCESS_FOLLOW',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'DOCUMENT_CANCEL',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'TEMPLATE_VIEW',
+    'DFD_CREATE',
+    'DFD_UPDATE',
+    'DFD_SUBMIT',
+    'ETP_CREATE',
+    'ETP_UPDATE',
+    'ETP_SUBMIT',
+    'RISK_MANAGE',
+    'RISK_MAP_SUBMIT',
+    'TERM_CREATE',
+    'TERM_UPDATE',
+    'TERM_SUBMIT',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AI_GENERATE',
+  ],
+  PLANEJAMENTO: [
+    'PROCESS_VIEW',
+    'PROCESS_CREATE',
+    'PROCESS_UPDATE',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_COMPLETE',
+    'PROCESS_DUPLICATE',
+    'PROCESS_MANAGE_PARTICIPANTS',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'DOCUMENT_CANCEL',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'TEMPLATE_VIEW',
+    'DFD_CREATE',
+    'DFD_UPDATE',
+    'DFD_SUBMIT',
+    'ETP_CREATE',
+    'ETP_UPDATE',
+    'ETP_SUBMIT',
+    'PRICE_RESEARCH_CREATE',
+    'PRICE_RESEARCH_UPDATE',
+    'PRICE_RESEARCH_EXCLUDE_QUOTATION',
+    'PRICE_RESEARCH_COMPLETE',
+    'RISK_MANAGE',
+    'RISK_MAP_SUBMIT',
+    'TERM_CREATE',
+    'TERM_UPDATE',
+    'TERM_SUBMIT',
+    'WORKFLOW_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AI_GENERATE',
+  ],
+  COMPRAS: [
+    'PROCESS_VIEW',
+    'PROCESS_CREATE',
+    'PROCESS_UPDATE',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_COMPLETE',
+    'PROCESS_DUPLICATE',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'DOCUMENT_CANCEL',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'SUPPLIER_MANAGE',
+    'TEMPLATE_VIEW',
+    'PRICE_RESEARCH_CREATE',
+    'PRICE_RESEARCH_UPDATE',
+    'PRICE_RESEARCH_EXCLUDE_QUOTATION',
+    'PRICE_RESEARCH_COMPLETE',
+    'TERM_CREATE',
+    'TERM_UPDATE',
+    'TERM_SUBMIT',
+    'WORKFLOW_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AI_GENERATE',
+  ],
+  LICITACOES: [
+    'PROCESS_VIEW',
+    'PROCESS_UPDATE',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_COMPLETE',
+    'PROCESS_FOLLOW',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'DOCUMENT_CANCEL',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'SUPPLIER_MANAGE',
+    'TEMPLATE_VIEW',
+    'WORKFLOW_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+  CONTABILIDADE: [
+    'PROCESS_VIEW',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+  JURIDICO: [
+    'PROCESS_VIEW',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'TEMPLATE_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+  CONTROLE_INTERNO: [
+    'PROCESS_VIEW',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'PROCESS_EXPORT',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'TEMPLATE_VIEW',
+    'WORKFLOW_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AUDIT_VIEW',
+  ],
+  AUTORIDADE_COMPETENTE: [
+    'PROCESS_VIEW',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_SUSPEND',
+    'PROCESS_CANCEL',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'PROCESS_SET_CONFIDENTIAL_BUDGET',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'DOCUMENT_REOPEN',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'WORKFLOW_VIEW',
+    'APPROVAL_VIEW',
+    'APPROVAL_DECIDE',
+    'APPROVAL_REASSIGN',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+  FISCAL_CONTRATO: [
+    'PROCESS_VIEW',
+    'PROCESS_FOLLOW',
+    'SUPPLIER_VIEW',
+    'APPROVAL_VIEW',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+  GESTOR_CONTRATO: [
+    'PROCESS_VIEW',
+    'PROCESS_CREATE',
+    'PROCESS_UPDATE',
+    'PROCESS_FORWARD',
+    'PROCESS_RETURN',
+    'PROCESS_CLAIM',
+    'PROCESS_DUPLICATE',
+    'PROCESS_FOLLOW',
+    'DOCUMENT_CREATE',
+    'DOCUMENT_UPDATE',
+    'DOCUMENT_SUBMIT',
+    'ATTACHMENT_UPLOAD',
+    'SUPPLIER_VIEW',
+    'DFD_CREATE',
+    'DFD_UPDATE',
+    'DFD_SUBMIT',
+    'APPROVAL_VIEW',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AI_GENERATE',
+  ],
+  AUDITOR: [
+    'PROCESS_VIEW',
+    'PROCESS_FOLLOW',
+    'PROCESS_VIEW_CONFIDENTIAL_BUDGET',
+    'PROCESS_EXPORT',
+    'SUPPLIER_VIEW',
+    'TEMPLATE_VIEW',
+    'WORKFLOW_VIEW',
+    'APPROVAL_VIEW',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+    'AUDIT_VIEW',
+    'AUDIT_EXPORT',
+    'ROLE_VIEW',
+  ],
+  SOMENTE_LEITURA: [
+    'PROCESS_VIEW',
+    'PROCESS_FOLLOW',
+    'SUPPLIER_VIEW',
+    'APPROVAL_VIEW',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+  CONSULTOR_EXTERNO: [
+    'PROCESS_FOLLOW',
+    'DOCUMENT_UPDATE',
+    'ATTACHMENT_UPLOAD',
+    'DFD_UPDATE',
+    'ETP_UPDATE',
+    'PRICE_RESEARCH_UPDATE',
+    'RISK_MANAGE',
+    'TERM_UPDATE',
+    'COMMENT_CREATE',
+    'INBOX_VIEW',
+    'DASHBOARD_VIEW',
+  ],
+} as const satisfies Record<string, readonly PermissionCode[]>;
+
+export type DefaultRoleKey = keyof typeof DEFAULT_ROLE_GRANTS;
+
+export interface DefaultRoleDefinition {
+  readonly key: DefaultRoleKey;
+  readonly name: string;
+  readonly description: string;
+  /** Escopo sugerido ao atribuir o perfil (§3.1 — usado pela atribuição, US-096). */
+  readonly defaultAssignmentScope: ScopeType;
+  readonly isProtected: boolean;
+  readonly allowExternalAssignment: boolean;
+  readonly permissions: readonly PermissionCode[];
+}
+
+interface RoleSpec {
+  readonly name: string;
+  readonly description: string;
+  readonly defaultAssignmentScope: ScopeType;
+}
+
+/** §3.1: persona, escopo padrão e observação de cada perfil. */
+const ROLE_SPECS: Readonly<Record<DefaultRoleKey, RoleSpec>> = {
+  ADMIN_ORGAO: {
+    name: 'Administrador do órgão',
+    description: 'Configuração e administração do órgão; não tramita processos por padrão.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  GESTOR_CONTRATACOES: {
+    name: 'Gestor de contratações',
+    description: 'Visão global dos processos, distribuição e intervenção.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  REQUISITANTE: {
+    name: 'Área requisitante',
+    description: 'Abre demandas e elabora DFD, ETP, mapa de riscos e TR.',
+    defaultAssignmentScope: 'OWN_DEPARTMENTS',
+  },
+  PLANEJAMENTO: {
+    name: 'Planejamento',
+    description: 'Elabora ETP, mapa de riscos, TR e pesquisa de preços.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  COMPRAS: {
+    name: 'Compras',
+    description: 'Pesquisa de preços, fornecedores e TR.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  LICITACOES: {
+    name: 'Licitações',
+    description: 'Recebe os processos com planejamento concluído.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  CONTABILIDADE: {
+    name: 'Contabilidade',
+    description: 'Tramita processos e consulta o orçamento estimado.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  JURIDICO: {
+    name: 'Jurídico/Procuradoria',
+    description: 'Tramita, comenta e decide aprovações quando designado.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  CONTROLE_INTERNO: {
+    name: 'Controle interno',
+    description: 'Leitura ampla dos processos e consulta à auditoria.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  AUTORIDADE_COMPETENTE: {
+    name: 'Autoridade competente',
+    description: 'Aprovações, cancelamento e suspensão de processos.',
+    defaultAssignmentScope: 'ORGANIZATION',
+  },
+  FISCAL_CONTRATO: {
+    name: 'Fiscal de contrato',
+    description: 'Leitura dos processos das suas unidades.',
+    defaultAssignmentScope: 'OWN_DEPARTMENTS',
+  },
+  GESTOR_CONTRATO: {
+    name: 'Gestor de contrato',
+    description: 'Leitura e abertura de demandas nas suas unidades.',
+    defaultAssignmentScope: 'OWN_DEPARTMENTS',
+  },
+  AUDITOR: {
+    name: 'Auditor',
+    description: 'Somente leitura e auditoria; pode ser atribuído a vínculo externo.',
+    defaultAssignmentScope: 'TENANT',
+  },
+  SOMENTE_LEITURA: {
+    name: 'Somente leitura',
+    description: 'Consulta os processos das suas unidades.',
+    defaultAssignmentScope: 'OWN_DEPARTMENTS',
+  },
+  CONSULTOR_EXTERNO: {
+    name: 'Consultor externo',
+    description: 'Acesso efetivo só aos processos em que participa; vínculo externo.',
+    defaultAssignmentScope: 'OWN_DEPARTMENTS',
+  },
+};
+
+/** DEC-035: só o `ADMIN_ORGAO` é protegido. */
+const PROTECTED_ROLES: ReadonlySet<DefaultRoleKey> = new Set(['ADMIN_ORGAO']);
+/** POL-15 · RN-IAM-75: perfis atribuíveis a vínculos `EXTERNAL`. */
+const EXTERNAL_ROLES: ReadonlySet<DefaultRoleKey> = new Set(['AUDITOR', 'CONSULTOR_EXTERNO']);
+
+export const DEFAULT_ROLES: readonly DefaultRoleDefinition[] = (
+  Object.keys(DEFAULT_ROLE_GRANTS) as DefaultRoleKey[]
+).map((key) => ({
+  key,
+  ...ROLE_SPECS[key],
+  isProtected: PROTECTED_ROLES.has(key),
+  allowExternalAssignment: EXTERNAL_ROLES.has(key),
+  permissions: DEFAULT_ROLE_GRANTS[key],
+}));
+
+/** Perfil semeado: o registro e as permissões da sua coluna na matriz. */
+export interface SeededRole {
+  readonly role: Role;
+  readonly permissions: readonly PermissionCode[];
+}
+
+/**
+ * `Role.seedDefaults()` (RN-IAM-74/75): os 15 perfis padrão do tenant — `isSystem`, ativos,
+ * `isProtected` só em `ADMIN_ORGAO` e `allowExternalAssignment` só em `AUDITOR`/`CONSULTOR_EXTERNO`.
+ * Ator `SYSTEM`: sem `createdById`.
+ */
+export function seedDefaultRoles(
+  tenantId: string,
+  now: Date,
+  newId: () => string,
+  definitions: readonly DefaultRoleDefinition[] = DEFAULT_ROLES,
+): SeededRole[] {
+  return definitions.map((definition) => ({
+    role: {
+      id: newId(),
+      tenantId,
+      key: definition.key,
+      name: definition.name,
+      description: definition.description,
+      isSystem: true,
+      isProtected: definition.isProtected,
+      allowExternalAssignment: definition.allowExternalAssignment,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+      createdById: null,
+      updatedById: null,
+      version: 1,
+    },
+    permissions: definition.permissions,
+  }));
+}
+
+/**
+ * Concessões da matriz para os perfis do tenant (já gravados — o `id` é o do banco). Código fora
+ * do catálogo → `UnknownPermissionError` (V-02 `REFERENCE_NOT_FOUND`).
+ */
+export function defaultGrants(
+  roles: readonly Pick<Role, 'id' | 'tenantId' | 'key'>[],
+  definitions: readonly Pick<DefaultRoleDefinition, 'key' | 'permissions'>[],
+  now: Date,
+  newId: () => string,
+): RolePermission[] {
+  const byKey = new Map(roles.map((role) => [role.key, role]));
+  return definitions.flatMap((definition) => {
+    const role = byKey.get(definition.key);
+    if (!role) return [];
+    return definition.permissions.map((code: string) =>
+      grantPermission(role, code, { id: newId(), now, userId: null }),
+    );
+  });
+}

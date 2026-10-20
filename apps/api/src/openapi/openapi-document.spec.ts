@@ -8,9 +8,9 @@ import { z } from 'zod';
 
 import { API_MODULES } from '#modules/index.js';
 import { InternalExampleController } from '#modules/platform/presentation/internal-example.controller.js';
-import { WithoutTenant } from '#shared/auth/route-access.js';
 import { API_OPERATION_METADATA, ApiOperation } from '#shared/openapi/api-operation.js';
 import type { ApiOperationSpec } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { FAKE_TENANTS } from '#shared/testing/fake-directory.js';
 import { ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
@@ -51,7 +51,20 @@ describe('openapi:generate (RN-FND-38)', () => {
 
   it('rotas internas ficam fora do contrato público', () => {
     const document = buildOpenApiDocument(API_MODULES) as unknown as OpenApiJson;
-    expect(Object.keys(document.paths).filter((path) => path.includes('_internal'))).toEqual([]);
+    expect(Object.keys(document.paths).filter((path) => path.includes('internal'))).toEqual([]);
+  });
+
+  it('US-087: ME-01 exige X-Tenant-Id; ME-04 é chamada sem tenant (api/01-session-me.md)', () => {
+    const document = buildOpenApiDocument(API_MODULES) as unknown as OpenApiJson;
+    const me = document.paths['/me']?.get;
+    const memberships = document.paths['/me/memberships']?.get;
+    expect(me?.parameters).toContainEqual(expect.objectContaining({ name: 'X-Tenant-Id' }));
+    expect(memberships?.parameters ?? []).not.toContainEqual(
+      expect.objectContaining({ name: 'X-Tenant-Id' }),
+    );
+    expect(Object.keys(document.components.schemas)).toEqual(
+      expect.arrayContaining(['MyProfile', 'MembershipSummary']),
+    );
   });
 
   it('encontra controllers em módulos estáticos e dinâmicos', () => {
@@ -74,7 +87,7 @@ describe('openapi:generate (RN-FND-38)', () => {
       }
 
       @Get()
-      @WithoutTenant()
+      @TenantScope('CROSS_TENANT_LOOKUP')
       @ApiOperation({ operationId: 'T-1', summary: 'a', responses: { 200: { description: 'ok' } } })
       list() {
         // só os metadados importam
@@ -87,10 +100,10 @@ describe('openapi:generate (RN-FND-38)', () => {
     }
     const operations = collectOperations([ThingsController]);
     expect(
-      operations.map(({ method, path, withoutTenant }) => ({ method, path, withoutTenant })),
+      operations.map(({ method, path, tenantScope }) => ({ method, path, tenantScope })),
     ).toEqual([
-      { method: 'get', path: '/things', withoutTenant: true },
-      { method: 'post', path: '/things/{thingId}/close', withoutTenant: false },
+      { method: 'get', path: '/things', tenantScope: 'CROSS_TENANT_LOOKUP' },
+      { method: 'post', path: '/things/{thingId}/close', tenantScope: undefined },
     ]);
 
     @Module({ controllers: [ThingsController] })
@@ -122,11 +135,16 @@ describe('rota de exemplo documentada e validada contra o próprio OpenAPI', () 
     await api.close();
   });
 
-  it('documenta as quatro operações internas com erros RFC 9457', () => {
-    expect(Object.keys(document.paths).sort()).toEqual([
+  it('documenta as cinco operações internas com erros RFC 9457', () => {
+    expect(
+      Object.keys(document.paths)
+        .filter((path) => path.startsWith('/_internal/'))
+        .sort(),
+    ).toEqual([
       '/_internal/echo',
       '/_internal/feed',
       '/_internal/items',
+      '/_internal/jobs/trace-demo',
       '/_internal/ping',
     ]);
     expect(Object.keys(document.paths['/_internal/echo']?.post?.responses ?? {})).toEqual(
@@ -148,6 +166,7 @@ describe('rota de exemplo documentada e validada contra o próprio OpenAPI', () 
     ['get', '/_internal/items?page=1&pageSize=5', 'items', undefined],
     ['get', '/_internal/feed?limit=5', 'feed', undefined],
     ['post', '/_internal/echo', 'echo', { name: 'Caneta' }],
+    ['post', '/_internal/jobs/trace-demo', 'traceDemoJob', undefined],
   ] as const)(
     '%s %s responde conforme o schema documentado',
     async (method, path, handler, body) => {

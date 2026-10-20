@@ -1,0 +1,44 @@
+{
+  "output": {
+    "sections": [
+      {
+        "sectionKey": "JUSTIFICATION",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "A área requisitante necessita da contratação descrita no resumo da necessidade para manter a continuidade do serviço público e atender ao interesse coletivo, conforme o planejamento do órgão."
+          },
+          {
+            "type": "paragraph",
+            "text": "A demanda decorre do objeto do processo e dos itens listados no DFD, cujo quantitativo foi definido pela unidade requisitante. **Prazo de atendimento:** [a confirmar: prazo]."
+          }
+        ]
+      },
+      {
+        "sectionKey": "EXPECTED_RESULTS",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Espera-se o melhor aproveitamento dos recursos públicos, com economicidade e ganho de eficiência na prestação do serviço à população."
+          },
+          {
+            "type": "bulletList",
+            "items": [
+              "Atendimento integral da necessidade descrita pela área requisitante.",
+              "Redução de custos de manutenção e de retrabalho: [a confirmar: indicador de resultado]."
+            ]
+          }
+        ]
+      },
+      {
+        "sectionKey": "NOTES",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Não foram identificadas dependências com outras demandas nos dados do processo: [a confirmar: vinculação com outro DFD]."
+          }
+        ]
+      }
+    ]
+  }
+}

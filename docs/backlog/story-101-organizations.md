@@ -189,9 +189,9 @@ Feature: Gerenciar órgãos/entidades
 
 ## Backend
 - **Módulo(s):** `tenancy` (dono); usa `access` (`AuthorizationService.assertCan('ORGANIZATION_MANAGE')`), `attachment` (validação de `logoAttachmentId`).
-- **Casos de uso:** `CreateOrganizationCommand`, `UpdateOrganizationCommand`; `ListOrganizationsQuery`, `GetOrganizationQuery`.
+- **Casos de uso:** `CreateOrganizationCommand`, `UpdateOrganizationCommand`; `ListOrganizationsQuery`, `GetOrganizationQuery`; seeder `PrimaryOrganizationSeeder` (`tenancy.primaryOrganization`, US-099). Exceção de nível registrada em decisions.md (DEC-041): `tenancy` importa as fachadas de `access` e `identity`.
 - **Domínio:** `Organization.create(props)`/`.update(props)` aplicando RN-TEN-38..43; VO `Cnpj` (`packages/validation`, aceita numérico e alfanumérico).
-- **Integrações internas:** `attachment.assertAvailable(id, { targetType: 'TENANT_ASSET', tenantId })`.
+- **Integrações internas:** `attachment.assertAvailable(id, { targetType: 'TENANT_ASSET', tenantId })` — até a US-068 existir, a porta `OrganizationLogoPort` recusa todo `logoAttachmentId` (`REFERENCE_NOT_FOUND`); o `files` a implementa depois. O `AttachmentPicker` do logotipo também aguarda a US-068 (a tela mostra um aviso).
 - **Transação:** criação/atualização, auditoria e outbox na mesma transação com `app.tenant_id`.
 
 ## Frontend
@@ -202,7 +202,7 @@ Feature: Gerenciar órgãos/entidades
 
 ## Banco de dados
 - **Tabelas:** `organizations`.
-- **Migrações:** nenhuma nova (tabela já definida em entities.md §4).
+- **Migrações:** `20261015220000_organizations` — enum `organization_type`, tabela `organizations` (entities.md §4: checks de formato, trigger de imutabilidade do tenant, RLS, sem `DELETE`) e a FK composta `tenants(id, primary_organization_id) → organizations(tenant_id, id)`. A FK de `logo_attachment_id` → `attachments` entra com a US-068.
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, cnpj)`, `UNIQUE (tenant_id, short_name)`.
 
 ## API

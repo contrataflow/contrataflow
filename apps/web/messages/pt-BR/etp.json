@@ -1,0 +1,345 @@
+{
+  "create": {
+    "action": "Criar ETP",
+    "open": "Abrir {code}",
+    "openNoCode": "Abrir ETP",
+    "title": "Criar Estudo Técnico Preliminar",
+    "description": "O ETP nasce com as 16 seções do modelo vigente (art. 18, § 1º, da Lei 14.133/2021), em rascunho e sob sua responsabilidade.",
+    "loading": "Carregando o DFD do processo…",
+    "loadError": "Não foi possível verificar o DFD do processo.",
+    "retry": "Tentar novamente",
+    "submit": "Criar ETP",
+    "submitting": "Criando ETP…",
+    "cancel": "Cancelar",
+    "noDfd": "Não há DFD finalizado neste processo: o ETP começa em branco.",
+    "import": {
+      "title": "Importar dados do {code}?",
+      "titleNoCode": "Importar dados do DFD?",
+      "label": "Importar dados do DFD",
+      "hint": "Copia a descrição da necessidade, os itens e a situação no PCA. Você poderá editar tudo depois.",
+      "object": "Objeto",
+      "items": "{count, plural, =0 {Nenhum item} one {# item} other {# itens}}",
+      "itemsLabel": "Itens",
+      "pca": "Situação no PCA",
+      "pcaStatus": {
+        "PLANNED": "Previsto no PCA",
+        "NOT_PLANNED": "Não previsto no PCA",
+        "NOT_APPLICABLE": "Não se aplica",
+        "unknown": "Não informada"
+      }
+    },
+    "exists": "Este processo já tem um ETP. Abra o estudo existente.",
+    "openExisting": "Abrir ETP",
+    "forbidden": "Você não pode criar o ETP neste processo.",
+    "notEditable": "O processo não está em um status que permita criar documentos.",
+    "typeNotAllowed": "Este documento não é permitido na etapa atual.",
+    "noEligibleDfd": "Não há um DFD finalizado neste processo para importar.",
+    "reused": "Esta solicitação já foi enviada com outros dados. Recarregue a página.",
+    "unavailable": "Não foi possível criar o ETP agora. Tente novamente em instantes.",
+    "failed": "Ocorreu um erro inesperado.",
+    "failedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "toast": {
+      "created": "{code} criado.",
+      "createdNoCode": "ETP criado."
+    }
+  },
+  "page": {
+    "title": "Estudo Técnico Preliminar"
+  },
+  "editor": {
+    "loading": "Carregando as seções do ETP…",
+    "sectionsNav": "Seções do ETP",
+    "sectionsMenu": "Seções",
+    "summary": "{done} de {total} seções resolvidas",
+    "pendingCount": "{count, plural, one {# seção com pendência} other {# seções com pendência}}",
+    "state": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "pending": "Com pendência",
+    "requirement": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou justificada",
+      "OPTIONAL": "Opcional"
+    },
+    "legalBasis": "Base legal: {basis}",
+    "help": "Orientação para o preenchimento",
+    "maxChars": "Até {max} caracteres.",
+    "textLabel": "Texto da seção {title}",
+    "narrativeLabel": "Texto complementar da seção {title}",
+    "issuesTitle": "Pendências desta seção (não impedem a edição)",
+    "readOnly": {
+      "title": "Somente leitura",
+      "notEditable": "Este ETP não pode ser editado no status atual.",
+      "forbidden": "Você não pode editar este ETP."
+    },
+    "notApplicable": {
+      "mark": "Não se aplica",
+      "title": "Esta seção não se aplica",
+      "justificationLabel": "Justificativa",
+      "justificationHint": "Explique por que esta seção não se aplica (mín. 20 caracteres).",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar",
+      "revert": "Voltar a preencher",
+      "revertHint": "A justificativa será descartada e você deverá informar o conteúdo da seção.",
+      "requiredNote": "Esta seção é obrigatória: \"não se aplica\" não a resolve na conclusão do ETP."
+    },
+    "structured": {
+      "ITEMS": {
+        "title": "Estimativas das quantidades e do valor",
+        "caption": "Itens do ETP (somente leitura)",
+        "empty": "Nenhum item herdado do DFD.",
+        "sequence": "Nº",
+        "description": "Descrição",
+        "unit": "Unidade",
+        "quantity": "Quantidade",
+        "manage": "Gerenciar os itens no processo",
+        "loadError": "Não foi possível carregar os itens."
+      },
+      "ALTERNATIVES": {
+        "title": "Alternativas avaliadas"
+      },
+      "RISKS": {
+        "title": "Riscos do processo",
+        "caption": "Riscos do processo (somente leitura)",
+        "empty": "Nenhum risco cadastrado ainda.",
+        "code": "Código",
+        "risk": "Risco",
+        "level": "Nível",
+        "manage": "Abrir o mapa de riscos",
+        "loadError": "Não foi possível carregar os riscos."
+      },
+      "readOnly": "Conteúdo estruturado somente leitura nesta tela."
+    },
+    "retry": "Tentar novamente",
+    "autosave": {
+      "indicator": {
+        "dirty": "Alterações não salvas",
+        "saving": "Salvando…",
+        "saved": "Salvo às {time}",
+        "savedShort": "Salvo",
+        "error": "Erro ao salvar",
+        "offline": "Erro ao salvar — tentando novamente",
+        "offlineShort": "Erro ao salvar",
+        "conflict": "Conflito de edição — escolha qual versão manter",
+        "blocked": "Edição interrompida"
+      },
+      "conflict": {
+        "title": "Alguém salvou esta seção enquanto você editava",
+        "changedBy": "Alterado por {name} às {time}.",
+        "changedBySelf": "Você, em outra aba, às {time}.",
+        "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+        "showDiff": "Ver diferenças",
+        "hideDiff": "Ocultar diferenças",
+        "keepMine": "Manter a minha versão",
+        "discardMine": "Descartar a minha e recarregar",
+        "serverColumn": "Versão salva no servidor",
+        "mineColumn": "Minha versão",
+        "inserted": "inserido",
+        "removed": "removido",
+        "empty": "(vazio)",
+        "someone": "outra pessoa"
+      },
+      "recovered": {
+        "title": "Recuperamos alterações não salvas de {time}.",
+        "restore": "Restaurar",
+        "discard": "Descartar"
+      },
+      "blocked": {
+        "notEditable": "Este ETP não pode ser editado no status atual.",
+        "forbidden": "Você não pode editar este ETP.",
+        "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+        "generic": "Não foi possível continuar salvando este ETP.",
+        "kept": "Suas últimas alterações foram guardadas neste navegador."
+      }
+    }
+  },
+  "alternatives": {
+    "caption": "Quadro comparativo das alternativas de solução",
+    "empty": "Nenhuma alternativa cadastrada ainda.",
+    "hint": "Registre as alternativas levantadas e decida qual é a recomendada (art. 18, § 1º, V e VII, da Lei 14.133/2021).",
+    "readOnly": "Somente leitura: você não pode editar as alternativas deste ETP agora.",
+    "maskedHint": "Orçamento sigiloso: os custos estimados não são exibidos para você.",
+    "masked": "Sigiloso",
+    "lowestCost": "menor custo",
+    "add": "Nova alternativa",
+    "loadError": "Não foi possível carregar as alternativas.",
+    "retry": "Tentar novamente",
+    "columns": {
+      "name": "Alternativa",
+      "decision": "Decisão",
+      "cost": "Custo estimado",
+      "risk": "Risco",
+      "actions": "Ações"
+    },
+    "actions": {
+      "edit": "Editar",
+      "editNamed": "Editar {name}",
+      "recommend": "Recomendar",
+      "recommendNamed": "Recomendar {name}",
+      "discard": "Descartar",
+      "discardNamed": "Descartar {name}",
+      "reopen": "Voltar à análise",
+      "reopenNamed": "Voltar {name} à análise",
+      "moveUp": "Mover {name} para cima",
+      "moveDown": "Mover {name} para baixo",
+      "remove": "Excluir",
+      "removeNamed": "Excluir {name}"
+    },
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "unexpected": "Ocorreu um erro inesperado."
+    },
+    "toast": {
+      "added": "Alternativa cadastrada.",
+      "updated": "Alternativa atualizada."
+    },
+    "form": {
+      "close": "Fechar",
+      "addTitle": "Nova alternativa",
+      "editTitle": "Editar alternativa",
+      "fields": {
+        "name": "Nome",
+        "description": "Descrição",
+        "advantages": "Vantagens",
+        "disadvantages": "Desvantagens",
+        "estimatedCost": "Custo estimado",
+        "riskLevel": "Nível de risco",
+        "observations": "Observações"
+      },
+      "noRisk": "Não informado",
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "saving": "Salvando…"
+    },
+    "decide": {
+      "title": {
+        "RECOMMENDED": "Recomendar alternativa",
+        "DISCARDED": "Descartar alternativa",
+        "UNDER_ANALYSIS": "Voltar alternativa à análise"
+      },
+      "description": {
+        "RECOMMENDED": "A alternativa recomendada é a solução escolhida pelo ETP (art. 18, § 1º, VII).",
+        "DISCARDED": "A alternativa descartada continua no quadro comparativo, com a justificativa.",
+        "UNDER_ANALYSIS": "A alternativa volta a ficar em análise."
+      },
+      "justification": "Justificativa (mín. 20 caracteres)",
+      "justificationOptional": "Observação (opcional)",
+      "confirm": {
+        "RECOMMENDED": "Recomendar",
+        "DISCARDED": "Descartar",
+        "UNDER_ANALYSIS": "Voltar à análise"
+      },
+      "cancel": "Cancelar",
+      "replace": {
+        "title": "Substituir a alternativa recomendada?",
+        "current": "Recomendada atual: {name}. Ela volta a ficar em análise.",
+        "confirm": "Substituir recomendação"
+      },
+      "toast": {
+        "RECOMMENDED": "{name} é agora a alternativa recomendada.",
+        "DISCARDED": "{name} foi descartada.",
+        "UNDER_ANALYSIS": "{name} voltou à análise."
+      }
+    },
+    "remove": {
+      "title": "Excluir alternativa",
+      "description": "A alternativa {name} sai do quadro comparativo; o registro continua na auditoria.",
+      "cancel": "Cancelar",
+      "confirm": "Excluir",
+      "toast": "Alternativa excluída."
+    }
+  },
+  "estimates": {
+    "items": {
+      "title": "Quantidades e memória de cálculo",
+      "caption": "Itens do ETP",
+      "empty": "Nenhum item herdado do DFD.",
+      "loadError": "Não foi possível carregar os itens.",
+      "sequence": "Item {sequence}",
+      "unit": "Unidade: {unit}",
+      "quantity": "Quantidade",
+      "memo": "Memória de cálculo",
+      "memoHint": "Recomendada quando a quantidade resulta de cálculo (art. 18, §1º, IV, da Lei 14.133/2021).",
+      "memoTooLarge": "A memória de cálculo atingiu o limite de 1 MB. Resuma o texto ou anexe uma planilha de apoio.",
+      "save": "Salvar itens",
+      "saving": "Salvando…",
+      "saved": "Salvo às {time}",
+      "dirty": "Alterações não salvas",
+      "conflict": "Os dados foram alterados por outra pessoa.",
+      "showDiff": "Ver diferenças",
+      "hideDiff": "Ocultar diferenças",
+      "reload": "Recarregar",
+      "diffItem": "Item",
+      "diffMine": "Minha versão",
+      "diffServer": "Versão salva",
+      "diffEmpty": "Nenhuma diferença nas quantidades; a memória de cálculo pode ter mudado.",
+      "retry": "Tentar novamente"
+    },
+    "value": {
+      "title": "Valor estimado",
+      "sourceLegend": "Origem do valor estimado",
+      "manual": "Valor manual",
+      "research": "Vincular à pesquisa de preços",
+      "valueLabel": "Valor estimado total",
+      "researchLabel": "Pesquisa de preços",
+      "researchPlaceholder": "Selecione a pesquisa",
+      "noResearch": "Este processo ainda não tem pesquisa de preços.",
+      "researchOption": "{code} ({status})",
+      "current": "Valor estimado atual",
+      "linked": "Calculado pela pesquisa de preços — somente leitura.",
+      "viewResearch": "Ver pesquisa de preços",
+      "notDefined": "Valor estimado não definido.",
+      "masked": "Valor sigiloso",
+      "save": "Salvar valor",
+      "saving": "Salvando…",
+      "saved": "Salvo às {time}",
+      "reload": "Recarregar"
+    },
+    "errors": {
+      "forbidden": "Você não tem permissão para editar este ETP.",
+      "notEditable": "Este ETP não pode ser editado no momento.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "memoInvalid": "Reduza o conteúdo da memória de cálculo.",
+      "formErrors": "Revise os campos destacados.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "retry": "Tentar novamente"
+    }
+  },
+  "conclusion": {
+    "title": "Conclusão do ETP",
+    "hint": "Defina a conclusão e a decisão sobre o parcelamento antes de concluir o ETP. Cada escolha é salva na hora.",
+    "conclusionLabel": "Conclusão",
+    "conclusionOption": {
+      "VIABLE": "A contratação é viável",
+      "NOT_VIABLE": "A contratação não é viável"
+    },
+    "conclusionPending": "Conclusão ainda não definida.",
+    "parcelingLabel": "Decisão sobre o parcelamento",
+    "parcelingPlaceholder": "Selecione…",
+    "parcelingOption": {
+      "PARCELED": "Parcelar a contratação",
+      "NOT_PARCELED": "Não parcelar a contratação",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "saving": "Salvando…",
+    "notViableHint": "Ao concluir o ETP, você precisará confirmar que está ciente da conclusão pela não viabilidade.",
+    "errors": {
+      "conflict": "Os dados foram alterados por outra pessoa. O ETP foi recarregado; escolha novamente.",
+      "forbidden": "Você não tem permissão para editar este ETP.",
+      "notEditable": "Este ETP não pode ser editado no momento.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "invalid": "Escolha uma opção válida.",
+      "unexpected": "Ocorreu um erro inesperado."
+    },
+    "pending": {
+      "title": "Pendências para concluir",
+      "loading": "Verificando as pendências do ETP…",
+      "none": "Nenhuma pendência: o ETP está pronto para ser concluído.",
+      "onlyWarnings": "Nenhuma pendência bloqueante. Há aviso a confirmar ao concluir.",
+      "blocking": "{count, plural, one {# pendência impede a conclusão} other {# pendências impedem a conclusão}}",
+      "warningsTitle": "Aviso"
+    }
+  }
+}

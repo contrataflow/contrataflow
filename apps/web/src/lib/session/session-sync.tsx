@@ -4,14 +4,19 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
-import { fetchActiveTenantId } from './session-actions';
+import { MEMBERSHIP_INACTIVE_HREF, loginHref } from '@/lib/api/error-policy';
+
+import { LOGGED_OUT_PATH, fetchSessionState } from './session-actions';
 import { subscribeSessionEvents } from './session-channel';
 import { useTenantId } from './session-context';
+import { emitSessionSignal } from './session-signals';
 
 /**
- * Mantém as abas coerentes (FA-03): ao saber de outra aba que trocou de instituição, apaga o
- * cache na hora (nenhum dado do tenant anterior fica na tela) e recarrega ao voltar o foco; no
- * `focus`, confere o `activeTenantId` do BFF. Logout/expiração em outra aba levam ao login.
+ * Mantém as abas coerentes (FA-03 · RN-IAM-29): ao saber de outra aba que trocou de instituição,
+ * apaga o cache na hora (nenhum dado do tenant anterior fica na tela) e recarrega ao voltar o foco;
+ * logout em outra aba leva à SCR-001 (expiração e "Continuar conectado" ficam com o
+ * `SessionWatcher`).
+ * No `focus`, confere a sessão no BFF sem renovar a ociosidade.
  */
 export function SessionSync({ onNavigate }: { readonly onNavigate?: (href: string) => void }) {
   const tenantId = useTenantId();
@@ -36,21 +41,37 @@ export function SessionSync({ onNavigate }: { readonly onNavigate?: (href: strin
         }
         return;
       }
-      queryClient.clear();
-      navigate(event.type === 'logout' ? '/entrar?motivo=saiu' : '/entrar?motivo=sessao-expirada');
+      if (event.type === 'logout') {
+        queryClient.clear();
+        navigate(LOGGED_OUT_PATH);
+      }
+      // `expired`/`extended`: tratados pelo `SessionWatcher` (modal e contador).
     });
 
     const onFocus = () => {
-      void fetchActiveTenantId().then((probe) => {
-        if (probe.kind === 'no-session') {
-          queryClient.clear();
-          navigate(`/api/auth/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
-          return;
-        }
-        if (stale.current || (probe.tenantId !== null && probe.tenantId !== tenantId)) {
-          stale.current = false;
-          queryClient.clear();
-          router.refresh();
+      void fetchSessionState().then((state) => {
+        switch (state.kind) {
+          case 'no-session':
+            queryClient.clear();
+            navigate(loginHref(window.location.pathname));
+            return;
+          case 'expired':
+            emitSessionSignal({ type: 'expired' });
+            return;
+          case 'membership-inactive':
+            queryClient.clear();
+            navigate(MEMBERSHIP_INACTIVE_HREF);
+            return;
+          case 'unavailable':
+            return;
+          case 'active': {
+            const active = state.session.activeTenant?.id ?? null;
+            if (stale.current || (active !== null && active !== tenantId)) {
+              stale.current = false;
+              queryClient.clear();
+              router.refresh();
+            }
+          }
         }
       });
     };

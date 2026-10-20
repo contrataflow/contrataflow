@@ -1,3 +1,4 @@
+import type { Logger as PinoLogger } from '@contrataflow/observability';
 import { Module, RequestMethod } from '@nestjs/common';
 import type { DynamicModule, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -5,38 +6,60 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 import { API_MODULES } from '#modules/index.js';
+import { AuthorizationGuard } from '#shared/auth/authorization.guard.js';
 import {
   AuthenticationGuard,
   MembershipGuard,
   MfaGuard,
   TenantContextGuard,
 } from '#shared/auth/pipeline.guards.js';
+import { PlatformOperatorGuard } from '#shared/auth/platform-operator.guard.js';
 import { RequestContextMiddleware } from '#shared/context/request-context.middleware.js';
+import { DatabaseModule } from '#shared/database/database.module.js';
 import { ProblemDetailsExceptionFilter } from '#shared/errors/problem-details.filter.js';
 import { EnvelopeInterceptor } from '#shared/http/envelope.interceptor.js';
 import { JsonBodyMiddleware } from '#shared/http/json-body.middleware.js';
 import { PreconditionGuard } from '#shared/http/precondition.js';
 import { IdempotencyInterceptor } from '#shared/idempotency/idempotency.interceptor.js';
+import { HealthModule } from '#shared/observability/health.module.js';
+import {
+  ObservabilityModule,
+  createApiLogger,
+} from '#shared/observability/observability.module.js';
 import { RateLimitGuard } from '#shared/rate-limit/rate-limit.guard.js';
+
+export interface AppModuleOptions {
+  /** Logger pino raiz (padrão: stdout, conforme a configuração). */
+  readonly logger?: PinoLogger;
+}
 
 /**
  * Módulo raiz (fluxo principal, passo 2 da US-080). Pipeline de toda requisição (RN-FND-33/34):
- * middleware de contexto → corpo JSON → autenticação → tenant → vínculo → MFA → rate limit →
+ * logger da requisição (`nestjs-pino`, US-084) → middleware de contexto → corpo JSON → autenticação → tenant → vínculo → operador de plataforma → MFA → autorização (US-097) → rate limit →
  * If-Match → idempotência → `ZodValidationPipe` → handler → envelope; qualquer exceção → filtro
  * RFC 9457. Os guards e interceptors globais executam na ordem em que são registrados aqui.
  */
 @Module({})
 export class AppModule implements NestModule {
-  static forRoot(config: AppConfig): DynamicModule {
+  static forRoot(config: AppConfig, options: AppModuleOptions = {}): DynamicModule {
     return {
       module: AppModule,
-      imports: [ConfigModule.forRoot(config), ...API_MODULES],
+      imports: [
+        ConfigModule.forRoot(config),
+        ObservabilityModule.forRoot(options.logger ?? createApiLogger(config)),
+        HealthModule,
+        DatabaseModule,
+        ...API_MODULES,
+      ],
       providers: [
         { provide: APP_FILTER, useClass: ProblemDetailsExceptionFilter },
         { provide: APP_GUARD, useClass: AuthenticationGuard },
         { provide: APP_GUARD, useClass: TenantContextGuard },
         { provide: APP_GUARD, useClass: MembershipGuard },
+        { provide: APP_GUARD, useClass: PlatformOperatorGuard },
         { provide: APP_GUARD, useClass: MfaGuard },
+        // US-097: permissões efetivas no contexto + `@RequirePermission`/`@Policy` da rota.
+        { provide: APP_GUARD, useClass: AuthorizationGuard },
         { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_GUARD, useClass: PreconditionGuard },
         // O primeiro interceptor é o mais externo: a idempotência guarda e reproduz a resposta já

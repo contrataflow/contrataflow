@@ -44,19 +44,19 @@ Permitir que qualquer usuário redefina a própria senha sem intervenção human
 
 ## Fluxo principal
 1. Em SCR-001, o usuário clica em **"Esqueci minha senha"**.
-2. O navegador acessa `GET /api/auth/forgot-password`; o BFF monta a URL do *flow* de recuperação do Authentik (sem dados do usuário) e responde **302**.
+2. O navegador acessa `GET /api/auth/forgot-password`; o BFF monta a URL do *flow* de recuperação do Authentik (sem dados do usuário), confere que o IdP responde e responde **302** (DEC-074).
 3. O Authentik exibe, com a identidade visual do ContrataFlow, o formulário "Esqueceu sua senha?" e pede o e-mail.
 4. Exista ou não o e-mail, o Authentik mostra a mesma mensagem genérica (RN-IAM-35) e, se existir conta, envia o próprio e-mail de redefinição (sem notificação do ContrataFlow).
 5. O usuário abre o link (uso único, validade limitada — RN-IAM-37) e define a nova senha; o Authentik valida força e vazamento (RN-IAM-36).
-6. Após redefinir, o Authentik invalida sessões anteriores do usuário e redireciona para `/entrar?motivo=senha-redefinida`.
+6. Após redefinir, o Authentik invalida as sessões anteriores do usuário no IdP e revoga os refresh tokens emitidos — sessões abertas do ContrataFlow terminam na renovação seguinte (US-088) — e redireciona para `/entrar?motivo=senha-redefinida` (DEC-074).
 7. SCR-001 exibe "Senha redefinida. Entre com sua nova senha."; nenhuma sessão é criada automaticamente — segue o login normal (US-087).
 
 ## Fluxos alternativos
 - **FA-01 — E-mail não cadastrado:** idêntico ao passo 4; nada diferencia do caso de sucesso.
-- **FA-02 — Link expirado ou já usado:** "Este link não é mais válido. Solicite uma nova recuperação.", com atalho para reiniciar.
+- **FA-02 — Link expirado ou já usado:** "Este link não é mais válido. Solicite uma nova recuperação.", com atalho para reiniciar. No Authentik, o link reaberto (usado ou vencido) recomeça o pedido pelo e-mail, sem etapa de nova senha; o texto é o do próprio IdP.
 - **FA-03 — Senha fora da política:** o Authentik exibe o motivo (curta, comum ou vazada) e mantém o formulário.
 - **FA-04 — Usuário bloqueado pela plataforma:** a redefinição é concluída normalmente no Authentik; ao tentar entrar depois, recebe o bloqueio de sempre (US-087 FA-06) — a senha nova não concede acesso.
-- **FA-05 — `returnTo` presente:** preservado e devolvido ao `/entrar` ao final, com as validações de RN-IAM-03 (US-087).
+- **FA-05 — `returnTo` presente:** preservado e devolvido ao `/entrar` ao final, com as validações de RN-IAM-03 (US-087). O BFF guarda o destino validado num cookie próprio (o Authentik não o recebe); se a recuperação partiu do formulário do Authentik, vale o destino do login em curso (DEC-074).
 
 ## Regras de negócio
 - **RN-IAM-34** — `GET /api/auth/forgot-password` é rota pública do BFF que apenas redireciona (302) ao *flow* de recuperação do Authentik; não recebe nem repassa e-mail, senha ou identificador do usuário.
@@ -143,7 +143,7 @@ Feature: Recuperar senha
 ## Casos de erro
 | Situação | HTTP | Código | Mensagem (pt-BR) | Comportamento da UI |
 |---|---|---|---|---|
-| Authentik indisponível | 302 → SCR-001 / 503 | `DEPENDENCY_UNAVAILABLE` | "O serviço de autenticação está indisponível. Tente novamente em instantes." | Mantém `returnTo`; botão "Tentar novamente" |
+| Authentik indisponível (ou *flow* não publicado) | 302 → SCR-002 (`/recuperar-senha?motivo=indisponivel`) | — | "O serviço de autenticação está indisponível. Tente novamente em instantes." | Componente de erro de SCR-001; mantém `returnTo`; botão "Tentar novamente" (DEC-074) |
 | `returnTo` inválido | 302 | — | — (silencioso) | Redireciona para `/painel` |
 | Limite de requisições | 429 | `RATE_LIMITED` | "Muitas tentativas. Aguarde alguns segundos." | Respeita `Retry-After` |
 | Link/token inválido ou expirado (no Authentik) | — | — | "Este link não é mais válido. Solicite uma nova recuperação." | Tela do Authentik; atalho para reiniciar |
@@ -179,8 +179,8 @@ Nenhuma tabela nova nem transação de domínio: a rota do BFF é um redireciona
 | BFF | GET | `/api/auth/forgot-password` | `returnTo?` | `302` → *flow* de recuperação do Authentik | 302, 429, 503 |
 
 ## Logs
-- `info` `auth.recovery_redirect` — `correlationId`, IP (sem e-mail, sem dados do usuário).
-- `warn` `auth.recovery_unavailable` — quando o Authentik não responde.
+- `info` `auth.recovery_redirect` — `correlationId`, IP mascarado, `returnToAccepted` (sem e-mail, sem dados do usuário).
+- `warn` `auth.recovery_unavailable` — quando o Authentik não responde (`providerStatus`: status HTTP ou nulo).
 - **Nunca logar:** e-mail informado, senha, token/link de redefinição.
 
 ## Auditoria

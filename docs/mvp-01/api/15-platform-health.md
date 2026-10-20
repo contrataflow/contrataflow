@@ -207,8 +207,8 @@ Enum `TenantType` referenciado pelo nome — valores não enumerados nos extrato
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200`, corpo `application/health+json`
-- **Erros:** Não usa `application/problem+json` (ver api.md §2); resposta sempre `200` neste endpoint.
+- **Response:** `200` ou `503`, corpo `application/health+json`
+- **Erros:** Não usa `application/problem+json` (ver api.md §2); `200` (`pass`) enquanto o *event loop* responde, `503` (`fail`) quando o atraso do *event loop* chega a 2 s (RN-FND-79/80) — o orquestrador reinicia o contêiner.
 - **Efeitos:** — (consulta por *pull*/scrape; não gera evento nem auditoria — observação técnica, não ação de usuário)
 - **Notas:** Não reflete a saúde de dependências externas (isso é papel de `HLT-02`); corpo restrito a uma *allowlist* de campos (sem host, stack ou credencial).
 

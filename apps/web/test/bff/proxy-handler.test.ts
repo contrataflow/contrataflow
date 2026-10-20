@@ -50,7 +50,8 @@ function refreshing(result: () => RefreshResult, base: TestRuntime): IdentityPro
     beginLogin: (input) => identity.beginLogin(input),
     completeLogin: (params, transaction) => identity.completeLogin(params, transaction),
     refresh: () => Promise.resolve(result()),
-    endSessionUrl: () => null,
+    revokeRefreshToken: () => Promise.resolve('skipped' as const),
+    endSessionUrl: () => Promise.resolve(null),
   };
 }
 
@@ -66,6 +67,8 @@ describe('[Sucesso] proxy autenticado', () => {
           'X-Tenant-Id': 'tenant-forjado',
           'X-Forwarded-For': '9.9.9.9, 200.1.2.3',
           'X-Correlation-Id': 'c-browser-1',
+          'X-CF-Session-Id-Hash': 'forjado',
+          'User-Agent': 'Navegador/1.0',
           'X-Custom': 'nao-repassar',
           Accept: 'application/json',
           'If-Match': '"3"',
@@ -82,6 +85,9 @@ describe('[Sucesso] proxy autenticado', () => {
     expect(headers.get('X-Tenant-Id')).toBe(record.activeTenantId);
     expect(headers.get('X-Correlation-Id')).toBe('c-browser-1');
     expect(headers.get('X-Forwarded-For')).toBe('200.1.2.3');
+    // Auditoria da API (US-073): user-agent do navegador e a sessão do registro, nunca o forjado.
+    expect(headers.get('User-Agent')).toBe('Navegador/1.0');
+    expect(headers.get('X-CF-Session-Id-Hash')).toBe(record.key);
     expect(headers.get('If-Match')).toBe('"3"');
     expect(headers.get('Accept')).toBe('application/json');
     expect(headers.get('Cookie')).toBeNull();
@@ -150,6 +156,91 @@ describe('[Sucesso] proxy autenticado', () => {
     const all = logs.lines.join('\n');
     expect(all).not.toContain(record.tokens.accessToken);
     expect(all).not.toContain(cookie.split('=')[1]);
+  });
+});
+
+describe('nome exibido da sessão após PATCH /me (US-098 · RN-IAM-110)', () => {
+  const patchMe = (cookie: string) =>
+    browserRequest('/api/v1/me', {
+      method: 'PATCH',
+      headers: { ...MUTATION_HEADERS, Cookie: cookie, 'If-Match': '"1"' },
+      body: JSON.stringify({ socialName: 'Eli' }),
+    });
+  const profileBody = (socialName: string | null) =>
+    JSON.stringify({ data: { name: 'Ana Souza', socialName, version: 2 } });
+
+  it('passa a exibir o nome social, e o corpo chega intacto ao navegador', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    test.api.mockResolvedValueOnce(
+      new Response(profileBody('Eli'), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"2"' },
+      }),
+    );
+    const response = await handleProxyRequest(patchMe(cookie), ['me'], test.runtime);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('ETag')).toBe('"2"');
+    expect(await response.json()).toEqual({
+      data: { name: 'Ana Souza', socialName: 'Eli', version: 2 },
+    });
+    expect((await test.store.get(record.key))?.displayName).toBe('Eli');
+  });
+
+  it('nome social removido volta a exibir o nome civil', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    await test.runtime.sessions.setDisplayName(record, 'Eli');
+    test.api.mockResolvedValueOnce(
+      new Response(profileBody(null), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await handleProxyRequest(patchMe(cookie), ['me'], test.runtime);
+    expect((await test.store.get(record.key))?.displayName).toBe('Ana Souza');
+  });
+
+  it('falha da API (412) ou outra rota não alteram o nome da sessão', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    const before = (await test.store.get(record.key))?.displayName;
+    test.api.mockResolvedValueOnce(
+      new Response('{"code":"VERSION_CONFLICT"}', {
+        status: 412,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    );
+    expect((await handleProxyRequest(patchMe(cookie), ['me'], test.runtime)).status).toBe(412);
+    test.api.mockResolvedValueOnce(
+      new Response(profileBody('Outro'), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await handleProxyRequest(
+      browserRequest('/api/v1/me', { headers: { Cookie: cookie } }),
+      ['me'],
+      test.runtime,
+    );
+    expect((await test.store.get(record.key))?.displayName).toBe(before);
+  });
+
+  it('corpo ilegível não derruba a resposta já aplicada pela API', async () => {
+    const test = createTestRuntime();
+    const { cookie, record } = await signIn(test);
+    const before = (await test.store.get(record.key))?.displayName;
+    test.api.mockResolvedValueOnce(
+      new Response('não é json', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const response = await handleProxyRequest(patchMe(cookie), ['me'], test.runtime);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('não é json');
+    expect((await test.store.get(record.key))?.displayName).toBe(before);
+    expect(logs.lines.some((line) => line.includes('bff.display_name_sync_failed'))).toBe(true);
   });
 });
 

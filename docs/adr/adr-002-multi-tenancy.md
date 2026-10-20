@@ -5,7 +5,7 @@
 | **Status** | Aceito |
 | **Data** | 2026-10-06 |
 | **Decisores** | Arquitetura/Tech Lead, Produto |
-| **Decisões relacionadas** | DEC-011, DEC-012, DEC-080, DEC-081, DEC-082 |
+| **Decisões relacionadas** | DEC-011, DEC-012, DEC-080, DEC-081, DEC-082, DEC-076 (implementação — US-100) |
 | **Documentos** | [multi-tenancy.md](../architecture/multi-tenancy.md) (completo) · [entities.md](../mvp-01/entities.md) · US-099, US-100 · [ADR-001](adr-001-modular-monolith.md) |
 
 ## Contexto
@@ -23,10 +23,19 @@
    - **Prisma Client Extension:** para os modelos de `TENANT_SCOPED_MODELS` (gerados do schema a cada `prisma generate`), `create`/`createMany`/`upsert` recebem o `tenantId` do contexto e as demais operações recebem `tenantId` no `where`; operação sem contexto lança `TenantContextMissing` (RN-TEN-23/24).
    - **Row-Level Security:** `ENABLE` + `FORCE` em toda tabela com `tenant_id`; política `tenant_isolation` (`USING`/`WITH CHECK tenant_id = current_setting('app.tenant_id')::uuid`); sem contexto definido, a consulta **falha fechada** — nunca devolve dados (DEC-082, RN-TEN-25).
    - **FKs compostas:** toda tabela de negócio expõe `UNIQUE (tenant_id, id)` e referencia outras por `(tenant_id, <fk>)` (DEC-081); uma linha do tenant A referenciando um id do tenant B falha no banco mesmo que a aplicação erre (RN-TEN-27).
-3. **Papéis de banco dedicados, sem privilégio supérfluo** (multi-tenancy.md §5.2, RN-TEN-26): `cf_owner` (dono, só via `SET ROLE` do migrador), `cf_migrator` (deploy de migração), `cf_app`/`cf_worker` (aplicação, sem `BYPASSRLS`), `cf_relay` (`BYPASSRLS` restrito a `SELECT`/`UPDATE` em `outbox_events`), `cf_platform` (acesso de plataforma), `cf_readonly_report` e `cf_purge` (desabilitado por padrão).
-4. **Acesso de plataforma isolado em um serviço próprio:** `SystemDbService` (`systemPrisma`, US-100) é um segundo `PrismaClient` conectado como `cf_platform`, **sem** a extensão de tenant; só pode ser importado pelos módulos da allowlist do `dependency-cruiser`; toda chamada exige `reason` de lista fechada — `TENANT_LIFECYCLE`, `TENANT_PROVISIONING`, `TENANT_ENUMERATION`, `USER_MEMBERSHIPS_LOOKUP`, `INVITATION_LOOKUP`, `PLATFORM_AUDIT` — e gera log `platform_db.access`; ações com efeito num tenant são auditadas no próprio tenant (`actorType = SYSTEM`/`PLATFORM_OPERATOR`) e qualquer trabalho sobre dados de um tenant reabre uma UoW com o contexto daquele tenant (RN-TEN-28, DEC-082).
-5. **Suíte "tenant leak" obrigatória no CI** (bloqueia *merge*, multi-tenancy.md §14, RN-TEN-36): cobre toda operação do OpenAPI (IDs de outro tenant → 404/422), detecção de vazamento por canários nas respostas, cabeçalho `X-Tenant-Id` forjado (403 `MEMBERSHIP_INACTIVE`), verificação de catálogo (`pg_class`/`pg_policies`), cache, storage, filas e frontend; um meta-teste garante que toda rota nova está classificada.
+3. **Papéis de banco dedicados, sem privilégio supérfluo** (multi-tenancy.md §5.2, RN-TEN-26): `cf_owner` (dono, só via `SET ROLE` do migrador), `cf_migrator` (deploy de migração), `cf_app`/`cf_worker` (aplicação, sem `BYPASSRLS`; em `tenants`, só as colunas não sensíveis), `cf_relay` (`BYPASSRLS` restrito a `SELECT`/`UPDATE` em `outbox_events`), `cf_maintenance` (`BYPASSRLS` restrito a `SELECT`/`DELETE` em `outbox_events` — DEC-072), `cf_platform` (acesso de plataforma, **sem** `BYPASSRLS`: DML em `tenants` e políticas explícitas `TO cf_platform` só para auditoria de plataforma e eventos do agregado `Tenant`), `cf_definer` (`NOLOGIN`, dono das funções `SECURITY DEFINER` de leitura entre tenants: `cf_user_memberships`, `cf_find_invitation`), `cf_readonly_report` e `cf_purge` (desabilitado por padrão). Toda tabela nova recebe a RLS padrão por `cf_apply_tenant_rls(tabela)`.
+4. **Acesso de plataforma isolado em um serviço próprio:** `SystemDbService` (`systemPrisma`, US-100) é um segundo `PrismaClient` conectado como `cf_platform`, **sem** a extensão de tenant; só pode ser importado pelos módulos da allowlist do `dependency-cruiser`; toda chamada exige `reason` de lista fechada — `TENANT_LIFECYCLE`, `TENANT_PROVISIONING`, `TENANT_ENUMERATION`, `USER_MEMBERSHIPS_LOOKUP`, `INVITATION_LOOKUP`, `PLATFORM_AUDIT` — e gera log `system_db.call` com métrica `cf_system_db_calls_total{reason}`; suas transações usam `app.tenant_id` = UUID nulo (nenhum tenant); ações com efeito num tenant são auditadas no próprio tenant (`actorType = SYSTEM`/`PLATFORM_OPERATOR`) e qualquer trabalho sobre dados de um tenant reabre uma UoW com o contexto daquele tenant (RN-TEN-28, DEC-082).
+5. **Suíte "tenant leak" obrigatória no CI** (bloqueia *merge*, multi-tenancy.md §14, RN-TEN-36): cobre toda operação do OpenAPI (IDs de outro tenant → 404/422), detecção de vazamento por canários nas respostas, cabeçalho `X-Tenant-Id` forjado (403 `MEMBERSHIP_INACTIVE`), verificação de catálogo (`pg_class`/`pg_policies`/`pg_constraint`: RLS, FK iniciada por `tenant_id`, `UNIQUE (tenant_id, id)`), cache, storage, filas e frontend; meta-testes garantem que toda rota declara `@TenantScope` e está classificada no manifesto da suíte (coberta ou isenta com motivo).
 6. **Via de evolução preservada sem mudar o modelo:** um "silo" híbrido futuro (banco dedicado + chave KMS própria, mesmo código e schema) é viável para clientes enterprise porque o código nunca faz junções entre tenants e todo acesso passa pelo contexto.
+
+## Implementação (US-100 · DEC-076)
+
+As propostas da US-100 viraram decisão (detalhes em [DEC-076](../architecture/decisions.md) e no guia [`data-access.md`](../engineering/data-access.md)):
+- **Contexto:** `TenantContext` sobre o `RequestContext` (AsyncLocalStorage), aberto pelo `TenantContextGuard` nas rotas `@TenantScope('TENANT')`, pela base `TenantJob` nos jobs e por `runForTenant` nos casos de uso de plataforma; imutável durante a requisição ou o job. Cabeçalho `X-Tenant-Id` ausente ou malformado → 400 `MALFORMED_REQUEST`.
+- **Extensão:** `tenant-isolation` em `apps/api/src/shared/database/tenant-isolation.extension.ts`, com o tenant tirado do escopo da transação; listas `TENANT_SCOPED_MODELS`/`PLATFORM_MODELS` versionadas e conferidas com o schema pelo CI.
+- **Banco:** migração `20261015120000_tenancy_foundation` (papel `cf_platform`, `cf_apply_tenant_rls`, `cf_find_invitation`, grants por coluna de `tenants`, políticas de plataforma). A política `tenant_isolation` vale para todos os papéis sem `BYPASSRLS`, não só `TO cf_app`. `cf_set_primary_organization` chega com `organizations` (US-101).
+- **Plataforma:** `SystemDbService` (`shared/database/system-db.service.ts`, `DATABASE_URL_PLATFORM`).
+- **Testes:** `apps/api/test/database/tenancy-foundation.spec.ts` (RLS por tabela, papéis, FKs compostas, funções, `SystemDbService`), `apps/api/test/tenant-leak/` (suíte HTTP sobre a API inteira e concorrência no pool) e meta-testes em `apps/api/src/openapi/tenant-isolation-coverage.spec.ts` — todos na tarefa `test:tenant-leak`; a sobrecarga do contexto (p95 ≤ 2 ms) fica na suíte de performance (`apps/api/test/database/context-overhead.perf.ts`, `test:perf`, medida no endurecimento — DEC-087).
 
 ## Alternativas consideradas
 
@@ -56,7 +65,7 @@
 | Risco | Mitigação |
 |---|---|
 | Query sem filtro de tenant | RLS falha fechado (sem contexto → erro); Prisma Client Extension injeta `tenantId` automaticamente |
-| Uso indevido de `systemPrisma`/papel com `BYPASSRLS` | Allowlist no `dependency-cruiser`; `cf_relay` restrito a uma tabela; logs `platform_db.access`; revisão trimestral de papéis |
+| Uso indevido de `systemPrisma`/papel com `BYPASSRLS` | Allowlist no `dependency-cruiser`; `cf_relay` restrito a uma tabela; `cf_platform` sem `BYPASSRLS`; logs `system_db.call`; revisão trimestral de papéis |
 | Pooling de conexão vazando contexto entre tenants | PgBouncer/RDS Proxy em modo transação; proibido `SET`/`set_config(…, false)` de sessão (lint + teste de reconexão) |
 | Tabela nova sem `tenant_id`/RLS/FK composta | Meta-teste de catálogo (`pg_class`/`pg_constraint`/`pg_policies`) no CI; checklist para novos módulos (multi-tenancy.md §15) |
 | Rota nova sem cobertura na suíte "tenant leak" | Meta-teste compara operações do OpenAPI ao manifesto da suíte; build falha se faltar |
@@ -72,5 +81,5 @@
 ## Referências
 - DEC-011, DEC-012, DEC-080, DEC-081, DEC-082 — [decisions.md](../architecture/decisions.md).
 - [multi-tenancy.md](../architecture/multi-tenancy.md) §1 (estratégia), §2 (hierarquia), §3–5 (barreiras, RLS, FKs compostas, papéis), §5.3 (`SystemDbService`), §6 (tabelas de plataforma), §14 (testes de isolamento).
-- US-099 — RN-TEN-01..18 (provisionamento); US-100 — RN-TEN-19..37 (contexto, RLS, papéis de banco, `SystemDbService`, suíte "tenant leak").
+- US-099 — RN-TEN-01..18 (provisionamento); US-100 — RN-TEN-19..37 (contexto, RLS, papéis de banco, `SystemDbService`, suíte "tenant leak") e [DEC-076](../architecture/decisions.md) (implementação).
 - [ADR-001](adr-001-modular-monolith.md) (módulos autorizados a importar o `SystemDbService`), [ADR-004](adr-004-outbox-events.md) (contexto de tenant propagado em jobs e eventos).

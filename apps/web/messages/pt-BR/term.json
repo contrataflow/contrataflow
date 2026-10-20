@@ -1,0 +1,321 @@
+{
+  "create": {
+    "action": "Criar Termo de Referência",
+    "open": "Abrir {code}",
+    "openNoCode": "Abrir Termo de Referência",
+    "title": "Criar Termo de Referência",
+    "description": "O TR nasce com as seções do modelo escolhido (art. 6º, XXIII, da Lei 14.133/2021), em rascunho e sob sua responsabilidade.",
+    "loading": "Carregando os modelos de TR…",
+    "loadError": "Não foi possível carregar os modelos de TR.",
+    "retry": "Tentar novamente",
+    "fields": {
+      "template": "Modelo",
+      "templateDefault": "{name} (padrão)",
+      "title": "Título"
+    },
+    "submit": "Criar TR",
+    "submitting": "Criando TR…",
+    "cancel": "Cancelar",
+    "openExisting": "Abrir TR existente",
+    "reused": "Esta solicitação já foi enviada com outros dados. Recarregue a página.",
+    "validation": "Revise os campos destacados.",
+    "unavailable": "Não foi possível criar o TR agora. Tente novamente em instantes.",
+    "failed": "Ocorreu um erro inesperado.",
+    "failedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "toast": {
+      "created": "{code} criado.",
+      "createdNoCode": "TR criado."
+    }
+  },
+  "page": {
+    "title": "Termo de Referência"
+  },
+  "editor": {
+    "loading": "Carregando as seções do TR…",
+    "retry": "Tentar novamente",
+    "heading": "Termo de Referência",
+    "sectionsNav": "Seções do TR",
+    "sectionsMenu": "Seções",
+    "completeness": {
+      "label": "Completude do TR",
+      "summary": "{percent}% — {satisfied} de {required} seções exigidas",
+      "progress": "Completude do TR: {percent}%"
+    },
+    "inApproval": "Em aprovação",
+    "state": {
+      "EMPTY": "Vazia",
+      "FILLED": "Preenchida",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "requirement": {
+      "REQUIRED": "Obrigatória",
+      "REQUIRED_OR_JUSTIFY": "Obrigatória ou justificada",
+      "OPTIONAL": "Opcional"
+    },
+    "requiredMark": "Obrigatória",
+    "pending": "Exigida e incompleta",
+    "legalBasis": "Base legal: {basis}",
+    "help": "Orientação para o preenchimento",
+    "maxChars": "Até {max} caracteres.",
+    "textLabel": "Texto da seção {title}",
+    "narrativeLabel": "Texto complementar da seção {title}",
+    "structured": {
+      "ITEMS_TABLE": "Os itens do TR são cadastrados à parte; aqui você descreve a solução e os requisitos.",
+      "ALTERNATIVES_TABLE": "As alternativas avaliadas ficam no ETP."
+    },
+    "previous": "Seção anterior",
+    "next": "Próxima seção",
+    "readOnly": {
+      "title": "Somente leitura",
+      "concluded": "Documento concluído — para alterar, reabra (US-039).",
+      "forbidden": "Você não pode editar este TR agora."
+    },
+    "autosave": {
+      "indicator": {
+        "dirty": "Alterações não salvas",
+        "saving": "Salvando…",
+        "saved": "Salvo às {time}",
+        "savedShort": "Salvo",
+        "error": "Erro ao salvar",
+        "offline": "Erro ao salvar — tentando novamente",
+        "offlineShort": "Erro ao salvar",
+        "conflict": "Conflito de edição — escolha qual versão manter",
+        "blocked": "Edição interrompida"
+      },
+      "conflict": {
+        "title": "Alguém salvou esta seção enquanto você editava",
+        "changedBy": "Alterado por {name} às {time}.",
+        "changedBySelf": "Você, em outra aba, às {time}.",
+        "description": "Escolha qual versão manter. As demais seções continuam salvando normalmente.",
+        "showDiff": "Ver diferenças",
+        "hideDiff": "Ocultar diferenças",
+        "keepMine": "Manter a minha versão",
+        "discardMine": "Descartar a minha e recarregar",
+        "serverColumn": "Versão salva no servidor",
+        "mineColumn": "Minha versão",
+        "inserted": "inserido",
+        "removed": "removido",
+        "empty": "(vazio)",
+        "someone": "outra pessoa"
+      },
+      "recovered": {
+        "title": "Recuperamos alterações não salvas de {time}.",
+        "restore": "Restaurar",
+        "discard": "Descartar"
+      },
+      "blocked": {
+        "notEditable": "O TR está concluído. Reabra-o para editar.",
+        "forbidden": "Você não pode criar ou editar o TR deste processo agora.",
+        "sessionExpired": "Sua sessão expirou. Entre novamente para continuar.",
+        "generic": "Não foi possível continuar salvando este TR.",
+        "kept": "Suas últimas alterações foram guardadas neste navegador."
+      }
+    },
+    "import": {
+      "action": "Importar do ETP",
+      "title": "Importar do ETP",
+      "description": "Revise o que será trazido do Estudo Técnico Preliminar. Desmarque o que não quiser importar; o TR continua editável depois.",
+      "loading": "Gerando a prévia da importação…",
+      "source": "Origem: {code} (rascunho)",
+      "sourceVersion": "Origem: {code}, versão {version}",
+      "summary": "Prévia: {sections, plural, one {# seção} other {# seções}}, {fields, plural, one {# campo} other {# campos}} e {items, plural, one {# item} other {# itens}}.",
+      "createEtp": "Ir para o processo e criar o ETP",
+      "close": "Fechar",
+      "cancel": "Cancelar",
+      "retry": "Tentar novamente",
+      "apply": "Aplicar importação",
+      "applying": "Aplicando importação…",
+      "selected": "Selecionado: {sections, plural, =0 {nenhuma seção} one {# seção} other {# seções}} e {items, plural, =0 {nenhum item} one {# item} other {# itens}}.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "reimport": "Importar novamente",
+      "sections": {
+        "legend": "Seções",
+        "empty": "O ETP não tem conteúdo para as seções mapeadas.",
+        "mode": {
+          "REPLACE": "Substitui o conteúdo atual",
+          "APPEND": "Acrescenta ao final, com referência ao ETP"
+        }
+      },
+      "diff": {
+        "label": "Comparação",
+        "before": "Antes",
+        "after": "Depois",
+        "empty": "(vazia)"
+      },
+      "fields": {
+        "legend": "Dados do TR",
+        "estimatedTotalValue": "Valor estimado",
+        "priceResearchId": "Pesquisa de preços vinculada",
+        "change": "Atual: {current} → ETP: {next}",
+        "masked": "Valor sigiloso",
+        "none": "nenhum",
+        "linked": "pesquisa do ETP"
+      },
+      "items": {
+        "legend": "Itens",
+        "copy": "Copiar {count, plural, one {o item} other {os # itens}} com as quantidades do ETP",
+        "overwrite": "Sobrescrever itens já especificados",
+        "caption": "Itens do ETP e quantidades atuais do TR",
+        "sequence": "Nº",
+        "description": "Descrição",
+        "etpQuantity": "Qtd. no ETP",
+        "trQuantity": "Qtd. no TR",
+        "new": "novo",
+        "specified": "(já especificado)"
+      },
+      "confirmSource": {
+        "title": "Substituir o valor da pesquisa de preços?",
+        "confirm": "Substituir e importar",
+        "cancel": "Manter o valor atual"
+      }
+    }
+  },
+  "general": {
+    "title": "Dados do TR",
+    "object": {
+      "label": "Objeto (resumo)",
+      "hint": "De 10 a 2.000 caracteres. Alterar o objeto do TR não altera o objeto do processo.",
+      "save": "Salvar objeto",
+      "saving": "Salvando…",
+      "saved": "Objeto salvo."
+    },
+    "value": {
+      "title": "Valor estimado",
+      "notInformed": "Não informado",
+      "masked": "Orçamento sigiloso: o valor estimado não é exibido para você.",
+      "source": "Origem do valor",
+      "sourceLabel": {
+        "PRICE_RESEARCH": "Pesquisa de preços",
+        "PRICE_RESEARCH_CODE": "Pesquisa de preços {code}",
+        "ETP": "Importado do ETP",
+        "MANUAL": "Informado manualmente",
+        "NONE": "Sem origem definida"
+      },
+      "openResearch": "Abrir a pesquisa de preços",
+      "manual": "Informar manualmente",
+      "manualLabel": "Valor estimado (R$)",
+      "manualHint": "A justificativa e a memória de cálculo do valor vão na seção \"Estimativa do valor da contratação\".",
+      "confirm": "Confirmar valor",
+      "cancel": "Cancelar",
+      "useResearch": "Usar o valor da pesquisa",
+      "useResearchWithValue": "Usar o valor da pesquisa ({value})",
+      "saving": "Salvando…",
+      "saved": "Valor estimado atualizado."
+    },
+    "errors": {
+      "versionConflict": "Os dados do TR foram alterados por outra pessoa. Recarregamos o painel; confira e salve de novo.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "unexpectedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}."
+    },
+    "readOnlyHint": "Os dados do TR estão em modo leitura."
+  },
+  "items": {
+    "title": "Itens",
+    "show": "Abrir o painel de itens",
+    "loading": "Carregando os itens…",
+    "loadError": "Não foi possível carregar os itens.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum item cadastrado no processo — adicione em Itens do processo.",
+    "openProcessItems": "Itens do processo",
+    "caption": "Itens do processo e inclusão no TR",
+    "hint": "Marque os itens que entram no TR, informe a quantidade e especifique cada um. Use os botões ou arraste a linha para mudar a ordem.",
+    "include": "Incluir no TR",
+    "item": "{sequence} — {description}",
+    "unit": "Unidade: {unit}",
+    "quantity": "Quantidade",
+    "specification": "Especificação",
+    "acceptanceCriteria": "Critérios de aceitação",
+    "notes": "Observações do item",
+    "moveUp": "Mover o item {sequence} para cima",
+    "moveDown": "Mover o item {sequence} para baixo",
+    "save": "Salvar itens",
+    "saving": "Salvando…",
+    "saved": "Salvo às {time}",
+    "dirty": "Alterações não salvas",
+    "readOnly": "Os itens do TR estão em modo leitura.",
+    "includedCount": "{count, plural, =0 {Nenhum item no TR} one {# item no TR} other {# itens no TR}}",
+    "errors": {
+      "conflict": "O TR foi alterado por outra pessoa. Recarregue para continuar.",
+      "reload": "Recarregar os itens",
+      "notEditable": "O TR não pode ser editado no status atual.",
+      "stage": "O TR não pode ser editado nesta etapa.",
+      "permission": "Você não tem permissão para editar este TR.",
+      "richText": "Conteúdo não suportado no editor.",
+      "invalid": "Revise os itens destacados.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "unexpectedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}."
+    }
+  },
+  "conditions": {
+    "title": "Condições contratuais",
+    "show": "Abrir o painel de condições contratuais",
+    "hint": "Vigência, prazos, pagamento e garantias seguem os limites da Lei 14.133/2021.",
+    "duration": "Vigência do contrato (meses)",
+    "durationHint": "De 1 a 120 meses.",
+    "deadline": "Prazo de execução/entrega",
+    "deadlineType": "Tipo de contagem do prazo",
+    "dayCount": {
+      "BUSINESS": "Dias úteis",
+      "CALENDAR": "Dias corridos"
+    },
+    "deliveryLocation": "Local de entrega",
+    "paymentTerm": "Prazo de pagamento (dias)",
+    "paymentTermHint": "De 1 a 90 dias.",
+    "warranty": "Garantia do objeto (meses)",
+    "warrantyHint": "De 0 a 120 meses.",
+    "guarantee": "Garantia contratual (%)",
+    "guaranteeHint": "De 0 a 10% do valor do contrato (arts. 96–98).",
+    "subcontracting": "Permite subcontratação",
+    "criterion": "Critério de julgamento",
+    "criterionLoading": "Carregando as opções…",
+    "criterionNone": "Selecione",
+    "criterionInactive": "Critério atual (inativo)",
+    "awardType": "Tipo de adjudicação",
+    "award": {
+      "NONE": "Selecione",
+      "BY_ITEM": "Por item",
+      "BY_LOT": "Por lote",
+      "GLOBAL": "Global"
+    },
+    "save": "Salvar condições",
+    "saving": "Salvando…",
+    "saved": "Salvo às {time}",
+    "nothingToSave": "Nenhuma alteração para salvar.",
+    "dirty": "Alterações não salvas",
+    "readOnly": "As condições contratuais estão em modo leitura.",
+    "errors": {
+      "invalid": "Revise os campos destacados.",
+      "conflict": "O TR foi alterado por outra pessoa. Recarregue para continuar.",
+      "reload": "Ver versão atual",
+      "notEditable": "O TR não pode ser editado no status atual.",
+      "stage": "O TR não pode ser editado nesta etapa.",
+      "permission": "Você não tem permissão para editar este TR.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "unexpectedWithCode": "Ocorreu um erro inesperado. Código: {correlationId}."
+    },
+    "criterionUnavailable": "Não foi possível carregar as opções.",
+    "criterionRetry": "Tentar novamente"
+  },
+  "completion": {
+    "title": "Completude do TR",
+    "loading": "Verificando as pendências do TR…",
+    "loadFailed": "Não foi possível verificar as pendências do TR.",
+    "retry": "Tentar novamente",
+    "none": "Nenhuma pendência: o TR está pronto para ser concluído.",
+    "onlyWarnings": "Nenhuma pendência bloqueante. Reconheça os avisos ao concluir o TR.",
+    "blocking": "{count, plural, one {# pendência impede a conclusão} other {# pendências impedem a conclusão}}",
+    "blockingTitle": "Pendências bloqueantes",
+    "warningsTitle": "{count, plural, one {Aviso de consistência} other {Avisos de consistência}}",
+    "warningsHint": "Os avisos não impedem a conclusão, mas precisam ser reconhecidos em \"Concluir TR\".",
+    "toggle": "Mostrar ou ocultar as pendências",
+    "panel": {
+      "items": "em Itens",
+      "conditions": "em Condições contratuais",
+      "general": "em Dados do TR"
+    },
+    "finalized": "TR concluído. A edição está bloqueada até a reabertura.",
+    "inReview": "TR enviado para aprovação. A edição está bloqueada durante a análise."
+  }
+}

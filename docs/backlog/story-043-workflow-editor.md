@@ -99,7 +99,7 @@ Permitir que um administrador crie um workflow com etapas e transições válida
 | # | Validação | Camada | Mensagem ao usuário | Código de erro |
 |---|---|---|---|---|
 | V-01 | Campos obrigatórios ausentes | Front + API (Zod) | "Informe o {campo}." | `VALIDATION_ERROR` |
-| V-02 | `key` fora do padrão ou duplicada na versão | API | "Esta chave já está em uso nesta versão." | `VALIDATION_ERROR` (`DUPLICATE_IN_LIST`) |
+| V-02 | `key` fora do padrão ou duplicada na versão | API | "Esta chave já está em uso nesta versão." | `VALIDATION_ERROR` (padrão) / `CONFLICT` (duplicada) |
 | V-03 | Etapa `APPROVAL` sem `approverType` | Front + API | "Selecione quem aprova esta etapa." | `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`) |
 | V-04 | `departmentResolution = FIXED` sem unidade | Front + API | "Selecione a unidade responsável." | `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`) |
 | V-05 | Transição com origem igual ao destino | Front + API | "A etapa de origem deve ser diferente da etapa de destino." | `VALIDATION_ERROR` |
@@ -194,10 +194,10 @@ Feature: Editor de workflow (etapas e transições)
 | Situação | HTTP | Código | Mensagem (pt-BR) | Comportamento da UI |
 |---|---|---|---|---|
 | Campos obrigatórios ausentes | 422 | `VALIDATION_ERROR` | "Revise os campos destacados." | Marca campos |
-| Chave duplicada na versão | 422 | `VALIDATION_ERROR` (`DUPLICATE_IN_LIST`) | "Esta chave já está em uso nesta versão." | Foca campo `key` |
+| Chave duplicada na versão | 409 | `CONFLICT` (`conflictField = key` — api/10-workflow.md, decisão da US-040) | "Esta chave já está em uso nesta versão." | Foca campo `key` |
 | Versão não é rascunho | 409 | `WORKFLOW_VERSION_NOT_DRAFT` | "Esta versão não pode mais ser editada." | Oferece "Criar rascunho" |
 | Rascunho já existe | 409 | `WORKFLOW_DRAFT_EXISTS` | "Já existe um rascunho deste workflow." | Link para o rascunho |
-| Exclusão bloqueada por referência | 409 | `BUSINESS_RULE_VIOLATION` | "Remova primeiro as transições que usam esta etapa." | Lista as transições |
+| Exclusão bloqueada por referência | 422 | `BUSINESS_RULE_VIOLATION` (uma `violation` por transição/regra — api.md §2.2) | "Remova primeiro as transições que usam esta etapa." | Lista as transições |
 | `If-Match` ausente | 428 | `PRECONDITION_REQUIRED` | "Recarregue a página e tente novamente." | Recarrega recurso |
 | `If-Match` divergente | 412 | `VERSION_CONFLICT` | "Os dados foram alterados por outra pessoa. Recarregue." | Recarrega recurso |
 | Sem permissão | 403 | `PERMISSION_DENIED` | "Você não tem permissão para editar workflows." | Ações ocultas |

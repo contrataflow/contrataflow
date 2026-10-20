@@ -1,15 +1,20 @@
 import 'server-only';
 
+import { isPollingRequest } from '@/lib/session/polling';
+
 import { clientIpFrom } from './client-ip';
-import { clearCookie, readCookie } from './cookies';
+import { readCookie } from './cookies';
 import { CORRELATION_HEADER, resolveCorrelationId } from './correlation';
 import { checkCsrf, isMutatingMethod } from './csrf';
 import { problemResponse } from './http';
 import { log } from './logger';
+import { recordProxyRequest } from './metrics';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import { applyApiSecurityHeaders } from './security-headers';
-import type { SessionRecord } from './session/types';
+import { SessionStoreUnavailableError } from './session/types';
+import type { ClientDetails, SessionRecord } from './session/types';
+import { inactiveSessionResponse } from './session-responses';
 import {
   MAX_BODY_BYTES,
   buildUpstreamHeaders,
@@ -20,9 +25,11 @@ import {
 
 /*
  * Proxy autenticado `/api/v1/[...path]` (architecture.md §8.4 · RN-FND-89): único caminho do
- * browser até a API. Ordem: correlação → caminho → CSRF → corpo ≤ 2 MB → sessão → token →
- * chamada (timeout 30 s) → 401 da API: uma renovação forçada e nova tentativa; falhou de novo,
- * a sessão é destruída e o browser recebe 401 `SESSION_EXPIRED`.
+ * browser até a API. Ordem: correlação → caminho → CSRF → corpo ≤ 2 MB → sessão (vencida →
+ * encerrada com o motivo) → token (renovação com trava se vence em ≤ 60 s) → ociosidade renovada,
+ * exceto em sondagem → chamada (timeout 30 s) → 401 da API: uma renovação forçada e nova
+ * tentativa; falhou de novo, a sessão é encerrada (`REFRESH_FAILED`) e o browser recebe 401
+ * `SESSION_EXPIRED`.
  */
 
 const SAFE_SEGMENT = /^[A-Za-z0-9._~:@!$&'()*+,;=-]+$/;
@@ -67,6 +74,33 @@ export async function readLimitedBody(request: Request, limit = MAX_BODY_BYTES):
   return { kind: 'ok', body: body.buffer };
 }
 
+/**
+ * `PATCH /me` aplicado (US-098 · RN-IAM-110): o nome exibido da sessão passa a ser o nome social,
+ * se houver, ou o civil — o menu do usuário reflete a mudança na próxima renderização do shell.
+ * Falha aqui nunca derruba a resposta já aplicada pela API.
+ */
+async function syncDisplayName(
+  runtime: BffRuntime,
+  record: SessionRecord,
+  response: Response,
+): Promise<void> {
+  try {
+    const body = (await response.json()) as {
+      data?: { name?: unknown; socialName?: unknown };
+    };
+    const social = typeof body.data?.socialName === 'string' ? body.data.socialName.trim() : '';
+    const name = typeof body.data?.name === 'string' ? body.data.name : '';
+    const displayName = social === '' ? name : social;
+    if (displayName !== '' && displayName !== record.displayName) {
+      await runtime.sessions.setDisplayName(record, displayName);
+    }
+  } catch (error) {
+    log('warn', 'bff.display_name_sync_failed', {
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+}
+
 export async function handleProxyRequest(
   request: Request,
   segments: readonly string[],
@@ -78,7 +112,7 @@ export async function handleProxyRequest(
   const instance = url.pathname;
   const context = { correlationId, instance };
   const { config, sessions } = runtime;
-  const expireCookie = { 'Set-Cookie': clearCookie(config.sessionCookieName) };
+  const cookieName = config.sessionCookieName;
 
   const path = proxyPath(segments);
   if (!path) return problemResponse('NOT_FOUND', context);
@@ -97,21 +131,25 @@ export async function handleProxyRequest(
     const body = await readLimitedBody(request);
     if (body.kind === 'too_large') return problemResponse('PAYLOAD_TOO_LARGE', context);
 
-    const lookup = await sessions.lookup(readCookie(request.headers, config.sessionCookieName));
-    if (lookup.status === 'none') return problemResponse('UNAUTHENTICATED', context);
-    if (lookup.status === 'expired') {
-      return problemResponse('SESSION_EXPIRED', { ...context, headers: expireCookie });
-    }
+    const clientIp = clientIpFrom(request.headers.get('X-Forwarded-For'), config.trustedProxies);
+    const client: ClientDetails = {
+      ip: clientIp,
+      userAgent: request.headers.get('user-agent')?.slice(0, 512) ?? null,
+    };
+    const lookup = await sessions.lookup(readCookie(request.headers, cookieName), client);
+    if (lookup.status !== 'active') return inactiveSessionResponse(lookup, context, cookieName);
 
-    const fresh = await sessions.ensureFreshToken(lookup.record);
-    if (fresh.status === 'expired') {
+    const fresh = await sessions.ensureFreshToken(lookup.record, { client });
+    if (fresh.status === 'expired' || fresh.status === 'ended') {
       log('warn', 'bff.session_refresh_failed', { correlationId });
-      return problemResponse('SESSION_EXPIRED', { ...context, headers: expireCookie });
+      return inactiveSessionResponse(fresh, context, cookieName);
     }
     if (fresh.status === 'unavailable') return problemResponse('DEPENDENCY_UNAVAILABLE', context);
 
-    let record: SessionRecord = await sessions.touch(fresh.record);
-    const clientIp = clientIpFrom(request.headers.get('X-Forwarded-For'), config.trustedProxies);
+    // Sondagens (contadores) não renovam a ociosidade; ação do usuário renova (RN-IAM-21).
+    let record: SessionRecord = isPollingRequest(request.method, path)
+      ? fresh.record
+      : await sessions.touch(fresh.record);
     const send = (session: SessionRecord) =>
       callUpstream(runtime, {
         method: request.method,
@@ -122,34 +160,45 @@ export async function handleProxyRequest(
           tenantId: session.activeTenantId,
           correlationId,
           clientIp,
+          userAgent: request.headers.get('user-agent'),
+          sessionIdHash: session.key,
         }),
         body: body.body,
         signal: request.signal,
       });
 
+    let upstreamStarted = runtime.now();
     let outcome = await send(record);
     if (outcome.kind === 'response' && outcome.response.status === 401) {
       // Token recusado pela API: uma renovação forçada e uma nova tentativa (corpo já em memória).
       await outcome.response.body?.cancel();
-      const retry = await sessions.ensureFreshToken(record, { force: true });
-      if (retry.status !== 'ok') {
-        if (retry.status === 'expired') {
-          log('warn', 'bff.session_refresh_failed', { correlationId });
-          return problemResponse('SESSION_EXPIRED', { ...context, headers: expireCookie });
-        }
+      const retry = await sessions.ensureFreshToken(record, { force: true, client });
+      if (retry.status === 'expired' || retry.status === 'ended') {
+        log('warn', 'bff.session_refresh_failed', { correlationId });
+        return inactiveSessionResponse(retry, context, cookieName);
+      }
+      if (retry.status === 'unavailable') {
         return problemResponse('DEPENDENCY_UNAVAILABLE', context);
       }
       record = retry.record;
+      upstreamStarted = runtime.now();
       outcome = await send(record);
       if (outcome.kind === 'response' && outcome.response.status === 401) {
+        // Token recém-renovado também recusado: a sessão não tem como continuar.
         await outcome.response.body?.cancel();
-        await sessions.destroy(record.key);
+        await sessions.end(record, 'REFRESH_FAILED', { client });
         log('warn', 'bff.session_refresh_failed', { correlationId, afterRetry: true });
-        return problemResponse('SESSION_EXPIRED', { ...context, headers: expireCookie });
+        return inactiveSessionResponse({ status: 'expired' }, context, cookieName);
       }
     }
 
     if (outcome.kind !== 'response') {
+      recordProxyRequest({
+        method: request.method,
+        path,
+        status: 503,
+        durationSeconds: (runtime.now() - started) / 1_000,
+      });
       log('info', 'bff.proxy_request_completed', {
         route: routeTemplate(path),
         method: request.method,
@@ -165,6 +214,13 @@ export async function handleProxyRequest(
     const headers = filterOutboundHeaders(response.headers, config.apiInternalUrl);
     if (!headers.has(CORRELATION_HEADER)) headers.set(CORRELATION_HEADER, correlationId);
     applyApiSecurityHeaders(headers, config.cspReportUri);
+    recordProxyRequest({
+      method: request.method,
+      path,
+      status: response.status,
+      durationSeconds: (runtime.now() - started) / 1_000,
+      upstreamSeconds: (runtime.now() - upstreamStarted) / 1_000,
+    });
     log('info', 'bff.proxy_request_completed', {
       route: routeTemplate(path),
       method: request.method,
@@ -173,9 +229,20 @@ export async function handleProxyRequest(
       correlationId,
       mutating: isMutatingMethod(request.method),
     });
+    if (request.method === 'PATCH' && path === '/me' && response.status === 200) {
+      await syncDisplayName(runtime, record, response.clone());
+    }
     // Corpo repassado em *streaming* (exportações CSV), sem leitura no BFF.
     return new Response(response.body, { status: response.status, headers });
   } catch (error) {
+    if (error instanceof SessionStoreUnavailableError) {
+      // Redis de sessões fora: indisponibilidade, nunca "sessão expirada" (DEC-131 · RN-IAM-33).
+      log('error', 'auth.session_store_unavailable', { route: routeTemplate(path), correlationId });
+      return problemResponse('DEPENDENCY_UNAVAILABLE', {
+        ...context,
+        headers: { 'Retry-After': '5' },
+      });
+    }
     log('error', 'bff.unhandled_exception', {
       route: routeTemplate(path),
       errorName: error instanceof Error ? error.name : 'unknown',

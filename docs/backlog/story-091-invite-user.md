@@ -194,6 +194,14 @@ Feature: Convidar usuário e ativar vínculo
 - **Casos de uso:** `InviteUserCommand` → `InviteUserHandler` (`USR-03`); `ResendInvitationCommand` (`USR-04`); `CancelInvitationCommand` (`USR-05`); `AcceptInvitationCommand` → `AcceptInvitationHandler` (`USR-06`).
 - **Integrações internas:** `AuthentikAdminClient.createUser`; `DepartmentFacade.assertActive` (US-102); `AuthorizationService` para o perfil inicial (US-097).
 - **Transação:** criação de `User` (se novo) + `TenantMembership` + `MembershipDepartment` + auditoria + outbox em uma transação; chamada ao Authentik antes do commit, com compensação se a transação falhar depois.
+- **Implementação (2026-10-15):**
+  - Autorização (`USER_INVITE`/`USER_VIEW` + MFA), perfil inicial e unidades da lotação pela porta `MembershipReferences` do shared kernel, implementada por `access` e `organization` (decisions.md, DEC-041) — `identity` não importa os dois.
+  - O token NÃO nasce na API: a transação deixa `inviteTokenHash` nulo e grava `UserInvited`; o worker (`InvitationEmailEnqueuer` → fila `email` → `InvitationEmailSource`) gera o token no envio e grava só o hash (queues.md §4.3). Assim o token em claro só existe no e-mail e o e-mail só sai com o convite comitado.
+  - Reenvio zera o hash e renova a validade na mesma transação (link anterior inválido no commit); limite de RN-IAM-53 pela coluna nova `inviteResendCount` e por `invitedAt`.
+  - Cancelamento = revogação lógica (`REVOKED`, sem token; auditoria `membership.revoke` com `INVITATION_CANCELLED`) — a aplicação não exclui vínculos; novo convite reaproveita o registro `REVOKED`/`EXPIRED`.
+  - Aceite (`CROSS_TENANT_LOOKUP`): convite pelo hash em `cf_find_invitation` (`SystemDbService`), ativação condicional (hash + validade) no tenant do convite; perdedor da corrida com reenvio/outro aceite → `INVITATION_INVALID`/`INVITATION_EXPIRED`.
+  - Convite do primeiro administrador (US-099): `FirstAdminSeeder.dispatch` usa o mesmo envio (validade, `membership.invite`, `UserInvited`).
+  - USR-14 `POST /invitations/preview` (nova) para o SCR-102 mostrar instituição, cargo e lotação; USR-01 com a base da lista de convites pendentes.
 
 ## Frontend
 - **Tela(s):** SCR-029 (`/admin/usuarios`, formulário "Convidar usuário"); SCR-102 (`/convite/[token]`, aceite).
@@ -203,7 +211,7 @@ Feature: Convidar usuário e ativar vínculo
 
 ## Banco de dados
 - **Tabelas escritas:** `users`, `tenant_memberships`, `membership_departments`, `role_assignments` (se perfil informado), `audit_logs`, `outbox_events`.
-- **Migrações:** nenhuma (tabelas já definidas em US-087/US-097).
+- **Migrações:** `20261015330000_invitations_role_assignments` — `tenant_memberships.invite_resend_count` (RN-IAM-53), índice único parcial de `invite_token_hash` e a tabela `role_assignments` (RLS, FKs compostas, checks de escopo/vigência, única vigente por escopo), que não existia (a gestão é da US-096; a leitura das permissões efetivas, da US-097).
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, user_id)` em `tenant_memberships`; `(tenant_id, expires_at) WHERE type = 'EXTERNAL'`; checks de RN-IAM-52.
 
 ## API
@@ -212,7 +220,8 @@ Feature: Convidar usuário e ativar vínculo
 | USR-03 | POST | `/users/invitations` | `{ email, name, type, jobTitle?, expiresAt?, departmentIds?, roleId? }` + `Idempotency-Key` | `201 { data: TenantMembership }` | 201, 403, 409, 422, 503 |
 | USR-04 | POST | `/users/invitations/{userId}/resend` | — | `200 { data: { inviteExpiresAt } }` | 200, 403, 404, 429 |
 | USR-05 | DELETE | `/users/invitations/{userId}` | — | `204` | 204, 403, 404, 409 |
-| USR-06 | POST | `/invitations/accept` | `{ token }` | `200 { data: TenantMembership }` | 200, 404, 410, 422 |
+| USR-06 | POST | `/invitations/accept` | `{ token }` | `200 { data: TenantMembership & { tenant } }` | 200, 403, 404, 410, 422 |
+| USR-14 | POST | `/invitations/preview` | `{ token }` | `200 { data: InvitationPreview }` | 200, 403, 404, 410, 422 |
 
 ## Logs
 - `info` `identity.invitation_sent` — `membershipId`, `durationMs`, `correlationId` (e-mail mascarado `b***@pmsj.gov.br`, DEC-138).

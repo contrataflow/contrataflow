@@ -8,7 +8,8 @@
 x-app-env: &app-env
   APP_ENV: local
   APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
-  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/contrataflow
+  # Papéis sem BYPASSRLS criados pela migração (US-081); senha local definida por `pnpm db:migrate`.
+  DATABASE_URL: postgresql://cf_app:${POSTGRES_PASSWORD}@postgres:5432/contrataflow
   REDIS_SESSION_URL: redis://redis-session:6379
   REDIS_URL: redis://redis-cache:6379
   REDIS_CACHE_URL: redis://redis-cache:6379
@@ -27,6 +28,7 @@ x-app-env: &app-env
   CLAMAV_PORT: '3310'
   EMAIL_TRANSPORT: smtp
   SMTP_URL: smtp://mailpit:1025
+  EMAIL_FROM: 'ContrataFlow (dev) <nao-responda@contrataflow.test>'
 
 x-app: &app
   build:
@@ -74,6 +76,7 @@ services:
     command: ['node', '--enable-source-maps', 'dist/main.js']
     environment:
       <<: *app-env
+      DATABASE_URL: postgresql://cf_worker:${POSTGRES_PASSWORD}@postgres:5432/contrataflow
 
   web:
     <<: *app

@@ -1,10 +1,140 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
+import { APP_CONFIG } from '#config/config.module.js';
+import type { AppConfig } from '#config/env.js';
+import { ApprovalSubjectModule } from '#shared/approval/approval-subject.js';
+import { ProcessAccessModule } from '#shared/auth/process-access.js';
+import {
+  DocumentApprovalModule,
+  DocumentApprovalRegistry,
+} from '#shared/document/document-approval.js';
+
+import { ApprovalCancellationService } from './application/approval-cancellation.service.js';
+import { ApprovalDecisionPolicy } from './application/approval-decision.policy.js';
+import { ApprovalRequestService } from './application/approval-request.service.js';
+import { ApprovalWithdrawalService } from './application/approval-withdrawal.service.js';
 import { ApprovalFacade } from './application/approval.facade.js';
+import { ApprovalPresenter } from './application/approval.presenter.js';
+import { ApproverResolver } from './application/approver-resolver.js';
+import { DecideApprovalCommand } from './application/decide-approval.command.js';
+import { GetApprovalQuery } from './application/get-approval.query.js';
+import { ApprovalListPresenter, ListApprovalsHandler } from './application/list-approvals.query.js';
+import {
+  APPROVAL_CLOCK,
+  APPROVAL_LIST_READER,
+  APPROVAL_REPOSITORY,
+  APPROVAL_TRANSACTIONS,
+} from './application/ports.js';
+import { ReassignApprovalCommand } from './application/reassign-approval.command.js';
+import { WithdrawApprovalCommand } from './application/withdraw-approval.command.js';
+import {
+  InMemoryApprovalListReader,
+  PrismaApprovalListReader,
+} from './infrastructure/approval-list.readers.js';
+import {
+  InMemoryApprovalRepository,
+  InMemoryApprovalTransactions,
+  PrismaApprovalRepository,
+  PrismaApprovalTransactions,
+} from './infrastructure/approval.repositories.js';
+import { ApprovalController } from './presentation/approval.controller.js';
+import { AccessModule } from '../access/access.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
+import { IdentityModule } from '../identity/identity.module.js';
+import { OrganizationModule } from '../organization/organization.module.js';
+import { TenancyModule } from '../tenancy/tenancy.module.js';
 
-/** Módulo `approval` (DEC-040): outros módulos usam somente a fachada exportada. */
+/** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): aprovações em memória. */
+const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
+
+/**
+ * Módulo `approval` (DEC-040): outros módulos usam somente a fachada exportada. US-051: a
+ * solicitação de aprovação (`ApprovalRequestService`) e a resolução do aprovador
+ * (`ApproverResolver`) — a de etapa pela fachada (encaminhamento, US-047) e a avulsa da submissão
+ * de documento pela porta `DocumentApprovalRegistry` do shared kernel (`document` está no mesmo
+ * nível — US-065). US-052: a decisão (APV-02/APV-03 — `DecideApprovalCommand`, coordenador da
+ * transação) com POL-03, delegando os efeitos ao dono do sujeito pela porta
+ * `ApprovalSubjectRegistry` (`process` para `PROCESS_STAGE`, `document` para `DOCUMENT`). US-057:
+ * a lista (APV-01 — `ListApprovalsHandler`) sobre `approvals` e a view `v_inbox_processes`.
+ * US-053: retirar (APV-04 — `WithdrawApprovalCommand`; DOC-11 pela mesma porta do documento,
+ * `ApprovalWithdrawalService`) e redirecionar (APV-05 — `ReassignApprovalCommand`).
+ */
 @Module({
-  providers: [ApprovalFacade],
+  imports: [
+    DocumentApprovalModule,
+    ApprovalSubjectModule,
+    ProcessAccessModule,
+    AccessModule,
+    CatalogModule,
+    IdentityModule,
+    OrganizationModule,
+    TenancyModule,
+  ],
+  controllers: [ApprovalController],
+  providers: [
+    ApprovalFacade,
+    ApproverResolver,
+    ApprovalRequestService,
+    ApprovalCancellationService,
+    ApprovalDecisionPolicy,
+    ApprovalPresenter,
+    DecideApprovalCommand,
+    ApprovalWithdrawalService,
+    WithdrawApprovalCommand,
+    ReassignApprovalCommand,
+    GetApprovalQuery,
+    ListApprovalsHandler,
+    ApprovalListPresenter,
+    PrismaApprovalListReader,
+    {
+      provide: APPROVAL_LIST_READER,
+      inject: [APP_CONFIG, PrismaApprovalListReader],
+      useFactory: (config: AppConfig, prisma: PrismaApprovalListReader) =>
+        inMemory(config) ? new InMemoryApprovalListReader() : prisma,
+    },
+    PrismaApprovalRepository,
+    InMemoryApprovalRepository,
+    {
+      provide: APPROVAL_REPOSITORY,
+      inject: [APP_CONFIG, PrismaApprovalRepository, InMemoryApprovalRepository],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaApprovalRepository,
+        memory: InMemoryApprovalRepository,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    PrismaApprovalTransactions,
+    InMemoryApprovalTransactions,
+    {
+      provide: APPROVAL_TRANSACTIONS,
+      inject: [APP_CONFIG, PrismaApprovalTransactions, InMemoryApprovalTransactions],
+      useFactory: (
+        config: AppConfig,
+        prisma: PrismaApprovalTransactions,
+        memory: InMemoryApprovalTransactions,
+      ) => (inMemory(config) ? memory : prisma),
+    },
+    { provide: APPROVAL_CLOCK, useValue: () => new Date() },
+  ],
   exports: [ApprovalFacade],
 })
-export class ApprovalModule {}
+export class ApprovalModule implements OnModuleInit {
+  constructor(
+    private readonly registry: DocumentApprovalRegistry,
+    private readonly requester: ApprovalRequestService,
+    private readonly withdrawals: ApprovalWithdrawalService,
+  ) {}
+
+  onModuleInit(): void {
+    const { requester, withdrawals } = this;
+    this.registry.register({
+      requestForDocumentSubmission: (tx, request) =>
+        requester.requestForDocumentSubmission(tx, request),
+      coversDocumentVersion: (tx, approvalId, documentId, documentVersionId) =>
+        requester.coversDocumentVersion(tx, approvalId, documentId, documentVersionId),
+      // US-053 (DOC-11): a retirada do documento é a mesma do APV-04.
+      withdrawForDocument: (tx, request) => withdrawals.withdrawForDocument(tx, request),
+    });
+  }
+}

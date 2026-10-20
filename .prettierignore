@@ -16,5 +16,8 @@ pnpm-lock.yaml
 # Templates Handlebars dos geradores (formatados após a geração)
 tools/turbo/generators/templates/
 
+# Templates Django do Authentik (e-mails): a sintaxe {% %} não é HTML para o Prettier
+infra/authentik/templates/
+
 # Contrato OpenAPI gerado por `pnpm turbo run openapi:generate` (RN-FND-38) — bytes do gerador
 apps/api/openapi/

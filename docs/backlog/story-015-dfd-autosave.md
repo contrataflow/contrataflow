@@ -186,7 +186,7 @@ Feature: Autosave, retomada e conflito na edição do DFD
   Scenario: [Tenant incorreto] Seção de documento de outro tenant
     Given que existe um documento no tenant "Prefeitura de Santa Luzia"
     When "Cláudia" enviar PUT para uma seção desse documento
-    Then a API deve responder 404 com código "DOCUMENT_NOT_FOUND"
+    Then a API deve responder 404 com código "NOT_FOUND"
     And nenhum dado de nenhum tenant deve ser alterado
 
   Scenario: [Duplicidade] Reenvio idêntico após tempo esgotado

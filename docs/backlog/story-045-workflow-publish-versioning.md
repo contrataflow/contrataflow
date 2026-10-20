@@ -63,7 +63,7 @@ Permitir publicar uma versão de workflow validada em menos de 1 minuto, com 100
 - **RN-WF-63** — `changeNotes` é obrigatório para publicar a partir da segunda versão (`versionNumber ≥ 2`); opcional na primeira.
 - **RN-WF-64** — Ao publicar: grava `definitionSnapshot` (JSON canonicalizado RFC 8785/JCS de etapas, transições e regras) e `definitionHash` (SHA-256, DEC-084); define `status = PUBLISHED`, `publishedAt`, `publishedById`; atualiza `Workflow.currentPublishedVersionId` para esta versão.
 - **RN-WF-65** — Após publicada, a versão é imutável: o trigger de banco (entities.md §4, "Imutabilidade") bloqueia qualquer alteração em `workflow_stages`, `workflow_transitions` e `workflow_rules` dessa versão.
-- **RN-WF-66** — Aposentar (`WF-22`) só se aplica a versão `PUBLISHED`; é bloqueado com `WORKFLOW_IN_USE` quando a versão for a `currentPublishedVersionId` do seu `Workflow` e este estiver `isActive = true` sem outra versão `PUBLISHED` para assumir o papel de corrente.
+- **RN-WF-66** — Aposentar (`WF-22`) só se aplica a versão `PUBLISHED`; é bloqueado com `WORKFLOW_IN_USE` quando a versão for a `currentPublishedVersionId` do seu `Workflow` e este estiver `isActive = true` (ou for o padrão — RN-WF-41) sem outra versão `PUBLISHED` para assumir o papel de corrente. Havendo outra `PUBLISHED`, a de maior número assume; fora de uso (inativo e não padrão — FA-04), o workflow fica sem publicada (`currentPublishedVersionId = null`). Como a publicação supersede a anterior (RN-WF-20 · US-040), na prática a corrente é a única `PUBLISHED`.
 - **RN-WF-67** — Processos que já fixaram `workflowVersionId` (DEC-014) continuam nessa versão independentemente de publicações ou aposentadorias de outras versões do mesmo workflow.
 - **RN-WF-68** — Um workflow tem no máximo uma `WorkflowVersion` em `DRAFT` por vez (RN-WF-46); criar uma nova versão (`WF-08`) exige que exista uma versão `PUBLISHED` para copiar (RN-WF-47).
 - **RN-WF-69** — O histórico (`WF-07`) é ordenado por `versionNumber` decrescente e traz `status`, `publishedAt`, `retiredAt` e `changeNotes` de cada versão.
@@ -178,6 +178,7 @@ Feature: Publicar, versionar e aposentar workflow
 - **Decisões/ADRs:** DEC-014, DEC-016, DEC-084, DEC-104, DEC-105; ADR-005.
 - **Configurações:** `security.mfaPolicy`.
 - **Lacunas nas fontes canônicas:** nenhuma.
+- **Decisões da implementação (2026-10-16):** `If-Match` é conferido antes do status (a segunda publicação simultânea recebe 412, não 409); `WF-20` devolve também `valid`; `WF-07` traz `publishedByName`/`retiredByName` para a coluna "por"; "Publicar" no SCR-034 só habilita depois de uma validação sem `errors[]`.
 
 ## Impacto técnico
 - `WF-20` e `WF-21` devem compartilhar o mesmo validador de grafo para que "Publicar" nunca aceite algo que "Validar" não sinalizou (mesma função pura, chamada duas vezes: uma de leitura, outra dentro da transação de publicação).

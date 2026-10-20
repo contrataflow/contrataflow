@@ -80,7 +80,7 @@ Garantir que 100% das decisões sobre o DFD produzam, na mesma transação, o es
 |---|---|---|---|---|
 | V-01 | Aprovação não está `PENDING` ou não cobre o DFD | API | — (erro interno de integração, não acionável pelo usuário) | `APPROVAL_NOT_PENDING` |
 | V-02 | Reabertura sem `DOCUMENT_REOPEN`/custódia | Front + API | "Você não pode reabrir este DFD." | `PERMISSION_DENIED` |
-| V-03 | Reabertura com aprovação `PENDING` ainda em curso | API | "Este DFD está em aprovação e não pode ser reaberto." | `APPROVAL_NOT_PENDING` |
+| V-03 | Reabertura com aprovação `PENDING` ainda em curso | Front + API | "Reabrir DFD" não é oferecido; a API recusa pela regra genérica do DOC-12 (sem custódia → 403 `NOT_PROCESS_CUSTODIAN`; com custódia → 409 `INVALID_PROCESS_STATUS`/`INVALID_STATE`) | — |
 | V-04 | Valor propagado exibido a usuário sem POL-09 | API | — (mascarado, sem erro) | — |
 
 ## Permissões
@@ -161,7 +161,7 @@ Feature: Tratar decisão sobre o DFD e propagar dados ao processo
   Scenario: [Concorrência] Edição do DFD durante o processamento da decisão
     Given que a decisão "APPROVE" está sendo processada
     When a requisitante tentar salvar uma seção do DFD no mesmo instante
-    Then a gravação deve falhar com "DOCUMENT_NOT_EDITABLE"
+    Then a gravação deve falhar com "INVALID_PROCESS_STATUS"
     And a decisão deve ser concluída sem interferência da tentativa de edição
 
   Scenario: [Falha de banco] Falha no meio da propagação desfaz a decisão inteira
@@ -183,8 +183,8 @@ Feature: Tratar decisão sobre o DFD e propagar dados ao processo
 |---|---|---|---|---|
 | Aprovação não pendente/não cobre o DFD | 409 | `APPROVAL_NOT_PENDING` | — (erro interno de integração) | Registrado em log; decisão rejeitada |
 | Reabertura sem permissão/custódia | 403 | `PERMISSION_DENIED` | "Você não pode reabrir este DFD." | Botão oculto; mensagem se forçado via API |
-| Reabertura com aprovação pendente | 409 | `APPROVAL_NOT_PENDING` | "Este DFD está em aprovação e não pode ser reaberto." | Botão desabilitado com tooltip |
-| Conflito de edição durante a decisão | 409 | `DOCUMENT_NOT_EDITABLE` | "O DFD está sendo processado por uma decisão. Tente novamente em instantes." | Recarrega o estado do documento |
+| Reabertura com aprovação pendente | 403/409 | `NOT_PROCESS_CUSTODIAN` / `INVALID_PROCESS_STATUS` (DOC-12 genérico) | — | Botão oculto (sem `REOPEN` em `meta.allowedActions`) |
+| Conflito de edição durante a decisão | 409 | `INVALID_PROCESS_STATUS` | (mensagem genérica do processo em aprovação — US-065) | Recarrega o estado do documento |
 | Banco/infra indisponível durante a propagação | 503 | `DEPENDENCY_UNAVAILABLE` | "Não foi possível concluir a decisão agora. Tente novamente." | Mantém "Approval" pendente; botão "Tentar novamente" |
 
 ## Dependências
@@ -260,3 +260,11 @@ A decisão é recebida por **APV-03** `POST /approvals/{id}/decide` (contrato de
 
 ## Prioridade
 **P0** — sem este efeito, a aprovação do DFD não alimenta o processo e a fase preparatória perde o principal ganho de automação do MVP 1.
+
+## Implementação (2026-10-20)
+- **Ponto de extensão:** gancho `approvalDecided` do `DocumentValidator` (porta do `document`), chamado pelo dono do sujeito `PROCESS_STAGE` (`ProcessApprovalSubjectHandler.applyDecision`) para cada documento coberto **depois** da mudança de etapa, no `tx` da decisão — a propagação grava sobre a versão que a transição deixou (o `WHERE version` da transição não conflita). ETP/TR reusam o mesmo gancho. A avulsa (`subjectType = DOCUMENT`) não aciona o efeito (RN-DFD-62).
+- **DFD:** `ApplyDfdApprovalEffectsHandler` (`dfd`) → `ProcessFacade.applyDfdApprovalIn` (`process`: `syncFromDfd` + `referenceQuantityUpdates`, auditoria `process.update`/`process.items_update` com `metadata.source = DFD_APPROVAL`, `decisionApprovalId`; `ProcessUpdated`/`ProcessItemsChanged`). Valor sigiloso na auditoria = hash + `masked` (como na US-032).
+- **RETURNED:** além de não propagar, o wizard do DFD volta a `REVIEW` já na decisão (o DFD devolvido é editável sem reabertura — DEC-018). **REJECTED:** a reabertura (DOC-12, gancho `reopened`) volta o wizard a `REVIEW` (RN-DFD-69).
+- **SCR-007:** `meta.decision` no DFD-03 (decisão mais recente, motivo, quem decidiu) → `DecisionBanner` com "Reabrir DFD" quando `REOPEN` está em `meta.allowedActions`. **SCR-006:** `CancelSuggestionCallout` (processo `RETURNED` + DFD `REJECTED`, sem marca persistida) e `EstimatedValueBadge` (valor + origem).
+- **Ajustes do Gherkin/erros:** a edição durante a aprovação responde 409 `INVALID_PROCESS_STATUS` (a ordem de checagens da US-065 confere o processo antes do documento — igual à US-016); a reabertura durante a aprovação segue o DOC-12 genérico (sem `APPROVAL_NOT_PENDING` próprio).
+- **Lacuna aberta:** a matriz padrão (permissions.md) não dá `DOCUMENT_REOPEN` à `REQUISITANTE`; "a requisitante reabre" (FA-01) depende de o tenant conceder a permissão por perfil.

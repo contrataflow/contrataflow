@@ -52,7 +52,7 @@ Permitir a troca de órgão ativo em menos de 3 segundos, sem reautenticação, 
 8. A API registra a auditoria `auth.tenant_switch` com o tenant anterior e o novo.
 
 ## Fluxos alternativos
-- **FA-01 — Tenant de destino exige MFA e a sessão não satisfaz:** a resposta de `/internal/session-events` traz `mfaRequired = true`; o BFF redireciona a `/api/auth/step-up` (US-090); ao concluir o step-up, a troca se completa.
+- **FA-01 — Tenant de destino exige MFA e a sessão não satisfaz:** a resposta de `/internal/session-events` traz `mfaRequired = true`; o BFF guarda a troca pendente na sessão e responde 403 `MFA_REQUIRED` com `stepUpUrl`, e o front segue ao `/api/auth/step-up` (US-090); ao concluir o step-up, a troca se completa (DEC-075).
 - **FA-02 — Tenant em `OFFBOARDING`:** troca permitida apenas para vínculos `ADMIN_ORGAO`/`AUDITOR` (DEC-132); sessão resultante fica com `readOnly = true` (`GET /api/auth/session`), e a interface exibe aviso de somente leitura.
 - **FA-03 — Único vínculo:** o seletor mostra a instituição atual sem opção de troca; a ação fica desabilitada.
 - **FA-04 — "Usar como padrão":** opção adicional grava `preferences.defaultTenantId` (jsonb livre em `User.preferences`, sem migração) para pré-selecionar essa instituição em logins futuros.
@@ -185,8 +185,8 @@ Feature: Selecionar órgão ativo
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |
 |---|---|---|---|---|---|
 | ME-04 | GET | `/api/v1/me/memberships` | sem `X-Tenant-Id` | `200 { data: [{ membershipId, tenant{id,name,status}, type, status, usable }] }` | 200, 401 |
-| BFF | POST | `/api/auth/switch-tenant` | `{ membershipId, setAsDefault? }` | `200 { data: { activeTenant, readOnly } }` ou 302 ao step-up | 200, 302, 403, 422, 503 |
-| interno | POST | `/internal/session-events` | `{ type: "TENANT_SWITCHED", sessionIdHash, tenantId, selection }` | `200 { data: { user, memberships[], mfaRequired } }` | 200, 403, 503 |
+| BFF | POST | `/api/auth/switch-tenant` | `{ membershipId, setAsDefault? }` | `200 { data: { activeTenant, readOnly, … } }` (visão pública da sessão) ou 403 `MFA_REQUIRED` com `stepUpUrl` (o front segue ao step-up — DEC-075) | 200, 400, 401, 403, 422, 503 |
+| interno | POST | `/internal/session-events` | `{ type: "TENANT_SWITCHED", sessionIdHash, membershipId, tenantId?, setAsDefault?, fromTenantId, selection }` | `200 { data: { user, memberships[], activeMembership, defaultTenantId, mfaRequired } }` | 200, 403, 422, 503 |
 
 ## Logs
 - `info` `auth.tenant_switch` — `userId`, `fromTenantId`, `toTenantId`, `durationMs`.

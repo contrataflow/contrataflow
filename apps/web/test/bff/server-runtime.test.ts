@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as authGet, POST as authPost } from '@/app/api/auth/[action]/route';
 import { POST as cspPost } from '@/app/api/csp-report/route';
 import { GET as proxyGet } from '@/app/api/v1/[...path]/route';
+import { LOGIN_TRANSACTION_COOKIE } from '@/bff/auth/login-transaction';
+import { RECOVERY_RETURN_COOKIE } from '@/bff/auth/password-recovery';
+import { handleAuthRequest } from '@/bff/auth-handler';
 import { captureLogsForTests, log } from '@/bff/logger';
 import { UnconfiguredIdentityProvider, bffRuntime, setBffRuntimeForTests } from '@/bff/runtime';
 import {
@@ -10,6 +13,7 @@ import {
   currentNonce,
   currentPathname,
   currentShellSession,
+  pendingRecoveryReturnTo,
 } from '@/bff/server-session';
 import { resetWebConfigForTests } from '@/config/env';
 import { proxy } from '@/proxy';
@@ -58,7 +62,11 @@ async function activeSession() {
 describe('apiServerClient (Server Components — RN-FND-88)', () => {
   it('lê com a sessão do cookie e devolve { data, meta }', async () => {
     const { test, record } = await activeSession();
-    request.headers = new Headers({ 'X-Correlation-Id': 'c-rsc', 'X-Forwarded-For': '200.1.2.3' });
+    request.headers = new Headers({
+      'X-Correlation-Id': 'c-rsc-0001',
+      'X-Forwarded-For': '200.1.2.3',
+      'User-Agent': 'Navegador/1.0',
+    });
     test.api.mockResolvedValueOnce(
       Response.json({ data: { ok: 1 }, meta: { page: 1 } }, { headers: { ETag: '"2"' } }),
     );
@@ -70,7 +78,7 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
     expect(result).toEqual({
       data: { ok: 1 },
       status: 200,
-      meta: { page: 1, etag: '"2"', correlationId: 'c-rsc', replayed: false },
+      meta: { page: 1, etag: '"2"', correlationId: 'c-rsc-0001', replayed: false },
     });
     const [url, init] = test.api.mock.calls[0] ?? [];
     expect(url).toBe('http://api.internal:4000/api/v1/processes?page=1');
@@ -78,6 +86,8 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
     expect(headers.get('Authorization')).toBe(`Bearer ${record.tokens.accessToken}`);
     expect(headers.get('X-Tenant-Id')).toBe(record.activeTenantId);
     expect(headers.get('X-Forwarded-For')).toBe('200.1.2.3');
+    expect(headers.get('User-Agent')).toBe('Navegador/1.0');
+    expect(headers.get('X-CF-Session-Id-Hash')).toBe(record.key);
   });
 
   it('erros viram ApiError (problem+json, rede, sessão)', async () => {
@@ -118,7 +128,8 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
       beginLogin: base.runtime.identity.beginLogin.bind(base.runtime.identity),
       completeLogin: base.runtime.identity.completeLogin.bind(base.runtime.identity),
       refresh: () => Promise.resolve({ kind: 'invalid_grant' as const }),
-      endSessionUrl: () => null,
+      revokeRefreshToken: () => Promise.resolve('skipped' as const),
+      endSessionUrl: () => Promise.resolve(null),
     };
     const expiring = createTestRuntime({ identity });
     const { cookie, record } = await signIn(expiring);
@@ -170,13 +181,17 @@ describe('runtime do processo', () => {
     const runtime = bffRuntime();
     expect(runtime.identity).toBeInstanceOf(UnconfiguredIdentityProvider);
     await expect(
-      runtime.identity.beginLogin({ appOrigin: '', state: '', stepUp: false, hint: null }),
+      runtime.identity.beginLogin({ appOrigin: '', stepUp: false, hint: null }),
     ).rejects.toThrow();
-    expect(await runtime.identity.completeLogin(new URLSearchParams(), null)).toEqual({
-      ok: false,
-      reason: 'PROVIDER_ERROR',
-    });
-    expect(runtime.identity.endSessionUrl(null)).toBeNull();
+    expect(
+      await runtime.identity.completeLogin(new URLSearchParams(), {
+        state: 's',
+        nonce: 'n',
+        codeVerifier: 'v',
+      }),
+    ).toEqual({ ok: false, reason: 'PROVIDER_UNAVAILABLE' });
+    expect(await runtime.identity.endSessionUrl()).toBeNull();
+    expect(await new UnconfiguredIdentityProvider().revokeRefreshToken()).toBe('skipped');
   });
 
   it('fetch padrão delega ao fetch global', async () => {
@@ -190,15 +205,47 @@ describe('runtime do processo', () => {
 
   it('logger escreve JSON por linha no stdout', () => {
     const write = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
-    log('info', 'auth.session_end', { reason: 'LOGOUT' });
+    log('info', 'auth.logout', { rpLogout: 'success' });
     const line = String(write.mock.calls[0]?.[0]);
     expect(JSON.parse(line)).toMatchObject({
       level: 'info',
       service: 'web',
-      event: 'auth.session_end',
-      reason: 'LOGOUT',
+      event: 'auth.logout',
+      rpLogout: 'success',
     });
     write.mockRestore();
+  });
+});
+
+describe('US-089 — recuperação de senha em Server Components e no App Router', () => {
+  it('GET /api/auth/forgot-password responde pela rota /api/auth/[action]', async () => {
+    const test = createTestRuntime();
+    setBffRuntimeForTests(test.runtime);
+    const response = await authGet(new Request(`${APP_ORIGIN}/api/auth/forgot-password`), {
+      params: Promise.resolve({ action: 'forgot-password' }),
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe(`${APP_ORIGIN}/entrar?motivo=senha-redefinida`);
+  });
+
+  it('pendingRecoveryReturnTo: cookie da recuperação, senão a transação de login aberta', async () => {
+    const test = createTestRuntime();
+    expect(await pendingRecoveryReturnTo(test.runtime)).toBeNull();
+
+    setCookie(`${RECOVERY_RETURN_COOKIE}=%2Fprocessos%2F9`);
+    expect(await pendingRecoveryReturnTo(test.runtime)).toBe('/processos/9');
+
+    request.cookies.clear();
+    const start = await handleAuthRequest(
+      new Request(`${APP_ORIGIN}/api/auth/login?returnTo=%2Ftarefas`),
+      'login',
+      test.runtime,
+    );
+    const transaction = start.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith(`${LOGIN_TRANSACTION_COOKIE}=`));
+    setCookie(transaction?.split(';')[0] ?? '');
+    expect(await pendingRecoveryReturnTo(test.runtime)).toBe('/tarefas');
   });
 });
 

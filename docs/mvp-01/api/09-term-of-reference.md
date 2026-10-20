@@ -7,7 +7,7 @@
 | TRM-01 | GET | `/processes/{id}/terms` | `PROCESS_VIEW` | US-036 |
 | TRM-02 | POST | `/processes/{id}/terms` | `TERM_CREATE` + POL-02 | US-036 |
 | TRM-03 | GET | `/terms/{id}` | `PROCESS_VIEW` (+ POL-09) | US-036 |
-| TRM-04 | PATCH | `/terms/{id}` | `TERM_UPDATE` + POL-02 | US-038 |
+| TRM-04 | PATCH | `/terms/{id}` | `TERM_UPDATE` + POL-02 | US-036, US-038 |
 | TRM-05 | POST | `/terms/{id}/import-etp/preview` | `TERM_UPDATE` + POL-02 | US-037 |
 | TRM-06 | POST | `/terms/{id}/import-etp` | `TERM_UPDATE` + POL-02 | US-037 |
 
@@ -21,9 +21,10 @@ Seções, itens (`DOC-06`/`DOC-07`), validação, pré-visualização e catálog
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório) — processo
 - **Request:** —
-- **Response:** `200 { data: TermSummary[] }`
+- **Response:** `200 { data: TermSummary[], meta: TermListMeta }`
 ```ts
 TermSummary { id: string; documentId: string; code: string; status: string; title: string; version: number; }
+TermListMeta { templates: { id; name; isDefault; versionId; versionNumber }[]; defaultTitle: string } // diálogo de criação (FA-01) — implementação US-036
 ```
 - **Erros:**
 
@@ -59,7 +60,7 @@ TermSummary { id: string; documentId: string; code: string; status: string; titl
 | 422 | `VALIDATION_ERROR` | Título fora de 5–250 (`TOO_SHORT`/`TOO_LONG`); `templateId` inválido (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
 
 - **Efeitos:** Eventos: `DocumentCreated` (`document.created.tr`) — `documentId`, `documentTypeCode = TR`, `kind = STRUCTURED`, `code`, `title`, `templateVersionId`. Auditoria: `document.create` (`DATA_CHANGE`) — `metadata`: `documentTypeCode = TR`, `code`, `templateVersionId`, `priceResearchId`, `idempotencyKey`. Timeline: `DOCUMENT_CREATED`.
-- **Notas:** `objectDefinition` é inicializado a partir de `process.object` (RN-TR-14); `importedFromEtpId`/`importedFromEtpVersionId`/`importedAt`/`importedById` nascem nulos (preenchidos só por TRM-06, US-037).
+- **Notas:** `objectDefinition` é inicializado a partir de `process.object` (RN-TR-14); `importedFromEtpId`/`importedFromEtpVersionId`/`importedAt`/`importedById` nascem nulos (preenchidos só por TRM-06, US-037). **Implementação (US-036):** `id` do TR = `documentId`; com pesquisa de preços `FINALIZED`/`APPROVED` o TR nasce com `priceResearchId`, o total e `estimatedValueSource = PRICE_RESEARCH` (RN-TR-07); com orçamento sigiloso o documento nasce `RESTRICTED`; o 409 `DOCUMENT_ALREADY_EXISTS` traz `meta.existingTermId`; `Location: /api/v1/terms/{id}` e `ETag: "<version>"`.
 
 ### TRM-03 — Obter Termo de Referência
 `GET /api/v1/terms/{id}` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-036
@@ -75,7 +76,7 @@ TermSummary { id: string; documentId: string; code: string; status: string; titl
 | 404 | `NOT_FOUND` | Inexistente/outro tenant/não visível |
 
 - **Efeitos:** —
-- **Notas:** `etpChangedSinceImport` é campo **calculado** por comparação de versão entre o ETP atual e `importedFromEtpVersionId` (RN-TR-24); usado pela UI para sinalizar defasagem da importação ETP→TR (US-037).
+- **Notas:** `etpChangedSinceImport` é campo **calculado** por comparação de versão entre o ETP atual e `importedFromEtpVersionId` (RN-TR-24); usado pela UI para sinalizar defasagem da importação ETP→TR (US-037). **Implementação (US-036):** `ETag` = `TermOfReference.version` (o `If-Match` do TRM-04); `data` traz também `inApproval`, `templateVersion { id, versionNumber }`, `draftRevision`/`draftContent` (revisão por seção — `If-Match: "s<revision>"` do DOC-05), `completeness { required, satisfied, percent, sections[] }` (avaliação do DOC-08 — RN-TR-13), `priceResearch` (vinculada) e `completedPriceResearch` (a concluída do processo — aviso de FA-04), com o total mascarado pela POL-09; `meta.template` traz as seções da versão fixada.
 
 ### TRM-04 — Atualizar Termo de Referência (dados, valor e condições contratuais)
 `PATCH /api/v1/terms/{id}` · **Permissão:** `TERM_UPDATE` + POL-02 · **Story:** US-038 (campos de valor/pesquisa: US-036)
@@ -113,7 +114,7 @@ TermSummary { id: string; documentId: string; code: string; status: string; titl
 | 422 | `VALIDATION_ERROR` | Valores fora de faixa (`OUT_OF_RANGE`); decimal inválido (`INVALID_DECIMAL`); prazo sem tipo de contagem (`CONDITIONAL_REQUIRED`); referências inválidas (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); item repetido (`DUPLICATE_IN_LIST`, via `DOC-07`) |
 
 - **Efeitos:** Eventos: — (nenhum evento de domínio; ajuste de rascunho, RN-TR-33). Auditoria: `document.draft_update` (`DATA_CHANGE`, coalescida a cada 10 min) — campos alterados (valor mascarado se sigiloso); `document.items_update` quando itens são alterados via `DOC-07`.
-- **Notas:** limites numéricos (vigência, prazo de pagamento, garantias) citados nas stories US-036/US-038, referenciando entities.md §4.8.
+- **Notas:** limites numéricos (vigência, prazo de pagamento, garantias) citados nas stories US-036/US-038, referenciando entities.md §4.8. **Implementação (US-036):** aceita `objectDefinition`, `priceResearchId`, `estimatedTotalValue` e `estimatedValueSource` (as condições contratuais entram com a US-038). `priceResearchId` ou `PRICE_RESEARCH` sem id (= a concluída do processo) vincula a pesquisa do mesmo processo concluída e copia o total (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `priceResearchId`; valor no corpo = `NOT_ALLOWED`); `MANUAL` exige o valor (`CONDITIONAL_REQUIRED`) e desvincula a pesquisa; `ETP` só pela importação (422 `NOT_ALLOWED`); sem POL-09 em processo sigiloso, alterar o valor = 403. A auditoria `document.draft_update` do painel é imediata (objeto como hash + tamanho). **Implementação (US-038):** aceita as condições contratuais; campo ausente = sem mudança e `null` limpa (exceto `allowsSubcontracting`, booleano). Faixas no schema — vigência 1–120, prazo de pagamento 1–90, garantia do objeto 0–120, `executionDeadline` ≥ 1 (teto técnico de 36.500 dias), `deliveryLocation` ≤ 2.000 (422 `OUT_OF_RANGE`/`TOO_LONG`), `contractGuaranteePercent` string decimal de 0 a 10 com até 4 casas (`INVALID_DECIMAL` no formato, `OUT_OF_RANGE` acima de 10) e a resposta o devolve sem zeros à direita (`"5"`, `"2.5"`). O par prazo × tipo de contagem é conferido sobre o estado resultante (RN-TR-29: 422 `CONDITIONAL_REQUIRED` no campo que falta). `selectionCriterionId` novo tem de ser item ativo do catálogo `JUDGMENT_CRITERION` do tenant (`REFERENCE_NOT_FOUND` — inexistente, de outro catálogo ou de outro tenant — / `REFERENCE_INACTIVE`, mensagem "Selecione um critério de julgamento válido."). Reenviar os valores atuais não grava nem audita. Na auditoria, `deliveryLocation` vai como hash + tamanho; log `term.conditions_updated` com `fieldsChanged`.
 
 ### TRM-05 — Pré-visualizar importação do ETP
 `POST /api/v1/terms/{id}/import-etp/preview` · **Permissão:** `TERM_UPDATE` + POL-02 · **Story:** US-037
@@ -131,7 +132,7 @@ TermSummary { id: string; documentId: string; code: string; status: string; titl
 | 422 | `ETP_REQUIRED_FOR_IMPORT` | Processo sem ETP não cancelado |
 
 - **Efeitos:** — (não grava nada, não gera evento).
-- **Notas:** o `importToken` é **assinado e sem estado** (stateless), válido por 15 min; consumido por TRM-06.
+- **Notas:** o `importToken` é **assinado e sem estado** (stateless), válido por 15 min; consumido por TRM-06. **Implementação (US-037):** a origem é o rascunho mais recente do ETP não cancelado (FA-02: `etp.inProgress` em `DRAFT`/`RETURNED`/`IN_REVIEW`; `etp.versionNumber` = versão vigente ou `null`); a resposta acrescenta `etp.code`/`status`/`inProgress`, `sections[].before` (texto atual do TR), `fields[].current`, `items.preview[].specified` (FA-04) e `replacesPriceResearchValue` (RN-TR-22). Só entram seções do mapeamento presentes no template e com conteúdo na origem, e campos com valor no ETP; sem `importMappings` na versão do template, só os itens (quantidades). Formato do token: api.md §1.3.
 
 ### TRM-06 — Aplicar importação do ETP
 `POST /api/v1/terms/{id}/import-etp` · **Permissão:** `TERM_UPDATE` + POL-02 · **Story:** US-037
@@ -165,4 +166,4 @@ TermSummary { id: string; documentId: string; code: string; status: string; titl
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
 
 - **Efeitos:** Eventos: `TermImportedFromEtp` (`term.imported_from_etp`) — `termId`, `etpId`, `etpVersionId`, `sectionsImported[]`, `itemsImported`; `DocumentVersionCreated` (`document.version_created.tr`), `reason = IMPORT`, mesmo commit. Auditoria: `term.import_etp` (`DATA_CHANGE`) — `changes`: chaves de seções/campos/itens alterados (sem conteúdo); `metadata`: `etpId`, `etpVersionId`, `itemsImported`, `idempotencyKey`. Timeline: `TERM_IMPORTED_FROM_ETP`.
-- **Notas:** o campo calculado `etpChangedSinceImport` (ver TRM-03) é a forma de a UI detectar nova defasagem após esta importação (RN-TR-24).
+- **Notas:** o campo calculado `etpChangedSinceImport` (ver TRM-03) é a forma de a UI detectar nova defasagem após esta importação (RN-TR-24). **Implementação (US-037):** a resposta traz também `fieldsImported[]` e `documentVersion` (`id`, `versionNumber` da versão `IMPORT`); `ETag` = nova versão do TR. Seção fora da prévia → 422 `NOT_ALLOWED` em `sections`; conteúdo acima do limite da seção → 422 `TOO_LONG` em `sections`; `priceResearchId` sozinho sobre valor vinculado a outra pesquisa → 422 `NOT_ALLOWED` em `fields`; campo mascarado (POL-09) é ignorado (FA-05). Itens: `itemsImported` conta as linhas do ETP gravadas no TR (as iguais contam; as especificadas sem `overwriteExisting` não). Seções `APPEND` repetem a referência a cada importação.

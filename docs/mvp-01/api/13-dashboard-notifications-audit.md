@@ -35,7 +35,7 @@
   | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) | `secretariatId`/`departmentId` inválido |
   | 422 | `VALIDATION_ERROR` (`DEPARTMENT_NOT_IN_SECRETARIAT`) | `departmentId` fora da subárvore de `secretariatId` |
 - **Efeitos:** — (leitura agregada, mesma convenção de TSK-01/02 — DEC-026)
-- **Notas:** resposta cacheada (`meta.cache`); contadores sem recorte de secretaria/unidade quando os filtros não são informados (todas as visíveis ao usuário).
+- **Notas:** resposta cacheada (`meta.cache`); contadores sem recorte de secretaria/unidade quando os filtros não são informados (todas as visíveis ao usuário). `pendingCount` = "Comigo" + "Aprovações pendentes" de TSK-02 (mesmos predicados); `overdueCount`/`dueSoonCount` só com o prazo correndo (`IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`); `openCount` = `IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`, `SUSPENDED` (DEC-088).
 
 ### DSH-02 — Obter indicador do dashboard
 `GET /api/v1/dashboard/widgets/{widgetKey}` · **Permissão:** `DASHBOARD_VIEW` · **Story:** US-076
@@ -61,7 +61,16 @@
   | 422 | `VALIDATION_ERROR` (`DEPARTMENT_NOT_IN_SECRETARIAT`) | `departmentId` fora da subárvore de `secretariatId` |
   | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | `limit` de `RECENT_ACTIVITY` fora de 1–100 |
 - **Efeitos:** — (leitura agregada)
-- **Notas:** agregados que somam processos de orçamento sigiloso sem POL-09 excluem a linha do cálculo e marcam `confidentialExcluded: true` (POL-09), em vez de mascarar o valor (diferente da convenção `<campo>Masked` de api.md §1.4). A story detalha o formato de resposta apenas para `VALUE_BY_SECRETARIAT` (campo `series`) e cita `items`/`limit` para `RECENT_ACTIVITY`; o formato exato dos outros 7 indicadores (`PENDING_ITEMS`, `BY_STATUS`, `BY_STAGE`, `OVERDUE`, `DUE_SOON`, `AVG_STAGE_DURATION`, `OPENED_BY_MONTH`) não está detalhado — a definir na implementação.
+- **Notas:** agregados que somam processos de orçamento sigiloso sem POL-09 excluem a linha do cálculo e marcam `confidentialExcluded: true` (POL-09), em vez de mascarar o valor (diferente da convenção `<campo>Masked` de api.md §1.4). Formato de cada indicador (definido na US-076 — DEC-088; `series` de contagem = `{ key, label, value }`, `label` nulo quando o front traduz a chave):
+  - `PENDING_ITEMS`: `total` (= `pendingCount`: "Comigo" + "Aprovações pendentes") e `series` com os contadores de TSK-02 por visão (`key` = `TaskInboxView`; `UNIT_QUEUE` só quando a fila se aplica).
+  - `BY_STATUS`: `total` e `series` com os 8 `ProcessStatus` (zero incluído; soma = total visível).
+  - `BY_STAGE`: abertos por etapa atual (`key` = `workflowStageId`, `label` = nome da etapa), `total`.
+  - `OVERDUE` / `DUE_SOON`: por secretaria solicitante (`key` = id da unidade, `label` = nome), `total`; `DUE_SOON` traz `warnBeforeBusinessDays`.
+  - `AVG_STAGE_DURATION`: `windowDays` (90) e `series` `{ key: workflowStageId, label, value: média em segundos, sampleSize }`.
+  - `OPENED_BY_MONTH`: `total` e `series` dos 12 meses (`key` = `YYYY-MM` no fuso do tenant, do mais antigo ao corrente).
+  - `VALUE_BY_SECRETARIAT`: `series` `{ key, label, value: decimal, confidentialExcluded }` dos processos abertos com valor.
+  - `RECENT_ACTIVITY`: `items` = `TimelineEntry` + `process: { id, code }`, mais recentes primeiro.
+  - "Abertos" = `IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`, `SUSPENDED`; filtros recortam pela unidade solicitante (`departmentId` com a subárvore); `secretariatId` que não é secretaria → 422 `NOT_ALLOWED`.
 
 ### NTF-01 — Listar notificações
 `GET /api/v1/notifications` · **Permissão:** usuário autenticado (lista apenas as próprias) · **Story:** US-111
@@ -144,7 +153,7 @@
   | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | Período ausente ou acima de 90 dias |
   | 422 | `VALIDATION_ERROR` | `occurredTo` anterior a `occurredFrom` |
 - **Efeitos:** — (consulta não gera evento de domínio; é registrada como `AuditLog`, não como evento de outbox); auditoria `audit.search` (`ACCESS`; `metadata`: filtros aplicados); `access.denied` (`reasonCode = AUDIT_VIEW`/`MFA_REQUIRED`)
-- **Notas:** `limit` acima de 100 é ajustado para o máximo pela API (sem erro).
+- **Notas:** `limit` acima de 100 é ajustado para o máximo pela API (sem erro). Cursor inválido ou corrompido → 422 `VALIDATION_ERROR` (`cursor`). Ordem `occurredAt DESC, id DESC`; período inclusivo nos dois extremos.
 
 ### AUD-02 — Obter registro de auditoria
 `GET /api/v1/audit/{id}` · **Permissão:** `AUDIT_VIEW` · **Story:** US-075
@@ -176,7 +185,7 @@
   | 422 | `VALIDATION_ERROR` (`INVALID_ENUM`) | `format` fora de `csv`/`ndjson` |
   | 422 | `EXPORT_TOO_LARGE` | Exportação acima de 100 mil linhas |
 - **Efeitos:** Auditoria `audit.export` (`EXPORT`; `metadata`: filtros aplicados, `format`, `rowCount`); `access.denied` (`reasonCode = AUDIT_EXPORT`/`MFA_REQUIRED`)
-- **Notas:** refinar período/filtros quando exceder o limite de linhas.
+- **Notas:** refinar período/filtros quando exceder o limite de linhas (`audit.export.maxRows` — `AUDIT_EXPORT_MAX_ROWS`, padrão 100.000; o problem+json traz `estimatedCount`). O fim do período é fixado no instante do pedido (a própria auditoria da exportação não entra no arquivo). Arquivo `auditoria-AAAAMMDD-AAAAMMDD.{csv,ndjson}`, ordem `occurredAt DESC, id DESC`. CSV: UTF-8 com BOM, CRLF, RFC 4180, uma coluna por campo de `AuditLog` (sem `tenantId`), `changes`/`metadata` em JSON, escape de fórmulas (RN-AUD-20) em toda coluna de texto. NDJSON: um `AuditLog` por linha. Classe de limite "Exportações e renderização" (429 `RATE_LIMITED`).
 
 ### AUD-04 — Listar selos de integridade
 `GET /api/v1/audit/seals` · **Permissão:** `AUDIT_VIEW` · **Story:** US-074
@@ -196,14 +205,15 @@
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** `{ periodStart: timestamptz (obrigatório); periodEnd: timestamptz (obrigatório, posterior a periodStart; intervalo limitado a `audit.sealVerification.maxPeriods` = 720 selos) }`
-- **Response:** `200 { data: { results: [{ periodStart, status: 'VALID'|'INVALID', brokenAt?: 'digest'|'chain' }] } }`
+- **Response:** `200 { data: { brokenAtPeriodStart: timestamptz | null, results: [{ periodStart, periodEnd, recordCount, status: 'VALID'|'INVALID', brokenAt?: 'digest'|'chain' }] } }` — `results` em ordem de `periodStart`; `brokenAtPeriodStart` = primeira quebra (RN-AUD-16)
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `AUDIT_VIEW` |
   | 403 | `MFA_REQUIRED` | Ação exige verificação adicional |
-  | 404 | `NOT_FOUND` | Selo referenciado de outro tenant |
-  | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | Intervalo acima de 720 selos (`audit.sealVerification.maxPeriods`) |
+  | 404 | `NOT_FOUND` | Nenhum selo do tenant no intervalo (selo de outro tenant ou inexistente) |
+  | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | Intervalo acima de 720 selos (`audit.sealVerification.maxPeriods`) — contado em horas cheias do intervalo |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível durante a verificação |
   | 422 | `VALIDATION_ERROR` | `periodEnd` anterior a `periodStart` |
 - **Efeitos:** — (nenhum evento de domínio; observável via `AuditLog` `audit.seal` registrado no período seguinte — RN-AUD-14, via AUD-04 e via métricas/logs)
 - **Notas:** reduzir o intervalo quando exceder `audit.sealVerification.maxPeriods` (720); reexecução do job de selagem para período já selado é no-op silencioso no backend.

@@ -180,6 +180,38 @@ tester.run('no-prisma-outside-infrastructure', rules['no-prisma-outside-infrastr
   ],
 });
 
+tester.run('no-prisma-client-outside-database', rules['no-prisma-client-outside-database'], {
+  valid: [
+    "import type { TenantTx } from '#shared/database/prisma.js'",
+    "import { Prisma } from '#shared/database/prisma.js'",
+    "import { TenantTransaction } from '#shared/database/database.module.js'",
+    "import { PrismaClient } from '@prisma/client'",
+  ],
+  invalid: [
+    {
+      code: "import { PrismaClient } from '#shared/database/generated/prisma/client.js'",
+      errors: [
+        {
+          messageId: 'forbidden',
+          data: { module: '#shared/database/generated/prisma/client.js' },
+        },
+      ],
+    },
+    {
+      code: "import { createTenantPrismaClient } from '#shared/database/prisma-client.js'",
+      errors: [{ messageId: 'forbidden', data: { module: '#shared/database/prisma-client.js' } }],
+    },
+    {
+      code: "import { PrismaPg } from '@prisma/adapter-pg'",
+      errors: [{ messageId: 'forbidden', data: { module: '@prisma/adapter-pg' } }],
+    },
+    {
+      code: "import pg from 'pg'",
+      errors: [{ messageId: 'forbidden', data: { module: 'pg' } }],
+    },
+  ],
+});
+
 describe('matchesModule', () => {
   it('compara nomes exatos, subcaminhos e prefixos com /*', ({ expect }) => {
     expect(matchesModule('ioredis', ['ioredis'])).toBe(true);

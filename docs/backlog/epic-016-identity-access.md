@@ -93,7 +93,7 @@ Hoje, nos órgãos, o acesso é combinado a cargos informais, planilhas de contr
 
 ## Permissões envolvidas
 - `USER_VIEW`, `USER_INVITE`, `USER_MANAGE`, `ROLE_VIEW`, `ROLE_MANAGE`, `ROLE_ASSIGN`
-- O motor de autorização entregue por US-097 aplica, além destas, as 67 permissões do catálogo do MVP 1 (permissions.md §2) usadas pelos demais épicos.
+- O motor de autorização entregue por US-097 aplica, além destas, as 68 permissões do catálogo do MVP 1 (permissions.md §2) usadas pelos demais épicos.
 
 ## Regras configuráveis
 - `security.mfaPolicy` (`NONE`/`ADMINS`/`ALL`) — exige MFA conforme risco da permissão.

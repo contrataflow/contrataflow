@@ -56,11 +56,11 @@ Esquema de referência `Process` (campos completos): ver exemplo de PRC-02; os d
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** query string (api.md §1.2):
   - Paginação: `page` (int ≥1, padrão 1), `pageSize` (int 1–100, padrão 20)
-  - Ordenação: `sort` (até 3 campos; permitidos `code`, `title`, `status`, `currentStageDueAt`, `priority`, `estimatedValue`, `targetDate`, `createdAt`, `updatedAt`; padrão `-updatedAt`)
+  - Ordenação: `sort` (até 3 campos; permitidos `code`, `title`, `status`, `currentStageDueAt`, `priority`, `estimatedValue`, `targetDate`, `openedAt`, `createdAt`, `updatedAt`; padrão `-updatedAt`; com `q` e sem `sort`, relevância; desempate final por `id` decrescente)
   - Busca: `q` (2–200 caracteres)
   - Filtros (opcionais; máx. 50 valores por filtro multivalorado; vírgula = OU, parâmetros distintos = E): `status` (multi `ProcessStatus`), `stageKey`/`currentWorkflowStageId` (multi), `currentDepartmentId` (multi uuid ou `mine`), `requestingSecretariatId` (multi uuid), `requestingDepartmentId` (multi uuid), `organizationId` (multi uuid), `currentResponsibleId` (multi uuid, `me`, `none`), `priority` (multi `Priority`), `contractingTypeId` (multi uuid), `modalityId` (multi uuid ou `none`), `originId` (multi uuid), `year` (multi int, 2000–2100), `tagId` (multi uuid), `overdue` (boolean), `targetDateOverdue` (boolean), `createdFrom`/`createdTo` (data), `targetDateFrom`/`targetDateTo` (data), `estimatedValueMin`/`estimatedValueMax` (decimal string ≥0, 2 casas), `includeStageOptions` (boolean, padrão `false`)
 - **Request:** —
-- **Response:** `200 { data: ProcessListItem[], meta: { page, pageSize, totalItems, totalPages, stageOptions? } }`. `ProcessListItem` = subconjunto de `Process` (ver PRC-02) + `deadline` (DTO calculado): `{ dueAt: string|null; slaType: DayCountType|null; daysLeft: number|null; overdueDays: number|null; isDueSoon: boolean; isOverdue: boolean; isPaused: boolean }`. Campos exibidos: `id`, `code`, `number`, `year`, `internalCode`, `title`, `status`, `priority`, `organization`, `requestingSecretariat`, `requestingDepartment`, `currentStage{key,name}`, `currentDepartment`, `currentResponsible`, `deadline`, `contractingType`, `modality`, `origin`, `isBudgetConfidential`, `estimatedValue`/`estimatedValueMasked`, `targetDate`, `tags[]`, `createdAt`, `updatedAt`.
+- **Response:** `200 { data: ProcessListItem[], meta: { page, pageSize, totalItems, totalPages, stageOptions?, valueFilterExcludesConfidential?, confidentialStepUpAvailable? } }`. `stageOptions` (só com `includeStageOptions=true`) = `[{ key, name, groupLabel }]` — chaves distintas das etapas das versões publicadas e aposentadas do tenant, lidas sem `WORKFLOW_VIEW` (US-002, lacuna 1). `valueFilterExcludesConfidential` (só com filtro de valor ativo) = o usuário não tem `PROCESS_VIEW_CONFIDENTIAL_BUDGET` com escopo `TENANT` (nota FA-05, sem indicar quais processos saíram). `confidentialStepUpAvailable` = a permissão existe, mas a sessão sem MFA não a usa para desmascarar (FA-12). Parâmetros desconhecidos são ignorados; página e total vêm do mesmo snapshot (uma instrução). `ProcessListItem` = subconjunto de `Process` (ver PRC-02) + `deadline` (DTO calculado): `{ dueAt: string|null; slaType: DayCountType|null; daysLeft: number|null; overdueDays: number|null; isDueSoon: boolean; isOverdue: boolean; isPaused: boolean }`. Campos exibidos: `id`, `code`, `number`, `year`, `internalCode`, `title`, `status`, `priority`, `organization{id,shortName}`, `requestingSecretariat{id,name}`, `requestingDepartment{id,name}`, `currentStage{key,name}|null`, `currentDepartment{id,name}`, `currentResponsible{id,name}|null`, `deadline`, `contractingType{id,code,label}`, `modality|null`, `origin`, `isBudgetConfidential`, `estimatedValue`/`estimatedValueMasked`, `targetDate`, `overdueSince`, `tags[{id,name,color,isActive}]` (etiqueta inativa aplicada segue na lista, esmaecida — US-007 FA-03), `openedAt`, `createdAt`, `updatedAt` (US-002, lacuna 4).
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -164,7 +164,7 @@ Esquema de referência `Process` (campos completos): ver exemplo de PRC-02; os d
 | 404 | `PROCESS_NOT_FOUND` | Inexistente, descartado, não visível ou de outro tenant |
 
 - **Efeitos:** Auditoria: `process.confidential_view` (`ACCESS`) na 1ª entrega de valor desmascarado de processo sigiloso por sessão/processo (US-013; `source="PRC-04"`). Processos não visíveis respondem 404 sem `access.denied` (a existência não é revelada).
-- **Notas:** —
+- **Notas:** `meta.allowedActions` = ações habilitadas de PRC-08 para o usuário (mais `DECIDE_APPROVAL` do aprovador designado). Mascaramento pela POL-09 por processo (escopo que o cubra ou custódia — a mesma regra de PRC-07). Visibilidade inclui a concessão `USER` (DEC-024 cond. 4). `Cache-Control: no-store`.
 
 ### PRC-05 — Editar dados do processo
 `PATCH /api/v1/processes/{id}` · **Permissão:** `PROCESS_UPDATE` + POL-01 · **Story:** US-005
@@ -207,7 +207,7 @@ Campos de unidade/órgão só editáveis com processo em `DRAFT`; demais campos 
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** path `id`
-- **Request:** —
+- **Request:** corpo opcional `{ reason?: string }` — até 500 caracteres (só auditoria)
 - **Response:** `204` (sem corpo)
 - **Erros:**
 
@@ -215,6 +215,7 @@ Campos de unidade/órgão só editáveis com processo em `DRAFT`; demais campos 
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão para a ação |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
+| 409 | `INVALID_PROCESS_STATUS` | Processo fora de `DRAFT` |
 | 409 | `CANNOT_DISCARD_NUMBERED_PROCESS` | Rascunho já tem número; cancelar em vez de descartar |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
@@ -230,18 +231,24 @@ Campos de unidade/órgão só editáveis com processo em `DRAFT`; demais campos 
 - **Response:** `200 { data: { header, where, responsible, pending, nextStep, deadline, target, documents[], approvals[], counts, version } }`:
 ```ts
 {
-  header: { code, title, status, priority, tags: Tag[], isBudgetConfidential, estimatedValue, estimatedValueMasked, estimatedValueSource, organization }; // RN-PROC-54
-  where: { stage: { key, name, type: StageType, groupLabel }, department: {id,name}, status, statusBeforeSuspension, suspensionReason? }; // RN-PROC-48(1)
-  responsible: { user?: {id,name,jobTitle}, queueDepartment?: {id,name}, since: string, approver?: object }; // RN-PROC-48(2)
-  pending: { blockingCount: number; warningCount: number; items: Array<{ ruleId, severity: "BLOCKING"|"WARNING", message, link? }> }; // RN-PROC-51
-  nextStep: { action?: { action, transitionId?, label, available: boolean, reasons: [{code,message}] }, instructions: string }; // RN-PROC-49
-  deadline: /* DTO de PRC-01 */ object; target: { targetDate, isOverdue, overdueDays }; // RN-PROC-53
-  documents: Array<{ id, typeCode, typeName, code, title, status, versionNumber, confidentiality, restricted, inApproval }>; // RN-PROC-48(6)/55
-  approvals: Array<{ id, title, approverLabel, requestedAt, dueAt, isOverdue, isMine }>; // RN-PROC-48(7)
+  header: { code: string|null, title, status, priority, tags: {id,name,color,isActive}[], isBudgetConfidential, estimatedValue: string|null, estimatedValueMasked, estimatedValueSource|null,
+            organization: { id, shortName }, showOrganization: boolean /* órgão ≠ principal do tenant */ }; // RN-PROC-54
+  where: { stage: { key, name, type: StageType, groupLabel|null } | null, department: {id,name}, status, statusBeforeSuspension|null, suspensionReason|null,
+           suspendedAt|null, completedAt|null, canceledAt|null, cancellationReason|null }; // RN-PROC-48(1) · FA-06/07
+  responsible: { user: {id,name,jobTitle|null} | null, queueDepartment: {id,name} | null, since: string|null /* início da atribuição ativa */,
+                 approver: { approvalId, label, isMine } | null /* só em AWAITING_APPROVAL */ }; // RN-PROC-48(2)
+  pending: { blockingCount: number; warningCount: number;
+             items: Array<{ ruleId, name, type: RuleType, severity: "BLOCKING"|"WARNING", message, evaluationFailed: boolean,
+                            link: { documentId, restricted } | { createDocumentTypeCode } | null }> }; // RN-PROC-51 · FA-10
+  nextStep: { action: { action, transitionKey?, approvalId?, label, enabled: boolean, reasons: [{code,message}] } | null, instructions: string|null }; // RN-PROC-49
+  deadline: /* DTO de PRC-01 */ object | null /* null em status final */; target: { targetDate, isOverdue, overdueDays|null } | null; // RN-PROC-53
+  documents: Array<{ id, typeCode, typeName, code|null, title, status, versionNumber|null, confidentiality, restricted, inApproval }>; // RN-PROC-48(6)/55
+  approvals: Array<{ id, title, approverLabel, requestedAt, dueAt|null, isOverdue, isMine }>; // RN-PROC-48(7)
   counts: { documents, items, comments, participants }; // RN-PROC-57
   version: number;
 }
 ```
+`nextStep.action` segue a nomenclatura de PRC-08 (`enabled`, `transitionKey`); as regras `TRANSITION_BLOCKED` da ação primária chegam como UM motivo com a contagem ("Há 1 pendência obrigatória nesta etapa."). Regra não avaliável (fail-closed) chega com `evaluationFailed = true` e a mensagem padrão "Não foi possível verificar esta regra. Tente novamente ou fale com o administrador.". Leitura em `REPEATABLE READ READ ONLY`; `Cache-Control: no-store`. Visibilidade (RN-PROC-47) conferida no caso de uso, inclusive por concessão `USER` (aprovador designado) — não visível = 404 `PROCESS_NOT_FOUND` sem `access.denied`.
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -266,9 +273,12 @@ ActionEntry {
   transitionKey?: string; toStageKey?: string;   // uma entrada FORWARD por transição disponível
   approvalId?: string;                            // em DECIDE_APPROVAL
   label: string; enabled: boolean; primary?: boolean;
-  reasons: Array<{ code: string; message: string }>; // motivos de indisponibilidade quando enabled=false
+  reasons: Array<{ code: string; message: string; ruleId?: string }>; // motivos de indisponibilidade quando enabled=false (ruleId em TRANSITION_BLOCKED)
 
   // Prévia de transição (obrigatória nesta especificação) — apenas em entradas action="FORWARD" (US-047):
+  transitionId?: string;                          // em FORWARD/COMPLETE/RETURN — o `transitionId` do POST /forward (PRC-19)
+  toStageName?: string; toStageType?: StageType;  // etapa destino ("Para onde" e resumo do SCR-103; destino da devolução no SCR-104)
+  toStageId?: string; lastPassedAt?: string;      // só em RETURN (US-048): o `targetStageId` do PRC-20 e a saída da última passagem pela etapa
   departmentResolution?: { mode: DepartmentResolution; departmentId?: string; departmentName?: string };
   requiresComment?: boolean;
   allowDueDateOverride?: boolean;
@@ -283,7 +293,7 @@ ActionEntry {
 | 404 | `NOT_FOUND` | Processo inexistente, de outro tenant, não visível, ou usuário sem `PROCESS_VIEW` (DEC-024 não distingue os dois casos) |
 
 - **Efeitos:** — (motor somente leitura; não gera eventos nem `AuditLog`).
-- **Notas:** `reasons[].code` cobre, conforme a ação, `TRANSITION_NOT_AVAILABLE`, `TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKNOWLEDGED`, `NOT_PROCESS_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `MFA_REQUIRED`, `DEPARTMENT_REQUIRED`, `ASSIGNEE_NOT_ELIGIBLE`, `DUE_DATE_OVERRIDE_NOT_ALLOWED`, `APPROVER_UNRESOLVED`, `DOCUMENT_INCOMPLETE`, `PROCESS_ALREADY_ASSIGNED` (ver PRC-19..33). `departmentResolution.mode` usa o enum `DepartmentResolution`; quando `CHOSEN_ON_FORWARD`, `departmentId`/`departmentName` ficam ausentes e a unidade é escolhida no próprio `POST /forward` (omissão → `DEPARTMENT_REQUIRED`). `approverPreview.type` usa `ApproverType`; é `null` quando a transição não leva a etapa `APPROVAL` ou quando não resolvido (razão em `reasons[]` = `APPROVER_UNRESOLVED`). `dueAtPreview` calculado por RN-TRAM-09/10; pode ser `null` quando depende de dado ainda não informado (ex.: unidade de destino). Este bloco de prévia consolida US-041 (schema-base de `available-actions`) com as regras de encaminhamento de US-047; nenhuma das duas stories fixa isoladamente o formato exato dos 5 campos de prévia — confirmar na implementação.
+- **Notas:** `reasons[].code` cobre, conforme a ação, `TRANSITION_NOT_AVAILABLE`, `TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKNOWLEDGED`, `NOT_PROCESS_CUSTODIAN`, `INVALID_PROCESS_STATUS`, `MFA_REQUIRED`, `DEPARTMENT_REQUIRED`, `ASSIGNEE_NOT_ELIGIBLE`, `DUE_DATE_OVERRIDE_NOT_ALLOWED`, `APPROVER_UNRESOLVED`, `DOCUMENT_INCOMPLETE`, `PROCESS_ALREADY_ASSIGNED` (ver PRC-19..33). `departmentResolution.mode` usa o enum `DepartmentResolution`; quando `CHOSEN_ON_FORWARD`, `departmentId`/`departmentName` ficam ausentes e a unidade é escolhida no próprio `POST /forward` (omissão → `DEPARTMENT_REQUIRED`). `approverPreview.type` usa `ApproverType`; é `null` quando a transição não leva a etapa `APPROVAL` ou quando não resolvido (razão em `reasons[]` = `APPROVER_UNRESOLVED`). `dueAtPreview` calculado por RN-TRAM-09/10; pode ser `null` quando depende de dado ainda não informado (ex.: unidade de destino). Este bloco de prévia consolida US-041 (schema-base de `available-actions`) com as regras de encaminhamento de US-047: a US-041 preenche `departmentResolution` (`mode` + `departmentId` quando resolvida), `requiresComment` e `allowDueDateOverride` em `FORWARD`/`COMPLETE` (e os dois últimos em `RETURN`); `dueAtPreview` e `approverPreview` ficam com a US-047. Ordem: avanços (principal primeiro, depois `displayOrder`), `RETURN` por etapa percorrida, ciclo de vida (`CLAIM`, `ASSIGN`, `SUSPEND`/`RESUME`, `CANCEL`); ação sem a permissão em nenhum escopo é omitida.
 
 ### PRC-09 — Obter checklist de pendências do processo
 `GET /api/v1/processes/{id}/checklist` · **Permissão:** `PROCESS_VIEW` · **Story:** US-004, US-041
@@ -291,7 +301,7 @@ ActionEntry {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`
 - **Request:** —
-- **Response:** `200 { data: { violations: Violation[] } }` — `Violation` no formato único de api.md §2.1.2 (`code: "WORKFLOW_RULE"`, `ruleId`, `severity: "BLOCKING"|"WARNING"`, `message`, `sectionKey?`, `field?`, `itemId?`, `params?`); campos adicionais vistos no painel (US-004): `name?`, `type?`, `satisfied?`, `scope?`, `transitionId?`, `link?`.
+- **Response:** `200 { data: { violations: Violation[] } }` — `Violation` no formato único de api.md §2.1.2 (`code: "WORKFLOW_RULE"`, `ruleId`, `severity: "BLOCKING"|"WARNING"`, `message`, `sectionKey?`, `field?`, `itemId?`, `params?`); campos adicionais vistos no painel (US-004): `name?`, `type?`, `satisfied?`, `scope?`, `transitionId?`, `transitionKey?`, `link?`, `evaluationFailed?` (regra não avaliável: mensagem padrão "Não foi possível verificar esta regra. Tente novamente ou fale com o administrador." — FA-10). Só regras ativas NÃO satisfeitas (`satisfied: false`): `STAGE_EXIT` da etapa atual e `TRANSITION` das saídas `FORWARD`/`COMPLETE`, bloqueantes antes dos avisos; `params` traz `documentTypeCode`/`minStatus`/`minCount?` (`REQUIRED_DOCUMENT`) ou `stageKey` (`REQUIRED_APPROVAL`) para o atalho; `field` é o caminho do `REQUIRED_FIELD`.
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -311,9 +321,10 @@ ActionEntry {
 ```ts
 StageEntry {
   workflowStageId: string; key: string; name: string; type: StageType; groupLabel: string; displayOrder: number;
-  slaDays?: number; slaType?: DayCountType; lastPassStatus: string;
-  passes: Array<{ processStageId: string; sequence: number; status: string; department: {id,name}; assignee?: {id,name};
-                  enteredAt: string; exitedAt?: string; dueAt?: string; dueDateOverridden: boolean; overdueSince?: string }>;
+  slaDays: number|null; slaType: DayCountType|null; lastPassStatus: ProcessStageStatus|null /* null = não percorrida */;
+  isCurrent: boolean /* etapa da passagem ativa (aria-current="step") */;
+  passes: Array<{ processStageId: string; sequence: number; status: ProcessStageStatus; department: {id,name}; assignee: {id,name}|null;
+                  enteredAt: string; exitedAt: string|null; dueAt: string|null; dueDateOverridden: boolean; overdueSince: string|null }>;
 }
 ```
 - **Erros:**
@@ -331,26 +342,34 @@ StageEntry {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`; query (feed, api.md §1.2): `cursor?`, `limit?` (1–100), `action?` (multi `MovementAction`), `fromDepartmentId?`, `toDepartmentId?`, `actorId?`, `occurredFrom?`, `occurredTo?`
 - **Request:** —
-- **Response:** `200 { data: MovementItem[], meta: { nextCursor, hasMore, canViewIp } }`:
+- **Response:** `200 { data: MovementItem[], meta: { nextCursor, hasMore, canViewIp } }` — ordem `sequence` decrescente; `canViewIp = false` sem `AUDIT_VIEW` (a UI omite a coluna — FA-02):
 ```ts
 MovementItem {
-  action: MovementAction;
-  fromStage?: {id,name}; toStage?: {id,name}; fromDepartment?: {id,name}; toDepartment?: {id,name}; fromUser?: {id,name}; toUser?: {id,name};
-  statusFrom?: ProcessStatus; statusTo?: ProcessStatus;
-  actor: { type: ActorType; id?: string; name: string; departmentName?: string };
-  comment?: string; dueAt?: string; documents?: MovementDocumentRef[]; approvalId?: string; approvalSummary?: object;
-  occurredAt: string; ip?: string; // só com permissão AUDIT_VIEW (RN-TRAM-74)
+  id: string; sequence: number; action: MovementAction;
+  // Nomes hidratados na consulta (o registro guarda só ids); `name: null` = não encontrado.
+  fromStage: {id,name} | null; toStage: {id,name} | null;
+  // `isActive = false`: unidade inativada ou vínculo não ativo — selo "(inativo)" (FA-05).
+  fromDepartment: {id,name,isActive} | null; toDepartment: {id,name,isActive} | null;
+  fromUser: {id,name,isActive} | null; toUser: {id,name,isActive} | null;
+  statusFrom: ProcessStatus | null; statusTo: ProcessStatus | null;
+  actor: { type: ActorType; id: string | null; name: string | null; departmentName: string | null }; // name null em SYSTEM
+  comment: string | null; dueAt: string | null; documents: MovementDocumentRef[];
+  approvalId: string | null;
+  approvalSummary: { title: string; status: ApprovalStatus; decision: ApprovalDecision | null } | null; // FA-03
+  occurredAt: string;
+  ip: string | null;            // só com AUDIT_VIEW (RN-TRAM-74); null para os demais e com o cache de permissões fora
+  userAgent: string | null; correlationId: string;
 }
 ```
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 422 | `VALIDATION_ERROR` | `action` fora do enum; período invertido (`OUT_OF_RANGE`); `cursor` inválido/expirado |
+| 422 | `VALIDATION_ERROR` | `action` fora do enum (`INVALID_ENUM` em `action`); período invertido (`OUT_OF_RANGE` em `occurredFrom`); `limit` > 100 (`OUT_OF_RANGE`); `cursor` inválido/expirado (`INVALID_FORMAT` em `cursor`) |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
 
 - **Efeitos:** — (leitura; não produz eventos). Auditoria: `access.denied` quando processo não visível/vínculo inativo.
-- **Notas:** `documents[]` = `MovementDocumentRef` e `metadata` = `MovementMetadata` (entities.md §5.6); `approvalSummary` (resumo da `Approval` vinculada) — a definir na implementação. A consulta em si não gera `AuditLog` dedicado (acesso aos dados de auditoria é tratado por `audit.search`, US-073, fora desta story).
+- **Notas:** `documents[]` = `MovementDocumentRef` e `metadata` = `MovementMetadata` (entities.md §5.6; `metadata` não é exposto). Cursor opaco sobre `sequence` (`sequence < n`, estável sob tramitações concorrentes). Nomes de etapa, unidade, usuário e o resumo da aprovação hidratados em lote por página (uma leitura por tipo). `ip` exige `AUDIT_VIEW` com o 2º fator quando `security.mfaPolicy` o exige (como a POL-09) e fica `null` quando o cache de permissões está indisponível na requisição (postura segura). `Cache-Control: no-store`. A consulta em si não gera `AuditLog` dedicado (acesso aos dados de auditoria é tratado por `audit.search`, US-073, fora desta story).
 
 ### PRC-12 — Listar timeline do processo
 `GET /api/v1/processes/{id}/timeline` · **Permissão:** `PROCESS_VIEW` · **Story:** US-060
@@ -360,9 +379,10 @@ MovementItem {
 - **Request:** —
 - **Response:** `200 { data: TimelineEntry[], meta: { nextCursor, hasMore } }`:
 ```ts
-TimelineEntry { id: string; occurredAt: string; type: string; actorType: string; actorId?: string; actorName: string;
-  actorDepartmentName?: string; entityType: string; entityId: string; movementId?: string; params?: object;
-  visibility: "STANDARD" | "BUDGET_RESTRICTED" }
+TimelineEntry { id: string; occurredAt: string; type: string; actorType: ActorType; actorId: string | null;
+  actorName: string | null; // null em actorType = SYSTEM (o front exibe "Sistema")
+  actorDepartmentName: string | null; entityType: string | null; entityId: string | null; movementId: string | null;
+  params: object; visibility: "STANDARD" | "BUDGET_RESTRICTED" }
 ```
 - **Erros:**
 
@@ -372,7 +392,7 @@ TimelineEntry { id: string; occurredAt: string; type: string; actorType: string;
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
 
 - **Efeitos:** — (leitura).
-- **Notas:** catálogo de `type`/`params` por tipo de entrada em events.md §5 (projeção na timeline) e regras de visibilidade `BUDGET_RESTRICTED` em US-060 (RN-TML-13).
+- **Notas:** catálogo de `type`/`params` por tipo de entrada em events.md §5 (projeção na timeline) e regras de visibilidade `BUDGET_RESTRICTED` em US-060 (RN-TML-13). Multivalorados (`group`, `actorId`) por vírgula ou repetição (OU); filtros distintos combinam por E; período inclusivo em ISO 8601 UTC. As entradas `BUDGET_RESTRICTED` sem POL-09 saem no `WHERE` (paginação só do visível, sem indicação). Cursor inválido → 422 `INVALID_FORMAT` em `cursor`; grupo fora da tabela → `INVALID_ENUM` em `group`; período invertido → `OUT_OF_RANGE` em `occurredTo`. Processo não visível também grava `access.denied` (`reasonCode = PROCESS_VIEW`).
 
 ### PRC-13 — Listar itens do processo
 `GET /api/v1/processes/{id}/items` · **Permissão:** `PROCESS_VIEW` · **Story:** US-006
@@ -383,11 +403,13 @@ TimelineEntry { id: string; occurredAt: string; type: string; actorType: string;
 - **Response:** `200 { data: ProcessItem[] }` + `ETag`:
 ```ts
 ProcessItem {
-  id: string; sequence: number; lotNumber?: number; lotName?: string;
+  id: string; processId: string; sequence: number; lotNumber: number | null; lotName: string | null;
   kind: ItemKind; description: string; unitOfMeasure: { id: string; label: string };
-  catalogSystem?: ItemCatalogSystem; catalogCode?: string; notes?: string;
-  referenceQuantity?: string; referenceQuantitySourceDocumentId?: string;
-  referenceUnitPrice?: string | null; referenceUnitPriceMasked: boolean; referenceUnitPriceSourceDocumentId?: string;
+  catalogSystem: ItemCatalogSystem | null; catalogCode: string | null; notes: string | null;
+  referenceQuantity: string | null; referenceQuantitySourceDocumentId: string | null;
+  referenceUnitPrice: string | null; referenceUnitPriceMasked: boolean; referenceUnitPriceSourceDocumentId: string | null;
+  references: { documentId: string; code: string; typeCode: string; status: string; editable: boolean }[]; // documentos/pesquisas que usam o item (FA-01/03/04)
+  version: number; // If-Match de PRC-15/PRC-16
 }
 ```
 - **Erros:**
@@ -397,7 +419,7 @@ ProcessItem {
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
 
 - **Efeitos:** —
-- **Notas:** `referenceUnitPriceMasked` segue POL-09 (RN-PROC-84).
+- **Notas:** `referenceUnitPriceMasked` segue POL-09 (RN-PROC-84): processo sigiloso sem POL-09 → `referenceUnitPrice: null` e `referenceUnitPriceMasked: true` em todos os itens (mesmo sem preço, para não revelar se há valor). `references` vem dos leitores registrados na porta `ProcessItemUsageRegistry` (US-006) pelos donos de `DocumentItem`/`PriceItem`.
 
 ### PRC-14 — Adicionar item ao processo
 `POST /api/v1/processes/{id}/items` · **Permissão:** `PROCESS_UPDATE` + POL-01 · **Story:** US-006
@@ -514,7 +536,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessUpdated` (`process.updated`, `changedFields=["tags"]`) quando há diferença efetiva. Auditoria: `process.tags_update` (`DATA_CHANGE`, `changes:[{path:"tags",old:[nomes],new:[nomes]}]`); `access.denied` em 403.
-- **Notas:** RN-PROC-85/86. Cadastro de etiquetas (TAG-01..03) não gera evento de domínio, só auditoria de configuração.
+- **Notas:** RN-PROC-85/86. Cadastro de etiquetas (TAG-01..03) não gera evento de domínio, só auditoria de configuração. `ETag` = nova versão do processo (a atual, se o conjunto for idêntico: 200 sem versão, evento, timeline nem auditoria — RN-PROC-89, avaliado antes do `If-Match`). A resposta traz as etiquetas aplicadas (ativas e inativas) por nome. PRC-08 expõe a ação `MANAGE_TAGS` ("Etiquetas"), desabilitada com o motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia (FA-04).
 
 ### PRC-19 — Encaminhar processo
 `POST /api/v1/processes/{id}/forward` · **Permissão:** `PROCESS_FORWARD` + POL-01 · **Story:** US-047
@@ -530,7 +552,8 @@ Exemplo de 409 `ITEM_IN_USE`:
   dueDateOverrideReason?: string; // 10–1.000, obrigatório com dueAt
   comment?: string;               // até 5.000; obrigatório conforme RN-TRAM-11
   documentIds?: string[];         // até 50, sem repetição (RN-TRAM-12)
-  acknowledgedWarnings?: string[]; }
+  acknowledgedWarnings?: string[]; } // ids das regras WARNING (PRC-08/09) e códigos dos avisos
+                                     // dos documentos cobertos (DOC-08 — US-016 · RN-DFD-41)
 ```
 - **Response:** `200 { data: Process }` com `status`, `currentStage`, `currentDepartment`, `currentResponsible`, `movement: {id, sequence}`, `approval?: {id, approverLabel}`, `version` + `ETag`
 - **Erros:**
@@ -540,7 +563,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 422 | `VALIDATION_ERROR` | Corpo inválido; documento de outro processo; prazo inválido |
 | 422 | `TRANSITION_NOT_AVAILABLE` | Transição inexistente, de outra etapa ou não `FORWARD` |
 | 422 | `TRANSITION_BLOCKED` | Regra `BLOCKING` não satisfeita |
-| 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Aviso `WARNING` não reconhecido |
+| 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Aviso `WARNING` não reconhecido — da regra do workflow (`violations[].code = WORKFLOW_RULE`) ou do documento coberto em rascunho (código do módulo, ex.: `DFD_ATTACHMENTS_PENDING` — US-016) |
 | 422 | `DEPARTMENT_REQUIRED` | Unidade ausente em transição `CHOSEN_ON_FORWARD` |
 | 422 | `DUE_DATE_OVERRIDE_NOT_ALLOWED` | Prazo alterado sem permissão da transição |
 | 422 | `ASSIGNEE_NOT_ELIGIBLE` | Pessoa indicada não lotada no destino / sem vínculo ativo |
@@ -554,6 +577,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessStageChanged`(`ProcessForwarded`) sempre; `ProcessStatusChanged` quando o status muda; `ProcessAssigned` (`assignmentType=STAGE_ENTRY`) quando a nova etapa resolve responsável; `ProcessNumberAssigned` na autuação do 1º encaminhamento; `DocumentVersionCreated`+`DocumentSubmitted` por documento coberto submetido; `ApprovalRequested` quando o destino é `APPROVAL`. Projeções: timeline `PROCESS_FORWARDED` (e correlatas); `ProcessAccess`. Auditoria: `process.forward` (`WORKFLOW`); `process.number_assign`, `document.version_create`, `document.submit`, `approval.request` quando aplicáveis; `access.denied` em 403.
+- **Avisos reconhecidos (DEC-016):** os das regras em `ProcessMovement.metadata.warningsAcknowledged` (`{ ruleId, message }`); os dos documentos cobertos em `metadata.documentWarningsAcknowledged` (`{ documentId, code, message }`) e em `document.submit.metadata.warningsAcknowledged` (US-016). Ambos vão também em `process.forward.metadata`.
 - **Notas:** RN-TRAM-04/06/07/08/09/10/11/12/15. A prévia de cada transição disponível (`departmentResolution`, `requiresComment`, `allowDueDateOverride`, `dueAtPreview`, `approverPreview`) é obtida antecipadamente em `GET /processes/{id}/available-actions` (PRC-08), nas entradas `action="FORWARD"`.
 
 ### PRC-20 — Devolver processo
@@ -582,7 +606,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 ### PRC-21 — Assumir processo
 `POST /api/v1/processes/{id}/claim` · **Permissão:** `PROCESS_CLAIM` + POL-04 · **Story:** US-049
 
-- **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
+- **Cabeçalhos:** `Idempotency-Key` opcional (US-056: a ação rápida "Assumir" da caixa de tarefas envia; o reenvio com a mesma chave reproduz a resposta com `Idempotent-Replayed: true`) · `If-Match` obrigatório
 - **Parâmetros:** path `id`
 - **Request:** — (corpo vazio)
 - **Response:** `200 { data: Process }` com `currentResponsible`, `version`
@@ -597,7 +621,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessAssigned` (`process.assigned`, `assignmentType=CLAIM`, `fromUserId=null`). Projeção: timeline `PROCESS_CLAIMED`; `ProcessAccess` (`RESPONSIBLE`). Auditoria: `process.claim` (`WORKFLOW`); `access.denied` em 403.
-- **Notas:** só elegível para quem está lotado na unidade atual do processo.
+- **Notas:** só elegível para quem está lotado na unidade atual do processo; `TASK`/`START` em `IN_PROGRESS`/`RETURNED` (RN-TRAM-32). O 409 `PROCESS_ALREADY_ASSIGNED` traz `currentResponsible { id, name }` e vale antes do `If-Match` (a corrida de fila manda o mesmo `If-Match` dos dois lados); já assumido por quem chama com `If-Match` vencido é o reenvio do clique duplo e responde 412 `VERSION_CONFLICT` (FA-03). Sem corpo, sem notificação (RN-TRAM-34/35); a `Idempotency-Key` é opcional (US-056) — sem ela, o clique duplo continua barrado pelo `If-Match`.
 
 ### PRC-22 — Atribuir/reatribuir responsável
 `POST /api/v1/processes/{id}/assign` · **Permissão:** `PROCESS_ASSIGN` ou titular/substituto + POL-05 · **Story:** US-050
@@ -618,7 +642,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessAssigned` (`process.assigned`, `assignmentType=MANUAL`, `fromUserId?`, `toUserId?`, `hasReason`). Projeção: timeline `PROCESS_ASSIGNED`; `ProcessAccess` (`RESPONSIBLE`) ao novo responsável. Auditoria: `process.assign` (`WORKFLOW`, `metadata.viaHeadOrDeputy`); `access.denied` em 403.
-- **Notas:** RN-TRAM-38/39; novo responsável deve estar lotado na unidade atual, com vínculo ativo e `PROCESS_VIEW`.
+- **Notas:** RN-TRAM-38/39; novo responsável deve estar lotado na unidade atual, com vínculo ativo e `PROCESS_VIEW`. Ordem das recusas: 404 → 403 (POL-05: escopo `TENANT`/`ORGANIZATION` do órgão do processo ou titular/substituto da unidade atual, lido no `tx`; escopo de unidade não basta) → 409 → 412 → 422 (`assigneeId` sem vínculo no tenant = `VALIDATION_ERROR`/`REFERENCE_NOT_FOUND`; com vínculo e inelegível = `ASSIGNEE_NOT_ELIGIBLE`) → 422 `reason`. Sem `Idempotency-Key`: o reenvio já aplicado responde 412 (FA-04). Os membros do diálogo SCR-115 vêm do USR-02 com `departmentId`.
 
 ### PRC-23 — Suspender processo
 `POST /api/v1/processes/{id}/suspend` · **Permissão:** `PROCESS_SUSPEND` + POL-07 · **Story:** US-008
@@ -664,8 +688,8 @@ Exemplo de 409 `ITEM_IN_USE`:
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** path `id`
-- **Request:** `{ cancellationReason: string }` — ≥20 caracteres, trim
-- **Response:** `200 { data: Process }`
+- **Request:** `{ cancellationReason: string }` — 20–5.000 caracteres, trim
+- **Response:** `200 { data: Process }` com `canceledAt` e `cancellationReason` + `ETag`
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -673,8 +697,8 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 422 | `VALIDATION_ERROR` (`TOO_SHORT`) | Justificativa ausente/curta |
 | 403 | `PERMISSION_DENIED` | Sem permissão |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
-| 409 | `INVALID_PROCESS_STATUS` | Processo já em status final |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 409 | `INVALID_PROCESS_STATUS` | Processo já em status final quando a requisição chegou (reenvio) |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente — inclusive quando outra requisição cancelou o processo enquanto esta esperava a trava (corrida entre abas) |
 
 - **Efeitos:** Eventos: `ProcessStatusChanged`/`ProcessCanceled` (`toStatus=CANCELED`, `reasonProvided=true`); `ApprovalCanceled` para aprovação(ões) pendente(s), na mesma transação (`motivo=PROCESS_CANCELED`). Projeção: timeline `PROCESS_CANCELED`. Auditoria: `process.cancel` (`DATA_CHANGE`, `changes.status`, `metadata`: hash da justificativa, `pendingApprovalsCanceled`); `access.denied` em 403.
 - **Notas:** —
@@ -685,13 +709,14 @@ Exemplo de 409 `ITEM_IN_USE`:
 - **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` obrigatório
 - **Parâmetros:** path `id`
 - **Request:** `{ comment?: string; acknowledgedWarnings?: string[] }` — `comment` até 5.000; `acknowledgedWarnings` obrigatório se houver regra `WARNING` pendente
-- **Response:** `200 { data: Process }`
+- **Response:** `200 { data: Process }` com `completedAt` e `completedBy { id, name }` (RN-PROC-115) + `ETag`
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 422 | `TRANSITION_BLOCKED` | Regra `BLOCKING` pendente |
 | 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Aviso `WARNING` não reconhecido |
+| 422 | `TRANSITION_NOT_AVAILABLE` | Etapa atual sem transição `COMPLETE` e não `END` |
 | 403 | `NOT_PROCESS_CUSTODIAN` | Usuário não está com o processo |
 | 403 | `PERMISSION_DENIED` | Sem permissão |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
@@ -699,7 +724,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessStageChanged` (encerramento da etapa ativa, `cause=COMPLETE`); `ProcessStatusChanged`/`ProcessCompleted` (`toStatus=COMPLETED`), manual ou automática. Projeção: entrada de conclusão na timeline. Auditoria: `process.complete` (`DATA_CHANGE`, `metadata.cause`=`MANUAL`\|`APPROVAL`); `access.denied` em 403.
-- **Notas:** —
+- **Notas:** ordem das recusas: 404 → 412 (`If-Match` antes da custódia: quem perde a corrida para um encaminhamento recebe 412, não 403) → 403 `PERMISSION_DENIED` → 409 → 403 `NOT_PROCESS_CUSTODIAN` → 422. A transição usada é a `COMPLETE` principal da etapa atual (ou a primeira na ordem de exibição); na etapa `END` já ativa (FA-03) a passagem é encerrada sem transição nomeada. A conclusão automática (US-052) usa a mesma rotina de domínio e grava a mesma auditoria com `cause = APPROVAL`.
 
 ### PRC-27 — Duplicar processo
 `POST /api/v1/processes/{id}/duplicate` · **Permissão:** `PROCESS_DUPLICATE` + `PROCESS_CREATE` · **Story:** US-011
@@ -726,11 +751,15 @@ Exemplo de 409 `ITEM_IN_USE`:
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id`
 - **Request:** —
-- **Response:** `200 { data: Participant[] }`:
+- **Response:** `200 { data: Participant[], meta: { canManage: boolean; me: { participantId: string; role: ParticipantRole } | null } }`:
 ```ts
-Participant { id: string; userId?: string; departmentId?: string; role: ParticipantRole;
-  notify: boolean; expiresAt?: string; grantedAt: string; grantedBy: {id,name}; reason?: string }
+Participant { id: string; processId: string; principalType: 'USER' | 'DEPARTMENT';
+  userId?: string; departmentId?: string;
+  principal: { id: string; name: string; isExternal: boolean };  // nome congelado na leitura; isExternal só para USER
+  role: ParticipantRole; notify: boolean; expiresAt?: string; grantedAt: string;
+  grantedBy: { id: string; name: string }; reason?: string }
 ```
+Ordem: `grantedAt` crescente. Só participações ativas (não revogadas); `CONSULTANT` com `expiresAt` vencido não aparece (RN-PROC-135), mesmo antes do job `participants-expire`. `meta.canManage` (`PROCESS_MANAGE_PARTICIPANTS` cobrindo o processo) e `meta.me` (`{ participantId, role } | null` — a participação do próprio usuário, para o botão "Seguir") orientam a UI.
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -746,7 +775,7 @@ Participant { id: string; userId?: string; departmentId?: string; role: Particip
 
 - **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
 - **Parâmetros:** path `id`
-- **Request:** `{ userId?: string; departmentId?: string; role: ParticipantRole; notify?: boolean; expiresAt?: string; reason?: string }` — exatamente um de `userId`/`departmentId`; `role` padrão `OBSERVER`; `expiresAt` obrigatório e ≤ validade do vínculo externo quando `role="CONSULTANT"` (RN-PROC-127); `notify` padrão `true`; `reason` até 500
+- **Request:** `{ userId?: string; departmentId?: string; role: ParticipantRole; notify?: boolean; expiresAt?: string; reason?: string }` — exatamente um de `userId`/`departmentId`; `role` obrigatório (o diálogo pré-seleciona `OBSERVER`); `expiresAt` futura e só para `CONSULTANT` (nos demais papéis → `NOT_ALLOWED`); `expiresAt` obrigatório e ≤ validade do vínculo externo quando `role="CONSULTANT"` (RN-PROC-127); `notify` padrão `true`; `reason` até 500
 - **Response:** `201 { data: Participant }`
 - **Erros:**
 
@@ -848,11 +877,13 @@ Código;Título;Situação;Valor estimado;Orçamento sigiloso
 | HTTP | `code` | Quando |
 |---|---|---|
 | 422 | `VALIDATION_ERROR` | Filtro inválido |
-| 422 | `EXPORT_TOO_LARGE` | Consulta acima de 10.000 linhas |
+| 422 | `EXPORT_TOO_LARGE` | Consulta acima de 10.000 linhas (`meta.totalItems` com o total; nenhum byte do arquivo) |
 | 403 | `PERMISSION_DENIED` | Sem `PROCESS_EXPORT` |
+| 429 | `RATE_LIMITED` | Exportação do mesmo usuário em andamento (trava de 2 min) ou limite por minuto; `Retry-After` |
+| 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível antes do envio (depois de iniciado, a conexão é abortada) |
 
 - **Efeitos:** — (sem evento de domínio). Auditoria: `process.export` (`EXPORT`) na conclusão (`SUCCESS`) ou interrupção após iniciar o envio (`FAILURE`) — `metadata`: filtros aplicados (inclusive `q`), `sort`, `columns`, `rowCount`, `maskedRowCount`, `durationMs`, `savedViewId?`; `access.denied` em 403.
-- **Notas:** limite de 10.000 linhas (refinar filtros); fórmulas em células são neutralizadas (prefixo `'`, ver exemplo); classe de limite "Exportações e renderização" (api.md §1.6, 20 req/min).
+- **Notas:** limite de 10.000 linhas (`PROCESS_EXPORT_MAX_ROWS` — refinar filtros); linhas = processos visíveis E cobertos pelo escopo de `PROCESS_EXPORT`; formato: UTF-8 com BOM, separador `;`, CRLF, cabeçalho em pt-BR, decimais com vírgula sem separador de milhar, datas `DD/MM/AAAA` e data-hora `DD/MM/AAAA HH:mm` no fuso do tenant, enums pelos rótulos, etiquetas separadas por " | "; `estimatedValue` gera também "Orçamento sigiloso" e `deadline` gera "Prazo da etapa" e "Situação do prazo"; fórmulas em células de texto são neutralizadas (prefixo `'`, ver exemplo); geração por cursor em lotes de 500 (transação `READ ONLY`, `statement_timeout` 60 s); classe de limite "Exportações e renderização" (api.md §1.6, 20 req/min).
 
 ### PRC-35 — Listar visões salvas
 `GET /api/v1/saved-views` · **Permissão:** `PROCESS_VIEW` ou `INBOX_VIEW` · **Story:** US-003

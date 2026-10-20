@@ -14,6 +14,8 @@
 | RSK-08 | DELETE | `/risk-treatments/{treatmentId}` | `RISK_MANAGE` + POL-02 | US-034 |
 | RSK-09 | GET | `/processes/{id}/risk-matrix` | `PROCESS_VIEW` | US-035 |
 | RSK-10 | POST | `/processes/{id}/risk-map` | `RISK_MANAGE` + POL-02 | US-035 |
+| RSK-11 | POST | `/processes/{id}/risks/ai-apply` | `RISK_MANAGE` + POL-02 (solicitante da geração) | US-119 |
+| RSK-12 | POST | `/processes/{id}/risks/ai-review` | `RISK_MANAGE` + POL-02 | US-119 |
 
 Edição de riscos e tratamentos (POL-02) considera o documento `RISK_MAP`: se existir e estiver em `FINALIZED`/`APPROVED`/`IN_REVIEW`, ficam bloqueados até reabertura (RN-RISK-09/16); sem documento, são editáveis sob custódia. Submissão/finalização/reabertura do Mapa de Riscos usam os endpoints genéricos de documento (`DOC-08`/`DOC-09`/`DOC-10`/`DOC-12`, fora deste arquivo).
 
@@ -25,13 +27,39 @@ Edição de riscos e tratamentos (POL-02) considera o documento `RISK_MAP`: se e
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório); query: filtros `phase`, `categoryId`, `status` (api.md §1.2) — sem campo de ordenação documentado
 - **Request:** —
-- **Response:** `200 { data: Risk[] }`
+- **Response:** `200 { data: Risk[], meta: RiskListMeta }` (`Cache-Control: no-store`)
 ```ts
 Risk {
-  id: string; code: string; title: string; description?: string; categoryId: string;
+  id: string; processId: string; code: string; title: string; description: string | null;
+  categoryId: string; category: { id: string; code: string; label: string }; // rótulo mesmo se inativa
   phase: string; cause: string; consequence: string; probability: number; impact: number;
-  ownerId?: string; ownerDepartmentId?: string; residualProbability?: number; residualImpact?: number;
-  score: number; level: string; scaleSnapshot: object; status: string; version: number;
+  ownerId: string | null; owner: { id: string; name: string } | null;
+  ownerDepartmentId: string | null; ownerDepartment: { id: string; name: string } | null;
+  residualProbability: number | null; residualImpact: number | null;
+  residualScore: number | null; residualLevel: string | null;
+  score: number; level: string; scaleSnapshot: { scale; levelThresholds }; status: string;
+  sortOrder: number;
+  treatments: RiskTreatment[]; // não excluídos, por sortOrder, prazo (sem prazo por último), criação — RN-RISK-10 · US-034
+  version: number;
+}
+RiskTreatment { // US-034 — resposta de RSK-06/07 e item de Risk.treatments
+  id: string; riskId: string; processId: string;
+  type: "PREVENTIVE" | "CONTINGENCY"; description: string;
+  responsibleId: string | null; responsible: { id: string; name: string } | null;
+  responsibleDepartmentId: string | null; responsibleDepartment: { id: string; name: string } | null;
+  dueDate: string | null;      // YYYY-MM-DD; "Atrasado" calculado na UI (FA-03)
+  status: "PLANNED" | "IN_PROGRESS" | "DONE" | "CANCELED";
+  completedAt: string | null;  // gerado ao concluir (RN-RISK-12)
+  notes: string | null; sortOrder: number;
+  version: number;             // If-Match de RSK-07/08
+}
+RiskListMeta {
+  scale: { max: number; probabilityLabels: string[]; impactLabels: string[] }; // vigente (grade)
+  levelThresholds: { level: string; minScore: number; maxScore: number }[];
+  riskMap: { id: string; code: string | null; status: string } | null; // RISK_MAP ativo do processo
+  canManage: boolean; // POL-02 estendida avaliada para o usuário (botões do SCR-011)
+  lockReason: null | "PERMISSION_DENIED" | "NOT_CUSTODIAN" | "INVALID_PROCESS_STATUS"
+            | "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE" | "DOCUMENT_NOT_EDITABLE"; // FA-04
 }
 ```
 - **Erros:**
@@ -99,11 +127,12 @@ Risk {
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** `id` (path, uuid, obrigatório)
-- **Request:** campos parciais de RSK-02, mais:
+- **Request:** campos parciais de RSK-02 (`null` limpa os opcionais), mais:
 ```ts
 {
-  residualProbability?: number; // RN-RISK-08
-  residualImpact?: number;      // RN-RISK-08
+  residualProbability?: number | null; // RN-RISK-08 — em par com residualImpact
+  residualImpact?: number | null;      // RN-RISK-08
+  status?: string;                      // RiskStatus — ajuste manual (RN-RISK-07)
 }
 ```
 - **Response:** `200 { data: Risk }`
@@ -114,8 +143,9 @@ Risk {
 | 403 | `PERMISSION_DENIED` | Sem permissão/escopo |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Mapa de Riscos bloqueou edição |
 | 409 | `INVALID_PROCESS_STATUS` | Processo fora de status editável |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-| 422 | `VALIDATION_ERROR` | Ver RSK-02 |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente (`currentVersion` na resposta) |
+| 422 | `VALIDATION_ERROR` | Ver RSK-02; residual sem par (`CONDITIONAL_REQUIRED`) |
+| 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | `RISK_MAP` fora dos tipos da etapa atual (POL-02) |
 
 - **Efeitos:** Eventos: `RiskAssessed` (`risk.assessed`), quando `probability` e/ou `impact` mudam — `riskId`, `fromLevel`, `toLevel`, `score` (mesmo sem mudança de nível). Auditoria: `risk.assess` (`DATA_CHANGE`) quando altera probabilidade/impacto (`changes`: `fromScore`/`toScore`, `fromLevel`/`toLevel`) ou `risk.update` nos demais casos.
 - **Notas:** —
@@ -154,15 +184,19 @@ Risk {
   notes?: string;                       // ≤1000
 }
 ```
-- **Response:** `201 { data: RiskTreatment }` com `status` padrão `PLANNED`
+- **Response:** `201 { data: RiskTreatment }` com `status` padrão `PLANNED`, `sortOrder` = depois do último tratamento do risco e `ETag` = versão
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Escopo de `RISK_MANAGE` não cobre o processo |
-| 422 | `VALIDATION_ERROR` | Campo obrigatório ausente; limites de tamanho; `responsibleId`/`responsibleDepartmentId` inválido (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
+| 404 | `NOT_FOUND` | Risco inexistente, excluído, de outro tenant ou de processo não visível |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Mapa de Riscos concluído (RN-RISK-16) |
+| 409 | `INVALID_PROCESS_STATUS` | Processo fora de status editável |
+| 422 | `VALIDATION_ERROR` | Campo obrigatório ausente; limites de tamanho; `responsibleId`/`responsibleDepartmentId` inválido (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`); `status`/`sortOrder` no corpo (`NOT_ALLOWED`) |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
 
-- **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = CREATED` — `riskId`, `treatmentId`, `status`. Auditoria: `risk.treatment_create` (`DATA_CHANGE`) — `metadata`: `riskId`, `type`.
+- **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = CREATED` — `riskId`, `treatmentId`, `status`. Auditoria: `risk.treatment_create` (`DATA_CHANGE`) — `metadata`: `riskId`, `type`; `changes`: `risk.status` `OPEN → IN_TREATMENT` quando a transição automática ocorre (RN-RISK-14: primeiro tratamento com `status ≠ CANCELED` de risco `OPEN`, na mesma transação; a versão do risco sobe).
 - **Notas:** bloqueado (`DOCUMENT_NOT_EDITABLE`) quando o Mapa de Riscos foi concluído (RN-RISK-16); evento sem projeção automática em timeline/notificação (consumo interno do módulo `risk`).
 
 ### RSK-07 — Atualizar ação de tratamento
@@ -170,20 +204,21 @@ Risk {
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` obrigatório
 - **Parâmetros:** `treatmentId` (path, uuid, obrigatório)
-- **Request:** campos parciais de RSK-06, mais `status?: string` (`TreatmentStatus`; RN-RISK-15)
-- **Response:** `200 { data: RiskTreatment }`
+- **Request:** campos parciais de RSK-06 (`null` limpa os opcionais), mais `status?: string` (`TreatmentStatus`; RN-RISK-15) e `sortOrder?: number` (0..10000 — reordenação, FA-02)
+- **Response:** `200 { data: RiskTreatment }` (`ETag` = nova versão; sem mudança efetiva, a versão atual sem auditoria nem evento)
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão/escopo |
-| 409 | `INVALID_STATE` | Transição de status não permitida (RN-RISK-15) |
+| 404 | `NOT_FOUND` | Tratamento inexistente, excluído, de outro tenant ou de processo não visível |
+| 409 | `INVALID_STATE` | Transição de status não permitida (RN-RISK-15) — `currentStatus`/`requestedStatus` na resposta |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Tratamento bloqueado (RN-RISK-16) |
-| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente (`currentVersion` na resposta) |
 | 422 | `VALIDATION_ERROR` | Ver RSK-06 |
 
 - **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = UPDATED`/`STATUS_CHANGED`. Auditoria: `risk.treatment_update` (`DATA_CHANGE`) — `changes`: campos alterados, `fromStatus`/`toStatus` quando aplicável.
-- **Notas:** `completedAt` é gerado pelo sistema ao concluir (RN-RISK-12).
+- **Notas:** `completedAt` é gerado pelo sistema ao concluir (RN-RISK-12). Cancelar não reverte o status do risco (FA-04).
 
 ### RSK-08 — Excluir ação de tratamento
 `DELETE /api/v1/risk-treatments/{treatmentId}` · **Permissão:** `RISK_MANAGE` + POL-02 · **Story:** US-034
@@ -201,7 +236,7 @@ Risk {
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `RiskTreatmentChanged` (`risk.treatment_changed`), `change = DELETED`. Auditoria: `risk.treatment_delete` (`DATA_CHANGE`) — `metadata.riskId`.
-- **Notas:** —
+- **Notas:** exclusão lógica (RN-RISK-17); não reverte o status do risco (FA-04).
 
 ### RSK-09 — Obter matriz de riscos
 `GET /api/v1/processes/{id}/risk-matrix` · **Permissão:** `PROCESS_VIEW` · **Story:** US-035
@@ -209,16 +244,26 @@ Risk {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório); query: `phase`, `categoryId`, `status` (filtros não persistidos, api.md §1.2)
 - **Request:** —
-- **Response:** `200 { data: { scale: object, levelThresholds: object, cells: Array<{ probability: number, impact: number, score: number, level: string, risks: Array<{ id: string, code: string, title: string }> }> } }`
+- **Response:** `200 { data: RiskMatrix }` (`Cache-Control: no-store`)
+```ts
+RiskMatrix {
+  scale: { max: number; probabilityLabels: string[]; impactLabels: string[] };  // VIGENTE (RN-RISK-18)
+  levelThresholds: { level: string; minScore: number; maxScore: number }[];    // VIGENTES
+  cells: Array<{                     // todas as scale.max² células: probabilidade desc, impacto asc
+    probability: number; impact: number; score: number; level: string;
+    risks: Array<{ id: string; code: string; title: string }>;   // por código; [] se vazia
+  }>;
+}
+```
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 403 | `PERMISSION_DENIED` | Sem permissão |
-| 404 | `NOT_FOUND` | Processo inexistente/outro tenant |
+| 404 | `NOT_FOUND` | Processo inexistente, de outro tenant ou não visível (DEC-024 — sem `PROCESS_VIEW` que o cubra) |
+| 422 | `VALIDATION_ERROR` | Filtro inválido (`phase`/`status` fora do enum, `categoryId` não UUID, parâmetro desconhecido) |
 
-- **Efeitos:** —
-- **Notas:** —
+- **Efeitos:** — (log `risk_map.matrix_viewed` amostrado)
+- **Notas:** usa a escala e as faixas vigentes do tenant, não o `scaleSnapshot` de cada risco; grau acima do máximo vigente (escala reduzida depois do registro) fica na borda. Disponível em qualquer status do `RISK_MAP` (RN-RISK-24). A agregação é a mesma do snapshot do Mapa de Riscos (`buildRiskMatrix` de `@contrataflow/validation`).
 
 ### RSK-10 — Emitir Mapa de Riscos
 `POST /api/v1/processes/{id}/risk-map` · **Permissão:** `RISK_MANAGE` + POL-02 · **Story:** US-035
@@ -226,16 +271,63 @@ Risk {
 - **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` —
 - **Parâmetros:** `id` (path, uuid, obrigatório)
 - **Request:** `{}` (sem campos; usa os riscos vigentes)
-- **Response:** `201 { data: Document }` com `title` padrão "Mapa de Riscos", `status` inicial `DRAFT`
+- **Response:** `201 { data: Document, meta: { allowedActions } }` com `title` padrão "Mapa de Riscos", `status` inicial `DRAFT`, `Location: /api/v1/documents/{id}` e `ETag: "1"`; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 403 | `PERMISSION_DENIED` | Falta `RISK_MAP_SUBMIT`/`RISK_MANAGE` |
-| 409 | `DOCUMENT_ALREADY_EXISTS` | Já existe `RISK_MAP` ativo no processo |
+| 403 | `PERMISSION_DENIED` | Falta `RISK_MANAGE` cobrindo o processo, ou sem custódia nem participação `COLLABORATOR`/`CONSULTANT` |
+| 404 | `NOT_FOUND` | Processo inexistente, de outro tenant ou não visível |
+| 409 | `DOCUMENT_ALREADY_EXISTS` | Já existe `RISK_MAP` ativo no processo (`meta.existingDocumentId` quando detectado antes do índice único) |
+| 409 | `INVALID_PROCESS_STATUS` | Processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` |
 | 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
 | 422 | `BUSINESS_RULE_VIOLATION` (`RISK_LIST_EMPTY`) | Nenhum risco registrado |
-| 422 | `BUSINESS_RULE_VIOLATION` (`RISK_TREATMENT_REQUIRED_FOR_LEVEL`) | Risco Alto/Extremo sem tratamento ativo |
+| 422 | `VALIDATION_ERROR` (`templateId`) | Template padrão do `RISK_MAP` sem versão publicada (US-110) |
 
 - **Efeitos:** Eventos: `DocumentCreated` (`document.created.risk_map`) — `documentId`, `documentTypeCode = RISK_MAP`, `kind = STRUCTURED`. Auditoria: `document.create` (`DATA_CHANGE`) — `metadata.documentTypeCode = RISK_MAP`. Timeline: `DOCUMENT_CREATED`.
-- **Notas:** submissão/finalização/reabertura usam `DOC-08`/`DOC-09`/`DOC-10`/`DOC-12` (fora deste arquivo), que emitem `DocumentVersionCreated`, `DocumentSubmitted`, `DocumentFinalized`, `DocumentReopened`, todos com projeção na timeline.
+- **Notas:** submissão/finalização/reabertura usam `DOC-08`/`DOC-09`/`DOC-10`/`DOC-12` (fora deste arquivo), que emitem `DocumentVersionCreated`, `DocumentSubmitted`, `DocumentFinalized`, `DocumentReopened` (`document.<fato>.risk_map`), todos com projeção na timeline. A completude do `RISK_MAP` (RN-RISK-21) entra no `DOC-08` e recusa `DOC-09`/`DOC-10` com o erro genérico 422 `DOCUMENT_INCOMPLETE`: `RISK_LIST_EMPTY` e `RISK_TREATMENT_REQUIRED_FOR_LEVEL` (um por risco Alto/Extremo sem tratamento com `status ≠ CANCELED`; `itemId = riskId`, `params = { code, level }`). A versão (RN-RISK-20) congela em `content.header` `riskCount`, `treatmentCount`, `scaleMax`, `levelThresholds` e `byLevel`, e em `content.collections` `risks`, `treatments` e `matrix` (células ocupadas); `typedSummary` de `DocumentFinalized`/`document.finalize` = `{ riskCount, treatmentCount, byLevel }`.
+
+### RSK-11 — Aplicar riscos propostos pela IA
+`POST /api/v1/processes/{id}/risks/ai-apply` · **Permissão:** `RISK_MANAGE` + POL-02 · só o solicitante da geração (RN-AI-13) · **Story:** US-119
+
+- **Cabeçalhos:** `Idempotency-Key` obrigatório
+- **Parâmetros:** `id` (path, uuid) — processo
+- **Request:**
+```ts
+{
+  generationId: string;                                  // AiGeneration RISK_MAP SUCCEEDED deste processo
+  risks: Array<{ proposalKey: string; treatments: string[] /* proposalKeys dos tratamentos escolhidos */ }>;  // ≥ 1
+}
+```
+- **Response:** `201 { data: { risks: Risk[] /* com treatments */ } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` / `NOT_PROCESS_CUSTODIAN` | Sem `RISK_MANAGE` / POL-02 |
+| 403 | `AI_GENERATION_NOT_OWNED` | Usuário não é o solicitante |
+| 404 | `NOT_FOUND` / `AI_GENERATION_NOT_FOUND` | Processo ou geração inexistente/de outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | `RISK_MAP` em `FINALIZED`/`APPROVED`/`IN_REVIEW` (riscos bloqueados até reabertura) |
+| 409 | `AI_GENERATION_NOT_APPLICABLE` | Geração não `SUCCEEDED`, expirada ou de outro processo/alvo |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 422 | `VALIDATION_ERROR` | `risks` vazio; `proposalKey` inexistente na proposta (`NOT_ALLOWED`); categoria inativa (`REFERENCE_INACTIVE`) |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
+
+- **Efeitos:** numa transação:
+  - cria cada `Risk` com código sequencial, `score`/`level` pelas faixas vigentes, `scaleSnapshot` e `aiGenerationId`;
+  - cria os `RiskTreatment` escolhidos com `aiGenerationId`, `status = PLANNED` e `dueDate`/responsáveis nulos;
+  - a geração vira `APPLIED` (`appliedTargets.riskIds`);
+  - auditoria `risk.create` por risco, `risk.treatment_create` por tratamento e `ai.content_apply`;
+  - eventos `RiskCreated` por risco (timeline `RISK_ADDED`), `RiskTreatmentChanged` (`CREATED`) por tratamento e `AiContentApplied` (`document.ai_content_applied.risk_map`) → timeline `AI_CONTENT_APPLIED`.
+- **Notas:** a proposta do `RISK_MAP` tem duas partes, riscos (este endpoint) e seções narrativas (DOC-26). Cada parte é aplicada uma única vez; a geração vai a `APPLIED` na primeira aplicação e aceita a outra parte enquanto não expirar (`appliedTargets` acumula). Riscos criados ficam "gerado por IA" até RSK-12 (RN-AI-42); seus textos podem conter o marcador literal "[a confirmar: …]".
+
+### RSK-12 — Marcar riscos gerados por IA como revisados
+`POST /api/v1/processes/{id}/risks/ai-review` · **Permissão:** `RISK_MANAGE` + POL-02 · **Story:** US-119
+
+- **Cabeçalhos:** — (concorrência por risco, no corpo)
+- **Parâmetros:** `id` (path, uuid) — processo
+- **Request:** `{ riskIds: string[] /* ≥ 1 */, expectedVersions: Record<string, number> }`
+- **Response:** `200 { data: { risks: Risk[], reviewedRiskIds: string[] } }`. Riscos sem `aiGenerationId` ou já revisados são ignorados (idempotente).
+- **Erros:** 403 `PERMISSION_DENIED`/`NOT_PROCESS_CUSTODIAN` · 404 `NOT_FOUND` · 409 `DOCUMENT_NOT_EDITABLE` (mapa bloqueado) · 412 `VERSION_CONFLICT` (versão divergente; `meta.current`) · 422 `VALIDATION_ERROR` (lista vazia; risco de outro processo — `REFERENCE_NOT_FOUND`)
+- **Efeitos:** `aiReviewedAt`/`aiReviewedById` e `version + 1` em cada risco; auditoria `ai.content_review`; evento `AiContentReviewed` (`document.ai_content_reviewed.risk_map`) → timeline `AI_CONTENT_REVIEWED`.
+- **Notas:** a validação do `RISK_MAP` (DOC-08) acrescenta `RISK_AI_REVIEW_PENDING` e `RISK_PLACEHOLDER_PENDING` (texto com "[a confirmar"), bloqueantes (RN-AI-42).

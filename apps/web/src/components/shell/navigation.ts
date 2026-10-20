@@ -8,16 +8,25 @@ import type { IconName } from './icons';
 
 export interface NavItem {
   readonly href: string;
-  readonly labelKey: 'dashboard' | 'tasks' | 'approvals' | 'processes' | 'suppliers' | 'example';
+  readonly labelKey:
+    'dashboard' | 'tasks' | 'approvals' | 'processes' | 'suppliers' | 'audit' | 'example';
   readonly icon: IconName;
+  /**
+   * Permissão que dá acesso à área: o item só some quando a API confirma que o usuário NÃO a tem
+   * (ME-03); enquanto a resposta não existe, a própria rota decide (RN-FND-92).
+   */
+  readonly permission?: string;
 }
 
 export const MAIN_NAV: readonly NavItem[] = [
-  { href: '/painel', labelKey: 'dashboard', icon: 'dashboard' },
-  { href: '/tarefas', labelKey: 'tasks', icon: 'inbox' },
+  // US-076: sem `DASHBOARD_VIEW` o menu some; a rota responde com o estado 403.
+  { href: '/painel', labelKey: 'dashboard', icon: 'dashboard', permission: 'DASHBOARD_VIEW' },
+  // US-056: sem `INBOX_VIEW` (caso excepcional) o menu some; a rota responde com o estado 403.
+  { href: '/tarefas', labelKey: 'tasks', icon: 'inbox', permission: 'INBOX_VIEW' },
   { href: '/aprovacoes', labelKey: 'approvals', icon: 'stamp' },
   { href: '/processos', labelKey: 'processes', icon: 'folder' },
   { href: '/fornecedores', labelKey: 'suppliers', icon: 'truck' },
+  { href: '/auditoria', labelKey: 'audit', icon: 'shield', permission: 'AUDIT_VIEW' },
   { href: '/exemplo', labelKey: 'example', icon: 'flask' },
 ];
 
@@ -33,15 +42,20 @@ export interface AdminNavItem {
     | 'catalogs'
     | 'calendar'
     | 'settings';
+  /**
+   * Permissão que dá acesso à área (permissions.md §9): o item só some quando a API confirma que o
+   * usuário NÃO a tem (ME-03); enquanto a resposta não existe, a própria rota decide (403).
+   */
+  readonly permission?: string;
 }
 
 export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin/usuarios', labelKey: 'users' },
-  { href: '/admin/perfis', labelKey: 'roles' },
+  { href: '/admin/perfis', labelKey: 'roles', permission: 'ROLE_VIEW' },
   { href: '/admin/estrutura', labelKey: 'structure' },
-  { href: '/admin/templates', labelKey: 'templates' },
-  { href: '/admin/workflows', labelKey: 'workflows' },
-  { href: '/admin/tipos-documento', labelKey: 'documentTypes' },
+  { href: '/admin/templates', labelKey: 'templates', permission: 'TEMPLATE_VIEW' },
+  { href: '/admin/workflows', labelKey: 'workflows', permission: 'WORKFLOW_VIEW' },
+  { href: '/admin/tipos-documento', labelKey: 'documentTypes', permission: 'DOCUMENT_TYPE_MANAGE' },
   { href: '/admin/catalogos', labelKey: 'catalogs' },
   { href: '/admin/calendario', labelKey: 'calendar' },
   { href: '/admin/configuracoes', labelKey: 'settings' },

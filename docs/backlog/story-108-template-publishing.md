@@ -59,7 +59,7 @@ Permitir publicar uma versão válida em um único passo, com validação comple
 
 ## Regras de negócio
 - **RN-TPL-13** — Nova versão (TPL-06) só é criada quando não há rascunho corrente para o template (`UNIQUE (tenant_id, template_id) WHERE status = 'DRAFT'`); clona `sections`/`layout`/`fieldConfig`/`importMappings` da versão de maior `versionNumber` (publicada ou aposentada); `versionNumber = max(existente) + 1`; status inicial `DRAFT`. Duas solicitações concorrentes para o mesmo template → a segunda recebe `TEMPLATE_DRAFT_EXISTS` (409) e a UI deve carregar o rascunho criado pela primeira.
-- **RN-TPL-14** — Publicar (TPL-10) exige versão em `DRAFT` e `template.isActive = true`; a validação completa (RN-TPL-04 a RN-TPL-09 da US-107) é reexecutada por inteiro — qualquer violação bloqueante → `TEMPLATE_INVALID` (422) e nenhuma alteração é persistida.
+- **RN-TPL-14** — Publicar (TPL-10) exige versão em `DRAFT` e `template.isActive = true` (template inativo → `INVALID_STATE`, 409); a validação completa (RN-TPL-04 a RN-TPL-09 da US-107) é reexecutada por inteiro — qualquer violação bloqueante → `TEMPLATE_INVALID` (422) e nenhuma alteração é persistida.
 - **RN-TPL-15** — Ao publicar: `status = PUBLISHED`; `publishedAt`/`publishedById` preenchidos; `contentHash` = SHA-256 do JSON canonicalizado (RFC 8785) de `{ sections, layout, fieldConfig, importMappings }`; `DocumentTemplate.currentPublishedVersionId` passa a apontar para esta versão. A partir daqui, `sections`/`layout`/`fieldConfig`/`importMappings`/`versionNumber` são imutáveis (qualquer PATCH → `TEMPLATE_VERSION_NOT_DRAFT`, RN-TPL-03).
 - **RN-TPL-16** — Sem efeito retroativo: publicar uma nova versão não altera documentos já criados a partir de versões anteriores (cada documento referencia a versão vigente no momento de sua criação); apenas documentos criados depois usam a versão recém-publicada.
 - **RN-TPL-17** — Aposentar (TPL-11) exige `status = PUBLISHED`; define `RETIRED`, `retiredAt`/`retiredById`. Versão aposentada não pode ser escolhida como padrão do tipo (DTY-04) nem usada para iniciar novos documentos; documentos existentes continuam a referenciá-la normalmente (consulta, impressão, histórico).
@@ -78,7 +78,7 @@ Esta story não introduz campos de formulário novos: reaproveita `changeNotes` 
 | V-03 | Aposentar versão que não está `PUBLISHED` | API | "Só é possível aposentar uma versão publicada." | `INVALID_STATE` |
 | V-04 | Aposentar a versão corrente sem substituta, sendo padrão de algum tipo | API | "Publique outra versão antes de aposentar esta, pois ela é a padrão de \"{tipo}\"." | `TEMPLATE_IN_USE` |
 | V-05 | Definir como padrão um template sem versão publicada | API | "Este template ainda não tem uma versão publicada." | `BUSINESS_RULE_VIOLATION` (TEMPLATE_NOT_PUBLISHED) |
-| V-06 | Definir como padrão um template de outro tipo de documento | API | "Este template não pertence ao tipo selecionado." | `VALIDATION_ERROR` |
+| V-06 | Definir como padrão um template de outro tipo de documento | API | "Este template não pertence ao tipo selecionado." | `VALIDATION_ERROR` (`templateId`, `NOT_ALLOWED`) |
 | V-07 | Nova versão solicitada com rascunho já existente | API | "Já existe um rascunho em edição para este template." | `TEMPLATE_DRAFT_EXISTS` |
 | V-08 | `If-Match` divergente em publicar/aposentar/definir padrão | API | "O recurso foi alterado por outra pessoa. Recarregue e tente novamente." | `VERSION_CONFLICT` |
 

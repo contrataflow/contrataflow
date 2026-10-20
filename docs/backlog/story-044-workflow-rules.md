@@ -23,7 +23,7 @@ Regras de etapa e de transição
 ## Descrição
 **Como** administrador do órgão, **quero** configurar regras (`WorkflowRule`) de saída de etapa ou de transição — documento obrigatório, campo obrigatório, aprovação obrigatória ou condição — e testá-las contra um processo real antes de publicar, **para** que o motor de workflow (US-041) bloqueie ou avise corretamente quando o processo não estiver pronto para avançar.
 
-A configuração acontece no painel SCR-035, acessado a partir do editor de workflow (US-043), sobre a `WorkflowVersion` em `DRAFT`. Cada regra pertence a exatamente uma etapa (saída) ou a uma transição, tem um tipo com configuração própria (`config`), uma severidade (`BLOCKING` ou `WARNING`) e uma mensagem exibida ao usuário quando não satisfeita. O construtor de condições usa react-querybuilder sobre os campos do `RuleContext` (`WF-19`) e gera JSON Logic. Um botão "Testar regra" avalia a regra em elaboração contra um processo existente, sem salvar nada, para validar o comportamento antes de publicar a versão (US-045).
+A configuração acontece no painel SCR-035, acessado a partir do editor de workflow (US-043), sobre a `WorkflowVersion` em `DRAFT`. Cada regra pertence a exatamente uma etapa (saída) ou a uma transição, tem um tipo com configuração própria (`config`), uma severidade (`BLOCKING` ou `WARNING`) e uma mensagem exibida ao usuário quando não satisfeita. O construtor de condições — construtor próprio (`ConditionBuilder`: combinador E/OU + linhas campo/operador/valor, com edição em JSON como alternativa; o react-querybuilder previsto não entrou — dependência nova fora do catálogo, RN-FND-11, decisão de 2026-10-16) — usa os campos do `RuleContext` (`WF-19`) e gera JSON Logic. Um botão "Testar regra" avalia a regra em elaboração contra um processo existente, sem salvar nada, para validar o comportamento antes de publicar a versão (US-045).
 
 ## Contexto
 - O motor de execução (US-041, `WorkflowFacade.evaluateRules`) já sabe avaliar `WorkflowRule` dos quatro tipos definidos em DEC-016/entities.md §5.5, mas nenhuma story anterior oferece interface para criar essas regras — hoje elas só existem semeadas pelo workflow padrão (US-042).
@@ -46,7 +46,7 @@ Permitir que um administrador configure e valide uma regra completa (tipo, âmbi
 1. No editor do workflow (SCR-034), o administrador abre a aba/rota "Regras" (SCR-035) de uma etapa ou transição.
 2. O sistema chama `GET /rule-context/schema` (`WF-19`) e monta o construtor com os campos disponíveis (`process.*`, `documents.<TYPE>.*`, `priceResearch.*`, `risks.*`, `items.*`, `stage.*`, `now`).
 3. O administrador clica em "Nova regra", escolhe o **tipo** (`REQUIRED_DOCUMENT`, `REQUIRED_FIELD`, `REQUIRED_APPROVAL` ou `CONDITION`) e preenche a configuração correspondente, a **severidade**, o **nome** e a **mensagem** exibida ao usuário.
-4. Para `CONDITION`, o administrador monta a expressão no react-querybuilder (campo, operador, valor); o front converte para JSON Logic.
+4. Para `CONDITION`, o administrador monta a expressão no construtor de condições (campo, operador, valor); o front converte para JSON Logic.
 5. O front envia `POST /api/v1/workflow-versions/{versionId}/rules` (`WF-16`). A API valida âmbito, referências e a forma do `config` (RN-WF-53 a 58) e persiste a regra.
 6. O administrador clica em **"Testar regra"**: escolhe um processo existente (busca por código/título, `PRC-01`) e o front envia `POST /api/v1/workflow-versions/{versionId}/rules/test` (`WF-23`); a API avalia a configuração informada contra o `RuleContextV1` real do processo e devolve satisfeita/não satisfeita com os valores usados, sem persistir nada.
 7. O sistema exibe o resultado do teste junto ao formulário ("Satisfeita" ou "Não satisfeita — {mensagem}") para ajuste antes de salvar.
@@ -83,7 +83,7 @@ Permitir que um administrador configure e valide uma regra completa (tipo, âmbi
 | Configuração (`REQUIRED_DOCUMENT`) | `config.documentTypeCode`, `config.minStatus`, `config.minCount?` | composto | Condicional | RN-WF-55 | — |
 | Configuração (`REQUIRED_FIELD`) | `config.field` | texto (caminho) | Condicional | RN-WF-56 | lista de `WF-19` |
 | Configuração (`REQUIRED_APPROVAL`) | `config.stageKey` | seleção | Condicional | RN-WF-57 | etapas `APPROVAL` da versão |
-| Configuração (`CONDITION`) | `config.expression` | JSON Logic (querybuilder) | Condicional | RN-WF-58 | — |
+| Configuração (`CONDITION`) | `config.expression` | JSON Logic (construtor de condições) | Condicional | RN-WF-58 | — |
 | Ativa | `isActive` | interruptor | Não | — | `true` |
 | Ordem de exibição | `displayOrder` | número | Não | ≥ 0 | ordem de criação |
 | *(teste)* Processo de referência | `processId` | seleção (busca) | Sim, só no teste | visível ao usuário | — |
@@ -191,7 +191,7 @@ Feature: Regras de etapa e de transição
 
 ## Impacto técnico
 - O endpoint de teste de regra (`WF-23`) deve reaproveitar o mesmo `RuleEvaluator` do motor de runtime (US-041) para garantir que "testar" e "executar de verdade" nunca divirjam; recebe a `config` solta (não um `ruleId`), então não pode assumir que a regra existe no banco.
-- Construtor de condições gera JSON Logic client-side (react-querybuilder); a API sempre revalida a allowlist de operadores antes de qualquer execução (nunca confia no front).
+- Construtor de condições gera JSON Logic client-side (construtor próprio, sem dependência nova); a API sempre revalida a allowlist de operadores antes de qualquer execução (nunca confia no front).
 - `config` é `jsonb` livre por tipo (§5.5 do pacote); validação de forma usa um schema Zod discriminado por `type`, compartilhado entre `WF-16`, `WF-17` e o endpoint de teste.
 
 ## Backend
@@ -203,7 +203,7 @@ Feature: Regras de etapa e de transição
 
 ## Frontend
 - **Tela(s):** SCR-035 (`/admin/workflows/[id]/regras`).
-- **Componentes:** `RuleList` (por etapa/transição, com `displayOrder` arrastável), `RuleTypeSelect`, `RequiredDocumentFields`, `RequiredFieldPicker` (opções de `WF-19`), `RequiredApprovalFields`, `ConditionBuilder` (react-querybuilder), `RuleTestPanel` (busca de processo + resultado).
+- **Componentes:** `RuleList` (por etapa/transição, com `displayOrder` arrastável), `RuleTypeSelect`, `RequiredDocumentFields`, `RequiredFieldPicker` (opções de `WF-19`), `RequiredApprovalFields`, `ConditionBuilder` (construtor próprio — combinador E/OU e linhas campo/operador/valor, alternativa em JSON), `RuleTestPanel` (busca de processo + resultado).
 - **Estados:** skeleton ao carregar schema/regras; vazio ("Nenhuma regra configurada para esta etapa"); erro com "Tentar novamente"; resultado do teste com destaque de cor (satisfeita/não satisfeita).
 - **Acessibilidade e responsividade:** construtor navegável por teclado; resultado do teste anunciado via `aria-live`; lista de regras em coluna única abaixo de 768 px.
 
@@ -256,7 +256,7 @@ Feature: Regras de etapa e de transição
 - [ ] Documentação (este card e fontes canônicas) atualizada
 
 ## Estimativa
-**M** — quatro tipos de regra com configuração própria, construtor de condições com react-querybuilder e um fluxo de teste (dry-run) novo, mas sem mudanças de modelo (reaproveita entidades de US-040) nem workflow transacional complexo.
+**M** — quatro tipos de regra com configuração própria, construtor de condições e um fluxo de teste (dry-run) novo, mas sem mudanças de modelo (reaproveita entidades de US-040) nem workflow transacional complexo.
 
 ## Prioridade
 **P1** — o motor (US-041) e o editor (US-043) já funcionam sem regras configuráveis pela UI; importante para o MVP 1, mas não bloqueia o fluxo padrão semeado (US-042).

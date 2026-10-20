@@ -1,13 +1,13 @@
 // pnpm env:smoke — smoke test do ambiente local (US-078 — Testes necessários): sobe o Compose, roda
 // o seed e verifica bancos, Redis separados, buckets, login OIDC de ponta a ponta com um usuário
-// semeado, e-mail no Mailpit, PDF no Gotenberg, varredura no ClamAV, isolamento entre os tenants,
-// idempotência do seed e subida reentrante (dois `env:up` em paralelo).
+// semeado, e-mail no Mailpit, recuperação de senha (US-089), PDF no Gotenberg, varredura no ClamAV,
+// isolamento entre os tenants, idempotência do seed e subida reentrante (dois `env:up` em paralelo).
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { BLUEPRINT_PATH_PREFIX } from './lib/authentik.js';
+import { authentikBaseUrl, BLUEPRINT_PATH_PREFIX } from './lib/authentik.js';
 import { createContext, runMain, upTimeoutMs, withEnvLock } from './lib/cli.js';
 import type { EnvContext } from './lib/cli.js';
 import { portOf } from './lib/env-file.js';
@@ -27,6 +27,16 @@ import {
   sendSmtp,
   sha256,
 } from './smoke/probes.js';
+import {
+  createTempUser,
+  deleteUser,
+  FlowBrowser,
+  openRecoveryLink,
+  recoveryMail,
+  requestRecovery,
+  strongPassword,
+  submitNewPassword,
+} from './smoke/recovery.js';
 import {
   externalSubjectSql,
   leakQuerySql,
@@ -226,6 +236,27 @@ await runMain(async () => {
     );
     expect(found, 'mensagem não encontrada no Mailpit');
     return 'mensagem encontrada pela API do Mailpit';
+  });
+
+  await check('authentik: recuperação de senha de ponta a ponta (US-089)', async () => {
+    const admin = { baseUrl: authentikBaseUrl(env), token: env.AUTHENTIK_BOOTSTRAP_TOKEN ?? '' };
+    const user = await createTempUser(admin);
+    try {
+      await requestRecovery(new FlowBrowser(admin.baseUrl), user.email);
+      const mail = await recoveryMail(
+        `http://localhost:${portOf(env, 'MAILPIT_UI_PORT')}`,
+        user.email,
+      );
+      const browser = new FlowBrowser(admin.baseUrl);
+      const prompt = await openRecoveryLink(browser, mail.link);
+      expect(prompt.component === 'ak-stage-prompt', `etapa inesperada: ${prompt.component}`);
+      const done = await submitNewPassword(browser, mail.link, strongPassword());
+      const target = done.to ?? '';
+      expect(target.endsWith('/entrar?motivo=senha-redefinida'), `destino final: ${target}`);
+      return `e-mail no Mailpit, nova senha aceita → ${new URL(target).pathname}`;
+    } finally {
+      await deleteUser(admin, user.pk);
+    }
   });
 
   await check('gotenberg: PDF de teste gerado', async () => {

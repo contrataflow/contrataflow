@@ -204,7 +204,7 @@ describe('Feature: Esqueleto da API modular (US-080)', () => {
   });
 
   it('[Concorrência] o contexto de AsyncLocalStorage não vaza entre requisições concorrentes', async () => {
-    const ids = Array.from({ length: 150 }, (_, index) => `load-${index}`);
+    const ids = Array.from({ length: 150 }, (_, index) => `load-${String(index).padStart(4, '0')}`);
     const responses = await Promise.all(
       ids.map((id) =>
         request(api.server)
@@ -328,12 +328,12 @@ describe('Matriz dos guards (base da suíte "tenant leak")', () => {
       401,
       'UNAUTHENTICATED',
     ],
-    ['sem X-Tenant-Id', () => ({ auth: api.bearer('sub-ana') }), 403, 'MEMBERSHIP_INACTIVE'],
+    ['sem X-Tenant-Id', () => ({ auth: api.bearer('sub-ana') }), 400, 'MALFORMED_REQUEST'],
     [
       'X-Tenant-Id inválido',
       () => ({ auth: api.bearer('sub-ana'), tenant: 'abc' }),
-      403,
-      'MEMBERSHIP_INACTIVE',
+      400,
+      'MALFORMED_REQUEST',
     ],
     [
       'tenant suspenso',
@@ -373,11 +373,26 @@ describe('Matriz dos guards (base da suíte "tenant leak")', () => {
     expectProblem(await call, status, code);
   });
 
-  it('rota sem tenant (@WithoutTenant) exige autenticação mas não X-Tenant-Id', async () => {
+  it('rota sem tenant (@TenantScope PLATFORM) exige operador com MFA, mas não X-Tenant-Id', async () => {
     const ok = await request(api.server)
       .get('/api/v1/_test/without-tenant')
-      .set('Authorization', api.bearer('sub-ana'));
-    expect(ok.body).toEqual({ data: { tenantId: null, userId: FAKE_USERS.ana.id } });
+      .set('Authorization', api.bearer('sub-operadora', { amr: ['pwd', 'otp'] }));
+    expect(ok.body).toEqual({ data: { tenantId: null, userId: FAKE_USERS.operadora.id } });
+    // US-099: quem não é operador da plataforma → 403, antes do MFA.
+    expectProblem(
+      await request(api.server)
+        .get('/api/v1/_test/without-tenant')
+        .set('Authorization', api.bearer('sub-ana', { amr: ['pwd', 'otp'] })),
+      403,
+      'PERMISSION_DENIED',
+    );
+    expectProblem(
+      await request(api.server)
+        .get('/api/v1/_test/without-tenant')
+        .set('Authorization', api.bearer('sub-operadora', { amr: ['pwd'] })),
+      403,
+      'MFA_REQUIRED',
+    );
     expectProblem(
       await request(api.server).get('/api/v1/_test/without-tenant'),
       401,
@@ -441,7 +456,12 @@ describe('Erros genéricos do filtro RFC 9457', () => {
     expect(body.detail).toBe(`Ocorreu um erro inesperado. Código: ${body.correlationId}.`);
     expect(JSON.stringify(body)).not.toContain('segredo');
     expect(error).toHaveBeenCalledWith(
-      expect.stringContaining(`http.unhandled_exception correlationId=${body.correlationId}`),
+      expect.objectContaining({
+        event: 'http.unhandled_exception',
+        correlationId: body.correlationId,
+        errorCode: 'INTERNAL_ERROR',
+      }),
+      'unhandled exception',
     );
     // Erro 5xx libera a chave: a nova tentativa é processada (e falha de novo), não reproduzida.
     expectProblem(await send(), 500, 'INTERNAL_ERROR');

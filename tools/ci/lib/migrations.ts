@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { filesAtRef, showFile } from './git.js';
 import type { EphemeralPostgres } from './postgres.js';
+import { lintSessionContext } from './sql-lint.js';
 
 export const MIGRATIONS_DIR = 'apps/api/prisma/migrations';
 
@@ -80,7 +81,8 @@ const DESTRUCTIVE: readonly { rule: string; pattern: RegExp; what: string }[] = 
     what: 'SET NOT NULL',
   },
   { rule: 'drop-schema', pattern: /\bDROP\s+SCHEMA\b/i, what: 'DROP SCHEMA' },
-  { rule: 'truncate', pattern: /\bTRUNCATE\b/i, what: 'TRUNCATE' },
+  // Só o comando, no início da instrução: `BEFORE TRUNCATE ON` de gatilho não conta.
+  { rule: 'truncate', pattern: /(?:^|;)\s*TRUNCATE\b/i, what: 'TRUNCATE' },
 ];
 
 function stripComments(line: string): string {
@@ -102,10 +104,15 @@ function tableName(raw: string): string {
 /**
  * Lint de uma migração NOVA (ainda não publicada):
  * - expand/contract: operação destrutiva só com `-- cf:contract DEC-NNN` (release posterior);
- * - tabela criada com `tenant_id` precisa de RLS ENABLE + FORCE e política na mesma migração.
+ * - tabela criada com `tenant_id` precisa de RLS ENABLE + FORCE e política na mesma migração,
+ *   literais ou pela função padrão `SELECT cf_apply_tenant_rls('<tabela>')` (US-100 · RN-TEN-25);
+ * - contexto de tenant nunca de sessão (`set_config(…, false)`/`SET app.*` — RN-FND-44).
  */
 export function lintMigration(item: Migration): MigrationFinding[] {
-  const findings: MigrationFinding[] = [];
+  const findings: MigrationFinding[] = lintSessionContext(item.file, item.sql).map((finding) => ({
+    level: 'error',
+    ...finding,
+  }));
   const contract = CONTRACT_MARKER.test(item.sql);
   const lines = item.sql.split('\n');
 
@@ -143,6 +150,12 @@ export function lintMigration(item: Migration): MigrationFinding[] {
       'i',
     );
     const policy = new RegExp(`CREATE\\s+POLICY\\s+"?\\w+"?\\s+ON\\s+${target}\\b`, 'i');
+    // A função padrão faz ENABLE + FORCE + política `tenant_isolation` (20261015120000).
+    const applied = new RegExp(
+      `\\b(?:SELECT|PERFORM)\\s+(?:"?public"?\\.)?cf_apply_tenant_rls\\s*\\(\\s*'${target}'(?:\\s*::\\s*regclass)?\\s*\\)`,
+      'i',
+    );
+    if (applied.test(code)) continue;
     const missing = [
       enable.test(code) ? undefined : 'ENABLE ROW LEVEL SECURITY',
       force.test(code) ? undefined : 'FORCE ROW LEVEL SECURITY',
@@ -154,7 +167,7 @@ export function lintMigration(item: Migration): MigrationFinding[] {
         file: item.file,
         line: lineOf(code, match.index),
         rule: 'tenant/rls',
-        message: `Tabela ${table} tem tenant_id sem ${missing.join(', ')} (DEC-082 · multi-tenancy.md §14).`,
+        message: `Tabela ${table} tem tenant_id sem ${missing.join(', ')} nem SELECT cf_apply_tenant_rls('${table}') (DEC-082 · multi-tenancy.md §14).`,
       });
     }
   }
@@ -199,15 +212,68 @@ export function newMigrations(
   return current.filter((item) => !names.has(item.name));
 }
 
+/** Tabelas de plataforma, sem `tenant_id` (lista fechada de DEC-080). */
+export const PLATFORM_TABLES = ['tenants', 'users', 'permissions', '_prisma_migrations'] as const;
+
+/** Tabelas em que `tenant_id` nulo marca registro de plataforma (DEC-080 · multi-tenancy.md §6). */
+export const NULLABLE_TENANT_TABLES = ['audit_logs', 'outbox_events'] as const;
+
 /**
- * Checagens de catálogo (multi-tenancy.md §14), uma linha por violação:
- * `rls|<tabela>`, `fk|<tabela>|<constraint>`, `unique|<tabela>|<índice>`.
+ * Tabelas de tenant sem coluna `id`, logo sem `UNIQUE (tenant_id, id)` (lista fechada —
+ * DEC-081 · multi-tenancy.md §14): associações puras, com PK composta iniciada por `tenant_id`, que
+ * nenhuma FK referencia.
+ */
+export const KEYLESS_TENANT_TABLES = ['process_tags'] as const;
+
+/**
+ * Unicidades globais por desenho, sem `tenant_id` (lista fechada — DEC-080 · multi-tenancy.md §6):
+ * o hash do token de convite (SHA-256 de 256 bits aleatórios) é buscado entre tenants só pela
+ * função `cf_find_invitation` (USR-06 · US-091) e precisa identificar um único vínculo.
+ */
+export const GLOBAL_UNIQUE_INDEXES = ['tenant_memberships_invite_token_hash_key'] as const;
+
+/** Dono de todos os objetos do schema da aplicação (RN-FND-46). */
+export const OWNER_ROLE = 'cf_owner';
+
+const sqlList = (items: readonly string[]) =>
+  items.map((item) => `'${item.replace(/'/g, "''")}'`).join(', ');
+
+/**
+ * Checagens de catálogo (multi-tenancy.md §14 · V-02/V-03), uma linha por violação (partição é
+ * checada como tabela própria — RLS, FK, unicidade —, mas herda da raiz a exceção de `tenant_id`
+ * nulo, ex.: `audit_logs_2026_10` — US-073):
+ * `rls|<tabela>`, `fk|<tabela>|<constraint>` (FK entre tabelas de tenant sem `tenant_id` como
+ * primeira coluna — RN-TEN-27), `unique|<tabela>|<índice>`, `nullable|<tabela>`,
+ * `platform|<tabela>` (sem `tenant_id` fora da lista de plataforma), `key|<tabela>` (tabela de
+ * negócio sem `UNIQUE (tenant_id, id)`, alvo das FKs compostas — DEC-081 · US-100; exceções
+ * em `KEYLESS_TENANT_TABLES` e `GLOBAL_UNIQUE_INDEXES`) e
+ * `owner|<tabela>|<dono>` (estas duas só no schema `public`, que nasce das migrações).
  */
 export function catalogChecksSql(schemas: readonly string[]): string {
-  const list = schemas.map((schema) => `'${schema.replace(/'/g, "''")}'`).join(', ');
+  const list = sqlList(schemas);
+  const ownerCheck = schemas.includes('public')
+    ? `
+UNION ALL
+SELECT 'key|' || t.name FROM tenant_tables t
+WHERE t.name LIKE 'public.%' AND t.tenant_not_null AND t.oid = coalesce(pg_partition_root(t.oid), t.oid)
+  AND t.relname NOT IN (${sqlList(KEYLESS_TENANT_TABLES)})
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_index i
+    JOIN pg_attribute ida ON ida.attrelid = t.oid AND ida.attname = 'id'
+    WHERE i.indrelid = t.oid AND i.indisunique AND i.indnatts = 2
+      AND i.indkey[0] = t.tenant_attnum AND i.indkey[1] = ida.attnum)
+UNION ALL
+SELECT 'owner|public.' || c.relname || '|' || pg_get_userbyid(c.relowner)
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relkind IN ('r', 'p') AND n.nspname = 'public' AND c.relname <> '_prisma_migrations'
+  AND pg_get_userbyid(c.relowner) <> '${OWNER_ROLE}'`
+    : '';
   return `WITH tenant_tables AS (
-  SELECT c.oid, n.nspname || '.' || c.relname AS name, c.relrowsecurity, c.relforcerowsecurity,
-         a.attnum AS tenant_attnum
+  SELECT c.oid, n.nspname || '.' || c.relname AS name, c.relname, c.relrowsecurity,
+         c.relforcerowsecurity, a.attnum AS tenant_attnum, a.attnotnull AS tenant_not_null,
+         (SELECT r.relname FROM pg_class r
+           WHERE r.oid = coalesce(pg_partition_root(c.oid), c.oid)) AS root_relname
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
   JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
@@ -221,17 +287,28 @@ SELECT 'fk|' || src.name || '|' || k.conname
 FROM pg_constraint k
 JOIN tenant_tables src ON src.oid = k.conrelid
 JOIN tenant_tables dst ON dst.oid = k.confrelid
-WHERE k.contype = 'f' AND NOT (src.tenant_attnum = ANY (k.conkey))
+WHERE k.contype = 'f' AND k.conkey[1] <> src.tenant_attnum
 UNION ALL
 SELECT 'unique|' || t.name || '|' || i.indexrelid::regclass::text
 FROM pg_index i
 JOIN tenant_tables t ON t.oid = i.indrelid
 WHERE i.indisunique AND NOT i.indisprimary AND NOT (t.tenant_attnum = ANY (i.indkey::int2[]))
+  AND i.indexrelid::regclass::text NOT IN (${sqlList(GLOBAL_UNIQUE_INDEXES)})
+UNION ALL
+SELECT 'nullable|' || t.name FROM tenant_tables t
+WHERE NOT t.tenant_not_null AND t.root_relname NOT IN (${sqlList(NULLABLE_TENANT_TABLES)})
+UNION ALL
+SELECT 'platform|' || n.nspname || '.' || c.relname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname IN (${list})
+  AND c.relname NOT IN (${sqlList(PLATFORM_TABLES)})
+  AND NOT EXISTS (SELECT 1 FROM tenant_tables t WHERE t.oid = c.oid)${ownerCheck}
 ORDER BY 1;`;
 }
 
 export interface CatalogViolation {
-  readonly kind: 'rls' | 'fk' | 'unique';
+  readonly kind: 'rls' | 'fk' | 'unique' | 'nullable' | 'platform' | 'key' | 'owner';
   readonly table: string;
   readonly object?: string;
   readonly message: string;
@@ -249,7 +326,7 @@ export function parseCatalogViolations(output: string): CatalogViolation[] {
           kind,
           table,
           ...(object === undefined ? {} : { object }),
-          message: `FK ${String(object)} em ${table} não inclui tenant_id (FK composta — DEC-081).`,
+          message: `FK ${String(object)} em ${table} não começa por tenant_id (FK composta — DEC-081 · RN-TEN-27).`,
         };
       }
       if (kind === 'unique') {
@@ -260,10 +337,39 @@ export function parseCatalogViolations(output: string): CatalogViolation[] {
           message: `Unicidade ${String(object)} em ${table} não inclui tenant_id.`,
         };
       }
+      if (kind === 'nullable') {
+        return {
+          kind,
+          table,
+          message: `Tabela ${table} aceita tenant_id nulo fora da lista fechada de DEC-080 (V-02).`,
+        };
+      }
+      if (kind === 'platform') {
+        return {
+          kind,
+          table,
+          message: `Tabela ${table} sem tenant_id fora da lista fechada de tabelas de plataforma (DEC-080 · V-02).`,
+        };
+      }
+      if (kind === 'key') {
+        return {
+          kind,
+          table,
+          message: `Tabela ${table} sem UNIQUE (tenant_id, id), alvo das FKs compostas (DEC-081 · RN-TEN-27).`,
+        };
+      }
+      if (kind === 'owner') {
+        return {
+          kind,
+          table,
+          ...(object === undefined ? {} : { object }),
+          message: `Tabela ${table} pertence a ${String(object)}, não a ${OWNER_ROLE}: crie os objetos depois de SET ROLE ${OWNER_ROLE} (RN-FND-46).`,
+        };
+      }
       return {
         kind: 'rls',
         table,
-        message: `Tabela ${table} tem tenant_id sem RLS ENABLE + FORCE e política.`,
+        message: `Migração bloqueada: tabela sem RLS — ${table} tem tenant_id sem RLS ENABLE + FORCE e política.`,
       };
     });
 }

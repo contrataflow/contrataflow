@@ -56,7 +56,7 @@ Permitir que um usuário autorizado cadastre uma ação de tratamento em menos d
 
 ## Fluxos alternativos
 - **FA-01 — Cancelar em vez de excluir:** o usuário muda o status para `CANCELED` quando a ação deixou de ser necessária, preservando o histórico (preferível a excluir).
-- **FA-02 — Vários tratamentos para o mesmo risco:** a lista ordena por `sortOrder`/prazo; o usuário pode reordenar (atualiza `sortOrder` nos itens afetados).
+- **FA-02 — Vários tratamentos para o mesmo risco:** a lista ordena por `sortOrder`/prazo (sem prazo por último), depois pela criação; o tratamento novo entra depois do último (`sortOrder` = maior + 1); o usuário pode reordenar ("Mover para cima/baixo" — `RSK-07` com `sortOrder` nos itens afetados).
 - **FA-03 — Prazo vencido:** a UI calcula "Atrasado" em runtime (`dueDate < hoje` e `status` ∉ `{DONE, CANCELED}`); não há campo persistido nem notificação dedicada nesta story.
 - **FA-04 — Tratamento é o único ativo e é cancelado/excluído:** o status do risco **não** reverte automaticamente para `OPEN`; o ajuste, se desejado, é manual via `RSK-04` (US-033).
 - **FA-05 — Processo/documento bloqueado:** com o `RISK_MAP` fora de `DRAFT`/`RETURNED`, as ações de criar/editar/excluir tratamento ficam desabilitadas, com o mesmo aviso de FA-04 de US-033.
@@ -65,7 +65,7 @@ Permitir que um usuário autorizado cadastre uma ação de tratamento em menos d
 - **RN-RISK-11** — Obrigatórios: `riskId` (via rota), `type`, `description`; `status` inicial `PLANNED`.
 - **RN-RISK-12** — `completedAt` é preenchido automaticamente com `now()` quando `status` muda para `DONE`, e limpo se o status mudar para qualquer outro valor.
 - **RN-RISK-13** — `responsibleId` (usuário) e `responsibleDepartmentId` (unidade) são mutuamente opcionais e não exclusivos; nenhum é obrigatório.
-- **RN-RISK-14** — Ao criar o primeiro tratamento com `status ≠ CANCELED` de um risco em `status = OPEN`, o risco transiciona automaticamente para `IN_TREATMENT`.
+- **RN-RISK-14** — Ao criar o primeiro tratamento com `status ≠ CANCELED` de um risco em `status = OPEN`, o risco transiciona automaticamente para `IN_TREATMENT` (atualização condicionada ao `OPEN`, na mesma transação; a versão do risco sobe). Se o risco já tinha tratamento ativo e foi reaberto manualmente (`RSK-04`), um novo tratamento não o move.
 - **RN-RISK-15** — Transições de `status` permitidas: `PLANNED → IN_PROGRESS → DONE`; qualquer status não terminal pode ir para `CANCELED`; `DONE` e `CANCELED` são terminais no MVP 1 (reabertura de tratamento concluído/cancelado não é suportada); transição fora dessas: `INVALID_STATE` (409).
 - **RN-RISK-16** — Criar, editar ou excluir um tratamento exige a mesma condição de editabilidade de RN-RISK-09 (processo ativo e, se existir, `RISK_MAP` em `DRAFT`/`RETURNED`).
 - **RN-RISK-17** — Excluir um tratamento é exclusão lógica (`+SD`); não afeta o `code` do risco nem os demais tratamentos.

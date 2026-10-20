@@ -1,0 +1,137 @@
+{
+  "title": "Tipos de documento",
+  "description": "Crie os tipos de documento do seu regulamento (pareceres, memorandos, portarias) e ajuste, dentro de limites seguros, os tipos da plataforma.",
+  "new": "Novo tipo",
+  "loading": "Carregando os tipos de documento…",
+  "loadFailed": "Não foi possível carregar os tipos.",
+  "retry": "Tentar novamente",
+  "forbidden": {
+    "title": "Acesso negado",
+    "description": "Você não tem permissão para gerenciar os tipos de documento. Procure o administrador da sua instituição."
+  },
+  "groups": {
+    "STRUCTURED": "Estruturado",
+    "FREE_TEXT": "Texto livre",
+    "UPLOADED": "Arquivo externo"
+  },
+  "table": {
+    "caption": "Tipos de documento — {group}",
+    "name": "Nome",
+    "status": "Situação",
+    "numbering": "Numeração",
+    "approval": "Exige aprovação",
+    "confidentiality": "Confidencialidade padrão",
+    "template": "Template padrão",
+    "actions": "Ações"
+  },
+  "badges": {
+    "system": "Do sistema",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "values": {
+    "yes": "Sim",
+    "no": "Não",
+    "noNumbering": "Sem numeração",
+    "noTemplate": "Sem template publicado",
+    "noTemplateNeeded": "—",
+    "next": "Próximo: {preview}"
+  },
+  "confidentiality": {
+    "PUBLIC": "Pública",
+    "INTERNAL": "Interna",
+    "RESTRICTED": "Restrita"
+  },
+  "actions": {
+    "edit": "Editar {name}",
+    "editLabel": "Editar",
+    "deactivate": "Desativar {name}",
+    "deactivateLabel": "Desativar",
+    "reactivate": "Reativar {name}",
+    "reactivateLabel": "Reativar"
+  },
+  "form": {
+    "createTitle": "Novo tipo de documento",
+    "editTitle": "Editar {name}",
+    "description": "Os campos marcados com cadeado são definidos pela plataforma e não podem ser alterados.",
+    "kind": "Natureza",
+    "kindOptions": {
+      "FREE_TEXT": "Texto livre",
+      "UPLOADED": "Arquivo externo"
+    },
+    "name": "Nome",
+    "code": "Código",
+    "codeHint": "Letras maiúsculas, números e _ (ex.: PARECER_TECNICO). Não pode ser alterado depois de salvo.",
+    "descriptionField": "Descrição",
+    "allowMultiple": "Permite vários por processo",
+    "numberingEnabled": "Numerar documentos",
+    "mask": "Máscara de numeração",
+    "maskHint": "Use '{seq:N}' (N de 1 a 8) e '{year}'; também '{org}' e '{type}'.",
+    "maskPreview": "Prévia: {preview}",
+    "maskKeepsSequence": "A sequência continua e os números já emitidos não mudam.",
+    "maskDefault": "Sem máscara própria: vale a máscara padrão da instituição.",
+    "confidentiality": "Confidencialidade padrão",
+    "sortOrder": "Ordem de exibição",
+    "requiresApproval": "Exige aprovação avulsa",
+    "approvalImpact": "A mudança vale para as próximas ações: documentos já finalizados não são alterados; rascunhos e devolvidos passam a exigir envio para aprovação.",
+    "approver": {
+      "legend": "Quem aprova",
+      "type": "Tipo de aprovador",
+      "typeDepartmentHead": "Titular de unidade",
+      "typeUser": "Usuário (disponível com o cadastro de usuários e perfis)",
+      "typeRole": "Perfil (disponível com o cadastro de usuários e perfis)",
+      "resolution": "Unidade",
+      "resolutionSecretariat": "Secretaria solicitante",
+      "resolutionDepartment": "Setor solicitante",
+      "resolutionFixed": "Unidade fixa (disponível com a estrutura organizacional)",
+      "allowDeputy": "Permitir decisão pelo substituto",
+      "sla": "Prazo da aprovação (dias)",
+      "slaType": "Contagem do prazo",
+      "slaBusiness": "Dias úteis",
+      "slaCalendar": "Dias corridos",
+      "locked": "A política de aprovação deste tipo usa um aprovador específico (usuário, perfil ou unidade fixa). Ela é mantida; a alteração fica disponível com o cadastro correspondente."
+    },
+    "locked": "Definido pela plataforma",
+    "lockedField": "{label} — definido pela plataforma",
+    "submit": "Salvar",
+    "submitting": "Salvando…",
+    "cancel": "Cancelar",
+    "maskInvalid": "A máscara deve conter '{seq:N}' e '{year}' e usar apenas os campos permitidos."
+  },
+  "toast": {
+    "created": "Tipo de documento \"{name}\" criado.",
+    "updated": "Tipo de documento \"{name}\" atualizado.",
+    "deactivated": "Tipo de documento \"{name}\" desativado.",
+    "reactivated": "Tipo de documento \"{name}\" reativado."
+  },
+  "errors": {
+    "codeTaken": "Já existe um tipo com o código {code}.",
+    "notFound": "Tipo de documento não encontrado.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+    "generic": "Não foi possível salvar o tipo de documento.",
+    "invalidApprover": "Defina quem aprova documentos deste tipo."
+  },
+  "conflict": {
+    "title": "Este tipo foi alterado por outra pessoa",
+    "description": "Recarregue os dados e reaplique as suas alterações sobre a versão mais recente.",
+    "reapply": "Recarregar e reaplicar minhas alterações",
+    "cancel": "Fechar"
+  },
+  "deactivate": {
+    "title": "Desativar {name}?",
+    "description": "O tipo deixa de ser oferecido ao criar documentos. Os documentos existentes continuam acessíveis.",
+    "blocked": "Este tipo não pode ser desativado agora.",
+    "confirm": "Desativar",
+    "cancel": "Cancelar"
+  },
+  "defaultTemplate": {
+    "label": "Template padrão de {name}",
+    "placeholder": "Sem template padrão",
+    "notPublished": "{name} (sem versão publicada)",
+    "inactive": "{name} (inativo)",
+    "version": "{name} — v{number}",
+    "saved": "Template padrão de \"{type}\" definido: {template}.",
+    "conflict": "O tipo foi alterado por outra pessoa. A lista foi recarregada; tente novamente.",
+    "generic": "Não foi possível definir o template padrão."
+  }
+}

@@ -51,6 +51,7 @@ As metas consolidam a proposta do produto ([product-overview.md](../product/prod
 ### 2.1 Biblioteca e formato
 - **pino** em todos os processos Node: `nestjs-pino` na API e no worker; pino nos *route handlers* do BFF (runtime Node do Next.js). Saída **JSON em stdout** (12-factor); o transporte para o backend é responsabilidade da plataforma (§11).
 - Timestamp ISO 8601 UTC, nível como texto, uma linha por evento, `event` com nome estável (`http.request.completed`, `job.completed`, `outbox.relay.batch`, `security.malware_detected`).
+- **Implementação (US-084):** o pacote `packages/observability` (`@contrataflow/observability`) concentra o que web, api e worker compartilham — `createLogger` (pino com os campos de §2.2 e a redação de §2.4), `correlationId` (§3), `withSpan`/propagação W3C (§4) e o bootstrap do SDK (`createTelemetrySdk`). Na API, `ObservabilityModule` (`apps/api/src/shared/observability/`, no *shared kernel* porque o middleware de contexto e o filtro RFC 9457 o usam) liga o pino ao Nest via `nestjs-pino`; o `pino-http` só cria o logger da requisição com o `requestId`, e o `http.request.completed` é do `RequestContextMiddleware` (template da rota, `statusCode`, `durationMs`, `reason` nos 4xx; `error` nos 5xx). Linhas sem `event` (mensagens internas do Nest) saem com `event: "app.log"`; o formato legado `"evento chave=valor"` (US-080/US-081) é convertido em campos.
 
 ### 2.2 Campos obrigatórios
 
@@ -98,8 +99,10 @@ As metas consolidam a proposta do produto ([product-overview.md](../product/prod
 ### 2.4 Redação e dados proibidos (DEC-138)
 Proibido logar: tokens, cookies, senhas, `Authorization`, CPF, conteúdo de documentos (`draftContent`, seções, snapshots), corpos de requisição e de upload, **URLs pré-assinadas** (credenciais ao portador), **nomes de arquivo** (podem conter dados pessoais), valores de orçamento sigiloso (POL-09), segredos de integração. E-mails sempre mascarados (`j***@dominio.gov.br`).
 
+Implementado em `packages/observability/src/redaction.ts` em duas camadas, aplicadas a todo objeto logado (inclusive aninhado e nos *bindings* de `child()`): **por nome de campo** (`SENSITIVE_KEYS`, comparados sem caixa nem separadores; e-mail mascarado) e **por padrão de texto** em qualquer string, inclusive `msg` e mensagens de erro (JWT, `Bearer`/`Basic`, CPF formatado, URL pré-assinada, e-mail). O bloco abaixo é o desenho original, mantido como referência:
+
 ```ts
-// apps/api/src/modules/platform/observability/logger.module.ts (ilustrativo)
+// apps/api/src/modules/platform/observability/logger.module.ts (ilustrativo — ver texto acima)
 LoggerModule.forRoot({
   pinoHttp: {
     level: process.env.LOG_LEVEL ?? 'info',
@@ -154,7 +157,7 @@ Logs **não** são trilha de auditoria (§13, [ADR-009](../adr/adr-009-audit-tra
 
 **Regras:**
 - O BFF aceita `X-Correlation-Id` do browser **somente** se casar `^[A-Za-z0-9._:-]{8,64}$`; caso contrário descarta o valor recebido (evita *log injection*) e gera um UUIDv7. O cliente de API do frontend gera um id por ação do usuário e o reutiliza nas re-tentativas da mesma ação (ex.: autosave).
-- A API sempre recebe o id do BFF (gera um se faltar, para chamadores internos) e o devolve no header de **toda** resposta e no `problem+json`.
+- A API sempre recebe o id do BFF (gera um se faltar, para chamadores internos — com a mesma regra de validação do BFF) e o devolve no header de **toda** resposta e no `problem+json`.
 - A UI mostra o `correlationId` copiável em mensagens de erro ("Código para o suporte") e nenhum outro detalhe técnico (DEC-181, DEC-184).
 - Assíncrono: copiado para o envelope do evento e para `JobMeta`; jobs filhos herdam; e-mails levam `X-Correlation-Id` como header técnico; o Gotenberg recebe `Gotenberg-Trace: <correlationId>`; integrações do MVP 3 enviam `X-Correlation-Id` quando o provedor aceitar.
 - **Atendimento:** usuário informa o código → operador busca nos logs (`{service=~"web|api|worker"} | json | correlationId="…"`) → segue o `traceId` até o trace → o administrador do órgão consulta a auditoria por `correlationId` (`AUDIT_VIEW`); a plataforma só acessa dados do tenant pelo fluxo de DEC-139.
@@ -177,7 +180,7 @@ flowchart LR
 ## 4. Tracing distribuído
 
 ### 4.1 SDK e instrumentações
-OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do código da aplicação (`node --import ./otel.mjs` na API e no worker; `instrumentation.ts` no Next.js). Atributos de recurso: `service.name` (`contrataflow-web`, `contrataflow-api`, `contrataflow-worker`), `service.version`, `deployment.environment.name`, `service.instance.id`, `cloud.region`.
+OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do código da aplicação (`node --import ./dist/otel.js` na API e no worker, que também registra o *hook* ESM `@opentelemetry/instrumentation/hook.mjs`; `instrumentation.ts` no Next.js, onde o próprio Next abre o span raiz). Falha de exportação nunca chega à requisição: o exportador registra `warn` `tracing.export_failed` (no máximo 1/min, com a contagem de lotes suprimidos). Sem `OTEL_EXPORTER_OTLP_ENDPOINT` — permitido só fora de staging/produção — o SDK não sobe e sai `warn` `tracing.disabled`. Atributos de recurso: `service.name` (`contrataflow-web`, `contrataflow-api`, `contrataflow-worker`), `service.version`, `deployment.environment.name`, `service.instance.id`, `cloud.region`.
 
 | Instrumentação | Pacote | Configuração obrigatória |
 |---|---|---|
@@ -187,8 +190,8 @@ OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do códig
 | Prisma | `@prisma/instrumentation` | Spans de consulta sem parâmetros |
 | Driver PostgreSQL | `@opentelemetry/instrumentation-pg` | Quando o *driver adapter* `pg` estiver em uso (US-077); sem valores |
 | ioredis | `@opentelemetry/instrumentation-ioredis` | `dbStatementSerializer` devolve **só o nome do comando** — chaves de sessão são credenciais |
-| AWS SDK | `@opentelemetry/instrumentation-aws-sdk` | S3, KMS, SES; sem payload |
-| pino | `@opentelemetry/instrumentation-pino` | Injeta `traceId`/`spanId` nos logs |
+| AWS SDK | `@opentelemetry/instrumentation-aws-sdk` | S3, KMS, SES; sem payload — entra com a primeira story que usar o AWS SDK (ainda não é dependência) |
+| pino | `mixin` do logger de `packages/observability` (US-084) | Injeta `traceId`/`spanId` do span ativo nos logs; substitui a `instrumentation-pino`, que depende de *monkey-patch* do módulo e também enviaria logs pelo SDK (aqui os logs saem só por stdout) |
 | BullMQ | Propagação explícita via `JobMeta.traceparent` ([queues.md](queues.md) §9) | Spans `PRODUCER` (`<fila> publish`) e `CONSUMER` (`<fila> process`) |
 
 ### 4.2 Propagação
@@ -224,7 +227,7 @@ OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do códig
 ## 5. Métricas
 
 ### 5.1 Convenções
-- OpenTelemetry Metrics SDK com exposição em formato Prometheus em `/metrics` (HLT-03), **somente em porta interna**, na API, no worker e no BFF; coletado pelo Collector/Prometheus a cada 15 s.
+- OpenTelemetry Metrics SDK com exposição em formato Prometheus em `/metrics` (HLT-03), **somente em porta interna** (`METRICS_PORT`: api 9464, worker 9465, web 9466 por padrão — a porta pública não tem rota `/metrics`), na API, no worker e no BFF; coletado pelo Collector/Prometheus a cada 15 s. Um *view* do SDK descarta rótulos proibidos (`tenantId`, `userId`, e-mail…) de qualquer instrumento, como defesa em profundidade (US-085).
 - Nomes: convenções semânticas do OpenTelemetry quando existirem (`http.server.request.duration` → `http_server_request_duration_seconds`); métricas próprias com prefixo `cf_` e sufixo de unidade.
 - **Labels só de conjuntos fechados:** template de rota, método, status, fila, job, resultado, classe de erro, dependência, provedor, permissão (catálogo fechado), tipo de documento de sistema (demais → `OTHER`). **Nunca** `tenantId`, `userId`, `processId`, `eventId`, e-mail ou caminho bruto.
 - Buckets alinhados aos SLOs: HTTP `[0.05, 0.1, 0.25, 0.5, 0.8, 1, 1.5, 2.5, 5, 10]` s; PDF `[1, 2.5, 5, 10, 15, 20, 30, 45, 60]` s.
@@ -233,10 +236,11 @@ OpenTelemetry Node SDK (`@opentelemetry/sdk-node`) carregado **antes** do códig
 
 | Grupo | Métricas | Labels |
 |---|---|---|
-| HTTP (RED) — API e BFF | `http_server_request_duration_seconds` (taxa = contagem; erros = status) | `service`, `http_request_method`, `http_route`, `http_response_status_code` |
-| Classes de SLO | *Recording rules* `cf:slo_latency_p95` | `class` (`read`, `search`, `summary`, `command`, `write`, `dashboard`, `upload`) — mapa rota → classe em código |
+| HTTP (RED) — API e BFF | `http_server_request_duration_seconds` (taxa = contagem; erros = status) | `service`, `http_request_method`, `http_route`, `http_response_status_code`; na API também `slo_class` (mapa rota → classe em `apps/api/src/shared/observability/http-metrics.ts`); no BFF, `http_route` agregado pelo recurso (`/api/v1/{recurso}/*`) — o caminho vem do navegador |
+| Classes de SLO | *Recording rules* `cf:slo_latency_p95`/`p99` e `cf:slo_availability_errors:ratio_rate{5m,30m,1h,6h,3d}` (`infra/observability/rules/slo.rules.yml`) | `class` (`read`, `search`, `summary`, `command`, `write`, `dashboard`, `upload`) — mapa rota → classe em código (`slo_class`; fora dos SLOs: `export`, `internal`, `other`) |
+| Saúde e versão (US-085) | `cf_health_ready` (1 pronta / 0 `fail`), `cf_health_check_status` (0 pass, 1 warn, 2 fail), `cf_build_info` (= 1; base das anotações de deploy) | `dependency` (nome fechado da matriz §6.2), `version` |
 | BFF → API | `http_client_request_duration_seconds` | `http_response_status_code` |
-| Runtime Node (USE) | `nodejs_eventloop_delay_*`, CPU, memória residente, heap V8, duração de GC | `service` |
+| Runtime Node (USE) | `nodejs_eventloop_delay_{p50,p99,max}_seconds`, `process_cpu_seconds_total{mode}`, `process_resident_memory_bytes`, `nodejs_heap_size_bytes{state}`, `nodejs_gc_duration_seconds`, `process_start_time_seconds` | `service` |
 | Infraestrutura | ECS (CPU/memória por serviço), ALB (5xx, latência, alvos saudáveis), RDS (CPU, conexões, IOPS, réplica), ElastiCache (memória, *evictions*, CPU) | Via CloudWatch/exporters |
 | Pool do banco | `db_client_connections_usage{state}`, `db_client_connections_pending_requests`, tempo de espera por conexão | `pool_name` |
 | Banco | Duração por operação do Prisma; top N de `pg_stat_statements`; *deadlocks*; falhas de serialização; transações longas | `db_operation_name`, `db_collection_name` |
@@ -267,6 +271,8 @@ Label de tenant multiplicaria séries (tenants × rotas × status), elevaria cus
 | `/health/live` | O processo está vivo? | Processo respondendo e *event loop* sem travamento (atraso < 2 s); **nenhuma** dependência | Reinício do contêiner |
 | `/health/ready` | Esta instância pode receber tráfego/trabalho? | Dependências **críticas** da aplicação; degradáveis aparecem como `warn` | Retirada do balanceador (api/web) ou alerta (worker) |
 | *Startup* | Terminou de iniciar? | Conexões abertas, JWKS carregado ao menos uma vez (api/web), OTel inicializado | Readiness só fica `pass` depois disso |
+
+`/health/live` responde 200 (`pass`) ou 503 (`fail`, *event loop* com atraso ≥ 2 s). No worker, as duas rotas e o `/metrics` ficam na porta interna `METRICS_PORT`; na api e no web, `/health/*` fica na porta da aplicação (alvo do ALB) e é montado fora do pipeline (sem autenticação, rate limit nem log). Os *checks* de S3, Gotenberg e ClamAV entram com as stories que trazem os respectivos clientes (US-068, renderização e verificação de upload) — a US-085 entrega PostgreSQL, Redis (sessões, filas/cache), JWKS/descoberta do Authentik, SMTP e a API vista pelo BFF.
 
 ### 6.2 Dependências por aplicação (alinhado a CA-T-07 e DEC-131)
 
@@ -345,7 +351,7 @@ Preparação para o MVP 3 (PNCP, Diário Oficial, assinatura eletrônica, webhoo
 
 ## 9. Dashboards técnicos
 
-Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provisionados em todos os ambientes, com anotações de deploy.
+Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provisionados em todos os ambientes, com anotações de deploy (nova `version` em `cf_build_info`). A US-085 entrega D1 (`d1-api-overview.json`), D2 (`d2-database.json`) e D3 (`d3-queues-outbox.json`); D4–D7 chegam com os respectivos domínios. Painéis de D2/D3 que dependem de *exporters* de infraestrutura (`postgres_exporter`, CloudWatch do RDS/ElastiCache) ficam sem dados no ambiente local.
 
 | # | Dashboard | Painéis |
 |---|---|---|
@@ -361,11 +367,13 @@ Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provi
 
 ## 10. Alertas
 
+Regras como código: `infra/observability/rules/alerts.rules.yml` (A01, A02, A04 — US-085; labels `alert_id`, `severity`, `channel`, `owner` e `runbook_url`) e roteamento/inibições em `infra/observability/alertmanager.yml` (destinos reais injetados por ambiente). O A04 tem duas formas: `CfReadinessFailing` (por serviço) e `CfCriticalDependencyDown` (por dependência crítica em `fail`, origem da inibição "PostgreSQL fora inibe A05..A10").
+
 **Severidades e canais:** **Crítico** → plantão 24×7 (ferramenta de *on-call* a definir: PagerDuty, Opsgenie ou Grafana OnCall); **Alto** → plantão no horário estendido (07h–22h) e chat; **Médio** → chat `#cf-alertas` + ticket; **Informativo** → chat. Eventos de segurança também vão para `#cf-seguranca`. Todo alerta tem dono, runbook e teste em homologação; alertas que acordam pessoas são de **sintoma** (SLO); causas viram tickets. Regras de inibição evitam cascata (ex.: PostgreSQL fora inibe alertas de fila).
 
 | # | Alerta | Condição | Severidade | Canal | Runbook |
 |---|---|---|---|---|---|
-| A01 | Queima rápida do SLO de disponibilidade | Taxa de queima ≥ 14,4× em 1 h **e** 5 min | Crítico | Plantão | RB-06 *(a criar)* |
+| A01 | Queima rápida do SLO de disponibilidade | Taxa de queima ≥ 14,4× em 1 h **e** 5 min | Crítico | Plantão | [RB-06](#rb-06--indisponibilidade-ou-5xx-da-api) |
 | A02 | Queima lenta do SLO de disponibilidade | ≥ 6× em 6 h e 30 min | Alto | Plantão | RB-06 |
 | A03 | Latência acima do SLO | p95 da classe > meta por 15 min | Médio | `#cf-alertas` | RB-06 |
 | A04 | Readiness falhando | < 50% das tarefas prontas por 3 min | Crítico | Plantão | RB-06 |
@@ -381,9 +389,10 @@ Dashboards como código (`infra/observability/grafana/dashboards/*.json`), provi
 | A14 | Falhas de login anômalas | Taxa de falhas > 3× a linha de base em 15 min | Alto | `#cf-seguranca` | RB-04 |
 | A15 | ClamAV indisponível | `cf_clamav_up == 0` por 5 min ou breaker aberto | Alto | Plantão | [RB-05](#rb-05--clamav-indisponível) |
 | A16 | Base de assinaturas desatualizada | `cf_clamav_signature_age_seconds > 86400` | Médio | `#cf-alertas` | RB-05 |
-| A17 | Anexo preso na verificação | `cf_attachments_stuck > 0` por 30 min | Alto | Plantão | RB-05 |
+| A17 | Anexo preso na verificação | `cf_attachments_stuck > 0` por 30 min | Alto | Plantão | [RB-13](#rb-13--anexo-preso-em-scanning) |
+| A28 | Rendition presa | `DocumentRendition` em `PENDING`/`PROCESSING` há mais de 10 min (consulta do RB-14; gauge `cf_renditions_stuck` — **(proposta)**) | Alto | Plantão | [RB-14](#rb-14--rendition-presa) |
 | A18 | Malware detectado | Aumento de `cf_file_scan_results_total{result="infected"}` | Informativo | `#cf-seguranca` | — |
-| A19 | Violação de isolamento | Guarda de tenant do storage ou job sem tenant fora da lista > 0 | Crítico | Plantão + `#cf-seguranca` | Resposta a incidentes ([security.md](security.md)) |
+| A19 | Violação de isolamento | Aumento de `cf_tenant_isolation_violations_total{barrier}` (extensão do Prisma, RLS, storage, cache, job, contexto) ou de `cf_tenant_context_missing_total` (US-100) | Crítico | Plantão + `#cf-seguranca` | [RB-10](#rb-10--suspeita-de-vazamento-entre-tenants) |
 | A20 | Falha de fixidez | `cf_storage_fixity_failures_total > 0` | Crítico | `#cf-seguranca` | [security.md](security.md) |
 | A21 | Selagem de auditoria | Sem selo há > 3 h (Alto) · verificação falhou (Crítico) | Alto · Crítico | Plantão + `#cf-seguranca` | RB-09 *(a criar)* |
 | A22 | Banco saturado | Conexões > 85% ou espera no pool por 5 min; CPU > 80% por 15 min; réplica > 30 s | Alto | Plantão | RB-07 *(a criar)* |
@@ -453,7 +462,21 @@ service:
 
 ## 12. Runbooks iniciais
 
-Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-06 indisponibilidade/5xx da API, RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria.
+Estrutura padrão: alertas → impacto → diagnóstico → mitigação → validação → pós-incidente. Reservados (a criar): RB-07 banco saturado, RB-08 Redis (sessões e filas), RB-09 selagem de auditoria. O RB-11 é o guia de operação das filas (Bull Board e CLI) usado pelos demais; o RB-12, o da CLI de tenants; o RB-13, o do anexo preso na verificação (US-068); o RB-14, o da rendition de PDF presa (US-067).
+
+### RB-06 — Indisponibilidade ou 5xx da API
+*Mínimo da US-085; aprofundar após o primeiro exercício em homologação.*
+- **Alertas:** A01, A02, A03, A04.
+- **Impacto:** usuários recebem erro (5xx) ou lentidão em `/api/v1`; com A04, instâncias fora do balanceador (api/web) ou worker parado.
+- **Diagnóstico:**
+  1. D1: taxa de queima, 5xx por rota, tarefas prontas e dependências no `/health/ready` (`cf_health_check_status`).
+  2. `CfCriticalDependencyDown` indica a dependência crítica: `postgresql` → D2 e RB-07; `redis-sessions`/`redis-queues` → RB-08; `authentik-jwks` (só no *startup*) → RB-04.
+  3. `GET /health/ready` direto numa instância (rede interna): `checks` com `status` e `output` fixos; o detalhe do erro está no log `health.dependency_critical_down`/`health.dependency_degraded` (Loki, `service` + `dependency`).
+  4. 5xx sem dependência em `fail`: Loki `{service="api"} | json | event="http.request.completed" | statusCode >= 500` agrupado por `route`; trace pelo `correlationId`.
+  5. Deploy recente? Anotação de deploy no D1 (`cf_build_info`).
+- **Mitigação:** dependência fora → restaurar/failover conforme o runbook dela; regressão de deploy → rollback para a versão anterior; saturação → escalar tarefas (CPU/memória no D1) e revisar o pool (D2).
+- **Validação:** taxa de queima < 1× por 30 min; `cf:health_ready:ratio` = 1; p95 por classe dentro da meta.
+- **Pós-incidente:** registrar o consumo do orçamento de erro; post-mortem se A01 disparou.
 
 ### RB-01 — Lag do outbox
 - **Alertas:** A05, A06, A07.
@@ -499,6 +522,76 @@ Estrutura padrão: alertas → impacto → diagnóstico → mitigação → vali
 - **Mitigação:** reiniciar/escalar clamd; aumentar memória ou desativar `ConcurrentDatabaseReload` (a recarga bloqueia o scan por instantes, mas reduz o pico de memória); espelho privado de assinaturas. **Nunca** desligar o scan nem marcar anexos como `AVAILABLE` manualmente.
 - **Validação:** breaker fechado; fila `file-scan` drenando; `cf_attachments_stuck` = 0 (o reconciliador reenfileira órfãos).
 - **Pós-incidente:** indisponibilidade > 24 h gera rejeições `UPLOAD_EXPIRED` — avisar os usuários afetados para reenviar; revisar capacidade.
+
+### RB-13 — Anexo preso em SCANNING
+*US-068. O anexo só vira `AVAILABLE` pelo `file-scan` depois de varredura limpa (P3 — storage.md §5); "preso" é a garantia funcionando, não perda de dado.*
+- **Alertas:** A17 (anexo em `UPLOADED`/`SCANNING` há mais de 30 min); costuma vir junto de A15 (ClamAV) ou A08–A10 (DLQ).
+- **Impacto:** o usuário vê "Verificando segurança do arquivo…" sem fim; o arquivo não pode ser baixado nem excluído (ATT-06 → 409 `ATTACHMENT_NOT_AVAILABLE`). Nada é liberado sem varredura.
+- **Diagnóstico:**
+  1. Quantos e desde quando (papel somente leitura): `SELECT tenant_id, status, count(*), min(updated_at) FROM attachments WHERE status IN ('UPLOADED','SCANNING') AND updated_at < now() - interval '30 minutes' GROUP BY 1, 2;` (índice parcial `attachments_pending_status_idx`).
+  2. Quem detém a varredura: `scan_result->'claim'` (`attempt`, `at`). `attempt` igual ao da última entrega + `at` recente = varredura em curso; `at` mais velho que 90 s = trava vencida (o worker caiu no meio) — a próxima entrega assume.
+  3. Logs: `attachment.scan_retry` (`errorClass = AntivirusUnavailable` → disjuntor do ClamAV, siga o RB-05; outra classe → S3/MinIO ou banco), `attachment.scan_failed` (tentativas esgotadas), `attachment.enqueue_deferred` (a confirmação não conseguiu enfileirar — Redis de filas).
+  4. Job no Bull Board/CLI (RB-11): `file-scan` com `jobId = attachmentId` — ausente (nunca enfileirado ou removido), em espera (fila pausada pelo disjuntor) ou na DLQ.
+  5. Objeto da quarentena (`tenants/{tenantId}/uploads/{attachmentId}`): ausente depois de 1 dia (lifecycle) → a próxima varredura rejeita o anexo (o usuário reenvia).
+- **Mitigação:** ClamAV fora → RB-05 (a fila volta sozinha quando o disjuntor fecha). Job ausente/na DLQ → reenfileirar `file-scan` com `jobId = attachmentId` (RB-11, `cli dlq:retry` ou o reconciliador). S3/banco → restaurar a dependência. **Nunca** atualizar `status` para `AVAILABLE` à mão — o gatilho `attachments_guard` e o CHECK `attachments_available_scanned` recusam, e contornar seria liberar arquivo sem antivírus.
+- **Validação:** a consulta do passo 1 volta vazia; `attachment.scan_completed` para os IDs afetados; `cf_attachment_scans_total{result="DEFERRED"}` parou de crescer.
+- **Pós-incidente:** anexos rejeitados por expiração da quarentena → avisar quem enviou para reenviar; revisar a capacidade do clamd e a concorrência de `file-scan` (3 por tenant).
+
+### RB-14 — Rendition presa
+*US-067. A linha `DocumentRendition` é a "outbox do trabalho" do `document-render` (padrão B): só vira `READY` com o PDF gravado e conferido (CHECK `document_renditions_ready_complete`).*
+- **Alertas:** A28; costuma vir junto de A11 (breaker do Gotenberg) ou A08–A10 (DLQ).
+- **Impacto:** o usuário vê "Gerando PDF…" sem fim; DOC-23 responde 409 `RENDITION_NOT_READY`. Nada é perdido: o pedido continua registrado.
+- **Diagnóstico:**
+  1. Quantas e desde quando (papel somente leitura): `SELECT tenant_id, kind, status, count(*), min(requested_at) FROM document_renditions WHERE status IN ('PENDING','PROCESSING') AND requested_at < now() - interval '10 minutes' GROUP BY 1, 2, 3;` (índice parcial `document_renditions_pending_idx`).
+  2. Quem detém a renderização: `status = 'PROCESSING'` com `attempts` = tentativa da última entrega e `started_at` recente = em curso; `started_at` mais velho que 60 s (ou nulo — trava devolvida pelo disjuntor) = a próxima entrega assume.
+  3. Logs: `document.render_retry` (`errorClass = RendererCircuitOpen` → breaker do Gotenberg, siga o RB-03; `PdfRendererUnavailableError` → Gotenberg 5xx/timeout; outra classe → S3/MinIO ou banco), `document.render_failed` (permanente ou tentativas esgotadas — a linha já está `FAILED`), `document.render_enqueue_deferred` (o pedido não conseguiu enfileirar — Redis de filas).
+  4. Job no Bull Board/CLI (RB-11): `document-render` com `jobId = renditionId` — ausente (nunca enfileirado), em espera/adiado (disjuntor) ou na DLQ.
+- **Mitigação:** Gotenberg fora → RB-03 (a fila volta sozinha quando o disjuntor fecha). Job ausente → reenfileirar `document-render` com `jobId = renditionId` e o payload de queues.md §4.4 (RB-11 ou o reconciliador); um novo DOC-21 equivalente também reenfileira a `PENDING` reaproveitada. Prévia: o usuário pode simplesmente pedir outra. **Nunca** marcar `READY` à mão — o gatilho e o CHECK recusam, e o hash do PDF precisa vir dos bytes gravados.
+- **Validação:** a consulta do passo 1 volta vazia; `document.render_completed` para os IDs afetados; `cf_document_renders_total{result="DEFERRED"}` parou de crescer.
+- **Pós-incidente:** revisar a capacidade do Gotenberg e a concorrência de `document-render` (2 por tenant — queues.md §4.4); classe permanente recorrente vira validação de template/layout.
+
+### RB-11 — Operação das filas (Bull Board e CLI de reprocessamento)
+Entregável da US-083 ([queues.md](queues.md) §5.6, §11, §12 e §15.1). Para o time de suporte e plantão de plataforma.
+- **Quem pode:** operador de plataforma (`User.isPlatformOperator`) com `PLATFORM_QUEUE_ADMIN` (*claim* `cf_platform_permissions` do cliente OIDC de operação) **e** MFA na sessão. Sem permissão → 403 `PERMISSION_DENIED`; sem MFA → 403 `MFA_REQUIRED` (refazer o login com segundo fator). Toda entrada, negada ou concedida, fica em `queue_dashboard.access`.
+- **Bull Board (inspeção, somente leitura):** porta interna `WORKER_ADMIN_PORT` do worker, alcançada por VPN ou *port forwarding* (SSM) — nunca pela internet. Envie o *access token* do cliente de operação em `Authorization: Bearer …` (ou no cookie `cf_ops_token`). Caminho: `/queues`; saúde: `/health`. Botões de retry/limpeza não funcionam de propósito (405): toda mutação é pela CLI.
+- **Ler um job sem expor dado de negócio:** payloads só têm IDs; o `correlationId` do `meta` abre o *trace* e os logs. Examinar dado do órgão segue o fluxo de suporte de DEC-139.
+- **CLI** (no contêiner do worker, com `CF_OPS_TOKEN` = *access token* do operador; saída JSON para colar no ticket):
+  - `node dist/cli.js dlq:list [--queue <fila>] [--tenant <id>] [--since 1h|ISO]` — fila de origem, classe do erro, tentativas, idade.
+  - `node dist/cli.js dlq:show <id>` — detalhe com redação de campos sensíveis (`id` = `<fila>.<jobId>`).
+  - `node dist/cli.js dlq:retry <id> --ticket <ref> --reason <texto>` — reenfileira na fila de origem com `jobId = <jobId>.r<n>` (auditoria `dead_letter.retry`).
+  - `node dist/cli.js dlq:retry --queue <fila> --since <ts> --ticket <ref> --reason <texto> --dry-run` — confira a lista e rode de novo sem `--dry-run` (um registro de auditoria por job).
+  - `node dist/cli.js dlq:discard <id> --ticket <ref> --reason <texto>` — só com justificativa (auditoria `dead_letter.discard`).
+  - `node dist/cli.js outbox:republish --id <eventId> --ticket <ref> --reason <texto>` — evento `FAILED` corrigido volta a `PENDING` (exige `DATABASE_URL_RELAY`; auditoria `outbox.republish`).
+- **Antes de reprocessar:** remova a causa (RB-02); handlers são idempotentes, então o retry é seguro. Breaker aberto (`cf_circuit_breaker_state = 2`): os jobs da fila ficam em `delayed` e voltam sozinhos a cada 30 s — não reprocesse, restaure a dependência (RB-03, RB-05).
+- **Schedulers:** `deadlines-tick` (15 min, UTC), `audit-seal-tick` (min. 5 de cada hora, UTC) e `maintenance-daily` (03:00 America/Sao_Paulo) são recriados no bootstrap de toda réplica; não os edite pelo Redis. Execução `skipped` (`cf_scheduled_job_skipped_total`) significa outra réplica com a trava — normal se esporádico. Alerta `worker.scheduler_missed_sla` (deadlines > 45 min, audit-seal > 3 h, maintenance > 26 h): verifique se há réplica do worker no ar e se a trava consultiva está presa (`SELECT pid FROM pg_locks WHERE locktype = 'advisory'`).
+
+### RB-12 — Operação de tenants (CLI de provisionamento e ciclo de vida)
+Entregável da US-099 (DEC-078 · [multi-tenancy.md](multi-tenancy.md) §13). Para Implantação/Sucesso do Cliente e plantão de plataforma.
+- **Onde e quem:** tarefa avulsa na rede privada, na imagem da API (`dist` já compilado), com a configuração da API — inclusive `DATABASE_URL_PLATFORM` — e papel IAM assumido com MFA. Todo comando exige `--operator <e-mail>` de um usuário ativo com `isPlatformOperator`; o operador nunca ganha vínculo com o tenant (DEC-139). Ações ficam na auditoria do tenant com `actorType = PLATFORM_OPERATOR`, `metadata.channel = CLI` e `metadata.runId`.
+- **Códigos de saída:** 0 concluído · 1 validação ou autorização (nada foi feito; leia o campo e o motivo) · 2 incompleto ou dependência indisponível (o que foi feito permanece; repita o mesmo comando).
+- **Provisionar:** preencha `tenant.json` (schema `provisionTenantSchema`: `slug`, `name`, `type`, `stateCode`, `ibgeCityCode`, `primaryOrganization{ name, shortName, cnpj, type }`, `firstAdmin{ email, name }`) e rode `pnpm cf tenant:provision --file tenant.json --operator <e-mail> --dry-run` para ver o plano; depois sem `--dry-run`. `--no-activate` mantém `PROVISIONING` para revisão; `--json` imprime o resultado em JSON (e-mail mascarado). A tabela final mostra cada etapa `DONE`/`PENDING` com versão e contagens.
+- **Retomar:** saída 2 ou 503 → corrija a causa (banco, Redis) e repita **o mesmo arquivo**; só as etapas `PENDING` rodam. Mudou o CNPJ ou o e-mail do administrador? O slug fica preso ao pedido original (409 `TENANT_SLUG_TAKEN`): desative o tenant em `PROVISIONING` (`tenant:deactivate`) e provisione com outro slug.
+- **Consultar:** `pnpm cf tenant:status <slug> [--json] --operator …` — status, versão e checklist calculado (só metadados e contagens).
+- **Ativar depois:** `pnpm cf tenant:activate <slug> --operator …` (ou PLT-04) — exige todas as etapas `DONE` (senão lista as pendentes) e envia o convite.
+- **Suspender / reativar:** `pnpm cf tenant:suspend <slug> --reason "<motivo, 10+ caracteres>" --operator …`; efeito em até 60 s em todas as instâncias (o cache de status é removido no commit). Reativar com `tenant:activate` (preserva o `activatedAt` original). O motivo não aparece para os usuários do tenant.
+- **Encerrar e desativar:** `pnpm cf tenant:offboard <slug> --reason "…" --operator …` (somente leitura e exportação para `ADMIN_ORGAO`/`AUDITOR`); ao fim do prazo contratual, `pnpm cf tenant:deactivate <slug> --confirm-slug <slug> --operator …` (final). Nada é excluído e o slug fica reservado para sempre; expurgo físico só pelo processo de §13.3 (PEND-07).
+- **Convite do primeiro administrador:** `pnpm cf tenant:resend-invite <slug> --operator …` quando o envio falhou ou expirou sem aceite (saída 2 enquanto o envio não estiver disponível — US-091/US-112).
+- **Seeders novos em tenants existentes (RM-07):** `pnpm cf tenant:seed <slug> [--seeder <chave>] [--dry-run] --operator …` — aplica só os seeders `applyToExistingTenants` ainda `PENDING`, sem alterar dados existentes.
+- **Métricas e logs:** `cf_tenant_provisioning_duration_seconds{result}` (meta p95 < 2 min), `cf_tenant_status_changes_total{from,to,channel}`; logs `tenant.provision.started|step_completed|step_failed|resumed`, `tenant.status_changed`, `tenant.invitation_dispatch_failed` — sem e-mail completo nem o texto do motivo.
+
+### RB-10 — Suspeita de vazamento entre tenants
+Entregável da US-100 (DEC-076 · [multi-tenancy.md](multi-tenancy.md) §12/§14 · [security.md](security.md)). Vale para alerta automático **e** para relato de usuário, órgão ou auditor ("vi dado de outra instituição").
+- **Alertas:** A19 (`cf_tenant_isolation_violations_total` ou `cf_tenant_context_missing_total` > 0; logs `error security.tenant_isolation_violation` / `security.tenant_context_missing`, com `barrier`, `model`/`operation` e `correlationId`).
+- **Impacto:** potencialmente crítico (RSK-06, KPI C5 = 0 incidentes). Violação detectada por barreira = a defesa funcionou e a operação foi abortada (500 ao cliente, nada gravado); relato de dado visível de outro tenant = possível exposição real.
+1. **Abrir incidente S1** (resposta em 1 h, contorno em 4 h — product-overview §11.4) em `#cf-seguranca`, com um responsável pela coordenação e outro pela comunicação.
+2. **Conter:** bloquear a rota ou funcionalidade afetada por *deploy* de bloqueio (rota fora do ar com 503 é preferível a qualquer exposição) e, se necessário, suspender os tenants envolvidos (PLT-05 · `TENANT_SUSPENDED`). Nunca desligar barreiras (RLS, extensão, guardas) para "destravar" usuários.
+3. **Preservar evidências** antes de qualquer correção: logs e *traces* pelo `correlationId` dos alertas (Loki/Tempo), trilha de auditoria selada dos tenants envolvidos (`audit_logs` + `AuditSeal`), versão implantada e anotações de deploy. Exportar para o cofre do incidente com SHA-256.
+4. **Delimitar o escopo** por `tenantId` de origem e de destino, rota/operação (`operationId`), período (primeiro e último `correlationId`) e registros expostos — consultas só com o papel de plataforma e no tenant envolvido (DEC-139); nenhum dado de um tenant é mostrado a outro durante a análise.
+5. **Corrigir e provar:** reproduzir o caso na suíte "tenant leak" (`apps/api/test/tenant-leak` — fixture de B no manifesto da operação) **antes** do *fix*; o PR do *fix* traz o teste vermelho → verde e passa pela revisão de segurança. Reabrir a rota só com o teste no CI.
+6. **Comunicar (LGPD):** como operadora, comunicar **imediatamente** as instituições afetadas (controladoras) com o escopo apurado e apoiá-las na comunicação à ANPD e aos titulares (Resolução CD/ANPD nº 15/2024 — prazo de 3 dias úteis para o controlador). Registrar data e hora de cada comunicação.
+7. **Pós-incidente:** *postmortem* sem culpados em até 5 dias úteis, com ações preventivas (nova verificação de catálogo, regra de lint, caso na suíte, revisão das barreiras — ADR-002 "Critérios de revisão").
+- **Validação:** métricas de violação zeradas por 24 h após o *fix*; suíte "tenant leak" verde com o caso reproduzido; instituições comunicadas.
+- **Exercício de mesa:** ensaio semestral com um caso sintético (ex.: rota nova sem `@TenantScope` que escapou da revisão), cronometrando os passos 1–4.
 
 ---
 

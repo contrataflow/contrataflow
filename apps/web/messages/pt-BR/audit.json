@@ -1,0 +1,424 @@
+{
+  "title": "Auditoria",
+  "description": "Consulte e exporte a trilha de auditoria da instituição e verifique a integridade dos selos periódicos.",
+  "loadingPermission": "Verificando suas permissões…",
+  "forbidden": {
+    "title": "Você não tem acesso a esta área",
+    "description": "Peça a quem administra a instituição a permissão para consultar a auditoria."
+  },
+  "tabs": {
+    "label": "Seções da auditoria",
+    "seals": "Selos",
+    "records": "Registros"
+  },
+  "seals": {
+    "title": "Selos de integridade",
+    "description": "Cada selo cobre uma hora da trilha de auditoria e se encadeia ao anterior. Verifique um intervalo para confirmar que nenhum registro foi alterado, removido ou inserido.",
+    "list": {
+      "title": "Selos gerados",
+      "caption": "Selos de integridade da trilha de auditoria",
+      "loading": "Carregando os selos…",
+      "loadFailed": "Não foi possível carregar os selos agora.",
+      "forbidden": "Você não tem permissão para consultar os selos.",
+      "retry": "Tentar novamente",
+      "empty": "Nenhum selo gerado ainda para este período",
+      "emptyHint": "Os selos são gerados a cada hora, para as horas com atividade.",
+      "period": "Período",
+      "records": "Registros",
+      "status": "Status",
+      "select": "Selecionar",
+      "selectRow": "Selecionar o selo de {period}",
+      "selectedCount": "{count, plural, one {# selo selecionado} other {# selos selecionados}}",
+      "clearSelection": "Limpar seleção",
+      "selectionHint": "Selecione selos para preencher o intervalo da verificação.",
+      "pager": "Paginação dos selos",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "pageOf": "Página {page} de {total}",
+      "periodRange": "{start} a {end}"
+    },
+    "status": {
+      "unverified": "Não verificado",
+      "valid": "Íntegro",
+      "broken": "Quebrado"
+    },
+    "panel": {
+      "title": "Verificar integridade",
+      "description": "Informe o intervalo (no fuso da instituição: {timeZone}) ou selecione selos na lista.",
+      "start": "Início do período",
+      "end": "Fim do período",
+      "required": "Informe a data e a hora.",
+      "submit": "Verificar integridade",
+      "submitting": "Verificando…"
+    },
+    "result": {
+      "title": "Resultado da verificação",
+      "loading": "Verificando a integridade dos selos. Em intervalos longos isso pode levar alguns segundos…",
+      "allValid": "{count, plural, one {O selo do intervalo está íntegro} other {Todos os # selos do intervalo estão íntegros}}.",
+      "someBroken": "{count, plural, one {# selo do intervalo está quebrado} other {# selos do intervalo estão quebrados}}.",
+      "chainBroken": "Cadeia comprometida a partir de {date}.",
+      "caption": "Resultado da verificação por selo",
+      "period": "Período",
+      "records": "Registros",
+      "status": "Status",
+      "detail": "Detalhe",
+      "validDetail": "Sem alterações detectadas.",
+      "break": {
+        "digest": "Registro do período alterado, removido ou inserido",
+        "chain": "Selo anterior alterado ou ausente"
+      }
+    },
+    "errors": {
+      "notFound": "Selo não encontrado.",
+      "backToList": "Voltar à lista",
+      "unavailableCode": "Código de suporte: {correlationId}.",
+      "mfa": "Esta ação exige a confirmação da sua identidade (segundo fator).",
+      "stepUp": "Confirmar identidade",
+      "forbidden": "Você não tem permissão para verificar a integridade da auditoria.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente"
+    }
+  },
+  "records": {
+    "description": "Pesquise a trilha de auditoria por período (até 90 dias), ator, ação, categoria, resultado, entidade ou processo. Abra um registro para ver o detalhe e as alterações.",
+    "filters": {
+      "label": "Filtros da auditoria",
+      "period": "Período",
+      "from": "De",
+      "to": "Até",
+      "periodHint": "Obrigatório, até 90 dias, no fuso da instituição ({timeZone}).",
+      "required": "Informe a data e a hora.",
+      "action": "Ação",
+      "actionHint": "Segure Ctrl (ou Cmd) para selecionar mais de uma.",
+      "category": "Categoria",
+      "result": "Resultado",
+      "any": "Todas",
+      "anyResult": "Todos",
+      "advanced": "Filtros avançados",
+      "advancedActive": "Filtros avançados ({count})",
+      "actor": "Ator",
+      "actorHint": "Atores dos registros já carregados.",
+      "anyActor": "Qualquer ator",
+      "entityType": "Tipo de entidade",
+      "entityTypeHint": "Ex.: Process, Document, Supplier.",
+      "entityId": "ID da entidade",
+      "processId": "ID do processo",
+      "invalidId": "Informe um identificador válido.",
+      "search": "Pesquisar",
+      "clear": "Limpar filtros"
+    },
+    "table": {
+      "caption": "Registros da trilha de auditoria",
+      "occurredAt": "Data/hora",
+      "actor": "Ator",
+      "action": "Ação",
+      "category": "Categoria",
+      "result": "Resultado",
+      "target": "Entidade/processo",
+      "system": "Sistema",
+      "open": "Ver detalhe: {action} em {date}",
+      "loading": "Carregando os registros…",
+      "loadMore": "Carregar mais",
+      "loadingMore": "Carregando…",
+      "count": "{count, plural, one {# registro carregado} other {# registros carregados}}",
+      "empty": "Nenhum registro de auditoria encontrado para os filtros selecionados.",
+      "emptyHint": "Amplie o período ou remova filtros.",
+      "process": "Processo"
+    },
+    "detail": {
+      "title": "Registro de auditoria",
+      "loading": "Carregando o registro…",
+      "occurredAt": "Data/hora",
+      "actor": "Ator",
+      "actorType": "Tipo de ator",
+      "onBehalfOf": "Em nome de",
+      "action": "Ação",
+      "category": "Categoria",
+      "result": "Resultado",
+      "reasonCode": "Motivo",
+      "entity": "Entidade",
+      "process": "Processo",
+      "ip": "IP",
+      "userAgent": "Navegador",
+      "correlationId": "Correlação",
+      "requestId": "Requisição",
+      "rowHash": "Hash do registro",
+      "changes": "Alterações",
+      "noChanges": "Sem alterações registradas.",
+      "changesCaption": "Alterações do registro (antes e depois)",
+      "field": "Campo",
+      "before": "Antes",
+      "after": "Depois",
+      "empty": "(vazio)",
+      "summarized": "Conteúdo resumido: {length, plural, one {# caractere} other {# caracteres}} (hash {hash}…)",
+      "metadata": "Metadados",
+      "noMetadata": "Sem metadados.",
+      "coalesced": "Este registro resume múltiplas edições entre {first} e {last} salvamento.",
+      "filterActor": "Filtrar por este ator",
+      "filterProcess": "Filtrar por este processo",
+      "filterEntity": "Filtrar por esta entidade",
+      "notFound": "Registro de auditoria não encontrado.",
+      "close": "Fechar"
+    },
+    "export": {
+      "button": "Exportar",
+      "title": "Exportar registros",
+      "description": "A exportação usa os filtros da última pesquisa (até 100 mil registros).",
+      "format": "Formato",
+      "csv": "CSV (planilha)",
+      "ndjson": "NDJSON (um registro JSON por linha)",
+      "confirm": "Exportar",
+      "exporting": "Exportando…",
+      "cancel": "Cancelar",
+      "done": "Exportação concluída: {count, plural, one {# registro} other {# registros}}",
+      "tooLargeHint": "Reduza o período ou adicione filtros e tente novamente.",
+      "rateLimited": "Muitas exportações em sequência. Aguarde alguns segundos.",
+      "forbidden": "Você não tem permissão para exportar a auditoria."
+    },
+    "errors": {
+      "unavailable": "Não foi possível consultar a auditoria agora. Tente novamente em instantes.",
+      "code": "Código de suporte: {correlationId}.",
+      "retry": "Tentar novamente",
+      "forbidden": "Você não tem permissão para esta ação.",
+      "mfa": "Esta ação exige verificação adicional (MFA).",
+      "stepUp": "Confirmar identidade",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    }
+  },
+  "categories": {
+    "DATA_CHANGE": "Alteração de dados",
+    "WORKFLOW": "Fluxo",
+    "ACCESS": "Acesso",
+    "SECURITY": "Segurança",
+    "EXPORT": "Exportação",
+    "CONFIGURATION": "Configuração",
+    "SYSTEM": "Sistema"
+  },
+  "results": {
+    "SUCCESS": "Sucesso",
+    "DENIED": "Negado",
+    "FAILURE": "Falha"
+  },
+  "actorTypes": {
+    "USER": "Usuário",
+    "SYSTEM": "Sistema",
+    "PLATFORM_OPERATOR": "Operador da plataforma",
+    "INTEGRATION": "Integração"
+  },
+  "actions": {
+    "access": {
+      "denied": "Acesso negado"
+    },
+    "ai": {
+      "content_apply": "IA: conteúdo aplicado",
+      "content_review": "IA: conteúdo revisado",
+      "generation_complete": "IA: geração concluída",
+      "generation_discard": "IA: geração descartada",
+      "generation_fail": "IA: geração com falha",
+      "generation_request": "IA: geração solicitada"
+    },
+    "approval": {
+      "cancel": "Aprovação cancelada",
+      "decide": "Aprovação decidida",
+      "reassign": "Aprovação reatribuída",
+      "request": "Aprovação solicitada",
+      "withdraw": "Aprovação retirada"
+    },
+    "attachment": {
+      "confirm": "Anexo confirmado",
+      "delete": "Anexo excluído",
+      "download": "Anexo baixado",
+      "scan_result": "Anexo: resultado da varredura",
+      "upload_intent": "Envio de anexo iniciado"
+    },
+    "audit": {
+      "export": "Auditoria exportada",
+      "seal": "Selo de auditoria gerado",
+      "search": "Auditoria consultada"
+    },
+    "auth": {
+      "mfa_required": "Verificação adicional (MFA) exigida",
+      "session_end": "Sessão encerrada",
+      "session_expired": "Sessão expirada",
+      "session_start": "Sessão iniciada",
+      "tenant_switch": "Troca de instituição"
+    },
+    "catalog": {
+      "create": "Item de catálogo criado",
+      "deactivate": "Item de catálogo desativado",
+      "update": "Item de catálogo alterado"
+    },
+    "comment": {
+      "create": "Comentário criado",
+      "delete": "Comentário excluído",
+      "moderate": "Comentário moderado",
+      "update": "Comentário alterado"
+    },
+    "dead_letter": {
+      "discard": "Mensagem com falha descartada",
+      "retry": "Mensagem com falha reprocessada"
+    },
+    "department": {
+      "create": "Unidade criada",
+      "deactivate": "Unidade desativada",
+      "delete": "Unidade excluída",
+      "move": "Unidade movida",
+      "update": "Unidade alterada"
+    },
+    "document": {
+      "cancel": "Documento cancelado",
+      "create": "Documento criado",
+      "delete": "Documento excluído",
+      "download": "Documento baixado",
+      "draft_update": "Rascunho do documento editado",
+      "duplicate": "Documento duplicado",
+      "finalize": "Documento finalizado",
+      "items_update": "Itens do documento alterados",
+      "render_request": "PDF do documento solicitado",
+      "reopen": "Documento reaberto",
+      "submit": "Documento enviado",
+      "version_create": "Versão do documento criada",
+      "withdraw": "Documento retirado"
+    },
+    "document_type": {
+      "create": "Tipo de documento criado",
+      "update": "Tipo de documento alterado"
+    },
+    "etp": {
+      "alternative_create": "ETP: alternativa criada",
+      "alternative_decide": "ETP: alternativa escolhida",
+      "alternative_delete": "ETP: alternativa excluída",
+      "alternative_update": "ETP: alternativa alterada"
+    },
+    "holiday": {
+      "create": "Feriado criado",
+      "delete": "Feriado excluído",
+      "update": "Feriado alterado"
+    },
+    "membership": {
+      "activate": "Vínculo ativado",
+      "departments_update": "Lotações do vínculo alteradas",
+      "expire": "Vínculo expirado",
+      "invite": "Convite enviado",
+      "mfa_reset": "MFA do usuário redefinido",
+      "reactivate": "Vínculo reativado",
+      "revoke": "Vínculo revogado",
+      "suspend": "Vínculo suspenso",
+      "update": "Vínculo alterado"
+    },
+    "notification": {
+      "preferences_update": "Preferências de notificação alteradas"
+    },
+    "organization": {
+      "create": "Órgão criado",
+      "update": "Órgão alterado"
+    },
+    "outbox": {
+      "republish": "Evento republicado"
+    },
+    "price_research": {
+      "complete": "Pesquisa de preços concluída",
+      "export": "Pesquisa de preços exportada",
+      "import": "Pesquisa de preços importada",
+      "method_change": "Método da pesquisa de preços alterado",
+      "quotation_create": "Cotação criada",
+      "quotation_delete": "Cotação excluída",
+      "quotation_exclude": "Cotação desconsiderada",
+      "quotation_restore": "Cotação restaurada",
+      "quotation_update": "Cotação alterada",
+      "recalculate": "Pesquisa de preços recalculada",
+      "source_create": "Fonte de preço criada",
+      "source_delete": "Fonte de preço excluída",
+      "source_update": "Fonte de preço alterada"
+    },
+    "process": {
+      "assign": "Processo atribuído",
+      "cancel": "Processo cancelado",
+      "claim": "Processo assumido",
+      "complete": "Processo concluído",
+      "confidential_view": "Processo sigiloso acessado",
+      "confidentiality_change": "Sigilo do processo alterado",
+      "create": "Processo criado",
+      "discard_draft": "Rascunho de processo descartado",
+      "duplicate": "Processo duplicado",
+      "export": "Processo exportado",
+      "forward": "Processo tramitado",
+      "items_update": "Itens do processo alterados",
+      "number_assign": "Número do processo atribuído",
+      "participant_add": "Participante incluído no processo",
+      "participant_remove": "Participante removido do processo",
+      "resume": "Processo retomado",
+      "return": "Processo devolvido",
+      "suspend": "Processo suspenso",
+      "tags_update": "Etiquetas do processo alteradas",
+      "update": "Processo alterado"
+    },
+    "profile": {
+      "update": "Perfil do usuário alterado"
+    },
+    "queue_dashboard": {
+      "access": "Painel de filas acessado"
+    },
+    "risk": {
+      "assess": "Risco avaliado",
+      "create": "Risco criado",
+      "delete": "Risco excluído",
+      "treatment_create": "Tratamento de risco criado",
+      "treatment_delete": "Tratamento de risco excluído",
+      "treatment_update": "Tratamento de risco alterado",
+      "update": "Risco alterado"
+    },
+    "role": {
+      "assign": "Perfil atribuído",
+      "create": "Perfil criado",
+      "deactivate": "Perfil desativado",
+      "permissions_update": "Permissões do perfil alteradas",
+      "revoke": "Atribuição de perfil revogada",
+      "update": "Perfil alterado"
+    },
+    "settings": {
+      "update": "Configurações alteradas"
+    },
+    "supplier": {
+      "create": "Fornecedor criado",
+      "deactivate": "Fornecedor desativado",
+      "delete": "Fornecedor excluído",
+      "update": "Fornecedor alterado"
+    },
+    "support": {
+      "access_grant": "Acesso de suporte concedido",
+      "access_revoke": "Acesso de suporte revogado"
+    },
+    "tag": {
+      "create": "Etiqueta criada",
+      "deactivate": "Etiqueta desativada",
+      "update": "Etiqueta alterada"
+    },
+    "template": {
+      "create": "Modelo criado",
+      "update": "Modelo alterado",
+      "version_create": "Versão de modelo criada",
+      "version_publish": "Versão de modelo publicada",
+      "version_retire": "Versão de modelo aposentada"
+    },
+    "tenant": {
+      "activate": "Instituição ativada",
+      "deactivate": "Instituição desativada",
+      "offboard": "Encerramento da instituição iniciado",
+      "provision": "Instituição provisionada",
+      "suspend": "Instituição suspensa",
+      "update": "Instituição alterada"
+    },
+    "term": {
+      "import_etp": "TR: dados importados do ETP"
+    },
+    "workflow": {
+      "create": "Workflow criado",
+      "set_default": "Workflow padrão definido",
+      "update": "Workflow alterado",
+      "version_create": "Versão de workflow criada",
+      "version_publish": "Versão de workflow publicada",
+      "version_retire": "Versão de workflow aposentada"
+    }
+  }
+}

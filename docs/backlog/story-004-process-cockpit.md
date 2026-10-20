@@ -265,8 +265,8 @@ Feature: Painel situacional do processo
 - **Decisões/ADRs:** DEC-013, DEC-014, DEC-016, DEC-023, DEC-024, DEC-030, DEC-031, DEC-102, DEC-134, DEC-180, DEC-181, DEC-183, DEC-184; ADR-005, ADR-008.
 - **Configurações:** `deadlines.warnBeforeBusinessDays`, `access.historicalDepartmentsCanView`, `security.mfaPolicy`, `labels.secretariat`, `labels.department`.
 - **Lacunas nas fontes canônicas:**
-  1. **Chaves de ação de PRC-08:** além de `MovementAction`, o catálogo usa `DECIDE_APPROVAL`, `DISCARD`, `EDIT`, `MANAGE_ITEMS`, `MANAGE_TAGS`, `DUPLICATE`, `MANAGE_PARTICIPANTS`, `FOLLOW`, `UNFOLLOW` e `SET_CONFIDENTIALITY`, que não existem nas fontes canônicas. Proposta: registro `ProcessActionKey` em `packages/types` e em api.md §4.
-  2. **Contratos de resposta** de PRC-04 (`meta.allowedActions`), PRC-07, PRC-08, PRC-09 e PRC-10 a registrar em api.md §4.
+  1. ~~Chaves de ação de PRC-08~~ — resolvida: `PROCESS_ACTIONS` (`packages/validation/src/process/process-actions.ts`) e o enum `ActionEntry.action` de api/02-processes.md PRC-08. As ações de edição, itens, etiquetas, duplicação, participantes, seguir e sigilo entram no PRC-08 com as stories donas (US-005/006/007/011/012/013).
+  2. ~~Contratos de resposta~~ — resolvida: PRC-04 (`meta.allowedActions`), PRC-07, PRC-09 e PRC-10 registrados em api/02-processes.md e em `packages/validation/src/process/process-summary.ts` (o PRC-07 usa `enabled`/`transitionKey`, a nomenclatura de PRC-08).
   3. ~~Meta de latência do painel~~ — resolvida: p95 ≤ 800 ms (product-overview C2, observability SLO-04), alinhada em architecture.md e release-checklist.md.
 
 ## Impacto técnico

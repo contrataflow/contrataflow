@@ -1,0 +1,153 @@
+{
+  "title": "Catálogos",
+  "description": "Mantenha as listas de opções usadas nos formulários da instituição. Itens padrão do sistema podem ser renomeados e desativados, mas nunca excluídos, e o código de cada item não muda.",
+  "tabs": {
+    "label": "Catálogos"
+  },
+  "types": {
+    "CONTRACTING_TYPE": "Tipos de contratação",
+    "MODALITY": "Modalidades",
+    "PROCESS_ORIGIN": "Origens do processo",
+    "UNIT_OF_MEASURE": "Unidades de medida",
+    "RISK_CATEGORY": "Categorias de risco",
+    "PRICE_SOURCE_TYPE": "Tipos de fonte de preço",
+    "JUDGMENT_CRITERION": "Critérios de julgamento",
+    "ATTACHMENT_CATEGORY": "Categorias de anexo"
+  },
+  "list": {
+    "new": "Novo item",
+    "loading": "Carregando os itens…",
+    "loadFailed": "Não foi possível carregar os itens do catálogo.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhum item neste catálogo",
+    "emptyHint": "Crie o primeiro item para disponibilizar opções nos formulários.",
+    "noActive": "Nenhum item ativo neste catálogo",
+    "noActiveHint": "Ative um item existente ou crie um novo; os formulários que dependem deste catálogo ficam sem opções até lá.",
+    "saving": "Salvando…",
+    "saved": "Alterações salvas.",
+    "dragHint": "Arraste as linhas ou use \"Mover para cima\" e \"Mover para baixo\" para reordenar."
+  },
+  "table": {
+    "caption": "Itens do catálogo {catalog}",
+    "order": "Ordem",
+    "code": "Código",
+    "label": "Rótulo",
+    "status": "Situação",
+    "actions": "Ações"
+  },
+  "badges": {
+    "system": "Padrão do sistema",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "actions": {
+    "edit": "Editar {name}",
+    "editLabel": "Editar",
+    "deactivate": "Desativar {name}",
+    "deactivateLabel": "Desativar",
+    "activate": "Ativar {name}",
+    "activateLabel": "Ativar",
+    "moveUp": "Mover {name} para cima",
+    "moveDown": "Mover {name} para baixo",
+    "moveUpLabel": "Mover para cima",
+    "moveDownLabel": "Mover para baixo"
+  },
+  "deactivate": {
+    "title": "Desativar {name}?",
+    "description": "Este item deixará de aparecer em novas seleções; registros existentes não são afetados.",
+    "cancel": "Cancelar",
+    "confirm": "Desativar"
+  },
+  "form": {
+    "createTitle": "Novo item — {catalog}",
+    "editTitle": "Editar {name}",
+    "description": "Os campos com * são obrigatórios.",
+    "code": "Código *",
+    "codeHint": "Letras maiúsculas, números e sublinhado (ex.: OUTRO_SERVICO). Não pode ser alterado depois.",
+    "codeLocked": "O código não pode ser alterado depois da criação.",
+    "codeLockedSystem": "Item padrão do sistema: o código é fixo.",
+    "label": "Rótulo *",
+    "labelHint": "Até 150 caracteres.",
+    "descriptionField": "Descrição",
+    "descriptionHint": "Até 1.000 caracteres.",
+    "metadataLegend": "Campos específicos deste catálogo",
+    "cancel": "Cancelar",
+    "submit": "Salvar",
+    "submitting": "Salvando…",
+    "booleanYes": "Sim",
+    "booleanNo": "Não",
+    "selectPlaceholder": "Não informado",
+    "color": {
+      "label": "Cor",
+      "hint": "Formato #RRGGBB. O nome da categoria sempre é exibido junto."
+    }
+  },
+  "metadata": {
+    "legalBasis": "Base legal *",
+    "isDirectContracting": "Contratação direta *",
+    "itemKinds": "Tipos de item *",
+    "isContinuous": "Serviço contínuo",
+    "requiredFields": "Campos exigidos na cotação",
+    "maxAgeDays": "Validade máxima (dias)",
+    "ageReference": "Data de referência da validade",
+    "abbreviation": "Abreviatura *",
+    "allowsDecimal": "Permite quantidade decimal *",
+    "color": "Cor",
+    "requiresPcaStatus": "Situação exigida no PCA"
+  },
+  "options": {
+    "itemKinds": {
+      "GOOD": "Bem",
+      "SERVICE": "Serviço",
+      "ENGINEERING_SERVICE": "Serviço de engenharia",
+      "WORK": "Obra"
+    },
+    "requiredFields": {
+      "supplierId": "Fornecedor",
+      "quoteDate": "Data da cotação",
+      "accessedAt": "Data do acesso",
+      "url": "Endereço (URL)",
+      "referenceOrganization": "Órgão de referência",
+      "referenceDocument": "Documento de referência",
+      "attachment": "Anexo",
+      "supplierChoiceJustification": "Justificativa da escolha do fornecedor"
+    },
+    "ageReference": {
+      "quoteDate": "Data da cotação",
+      "accessedAt": "Data do acesso"
+    },
+    "requiresPcaStatus": {
+      "PLANNED": "Previsto no PCA",
+      "NOT_PLANNED": "Não previsto no PCA",
+      "NOT_APPLICABLE": "Não se aplica"
+    }
+  },
+  "validation": {
+    "required": "Informe o {field}.",
+    "field": {
+      "code": "código",
+      "label": "rótulo"
+    },
+    "invalidCode": "Use letras maiúsculas, números e sublinhado, sem repetir um código existente.",
+    "tooLong": "Informe no máximo {max} caracteres.",
+    "metadata": "Revise este campo."
+  },
+  "conflict": {
+    "title": "Este item foi alterado por outra pessoa. Recarregue a lista.",
+    "reload": "Recarregar a lista"
+  },
+  "errors": {
+    "generic": "Ocorreu um erro inesperado. Tente novamente.",
+    "permission": "Você não tem permissão para gerenciar catálogos.",
+    "notFound": "O item não existe mais. Recarregue a lista.",
+    "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+    "codeTaken": "Já existe um item com este código neste catálogo."
+  },
+  "toast": {
+    "created": "Item {name} criado.",
+    "updated": "Item {name} atualizado.",
+    "activated": "Item {name} ativado.",
+    "deactivated": "Item {name} desativado.",
+    "reordered": "Nova ordem salva."
+  }
+}

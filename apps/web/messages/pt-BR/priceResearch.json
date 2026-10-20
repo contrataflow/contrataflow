@@ -1,0 +1,515 @@
+{
+  "create": {
+    "action": "Criar pesquisa de preços",
+    "open": "Abrir pesquisa {code}",
+    "openNoCode": "Abrir pesquisa de preços",
+    "title": "Criar pesquisa de preços",
+    "description": "Escolha os itens do processo que farão parte da pesquisa, confira as quantidades e a data-base.",
+    "loading": "Carregando os itens do processo…",
+    "loadError": "Não foi possível carregar os itens do processo agora.",
+    "retry": "Tentar novamente",
+    "caption": "Itens do processo que farão parte da pesquisa de preços",
+    "selectedCount": "{selected} de {total} itens selecionados",
+    "selectAll": "Selecionar todos os itens",
+    "selectItem": "Incluir o item {number} na pesquisa",
+    "columns": {
+      "select": "Incluir",
+      "sequence": "Nº",
+      "lot": "Lote",
+      "description": "Descrição",
+      "unit": "Unidade",
+      "reference": "Quantidade de referência",
+      "quantity": "Quantidade na pesquisa"
+    },
+    "noLot": "Sem lote",
+    "noReference": "—",
+    "quantityOf": "Quantidade do item {number}",
+    "fields": {
+      "title": "Título",
+      "referenceDate": "Data-base",
+      "referenceDateHint": "Data de referência dos preços. Não pode ser posterior a hoje."
+    },
+    "rowErrors": "{count, plural, one {# item com a quantidade a corrigir.} other {# itens com a quantidade a corrigir.}}",
+    "submit": "Criar pesquisa",
+    "submitting": "Criando a pesquisa…",
+    "cancel": "Cancelar",
+    "noItems": {
+      "goToItems": "Ir para Itens"
+    },
+    "errors": {
+      "fix": "Revise os campos destacados.",
+      "exists": "Este processo já tem uma pesquisa de preços.",
+      "openExisting": "Abrir pesquisa existente",
+      "forbidden": "Você não pode criar a pesquisa deste processo agora.",
+      "invalidStatus": "O processo não permite novos documentos na situação atual.",
+      "typeNotAllowed": "A etapa atual não permite criar pesquisa de preços.",
+      "failed": "Não foi possível criar a pesquisa agora. Tente novamente.",
+      "failedWithCode": "Não foi possível criar a pesquisa agora. Tente novamente. Código: {correlationId}"
+    },
+    "toast": {
+      "created": "Pesquisa de preços {code} criada",
+      "createdNoCode": "Pesquisa de preços criada"
+    }
+  },
+  "page": {
+    "title": "Pesquisa de preços",
+    "loading": "Carregando a pesquisa de preços…",
+    "loadError": "Não foi possível carregar a pesquisa de preços agora.",
+    "notFound": "Pesquisa de preços não encontrada.",
+    "retry": "Tentar novamente",
+    "backToProcess": "Voltar ao processo",
+    "processLine": "Processo {code} — {title}",
+    "draftCode": "em rascunho",
+    "confidential": "Sigiloso",
+    "summary": {
+      "label": "Resumo da pesquisa",
+      "items": "Itens",
+      "withAlerts": "Itens com alertas",
+      "total": "Valor total estimado",
+      "notCalculated": "Ainda não calculado"
+    },
+    "referenceDate": {
+      "label": "Data-base",
+      "hint": "Ao alterar a data-base, as validades das cotações são recalculadas.",
+      "save": "Alterar data-base",
+      "saving": "Alterando…",
+      "changed": "Data-base alterada para {date}; validades recalculadas",
+      "failed": "Não foi possível alterar a data-base agora. Tente novamente."
+    },
+    "stale": "Recarregar",
+    "lock": {
+      "title": "Esta pesquisa está em modo leitura.",
+      "PERMISSION_DENIED": "Você não tem permissão para alterar esta pesquisa de preços.",
+      "NOT_CUSTODIAN": "O processo não está com você",
+      "INVALID_PROCESS_STATUS": "O processo não permite alterações na situação atual.",
+      "DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE": "A etapa atual não permite pesquisa de preços",
+      "DOCUMENT_NOT_EDITABLE": "A pesquisa está concluída. Reabra-a para alterar.",
+      "CONFIDENTIAL_BUDGET": "Orçamento sigiloso: somente leitura",
+      "READ_ONLY": "Você pode consultar a pesquisa, mas não alterá-la."
+    },
+    "tabs": {
+      "label": "Seções da pesquisa de preços",
+      "items": "Itens",
+      "sources": "Fontes",
+      "document": "Documento"
+    },
+    "openMap": "Ver mapa comparativo"
+  },
+  "parameters": {
+    "title": "Parâmetros",
+    "defaultMethod": "Método padrão",
+    "methods": {
+      "AUTO_CV": "Automático (média ou mediana conforme o coeficiente de variação)",
+      "MEAN": "Média",
+      "MEDIAN": "Mediana",
+      "LOWEST": "Menor preço"
+    },
+    "cvThreshold": "Coeficiente de variação limite",
+    "minQuotations": "Mínimo de cotações por item",
+    "directQuoteMaxAgeDays": "Validade da cotação direta",
+    "similarContractMaxAgeDays": "Validade de contratos similares",
+    "days": "{count, plural, one {# dia} other {# dias}}",
+    "percent": "{value} %",
+    "percentOfMedian": "{value} % da mediana das demais cotações",
+    "outlierLower": "Valor atípico abaixo de",
+    "outlierUpper": "Valor atípico acima de",
+    "unitPriceDecimals": "Casas decimais do preço unitário",
+    "roundingMode": "Arredondamento",
+    "roundingModes": {
+      "HALF_UP": "Comercial (metade para cima)",
+      "HALF_EVEN": "Bancário (metade para o par)"
+    },
+    "edit": {
+      "action": "Editar parâmetros",
+      "cancel": "Cancelar",
+      "save": "Salvar e recalcular",
+      "saving": "Salvando…",
+      "saved": "Parâmetros salvos e itens recalculados",
+      "failed": "Não foi possível salvar os parâmetros agora. Tente novamente.",
+      "hint": "Alterar os parâmetros de cálculo recalcula todos os itens (o valor manual não muda)."
+    }
+  },
+  "items": {
+    "caption": "Itens da pesquisa de preços",
+    "count": "{count, plural, one {# item} other {# itens}}",
+    "empty": "A pesquisa ainda não tem itens.",
+    "columns": {
+      "sequence": "Nº",
+      "lot": "Lote",
+      "description": "Descrição",
+      "unit": "Unidade",
+      "quantity": "Quantidade",
+      "alerts": "Alertas",
+      "recommended": "Valor recomendado",
+      "actions": "Ações"
+    },
+    "noLot": "Sem lote",
+    "lot": "Lote {number}",
+    "lotNamed": "Lote {number} — {name}",
+    "noAlerts": "Sem alertas",
+    "notCalculated": "—",
+    "masked": "Sigiloso",
+    "maskedHint": "Orçamento sigiloso: o valor só é visível a quem tem acesso ao orçamento sigiloso ou está com o processo.",
+    "alerts": {
+      "NO_VALID_QUOTES": "Sem cotações válidas",
+      "BELOW_MINIMUM_QUOTES": "Abaixo do mínimo de cotações",
+      "HIGH_CV": "Preços muito dispersos",
+      "HAS_OUTLIERS": "Valores atípicos",
+      "EXPIRED_QUOTES": "Cotações vencidas"
+    },
+    "alertsLabel": "Alertas do item",
+    "alertHints": {
+      "NO_VALID_QUOTES": "Nenhuma cotação válida neste item. Registre ao menos uma para calcular o valor.",
+      "BELOW_MINIMUM_QUOTES": "Menos cotações válidas que o mínimo da pesquisa. Busque mais fontes ou justifique ao concluir.",
+      "HIGH_CV": "O coeficiente de variação está acima do limite da pesquisa: os preços estão muito dispersos.",
+      "HAS_OUTLIERS": "Há cotações muito acima ou abaixo da mediana das demais. Revise-as; nada foi excluído automaticamente.",
+      "EXPIRED_QUOTES": "Há cotações com data anterior à validade do tipo de fonte em relação à data-base."
+    },
+    "retry": "Tentar novamente",
+    "remove": "Remover",
+    "removeItem": "Remover o item {number}",
+    "removeDialog": {
+      "title": "Remover o item {number}?",
+      "withQuotations": "O item {number} tem {count, plural, one {# cotação registrada. Ela será apagada.} other {# cotações registradas. Elas serão apagadas.}}",
+      "simple": "O item {number} será removido da pesquisa de preços.",
+      "confirm": "Remover item",
+      "cancel": "Cancelar"
+    },
+    "toast": {
+      "removed": "Item {number} removido da pesquisa",
+      "added": "{count, plural, one {# item incluído na pesquisa} other {# itens incluídos na pesquisa}}"
+    },
+    "errors": {
+      "load": "Não foi possível carregar os itens da pesquisa agora.",
+      "removeFailed": "Não foi possível remover o item agora. Tente novamente.",
+      "addFailed": "Não foi possível incluir os itens agora. Tente novamente."
+    },
+    "missing": {
+      "message": "{count, plural, one {# item do processo não está na pesquisa} other {# itens do processo não estão na pesquisa}}",
+      "action": "Incluir itens",
+      "adding": "Incluindo…"
+    }
+  },
+  "sources": {
+    "title": "Fontes de pesquisa",
+    "empty": "Nenhuma fonte registrada ainda",
+    "register": "Nova fonte",
+    "loading": "Carregando fontes…",
+    "loadError": "Não foi possível carregar as fontes.",
+    "retry": "Tentar novamente",
+    "listLabel": "Fontes registradas",
+    "supplier": "Fornecedor: {name}",
+    "quoteDate": "Data: {date}",
+    "accessedAt": "Acesso em {dateTime}",
+    "reference": "Referência: {organization} — {document}",
+    "quotationsCount": "{count, plural, =0 {Nenhum preço lançado} one {# preço lançado} other {# preços lançados}}",
+    "expiredCount": "{count, plural, one {# cotação vencida} other {# cotações vencidas}}",
+    "outlierCount": "{count, plural, one {# cotação destoante} other {# cotações destoantes}}",
+    "inactiveType": "Tipo inativo",
+    "attachmentRequired": "Este tipo de fonte exige o anexo do orçamento. Envie-o abaixo.",
+    "actions": {
+      "edit": "Editar",
+      "remove": "Remover",
+      "prices": "Lançar preços",
+      "hidePrices": "Ocultar preços"
+    },
+    "toast": {
+      "created": "Fonte registrada",
+      "updated": "Fonte atualizada",
+      "removed": "Fonte removida",
+      "pricesSaved": "Preços salvos",
+      "quotationRemoved": "Preço removido"
+    },
+    "errors": {
+      "saveFailed": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "removeFailed": "Não foi possível remover a fonte agora. Tente novamente."
+    },
+    "removeDialog": {
+      "title": "Remover a fonte \"{description}\"?",
+      "simple": "A fonte será removida. Esta ação não pode ser desfeita.",
+      "withQuotations": "{count, plural, one {# preço lançado nesta fonte será perdido} other {# preços lançados nesta fonte serão perdidos}}. Esta ação não pode ser desfeita.",
+      "cancel": "Cancelar",
+      "confirm": "Remover fonte"
+    },
+    "form": {
+      "createTitle": "Nova fonte de pesquisa",
+      "editTitle": "Editar fonte de pesquisa",
+      "description": "Os campos exigidos dependem do tipo de fonte (art. 23, § 1º, da Lei 14.133/2021).",
+      "sourceType": "Tipo de fonte",
+      "sourceTypePlaceholder": "Selecione o tipo de fonte",
+      "sourceTypeChanged": "Campos exigidos para \"{type}\": {fields}.",
+      "noRequired": "Este tipo de fonte não exige campos adicionais.",
+      "fields": {
+        "sourceTypeId": "Tipo de fonte",
+        "description": "Descrição",
+        "supplierId": "Fornecedor",
+        "quoteDate": "Data do orçamento/documento",
+        "accessedAt": "Data/hora de acesso",
+        "url": "URL",
+        "referenceOrganization": "Órgão de referência",
+        "referenceDocument": "Documento de referência",
+        "supplierChoiceJustification": "Justificativa da escolha do fornecedor",
+        "notes": "Observações"
+      },
+      "required": "(obrigatório)",
+      "optional": "(opcional)",
+      "supplierSearch": "Buscar por nome ou documento (mínimo 2 caracteres)",
+      "supplierResults": "Fornecedores encontrados",
+      "supplierNone": "Nenhum fornecedor ativo encontrado.",
+      "supplierSearching": "Buscando…",
+      "supplierClear": "Trocar fornecedor",
+      "urlHint": "Inicie com https://",
+      "cancel": "Cancelar",
+      "save": "Salvar fonte",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar agora. Tente novamente em instantes."
+    },
+    "excludeDialog": {
+      "title": "Desconsiderar o preço do item {number}",
+      "description": "A cotação continua listada, com o motivo e a justificativa, mas deixa de entrar nos cálculos do valor estimado. Você pode restaurá-la depois.",
+      "lastValid": "Este item ficará sem cotação válida.",
+      "reason": "Motivo",
+      "reasonPlaceholder": "Selecione o motivo",
+      "reasons": {
+        "UNFEASIBLE": "Inexequível",
+        "EXCESSIVE": "Excessivo",
+        "INCONSISTENT": "Inconsistente",
+        "EXPIRED": "Vencido",
+        "NON_COMPLIANT": "Não conforme",
+        "OTHER": "Outro motivo"
+      },
+      "justification": "Justificativa",
+      "justificationHint": "Explique a decisão (mínimo de {min} caracteres).",
+      "cancel": "Cancelar",
+      "confirm": "Desconsiderar",
+      "saving": "Salvando…",
+      "toast": "Preço desconsiderado",
+      "errors": {
+        "failed": "Não foi possível desconsiderar o preço agora. Tente novamente.",
+        "unavailable": "Não foi possível concluir agora. Tente novamente em instantes."
+      }
+    },
+    "grid": {
+      "label": "Preços da fonte {description}",
+      "item": "Item",
+      "quantity": "Quantidade",
+      "unitPrice": "Preço unitário",
+      "brandModel": "Marca/modelo (opcional)",
+      "status": "Situação",
+      "excluded": "Desconsiderada",
+      "excludedHint": "Cotação desconsiderada ({reason}). Restaure-a para editar o preço.",
+      "expired": "Vencida",
+      "expiredHint": "A data da fonte é anterior à data-base menos a validade do tipo de fonte.",
+      "outlierLow": "Abaixo da mediana",
+      "outlierHigh": "Acima da mediana",
+      "outlierLowHint": "Preço abaixo de {percent}% da mediana das demais cotações válidas do item. Revise; nada foi excluído automaticamente.",
+      "outlierHighHint": "Preço acima de {percent}% da mediana das demais cotações válidas do item. Revise; nada foi excluído automaticamente.",
+      "outlierLowMasked": "Preço destoante, abaixo das demais cotações válidas do item (valores sigilosos).",
+      "outlierHighMasked": "Preço destoante, acima das demais cotações válidas do item (valores sigilosos).",
+      "masked": "Sigiloso",
+      "unitPriceLabel": "Preço unitário do item {number}",
+      "brandModelLabel": "Marca/modelo do item {number}",
+      "removeQuotation": "Remover preço do item {number}",
+      "exclude": "Desconsiderar",
+      "excludeQuotation": "Desconsiderar preço do item {number}",
+      "restore": "Restaurar",
+      "restoreQuotation": "Restaurar preço do item {number}",
+      "toast": {
+        "restored": "Preço restaurado"
+      },
+      "errors": {
+        "restoreFailed": "Não foi possível restaurar o preço agora. Tente novamente."
+      },
+      "save": "Salvar preços",
+      "saving": "Salvando…",
+      "nothingToSave": "Nenhum preço alterado.",
+      "keyboardHint": "Use as setas para cima e para baixo para mudar de item.",
+      "reasons": {
+        "UNFEASIBLE": "inexequível",
+        "EXCESSIVE": "excessivo",
+        "INCONSISTENT": "inconsistente",
+        "EXPIRED": "vencido",
+        "NON_COMPLIANT": "não conforme",
+        "OTHER": "outro motivo"
+      }
+    },
+    "import": {
+      "open": "Importar planilha",
+      "title": "Importar cotações por planilha",
+      "description": "Baixe o modelo com os itens e as fontes desta pesquisa, preencha os preços e envie a planilha. Antes de gravar, você revisa a prévia com os erros por linha e coluna.",
+      "downloadTemplate": "Baixar modelo",
+      "downloadingTemplate": "Gerando o modelo…",
+      "file": "Planilha (.xlsx)",
+      "fileHint": "Use o modelo baixado: os itens são identificados pela coluna \"Item\" e as fontes, pelo cabeçalho de cada coluna. Células vazias não alteram os preços.",
+      "send": "Enviar planilha",
+      "sending": "Lendo a planilha…",
+      "cancel": "Cancelar",
+      "back": "Enviar outra planilha",
+      "apply": "Aplicar importação",
+      "applying": "Aplicando a importação…",
+      "retry": "Tentar novamente",
+      "fileName": "Arquivo: {name}",
+      "summaryTitle": "Prévia da importação",
+      "summary": "{valid, plural, =0 {Nenhuma célula válida} one {# célula válida} other {# células válidas}} para aplicar, {errors, plural, =0 {nenhuma com erro} one {# com erro} other {# com erro}}, {empty, plural, =0 {nenhuma vazia} one {# vazia} other {# vazias}} e {warnings, plural, =0 {nenhum aviso} one {# aviso} other {# avisos}}.",
+      "counts": {
+        "valid": "Válidas",
+        "errors": "Com erro",
+        "empty": "Vazias",
+        "warnings": "Com aviso"
+      },
+      "issuesLabel": "Problemas encontrados na planilha",
+      "severity": {
+        "ERROR": "Erro",
+        "WARNING": "Aviso"
+      },
+      "noIssues": "Nenhum problema encontrado na planilha.",
+      "toast": "Importação concluída: {count, plural, =0 {nenhum preço atualizado} one {# preço atualizado} other {# preços atualizados}}",
+      "errors": {
+        "unavailable": "Não foi possível concluir agora. Tente novamente em instantes.",
+        "unexpected": "Ocorreu um erro inesperado.",
+        "template": "Não foi possível gerar o modelo agora. Tente novamente."
+      }
+    }
+  },
+  "document": {
+    "title": "Documento da pesquisa",
+    "description": "O documento reúne a metodologia, o resumo dos preços e a conclusão da pesquisa de preços.",
+    "open": "Abrir documento",
+    "code": "Documento {code}"
+  },
+  "calculation": {
+    "title": "Cálculo do item {number}",
+    "empty": "Sem cotações válidas",
+    "masked": "Sigiloso",
+    "notAvailable": "—",
+    "percent": "{value} %",
+    "stats": {
+      "count": "Cotações válidas",
+      "mean": "Média",
+      "median": "Mediana",
+      "lowest": "Menor",
+      "highest": "Maior",
+      "stdDeviation": "Desvio-padrão",
+      "cv": "Coeficiente de variação"
+    },
+    "recommended": "Valor recomendado (unitário)",
+    "totalLabel": "Total do item",
+    "effectiveMethod": "Método aplicado: {method}",
+    "methods": {
+      "MEAN": "Média",
+      "MEDIAN": "Mediana",
+      "LOWEST": "Menor preço",
+      "MANUAL": "Valor manual"
+    },
+    "badges": {
+      "AUTOMATIC": "Automático",
+      "OVERRIDE": "Método do item",
+      "MANUAL": "Valor manual"
+    },
+    "manualJustification": "Justificativa: {text}",
+    "method": "Método do item",
+    "methodHint": "Vazio segue o método padrão da pesquisa.",
+    "followDefault": "Seguir o método padrão da pesquisa",
+    "manualLegend": "Valor manual",
+    "manualUnitPrice": "Valor manual (R$)",
+    "manualUnitPriceHint": "Maior que zero, com até {decimals} casas decimais.",
+    "manualJustificationLabel": "Justificativa do valor manual",
+    "save": "Salvar método",
+    "saving": "Salvando…",
+    "saved": "Método do item {number} salvo",
+    "failed": "Não foi possível salvar o método agora. Tente novamente.",
+    "details": "Ver cálculo",
+    "detailsItem": "Ver o cálculo do item {number}",
+    "recalculate": "Recalcular agora",
+    "recalculating": "Recalculando…",
+    "recalculated": "Estatísticas recalculadas",
+    "correlation": "Código: {id}"
+  },
+  "map": {
+    "title": "Mapa comparativo — {code}",
+    "caption": "Mapa comparativo de preços: itens por fonte",
+    "loading": "Carregando o mapa comparativo…",
+    "loadError": "Não foi possível carregar o mapa comparativo agora.",
+    "retry": "Tentar novamente",
+    "back": "Voltar à pesquisa de preços",
+    "backToProcesses": "Voltar aos processos",
+    "referenceDate": "Data-base {date}",
+    "calculatedAt": "Calculado em {when}",
+    "notCalculatedYet": "Ainda não calculado",
+    "total": "Valor total estimado:",
+    "masked": "Sigiloso",
+    "maskedHint": "Orçamento sigiloso: os valores só são visíveis a quem tem acesso ao orçamento sigiloso ou está com o processo — também nos arquivos exportados.",
+    "notCalculated": "—",
+    "noQuotation": "Sem cotação",
+    "noItems": "A pesquisa ainda não tem itens.",
+    "percent": "{value} %",
+    "itemLabel": "{number}. {description}",
+    "quantity": "{quantity} {unit}",
+    "excluded": "Desconsiderada",
+    "excludedReason": "Desconsiderada: {reason}",
+    "reasons": {
+      "UNFEASIBLE": "inexequível",
+      "EXCESSIVE": "excessivo",
+      "INCONSISTENT": "inconsistente",
+      "EXPIRED": "vencido",
+      "NON_COMPLIANT": "não conforme",
+      "OTHER": "outro motivo"
+    },
+    "columns": {
+      "item": "Item",
+      "sources": "Fontes",
+      "validCount": "Cotações válidas",
+      "mean": "Média",
+      "median": "Mediana",
+      "lowest": "Menor",
+      "highest": "Maior",
+      "cv": "CV",
+      "method": "Método",
+      "recommended": "Valor unitário estimado",
+      "total": "Valor total",
+      "alerts": "Alertas"
+    },
+    "export": {
+      "label": "Exportar o mapa comparativo",
+      "xlsx": "Exportar XLSX",
+      "exporting": "Exportando…",
+      "pdf": "Gerar PDF",
+      "done": "Planilha do mapa comparativo baixada",
+      "tooLargeHint": "Use \"Gerar PDF\" para esta pesquisa ou exporte por lote de itens.",
+      "retry": "Tentar novamente",
+      "correlationId": "Código do erro: {id}"
+    }
+  },
+  "completion": {
+    "action": "Concluir pesquisa",
+    "completing": "Concluindo…",
+    "badge": "Concluída",
+    "badgeAt": "Concluída em {date}",
+    "dialog": {
+      "title": "Concluir pesquisa de preços",
+      "description": "A conclusão cria a versão definitiva da pesquisa, bloqueia novas edições e atualiza o valor estimado do processo e o preço de referência de cada item.",
+      "summary": "Resumo da conclusão",
+      "items": "Itens",
+      "total": "Valor total estimado",
+      "notCalculated": "Ainda não calculado",
+      "pendingTitle": "Itens que ainda impedem a conclusão",
+      "cancel": "Cancelar",
+      "confirm": "Concluir pesquisa",
+      "retry": "Tentar novamente"
+    },
+    "incomplete": {
+      "title": "Não foi possível concluir: há itens pendentes",
+      "open": "Ir para o item {number}"
+    },
+    "documentIncomplete": "Preencha as seções obrigatórias do documento (aba Documento) antes de concluir.",
+    "justification": {
+      "label": "Justificativa de cotações insuficientes",
+      "hint": "Necessária para concluir com menos de {min} cotações válidas. Mínimo de 20 caracteres; deixe vazio para remover.",
+      "save": "Salvar justificativa",
+      "saving": "Salvando…",
+      "saved": "Justificativa do item {number} salva",
+      "failed": "Não foi possível salvar a justificativa agora. Tente novamente.",
+      "readOnly": "Justificativa de cotações insuficientes: {text}"
+    }
+  }
+}

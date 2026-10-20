@@ -1,0 +1,150 @@
+{
+  "title": "Caixa de tarefas",
+  "description": "Os processos que exigem sua atenção, em um só lugar.",
+  "loadingPermission": "Verificando seu acesso…",
+  "loading": "Carregando sua caixa de tarefas…",
+  "refreshing": "Atualizando…",
+  "forbidden": {
+    "title": "Você não tem acesso à caixa de tarefas.",
+    "description": "Fale com o administrador do órgão se precisar deste acesso."
+  },
+  "tabs": {
+    "label": "Visões da caixa de tarefas",
+    "MINE": "Comigo",
+    "UNIT_QUEUE": "Na fila da minha unidade",
+    "PENDING_APPROVALS": "Aprovações pendentes",
+    "RETURNED": "Devolvidos",
+    "OVERDUE": "Atrasados",
+    "FOLLOWING": "Acompanhando",
+    "countLabel": "{label}: {count, plural, =0 {nenhum item} one {# item} other {# itens}}",
+    "announce": "{label}: {count, plural, =0 {nenhum item} one {# item} other {# itens}}."
+  },
+  "sort": {
+    "label": "Ordenar por",
+    "-dueAt": "Prazo (mais distante primeiro)",
+    "dueAt": "Prazo (mais próximo primeiro)",
+    "code": "Código (mais antigo primeiro)",
+    "-code": "Código (mais recente primeiro)",
+    "enteredAt": "Entrada na etapa (mais antiga primeiro)",
+    "-enteredAt": "Entrada na etapa (mais recente primeiro)",
+    "requestedAt": "Solicitação (mais antiga primeiro)",
+    "-requestedAt": "Solicitação (mais recente primeiro)"
+  },
+  "table": {
+    "caption": "Processos da visão {view}",
+    "process": "Processo",
+    "noCode": "Sem número",
+    "department": "Unidade atual",
+    "responsible": "Responsável",
+    "noResponsible": "Sem responsável",
+    "stage": "Etapa",
+    "noStage": "—",
+    "deadline": "Prazo",
+    "requestedBy": "Solicitante",
+    "requestedAt": "Solicitada em",
+    "approval": "Aprovação",
+    "actions": "Ações",
+    "overdue": "Em atraso",
+    "confidential": "Orçamento sigiloso"
+  },
+  "claim": {
+    "action": "Assumir",
+    "actionLabel": "Assumir o processo {code}",
+    "claiming": "Assumindo…",
+    "claimed": "Você assumiu este processo.",
+    "errors": {
+      "alreadyAssigned": "Este processo já foi assumido por outra pessoa.",
+      "changed": "Os dados do processo mudaram. Atualize a página.",
+      "reload": "Atualize a página e tente novamente.",
+      "status": "Este processo não pode ser assumido no momento.",
+      "denied": "Você não pertence à unidade responsável por este processo.",
+      "notFound": "Processo não encontrado.",
+      "unavailable": "Não foi possível assumir o processo agora. Tente novamente em instantes.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    }
+  },
+  "bulk": {
+    "label": "Ações em lote",
+    "selectPage": "Selecionar todos os processos desta página",
+    "selectRow": "Selecionar o processo {code}",
+    "selected": "{count, plural, one {# selecionado} other {# selecionados}}",
+    "processing": "Processando {count, plural, one {# processo} other {# processos}}…",
+    "minimum": "Selecione ao menos 2 processos.",
+    "limit": "Selecione no máximo 50 processos por vez.",
+    "claim": "Assumir selecionados",
+    "assign": "Atribuir selecionados",
+    "clear": "Cancelar seleção",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "confirmClaim": {
+      "title": "Assumir {count, plural, one {# processo} other {# processos}}?",
+      "description": "Você passará a ser o responsável pelos processos selecionados. Os que não puderem ser assumidos serão listados no resumo.",
+      "submit": "Assumir"
+    },
+    "assignDialog": {
+      "title": "Atribuir {count, plural, one {# processo} other {# processos}} a",
+      "description": "Todos os processos selecionados irão para a mesma pessoa, com o mesmo motivo.",
+      "assignee": "Responsável",
+      "placeholder": "Selecione o responsável",
+      "loading": "Carregando as pessoas da unidade…",
+      "loadError": "Não foi possível carregar as pessoas da unidade.",
+      "mixedDepartments": "Os processos selecionados estão em unidades diferentes. Selecione processos de uma mesma unidade para atribuir em lote.",
+      "reason": "Motivo",
+      "reasonHint": "Obrigatório. De 10 a 2.000 caracteres; fica registrado na tramitação de cada processo.",
+      "cancel": "Cancelar",
+      "submit": "Atribuir",
+      "close": "Fechar"
+    },
+    "summary": {
+      "claim": {
+        "success": "{count, plural, one {# processo assumido.} other {# processos assumidos.}}",
+        "partial": "{success, number} de {total, number} processos assumidos. {errors, plural, one {# não pôde ser assumido.} other {# não puderam ser assumidos.}}"
+      },
+      "assign": {
+        "success": "{count, plural, one {# processo atribuído.} other {# processos atribuídos.}}",
+        "partial": "{success, number} de {total, number} processos atribuídos. {errors, plural, one {# não pôde ser atribuído.} other {# não puderam ser atribuídos.}}"
+      },
+      "failure": "Nenhum processo pôde ser processado.",
+      "details": "Ver {count, plural, one {o erro} other {os # erros}}",
+      "dismiss": "Fechar resumo",
+      "items": {
+        "alreadyAssigned": "{code} — já havia sido assumido por outra pessoa.",
+        "notFound": "{code} — não pôde ser processado.",
+        "other": "{code} — {message}"
+      }
+    },
+    "errors": {
+      "tooShort": "Selecione ao menos 2 processos.",
+      "tooLong": "Selecione no máximo 50 processos por vez.",
+      "denied": "Você não tem permissão para esta ação em lote.",
+      "reused": "Esta solicitação já foi enviada com outros dados.",
+      "inProgress": "Esta solicitação ainda está sendo processada. Aguarde alguns segundos.",
+      "unavailable": "Não foi possível concluir a ação agora.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente"
+    }
+  },
+  "empty": {
+    "MINE": "Nenhum processo pendente com você. Bom trabalho!",
+    "UNIT_QUEUE": "Nenhum processo aguardando na fila da sua unidade.",
+    "PENDING_APPROVALS": "Nenhuma aprovação pendente.",
+    "RETURNED": "Nenhum processo devolvido.",
+    "OVERDUE": "Nenhum processo em atraso.",
+    "FOLLOWING": "Você não está acompanhando nenhum processo."
+  },
+  "errors": {
+    "unavailable": "Não foi possível carregar sua caixa de tarefas agora.",
+    "rateLimited": "Muitas tentativas. Aguarde alguns segundos.",
+    "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+    "retry": "Tentar novamente",
+    "code": "Código: {correlationId}",
+    "copy": "Copiar código",
+    "copied": "Código copiado"
+  },
+  "pagination": {
+    "label": "Paginação da caixa de tarefas",
+    "previous": "Anterior",
+    "next": "Próxima",
+    "status": "Página {page, number} de {total, number}"
+  }
+}

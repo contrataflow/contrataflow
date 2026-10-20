@@ -13,6 +13,19 @@ export interface ApiErrorOptions {
   readonly headers?: Readonly<Record<string, string>>;
   /** Membros de extensão do problem+json (ex.: `currentVersion`). */
   readonly extensions?: Readonly<Record<string, unknown>>;
+  /**
+   * Motivo gravado em `AuditLog.reasonCode` quando o erro é uma negação de acesso auditada
+   * (RN-AUD-10): ex.: a permissão ausente (`PROCESS_CREATE`) num `PERMISSION_DENIED`. Nunca vai na
+   * resposta. Padrão: o próprio código do erro.
+   */
+  readonly auditReasonCode?: string;
+  /**
+   * Negação de acesso por política contextual (US-097 · RN-IAM-105): grava `access.denied` mesmo
+   * com código fora de `AUDITED_DENIAL_CODES` (ex.: `NOT_PROCESS_CUSTODIAN`).
+   */
+  readonly auditDenial?: boolean;
+  /** Entidade negada gravada no `access.denied` (ex.: a visão salva de outro dono — US-003). */
+  readonly auditEntity?: { readonly type: string; readonly id: string };
   readonly cause?: unknown;
 }
 
@@ -28,6 +41,9 @@ export class ApiError extends Error {
   readonly violations: readonly Violation[];
   readonly headers: Readonly<Record<string, string>>;
   readonly extensions: Readonly<Record<string, unknown>>;
+  readonly auditReasonCode: string;
+  readonly auditDenial: boolean;
+  readonly auditEntity: { readonly type: string; readonly id: string } | null;
 
   constructor(
     readonly code: ErrorCode | (string & {}),
@@ -45,6 +61,9 @@ export class ApiError extends Error {
     this.violations = options.violations ?? [];
     this.headers = options.headers ?? {};
     this.extensions = options.extensions ?? {};
+    this.auditReasonCode = options.auditReasonCode ?? code;
+    this.auditDenial = options.auditDenial ?? false;
+    this.auditEntity = options.auditEntity ?? null;
   }
 }
 

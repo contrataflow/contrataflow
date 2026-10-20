@@ -77,6 +77,20 @@ module.exports = {
     },
     ...moduleLevelRules(),
     {
+      name: 'ai-read-only',
+      severity: 'error',
+      comment:
+        'O módulo `ai` só LÊ outros módulos (regra D9 de domains.md · DEC-079): fachadas e módulos Nest, nunca comandos, serviços de ciclo de vida, repositórios ou domínio de outro contexto. A aplicação do conteúdo gerado é comando do módulo dono, que lê a proposta pela porta AiSuggestionSource.',
+      from: { path: `${API_MODULES}ai/` },
+      to: {
+        path: `${API_MODULES}(?!ai/)[^/]+/`,
+        pathNot: [
+          `${API_MODULES}[^/]+/application/[^/]+\\.facade\\.ts$`,
+          `${API_MODULES}[^/]+/[^/]+\\.module\\.ts$`,
+        ],
+      },
+    },
+    {
       name: 'shared-kernel-is-independent',
       severity: 'error',
       comment: 'O shared kernel (nível 0) nunca importa módulos (architecture.md §3.3).',
@@ -98,15 +112,30 @@ module.exports = {
       name: 'system-prisma-allowlist',
       severity: 'error',
       comment:
-        'O cliente de plataforma (papel cf_platform) só é usado no provisionamento de tenants, no relay do outbox e nos schedulers (multi-tenancy.md §5.3).',
+        'O SystemDbService (papel cf_platform — RN-TEN-28) só é usado pelos adaptadores de tenancy (provisionamento e ciclo de vida), identity (vínculos e convites entre tenants) e audit (auditoria de plataforma), pelos schedulers do worker e pelos testes de banco (US-100 · multi-tenancy.md §5.3).',
       from: {
         pathNot: [
-          '^apps/api/src/modules/tenancy/application/provisioning/',
+          '^apps/api/src/modules/(tenancy|identity|audit)/infrastructure/',
           '^apps/worker/src/(outbox|schedulers)/',
           '^apps/api/src/shared/database/',
+          '^apps/api/test/(database|tenant-leak)/',
         ],
       },
       to: { path: 'shared/database/system-(prisma|db)\\.service\\.ts$' },
+    },
+    {
+      name: 'platform-transaction-allowlist',
+      severity: 'error',
+      comment:
+        'Transação sem app.tenant_id (users, tenants, cf_user_memberships) só nos adaptadores de identity/tenancy do pipeline de autenticação e do início de sessão (US-087 · multi-tenancy.md §6) e nos da auditoria de plataforma e das partições de audit_logs (US-073 · DEC-071).',
+      from: {
+        pathNot: [
+          '^apps/api/src/modules/(identity|tenancy|audit)/infrastructure/',
+          '^apps/api/src/shared/database/',
+          '^apps/api/test/(database|audit|tenant-leak)/',
+        ],
+      },
+      to: { path: 'shared/database/platform-transaction\\.ts$' },
     },
     {
       name: 'worker-never-loads-presentation',
@@ -181,6 +210,14 @@ module.exports = {
       to: { path: '^(packages|apps)/', pathNot: '^packages/(ui|types)/' },
     },
     {
+      name: 'observability-only-types',
+      severity: 'error',
+      comment:
+        'packages/observability (logs, correlação e tracing — US-084) só importa packages/types (architecture.md §4.3).',
+      from: { path: '^packages/observability/' },
+      to: { path: '^(packages|apps)/', pathNot: '^packages/(observability|types)/' },
+    },
+    {
       name: 'not-to-unresolvable',
       severity: 'error',
       comment: 'Import que não resolve (dependência ausente ou alias sem mapeamento).',
@@ -198,6 +235,8 @@ module.exports = {
         '^tools/',
         '^packages/(eslint-config|tsconfig)/',
         '(^|/)[^/]+\\.config\\.[cm]?[jt]s$',
+        // Cliente Prisma gerado (US-081): ciclos internos do gerador, fora das fronteiras.
+        '/shared/database/generated/',
       ],
     },
     tsPreCompilationDeps: true,

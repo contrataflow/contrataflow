@@ -1,3 +1,569 @@
 # `process`
 
 Processo, itens, participantes, etiquetas, runtime da tramitação e visibilidade (DEC-040).
+
+## Painel situacional — ações e checklist (US-041)
+
+- **Rotas:** PRC-08 `GET /processes/{id}/available-actions` e PRC-09 `GET /processes/{id}/checklist`
+  (`ProcessActionsController`); `id` malformado → 400 `MALFORMED_REQUEST`; não visível → 404
+  `NOT_FOUND` igual ao inexistente. Somente leitura (sem auditoria nem eventos).
+- **Visibilidade (DEC-024):** `domain/process-visibility.ts` sobre `isProcessVisible`
+  (`#shared/auth/process-access.js`) com o escopo de `PROCESS_VIEW` das permissões efetivas
+  (US-097): `TENANT`, órgão do processo, unidades do escopo (subárvore/lotação) contra `ProcessAccess`
+  de unidade ou concessão própria. Listagens (US-001+) usam `buildVisibilityPredicate`.
+- **Quem consulta:** `ProcessViewerResolver` (permissões efetivas do contexto: escopo, lotações e
+  chefias) alimenta a custódia (POL-01/04/05) do motor.
+- **Autorização por processo (US-097):** `ProcessRuntimeAccessReader` registrado no
+  `ProcessAccessRegistry` — `@RequirePermission(…, { scope: { processParam: 'id' } })` lê o órgão,
+  as concessões e as participações (`runtime.access.participations`) do processo.
+- **Runtime:** porta `PROCESS_RUNTIME_READER` (`application/ports.ts`) — processo, passagens,
+  aprovações de etapa, documentos e concessões num ÚNICO snapshot. Em produção, o
+  `ProcessRuntimeLoader` da US-001 (abaixo); testes e modo fake usam `InMemoryProcessRuntimeStore`.
+
+## Painel situacional (US-004)
+
+- **Rotas:** PRC-04 `GET /processes/{id}` (com `meta.allowedActions`), PRC-07 `GET /processes/{id}/summary`
+  e PRC-10 `GET /processes/{id}/stages` (`ProcessController`, `@ImplicitAccess`). A visibilidade
+  (DEC-024, inclusive concessão `USER` — o aprovador designado chega pelo link) é conferida no
+  `ProcessPanelReader.load` sobre o runtime do mesmo `tx`; não visível = 404 `PROCESS_NOT_FOUND`
+  sem `access.denied`. `Cache-Control: no-store`.
+- **Composição:** `application/process-panel.queries.ts` — agregado + runtime (uma leitura:
+  `ProcessRuntimeLoader.fromAggregate`), motor (`getAvailableActions`/`evaluateRules`), documentos
+  (`DocumentFacade.listForSummary`) e aprovações (`ApprovalFacade.listPendingForProcess`) numa
+  transação `REPEATABLE READ READ ONLY` (`ProcessTransactions.snapshot` — RN-PROC-56). Regras puras
+  em `domain/process-summary.ts` (ação primária RN-PROC-49, pendências, prazo alvo, aprovador,
+  stepper). POL-09 por processo (`canViewConfidentialBudget`) vale também para o PRC-04.
+- **Auditoria:** `ConfidentialViewRecorder` grava `process.confidential_view` 1× por sessão
+  (`sessionIdHash`; sem ele, o usuário) e processo, marca no `TenantCache` (12 h), em transação
+  própria depois da leitura. Contadores de comentários e participantes ficam 0 até as stories donas
+  (US-012/071); as etiquetas do cabeçalho vêm de `TagRepository.forProcesses` (US-007).
+
+## Edição dos dados (US-005)
+
+- **Rota:** PRC-05 `PATCH /processes/{id}` (`ProcessController`, `@RequireIfMatch` → 428 sem
+  `If-Match`; `PROCESS_UPDATE` em algum escopo no guard). Corpo `updateProcessSchema` (estrito:
+  campo fora da lista → 422 `NOT_ALLOWED`) e evento `ProcessUpdated` (`changedFields` + `version`,
+  nunca valores) em `packages/validation/src/process/`.
+- **Caso de uso:** `UpdateProcessCommand` — `lockForUpdate` (`SELECT … FOR UPDATE`) → leitura do
+  agregado e visibilidade (`ProcessPanelReader.load` → 404) → **no-op primeiro** (RN-PROC-67: PATCH
+  idêntico responde 200 mesmo com `If-Match` antigo, sem versão/evento/timeline/auditoria) →
+  `If-Match` (412 com `currentVersion` e `meta.current` = DTO + `updatedBy`) → `PROCESS_UPDATE`
+  cobrindo o processo → status editável (409) → custódia POL-01 (403 `NOT_PROCESS_CUSTODIAN`,
+  auditado) → bloqueio por status (422 `NOT_ALLOWED`) → valor estimado com fonte superior (422
+  `BUSINESS_RULE_VIOLATION`) → revalidação parcial → referências alteradas → `PROCESS_CREATE` no
+  novo setor → código interno → `updateProcess` (`WHERE version`) → `process.update` → evento.
+- **Domínio puro:** `domain/process-update.ts` — `diffProcess` (ChangeSet único para evento,
+  auditoria e timeline), `fieldLock` (campo × status + RN-PROC-61), `estimatedValueLockedBy`,
+  `revalidationIssues`, `applyProcessChanges`, `isProcessCustodian`.
+- **Projeções:** timeline `PROCESS_UPDATED` pelo mapeamento existente (`BUDGET_RESTRICTED` com
+  `estimatedValue` de processo sigiloso); `ProcessAccessProjector` também ouve `process.updated` e,
+  com secretaria/setor alterados, chama `syncRequestingAccess` (revoga `REQUESTING` antigos com
+  `revokedAt`, concede os novos) — a custódia (`CURRENT`/`RESPONSIBLE`) não muda.
+- **Motor:** PRC-08 emite `EDIT` ("Editar dados") para quem tem `PROCESS_UPDATE`, desabilitada com
+  o motivo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` ou sem custódia.
+- **Testes:** `domain/process-update.spec.ts`, `presentation/process-update.routes.spec.ts` e
+  `test/tenant-leak/process-update.spec.ts` (PostgreSQL: rollback induzido, `FOR UPDATE` × encaminhamento).
+
+## Itens da contratação (US-006)
+
+- **Rotas:** PRC-13 `GET /processes/{id}/items` (`ETag` = versão do PROCESSO), PRC-14 `POST
+/processes/{id}/items` (`@Idempotent`), PRC-17 `POST /processes/{id}/items/reorder` (`If-Match` =
+  versão do processo) e PRC-15/16 `PATCH`/`DELETE /process-items/{itemId}` (`If-Match` = versão do
+  item) — `ProcessItemsController`. Ids malformados → 400 `MALFORMED_REQUEST`. Contratos e
+  `ProcessItemsChanged` em `packages/validation/src/process/process-items.ts`/`events.ts`.
+- **Casos de uso:** `application/process-items.commands.ts` (`process.items_change`) sobre a guarda
+  `ProcessItemsGate` (`lockForUpdate` do processo → visibilidade → `PROCESS_UPDATE` cobrindo o
+  processo → status editável → custódia POL-01; item de outro tenant = 404 `NOT_FOUND`), domínio
+  puro em `domain/process-items.ts` (numeração máximo + 1, `resolveLot` = LotNamePolicy, reordenação,
+  diff), `touchProcess` (`version + 1` do processo a cada alteração) e `ProcessItemsChangeRecorder`
+  (auditoria `process.items_update` com descrição/observações como hash + tamanho e o evento, que
+  projeta a timeline `ITEMS_CHANGED` no mesmo `tx`). A renumeração grava em duas fases (negativos →
+  definitivos) por causa do índice único parcial de `sequence`.
+- **Uso do item (RN-PROC-76/79):** porta `#shared/process/process-item-usage.ts`
+  (`ProcessItemUsageRegistry`): os donos de `DocumentItem`/`PriceItem` registram leitores no
+  `onModuleInit` (devem validar o item com `FOR SHARE` ao referenciá-lo — a exclusão trava o item com
+  `FOR UPDATE`). Sem leitor (até US-014/US-024), nenhum item está em uso.
+- **Painel:** `RuleContext.process.itemsCount`/`hasLots` e `counts.items` do PRC-07 vêm de
+  `ProcessItemRepository.stats`; PRC-08 emite `MANAGE_ITEMS` ("Gerenciar itens") com o motivo de
+  modo leitura.
+- **Testes:** `domain/process-items.spec.ts`, `presentation/process-items.routes.spec.ts` e
+  `test/tenant-leak/process-items.spec.ts` (PostgreSQL: 20 inclusões paralelas, duas fases, rollback,
+  RLS e FK composta).
+
+## Participantes (US-012)
+
+- **Rotas:** PRC-28 `GET /processes/{id}/participants` (`PROCESS_VIEW` cobrindo o processo; `meta`
+  `{ canManage, me }`), PRC-29 `POST /processes/{id}/participants` (`@Idempotent`,
+  `PROCESS_MANAGE_PARTICIPANTS` cobrindo o processo no guard + POL-10 no caso de uso), PRC-30
+  `DELETE /process-participants/{participantId}` (corpo opcional; o processo do participante é
+  conferido no caso de uso — não visível = 404 `PARTICIPANT_NOT_FOUND`) e PRC-31/32
+  `POST`/`DELETE /processes/{id}/follow` (`PROCESS_FOLLOW`) — `ProcessParticipantsController`.
+  Contratos e eventos em `packages/validation/src/process/process-participants.ts`/`events.ts`.
+- **Domínio puro:** `domain/process-participants.ts` — `grantRefusal` (RN-PROC-126..128: consultor
+  só usuário `EXTERNAL` ativo e validade ≤ a do vínculo, sem autoinclusão como Colaborador/
+  Consultor, referência inexistente/inativa = 422 sem revelar outro tenant, validade futura),
+  `unfollowDecision` (RN-PROC-133), `isParticipationExpired` (RN-PROC-135).
+- **Efeitos no mesmo `tx`:** `ProcessParticipantRecorder` — `ProcessAccess` `PARTICIPANT`
+  (`source_id` = participante; revogado por `revokeParticipantAccess`), auditoria
+  `process.participant_add`/`_remove` (sem nome nem motivo) e o evento (timeline
+  `PARTICIPANT_ADDED`/`_REMOVED`; o nome vem da fonte `PROCESS_PARTICIPANT` da timeline).
+- **Unicidade:** índices únicos parciais por usuário/unidade ativos; a corrida perdida vira 409
+  `PARTICIPANT_ALREADY_EXISTS` (`ParticipantAlreadyActiveError`).
+- **Autorização e visibilidade:** o runtime (`accessGrantsOf`) traz as participações não vencidas
+  (`participations`, inclusive de unidade — vale para os lotados) e as unidades participantes só
+  para visibilidade (`participantDepartmentIds` — nunca no escopo de unidade do perfil). Consultor
+  vencido perde a visibilidade antes do job (runtime e `buildVisibilityPredicate`).
+- **Expiração:** job `participants-expire` do worker (`apps/worker/src/maintenance/
+participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAccess`, timeline,
+  auditoria `SYSTEM` e outbox na transação do tenant.
+- **Testes:** `domain/process-participants.spec.ts`, `presentation/process-participants.routes.spec.ts`
+  e `test/tenant-leak/process-participants.spec.ts` (PostgreSQL: concorrência no índice único,
+  rollback induzido, consultor vencido no predicado SQL, RLS, FK composta e gatilho).
+
+## Sigilo do orçamento estimado (US-013)
+
+- **Rota:** PRC-33 `PUT /processes/{id}/confidentiality` (`ProcessController`, `@RequireIfMatch` →
+  428; `PROCESS_SET_CONFIDENTIAL_BUDGET` com `processParam` no guard — não visível = 404
+  `PROCESS_NOT_FOUND`, sem a permissão = 403 + `access.denied` com o `reasonCode` da permissão, MFA
+  pela POL-14). Corpo `setProcessConfidentialitySchema` (estrito) e evento
+  `ProcessConfidentialityChanged` (`{ isBudgetConfidential }`) em `packages/validation/src/process/`.
+  O PATCH (PRC-05) nunca muda a flag (RN-PROC-137 — campo fora do schema = 422).
+- **Caso de uso:** `SetProcessConfidentialityCommand` — `lockForUpdate` → visibilidade
+  (`ProcessPanelReader.load`) → `If-Match` **antes** do no-op (o reenvio com versão antiga = 412 e
+  nunca repete o efeito) → flag igual = 200 sem versão/evento/auditoria → `updateProcess` (`version +
+1`) → `DocumentFacade.applyBudgetConfidentialityIn` (pesquisa de preços `RESTRICTED` ao ativar,
+  padrão do tipo ao desativar; cada documento travado, relido e gravado com `version + 1` — RN-PROC-139)
+  → `process.confidentiality_change` → evento (timeline `CONFIDENTIALITY_CHANGED`, `STANDARD`, no mesmo
+  `tx`). Sem notificação (RN-PROC-145). A resposta aplica a POL-09 sobre o NOVO estado; valor real
+  entregue = `process.confidential_view` (`ConfidentialViewRecorder`, fonte `PRC-33`).
+- **Máscara (POL-09):** continua por leitura (`canViewConfidentialBudget` nos presenters/queries de
+  processo, itens, lista, painel, documentos e PDFs); esta story só liga/desliga a flag.
+- **Testes:** `domain/process-confidentiality.spec.ts`, `presentation/process-confidentiality.routes.spec.ts`
+  e `test/tenant-leak/process-confidentiality.spec.ts` (PostgreSQL: cascata, rollback induzido,
+  concorrência e RLS).
+
+## Visões salvas e exportação CSV (US-003)
+
+- **Rotas:** PRC-35..38 em `SavedViewsController` (`/saved-views`, `@ImplicitAccess` — escopo e posse
+  no caso de uso) e PRC-34 em `ProcessExportController` (`/processes/export`, registrado ANTES do
+  `ProcessController` para não cair em `:id`; `PROCESS_EXPORT` no guard, classe de limite `export`).
+  Contratos em `packages/validation/src/process/saved-views.ts` (filtros versionados `v: 1`, conversão
+  URL ⇄ `filters`, upcaster, colunas) e `process-export.ts` (query, rótulos, `PROCESS_EXPORT_MAX_ROWS`).
+- **Visões:** `application/saved-views.commands.ts` sobre `TransactionalCommandHandler`; regras puras em
+  `domain/saved-view.ts`. Trava `pg_advisory_xact_lock` por dono e escopo (limite de 20, nome e
+  padrão única); índices únicos `lower(name)` e parcial da padrão são a rede de segurança. Compartilhada
+  de outro dono = 403 com `access.denied` da visão (`ApiError.auditEntity`); privada de outro = 404.
+  Sem auditoria nem evento (preferência pessoal); exclusão física.
+- **Exportação:** `ExportProcessesQuery` — trava Redis por usuário (`TenantCache`, TTL 2 min; Redis fora
+  = segue sem trava com `warn export.lock_unavailable`), contagem exata antes do 1º byte (422
+  `EXPORT_TOO_LARGE` com `meta.totalItems`), e o arquivo por cursor no servidor (`DECLARE … CURSOR` +
+  `FETCH 500`) numa transação `READ ONLY` longa (`TenantTransaction.longRead`, 60 s) mantida aberta
+  pelo `pullInTransaction` (`#shared/database/transaction-stream.js`) enquanto o socket drena —
+  padrão de exportação em _streaming_ reutilizável. Linhas = visibilidade E cobertura do escopo de
+  `PROCESS_EXPORT` (`exportCoverageSql`). Apresentação pelo `ProcessListPresenter` (o mesmo de
+  PRC-01) e serialização em `domain/process-csv.ts` (BOM, `;`, CRLF, pt-BR, neutralização de fórmulas).
+  `process.export` `SUCCESS` é gravado ANTES do último pedaço (sem auditoria, sem arquivo completo);
+  falha ou cliente que desiste = `FAILURE` com `reasonCode`.
+- **Testes:** `domain/process-csv.spec.ts`, `domain/saved-view.spec.ts`,
+  `presentation/saved-views.routes.spec.ts` (8 categorias) e `test/tenant-leak/saved-views.spec.ts`
+  (PostgreSQL: cursor em 3 lotes, índices, RLS).
+
+## Etiquetas (US-007)
+
+- **Rotas:** TAG-01 `GET /tags` (`PROCESS_VIEW`; `includeInactive=true` só vale com `TAG_MANAGE`, senão é
+  ignorado — RN-PROC-91), TAG-02 `POST /tags` (`@Idempotent`) e TAG-03 `PATCH /tags/{id}` (`If-Match`) —
+  `TagsController`, `TAG_MANAGE` + MFA da política do tenant; PRC-18 `PUT /processes/{id}/tags`
+  (`ProcessTagsController`, `@RequireIfMatch`, `PROCESS_UPDATE` no guard). Contratos, paleta
+  acessível (`TAG_PALETTE`, contraste AA com o texto branco do chip) e limites em
+  `packages/validation/src/process/tags.ts` — a mesma regra do formulário.
+- **Cadastro:** `tags` nunca é excluída (a aplicação não tem `DELETE`); nome 2–40 único no tenant sem
+  diferenciar maiúsculas (índice `lower(name)` → 409 `CONFLICT`), cor `#RRGGBB` da paleta (422
+  `INVALID_ENUM`/`INVALID_FORMAT`). Auditoria de configuração `tag.create`/`tag.update`/`tag.deactivate`
+  (desativar = `tag.deactivate`); **sem evento e sem tocar a versão dos processos** (RN-PROC-90).
+- **Aplicação (PRC-18):** `SetProcessTagsCommand` reaproveita a guarda `ProcessItemsGate.writable`
+  com recusas próprias (`GateRefusals`: 409 `INVALID_PROCESS_STATUS` e 403 `NOT_PROCESS_CUSTODIAN`
+  com as mensagens das etiquetas). Ordem: trava do processo → autorização (`PROCESS_UPDATE` cobrindo o
+  processo → status → custódia) → conjunto (RN-PROC-88: máx. 10, repetição, id inexistente/de outro
+  tenant = `REFERENCE_NOT_FOUND`, inativa só se já aplicada) → **diferença** → conjunto idêntico
+  responde 200 sem versão/evento/timeline/auditoria (antes do `If-Match`, como o PRC-05) → `If-Match`
+  (412) → grava só inserções/remoções de `process_tags`, `touchProcess`, `process.tags_update` e
+  `ProcessUpdated` (`changedFields = ["tags"]` → timeline `PROCESS_UPDATED`) na mesma transação.
+- **Leitura:** a lista (PRC-01) filtra por `tagId` com `EXISTS` em `process_tags` (índice
+  `process_tags_tag_idx`) e traz `tags[{id,name,color,isActive}]` por consulta única por página; o painel
+  (PRC-07) traz as etiquetas no cabeçalho; `RuleContext.process.tags` leva os NOMES (ativas e inativas —
+  RN-PROC-92). PRC-08 expõe `MANAGE_TAGS` ("Etiquetas").
+- **Banco:** migração `20261017170000_tags` (`tags` com `UNIQUE (tenant_id, lower(name))`, checks de
+  nome/cor, trigger de tenant imutável, RLS; `process_tags` com PK `(tenant_id, process_id, tag_id)`, FKs
+  compostas, `CASCADE` no processo, RLS; grants: `cf_app` sem `DELETE` em `tags` e sem `UPDATE` em
+  `process_tags`).
+- **Testes:** `domain/tag.spec.ts`, `presentation/tags.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/process-tags.spec.ts` (PostgreSQL: filtro SQL, índice único sob concorrência, 412 sob
+  `FOR UPDATE`, rollback induzido, RLS/FKs entre tenants, sem `DELETE`).
+
+## Encaminhamento (US-047)
+
+- **Rota:** PRC-19 `POST /processes/{id}/forward` (`ProcessController`, `@Idempotent`,
+  `@RequireIfMatch` → 428; `PROCESS_FORWARD` em algum escopo no guard). Corpo
+  `forwardProcessSchema` e resposta `forwardedProcessSchema` (processo + `movement`, `approval?`,
+  `numberAssigned`, `statusFrom`) em `packages/validation/src/process/process-forward.ts`, que também
+  versiona `ProcessMovement.documents`/`metadata` (`MovementDocumentRef`, `MovementMetadata` v1) e
+  as regras puras compartilhadas com o SCR-103 (`forwardCommentIssues`, `dueDateOverrideIssues`).
+- **Caso de uso:** `ForwardProcessCommand` — `lockForUpdate` → visibilidade (404) → `expectedStageId`
+  (409 `STAGE_CHANGED`) ANTES do `If-Match` (412) → `PROCESS_FORWARD` cobrindo o processo, status e
+  custódia (403 `NOT_PROCESS_CUSTODIAN` auditado) → `WorkflowFacade.evaluateTransition` sobre o estado
+  travado (`TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED` com TODAS as violações/`WARNINGS_NOT_
+ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade inválida = 422, unidade
+  configurada inativa = `TRANSITION_NOT_AVAILABLE`) e responsável (`ASSIGNEE_NOT_ELIGIBLE`; candidato
+  da política inelegível = fila) → prazo (SLA pelo calendário; sobrescrita) → documentos (padrão =
+  alterados na passagem) → destino `APPROVAL`: aprovador (`ApprovalFacade.resolveStageApproverIn`) e
+  submissão dos cobertos (`DocumentFacade.enterApprovalStageIn`) → número (autuação, por último) →
+  `StageTransitionService` → `ApprovalFacade.requestForStageIn` → `process.number_assign`/
+  `ProcessNumberAssigned` → `process.forward`. Regras puras em `domain/process-forward.ts`.
+- **Prévias de PRC-08:** `ForwardPreviews` (só no PRC-08): `departmentName`, `dueAtPreview` e
+  `approverPreview` (não resolvível = `null` + motivo `APPROVER_UNRESOLVED`). O motor expõe
+  `transitionId`, `toStageName` e `toStageType` nas entradas de avanço.
+- **Projeções:** `ProcessAccessProjector` ouve `process.stage_changed.*` (CURRENT da origem →
+  HISTORICAL quando a unidade muda, CURRENT do destino, RESPONSIBLE) e `approval.requested`
+  (`APPROVER`). Timeline pelos mapeamentos existentes (`PROCESS_FORWARDED`, `PROCESS_NUMBER_ASSIGNED`,
+  `APPROVAL_REQUESTED`…); `PROCESS_RECEIVED`/`APPROVAL_REQUESTED` pelo worker.
+- **Testes:** `domain/process-forward.spec.ts`, `domain/stage-transition.spec.ts`,
+  `presentation/process-forward.routes.spec.ts` (8 categorias, em memória — fixtures em
+  `test/support/process-forward-fixtures.ts`) e `test/tenant-leak/process-forward.spec.ts`
+  (PostgreSQL: falha induzida, 20 simultâneos, RLS, eventos `PENDING`).
+
+## Devolução (US-048)
+
+- **Rota:** PRC-20 `POST /processes/{id}/return` (`ProcessController`, `@Idempotent`,
+  `@RequireIfMatch` → 428; `PROCESS_RETURN` em algum escopo no guard). Corpo `returnProcessSchema`
+  (`targetStageId` = `WorkflowStage`, `comment` 10–5.000, `dueAt?`, `expectedStageId?`) e resposta
+  `returnedProcessSchema` (processo + `movement`, `statusFrom`) em
+  `packages/validation/src/process/process-return.ts`.
+- **Caso de uso:** `ReturnProcessCommand` — `lockForUpdate` → visibilidade (404) → `expectedStageId`
+  (se enviado; 409 `STAGE_CHANGED`) ANTES do `If-Match` (412) → `PROCESS_RETURN` cobrindo o processo,
+  status `IN_PROGRESS` (409 — em `AWAITING_APPROVAL` a devolução é a decisão US-052/retirada US-053)
+  e custódia (403 `NOT_PROCESS_CUSTODIAN` auditado) → `WorkflowFacade.evaluateReturn` (etapa já
+  percorrida E com `RETURN` configurada na etapa atual; senão 422 `TRANSITION_NOT_AVAILABLE`, sem
+  revelar etapa de outro tenant) → unidade (`departmentResolution`; `CHOSEN_ON_FORWARD` reaproveita
+  a da última passagem) → responsável `PREVIOUS_ASSIGNEE` (`ProcessRepository.previousAssignments`:
+  responsabilidade mais recente com pessoa entre as passagens encerradas pela etapa; inelegível ou
+  nenhum = fila + `warn return.previous_assignee_not_found`) → prazo (SLA pelo calendário;
+  `dueAt` só com `allowDueDateOverride`, senão 422 `DUE_DATE_OVERRIDE_NOT_ALLOWED`) →
+  `StageTransitionService` (`action/closeAs/statusTo` RETURN/RETURNED/RETURNED,
+  `assignmentType: 'RETURN'`, `documents: []`) → `process.return`. Regras puras em
+  `domain/process-return.ts`. Nenhum documento muda de status (POL-11).
+- **PRC-08:** cada entrada `RETURN` traz `toStageId`, `toStageName`, `toStageType` e `lastPassedAt`
+  (saída da última passagem) para o SCR-104; habilitada só em `IN_PROGRESS` com custódia.
+- **Projeções e avisos:** os mesmos do encaminhamento (`PROCESS_RETURNED` na timeline, `ProcessAccess`
+  pelo `process.stage_changed.return`); no worker, `PROCESS_RETURNED` e `PROCESS_ASSIGNED`
+  (`assignmentType = RETURN`).
+- **Testes:** `domain/process-return.spec.ts`, `workflow/domain/workflow-engine-return.spec.ts`,
+  `presentation/process-return.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/process-return.spec.ts` (PostgreSQL: falha induzida, 10 simultâneos, eventos
+  `PENDING`, destino de outro tenant).
+
+## Assumir (US-049)
+
+- **Rota:** PRC-21 `POST /processes/{id}/claim` (`ProcessController`, `@RequireIfMatch` → 428; sem
+  corpo e sem `Idempotency-Key`; `ETag` = nova versão). Resposta: o `Process` com `currentResponsible`.
+- **Caso de uso:** `ClaimProcessCommand` — `lockForUpdate` → visibilidade (404) → `PROCESS_CLAIM`
+  cobrindo o processo + lotação na unidade atual (POL-04: 403 `PERMISSION_DENIED` com `access.denied`
+  e `reasonCode = PROCESS_CLAIM`) → status `IN_PROGRESS`/`RETURNED` e etapa que não seja `APPROVAL`
+  (409 `INVALID_PROCESS_STATUS`, RN-TRAM-32) → sem responsável (409 `PROCESS_ALREADY_ASSIGNED` com
+  `currentResponsible`) → `If-Match` (412) → `recordClaim` → evento e `process.claim`.
+- **Ordem 409 × 412:** "já assumido por OUTRA pessoa" vale antes do `If-Match` (a corrida de fila
+  manda o mesmo `If-Match` dos dois lados e o perdedor precisa do 409 com o nome); "já assumido por
+  quem chama" com `If-Match` vencido é o reenvio do clique duplo → 412 (o front trata como sucesso).
+- **Gravação (`ProcessRepository.recordClaim`):** a passagem ativa NÃO muda — só `assigneeId`;
+  encerra a responsabilidade ativa (a da fila), abre a `CLAIM` (`assignedById = null`) e insere a
+  tramitação `CLAIM` (sem motivo). `WHERE version` é a rede; o índice único
+  `process_assignments_single_active_key` barra duas responsabilidades ativas.
+- **Efeitos:** `ProcessAssigned` (`assignmentType = CLAIM`) → timeline `PROCESS_CLAIMED` (mapeamento
+  existente) e `ProcessAccessProjector` (`process.assigned` `CLAIM` → `RESPONSIBLE`). Nenhum
+  consumidor de notificação ouve `CLAIM` (RN-TRAM-35).
+- **Motor:** PRC-08 emite `CLAIM` habilitada só em `IN_PROGRESS`/`RETURNED` e fora de etapa
+  `APPROVAL` (`WorkflowFacade.currentStage` dá o tipo da etapa da versão fixada).
+- **Testes:** `domain/process-claim.spec.ts`, `presentation/process-claim.routes.spec.ts` (8
+  categorias, em memória) e `test/tenant-leak/process-claim.spec.ts` (PostgreSQL: falha induzida, 10
+  simultâneos, índice único, evento `PENDING`, outro tenant).
+
+## Atribuir e reatribuir (US-050)
+
+- **Rota:** PRC-22 `POST /processes/{id}/assign` (`ProcessController`, `@RequireIfMatch` → 428;
+  `@ImplicitAccess` porque a chefia da unidade atribui sem a permissão; sem `Idempotency-Key`;
+  `ETag` = nova versão). Corpo `{ assigneeId: uuid | null, reason? }` (`assignProcessSchema`).
+- **Caso de uso:** `AssignProcessCommand` — `lockForUpdate` → visibilidade (404) → POL-05
+  (`assignCoversProcess`: `PROCESS_ASSIGN` em `TENANT`/`ORGANIZATION` do órgão, conferido com MFA por
+  `assertCanOnProcess`; senão titular/substituto da unidade atual lido no `tx` — log
+  `assign.not_head_or_deputy_fallback`; nenhum dos dois = 403 com `access.denied`
+  `reasonCode = PROCESS_ASSIGN`) → `IN_PROGRESS`/`RETURNED` fora de `APPROVAL` (409) → `If-Match`
+  (412) → pessoa sem vínculo no tenant (422 `VALIDATION_ERROR`/`REFERENCE_NOT_FOUND`) ou inelegível
+  (`StageTransitionSupport.isEligibleAssignee` → 422 `ASSIGNEE_NOT_ELIGIBLE`) → motivo quando já havia
+  responsável (RN-TRAM-39 → 422 em `reason`) → `recordAssign` → evento e `process.assign`
+  (`metadata.viaHeadOrDeputy`, `reasonLength`; nunca o texto).
+- **Gravação:** `recordAssign` = as escritas do `recordClaim` (passagem segue; só o responsável muda),
+  com a responsabilidade `MANUAL` (`assignedById` = ator; `assigneeId = null` = fila) e a tramitação
+  `ASSIGN` (motivo no `comment`).
+- **Efeitos:** `ProcessAssigned` (`MANUAL`, `hasReason`) → timeline `PROCESS_ASSIGNED` (mapeamento
+  existente), `ProcessAccessProjector` (`MANUAL` → `RESPONSIBLE`) e, no worker, a notificação
+  `PROCESS_ASSIGNED` ao novo responsável (o ator é excluído).
+- **Motor:** PRC-08 emite `ASSIGN` só em `IN_PROGRESS`/`RETURNED` fora de `APPROVAL`; o
+  `canAssignAnywhere` é calculado por processo (`engineViewerFor` — o escopo `ORGANIZATION` conta).
+- **Testes:** `domain/process-assign.spec.ts`, `application/process-viewer.spec.ts`,
+  `presentation/process-assign.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/process-assign.spec.ts` (PostgreSQL: falha induzida, simultâneos, `PENDING`,
+  outro tenant).
+
+## Ações em lote da caixa de tarefas (US-058)
+
+- **Rotas:** TSK-03 `POST /tasks/bulk-claim` e TSK-04 `POST /tasks/bulk-assign`
+  (`TaskBulkController` — mora no `process`, dono do PRC-21/PRC-22; a leitura da caixa é do
+  `inbox`). `@Idempotent` (a chave cobre o lote inteiro); corpo `bulkClaimSchema`/`bulkAssignSchema`
+  (2 a 50 ids distintos — `TOO_SHORT`/`TOO_LONG`/`DUPLICATE_IN_LIST`; motivo 10–2.000 no lote).
+- **Permissão base:** TSK-03 = `PROCESS_CLAIM` no guard; TSK-04 = `@ImplicitAccess` +
+  `BulkAssignProcessesCommand.assertBasePermission` (`PROCESS_ASSIGN` em algum escopo OU
+  titular/substituto de alguma unidade; senão 403 do lote com `access.denied`
+  `reasonCode = PROCESS_ASSIGN`). Nada disso substitui POL-04/POL-05, que continuam por item.
+- **Orquestração:** `runBulkItems` (`application/task-bulk.support.ts`) chama, em sequência, o
+  `ClaimProcessCommand`/`AssignProcessCommand` inteiro por item (uma transação cada) com
+  `expectedVersion = null` (sem `If-Match` por item: a trava do processo decide a corrida) e
+  `batch = { batchId, idempotencyKey }` (vai para `metadata` de `process.claim`/`process.assign`).
+  Recusa de item → `{ ok: false, code, message }` (`domain/task-bulk.ts`: `PROCESS_NOT_FOUND` vira
+  `REFERENCE_NOT_FOUND`); banco fora no meio → o item e os seguintes saem `DEPENDENCY_UNAVAILABLE`
+  sem serem tentados.
+- **Observabilidade:** logs `tasks.bulk_claim`/`tasks.bulk_assign` (`info`),
+  `tasks.bulk_partial_failure` (`warn`, com os códigos) e `tasks.bulk_failed` (`error`); métricas
+  `cf_task_bulk_size` e `cf_task_bulk_items_total{action,outcome}`. Nunca o motivo.
+- **Testes:** `domain/task-bulk.spec.ts`, `presentation/task-bulk.routes.spec.ts` (8 categorias, em
+  memória) e `test/tenant-leak/task-bulk.spec.ts` (PostgreSQL: outro tenant no lote, lotes
+  concorrentes, `PENDING`).
+
+### Mudança de etapa reutilizável (`StageTransitionService`)
+
+Base de toda tramitação (encaminhar — US-047; devolver — US-048; decidir — US-052; concluir —
+US-010). Com o processo JÁ travado (ordem de bloqueio: processo → aprovação → documentos), quem
+chama resolve destino, responsável, prazo, status, documentos e a aprovação, autoriza e chama:
+
+```ts
+const plan = await this.transitions.apply(tx, {
+  transition: {
+    process,
+    active,
+    lastStageSequence,
+    lastMovementSequence,
+    action: 'RETURN',
+    closeAs: 'RETURNED',
+    transitionId,
+    toWorkflowStageId,
+    toDepartmentId,
+    toUserId,
+    assignedById,
+    slaDays,
+    slaType,
+    dueAt,
+    dueDateOverrideReason,
+    statusTo,
+    comment,
+    documents,
+    approvalId,
+    metadata,
+    numbering: null,
+    actor,
+    now,
+    ids,
+  },
+  cause: 'RETURN',
+  statusCause: 'RETURN',
+  fromStageKey,
+  toStage: { key, type },
+  requestedApprovalId: null,
+});
+```
+
+- Plano puro em `domain/stage-transition.ts` (`planStageTransition`): encerra a passagem
+  (`COMPLETED`/`RETURNED`, `exitedViaMovementId`) e a responsabilidade ativas, abre a passagem
+  `sequence + 1` com a responsabilidade `STAGE_ENTRY`, registra a tramitação imutável e atualiza
+  `current*`, `overdueSince = null` e `version + 1` (e o número, na autuação).
+- Grava tudo por `ProcessRepository.recordStageTransition` (`WHERE version` como rede) e publica
+  `ProcessStageChanged` (`process.stage_changed.<cause>`), `ProcessStatusChanged` só quando o status
+  muda e `ProcessAssigned` (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
+- A auditoria da ação (`process.forward`, `process.return`…) e eventos específicos ficam com quem chama.
+- `completion` (`MANUAL` — transição `COMPLETE` da US-010; `APPROVAL` — decisão `APPROVE` da US-052
+  → etapa `END`): a passagem de destino nasce `COMPLETED` (`exitedAt = enteredAt`), a
+  responsabilidade nasce encerrada e o processo grava `completedAt`/`completedById` pela rotina
+  compartilhada `completeProcess` (`domain/process-completion.ts` — DOM-09 · RN-PROC-114..116).
+
+### Decisão de aprovação de etapa (US-052)
+
+`ProcessApprovalSubjectHandler` (`application/approval-decision.subject.ts`) é o dono do sujeito
+`PROCESS_STAGE` na porta `ApprovalSubjectRegistry` (o coordenador é o `approval`):
+`prepareDecision` trava o processo; `planDecision` (sem escrita) avalia a saída pela ação
+(`WorkflowFacade.evaluateDecision` — `RETURN`/`REJECT` só para etapa percorrida; mais de uma
+devolução exige `transitionId`) e as regras `TRANSITION`, resolve unidade (`CHOSEN_ON_FORWARD`:
+última passagem pela etapa ou a de quem encaminhou à aprovação), responsável (devolução/indeferimento:
+`PREVIOUS_ASSIGNEE`; aprovação: `assignmentPolicy`), prazo, status (`APPROVE` → `IN_PROGRESS`/
+`AWAITING_APPROVAL`/`COMPLETED`; `RETURN`/`REJECT` → `RETURNED`) e o aprovador da próxima etapa
+`APPROVAL`; `applyDecision` aplica os documentos (`DocumentFacade.applyApprovalOutcomeIn`), submete
+os cobertos da próxima etapa, chama o `StageTransitionService` (tramitação `APPROVE`/`RETURN`/
+`REJECT` com `approvalId`; causas `APPROVAL_*`, `statusCause = APPROVAL_DECISION`) e abre a
+aprovação encadeada (`ApprovalFacade.requestForStageIn`).
+
+## Suspender e retomar (US-008)
+
+- **Rotas:** PRC-23 `POST /processes/{id}/suspend` (`{ reason }` 20–5.000) e PRC-24 `POST
+/processes/{id}/resume` (`{ comment? }` até 5.000) no `ProcessController`, com `@Idempotent`,
+  `@RequireIfMatch` (428) e `PROCESS_SUSPEND` em algum escopo no guard. Esquemas em
+  `packages/validation/src/process/process-suspension.ts`; resposta `suspensionProcessSchema`
+  (`Process` + `statusBeforeSuspension`, `suspendedAt`, `suspensionReason`, `currentStage.pausedAt`)
+  e, no PRC-24, `meta = { extendedBy: { days, slaType }, newDueAt }`.
+- **Casos de uso:** `SuspendProcessCommand`/`ResumeProcessCommand` (`application/process-suspension.commands.ts`,
+  log de falha `process.lifecycle_failed`) — `lockForUpdate` → visibilidade (404) → `PROCESS_SUSPEND`
+  cobrindo o processo SEM custódia (POL-07; 403 com `access.denied`) → status (409
+  `INVALID_PROCESS_STATUS`, ANTES do `If-Match`: nova suspensão de um suspenso é 409 mesmo com a versão
+  atual) → `If-Match` (412) → plano puro (`domain/process-suspension.ts`) → `recordSuspension`/
+  `recordResume` (`WHERE version`) → `ProcessStatusChanged` → `process.suspend`/`process.resume`.
+- **Extensão do prazo (RN-PROC-98/99 · DEC-031):** `BusinessCalendarFacade.daysInInterval` conta os dias
+  úteis (ou corridos, `slaType = CALENDAR`) em [data local da pausa, data local da retomada) e
+  `addBusinessDays(dueAt, n)` dá o novo fim de dia; `pausedTotalSeconds += retomada − pausedAt`. Se o
+  novo prazo ainda não venceu, limpa `overdueSince` (passagem e processo) e os avisos já enviados. A
+  aprovação `PENDING` da passagem ganha os mesmos dias (`ApprovalFacade.extendPendingStageDueAtIn`,
+  depois do processo — ordem de trava). `targetDate` nunca muda (RN-PROC-100).
+- **Evento:** `ProcessStatusChanged` com `cause = SUSPEND/RESUME` e `reason` (motivo/comentário); a
+  routing key da retomada é `process.status_changed.resumed` (não o status restaurado). Timeline
+  `PROCESS_SUSPENDED`/`PROCESS_RESUMED` pelo mapeamento existente; aviso `PROCESS_STATUS_CHANGED` pelo
+  worker (`ProcessStakeholdersLookup`: criador, responsável e participantes com `notify`, sem o autor).
+- **Congelamento (RN-PROC-96):** as próprias políticas recusam com 409 (`EDITABLE`/`CUSTODY` não
+  incluem `SUSPENDED`); o job `deadlines` já filtra `paused_at IS NULL`. Suspenso em aprovação, o
+  painel continua mostrando o aprovador (`responsible.approver`) para o aviso "decisão indisponível".
+- **Testes:** `domain/process-suspension.spec.ts`, `presentation/process-suspension.routes.spec.ts`
+  (8 categorias, em memória) e `test/tenant-leak/process-suspension.spec.ts` (PostgreSQL).
+
+## Cancelar e descartar rascunho (US-009)
+
+- **Rotas:** PRC-25 `POST /processes/{id}/cancel` (`{ cancellationReason }` 20–5.000, trim) com
+  `@RequireIfMatch` e `PROCESS_CANCEL` em algum escopo no guard; PRC-06 `DELETE /processes/{id}`
+  (corpo opcional `{ reason? }` até 500, só na auditoria) com `@ImplicitAccess` — a autorização é do
+  caso de uso. Sem `@Idempotent` (api.md: `Idempotency-Key —`): o reenvio depois do sucesso é 409.
+  Esquemas em `packages/validation/src/process/process-cancellation.ts`.
+- **Casos de uso** (`application/process-cancellation.commands.ts`, logs `process.cancel_failed`/
+  `process.discard_failed`): reaproveitam o `ProcessLifecycleSupport` da US-008 (`lockAndAuthorize`
+  agora recebe a permissão; `lockAndLoad` sem autorizar).
+  - **Cancelar:** trava → visibilidade (404) → `PROCESS_CANCEL` cobrindo o processo, sem custódia
+    (403 auditado) → status não final → `If-Match` → `planCancellation` (`domain/process-cancellation.ts`)
+    → `recordCancellation` (processo `CANCELED` com autor/justificativa, `statusBeforeSuspension` e
+    `overdueSince` limpos, passagem ativa `CANCELED` com `exitedViaMovementId`, responsabilidade
+    encerrada, tramitação `CANCEL`) → `ApprovalFacade.cancelPendingForProcessIn` (toda `PENDING`
+    vira `CANCELED`, `approval.cancel` + `ApprovalCanceled` `PROCESS_CANCELED`) →
+    `DocumentFacade.releaseCanceledApprovalIn` por documento coberto (`IN_REVIEW` → `DRAFT` com
+    `document.withdraw` + `DocumentWithdrawn` "Processo cancelado"; `FINALIZED`/`APPROVED` só perdem
+    `pendingApprovalId`) → `ProcessStatusChanged` (`cause = CANCEL`) → `process.cancel` (hash da
+    justificativa, nunca o texto). Etapa, unidade e responsável ficam no processo (histórico e
+    destinatários do aviso `PROCESS_STATUS_CHANGED`).
+  - **409 × 412 do Gherkin:** o `prepare` lê o status SEM trava (`ProcessRepository.statusOf`). Final
+    sob a trava mas não na chegada = corrida perdida para outra aba → 412 `VERSION_CONFLICT`; já
+    final na chegada = reenvio → 409 `INVALID_PROCESS_STATUS`.
+  - **Descartar:** trava → visibilidade → criador com `PROCESS_CREATE` (sem MFA) ou `PROCESS_CANCEL`
+    cobrindo o processo (senão 403 com `reasonCode = PROCESS_CANCEL`) → `DRAFT` (409
+    `INVALID_PROCESS_STATUS`) sem `number`/`code` (409 `CANNOT_DISCARD_NUMBERED_PROCESS`) →
+    `If-Match` → `recordDraftDiscard` (`deletedAt`/`deletedById`, `version + 1`, passagem ativa
+    `CANCELED` sem tramitação, responsabilidade encerrada) → `ProcessDraftDiscarded` →
+    `process.discard_draft`. Sem timeline nem notificação. Todas as leituras do processo já filtram
+    `deleted_at IS NULL` (no repositório em memória, o mapa `deleted`).
+- **Ações (PRC-08):** `DISCARD` vem do motor (`workflow-engine.ts · discardEntry`) com o novo
+  `EngineProcess.numbered` (do `ProcessRuntime.numbered`): só `DRAFT` sem número, para o criador com
+  `PROCESS_CREATE` ou quem tem `PROCESS_CANCEL`. `CANCEL` já existia (desabilitada em status final).
+- **Timeline:** `APPROVAL_CANCELED` usa a nova fonte de nomes `APPROVAL`
+  (`timeline/infrastructure/approval-lookup.source.ts`).
+- **Testes:** `domain/process-cancellation.spec.ts`, `presentation/process-cancellation.routes.spec.ts`
+  (8 categorias, em memória) e `test/tenant-leak/process-cancellation.spec.ts` (PostgreSQL).
+
+## Histórico de tramitações (US-054)
+
+- **Rota:** PRC-11 `GET /processes/{id}/movements` (`ProcessMovementsController` →
+  `ListProcessMovementsHandler`). `PROCESS_VIEW` sobre o processo no guard (não visível/outro
+  tenant = 404 `PROCESS_NOT_FOUND` + `access.denied`). Somente leitura, `READ COMMITTED`, sem
+  eventos; `Cache-Control: no-store`. Contrato em `packages/validation/src/process/process-movements.ts`.
+- **Leitura:** `ProcessRepository.listMovements` — `sequence DESC` sobre o índice único
+  `(tenant_id, process_id, sequence)`; cursor opaco `{ s: sequence }` (`sequence < n`, estável sob
+  tramitações concorrentes); filtros ação (OU), unidade de origem/destino, ator e período
+  (inclusivo) por E. Domínio puro em `domain/process-movements.ts` (`StoredMovement` = linha do
+  banco, com destino anulável), espelhado em memória.
+- **Hidratação em lote** (uma leitura por tipo, por página): etapas por `WorkflowFacade.releasedStages`,
+  unidades por `OrganizationFacade.departmentReferences` (agora `findByIds` — `IN (...)`), usuários
+  por `IdentityFacade.userDisplayNames` + `membersInTenant` (vínculo não `ACTIVE` = inativo) e o
+  resumo da aprovação por `ApprovalFacade.approvalSummaries`. Id sem nome → `name: null` e
+  `warn process.movements_hydration_partial` (só contagens).
+- **IP (RN-TRAM-74):** `AccessFacade.revealsField('AUDIT_VIEW')` — permissão em algum escopo, com o
+  2º fator quando a política o exige; falso se o cache de permissões caiu na requisição
+  (`RequestContext.permissionCacheUnavailable`, marcado pelo `EffectivePermissionsService`) ou se a
+  decisão falhar (`warn process.movements_ip_check_failed`). Aplicado só no presenter
+  (`toMovementItem`); `meta.canViewIp` diz à UI se mostra a coluna.
+- **Logs:** `info process.movements_listed` (chaves dos filtros, contagem, duração), `error
+process.movements_list_failed`; nunca comentário nem IP.
+- **Testes:** `domain/process-movements.spec.ts`, `application/list-process-movements.query.spec.ts`
+  (sem N+1, IP com falha fechada), `presentation/process-movements.routes.spec.ts` (8 categorias),
+  `test/tenant-leak/process-movements.spec.ts` (PostgreSQL: RLS, 1.000 tramitações + inserções
+  concorrentes, plano com índice) e `test/process/process-movements.perf.ts` (p95 < 1 s — `test:perf`).
+
+## Criação do processo (US-001)
+
+- **Rotas:** PRC-02 `POST /processes` (`ProcessController`, `@Idempotent`, `PROCESS_CREATE` em algum
+  escopo no guard), PRC-03 `POST /processes/check-duplicates` e PRC-04 `GET /processes/{id}` (mínimo
+  para o painel SCR-006; a US-004 completa). Contratos em `packages/validation/src/process/process.ts`
+  (`createProcessSchema`, `processDateIssues`, `processSchema`) e o evento `ProcessCreated`
+  (`process/events.ts`).
+- **Caso de uso:** `CreateProcessCommand` — referências (órgão, catálogos ativos, secretaria/setor do
+  mesmo órgão e na subárvore — RN-PROC-02/16) → escopo do `PROCESS_CREATE` sobre o setor
+  (`AccessFacade.assertCanInDepartment` — RN-PROC-03) → código interno e duplicidade (RN-PROC-09/13)
+  → `WorkflowFacade.resolveApplicable` + etapa inicial (`publishedDefinitionIn`, no mesmo `tx`) →
+  unidade/responsável/prazo da etapa → número (`NumberingFacade`, **por último**: a linha da
+  sequência fica travada só pelas gravações) → processo + passagem nº 1 + responsabilidade +
+  tramitação `CREATE` → `process.create` → `ProcessCreated`.
+- **Projeções síncronas:** `TimelineProjector` (`PROCESS_CREATED`) e `ProcessAccessProjector`
+  (`application/process-access.projector.ts`, concessões de permissions.md §5), ambos no `tx` do
+  `OutboxWriter`. O payload do evento traz `initialDepartmentId`/`initialResponsibleId` para isso.
+- **Runtime:** `ProcessRuntimeLoader` substitui o `PendingProcessRuntimeReader`: agregado, passagens
+  e concessões numa ÚNICA instrução SQL (`PrismaProcessRepository.loadAggregate`). No modo em
+  memória, `InMemoryProcessRuntimeReader` lê primeiro o `InMemoryProcessRuntimeStore` (testes da
+  US-041) e depois os processos criados.
+- **Banco:** migração `20261016100000_processes` (FK circular `current_stage_id` DEFERRABLE, FKs
+  compostas — secretaria e setor pelo órgão do processo —, `search_vector` gerado com `cf_unaccent`,
+  trigram em `code`/`title`, tramitação só INSERT + gatilho, FK da timeline). Testes com PostgreSQL:
+  `test/tenant-leak/processes.spec.ts`.
+
+### Padrão de comando transacional (`TransactionalCommandHandler`)
+
+Base em `#shared/commands/transactional-command.js`, para todo caso de uso que muda estado de
+negócio. Estenda e implemente:
+
+```ts
+@Injectable()
+export class ForwardProcessCommand extends TransactionalCommandHandler<Input, Prepared, Output> {
+  constructor(@Inject(PROCESS_TRANSACTIONS) transactions: ProcessTransactions /* , … */) {
+    super('process.forward', transactions); // nome do span e do log `process.forward_failed`
+  }
+  // 1. Fora da transação: configuração e pré-condições baratas (sem escrita).
+  protected prepare(input: Input): Promise<Prepared> { … }
+  // 2. Numa transação do tenant: referências → autorização por escopo → domínio (puro) →
+  //    repositórios → audit.record(tx, …) → outbox.record(tx, Evento.of(…)).
+  protected handle(tx: TenantTx, input: Input, prepared: Prepared): Promise<Output> { … }
+  // 3. Depois do commit: log de negócio e métricas.
+  protected override committed(result: Output, durationMs: number): void { … }
+}
+```
+
+- Erro em qualquer passo de `handle` desfaz agregado, projeções, auditoria, outbox e sequências.
+- Falha inesperada (5xx, banco fora) gera `error <comando>_failed` com `errorCode`, causa e
+  `correlationId`; erros de regra (4xx) não são logados como falha. Nunca logue texto livre.
+- Leituras de outros módulos dentro de `handle` usam o `tx` recebido (métodos `…In(tx, …)` das
+  fachadas): abrir outra transação por requisição esgota o pool sob concorrência.
+- Trava de linha (sequência, agregado) o mais tarde possível dentro de `handle`.
+
+## Valores de referência da pesquisa de preços concluída (US-032)
+
+- `ProcessFacade.applyPriceResearchReferenceIn(tx, input)`: trava o processo, grava
+  `process_items.reference_unit_price` + `reference_unit_price_source_document_id` (uma instrução
+  com `unnest`; campos do sistema — sem `version + 1` do item) e o valor estimado com
+  `estimatedValueSource = PRICE_RESEARCH`, salvo origem de maior precedência (`TERM` — DEC-032,
+  `domain/derived-estimated-value.ts`). A versão do processo sobe nos dois casos (o `If-Match` da
+  edição aberta vira 412). Só o `price-research` chama, já autorizado (DEC-019: o PATCH do item e o
+  do processo nunca gravam esses valores).

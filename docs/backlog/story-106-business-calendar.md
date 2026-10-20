@@ -159,6 +159,7 @@ Feature: Gerenciar calendário de dias úteis e feriados
 - **Stories:** US-100 (contexto de tenant). Consumida por US-055 (cálculo de `dueAt`), US-047 (prévia de sobrescrita de prazo), US-099 (seeder `catalog.holidays`).
 - **Decisões/ADRs:** DEC-031, DEC-003; ADR-002.
 - **Configurações:** `calendar.optionalHolidaysAreNonBusiness`; `deadlines.warnBeforeBusinessDays` (consumida indiretamente por US-055).
+- **Decisões de implementação (a story não fixa):** (1) `year` de `CAL-01` é opcional e vale o ano corrente no fuso do tenant; (2) o seed (entities.md §7) é `NATIONAL` nos 9 feriados de data fixa e `OPTIONAL` em Carnaval (segunda e terça), Quarta-feira de Cinzas e Corpus Christi; a Sexta-feira Santa nasce `MUNICIPAL` (sugerido, para revisão do órgão), todos recorrentes e `isSystem`; (3) o administrador cadastra só `STATE`/`MUNICIPAL`/`OPTIONAL` — `NATIONAL` é reservado ao seed (PATCH também não promove feriado próprio a nacional); (4) feriado de sistema pode ser desativado e ter `scope`/`isRecurring` ajustados, mas não renomeado (o nome é a chave natural do seeder) nem excluído (`CATALOG_ITEM_SYSTEM`); a data de qualquer feriado é imutável (excluir e recadastrar); (5) `businessDays` de `CAL-06` vai de 0 a 1.000, `dayCountType` padrão `BUSINESS`, o dia de partida não conta e o dia é o LOCAL de `fromDateTime` no fuso do tenant; `CALENDAR` soma dias corridos sem olhar feriados; (6) `CAL-05` aceita no máximo 1.100 dias; (7) a ocorrência do ano seguinte é gerada pela tarefa `holiday-year` do job `tenant-housekeeping` (fila `maintenance`, diária), a partir da ocorrência recorrente mais recente de cada nome, herdando escopo e situação; os móveis de sistema são recalculados pela Páscoa; (8) o calendário não é cacheado na API (uma consulta indexada por cálculo); o evento `HolidayChanged` já invalida o prefixo `catalog:holidays` no worker para o cache por ciclo do job de prazos (US-055).
 - **Lacunas nas fontes canônicas:** `Holiday.isSystem` (entities.md) não tem, nas fontes canônicas, uma regra explícita de proteção contra exclusão — diferente de `CatalogItem.isSystem` (DEC-027). Adotamos o conceito mais próximo (mesma proteção) e reaproveitamos o código `CATALOG_ITEM_SYSTEM` (409), já que `Holiday` pertence ao mesmo módulo `catalog`; registrado como lacuna.
 
 ## Impacto técnico
@@ -167,9 +168,9 @@ Feature: Gerenciar calendário de dias úteis e feriados
 - Normalização para "fim do dia útil" sempre no fuso do tenant (DEC-003), nunca no fuso do servidor.
 
 ## Backend
-- **Módulo(s):** `catalog` (dono); usa `access` (`AuthorizationService.assertCan('CALENDAR_MANAGE')`).
+- **Módulo(s):** `catalog` (dono); usa `access` (`AccessFacade.assertCan('CALENDAR_MANAGE')`) e `identity` (`IdentityFacade.mfaPolicy`) — mesma exceção de nível da US-104 (decisions.md §3). A aritmética de datas pura (Páscoa, feriados do seed, `planRecurringHolidays`) fica em `packages/types/src/calendar.ts`, compartilhada com o worker e o web; os contratos CAL-01..06 e o evento, em `packages/validation/src/calendar`.
 - **Casos de uso:** `CreateHolidayCommand`, `UpdateHolidayCommand`, `DeleteHolidayCommand`; `ListHolidaysQuery`, `AddBusinessDaysQuery`.
-- **Domínio:** `BusinessCalendarFacade.addBusinessDays(from, days, type)` / `.isBusinessDay(date)` / `.listBusinessDaysBetween(from, to)`; `EasterCalculator` (Meeus/Butcher); `HolidayYearGeneratorJob`.
+- **Domínio:** `BusinessCalendarFacade.addBusinessDays(tx, from, days, type)` / `.isBusinessDay(tx, date)` / `.listBusinessDaysBetween(tx, from, to)` (exportada pelo módulo; fuso e `calendar.optionalHolidaysAreNonBusiness` do tenant lidos por porta); `easterSunday` (Meeus/Butcher); `HolidayYearGeneratorTask` (worker, `tenant-housekeeping`).
 - **Transação:** criação/edição/exclusão de feriado, auditoria e outbox na mesma transação; `CAL-05`/`CAL-06` são leituras, sem efeito colateral.
 
 ## Frontend
@@ -180,7 +181,7 @@ Feature: Gerenciar calendário de dias úteis e feriados
 
 ## Banco de dados
 - **Tabelas:** `holidays`.
-- **Migrações:** nenhuma nova (tabela já definida em entities.md §4).
+- **Migrações:** `20261015270000_holidays` — enum `holiday_scope` e tabela `holidays` (entities.md §4: unicidade `(tenant_id, date, lower(name))`, índice parcial de ativos, gatilhos de imutabilidade e de proteção do feriado de sistema, RLS; `DELETE` só para a aplicação, `SELECT`/`INSERT` para o worker).
 - **Índices/constraints relevantes:** `UNIQUE (tenant_id, date, lower(name))`; índice `(tenant_id, date) WHERE is_active`.
 
 ## API

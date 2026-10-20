@@ -78,14 +78,14 @@ Permitir que 100% das aprovações pendentes sejam decididas em uma única açã
 ## Regras de negócio
 - **RN-TRAM-54** — Decisões possíveis: `APPROVE` → `ApprovalStatus.APPROVED`; `RETURN` → `RETURNED`; `REJECT` → `REJECTED`. Somente sobre `Approval.status = PENDING`.
 - **RN-TRAM-55** — `decisionComment` obrigatório (≥ 10 caracteres) para `RETURN` e `REJECT`; opcional para `APPROVE`.
-- **RN-TRAM-56** — A etapa de destino é dada pela `WorkflowTransition` com `fromStageId` igual à etapa `APPROVAL` atual e `action` igual à decisão (`APPROVE`/`RETURN`/`REJECT`); `RETURN`/`REJECT` só podem apontar para etapas já percorridas pelo processo (DEC-015).
+- **RN-TRAM-56** — A etapa de destino é dada pela `WorkflowTransition` com `fromStageId` igual à etapa `APPROVAL` atual e `action` igual à decisão (`APPROVE`/`RETURN`/`REJECT`); `RETURN`/`REJECT` só podem apontar para etapas já percorridas pelo processo (DEC-015). Quando a etapa tem mais de uma `RETURN` para etapas percorridas (o workflow padrão tem quatro na aprovação da autoridade), o corpo informa `transitionId` (uma opção por etapa em `meta.decisionOptions` de APV-02); sem ele → `VALIDATION_ERROR` (`REQUIRED`) em `transitionId`; transição de outra ação/etapa → `TRANSITION_NOT_AVAILABLE` (422). Destino `CHOSEN_ON_FORWARD` (a decisão não coleta unidade) reaproveita a unidade da última passagem pela etapa ou, se nunca percorrida, a de quem encaminhou à aprovação.
 - **RN-TRAM-57** — Efeito em cada documento coberto (`ApprovalDocument`), conforme DEC-018: `IN_REVIEW` → `APPROVED`/`RETURNED`/`REJECTED`; `FINALIZED` ou `APPROVED` → `APPROVED`/`RETURNED`/`REJECTED` conforme a decisão; documento já `APPROVED` reaprovado por nova etapa permanece `APPROVED` (a nova `Approval` é apenas registrada). `pendingApprovalId` é sempre limpo ao final.
 - **RN-TRAM-58** — Documento que passa a `APPROVED` tem uma `DocumentRendition` (`kind = APPROVAL_STAMPED`) enfileirada; falha ou atraso na renderização não bloqueia a decisão (RN-TRAM-62 de resiliência).
 - **RN-TRAM-59** — Status do processo (DEC-013): `APPROVE` leva a `IN_PROGRESS` (destino `TASK`/`START`), permanece/retorna a `AWAITING_APPROVAL` (destino `APPROVAL`) ou vai a `COMPLETED` (destino `END`); `RETURN` e `REJECT` levam a `RETURNED`, independentemente do tipo da etapa de destino.
 - **RN-TRAM-60** — Se a etapa de destino for `APPROVAL`, uma nova `Approval` é solicitada automaticamente (regras de US-051); se o aprovador não puder ser resolvido (`APPROVER_UNRESOLVED`), toda a transição é desfeita e a `Approval` original permanece `PENDING`.
 - **RN-TRAM-61** — O `ProcessAssignment` da nova etapa segue `assignmentPolicy` do `WorkflowStage` de destino (ex.: `PREVIOUS_ASSIGNEE` — responsável individual mais recente na mesma etapa; sem histórico, fila da unidade).
 - **RN-TRAM-62** — Segregação de funções (POL-03/DEC-022): se `approval.preventSelfApproval`, o decisor não pode ser autor de nenhuma versão coberta; violação → `SELF_APPROVAL_FORBIDDEN` (403).
-- **RN-TRAM-63** — Concorrência: a decisão exige `If-Match` com a `version` da `Approval`; divergência → `VERSION_CONFLICT` (412); se a versão coincidir mas `status` não for mais `PENDING` (corrida dentro da janela de leitura) → `APPROVAL_NOT_PENDING` (409).
+- **RN-TRAM-63** — Concorrência: a decisão exige `If-Match` com a `version` da `Approval`. Aprovação que não está mais `PENDING` → `APPROVAL_NOT_PENDING` (409), verificado ANTES do `If-Match` (quem perdeu a corrida recebe a decisão registrada — FA-05, como o "assumir" da US-049); aprovação ainda `PENDING` com `If-Match` divergente → `VERSION_CONFLICT` (412).
 
 ## Campos
 | Campo (UI) | Campo técnico | Tipo | Obrigatório | Regras | Padrão/origem |
@@ -93,6 +93,7 @@ Permitir que 100% das aprovações pendentes sejam decididas em uma única açã
 | Decisão | `decision` | seleção (`ApprovalDecision`) | Sim | `APPROVE`\|`RETURN`\|`REJECT` | — |
 | Comentário | `comment` | texto longo | Condicional (RN-TRAM-55) | ≥ 10 e ≤ 5.000 caracteres | — |
 | Avisos reconhecidos | `acknowledgedWarnings` | lista de ids (técnico) | Condicional (FA-03) | só enviado após confirmação explícita na UI | `[]` |
+| Etapa de destino da devolução | `transitionId` | uuid (técnico) | Condicional (RN-TRAM-56) | obrigatório em `RETURN` com mais de uma etapa de destino; nas demais decisões, opcional (a transição da própria decisão) | — |
 
 ## Validações
 | # | Validação | Camada | Mensagem ao usuário | Código de erro |
@@ -205,6 +206,8 @@ Feature: Decidir aprovação
 | Regra bloqueante não satisfeita | 422 | `TRANSITION_BLOCKED` | "Não é possível concluir esta decisão agora." | Lista `violations[]` com links |
 | Sem designação/segregação | 403 | `NOT_DESIGNATED_APPROVER` / `SELF_APPROVAL_FORBIDDEN` | "Você não pode decidir esta aprovação." | Oculta ações; explica o motivo |
 | Aprovação já decidida | 409 | `APPROVAL_NOT_PENDING` | "Esta aprovação já foi decidida." | Recarrega e mostra a decisão registrada |
+| Processo suspenso ou em status final | 409 | `INVALID_PROCESS_STATUS` | "Esta aprovação não pode ser decidida no status atual do processo." | Recarrega |
+| Opção de decisão indisponível | 422 | `TRANSITION_NOT_AVAILABLE` | "Esta opção de decisão não está disponível para a etapa atual." | Recarrega as opções |
 | Próximo aprovador não resolvido | 422 | `APPROVER_UNRESOLVED` | "Não foi possível determinar quem deve aprovar a próxima etapa." | Mantém decisão pendente; sugere contatar o administrador |
 | `If-Match` divergente | 412 | `VERSION_CONFLICT` | "Esta aprovação foi atualizada por outra pessoa. Recarregue." | Recarrega dados atuais |
 | `If-Match` ausente | 428 | `PRECONDITION_REQUIRED` | "Não foi possível processar. Recarregue a página." | Recarrega antes de reenviar |
@@ -247,7 +250,7 @@ Feature: Decidir aprovação
 | ID | Método | Rota | Request (resumo) | Response (resumo) | Códigos |
 |---|---|---|---|---|---|
 | APV-02 | GET | `/api/v1/approvals/{id}` | — | `200 { data: Approval }` com `documents[]`, `allowedActions`, `ETag` | 200, 403, 404 |
-| APV-03 | POST | `/api/v1/approvals/{id}/decide` | `{ decision, comment?, acknowledgedWarnings? }` + `If-Match` + `Idempotency-Key` | `200 { data: Approval }` com `processStage { key, name }`, `processStatus`, `ETag` nova | 200, 401, 403, 404, 409, 412, 422, 428, 429, 500, 503 |
+| APV-03 | POST | `/api/v1/approvals/{id}/decide` | `{ decision, comment?, acknowledgedWarnings?, transitionId? }` + `If-Match` + `Idempotency-Key` | `200 { data: Approval }` com `processStage { key, name }`, `processStatus`, `chainedApprovalId`, `ETag` nova | 200, 401, 403, 404, 409, 412, 422, 428, 429, 500, 503 |
 
 ## Logs
 - `info` `approval.decided` — `approvalId`, `processId`, `decision`, `decidedAsDeputy`, `nextStageKey?`, `durationMs`, `correlationId`.

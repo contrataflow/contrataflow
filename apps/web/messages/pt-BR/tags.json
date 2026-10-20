@@ -1,0 +1,129 @@
+{
+  "chip": {
+    "inactive": "(inativa)"
+  },
+  "colors": {
+    "#64748B": "Cinza",
+    "#B45309": "Âmbar",
+    "#B91C1C": "Vermelho",
+    "#C2410C": "Laranja",
+    "#4D7C0F": "Lima",
+    "#15803D": "Verde",
+    "#0F766E": "Verde-azulado",
+    "#0369A1": "Azul-céu",
+    "#1D4ED8": "Azul",
+    "#4338CA": "Índigo",
+    "#7E22CE": "Roxo",
+    "#BE185D": "Rosa"
+  },
+  "header": {
+    "label": "Etiquetas do processo",
+    "button": "Etiquetas",
+    "buttonCount": "Etiquetas ({count})"
+  },
+  "picker": {
+    "title": "Etiquetas do processo",
+    "description": "Marque as etiquetas que classificam este processo (até {max}).",
+    "search": "Buscar etiqueta",
+    "searchHint": "Digite para filtrar. Use as setas para percorrer e Enter para marcar ou desmarcar.",
+    "listLabel": "Etiquetas disponíveis",
+    "counter": "{count}/{max}",
+    "announce": "{count, plural, =0 {Nenhuma etiqueta marcada} one {# etiqueta marcada de {max}} other {# etiquetas marcadas de {max}}}",
+    "limitReached": "Use no máximo {max} etiquetas por processo.",
+    "empty": "Nenhuma etiqueta cadastrada. Peça ao gestor para criar etiquetas.",
+    "emptyManage": "Nenhuma etiqueta cadastrada. Digite um nome e crie a primeira.",
+    "noResults": "Nenhuma etiqueta encontrada.",
+    "create": "Criar etiqueta \"{name}\"",
+    "creating": "Criando etiqueta…",
+    "createdAnnounce": "Etiqueta {name} criada e marcada.",
+    "createFailed": "Não foi possível criar a etiqueta.",
+    "nameTaken": "Já existe uma etiqueta com este nome.",
+    "inactiveHint": "Etiqueta inativa: só pode ser removida.",
+    "loading": "Carregando as etiquetas…",
+    "loadFailed": "Não foi possível carregar as etiquetas.",
+    "retry": "Tentar novamente",
+    "confirm": "Aplicar etiquetas",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "applied": "Etiquetas atualizadas.",
+    "unchanged": "Nenhuma alteração nas etiquetas.",
+    "errors": {
+      "conflict": "O processo foi alterado por outra pessoa. As etiquetas que você marcou foram mantidas — confirme novamente.",
+      "validation": "Revise as etiquetas selecionadas.",
+      "permission": "Você não pode alterar as etiquetas deste processo.",
+      "status": "Etiquetas não podem ser alteradas com o processo neste status.",
+      "notFound": "Não encontrado.",
+      "rateLimited": "Muitas tentativas. Aguarde um instante e tente novamente.",
+      "unavailable": "Não foi possível salvar as etiquetas agora.",
+      "unexpected": "Não foi possível salvar as etiquetas. Código de suporte: {correlationId}."
+    }
+  },
+  "admin": {
+    "tab": "Etiquetas",
+    "title": "Etiquetas",
+    "description": "Cadastre as etiquetas do órgão para classificar processos por temas que não existem nos catálogos. Etiquetas nunca são excluídas: ao desativar, ela deixa de ser oferecida para novas aplicações, mas continua nos processos em que já está.",
+    "new": "Nova etiqueta",
+    "loading": "Carregando as etiquetas…",
+    "loadFailed": "Não foi possível carregar as etiquetas.",
+    "retry": "Tentar novamente",
+    "empty": "Nenhuma etiqueta cadastrada",
+    "emptyHint": "Crie a primeira etiqueta para classificar processos.",
+    "permission": "Você não tem permissão para gerenciar etiquetas.",
+    "table": {
+      "caption": "Etiquetas do órgão",
+      "name": "Etiqueta",
+      "color": "Cor",
+      "status": "Situação",
+      "actions": "Ações"
+    },
+    "status": {
+      "active": "Ativa",
+      "inactive": "Inativa"
+    },
+    "edit": "Editar",
+    "editLabel": "Editar a etiqueta {name}",
+    "deactivate": "Desativar",
+    "deactivateLabel": "Desativar a etiqueta {name}",
+    "activate": "Reativar",
+    "activateLabel": "Reativar a etiqueta {name}",
+    "saving": "Salvando…",
+    "toast": {
+      "created": "Etiqueta {name} criada.",
+      "updated": "Etiqueta {name} atualizada.",
+      "deactivated": "Etiqueta {name} desativada.",
+      "activated": "Etiqueta {name} reativada."
+    },
+    "conflict": {
+      "title": "A etiqueta foi alterada por outra pessoa. Recarregamos a lista.",
+      "reload": "Recarregar"
+    },
+    "errors": {
+      "unavailable": "Não foi possível salvar agora. Tente novamente.",
+      "generic": "Não foi possível concluir a operação."
+    },
+    "form": {
+      "createTitle": "Nova etiqueta",
+      "editTitle": "Editar etiqueta",
+      "name": "Nome",
+      "nameHint": "De 2 a 40 caracteres. Não pode repetir o nome de outra etiqueta.",
+      "color": "Cor",
+      "colorHint": "O nome da etiqueta é sempre exibido; a cor é só um apoio visual.",
+      "preview": "Pré-visualização",
+      "previewFallback": "Nome da etiqueta",
+      "renameWarning": "Regras de workflow que usam o nome antigo deixarão de reconhecer esta etiqueta.",
+      "submit": "Salvar etiqueta",
+      "cancel": "Cancelar",
+      "close": "Fechar",
+      "submitUnavailable": "Não foi possível salvar agora. Tente novamente.",
+      "submitFailed": "Não foi possível salvar a etiqueta.",
+      "nameInvalid": "O nome deve ter entre 2 e 40 caracteres.",
+      "nameTaken": "Já existe uma etiqueta com este nome.",
+      "colorInvalid": "Escolha uma das cores disponíveis."
+    }
+  },
+  "filter": {
+    "legend": "Etiquetas",
+    "inactiveLegend": "Etiquetas inativas"
+  }
+}

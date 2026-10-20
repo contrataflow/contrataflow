@@ -1,0 +1,21 @@
+{
+  "output": {
+    "sections": [
+      {
+        "sectionKey": "NECESSIDADE",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Necessidade descrita pelo provedor de teste. [a confirmar: quantidade]"
+          }
+        ]
+      },
+      {
+        "sectionKey": "JUSTIFICATIVA",
+        "blocks": [
+          { "type": "paragraph", "text": "Justificativa proposta pelo provedor de teste." }
+        ]
+      }
+    ]
+  }
+}

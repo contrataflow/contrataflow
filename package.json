@@ -17,6 +17,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
+    "cf": "pnpm --filter @contrataflow/api run cf",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs --output-type err-long",
     "lint:repo": "prettier . --check --log-level warn && eslint . --max-warnings=0",
     "format": "prettier . --write --log-level warn",
@@ -28,6 +29,7 @@
     "ci:contract": "pnpm --filter @contrataflow/tools run ci:contract",
     "ci:coverage": "pnpm --filter @contrataflow/tools run ci:coverage",
     "ci:migrations": "pnpm --filter @contrataflow/tools run ci:migrations",
+    "ci:sql-lint": "pnpm --filter @contrataflow/tools run ci:sql-lint",
     "ci:github-settings": "pnpm --filter @contrataflow/tools run ci:github-settings",
     "env:up": "pnpm --filter @contrataflow/tools run env:up",
     "env:up:full": "pnpm --filter @contrataflow/tools run env:up:full",
@@ -36,6 +38,8 @@
     "env:check": "pnpm --filter @contrataflow/tools run env:check",
     "env:smoke": "pnpm --filter @contrataflow/tools run env:smoke",
     "env:blueprint": "pnpm --filter @contrataflow/tools run env:blueprint",
+    "db:migrate": "pnpm --filter @contrataflow/tools run db:migrate",
+    "ai:eval": "pnpm --filter @contrataflow/api run ai:eval --",
     "prepare": "husky"
   },
   "devDependencies": {

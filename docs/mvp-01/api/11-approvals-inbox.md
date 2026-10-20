@@ -4,7 +4,7 @@
 
 | ID | Método | Rota | Permissão | Story |
 |---|---|---|---|---|
-| APV-01 | GET | `/approvals` | `APPROVAL_VIEW` (ou designado) | US-057 |
+| APV-01 | GET | `/approvals` | Cobertura de aprovador (POL-03) | US-057 |
 | APV-02 | GET | `/approvals/{id}` | `APPROVAL_VIEW` ou designado | US-052 |
 | APV-03 | POST | `/approvals/{id}/decide` | `APPROVAL_DECIDE` + POL-03 | US-052 |
 | APV-04 | POST | `/approvals/{id}/withdraw` | `PROCESS_FORWARD` + POL-17 | US-053 |
@@ -15,55 +15,60 @@
 | TSK-04 | POST | `/tasks/bulk-assign` | `PROCESS_ASSIGN` (ou titular) | US-058 |
 
 ### APV-01 — Listar aprovações
-`GET /api/v1/approvals` · **Permissão:** `APPROVAL_VIEW` (ou designado à aprovação) · **Story:** US-057
+`GET /api/v1/approvals` · **Permissão:** cobertura de aprovador (POL-03) como filtro da consulta — sem cobertura, lista vazia (nunca 403) · **Story:** US-057
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Parâmetros:** query `status` (enum múltiplo `ApprovalStatus`, opcional, padrão `PENDING`); `subjectType` (enum `ApprovalSubjectType`, opcional); `requestingDepartmentId` (uuid, opcional, unidade ativa do tenant); `requestedFrom`/`requestedTo` (data, opcional, `requestedFrom` ≤ `requestedTo`); `q` (texto, opcional, ≥2 caracteres); paginação padrão; ordenação: `sort` (padrão `-requestedAt`, campos permitidos conforme RN-INBOX-18 — lista completa não enumerada na story: a definir na implementação)
+- **Parâmetros:** query `status` (enum múltiplo `ApprovalStatus` — repetição ou vírgula, OU entre os valores; opcional, padrão `PENDING`); `subjectType` (enum `ApprovalSubjectType`, opcional); `requestingDepartmentId` (uuid, opcional — secretaria OU setor solicitante do processo; precisa existir no tenant); `requestedFrom`/`requestedTo` (data `AAAA-MM-DD` no fuso do tenant, inclusive; `requestedFrom` ≤ `requestedTo`); `q` (texto, opcional, 2..200 caracteres — código do processo, título do processo ou da aprovação, sem acento nem caixa); paginação padrão (`pageSize` ≤ 100); ordenação: `sort` (padrão `-requestedAt`; campos `requestedAt`, `dueAt`, `code` — RN-INBOX-18; nulos por último; desempate pelo id)
 - **Request:** —
-- **Response:** `200 { data: [{ id, subjectType, process: { id, code, title }, document?, requestingDepartment, requestedBy, requestedAt, dueAt?, status }], meta: { page, pageSize, totalItems, totalPages } }`
+- **Response:** `200 { data: [{ id, subjectType, title, status, process: { id, code, title }, document: { id } | null, requestingDepartment: { id, name }, requestedBy: { id, name }, requestedAt, dueAt, isOverdue, approver: { type, label }, isBudgetConfidential }], meta: { page, pageSize, totalItems, totalPages } }` · `Cache-Control: no-store`. `requestingDepartment` = setor solicitante; `isOverdue` = `dueAt` anterior a agora enquanto `PENDING` (RN-INBOX-16); `approver.label` no perfil = "Aguardando: qualquer titular de {perfil}" (FA-02). Sem valores monetários.
+- **Cobertura (RN-INBOX-14):** entram as aprovações em que o usuário é aprovador designado AGORA (`USER` direto; `DEPARTMENT_HEAD` titular atual da unidade aprovadora ou substituto com `allowDeputy`; `ROLE` com atribuição vigente cujo escopo cobre o órgão ou a secretaria/setor solicitante) e as que ele decidiu (`decidedById` — o histórico não some quando a titularidade muda depois). Uma linha por aprovação, ainda que coberta por mais de um caminho.
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `APPROVAL_VIEW` nem designação |
-  | 422 | `VALIDATION_ERROR` | Enum inválido; período invertido; `requestingDepartmentId` de outro tenant (`REFERENCE_NOT_FOUND`) |
+  | 422 | `VALIDATION_ERROR` | Enum inválido (`INVALID_ENUM`); `sort` fora da lista; período invertido ("O período informado é inválido."); `requestingDepartmentId` inexistente ou de outro tenant (`REFERENCE_NOT_FOUND`) |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível ou consulta acima do teto (`statement_timeout` 3 s), com `Retry-After` |
 - **Efeitos:** —
-- **Notas:** leitura; não gera auditoria.
+- **Notas:** leitura; não gera auditoria. Logs `approvals.query` (forma dos filtros, sem `q` nem título) e `approvals.query_failed`; métrica `cf_approval_list_query_duration_ms`. Lê `approvals` com o processo pela view `v_inbox_processes` (publicada pelo `process`).
 
 ### APV-02 — Obter aprovação
 `GET /api/v1/approvals/{id}` · **Permissão:** `APPROVAL_VIEW` ou designado · **Story:** US-052
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório)
 - **Request:** —
-- **Response:** `200 { data: Approval }` com `documents[]`, `meta.allowedActions` (api.md §1.5) · `ETag: "<version>"`
+- **Response:** `200 { data: Approval, meta }` · `ETag: "<version>"`. `data`: processo (`id`, `code`, `title`), solicitante, aprovador (`type`, ids e `label`), `allowDeputy`, decisão registrada (`decision`, `decidedBy`, `decidedAt`, `decisionComment`, `decidedAsDeputy`) e `documents[]` (documento coberto na versão exata analisada: `documentVersionId`, `versionNumber`, código, título, tipo e status atual). `meta` (api.md §1.5): `allowedActions` (`DECIDE` só para o designado — POL-03 — com `APPROVAL_DECIDE`, sem autoria de documento coberto e com o processo decidível), `decisionOptions[]` (as saídas do workflow: `decision`, `transitionId`, `label`, `toStage`, `requiresComment`, `enabled` e as regras `TRANSITION` não satisfeitas em `violations[]` — `BLOCKING` desabilita, `WARNING` exige reconhecimento; devolução: uma opção por etapa percorrida; avulsa: três opções sem transição), `decidesAsDeputy` e `decisionBlocker` (`NOT_PENDING`, `PERMISSION_DENIED`, `NOT_DESIGNATED_APPROVER`, `SELF_APPROVAL_FORBIDDEN`, `INVALID_PROCESS_STATUS` ou `null`).
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem `APPROVAL_VIEW` nem designação |
-  | 404 | `NOT_FOUND` | Inexistente, outro tenant ou não visível |
+  | 403 | `PERMISSION_DENIED` | Processo visível, sem `APPROVAL_VIEW` nem designação (solicitante e decisor também veem) |
+  | 404 | `APPROVAL_NOT_FOUND` | Inexistente, outro tenant ou não visível |
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** leitura; não gera auditoria.
 
 ### APV-03 — Decidir aprovação
 `POST /api/v1/approvals/{id}/decide` · **Permissão:** `APPROVAL_DECIDE` + POL-03 (segregação de funções) · **Story:** US-052
 - **Cabeçalhos:** `Idempotency-Key` Obrigatório · `If-Match` Obrigatório
 - **Parâmetros:** path `id` (uuid, obrigatório)
-- **Request:** `{ decision: ApprovalDecision ('APPROVE'|'RETURN'|'REJECT', obrigatório); comment?: string (≥10 e ≤5000; condicional — obrigatório se decision ∈ {'RETURN','REJECT'}, RN-TRAM-55); acknowledgedWarnings?: uuid[] (padrão []; só enviado após confirmação explícita na UI) }`
-- **Response:** `200 { data: Approval }` com `processStage: { key, name }`, `processStatus`, `ETag` nova
+- **Request:** `{ decision: ApprovalDecision ('APPROVE'|'RETURN'|'REJECT', obrigatório); comment?: string (≥10 e ≤5000; condicional — obrigatório se decision ∈ {'RETURN','REJECT'} ou se a transição exigir, RN-TRAM-55); acknowledgedWarnings?: uuid[] (padrão []; só enviado após confirmação explícita na UI); transitionId?: uuid (obrigatório em 'RETURN' com mais de uma etapa de destino — RN-TRAM-56) }`
+- **Response:** `200 { data: Approval }` com `processStage: { key, name }` e `processStatus` (`null` na avulsa), `chainedApprovalId` (próxima aprovação aberta — RN-TRAM-60), `ETag` nova
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `NOT_DESIGNATED_APPROVER` | Usuário não é o aprovador designado (POL-03) |
   | 403 | `SELF_APPROVAL_FORBIDDEN` | Segregação de funções (autor de documento coberto) |
   | 403 | `MEMBERSHIP_INACTIVE` / `TENANT_SUSPENDED` | Vínculo ou tenant inativo |
-  | 409 | `APPROVAL_NOT_PENDING` | Aprovação já decidida |
-  | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-  | 422 | `VALIDATION_ERROR` | `decision` ausente/fora do enum; `comment` ausente/curto em `RETURN`/`REJECT` |
+  | 404 | `APPROVAL_NOT_FOUND` | Inexistente ou de outro tenant |
+  | 409 | `APPROVAL_NOT_PENDING` | Aprovação já decidida (verificado antes do `If-Match` — RN-TRAM-63) |
+  | 409 | `INVALID_PROCESS_STATUS` | Processo suspenso ou em status final (POL-03) |
+  | 412 | `VERSION_CONFLICT` | `If-Match` divergente com a aprovação ainda pendente |
+  | 422 | `VALIDATION_ERROR` | `decision` ausente/fora do enum; `comment` ausente/curto em `RETURN`/`REJECT`; `transitionId` ausente com mais de uma devolução |
+  | 422 | `TRANSITION_NOT_AVAILABLE` | `transitionId` de outra ação/etapa ou destino não percorrido |
   | 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Avisos `WARNING` não reconhecidos |
   | 422 | `TRANSITION_BLOCKED` | Regra `BLOCKING` não satisfeita |
   | 422 | `APPROVER_UNRESOLVED` | Aprovador da próxima etapa não resolvido |
   | 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave com corpo diferente |
 - **Efeitos:**
-  - Eventos: `ApprovalCompleted` (`approval.completed`, decisão `APPROVE`: `documentVersionIds[]`, `decidedAsDeputy`) · `ApprovalReturned` (`approval.returned`, decisão `RETURN`: idem + `hasComment: true`) · `ApprovalRejected` (`approval.rejected`, decisão `REJECT`) · `ProcessStageChanged` (`process.stage_changed.<cause>`, `cause` ∈ `APPROVAL_APPROVED`\|`APPROVAL_RETURNED`\|`APPROVAL_REJECTED`) · `ProcessStatusChanged` (`process.status_changed.<status>`, quando o status macro muda) · `ApprovalRequested` (`approval.requested`, se a próxima etapa também é `APPROVAL` — RN-TRAM-60)
-  - Timeline: entrada `PROCESS_STAGE_CHANGED` (ou equivalente); `ProcessAccess` `APPROVER` criado para a nova aprovação quando aplicável
+  - Eventos: `ApprovalCompleted` (`approval.completed`, decisão `APPROVE`: `subjectType`, `decidedById`, `documentVersionIds[]`, `decidedAsDeputy`, `hasComment`) · `ApprovalReturned` (`approval.returned`, decisão `RETURN`: idem) · `ApprovalRejected` (`approval.rejected`, decisão `REJECT`) · `ProcessStageChanged` (`process.stage_changed.<cause>`, `cause` ∈ `APPROVAL_APPROVED`\|`APPROVAL_RETURNED`\|`APPROVAL_REJECTED`) · `ProcessStatusChanged` (`process.status_changed.<status>`, quando o status macro muda) · `ApprovalRequested` (`approval.requested`, se a próxima etapa também é `APPROVAL` — RN-TRAM-60)
+  - Timeline: `APPROVAL_DECIDED` e `PROCESS_STAGE_CHANGED`; `ProcessAccess` `APPROVER` criado para a nova aprovação quando aplicável
+  - Documentos: status conforme DEC-018 (`DocumentApproved`/`DocumentReturned`/`DocumentRejected`); aprovado → `DocumentRendition` `APPROVAL_STAMPED` `PENDING` (fila `document-render` só depois do commit; fila fora não bloqueia — fica para o reconciliador)
   - Auditoria: `approval.decide` (`WORKFLOW`; `changes`: `status`, `decision`; `metadata`: `processCode`, `fromStatus`/`toStatus`, `documentIds[]`, `warningsAcknowledged`, `decidedAsDeputy`) · `access.denied` (`reasonCode = APPROVAL_DECIDE`, `approvalId`)
 - **Notas:** POL-03 exige que o decisor seja o aprovador designado (ou substituto elegível); segregação de funções impede autoaprovação de documento próprio.
 
@@ -83,7 +88,7 @@
 - **Efeitos:**
   - Eventos: `ApprovalCanceled` (`approval.canceled`; `reason = WITHDRAWN`) · `ProcessStageChanged` (`process.stage_changed.return`; `cause = RETURN`, `approvalId` preenchido)
   - Auditoria: `approval.withdraw` (`WORKFLOW`; `metadata`: `processCode`/`documentCode`, `subjectType`, `hasReason`) · `access.denied` (`reasonCode`, `approvalId`)
-- **Notas:** POL-17 restringe a retirada a quem tramitou o processo para a etapa de aprovação atual (custódia anterior).
+- **Notas:** POL-17 restringe a retirada a quem tramitou o processo para a etapa de aprovação atual (custódia anterior). Aprovação avulsa (`subjectType = DOCUMENT`) também pode ser retirada aqui, com a regra do DOC-11 (permissão de submissão do tipo). O motivo vai como comentário da tramitação `RETURN`; sem motivo, o comentário é o texto fixo "Aprovação retirada por quem encaminhou o processo." (a tramitação `RETURN` sempre tem comentário). `cancellationReason` da aprovação = `WITHDRAWN`. `meta.allowedActions` do APV-02 traz `WITHDRAW`/`REASSIGN` quando aplicáveis.
 
 ### APV-05 — Redirecionar aprovação
 `POST /api/v1/approvals/{id}/reassign` · **Permissão:** `APPROVAL_REASSIGN` · **Story:** US-053
@@ -104,21 +109,21 @@
 - **Efeitos:**
   - Eventos: `ApprovalReassigned` (`approval.reassigned`; `fromApproverUserId?`, `toApproverUserId?`, `toApproverRoleId?`)
   - Auditoria: `approval.reassign` (`WORKFLOW`; `changes`: `approverUserId`/`approverRoleId`/`approverDepartmentId`; `metadata.hasReason`) · `access.denied` (`reasonCode`, `approvalId`)
-- **Notas:** exatamente um dos três campos `targetApprover*` deve ser informado, conforme `approverType` (RN-TRAM-69).
+- **Notas:** exatamente um dos três campos `targetApprover*` deve ser informado, conforme `approverType` (RN-TRAM-69). Elegibilidade = a resolução da US-051 (`USER` com vínculo ativo; `ROLE` ativo, com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; `DEPARTMENT_HEAD` = titular atual ativo da unidade, `allowDeputy = true`). O motivo não é persistido nem publicado (dado potencialmente sensível): só `hasReason` na auditoria e no evento.
 
 ### TSK-01 — Listar tarefas (caixa de tarefas)
 `GET /api/v1/tasks` · **Permissão:** `INBOX_VIEW` · **Story:** US-056
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Parâmetros:** query `view` (enum `MINE`\|`UNIT_QUEUE`\|`PENDING_APPROVALS`\|`RETURNED`\|`OVERDUE`\|`FOLLOWING`, opcional, padrão `MINE` — RN-INBOX-02); `page` (int ≥1, padrão 1); `pageSize` (int 1–100, padrão 20); `sort` (texto, padrão `-dueAt`, campos permitidos por visão conforme RN-INBOX-10 — lista completa não enumerada na story: a definir na implementação)
+- **Parâmetros:** query `view` (enum `MINE`\|`UNIT_QUEUE`\|`PENDING_APPROVALS`\|`RETURNED`\|`OVERDUE`\|`FOLLOWING`, opcional, padrão `MINE` — RN-INBOX-02); `page` (int ≥1, padrão 1); `pageSize` (int 1–100, padrão 20); `sort` (texto, um campo, `-` = decrescente, padrão `-dueAt` com nulos por último; campos permitidos por visão — RN-INBOX-10: `dueAt`, `code` e `enteredAt` (entrada na etapa); em `PENDING_APPROVALS`, `dueAt`, `code` e `requestedAt`)
 - **Request:** —
-- **Response:** `200 { data: [{ processId, code, title, currentStage, currentDepartment, currentResponsible?, dueAt, isOverdue, approval? }], meta: { page, pageSize, totalItems, totalPages } }`
+- **Response:** `200 { data: [{ id, processId, code, title, status, version, currentStage, currentDepartment, currentResponsible, enteredAt, dueAt, isOverdue, overdueSince, deadline, isBudgetConfidential, canClaim, approval? }], meta: { page, pageSize, totalItems, totalPages } }` — `id` é a chave da linha (o processo; em `PENDING_APPROVALS`, a aprovação — um processo com duas aprovações pendentes para o usuário tem duas linhas); `version` é o `If-Match` do "Assumir" (PRC-21); `deadline` é o DTO calculado do PRC-01 (`DueDateBadge`, US-055); `canClaim` = ação rápida "Assumir" disponível (RN-INBOX-11: sem responsável, lotado na unidade atual com `PROCESS_CLAIM` e status `IN_PROGRESS`/`RETURNED`); `approval { id, title, subjectType, requestedBy { id, name }, requestedAt, dueAt }` só em `PENDING_APPROVALS` (o `dueAt` da linha é o da aprovação, ou o da etapa quando a aprovação não tem prazo). Nenhum valor monetário é exposto (FA-05).
 - **Erros:**
   | HTTP | code | quando |
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `INBOX_VIEW` |
   | 422 | `VALIDATION_ERROR` | `view`/`sort` fora do enum; `pageSize` acima de 100 |
 - **Efeitos:** — (leitura; a ação rápida "Assumir" é `PRC-21`, reaproveitada de US-049, fora desta seção)
-- **Notas:** `isOverdue` derivado de `overdueSince`.
+- **Notas:** `isOverdue` derivado de `overdueSince` da etapa ativa. Todas as visões aplicam a visibilidade de DEC-024. `UNIT_QUEUE` para quem não se enquadra em RN-INBOX-04 responde `200` com `data: []` (a aba não é exibida). Página e total vêm de uma única instrução SQL (mesmo snapshot) sobre as views publicadas `v_inbox_processes`, `v_inbox_pending_approvals` e `v_inbox_participations` (entities.md §4).
 
 ### TSK-02 — Obter contadores da caixa de tarefas
 `GET /api/v1/tasks/counters` · **Permissão:** `INBOX_VIEW` · **Story:** US-056
@@ -131,7 +136,7 @@
   |---|---|---|
   | 403 | `PERMISSION_DENIED` | Sem `INBOX_VIEW` |
 - **Efeitos:** —
-- **Notas:** `unitQueue` presente apenas quando a visão de fila da unidade é aplicável ao usuário.
+- **Notas:** `unitQueue` presente apenas quando a visão de fila da unidade é aplicável ao usuário. Todos os contadores saem de uma única instrução SQL (mesmo snapshot), com os mesmos predicados do TSK-01 (RN-INBOX-09).
 
 ### TSK-03 — Assumir processos em lote
 `POST /api/v1/tasks/bulk-claim` · **Permissão:** `PROCESS_CLAIM` · **Story:** US-058

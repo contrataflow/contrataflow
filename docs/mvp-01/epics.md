@@ -1,7 +1,7 @@
 # MVP 1 — Épicos
 
-> Resumo dos 19 épicos do MVP 1. Especificação completa em `../backlog/epic-NNN-*.md`; features e stories em [features.md](features.md); plano em [delivery-plan.md](delivery-plan.md).
-> EP-001 a EP-014 são os épicos pedidos pelo produto; EP-015 a EP-019 são épicos de plataforma necessários para que os anteriores funcionem (fundação, identidade, tenancy, templates e notificações).
+> Resumo dos 20 épicos do MVP 1. Especificação completa em `../backlog/epic-NNN-*.md`; features e stories em [features.md](features.md); plano em [delivery-plan.md](delivery-plan.md).
+> EP-001 a EP-014 são os épicos pedidos pelo produto; EP-015 a EP-019 são épicos de plataforma necessários para que os anteriores funcionem (fundação, identidade, tenancy, templates e notificações). EP-020 (IA para documentos do planejamento) entrou em 2026-10-16 por decisão do usuário (prd-3, DEC-037).
 
 | Épico | Objetivo | Features | Stories | Pontos | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
@@ -24,7 +24,8 @@
 | EP-017 Tenant e estrutura organizacional | Provisionamento, isolamento, órgãos, unidades, configurações, catálogos, numeração, calendário | FT-055..FT-057 | 8 | 37 | EP-015 | [epic-017](../backlog/epic-017-tenancy-organization.md) |
 | EP-018 Templates de documentos | Templates versionados com seções, base legal, layout e biblioteca padrão | FT-058 | 4 | 23 | EP-011 (tipos), EP-017 | [epic-018](../backlog/epic-018-document-templates.md) |
 | EP-019 Notificações | Central in-app, e-mails, preferências e lembretes de prazo | FT-059 | 4 | 17 | EP-015 | [epic-019](../backlog/epic-019-notifications.md) |
-| **Total** | | **59** | **114** | **615** | | |
+| EP-020 IA para documentos do planejamento | Gerar com IA rascunhos de DFD, ETP, mapa de riscos e TR em cadeia e ajustar seções, com marcações, revisão humana obrigatória, rastreabilidade e governança por órgão | FT-060..FT-062 | 8 | 46 | EP-002, EP-003, EP-005, EP-006, EP-011, EP-013, EP-015 | [epic-020](../backlog/epic-020-ai-document-generation.md) |
+| **Total** | | **62** | **122** | **661** | | |
 
 ## Dependências entre épicos
 
@@ -59,6 +60,11 @@ flowchart TD
     EP019 --> EP012
     EP008 --> EP014[EP-014 Dashboard]
     EP009 --> EP014
+    EP002 --> EP020[EP-020 IA para documentos]
+    EP003 --> EP020
+    EP005 --> EP020
+    EP006 --> EP020
+    EP013 --> EP020
 ```
 
 ## Princípios que todos os épicos respeitam
@@ -67,3 +73,4 @@ flowchart TD
 3. Workflow e regras configuráveis, sem regras legais fixas em código (DEC-014, DEC-016).
 4. RBAC granular com escopo e políticas contextuais (DEC-134) e isolamento total entre tenants (DEC-080..082).
 5. UX orientada às 7 perguntas do painel situacional (DEC-180), progressive disclosure e acessibilidade (DEC-181..184).
+6. IA sempre assistiva: nunca decide, aprova ou encaminha; conteúdo gerado marcado e revisado por uma pessoa (princípio 16, DEC-037).

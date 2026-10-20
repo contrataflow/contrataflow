@@ -17,7 +17,7 @@ Perfis e permissões
 EP-016 — Identidade, acesso e RBAC
 
 ## Descrição
-Entrega o RBAC completo do ContrataFlow: o catálogo global de 67 permissões e os 15 perfis padrão semeados no provisionamento (US-094); a gestão desses perfis e de sua matriz de permissões (US-095); a atribuição de perfis a vínculos com escopo e vigência (US-096); e o motor de autorização que aplica tudo isso, em toda rota da API e no frontend, com cache e meta-teste de cobertura (US-097). É a feature mais transversal do épico — todas as demais stories do produto dependem dela para decidir "quem pode o quê".
+Entrega o RBAC completo do ContrataFlow: o catálogo global de 68 permissões e os 15 perfis padrão semeados no provisionamento (US-094); a gestão desses perfis e de sua matriz de permissões (US-095); a atribuição de perfis a vínculos com escopo e vigência (US-096); e o motor de autorização que aplica tudo isso, em toda rota da API e no frontend, com cache e meta-teste de cobertura (US-097). É a feature mais transversal do épico — todas as demais stories do produto dependem dela para decidir "quem pode o quê".
 
 ## Valor para o usuário e para o órgão
 - Segregação de funções exigida pela Lei 14.133/2021 (art. 7º, § 1º) aplicada de forma verificável, não apenas por convenção.
@@ -38,7 +38,7 @@ Entrega o RBAC completo do ContrataFlow: o catálogo global de 67 permissões e 
 | US-097 | Autorização na API e no frontend | P0 | L | US-094, US-096, US-100 |
 
 ## Escopo
-- Catálogo de 67 permissões (`code`, `module`, `riskLevel`, `scopable`) e seeder idempotente dos 15 perfis padrão com a matriz perfil × permissão.
+- Catálogo de 68 permissões (`code`, `module`, `riskLevel`, `scopable`) e seeder idempotente dos 15 perfis padrão com a matriz perfil × permissão.
 - Criação, edição, duplicação e desativação de perfis personalizados, com proteção de `ADMIN_ORGAO`.
 - Atribuição e revogação de perfis a vínculos, com escopo e vigência.
 - `AuthorizationService`, cache de permissões efetivas, decorators `@RequirePermission`/`@Policy`, predicado de visibilidade (DEC-024) e `GET /me/permissions`.
@@ -79,7 +79,7 @@ Entrega o RBAC completo do ContrataFlow: o catálogo global de 67 permissões e 
 - `ROLE_VIEW` — consultar catálogo, perfis e atribuições.
 - `ROLE_MANAGE` — criar/editar/duplicar/desativar perfis e sua matriz.
 - `ROLE_ASSIGN` — atribuir/revogar perfis a vínculos.
-- O catálogo completo de 67 permissões do MVP 1 (permissions.md §2) é o objeto gerenciado por esta feature e aplicado por ela a todos os demais módulos.
+- O catálogo completo de 68 permissões do MVP 1 (permissions.md §2) é o objeto gerenciado por esta feature e aplicado por ela a todos os demais módulos.
 
 ## Dependências
 - US-100 (contexto de requisição) e US-091 (convite, que pode gravar a primeira atribuição).

@@ -33,12 +33,28 @@
       "description": "Estamos realizando uma manutenção ou o serviço está indisponível no momento. Tente novamente em alguns minutos."
     },
     "sem-vinculo": {
-      "title": "Seu acesso a este órgão não está ativo",
-      "description": "Você não possui vínculo ativo com uma instituição contratante. Procure o administrador da sua instituição para solicitar o acesso."
+      "title": "Sua conta não tem acesso ativo a nenhuma instituição",
+      "description": "Sua conta não tem acesso ativo a nenhuma instituição no ContrataFlow. Se você recebeu um convite, abra o link enviado por e-mail. Em caso de dúvida, procure o administrador da sua instituição."
+    },
+    "vinculo-inativo": {
+      "title": "Seu acesso a esta instituição foi suspenso.",
+      "description": "Seu acesso a esta instituição não está ativo. Se você tem acesso a outra instituição, entre novamente e escolha-a; em caso de dúvida, procure o administrador da instituição."
+    },
+    "acesso-bloqueado": {
+      "title": "Seu acesso ao ContrataFlow está bloqueado",
+      "description": "Procure o suporte da sua instituição."
     },
     "acesso-indisponivel": {
       "title": "Acesso indisponível",
       "description": "O acesso a esta instituição está indisponível no momento. Procure o administrador."
+    },
+    "confirmacao-indisponivel": {
+      "title": "Confirmação de identidade indisponível",
+      "description": "O serviço de autenticação está indisponível. Tente novamente em instantes."
+    },
+    "confirmacao-nao-concluida": {
+      "title": "Identidade não confirmada",
+      "description": "A confirmação da sua identidade não foi concluída. A ação que exige o segundo fator continua bloqueada; você pode tentar de novo ou seguir com o que não exige a confirmação."
     }
   },
   "boundary": {
@@ -60,6 +76,7 @@
     "csrf": "Não foi possível confirmar a origem da solicitação.",
     "csrfHint": "Recarregue a página e tente novamente.",
     "unexpected": "Ocorreu um erro inesperado.",
-    "permission": "Você não tem permissão para esta ação."
+    "permission": "Você não tem permissão para esta ação.",
+    "stepUp": "Confirme sua identidade para continuar. Redirecionando…"
   }
 }

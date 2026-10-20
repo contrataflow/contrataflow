@@ -8,7 +8,8 @@
         "@contrataflow/types#build",
         "@contrataflow/validation#build",
         "@contrataflow/editor#build",
-        "@contrataflow/ui#build"
+        "@contrataflow/ui#build",
+        "@contrataflow/observability#build"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -24,6 +25,7 @@
         "$TURBO_ROOT$/.semgrep/**",
         "$TURBO_ROOT$/packages/eslint-config/**",
         "$TURBO_ROOT$/infra/**",
+        "$TURBO_ROOT$/docs/architecture/observability.md",
         "$TURBO_ROOT$/.env.example",
         "$TURBO_ROOT$/.gitignore",
         "$TURBO_ROOT$/.dockerignore"

@@ -31,10 +31,18 @@
 | Qualidade | `dependency-cruiser` | 17.4.3 | fronteiras (RN-FND-05) |
 | Back-end | `@nestjs/common` · `core` · `platform-express` · `testing` | 11.2.7 | api e worker (Express 5) |
 | Back-end | `reflect-metadata` · `rxjs` | 0.2.2 · 7.8.2 | peers do NestJS |
-| Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.0 · 7.10.0 · 7.10.0 · 8.23.1 | reservado — US-081 (depende do _spike_ RT-02, DEC-064) |
-| Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | reservado — filas (DEC-163) |
-| Back-end | `@opentelemetry/sdk-node` | 0.222.0 | reservado — US-084 (SDK 2.x) |
-| Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | reservado — US-080/US-084 |
+| Back-end | `prisma` · `@prisma/client` · `@prisma/adapter-pg` · `pg` | 7.10.1 · 7.10.1 · 7.10.1 · 8.23.1 | api — persistência e `TenantTransaction` (US-081, DEC-064); gerador `prisma-client` em ESM; `pg` e `@types/pg` 8.23.1 só nos testes de integração |
+| Back-end | `decimal.js` | 10.6.0 | api — cálculos e mapeamento de colunas `Decimal` (DEC-003, US-081) |
+| Back-end | `bullmq` · `ioredis` | 5.81.5 · 5.11.1 | `ioredis`: cache/idempotência/rate limit da api (US-080) e Redis de sessões do BFF (US-087); `bullmq` reservado — filas (DEC-163) |
+| Back-end | `nodemailer` | 10.1.0 | worker — `MailProvider` SMTP do `EmailSender` (US-112 · DEC-050): Mailpit em dev e a interface SMTP do Amazon SES em produção; pool, STARTTLS/TLS, `Message-ID` e cabeçalhos próprios. Sem dependências, MIT-0, tipos embutidos; escolhido em vez de um cliente SMTP próprio sobre `node:net` |
+| Back-end | `@aws-sdk/client-s3` · `@aws-sdk/s3-request-presigner` | 3.1150.0 · 3.1150.0 | api — adaptador S3/MinIO do `StorageService` (US-068 · storage.md §2.1, que já nomeia o SDK v3): URLs pré-assinadas (PUT da quarentena, GET de download), `HEAD`, leitura em stream, `CopyObject` com SHA-256 e `DeleteObject`. Apache-2.0, mantido pela AWS; escolhido em vez de assinar SigV4 à mão. Checksum automático desligado (`WHEN_REQUIRED`) porque o PUT é feito pelo navegador |
+| Back-end | `json-logic-js` · `@types/json-logic-js` | 2.0.5 · 2.0.8 | api — avaliador das regras `CONDITION` do motor de workflow (US-041 · DEC-016 · ADR-008, que já nomeia a biblioteca). Sem dependências, MIT; a whitelist de operações (`inspectJsonLogic`) é conferida antes de toda avaliação, então `method`/`log` nunca executam. Escolhido em vez de um interpretador próprio para manter a semântica de JSON Logic idêntica à do editor (US-044) |
+| Segurança | `jose` | 6.2.12 | api e web — verificação de JWT (RS256/ES256) com JWKS em cache próprio: access token na API e `id_token` no BFF (US-087, RN-IAM-04/05). Sem dependências, MIT; escolhido em vez de verificar assinatura à mão com `node:crypto` |
+| Observabilidade | `@opentelemetry/api` · `sdk-node` · `sdk-trace` · `core` · `context-async-hooks` | 1.9.1 · 0.222.0 · 2.11.0 · 2.11.0 · 2.11.0 | `packages/observability` — SDK 2.x, sampler, propagador W3C e testes em memória (US-084) |
+| Observabilidade | `@opentelemetry/exporter-trace-otlp-http` · `instrumentation` | 0.222.0 | exportador OTLP/HTTP e *hook* ESM (`hook.mjs`) da api e do worker (US-084) |
+| Observabilidade | `@opentelemetry/instrumentation-http` · `-undici` · `-nestjs-core` · `-pg` · `-ioredis` · `@prisma/instrumentation` | 0.222.0 · 0.32.0 · 0.68.0 · 0.74.0 · 0.70.0 · 7.10.1 | instrumentações de observability.md §4.1, alinhadas ao `@opentelemetry/instrumentation` 0.222 (US-084) |
+| Observabilidade | `@opentelemetry/sdk-metrics` · `exporter-prometheus` | 2.11.0 · 0.222.0 | `MeterProvider` e leitor *pull* de `/metrics` (HLT-03) em porta interna; já vinham no lockfile como dependências do `sdk-node` — nenhuma versão nova baixada (US-085) |
+| Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | logs JSON de web, api e worker (US-084) |
 | Contratos | `zod` · `@asteasolutions/zod-to-openapi` | 4.6.5 · 8.5.0 | `packages/validation`; OpenAPI 3.1 (DEC-063) |
 | Front-end | `next` | 16.3.8 | web (App Router, Turbopack) |
 | Front-end | `tailwindcss` · `@tailwindcss/postcss` | 4.3.3 | ui e web |
@@ -49,6 +57,7 @@
 | Testes | `@playwright/test` · `axe-core` | 1.63.0 · 4.13.0 | E2E (US-079); axe também nos testes de componente (US-086) |
 | Testes | `jsdom` · `@testing-library/react` · `dom` · `user-event` | 29.1.1 · 16.3.3 · 10.4.2 · 14.6.7 | testes de componente de web e ui (US-086). `jsdom` 30 exige Node ≥ 24.15 — fica na 29 enquanto `engines` aceitar 24.11 |
 | Testes | `testcontainers` · `supertest` · `@types/supertest` | 11.14.0 · 7.3.1 · 7.2.1 | reservado — integração (US-078/US-079) |
+| Testes | `fast-check` | 3.23.2 | api — testes _property-based_ do validador de grafo de workflow (US-040). Mesma versão que já chega transitivamente (`effect` ← `prisma`/`@hookform/resolvers`): nenhum pacote novo no lockfile |
 
 **Catálogo nomeado `react`** (uma única versão no lockfile): `react` 19.2.8 · `react-dom` 19.2.8 · `@types/react` 19.2.18 · `@types/react-dom` 19.2.7.
 

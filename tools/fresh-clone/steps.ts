@@ -4,7 +4,7 @@
 // [Falha de integração] da US-077.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { cpSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 const SOURCE = '/src';
@@ -61,9 +61,12 @@ function step(label: string, args: string[], options: { expectFailure?: boolean 
 function hashTree(dir: string): string {
   const hash = createHash('sha256');
   const walk = (current: string) => {
-    for (const entry of readdirSync(current).sort()) {
-      const full = path.join(current, entry);
-      if (statSync(full).isDirectory()) walk(full);
+    // O tipo vem do próprio `readdir` (sem `stat` antes da leitura — CodeQL js/file-system-race).
+    const entries = readdirSync(current, { withFileTypes: true });
+    // Nomes únicos no diretório: a ordem é a do `sort()` padrão (unidades UTF-16).
+    for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
       else hash.update(path.relative(dir, full)).update(readFileSync(full));
     }
   };

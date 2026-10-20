@@ -14,6 +14,10 @@ export interface ShellTenant {
 export interface ShellMembership {
   readonly membershipId: string;
   readonly tenant: Pick<ShellTenant, 'id' | 'name' | 'status'>;
+  /** `INTERNAL` | `EXTERNAL` | `SERVICE` (SCR-101 mostra "Vínculo externo"). */
+  readonly type: string;
+  /** Validade do vínculo (ISO 8601) — externos; `null` = sem prazo. */
+  readonly expiresAt: string | null;
   readonly usable: boolean;
 }
 
@@ -22,6 +26,8 @@ export interface ShellSession {
   readonly activeTenant: ShellTenant | null;
   /** Vínculos para o seletor de instituição (ME-04 assume com a US-093). */
   readonly memberships: readonly ShellMembership[];
+  /** Ociosidade da instituição ativa: o contador local é reiniciado a cada ação (RN-IAM-21). */
+  readonly idleMinutes: number;
   readonly idleExpiresAt: string;
   readonly absoluteExpiresAt: string;
   readonly readOnly: boolean;

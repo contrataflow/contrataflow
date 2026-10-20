@@ -1,0 +1,766 @@
+import {
+  canceledProcessSchema,
+  cancelProcessSchema,
+  checkDuplicateProcessesSchema,
+  completedProcessSchema,
+  completeProcessSchema,
+  createProcessSchema,
+  dataEnvelope,
+  discardProcessDraftSchema,
+  duplicateCheckResultSchema,
+  duplicateProcessSchema,
+  forwardedProcessSchema,
+  forwardProcessSchema,
+  processIdParamsSchema,
+  processListQuerySchema,
+  processDetailMetaSchema,
+  processListResponseSchema,
+  processSchema,
+  processStageEntrySchema,
+  processSummarySchema,
+  PROCESS_CANCELLATION_MESSAGES,
+  PROCESS_COMPLETION_MESSAGES,
+  PROCESS_CONFIDENTIALITY_MESSAGES,
+  PROCESS_SUSPENSION_MESSAGES,
+  resumeMetaSchema,
+  resumeProcessSchema,
+  returnedProcessSchema,
+  returnProcessSchema,
+  assignProcessSchema,
+  setProcessConfidentialitySchema,
+  suspendProcessSchema,
+  suspensionProcessSchema,
+  updateProcessSchema,
+} from '@contrataflow/validation';
+import type {
+  CancelProcess,
+  CanceledProcessDto,
+  CheckDuplicateProcesses,
+  CompleteProcess,
+  CompletedProcessDto,
+  CreateProcess,
+  DiscardProcessDraft,
+  DuplicateCheckResult,
+  DuplicateProcess,
+  ForwardProcess,
+  ForwardedProcessDto,
+  ProcessDetailMeta,
+  ProcessDto,
+  ProcessListItemDto,
+  ProcessListQuery,
+  ProcessStageEntryDto,
+  ProcessSummaryDto,
+  ResumeMeta,
+  ResumeProcess,
+  ReturnedProcessDto,
+  ReturnProcess,
+  AssignProcess,
+  SetProcessConfidentiality,
+  SuspendProcess,
+  SuspensionProcessDto,
+  UpdateProcess,
+} from '@contrataflow/validation';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Res,
+} from '@nestjs/common';
+import { z } from 'zod';
+
+import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
+import { DataResult } from '#shared/http/envelope.interceptor.js';
+import type { HttpResponse } from '#shared/http/http-types.js';
+import { PageResult } from '#shared/http/pagination.js';
+import { IfMatch, RequireIfMatch } from '#shared/http/precondition.js';
+import type { IfMatchValue } from '#shared/http/precondition.js';
+import { Idempotent } from '#shared/idempotency/idempotency.js';
+import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
+import { TenantScope } from '#shared/tenancy/tenant-scope.js';
+import { ZodBody, ZodQuery, ZodValidationPipe } from '#shared/validation/zod-validation.pipe.js';
+
+import { AssignProcessCommand } from '../application/assign-process.command.js';
+import { ClaimProcessCommand } from '../application/claim-process.command.js';
+import { CompleteProcessCommand } from '../application/complete-process.command.js';
+import { CreateProcessCommand } from '../application/create-process.command.js';
+import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
+import { ForwardProcessCommand } from '../application/forward-process.command.js';
+import { ListProcessesHandler } from '../application/list-processes.query.js';
+import {
+  CancelProcessCommand,
+  DiscardDraftProcessCommand,
+} from '../application/process-cancellation.commands.js';
+import {
+  GetProcessSummaryQuery,
+  ListProcessStagesQuery,
+} from '../application/process-panel.queries.js';
+import {
+  ResumeProcessCommand,
+  SuspendProcessCommand,
+} from '../application/process-suspension.commands.js';
+import { CheckDuplicateProcessesQuery, GetProcessQuery } from '../application/process.queries.js';
+import { ReturnProcessCommand } from '../application/return-process.command.js';
+import { SetProcessConfidentialityCommand } from '../application/set-process-confidentiality.command.js';
+import { UpdateProcessCommand } from '../application/update-process.command.js';
+
+const TAGS = ['Processos'];
+
+/** `@ProcessId()`: `id` do caminho (o guard já recusou o malformado com 400) e o OpenAPI. */
+function ProcessId(): ParameterDecorator {
+  return (target, propertyKey, index) => {
+    Param('id')(target, propertyKey, index);
+    if (propertyKey !== undefined) {
+      recordRequestSchema(target, propertyKey, 'params', processIdParamsSchema);
+    }
+  };
+}
+
+/** Corpo OPCIONAL (DELETE sem corpo = `{}`), validado e documentado como o `@ZodBody`. */
+function OptionalZodBody(schema: z.ZodType): ParameterDecorator {
+  const pipe = new ZodValidationPipe(schema);
+  return (target, propertyKey, index) => {
+    Body({ transform: (value: unknown) => pipe.transform(value ?? {}) })(
+      target,
+      propertyKey,
+      index,
+    );
+    if (propertyKey !== undefined) recordRequestSchema(target, propertyKey, 'body', schema);
+  };
+}
+
+/** DEC-024 · RN-PROC-47: a visibilidade (inclusive concessão própria) é conferida no caso de uso. */
+const PANEL_ACCESS =
+  'Detalhe e painel do processo (US-004 · DEC-024): PROCESS_VIEW com escopo que cubra o processo, concessão USER (criador, responsável, aprovador) ou participação ativa, conferidos no caso de uso sobre o runtime do mesmo tx; não visível = 404 PROCESS_NOT_FOUND igual ao inexistente, sem access.denied.';
+
+/** Resposta personalizada e mutável: nenhum cache intermediário (US-004 · "Impacto técnico"). */
+function noStore(response: HttpResponse): void {
+  response.setHeader('Cache-Control', 'no-store');
+}
+
+/**
+ * Processos de contratação (api/02-processes.md · US-001/US-002/US-004/US-005): PRC-01 (listar),
+ * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
+ * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-19
+ * (encaminhar — US-047), PRC-23/PRC-24 (suspender e retomar — US-008), PRC-25/PRC-06 (cancelar e
+ * descartar rascunho — US-009), PRC-26 (concluir — US-010), PRC-27 (duplicar — US-011) e PRC-33
+ * (sigilo do orçamento — US-013).
+ * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
+ * conferido no caso de uso, depois das referências.
+ */
+@Controller('processes')
+@TenantScope('TENANT')
+export class ProcessController {
+  constructor(
+    private readonly create: CreateProcessCommand,
+    private readonly duplicates: CheckDuplicateProcessesQuery,
+    private readonly detail: GetProcessQuery,
+    private readonly list: ListProcessesHandler,
+    private readonly summary: GetProcessSummaryQuery,
+    private readonly stages: ListProcessStagesQuery,
+    private readonly update: UpdateProcessCommand,
+    private readonly duplicate: DuplicateProcessCommand,
+    private readonly confidentiality: SetProcessConfidentialityCommand,
+    private readonly forward: ForwardProcessCommand,
+    private readonly returns: ReturnProcessCommand,
+    private readonly claims: ClaimProcessCommand,
+    private readonly assignments: AssignProcessCommand,
+    private readonly suspensions: SuspendProcessCommand,
+    private readonly resumptions: ResumeProcessCommand,
+    private readonly cancellations: CancelProcessCommand,
+    private readonly discards: DiscardDraftProcessCommand,
+    private readonly completions: CompleteProcessCommand,
+  ) {}
+
+  @Get()
+  @ImplicitAccess(
+    'Lista de processos (US-002 · DEC-024 cond. 4): PROCESS_VIEW em algum escopo OU concessão USER ativa, conferido no caso de uso (403 + access.denied); o resultado é sempre restrito pelo predicado de visibilidade.',
+  )
+  @ApiOperation({
+    operationId: 'PRC-01',
+    summary: 'Listar, pesquisar e filtrar processos',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Processos visíveis (DEC-024) que casam os filtros (E entre filtros, OU dentro de cada um), com o valor sigiloso mascarado por linha (POL-09) e o DTO calculado `deadline`. Página e total do mesmo snapshot; página além do total = `data: []`.',
+        schema: processListResponseSchema,
+      },
+    },
+  })
+  async listProcesses(
+    @ZodQuery(processListQuerySchema) query: ProcessListQuery,
+  ): Promise<PageResult<ProcessListItemDto>> {
+    const result = await this.list.execute(query);
+    // `meta` com os extras da lista (`stageOptions`, notas de sigilo) — envelope `{ data, meta }`.
+    return new PageResult(result.items, result.meta);
+  }
+
+  @Post()
+  @Idempotent()
+  @RequirePermission('PROCESS_CREATE', {
+    detail: 'Você não tem permissão para abrir processos para este setor.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-02',
+    summary: 'Criar processo de contratação',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.create'],
+    responses: {
+      201: {
+        description:
+          'Processo em `DRAFT` na etapa inicial do workflow aplicável (`Location` e `ETag` = versão). Sem número quando `numbering.process.assignOn = START`.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async createProcess(
+    @ZodBody(createProcessSchema) body: CreateProcess,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const created = await this.create.execute({ body, idempotencyKey: idempotencyKey ?? null });
+    response.setHeader('Location', `/api/v1/processes/${created.dto.id}`);
+    response.setHeader('ETag', `"${created.dto.version}"`);
+    return created.dto;
+  }
+
+  @Post('check-duplicates')
+  @HttpCode(200)
+  @RequirePermission('PROCESS_CREATE')
+  @ApiOperation({
+    operationId: 'PRC-03',
+    summary: 'Verificar possível duplicidade de processo',
+    tags: TAGS,
+    auditExempt:
+      'Consulta somente de leitura: o POST apenas carrega título, objeto e setor, sem efeito colateral.',
+    responses: {
+      200: {
+        description:
+          'Processos visíveis com título ou objeto semelhante (trigram ≥ 0,6), do mesmo criador ou setor, na janela configurada (0 desativa).',
+        schema: dataEnvelope(duplicateCheckResultSchema),
+      },
+    },
+  })
+  checkDuplicates(
+    @ZodBody(checkDuplicateProcessesSchema) body: CheckDuplicateProcesses,
+  ): Promise<DuplicateCheckResult> {
+    return this.duplicates.execute(body);
+  }
+
+  @Get(':id')
+  @ImplicitAccess(PANEL_ACCESS)
+  @ApiOperation({
+    operationId: 'PRC-04',
+    summary: 'Obter detalhe do processo',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Processo visível ao usuário (DEC-024 — `ETag` = versão), com o valor sigiloso mascarado pela POL-09 e `meta.allowedActions` (ações habilitadas do motor); não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`. Valor sigiloso entregue = `process.confidential_view` (1× por sessão).',
+        schema: z.object({ data: processSchema, meta: processDetailMetaSchema }),
+      },
+    },
+  })
+  async getProcess(
+    @ProcessId() id: string,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<ProcessDto, ProcessDetailMeta>> {
+    const { process, allowedActions } = await this.detail.execute(id);
+    response.setHeader('ETag', `"${process.version}"`);
+    noStore(response);
+    return new DataResult(process, { allowedActions });
+  }
+
+  @Patch(':id')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_UPDATE', {
+    detail: 'Você não tem permissão para editar este processo.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-05',
+    summary: 'Editar dados do processo',
+    tags: TAGS,
+    auditActions: ['process.update'],
+    responses: {
+      200: {
+        description:
+          'Processo atualizado (`ETag` = nova versão). PATCH sem diferença efetiva devolve o processo atual sem nova versão, evento, timeline nem auditoria. `PROCESS_UPDATE` cobrindo o processo + custódia (POL-01) + status `DRAFT`/`IN_PROGRESS`/`RETURNED`; órgão e unidade solicitante só em `DRAFT` (422 `NOT_ALLOWED`); `If-Match` divergente = 412 `VERSION_CONFLICT` com `currentVersion` e `meta.current`.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async updateProcess(
+    @ProcessId() id: string,
+    @ZodBody(updateProcessSchema) body: UpdateProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const updated = await this.update.execute({
+      processId: id,
+      patch: body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${updated.dto.version}"`);
+    noStore(response);
+    return updated.dto;
+  }
+
+  @Put(':id/confidentiality')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_SET_CONFIDENTIAL_BUDGET', {
+    scope: { processParam: 'id' },
+    detail: PROCESS_CONFIDENTIALITY_MESSAGES.permissionDenied,
+  })
+  @ApiOperation({
+    operationId: 'PRC-33',
+    summary: 'Definir sigilo do orçamento estimado',
+    tags: TAGS,
+    auditActions: ['process.confidentiality_change'],
+    responses: {
+      200: {
+        description:
+          'Processo com o novo `isBudgetConfidential` (`ETag` = nova versão) e o valor mascarado pela POL-09 sobre o novo estado. Ao ativar, os documentos de pesquisa de preços passam a `RESTRICTED`; ao desativar, voltam à confidencialidade padrão do tipo (RN-PROC-139). Flag já no estado pedido = processo atual sem nova versão, evento nem auditoria. `PROCESS_SET_CONFIDENTIAL_BUDGET` cobrindo o processo (não visível = 404 `PROCESS_NOT_FOUND`); `If-Match` divergente = 412 `VERSION_CONFLICT` com `currentVersion` e `meta.current`. Evento `ProcessConfidentialityChanged`; sem notificação.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async setConfidentiality(
+    @ProcessId() id: string,
+    @ZodBody(setProcessConfidentialitySchema) body: SetProcessConfidentiality,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const result = await this.confidentiality.execute({
+      processId: id,
+      isBudgetConfidential: body.isBudgetConfidential,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/forward')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_FORWARD', {
+    detail: 'Você não tem permissão para encaminhar processos.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-19',
+    summary: 'Encaminhar processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: [
+      'process.forward',
+      'process.number_assign',
+      'document.version_create',
+      'document.submit',
+      'approval.request',
+    ],
+    responses: {
+      200: {
+        description:
+          'Processo na nova etapa (`ETag` = nova versão) com a tramitação `FORWARD` (`movement`), a aprovação aberta no destino `APPROVAL` (`approval`) e a autuação (`numberAssigned`). Uma transação: trava do processo, `expectedStageId` diferente da etapa atual = 409 `STAGE_CHANGED` (antes do `If-Match`: 412 `VERSION_CONFLICT`), `PROCESS_FORWARD` cobrindo o processo + custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`), status `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) e o motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`). Unidade (`DEPARTMENT_REQUIRED`), pessoa (`ASSIGNEE_NOT_ELIGIBLE`), prazo (`DUE_DATE_OVERRIDE_NOT_ALLOWED`), documentos cobertos (`DOCUMENT_INCOMPLETE`) e aprovador (`APPROVER_UNRESOLVED`) desfazem tudo.',
+        schema: dataEnvelope(forwardedProcessSchema),
+      },
+    },
+  })
+  async forwardProcess(
+    @ProcessId() id: string,
+    @ZodBody(forwardProcessSchema) body: ForwardProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ForwardedProcessDto> {
+    const result = await this.forward.execute({
+      processId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/return')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_RETURN', {
+    detail: 'Você não tem permissão para devolver processos.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-20',
+    summary: 'Devolver processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.return'],
+    responses: {
+      200: {
+        description:
+          'Processo devolvido (`status = RETURNED`, `ETag` = nova versão) para a etapa já percorrida `targetStageId`, com a tramitação `RETURN` (`movement`). Uma transação: trava do processo, `expectedStageId` (se enviado) diferente da etapa atual = 409 `STAGE_CHANGED` (antes do `If-Match`: 412 `VERSION_CONFLICT`), `PROCESS_RETURN` cobrindo o processo + custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`), status `IN_PROGRESS` (409 `INVALID_PROCESS_STATUS`), destino percorrido e configurado na transição `RETURN` da etapa atual (422 `TRANSITION_NOT_AVAILABLE`) e prazo informado só com `allowDueDateOverride` (422 `DUE_DATE_OVERRIDE_NOT_ALLOWED`). Responsável de destino por `PREVIOUS_ASSIGNEE` (sem histórico = fila da unidade); nenhum documento muda de status.',
+        schema: dataEnvelope(returnedProcessSchema),
+      },
+    },
+  })
+  async returnProcess(
+    @ProcessId() id: string,
+    @ZodBody(returnProcessSchema) body: ReturnProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ReturnedProcessDto> {
+    const result = await this.returns.execute({
+      processId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/claim')
+  @HttpCode(200)
+  // US-056: a ação rápida "Assumir" da caixa de tarefas envia `Idempotency-Key` (opcional).
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_CLAIM', {
+    detail: 'Você não tem permissão para assumir processos.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-21',
+    summary: 'Assumir processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.claim'],
+    responses: {
+      200: {
+        description:
+          'Processo assumido (`currentResponsible` = quem chamou, `ETag` = nova versão). Sem corpo. Uma transação: trava do processo, `PROCESS_CLAIM` cobrindo o processo + lotação na unidade atual (POL-04: 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`RETURNED` em etapa que não seja `APPROVAL` (409 `INVALID_PROCESS_STATUS`), sem responsável individual (409 `PROCESS_ALREADY_ASSIGNED` com `currentResponsible`) e `If-Match` (412 `VERSION_CONFLICT`; o reenvio do clique duplo de quem já assumiu cai aqui). Sem motivo e sem notificação.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async claimProcess(
+    @ProcessId() id: string,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const result = await this.claims.execute({
+      processId: id,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/assign')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'POL-05 conferida pelo caso de uso (US-050): PROCESS_ASSIGN com escopo TENANT/ORGANIZATION cobrindo o processo OU titular/substituto da unidade atual, que atribui sem a permissão (permissions.md §7); recusa = 403 PERMISSION_DENIED com access.denied.',
+  )
+  @ApiOperation({
+    operationId: 'PRC-22',
+    summary: 'Atribuir/reatribuir responsável',
+    tags: TAGS,
+    auditActions: ['process.assign'],
+    responses: {
+      200: {
+        description:
+          'Processo com o novo responsável (`currentResponsible`; `null` = de volta à fila da unidade) e `ETag` = nova versão. Uma transação: trava do processo, POL-05 (`PROCESS_ASSIGN` com escopo `TENANT`/`ORGANIZATION` cobrindo o processo ou titular/substituto da unidade atual — 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`RETURNED` em etapa que não seja `APPROVAL` (409 `INVALID_PROCESS_STATUS`), `If-Match` (412 `VERSION_CONFLICT`; o reenvio já aplicado cai aqui — sem `Idempotency-Key`), pessoa sem vínculo no tenant (422 `VALIDATION_ERROR` `REFERENCE_NOT_FOUND` em `assigneeId`), sem vínculo ativo/lotação na unidade atual/`PROCESS_VIEW` (422 `ASSIGNEE_NOT_ELIGIBLE`) e motivo (10–2.000) obrigatório quando já havia responsável (422 `VALIDATION_ERROR` em `reason`). Grava a responsabilidade `MANUAL`, a tramitação `ASSIGN`, `process.assign` e o evento `ProcessAssigned` (`assignmentType = MANUAL`).',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async assignProcess(
+    @ProcessId() id: string,
+    @ZodBody(assignProcessSchema) body: AssignProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const result = await this.assignments.execute({
+      processId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/duplicate')
+  @Idempotent()
+  @RequirePermission('PROCESS_DUPLICATE', {
+    scope: { processParam: 'id' },
+    detail: 'Você não tem permissão para duplicar este processo.',
+  })
+  @ApiOperation({
+    operationId: 'PRC-27',
+    summary: 'Duplicar processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.duplicate', 'process.create'],
+    responses: {
+      201: {
+        description:
+          'Novo processo em `DRAFT` (`Location` e `ETag` = versão) com `duplicatedFromId` = origem: metadados, itens e — com `copyDocuments`/`copyAttachments` — documentos estruturados como rascunho e anexos por cópia lógica (DEC-033). Número, workflow e etapa inicial resolvidos para os NOVOS dados, como no PRC-02; nunca copia número, aprovações, tramitações, timeline, comentários, auditoria, participantes nem valor estimado. `PROCESS_DUPLICATE` cobrindo a origem (não visível = 404 `PROCESS_NOT_FOUND`) e `PROCESS_CREATE` cobrindo o setor solicitante final.',
+        schema: dataEnvelope(processSchema),
+      },
+    },
+  })
+  async duplicateProcess(
+    @ProcessId() id: string,
+    @ZodBody(duplicateProcessSchema) body: DuplicateProcess,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessDto> {
+    const duplicated = await this.duplicate.execute({
+      processId: id,
+      body,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('Location', `/api/v1/processes/${duplicated.dto.id}`);
+    response.setHeader('ETag', `"${duplicated.dto.version}"`);
+    return duplicated.dto;
+  }
+
+  @Get(':id/summary')
+  @ImplicitAccess(PANEL_ACCESS)
+  @ApiOperation({
+    operationId: 'PRC-07',
+    summary: 'Obter painel situacional do processo',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'As 7 perguntas de DEC-180 (onde está, responsável, o que falta, próximo passo, prazos, documentos e aprovações pendentes), o cabeçalho e os contadores das abas, num instante único (`REPEATABLE READ`). Valor sigiloso mascarado (POL-09) e documentos `RESTRICTED` sem link para quem não atende; não visível = 404 `PROCESS_NOT_FOUND`.',
+        schema: dataEnvelope(processSummarySchema),
+      },
+    },
+  })
+  async getSummary(
+    @ProcessId() id: string,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessSummaryDto> {
+    const summary = await this.summary.execute(id);
+    noStore(response);
+    return summary;
+  }
+
+  @Get(':id/stages')
+  @ImplicitAccess(PANEL_ACCESS)
+  @ApiOperation({
+    operationId: 'PRC-10',
+    summary: 'Listar etapas e passagens do processo',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Etapas da versão de workflow fixada no processo, em `displayOrder`, com o status da última passagem (`null` = não percorrida) e todas as passagens (idas e voltas). A etapa `END` só aparece concluída com o processo `COMPLETED`.',
+        schema: dataEnvelope(z.array(processStageEntrySchema)),
+      },
+    },
+  })
+  async listStages(
+    @ProcessId() id: string,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessStageEntryDto[]> {
+    const stages = await this.stages.execute(id);
+    noStore(response);
+    return stages;
+  }
+
+  @Post(':id/suspend')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_SUSPEND', { detail: PROCESS_SUSPENSION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-23',
+    summary: 'Suspender processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.suspend'],
+    responses: {
+      200: {
+        description:
+          'Processo `SUSPENDED` (`ETag` = nova versão) com `statusBeforeSuspension`, `suspendedAt`, `suspensionReason` e `currentStage.pausedAt`. Uma transação: trava do processo, `PROCESS_SUSPEND` cobrindo o processo sem exigir custódia (POL-07: 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`AWAITING_APPROVAL`/`RETURNED` (409 `INVALID_PROCESS_STATUS`, antes do `If-Match`) e `If-Match` (412 `VERSION_CONFLICT`). Pausa o prazo da etapa ativa, congela a aprovação pendente (segue `PENDING`) e as ações de custódia; registra a tramitação `SUSPEND` com o motivo. Etapa, unidade, responsável e concessões não mudam. Evento `ProcessStatusChanged` (`process.status_changed.suspended`).',
+        schema: dataEnvelope(suspensionProcessSchema),
+      },
+    },
+  })
+  async suspendProcess(
+    @ProcessId() id: string,
+    @ZodBody(suspendProcessSchema) body: SuspendProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<SuspensionProcessDto> {
+    const result = await this.suspensions.execute({
+      processId: id,
+      reason: body.reason,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/resume')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_SUSPEND', { detail: PROCESS_SUSPENSION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-24',
+    summary: 'Retomar processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.resume'],
+    responses: {
+      200: {
+        description:
+          'Processo com o status anterior à suspensão restaurado (`ETag` = nova versão) e `meta` com os dias acrescidos (`extendedBy`) e o novo prazo da etapa (`newDueAt`; `null` sem prazo). Uma transação: trava do processo, `PROCESS_SUSPEND` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), status `SUSPENDED` (409 `INVALID_PROCESS_STATUS`) e `If-Match` (412 `VERSION_CONFLICT`). O prazo da etapa e o da aprovação pendente são estendidos pelos dias úteis (ou corridos, `slaType = CALENDAR`) do calendário do tenant entre a data local da pausa e a da retomada; o prazo alvo não muda. Evento `ProcessStatusChanged` (`process.status_changed.resumed`).',
+        schema: z.object({ data: suspensionProcessSchema, meta: resumeMetaSchema }),
+      },
+    },
+  })
+  async resumeProcess(
+    @ProcessId() id: string,
+    @ZodBody(resumeProcessSchema) body: ResumeProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<SuspensionProcessDto, ResumeMeta>> {
+    const result = await this.resumptions.execute({
+      processId: id,
+      comment: body.comment === undefined || body.comment === '' ? null : body.comment,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return new DataResult(result.dto, result.meta);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_CANCEL', { detail: PROCESS_CANCELLATION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-25',
+    summary: 'Cancelar processo',
+    tags: TAGS,
+    auditActions: ['process.cancel', 'approval.cancel', 'document.withdraw'],
+    responses: {
+      200: {
+        description:
+          'Processo `CANCELED` (`ETag` = nova versão) com `canceledAt` e `cancellationReason`. Uma transação: trava do processo, `PROCESS_CANCEL` cobrindo o processo sem exigir custódia (POL-06: 403 `PERMISSION_DENIED`, auditado), status não final (409 `INVALID_PROCESS_STATUS`, antes do `If-Match` — o reenvio de um cancelamento já feito é 409) e `If-Match` (412 `VERSION_CONFLICT`). Cancela toda aprovação `PENDING` do processo (`ApprovalCanceled`, motivo `PROCESS_CANCELED`), devolve a `DRAFT` o documento `IN_REVIEW` coberto (`DocumentWithdrawn`), encerra a etapa ativa (`CANCELED`) e a responsabilidade ativa, descarta o status anterior à suspensão e registra a tramitação `CANCEL` com a justificativa. Evento `ProcessStatusChanged` (`process.status_changed.canceled`); timeline `PROCESS_CANCELED`.',
+        schema: dataEnvelope(canceledProcessSchema),
+      },
+    },
+  })
+  async cancelProcess(
+    @ProcessId() id: string,
+    @ZodBody(cancelProcessSchema) body: CancelProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<CanceledProcessDto> {
+    const result = await this.cancellations.execute({
+      processId: id,
+      reason: body.cancellationReason,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/complete')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_COMPLETE', { detail: PROCESS_COMPLETION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-26',
+    summary: 'Concluir processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.complete'],
+    responses: {
+      200: {
+        description:
+          'Processo `COMPLETED` (`ETag` = nova versão) com `completedAt` e `completedBy` (RN-PROC-115). Uma transação: trava do processo e visibilidade (404 `PROCESS_NOT_FOUND`), `If-Match` (412 `VERSION_CONFLICT` — a corrida com um encaminhamento perde aqui), `PROCESS_COMPLETE` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS` (409 `INVALID_PROCESS_STATUS` — suspenso, devolvido, rascunho ou final), custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`, auditado) e o motor de workflow (POL-08): transição `COMPLETE` da etapa atual ou etapa atual já `END` (422 `TRANSITION_NOT_AVAILABLE`), regras `BLOCKING` `STAGE_EXIT`/`TRANSITION` satisfeitas (422 `TRANSITION_BLOCKED` com `violations[]`) e avisos `WARNING` reconhecidos em `acknowledgedWarnings` (422 `WARNINGS_NOT_ACKNOWLEDGED`). Encerra a etapa ativa (`COMPLETED`), registra a passagem pela etapa `END` já encerrada (`exitedAt = completedAt`), encerra a responsabilidade ativa e grava a tramitação `COMPLETE` com a observação opcional. A mesma rotina de domínio conclui o processo automaticamente na decisão `APPROVE` que leva à etapa `END` (US-052). Eventos `ProcessStageChanged` (`process.stage_changed.complete`) e `ProcessStatusChanged`/`ProcessCompleted` (`process.status_changed.completed`); timeline `PROCESS_COMPLETED`; auditoria `process.complete` (`metadata.cause = MANUAL`). `Idempotency-Key` obrigatório: reenvio = a mesma resposta com `Idempotent-Replayed: true`. Banco indisponível = 503 `DEPENDENCY_UNAVAILABLE` sem alterar nada.',
+        schema: dataEnvelope(completedProcessSchema),
+      },
+    },
+  })
+  async completeProcess(
+    @ProcessId() id: string,
+    @ZodBody(completeProcessSchema) body: CompleteProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<CompletedProcessDto> {
+    const result = await this.completions.execute({
+      processId: id,
+      comment: body.comment === undefined || body.comment === '' ? null : body.comment,
+      acknowledgedWarnings: body.acknowledgedWarnings ?? [],
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'Descartar rascunho (US-009 · PRC-06 · RN-PROC-110): o criador com PROCESS_CREATE ou quem tem PROCESS_CANCEL cobrindo o processo, conferido no caso de uso (403 PERMISSION_DENIED com access.denied e reasonCode PROCESS_CANCEL).',
+  )
+  @ApiOperation({
+    operationId: 'PRC-06',
+    summary: 'Descartar rascunho de processo',
+    tags: TAGS,
+    auditActions: ['process.discard_draft'],
+    responses: {
+      204: {
+        description:
+          'Exclusão lógica do rascunho sem número (`deletedAt`/`deletedById`): some das listagens e buscas; nada é removido fisicamente (DEC-034). Uma transação: trava do processo e visibilidade (404 `PROCESS_NOT_FOUND`), o criador com `PROCESS_CREATE` ou `PROCESS_CANCEL` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), `DRAFT` (409 `INVALID_PROCESS_STATUS`) sem `number`/`code` (409 `CANNOT_DISCARD_NUMBERED_PROCESS` — cancele em vez de descartar) e `If-Match` (412 `VERSION_CONFLICT`). Encerra a etapa e a responsabilidade ativas. Corpo opcional `{ reason? }` (até 500), só na auditoria `process.discard_draft`. Evento `ProcessDraftDiscarded` (`process.draft_discarded`); sem timeline nem notificação.',
+      },
+    },
+  })
+  async discardProcessDraft(
+    @ProcessId() id: string,
+    @OptionalZodBody(discardProcessDraftSchema) body: DiscardProcessDraft,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<void> {
+    await this.discards.execute({
+      processId: id,
+      reason: body.reason === undefined || body.reason === '' ? null : body.reason,
+      expectedVersion: ifMatch?.value ?? 0,
+    });
+    noStore(response);
+  }
+}

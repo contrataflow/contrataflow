@@ -1,0 +1,188 @@
+{
+  "detail": {
+    "loading": "Carregando a aprovação…",
+    "notFound": "Não encontramos a aprovação solicitada.",
+    "backToApprovals": "Voltar para as aprovações",
+    "loadFailed": "Não foi possível carregar a aprovação agora.",
+    "code": "Código: {correlationId}.",
+    "retry": "Tentar novamente",
+    "process": "Processo {code} — {title}",
+    "processNoCode": "Processo: {title}",
+    "unknownPerson": "Pessoa não identificada",
+    "facts": {
+      "requestedBy": "Solicitante",
+      "requestedAt": "Solicitada em",
+      "dueAt": "Prazo",
+      "noDueAt": "Sem prazo definido",
+      "approver": "Aprovador"
+    },
+    "allowDeputy": "O substituto do aprovador também pode decidir esta aprovação.",
+    "decidesAsDeputy": "Você decide esta aprovação como substituto.",
+    "requestComment": "Comentário da solicitação",
+    "status": {
+      "PENDING": "Pendente",
+      "APPROVED": "Aprovada",
+      "RETURNED": "Devolvida",
+      "REJECTED": "Indeferida",
+      "CANCELED": "Cancelada"
+    }
+  },
+  "coverage": {
+    "heading": "Documentos cobertos",
+    "count": "{count, plural, =0 {Nenhum documento} one {# documento} other {# documentos}}",
+    "empty": "Nenhum documento coberto por esta aprovação.",
+    "noCode": "Sem código",
+    "version": "v{number}",
+    "noVersion": "Versão não identificada",
+    "open": "Abrir a versão analisada de {title}"
+  },
+  "record": {
+    "heading": "Decisão registrada",
+    "decision": "Decisão",
+    "decidedBy": "Decidida por",
+    "decidedAt": "Em",
+    "byName": "{name}",
+    "byDeputy": "{name}, como substituto",
+    "comment": "Comentário",
+    "canceled": "Esta aprovação foi cancelada e não pode mais ser decidida.",
+    "decisions": {
+      "APPROVE": "Aprovada",
+      "RETURN": "Devolvida",
+      "REJECT": "Indeferida"
+    }
+  },
+  "blocked": {
+    "title": "Você não pode decidir esta aprovação.",
+    "reasons": {
+      "NOT_PENDING": "Esta aprovação já foi decidida.",
+      "PERMISSION_DENIED": "O seu perfil não tem a permissão para decidir aprovações.",
+      "NOT_DESIGNATED_APPROVER": "Você não é o aprovador designado nem o substituto desta aprovação.",
+      "SELF_APPROVAL_FORBIDDEN": "Você é autor de um documento coberto e a segregação de funções impede a sua decisão.",
+      "INVALID_PROCESS_STATUS": "O processo está em uma situação que não permite decidir esta aprovação agora.",
+      "UNKNOWN": "As ações de decisão não estão disponíveis para você."
+    }
+  },
+  "panel": {
+    "heading": "Sua decisão",
+    "decisionLegend": "Decisão",
+    "decisions": {
+      "APPROVE": "Aprovar",
+      "RETURN": "Devolver para ajuste",
+      "REJECT": "Indeferir"
+    },
+    "destination": "Etapa de destino: {stage}",
+    "unavailable": "Indisponível nesta etapa.",
+    "blockedBy": "Não é possível concluir esta decisão agora: {message}.",
+    "target": {
+      "legend": "Etapa de destino",
+      "hint": "Escolha para qual etapa o processo será encaminhado.",
+      "optionBlocked": "Indisponível: {message}"
+    },
+    "comment": {
+      "label": "Comentário",
+      "labelRequired": "Comentário (obrigatório)",
+      "labelOptional": "Comentário (opcional)",
+      "hintRequired": "Informe o motivo, de 10 a 5.000 caracteres.",
+      "hintOptional": "Até 5.000 caracteres; se informado, com ao menos 10.",
+      "counter": "{count, number} / {max, number}"
+    },
+    "warnings": {
+      "heading": "Avisos",
+      "intro": "Estes avisos não impedem a decisão, mas exigem a sua ciência.",
+      "warning": "Aviso",
+      "acknowledge": "Estou ciente e desejo continuar",
+      "pending": "Marque a ciência de todos os avisos para poder confirmar."
+    },
+    "confirm": {
+      "none": "Confirmar decisão",
+      "APPROVE": "Confirmar aprovação",
+      "RETURN": "Confirmar devolução",
+      "REJECT": "Confirmar indeferimento",
+      "submitting": "Registrando a decisão…"
+    },
+    "toast": "Aprovação decidida: {decision}.",
+    "errors": {
+      "formErrors": "Revise os campos destacados.",
+      "warningsNotAcknowledged": "Confirme que está ciente dos avisos para continuar.",
+      "transitionBlocked": "Não é possível concluir esta decisão agora.",
+      "transitionNotAvailable": "Esta opção de decisão não está disponível para a etapa atual. Atualizamos as opções.",
+      "approverUnresolved": "Não foi possível determinar quem deve aprovar a próxima etapa. Contate o administrador.",
+      "idempotencyReused": "Esta decisão já foi enviada com outros dados. Confirme novamente.",
+      "membership": "Seu acesso não está ativo.",
+      "unavailable": "Não foi possível registrar a decisão agora. Tente novamente.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente",
+      "copyCode": "Copiar código",
+      "openDocument": "Abrir documento"
+    }
+  },
+  "notice": {
+    "notPending": "Esta aprovação já foi decidida.",
+    "stale": "Esta aprovação foi atualizada por outra pessoa. Recarregamos os dados; revise e confirme de novo.",
+    "precondition": "Não foi possível processar. Recarregamos a aprovação; confirme de novo.",
+    "denied": "Você não pode decidir esta aprovação.",
+    "processStatus": "Esta aprovação não pode ser decidida no status atual do processo.",
+    "notFound": "Não encontramos a aprovação solicitada."
+  },
+  "pendingActions": {
+    "heading": "Ações sobre a aprovação pendente",
+    "withdraw": "Retirar aprovação",
+    "reassign": "Redirecionar aprovação",
+    "withdrawDialog": {
+      "title": "Retirar aprovação",
+      "stageEffect": "O processo voltará para a etapa anterior, sob sua responsabilidade. A aprovação pendente será cancelada.",
+      "documentEffect": "O documento voltará para rascunho. A aprovação pendente será cancelada.",
+      "reason": "Motivo da retirada (opcional)",
+      "reasonHint": "Até 2.000 caracteres.",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar retirada",
+      "submitting": "Retirando…"
+    },
+    "reassignDialog": {
+      "title": "Redirecionar aprovação",
+      "description": "Escolha o novo aprovador. O título, o prazo e os documentos cobertos são mantidos.",
+      "typeLegend": "Novo aprovador",
+      "types": {
+        "USER": "Uma pessoa",
+        "DEPARTMENT_HEAD": "O titular de uma unidade"
+      },
+      "search": {
+        "USER": "Buscar pessoa por nome ou e-mail",
+        "DEPARTMENT_HEAD": "Buscar unidade pelo nome"
+      },
+      "searchHint": "Digite ao menos 2 caracteres.",
+      "searching": "Buscando…",
+      "noResults": "Nenhum resultado para a busca.",
+      "searchFailed": "Não foi possível buscar agora.",
+      "resultsLegend": "Resultados",
+      "reason": "Motivo do redirecionamento",
+      "reasonHint": "Mínimo de 10 e máximo de 2.000 caracteres (ex.: “Titular em licença médica”).",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar redirecionamento",
+      "submitting": "Redirecionando…"
+    },
+    "toast": {
+      "withdrawnStage": "Aprovação retirada. O processo voltou para você.",
+      "withdrawnDocument": "Aprovação retirada. O documento voltou para rascunho.",
+      "reassigned": "Aprovação redirecionada."
+    },
+    "errors": {
+      "fields": "Revise os campos destacados.",
+      "notEligible": "Selecione um aprovador diferente e elegível.",
+      "selfApproval": "Este usuário não pode aprovar por ser autor de um documento coberto.",
+      "idempotencyReused": "Esta solicitação já foi enviada com outros dados. Tente de novo.",
+      "unavailable": "Não foi possível concluir agora. Tente novamente.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    },
+    "notice": {
+      "notPending": "Esta aprovação já foi decidida ou retirada.",
+      "stale": "Esta aprovação foi atualizada por outra pessoa. Recarregamos os dados.",
+      "precondition": "Não foi possível processar. Recarregamos a aprovação; tente de novo.",
+      "processStatus": "Esta aprovação não pode ser retirada nem redirecionada no status atual do processo.",
+      "notFound": "Não encontramos a aprovação solicitada.",
+      "denied": "Você não pode retirar ou redirecionar esta aprovação."
+    }
+  }
+}

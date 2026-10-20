@@ -27,8 +27,11 @@ User {
   id: string;                    // uuid, somente leitura
   name: string;                  // 2–200
   socialName?: string | null;    // 2–200
+  email: string;                 // somente leitura (RN-IAM-109)
   phone?: string | null;         // formato BR
   preferences: { density: string; theme: string }; // registro RN-IAM-111
+  membership: { jobTitle: string | null; departments: string[] }; // vínculo ativo no tenant (somente leitura)
+  mfaVerified: boolean;          // a sessão comprova o segundo fator (`amr`), sem método nem dispositivo (US-090 · RN-IAM-44)
   version: number;
 }
 ```
@@ -59,7 +62,7 @@ User {
 | 422 | `VALIDATION_ERROR` | `name` ausente/curto; `phone` em formato inválido |
 | 422 | `SETTING_KEY_UNKNOWN` | Chave de `preferences` desconhecida |
 
-- **Efeitos:** Eventos: —. Auditoria: `profile.update` (`DATA_CHANGE`) no commit — `changes`: campos alterados (`name`, `socialName`, `phone`, `preferences`).
+- **Efeitos:** Eventos: —. Auditoria: `profile.update` (`SECURITY`) no commit — `changes`: campos alterados (`name`, `socialName`, `phone`, `preferences`).
 - **Notas:** `If-Match` ausente → 428 `PRECONDITION_REQUIRED` (genérico, api.md §1.3).
 
 ### ME-03 — Obter permissões efetivas do usuário
@@ -68,16 +71,18 @@ User {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: { permissions: [{ code: string, scopes: string[] }], implicit } }`
+- **Response:** `200 { data: { permissions: [{ code: string, scopes: [{ type: "TENANT" | "ORGANIZATION" | "DEPARTMENT" | "OWN_DEPARTMENTS", organizationId?: uuid, departmentId?: uuid, includeSubtree: boolean }] }], implicit: { headOfDepartmentIds: uuid[], ownDepartmentIds: uuid[] } } }` — permissões em ordem alfabética, escopos sem repetição (permissions.md §9 · RN-IAM-106); `ownDepartmentIds` = lotações do vínculo (US-001: pré-preenchimento e destaque do setor solicitante no wizard SCR-005).
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
+| 401 | `UNAUTHENTICATED` / `SESSION_EXPIRED` | Sem token válido / sessão expirada |
 | 403 | `MEMBERSHIP_INACTIVE` | Vínculo com o tenant ativo (`X-Tenant-Id`) não está `ACTIVE` |
 | 403 | `TENANT_SUSPENDED` | Tenant ativo não está `ACTIVE` |
+| 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível com o cache de permissões vazio/expirado |
 
 - **Efeitos:** Consulta somente leitura — não gera `AuditLog`. Cache de permissões é invalidado por eventos `role.*`, `membership.*` e `department.moved` (consumidos, não gerados por esta rota).
-- **Notas:** escopos de `permissions[].scopes` conforme permissions.md (`TENANT`/`ORGANIZATION`/`DEPARTMENT`, vigência) e `implicit` conforme as capacidades implícitas de permissions.md §7.
+- **Notas:** escopos de `permissions[].scopes` das atribuições vigentes (permissions.md §1) e `implicit` conforme as capacidades implícitas de permissions.md §7. Servido do mesmo retrato em cache que o guard de autorização usa (US-097). Conveniência de UI: a API decide cada requisição (RN-IAM-107).
 
 ### ME-04 — Listar vínculos (instituições) do usuário
 `GET /api/v1/me/memberships` · **Permissão:** implícita (qualquer usuário autenticado) · **Story:** US-093
@@ -96,18 +101,18 @@ User {
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
 - **Request:** —
-- **Response:** `200 { data: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean, editable: boolean }] }`
+- **Response:** `200 { data: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean, editable: boolean }], meta: { emailEnabled: boolean } }`
 - **Erros:** —
 - **Efeitos:** —
-- **Notas:** `notificationType` é o registro `NotificationType` (events.md §6); `editable = false` para combinações obrigatórias (RN-NTF-23).
+- **Notas:** `notificationType` é o registro `NotificationType` (events.md §6); a lista traz toda combinação tipo × canal, na ordem do registro, com o valor salvo ou o padrão do registro (RN-NTF-22). `editable = false` para combinações obrigatórias (RN-NTF-23). `meta.emailEnabled` é `notifications.emailEnabled` do tenant (RN-NTF-24): a tela desabilita a coluna `EMAIL` quando falso (a chave não é pública em `SET-03`; o dado vem por aqui).
 
 ### ME-06 — Atualizar preferências de notificação
 `PUT /api/v1/me/notification-preferences` · **Permissão:** implícita (qualquer usuário autenticado) · **Story:** US-113
 
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Parâmetros:** —
-- **Request:** `{ preferences: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean }] }` — não vazio
-- **Response:** `200 { data: [{ notificationType, channel, enabled, editable }] }` (schema de ME-05)
+- **Request:** `{ preferences: [{ notificationType: string, channel: "IN_APP" | "EMAIL", enabled: boolean | null }] }` — não vazio, sem repetir a mesma combinação (`DUPLICATE_IN_LIST`); `enabled: null` = "usar padrão" (FA-01 da US-113): apaga a preferência salva da combinação
+- **Response:** `200 { data: [{ notificationType, channel, enabled, editable }], meta: { emailEnabled } }` (estado completo, schema de ME-05)
 - **Erros:**
 
 | HTTP | `code` | Quando |
@@ -117,4 +122,4 @@ User {
 | 422 | `VALIDATION_ERROR` | Corpo vazio ou malformado |
 
 - **Efeitos:** Eventos: — (lido diretamente pelo `NotificationDispatcher` no próximo despacho — US-111). Auditoria: `notification.preferences_update` (`SECURITY`) no commit — `changes`: combinações alteradas (tipo, canal, de/para); `metadata`: quantidade total.
-- **Notas:** sem `If-Match` (preferência pessoal sem controle de versão exposto).
+- **Notas:** sem `If-Match` (preferência pessoal sem controle de versão exposto). Merge (RN-NTF-25): só as combinações enviadas mudam; tudo ou nada — a trava dos obrigatórios é conferida antes de qualquer escrita. Reenviar valores já salvos não grava nem audita. `NOT_ALLOWED` aponta `preferences[i].enabled`.

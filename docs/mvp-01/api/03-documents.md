@@ -31,6 +31,8 @@
 | DOC-23 | GET | `/document-renditions/{renditionId}/download` | `PROCESS_VIEW` (+POL-09) | US-067 |
 | DOC-24 | PUT | `/documents/{id}/presence` | permissão de edição do tipo + POL-02 | US-070 |
 | DOC-25 | DELETE | `/documents/{id}/presence` | sessão autenticada (própria presença) | US-070 |
+| DOC-26 | POST | `/documents/{id}/ai-apply` | permissão de edição do tipo + POL-02 (solicitante da geração) | US-117, US-121 |
+| DOC-27 | POST | `/documents/{id}/ai-review` | permissão de edição do tipo + POL-02 | US-122 |
 | DTY-01 | GET | `/document-types` | impl. | US-061 |
 | DTY-02 | POST | `/document-types` | `DOCUMENT_TYPE_MANAGE` | US-061 |
 | DTY-03 | PATCH | `/document-types/{id}` | `DOCUMENT_TYPE_MANAGE` (IM) | US-061 |
@@ -52,6 +54,12 @@
   | 422 | `VALIDATION_ERROR` | `status`/`type` fora do enum ou do catálogo do tenant |
 - **Efeitos:** —
 - **Notas:** Somente leitura; a criação de documentos (que altera esta lista) é feita por `DOC-02` e pelos endpoints tipados de DFD/ETP/TR (fora desta seção). `DocumentStatus` = `DRAFT`\|`IN_REVIEW`\|`RETURNED`\|`FINALIZED`\|`APPROVED`\|`REJECTED`\|`CANCELED` (entities.md).
+- **Implementação (US-062):**
+  - **Item:** `ProcessDocument` = `Document` **sem** `draftContent` (o painel nunca abre o conteúdo; DOC-03 traz) + `responsibleName` (nome exibido do responsável) + `summary` (resumo do módulo tipado — o mesmo `typedSummary` do `DocumentFinalized`; `null` nos livres/externos) + `meta.allowedActions` (mesma função pura do DOC-03 — RN-DOC-18). Inclui cancelados (RN-DOC-19); ordem por `sortOrder` do tipo, nome do tipo e título (RN-DOC-13).
+  - **POL-09 no resumo (RN-DOC-17):** documento `RESTRICTED` (ou processo com orçamento sigiloso) e usuário sem `PROCESS_VIEW_CONFIDENTIAL_BUDGET` cobrindo o processo nem a custódia → campos monetários do `summary` = `null` + `<campo>Masked: true`.
+  - **`meta` da resposta:** `{ currentStage: { key, name, documentTypeCodes } | null, creatableTypeIds: uuid[], pendingTypeIds: uuid[] }` — `creatableTypeIds` = menu "Criar documento" (tipo ativo ∩ etapa, permissão de criação do tipo — `DOCUMENT_CREATE` nos livres/externos; `DFD_CREATE`/`ETP_CREATE`/`TERM_CREATE`/`RISK_MANAGE`/`PRICE_RESEARCH_CREATE` nos tipados — cobrindo o processo **e** custódia ou participação `COLLABORATOR`/`CONSULTANT` (POL-02, a mesma regra que o DOC-02 aplica), singular sem documento não cancelado); `pendingTypeIds` = singulares da etapa ainda "Não iniciado". Processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` → ambos vazios. Independem dos filtros.
+  - **Filtros:** `type`/`status` em lista (vírgula ou repetição). Erro aponta o parâmetro inteiro: `status` fora do enum → `errors[] = { field: 'status', code: 'INVALID_ENUM' }`; `type` com id fora do catálogo do tenant (inclusive inativos) → `{ field: 'type', code: 'REFERENCE_NOT_FOUND' }`; `q` com 1 caractere → 422 (o front não chama — V-02). A SCR-006 filtra a lista já carregada (RN-DOC-20).
+  - **404:** o guard de `PROCESS_VIEW` (escopo do processo) responde `PROCESS_NOT_FOUND` com o mesmo corpo para inexistente, de outro tenant e não visível, auditando `access.denied` (`reasonCode = PROCESS_VIEW`).
 
 ### DOC-02 — Criar documento no processo
 `POST /api/v1/processes/{id}/documents` · **Permissão:** `DOCUMENT_CREATE` + POL-02 (escopo do tipo de documento) · **Story:** US-063, US-064
@@ -69,6 +77,7 @@
   | 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual do processo |
 - **Efeitos:** Evento `DocumentCreated` (`document.created.<type>`) no commit — payload `documentId`, `documentTypeCode`, `kind`, `code?`, `title`, `templateVersionId`. Projeção síncrona na timeline: `DOCUMENT_CREATED`. Auditoria `document.create` (`DATA_CHANGE`) — `metadata`: `documentTypeCode`, `templateVersionId`, `code`, `idempotencyKey`.
 - **Notas:** `confidentiality` herda `defaultConfidentiality` do tipo (pode tornar-se `RESTRICTED` se o conteúdo trouxer valores sigilosos — DEC-030, entities.md). Documentos estruturados (DFD/ETP/TR) usam endpoints próprios fora desta seção.
+- **Implementação (US-063 — `FREE_TEXT`):** ordem das verificações: processo visível (404) → tipo do tenant `FREE_TEXT`/`UPLOADED` (senão `REFERENCE_NOT_FOUND`) e ativo (`REFERENCE_INACTIVE`) → `DOCUMENT_CREATE` + POL-02 (403/409/422 da etapa) → template padrão publicado (`DocumentType.defaultTemplateId` → `currentPublishedVersionId` com status `PUBLISHED`, template ativo do mesmo tipo; senão `REFERENCE_INACTIVE` em `documentTypeId` com "Este tipo de documento não tem um modelo publicado. Fale com o administrador." — conferido depois da autorização, para não revelar a configuração a quem não pode criar) → `responsibleId` com vínculo ativo (422) → fábrica única (singular 409, número, auditoria, evento, timeline). `draftContent.sections` recebe uma entrada por `SectionDefinition.key` (`revision = 1`, `FILLED` com `defaultContent` de texto útil, senão `EMPTY`); as variáveis do processo e do órgão (`{{process.code}}`, `{{process.title}}`, `{{process.object}}`, `{{organization.name}}`) são resolvidas na criação, as do documento e da emissão (`{{document.*}}`, `{{today}}`…) ficam para o PDF (RN-DOC-65). A resposta traz `meta: { allowedActions, template }` — `template` como no DOC-03 (`null` no `UPLOADED`). O menu "Criar documento" do DOC-01 (`creatableTypeIds`) omite o `FREE_TEXT` sem template padrão publicado (FA-05), pela mesma regra.
 
 ### DOC-03 — Consultar documento
 `GET /api/v1/documents/{id}` · **Permissão:** `PROCESS_VIEW` (+POL-09) · **Story:** US-062
@@ -83,6 +92,8 @@
   | 404 | `NOT_FOUND` | Documento inexistente, de outro tenant ou não visível |
 - **Efeitos:** —
 - **Notas:** Base para `DOC-04` e para os painéis tipados (DFD/ETP/TR) que reaproveitam este recurso para o cabeçalho.
+- **`meta.allowedActions`** (US-065 · RN-DOC-18): subconjunto de `UPDATE`, `FINALIZE` \| `SUBMIT` (conforme `requiresApproval` do tipo), `REOPEN`, `CANCEL`, `DELETE` — calculado pelo `DocumentLifecycleService` (status, custódia/participação, POL-02/POL-11, permissão do tipo, etapa e status do processo). `WITHDRAW` entra com a US-053 (DOC-11). A resposta é `{ data: Document, meta: { allowedActions } }` também em DOC-04/09/10/12/13. Implementado em versão mínima pela US-065 (sem POL-09: documentos genéricos não têm campos monetários); a US-062 completa.
+- **`meta.template`** (US-063): `{ versionId, versionNumber, sections: [{ key, title, order, requirement, helpText, legalBasis, minChars, maxChars }] } | null` — a versão do template FIXADA no documento (`templateVersionId`), seções na ordem, para o editor de seções da SCR-105 sem exigir `TEMPLATE_VIEW` (o TPL-07 exige; mesmo motivo do `meta.template` do ETP-03/TRM-03). `null` no `UPLOADED`. Só o DOC-02 e o DOC-03 preenchem; nas demais respostas com `DocumentMeta` o campo é omitido (o cliente mantém o que leu).
 
 ### DOC-04 — Atualizar dados do documento
 `PATCH /api/v1/documents/{id}` · **Permissão:** permissão de edição do tipo + POL-02 · **Story:** US-065
@@ -105,20 +116,24 @@
 `PUT /api/v1/documents/{id}/sections/{sectionKey}` · **Permissão:** permissão de edição do tipo + POL-02 (escopo de custódia/participação) · **Story:** US-015, US-020, US-036, US-063
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` obrigatório — revisão da **seção**, formato `"s<revision>"` (não a versão do documento; api.md §1.3)
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento; `sectionKey` (string, obrigatório) — chave da seção, deve existir no template da versão.
-- **Request:** `{ content: TipTapDoc | null; state: 'EMPTY'|'FILLED'|'NOT_APPLICABLE'; justification?: string (obrigatório ≥ 20 caracteres se state = NOT_APPLICABLE); overwrittenRevision?: number }`. `content` ≤ `maxChars` da seção (padrão 50.000) e ≤ 1 MB; `overwrittenRevision` só é enviado ao escolher "Manter a minha versão" após um conflito 412. No DFD (US-015), a UI usa variante com `notApplicable: boolean` (sempre `false`) em vez de `state` — confirmar na implementação se a API aceita as duas formas ou apenas `state`.
+- **Request:** `{ content: TipTapDoc | null; notApplicable?: boolean; state?: 'EMPTY'|'FILLED'|'NOT_APPLICABLE'; justification?: string | null (obrigatório ≥ 20 caracteres em "não se aplica"); overwrittenRevision?: number }`. A API aceita as duas formas (US-015): `notApplicable: true` **ou** `state: 'NOT_APPLICABLE'` marcam "não se aplica"; fora disso o estado é **derivado no servidor** (`FILLED` com texto útil, senão `EMPTY` — RN-DFD-31). `content` ≤ `maxChars` da seção (padrão 50.000 — `TOO_LONG`) e ≤ 1 MB serializado (413 `PAYLOAD_TOO_LARGE`); `overwrittenRevision` só é enviado ao escolher "Manter a minha versão" após um conflito 412 (auditoria imediata `conflictResolution = KEEP_MINE`). Reenvio idêntico (mesmo conteúdo e estado) = 200 com a revisão atual, sem nova revisão nem auditoria, mesmo com `If-Match` desatualizado (RN-DFD-36).
 - **Response:** `200 { data: { sectionKey, state, revision, updatedAt, updatedBy, draftRevision } }` + `ETag: "s<revision>"`.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem permissão de edição do tipo ou de custódia/participação |
+  | 403 | `PERMISSION_DENIED` | Sem permissão de edição do tipo |
+  | 403 | `NOT_PROCESS_CUSTODIAN` | Sem custódia nem participação `COLLABORATOR`/`CONSULTANT` (POL-02, `access.denied`) |
   | 404 | `NOT_FOUND` | Documento inexistente/outro tenant |
-  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
-  | 409 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
-  | 412 | `SECTION_REVISION_CONFLICT` | Revisão da seção divergente (corpo traz `meta.current`) |
+  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` (`meta.status`, `meta.statusSince`) |
+  | 409 | `INVALID_PROCESS_STATUS` | Processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` |
+  | 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
+  | 412 | `SECTION_REVISION_CONFLICT` | Revisão da seção divergente (corpo traz `meta.current`: `sectionKey`, `state`, `revision`, `content`, `justification`, `updatedAt`, `updatedBy { id, name }`) |
+  | 413 | `PAYLOAD_TOO_LARGE` | Seção acima de 1 MB serializado |
+  | 428 | `PRECONDITION_REQUIRED` | `If-Match` ausente |
   | 422 | `SECTION_NOT_IN_TEMPLATE` | `sectionKey` fora do template da versão |
   | 422 | `RICH_TEXT_INVALID` | Conteúdo fora do schema TipTap permitido |
   | 422 | `VALIDATION_ERROR` | `justification` ausente/curta (`CONDITIONAL_REQUIRED`/`TOO_SHORT`); `content` acima de `maxChars` (`TOO_LONG`) |
-- **Efeitos:** Nenhum evento de domínio (DEC-017) — autosave não cria `DocumentVersion`. Auditoria `document.draft_update` (`DATA_CHANGE`, coalescida por documento/seção/usuário — RN-DOC-54/RN-DFD-35): `metadata` com `sectionKey`, intervalo de revisões, variação de tamanho; texto nunca em claro (hash + tamanho).
+- **Efeitos:** Nenhum evento de domínio (DEC-017) — autosave não cria `DocumentVersion`. Auditoria `document.draft_update` (`DATA_CHANGE`, coalescida por documento/seção/usuário — RN-DOC-54/RN-DFD-35): `metadata` com `sectionKey`, intervalo de revisões, variação de tamanho; texto nunca em claro (hash + tamanho). Coalescência (US-015): janela de 10 min por (documento, alvo, usuário) aberta no Redis (`SET NX`) antes da transação; o registro leva `fromRevision` (primeira revisão ainda não auditada do usuário/alvo), `toRevision`, `sizeBytesBefore/After`, `contentHash` e `windowMinutes`; Redis indisponível → audita toda gravação e loga `warn audit.coalesce_store_unavailable`. Não incrementa `Document.version` (RN-DFD-26).
 - **Notas:** Classe de limite dedicada (api.md §1.6): 60 req/min por documento (usuário + documento), além do limite de corpo de 1 MB por seção (api.md §2.1, `PAYLOAD_TOO_LARGE`, 413).
 
 ### DOC-06 — Listar itens do documento
@@ -151,7 +166,7 @@
   | 422 | `VALIDATION_ERROR` | Quantidade ≤ 0/casas decimais (`OUT_OF_RANGE`/`INVALID_DECIMAL`); item repetido (`DUPLICATE_IN_LIST`); item inexistente/inativo/outro processo (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) |
   | 422 | `RICH_TEXT_INVALID` | `calculationMemo`/`specification`/`acceptanceCriteria` fora do schema |
 - **Efeitos:** Nenhum evento de domínio — auditoria `document.items_update` (`DATA_CHANGE`): itens incluídos/removidos/alterados (quantidades; texto como hash + tamanho); `metadata.itemsCount`.
-- **Notas:** Substituição completa da lista (não incremental). RN-ETP-26 (4 casas), RN-ETP-28/29 (sincronização de `estimatedTotalValue` com a pesquisa de preços, fora desta seção).
+- **Notas:** Substituição completa da lista (não incremental). RN-ETP-26 (4 casas), RN-ETP-28/29 (sincronização de `estimatedTotalValue` com a pesquisa de preços, fora desta seção). **Implementação (US-022, 2026-10-19):** `calculationMemo` ausente na linha mantém a memória gravada (a linha existente preserva id e `sortOrder`); `null` limpa. Acima de 1 MB → 413 `PAYLOAD_TOO_LARGE`; fora do schema → 422 `RICH_TEXT_INVALID`. A resposta (DOC-06/07) traz `calculationMemo` (TipTapDoc ou `null`) em todos os tipos. Na auditoria, a memória vai como `{ sha256, bytes }` em `items.<processItemId>.calculationMemo`. **Implementação (US-038, 2026-10-20):** `specification`/`acceptanceCriteria` seguem a mesma semântica da memória (ausente mantém, `null` limpa; resposta com TipTapDoc ou `null` em todos os tipos); acima de 1 MB → 413 `PAYLOAD_TOO_LARGE`, fora do schema → 422 `RICH_TEXT_INVALID`, acima de 50.000 caracteres de texto → 422 `VALIDATION_ERROR` (`TOO_LONG` em `items[n].specification`/`acceptanceCriteria`); na auditoria, como `{ sha256, bytes }` em `items.<processItemId>.specification`/`.acceptanceCriteria`. `notes` vai a 5.000 caracteres no TR (RN-TR-26) e segue 1.000 nos demais tipos (422 `TOO_LONG` em `items[n].notes`). Item repetido: `DUPLICATE_IN_LIST` com "Este item já está na lista.".
 
 ### DOC-08 — Consultar validação de completude do documento
 `GET /api/v1/documents/{id}/validation` · **Permissão:** `PROCESS_VIEW` · **Story:** US-065
@@ -199,14 +214,17 @@
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `DOCUMENT_INCOMPLETE` | Pendências `BLOCKING` não resolvidas (`violations[]`) |
   | 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Há `WARNING` não reconhecido em `acknowledgedWarnings` |
+  | 422 | `APPROVER_UNRESOLVED` | Tipo com aprovação sem aprovador resolvível (US-051 · RN-TRAM-49): desfaz a submissão |
+  | 409 | `APPROVAL_NOT_PENDING` | Corrida perdida no índice de pendência única do documento (US-051 · V-03) |
 - **Efeitos:** Eventos `DocumentSubmitted` (`documentId`, `documentVersionId`, `approvalId?`), `DocumentVersionCreated` (`documentId`, `documentVersionId`, `versionNumber`, `reason = SUBMISSION`, `contentHash` — RN-DOC-53: toda transição cria versão) e `ApprovalRequested` (payload no módulo de aprovações, fora desta seção) quando a etapa exige aprovação. Projeção na timeline: `DOCUMENT_SUBMITTED`, `DOCUMENT_VERSION_CREATED`. Auditoria `document.submit` (`DATA_CHANGE`): `metadata.documentVersionId`, `approvalId?`.
 - **Notas:** `VersionReason` = `MANUAL`\|`SUBMISSION`\|`FINALIZATION`\|`IMPORT`\|`UPLOAD`\|`REOPEN`\|`SYSTEM` (entities.md).
+- **POL-02 nas transições (US-065):** além dos erros acima, DOC-04/09/10/14 respondem 403 `PERMISSION_DENIED` sem custódia nem participação `COLLABORATOR`/`CONSULTANT`, 409 `INVALID_PROCESS_STATUS` com o processo fora de `DRAFT`/`IN_PROGRESS`/`RETURNED` e 422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` com o tipo fora de `WorkflowStage.documentTypeCodes`; DOC-12 (POL-11) responde 403 `NOT_PROCESS_CUSTODIAN` sem custódia. A `Approval` avulsa e `approval_documents` (versão analisada) são gravadas no mesmo `tx` (as tabelas `approvals`/`approval_documents` nascem na migração da US-065). US-051: o aprovador é resolvido como na etapa (`USER` com vínculo ativo; `ROLE` com detentor competente no escopo da unidade solicitante; `DEPARTMENT_HEAD` = titular atual com `allowDeputy = true`), `dueAt = null`, `requestComment = null`, e `ApprovalRequested` (timeline `APPROVAL_REQUESTED`, concessão `APPROVER` do titular e do substituto, aviso obrigatório) sai no mesmo `tx`.
 
 ### DOC-10 — Finalizar documento
 `POST /api/v1/documents/{id}/finalize` · **Permissão:** permissão de submissão do tipo + POL-02 · **Story:** US-065
 - **Cabeçalhos:** `Idempotency-Key` obrigatório; `If-Match` obrigatório
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento.
-- **Request:** `{ acknowledgedWarnings?: string[] }`.
+- **Request:** `{ acknowledgedWarnings?: string[]; expectedDraftRevision?: number }` — `expectedDraftRevision` é o `draftRevision` do `DOC-08` que a pessoa revisou (US-016 · RN-DFD-43); divergente → 412 `VERSION_CONFLICT` ("O documento foi alterado desde que você o revisou.", `currentDraftRevision`). Também aceito em `DOC-09`.
 - **Response:** `200 { data: Document }`.
 - **Erros:** idênticos a `DOC-09` (`PERMISSION_DENIED` 403, `NOT_FOUND` 404, `INVALID_STATE` 409, `VERSION_CONFLICT` 412, `DOCUMENT_INCOMPLETE`/`WARNINGS_NOT_ACKNOWLEDGED` 422).
 - **Efeitos:** Eventos `DocumentFinalized` (`documentId`, `documentVersionId`, `typedSummary?`), `DocumentVersionCreated` (`reason = FINALIZATION`). Projeção `DOCUMENT_FINALIZED`. Auditoria `document.finalize`: `metadata.documentVersionId`, `typedSummary?`.
@@ -282,9 +300,9 @@
 ### DOC-15 — Listar versões do documento
 `GET /api/v1/documents/{id}/versions` · **Permissão:** `PROCESS_VIEW` · **Story:** US-066
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
-- **Parâmetros:** path `id` (uuid, obrigatório) — id do documento. Query: `page`, `pageSize` (paginação padrão, api.md §1.2); ordenação não detalhada no extrato (a definir na implementação).
+- **Parâmetros:** path `id` (uuid, obrigatório) — id do documento. Query: `page`, `pageSize` (paginação padrão, api.md §1.2); ordem fixa `versionNumber` desc (RN-DOC-59 · US-066).
 - **Request:** —
-- **Response:** `200 { data: DocumentVersion[], meta: { page, pageSize, totalItems, totalPages } }`. Campos de `DocumentVersion` (entities.md): `versionNumber`, `reason`, `statusAtCreation`, `contentHash`, `templateVersionId?`, `attachmentId?` (quando `UPLOADED`).
+- **Response:** `200 { data: DocumentVersionSummary[], meta: { page, pageSize, totalItems, totalPages } }` — a versão sem o snapshot: `id`, `documentId`, `processId`, `versionNumber`, `reason`, `statusAtCreation`, `contentHash`, `templateVersionId`, `attachmentId` (quando `UPLOADED`), `changeSummary`, `createdById`, `createdByName`, `createdAt`.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
@@ -298,7 +316,7 @@
 - **Cabeçalhos:** `Idempotency-Key` obrigatório; `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento.
 - **Request:** `{ changeSummary?: string (≤ 500) }`.
-- **Response:** `201 { data: DocumentVersion }`.
+- **Response:** `201 { data: DocumentVersion }` + `Location: /api/v1/document-versions/{versionId}` (`DocumentVersion` = `DocumentVersionSummary` + `kind` + `content`, com POL-09 como no `DOC-17`). O documento continua no mesmo status; `currentVersionId`/`currentVersionNumber` passam a apontar a versão `MANUAL` e a `version` (ETag) do documento avança.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
@@ -307,7 +325,7 @@
   | 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
   | 422 | `VALIDATION_ERROR` | Tipo `UPLOADED` (`NOT_ALLOWED` — use `DOC-19`); `changeSummary` acima de 500 caracteres (`TOO_LONG`) |
 - **Efeitos:** Evento `DocumentVersionCreated` (`documentId`, `documentVersionId`, `versionNumber`, `reason = MANUAL`, `contentHash`). Auditoria `document.version_create`: `metadata.versionNumber`, `reason = MANUAL`, `contentHash`.
-- **Notas:** Ponto de checkpoint manual do rascunho, independente das transições automáticas de `DOC-09`/`DOC-10`.
+- **Notas:** Ponto de checkpoint manual do rascunho, independente das transições automáticas de `DOC-09`/`DOC-10`. Concorrência (RN-DOC-58): a transação trava a linha do documento (`SELECT … FOR UPDATE`) antes de ler o maior `versionNumber` — pedidos simultâneos viram versões consecutivas, sem lacuna nem repetição.
 
 ### DOC-17 — Consultar versão do documento
 `GET /api/v1/document-versions/{versionId}` · **Permissão:** `PROCESS_VIEW` (+POL-09) · **Story:** US-066
@@ -328,7 +346,11 @@
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** path `id` (uuid, obrigatório) — id do documento. Query: `from` (uuid, obrigatório) — id da versão de origem; `to` (uuid, obrigatório, ≠ `from`) — id da versão de destino; ambas devem pertencer ao mesmo `id`.
 - **Request:** —
-- **Response:** `200 { data: { from, to, header: HeaderDiff[], sections: SectionDiff[], collections: CollectionDiff[] } }`. Cada entrada de diff traz um marcador `changeType: 'ADDED'|'REMOVED'|'CHANGED'|'UNCHANGED'|'MASKED'` (`MASKED` quando o campo é sigiloso e o usuário não atende POL-09): `header[]` compara campos do cabeçalho (`{ field, changeType, from, to }`); `sections[]` compara conteúdo por `sectionKey` (`{ sectionKey, changeType, from, to }`); `collections[]` compara listas (ex.: itens) por identidade de item (`{ collection, itemId, changeType, from, to }`). Formato exato dos campos internos de cada diff não detalhado nas fontes além dos marcadores exigidos — confirmar na implementação.
+- **Response:** `200 { data: { documentId, kind, from, to, header: HeaderDiff[], sections: SectionDiff[], collections: CollectionDiff[] } }` (`from`/`to` = `DocumentVersionSummary`; contrato registrado na US-066, schema `documentVersionComparisonSchema`). Cada entrada traz `changeType: 'ADDED'|'REMOVED'|'CHANGED'|'UNCHANGED'|'MASKED'`; igualdade pelo JSON canônico (RFC 8785 — ordem de chaves não conta):
+  - `header[]` — `{ field, changeType, from, to }`: primeiro os metadados `document.title`, `document.code`, `document.confidentiality`, `template.versionNumber`, depois os campos do cabeçalho tipado em ordem alfabética. Documento `UPLOADED` (FA-02): só `file.attachmentId` e `file.sha256` (sem diff de conteúdo; seções e coleções vazias).
+  - `sections[]` — `{ sectionKey, changeType, from: { state, text, justification } | null, to }` por `sectionKey` (ordem alfabética); `text` é o texto extraído do TipTap; a mudança considera estado, conteúdo TipTap (inclusive formatação) e justificativa.
+  - `collections[]` — `{ collection, itemId, changeType, changedFields[], maskedFields[], from, to }` por chave natural (`processItemId` em `items`, `id` nas demais; sem chave ou repetida, a posição `#n`), na ordem do destino e as removidas ao final.
+  - `MASKED` (RN-DOC-61 · FA-03): campo monetário de processo sigiloso (agora ou no momento da versão) para quem não atende POL-09 — `from`/`to` nulos nos dois lados; nas linhas de coleção o campo vai para `maskedFields`, nunca para `changedFields`, e o valor vem `null` + `<campo>Masked: true`.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
@@ -386,7 +408,7 @@
   | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
   | 422 | `VALIDATION_ERROR` | Sem `DocumentVersion` correspondente (`REFERENCE_NOT_FOUND`) |
 - **Efeitos:** Auditoria `document.render_request`: `metadata.kind`, `documentVersionId?`. Eventos assíncronos (worker): `DocumentRenditionReady`/`DocumentRenditionFailed`.
-- **Notas:** Mesma classe de limite de `DOC-20` (20 req/min). `RenditionKind` = `PREVIEW`\|`CONTENT`\|`APPROVAL_STAMPED`\|`SIGNED` (entities.md; `SIGNED` reservado a MVP futuro).
+- **Notas:** Equivalente = mesma versão, `kind`, `approvalId` e forma de POL-09 (`masked`: quem não pode ver o orçamento sigiloso recebe o PDF com os valores ocultos); `FAILED` não conta ("Tentar novamente" gera outra). `approvalId` que não cobre a versão → 422 `REFERENCE_NOT_FOUND`; documento externo → 422 `NOT_ALLOWED`. Mesma classe de limite de `DOC-20` (20 req/min). `RenditionKind` = `PREVIEW`\|`CONTENT`\|`APPROVAL_STAMPED`\|`SIGNED` (entities.md; `SIGNED` reservado a MVP futuro).
 
 ### DOC-22 — Consultar status de uma renderização
 `GET /api/v1/document-renditions/{renditionId}` · **Permissão:** `PROCESS_VIEW` (+POL-09) · **Story:** US-067
@@ -414,6 +436,8 @@
   | 403 | `PERMISSION_DENIED` | Sem acesso ao documento |
   | 404 | `NOT_FOUND` | Rendition inexistente/outro tenant |
   | 409 | `RENDITION_NOT_READY` | Download antes de `READY` ou prévia expirada |
+  | 403 | `PERMISSION_DENIED` | PDF completo (`masked = false`) de conteúdo sigiloso para quem não atende POL-09 |
+  | 503 | `DEPENDENCY_UNAVAILABLE` | Auditoria ou storage indisponível (nunca URL sem trilha) |
 - **Efeitos:** Auditoria `document.download` (`EXPORT`): `metadata.renditionId`, `kind`.
 - **Notas:** Mesma classe de limite de renderização (20 req/min) por reuso do fluxo de exportação.
 
@@ -426,12 +450,12 @@
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
-  | 403 | `PERMISSION_DENIED` | Sem permissão de edição do tipo |
   | 404 | `NOT_FOUND` | Documento inexistente/outro tenant/não visível |
-  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento não pode ser editado pelo usuário (indicador não é exibido/enviado) |
-  | 422 | `SECTION_NOT_IN_TEMPLATE` | `sectionKey` informado não existe no template (silencioso) |
+  | 409 | `DOCUMENT_NOT_EDITABLE` | Documento não pode ser editado pelo usuário — sem permissão de edição do tipo, sem custódia/participação, processo ou documento fora de edição, tipo fora da etapa (indicador não é exibido/enviado; sem 403 nem `access.denied`, para o heartbeat não gerar ruído) |
+  | 422 | `SECTION_NOT_IN_TEMPLATE` | `sectionKey` informado não existe no template (silencioso; a presença é renovada com a seção anterior) |
+  | 422 | `VALIDATION_ERROR` (`NOT_ALLOWED`) | Documento sem seções (`UPLOADED`) — V-02 |
 - **Efeitos:** Nenhum evento de domínio nem auditoria (RN-DOC-93) — dado puramente efêmero.
-- **Notas:** Estado mantido em **Redis, TTL 60 s** por usuário/documento; se o Redis estiver indisponível, a resposta é `200` degradada (indicador oculto, sem bloquear a edição) em vez de erro.
+- **Notas:** Estado mantido em **Redis, TTL 60 s** por usuário/documento (`ZSET` `cf:{env}:t:{tenantId}:presence:document:{documentId}` + `HASH` `…:sections`, atualizados num script atômico); se o Redis estiver indisponível, a resposta é `200` degradada (indicador oculto, sem bloquear a edição) em vez de erro.
 
 ### DOC-25 — Encerrar presença de edição
 `DELETE /api/v1/documents/{id}/presence` · **Permissão:** sessão autenticada (encerra apenas a própria presença) · **Story:** US-070
@@ -445,6 +469,79 @@
   | 404 | `NOT_FOUND` | Documento inexistente/outro tenant (heartbeat encerra silenciosamente) |
 - **Efeitos:** Nenhum evento de domínio nem auditoria (RN-DOC-93).
 - **Notas:** Chamado ao fechar o editor/sair da seção; complementa o TTL de 60 s de `DOC-24`.
+
+### DOC-26 — Aplicar conteúdo gerado por IA nas seções
+`POST /api/v1/documents/{id}/ai-apply` · **Permissão:** permissão de edição do tipo (`DFD_UPDATE`, `ETP_UPDATE`, `RISK_MANAGE` para o `RISK_MAP`, `TERM_UPDATE`) + POL-02 · só o solicitante da geração (RN-AI-13) · **Story:** US-117 (rascunho completo); US-118, US-119, US-120 (demais documentos); US-121 (ajuste de seção)
+
+- **Cabeçalhos:** `If-Match` obrigatório (versão do documento) · `Idempotency-Key` obrigatório
+- **Parâmetros:** `id` (path, uuid) — documento alvo da geração
+- **Request:**
+```ts
+{
+  generationId: string;            // AiGeneration SUCCEEDED deste documento
+  sectionKeys: string[];           // ≥ 1; subconjunto das seções da proposta
+  confirmReplaceFilled?: boolean;  // obrigatório (true) se alguma seção escolhida estiver FILLED/NOT_APPLICABLE
+}
+```
+- **Response:** `200 { data: { document: Document, appliedSectionKeys: string[], versionCreated: { id: string, versionNumber: number } | null } }`
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` | Sem a permissão de edição do tipo |
+| 403 | `NOT_PROCESS_CUSTODIAN` | POL-02 |
+| 403 | `AI_GENERATION_NOT_OWNED` | Usuário não é o solicitante da geração |
+| 404 | `NOT_FOUND` / `AI_GENERATION_NOT_FOUND` | Documento ou geração inexistente/de outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
+| 409 | `AI_GENERATION_NOT_APPLICABLE` | Geração não `SUCCEEDED`, expirada ou de outro documento |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 410 | `AI_SUGGESTION_STALE` | Ajuste de seção (`SECTION`) com a seção em revisão diferente de `baseRevision` |
+| 412 | `VERSION_CONFLICT` | `If-Match` divergente |
+| 422 | `VALIDATION_ERROR` | `sectionKeys` vazio ou fora da proposta (`NOT_ALLOWED`); substituir seção preenchida sem `confirmReplaceFilled` (`CONDITIONAL_REQUIRED`) |
+| 422 | `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE` | Tipo não permitido na etapa atual |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
+| 428 | `PRECONDITION_REQUIRED` | `If-Match` ausente |
+
+- **Efeitos:** numa transação:
+  1. Se um rascunho completo (`DRAFT`) substitui alguma seção `FILLED`, cria antes uma `DocumentVersion` (`reason = SYSTEM`, `changeSummary` "Antes de aplicar conteúdo gerado por IA") → `DocumentVersionCreated`.
+  2. Cada seção escolhida recebe o conteúdo da proposta, fica `FILLED`, ganha `revision + 1` e a proveniência `ai` (`reviewedAt = null`).
+  3. O documento ganha `draftRevision + 1`.
+  4. A geração vira `APPLIED` (`appliedTargets`, pela porta `AiSuggestionSource.markApplied`).
+  5. Auditoria `ai.content_apply` (`DATA_CHANGE`; `metadata`: `generationId`, `sectionKeys`, `replacedFilledSections`, `versionCreated`).
+  6. Evento `AiContentApplied` (`document.ai_content_applied.<type>`) → timeline `AI_CONTENT_APPLIED`.
+  Sem notificação.
+- **Notas:**
+  - Campos tipados, itens (`DocumentItem`), alternativas e valores nunca são alterados (RN-AI-27).
+  - Ajuste de seção (`SECTION`) não cria versão: o painel guarda o texto anterior e oferece "Desfazer" via DOC-05 (RN-AI-50).
+  - **Uma aplicação por geração:** aplicar parte das seções encerra a proposta (`APPLIED`); para usar as demais, gerar de novo. Exceção: a proposta do `RISK_MAP` tem duas partes (riscos por RSK-11 e seções aqui), cada uma aplicada uma vez enquanto a proposta não expirar.
+  - O `If-Match` é o `ETag` de DOC-03 (`document.version`), que também muda a cada autosave (DOC-05). Em 412, o painel recarrega o documento, mostra o que mudou e repete a aplicação com o `ETag` novo.
+
+### DOC-27 — Marcar seções geradas por IA como revisadas
+`POST /api/v1/documents/{id}/ai-review` · **Permissão:** permissão de edição do tipo + POL-02 · **Story:** US-122
+
+- **Cabeçalhos:** — (a concorrência é controlada por seção, no corpo)
+- **Parâmetros:** `id` (path, uuid)
+- **Request:**
+```ts
+{
+  sectionKeys: string[];                      // ≥ 1
+  expectedRevisions: Record<string, number>;  // revisão atual de cada seção
+  confirmAll?: boolean;                        // true quando vem de "Revisar todas" (confirmação explícita na UI)
+}
+```
+- **Response:** `200 { data: { document: Document, reviewedSectionKeys: string[] } }`. Seções sem proveniência pendente são ignoradas (idempotente).
+- **Erros:**
+
+| HTTP | `code` | Quando |
+|---|---|---|
+| 403 | `PERMISSION_DENIED` / `NOT_PROCESS_CUSTODIAN` | Sem permissão de edição / POL-02 |
+| 404 | `NOT_FOUND` | Documento inexistente/de outro tenant |
+| 409 | `DOCUMENT_NOT_EDITABLE` | Documento fora de `DRAFT`/`RETURNED` |
+| 412 | `VERSION_CONFLICT` | Alguma seção com revisão diferente de `expectedRevisions` (`meta.current` traz as revisões atuais) |
+| 422 | `VALIDATION_ERROR` | `sectionKeys` vazio ou chave fora do template (`NOT_ALLOWED`) |
+
+- **Efeitos:** `ai.reviewedAt`/`reviewedById` preenchidos e `revision + 1` em cada seção revisada; auditoria `ai.content_review` (`DATA_CHANGE`; `metadata`: `sectionKeys`, `generationIds`, `confirmAll`); evento `AiContentReviewed` (`document.ai_content_reviewed.<type>`) → timeline `AI_CONTENT_REVIEWED`.
+- **Notas:** revisar não exige que as marcações [a confirmar] estejam resolvidas. Ambas são violações bloqueantes independentes em DOC-08 (`SECTION_AI_REVIEW_PENDING`, `SECTION_PLACEHOLDER_PENDING` — RN-AI-57).
 
 ### DTY-01 — Listar tipos de documento
 `GET /api/v1/document-types` · **Permissão:** acesso autenticado ao tenant (impl.); `includeInactive=true` exige `DOCUMENT_TYPE_MANAGE` · **Story:** US-061
@@ -474,7 +571,7 @@
   | 422 | `NUMBERING_MASK_INVALID` | Máscara sem `{seq:N}`/`{year}` ou token desconhecido |
   | 422 | `APPROVER_UNRESOLVED` | Unidade fixa do aprovador sem titular |
 - **Efeitos:** Evento `DocumentTypeChanged` (`documentTypeId`, `code`, `changedFields[]`) — consumidor de invalidação de cache. Auditoria `document_type.create` (`CONFIGURATION`): `changes` valores iniciais; `metadata.code`, `kind`, `idempotencyKey`.
-- **Notas:** `Confidentiality` = `PUBLIC`\|`INTERNAL`\|`RESTRICTED` (entities.md). Sem projeção em timeline (configuração não pertence a um processo).
+- **Notas:** `Confidentiality` = `PUBLIC`\|`INTERNAL`\|`RESTRICTED` (entities.md). Sem projeção em timeline (configuração não pertence a um processo). Código repetido responde `409 CONFLICT` com `detail` "Já existe um tipo com o código {code}." (US-061 · V-05; `DOCUMENT_TYPE_CODE_TAKEN` de api.md §2.2 fica como refinamento futuro). `NUMBERING_MASK_INVALID` traz `errors[]` com `field = numberingMask`.
 
 ### DTY-03 — Atualizar tipo de documento
 `PATCH /api/v1/document-types/{id}` · **Permissão:** `DOCUMENT_TYPE_MANAGE` · **Story:** US-061
@@ -493,7 +590,7 @@
   | 422 | `NUMBERING_MASK_INVALID` | Máscara inválida |
   | 422 | `APPROVER_UNRESOLVED` | Aprovador/unidade não resolvível |
 - **Efeitos:** Evento `DocumentTypeChanged` (inclui ativar/desativar). Auditoria `document_type.update`: `changes` campo a campo (inclui `approvalPolicy`); `metadata` com `code`, `isSystem`, `impact { documentsCount, workflowsReferencing }`.
-- **Notas:** Tipos `STRUCTURED`/`isSystem` têm campos restritos (V-04/V-12, US-061).
+- **Notas:** Tipos `STRUCTURED`/`isSystem` têm campos restritos (V-04/V-12, US-061). Campos fora de `editableFields` (inclusive `code`/`kind`) → 422 `VALIDATION_ERROR` (`NOT_ALLOWED`). Corpo sem alteração real (valores iguais aos atuais ou `{}`) → 200 sem nova versão, auditoria nem evento. `editableFields` da resposta lista o que o tipo aceita alterar (RN-DOC-03).
 
 ### DTY-04 — Definir template padrão do tipo
 `PUT /api/v1/document-types/{id}/default-template` · **Permissão:** `TEMPLATE_PUBLISH` · **Story:** US-108
@@ -510,4 +607,4 @@
   | 422 | `BUSINESS_RULE_VIOLATION` (`TEMPLATE_NOT_PUBLISHED`) | Template sem versão publicada |
   | 422 | `VALIDATION_ERROR` | Template de outro tipo de documento |
 - **Efeitos:** Evento `DocumentTypeChanged` (`changedFields: ["defaultTemplateId"]`). Auditoria `document_type.update`: `changes.defaultTemplateId` (anterior → novo).
-- **Notas:** Especificação completa do ciclo de publicação de templates em [04-templates.md](04-templates.md) (US-108); este endpoint pertence ao catálogo de `document-types`.
+- **Notas:** Especificação completa do ciclo de publicação de templates em [04-templates.md](04-templates.md) (US-108); este endpoint pertence ao catálogo de `document-types`. **Implementação (US-108):** template de outro tipo → `VALIDATION_ERROR` com `errors[] = { field: 'templateId', code: 'NOT_ALLOWED' }`; template inativo conta como sem versão publicada (`TEMPLATE_NOT_PUBLISHED`, `field = templateId`). O mesmo template já padrão → 200 sem nova versão, auditoria nem evento. `DocumentType.defaultTemplate` (DTY-01..04) = `{ id, name, versionNumber }` da versão publicada corrente do template padrão, ou `null`.

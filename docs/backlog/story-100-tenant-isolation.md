@@ -244,6 +244,7 @@ Feature: Contexto de tenant e isolamento de dados
 - **Decisões/ADRs:** DEC-080, DEC-081, DEC-082, DEC-083, DEC-105, DEC-132, DEC-138, DEC-139, DEC-161, DEC-164; ADR-002.
 - **Configurações:** nenhuma.
 - **Lacunas nas fontes canônicas:** (1) só `cf_relay` é nome canônico; `cf_app` (papel da aplicação), `cf_migrator`, `cf_platform`, `cf_definer` e as funções `cf_apply_tenant_rls`, `cf_user_memberships`, `cf_find_invitation`, `cf_set_primary_organization` são **propostas** a registrar em ADR-002/decisions.md; (2) as leituras cross-tenant de ME-04 e USR-06 não estão descritas nas fontes — adotadas funções `SECURITY DEFINER`; (3) políticas de `audit_logs` e `outbox_events` para `cf_platform` (inserir registros de plataforma e do agregado `Tenant`) a registrar em entities.md; (4) a lista de rotas de exportação permitidas em `OFFBOARDING` (RN-TEN-37) deve constar em api.md; (5) 400 `MALFORMED_REQUEST` para `X-Tenant-Id` ausente não está explícito em api.md; (6) `multi-tenancy.md`, `security.md` e ADR-002 ainda não existem (architecture.md já referencia `multi-tenancy.md#14-testes-de-isolamento`).
+- **Resolução (2026-10-15 · implementação):** lacunas 1–6 fechadas em DEC-076 (decisions.md §4), ADR-002 (seção "Implementação"), multi-tenancy.md §4–§14 e api.md §1.5. Ajustes em relação ao texto acima: a política `tenant_isolation` vale para todos os papéis sem `BYPASSRLS` (não só `TO cf_app`); `TENANT_SCOPED_MODELS` é lista versionada conferida com o schema pelo CI (não gerada no `prisma generate`); `cf_set_primary_organization` fica com a US-101 (depende de `organizations`); o log de plataforma chama-se `system_db.call`.
 
 ## Impacto técnico
 - **Padrão obrigatório** para todas as stories: repositórios só via `TenantPrismaService`; nenhuma consulta a modelo de tenant fora de contexto; SQL bruto só dentro de `TenantTransaction`.
@@ -274,7 +275,8 @@ Feature: Contexto de tenant e isolamento de dados
 - **Acessibilidade:** páginas de erro com título, explicação e ação primária focável; anúncio por `aria-live`.
 
 ## Banco de dados
-- **Migração `tenancy_foundation`:** tabela `tenants` (entities.md §4.1); funções `cf_apply_tenant_rls(regclass)` (ENABLE + FORCE + política `tenant_isolation` para `cf_app`), `cf_user_memberships`, `cf_find_invitation`, `cf_set_primary_organization` (donas: `cf_definer`, `SET search_path = pg_catalog, public`); `GRANT`s por papel; `cf_app` com `SELECT` apenas nas colunas não sensíveis de `tenants`.
+- **Já entregue pela US-087 (2026-10-14 · DEC-070):** tabela `tenants` (entities.md §4.1, sem a FK de `primary_organization_id`, que vem com organizations), papel `cf_definer` e a função `cf_user_memberships` (só responde ao `app.user_id` da transação; `EXECUTE` para `cf_app`/`cf_worker`), além do `PlatformTransaction` para leituras de plataforma da identidade. Esta story não as recria: acrescenta o restante abaixo e pode mover `cf_user_memberships` para o `SystemDbService`.
+- **Migração `tenancy_foundation`:** tabela `tenants` (entities.md §4.1 — já criada pela US-087); funções `cf_apply_tenant_rls(regclass)` (ENABLE + FORCE + política `tenant_isolation` para `cf_app`), `cf_user_memberships`, `cf_find_invitation`, `cf_set_primary_organization` (donas: `cf_definer`, `SET search_path = pg_catalog, public`); `GRANT`s por papel; `cf_app` com `SELECT` apenas nas colunas não sensíveis de `tenants`.
 - **Política padrão** (aplicada por `cf_apply_tenant_rls` em toda tabela nova):
   ```sql
   CREATE POLICY tenant_isolation ON processes TO cf_app

@@ -224,7 +224,7 @@ Feature: Gerenciar itens da contratação
 
 ## Impacto técnico
 - Itens fazem parte do agregado `Process`: comandos usam `SELECT … FOR UPDATE` no processo, o que serializa criações (números sem repetição) e alinha com a edição de dados (US-005) e a tramitação.
-- Verificação de uso por fachadas (`DocumentFacade.findItemReferences`, `PriceResearchFacade.findItemReferences`), sem acesso direto às tabelas de outros módulos (DEC-041). Para evitar corrida com a inclusão de `DocumentItem`/`PriceItem`, a exclusão bloqueia a linha do item (`FOR UPDATE`) e os módulos de documento/pesquisa validam o item com `FOR SHARE` ao referenciá-lo.
+- Verificação de uso pela porta do shared kernel `ProcessItemUsageRegistry` (`findItemReferences(ids)`), em que os donos de `DocumentItem` (`document`/DFD/ETP/TR) e `PriceItem` (`price-research`, nível 4 — acima de `process`) registram seus leitores, sem acesso direto às tabelas de outros módulos (DEC-041 · níveis de DEC-040). Para evitar corrida com a inclusão de `DocumentItem`/`PriceItem`, a exclusão bloqueia a linha do item (`FOR UPDATE`) e os módulos de documento/pesquisa validam o item com `FOR SHARE` ao referenciá-lo.
 - O `ETag` de PRC-13 é a versão do processo, usada como `If-Match` de PRC-17.
 - A renumeração altera `sequence` de muitas linhas: atualização em duas fases (valores temporários negativos → definitivos) para não violar o índice único parcial durante a transação.
 
@@ -232,7 +232,7 @@ Feature: Gerenciar itens da contratação
 - **Módulo(s):** `process` (dono de `ProcessItem`); `catalog`, `document`, `price-research`, `timeline`, `audit`, `platform` via fachadas.
 - **Casos de uso:** `ListProcessItemsQuery`, `AddProcessItemCommand`, `UpdateProcessItemCommand`, `RemoveProcessItemCommand`, `ReorderProcessItemsCommand`.
 - **Domínio:** métodos do agregado `Process.addItem`, `updateItem`, `removeItem`, `reorderItems` (RN-PROC-72 a RN-PROC-83), value object `CatalogCode`, política `LotNamePolicy`.
-- **Integrações internas:** `CatalogFacade.assertActive('UNIT_OF_MEASURE', id)`, `DocumentFacade.findItemReferences(ids)`, `PriceResearchFacade.findItemReferences(ids)`, `TimelineProjector`, `AuditService`, `OutboxWriter`, `ConfidentialFieldsInterceptor`.
+- **Integrações internas:** `CatalogFacade.assertActive('UNIT_OF_MEASURE', id)`, `ProcessItemUsageRegistry.findItemReferences(ids)` (leitores de `document` e `price-research`), `TimelineProjector`, `AuditService`, `OutboxWriter`, `ConfidentialFieldsInterceptor`.
 - **Transação:** cada comando em uma transação com `app.tenant_id` e bloqueio do processo; evento, timeline e auditoria no mesmo commit.
 
 ## Frontend

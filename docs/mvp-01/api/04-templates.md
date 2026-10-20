@@ -30,7 +30,7 @@
 - **Response:** `200 { data: Template[], meta }`.
 - **Erros:** — (apenas `200` documentado na fonte; erros genéricos de acesso seguem api.md §2 quando aplicável).
 - **Efeitos:** —
-- **Notas:** Lista usada para seleção de template em `DOC-02`/wizards tipados e para a tela de administração de templates.
+- **Notas:** Lista usada para seleção de template em `DOC-02`/wizards tipados e para a tela de administração de templates. **Implementação (US-108):** `Template` ganha `isDefault` (é o `defaultTemplateId` do seu tipo ativo — DTY-04). **Implementação (US-107):** filtros `documentTypeId`, `q` (trecho do nome, sem maiúsculas) e `isActive`; `pageSize` padrão 50 (máx. 100); ordenação por nome. `Template` = `{ id, name, description, documentTypeId, documentType: { id, code, name, kind, systemModule, defaultConfidentiality }, isActive, isSystem, draftVersion, currentPublishedVersion, createdAt, updatedAt, version }`, com `draftVersion`/`currentPublishedVersion` = `{ id, versionNumber, status, sectionCount, updatedAt, publishedAt } | null`.
 
 ### TPL-02 — Criar template
 `POST /api/v1/templates` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-107
@@ -88,7 +88,7 @@
   |---|---|---|
   | 404 | `NOT_FOUND` | Template inexistente/outro tenant |
 - **Efeitos:** —
-- **Notas:** Histórico de versões, inclusive `changeNotes` de cada uma.
+- **Notas:** Histórico de versões, inclusive `changeNotes` de cada uma. **Implementação (US-108):** ordem da versão mais recente para a mais antiga; `pageSize` padrão 50 (máx. 100). Cada item é o `TemplateVersionHistoryItem` — a versão sem o conteúdo (lido por `TPL-07`): `{ id, templateId, versionNumber, status, sectionCount, changeNotes, isCurrent, publishedAt, retiredAt, contentHash, createdAt, updatedAt, version }`, com `isCurrent` = é a `currentPublishedVersionId` do template e `version` = `If-Match` de `TPL-10`/`TPL-11`.
 
 ### TPL-06 — Criar nova versão do template (rascunho)
 `POST /api/v1/templates/{id}/versions` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-108
@@ -103,7 +103,7 @@
   | 404 | `NOT_FOUND` | Template inexistente/outro tenant |
   | 409 | `TEMPLATE_DRAFT_EXISTS` | Já existe uma versão `DRAFT` em edição para este template |
 - **Efeitos:** Nenhum evento de domínio (criação de rascunho gera só auditoria `template.version_create` (events.md §7)).
-- **Notas:** Apenas um rascunho por template (RN implícita — `TEMPLATE_DRAFT_EXISTS`); publicar (`TPL-10`) ou aposentar (`TPL-11`) libera a criação de um novo.
+- **Notas:** Apenas um rascunho por template (RN implícita — `TEMPLATE_DRAFT_EXISTS`); publicar (`TPL-10`) ou aposentar (`TPL-11`) libera a criação de um novo. **Implementação (US-108):** clona `sections`/`layout`/`fieldConfig`/`importMappings` da versão de maior número (publicada ou aposentada; `changeNotes` começa vazio) com `versionNumber = max + 1`; `Location` e `ETag` = `"1"`. O 409 traz `meta.draftVersionId` (o rascunho existente); na corrida de duas solicitações, o índice parcial decide e a segunda recebe `meta.draftVersionId = null` (a UI recarrega o template). Auditoria `template.version_create`: `metadata.templateVersionId`, `versionNumber`, `clonedFromVersionId`, `idempotencyKey`.
 
 ### TPL-07 — Consultar versão do template
 `GET /api/v1/template-versions/{versionId}` · **Permissão:** `TEMPLATE_VIEW` (versão publicada: critério de visibilidade simplificado, impl.) · **Story:** US-107
@@ -116,7 +116,7 @@
   |---|---|---|
   | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
 - **Efeitos:** —
-- **Notas:** `SectionDefinition` (entities.md §5.1): `{ key, title, order, requirement: SectionRequirement, helpText?, legalBasis?, defaultContent?, minChars?, maxChars, render, allowNarrative }`; `SectionRequirement` = `REQUIRED`\|`REQUIRED_OR_JUSTIFY`\|`OPTIONAL` (entities.md).
+- **Notas:** `SectionDefinition` (entities.md §5.1): `{ key, title, order, requirement: SectionRequirement, helpText?, legalBasis?, defaultContent?, minChars?, maxChars, render, allowNarrative }`; `SectionRequirement` = `REQUIRED`\|`REQUIRED_OR_JUSTIFY`\|`OPTIONAL` (entities.md). **Implementação (US-107):** a resposta traz também `templateId`, `templateName`, `documentType` e `importSources` (só TR: `{ sectionKeys, fieldKeys }` — seções da versão publicada do template ETP padrão do tenant, ou as seções de referência do ETP de entities.md §4.8 enquanto não houver, e os campos do cabeçalho do ETP), base do `ImportMappingsPanel`.
 
 ### TPL-08 — Atualizar conteúdo/layout da versão do template
 `PATCH /api/v1/template-versions/{versionId}` · **Permissão:** `TEMPLATE_MANAGE` · **Story:** US-107, US-109
@@ -140,6 +140,7 @@
   | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`) | `logo.attachmentId` inexistente ou de outro tenant |
 - **Efeitos:** Auditoria `template.update` (`CONFIGURATION`): para conteúdo, resumo (`sectionsChanged[]`, `fieldConfigChanged`, `importMappingsChanged`); para layout, `layoutChangedFields[]` (ex.: `fontFamily`, `logo.attachmentId`).
 - **Notas:** Upload do logo usa o módulo de anexos (`ATT-02` a `ATT-05`, fora desta seção) com `targetType = 'TENANT_ASSET'`. Mapeamento padrão semeado para `importMappings` (ETP → documento): `OBJECT ← RECOMMENDED_SOLUTION`; `JUSTIFICATION ← NEED_DESCRIPTION + PROBLEM + OBJECTIVE` (`APPEND`); `SPECIFICATIONS ← REQUIREMENTS`; `ESTIMATED_VALUE ← ESTIMATES` (entities.md §5.8).
+- **Implementação (US-109):** `layout` é um PATCH parcial do `PrintLayout` — só as partes enviadas mudam (`marginsMm` campo a campo; `header`/`footer`/`logo` com `null` são removidos — FA-02; `logo.position`/`maxHeightMm` assumem `left`/`15` quando omitidos) e o resultado é conferido por inteiro: faixas → `VALIDATION_ERROR` em `layout.<campo>` (`OUT_OF_RANGE`/`INVALID_ENUM`; `pageSize ≠ 'A4'` → `INVALID_ENUM`); `logo.maxHeightMm` acima de `marginsMm.top` → `OUT_OF_RANGE` em `layout.logo.maxHeightMm`; variável fora do catálogo completo de §5.2 no cabeçalho/rodapé → `TEMPLATE_INVALID` com `TEMPLATE_VARIABLE_UNKNOWN` (`field` = `layout.header`\|`layout.footer`). O logo é conferido só quando `logo.attachmentId` muda: inexistente, de outro tenant ou com `targetType` ≠ `TENANT_ASSET` → 422 `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND` em `layout.logo.attachmentId`, a mesma resposta nos três casos); não `AVAILABLE` → 409 `ATTACHMENT_NOT_AVAILABLE`; tipo fora de PNG/JPEG/SVG → `INVALID_FORMAT`. Auditoria `template.update` com `changes[].path = 'layoutChangedFields'` (caminhos com ponto: `fontFamily`, `marginsMm.top`, `logo.attachmentId`…); log `template_version.layout_updated` sem o conteúdo do cabeçalho/rodapé. A publicação (TPL-10) também confere as variáveis do cabeçalho/rodapé. **Logo (ATT-02):** `targetType = 'TENANT_ASSET'` com `targetId` = o rascunho do template; anexar exige `ATTACHMENT_UPLOAD` **e** `TEMPLATE_MANAGE` com a versão em `DRAFT` (senão 409 `TEMPLATE_VERSION_NOT_DRAFT`); o ativo fica sem processo, na chave `assets/` (storage.md §4), e vale em qualquer template do tenant. **Implementação (US-107):** `layout` só é aceito a partir da US-109 (até lá, campo desconhecido → `VALIDATION_ERROR`). Os achados de `TEMPLATE_INVALID` vão em `violations[]` (api.md §2.1.2, `severity = BLOCKING`, `sectionKey` quando aplicável) com os códigos `TEMPLATE_SECTION_KEY_INVALID`, `TEMPLATE_SECTION_KEY_DUPLICATE`, `TEMPLATE_SECTION_ORDER_INVALID`, `TEMPLATE_RENDER_NOT_ALLOWED`, `TEMPLATE_VARIABLE_UNKNOWN` (`params.variable`, `field` = `helpText`\|`defaultContent`), `TEMPLATE_FIELD_CONFIG_NOT_ALLOWED`, `TEMPLATE_FIELD_UNKNOWN`, `TEMPLATE_IMPORT_MAPPINGS_NOT_ALLOWED`, `TEMPLATE_IMPORT_TARGET_UNKNOWN`, `TEMPLATE_IMPORT_TARGET_DUPLICATE`, `TEMPLATE_IMPORT_SOURCE_UNKNOWN` e `TEMPLATE_IMPORT_FIELD_UNKNOWN`. No rascunho, o `TemplateContentValidator` confere as partes enviadas no corpo (seções, `fieldConfig`, `importMappings`) sobre o conteúdo resultante — um mapeamento já salvo não impede adicionar seções antes de ajustá-lo —; a publicação (US-108) confere tudo. Corpo sem mudança → 200 com o mesmo `ETag`, sem auditoria. `defaultContent` é conferido contra o schema permitido de nós/marks (DEC-056) → nó desconhecido é `VALIDATION_ERROR`.
 
 ### TPL-09 — Solicitar prévia da versão do template
 `POST /api/v1/template-versions/{versionId}/preview` · **Permissão:** `TEMPLATE_VIEW` · **Story:** US-109
@@ -154,7 +155,7 @@
   | 404 | `NOT_FOUND` | Versão inexistente/outro tenant |
   | 422 | `TEMPLATE_INVALID` | Layout/seções com pendências que impedem a geração da prévia |
 - **Efeitos:** Nenhuma auditoria (ação de consulta/visualização, não altera dados) — apenas logs técnicos do worker de renderização.
-- **Notas:** Classe "Exportações e renderização" (api.md §1.6): 20 req/min. Resultado consultado por `TPL-12`/`TPL-13`. Falha de renderização (Gotenberg/fila) é reportada como `errorCode` interno no estado da prévia, não como erro HTTP desta chamada.
+- **Notas:** Classe "Exportações e renderização" (api.md §1.6): 20 req/min. Resultado consultado por `TPL-12`/`TPL-13`. Falha de renderização (Gotenberg/fila) é reportada como `errorCode` interno no estado da prévia, não como erro HTTP desta chamada. **Implementação (US-109):** a versão pode estar em qualquer estado (FA-01); o conteúdo é conferido por inteiro pelo `TemplateContentValidator` (422 `TEMPLATE_INVALID` — V-08). O mesmo usuário, para a mesma revisão (`ETag`) da versão, recebe a prévia em andamento (trava `SET NX` no Redis — Gherkin "[Duplicidade]"); depois de concluída, ou depois de nova edição (RN-TPL-27), um novo pedido gera outra. Job `document-render/template-preview` (`jobId = renditionId`, prioridade 1, **uma** tentativa): o worker monta o HTML de `buildRenditionHtml` (US-067) com as seções da versão (`defaultContent` ou o espaço reservado), dados reais do tenant/usuário e exemplos de `process.*`/`document.*`, sempre com a marca d'água "RASCUNHO" e sem hash no rodapé, e o logo embutido como `data:` URI. Qualquer falha deixa a prévia `FAILED` (Gotenberg/disjuntor/storage → `DEPENDENCY_UNAVAILABLE`; fila fora no pedido → a prévia já nasce `FAILED`); Redis fora no pedido → 503 `DEPENDENCY_UNAVAILABLE`.
 
 ### TPL-10 — Publicar versão do template
 `POST /api/v1/template-versions/{versionId}/publish` · **Permissão:** `TEMPLATE_PUBLISH` · **Story:** US-108
@@ -171,7 +172,7 @@
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
   | 422 | `TEMPLATE_INVALID` | Violações bloqueantes impedem a publicação |
 - **Efeitos:** Evento `TemplateVersionPublished` (`template.version_published`) — payload `templateId`, `templateVersionId`, `versionNumber`, `documentTypeCode`, `contentHash`. Auditoria `template.version_publish` (`CONFIGURATION`): `metadata.templateVersionId`, `versionNumber`, `contentHash`, `idempotencyKey`.
-- **Notas:** Publicação é definitiva (versão passa a imutável); nova edição exige `TPL-06` (novo rascunho).
+- **Notas:** Publicação é definitiva (versão passa a imutável); nova edição exige `TPL-06` (novo rascunho). **Implementação (US-108):** template inativo não publica → 409 `INVALID_STATE` (RN-TPL-14). A versão anterior continua `PUBLISHED` (sem efeito retroativo — RN-TPL-16); `currentPublishedVersionId` passa à recém-publicada na mesma transação. `contentHash` = SHA-256 do JCS (RFC 8785) de `{ sections, layout, fieldConfig, importMappings }` (rotina compartilhada `canonicalJson`/`sha256Hex`, a mesma do `definitionHash` dos workflows). A resposta (`TemplateVersion`) passa a trazer `contentHash`. Auditoria com `changes.currentPublishedVersionId` (anterior → nova). `TemplateVersionPublished` não tem consumidor assíncrono no MVP 1 (templates não têm cache).
 
 ### TPL-11 — Aposentar versão do template
 `POST /api/v1/template-versions/{versionId}/retire` · **Permissão:** `TEMPLATE_PUBLISH` · **Story:** US-108
@@ -188,14 +189,14 @@
   | 409 | `TEMPLATE_IN_USE` | É a versão corrente, sem substituta publicada, e é padrão de algum tipo de documento (`DTY-04`) |
   | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 - **Efeitos:** Evento `TemplateVersionRetired` (`template.version_retired`) — payload `templateId`, `templateVersionId`. Auditoria `template.version_retire`: `metadata.templateVersionId`.
-- **Notas:** Para trocar o padrão de um tipo de documento antes de aposentar, usar `DTY-04` ([03-documents.md](03-documents.md)).
+- **Notas:** Para trocar o padrão de um tipo de documento antes de aposentar, usar `DTY-04` ([03-documents.md](03-documents.md)). **Implementação (US-108):** aposentar a versão corrente com outra `PUBLISHED` → a de maior número assume `currentPublishedVersionId`; sem nenhuma e sem ser padrão de tipo ativo → `currentPublishedVersionId = null`. O padrão é lido na transação (não do cache). Auditoria com `changes.currentPublishedVersionId` quando a corrente muda.
 
 ### TPL-12 — Consultar prévia efêmera do template
 `GET /api/v1/template-versions/{versionId}/preview/{renditionId}` · **Permissão:** `TEMPLATE_VIEW` · **Story:** US-109
 - **Cabeçalhos:** `Idempotency-Key` —; `If-Match` —
 - **Parâmetros:** path `versionId` (uuid, obrigatório); `renditionId` (uuid, obrigatório).
 - **Request:** —
-- **Response:** `200 { data: { renditionId, status: RenditionStatus, pageCount? } }` — estrutura exata não detalhada na fonte além do status efêmero; modelada por analogia a `DocumentRendition` (ver [03-documents.md §DOC-22](03-documents.md)) — confirmar na implementação.
+- **Response:** `200 { data: { renditionId, status: RenditionStatus, pageCount? } }` — estrutura exata não detalhada na fonte além do status efêmero; modelada por analogia a `DocumentRendition` (ver [03-documents.md §DOC-22](03-documents.md)) — confirmar na implementação. **Implementação (US-109):** `TemplatePreview` = `{ renditionId, templateVersionId, status: 'PENDING'|'PROCESSING'|'READY'|'FAILED', pageCount, sizeBytes, sha256, errorCode, errorMessage, requestedAt, readyAt, expiresAt }` (sem chave de storage; `errorMessage` pt-BR sanitizada). Vencida (24 h) some — 404, como a de outro tenant ou de outra versão.
 - **Erros:**
   | HTTP | `code` | Quando |
   |---|---|---|
@@ -215,4 +216,4 @@
   | 404 | `NOT_FOUND` | Prévia inexistente/outro tenant |
   | 409 | `RENDITION_NOT_READY` | Download antes de pronta ou após expirar os 24 h (inferido por analogia a `DOC-23`; não detalhado explicitamente na fonte) |
 - **Efeitos:** —
-- **Notas:** Mesmo TTL de 24 h de `TPL-12`; URL assinada e temporária (`expiresAt`), igual ao padrão de `DOC-23`.
+- **Notas:** Mesmo TTL de 24 h de `TPL-12`; URL assinada e temporária (`expiresAt`), igual ao padrão de `DOC-23`. **Implementação (US-109):** URL `GET` ≤ 300 s do bucket `renditions` (`template-previews/{versionId}/{renditionId}.pdf`, tag `cf-retention=ephemeral`); antes de `READY` → 409 `RENDITION_NOT_READY`; sem auditoria (visualização de configuração). Classe de limite "Exportações e renderização".

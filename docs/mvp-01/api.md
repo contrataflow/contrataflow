@@ -37,6 +37,7 @@ Sumário: [1. Convenções](#1-convenções) · [2. Erros](#2-erros) · [3. Cat�
 ### 1.3 Concorrência e idempotência
 - `version` de cada recurso é exposto como `ETag`. Mutação com `If-Match` divergente → **412** `VERSION_CONFLICT` (corpo traz `currentVersion` e, quando útil, o recurso atual em `meta.current`). Sem `If-Match` onde exigido → **428** `PRECONDITION_REQUIRED`.
 - Autosave de seção usa a **revisão da seção** no `If-Match` (`"s<revision>"`) → `SECTION_REVISION_CONFLICT` (412).
+- Token de prévia sem estado (US-037 · TRM-05/06): `importToken` = `v1.<claims base64url>.<HMAC-SHA256 base64url>` com tenant, recurso, origem, a impressão digital (SHA-256 do JSON canônico) do estado lido na prévia e a validade (15 min); a chave HMAC é derivada da chave do *blind index* (DEC-086). A aplicação recalcula a impressão digital: vencido ou origem/destino alterados → **410** `IMPORT_PREVIEW_EXPIRED`; adulterado ou de outro recurso/tenant → **422** `VALIDATION_ERROR` no campo do token.
 - `Idempotency-Key`: mesma chave + mesmo corpo em 24 h → mesma resposta (`Idempotent-Replayed: true`); mesma chave + corpo diferente → **422** `IDEMPOTENCY_KEY_REUSED`; requisição original ainda em processamento → **409** `IDEMPOTENCY_IN_PROGRESS`.
 
 ### 1.4 Valores sigilosos
@@ -47,7 +48,9 @@ Campos monetários de processos com orçamento sigiloso são retornados como `nu
 - Visível sem permissão/política para a ação → **403** com `code` específico.
 - Recursos com ações retornam `meta.allowedActions` quando indicado (evita chamada extra).
 - IDs **referenciados no corpo** (ex.: `requestingDepartmentId`) que não existem, estão inativos, pertencem a outro tenant ou não estão no escopo do usuário → **422** `VALIDATION_ERROR` com `errors[].code = "REFERENCE_NOT_FOUND"` (ou `REFERENCE_INACTIVE`) no campo — nunca revelando a existência do recurso em outro tenant.
-- Header `X-Tenant-Id` de tenant em que o usuário não tem vínculo ativo → **403** `MEMBERSHIP_INACTIVE`. Header ausente ou inválido em rota com tenant e tenant inexistente respondem igual (nunca revelam se o tenant existe); `TENANT_SUSPENDED` só aparece para quem tem vínculo no tenant (US-080).
+- Header `X-Tenant-Id` de tenant em que o usuário não tem vínculo ativo → **403** `MEMBERSHIP_INACTIVE`; tenant inexistente responde igual (nunca revela se o tenant existe); `TENANT_SUSPENDED` só aparece para quem tem vínculo no tenant (US-080).
+- Header `X-Tenant-Id` **ausente ou malformado** (não é UUID) em rota de tenant → **400** `MALFORMED_REQUEST` com `errors[] = [{ field: "X-Tenant-Id", code: "REQUIRED" | "INVALID_FORMAT" }]` — não revela nada (não há tenant); o BFF refaz a seleção de instituição (US-100 · RN-TEN-19 · DEC-076). Rotas sem tenant ativo (ME-04, `/platform/*`, `/health/*`, aceite de convite) ignoram o cabeçalho; toda rota declara o escopo no OpenAPI (`x-tenant-scope`: `TENANT`, `PLATFORM`, `NONE` ou `CROSS_TENANT_LOOKUP`).
+- Instituição em `OFFBOARDING` (DEC-132 · RN-TEN-37): vínculos `ADMIN_ORGAO`/`AUDITOR` têm acesso de leitura e exportação — todos os `GET` e as rotas de exportação DOC-20, DOC-21, DOC-23, ATT-05, AUD-03, PRS-22 e PRC-34; qualquer outro comando → **403** `TENANT_SUSPENDED`.
 
 ### 1.6 Limites (rate limiting)
 | Classe | Limite padrão | Chave |
@@ -56,6 +59,7 @@ Campos monetários de processos com orçamento sigiloso são retornados como `nu
 | Escrita/comandos | 120 req/min | usuário + tenant |
 | Autosave de seção | 60 req/min por documento | usuário + documento |
 | Exportações e renderização | 20 req/min | usuário + tenant |
+| Geração com IA (`AI-01`) | 10 req/min | usuário + tenant (além dos limites de uso do órgão — US-116) |
 | Upload (intenção) | 60 req/min | usuário + tenant |
 | Global por tenant | 6.000 req/min | tenant |
 | Auth (BFF) | 20 req/min | IP |
@@ -134,8 +138,9 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
   "ruleId": null, "sectionKey": null, "field": null, "itemId": null, "params": {} }
 ```
 - Regras de workflow: `code = "WORKFLOW_RULE"`, `ruleId` preenchido e `message` = mensagem configurada na regra.
-- Completude genérica (módulo `document`): `SECTION_REQUIRED` (`sectionKey`), `SECTION_JUSTIFICATION_REQUIRED` (`sectionKey`), `SECTION_TOO_SHORT`, `FIELD_REQUIRED` (`field`), `ITEMS_REQUIRED`.
+- Completude genérica (módulo `document`): `SECTION_REQUIRED` (`sectionKey`), `SECTION_JUSTIFICATION_REQUIRED` (`sectionKey`), `SECTION_TOO_SHORT`, `FIELD_REQUIRED` (`field`), `ITEMS_REQUIRED`; conteúdo gerado por IA (US-122, bloqueantes): `SECTION_AI_REVIEW_PENDING` (`sectionKey`) e `SECTION_PLACEHOLDER_PENDING` (`sectionKey`, `params.count`); no mapa de riscos (US-119): `RISK_AI_REVIEW_PENDING` e `RISK_PLACEHOLDER_PENDING` (`itemId` = risco).
 - Completude específica de cada tipo: códigos com prefixo do módulo — `DFD_*`, `ETP_*`, `PRICE_*`, `RISK_*`, `TR_*` — definidos na tabela de validações da story dona (US-014/US-016, US-023, US-029/US-032, US-035, US-039). São estáveis e documentados no card; a UI usa `code` para ícones/links e `message` para exibição.
+- Catálogo do TR (US-039 — RN-TR-35/36): bloqueantes `TR_ESTIMATED_VALUE_REQUIRED` (`field = estimatedTotalValue`), `TR_ESTIMATED_VALUE_JUSTIFICATION_REQUIRED` (valor `MANUAL` sem a seção `ESTIMATED_VALUE` preenchida ou justificada — `sectionKey`; só avaliado quando há valor), `TR_ITEMS_REQUIRED` (`field = items`), `TR_SELECTION_CRITERION_REQUIRED` (`field = selectionCriterionId`) e `TR_AWARD_TYPE_REQUIRED` (`field = awardType`); avisos `TR_ITEM_QUANTITY_DIVERGENT` (com ETP `FINALIZED`/`APPROVED`, um por item comum pelo `processItemId` — `itemId` = linha do TR, `params: { etpQuantity, trQuantity, processItemId, sequence }`) e `TR_GUARANTEE_NOT_DEFINED` (garantia do produto e contratual nulas — `field = productWarrantyMonths`).
 
 ### 2.2 Códigos de domínio
 | Código | HTTP | Contexto |
@@ -166,21 +171,35 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `SECTION_REVISION_CONFLICT` | 412 | Autosave concorrente na mesma seção |
 | `SECTION_NOT_IN_TEMPLATE` | 422 | Chave de seção inexistente no template da versão |
 | `RICH_TEXT_INVALID` | 422 | Conteúdo TipTap fora do schema permitido |
+| `APPROVAL_NOT_FOUND` | 404 | Aprovação inexistente, de outro tenant ou não visível (US-052) |
 | `APPROVAL_NOT_PENDING` | 409 | |
 | `NOT_DESIGNATED_APPROVER` | 403 | POL-03 |
 | `SELF_APPROVAL_FORBIDDEN` | 403 | Segregação de funções |
 | `APPROVER_UNRESOLVED` | 422 | Ex.: unidade sem titular; perfil sem detentores no escopo |
 | `RECOMMENDED_ALTERNATIVE_EXISTS` | 409 | Já existe alternativa recomendada (use `replaceRecommended: true`) |
 | `QUOTATION_REQUIRED_FIELDS` | 422 | Campos exigidos pelo tipo de fonte ausentes |
+| `PRICE_RESEARCH_NOT_FOUND` | 404 | Mapa comparativo (`PRS-21`/`PRS-22`) e conclusão (`PRS-23`) de pesquisa inexistente, de outro tenant ou não visível (US-031/US-032) |
 | `PRICE_RESEARCH_INCOMPLETE` | 422 | Conclusão com itens sem preço/justificativa (`violations[]`) |
 | `SUPPLIER_ALREADY_EXISTS` | 409 | Mesmo CNPJ/CPF no tenant |
 | `SUPPLIER_IN_USE` | 409 | Exclusão de fornecedor referenciado por fonte de preço não excluída (oferecer "Inativar") |
 | `ETP_REQUIRED_FOR_IMPORT` | 422 | Sem ETP no processo |
 | `IMPORT_PREVIEW_EXPIRED` | 410 | Token de prévia expirado (15 min) ou origem alterada desde a prévia (ex.: ETP editado — US-037); refazer a prévia |
+| `AI_DISABLED` | 403 | IA desligada no órgão (`ai.enabled = false` — US-116) |
+| `AI_PROVIDER_UNAVAILABLE` | 503 | Provedor de IA não configurado (`AI_PROVIDER=none`) ou circuito aberto; `Retry-After` (US-115) |
+| `AI_USAGE_LIMIT_REACHED` | 422 | Limite mensal de tokens do órgão atingido (`ai.monthlyTokenLimit` — US-116) |
+| `AI_USER_DAILY_LIMIT_REACHED` | 422 | Limite diário de gerações do usuário atingido (`ai.userDailyRequestLimit` — US-116) |
+| `AI_GENERATION_IN_PROGRESS` | 409 | Já existe geração ativa para o mesmo alvo; `meta.generationId` (US-115) |
+| `AI_PREREQUISITE_MISSING` | 422 | Documento antecessor da cadeia DFD → ETP → mapa de riscos → TR ausente; `meta.missing[]` (US-118..US-120) |
+| `AI_GENERATION_NOT_APPLICABLE` | 409 | Geração não está `SUCCEEDED`, expirou ou pertence a outro documento (DOC-26, RSK-11) |
+| `AI_GENERATION_NOT_OWNED` | 403 | Só o solicitante aplica, descarta ou cancela a geração (US-115) |
+| `AI_SUGGESTION_STALE` | 410 | A seção mudou desde a solicitação do ajuste; refazer (US-121) |
+| `AI_SECTION_EMPTY` | 422 | Reescrever/resumir seção sem conteúdo suficiente (US-121) |
+| `AI_SECTION_NOT_SUPPORTED` | 422 | Seção fora do template, sem texto narrativo (`render` ≠ `TEXT` e `allowNarrative = false`) ou marcada `NOT_APPLICABLE` (US-121) |
+| `AI_TERMS_NOT_ACCEPTED` | 422 | Ligar a IA sem aceitar a versão vigente dos termos de uso (US-116) |
 | `FILE_TYPE_NOT_ALLOWED` | 415 | Extensão/MIME fora da allowlist |
 | `FILE_TOO_LARGE` | 413 | Acima de `uploads.maxFileSizeMb` |
 | `UPLOAD_NOT_RECEIVED` | 409 | Confirmação sem objeto na quarentena |
-| `ATTACHMENT_NOT_AVAILABLE` | 409 | Download de arquivo não `AVAILABLE` |
+| `ATTACHMENT_NOT_AVAILABLE` | 409 | Download (ATT-05) ou exclusão (ATT-06) de anexo não `AVAILABLE` |
 | `RENDITION_NOT_READY` | 409 | Download antes de `READY` |
 | `TEMPLATE_INVALID` | 422 | Seções/variáveis/layout inválidos |
 | `TEMPLATE_VERSION_NOT_DRAFT` | 409 | |
@@ -204,7 +223,7 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `SETTING_KEY_UNKNOWN` | 422 | Chave fora do registro |
 | `EXPORT_TOO_LARGE` | 422 | Exportação acima do limite (refinar filtros) |
 | `TENANT_SLUG_TAKEN` | 409 | Plataforma |
-| `WORKFLOW_DRAFT_EXISTS` | 409 | Já existe versão rascunho do workflow (uma por workflow) |
+| `WORKFLOW_DRAFT_EXISTS` | 409 | Já existe versão rascunho do workflow (uma por workflow); `meta.draftVersionId` traz o rascunho existente (US-040) |
 | `TEMPLATE_DRAFT_EXISTS` | 409 | Já existe versão rascunho do template (uma por template) |
 | `DOCUMENT_TYPE_CODE_TAKEN` | 409 | Código de tipo de documento já usado no tenant |
 | `TEMPLATE_NAME_TAKEN` | 409 | Nome de template já usado para o mesmo tipo de documento no tenant (US-107) |
@@ -214,7 +233,9 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `CSRF_REJECTED` | 403 | BFF: falta `X-CF-Request` ou `Origin` inválido em método mutável |
 
 ### 2.3 Erros de validação do grafo de workflow (`WF_*`)
-`WORKFLOW_INVALID` (422) traz `errors[]` (bloqueiam a publicação) e `warnings[]` (não bloqueiam) com códigos `WF_*` e referência a `stageKey`/`transitionKey`/`ruleId`. Catálogo definido na US-040 (ex.: `WF_START_STAGE_COUNT`, `WF_END_STAGE_MISSING`, `WF_STAGE_UNREACHABLE`, `WF_END_UNREACHABLE`, `WF_APPROVAL_TRANSITIONS`, `WF_APPROVER_UNRESOLVABLE`, `WF_RULE_PATH_UNKNOWN`, `WF_RULE_OPERATOR_FORBIDDEN`, `WF_DOCUMENT_TYPE_UNKNOWN`, `WF_STAGE_NO_SLA` (aviso)).
+`WORKFLOW_INVALID` (422) traz, no membro de extensão `validation`, `errors[]` (bloqueiam a publicação) e `warnings[]` (não bloqueiam) — o `errors[]` de topo do problem+json continua reservado aos erros de campo (§2.1.1). Cada item: `{ code, message, stageKey, transitionKey, ruleId }` (`workflowValidationIssueSchema` em `packages/validation`). Catálogo definido na US-040:
+- **Erros:** `WF_START_STAGE_COUNT`, `WF_END_STAGE_MISSING`, `WF_STAGE_UNREACHABLE`, `WF_END_UNREACHABLE`, `WF_APPROVAL_TRANSITIONS`, `WF_ACTION_NOT_ALLOWED_FROM_STAGE`, `WF_TRANSITION_TARGET_INVALID`, `WF_PRIMARY_DUPLICATED`, `WF_DOCUMENT_TYPE_UNKNOWN`, `WF_APPROVER_UNRESOLVABLE`, `WF_DEPARTMENT_INVALID`, `WF_RULE_CONFIG_INVALID`, `WF_RULE_PATH_UNKNOWN`, `WF_RULE_OPERATOR_FORBIDDEN`, `WF_RULE_SCOPE_INVALID`, `WF_LIMIT_EXCEEDED`.
+- **Avisos:** `WF_STAGE_NO_SLA`, `WF_APPROVER_HEAD_MISSING`, `WF_STAGE_NO_INSTRUCTIONS`, `WF_RULE_INACTIVE`.
 
 ---
 
@@ -257,10 +278,10 @@ Rotas do BFF (não fazem parte da API NestJS; especificadas em [authentication.m
 | PRC-18 | PUT | `/processes/{id}/tags` | `PROCESS_UPDATE` + POL-01 (IM) | 200 | `ProcessUpdated` | US-007 |
 | PRC-19 | POST | `/processes/{id}/forward` | `PROCESS_FORWARD` + POL-01 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged`, `ProcessAssigned`, `ProcessNumberAssigned`, `DocumentSubmitted`, `DocumentVersionCreated`, `ApprovalRequested` | US-047 |
 | PRC-20 | POST | `/processes/{id}/return` | `PROCESS_RETURN` + POL-01 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged`, `ProcessAssigned` | US-048 |
-| PRC-21 | POST | `/processes/{id}/claim` | `PROCESS_CLAIM` + POL-04 (IM) | 200 | `ProcessAssigned` | US-049 |
+| PRC-21 | POST | `/processes/{id}/claim` | `PROCESS_CLAIM` + POL-04 (IM, Idem.) | 200 | `ProcessAssigned` | US-049 |
 | PRC-22 | POST | `/processes/{id}/assign` | `PROCESS_ASSIGN` ou titular + POL-05 (IM) | 200 | `ProcessAssigned` | US-050 |
-| PRC-23 | POST | `/processes/{id}/suspend` | `PROCESS_SUSPEND` + POL-07 (IM) | 200 | `ProcessStatusChanged` | US-008 |
-| PRC-24 | POST | `/processes/{id}/resume` | `PROCESS_SUSPEND` + POL-07 (IM) | 200 | `ProcessStatusChanged` | US-008 |
+| PRC-23 | POST | `/processes/{id}/suspend` | `PROCESS_SUSPEND` + POL-07 (IM, Idem.) | 200 | `ProcessStatusChanged` | US-008 |
+| PRC-24 | POST | `/processes/{id}/resume` | `PROCESS_SUSPEND` + POL-07 (IM, Idem.) | 200 | `ProcessStatusChanged` | US-008 |
 | PRC-25 | POST | `/processes/{id}/cancel` | `PROCESS_CANCEL` + POL-06 (IM) | 200 | `ProcessStatusChanged`, `ApprovalCanceled` | US-009 |
 | PRC-26 | POST | `/processes/{id}/complete` | `PROCESS_COMPLETE` + POL-08 (IM, Idem.) | 200 | `ProcessStageChanged`, `ProcessStatusChanged` | US-010 |
 | PRC-27 | POST | `/processes/{id}/duplicate` | `PROCESS_DUPLICATE` + `PROCESS_CREATE` (Idem.) | 201 | `ProcessCreated`, `ProcessDuplicated`, `DocumentCreated` | US-011 |
@@ -307,6 +328,8 @@ Rotas do BFF (não fazem parte da API NestJS; especificadas em [authentication.m
 | DOC-23 | GET | `/document-renditions/{renditionId}/download` | `PROCESS_VIEW` (+POL-09) | 200 (`{ url, expiresAt }`) | — (auditoria `document.download`) | US-067 |
 | DOC-24 | PUT | `/documents/{id}/presence` | permissão de edição do tipo + POL-02 | 200 | — (Redis, TTL 60 s) | US-070 |
 | DOC-25 | DELETE | `/documents/{id}/presence` | sessão autenticada (própria presença) | 204 | — | US-070 |
+| DOC-26 | POST | `/documents/{id}/ai-apply` | permissão de edição do tipo + POL-02 (IM, Idem.) | 200 | `AiContentApplied`, `DocumentVersionCreated` (se substituir seção preenchida) | US-117, US-121 |
+| DOC-27 | POST | `/documents/{id}/ai-review` | permissão de edição do tipo + POL-02 (revisão por seção no corpo) | 200 | `AiContentReviewed` | US-122 |
 | DTY-01 | GET | `/document-types` | impl. | 200 | — | US-061 |
 | DTY-02 | POST | `/document-types` | `DOCUMENT_TYPE_MANAGE` | 201 | `DocumentTypeChanged` | US-061 |
 | DTY-03 | PATCH | `/document-types/{id}` | `DOCUMENT_TYPE_MANAGE` (IM) | 200 | `DocumentTypeChanged` | US-061 |
@@ -402,6 +425,8 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | RSK-08 | DELETE | `/risk-treatments/{treatmentId}` | `RISK_MANAGE` + POL-02 (IM) | 204 | `RiskTreatmentChanged` | US-034 |
 | RSK-09 | GET | `/processes/{id}/risk-matrix` | `PROCESS_VIEW` | 200 | — | US-035 |
 | RSK-10 | POST | `/processes/{id}/risk-map` | `RISK_MANAGE` + POL-02 (Idem.) | 201 | `DocumentCreated` | US-035 |
+| RSK-11 | POST | `/processes/{id}/risks/ai-apply` | `RISK_MANAGE` + POL-02 (Idem.) | 201 | `RiskCreated`, `AiContentApplied` | US-119 |
+| RSK-12 | POST | `/processes/{id}/risks/ai-review` | `RISK_MANAGE` + POL-02 (versão por risco no corpo) | 200 | `AiContentReviewed` | US-119 |
 
 > Edição de riscos (POL-02) considera o documento `RISK_MAP`: se existir e estiver em `FINALIZED`/`APPROVED`/`IN_REVIEW`, riscos ficam bloqueados até reabertura. Sem documento, riscos são editáveis sob custódia.
 
@@ -411,7 +436,7 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | TRM-01 | GET | `/processes/{id}/terms` | `PROCESS_VIEW` | 200 | — | US-036 |
 | TRM-02 | POST | `/processes/{id}/terms` | `TERM_CREATE` + POL-02 (Idem.) | 201 | `DocumentCreated` | US-036 |
 | TRM-03 | GET | `/terms/{id}` | `PROCESS_VIEW` (+POL-09) | 200 | — | US-036 |
-| TRM-04 | PATCH | `/terms/{id}` | `TERM_UPDATE` + POL-02 (IM) | 200 | — | US-038 |
+| TRM-04 | PATCH | `/terms/{id}` | `TERM_UPDATE` + POL-02 (IM) | 200 | — | US-036, US-038 |
 | TRM-05 | POST | `/terms/{id}/import-etp/preview` | `TERM_UPDATE` + POL-02 | 200 | — | US-037 |
 | TRM-06 | POST | `/terms/{id}/import-etp` | `TERM_UPDATE` + POL-02 (IM, Idem.) | 200 | `TermImportedFromEtp` | US-037 |
 
@@ -419,23 +444,23 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | # | Método | Rota | Perm. | Sucesso | Eventos | Story |
 |---|---|---|---|---|---|---|
 | WF-01 | GET | `/workflows` | `WORKFLOW_VIEW` | 200 | — | US-043 |
-| WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` | 201 | `WorkflowCreated` | US-043 |
-| WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | 200 | — | US-043 |
-| WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-042, US-043 |
+| WF-02 | POST | `/workflows` | `WORKFLOW_MANAGE` (Idem.) | 201 | `WorkflowCreated` | US-040, US-043 |
+| WF-03 | GET | `/workflows/{id}` | `WORKFLOW_VIEW` | 200 | — | US-040, US-043 |
+| WF-04 | PATCH | `/workflows/{id}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-042, US-043 |
 | WF-05 | POST | `/workflows/{id}/set-default` | `WORKFLOW_PUBLISH` (IM) | 200 | `WorkflowDefaultChanged` | US-042 |
-| WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` | 200 | — | US-042 |
-| WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | 200 | — | US-045 |
-| WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | 201 | — | US-043, US-045 |
-| WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | 200 | — | US-043, US-046 |
-| WF-10 | POST | `/workflow-versions/{versionId}/stages` | `WORKFLOW_MANAGE` | 201 | — | US-043 |
-| WF-11 | PATCH | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-043 |
-| WF-12 | DELETE | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-043 |
-| WF-13 | POST | `/workflow-versions/{versionId}/transitions` | `WORKFLOW_MANAGE` | 201 | — | US-043 |
-| WF-14 | PATCH | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-043 |
-| WF-15 | DELETE | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-043 |
-| WF-16 | POST | `/workflow-versions/{versionId}/rules` | `WORKFLOW_MANAGE` | 201 | — | US-044 |
-| WF-17 | PATCH | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-044 |
-| WF-18 | DELETE | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-044 |
+| WF-06 | POST | `/workflows/resolve` | `WORKFLOW_VIEW` ou `PROCESS_CREATE` | 200 | — | US-042, US-001 |
+| WF-07 | GET | `/workflows/{id}/versions` | `WORKFLOW_VIEW` | 200 | — | US-040, US-045 |
+| WF-08 | POST | `/workflows/{id}/versions` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043, US-045 |
+| WF-09 | GET | `/workflow-versions/{versionId}` | `WORKFLOW_VIEW` | 200 | — | US-040, US-043, US-046 |
+| WF-10 | POST | `/workflow-versions/{versionId}/stages` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043 |
+| WF-11 | PATCH | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-043 |
+| WF-12 | DELETE | `/workflow-stages/{stageId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-040, US-043 |
+| WF-13 | POST | `/workflow-versions/{versionId}/transitions` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-043 |
+| WF-14 | PATCH | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-043 |
+| WF-15 | DELETE | `/workflow-transitions/{transitionId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-040, US-043 |
+| WF-16 | POST | `/workflow-versions/{versionId}/rules` | `WORKFLOW_MANAGE` | 201 | — | US-040, US-044 |
+| WF-17 | PATCH | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 200 | — | US-040, US-044 |
+| WF-18 | DELETE | `/workflow-rules/{ruleId}` | `WORKFLOW_MANAGE` (IM) | 204 | — | US-040, US-044 |
 | WF-19 | GET | `/rule-context/schema` | `WORKFLOW_VIEW` | 200 | — | US-044 |
 | WF-20 | POST | `/workflow-versions/{versionId}/validate` | `WORKFLOW_VIEW` | 200 | — | US-045 |
 | WF-21 | POST | `/workflow-versions/{versionId}/publish` | `WORKFLOW_PUBLISH` (IM) | 200 | `WorkflowVersionPublished` | US-045 |
@@ -445,7 +470,7 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 ### 3.11 Aprovações e caixa de tarefas (`approval`, `inbox`)
 | # | Método | Rota | Perm. | Sucesso | Eventos | Story |
 |---|---|---|---|---|---|---|
-| APV-01 | GET | `/approvals` | `APPROVAL_VIEW` (ou designado) | 200 | — | US-057 |
+| APV-01 | GET | `/approvals` | Cobertura de aprovador (POL-03) | 200 | — | US-057 |
 | APV-02 | GET | `/approvals/{id}` | `APPROVAL_VIEW` ou designado | 200 | — | US-052 |
 | APV-03 | POST | `/approvals/{id}/decide` | `APPROVAL_DECIDE` + POL-03 (IM, Idem.) | 200 | `ApprovalCompleted`/`ApprovalReturned`/`ApprovalRejected`, `DocumentApproved`/`Returned`/`Rejected`, `ProcessStageChanged`, `ProcessStatusChanged`, `ApprovalRequested` (próxima etapa) | US-052 |
 | APV-04 | POST | `/approvals/{id}/withdraw` | `PROCESS_FORWARD` + POL-17 (IM) | 200 | `ApprovalCanceled`, `ProcessStageChanged` | US-053 |
@@ -489,12 +514,13 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 ### 3.14 Administração do tenant (`identity`, `access`, `tenancy`, `organization`, `catalog`)
 | # | Método | Rota | Perm. | Sucesso | Eventos | Story |
 |---|---|---|---|---|---|---|
-| USR-01 | GET | `/users` | `USER_VIEW` | 200 | — | US-092 |
+| USR-01 | GET | `/users` | `USER_VIEW` | 200 | — | US-092 (base na US-091) |
 | USR-02 | GET | `/users/lookup` | impl. | 200 | — | US-092 |
 | USR-03 | POST | `/users/invitations` | `USER_INVITE` (Idem.) | 201 | `UserInvited` | US-091 |
-| USR-04 | POST | `/users/invitations/{userId}/resend` | `USER_INVITE` | 200 | — | US-091 |
+| USR-04 | POST | `/users/invitations/{userId}/resend` | `USER_INVITE` | 200 | `UserInvited` (`resend`) | US-091 |
 | USR-05 | DELETE | `/users/invitations/{userId}` | `USER_INVITE` | 204 | — | US-091 |
 | USR-06 | POST | `/invitations/accept` | usuário autenticado + token | 200 | `MembershipActivated` | US-091 |
+| USR-14 | POST | `/invitations/preview` | usuário autenticado + token | 200 | — | US-091 |
 | USR-07 | GET | `/users/{userId}` | `USER_VIEW` | 200 | — | US-092 |
 | USR-08 | PATCH | `/users/{userId}` | `USER_MANAGE` (IM) | 200 | `MembershipUpdated` | US-092 |
 | USR-09 | PUT | `/users/{userId}/departments` | `USER_MANAGE` (IM) | 200 | `MembershipUpdated` | US-092 |
@@ -555,11 +581,23 @@ Seções, itens, validação, finalização e versões do DFD usam os endpoints 
 | PLT-06 | POST | `/platform/tenants/{id}/offboard` | `PLATFORM_TENANT_MANAGE` (IM) | 200 | `TenantOffboarded` | US-099 |
 | PLT-07 | POST | `/platform/tenants/{id}/deactivate` | `PLATFORM_TENANT_MANAGE` (IM) | 200 | `TenantDeactivated` | US-099 |
 | PLT-08 | PATCH | `/platform/tenants/{id}` | `PLATFORM_TENANT_MANAGE` (IM) | 200 | — (auditoria `tenant.update`) | US-099 |
-| HLT-01 | GET | `/health/live` (fora de `/api/v1`) | público (rede interna/ALB) | 200 | — | US-085 |
+| HLT-01 | GET | `/health/live` (fora de `/api/v1`) | público (rede interna/ALB) | 200/503 | — | US-085 |
 | HLT-02 | GET | `/health/ready` (fora de `/api/v1`) | público (rede interna/ALB) | 200/503 | — | US-085 |
 | HLT-03 | GET | `/metrics` (fora de `/api/v1`) | rede interna | 200 | — | US-085 |
 
-**Total MVP 1:** 269 operações na API (as rotas do BFF não estão incluídas na contagem; recontagem de 2026-10-07, após WF-23, DOC-24/25, TPL-12/13, USR-13, PRS-24 e demais inclusões).
+### 3.16 Inteligência artificial (`ai`)
+Geração assistida de documentos do planejamento (EP-020, DEC-037, DEC-079). A geração é assíncrona (fila `ai-generation`); a aplicação do conteúdo e a revisão humana são comandos dos módulos donos (DOC-26/27, RSK-11/12).
+
+| # | Método | Rota | Perm. | Sucesso | Eventos | Story |
+|---|---|---|---|---|---|---|
+| AI-01 | POST | `/processes/{id}/ai-generations` | `AI_GENERATE` + POL-18 (Idem.) | 202 | `AiGenerationRequested` | US-115, US-117..US-121 |
+| AI-02 | GET | `/ai-generations/{generationId}` | `PROCESS_VIEW` | 200 | — | US-115 |
+| AI-03 | GET | `/processes/{id}/ai-generations` | `PROCESS_VIEW` | 200 | — | US-115 |
+| AI-04 | POST | `/ai-generations/{generationId}/discard` | solicitante da geração (RN-AI-13) | 200 | — (auditoria `ai.generation_discard`) | US-115, US-117 |
+| AI-05 | GET | `/ai/availability?processId=&documentId=` | impl. | 200 | — | US-116 |
+| AI-06 | GET | `/ai/usage?month=` | `SETTINGS_MANAGE` | 200 | — | US-116 |
+
+**Total MVP 1:** 279 operações na API (as rotas do BFF não estão incluídas na contagem; recontagem de 2026-10-07, após WF-23, DOC-24/25, TPL-12/13, USR-13, PRS-24 e demais inclusões; +10 em 2026-10-16 com o EP-020: AI-01..06, DOC-26/27, RSK-11/12).
 
 ---
 
@@ -571,12 +609,12 @@ O detalhe de cada operação (cabeçalhos, parâmetros, request, response, erros
 |---|---|---|---|
 | [01-session-me.md](api/01-session-me.md) | 3.1 Sessão e usuário corrente | ME | 6 |
 | [02-processes.md](api/02-processes.md) | 3.2 Processos | PRC, TAG | 41 |
-| [03-documents.md](api/03-documents.md) | 3.3 Documentos genéricos, versões e renderização | DOC, DTY | 29 |
+| [03-documents.md](api/03-documents.md) | 3.3 Documentos genéricos, versões e renderização | DOC, DTY | 31 |
 | [04-templates.md](api/04-templates.md) | 3.4 Templates | TPL | 13 |
 | [05-dfd.md](api/05-dfd.md) | 3.5 DFD | DFD | 5 |
 | [06-etp.md](api/06-etp.md) | 3.6 ETP | ETP | 9 |
 | [07-price-research-suppliers.md](api/07-price-research-suppliers.md) | 3.7 Pesquisa de preços e fornecedores | PRS, SUP | 30 |
-| [08-risks.md](api/08-risks.md) | 3.8 Riscos | RSK | 10 |
+| [08-risks.md](api/08-risks.md) | 3.8 Riscos | RSK | 12 |
 | [09-term-of-reference.md](api/09-term-of-reference.md) | 3.9 Termo de Referência | TRM | 6 |
 | [10-workflow.md](api/10-workflow.md) | 3.10 Workflow | WF | 23 |
 | [11-approvals-inbox.md](api/11-approvals-inbox.md) | 3.11 Aprovações e caixa de tarefas | APV, TSK | 9 |
@@ -584,6 +622,7 @@ O detalhe de cada operação (cabeçalhos, parâmetros, request, response, erros
 | [13-dashboard-notifications-audit.md](api/13-dashboard-notifications-audit.md) | 3.13 Dashboard, notificações e auditoria | DSH, NTF, AUD | 12 |
 | [14-tenant-administration.md](api/14-tenant-administration.md) | 3.14 Administração do tenant | USR, ROL, ORG, DEP, SET, CAT, CAL | 54 |
 | [15-platform-health.md](api/15-platform-health.md) | 3.15 Plataforma e saúde | PLT, HLT | 11 |
-| **Total** | | | **269** |
+| [16-ai.md](api/16-ai.md) | 3.16 Inteligência artificial | AI | 6 |
+| **Total** | | | **279** |
 
 Itens marcados "a definir na implementação" nesses arquivos são detalhes que as stories não fixam (ex.: campos de ordenação de algumas listas); decidir no refinamento da sprint e atualizar o arquivo correspondente.

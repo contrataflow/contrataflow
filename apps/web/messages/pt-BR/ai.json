@@ -1,0 +1,364 @@
+{
+  "draftButton": "Gerar rascunho com IA",
+  "panel": {
+    "title": "Assistente de redação com IA",
+    "close": "Fechar o assistente",
+    "tabs": {
+      "label": "Seções do assistente",
+      "generate": "Gerar",
+      "proposal": "Proposta",
+      "history": "Histórico de IA"
+    }
+  },
+  "disclaimer": {
+    "title": "Revise antes de concluir",
+    "body": "Conteúdo gerado por IA pode conter erros. Revise antes de concluir."
+  },
+  "form": {
+    "needSummary": "Descreva a necessidade em poucas linhas",
+    "needSummaryHint": "Entre 20 e 2.000 caracteres. Não inclua dados pessoais.",
+    "needSummaryCount": "{count} de 2.000 caracteres",
+    "needSummaryInvalid": "Descreva a necessidade com 20 a 2.000 caracteres.",
+    "instruction": "Orientações (opcional)",
+    "instructionInvalid": "As orientações aceitam até 500 caracteres.",
+    "submit": "Gerar com IA",
+    "submitting": "Enviando…",
+    "prerequisiteDfd": "Elabore o DFD antes de gerar o ETP com IA.",
+    "prerequisiteLink": "Ir para os documentos do processo",
+    "etp": {
+      "inputsTitle": "O que a IA vai usar",
+      "inputs": {
+        "dfd": "O DFD do processo: a versão aprovada; sem ela, a finalizada; sem nenhuma, o rascunho atual.",
+        "items": "Os itens do ETP com as quantidades e as memórias de cálculo.",
+        "alternatives": "As alternativas cadastradas, com vantagens e desvantagens.",
+        "priceResearch": "A pesquisa de preços concluída: o valor estimado vem só dela."
+      },
+      "decisionsTitle": "Decisões que continuam com você",
+      "decisions": {
+        "conclusion": "A conclusão sobre a viabilidade da contratação.",
+        "solution": "A solução escolhida entre as alternativas.",
+        "parceling": "O parcelamento ou não da solução."
+      },
+      "estimate": "Consumo estimado: até 40 mil tokens."
+    },
+    "prerequisiteEtp": "Elabore o ETP antes de gerar o TR com IA.",
+    "tr": {
+      "inputsTitle": "O que a IA vai usar",
+      "inputs": {
+        "etp": "O ETP do processo: a versão aprovada; sem ela, a finalizada; sem nenhuma, o rascunho atual.",
+        "dfd": "O DFD e os riscos com seus tratamentos, quando houver.",
+        "items": "Os itens do TR com as especificações e os critérios de aceitação.",
+        "priceResearch": "A pesquisa de preços concluída: o valor estimado vem só dela."
+      },
+      "filledTitle": "Condições do TR que a IA vai citar",
+      "missingTitle": "Condições não informadas — sairão como [a confirmar]",
+      "noneFilled": "Nenhuma condição contratual preenchida ainda.",
+      "conditionsHint": "A IA não altera as condições nem os itens: preencha-as no painel \"Condições contratuais\".",
+      "conditions": {
+        "contractDurationMonths": "Vigência do contrato",
+        "executionDeadline": "Prazo de execução ou entrega",
+        "paymentTermDays": "Prazo de pagamento",
+        "productWarrantyMonths": "Garantia do objeto",
+        "contractGuaranteePercent": "Garantia contratual",
+        "deliveryLocation": "Local de entrega",
+        "allowsSubcontracting": "Possibilidade de subcontratação",
+        "selectionCriterionId": "Critério de julgamento",
+        "awardType": "Forma de adjudicação"
+      },
+      "filledSections": "Seções já preenchidas (por exemplo, importadas do ETP) virão desmarcadas na proposta.",
+      "estimate": "Consumo estimado: até 40 mil tokens."
+    }
+  },
+  "progress": {
+    "title": "Gerando… você pode continuar editando",
+    "queued": "Na fila para gerar",
+    "running": "A IA está redigindo a proposta",
+    "cancel": "Cancelar",
+    "canceling": "Cancelando…",
+    "slow": "Está demorando mais que o normal. Avisaremos quando terminar."
+  },
+  "proposal": {
+    "title": "Proposta pronta",
+    "empty": "Nenhuma proposta neste momento. Peça um rascunho na aba Gerar.",
+    "placeholders": "{count, plural, =0 {Nenhum [a confirmar]} one {# [a confirmar]} other {# [a confirmar]}}",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "discarded": "Proposta descartada.",
+    "expiresAt": "Válida até {date}",
+    "readOnly": "Proposta de outra pessoa: somente leitura. Só quem pediu a geração pode aplicá-la ou descartá-la."
+  },
+  "warnings": {
+    "USED_DRAFT_INPUTS": "Foram usados documentos ainda em rascunho.",
+    "MISSING_PRICE_RESEARCH": "A pesquisa de preços ainda não foi concluída.",
+    "BUDGET_CONFIDENTIAL_VALUES_OMITTED": "Os valores do orçamento sigiloso não foram enviados à IA.",
+    "MISSING_OPTIONAL_INPUT": "Faltou uma informação opcional.",
+    "CONTEXT_TRUNCATED": "Parte das informações não coube e foi omitida."
+  },
+  "states": {
+    "failedTitle": "Não foi possível gerar agora",
+    "failedReason": {
+      "PROVIDER_UNAVAILABLE": "A IA ficou indisponível.",
+      "PROVIDER_RATE_LIMITED": "A IA recebeu pedidos demais.",
+      "TIMEOUT": "A IA demorou demais para responder.",
+      "CONTENT_FILTERED": "O conteúdo foi bloqueado pelo filtro do provedor.",
+      "CONTEXT_TOO_LARGE": "O processo tem informações demais para uma geração.",
+      "OUTPUT_INVALID": "A resposta da IA veio fora do formato esperado.",
+      "CANCELED_BY_POLICY": "As permissões ou os limites mudaram antes da geração.",
+      "default": "Tente novamente em instantes."
+    },
+    "retry": "Tentar novamente",
+    "canceled": "A geração foi cancelada.",
+    "expired": "Esta proposta expirou; gere novamente.",
+    "applied": "A proposta já foi aplicada ao documento.",
+    "unavailable": "A IA está indisponível agora. Tente novamente em instantes.",
+    "inProgress": "Já existe uma geração em andamento. Abrimos o acompanhamento dela.",
+    "requestFailed": "Não foi possível solicitar agora. Tente novamente."
+  },
+  "history": {
+    "title": "Histórico de IA",
+    "loading": "Carregando o histórico de IA",
+    "empty": "Nenhuma geração neste processo",
+    "loadFailed": "Não foi possível carregar o histórico.",
+    "retry": "Tentar novamente",
+    "by": "Por {name}",
+    "kind": {
+      "DRAFT": "Rascunho completo",
+      "SECTION": "Ajuste de seção"
+    },
+    "model": "Modelo {model} · prompt {version}",
+    "tokens": "{count, plural, =0 {Sem consumo registrado} one {# token} other {# tokens}}",
+    "status": {
+      "QUEUED": "Na fila",
+      "RUNNING": "Gerando",
+      "SUCCEEDED": "Pronta",
+      "FAILED": "Falhou",
+      "CANCELED": "Cancelada",
+      "APPLIED": "Aplicada",
+      "DISCARDED": "Descartada",
+      "EXPIRED": "Expirada"
+    },
+    "open": "Ver proposta"
+  },
+  "availability": {
+    "AI_DISABLED": "A IA está desligada neste órgão.",
+    "AI_PROVIDER_UNAVAILABLE": "A IA está indisponível agora. Tente novamente em instantes.",
+    "AI_USAGE_LIMIT_REACHED": "O limite mensal de uso de IA foi atingido. Fale com o administrador do órgão.",
+    "AI_USER_DAILY_LIMIT_REACHED": "Limite diário de pedidos atingido; volta amanhã.",
+    "PERMISSION_DENIED": "Peça ao administrador do órgão.",
+    "DOCUMENT_NOT_EDITABLE": "O documento não pode ser editado por você agora."
+  },
+  "admin": {
+    "title": "Inteligência artificial",
+    "description": "A IA ajuda a redigir DFD, ETP, mapa de riscos e Termo de Referência. Ela nasce desligada: o órgão decide se usa, aceita os termos de uso e define limites de consumo.",
+    "switch": "Usar IA neste órgão",
+    "switchOn": "Ligada",
+    "switchOff": "Desligada",
+    "termsAccepted": "Termos de uso aceitos: versão {version}.",
+    "termsNone": "Os termos de uso ainda não foram aceitos.",
+    "readTerms": "Ler os termos de uso",
+    "newTerms": {
+      "title": "Nova versão dos termos de uso",
+      "description": "Há uma nova versão ({version}) dos termos de uso da IA. A IA continua ligada, mas para religá-la depois será preciso aceitar a versão vigente.",
+      "action": "Ler e aceitar"
+    },
+    "providerUnavailable": {
+      "title": "IA indisponível na plataforma",
+      "description": "O provedor de IA não está disponível no momento. Você pode ajustar a configuração; a geração volta quando o provedor estiver disponível."
+    },
+    "limits": {
+      "title": "Limites de uso",
+      "monthly": "Limite mensal de tokens",
+      "monthlyHint": "Entre {min} e {max} tokens no mês civil do órgão.",
+      "monthlyInvalid": "Informe um limite entre {min} e {max} tokens.",
+      "daily": "Pedidos por usuário por dia",
+      "dailyHint": "De 1 a 500 pedidos por pessoa no dia.",
+      "dailyInvalid": "Informe de 1 a 500 pedidos por dia.",
+      "belowUsage": "O novo limite é menor que o consumo deste mês ({used} tokens). Novos pedidos ficarão bloqueados até o próximo mês ou até um novo aumento.",
+      "save": "Salvar limites",
+      "saving": "Salvando…"
+    },
+    "saved": "Configuração salva",
+    "disable": {
+      "title": "Desligar a IA neste órgão?",
+      "description": "Novos pedidos serão recusados e as gerações na fila serão canceladas. As propostas já prontas ainda poderão ser aplicadas ou descartadas.",
+      "confirm": "Desligar",
+      "cancel": "Manter ligada"
+    },
+    "terms": {
+      "accept": "Li e aceito os termos de uso da versão {version}",
+      "activate": "Ativar",
+      "acceptOnly": "Aceitar",
+      "cancel": "Cancelar",
+      "required": "Aceite os termos de uso da versão atual para ativar a IA."
+    },
+    "errors": {
+      "conflict": "A configuração foi alterada por outra pessoa. Recarregue.",
+      "reload": "Recarregar",
+      "mfa": "Confirme sua identidade para alterar esta configuração.",
+      "permission": "Você não tem permissão para configurar a IA.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente.",
+      "generic": "Não foi possível salvar a configuração."
+    },
+    "usage": {
+      "title": "Consumo de IA",
+      "month": "Mês",
+      "loading": "Carregando o consumo…",
+      "loadFailed": "Não foi possível carregar o consumo.",
+      "retry": "Tentar novamente",
+      "empty": "Nenhuma geração neste mês.",
+      "percent": "{percent}% do limite usado",
+      "tokens": "{used} de {limit} tokens",
+      "reserved": "{reserved} tokens reservados por gerações em andamento",
+      "cost": "Custo estimado: US$ {cost}",
+      "costUnknown": "Custo estimado indisponível (modelo sem preço cadastrado).",
+      "generations": "{count, plural, =0 {Nenhuma geração} one {# geração} other {# gerações}}",
+      "byDocumentType": "Por tipo de documento",
+      "byKind": "Por tipo de geração",
+      "byUser": "Por usuário",
+      "columns": {
+        "item": "Item",
+        "generations": "Gerações",
+        "tokens": "Tokens",
+        "cost": "Custo (US$)"
+      },
+      "targets": {
+        "DFD": "DFD",
+        "ETP": "ETP",
+        "RISK_MAP": "Mapa de riscos",
+        "TERM_OF_REFERENCE": "Termo de Referência"
+      },
+      "kinds": {
+        "DRAFT": "Rascunho completo",
+        "REWRITE": "Reescrever seção",
+        "COMPLETE": "Completar seção",
+        "SUMMARIZE": "Resumir seção",
+        "SECTION": "Ajuste de seção"
+      },
+      "audit": "Ver na auditoria as ações de IA"
+    }
+  },
+  "missingInput": {
+    "ITEMS": "O DFD ainda não tem itens; as quantidades saíram como [a confirmar].",
+    "EXPECTED_DATE": "O DFD não tem data prevista; os prazos saíram como [a confirmar].",
+    "PCA_LINK": "O vínculo com o Plano de Contratações Anual está incompleto.",
+    "ETP": "O processo ainda não tem ETP; a proposta usou só o DFD e o que mais existir.",
+    "TERM_OF_REFERENCE": "O Termo de Referência ainda não existe; prazos e critérios saíram como [a confirmar].",
+    "other": "Complete as informações marcadas como [a confirmar].",
+    "DFD": "O processo ainda não tem DFD; a sugestão usou só o que mais existir.",
+    "RISK_MAP": "O Mapa de Riscos ainda não existe; a sugestão usou os demais documentos.",
+    "ETP_ITEMS": "O ETP ainda não tem itens; as quantidades saíram como [a confirmar].",
+    "ALTERNATIVES": "Nenhuma alternativa cadastrada no ETP; a descrição da solução ficou como [a confirmar].",
+    "RISKS": "O processo ainda não tem riscos registrados; obrigações e sanções usaram só o modelo e a lei.",
+    "TERM_ITEMS": "O TR ainda não tem itens; as especificações saíram como [a confirmar]."
+  },
+  "apply": {
+    "legend": "Escolha as seções a aplicar",
+    "loading": "Carregando o documento",
+    "loadFailed": "Não foi possível carregar o documento para comparar.",
+    "retry": "Tentar novamente",
+    "placeholders": "{count, plural, =0 {Nenhum [a confirmar]} one {# [a confirmar]} other {# [a confirmar]}}",
+    "replaces": "Substituirá o texto atual (uma versão é criada antes).",
+    "compare": "Comparar",
+    "hideCompare": "Fechar comparação",
+    "diff": {
+      "current": "Atual",
+      "suggested": "Sugerido",
+      "inserted": "sugerido",
+      "removed": "atual",
+      "empty": "Sem texto"
+    },
+    "action": "{count, plural, =0 {Aplicar seleção} one {Aplicar # seção} other {Aplicar # seções}}",
+    "applying": "Aplicando…",
+    "none": "Selecione ao menos uma seção.",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "confirm": {
+      "title": "{count, plural, one {# seção preenchida será substituída} other {# seções preenchidas serão substituídas}}",
+      "body": "Antes de aplicar, guardamos uma versão do documento com o texto atual. As seções não marcadas não poderão ser aplicadas depois: para usá-las, gere novamente.",
+      "action": "Confirmar e aplicar",
+      "back": "Voltar"
+    },
+    "conflict": "O DFD foi alterado. Atualizando a comparação… Confira e aplique de novo.",
+    "failed": "Não foi possível aplicar agora. Tente novamente.",
+    "done": "{count, plural, one {Conteúdo aplicado: # seção. Revise antes de concluir.} other {Conteúdo aplicado: # seções. Revise antes de concluir.}}"
+  },
+  "riskProposal": {
+    "legend": "Escolha os riscos e os tratamentos a aplicar",
+    "hint": "A proposta é somente leitura: ajuste probabilidade, impacto e textos depois de aplicar. Riscos parecidos com um já registrado vêm desmarcados.",
+    "formula": "P {probability} × I {impact}",
+    "similar": "Parecido com {code}",
+    "similarUnknown": "Parecido com um risco já registrado",
+    "description": "Descrição",
+    "cause": "Causa",
+    "consequence": "Consequência",
+    "rationale": "Por que a IA sugeriu",
+    "treatments": "Tratamentos",
+    "treatmentsCount": "{count, plural, one {# tratamento} other {# tratamentos}}",
+    "highWithoutTreatment": "Riscos de nível Alto ou Extremo sem tratamento marcado: a conclusão do Mapa de Riscos exigirá ao menos um tratamento.",
+    "action": "{count, plural, =0 {Aplicar selecionados} one {Aplicar # risco} other {Aplicar # riscos}}",
+    "applying": "Aplicando…",
+    "none": "Selecione ao menos um risco da proposta.",
+    "notApplicable": "Esta proposta não pode mais ser aplicada. Gere outra.",
+    "notOwned": "Só quem pediu a proposta pode aplicá-la.",
+    "locked": "Os riscos estão bloqueados porque o Mapa de Riscos foi concluído.",
+    "failed": "Não foi possível concluir agora. Tente novamente.",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "done": "{count, plural, one {# risco criado a partir da proposta. Revise cada risco antes de concluir o mapa.} other {# riscos criados a partir da proposta. Revise cada risco antes de concluir o mapa.}}"
+  },
+  "section": {
+    "menu": "IA",
+    "menuLabel": "Ajustar a seção {title} com IA",
+    "actions": {
+      "REWRITE": "Reescrever",
+      "COMPLETE": "Completar",
+      "SUMMARIZE": "Resumir"
+    },
+    "actionHints": {
+      "REWRITE": "Mais clareza e linguagem administrativa, sem acrescentar fatos.",
+      "COMPLETE": "Preenche as lacunas com a orientação do modelo e os dados do processo.",
+      "SUMMARIZE": "Versão mais curta, mantendo os fatos essenciais."
+    },
+    "tooShort": "A seção precisa de ao menos 50 caracteres. Use 'Completar' ou escreva um pouco mais.",
+    "notSupported": "Esta seção não pode ser ajustada com IA.",
+    "notEditable": "O documento não pode ser editado no status atual.",
+    "panelTitle": "Ajustar seção: {title}",
+    "actionLegend": "Ação",
+    "instruction": "Orientação (opcional)",
+    "instructionHint": "Ex.: destacar o interesse público; usar parágrafos curtos. Não inclua dados pessoais.",
+    "instructionCount": "{count} de 500 caracteres",
+    "instructionInvalid": "Escolha uma ação e use até 500 caracteres na orientação.",
+    "inputsTitle": "Entradas que serão usadas",
+    "inputs": {
+      "section": "O texto atual desta seção",
+      "document": "As demais seções do documento e os documentos anteriores do processo",
+      "process": "Os dados do processo e a orientação do modelo do órgão"
+    },
+    "estimate": "Consumo estimado: {tokens} tokens",
+    "submit": "Gerar sugestão",
+    "submitting": "Enviando…",
+    "compareTitle": "Atual × Sugerido",
+    "current": "Atual",
+    "suggested": "Sugerido",
+    "placeholders": "{count, plural, =0 {Nenhum [a confirmar]} one {# [a confirmar] destacado} other {# [a confirmar] destacados}}",
+    "reviewedWarning": "Depois de aplicar, a seção precisará ser revisada novamente.",
+    "apply": "Aplicar",
+    "applying": "Aplicando…",
+    "discard": "Descartar",
+    "discarding": "Descartando…",
+    "regenerate": "Gerar de novo",
+    "applied": "Sugestão aplicada. A seção fica com revisão pendente até uma pessoa revisá-la.",
+    "undo": "Desfazer",
+    "undoing": "Desfazendo…",
+    "undone": "Texto anterior restaurado. A seção continua com revisão pendente.",
+    "undoConflict": "A seção foi editada depois da aplicação.",
+    "stale": "A seção mudou desde o pedido. Gere o ajuste novamente.",
+    "conflict": "O documento mudou. Confira a comparação e aplique de novo.",
+    "notOwned": "Só quem pediu o ajuste pode aplicá-lo.",
+    "discarded": "Sugestão descartada.",
+    "expired": "Esta sugestão expirou; gere novamente.",
+    "failed": "Não foi possível aplicar agora. Tente novamente.",
+    "inProgress": "Já há um ajuste em andamento nesta seção. Abrimos o acompanhamento dele.",
+    "close": "Fechar"
+  }
+}
