@@ -109,6 +109,44 @@ Geração assistida de documentos do planejamento (DEC-040 · DEC-037 · DEC-079
   completo em memória), `test/tenant-leak/ai-etp-draft.spec.ts` (PostgreSQL: RLS no contexto e no
   acesso, `etps` intacto).
 
+## Rascunho do TR — `draft.tr` (US-120 · RN-AI-43..46)
+
+- **Gerador** `application/term-draft.generator.ts` (`TERM_OF_REFERENCE`/`DRAFT`, registrado no
+  `onModuleInit`; reserva 40 mil tokens; sem resumo da necessidade — vem do ETP). Pedido: ETP não
+  cancelado (`DocumentFacade.aiChainSourceIn(…, 'ETP')`) senão 422 `AI_PREREQUISITE_MISSING` com
+  `meta.missing: ['ETP']` (TR em `DRAFT`/`RETURNED`, POL-02 com `TERM_UPDATE` e etapa vêm do
+  `aiTargetIn`). Job: ETP e DFD pela precedência aprovada → versão → rascunho (o `DfdSourceResolver`
+  generalizado é o próprio `aiChainSourceIn`), `TermFacade.aiDraftContextIn` (condições tipadas e
+  valor/origem), `EtpFacade.aiDraftContextIn` (origem do valor do ETP), `RiskFacade.aiContextIn`
+  (título, descrição, categoria, fase e tratamentos — nunca responsáveis, causa nem prazos),
+  `DocumentFacade.aiDraftSourceIn` (itens com `specification`/`acceptanceCriteria` em texto puro) e
+  `PriceResearchFacade.aiCompletedResearchIn`. ETP perdido entre o pedido e o job →
+  `CANCELED_BY_POLICY`.
+- **Contexto** `domain/term-draft-context.ts` (puro): partes/`inputRefs` `PROCESS`, `CATALOG`, o ETP
+  (`DOCUMENT_VERSION`/`DOCUMENT_DRAFT` + `USED_DRAFT_INPUTS`), `TERM_CONDITIONS` (condições como texto
+  — "12 meses", "30 dias", "5% do valor do contrato" — que viram fatos do GroundingGuard; as ausentes
+  listadas como `[a confirmar: …]`), `PROCESS_ITEMS`, DFD e `RISKS` (opcionais —
+  `MISSING_OPTIONAL_INPUT` `DFD`/`RISKS`/`TERM_ITEMS`), `PRICE_RESEARCH` (só concluída) e
+  `TEMPLATE_VERSION`. Valor (RN-AI-46, lacuna 3): total da pesquisa concluída; senão o valor do TR com
+  origem `PRICE_RESEARCH`, ou `ETP` quando o ETP está vinculado à pesquisa — nunca `MANUAL`. Sigilo:
+  `withoutMoney` como no ETP.
+- **Guarda** `TermConditionGuard` (pós-processador do gerador, antes do GroundingGuard — mesma
+  mecânica da `EtpDecisionGuard`): condição tipada ausente → `[a confirmar]` na seção que a cita
+  (`OBJECT`/`DEADLINES` vigência; `DEADLINES`/`DELIVERY` prazo; `PAYMENT`; `GUARANTEES` garantias;
+  `DELIVERY` local; `CONTRACTOR_OBLIGATIONS` subcontratação; `SELECTION_CRITERIA` critério e
+  adjudicação), `ESTIMATED_VALUE` sem valor da pesquisa e `BUDGET_ADEQUACY` sempre (lacuna 4 — sem
+  dotação no MVP 1). Multa com percentual fora das entradas: o GroundingGuard troca (RN-AI-45).
+- **Prompt** `prompts/draft.tr/prompt.ts` `1.0.0`; fixture `test/fixtures/ai/draft.tr/padrao.json`
+  (as 15 seções). `pnpm ai:eval --suite tr` (`src/cli/ai-eval-tr.ts`): condições preenchidas, TR sem
+  condições, sem pesquisa e com seções importadas do ETP.
+- **Web:** o assistente do TR fica no `TermEditor` (o `DocumentView` recebe
+  `showAiAssistant={false}`), com o `TermAiRequestGuide` (entradas, condições preenchidas e
+  ausentes) no `requestGuide` do painel e a adoção pelo autosave; a notificação abre
+  `/processos/{id}/tr/{termId}?ia=`.
+- **Testes:** `domain/term-draft-context.spec.ts`, `presentation/term-draft.routes.spec.ts` (Gherkin
+  completo em memória), `test/tenant-leak/ai-term-draft.spec.ts` (PostgreSQL: RLS no contexto e no
+  acesso, `terms_of_reference` e `document_items` intactos).
+
 ## Proposta do mapa de riscos — `draft.risk_map` (US-119 · RN-AI-38..41)
 
 - **Gerador** `application/risk-map-draft.generator.ts` (`RISK_MAP`/`DRAFT`, registrado no

@@ -9,11 +9,13 @@ import {
 } from '#modules/ai/infrastructure/fake-ai.provider.js';
 
 import { etpEvalSuite } from './ai-eval-etp.js';
+import { termEvalSuite } from './ai-eval-tr.js';
 import { formatEvalReport, runAiEval } from './ai-eval.js';
 
 /*
- * `pnpm ai:eval [--provider fake] [--model <id>] [--suite dfd|etp] [--out relatorio.json]` (US-115 ·
- * tests.md §3.10): fora do CI. `--suite etp` (US-118) avalia o prompt `draft.etp`. Hoje só o
+ * `pnpm ai:eval [--provider fake] [--model <id>] [--suite dfd|etp|tr] [--out relatorio.json]`
+ * (US-115 · tests.md §3.10): fora do CI. `--suite etp` (US-118) avalia o prompt `draft.etp`;
+ * `--suite tr` (US-120), o `draft.tr`. Hoje só o
  * `FakeAiProvider` — os adaptadores reais entram com a ADR-013 (PEND-21) e passam a ser escolhidos
  * aqui para a comparação. O relatório JSON (sem o texto gerado) vai para
  * `--out`; o resumo, para o stdout.
@@ -36,15 +38,15 @@ async function main(): Promise<number> {
     );
     return 2;
   }
-  if (values.suite !== 'dfd' && values.suite !== 'etp') {
-    process.stderr.write(`Suíte "${values.suite}" desconhecida. Use --suite dfd ou etp.\n`);
+  if (values.suite !== 'dfd' && values.suite !== 'etp' && values.suite !== 'tr') {
+    process.stderr.write(`Suíte "${values.suite}" desconhecida. Use --suite dfd, etp ou tr.\n`);
     return 2;
   }
   const report = await runAiEval({
     provider: new FakeAiProvider(loadFakeAiFixtures(DEFAULT_FAKE_AI_FIXTURES_DIR)),
     model: values.model,
     pricing: AI_PRICING_TABLE,
-    ...(values.suite === 'etp' ? etpEvalSuite() : {}),
+    ...(values.suite === 'etp' ? etpEvalSuite() : values.suite === 'tr' ? termEvalSuite() : {}),
   });
   write(formatEvalReport(report));
   if (values.out !== undefined) {

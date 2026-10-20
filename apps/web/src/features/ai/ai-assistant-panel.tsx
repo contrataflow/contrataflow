@@ -18,7 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
-import type { SyntheticEvent } from 'react';
+import type { ReactNode, SyntheticEvent } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useIdempotentMutation } from '@/lib/api/use-idempotent-mutation';
@@ -59,6 +59,11 @@ export interface AiAssistantPanelProps {
   readonly onApplied?: ((document: DocumentDto) => void) | undefined;
   /** Mapa de riscos (US-119): a proposta traz riscos, aplicados pelo RSK-11. */
   readonly riskContext?: AiRiskContext | undefined;
+  /**
+   * `AiRequestForm` do documento montado pelo editor com os dados já carregados (US-120: as
+   * entradas e as condições do TR preenchidas e ausentes).
+   */
+  readonly requestGuide?: ReactNode;
 }
 
 export { previewText };
@@ -80,6 +85,7 @@ export function AiAssistantPanel({
   onClose,
   onApplied,
   riskContext,
+  requestGuide,
 }: AiAssistantPanelProps) {
   const t = useTranslations('ai');
   const tenantId = useTenantId();
@@ -96,8 +102,13 @@ export function AiAssistantPanel({
   const [needSummary, setNeedSummary] = useState('');
   const [instruction, setInstruction] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  /** `AI_PREREQUISITE_MISSING` (US-118 · FA-01): sem DFD, o atalho para os documentos. */
-  const [missingDfd, setMissingDfd] = useState(false);
+  /**
+   * `AI_PREREQUISITE_MISSING` (US-118/US-120 · FA-01): sem o documento de origem (DFD do ETP, ETP
+   * do TR), o atalho para os documentos.
+   */
+  const [missingSource, setMissingSource] = useState(false);
+  /** O TR não usa resumo da necessidade: ela vem do ETP (US-120 · passo 2). */
+  const asksSummary = targetModule !== 'TERM_OF_REFERENCE';
   const [notice, setNotice] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const { generation, stalled } = useAiGeneration(generationId);
@@ -135,7 +146,7 @@ export function AiAssistantPanel({
       return;
     }
     setFormError(null);
-    setMissingDfd(false);
+    setMissingSource(false);
     try {
       const created = await request.submit(undefined);
       queryClient.setQueryData(aiKeys.generation(tenantId, created.id), created);
@@ -154,8 +165,10 @@ export function AiAssistantPanel({
         return;
       }
       if (apiError?.code === 'AI_PREREQUISITE_MISSING') {
-        setMissingDfd(true);
-        setFormError(t('form.prerequisiteDfd'));
+        setMissingSource(true);
+        setFormError(
+          t(targetModule === 'TERM_OF_REFERENCE' ? 'form.prerequisiteEtp' : 'form.prerequisiteDfd'),
+        );
         return;
       }
       setFormError(
@@ -239,23 +252,26 @@ export function AiAssistantPanel({
         {tab === 'generate' ? (
           <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)} noValidate>
             {targetModule === 'ETP' ? <EtpRequestGuide /> : null}
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">{t('form.needSummary')}</span>
-              <textarea
-                className="min-h-28 rounded-md border border-border p-2"
-                value={needSummary}
-                required={needSummaryRequired}
-                aria-invalid={formError !== null && summaryInvalid}
-                maxLength={AI_NEED_SUMMARY_MAX + 200}
-                onChange={(event) => {
-                  setNeedSummary(event.target.value);
-                }}
-              />
-              <span className="text-xs text-muted-foreground">{t('form.needSummaryHint')}</span>
-              <span className="text-xs text-muted-foreground" aria-live="polite">
-                {t('form.needSummaryCount', { count: summaryLength })}
-              </span>
-            </label>
+            {requestGuide}
+            {asksSummary ? (
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="font-medium">{t('form.needSummary')}</span>
+                <textarea
+                  className="min-h-28 rounded-md border border-border p-2"
+                  value={needSummary}
+                  required={needSummaryRequired}
+                  aria-invalid={formError !== null && summaryInvalid}
+                  maxLength={AI_NEED_SUMMARY_MAX + 200}
+                  onChange={(event) => {
+                    setNeedSummary(event.target.value);
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">{t('form.needSummaryHint')}</span>
+                <span className="text-xs text-muted-foreground" aria-live="polite">
+                  {t('form.needSummaryCount', { count: summaryLength })}
+                </span>
+              </label>
+            ) : null}
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium">{t('form.instruction')}</span>
               <textarea
@@ -269,7 +285,7 @@ export function AiAssistantPanel({
             </label>
             {formError ? (
               <Alert tone="error" title={formError}>
-                {missingDfd ? (
+                {missingSource ? (
                   <Link href={`/processos/${processId}`} className="text-primary underline">
                     {t('form.prerequisiteLink')}
                   </Link>
@@ -358,6 +374,8 @@ const MISSING_INPUTS = [
   'ITEMS',
   'ETP_ITEMS',
   'ALTERNATIVES',
+  'RISKS',
+  'TERM_ITEMS',
   'EXPECTED_DATE',
   'PCA_LINK',
   'DFD',

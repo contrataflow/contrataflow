@@ -11,6 +11,8 @@ export interface RiskAiContextEntry {
   readonly id: string;
   readonly code: string;
   readonly title: string;
+  /** US-120 (RN-AI-43): a descrição do risco, sem causa, consequência nem responsáveis. */
+  readonly description: string | null;
   readonly categoryId: string;
   readonly phase: RiskPhase;
   readonly level: RiskLevel;
@@ -49,6 +51,7 @@ export class RiskFacade {
       id: risk.id,
       code: risk.code,
       title: risk.title,
+      description: risk.description,
       categoryId: risk.categoryId,
       phase: risk.phase,
       level: risk.level,

@@ -360,7 +360,7 @@ function stageDeadline(type: StageDeadlineType, event: DomainEventEnvelope<Paylo
  * US-115: o solicitante (`requestedById`, o próprio ator do envelope) recebe o aviso; o link abre o
  * editor do documento com o painel de IA na geração (`?ia=<generationId>`). US-119: a proposta do
  * mapa de riscos abre a tela de riscos (SCR-011), onde os riscos são aplicados. US-118: a do ETP
- * abre o editor do ETP (SCR-008).
+ * abre o editor do ETP (SCR-008). US-120: a do TR abre o editor do TR (SCR-012).
  */
 function aiGeneration(
   type: 'AI_GENERATION_READY' | 'AI_GENERATION_FAILED',
@@ -377,7 +377,9 @@ function aiGeneration(
           ? `/processos/${event.processId}`
           : event.payload.targetModule === 'ETP'
             ? `/processos/${event.processId}/etp/${documentId}`
-            : `/processos/${event.processId}/documentos/${documentId}`;
+            : event.payload.targetModule === 'TERM_OF_REFERENCE'
+              ? `/processos/${event.processId}/tr/${documentId}`
+              : `/processos/${event.processId}/documentos/${documentId}`;
   return plan(type, event, {
     recipients: [{ kind: 'USER', userId: id(event.payload, 'requestedById') }],
     entityType: 'AiGeneration',

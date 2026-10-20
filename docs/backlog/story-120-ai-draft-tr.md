@@ -248,8 +248,8 @@ Feature: Gerar o rascunho do TR com IA a partir do ETP
 - **Lacunas nas fontes canônicas:**
   1. *(Resolvida em entities.md §5.10, 2026-10-16.)* TRM-06: `REPLACE` leva a proveniência da origem (pendente) ou nenhuma; `APPEND` mantém a do destino e fica pendente se a origem estiver pendente.
   2. *(Resolvida em entities.md §5.10.)* Percentual → `VALUE`.
-  3. A RN-AI-46 não lista as origens aceitas para o valor do TR; assume-se `estimatedValueSource = PRICE_RESEARCH`, ou `ETP` quando o ETP está vinculado à pesquisa, e nunca `MANUAL`, `DFD` nem `TERM`. Propor explicitar na RN-AI-46.
-  4. A seção `BUDGET_ADEQUACY`, semeada no template do TR (US-036), não consta da RN-AI-43 e não há dado de dotação no MVP 1; sai `[a confirmar: dotação orçamentária]`. Propor declará-la na RN-AI-43.
+  3. *(Adotada na implementação, 2026-10-20 — `term-draft-context.ts`.)* A RN-AI-46 não lista as origens aceitas para o valor do TR; assume-se `estimatedValueSource = PRICE_RESEARCH`, ou `ETP` quando o ETP está vinculado à pesquisa, e nunca `MANUAL`, `DFD` nem `TERM`. Propor explicitar na RN-AI-46.
+  4. *(Adotada na implementação, 2026-10-20 — `TermConditionGuard`.)* A seção `BUDGET_ADEQUACY`, semeada no template do TR (US-036), não consta da RN-AI-43 e não há dado de dotação no MVP 1; sai `[a confirmar: dotação orçamentária]`. Propor declará-la na RN-AI-43.
   5. *(Resolvidas — ver US-118, lacunas 2 e 3.)* Pré-requisito perdido → `CANCELED_BY_POLICY`; lista de entradas montada pelo cliente.
 
 ## Impacto técnico

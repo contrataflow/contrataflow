@@ -758,6 +758,12 @@ export class DocumentFacade {
           calculationMemo: item.calculationMemo
             ? richTextPlainText(item.calculationMemo).trim() || null
             : null,
+          specification: item.specification
+            ? richTextPlainText(item.specification).trim() || null
+            : null,
+          acceptanceCriteria: item.acceptanceCriteria
+            ? richTextPlainText(item.acceptanceCriteria).trim() || null
+            : null,
         })),
     };
   }

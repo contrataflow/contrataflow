@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type {
+  AiGenerationDto,
   TermDetailDto,
   TermDetailMeta,
   TermPriceResearchRefDto,
@@ -185,7 +186,51 @@ const saved = (sectionKey: string, revision: number, state = 'FILLED') =>
     { headers: { ETag: `"s${String(revision)}"` } },
   );
 
+const GEN = ID(950);
+
+/** Proposta pronta do rascunho do TR com IA (US-120): só OBJECT. */
+const AI_PROPOSAL = {
+  id: GEN,
+  processId: PROCESS_ID,
+  documentId: TERM_ID,
+  targetModule: 'TERM_OF_REFERENCE',
+  kind: 'DRAFT',
+  action: null,
+  sectionKey: null,
+  baseRevision: null,
+  status: 'SUCCEEDED',
+  requestedBy: { id: ANA, name: 'Ana Souza' },
+  createdAt: AT,
+  startedAt: AT,
+  completedAt: AT,
+  expiresAt: '2026-10-26T17:31:00.000Z',
+  provider: 'fake',
+  model: 'fake-draft-1',
+  promptKey: 'draft.tr',
+  promptVersion: '1.0.0',
+  usage: { inputTokens: 900, outputTokens: 300, totalTokens: 1200 },
+  placeholdersCount: 0,
+  groundingReplacements: 0,
+  inputRefs: [],
+  output: {
+    sections: [
+      {
+        sectionKey: 'OBJECT',
+        title: 'Definição do objeto',
+        content: doc('Objeto sugerido pela IA.'),
+        placeholdersCount: 0,
+        groundingReplacements: 0,
+      },
+    ],
+    warnings: [],
+  },
+  errorCode: null,
+  appliedAt: null,
+  appliedTargets: null,
+} satisfies AiGenerationDto;
+
 interface ApiOptions {
+  readonly ai?: boolean;
   readonly term?: TermDetailDto;
   readonly meta?: TermDetailMeta;
   readonly putSection?: (call: number, init?: RequestInit) => Response | Promise<Response>;
@@ -193,13 +238,62 @@ interface ApiOptions {
 }
 
 function mockApi(options: ApiOptions = {}) {
-  const base = mockProcessApi({ permissions: ['PROCESS_VIEW'] });
+  const base = mockProcessApi({
+    permissions:
+      options.ai === true ? ['PROCESS_VIEW', 'AI_GENERATE', 'TERM_UPDATE'] : ['PROCESS_VIEW'],
+  });
   let current = options.term ?? termDto();
   let sectionCalls = 0;
   let patchCalls = 0;
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
     const url = requestUrl(input);
     const method = init?.method ?? 'GET';
+    if (options.ai === true) {
+      if (method === 'GET' && url.startsWith('/api/v1/ai/availability')) {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              enabled: true,
+              providerAvailable: true,
+              canGenerate: true,
+              reasons: [],
+              monthly: { percentUsed: 10 },
+              userDaily: { used: 1, limit: 40 },
+            },
+          }),
+        );
+      }
+      if (method === 'GET' && url === `/api/v1/ai-generations/${GEN}`) {
+        return Promise.resolve(jsonResponse({ data: AI_PROPOSAL }));
+      }
+      if (method === 'GET' && url === `/api/v1/documents/${TERM_ID}`) {
+        return Promise.resolve(
+          jsonResponse({
+            data: { id: TERM_ID, version: 1, draftContent: current.draftContent },
+            meta: { allowedActions: ['UPDATE'] },
+          }),
+        );
+      }
+      if (method === 'POST' && url === `/api/v1/documents/${TERM_ID}/ai-apply`) {
+        const applied = {
+          ...current.draftContent.sections,
+          OBJECT: {
+            ...emptySection(5),
+            state: 'FILLED' as const,
+            content: doc('Objeto sugerido pela IA.'),
+          },
+        };
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              document: { id: TERM_ID, version: 2, draftContent: { sections: applied } },
+              appliedSectionKeys: ['OBJECT'],
+              versionCreated: null,
+            },
+          }),
+        );
+      }
+    }
     if (method === 'GET' && url === `/api/v1/terms/${TERM_ID}`) {
       return Promise.resolve(
         jsonResponse(
@@ -775,5 +869,50 @@ describe('term-editor-model', () => {
     expect(objectProblem('curto')).toBe('O objeto deve ter entre 10 e 2.000 caracteres.');
     expect(objectProblem('a'.repeat(10))).toBeNull();
     expect(objectProblem('a'.repeat(2001))).not.toBeNull();
+  });
+});
+
+describe('SCR-012 — rascunho do TR com IA (US-120)', () => {
+  it('?ia= abre a proposta no editor; aplicar adota a seção (texto, estado, completude e If-Match "s5")', async () => {
+    const fetchMock = mockApi({
+      ai: true,
+      term: termDto({ contractDurationMonths: 12, paymentTermDays: 30 }),
+    });
+    const user = userEvent.setup();
+    renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} aiGenerationId={GEN} />);
+    expect(await screen.findByRole('button', { name: 'Gerar rascunho com IA' })).toBeTruthy();
+    const panel = await screen.findByRole('complementary', {
+      name: 'Assistente de redação com IA',
+    });
+    await user.click(await within(panel).findByRole('button', { name: 'Aplicar 1 seção' }));
+    const field = screen.getByLabelText<HTMLTextAreaElement>('Texto da seção Definição do objeto');
+    await waitFor(() => {
+      expect(field.value).toBe('Objeto sugerido pela IA.');
+    });
+    await waitFor(() => {
+      expect(navButton(/Definição do objeto, .*Preenchida/)).toBeTruthy();
+    });
+    expect(completeness()).toContain('33%');
+    await user.type(field, ' Revisado.');
+    await waitFor(() => {
+      expect(sectionPuts(fetchMock)).toHaveLength(1);
+    });
+    expect(headerOf(sectionPuts(fetchMock)[0]?.[1], 'If-Match')).toBe('"s5"');
+
+    // O formulário do pedido lista as condições do TR preenchidas e as ausentes.
+    await user.click(within(panel).getByRole('tab', { name: 'Gerar' }));
+    expect(
+      within(within(panel).getByTestId('term-ai-filled')).getByText('Vigência do contrato'),
+    ).toBeTruthy();
+    expect(
+      within(within(panel).getByTestId('term-ai-missing')).getByText('Local de entrega'),
+    ).toBeTruthy();
+  });
+
+  it('sem AI_GENERATE o botão "Gerar rascunho com IA" não aparece', async () => {
+    mockApi();
+    renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
+    expect(await screen.findByRole('navigation', { name: 'Seções do TR' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Gerar rascunho com IA' })).toBeNull();
   });
 });

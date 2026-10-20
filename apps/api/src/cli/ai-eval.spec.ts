@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeAiProvider } from '#modules/ai/infrastructure/fake-ai.provider.js';
 
 import { etpEvalSuite } from './ai-eval-etp.js';
+import { termEvalSuite } from './ai-eval-tr.js';
 import { EVAL_SECTIONS, formatEvalReport, runAiEval, syntheticProcesses } from './ai-eval.js';
 
 const PRICING = {
@@ -97,5 +98,27 @@ describe('pnpm ai:eval (US-115 · tests.md §3.10)', () => {
     expect(report.summary).toMatchObject({ total: 4, outputInvalid: 0, failures: 0 });
     // A resposta genérica não decide nada: a guarda acrescenta conclusão, solução e parcelamento.
     expect(report.summary.placeholders).toBeGreaterThanOrEqual(4 * 3);
+  });
+  it('suíte draft.tr (US-120): sem condições, sem pesquisa e com seções importadas do ETP, com a guarda das condições', async () => {
+    const suite = termEvalSuite();
+    expect(suite.prompt.key).toBe('draft.tr');
+    expect(suite.sections).toHaveLength(15);
+    expect(suite.processes.map((process) => process.label)).toEqual([
+      'Condições preenchidas e pesquisa concluída',
+      'TR sem condições preenchidas',
+      'Sem pesquisa de preços concluída',
+      'Seções importadas do ETP em rascunho',
+    ]);
+    const report = await runAiEval({
+      provider: new FakeAiProvider(),
+      model: 'modelo-eval',
+      pricing: PRICING,
+      ...suite,
+    });
+    expect(report.promptKey).toBe('draft.tr');
+    expect(report.summary).toMatchObject({ total: 4, outputInvalid: 0, failures: 0 });
+    // Sem condições: a guarda acrescenta as marcações de prazos, garantias, local e critério.
+    const [filled, empty] = report.cases;
+    expect(empty?.placeholders ?? 0).toBeGreaterThan(filled?.placeholders ?? 0);
   });
 });

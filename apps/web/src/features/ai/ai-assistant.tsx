@@ -6,6 +6,7 @@ import { Button } from '@contrataflow/ui';
 import type { DocumentDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { usePermission } from '@/lib/permissions/use-permission';
 
@@ -31,6 +32,8 @@ export interface AiAssistantProps {
   readonly onApplied?: ((document: DocumentDto) => void) | undefined;
   /** Mapa de riscos (US-119): faixas vigentes, riscos registrados e a recarga após o RSK-11. */
   readonly riskContext?: AiRiskContext | undefined;
+  /** `AiRequestForm` montado pelo editor (US-120: entradas e condições do TR). */
+  readonly requestGuide?: ReactNode;
 }
 
 /**
@@ -48,6 +51,7 @@ export function AiAssistant({
   initialGenerationId = null,
   onApplied,
   riskContext,
+  requestGuide,
 }: AiAssistantProps) {
   const t = useTranslations('ai');
   const { allowed } = usePermission('AI_GENERATE');
@@ -93,6 +97,7 @@ export function AiAssistant({
           initialGenerationId={startAt}
           onApplied={onApplied}
           riskContext={riskContext}
+          requestGuide={requestGuide}
           onClose={() => {
             setOpen(false);
             opener.current?.focus();

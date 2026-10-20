@@ -40,6 +40,33 @@
         "parceling": "O parcelamento ou não da solução."
       },
       "estimate": "Consumo estimado: até 40 mil tokens."
+    },
+    "prerequisiteEtp": "Elabore o ETP antes de gerar o TR com IA.",
+    "tr": {
+      "inputsTitle": "O que a IA vai usar",
+      "inputs": {
+        "etp": "O ETP do processo: a versão aprovada; sem ela, a finalizada; sem nenhuma, o rascunho atual.",
+        "dfd": "O DFD e os riscos com seus tratamentos, quando houver.",
+        "items": "Os itens do TR com as especificações e os critérios de aceitação.",
+        "priceResearch": "A pesquisa de preços concluída: o valor estimado vem só dela."
+      },
+      "filledTitle": "Condições do TR que a IA vai citar",
+      "missingTitle": "Condições não informadas — sairão como [a confirmar]",
+      "noneFilled": "Nenhuma condição contratual preenchida ainda.",
+      "conditionsHint": "A IA não altera as condições nem os itens: preencha-as no painel \"Condições contratuais\".",
+      "conditions": {
+        "contractDurationMonths": "Vigência do contrato",
+        "executionDeadline": "Prazo de execução ou entrega",
+        "paymentTermDays": "Prazo de pagamento",
+        "productWarrantyMonths": "Garantia do objeto",
+        "contractGuaranteePercent": "Garantia contratual",
+        "deliveryLocation": "Local de entrega",
+        "allowsSubcontracting": "Possibilidade de subcontratação",
+        "selectionCriterionId": "Critério de julgamento",
+        "awardType": "Forma de adjudicação"
+      },
+      "filledSections": "Seções já preenchidas (por exemplo, importadas do ETP) virão desmarcadas na proposta.",
+      "estimate": "Consumo estimado: até 40 mil tokens."
     }
   },
   "progress": {
@@ -220,7 +247,9 @@
     "DFD": "O processo ainda não tem DFD; a sugestão usou só o que mais existir.",
     "RISK_MAP": "O Mapa de Riscos ainda não existe; a sugestão usou os demais documentos.",
     "ETP_ITEMS": "O ETP ainda não tem itens; as quantidades saíram como [a confirmar].",
-    "ALTERNATIVES": "Nenhuma alternativa cadastrada no ETP; a descrição da solução ficou como [a confirmar]."
+    "ALTERNATIVES": "Nenhuma alternativa cadastrada no ETP; a descrição da solução ficou como [a confirmar].",
+    "RISKS": "O processo ainda não tem riscos registrados; obrigações e sanções usaram só o modelo e a lei.",
+    "TERM_ITEMS": "O TR ainda não tem itens; as especificações saíram como [a confirmar]."
   },
   "apply": {
     "legend": "Escolha as seções a aplicar",

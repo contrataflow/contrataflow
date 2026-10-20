@@ -81,12 +81,15 @@ export interface AiDraftSource {
   readonly sectionStates: Readonly<Record<string, SectionState>>;
   /**
    * Linhas de item do documento (DOC-06): Decimal(18,4) como string; a memória de cálculo do ETP
-   * (US-022) como texto puro (`null` = sem memória).
+   * (US-022) e a especificação e os critérios de aceitação do TR (US-038 · US-120) como texto puro
+   * (`null` = sem texto).
    */
   readonly items: readonly {
     readonly processItemId: string;
     readonly quantity: string;
     readonly calculationMemo: string | null;
+    readonly specification: string | null;
+    readonly acceptanceCriteria: string | null;
   }[];
 }
 

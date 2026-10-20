@@ -420,6 +420,18 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
         ),
       );
       expect(etp.link).toBe(`/processos/${PROCESS}/etp/${documentId}?ia=${generationId}`);
+      // Rascunho do TR (US-120): o editor do TR (SCR-012).
+      const term = notify(
+        planNotification(
+          envelope(eventType, {
+            generationId,
+            documentId,
+            targetModule: 'TERM_OF_REFERENCE',
+            requestedById: USER,
+          }),
+        ),
+      );
+      expect(term.link).toBe(`/processos/${PROCESS}/tr/${documentId}?ia=${generationId}`);
       const withoutProcess = notify(
         planNotification(envelope(eventType, { generationId }, { processId: null })),
       );

@@ -28,6 +28,7 @@ import { useId, useState } from 'react';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { ImportEtpPanel, StaleEtpBanner } from './import-etp-panel';
+import { TermAiRequestGuide } from './term-ai-request-guide';
 import { TermCompletionPanel } from './term-completion-panel';
 import { TermConditionsPanel } from './term-conditions-panel';
 import {
@@ -40,6 +41,7 @@ import type { TermNavItem } from './term-editor-model';
 import { EstimatedValueText, TermGeneralDataPanel } from './term-general-data-panel';
 import { TermItemsPanel } from './term-items-panel';
 import { useTerm } from './term.api';
+import { AiAssistant } from '../ai/ai-assistant';
 import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { AiSectionChange } from '../ai/ai-section-assistant';
 import { NotApplicableSummary, NotApplicableToggle } from '../etp/etp-editor';
@@ -59,7 +61,9 @@ import { TEXTAREA_CLASS } from '../processes/form-field';
  * Abaixo de 768 px a navegação recolhe para o menu "Seções". US-037: "Importar do ETP" (TRM-05/06 —
  * oculto sem `UPDATE`) e o aviso de ETP atualizado desde a última importação (RN-TR-24); depois da
  * importação o editor recarrega o TR e remonta com o rascunho novo. US-038: os painéis "Itens"
- * (DOC-06/07) e "Condições contratuais" (TRM-04), abertos sob demanda.
+ * (DOC-06/07) e "Condições contratuais" (TRM-04), abertos sob demanda. US-120: "Gerar rascunho com
+ * IA" (SCR-117) — o painel lista as entradas e as condições preenchidas e ausentes; a aplicação
+ * (DOC-26) é adotada pelo autosave, como no ETP.
  */
 
 function timeOf(value: string | number, timeZone: string): string {
@@ -77,9 +81,12 @@ const STATE_ICON: Readonly<Record<SectionState, string>> = {
 export function TermEditor({
   processId,
   termId,
+  aiGenerationId = null,
 }: {
   readonly processId: string;
   readonly termId: string;
+  /** `?ia=<generationId>`: abre o assistente de IA na geração (US-120 · SCR-117). */
+  readonly aiGenerationId?: string | null | undefined;
 }) {
   const t = useTranslations('term.editor');
   const query = useTerm(termId);
@@ -116,6 +123,7 @@ export function TermEditor({
       processId={processId}
       term={query.data.term}
       meta={query.data.meta}
+      aiGenerationId={aiGenerationId}
       onReload={async () => {
         await query.refetch();
         setGeneration((value) => value + 1);
@@ -130,9 +138,16 @@ export interface TermEditorLoadedProps {
   readonly meta: TermDetailMeta;
   /** US-037: recarregar o TR (depois da importação do ETP ou de um conflito). */
   readonly onReload?: () => Promise<void>;
+  readonly aiGenerationId?: string | null | undefined;
 }
 
-export function TermEditorLoaded({ processId, term, meta, onReload }: TermEditorLoadedProps) {
+export function TermEditorLoaded({
+  processId,
+  term,
+  meta,
+  onReload,
+  aiGenerationId = null,
+}: TermEditorLoadedProps) {
   const t = useTranslations('term.editor');
   const session = useShellSession();
   const timeZone = session.activeTenant.timezone;
@@ -241,6 +256,32 @@ export function TermEditorLoaded({ processId, term, meta, onReload }: TermEditor
             {t('import.action')}
           </Button>
         ) : null}
+        {/* US-120: rascunho do TR com IA (SCR-117) — aplicado pelo DOC-26, adotado pelo autosave. */}
+        <AiAssistant
+          processId={processId}
+          documentId={term.documentId}
+          targetModule="TERM_OF_REFERENCE"
+          editable={term.status === 'DRAFT' || term.status === 'RETURNED'}
+          initialGenerationId={aiGenerationId}
+          requestGuide={<TermAiRequestGuide term={term} />}
+          onApplied={(document) => {
+            const sections = document.draftContent.sections;
+            setStates((previous) => ({
+              ...previous,
+              ...Object.fromEntries(
+                Object.entries(sections).map(([key, section]) => [key, section.state]),
+              ),
+            }));
+            setSavedDrafts((previous) => ({
+              ...previous,
+              ...Object.fromEntries(
+                Object.entries(sections).map(([key, section]) => [key, sectionDraftOf(section)]),
+              ),
+            }));
+            setRecalculated(true);
+            void autosave.adoptSections(document);
+          }}
+        />
         {allowed ? (
           <AutosaveIndicator
             status={autosave.snapshot.status}

@@ -153,11 +153,16 @@ async function evaluate(process: SyntheticProcess, options: EvalOptions): Promis
   const sections = options.sections ?? EVAL_SECTIONS;
   const context = sanitizeContext(
     [
-      {
-        ref: { kind: 'USER_SUMMARY', id: null },
-        label: 'Resumo da necessidade',
-        data: process.needSummary,
-      },
+      // O TR (US-120) não usa resumo da necessidade: sem resumo, sem a parte.
+      ...(process.needSummary === ''
+        ? []
+        : [
+            {
+              ref: { kind: 'USER_SUMMARY' as const, id: null },
+              label: 'Resumo da necessidade',
+              data: process.needSummary,
+            },
+          ]),
       ...process.parts,
     ],
     { isBudgetConfidential: process.isBudgetConfidential, maxChars: 240_000 },

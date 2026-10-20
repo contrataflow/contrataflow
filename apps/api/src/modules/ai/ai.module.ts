@@ -38,6 +38,7 @@ import type { AiSettings } from './application/ports.js';
 import { RequestAiGenerationCommand } from './application/request-ai-generation.command.js';
 import { RiskMapDraftGenerator } from './application/risk-map-draft.generator.js';
 import { SectionAdjustGenerator } from './application/section-adjust.generator.js';
+import { TermDraftGenerator } from './application/term-draft.generator.js';
 import { GroundingGuard } from './domain/grounding-guard.js';
 import {
   DEFAULT_FAKE_AI_FIXTURES_DIR,
@@ -70,6 +71,7 @@ import { ProcessModule } from '../process/process.module.js';
 import { RiskModule } from '../risk/risk.module.js';
 import { TenancyFacade } from '../tenancy/application/tenancy.facade.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
+import { TermModule } from '../term/term.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): gerações em memória. */
 const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
@@ -85,7 +87,7 @@ const MAX_CONTEXT_CHARS = 240_000;
  * a camada (AI-01..04, pipeline, `AiProvider` + `FakeAiProvider`, disjuntor, custo, auditoria,
  * timeline e notificações). US-116: o portão do órgão (`AiTenantGateService`, registrado no
  * `AiTenantGateRegistry`) e AI-05/AI-06. Geradores concretos (US-117: `DfdDraftGenerator`; US-118: `EtpDraftGenerator`; US-119:
- * `RiskMapDraftGenerator`; US-121: `SectionAdjustGenerator` por documento; US-120) e GroundingGuard
+ * `RiskMapDraftGenerator`; US-120: `TermDraftGenerator`; US-121: `SectionAdjustGenerator` por documento) e GroundingGuard
  * (US-122) entram pelos registros `AiGeneratorRegistry` e `AiPostProcessorRegistry`.
  */
 @Module({
@@ -101,6 +103,7 @@ const MAX_CONTEXT_CHARS = 240_000;
     ProcessModule,
     RiskModule,
     TenancyModule,
+    TermModule,
     DocumentProcessContextModule,
     AiSuggestionSourceModule,
     ProcessItemCatalogModule,
@@ -162,6 +165,7 @@ const MAX_CONTEXT_CHARS = 240_000;
     DfdDraftGenerator,
     EtpDraftGenerator,
     RiskMapDraftGenerator,
+    TermDraftGenerator,
   ],
 })
 export class AiModule implements OnModuleInit {
@@ -175,6 +179,7 @@ export class AiModule implements OnModuleInit {
     private readonly dfdDraft: DfdDraftGenerator,
     private readonly etpDraft: EtpDraftGenerator,
     private readonly riskMapDraft: RiskMapDraftGenerator,
+    private readonly termDraft: TermDraftGenerator,
     private readonly documents: DocumentFacade,
     private readonly processes: ProcessFacade,
     private readonly catalog: CatalogFacade,
@@ -185,7 +190,8 @@ export class AiModule implements OnModuleInit {
    * Implementa a porta `AiSuggestionSource` lida por `document`/`risk` (DEC-079) e registra o
    * portão do órgão (US-116: IA ligada, limites, reserva e avisos de consumo) e o GroundingGuard
    * na cadeia de pós-processamento (US-122 · RN-AI-54) e os geradores concretos (US-117: `DFD`/`DRAFT`;
-   * US-118: `ETP`/`DRAFT`; US-119: `RISK_MAP`/`DRAFT`; US-121: `<documento>`/`SECTION` nos quatro documentos).
+   * US-118: `ETP`/`DRAFT`; US-119: `RISK_MAP`/`DRAFT`; US-120: `TERM_OF_REFERENCE`/`DRAFT`; US-121:
+   * `<documento>`/`SECTION` nos quatro documentos).
    */
   onModuleInit(): void {
     this.suggestions.register(this.source);
@@ -199,7 +205,13 @@ export class AiModule implements OnModuleInit {
     const sectionAdjusts = AI_TARGET_MODULES.map(
       (targetModule) => new SectionAdjustGenerator(targetModule, deps),
     );
-    for (const generator of [this.dfdDraft, this.etpDraft, this.riskMapDraft, ...sectionAdjusts]) {
+    for (const generator of [
+      this.dfdDraft,
+      this.etpDraft,
+      this.riskMapDraft,
+      this.termDraft,
+      ...sectionAdjusts,
+    ]) {
       if (this.generators.find(generator.targetModule, generator.kind) === undefined) {
         this.generators.register(generator);
       }
