@@ -680,7 +680,9 @@ export class UpdateQuotationCommand extends PriceSourceCommand<UpdateQuotationIn
     await touchSource(this.sources, tx, source, stamp, source.version);
     await this.recorder.quotation(tx, 'price_research.quotation_update', saved, research.processId);
     await this.recalculator.recalculate(tx, research, stamp);
-    return this.presenter.quotation(saved, { masked: false });
+    // O recálculo reavalia destaque/validade (US-030): a resposta traz o estado já recalculado.
+    const current = await this.sources.findQuotation(tx, quotationId);
+    return this.presenter.quotation(current ?? saved, { masked: false });
   }
 }
 
@@ -794,7 +796,9 @@ async function persistTransition(
   await touchSource(deps.sources, tx, input.source, input.stamp, input.source.version);
   await input.record(saved);
   await deps.recalculator.recalculate(tx, input.research, input.stamp);
-  return { dto: deps.presenter.quotation(saved, { masked: false }), quotation: saved };
+  // O recálculo reavalia destaque/validade (US-030): a resposta traz o estado já recalculado.
+  const current = (await deps.sources.findQuotation(tx, saved.id)) ?? saved;
+  return { dto: deps.presenter.quotation(current, { masked: false }), quotation: current };
 }
 
 /** `ExcludeQuotationCommand` — PRS-16 (fluxo principal 3 · FA-01/02/03 · RN-PRICE-30..34). */

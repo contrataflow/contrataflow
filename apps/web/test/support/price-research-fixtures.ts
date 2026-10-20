@@ -123,7 +123,7 @@ export function priceItem(n: number, extra: Partial<PriceItemDto> = {}): PriceIt
     totalPrice: null,
     valuesMasked: false,
     belowMinimumJustification: null,
-    alerts: [{ code: 'NO_VALID_QUOTES' }, { code: 'BELOW_MINIMUM_QUOTES' }],
+    alerts: [{ code: 'NO_VALID_QUOTES' }],
     calculatedAt: null,
     sortOrder: n,
     version: 1,

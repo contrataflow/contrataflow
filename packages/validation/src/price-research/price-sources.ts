@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { PRICE_RESEARCH_LIMITS } from './price-research.js';
+import { PRICE_RESEARCH_LIMITS, PRICE_RESEARCH_MESSAGES } from './price-research.js';
 import { PRICE_SOURCE_REQUIRED_FIELDS } from '../catalog/metadata.js';
 import type { PriceSourceRequiredField } from '../catalog/metadata.js';
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
@@ -251,17 +251,44 @@ export const upsertQuotationsSchema = z
 export type UpsertQuotations = z.infer<typeof upsertQuotationsSchema>;
 
 /** PRS-14 — `PATCH /quotations/{quotationId}` (`If-Match` = versão da cotação). */
+/** Campos calculados da `Quotation` — somente leitura no PRS-14 (US-030 · V-01 · `NOT_ALLOWED`). */
+export const QUOTATION_CALCULATED_FIELDS = ['outlierFlag', 'isExpired'] as const;
+
 export const updateQuotationSchema = z
   .strictObject({
     unitPrice: z.string().max(40).optional(),
     brandModel: clearableText(PRICE_SOURCE_LIMITS.brandModelMax),
+    ...Object.fromEntries(
+      QUOTATION_CALCULATED_FIELDS.map((field) => [field, z.unknown().optional()]),
+    ),
   })
-  .refine((value) => value.unitPrice !== undefined || value.brandModel !== undefined, {
-    error: PRICE_SOURCE_MESSAGES.emptyPatch,
-    params: { code: 'REQUIRED' },
+  .superRefine((value, context) => {
+    const calculated = QUOTATION_CALCULATED_FIELDS.filter(
+      (field) => (value as Record<string, unknown>)[field] !== undefined,
+    );
+    for (const field of calculated) {
+      context.addIssue({
+        code: 'custom',
+        path: [field],
+        params: { code: 'NOT_ALLOWED' },
+        message: PRICE_RESEARCH_MESSAGES.calculatedField,
+      });
+    }
+    if (calculated.length > 0) return;
+    if (value.unitPrice === undefined && value.brandModel === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: [],
+        params: { code: 'REQUIRED' },
+        message: PRICE_SOURCE_MESSAGES.emptyPatch,
+      });
+    }
   })
   .meta({ id: 'QuotationUpdateRequest' });
-export type UpdateQuotation = z.infer<typeof updateQuotationSchema>;
+export interface UpdateQuotation {
+  readonly unitPrice?: string | undefined;
+  readonly brandModel?: string | null | undefined;
+}
 
 /**
  * PRS-16 — `POST /quotations/{quotationId}/exclude` (`If-Match` = versão da cotação): motivo

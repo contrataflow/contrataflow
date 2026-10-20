@@ -224,6 +224,18 @@ export class PrismaPriceSourceRepository implements PriceSourceRepository {
     );
   }
 
+  async updateAssessments(
+    tx: TenantTx,
+    quotations: readonly Pick<Quotation, 'id' | 'outlierFlag' | 'isExpired'>[],
+  ): Promise<void> {
+    for (const quotation of quotations) {
+      await tx.quotation.updateMany({
+        where: { id: quotation.id },
+        data: { outlierFlag: quotation.outlierFlag, isExpired: quotation.isExpired },
+      });
+    }
+  }
+
   async deleteQuotation(
     tx: TenantTx,
     quotation: Quotation,
@@ -387,6 +399,22 @@ export class InMemoryPriceSourceRepository implements PriceSourceRepository {
       updatedById: quotation.updatedById,
       version: expectedVersion + 1,
     });
+    return Promise.resolve();
+  }
+
+  updateAssessments(
+    _tx: TenantTx,
+    quotations: readonly Pick<Quotation, 'id' | 'outlierFlag' | 'isExpired'>[],
+  ): Promise<void> {
+    for (const quotation of quotations) {
+      const current = this.quotationsInTenant().find((candidate) => candidate.id === quotation.id);
+      if (current === undefined) continue;
+      this.quotations.set(quotation.id, {
+        ...current,
+        outlierFlag: quotation.outlierFlag,
+        isExpired: quotation.isExpired,
+      });
+    }
     return Promise.resolve();
   }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canRemoveItem,
+  consolidateAlerts,
   countersOf,
   createPriceItem,
   createPriceResearch,
@@ -9,7 +10,6 @@ import {
   parametersSnapshot,
   planPriceItems,
   PRICE_RESEARCH_SETTING_KEYS,
-  quotationAlerts,
   recalculate,
   referenceDateErrors,
   withReferenceDate,
@@ -167,15 +167,20 @@ describe('Alertas, contadores e criação', () => {
       { id: `p-${id}`, tenantId: 't', priceResearchId: 'r', parameters, userId: 'u', now: NOW },
     );
 
-  it('sem cotações: NO_VALID_QUOTES e BELOW_MINIMUM_QUOTES; com o mínimo, nenhum', () => {
-    expect(quotationAlerts(0, parameters).map((alert) => alert.code)).toEqual([
-      'NO_VALID_QUOTES',
-      'BELOW_MINIMUM_QUOTES',
-    ]);
-    expect(quotationAlerts(2, parameters).map((alert) => alert.code)).toEqual([
-      'BELOW_MINIMUM_QUOTES',
-    ]);
-    expect(quotationAlerts(3, parameters)).toEqual([]);
+  it('sem cotações: só NO_VALID_QUOTES (RN-PRICE-50); abaixo do mínimo: BELOW_MINIMUM_QUOTES; com o mínimo, nenhum', () => {
+    const alerts = (validQuotationsCount: number) =>
+      consolidateAlerts(
+        {
+          validQuotationsCount,
+          coefficientOfVariation: null,
+          hasOutliers: false,
+          hasExpired: false,
+        },
+        parameters,
+      ).map((alert) => alert.code);
+    expect(alerts(0)).toEqual(['NO_VALID_QUOTES']);
+    expect(alerts(2)).toEqual(['BELOW_MINIMUM_QUOTES']);
+    expect(alerts(3)).toEqual([]);
   });
 
   it('PriceItem.create: sortOrder = sequence, sem cotações, versão 1', () => {
@@ -183,7 +188,7 @@ describe('Alertas, contadores e criação', () => {
       sortOrder: 3,
       validQuotationsCount: 0,
       recommendedUnitPrice: null,
-      alerts: [{ code: 'NO_VALID_QUOTES' }, { code: 'BELOW_MINIMUM_QUOTES' }],
+      alerts: [{ code: 'NO_VALID_QUOTES' }],
       version: 1,
     });
   });
@@ -242,7 +247,16 @@ describe('Alertas, contadores e criação', () => {
       research,
       [stale, second],
       { now: later, userId: 'v' },
-      new Map([['p-i2', ['10.0000', '12.0000', '11.0000']]]),
+      new Map([
+        [
+          'p-i2',
+          {
+            validPrices: ['10.0000', '12.0000', '11.0000'],
+            hasOutliers: false,
+            hasExpired: false,
+          },
+        ],
+      ]),
     );
     expect(result.research).toMatchObject({
       referenceDate: '2026-10-01',

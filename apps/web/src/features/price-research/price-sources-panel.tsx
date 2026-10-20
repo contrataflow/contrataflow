@@ -196,6 +196,9 @@ export function PriceSourcesPanel({
         {sources.data.map((source) => {
           const open = expanded === source.id;
           const expired = source.quotations.filter((quotation) => quotation.isExpired).length;
+          const outliers = source.quotations.filter(
+            (quotation) => quotation.status === 'VALID' && quotation.outlierFlag !== 'NONE',
+          ).length;
           return (
             <li
               key={source.id}
@@ -212,6 +215,7 @@ export function PriceSourcesPanel({
                   <p className="text-xs text-muted-foreground">
                     {t('quotationsCount', { count: source.quotations.length })}
                     {expired > 0 ? ` · ${t('expiredCount', { count: expired })}` : null}
+                    {outliers > 0 ? ` · ${t('outlierCount', { count: outliers })}` : null}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -260,6 +264,7 @@ export function PriceSourcesPanel({
                       source={source}
                       items={items}
                       decimals={research.parameters.unitPriceDecimals}
+                      outlierParameters={research.parameters}
                       editable={editable}
                       canExclude={allowedActions.includes('EXCLUDE_QUOTATION')}
                       onSaved={async () => {

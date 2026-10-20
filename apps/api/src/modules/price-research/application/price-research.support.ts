@@ -456,6 +456,7 @@ export class PriceResearchRecorder {
     tx: TenantTx,
     research: PriceResearch,
     trigger: string,
+    alertsChanged: boolean,
   ): Promise<void> {
     await this.audit.record(tx, {
       action: 'price_research.recalculate',
@@ -467,6 +468,8 @@ export class PriceResearchRecorder {
         itemsCount: research.itemsCount,
         itemsWithAlertsCount: research.itemsWithAlertsCount,
         trigger,
+        // US-030 ("Auditoria"): o conjunto de alertas de algum item mudou neste recálculo.
+        alertsChanged,
       },
     });
   }

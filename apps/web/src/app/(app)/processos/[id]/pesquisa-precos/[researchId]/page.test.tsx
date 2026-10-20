@@ -100,7 +100,7 @@ describe('/processos/[id]/pesquisa-precos/[researchId] (SCR-009 · US-024)', () 
 
     const table = await screen.findByRole('table', { name: 'Itens da pesquisa de preços' });
     expect(within(table).getAllByText('Sem cotações válidas')).toHaveLength(3);
-    expect(within(table).getAllByText('Abaixo do mínimo de cotações')).toHaveLength(3);
+    expect(within(table).queryByText('Abaixo do mínimo de cotações')).toBeNull();
     expect(within(table).getByText('Item número 2')).toBeTruthy();
     expect(callsTo(fetchMock, 'GET', `${RESEARCH_URL}/items?page=1&pageSize=100`)).toHaveLength(1);
     expect(await seriousA11yViolations()).toEqual([]);

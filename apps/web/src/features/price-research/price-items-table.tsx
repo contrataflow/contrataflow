@@ -2,9 +2,10 @@
 
 import { Button, cx } from '@contrataflow/ui';
 import { PRICE_RESEARCH_MESSAGES } from '@contrataflow/validation';
-import type { PriceItemAlertCode, PriceItemDto } from '@contrataflow/validation';
+import type { PriceItemDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
+import { AlertBadgeList } from './price-alert-badges';
 import { isItemMasked } from './price-research-model';
 
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 });
@@ -38,32 +39,6 @@ function RecommendedValue({
     return <span className="text-muted-foreground">{t('notCalculated')}</span>;
   }
   return <span>{format.format(Number(item.recommendedUnitPrice))}</span>;
-}
-
-function AlertChips({ item }: { readonly item: PriceItemDto }) {
-  const t = useTranslations('priceResearch.items');
-  if (item.alerts.length === 0) {
-    return <span className="text-sm text-muted-foreground">{t('noAlerts')}</span>;
-  }
-  const labels: Record<PriceItemAlertCode, string> = {
-    NO_VALID_QUOTES: t('alerts.NO_VALID_QUOTES'),
-    BELOW_MINIMUM_QUOTES: t('alerts.BELOW_MINIMUM_QUOTES'),
-    HIGH_CV: t('alerts.HIGH_CV'),
-    HAS_OUTLIERS: t('alerts.HAS_OUTLIERS'),
-    EXPIRED_QUOTES: t('alerts.EXPIRED_QUOTES'),
-  };
-  return (
-    <ul className="flex flex-wrap gap-1">
-      {item.alerts.map((alert) => (
-        <li
-          key={alert.code}
-          className="rounded-control border border-warning/30 bg-warning-soft px-2 py-0.5 text-xs font-medium"
-        >
-          {labels[alert.code]}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export interface PriceItemsTableProps {
@@ -169,7 +144,7 @@ export function PriceItemsTable({
               {quantityFormat.format(Number(item.quantity))}
             </td>
             <td className="md:table-cell md:px-3 md:py-2">
-              <AlertChips item={item} />
+              <AlertBadgeList alerts={item.alerts} />
             </td>
             <td className="text-sm md:table-cell md:px-3 md:py-2 md:text-right">
               <span className="text-muted-foreground md:hidden">{t('columns.recommended')}: </span>

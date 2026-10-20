@@ -85,6 +85,15 @@ export interface PriceSourceRepository {
   insertQuotations(tx: TenantTx, quotations: readonly Quotation[]): Promise<void>;
   /** Grava preço/marca/validade com `version + 1`; `VersionConflictError` se a versão mudou. */
   updateQuotation(tx: TenantTx, quotation: Quotation, expectedVersion: number): Promise<void>;
+  /**
+   * Destaque e validade calculados no recálculo (US-030 · RN-PRICE-48/49): só `outlierFlag` e
+   * `isExpired`, sem versão nova (campos do sistema — não invalidam o `If-Match` de quem edita a
+   * cotação). A pesquisa está travada por quem chama.
+   */
+  updateAssessments(
+    tx: TenantTx,
+    quotations: readonly Pick<Quotation, 'id' | 'outlierFlag' | 'isExpired'>[],
+  ): Promise<void>;
   /** Remoção física da cotação (PRS-15) com a versão do `If-Match`. */
   deleteQuotation(tx: TenantTx, quotation: Quotation, expectedVersion: number): Promise<void>;
   /** Cotações registradas por item (válidas ou não) — `quotationsCount` e confirmação do PRS-08. */

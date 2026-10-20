@@ -61,6 +61,8 @@ import {
   canRemoveItem,
   createPriceItem,
   createPriceResearch,
+  NO_QUOTATIONS,
+  outlierRangeErrors,
   planPriceItems,
   planPriceItemUpdate,
   recalculateItem,
@@ -68,7 +70,7 @@ import {
   withReferenceDate,
 } from '../domain/price-research.js';
 import type { PlannedPriceItem, PriceItem, PriceResearch } from '../domain/price-research.js';
-import { validPricesByItem } from '../domain/price-source.js';
+import { quotationFactsByItem } from '../domain/price-source.js';
 
 /*
  * Comandos da pesquisa de preços (US-024 · PRS-02/04/06/08): o padrão `TransactionalCommandHandler`.
@@ -411,6 +413,11 @@ export class UpdatePriceResearchHeaderCommand extends PriceResearchCommand<
       const errors = referenceDateErrors(patch.referenceDate, localDateOf(now, timezone));
       if (errors.length > 0) throw validationError(errors);
     }
+    // FA-03 (RN-PRICE-47): parâmetros de cálculo alterados de fato recalculam todos os itens; V-02
+    // (US-030): o limite inferior de destaque menor que o superior, antes de qualquer gravação.
+    const parameters = calculationParameterChanges(research.parameters, patch);
+    const rangeErrors = outlierRangeErrors(parameters.parameters);
+    if (rangeErrors.length > 0) throw validationError(rangeErrors);
 
     const stamp = { now, userId: this.userId() };
     const changes: AuditChange[] = [];
@@ -438,8 +445,6 @@ export class UpdatePriceResearchHeaderCommand extends PriceResearchCommand<
       const { timezone } = await this.numbering.settingsOf(tx);
       await this.quotations.refreshExpiry(tx, next, { timezone, stamp });
     }
-    // FA-03 (RN-PRICE-47): parâmetros de cálculo alterados de fato recalculam todos os itens.
-    const parameters = calculationParameterChanges(research.parameters, patch);
     if (parameters.changed.length > 0) next = { ...next, parameters: parameters.parameters };
 
     const view = await this.documents.typedDocumentIn(tx, research.documentId);
@@ -757,10 +762,11 @@ export class UpdatePriceItemCommand extends PriceResearchCommand<
     }
 
     const stamp = { now, userId: this.userId() };
-    const prices =
-      validPricesByItem(await this.sources.listQuotations(tx, research.id)).get(item.id) ?? [];
+    const quotations =
+      quotationFactsByItem(await this.sources.listQuotations(tx, research.id)).get(item.id) ??
+      NO_QUOTATIONS;
     const edited = { ...item, ...plan.next, updatedAt: now, updatedById: stamp.userId };
-    const calculated = recalculateItem(edited, prices, research.parameters, stamp);
+    const calculated = recalculateItem(edited, quotations, research.parameters, stamp);
     try {
       await this.researches.updateItem(tx, { ...calculated, calculatedAt: now }, expectedVersion);
     } catch (error) {

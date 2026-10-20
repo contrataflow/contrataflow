@@ -156,6 +156,14 @@
       "HAS_OUTLIERS": "Valores atípicos",
       "EXPIRED_QUOTES": "Cotações vencidas"
     },
+    "alertsLabel": "Alertas do item",
+    "alertHints": {
+      "NO_VALID_QUOTES": "Nenhuma cotação válida neste item. Registre ao menos uma para calcular o valor.",
+      "BELOW_MINIMUM_QUOTES": "Menos cotações válidas que o mínimo da pesquisa. Busque mais fontes ou justifique ao concluir.",
+      "HIGH_CV": "O coeficiente de variação está acima do limite da pesquisa: os preços estão muito dispersos.",
+      "HAS_OUTLIERS": "Há cotações muito acima ou abaixo da mediana das demais. Revise-as; nada foi excluído automaticamente.",
+      "EXPIRED_QUOTES": "Há cotações com data anterior à validade do tipo de fonte em relação à data-base."
+    },
     "retry": "Tentar novamente",
     "remove": "Remover",
     "removeItem": "Remover o item {number}",
@@ -195,6 +203,7 @@
     "reference": "Referência: {organization} — {document}",
     "quotationsCount": "{count, plural, =0 {Nenhum preço lançado} one {# preço lançado} other {# preços lançados}}",
     "expiredCount": "{count, plural, one {# cotação vencida} other {# cotações vencidas}}",
+    "outlierCount": "{count, plural, one {# cotação destoante} other {# cotações destoantes}}",
     "inactiveType": "Tipo inativo",
     "attachmentRequired": "Este tipo de fonte exige o anexo do orçamento. Envie-o abaixo.",
     "actions": {
@@ -289,6 +298,13 @@
       "excluded": "Desconsiderada",
       "excludedHint": "Cotação desconsiderada ({reason}). Restaure-a para editar o preço.",
       "expired": "Vencida",
+      "expiredHint": "A data da fonte é anterior à data-base menos a validade do tipo de fonte.",
+      "outlierLow": "Abaixo da mediana",
+      "outlierHigh": "Acima da mediana",
+      "outlierLowHint": "Preço abaixo de {percent}% da mediana das demais cotações válidas do item. Revise; nada foi excluído automaticamente.",
+      "outlierHighHint": "Preço acima de {percent}% da mediana das demais cotações válidas do item. Revise; nada foi excluído automaticamente.",
+      "outlierLowMasked": "Preço destoante, abaixo das demais cotações válidas do item (valores sigilosos).",
+      "outlierHighMasked": "Preço destoante, acima das demais cotações válidas do item (valores sigilosos).",
       "masked": "Sigiloso",
       "unitPriceLabel": "Preço unitário do item {number}",
       "brandModelLabel": "Marca/modelo do item {number}",

@@ -1,4 +1,5 @@
 import type {
+  OutlierFlag,
   PriceCalculationMethod,
   PriceDefaultMethod,
   PriceResearchParameters,
@@ -51,6 +52,16 @@ interface RawStatistics {
   readonly cv: Dec | null;
 }
 
+/** Mediana de valores já ordenados; `null` sem valores. */
+function medianOfSorted(values: readonly Dec[]): Dec | null {
+  const count = values.length;
+  if (count === 0) return null;
+  const middle = Math.floor(count / 2);
+  const upper = values[middle];
+  if (upper === undefined) return null;
+  return count % 2 === 1 ? upper : (values[middle - 1] ?? upper).plus(upper).dividedBy(2);
+}
+
 function rawStatistics(prices: readonly string[]): RawStatistics {
   const values = prices.map((price) => new D(price)).sort((a, b) => a.comparedTo(b));
   const count = values.length;
@@ -68,11 +79,7 @@ function rawStatistics(prices: readonly string[]): RawStatistics {
     };
   }
   const mean = values.reduce((sum, value) => sum.plus(value), new D(0)).dividedBy(count);
-  const middle = Math.floor(count / 2);
-  const median =
-    count % 2 === 1
-      ? (values[middle] ?? first)
-      : (values[middle - 1] ?? first).plus(values[middle] ?? first).dividedBy(2);
+  const median = medianOfSorted(values) ?? first;
   if (count < 2) {
     return { count, mean, median, lowest: first, highest: last, stdDeviation: null, cv: null };
   }
@@ -202,4 +209,54 @@ export function sameCalculation(
   b: { readonly [K in keyof PriceItemCalculation]: PriceItemCalculation[K] | null },
 ): boolean {
   return (Object.keys(a) as (keyof PriceItemCalculation)[]).every((key) => a[key] === b[key]);
+}
+
+// --- Destaque das cotações (US-030 · RN-PRICE-48 · DEC-020) --------------------------------------
+
+/** Limiares de destaque do snapshot (percentuais `numeric(9,4)` como string). */
+export type OutlierThresholds = Pick<
+  PriceResearchParameters,
+  'outlierLowerPercent' | 'outlierUpperPercent'
+>;
+
+/**
+ * `Quotation.flagOutlier` (RN-PRICE-48): compara o preço com a mediana das DEMAIS cotações válidas
+ * do item. Com menos de 2 outras a comparação não é confiável (`NONE`); abaixo de
+ * `outlierLowerPercent`% da mediana → `LOW`; acima de `outlierUpperPercent`% → `HIGH`. Só sinaliza:
+ * nenhuma cotação é excluída automaticamente (DEC-020). Sem arredondamento intermediário.
+ */
+export function flagOutlier(
+  unitPrice: string,
+  otherPrices: readonly string[],
+  thresholds: OutlierThresholds,
+): OutlierFlag {
+  if (otherPrices.length < 2) return 'NONE';
+  const median = medianOfSorted(
+    otherPrices.map((price) => new D(price)).sort((a, b) => a.comparedTo(b)),
+  );
+  if (median === null) return 'NONE';
+  const price = new D(unitPrice);
+  if (price.lessThan(median.times(thresholds.outlierLowerPercent).dividedBy(100))) return 'LOW';
+  if (price.greaterThan(median.times(thresholds.outlierUpperPercent).dividedBy(100))) return 'HIGH';
+  return 'NONE';
+}
+
+/**
+ * RN-PRICE-48 para todas as cotações válidas de um item: cada uma contra as demais (O(n²) — o teto
+ * prático é de dezenas de fontes por item). Devolve o destaque por id da cotação.
+ */
+export function outlierFlagsOf(
+  quotations: readonly { readonly id: string; readonly unitPrice: string }[],
+  thresholds: OutlierThresholds,
+): Map<string, OutlierFlag> {
+  return new Map(
+    quotations.map((quotation, index) => [
+      quotation.id,
+      flagOutlier(
+        quotation.unitPrice,
+        quotations.filter((_, other) => other !== index).map((other) => other.unitPrice),
+        thresholds,
+      ),
+    ]),
+  );
 }

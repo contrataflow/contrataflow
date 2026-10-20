@@ -28,7 +28,7 @@ Pesquisa de preços: itens, fontes, cotações e estatística (DEC-040, nível 4
   RN-PRICE-12) e `SELECT … FOR UPDATE` da linha da pesquisa. PRS-04/06/08 emitem
   `PriceResearchRecalculated` (só ids e contadores); PRS-06/08 gravam `document.items_update`,
   PRS-04 `document.draft_update` (título como impressão digital).
-- **Cálculo nesta story**: alertas iniciais `NO_VALID_QUOTES`/`BELOW_MINIMUM_QUOTES` e contadores
+- **Cálculo nesta story**: alerta inicial `NO_VALID_QUOTES` (RN-PRICE-50 da US-030) e contadores
   (`quotationAlerts`, `countersOf`, `recalculate`). Estatística, método e totais = US-029/US-030;
   cotações (e a contagem `quotationsCount`, hoje sempre 0) = US-026.
 - **Uso do item** (`PriceItemUsageReader`): registrado no `ProcessItemUsageRegistry` — excluir item
@@ -152,3 +152,34 @@ Pesquisa de preços: itens, fontes, cotações e estatística (DEC-040, nível 4
   `domain/price-item-update.spec.ts`, `presentation/price-calculation.routes.spec.ts` (8 categorias +
   FA-01..06) e `test/tenant-leak/price-calculation.spec.ts` (PostgreSQL: colunas decimais, falha
   induzida, concorrência, RLS e CHECK do manual).
+
+## US-030 — Sinalizar outliers e alertas de conformidade (PRS-03/05)
+
+- **Sem rota nova**: estende o `PriceCalculationService` — todo recálculo (PRS-04/06/07/08/13/14/15/16/17/19/20)
+  avalia as cotações e consolida os alertas na MESMA transação das estatísticas (nunca estatística nova
+  com alerta antigo).
+- **Domínio**: `flagOutlier`/`outlierFlagsOf` (`domain/price-calculation.ts` — mediana das DEMAIS
+  cotações `VALID` do item, `decimal.js`, menos de 2 outras = `NONE`; RN-PRICE-48), `assessQuotations`/
+  `quotationFactsByItem` (`domain/price-source.ts` — `EXCLUDED` fica `NONE` e fora da mediana, RN-PRICE-52;
+  validade pelo `isSourceExpired` com a regra ATUAL do tipo no catálogo, RN-PRICE-49) e `consolidateAlerts`
+  (`domain/price-research.ts` — RN-PRICE-50: `NO_VALID_QUOTES` sozinho com 0 válidas, `BELOW_MINIMUM_QUOTES`
+  só com `0 < válidas < mínimo`, `HIGH_CV` com o CV gravado e ≥ 2 válidas, `HAS_OUTLIERS`, `EXPIRED_QUOTES`).
+  Nada é excluído automaticamente (DEC-020).
+- **Gravação**: `PriceSourceRepository.updateAssessments` grava `outlier_flag`/`is_expired` só das cotações
+  que mudaram, **sem `version + 1`** (campos do sistema: não invalidam o `If-Match` de quem edita outra
+  cotação). PRS-14/16/17 relêem a cotação depois do recálculo (a resposta traz o destaque atual).
+  `PriceSourceRulesReader`/`rulesOf` foram para `application/price-source-rules.ts` (o serviço os usa sem
+  ciclo de import; `price-source.support.ts` os reexporta).
+- **Auditoria/logs**: `price_research.recalculate` ganhou `metadata.alertsChanged`; logs
+  `price_research.alerts_changed` (por item, só códigos) e `price_research.outlier_calc_slow` (> 300 ms) —
+  nunca preços nem percentuais.
+- **Validação**: V-01 — `outlierFlag`/`isExpired` no PATCH da cotação (`QUOTATION_CALCULATED_FIELDS`) e
+  `alerts` no PRS-07 → 422 `NOT_ALLOWED`; V-02 — `outlierRangeErrors` no PRS-04 (inferior ≥ superior →
+  `OUT_OF_RANGE` nos dois campos).
+- **SCR-009**: `AlertBadgeList`, `OutlierBadge`, `ExpiredBadge` (`apps/web/src/features/price-research/
+price-alert-badges.tsx` — texto + tooltip focável; sob POL-09 sem percentuais) na tabela de itens, na
+  grade de preços e a contagem de destoantes no cartão da fonte.
+- **Testes**: `domain/price-alerts.spec.ts`, `presentation/price-alerts.routes.spec.ts` (8 categorias +
+  FA-01/03/04/05, V-01/V-02), `test/tenant-leak/price-alerts.spec.ts` (PostgreSQL: colunas, jsonb, rollback,
+  concorrência, RLS), `test/price-research/price-outliers.perf.ts` (50 fontes/item < 300 ms) e o E2E
+  "cotação destoante" em `apps/web/test/e2e/price-research.spec.ts`.

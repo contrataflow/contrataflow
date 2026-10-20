@@ -412,10 +412,8 @@ describe('Feature: Criar pesquisa de preços a partir dos itens do processo (US-
         [gravel.id, 3, '6.0000'],
       ]);
       for (const item of items) {
-        expect(item.alerts.map((alert) => alert.code)).toEqual([
-          'NO_VALID_QUOTES',
-          'BELOW_MINIMUM_QUOTES',
-        ]);
+        // RN-PRICE-50 (US-030): sem cotação válida, só NO_VALID_QUOTES.
+        expect(item.alerts.map((alert) => alert.code)).toEqual(['NO_VALID_QUOTES']);
         expect(item).toMatchObject({ quotationsCount: 0, valuesMasked: false, version: 1 });
       }
       expect(items[0]?.unit.allowsDecimal).toBe(false);

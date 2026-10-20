@@ -16,6 +16,10 @@ import type {
 } from '@contrataflow/validation';
 import { Decimal } from 'decimal.js';
 
+import { outlierFlagsOf } from './price-calculation.js';
+import type { OutlierThresholds } from './price-calculation.js';
+import type { ItemQuotationFacts } from './price-research.js';
+
 /*
  * Fontes de pesquisa e cotações (US-026 · entities.md §4.8 `PriceSource`/`Quotation` ·
  * RN-PRICE-21..29). `PriceSource` é a evidência (art. 23, § 1º, da Lei 14.133/2021) cujos campos
@@ -488,21 +492,71 @@ export function restoreQuotation(
   };
 }
 
-/** Cotações válidas por item (`status = VALID`) — o `validQuotationsCount` do recálculo. */
-/** RN-PRICE-41 (US-029): os preços das cotações `VALID` de cada item — a base das estatísticas. */
-export function validPricesByItem(
-  quotations: readonly Pick<Quotation, 'priceItemId' | 'status' | 'unitPrice'>[],
-): Map<string, string[]> {
-  const prices = new Map<string, string[]>();
+// --- Destaque e validade no recálculo (US-030 · RN-PRICE-48/49/52) ------------------------------
+
+/**
+ * `Quotation.flagOutlier` + `Quotation.computeExpiration` de todas as cotações da pesquisa: o
+ * destaque de cada `VALID` contra a mediana das demais `VALID` do mesmo item (RN-PRICE-48) e a
+ * validade pela regra do tipo da fonte (`isExpiredOf` — RN-PRICE-49). `EXCLUDED` é tratada como
+ * inexistente: não entra na mediana e fica `NONE` (RN-PRICE-52). Nada é excluído aqui (DEC-020).
+ * `changed` = as cotações cujo destaque/validade mudou (o resto volta como está).
+ */
+export function assessQuotations(
+  quotations: readonly Quotation[],
+  input: {
+    readonly thresholds: OutlierThresholds;
+    readonly isExpiredOf: (quotation: Quotation) => boolean;
+  },
+): { readonly quotations: readonly Quotation[]; readonly changed: readonly Quotation[] } {
+  const validByItem = new Map<string, Quotation[]>();
   for (const quotation of quotations) {
     if (quotation.status !== 'VALID') continue;
-    const list = prices.get(quotation.priceItemId) ?? [];
-    list.push(quotation.unitPrice);
-    prices.set(quotation.priceItemId, list);
+    const list = validByItem.get(quotation.priceItemId) ?? [];
+    list.push(quotation);
+    validByItem.set(quotation.priceItemId, list);
   }
-  return prices;
+  const flags = new Map<string, OutlierFlag>();
+  for (const list of validByItem.values()) {
+    for (const [id, flag] of outlierFlagsOf(list, input.thresholds)) flags.set(id, flag);
+  }
+  const changed: Quotation[] = [];
+  const assessed = quotations.map((quotation) => {
+    const outlierFlag = flags.get(quotation.id) ?? 'NONE';
+    const isExpired = input.isExpiredOf(quotation);
+    if (outlierFlag === quotation.outlierFlag && isExpired === quotation.isExpired) {
+      return quotation;
+    }
+    const next = { ...quotation, outlierFlag, isExpired };
+    changed.push(next);
+    return next;
+  });
+  return { quotations: assessed, changed };
 }
 
+/**
+ * RN-PRICE-41/50/52: por item, os preços das cotações `VALID` (a base das estatísticas) e se alguma
+ * delas está destacada ou vencida (os alertas `HAS_OUTLIERS`/`EXPIRED_QUOTES`).
+ */
+export function quotationFactsByItem(
+  quotations: readonly Pick<
+    Quotation,
+    'priceItemId' | 'status' | 'unitPrice' | 'outlierFlag' | 'isExpired'
+  >[],
+): Map<string, ItemQuotationFacts> {
+  const facts = new Map<string, ItemQuotationFacts>();
+  for (const quotation of quotations) {
+    if (quotation.status !== 'VALID') continue;
+    const current = facts.get(quotation.priceItemId);
+    facts.set(quotation.priceItemId, {
+      validPrices: [...(current?.validPrices ?? []), quotation.unitPrice],
+      hasOutliers: (current?.hasOutliers ?? false) || quotation.outlierFlag !== 'NONE',
+      hasExpired: (current?.hasExpired ?? false) || quotation.isExpired,
+    });
+  }
+  return facts;
+}
+
+/** Cotações válidas por item (`status = VALID`) — o `validQuotationsCount` do recálculo. */
 export function validQuotationCounts(
   quotations: readonly Pick<Quotation, 'priceItemId' | 'status'>[],
 ): Map<string, number> {

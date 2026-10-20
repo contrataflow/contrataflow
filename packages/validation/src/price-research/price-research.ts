@@ -108,6 +108,8 @@ export const PRICE_RESEARCH_MESSAGES = Object.freeze({
     'Este item foi alterado por outra pessoa. Recarregue para ver a versão atual.',
   recalculateUnavailable: 'Não foi possível calcular agora. Tente novamente em instantes.',
   parameterInvalid: 'Informe um valor dentro da faixa permitida.',
+  // US-030 — V-02.
+  outlierRange: 'O limite inferior de destaque deve ser menor que o superior.',
 });
 
 /** Título sugerido (RN-PRICE-07): "Pesquisa de preços — {código do processo}". */

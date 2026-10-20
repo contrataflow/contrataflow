@@ -1185,7 +1185,7 @@ Cabeçalho tipado da pesquisa. Seções de template: `METHODOLOGY`, `CONCLUSION`
 - **Unique:** `(tenant_id, price_item_id, price_source_id)`.
 - **Índices:** `(tenant_id, price_research_id)`.
 - **Check:** `status <> 'EXCLUDED' OR (exclusion_reason IS NOT NULL AND exclusion_justification IS NOT NULL)`.
-- **Implementação (US-026):** FKs compostas por tenant com `ON DELETE CASCADE` a partir de `price_research`, `price_items` (PRS-08) e `price_sources` (PRS-12); CHECK `unit_price > 0`; gatilho de colunas imutáveis (tenant, pesquisa, item, fonte); índice extra `(tenant_id, price_source_id)`. `unitPrice` normalizado com 4 casas (`decimal.js`); `isExpired` recalculado a cada gravação da fonte/cotação e quando a data-base muda (PRS-04).
+- **Implementação (US-026):** FKs compostas por tenant com `ON DELETE CASCADE` a partir de `price_research`, `price_items` (PRS-08) e `price_sources` (PRS-12); CHECK `unit_price > 0`; gatilho de colunas imutáveis (tenant, pesquisa, item, fonte); índice extra `(tenant_id, price_source_id)`. `unitPrice` normalizado com 4 casas (`decimal.js`); `isExpired` recalculado a cada gravação da fonte/cotação e quando a data-base muda (PRS-04). **US-030:** todo recálculo da pesquisa (`PriceCalculationService`) reavalia `outlierFlag` (mediana das demais `VALID` do item — RN-PRICE-48; `EXCLUDED` fica `NONE`) e `isExpired` (regra atual do tipo no catálogo — RN-PRICE-49, o que cobre mudança de metadados via PRS-20) e grava só as que mudaram, sem `version + 1`.
 
 #### Supplier (`suppliers`) — módulo `supplier` · Padrão + SD
 | Campo | Tipo | Null | Default | Regras |

@@ -2,7 +2,12 @@
 
 import { Alert, Button, cx, toast } from '@contrataflow/ui';
 import { PRICE_SOURCE_MESSAGES } from '@contrataflow/validation';
-import type { PriceItemDto, PriceSourceDto, QuotationDto } from '@contrataflow/validation';
+import type {
+  PriceItemDto,
+  PriceResearchParameters,
+  PriceSourceDto,
+  QuotationDto,
+} from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
@@ -11,6 +16,7 @@ import { isApiError } from '@/lib/api/api-error';
 import { newIdempotencyKey } from '@/lib/api/client';
 
 import { ExcludeQuotationDialog } from './exclude-quotation-dialog';
+import { ExpiredBadge, OutlierBadge } from './price-alert-badges';
 import { gridLines, gridRows, initialGridCells, toInputDecimal } from './price-source-model';
 import type { GridCell, GridRow } from './price-source-model';
 import {
@@ -30,7 +36,9 @@ type Column = 'unitPrice' | 'brandModel';
  * `If-Match` da fonte e a mesma `Idempotency-Key` ao reenviar os mesmos dados). Uma única célula já
  * gravada vai pelo PRS-14 (FA-03); "Remover" numa célula usa o PRS-15 (FA-04). Cotação desconsiderada
  * fica esmaecida e somente leitura, com o motivo em dica (FA-05); "Desconsiderar" (diálogo com motivo e
- * justificativa — PRS-16) e "Restaurar" (PRS-17) são de quem tem `EXCLUDE_QUOTATION` (US-027). Setas para cima/baixo mudam de item; para os lados,
+ * justificativa — PRS-16) e "Restaurar" (PRS-17) são de quem tem `EXCLUDE_QUOTATION` (US-027). Na
+ * "Situação", os selos de destaque e de validade calculados no recálculo (US-030 — `OutlierBadge`/
+ * `ExpiredBadge`). Setas para cima/baixo mudam de item; para os lados,
  * mudam de coluna nas bordas do texto. Em telas estreitas a grade rola na horizontal com a coluna
  * "Item" fixa.
  */
@@ -38,6 +46,7 @@ export function QuotationGrid({
   source,
   items,
   decimals,
+  outlierParameters,
   editable,
   canExclude,
   onSaved,
@@ -46,6 +55,11 @@ export function QuotationGrid({
   readonly source: PriceSourceDto;
   readonly items: readonly PriceItemDto[];
   readonly decimals: 2 | 4;
+  /** Limiares de destaque do snapshot (US-030 — tooltip do `OutlierBadge`). */
+  readonly outlierParameters: Pick<
+    PriceResearchParameters,
+    'outlierLowerPercent' | 'outlierUpperPercent'
+  >;
   readonly editable: boolean;
   /** `EXCLUDE_QUOTATION` em `meta.allowedActions` (US-027): desconsiderar e restaurar. */
   readonly canExclude: boolean;
@@ -308,11 +322,14 @@ export function QuotationGrid({
                           {t('excluded')}
                         </span>
                       ) : null}
-                      {row.quotation?.isExpired === true ? (
-                        <span className="rounded-control border border-warning/30 bg-warning-soft px-2 py-0.5 text-xs">
-                          {t('expired')}
-                        </span>
+                      {row.quotation?.status === 'VALID' ? (
+                        <OutlierBadge
+                          flag={row.quotation.outlierFlag}
+                          parameters={outlierParameters}
+                          masked={row.quotation.unitPriceMasked}
+                        />
                       ) : null}
+                      <ExpiredBadge isExpired={row.quotation?.isExpired === true} />
                       {canExclude && row.quotation?.status === 'VALID' ? (
                         <Button
                           size="sm"

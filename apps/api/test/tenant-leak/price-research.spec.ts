@@ -298,12 +298,12 @@ describe('Feature: Criar pesquisa de preços sobre PostgreSQL (US-024)', () => {
       {
         quantity: '100.0000',
         sort_order: 1,
-        alerts: [{ code: 'NO_VALID_QUOTES' }, { code: 'BELOW_MINIMUM_QUOTES' }],
+        alerts: [{ code: 'NO_VALID_QUOTES' }],
       },
       {
         quantity: '12.0000',
         sort_order: 2,
-        alerts: [{ code: 'NO_VALID_QUOTES' }, { code: 'BELOW_MINIMUM_QUOTES' }],
+        alerts: [{ code: 'NO_VALID_QUOTES' }],
       },
     ]);
     expect(after.timeline).toEqual([{ type: 'DOCUMENT_CREATED' }]);

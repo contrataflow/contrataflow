@@ -1901,7 +1901,7 @@ function buildPriceResearch(state, { id, code, title, referenceDate, quantities 
       totalPrice: null,
       valuesMasked: false,
       belowMinimumJustification: null,
-      alerts: [{ code: 'NO_VALID_QUOTES' }, { code: 'BELOW_MINIMUM_QUOTES' }],
+      alerts: [{ code: 'NO_VALID_QUOTES' }],
       calculatedAt: null,
       sortOrder: index + 1,
       version: 1,
@@ -2597,6 +2597,49 @@ async function handleQuotationImport(request, response, url, correlationId) {
 }
 
 /** PRS-09..15 sobre a pesquisa simulada; `true` quando respondeu. */
+/**
+ * US-030 (RN-PRICE-48/50): destaque de cada cotação válida contra a mediana das demais válidas do
+ * item (limiares do snapshot) e o alerta HAS_OUTLIERS do item. As demais regras do recálculo são
+ * cobertas nos testes da API.
+ */
+function assessOutliers(research) {
+  const lower = Number(research.header.parameters.outlierLowerPercent) / 100;
+  const upper = Number(research.header.parameters.outlierUpperPercent) / 100;
+  const median = (values) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  };
+  for (const quotation of research.quotations ?? []) {
+    const others = research.quotations
+      .filter(
+        (other) =>
+          other !== quotation &&
+          other.status === 'VALID' &&
+          other.priceItemId === quotation.priceItemId,
+      )
+      .map((other) => Number(other.unitPrice));
+    let flag = 'NONE';
+    if (quotation.status === 'VALID' && others.length >= 2) {
+      const reference = median(others);
+      const price = Number(quotation.unitPrice);
+      if (price < reference * lower) flag = 'LOW';
+      else if (price > reference * upper) flag = 'HIGH';
+    }
+    quotation.outlierFlag = flag;
+  }
+  for (const item of research.items) {
+    const outlier = research.quotations.some(
+      (quotation) => quotation.priceItemId === item.id && quotation.outlierFlag !== 'NONE',
+    );
+    const alerts = item.alerts.filter((alert) => alert.code !== 'HAS_OUTLIERS');
+    item.alerts = outlier ? [...alerts, { code: 'HAS_OUTLIERS' }] : alerts;
+  }
+  research.header.itemsWithAlertsCount = research.items.filter(
+    (item) => item.alerts.length > 0,
+  ).length;
+}
+
 async function handlePriceSources(request, response, url, correlationId) {
   if (await handleQuotationImport(request, response, url, correlationId)) return true;
   const list = /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/sources$/.exec(url.pathname);
@@ -2687,6 +2730,7 @@ async function handlePriceSources(request, response, url, correlationId) {
     }
     quotation.version += 1;
     quotation.updatedAt = new Date().toISOString();
+    assessOutliers(owner);
     const source = owner.sources.find((candidate) => candidate.id === quotation.priceSourceId);
     if (source) source.version += 1;
     send(response, 200, { data: quotation }, { ETag: `"${String(quotation.version)}"` });
@@ -2742,6 +2786,7 @@ async function handlePriceSources(request, response, url, correlationId) {
       });
     }
     source.version += 1;
+    assessOutliers(research);
     send(
       response,
       200,

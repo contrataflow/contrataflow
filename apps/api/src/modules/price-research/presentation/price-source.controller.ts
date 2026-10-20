@@ -234,7 +234,7 @@ export class PriceSourceController {
     auditActions: ['price_research.quotation_update'],
     responses: {
       200: {
-        description: `Preço (> 0, casas do snapshot — 422 \`INVALID_DECIMAL\` em \`unitPrice\`) e/ou marca/modelo (≤ 200). Cotação \`EXCLUDED\` → 409 \`INVALID_STATE\`. \`If-Match\` = versão da cotação (412 \`VERSION_CONFLICT\`); a fonte ganha versão nova. Grava \`price_research.quotation_update\`. ${WRITE_RULES}`,
+        description: `Preço (> 0, casas do snapshot — 422 \`INVALID_DECIMAL\` em \`unitPrice\`) e/ou marca/modelo (≤ 200). Cotação \`EXCLUDED\` → 409 \`INVALID_STATE\`. \`outlierFlag\`/\`isExpired\` são calculados (US-030 · RN-PRICE-48/49): no corpo → 422 \`NOT_ALLOWED\` no campo; a resposta traz os valores já recalculados. \`If-Match\` = versão da cotação (412 \`VERSION_CONFLICT\`); a fonte ganha versão nova. Grava \`price_research.quotation_update\`. ${WRITE_RULES}`,
         schema: dataEnvelope(quotationSchema),
       },
     },

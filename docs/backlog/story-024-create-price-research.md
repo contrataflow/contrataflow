@@ -57,7 +57,7 @@ Permitir criar uma pesquisa válida em até 1 minuto, com 100% das pesquisas con
    3. verifica a unicidade da pesquisa (índice parcial `singleton_key`) e a existência de itens;
    4. cria o `Document` pela fachada do módulo `document` (tipo `PRICE_RESEARCH`, template, número/código pela máscara, `confidentiality`, `responsibleId`, `draftContent` com as seções `METHODOLOGY` e `CONCLUSION` do template);
    5. lê `priceResearch.*` e grava `PriceResearch` com o snapshot (RN-PRICE-05) e `referenceDate`;
-   6. cria os `PriceItem` (quantidade conforme RN-PRICE-04, `sortOrder` = `ProcessItem.sequence`, `alerts = [{code:"NO_VALID_QUOTES"},{code:"BELOW_MINIMUM_QUOTES"}]` pelo cálculo inicial de US-029/US-030) e atualiza `itemsCount`/`itemsWithAlertsCount`;
+   6. cria os `PriceItem` (quantidade conforme RN-PRICE-04, `sortOrder` = `ProcessItem.sequence`, `alerts = [{code:"NO_VALID_QUOTES"}]` pelo cálculo inicial de US-029/US-030 — RN-PRICE-50: `BELOW_MINIMUM_QUOTES` só com `0 < validQuotationsCount < minQuotations`, ajustado na US-030 em 2026-10-19) e atualiza `itemsCount`/`itemsWithAlertsCount`;
    7. grava `AuditLog` `document.create`, o evento `DocumentCreated` (routing key `document.created.price_research`) no outbox e — pelo projetor síncrono — a entrada `DOCUMENT_CREATED` na timeline;
    8. confirma a transação.
 6. A API responde **201** com a pesquisa, `Location: /api/v1/price-research/{id}` e `ETag: "1"`.
@@ -151,7 +151,7 @@ Feature: Criar pesquisa de preços a partir dos itens do processo
     Then deve ser criado um documento "PRICE_RESEARCH" com status "DRAFT", código gerado pela máscara do tipo e sigilo "INTERNAL"
     And a pesquisa deve ter 3 itens com quantidades "100.0000", "12.0000" e "6.0000"
     And o snapshot deve registrar método padrão "AUTO_CV", CV limite "25.0000", mínimo de 3 cotações e faixas "70.0000"/"130.0000"
-    And cada item deve ter os alertas "NO_VALID_QUOTES" e "BELOW_MINIMUM_QUOTES"
+    And cada item deve ter o alerta "NO_VALID_QUOTES"
     And a API deve responder 201 com "Location" e "ETag" igual a "1"
     And deve gerar registro de auditoria "document.create"
     And deve gerar o evento "DocumentCreated" com routing key "document.created.price_research"

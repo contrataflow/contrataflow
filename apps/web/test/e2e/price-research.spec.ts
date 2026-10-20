@@ -259,6 +259,52 @@ test('cotação: desconsiderar com justificativa, ver a célula esmaecida e rest
   await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
 });
 
+// US-030 — cotação destoante: ao salvar a terceira fonte com um preço muito abaixo da mediana das
+// demais, o selo "Abaixo da mediana" aparece na grade e "Valores atípicos" na aba Itens, sem recarregar
+// a página e sem nenhuma cotação desconsiderada automaticamente. O item 3 recebe um preço tão baixo
+// que continua destoante mesmo com fontes de outros testes em paralelo.
+test('cotação destoante: o selo aparece na grade e o alerta no item, sem recarregar', async ({
+  page,
+}) => {
+  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
+  await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
+  await expect(page).toHaveURL(RESEARCH_PATH);
+  await page.getByRole('tab', { name: 'Fontes' }).click();
+  for (const [description, price] of [
+    ['Painel A', '100'],
+    ['Painel B', '100'],
+    ['Painel C', '1'],
+  ] as const) {
+    await page.getByRole('button', { name: 'Nova fonte' }).click();
+    const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
+    await form
+      .getByLabel(/Tipo de fonte/)
+      .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+    await form.getByLabel(/Descrição/).fill(description);
+    await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
+    await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
+    await form.getByRole('button', { name: 'Salvar fonte' }).click();
+    const grid = page.getByRole('table', { name: `Preços da fonte ${description}` });
+    await grid.getByLabel('Preço unitário do item 3').fill(price);
+    await page.getByRole('button', { name: 'Salvar preços' }).click();
+    await expect(page.getByText('Preços salvos').first()).toBeVisible();
+  }
+  const outlierGrid = page.getByRole('table', { name: 'Preços da fonte Painel C' });
+  const badge = outlierGrid.getByText('Abaixo da mediana');
+  await expect(badge).toBeVisible();
+  await badge.focus();
+  await expect(
+    page.getByRole('tooltip').filter({ hasText: /abaixo de 70% da mediana/ }),
+  ).toBeVisible();
+  await expect(outlierGrid.getByText('Desconsiderada')).toHaveCount(0);
+  await expectNoSeriousA11yViolations(page, 'selos de destaque na grade de preços');
+
+  await page.getByRole('tab', { name: 'Itens' }).click();
+  const items = page.getByRole('table', { name: 'Itens da pesquisa de preços' });
+  // Linha 0 = cabeçalho; o item 3 é a terceira linha de dados.
+  await expect(items.getByRole('row').nth(3).getByText('Valores atípicos')).toBeVisible();
+});
+
 test('importar planilha: baixar o modelo, revisar a prévia com erro, corrigir e aplicar', async ({
   page,
 }) => {

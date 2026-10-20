@@ -22,17 +22,11 @@ import type { RecalculationTrigger } from './price-calculation.service.js';
 import { priceSourceNotFound, priceSourceVersionConflict } from './price-research.errors.js';
 import { PriceResearchGate } from './price-research.support.js';
 import type { PriceResearchReadContext, WritableOptions } from './price-research.support.js';
-import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
-import type { PriceSourceTypeRef } from '../../catalog/application/catalog.facade.js';
+import { PriceSourceRulesReader, rulesOf } from './price-source-rules.js';
 import { SupplierFacade } from '../../supplier/application/supplier.facade.js';
 import type { PriceResearch } from '../domain/price-research.js';
 import { isSourceExpired } from '../domain/price-source.js';
-import type {
-  PriceSource,
-  PriceSourceEditableField,
-  PriceSourceTypeRules,
-  Quotation,
-} from '../domain/price-source.js';
+import type { PriceSource, PriceSourceEditableField, Quotation } from '../domain/price-source.js';
 
 /*
  * Peças comuns dos casos de uso de fontes e cotações (US-026): a guarda (a fonte/cotação visível e a
@@ -42,18 +36,9 @@ import type {
  * descrições, URLs nem justificativas nos logs; na auditoria o texto livre vai como impressão digital.
  */
 
-const isNotFound = (error: unknown) => error instanceof ApiError && error.code === 'NOT_FOUND';
+export { PriceSourceRulesReader, rulesOf } from './price-source-rules.js';
 
-/** Regras do tipo para o domínio (sem o que é só exibição). */
-export function rulesOf(type: PriceSourceTypeRef): PriceSourceTypeRules {
-  return {
-    id: type.id,
-    code: type.code,
-    requiredFields: type.requiredFields,
-    maxAgeDays: type.maxAgeDays,
-    ageReference: type.ageReference,
-  };
-}
+const isNotFound = (error: unknown) => error instanceof ApiError && error.code === 'NOT_FOUND';
 
 @Injectable()
 export class PriceSourceGate {
@@ -104,25 +89,6 @@ export class PriceSourceGate {
       throw priceSourceVersionConflict(source.version);
     }
     return { context, source };
-  }
-}
-
-@Injectable()
-export class PriceSourceRulesReader {
-  constructor(private readonly catalogs: CatalogFacade) {}
-
-  /** V-02: o tipo ativo do tenant (422 `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`). */
-  active(tx: TenantTx, sourceTypeId: string): Promise<PriceSourceTypeRef> {
-    return this.catalogs.assertActivePriceSourceType(tx, sourceTypeId, 'sourceTypeId');
-  }
-
-  /** Tipos das fontes gravadas (mesmo inativos). Tipo ausente = catálogo corrompido (500). */
-  async of(tx: TenantTx, ids: readonly string[]): Promise<ReadonlyMap<string, PriceSourceTypeRef>> {
-    const types = await this.catalogs.priceSourceTypesOf(tx, ids);
-    for (const id of ids) {
-      if (!types.has(id)) throw new Error(`Tipo de fonte ${id} ausente do catálogo.`);
-    }
-    return types;
   }
 }
 

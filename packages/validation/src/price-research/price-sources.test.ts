@@ -104,6 +104,17 @@ describe('contratos (PRS-10/11/13/14)', () => {
     expect(updateQuotationSchema.safeParse({}).success).toBe(false);
   });
 
+  it('US-030 V-01: outlierFlag/isExpired no PATCH da cotação → NOT_ALLOWED no campo', () => {
+    expect(codes(updateQuotationSchema.safeParse({ outlierFlag: 'NONE' }))).toEqual([
+      ['outlierFlag', 'NOT_ALLOWED'],
+    ]);
+    const both = updateQuotationSchema.safeParse({ unitPrice: '10', isExpired: false });
+    expect(codes(both)).toEqual([['isExpired', 'NOT_ALLOWED']]);
+    expect(both.error?.issues[0]?.message).toBe(
+      'Este campo é calculado pelo sistema e não pode ser alterado diretamente.',
+    );
+  });
+
   it('grade sem item repetido (DUPLICATE_IN_LIST)', () => {
     const result = upsertQuotationsSchema.safeParse({
       items: [

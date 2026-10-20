@@ -235,23 +235,59 @@ export function referenceDateErrors(referenceDate: string, today: string): Field
   return issue === null ? [] : [{ field: 'referenceDate', ...issue }];
 }
 
-// --- Alertas, contadores e recálculo (US-024/US-026/US-029) --------------------------------------
+// --- Alertas, contadores e recálculo (US-024/US-026/US-029/US-030) -----------------------------
 
 /**
- * Alertas de cotação de um item: sem cotação válida → `NO_VALID_QUOTES`; menos que o mínimo do
- * snapshot → `BELOW_MINIMUM_QUOTES`. Os demais (`HIGH_CV`, `HAS_OUTLIERS`, `EXPIRED_QUOTES`) dependem
- * da estatística (US-029/US-030).
+ * O que o recálculo de um item lê das cotações dele, já avaliadas (RN-PRICE-48/49): os preços das
+ * cotações `VALID` e se alguma delas está destacada ou vencida. `EXCLUDED` fica de fora (RN-PRICE-52).
  */
-export function quotationAlerts(
-  validQuotationsCount: number,
-  parameters: Pick<PriceResearchParameters, 'minQuotations'>,
+export interface ItemQuotationFacts {
+  readonly validPrices: readonly string[];
+  readonly hasOutliers: boolean;
+  readonly hasExpired: boolean;
+}
+
+/** Item sem cotação válida. */
+export const NO_QUOTATIONS: ItemQuotationFacts = {
+  validPrices: [],
+  hasOutliers: false,
+  hasExpired: false,
+};
+
+/**
+ * `PriceItem.consolidateAlerts` (RN-PRICE-50): `NO_VALID_QUOTES` (nenhuma válida);
+ * `BELOW_MINIMUM_QUOTES` (`0 < válidas < minQuotations`); `HIGH_CV` (CV como gravado, 4 casas, maior
+ * que o limiar — só com 2 ou mais válidas, como o `AUTO_CV`); `HAS_OUTLIERS` (alguma válida
+ * destacada); `EXPIRED_QUOTES` (alguma válida vencida). Coexistem, cada um no máximo uma vez, na
+ * ordem de `PRICE_ITEM_ALERT_CODES` (sem priorização — FA-04).
+ */
+export function consolidateAlerts(
+  input: {
+    readonly validQuotationsCount: number;
+    readonly coefficientOfVariation: string | null;
+    readonly hasOutliers: boolean;
+    readonly hasExpired: boolean;
+  },
+  parameters: Pick<PriceResearchParameters, 'minQuotations' | 'cvThresholdPercent'>,
 ): PriceItemAlert[] {
+  const count = input.validQuotationsCount;
   const alerts: PriceItemAlert[] = [];
-  if (validQuotationsCount === 0) alerts.push({ code: 'NO_VALID_QUOTES' });
-  if (validQuotationsCount < parameters.minQuotations)
-    alerts.push({ code: 'BELOW_MINIMUM_QUOTES' });
+  if (count === 0) alerts.push({ code: 'NO_VALID_QUOTES' });
+  if (count > 0 && count < parameters.minQuotations) alerts.push({ code: 'BELOW_MINIMUM_QUOTES' });
+  if (
+    count >= 2 &&
+    input.coefficientOfVariation !== null &&
+    new Decimal(input.coefficientOfVariation).greaterThan(parameters.cvThresholdPercent)
+  ) {
+    alerts.push({ code: 'HIGH_CV' });
+  }
+  if (input.hasOutliers) alerts.push({ code: 'HAS_OUTLIERS' });
+  if (input.hasExpired) alerts.push({ code: 'EXPIRED_QUOTES' });
   return alerts;
 }
+
+/** RN-PRICE-51: o item tem algum alerta. */
+const hasAlerts = (item: Pick<PriceItem, 'alerts'>) => item.alerts.length > 0;
 
 /** `itemsCount`/`itemsWithAlertsCount` do cabeçalho a partir das linhas atuais. */
 export function countersOf(items: readonly Pick<PriceItem, 'alerts'>[]): {
@@ -260,28 +296,29 @@ export function countersOf(items: readonly Pick<PriceItem, 'alerts'>[]): {
 } {
   return {
     itemsCount: items.length,
-    itemsWithAlertsCount: items.filter((item) => item.alerts.length > 0).length,
+    itemsWithAlertsCount: items.filter(hasAlerts).length,
   };
 }
 
 /**
- * `PriceResearchRecalculator` (US-024 FA-07 · RN-PRICE-27 da US-026 · RN-PRICE-41..47 da US-029):
- * reavalia, por item, as cotações válidas (`validPrices` — preços das cotações `status = VALID`), as
- * estatísticas, o método efetivo, o preço recomendado e o total (`calculatePriceItem`), os alertas
- * (mínimo do snapshot) e o cabeçalho (contadores, valor estimado e `lastCalculatedAt`). Idempotente:
- * só as linhas cujo resultado mudou voltam em `changedItems`.
+ * `PriceResearchRecalculator` (US-024 FA-07 · RN-PRICE-27 da US-026 · RN-PRICE-41..47 da US-029 ·
+ * RN-PRICE-50/51 da US-030): reavalia, por item, a partir das cotações já avaliadas (`quotations` —
+ * preços das `VALID`, destaque e validade), as estatísticas, o método efetivo, o preço recomendado e
+ * o total (`calculatePriceItem`), os alertas (`consolidateAlerts`) e o cabeçalho (contadores, valor
+ * estimado e `lastCalculatedAt`). Idempotente: só as linhas cujo resultado mudou voltam em
+ * `changedItems`.
  */
 export function recalculate(
   research: PriceResearch,
   items: readonly PriceItem[],
   stamp: { readonly now: Date; readonly userId: string | null },
-  validPrices: ReadonlyMap<string, readonly string[]>,
+  quotations: ReadonlyMap<string, ItemQuotationFacts>,
 ): { readonly research: PriceResearch; readonly changedItems: readonly PriceItem[] } {
   const changedItems: PriceItem[] = [];
   const next = items.map((item) => {
     const changed = recalculateItem(
       item,
-      validPrices.get(item.id) ?? [],
+      quotations.get(item.id) ?? NO_QUOTATIONS,
       research.parameters,
       stamp,
     );
@@ -308,12 +345,12 @@ export function recalculate(
  */
 export function recalculateItem(
   item: PriceItem,
-  validPrices: readonly string[],
+  quotations: ItemQuotationFacts,
   parameters: PriceResearchParameters,
   stamp: { readonly now: Date; readonly userId: string | null },
 ): PriceItem {
-  const calculation = calculatePriceItem(item, validPrices, parameters);
-  const alerts = quotationAlerts(calculation.validQuotationsCount, parameters);
+  const calculation = calculatePriceItem(item, quotations.validPrices, parameters);
+  const alerts = consolidateAlerts({ ...calculation, ...quotations }, parameters);
   if (sameCalculation(calculation, item) && sameAlerts(alerts, item.alerts)) return item;
   return {
     ...item,
@@ -395,7 +432,15 @@ export function createPriceItem(
     manualUnitPrice: null,
     manualJustification: null,
     belowMinimumJustification: null,
-    alerts: quotationAlerts(0, input.parameters),
+    alerts: consolidateAlerts(
+      {
+        validQuotationsCount: 0,
+        coefficientOfVariation: null,
+        hasOutliers: false,
+        hasExpired: false,
+      },
+      input.parameters,
+    ),
     notes: null,
     sortOrder: line.sequence,
     calculatedAt: input.now,
@@ -487,6 +532,22 @@ export function planPriceItemUpdate(
       manualUnitPrice !== item.manualUnitPrice ||
       manualJustification !== item.manualJustification,
   };
+}
+
+/**
+ * V-02 (US-030): o limite inferior de destaque precisa ser menor que o superior (com os dois valores
+ * vigentes depois do patch) — senão `OUT_OF_RANGE` nos dois campos.
+ */
+export function outlierRangeErrors(
+  parameters: Pick<PriceResearchParameters, 'outlierLowerPercent' | 'outlierUpperPercent'>,
+): FieldError[] {
+  if (new Decimal(parameters.outlierLowerPercent).lessThan(parameters.outlierUpperPercent))
+    return [];
+  return (['outlierLowerPercent', 'outlierUpperPercent'] as const).map((field) => ({
+    field,
+    code: 'OUT_OF_RANGE',
+    message: PRICE_RESEARCH_MESSAGES.outlierRange,
+  }));
 }
 
 /** RN-PRICE-11 · V-10: a pesquisa precisa de ao menos um item (remover o último é proibido). */
