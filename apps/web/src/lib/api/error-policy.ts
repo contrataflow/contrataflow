@@ -32,6 +32,10 @@ const INLINE_CONFLICT_CODES: ReadonlySet<string> = new Set([
   // US-001 (FA-02 e V-10): o wizard mostra os candidatos com "Criar mesmo assim" ou o erro no campo.
   'POSSIBLE_DUPLICATE_PROCESS',
   'DUPLICATE_INTERNAL_CODE',
+  // US-009 (FA-01): o diálogo "Descartar rascunho" explica e oferece "Cancelar processo".
+  'CANNOT_DISCARD_NUMBERED_PROCESS',
+  // RN-TEN-41: o diálogo "Inativar" explica e sugere ativar outro órgão.
+  'PRIMARY_ORGANIZATION_REQUIRED',
 ]);
 
 /** SCR-111 "sem acesso a esta instituição" (FA-08 da US-088). */

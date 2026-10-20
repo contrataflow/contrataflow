@@ -109,6 +109,8 @@ describe('política de erros (architecture.md §8.12 · RN-FND-93)', () => {
     [409, 'ROLE_ASSIGNMENT_ALREADY_EXISTS', { kind: 'inline' }],
     [409, 'POSSIBLE_DUPLICATE_PROCESS', { kind: 'inline' }],
     [409, 'DUPLICATE_INTERNAL_CODE', { kind: 'inline' }],
+    [409, 'CANNOT_DISCARD_NUMBERED_PROCESS', { kind: 'inline' }],
+    [409, 'PRIMARY_ORGANIZATION_REQUIRED', { kind: 'inline' }],
     [409, 'INVALID_STATE', { kind: 'conflict' }],
     [412, 'VERSION_CONFLICT', { kind: 'conflict' }],
     [422, 'VALIDATION_ERROR', { kind: 'inline' }],
