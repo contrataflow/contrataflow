@@ -40,6 +40,8 @@ export interface DocumentActionsBarProps {
   readonly allowedActions: readonly DocumentAction[];
   /** Enquanto uma transição está em curso, nada novo pode ser disparado. */
   readonly busy?: boolean | undefined;
+  /** Rótulo próprio do tipo (US-023: "Concluir ETP"); ausente = o genérico da ação. */
+  readonly labels?: Partial<Record<LifecycleAction, string>> | undefined;
   /** `opener` é o elemento que devolve o foco quando o fluxo aberto pela ação fecha. */
   readonly onAction: (action: LifecycleAction, opener: HTMLElement | null) => void;
 }
@@ -52,6 +54,7 @@ export interface DocumentActionsBarProps {
 export function DocumentActionsBar({
   allowedActions,
   busy = false,
+  labels = {},
   onAction,
 }: DocumentActionsBarProps) {
   const t = useTranslations('documents.actions');
@@ -78,7 +81,7 @@ export function DocumentActionsBar({
             onAction(action, event.currentTarget);
           }}
         >
-          {t(action)}
+          {labels[action] ?? t(action)}
         </Button>
       ))}
       {collapsed.length > 0 ? (

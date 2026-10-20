@@ -226,7 +226,7 @@ describe('Feature: Painel de documentos do processo (US-062)', () => {
     });
     // A etapa atual do Background (`documentTypeCodes`) — a tramitação (US-047) ainda não move.
     stageCodes = stageDocumentTypes(api, 'Estudos preliminares');
-    api.app.get(DocumentValidatorRegistry).register(new FakeEtpValidator());
+    api.app.get(DocumentValidatorRegistry).override(new FakeEtpValidator());
 
     const seeded = documentTypeRepositoryOf(api)
       .snapshot()

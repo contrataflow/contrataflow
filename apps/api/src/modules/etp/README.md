@@ -88,7 +88,7 @@ DFD (`dfd/README.md`).
   gravada (id e `sortOrder` da linha preservados); `null` limpa. Auditoria `document.items_update`
   com a memória como `{ sha256, bytes }`. Comparação da memória por JSON canônico (o `jsonb`
   reordena as chaves).
-- **ETP-04** `PATCH /etps/{id}` (`UpdateEtpEstimateCommand`, `application/etp-estimate.command.ts`):
+- **ETP-04** `PATCH /etps/{id}` (`UpdateEtpCommand`, `application/etp-update.command.ts`):
   `editableTypedDocumentIn` (POL-02 + `DRAFT`/`RETURNED`, documento travado) → `If-Match` da versão
   do ETP (412) → POL-09 (403) → `etpEstimateIssues` (422 — `packages/validation/src/etp/etp-estimate.ts`,
   as mesmas regras no painel da SCR-008) → pesquisa pela porta `PriceResearchSummaryRegistry.linkOf`
@@ -109,3 +109,29 @@ DFD (`dfd/README.md`).
   FA-01..05, V-01..V-08), `test/tenant-leak/etp-estimates.spec.ts` (PostgreSQL),
   `apps/worker/test/tenant-leak/etp-estimate-sync.spec.ts` (reentrega, relay fora, RLS, cancelamento)
   e `apps/web/src/features/etp/etp-estimates-section.test.tsx`.
+
+## US-023 — Validar completude do ETP e concluí-lo (ETP-04 · DOC-08/10)
+
+- **ETP-04** (`UpdateEtpCommand`, `application/etp-update.command.ts`): o corpo aceita também
+  `conclusion` (`VIABLE`/`NOT_VIABLE` — `PENDING` = 422) e `parcelingDecision`; corpo só com eles
+  dispensa `estimatedValueSource` e POL-09 (`etpPatchTouchesEstimate`). Estimativa e conclusão
+  juntas = UMA versão. `setEtpConclusion` (domínio puro) e `etps.updateHeader` (antes
+  `updateEstimate`, grava os 5 campos). Auditoria `document.draft_update` com valores anterior/novo e
+  `metadata.conclusion/parcelingDecision`; log `etp.conclusion_saved`.
+- **Completude** (`packages/validation/src/etp/etp-completeness.ts` · `evaluateEtpCompleteness`):
+  RN-ETP-34 (`FIELD_REQUIRED` em `conclusion`/`parcelingDecision`, `ITEMS_REQUIRED`), RN-ETP-35
+  (`VIABLE`: `ETP_RECOMMENDED_ALTERNATIVE_REQUIRED` — exatamente 1 `RECOMMENDED` entre as não
+  excluídas — e `ETP_ESTIMATED_VALUE_REQUIRED`) e RN-ETP-36 (`NOT_VIABLE`: aviso
+  `ETP_NOT_VIABLE_CONCLUSION`). As seções (RN-ETP-33) são as regras genéricas do `document`.
+- **`EtpDocumentValidator`** (`application/etp-document.validator.ts`), registrado no `onModuleInit`:
+  `validate` (DOC-08 e a revalidação do DOC-10 no mesmo `tx` — FA-03) e `snapshotParts` (cabeçalho
+  `etpSnapshotHeader`, itens e alternativas congelados na versão `FINALIZATION`). Sem
+  `typedSummary`. Finalização, versão, auditoria `document.finalize` (`warningsAcknowledged`),
+  eventos e timeline são o DOC-10 genérico; `warn document.finalize_warning_pending` no aviso não
+  reconhecido (genérico, em `document.commands.ts`).
+- **Web**: `EtpConclusionFieldset` e `EtpPendingSummary` ("Pendências para concluir") na SCR-008;
+  o botão do ciclo de vida vira "Concluir ETP" (rótulos por módulo em `documents.typed.ETP`).
+- **Testes**: `domain/etp.spec.ts`, `packages/validation/src/etp/etp-completeness.test.ts`,
+  `presentation/etp-conclusion.routes.spec.ts` (8 categorias + FA-03/04, V-03..V-09) e
+  `test/tenant-leak/etp-conclusion.spec.ts` (PostgreSQL: snapshot e hash, revalidação atômica,
+  outbox PENDING, RLS, concorrência).

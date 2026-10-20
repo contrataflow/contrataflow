@@ -1,6 +1,7 @@
 'use client';
 
 import type { DocumentDto, DocumentMeta, Violation } from '@contrataflow/validation';
+import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import { AcknowledgeWarningsDialog } from './acknowledge-warnings-dialog';
@@ -49,8 +50,21 @@ const keepFocus = (event: Event) => {
  * `ReopenDialog`, `CancelDialog` e a confirmação de exclusão. Quem manda é a API: os botões vêm de
  * `meta.allowedActions` e toda recusa (412, 409, 403, 422) volta como o estado novo da tela.
  */
+/** Módulos tipados com rótulos próprios do ciclo de vida (`documents.typed.<módulo>`). */
+const TYPED_LABELS = new Set(['ETP']);
+
 export function DocumentLifecycle({ document, meta, fallbackFocus }: DocumentLifecycleProps) {
-  const lifecycle = useDocumentLifecycle(document);
+  const tTyped = useTranslations('documents.typed');
+  const typedModule = document.documentType.systemModule;
+  // US-023: "Concluir ETP" e o toast "ETP concluído" com o próximo passo.
+  const typed =
+    typedModule !== null && TYPED_LABELS.has(typedModule)
+      ? {
+          actions: { FINALIZE: tTyped(`${typedModule as 'ETP'}.FINALIZE`) },
+          toasts: { FINALIZE: tTyped(`${typedModule as 'ETP'}.finalized`) },
+        }
+      : null;
+  const lifecycle = useDocumentLifecycle(document, typed?.toasts);
   const [flow, setFlow] = useState<Flow>(null);
   const [feedback, setFeedback] = useState<DocumentOutcome | null>(null);
   const [focusTick, setFocusTick] = useState(0);
@@ -138,6 +152,7 @@ export function DocumentLifecycle({ document, meta, fallbackFocus }: DocumentLif
       <DocumentActionsBar
         allowedActions={meta.allowedActions}
         busy={lifecycle.pending}
+        labels={typed?.actions}
         onAction={open}
       />
 

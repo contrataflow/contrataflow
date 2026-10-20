@@ -348,7 +348,11 @@ describe('SCR-008 — editar seções do ETP (US-020)', () => {
       await screen.findByText('0 de 3 seções resolvidas · 1 seção com pendência'),
     ).toBeTruthy();
     expect(navButton(/Descrição da necessidade, Vazia, Com pendência/)).toBeTruthy();
-    expect(screen.getByText('Preencha a seção "Descrição da necessidade".')).toBeTruthy();
+    // Na seção ativa e no resumo "Pendências para concluir" (US-023), com link para a seção.
+    expect(screen.getAllByText('Preencha a seção "Descrição da necessidade".')).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'Preencha a seção "Descrição da necessidade".' }),
+    ).toBeTruthy();
     const field = screen.getByLabelText('Texto da seção Descrição da necessidade');
     await user.type(field, 'As escolas precisam de manutenção.');
     expect(screen.getByText('Alterações não salvas')).toBeTruthy();

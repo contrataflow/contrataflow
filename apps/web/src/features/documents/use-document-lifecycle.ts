@@ -57,7 +57,11 @@ function keepsIntent(outcome: DocumentOutcome): boolean {
  * para quem chamou. `Idempotency-Key`: uma por tentativa de finalizar/submeter, reaproveitada na
  * repetição da mesma intenção ("Tentar novamente" após 503) e trocada quando a intenção muda.
  */
-export function useDocumentLifecycle(document: DocumentDto) {
+export function useDocumentLifecycle(
+  document: DocumentDto,
+  /** Toast de sucesso próprio do tipo (US-023: "ETP concluído…"); ausente = o genérico. */
+  toasts?: Partial<Record<TransitionRequest['action'], string>>,
+) {
   const t = useTranslations('documents');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
@@ -185,7 +189,7 @@ export function useDocumentLifecycle(document: DocumentDto) {
       }
 
       intents.current.delete(request.action);
-      toast({ title: t(`toasts.${request.action}`), tone: 'success' });
+      toast({ title: toasts?.[request.action] ?? t(`toasts.${request.action}`), tone: 'success' });
       void queryClient.invalidateQueries({ queryKey: processActionKeys.all(tenantId, processId) });
       if (request.action === 'DELETE') {
         queryClient.removeQueries({ queryKey: documentKeys.all(tenantId, documentId) });

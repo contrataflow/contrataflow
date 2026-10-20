@@ -26,12 +26,14 @@ import type {
   SectionState,
   Violation,
 } from '@contrataflow/validation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { useShellSession } from '@/lib/session/session-context';
 
+import type { PendingTarget } from './etp-conclusion-model';
+import { EtpConclusionFieldset, EtpPendingSummary } from './etp-conclusion-section';
 import { canEditEtp, draftState, EMPTY_SECTION_DRAFT, sectionDraftOf } from './etp-editor-model';
 import type { EtpSectionDraft } from './etp-editor-model';
 import { StructuredSectionContent } from './etp-structured-sections';
@@ -49,8 +51,13 @@ import { TEXTAREA_CLASS } from '../processes/form-field';
  * a seção ativa com o texto (autosave de 1,5 s e na perda de foco — RN-ETP-10), o controle "Não se
  * aplica" com justificativa (RN-ETP-11) e, nas seções estruturadas, o quadro somente leitura do
  * módulo dono (RN-ETP-12). Somente leitura sem `UPDATE` ou fora de `DRAFT`/`RETURNED` (FA-05).
- * Abaixo de 768 px a navegação recolhe para o menu "Seções".
+ * Abaixo de 768 px a navegação recolhe para o menu "Seções". US-023: a conclusão e o parcelamento
+ * (ETP-04) e o resumo "Pendências para concluir" (DOC-08) acima das seções — cada pendência leva à
+ * seção, ao quadro ou ao campo; o "Concluir ETP" é a ação FINALIZE do ciclo de vida do documento.
  */
+
+/** Id da seção ativa (destino do foco vindo de "Pendências para concluir"). */
+const ACTIVE_SECTION_ID = 'etp-active-section';
 
 function timeOf(value: string | number, timeZone: string): string {
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone }).format(
@@ -166,6 +173,29 @@ export function EtpEditorLoaded({
     throwOnError: false,
   });
   const violations: readonly Violation[] = validation.data?.violations ?? [];
+  // US-023: o cabeçalho mudou (conclusão, alternativa recomendada, valor) → pendências de novo.
+  const queryClient = useQueryClient();
+  const tenantId = session.activeTenant.id;
+  const etpVersion = useRef(etp.version);
+  useEffect(() => {
+    if (etpVersion.current === etp.version) return;
+    etpVersion.current = etp.version;
+    void queryClient.invalidateQueries({
+      queryKey: documentKeys.validation(tenantId, etp.documentId),
+    });
+  }, [etp.version, etp.documentId, tenantId, queryClient]);
+  const conclusionRef = useRef<HTMLFieldSetElement>(null);
+  const navigate = (target: Exclude<PendingTarget, { kind: 'none' }>) => {
+    if (target.kind === 'conclusion') {
+      conclusionRef.current?.querySelector<HTMLElement>(`[data-field="${target.field}"]`)?.focus();
+      return;
+    }
+    void autosave.flush();
+    setActiveKey(target.key);
+    setTimeout(() => {
+      document.getElementById(ACTIVE_SECTION_ID)?.focus();
+    }, 0);
+  };
   const nav = etpSectionNav(sections, { sections: {} }, violations).map((item) => ({
     ...item,
     state: states[item.key] ?? 'EMPTY',
@@ -278,6 +308,16 @@ export function EtpEditorLoaded({
           }}
         />
       )}
+
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <EtpPendingSummary
+          violations={violations}
+          loaded={validation.data !== undefined}
+          sections={sections}
+          onNavigate={navigate}
+        />
+        <EtpConclusionFieldset ref={conclusionRef} etp={etp} editable={allowed} />
+      </div>
 
       <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start">
         <SectionSidebarNav
@@ -490,6 +530,8 @@ function EtpSectionPanel({
   const issues = item?.issues ?? [];
   return (
     <article
+      id={ACTIVE_SECTION_ID}
+      tabIndex={-1}
       aria-labelledby={`${id}-title`}
       className="flex min-w-0 flex-1 flex-col gap-3 rounded-control border border-border p-4"
     >

@@ -20,10 +20,10 @@ export interface EtpRepository {
    */
   setRecommendedAlternative(tx: TenantTx, etp: Etp): Promise<void>;
   /**
-   * US-022 · ETP-04: origem, valor e pesquisa vinculada com `version = expectedVersion + 1`,
-   * condicionado à versão (DEC-055). @throws VersionConflictError
+   * ETP-04: origem, valor e pesquisa vinculada (US-022), conclusão e parcelamento (US-023) com
+   * `version = expectedVersion + 1`, condicionado à versão (DEC-055). @throws VersionConflictError
    */
-  updateEstimate(tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void>;
+  updateHeader(tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void>;
 }
 
 export const ETP_REPOSITORY = Symbol('EtpRepository');

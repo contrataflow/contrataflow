@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ETP_ESTIMATED_VALUE_SOURCES } from './etp.js';
+import { ETP_ESTIMATED_VALUE_SOURCES, PARCELING_DECISIONS } from './etp.js';
 import type { FieldError } from '../http/problem.js';
 
 /*
@@ -29,6 +29,10 @@ export const ETP_ESTIMATE_MESSAGES = Object.freeze({
   awaitingCalculation: 'Aguardando cálculo da pesquisa de preços',
   /** FA-04: o vínculo foi desfeito com o cancelamento da pesquisa (o último valor fica). */
   stale: 'Valor desatualizado — escolha a origem novamente',
+  /** US-023: conclusão fora de `VIABLE`/`NOT_VIABLE`. */
+  conclusionInvalid: 'Escolha se o ETP conclui pela viabilidade ou pela não viabilidade.',
+  /** US-023: decisão sobre o parcelamento fora de `ParcelingDecision`. */
+  parcelingInvalid: 'Escolha uma decisão sobre o parcelamento válida.',
 });
 
 /** `Decimal(18,2)` ≥ 0 com até 2 casas, ponto como separador (RN-ETP-28 · V-05). */
@@ -55,9 +59,13 @@ export function etpEstimatedValueIssue(value: string): FieldError | null {
 
 // --- Contrato -----------------------------------------------------------------------------------
 
+/** Conclusões aceitas no ETP-04 (US-023): `PENDING` é só o estado inicial. */
+export const ETP_PATCH_CONCLUSIONS = ['VIABLE', 'NOT_VIABLE'] as const;
+
 /**
- * ETP-04 — corpo de `PATCH /etps/{id}` (`If-Match` com a versão do ETP). Nesta story, só as
- * estimativas; `conclusion`/`parcelingDecision` entram com a US-023.
+ * ETP-04 — corpo de `PATCH /etps/{id}` (`If-Match` com a versão do ETP): as estimativas (US-022) e,
+ * na US-023, a conclusão e a decisão sobre o parcelamento (RN-ETP-34/35 — `PENDING` não volta pelo
+ * PATCH: a conclusão é definida como viável ou não viável).
  */
 export const etpUpdateSchema = z
   .strictObject({
@@ -77,16 +85,34 @@ export const etpUpdateSchema = z
       }),
     /** Só com `PRICE_RESEARCH`: pesquisa não cancelada do mesmo processo (DEC-020). */
     priceResearchId: z.uuid({ error: ETP_ESTIMATE_MESSAGES.priceResearchInvalid }).optional(),
+    /** US-023 (RN-ETP-34/35): `VIABLE` | `NOT_VIABLE`. */
+    conclusion: z
+      .enum(ETP_PATCH_CONCLUSIONS, { error: ETP_ESTIMATE_MESSAGES.conclusionInvalid })
+      .optional(),
+    /** US-023 (RN-ETP-34): `ParcelingDecision`. */
+    parcelingDecision: z
+      .enum(PARCELING_DECISIONS, { error: ETP_ESTIMATE_MESSAGES.parcelingInvalid })
+      .optional(),
   })
   .meta({ id: 'EtpUpdateRequest' });
 export type EtpUpdate = z.infer<typeof etpUpdateSchema>;
 
+/** O corpo mexe nas estimativas (US-022)? Sem nenhum campo, vale a regra das estimativas (V-04). */
+export function etpPatchTouchesEstimate(patch: EtpUpdate): boolean {
+  const { estimatedValueSource, estimatedTotalValue, priceResearchId } = patch;
+  if (estimatedValueSource !== undefined) return true;
+  if (estimatedTotalValue !== undefined || priceResearchId !== undefined) return true;
+  return patch.conclusion === undefined && patch.parcelingDecision === undefined;
+}
+
 /**
  * RN-ETP-28 sobre o corpo já no formato: origem obrigatória (V-04 — `REQUIRED`); `MANUAL` exige o
  * valor e não aceita pesquisa; `PRICE_RESEARCH` exige a pesquisa e não aceita valor (somente
- * leitura). Um único `errors[]` com todos os problemas.
+ * leitura). Um único `errors[]` com todos os problemas. Corpo só com `conclusion`/
+ * `parcelingDecision` (US-023) não mexe nas estimativas — sem problemas aqui.
  */
 export function etpEstimateIssues(patch: EtpUpdate): FieldError[] {
+  if (!etpPatchTouchesEstimate(patch)) return [];
   const { estimatedValueSource: source, estimatedTotalValue: value, priceResearchId } = patch;
   if (source === undefined) {
     return [

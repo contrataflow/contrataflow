@@ -306,5 +306,40 @@
       "unexpected": "Ocorreu um erro inesperado.",
       "retry": "Tentar novamente"
     }
+  },
+  "conclusion": {
+    "title": "Conclusão do ETP",
+    "hint": "Defina a conclusão e a decisão sobre o parcelamento antes de concluir o ETP. Cada escolha é salva na hora.",
+    "conclusionLabel": "Conclusão",
+    "conclusionOption": {
+      "VIABLE": "A contratação é viável",
+      "NOT_VIABLE": "A contratação não é viável"
+    },
+    "conclusionPending": "Conclusão ainda não definida.",
+    "parcelingLabel": "Decisão sobre o parcelamento",
+    "parcelingPlaceholder": "Selecione…",
+    "parcelingOption": {
+      "PARCELED": "Parcelar a contratação",
+      "NOT_PARCELED": "Não parcelar a contratação",
+      "NOT_APPLICABLE": "Não se aplica"
+    },
+    "saving": "Salvando…",
+    "notViableHint": "Ao concluir o ETP, você precisará confirmar que está ciente da conclusão pela não viabilidade.",
+    "errors": {
+      "conflict": "Os dados foram alterados por outra pessoa. O ETP foi recarregado; escolha novamente.",
+      "forbidden": "Você não tem permissão para editar este ETP.",
+      "notEditable": "Este ETP não pode ser editado no momento.",
+      "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
+      "invalid": "Escolha uma opção válida.",
+      "unexpected": "Ocorreu um erro inesperado."
+    },
+    "pending": {
+      "title": "Pendências para concluir",
+      "loading": "Verificando as pendências do ETP…",
+      "none": "Nenhuma pendência: o ETP está pronto para ser concluído.",
+      "onlyWarnings": "Nenhuma pendência bloqueante. Há aviso a confirmar ao concluir.",
+      "blocking": "{count, plural, one {# pendência impede a conclusão} other {# pendências impedem a conclusão}}",
+      "warningsTitle": "Aviso"
+    }
   }
 }

@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest';
 import {
   createEtp,
   dfdImportPreview,
+  etpSnapshotHeader,
   pcaAlignmentText,
   planDfdImport,
+  setEtpConclusion,
   setEtpEstimate,
 } from './etp.js';
 
@@ -241,5 +243,68 @@ describe('setEtpEstimate (US-022 · RN-ETP-28 · FA-01/02/03)', () => {
     );
     expect(again.changes).toEqual([]);
     expect(again.etp).toBe(linked);
+  });
+});
+
+describe('setEtpConclusion (US-023 · RN-ETP-34/35)', () => {
+  const LATER = new Date('2026-10-20T12:00:00.000Z');
+  const base = createEtp({
+    documentId: '0192d023-0000-7000-8000-0000000000d1',
+    tenantId: 't',
+    processId: 'p',
+    importedFromDfdVersionId: null,
+    creatorId: 'u0',
+    now: NOW,
+  });
+
+  it('define conclusão e parcelamento com versão + 1 e os campos alterados', () => {
+    const { etp, changes } = setEtpConclusion(
+      base,
+      { conclusion: 'VIABLE', parcelingDecision: 'NOT_PARCELED' },
+      { actorId: 'u1', now: LATER },
+    );
+    expect(etp).toMatchObject({
+      conclusion: 'VIABLE',
+      parcelingDecision: 'NOT_PARCELED',
+      updatedById: 'u1',
+      updatedAt: LATER,
+      version: 2,
+    });
+    expect(changes).toEqual([
+      { field: 'conclusion', old: 'PENDING', new: 'VIABLE' },
+      { field: 'parcelingDecision', old: null, new: 'NOT_PARCELED' },
+    ]);
+  });
+
+  it('campo ausente mantém o gravado; reenvio igual não muda nada', () => {
+    const viable = setEtpConclusion(base, { conclusion: 'VIABLE' }, { actorId: 'u1', now: LATER });
+    const notViable = setEtpConclusion(
+      viable.etp,
+      { conclusion: 'NOT_VIABLE' },
+      { actorId: 'u1', now: LATER },
+    );
+    expect(notViable.etp).toMatchObject({ conclusion: 'NOT_VIABLE', parcelingDecision: null });
+    expect(notViable.changes).toEqual([{ field: 'conclusion', old: 'VIABLE', new: 'NOT_VIABLE' }]);
+    const again = setEtpConclusion(
+      notViable.etp,
+      { conclusion: 'NOT_VIABLE' },
+      { actorId: 'u2', now: LATER },
+    );
+    expect(again.changes).toEqual([]);
+    expect(again.etp).toBe(notViable.etp);
+  });
+
+  it('etpSnapshotHeader: os campos tipados e as referências, sem tenant nem auditoria', () => {
+    expect(
+      etpSnapshotHeader({ ...base, conclusion: 'VIABLE', estimatedTotalValue: '10.00' }),
+    ).toEqual({
+      conclusion: 'VIABLE',
+      parcelingDecision: null,
+      estimatedValueSource: null,
+      estimatedTotalValue: '10.00',
+      priceResearchId: null,
+      recommendedAlternativeId: null,
+      importedFromDfdVersionId: null,
+    });
   });
 });

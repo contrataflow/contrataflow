@@ -123,6 +123,70 @@ export function setEtpEstimate(
   };
 }
 
+// --- Conclusão e parcelamento (US-023 · RN-ETP-34/35) ------------------------------------------
+
+/** O que o ETP-04 pede para a conclusão (`PENDING` não volta pelo PATCH). */
+export interface EtpConclusionPatch {
+  readonly conclusion?: Exclude<EtpConclusion, 'PENDING'> | undefined;
+  readonly parcelingDecision?: ParcelingDecision | undefined;
+}
+
+export type EtpConclusionField = 'conclusion' | 'parcelingDecision';
+
+export interface EtpConclusionChange {
+  readonly field: EtpConclusionField;
+  readonly old: string | null;
+  readonly new: string | null;
+}
+
+/**
+ * `Etp.setConclusion` (US-023): a conclusão (viável/não viável) e a decisão sobre o parcelamento,
+ * que condicionam a completude (RN-ETP-34..36 — `evaluateEtpCompleteness`). Campo ausente = mantém.
+ * Devolve o ETP com `version + 1` e os campos alterados; nada mudou = o mesmo ETP e `changes` vazio.
+ */
+export function setEtpConclusion(
+  etp: Etp,
+  patch: EtpConclusionPatch,
+  options: { readonly actorId: string | null; readonly now: Date },
+): { readonly etp: Etp; readonly changes: EtpConclusionChange[] } {
+  const next = {
+    conclusion: patch.conclusion ?? etp.conclusion,
+    parcelingDecision: patch.parcelingDecision ?? etp.parcelingDecision,
+  };
+  const changes: EtpConclusionChange[] = [];
+  for (const field of ['conclusion', 'parcelingDecision'] as const) {
+    if (etp[field] !== next[field]) changes.push({ field, old: etp[field], new: next[field] });
+  }
+  if (changes.length === 0) return { etp, changes };
+  return {
+    etp: {
+      ...etp,
+      ...next,
+      updatedAt: options.now,
+      updatedById: options.actorId,
+      version: etp.version + 1,
+    },
+    changes,
+  };
+}
+
+/**
+ * Cabeçalho do ETP congelado na versão (US-023 · entities.md §5.3.2): os campos tipados do
+ * `TYPED_HEADER_FIELDS.ETP` e as referências da decisão (alternativa recomendada, DFD de origem).
+ * POL-09 é de quem lê o snapshot (`estimatedTotalValue` é mascarado pelo `document`).
+ */
+export function etpSnapshotHeader(etp: Etp): Readonly<Record<string, unknown>> {
+  return {
+    conclusion: etp.conclusion,
+    parcelingDecision: etp.parcelingDecision,
+    estimatedValueSource: etp.estimatedValueSource,
+    estimatedTotalValue: etp.estimatedTotalValue,
+    priceResearchId: etp.priceResearchId,
+    recommendedAlternativeId: etp.recommendedAlternativeId,
+    importedFromDfdVersionId: etp.importedFromDfdVersionId,
+  };
+}
+
 // --- Importação do DFD (RN-ETP-05/06) -----------------------------------------------------------
 
 /** Seções do ETP preenchidas pela importação. */

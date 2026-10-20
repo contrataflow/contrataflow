@@ -456,5 +456,11 @@
       "sameSectionMany": "{count} pessoas editando esta seção agora",
       "count": "{count, plural, one {# pessoa editando} other {# pessoas editando}}"
     }
+  },
+  "typed": {
+    "ETP": {
+      "FINALIZE": "Concluir ETP",
+      "finalized": "ETP concluído. Próximo passo: aguarde a etapa de aprovação ou encaminhe o processo."
+    }
   }
 }

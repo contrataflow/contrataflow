@@ -33,7 +33,7 @@ import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams } from '#shared/validation/zod-validation.pipe.js';
 
-import { UpdateEtpEstimateCommand } from '../application/etp-estimate.command.js';
+import { UpdateEtpCommand } from '../application/etp-update.command.js';
 import { CreateEtpCommand } from '../application/etp.commands.js';
 import { GetEtpQuery, ListProcessEtpsQuery } from '../application/etp.queries.js';
 
@@ -44,7 +44,7 @@ const READ_ACCESS =
 const DETAIL_ACCESS =
   'ETP do processo (US-020 · DEC-024): visibilidade do processo do ETP (PROCESS_VIEW com escopo que o cubra, concessão USER ou participação), conferida no caso de uso; não visível = 404 igual ao inexistente. POL-09 no valor estimado.';
 const UPDATE_ACCESS =
-  'ETP_UPDATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied reasonCode ETP_UPDATE) + POL-02 (custódia atual OU participação COLLABORATOR/CONSULTANT — senão 403 com access.denied reasonCode POL-02; processo editável — senão 409; tipo ETP permitido na etapa — senão 422) e o ETP em DRAFT/RETURNED (409 DOCUMENT_NOT_EDITABLE), conferidos no caso de uso. POL-09: sem PROCESS_VIEW_CONFIDENTIAL_BUDGET nem custódia em processo sigiloso, 403 (reasonCode POL-09).';
+  'ETP_UPDATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied reasonCode ETP_UPDATE) + POL-02 (custódia atual OU participação COLLABORATOR/CONSULTANT — senão 403 com access.denied reasonCode POL-02; processo editável — senão 409; tipo ETP permitido na etapa — senão 422) e o ETP em DRAFT/RETURNED (409 DOCUMENT_NOT_EDITABLE), conferidos no caso de uso. POL-09 (só quando o corpo altera as estimativas): sem PROCESS_VIEW_CONFIDENTIAL_BUDGET nem custódia em processo sigiloso, 403 (reasonCode POL-09).';
 const CREATE_ACCESS =
   'ETP_CREATE com escopo que cubra o processo (403 PERMISSION_DENIED com access.denied reasonCode ETP_CREATE) + POL-02 (RN-ETP-07: custódia atual OU participação COLLABORATOR/CONSULTANT — senão 403 PERMISSION_DENIED; processo em DRAFT/IN_PROGRESS/RETURNED — senão 409 DOCUMENT_NOT_EDITABLE; tipo ETP permitido na etapa — senão 422), conferidos no caso de uso.';
 
@@ -60,7 +60,7 @@ export class EtpController {
     private readonly list: ListProcessEtpsQuery,
     private readonly get: GetEtpQuery,
     private readonly create: CreateEtpCommand,
-    private readonly updateEstimate: UpdateEtpEstimateCommand,
+    private readonly update: UpdateEtpCommand,
   ) {}
 
   @Get('etps/:id')
@@ -94,13 +94,13 @@ export class EtpController {
   @Policy('POL-02')
   @ApiOperation({
     operationId: 'ETP-04',
-    summary: 'Atualizar ETP (estimativas)',
+    summary: 'Atualizar ETP (estimativas e conclusão)',
     tags: TAGS,
     auditActions: ['document.draft_update'],
     responses: {
       200: {
         description:
-          'Painel "Valor estimado" (US-022 · RN-ETP-28): `estimatedValueSource` obrigatório (422 `REQUIRED`). `MANUAL` exige `estimatedTotalValue` ≥ 0 com até 2 casas (422 `REQUIRED`/`INVALID_DECIMAL`; `priceResearchId` junto = `NOT_ALLOWED`). `PRICE_RESEARCH` exige `priceResearchId` da pesquisa não cancelada do MESMO processo (422 `REFERENCE_NOT_FOUND` — inexistente, de outro processo ou de outro tenant, sem revelar — ou `REFERENCE_INACTIVE` se cancelada) e copia o `totalEstimatedValue` dela (`null` enquanto não calculada — FA-03); o valor fica somente leitura (enviar `estimatedTotalValue` = `NOT_ALLOWED`) e é sincronizado pelo worker a cada `PriceResearchRecalculated`/`PriceResearchCompleted` (RN-ETP-29); a pesquisa cancelada desfaz o vínculo e preserva o último valor (RN-ETP-31). Sem POL-09 em processo sigiloso = 403. `If-Match: "<version do ETP>"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion`). Grava `document.draft_update` (`metadata`: `estimatedValueSource`, `priceResearchId`; valor mascarado se sigiloso); reenvio igual não grava. Resposta = o `EtpDetail` do ETP-03 (`estimatedTotalValueMasked`); `ETag` = nova versão. `conclusion`/`parcelingDecision`: US-023.',
+          'Painel "Valor estimado" (US-022 · RN-ETP-28): `estimatedValueSource` obrigatório (422 `REQUIRED`). `MANUAL` exige `estimatedTotalValue` ≥ 0 com até 2 casas (422 `REQUIRED`/`INVALID_DECIMAL`; `priceResearchId` junto = `NOT_ALLOWED`). `PRICE_RESEARCH` exige `priceResearchId` da pesquisa não cancelada do MESMO processo (422 `REFERENCE_NOT_FOUND` — inexistente, de outro processo ou de outro tenant, sem revelar — ou `REFERENCE_INACTIVE` se cancelada) e copia o `totalEstimatedValue` dela (`null` enquanto não calculada — FA-03); o valor fica somente leitura (enviar `estimatedTotalValue` = `NOT_ALLOWED`) e é sincronizado pelo worker a cada `PriceResearchRecalculated`/`PriceResearchCompleted` (RN-ETP-29); a pesquisa cancelada desfaz o vínculo e preserva o último valor (RN-ETP-31). Sem POL-09 em processo sigiloso = 403. `If-Match: "<version do ETP>"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion`). Grava `document.draft_update` (`metadata`: `estimatedValueSource`, `priceResearchId`; valor mascarado se sigiloso); reenvio igual não grava. Conclusão (US-023 · RN-ETP-34/35): `conclusion` (`VIABLE`/`NOT_VIABLE` — `PENDING` = 422) e `parcelingDecision` (`ParcelingDecision`), sozinhos ou junto com as estimativas (uma versão só); corpo só com eles dispensa `estimatedValueSource` e POL-09; auditados em `document.draft_update` com os valores anterior e novo. As pendências que eles resolvem (`FIELD_REQUIRED`, `ETP_RECOMMENDED_ALTERNATIVE_REQUIRED`, `ETP_ESTIMATED_VALUE_REQUIRED`, aviso `ETP_NOT_VIABLE_CONCLUSION`) saem no DOC-08 e são revalidadas no DOC-10. Resposta = o `EtpDetail` do ETP-03 (`estimatedTotalValueMasked`); `ETag` = nova versão.',
         schema: z.object({ data: etpDetailSchema, meta: etpDetailMetaSchema }),
       },
     },
@@ -111,7 +111,7 @@ export class EtpController {
     @IfMatch() ifMatch: IfMatchValue | null,
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<DataResult<EtpDetailDto, EtpDetailMeta>> {
-    const result = await this.updateEstimate.execute({
+    const result = await this.update.execute({
       etpId: params.id,
       expectedVersion: ifMatch?.kind === 'version' ? ifMatch.value : -1,
       patch: body,

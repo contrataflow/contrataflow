@@ -270,7 +270,20 @@ abstract class ConcludeDocumentCommand extends DocumentTransitionCommand<Conclud
       this.lifecycle.logCompletenessBlocked(document.id, gate.violations);
       throw documentIncomplete(gate.violations);
     }
-    if (gate.kind === 'WARNINGS_NOT_ACKNOWLEDGED') throw warningsNotAcknowledged(gate.violations);
+    if (gate.kind === 'WARNINGS_NOT_ACKNOWLEDGED') {
+      // US-023: tentativa de concluir sem reconhecer o aviso (ex.: ETP não viável) — sem textos.
+      this.logger.warn(
+        {
+          event: 'document.finalize_warning_pending',
+          documentId: document.id,
+          action: this.action,
+          warningCodes: gate.violations.map((item) => item.code),
+          correlationId: requireRequestContext().correlationId,
+        },
+        'document.finalize_warning_pending',
+      );
+      throw warningsNotAcknowledged(gate.violations);
+    }
 
     const actorId = this.actorId();
     const now = this.clock();

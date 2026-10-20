@@ -6176,6 +6176,21 @@
           "priceResearchId": {
             "type": "string",
             "format": "uuid"
+          },
+          "conclusion": {
+            "type": "string",
+            "enum": [
+              "VIABLE",
+              "NOT_VIABLE"
+            ]
+          },
+          "parcelingDecision": {
+            "type": "string",
+            "enum": [
+              "PARCELED",
+              "NOT_PARCELED",
+              "NOT_APPLICABLE"
+            ]
           }
         },
         "additionalProperties": false
@@ -35738,7 +35753,7 @@
       },
       "patch": {
         "operationId": "ETP-04",
-        "summary": "Atualizar ETP (estimativas)",
+        "summary": "Atualizar ETP (estimativas e conclusão)",
         "tags": [
           "ETP"
         ],
@@ -35785,7 +35800,7 @@
         },
         "responses": {
           "200": {
-            "description": "Painel \"Valor estimado\" (US-022 · RN-ETP-28): `estimatedValueSource` obrigatório (422 `REQUIRED`). `MANUAL` exige `estimatedTotalValue` ≥ 0 com até 2 casas (422 `REQUIRED`/`INVALID_DECIMAL`; `priceResearchId` junto = `NOT_ALLOWED`). `PRICE_RESEARCH` exige `priceResearchId` da pesquisa não cancelada do MESMO processo (422 `REFERENCE_NOT_FOUND` — inexistente, de outro processo ou de outro tenant, sem revelar — ou `REFERENCE_INACTIVE` se cancelada) e copia o `totalEstimatedValue` dela (`null` enquanto não calculada — FA-03); o valor fica somente leitura (enviar `estimatedTotalValue` = `NOT_ALLOWED`) e é sincronizado pelo worker a cada `PriceResearchRecalculated`/`PriceResearchCompleted` (RN-ETP-29); a pesquisa cancelada desfaz o vínculo e preserva o último valor (RN-ETP-31). Sem POL-09 em processo sigiloso = 403. `If-Match: \"<version do ETP>\"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion`). Grava `document.draft_update` (`metadata`: `estimatedValueSource`, `priceResearchId`; valor mascarado se sigiloso); reenvio igual não grava. Resposta = o `EtpDetail` do ETP-03 (`estimatedTotalValueMasked`); `ETag` = nova versão. `conclusion`/`parcelingDecision`: US-023.",
+            "description": "Painel \"Valor estimado\" (US-022 · RN-ETP-28): `estimatedValueSource` obrigatório (422 `REQUIRED`). `MANUAL` exige `estimatedTotalValue` ≥ 0 com até 2 casas (422 `REQUIRED`/`INVALID_DECIMAL`; `priceResearchId` junto = `NOT_ALLOWED`). `PRICE_RESEARCH` exige `priceResearchId` da pesquisa não cancelada do MESMO processo (422 `REFERENCE_NOT_FOUND` — inexistente, de outro processo ou de outro tenant, sem revelar — ou `REFERENCE_INACTIVE` se cancelada) e copia o `totalEstimatedValue` dela (`null` enquanto não calculada — FA-03); o valor fica somente leitura (enviar `estimatedTotalValue` = `NOT_ALLOWED`) e é sincronizado pelo worker a cada `PriceResearchRecalculated`/`PriceResearchCompleted` (RN-ETP-29); a pesquisa cancelada desfaz o vínculo e preserva o último valor (RN-ETP-31). Sem POL-09 em processo sigiloso = 403. `If-Match: \"<version do ETP>\"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion`). Grava `document.draft_update` (`metadata`: `estimatedValueSource`, `priceResearchId`; valor mascarado se sigiloso); reenvio igual não grava. Conclusão (US-023 · RN-ETP-34/35): `conclusion` (`VIABLE`/`NOT_VIABLE` — `PENDING` = 422) e `parcelingDecision` (`ParcelingDecision`), sozinhos ou junto com as estimativas (uma versão só); corpo só com eles dispensa `estimatedValueSource` e POL-09; auditados em `document.draft_update` com os valores anterior e novo. As pendências que eles resolvem (`FIELD_REQUIRED`, `ETP_RECOMMENDED_ALTERNATIVE_REQUIRED`, `ETP_ESTIMATED_VALUE_REQUIRED`, aviso `ETP_NOT_VIABLE_CONCLUSION`) saem no DOC-08 e são revalidadas no DOC-10. Resposta = o `EtpDetail` do ETP-03 (`estimatedTotalValueMasked`); `ETag` = nova versão.",
             "content": {
               "application/json": {
                 "schema": {

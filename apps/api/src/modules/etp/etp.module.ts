@@ -17,8 +17,9 @@ import {
   EtpAlternativeGate,
   EtpAlternativeRecorder,
 } from './application/etp-alternative.support.js';
-import { UpdateEtpEstimateCommand } from './application/etp-estimate.command.js';
+import { EtpDocumentValidator } from './application/etp-document.validator.js';
 import { EtpHeaderSource } from './application/etp-header.source.js';
+import { UpdateEtpCommand } from './application/etp-update.command.js';
 import { CreateEtpCommand } from './application/etp.commands.js';
 import { EtpFacade } from './application/etp.facade.js';
 import { GetEtpQuery, ListProcessEtpsQuery } from './application/etp.queries.js';
@@ -40,6 +41,7 @@ import {
 } from './infrastructure/etp.repositories.js';
 import { EtpAlternativeController } from './presentation/etp-alternative.controller.js';
 import { EtpController } from './presentation/etp.controller.js';
+import { DocumentFacade } from '../document/application/document.facade.js';
 import { DocumentModule } from '../document/document.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): ETPs em memória. */
@@ -55,7 +57,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * numeração, as seções e os itens vêm do `document` pelo padrão de documento tipado
  * (`createStructuredIn`); o DFD de origem é lido do snapshot da versão (`importableDfdIn`), sem
  * depender do módulo `dfd`. US-037: registra o leitor do cabeçalho na porta `EtpHeaderRegistry`
- * (importação do ETP no TR — o `term` é do mesmo nível).
+ * (importação do ETP no TR — o `term` é do mesmo nível). US-023: o ETP-04 também define a conclusão
+ * e o parcelamento, e o `EtpDocumentValidator` (completude RN-ETP-34..36 e snapshot da versão) entra
+ * no registro do `document` — DOC-08/DOC-10 genéricos.
  */
 @Module({
   imports: [DocumentModule, PriceResearchSummaryModule, EtpHeaderModule],
@@ -64,7 +68,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     EtpFacade,
     EtpHeaderSource,
     CreateEtpCommand,
-    UpdateEtpEstimateCommand,
+    UpdateEtpCommand,
+    EtpDocumentValidator,
     ListProcessEtpsQuery,
     GetEtpQuery,
     ListEtpAlternativesQuery,
@@ -118,10 +123,16 @@ export class EtpModule implements OnModuleInit {
   constructor(
     private readonly headers: EtpHeaderRegistry,
     private readonly headerSource: EtpHeaderSource,
+    private readonly documents: DocumentFacade,
+    private readonly validator: EtpDocumentValidator,
   ) {}
 
-  /** US-037: o cabeçalho do ETP para a importação no TR (porta do shared kernel). */
+  /**
+   * US-037: o cabeçalho do ETP para a importação no TR (porta do shared kernel). US-023: o validador
+   * de completude e o snapshot do ETP.
+   */
   onModuleInit(): void {
     this.headers.register(this.headerSource);
+    this.documents.registerValidator(this.validator);
   }
 }

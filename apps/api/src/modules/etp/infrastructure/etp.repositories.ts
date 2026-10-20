@@ -94,7 +94,7 @@ export class PrismaEtpRepository implements EtpRepository {
     });
   }
 
-  async updateEstimate(tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void> {
+  async updateHeader(tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void> {
     await updateVersioned({ aggregateType: 'Etp', aggregateId: etp.id, expectedVersion }, () =>
       tx.etp.updateMany({
         where: { id: etp.id, version: expectedVersion },
@@ -102,6 +102,8 @@ export class PrismaEtpRepository implements EtpRepository {
           estimatedValueSource: etp.estimatedValueSource,
           estimatedTotalValue: etp.estimatedTotalValue,
           priceResearchId: etp.priceResearchId,
+          conclusion: etp.conclusion,
+          parcelingDecision: etp.parcelingDecision,
           updatedAt: etp.updatedAt,
           updatedById: etp.updatedById,
           version: { increment: 1 },
@@ -152,7 +154,7 @@ export class InMemoryEtpRepository implements EtpRepository {
     return Promise.resolve();
   }
 
-  updateEstimate(_tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void> {
+  updateHeader(_tx: TenantTx, etp: Etp, expectedVersion: number): Promise<void> {
     const current = this.inTenant().find((candidate) => candidate.id === etp.id);
     if (current?.version !== expectedVersion) {
       return Promise.reject(
@@ -164,6 +166,8 @@ export class InMemoryEtpRepository implements EtpRepository {
       estimatedValueSource: etp.estimatedValueSource,
       estimatedTotalValue: etp.estimatedTotalValue,
       priceResearchId: etp.priceResearchId,
+      conclusion: etp.conclusion,
+      parcelingDecision: etp.parcelingDecision,
       updatedAt: etp.updatedAt,
       updatedById: etp.updatedById,
       version: current.version + 1,

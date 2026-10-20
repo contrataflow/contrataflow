@@ -4,6 +4,7 @@ import {
   ETP_ESTIMATE_MESSAGES,
   etpEstimatedValueIssue,
   etpEstimateIssues,
+  etpPatchTouchesEstimate,
   etpUpdateSchema,
   normalizeEtpMoney,
 } from './etp-estimate.js';
@@ -50,8 +51,22 @@ describe('etpUpdateSchema — ETP-04 (US-022 · RN-ETP-28)', () => {
     },
   );
 
-  it('é estrito: conclusão e campos desconhecidos ficam para a US-023', () => {
-    expect(etpUpdateSchema.safeParse({ conclusion: 'VIABLE' }).success).toBe(false);
+  it('é estrito; US-023: conclusão VIABLE/NOT_VIABLE e decisão sobre o parcelamento', () => {
+    expect(etpUpdateSchema.safeParse({ unknown: true }).success).toBe(false);
+    expect(etpUpdateSchema.safeParse({ conclusion: 'VIABLE' }).success).toBe(true);
+    expect(etpUpdateSchema.safeParse({ conclusion: 'NOT_VIABLE' }).success).toBe(true);
+    expect(etpUpdateSchema.safeParse({ conclusion: 'PENDING' }).success).toBe(false);
+    expect(etpUpdateSchema.safeParse({ parcelingDecision: 'PARCELED' }).success).toBe(true);
+    expect(etpUpdateSchema.safeParse({ parcelingDecision: 'TALVEZ' }).success).toBe(false);
+  });
+
+  it('US-023: corpo só com conclusão/parcelamento não passa pelas regras das estimativas', () => {
+    expect(etpPatchTouchesEstimate({ conclusion: 'VIABLE' })).toBe(false);
+    expect(etpEstimateIssues({ parcelingDecision: 'NOT_PARCELED' })).toEqual([]);
+    expect(etpPatchTouchesEstimate({ conclusion: 'VIABLE', estimatedTotalValue: '1.00' })).toBe(
+      true,
+    );
+    expect(etpPatchTouchesEstimate({})).toBe(true);
   });
 });
 
