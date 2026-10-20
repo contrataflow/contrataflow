@@ -72,7 +72,7 @@ describe('modelo da SCR-041', () => {
     expect(parseDraft('risk.scale', '{')).toEqual({ ok: false, reason: 'json' });
     expect(parseDraft('uploads.allowedExtensions', ['pdf'])).toEqual({ ok: true, value: ['pdf'] });
     expect(parseDraft('uploads.allowedExtensions', [])).toMatchObject({ ok: false });
-    expect(parseDraft('branding.primaryColor', '#1d4ed8')).toEqual({ ok: true, value: '#1D4ED8' });
+    expect(parseDraft('branding.primaryColor', '#005bf9')).toEqual({ ok: true, value: '#005BF9' });
     expect(parseDraft('branding.primaryColor', '#FFFF00')).toEqual({
       ok: false,
       reason: 'contrast',

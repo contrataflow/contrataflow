@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="232" height="40" viewBox="0 0 232 40" font-family="Inter, 'Segoe UI', Roboto, Arial, sans-serif">
-  <!-- Marca do ContrataFlow para o Authentik (US-087): três faixas + nome. -->
-  <path d="M8 6 L22 6 L32 16 L18 16 Z" fill="#3b82f6"/><path d="M8 17 L22 17 L32 27 L18 27 Z" fill="#60a5fa"/><path d="M8 28 L18 28 L22 34 L12 34 Z" fill="#2563eb"/>
-  <text x="44" y="29" font-size="26" font-weight="600" fill="#0f172a">ContrataFlow</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="264" height="48" viewBox="0 0 264 48" font-family="Inter, 'Segoe UI', Roboto, Arial, sans-serif">
+  <!-- Marca do ContrataFlow para o Authentik (US-087 · DEC-185): ícone oficial + palavra-marca. -->
+  <g transform="translate(-5.87 -6.56) scale(0.04656)"><path d="M689 203 L718 205 L742 213 L1047 382 L837 504 L784 479 L752 469 L718 468 L681 479 L215 735 L215 498 L221 476 L240 448 L261 431 L644 216 Z" fill="#141E2B"/><path d="M403 673 L412 694 L426 707 L925 978 L704 1102 L683 1108 L656 1109 L628 1102 L602 1088 L261 887 L240 870 L221 842 L215 821 L214 776 Z" fill="#005BF9"/><path d="M830 777 L857 782 L1069 899 L965 956 L742 823 Z" fill="#005BF9"/></g>
+  <text x="58" y="34" font-size="28" font-weight="800" letter-spacing="-0.84"><tspan fill="#141E2B">Contrata</tspan><tspan fill="#005BF9">Flow</tspan></text>
 </svg>

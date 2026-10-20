@@ -1,8 +1,8 @@
+import { BrandLogo } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 
 import { AuthIcon } from './auth-icons';
 import type { AuthIconName } from './auth-icons';
-import { BrandLogo } from './brand-logo';
 
 const HIGHLIGHTS = [
   { key: 'standardized', icon: 'fileText' },
@@ -11,7 +11,7 @@ const HIGHLIGHTS = [
 ] as const satisfies readonly { readonly key: string; readonly icon: AuthIconName }[];
 
 /*
- * A ilustração some em telas menores e se funde ao fundo pelas máscaras; os degradês azul-marinho
+ * A ilustração some em telas menores e se funde ao fundo pelas máscaras; os degradês navy da marca
  * por cima garantem o contraste AA dos textos claros mesmo sobre as partes claras do desenho.
  */
 const PHOTO_MASK =
@@ -27,7 +27,7 @@ export function LoginBrandPanel() {
   return (
     <section
       aria-label={t('panelLabel')}
-      className="relative hidden overflow-hidden bg-linear-to-b from-[#22365a] via-[#13223d] to-[#0e1b31] text-white lg:flex lg:flex-col"
+      className="relative hidden overflow-hidden bg-linear-to-b from-[#1a2638] via-brand-navy to-[#0b1118] text-white lg:flex lg:flex-col"
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- ilustração SVG decorativa e estática: a otimização de imagens do Next não se aplica. */}
       <img
@@ -37,15 +37,15 @@ export function LoginBrandPanel() {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-linear-to-r from-[#0e1b31]/95 via-[#0e1b31]/85 via-55% to-[#0e1b31]/35"
+        className="pointer-events-none absolute inset-0 bg-linear-to-r from-[#0b1118]/95 via-[#0b1118]/85 via-55% to-[#0b1118]/35"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-linear-to-b from-[#0e1b31]/40 via-transparent to-[#0e1b31]/40"
+        className="pointer-events-none absolute inset-0 bg-linear-to-b from-[#0b1118]/40 via-transparent to-[#0b1118]/40"
       />
 
       <div className="relative flex flex-1 flex-col px-12 pt-12 pb-10">
-        <BrandLogo name={t('name')} nameClassName="text-[1.75rem]" />
+        <BrandLogo tone="onDark" size="lg" name={t('name')} tagline={t('slogan')} />
 
         <p className="mt-10 max-w-md text-[2.6rem] leading-[1.1] font-bold tracking-tight">
           {t('headline')}

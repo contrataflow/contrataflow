@@ -826,6 +826,9 @@ WCAG 2.1 AA e eMAG 3.1. Navegação completa por teclado, foco visível, contras
 ### DEC-184 — Linguagem · `Aceita`
 Linguagem simples; termos da Lei 14.133 com tooltip e link para o glossário; nunca exibir códigos técnicos ao usuário (exceto `correlationId` em erros).
 
+### DEC-185 — Identidade visual oficial · `Aceita` · 2026-10-20
+A marca do ContrataFlow é o logo horizontal (ícone + palavra-marca + slogan "Do planejamento à contratação") e o ícone isolado de `docs/brand/` (fonte da verdade; regras de uso em `docs/brand/README.md`). Paleta da interface em navy `#141E2B` + azul `#005BF9` (azul profundo `#004BE3` para hover e botões de e-mail), exposta como tokens de `packages/ui` (`brand-*`, `sidebar-*` e os semânticos) com contraste ≥ 4,5:1 nos temas claro e escuro, conferido por teste. A palavra-marca e o slogan são texto real (Inter), não imagem — leitor de tela lê "ContrataFlow" como uma palavra; o ícone é vetor (`BrandMark`). O menu lateral do shell é navy com o lockup; o tema por tenant continua restrito a `branding.primaryColor` (RN-FND-91), cujo padrão passa a `#005BF9`, e não altera a marca.
+
 ---
 
 ## 10. Decisões pendentes

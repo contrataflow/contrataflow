@@ -185,7 +185,7 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
     group: 'branding',
     module: 'tenancy',
     schema: primaryColor,
-    defaultValue: '#1D4ED8',
+    defaultValue: '#005BF9',
     isPublic: true,
   }),
   define({

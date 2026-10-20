@@ -165,8 +165,9 @@ export class EmailTemplateRegistry {
 
 /*
  * HTML básico e acessível: `lang="pt-BR"`, título do documento, sem imagens (nada de texto
- * alternativo a perder), contraste AA (#1f2937 e #4b5563 sobre branco; branco sobre #1d4ed8) e
- * link com texto descritivo. Estilos inline — clientes de e-mail descartam `<style>`.
+ * alternativo a perder), contraste AA (#1f2937, #4b5563 e o navy #141e2b sobre branco; branco sobre o
+ * azul profundo da marca #004be3 — DEC-185) e link com texto descritivo. Estilos inline — clientes
+ * de e-mail descartam `<style>`.
  */
 function renderHtml(parts: {
   readonly title: string;
@@ -184,11 +185,11 @@ function renderHtml(parts: {
     `<title>${title}</title></head>`,
     '<body style="margin:0;padding:24px;background:#ffffff;color:#1f2937;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5">',
     '<main style="max-width:560px;margin:0 auto">',
-    `<p style="margin:0 0 16px;font-size:14px;color:#4b5563">${PRODUCT}</p>`,
+    `<p style="margin:0 0 16px;font-size:14px;font-weight:bold;color:#141e2b">${PRODUCT}</p>`,
     `<h1 style="margin:0 0 12px;font-size:20px;color:#1f2937">${title}</h1>`,
     `<p style="margin:0 0 24px">${escapeHtml(parts.body)}</p>`,
-    `<p style="margin:0 0 24px"><a href="${url}" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold">${escapeHtml(parts.action)}</a></p>`,
-    `<p style="margin:0 0 24px;font-size:14px;color:#4b5563">Se o botão não funcionar, copie e cole este endereço no navegador: <a href="${url}" style="color:#1d4ed8">${url}</a></p>`,
+    `<p style="margin:0 0 24px"><a href="${url}" style="display:inline-block;padding:12px 20px;background:#004be3;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold">${escapeHtml(parts.action)}</a></p>`,
+    `<p style="margin:0 0 24px;font-size:14px;color:#4b5563">Se o botão não funcionar, copie e cole este endereço no navegador: <a href="${url}" style="color:#004be3">${url}</a></p>`,
     '<hr style="border:none;border-top:1px solid #d1d5db;margin:24px 0">',
     `<p style="margin:0 0 8px;font-size:13px;color:#4b5563">${escapeHtml(parts.reason)}</p>`,
     `<p style="margin:0;font-size:13px;color:#4b5563">${escapeHtml(AUTOMATIC_NOTICE)}</p>`,

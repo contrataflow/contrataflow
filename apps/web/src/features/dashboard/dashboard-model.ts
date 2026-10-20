@@ -189,7 +189,7 @@ export function describeDashboardError(error: unknown): DashboardLoadProblem {
  */
 export const DASHBOARD_PALETTE = Object.freeze({
   surface: '#ffffff',
-  neutral: '#1d4ed8',
+  neutral: '#005bf9',
   danger: '#b91c1c',
   warning: '#92400e',
   success: '#15803d',

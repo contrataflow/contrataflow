@@ -71,6 +71,13 @@ export type { HeaderMergeResult, HeaderMergeRules, HeaderValues } from './autosa
 export { diffParagraphs } from './autosave/text-diff.js';
 export type { TextDiffPart } from './autosave/text-diff.js';
 export type { AlertProps, AlertTone } from './components/alert.js';
+export { BrandLogo, BrandMark } from './components/brand-logo.js';
+export type {
+  BrandLogoProps,
+  BrandMarkProps,
+  BrandSize,
+  BrandTone,
+} from './components/brand-logo.js';
 export { Button } from './components/button.js';
 export type { ButtonProps } from './components/button.js';
 export { buttonClassName } from './lib/button-class.js';

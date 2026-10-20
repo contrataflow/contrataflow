@@ -2,10 +2,10 @@
   <!-- Ilustração própria do ContrataFlow, sem direitos de terceiros: prédio público ao entardecer. -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#13213b"/>
-      <stop offset="0.45" stop-color="#253a60"/>
-      <stop offset="0.72" stop-color="#3e5a86"/>
-      <stop offset="1" stop-color="#6d7c96"/>
+      <stop offset="0" stop-color="#141e2b"/>
+      <stop offset="0.45" stop-color="#1e2d45"/>
+      <stop offset="0.72" stop-color="#34486a"/>
+      <stop offset="1" stop-color="#5e6b80"/>
     </linearGradient>
     <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#f0b46a" stop-opacity="0.45"/>
@@ -25,8 +25,8 @@
       <stop offset="1" stop-color="#857e73"/>
     </linearGradient>
     <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0c1728"/>
-      <stop offset="1" stop-color="#172b46"/>
+      <stop offset="0" stop-color="#0b1118"/>
+      <stop offset="1" stop-color="#182436"/>
     </linearGradient>
     <linearGradient id="plaza" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#8a857e"/>

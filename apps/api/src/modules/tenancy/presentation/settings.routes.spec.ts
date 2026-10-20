@@ -234,7 +234,7 @@ describe('Feature: Configurações gerais do tenant (US-103)', () => {
         'labels.secretariat',
         'process.requireInternalCode',
       ]);
-      expect(data['branding.primaryColor']).toBe('#1D4ED8');
+      expect(data['branding.primaryColor']).toBe('#005BF9');
       expect(data['labels.secretariat']).toBe('Diretoria');
     });
 

@@ -108,23 +108,23 @@ entries:
       # Recuperação da marca: também é o fluxo dos links de recuperação gerados pela API do IdP.
       flow_recovery: !Find [authentik_flows.flow, [slug, contrataflow-recovery]]
       branding_custom_css: |
-        /* Tema do ContrataFlow (SCR-001 · prototype/entrar.html). */
+        /* Tema do ContrataFlow (SCR-001 · prototype/entrar.html · paleta oficial — DEC-185). */
         :root {
           --pf-global--FontFamily--sans-serif: Inter, 'Segoe UI', Roboto, Arial, sans-serif;
-          --pf-global--primary-color--100: #14223d;
-          --pf-global--primary-color--200: #0e1b31;
-          --pf-global--link--Color: #1d4ed8;
-          --pf-global--link--Color--hover: #1e40af;
-          --ak-accent: #14223d;
+          --pf-global--primary-color--100: #141E2B;
+          --pf-global--primary-color--200: #0B1118;
+          --pf-global--link--Color: #004BE3;
+          --pf-global--link--Color--hover: #141E2B;
+          --ak-accent: #141E2B;
         }
         .pf-c-button.pf-m-primary {
-          background-color: #14223d;
+          background-color: #141E2B;
           border-radius: 0.5rem;
           font-weight: 600;
           min-height: 3rem;
         }
         .pf-c-button.pf-m-primary:hover {
-          background-color: #0e1b31;
+          background-color: #004BE3;
         }
         .pf-c-form-control {
           border-radius: 0.5rem;

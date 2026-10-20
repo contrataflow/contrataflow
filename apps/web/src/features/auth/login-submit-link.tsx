@@ -34,7 +34,8 @@ export function LoginSubmitLink({ href }: { readonly href: string }) {
       aria-disabled={redirecting || undefined}
       className={buttonClassName({
         size: 'md',
-        className: 'h-12 w-full bg-[#14223d]! text-base font-semibold shadow-sm',
+        className:
+          'h-12 w-full bg-brand-navy! text-base font-semibold shadow-sm hover:bg-brand-blue-deep!',
       })}
       onClick={(event) => {
         // Segundo clique durante o redirecionamento não reinicia o fluxo.

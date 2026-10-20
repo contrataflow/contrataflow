@@ -91,7 +91,7 @@ const documentTypes = [
 const settings = new Map([
   ['labels.secretariat', { value: 'Secretaria', version: 1 }],
   ['labels.department', { value: 'Setor', version: 1 }],
-  ['branding.primaryColor', { value: '#1D4ED8', version: 1 }],
+  ['branding.primaryColor', { value: '#005BF9', version: 1 }],
   ['numbering.process.mask', { value: '{seq:4}/{year}', version: 1 }],
   ['security.sessionIdleMinutes', { value: 30, version: 1 }],
   // US-116: IA opt-in (desligada, sem termos aceitos) e limites padrão.

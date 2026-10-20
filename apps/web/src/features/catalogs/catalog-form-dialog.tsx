@@ -307,7 +307,7 @@ function CatalogFormBody({
               {...common}
               type={field.kind === 'number' ? 'number' : 'text'}
               {...(field.kind === 'number' ? { min: 1, step: 1 } : {})}
-              {...(field.kind === 'color' ? { placeholder: '#1D4ED8', maxLength: 7 } : {})}
+              {...(field.kind === 'color' ? { placeholder: '#005BF9', maxLength: 7 } : {})}
               className={INPUT}
               value={typeof value === 'string' ? value : ''}
               onChange={(event) => {

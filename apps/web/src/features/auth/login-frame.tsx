@@ -1,7 +1,7 @@
+import { BrandLogo } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
-import { BrandLogo } from './brand-logo';
 import { HelpLink } from './help-link';
 import { LoginBrandPanel } from './login-brand-panel';
 import { PrivacyNotice } from './privacy-notice';
@@ -20,12 +20,7 @@ export function LoginFrame({ children }: { readonly children: ReactNode }) {
       <section className="flex flex-col px-6 py-8 sm:px-12 lg:px-16 lg:py-12">
         <HelpLink />
         <div className="mt-6 lg:hidden">
-          <BrandLogo
-            name={t('name')}
-            className="gap-2"
-            markClassName="size-8"
-            nameClassName="text-xl"
-          />
+          <BrandLogo size="md" name={t('name')} tagline={t('slogan')} />
         </div>
         <div className="my-auto w-full max-w-md self-center py-8 lg:py-6">
           {children}

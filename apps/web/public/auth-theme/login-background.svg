@@ -5,20 +5,20 @@
        prototype/assets/login-predio.svg. -->
   <defs>
     <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#22365a"/>
-      <stop offset="0.5" stop-color="#13223d"/>
-      <stop offset="1" stop-color="#0e1b31"/>
+      <stop offset="0" stop-color="#1a2638"/>
+      <stop offset="0.5" stop-color="#141e2b"/>
+      <stop offset="1" stop-color="#0b1118"/>
     </linearGradient>
     <linearGradient id="fadeLeft" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#0e1b31" stop-opacity="0.96"/>
-      <stop offset="0.42" stop-color="#0e1b31" stop-opacity="0.72"/>
-      <stop offset="0.72" stop-color="#0e1b31" stop-opacity="0.15"/>
-      <stop offset="1" stop-color="#0e1b31" stop-opacity="0"/>
+      <stop offset="0" stop-color="#0b1118" stop-opacity="0.96"/>
+      <stop offset="0.42" stop-color="#0b1118" stop-opacity="0.72"/>
+      <stop offset="0.72" stop-color="#0b1118" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#0b1118" stop-opacity="0"/>
     </linearGradient>
     <linearGradient id="fadeVertical" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0e1b31" stop-opacity="0.4"/>
-      <stop offset="0.5" stop-color="#0e1b31" stop-opacity="0"/>
-      <stop offset="1" stop-color="#0e1b31" stop-opacity="0.35"/>
+      <stop offset="0" stop-color="#0b1118" stop-opacity="0.4"/>
+      <stop offset="0.5" stop-color="#0b1118" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0b1118" stop-opacity="0.35"/>
     </linearGradient>
   </defs>
   <rect width="1600" height="1000" fill="url(#base)"/>
@@ -26,10 +26,10 @@
   
   <defs>
     <linearGradient id="p-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#13213b"/>
-      <stop offset="0.45" stop-color="#253a60"/>
-      <stop offset="0.72" stop-color="#3e5a86"/>
-      <stop offset="1" stop-color="#6d7c96"/>
+      <stop offset="0" stop-color="#141e2b"/>
+      <stop offset="0.45" stop-color="#1e2d45"/>
+      <stop offset="0.72" stop-color="#34486a"/>
+      <stop offset="1" stop-color="#5e6b80"/>
     </linearGradient>
     <radialGradient id="p-glow" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#f0b46a" stop-opacity="0.45"/>
@@ -49,8 +49,8 @@
       <stop offset="1" stop-color="#857e73"/>
     </linearGradient>
     <linearGradient id="p-glass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0c1728"/>
-      <stop offset="1" stop-color="#172b46"/>
+      <stop offset="0" stop-color="#0b1118"/>
+      <stop offset="1" stop-color="#182436"/>
     </linearGradient>
     <linearGradient id="p-plaza" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#8a857e"/>
@@ -139,8 +139,9 @@
   <rect width="1600" height="1000" fill="url(#fadeVertical)"/>
 
   <g transform="translate(120 112)">
-    <g transform="scale(1.2)"><path d="M8 6 L22 6 L32 16 L18 16 Z" fill="#3b82f6"/><path d="M8 17 L22 17 L32 27 L18 27 Z" fill="#60a5fa"/><path d="M8 28 L18 28 L22 34 L12 34 Z" fill="#2563eb"/></g>
-    <text x="62" y="35" font-size="32" font-weight="600" fill="#ffffff">ContrataFlow</text>
+    <g transform="translate(-6.84 -7.66) scale(0.05432)"><path d="M689 203 L718 205 L742 213 L1047 382 L837 504 L784 479 L752 469 L718 468 L681 479 L215 735 L215 498 L221 476 L240 448 L261 431 L644 216 Z" fill="#ffffff"/><path d="M403 673 L412 694 L426 707 L925 978 L704 1102 L683 1108 L656 1109 L628 1102 L602 1088 L261 887 L240 870 L221 842 L215 821 L214 776 Z" fill="#005BF9"/><path d="M830 777 L857 782 L1069 899 L965 956 L742 823 Z" fill="#005BF9"/></g>
+    <text x="70" y="32" font-size="34" font-weight="800" letter-spacing="-1"><tspan fill="#ffffff">Contrata</tspan><tspan fill="#6b9eff">Flow</tspan></text>
+    <text x="71" y="54" font-size="11.5" letter-spacing="2.9" fill="#b3bdcb">DO PLANEJAMENTO À CONTRATAÇÃO</text>
   </g>
   <text x="120" y="268" font-size="46" font-weight="700" fill="#ffffff">
     <tspan x="120">Contratações públicas</tspan>

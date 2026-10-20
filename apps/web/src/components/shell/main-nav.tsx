@@ -11,6 +11,15 @@ import { Icon } from './icons';
 import { ADMIN_NAV, MAIN_NAV, isActivePath } from './navigation';
 import type { AdminNavItem, NavItem } from './navigation';
 
+/*
+ * Itens do menu sobre o navy do menu lateral (DEC-185): ativo na primária (o tenant pode trocá-la,
+ * sempre com contraste validado); foco no azul claro da marca, legível sobre o navy.
+ */
+const SIDEBAR_LINK =
+  'flex min-h-10 items-center gap-3 rounded-control px-3 text-sm focus-visible:outline-sidebar-accent';
+const SIDEBAR_LINK_ACTIVE = 'bg-primary text-primary-foreground';
+const SIDEBAR_LINK_IDLE = 'text-sidebar-foreground hover:bg-sidebar-foreground/10';
+
 /** Menu principal (barra lateral e gaveta móvel): página atual com `aria-current`. */
 export function MainNav({
   onNavigate,
@@ -32,7 +41,7 @@ export function MainNav({
           <MainLink key={item.href} item={item} pathname={pathname} onNavigate={handleClick} />
         ),
       )}
-      <p className="mt-6 px-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+      <p className="mt-6 px-3 pb-1 text-xs font-semibold tracking-wide text-sidebar-muted uppercase">
         {t('nav.administration')}
       </p>
       <Link
@@ -40,13 +49,17 @@ export function MainNav({
         onClick={handleClick}
         aria-current={pathname === '/admin' ? 'page' : undefined}
         className={cx(
-          'flex min-h-10 items-center gap-3 rounded-control px-3 text-sm',
-          isActivePath(pathname, '/admin')
-            ? 'bg-primary-soft text-primary'
-            : 'text-foreground hover:bg-muted',
+          SIDEBAR_LINK,
+          isActivePath(pathname, '/admin') ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE,
         )}
       >
-        <Icon name="settings" className="size-4 text-muted-foreground" />
+        <Icon
+          name="settings"
+          className={cx(
+            'size-4',
+            isActivePath(pathname, '/admin') ? 'text-primary-foreground' : 'text-sidebar-muted',
+          )}
+        />
         {t('admin.title')}
       </Link>
     </nav>
@@ -69,12 +82,12 @@ function MainLink({
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
-      className={cx(
-        'flex min-h-10 items-center gap-3 rounded-control px-3 text-sm font-medium',
-        active ? 'bg-primary-soft text-primary' : 'text-foreground hover:bg-muted',
-      )}
+      className={cx(SIDEBAR_LINK, 'font-medium', active ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE)}
     >
-      <Icon name={item.icon} className="size-4 text-muted-foreground" />
+      <Icon
+        name={item.icon}
+        className={cx('size-4', active ? 'text-primary-foreground' : 'text-sidebar-muted')}
+      />
       {t(`nav.${item.labelKey}`)}
     </Link>
   );

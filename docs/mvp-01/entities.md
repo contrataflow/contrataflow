@@ -1707,7 +1707,7 @@ Categoria do `toConfirm` gerada pelo *GroundingGuard* e rótulo padrão: valor m
 |---|---|---|---|
 | `labels.secretariat` | string | `"Secretaria"` | Rótulo do nível de unidade requisitante |
 | `labels.department` | string | `"Setor"` | |
-| `branding.primaryColor` | string | `"#1D4ED8"` | Contraste validado (WCAG AA) |
+| `branding.primaryColor` | string | `"#005BF9"` | Contraste validado (WCAG AA) |
 | `branding.logoAttachmentId` | uuid \| null | `null` | |
 | `numbering.process.mask` | string | `"{seq:4}/{year}"` | Deve conter `{seq:N}` e `{year}` |
 | `numbering.process.scope` | `"TENANT"` \| `"ORGANIZATION"` | `"TENANT"` | Alterável só no início do exercício (aviso) |
