@@ -2,6 +2,8 @@ import {
   canceledProcessSchema,
   cancelProcessSchema,
   checkDuplicateProcessesSchema,
+  completedProcessSchema,
+  completeProcessSchema,
   createProcessSchema,
   dataEnvelope,
   discardProcessDraftSchema,
@@ -17,6 +19,7 @@ import {
   processStageEntrySchema,
   processSummarySchema,
   PROCESS_CANCELLATION_MESSAGES,
+  PROCESS_COMPLETION_MESSAGES,
   PROCESS_CONFIDENTIALITY_MESSAGES,
   PROCESS_SUSPENSION_MESSAGES,
   resumeMetaSchema,
@@ -33,6 +36,8 @@ import type {
   CancelProcess,
   CanceledProcessDto,
   CheckDuplicateProcesses,
+  CompleteProcess,
+  CompletedProcessDto,
   CreateProcess,
   DiscardProcessDraft,
   DuplicateCheckResult,
@@ -83,6 +88,7 @@ import { ZodBody, ZodQuery, ZodValidationPipe } from '#shared/validation/zod-val
 
 import { AssignProcessCommand } from '../application/assign-process.command.js';
 import { ClaimProcessCommand } from '../application/claim-process.command.js';
+import { CompleteProcessCommand } from '../application/complete-process.command.js';
 import { CreateProcessCommand } from '../application/create-process.command.js';
 import { DuplicateProcessCommand } from '../application/duplicate-process.command.js';
 import { ForwardProcessCommand } from '../application/forward-process.command.js';
@@ -143,7 +149,8 @@ function noStore(response: HttpResponse): void {
  * PRC-02 (criar), PRC-03 (verificar duplicidade), PRC-04 (detalhe com `meta.allowedActions`), PRC-05
  * (editar dados), PRC-07 (painel situacional), PRC-10 (etapas e passagens do stepper), PRC-19
  * (encaminhar — US-047), PRC-23/PRC-24 (suspender e retomar — US-008), PRC-25/PRC-06 (cancelar e
- * descartar rascunho — US-009), PRC-27 (duplicar — US-011) e PRC-33 (sigilo do orçamento — US-013).
+ * descartar rascunho — US-009), PRC-26 (concluir — US-010), PRC-27 (duplicar — US-011) e PRC-33
+ * (sigilo do orçamento — US-013).
  * `PROCESS_CREATE` em algum escopo no guard; o escopo sobre o setor solicitante (RN-PROC-03) é
  * conferido no caso de uso, depois das referências.
  */
@@ -168,6 +175,7 @@ export class ProcessController {
     private readonly resumptions: ResumeProcessCommand,
     private readonly cancellations: CancelProcessCommand,
     private readonly discards: DiscardDraftProcessCommand,
+    private readonly completions: CompleteProcessCommand,
   ) {}
 
   @Get()
@@ -680,6 +688,44 @@ export class ProcessController {
       processId: id,
       reason: body.cancellationReason,
       expectedVersion: ifMatch?.value ?? 0,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/complete')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('PROCESS_COMPLETE', { detail: PROCESS_COMPLETION_MESSAGES.permissionDenied })
+  @ApiOperation({
+    operationId: 'PRC-26',
+    summary: 'Concluir processo',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['process.complete'],
+    responses: {
+      200: {
+        description:
+          'Processo `COMPLETED` (`ETag` = nova versão) com `completedAt` e `completedBy` (RN-PROC-115). Uma transação: trava do processo e visibilidade (404 `PROCESS_NOT_FOUND`), `If-Match` (412 `VERSION_CONFLICT` — a corrida com um encaminhamento perde aqui), `PROCESS_COMPLETE` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS` (409 `INVALID_PROCESS_STATUS` — suspenso, devolvido, rascunho ou final), custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`, auditado) e o motor de workflow (POL-08): transição `COMPLETE` da etapa atual ou etapa atual já `END` (422 `TRANSITION_NOT_AVAILABLE`), regras `BLOCKING` `STAGE_EXIT`/`TRANSITION` satisfeitas (422 `TRANSITION_BLOCKED` com `violations[]`) e avisos `WARNING` reconhecidos em `acknowledgedWarnings` (422 `WARNINGS_NOT_ACKNOWLEDGED`). Encerra a etapa ativa (`COMPLETED`), registra a passagem pela etapa `END` já encerrada (`exitedAt = completedAt`), encerra a responsabilidade ativa e grava a tramitação `COMPLETE` com a observação opcional. A mesma rotina de domínio conclui o processo automaticamente na decisão `APPROVE` que leva à etapa `END` (US-052). Eventos `ProcessStageChanged` (`process.stage_changed.complete`) e `ProcessStatusChanged`/`ProcessCompleted` (`process.status_changed.completed`); timeline `PROCESS_COMPLETED`; auditoria `process.complete` (`metadata.cause = MANUAL`). `Idempotency-Key` obrigatório: reenvio = a mesma resposta com `Idempotent-Replayed: true`. Banco indisponível = 503 `DEPENDENCY_UNAVAILABLE` sem alterar nada.',
+        schema: dataEnvelope(completedProcessSchema),
+      },
+    },
+  })
+  async completeProcess(
+    @ProcessId() id: string,
+    @ZodBody(completeProcessSchema) body: CompleteProcess,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<CompletedProcessDto> {
+    const result = await this.completions.execute({
+      processId: id,
+      comment: body.comment === undefined || body.comment === '' ? null : body.comment,
+      acknowledgedWarnings: body.acknowledgedWarnings ?? [],
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
     });
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);

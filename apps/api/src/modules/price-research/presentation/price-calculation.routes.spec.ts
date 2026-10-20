@@ -193,6 +193,7 @@ describe('Feature: Calcular estatísticas e valor estimado por item (US-029)', (
         originId: catalog.origin,
         priority: 'MEDIUM',
         pcaStatus: 'NOT_APPLICABLE',
+        confirmDuplicate: true,
       });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     const created = processRepositoryOf(api)

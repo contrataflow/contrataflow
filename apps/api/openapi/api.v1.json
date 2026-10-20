@@ -10551,6 +10551,479 @@
         ],
         "additionalProperties": false
       },
+      "CompletedProcess": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "year": {
+            "type": "integer"
+          },
+          "internalCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_PROGRESS",
+              "AWAITING_APPROVAL",
+              "RETURNED",
+              "SUSPENDED",
+              "CANCELED",
+              "COMPLETED",
+              "PUBLISHED"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "organization": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "shortName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "shortName"
+            ]
+          },
+          "requestingSecretariat": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "requestingDepartment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "contractingType": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "modality": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "origin": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "label"
+            ]
+          },
+          "isPriceRegistration": {
+            "type": "boolean"
+          },
+          "currentStage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "dueAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "documentTypeCodes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "dueAt",
+              "instructions",
+              "documentTypeCodes"
+            ]
+          },
+          "currentDepartment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "currentResponsible": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "versionNumber": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "versionNumber"
+            ]
+          },
+          "targetDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "estimatedValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimatedValueMasked": {
+            "type": "boolean"
+          },
+          "estimatedValueSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MANUAL",
+              "DFD",
+              "ETP",
+              "PRICE_RESEARCH",
+              "TERM",
+              null
+            ]
+          },
+          "isBudgetConfidential": {
+            "type": "boolean"
+          },
+          "pcaStatus": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "NOT_PLANNED",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "pcaYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pcaItemCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pcaJustification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creationChannel": {
+            "type": "string",
+            "enum": [
+              "WEB",
+              "DUPLICATION",
+              "IMPORT",
+              "API"
+            ]
+          },
+          "duplicatedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "openedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "number",
+          "year",
+          "internalCode",
+          "title",
+          "object",
+          "description",
+          "status",
+          "priority",
+          "organization",
+          "requestingSecretariat",
+          "requestingDepartment",
+          "contractingType",
+          "modality",
+          "origin",
+          "isPriceRegistration",
+          "currentStage",
+          "currentDepartment",
+          "currentResponsible",
+          "workflow",
+          "targetDate",
+          "estimatedValue",
+          "estimatedValueMasked",
+          "estimatedValueSource",
+          "isBudgetConfidential",
+          "pcaStatus",
+          "pcaYear",
+          "pcaItemCode",
+          "pcaJustification",
+          "notes",
+          "creationChannel",
+          "duplicatedFromId",
+          "openedAt",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "version",
+          "completedAt",
+          "completedBy"
+        ]
+      },
+      "CompleteProcessRequest": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "acknowledgedWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false
+      },
       "DfdSummary": {
         "type": "object",
         "properties": {
@@ -44745,6 +45218,157 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/Comment"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/complete": {
+      "post": {
+        "operationId": "PRC-26",
+        "summary": "Concluir processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "process.complete"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteProcessRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processo `COMPLETED` (`ETag` = nova versão) com `completedAt` e `completedBy` (RN-PROC-115). Uma transação: trava do processo e visibilidade (404 `PROCESS_NOT_FOUND`), `If-Match` (412 `VERSION_CONFLICT` — a corrida com um encaminhamento perde aqui), `PROCESS_COMPLETE` cobrindo o processo (403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS` (409 `INVALID_PROCESS_STATUS` — suspenso, devolvido, rascunho ou final), custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`, auditado) e o motor de workflow (POL-08): transição `COMPLETE` da etapa atual ou etapa atual já `END` (422 `TRANSITION_NOT_AVAILABLE`), regras `BLOCKING` `STAGE_EXIT`/`TRANSITION` satisfeitas (422 `TRANSITION_BLOCKED` com `violations[]`) e avisos `WARNING` reconhecidos em `acknowledgedWarnings` (422 `WARNINGS_NOT_ACKNOWLEDGED`). Encerra a etapa ativa (`COMPLETED`), registra a passagem pela etapa `END` já encerrada (`exitedAt = completedAt`), encerra a responsabilidade ativa e grava a tramitação `COMPLETE` com a observação opcional. A mesma rotina de domínio conclui o processo automaticamente na decisão `APPROVE` que leva à etapa `END` (US-052). Eventos `ProcessStageChanged` (`process.stage_changed.complete`) e `ProcessStatusChanged`/`ProcessCompleted` (`process.status_changed.completed`); timeline `PROCESS_COMPLETED`; auditoria `process.complete` (`metadata.cause = MANUAL`). `Idempotency-Key` obrigatório: reenvio = a mesma resposta com `Idempotent-Replayed: true`. Banco indisponível = 503 `DEPENDENCY_UNAVAILABLE` sem alterar nada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CompletedProcess"
                     }
                   },
                   "required": [

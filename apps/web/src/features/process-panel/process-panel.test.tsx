@@ -370,7 +370,7 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Onde está' })).toBeTruthy();
   });
 
-  it('ação habilitada sem o diálogo da story dona avisa por toast', async () => {
+  it('US-010: "Concluir" (ação primária COMPLETE) abre o diálogo SCR-116 de conclusão', async () => {
     mockProcessApi({
       summary: () =>
         jsonResponse({
@@ -389,11 +389,7 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
       </>,
     );
     fireEvent.click(await screen.findByRole('button', { name: 'Concluir' }));
-    expect(
-      await screen.findByText(
-        'Esta ação abre o diálogo próprio, ainda não disponível nesta versão.',
-      ),
-    ).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Concluir processo' })).toBeTruthy();
   });
 
   it('[Sucesso] US-007: "Etiquetas" no cabeçalho abre o seletor com as etiquetas aplicadas; PUT usa a versão do PRC-04', async () => {

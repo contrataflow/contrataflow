@@ -172,6 +172,9 @@ const PROCESS_SUSPENSION_ROUTE =
 const PROCESS_CANCELLATION_ROUTE =
   'Cancelar processo e descartar rascunho (US-009 · PRC-25/PRC-06): exigem If-Match e um processo do tenant com etapa ativa (o descarte, um rascunho sem número), que a suíte genérica não tem. O isolamento (id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, sem PROCESS_CANCEL → 403 PERMISSION_DENIED com access.denied, RLS de processes/process_stages/process_assignments/process_movements/approvals/documents e a exclusão lógica fora das leituras) é coberto em test/tenant-leak/process-cancellation.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-cancellation.routes.spec.ts.';
 
+const PROCESS_COMPLETION_ROUTE =
+  'Concluir processo (US-010 · PRC-26): exige If-Match, Idempotency-Key e um processo do tenant IN_PROGRESS sob custódia, com a transição COMPLETE ou a etapa END ativa, que a suíte genérica não tem. O isolamento (id de processo de B → 404 PROCESS_NOT_FOUND sem alterar nada, sem custódia → 403 NOT_PROCESS_CUSTODIAN com access.denied, RLS de processes/process_stages/process_assignments/process_movements/outbox_events) é coberto em test/tenant-leak/process-completion.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-completion.routes.spec.ts.';
+
 const PROCESS_ITEMS_ROUTE =
   'Itens do processo (US-006): a suíte genérica não tem processo nem item do tenant B. O isolamento (PRC-13/14/17 com id de processo de B → 404 PROCESS_NOT_FOUND, PRC-15/16 com id de item de B → 404 NOT_FOUND sem alterar nada, unidade de medida de B no corpo → 422 REFERENCE_NOT_FOUND sem revelar o registro, RLS e FKs compostas de process_items) é coberto em test/tenant-leak/process-items.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-items.routes.spec.ts.';
 
@@ -403,6 +406,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-24': { kind: 'exempt', reason: PROCESS_SUSPENSION_ROUTE },
   'PRC-25': { kind: 'exempt', reason: PROCESS_CANCELLATION_ROUTE },
   'PRC-06': { kind: 'exempt', reason: PROCESS_CANCELLATION_ROUTE },
+  'PRC-26': { kind: 'exempt', reason: PROCESS_COMPLETION_ROUTE },
   'RSK-01': { kind: 'exempt', reason: RISK_ROUTE },
   'RSK-02': { kind: 'exempt', reason: RISK_ROUTE },
   'RSK-03': { kind: 'exempt', reason: RISK_ROUTE },

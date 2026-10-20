@@ -31,8 +31,9 @@ import { ApiError, validationError } from '#shared/errors/api-error.js';
 import { PROCESS_REPOSITORY } from './ports.js';
 import type { ProcessAggregateRows, ProcessRepository, ProcessStageRow } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
+import { ProcessCompletionRecorder } from './process-completion.recorder.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
-import { transitionNotAvailable } from './process.errors.js';
+import { processNotCompletable, transitionNotAvailable } from './process.errors.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
 import { ApprovalFacade } from '../../approval/application/approval.facade.js';
@@ -45,6 +46,7 @@ import type {
   DecisionEvaluation,
   WorkflowSnapshotStage,
 } from '../../workflow/application/workflow.facade.js';
+import { canCompleteFrom } from '../domain/process-completion.js';
 import {
   acknowledgedWarningsOf,
   blockingViolations,
@@ -117,6 +119,7 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     private readonly organization: OrganizationFacade,
     private readonly transitions: StageTransitionService,
     private readonly support: StageTransitionSupport,
+    private readonly completions: ProcessCompletionRecorder,
   ) {}
 
   async prepareDecision(
@@ -239,6 +242,10 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
       : toStage.type === 'END'
         ? 'COMPLETED'
         : statusOnEntering(toStage.type);
+    // RN-PROC-112/114 (US-010): a conclusão automática só a partir de AWAITING_APPROVAL.
+    if (statusTo === 'COMPLETED' && !canCompleteFrom(process.status, 'APPROVAL')) {
+      throw processNotCompletable(process.status);
+    }
 
     // 6.9 (preparo) — destino APPROVAL: o aprovador ANTES de qualquer escrita (RN-TRAM-60).
     const approver =
@@ -263,6 +270,7 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     const { subject, decision, now } = input;
     const { transition, fromStage, toStage } = evaluation;
     const context = requireRequestContext();
+    const startedAt = performance.now();
 
     // 6.5 / 6.10 — cada documento coberto (DEC-018) e o selo APPROVAL_STAMPED do aprovado.
     const afterCommit: (() => Promise<void>)[] = [];
@@ -353,7 +361,8 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
         approvalId: subject.approvalId,
         metadata,
         numbering: null,
-        completesProcess: plan.statusTo === 'COMPLETED',
+        // US-010 · RN-PROC-112: destino END conclui pela rotina compartilhada (`completeProcess`).
+        ...(plan.statusTo === 'COMPLETED' ? { completion: 'APPROVAL' as const } : {}),
         actor: {
           userId: input.decidedById,
           ip: context.ip,
@@ -369,6 +378,27 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
       toStage: { key: toStage.key, type: toStage.type },
       requestedApprovalId: chainedApprovalId,
     });
+
+    // US-010 · RN-PROC-115: `process.complete` (cause APPROVAL, completedById = aprovador).
+    const { completion } = transitionPlan;
+    if (completion !== null) {
+      await this.completions.recordIn(tx, {
+        before: process,
+        after: transitionPlan.process,
+        completion,
+        movementId: transitionPlan.movement.id,
+        warningsAcknowledged: plan.acknowledged,
+        idempotencyKey: null,
+      });
+      afterCommit.push(() => {
+        this.completions.committed(
+          process.id,
+          completion,
+          Math.round(performance.now() - startedAt),
+        );
+        return Promise.resolve();
+      });
+    }
 
     // 6.9 — a próxima aprovação (a passagem já existe: FK).
     if (plan.approver !== null && chainedApprovalId !== null) {

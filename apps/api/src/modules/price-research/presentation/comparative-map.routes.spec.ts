@@ -241,6 +241,7 @@ describe('Feature: Visualizar e exportar o mapa comparativo (US-031)', () => {
         originId: catalog.origin,
         priority: 'MEDIUM',
         pcaStatus: 'NOT_APPLICABLE',
+        confirmDuplicate: true,
       });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     const created = processRepositoryOf(api)

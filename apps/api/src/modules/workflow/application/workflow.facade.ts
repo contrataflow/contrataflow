@@ -31,6 +31,7 @@ import type {
 } from '../domain/stage-destination.js';
 import type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
 import type {
+  CompletionChoice,
   DecisionAction,
   DecisionChoice,
   DecisionTarget,
@@ -61,6 +62,7 @@ export type {
 } from '../domain/stage-destination.js';
 export type { ApplicabilityProcess } from '../domain/workflow-applicability.js';
 export type {
+  CompletionChoice,
   DecisionAction,
   DecisionChoice,
   DecisionEvaluation,
@@ -179,6 +181,15 @@ export class WorkflowFacade {
     request: { readonly transitionId: string; readonly action: 'FORWARD' | 'COMPLETE' },
   ): Promise<TransitionEvaluation | null> {
     return this.engine.evaluateTransition(tx, state, request);
+  }
+
+  /**
+   * US-010 (POL-08 · RN-PROC-111/113): a saída de conclusão da etapa atual — a transição `COMPLETE`
+   * (a principal ou a primeira) ou a etapa `END` já ativa (FA-03) — com as regras `STAGE_EXIT` +
+   * `TRANSITION` não satisfeitas. `UNAVAILABLE` = a etapa não conclui.
+   */
+  evaluateCompletion(tx: TenantTx, state: ProcessExecutionState): Promise<CompletionChoice> {
+    return this.engine.evaluateCompletion(tx, state);
   }
 
   /**

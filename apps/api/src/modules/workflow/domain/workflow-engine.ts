@@ -364,6 +364,39 @@ export function evaluateTransition(
   return { transition, fromStage: stage, toStage, violations };
 }
 
+/**
+ * Saída de conclusão da etapa atual (US-010 · POL-08 · RN-PROC-111): a transição `COMPLETE` (a
+ * principal ou, sem principal, a primeira na ordem de exibição) com as suas regras, ou a etapa
+ * atual já `END` (FA-03 — sem transição nomeada) com as regras `STAGE_EXIT` dela.
+ */
+export type CompletionChoice =
+  | { readonly kind: 'TRANSITION'; readonly evaluation: TransitionEvaluation }
+  | {
+      readonly kind: 'END';
+      readonly stage: WorkflowSnapshotStage;
+      readonly violations: readonly ChecklistViolation[];
+    }
+  | { readonly kind: 'UNAVAILABLE' };
+
+/** US-010: como o comando de conclusão sai da etapa atual (o mesmo cálculo de PRC-08/09). */
+export function evaluateCompletion(
+  input: EngineInput,
+  evaluation: StageEvaluation = evaluateStage(input),
+): CompletionChoice {
+  const { stage } = evaluation;
+  if (stage === null) return { kind: 'UNAVAILABLE' };
+  if (stage.type === 'END') return { kind: 'END', stage, violations: checklistOf(evaluation) };
+  const completes = evaluation.advances.filter((transition) => transition.action === 'COMPLETE');
+  const transition = completes.find((candidate) => candidate.isPrimary) ?? completes[0];
+  if (transition === undefined) return { kind: 'UNAVAILABLE' };
+  const result = evaluateTransition(
+    input,
+    { transitionId: transition.id, action: 'COMPLETE' },
+    evaluation,
+  );
+  return result === null ? { kind: 'UNAVAILABLE' } : { kind: 'TRANSITION', evaluation: result };
+}
+
 /** POL-01: responsável atual ou, na fila, lotado na unidade atual. */
 export function isCustodian(process: EngineProcess, viewer: EngineViewer): boolean {
   return process.currentResponsibleId === null
@@ -376,14 +409,19 @@ const statusReason = (status: ProcessStatus): ActionReason => ({
   message: `Ação indisponível: o processo está ${STATUS_LABELS[status]}.`,
 });
 
-/** Motivos comuns às ações de tramitação: status (POL-01) e custódia. */
+/**
+ * Motivos comuns às ações de tramitação: status (POL-01; concluir só em `IN_PROGRESS` — POL-08 ·
+ * RN-PROC-111/114 da US-010) e custódia.
+ */
 function custodyReasons(
   process: EngineProcess,
   viewer: EngineViewer,
   action: 'FORWARD' | 'COMPLETE' | 'RETURN',
 ): ActionReason[] {
   const reasons: ActionReason[] = [];
-  if (!CUSTODY_STATUSES.has(process.status)) reasons.push(statusReason(process.status));
+  const eligible =
+    action === 'COMPLETE' ? process.status === 'IN_PROGRESS' : CUSTODY_STATUSES.has(process.status);
+  if (!eligible) reasons.push(statusReason(process.status));
   if (!isCustodian(process, viewer)) {
     reasons.push({ code: 'NOT_PROCESS_CUSTODIAN', message: notCustodianMessage(action) });
   }
@@ -419,6 +457,30 @@ function advanceEntries(
 ): ActionEntry[] {
   const { definition, process } = input;
   const entries: ActionEntry[] = [];
+  // US-010 · FA-03: etapa atual já `END` (sem saídas) aguardando confirmação — "Concluir processo"
+  // sem rótulo de transição. Processo já encerrado na `END` (o caso comum) só tem o ciclo de vida.
+  const { stage } = evaluation;
+  if (
+    stage?.type === 'END' &&
+    !FINAL_STATUSES.has(process.status) &&
+    viewer.permissions.has('PROCESS_COMPLETE')
+  ) {
+    const blocking = evaluation.results
+      .filter(({ rule, outcome }) => rule.severity === 'BLOCKING' && !outcome.satisfied)
+      .map(({ rule }): ActionReason => ({
+        code: 'TRANSITION_BLOCKED',
+        message: rule.message,
+        ruleId: rule.id,
+      }));
+    entries.push(
+      entry(
+        'COMPLETE',
+        'Concluir processo',
+        [...custodyReasons(process, viewer, 'COMPLETE'), ...blocking],
+        { toStageKey: stage.key, toStageName: stage.name, toStageType: stage.type, primary: true },
+      ),
+    );
+  }
   for (const transition of evaluation.advances) {
     const permission = transition.action === 'COMPLETE' ? 'PROCESS_COMPLETE' : 'PROCESS_FORWARD';
     if (!viewer.permissions.has(permission)) continue;

@@ -38,6 +38,7 @@ import {
   DiscardDraftDialog,
 } from '../process-cancellation/cancellation-dialogs';
 import { useClaimProcess } from '../process-claim/use-claim-process';
+import { CompleteProcessDialog } from '../process-completion/complete-process-dialog';
 import { ConfidentialBudgetToggle } from '../process-confidentiality/confidential-budget-toggle';
 import { DocumentsPanel } from '../process-documents/documents-panel';
 import { DuplicateProcessDialog } from '../process-duplicate/duplicate-process-dialog';
@@ -267,6 +268,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   // US-009: "Cancelar processo" e "Descartar rascunho" (menu "Mais") abrem o SCR-116.
   const [canceling, setCanceling] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  // US-010: "Concluir processo" (ação primária com a transição COMPLETE ou na etapa END) abre o SCR-116.
+  const [completing, setCompleting] = useState(false);
 
   const changeTab = (next: ProcessPanelTab) => {
     router.replace(next === 'resumo' ? pathname : `${pathname}?aba=${next}`, { scroll: false });
@@ -406,6 +409,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
           // US-009: "Cancelar processo"/"Descartar rascunho" abrem os diálogos SCR-116.
           else if (action.action === 'CANCEL') setCanceling(true);
           else if (action.action === 'DISCARD') setDiscarding(true);
+          // US-010: "Concluir processo" abre o diálogo SCR-116 com o checklist da etapa.
+          else if (action.action === 'COMPLETE') setCompleting(true);
           else toast({ title: t('actions.notYet') });
         }}
       />
@@ -470,6 +475,15 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         onOpenChange={setDiscarding}
         onCancelInstead={() => {
           setCanceling(true);
+        }}
+      />
+      <CompleteProcessDialog
+        processId={processId}
+        open={completing}
+        onOpenChange={setCompleting}
+        onDone={() => {
+          // Concluído: as ações de custódia somem; foco ao cabeçalho de status (selo "Concluído").
+          document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
         }}
       />
       <ProcessTagsDialog

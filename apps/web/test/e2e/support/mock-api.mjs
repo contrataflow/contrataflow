@@ -1021,11 +1021,49 @@ const ASSIGN_MEMBERS = [
 }));
 const assignedResponsibles = new Map();
 const isAssignFixture = (fixture) => ASSIGN_FIXTURES.includes(fixture);
+// Concluir processo (US-010 · SCR-116 — jornada J-08): o 0095/2026 (e o 0097/2026) está na etapa de
+// planejamento com a transição COMPLETE disponível (conclusão manual); o 0096/2026 já foi concluído automaticamente
+// pela aprovação final (FA-05). Regras BLOCKING/WARNING, custódia, auditoria, concorrência e a
+// rotina compartilhada com a aprovação são cobertas nos testes da API. processId → { completedAt }.
+const COMPLETION_FIXTURES = [
+  {
+    n: 95,
+    code: '0095/2026',
+    title: 'Aquisição de cimento para manutenção de vias',
+    status: 'IN_PROGRESS',
+    priority: 'MEDIUM',
+    overdue: false,
+    unit: 0,
+  },
+  {
+    n: 96,
+    code: '0096/2026',
+    title: 'Contratação de serviços de limpeza urbana',
+    status: 'COMPLETED',
+    priority: 'MEDIUM',
+    overdue: false,
+    unit: 0,
+  },
+  // Só para o diálogo a 360 px (as jornadas rodam em paralelo sobre o mesmo servidor simulado).
+  {
+    n: 97,
+    code: '0097/2026',
+    title: 'Aquisição de sinalização viária',
+    status: 'IN_PROGRESS',
+    priority: 'LOW',
+    overdue: false,
+    unit: 0,
+  },
+];
+const AUTO_COMPLETED_AT = '2026-10-15T18:00:00.000Z';
+const completions = new Map();
+const isCompletionFixture = (fixture) => COMPLETION_FIXTURES.includes(fixture);
 const cancellations = new Map();
 const discardedDrafts = new Set();
 const isCancellationFixture = (fixture) => CANCELLATION_FIXTURES.includes(fixture);
 const statusOfListed = (processId, fixture) => {
   if (cancellations.has(processId)) return 'CANCELED';
+  if (completions.has(processId)) return 'COMPLETED';
   return suspensions.has(processId) ? 'SUSPENDED' : fixture.status;
 };
 const WEEKDAY = (date) => {
@@ -6101,7 +6139,7 @@ createServer(async (request, response) => {
   }
   // Detalhe, painel e etiquetas dos processos da lista (US-004/US-007): PRC-04/07/08/10 e PRC-18.
   const listedRoute =
-    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume|\/cancel|\/assign)?$/.exec(
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/summary|\/stages|\/available-actions|\/tags|\/suspend|\/resume|\/cancel|\/assign|\/complete)?$/.exec(
       url.pathname,
     );
   const listedFixture = listedRoute
@@ -6113,6 +6151,7 @@ createServer(async (request, response) => {
         ...FREE_TEXT_FIXTURES,
         ...CANCELLATION_FIXTURES,
         ...ASSIGN_FIXTURES,
+        ...COMPLETION_FIXTURES,
       ].find((fixture) => listProcessId(fixture.n) === listedRoute[1])
     : undefined;
   if (listedRoute && listedFixture) {
@@ -6274,6 +6313,57 @@ createServer(async (request, response) => {
         ],
       });
     }
+    if (request.method === 'POST' && listedRoute[2] === '/complete') {
+      if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      if (statusOfListed(processId, listedFixture) !== 'IN_PROGRESS') {
+        return problem(response, 409, 'INVALID_PROCESS_STATUS', String(correlationId));
+      }
+      const completedAt = new Date().toISOString();
+      completions.set(processId, { completedAt });
+      processVersions.set(processId, processVersionOf(processId) + 1);
+      const item = listProcessItem(listedFixture);
+      return send(
+        response,
+        200,
+        {
+          data: {
+            ...item,
+            status: 'COMPLETED',
+            completedAt,
+            completedBy: { id: '0192a000-0000-7000-8000-00000000a0a1', name: 'Ana Souza' },
+            version: processVersionOf(processId),
+          },
+        },
+        { ETag: `"${processVersionOf(processId)}"` },
+      );
+    }
+    if (
+      request.method === 'GET' &&
+      listedRoute[2] === '/available-actions' &&
+      isCompletionFixture(listedFixture)
+    ) {
+      const completed = statusOfListed(processId, listedFixture) === 'COMPLETED';
+      return send(response, 200, {
+        data: completed
+          ? []
+          : [
+              {
+                action: 'COMPLETE',
+                label: 'Concluir planejamento',
+                enabled: true,
+                reasons: [],
+                transitionId: '0192a000-0000-7000-8000-0000000c0095',
+                transitionKey: 'PLANEJAMENTO_COMPLETE_CONCLUSAO',
+                toStageKey: 'CONCLUSAO',
+                toStageName: 'Planejamento da contratação concluído',
+                toStageType: 'END',
+                primary: true,
+              },
+            ],
+      });
+    }
     if (request.method === 'POST' && listedRoute[2] === '/assign') {
       if (String(request.headers['if-match'] ?? '') !== `"${processVersionOf(processId)}"`) {
         return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
@@ -6336,6 +6426,14 @@ createServer(async (request, response) => {
       const suspension = suspensions.get(processId);
       const cancellation = cancellations.get(processId);
       const status = statusOfListed(processId, listedFixture);
+      const completedAt =
+        status === 'COMPLETED'
+          ? (completions.get(processId)?.completedAt ?? AUTO_COMPLETED_AT)
+          : null;
+      const completionAction =
+        isCompletionFixture(listedFixture) && status === 'IN_PROGRESS'
+          ? { action: 'COMPLETE', label: 'Concluir planejamento', enabled: true, reasons: [] }
+          : null;
       // FA-02: o 0091/2026 aguarda 1 aprovação até ser cancelado.
       const pendingApprovals =
         listedFixture.n === 91 && !cancellation
@@ -6367,18 +6465,26 @@ createServer(async (request, response) => {
             showOrganization: false,
           },
           where: {
-            stage: {
-              key: 'PESQUISA_PRECOS',
-              name: 'Pesquisa de preços',
-              type: 'TASK',
-              groupLabel: 'Planejamento',
-            },
+            stage:
+              status === 'COMPLETED'
+                ? {
+                    key: 'CONCLUSAO',
+                    name: 'Planejamento da contratação concluído',
+                    type: 'END',
+                    groupLabel: 'Planejamento',
+                  }
+                : {
+                    key: 'PESQUISA_PRECOS',
+                    name: 'Pesquisa de preços',
+                    type: 'TASK',
+                    groupLabel: 'Planejamento',
+                  },
             department: item.currentDepartment,
             status,
             statusBeforeSuspension: suspension?.statusBefore ?? null,
             suspensionReason: suspension?.reason ?? null,
             suspendedAt: suspension?.suspendedAt ?? null,
-            completedAt: null,
+            completedAt,
             canceledAt: cancellation?.canceledAt ?? null,
             cancellationReason: cancellation?.reason ?? null,
           },
@@ -6407,7 +6513,7 @@ createServer(async (request, response) => {
           nextStep: {
             action: suspension
               ? { action: 'RESUME', label: 'Retomar processo', enabled: true, reasons: [] }
-              : null,
+              : completionAction,
             instructions: null,
           },
           deadline: { ...item.deadline, isPaused: suspension !== undefined },

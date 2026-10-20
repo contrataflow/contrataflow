@@ -32,6 +32,7 @@ import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
 import type { AssignPlan } from '../domain/process-assign.js';
 import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
+import type { CompleteAtEndPlan } from '../domain/process-completion.js';
 import {
   canViewConfidentialBudget,
   compareForOrder,
@@ -119,6 +120,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
   private readonly suspendedBy = new Map<string, string | null>();
   /** `processes.canceled_by_id` (US-009). */
   private readonly canceledBy = new Map<string, string>();
+  private readonly completedBy = new Map<string, string>();
   /** Exclusão lógica do rascunho (`deleted_at`/`deleted_by_id` — US-009): some das leituras. */
   private readonly deleted = new Map<string, { readonly at: Date; readonly by: string }>();
 
@@ -298,6 +300,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     }
     if (completion !== null) {
       this.setSituation(plan.process.id, { completedAt: completion.completedAt });
+      this.completedBy.set(plan.process.id, completion.completedById);
     }
     this.movements.push(plan.movement);
     return Promise.resolve(true);
@@ -405,6 +408,29 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return Promise.resolve(true);
   }
 
+  recordCompletionAtEnd(_tx: TenantTx, plan: CompleteAtEndPlan): Promise<boolean> {
+    const current = this.processes.get(plan.process.id);
+    if (
+      current?.tenantId !== tenantOfContext() ||
+      current.version !== plan.expectedVersion ||
+      this.deleted.has(current.id)
+    ) {
+      return Promise.resolve(false);
+    }
+    if (this.stages.get(plan.stage.id)?.status !== 'ACTIVE') {
+      return Promise.reject(new Error('Passagem ativa ausente ao encerrar o processo.'));
+    }
+    this.processes.set(plan.process.id, plan.process);
+    this.closeActivePass(plan.process.id, plan.stage, 'COMPLETED');
+    this.setSituation(plan.process.id, {
+      completedAt: plan.completion.completedAt,
+      overdueSince: null,
+    });
+    this.completedBy.set(plan.process.id, plan.completion.completedById);
+    this.movements.push(plan.movement);
+    return Promise.resolve(true);
+  }
+
   statusOf(_tx: TenantTx, processId: string): Promise<ProcessStatus | null> {
     const process = this.processes.get(processId);
     if (process?.tenantId !== tenantOfContext() || this.deleted.has(processId)) {
@@ -439,10 +465,14 @@ export class InMemoryProcessRepository implements ProcessRepository {
     return Promise.resolve(true);
   }
 
-  private closeActivePass(processId: string, closed: ClosedPass): void {
+  private closeActivePass(
+    processId: string,
+    closed: ClosedPass,
+    status: 'CANCELED' | 'COMPLETED' = 'CANCELED',
+  ): void {
     const stage = this.stages.get(closed.id);
     if (stage !== undefined) {
-      this.stages.set(stage.id, { ...stage, status: 'CANCELED', exitedAt: closed.exitedAt });
+      this.stages.set(stage.id, { ...stage, status, exitedAt: closed.exitedAt });
     }
     this.endActiveAssignments(processId, closed.exitedAt);
   }
@@ -875,6 +905,11 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.stages.set(stage.id, stage);
   }
 
+  /** Quem concluiu o processo (`completedById` — US-010). */
+  completedByOf(processId: string): string | null {
+    return this.completedBy.get(processId) ?? null;
+  }
+
   /** Quem cancelou o processo (`canceledById` — US-009). */
   canceledByOf(processId: string): string | null {
     return this.canceledBy.get(processId) ?? null;
@@ -907,6 +942,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     this.situations.clear();
     this.suspendedBy.clear();
     this.canceledBy.clear();
+    this.completedBy.clear();
     this.deleted.clear();
     this.assignments.length = 0;
     this.endedAssignments.clear();

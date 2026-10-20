@@ -190,6 +190,7 @@ describe('Feature: Sinalizar outliers e alertas de conformidade (US-030)', () =>
         originId: catalog.origin,
         priority: 'MEDIUM',
         pcaStatus: 'NOT_APPLICABLE',
+        confirmDuplicate: true,
       });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     const created = processRepositoryOf(api)

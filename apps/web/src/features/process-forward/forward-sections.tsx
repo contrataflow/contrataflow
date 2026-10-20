@@ -340,6 +340,7 @@ export function RulesSection({
   documents,
   acknowledged,
   error,
+  acknowledgeLabel,
   onAcknowledge,
   onResolve,
 }: {
@@ -349,6 +350,8 @@ export function RulesSection({
   readonly documents: readonly ProcessDocumentDto[];
   readonly acknowledged: readonly string[];
   readonly error: string | undefined;
+  /** Rótulo da confirmação de cada aviso (padrão: o do encaminhamento; US-010 tem o seu). */
+  readonly acknowledgeLabel?: string | undefined;
   readonly onAcknowledge: (ruleId: string, checked: boolean) => void;
   /** "Resolver" sem documento leva a `#pendencias`: o painel fecha para mostrar a página. */
   readonly onResolve: () => void;
@@ -428,7 +431,7 @@ export function RulesSection({
                       onAcknowledge(rule.ruleId, event.target.checked);
                     }}
                   />
-                  {t('acknowledge')}
+                  {acknowledgeLabel ?? t('acknowledge')}
                 </label>
               </li>
             );

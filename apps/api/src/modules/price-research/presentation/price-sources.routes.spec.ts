@@ -256,6 +256,7 @@ describe('Feature: Registrar fontes de pesquisa e cotações (US-026)', () => {
         originId: catalog.origin,
         priority: 'MEDIUM',
         pcaStatus: 'NOT_APPLICABLE',
+        confirmDuplicate: true,
       });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     const created = processRepositoryOf(api)

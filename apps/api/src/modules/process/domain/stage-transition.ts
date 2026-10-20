@@ -1,6 +1,8 @@
 import type { DayCountType } from '@contrataflow/types';
 import type { MovementDocumentRef, ProcessStatus } from '@contrataflow/validation';
 
+import { completeProcess } from './process-completion.js';
+import type { CompletionCause, ProcessCompletion } from './process-completion.js';
 import { USER_AGENT_MAX, enterStage, stageEntryAssignment } from './process-runtime-records.js';
 import type {
   AccessGrant,
@@ -48,11 +50,7 @@ export interface EnteredPass extends ProcessStageRecord {
   readonly finishedAt: Date | null;
 }
 
-/** Conclusão do processo junto com a mudança de etapa (US-052 → etapa `END` — RN-PROC-112). */
-export interface ProcessCompletion {
-  readonly completedAt: Date;
-  readonly completedById: string;
-}
+export type { ProcessCompletion } from './process-completion.js';
 
 export interface StageTransitionInput {
   /** O processo travado (`SELECT … FOR UPDATE`), antes da mudança. */
@@ -86,8 +84,12 @@ export interface StageTransitionInput {
   readonly metadata: Readonly<Record<string, unknown>>;
   /** Autuação junto com a mudança (RN-TRAM-18); `null` = sem número novo. */
   readonly numbering: ProcessNumber | null;
-  /** RN-PROC-112/116: a etapa de destino é `END` — o processo conclui (`statusTo = COMPLETED`). */
-  readonly completesProcess?: boolean;
+  /**
+   * RN-PROC-111/112/116: a etapa de destino é `END` — o processo conclui (`statusTo = COMPLETED`)
+   * pela rotina compartilhada (`completeProcess`): `MANUAL` (transição `COMPLETE` — US-010) ou
+   * `APPROVAL` (decisão `APPROVE` — US-052). Ausente = mudança de etapa sem conclusão.
+   */
+  readonly completion?: CompletionCause;
   readonly actor: {
     readonly userId: string;
     readonly ip: string | null;
@@ -133,7 +135,7 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
     ...stage,
     dueDateOverridden: input.dueDateOverrideReason !== null,
     dueDateOverrideReason: input.dueDateOverrideReason,
-    finishedAt: input.completesProcess === true ? now : null,
+    finishedAt: input.completion === undefined ? null : now,
   };
   const movement: ProcessMovementRecord = {
     id: ids.movement,
@@ -170,6 +172,16 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
     occurredAt: now,
   };
   const numbered = input.numbering;
+  // RN-PROC-114/115: o status de origem do caminho e o carimbo — antes de montar o plano.
+  const completion: ProcessCompletion | null =
+    input.completion === undefined
+      ? null
+      : completeProcess({
+          status: process.status,
+          cause: input.completion,
+          actorId: input.actor.userId,
+          now,
+        });
   return {
     process: {
       ...process,
@@ -206,10 +218,7 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
       input.assignmentType ?? 'STAGE_ENTRY',
     ),
     movement,
-    completion:
-      input.completesProcess === true
-        ? { completedAt: now, completedById: input.actor.userId }
-        : null,
+    completion,
   };
 }
 

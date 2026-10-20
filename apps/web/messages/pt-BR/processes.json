@@ -747,5 +747,40 @@
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
       "copyCode": "Copiar código"
     }
+  },
+  "completion": {
+    "close": "Fechar",
+    "back": "Voltar",
+    "counter": "{count, number} / {max, number}",
+    "title": "Concluir processo",
+    "description": "A conclusão encerra a fase preparatória: o processo passa a Concluído e não aceita mais tramitações, edições nem documentos.",
+    "finalStage": "Etapa final: {stage}",
+    "comment": {
+      "label": "Observação (opcional)",
+      "hint": "Até 5.000 caracteres. Fica registrada na tramitação."
+    },
+    "acknowledge": "Entendo os avisos e quero continuar",
+    "blockedHint": "Há pendências que impedem a conclusão. Resolva-as no painel para continuar.",
+    "warningsHint": "Confirme que está ciente dos avisos para continuar.",
+    "submit": "Concluir processo",
+    "submitting": "Concluindo…",
+    "completed": "Processo concluído",
+    "errors": {
+      "notCustodian": "Apenas quem está com o processo pode concluí-lo.",
+      "permission": "Você não tem permissão para concluir este processo.",
+      "status": "Retome o processo antes de concluí-lo.",
+      "notFound": "Processo não encontrado.",
+      "access": "Seu acesso a este órgão não está ativo.",
+      "transition": "A conclusão não está disponível na etapa atual.",
+      "blocked": "Há pendências que impedem a conclusão.",
+      "warnings": "Confirme que está ciente dos avisos para continuar.",
+      "stale": "Este processo foi alterado por outra pessoa. Recarregue a página e tente novamente.",
+      "reload": "Recarregar",
+      "reused": "Esta solicitação já foi enviada com outros dados. Tente novamente.",
+      "unavailable": "Não foi possível concluir a ação agora.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    }
   }
 }

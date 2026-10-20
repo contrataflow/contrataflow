@@ -709,13 +709,14 @@ Exemplo de 409 `ITEM_IN_USE`:
 - **Cabeçalhos:** `Idempotency-Key` obrigatório · `If-Match` obrigatório
 - **Parâmetros:** path `id`
 - **Request:** `{ comment?: string; acknowledgedWarnings?: string[] }` — `comment` até 5.000; `acknowledgedWarnings` obrigatório se houver regra `WARNING` pendente
-- **Response:** `200 { data: Process }`
+- **Response:** `200 { data: Process }` com `completedAt` e `completedBy { id, name }` (RN-PROC-115) + `ETag`
 - **Erros:**
 
 | HTTP | `code` | Quando |
 |---|---|---|
 | 422 | `TRANSITION_BLOCKED` | Regra `BLOCKING` pendente |
 | 422 | `WARNINGS_NOT_ACKNOWLEDGED` | Aviso `WARNING` não reconhecido |
+| 422 | `TRANSITION_NOT_AVAILABLE` | Etapa atual sem transição `COMPLETE` e não `END` |
 | 403 | `NOT_PROCESS_CUSTODIAN` | Usuário não está com o processo |
 | 403 | `PERMISSION_DENIED` | Sem permissão |
 | 404 | `PROCESS_NOT_FOUND` | Não visível/outro tenant |
@@ -723,7 +724,7 @@ Exemplo de 409 `ITEM_IN_USE`:
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 
 - **Efeitos:** Eventos: `ProcessStageChanged` (encerramento da etapa ativa, `cause=COMPLETE`); `ProcessStatusChanged`/`ProcessCompleted` (`toStatus=COMPLETED`), manual ou automática. Projeção: entrada de conclusão na timeline. Auditoria: `process.complete` (`DATA_CHANGE`, `metadata.cause`=`MANUAL`\|`APPROVAL`); `access.denied` em 403.
-- **Notas:** —
+- **Notas:** ordem das recusas: 404 → 412 (`If-Match` antes da custódia: quem perde a corrida para um encaminhamento recebe 412, não 403) → 403 `PERMISSION_DENIED` → 409 → 403 `NOT_PROCESS_CUSTODIAN` → 422. A transição usada é a `COMPLETE` principal da etapa atual (ou a primeira na ordem de exibição); na etapa `END` já ativa (FA-03) a passagem é encerrada sem transição nomeada. A conclusão automática (US-052) usa a mesma rotina de domínio e grava a mesma auditoria com `cause = APPROVAL`.
 
 ### PRC-27 — Duplicar processo
 `POST /api/v1/processes/{id}/duplicate` · **Permissão:** `PROCESS_DUPLICATE` + `PROCESS_CREATE` · **Story:** US-011

@@ -363,9 +363,10 @@ const plan = await this.transitions.apply(tx, {
   `ProcessStageChanged` (`process.stage_changed.<cause>`), `ProcessStatusChanged` só quando o status
   muda e `ProcessAssigned` (`STAGE_ENTRY`) quando a nova passagem nasce com responsável.
 - A auditoria da ação (`process.forward`, `process.return`…) e eventos específicos ficam com quem chama.
-- `completesProcess` (US-052 → etapa `END`): a passagem de destino nasce `COMPLETED` (`exitedAt =
-enteredAt`), a responsabilidade nasce encerrada e o processo grava `completedAt`/`completedById`
-  (DOM-09 · RN-PROC-116).
+- `completion` (`MANUAL` — transição `COMPLETE` da US-010; `APPROVAL` — decisão `APPROVE` da US-052
+  → etapa `END`): a passagem de destino nasce `COMPLETED` (`exitedAt = enteredAt`), a
+  responsabilidade nasce encerrada e o processo grava `completedAt`/`completedById` pela rotina
+  compartilhada `completeProcess` (`domain/process-completion.ts` — DOM-09 · RN-PROC-114..116).
 
 ### Decisão de aprovação de etapa (US-052)
 

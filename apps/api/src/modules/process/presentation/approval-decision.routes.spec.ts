@@ -529,6 +529,26 @@ describe('Feature: Decidir aprovação (US-052)', () => {
         statusTo: 'COMPLETED',
         actorId: FAKE_USERS.marta.id,
       });
+      // US-010 · RN-PROC-112/115: conclusão automática pela MESMA rotina da manual — carimbo com o
+      // aprovador, auditoria `process.complete` (cause APPROVAL) e o log `process.completed`.
+      expect(repository().completedByOf(processId)).toBe(FAKE_USERS.marta.id);
+      expect(auditOf(processId, 'process.complete')).toEqual([
+        expect.objectContaining({
+          changes: [
+            { path: 'status', old: 'AWAITING_APPROVAL', new: 'COMPLETED' },
+            { path: 'completedAt', old: null, new: NOW.toISOString() },
+          ],
+          metadata: expect.objectContaining({
+            cause: 'APPROVAL',
+            fromStatus: 'AWAITING_APPROVAL',
+            idempotencyKey: null,
+          }) as unknown,
+        }),
+      ]);
+      expect(log).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'process.completed', cause: 'APPROVAL', processId }),
+        'process.completed',
+      );
       expect(eventsOf(processId, 'ApprovalCompleted')).toHaveLength(1);
       expect(eventsOf(processId, 'ApprovalCompleted')[0]?.payload).toMatchObject({
         approvalId,

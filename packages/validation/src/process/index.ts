@@ -9,6 +9,7 @@ export * from './process-claim.js';
 export * from './process-assign.js';
 export * from './process-suspension.js';
 export * from './process-cancellation.js';
+export * from './process-completion.js';
 export * from './process-participants.js';
 export * from './process-summary.js';
 export * from './saved-views.js';

@@ -28,12 +28,14 @@ import {
   availableActions,
   checklistOf,
   decisionTargets,
+  evaluateCompletion,
   evaluateDecision,
   evaluateReturn,
   evaluateStage,
   evaluateTransition,
 } from '../domain/workflow-engine.js';
 import type {
+  CompletionChoice,
   DecisionAction,
   DecisionChoice,
   DecisionTarget,
@@ -147,6 +149,21 @@ export class WorkflowEngineService {
       const startedAt = performance.now();
       const { input, evaluation } = await this.evaluate(tx, state);
       const result = evaluateTransition(input, request, evaluation);
+      recordEngine('transition', performance.now() - startedAt);
+      return result;
+    });
+  }
+
+  /**
+   * `evaluateCompletion` (US-010 · POL-08): a saída de conclusão da etapa atual — a transição
+   * `COMPLETE` ou a etapa `END` já ativa — com as regras não satisfeitas, sobre o MESMO cálculo de
+   * PRC-08/09. O `state` deve ter sido lido DEPOIS do bloqueio do processo.
+   */
+  evaluateCompletion(tx: TenantTx, state: ProcessExecutionState): Promise<CompletionChoice> {
+    return withSpan('workflow.evaluate_completion', this.spanAttributes(state), async () => {
+      const startedAt = performance.now();
+      const { input, evaluation } = await this.evaluate(tx, state);
+      const result = evaluateCompletion(input, evaluation);
       recordEngine('transition', performance.now() - startedAt);
       return result;
     });

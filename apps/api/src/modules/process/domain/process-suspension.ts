@@ -60,11 +60,11 @@ export interface LifecycleInput {
 
 /**
  * Tramitação de ciclo de vida na mesma passagem (sem mudança de etapa, unidade nem responsável) —
- * também a `CANCEL` da US-009.
+ * também a `CANCEL` da US-009 e a `COMPLETE` na etapa `END` (US-010 · FA-03).
  */
 export function lifecycleMovement(
   input: LifecycleInput,
-  action: 'SUSPEND' | 'RESUME' | 'CANCEL',
+  action: 'SUSPEND' | 'RESUME' | 'CANCEL' | 'COMPLETE',
   statusTo: ProcessStatus,
   comment: string | null,
   dueAt: Date | null,

@@ -27,6 +27,7 @@ import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 import { ProcessApprovalSubjectHandler } from './application/approval-decision.subject.js';
 import { AssignProcessCommand } from './application/assign-process.command.js';
 import { ClaimProcessCommand } from './application/claim-process.command.js';
+import { CompleteProcessCommand } from './application/complete-process.command.js';
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
 import { CreateProcessCommand } from './application/create-process.command.js';
 import { DocumentProcessContextLoader } from './application/document-process-context.loader.js';
@@ -58,6 +59,7 @@ import {
   CancelProcessCommand,
   DiscardDraftProcessCommand,
 } from './application/process-cancellation.commands.js';
+import { ProcessCompletionRecorder } from './application/process-completion.recorder.js';
 import { ProcessDfdDuplication } from './application/process-dfd-duplication.js';
 import { ProcessItemCatalogLoader } from './application/process-item-catalog.loader.js';
 import {
@@ -188,6 +190,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * US-009: cancelar e descartar rascunho (PRC-25/PRC-06 — `CancelProcessCommand`/
  * `DiscardDraftProcessCommand`), com as aprovações pendentes canceladas pela `ApprovalFacade` e os
  * documentos em análise devolvidos a `DRAFT` pela `DocumentFacade`.
+ * US-010: concluir (PRC-26 — `CompleteProcessCommand`) pela transição `COMPLETE` ou na etapa `END`
+ * já ativa, com a rotina de domínio e a auditoria `process.complete` (`ProcessCompletionRecorder`)
+ * compartilhadas com a conclusão automática da decisão de aprovação (US-052).
  * US-054: histórico de tramitações (PRC-11 — `ListProcessMovementsHandler`), leitura de
  * `ProcessMovement` com os nomes hidratados em lote pelas fachadas de `workflow`, `organization`,
  * `identity` e `approval`, e o `ip` só com `AUDIT_VIEW` (`AccessFacade.revealsField`).
@@ -249,6 +254,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ResumeProcessCommand,
     CancelProcessCommand,
     DiscardDraftProcessCommand,
+    ProcessCompletionRecorder,
+    CompleteProcessCommand,
     ListProcessMovementsHandler,
     ForwardPreviews,
     CheckDuplicateProcessesQuery,

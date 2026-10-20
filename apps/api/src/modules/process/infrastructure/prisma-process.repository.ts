@@ -46,6 +46,7 @@ import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js
 import type { AssignPlan } from '../domain/process-assign.js';
 import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
+import type { CompleteAtEndPlan } from '../domain/process-completion.js';
 import type { MovementFeedSearch, StoredMovement } from '../domain/process-movements.js';
 import type { PreviousAssignment } from '../domain/process-return.js';
 import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
@@ -242,11 +243,16 @@ function toSituation(row: ProcessRow): ProcessSituationRow {
 
 /** Tramitação (só INSERT — gatilho `process_movements_append_only`). */
 /** RN-PROC-107/109: a passagem ativa vira `CANCELED` e a responsabilidade ativa é encerrada. */
-async function closeActivePass(tx: TenantTx, processId: string, stage: ClosedPass): Promise<void> {
+async function closeActivePass(
+  tx: TenantTx,
+  processId: string,
+  stage: ClosedPass,
+  status: 'CANCELED' | 'COMPLETED' = 'CANCELED',
+): Promise<void> {
   const ended = await tx.processStage.updateMany({
     where: { id: stage.id, status: 'ACTIVE' },
     data: {
-      status: 'CANCELED',
+      status,
       exitedAt: stage.exitedAt,
       exitedViaMovementId: stage.exitedViaMovementId,
       updatedAt: stage.exitedAt,
@@ -658,6 +664,27 @@ export class PrismaProcessRepository implements ProcessRepository {
     });
     if (updated.count !== 1) return false;
     await closeActivePass(tx, process.id, stage);
+    await insertMovement(tx, plan.movement);
+    return true;
+  }
+
+  async recordCompletionAtEnd(tx: TenantTx, plan: CompleteAtEndPlan): Promise<boolean> {
+    const { process, completion } = plan;
+    const updated = await tx.process.updateMany({
+      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      data: {
+        status: process.status,
+        completedAt: completion.completedAt,
+        completedById: completion.completedById,
+        currentStageDueAt: process.currentStageDueAt,
+        overdueSince: null,
+        updatedAt: process.updatedAt,
+        updatedById: process.updatedById,
+        version: process.version,
+      },
+    });
+    if (updated.count !== 1) return false;
+    await closeActivePass(tx, process.id, plan.stage, 'COMPLETED');
     await insertMovement(tx, plan.movement);
     return true;
   }

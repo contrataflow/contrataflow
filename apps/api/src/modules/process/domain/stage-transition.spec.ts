@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { ProcessNotCompletableError } from './process-completion.js';
 import type { Process } from './process.js';
 import { planStageTransition, stageChangeAccess } from './stage-transition.js';
 import type { StageTransitionInput } from './stage-transition.js';
@@ -170,11 +171,39 @@ describe('Feature: Mudança de etapa — plano puro (US-047 · StageTransitionSe
 
   it('DOM-09 · RN-PROC-116 (US-052): destino END conclui — passagem encerrada na entrada e processo COMPLETED', () => {
     const plan = planStageTransition(
-      input({ action: 'APPROVE', statusTo: 'COMPLETED', completesProcess: true, toUserId: null }),
+      input({
+        process: { ...process, status: 'AWAITING_APPROVAL' },
+        action: 'APPROVE',
+        statusTo: 'COMPLETED',
+        completion: 'APPROVAL',
+        toUserId: null,
+      }),
     );
     expect(plan.entered).toMatchObject({ enteredAt: NOW, finishedAt: NOW, assigneeId: null });
-    expect(plan.completion).toEqual({ completedAt: NOW, completedById: PAULA });
+    expect(plan.completion).toEqual({ completedAt: NOW, completedById: PAULA, cause: 'APPROVAL' });
     expect(plan.process).toMatchObject({ status: 'COMPLETED', currentStageId: plan.entered.id });
+  });
+
+  it('US-010 (RN-PROC-111/116): transição COMPLETE manual conclui pela mesma rotina de domínio', () => {
+    const plan = planStageTransition(
+      input({ action: 'COMPLETE', statusTo: 'COMPLETED', completion: 'MANUAL', toUserId: null }),
+    );
+    expect(plan.movement).toMatchObject({ action: 'COMPLETE', statusTo: 'COMPLETED' });
+    expect(plan.entered.finishedAt).toEqual(NOW);
+    expect(plan.completion).toEqual({ completedAt: NOW, completedById: PAULA, cause: 'MANUAL' });
+  });
+
+  it('RN-PROC-114: a conclusão fora do status de origem do caminho é recusada antes de qualquer plano', () => {
+    expect(() =>
+      planStageTransition(
+        input({
+          process: { ...process, status: 'RETURNED' },
+          action: 'COMPLETE',
+          statusTo: 'COMPLETED',
+          completion: 'MANUAL',
+        }),
+      ),
+    ).toThrow(ProcessNotCompletableError);
   });
 
   it('prazo sobrescrito fica marcado com o motivo (RN-TRAM-10)', () => {

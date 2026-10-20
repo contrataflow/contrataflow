@@ -5,6 +5,7 @@ import {
   activePassOf,
   availableActions,
   checklistOf,
+  evaluateCompletion,
   evaluateStage,
   evaluateTransition,
   isCustodian,
@@ -151,6 +152,101 @@ describe('Feature: Motor de execução — ações disponíveis e avaliação de
     expect(actions.map((entry) => entry.action)).toEqual(['CLAIM', 'ASSIGN', 'SUSPEND', 'CANCEL']);
     expect(actions.every((entry) => !entry.enabled)).toBe(true);
     expect(checklistOf(evaluateStage(input))).toEqual([]);
+  });
+
+  describe('US-010 — conclusão (POL-08 · RN-PROC-111/113/114)', () => {
+    const custom = new DefinitionBuilder()
+      .stage('INICIO', 'START')
+      .stage('A', 'TASK')
+      .stage('B', 'TASK')
+      .stage('FIM', 'END', { name: 'Planejamento concluído' })
+      .transition('INICIO', 'A', 'FORWARD', { isPrimary: true })
+      .transition('A', 'B', 'FORWARD', { displayOrder: 0 })
+      .transition('A', 'FIM', 'COMPLETE', { isPrimary: true, displayOrder: 1 })
+      .rule(
+        'REQUIRED_FIELD',
+        { field: 'process.modalityCode' },
+        { transition: 'A_COMPLETE_FIM' },
+        { message: 'Informe a modalidade.' },
+      );
+    const atA = (process: Partial<EngineProcess> = {}, modalityCode: string | null = 'PREGAO') =>
+      engineInput(
+        custom,
+        {
+          passes: [
+            pass(custom, 'INICIO', 1),
+            pass(custom, 'A', 2, { status: 'ACTIVE', exitedAt: null }),
+          ],
+          context: ruleContext('A', {
+            process: { ...ruleContext('A').process, modalityCode },
+          }),
+        },
+        { currentDepartmentId: DEPARTMENTS.planejamento, ...process },
+      );
+    const atEnd = (process: Partial<EngineProcess> = {}) =>
+      engineInput(
+        custom,
+        {
+          passes: [
+            pass(custom, 'INICIO', 1),
+            pass(custom, 'A', 2),
+            pass(custom, 'FIM', 3, { status: 'ACTIVE', exitedAt: null }),
+          ],
+        },
+        { currentDepartmentId: DEPARTMENTS.planejamento, ...process },
+      );
+
+    it('a transição COMPLETE é a saída de conclusão, com as regras dela (TRANSITION)', () => {
+      const choice = evaluateCompletion(atA({}, null));
+      expect(choice.kind).toBe('TRANSITION');
+      if (choice.kind !== 'TRANSITION') return;
+      expect(choice.evaluation.transition.key).toBe('A_COMPLETE_FIM');
+      expect(choice.evaluation.toStage.type).toBe('END');
+      expect(choice.evaluation.violations.map((item) => [item.severity, item.message])).toEqual([
+        ['BLOCKING', 'Informe a modalidade.'],
+      ]);
+      expect(evaluateCompletion(atA()).kind).toBe('TRANSITION');
+    });
+
+    it('FA-03: etapa atual já END → saída END e ação "Concluir processo" sem transição', () => {
+      const input = atEnd();
+      expect(evaluateCompletion(input)).toMatchObject({ kind: 'END', violations: [] });
+      const [complete] = actionsOf(availableActions(input, viewer()), 'COMPLETE');
+      expect(complete).toMatchObject({
+        label: 'Concluir processo',
+        enabled: true,
+        primary: true,
+        toStageKey: 'FIM',
+        toStageType: 'END',
+      });
+      expect(complete?.transitionId).toBeUndefined();
+    });
+
+    it('etapa sem COMPLETE nem END → indisponível', () => {
+      const input = engineInput(
+        custom,
+        { passes: [pass(custom, 'INICIO', 1, { status: 'ACTIVE', exitedAt: null })] },
+        { status: 'DRAFT' },
+      );
+      expect(evaluateCompletion(input)).toEqual({ kind: 'UNAVAILABLE' });
+    });
+
+    it.each<ProcessStatus>(['RETURNED', 'DRAFT', 'SUSPENDED'])(
+      'RN-PROC-114 · FA-04: COMPLETE desabilitado com o motivo de status em %s',
+      (status) => {
+        const [complete] = actionsOf(availableActions(atA({ status }), viewer()), 'COMPLETE');
+        expect(complete?.enabled).toBe(false);
+        expect(complete?.reasons[0]?.code).toBe('INVALID_PROCESS_STATUS');
+        const [atEndEntry] = actionsOf(availableActions(atEnd({ status }), viewer()), 'COMPLETE');
+        expect(atEndEntry?.enabled).toBe(false);
+      },
+    );
+
+    it('sem PROCESS_COMPLETE a ação é omitida (oculta)', () => {
+      const reader = viewer({ permissions: new Set(['PROCESS_FORWARD']) });
+      expect(actionsOf(availableActions(atA(), reader), 'COMPLETE')).toEqual([]);
+      expect(actionsOf(availableActions(atEnd(), reader), 'COMPLETE')).toEqual([]);
+    });
   });
 
   it('FA-02: primeira etapa → sem RETURN', () => {

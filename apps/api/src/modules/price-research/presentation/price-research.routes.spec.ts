@@ -221,6 +221,7 @@ describe('Feature: Criar pesquisa de preços a partir dos itens do processo (US-
         originId: catalog.origin,
         priority: 'MEDIUM',
         pcaStatus: 'NOT_APPLICABLE',
+        confirmDuplicate: true,
       });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     const created = processRepositoryOf(api)
@@ -992,6 +993,7 @@ describe('Feature: Criar pesquisa de preços a partir dos itens do processo (US-
           originId: catalogItemId(degraded, A, 'PROCESS_ORIGIN', 'DEMANDA_NAO_PREVISTA'),
           priority: 'MEDIUM',
           pcaStatus: 'NOT_APPLICABLE',
+          confirmDuplicate: true,
         });
         expect(created.status, JSON.stringify(created.body)).toBe(201);
         const processId = data<ProcessDto>(created).id;

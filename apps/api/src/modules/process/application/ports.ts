@@ -12,6 +12,7 @@ import type { CursorReader } from '#shared/database/transaction-stream.js';
 import type { AssignPlan } from '../domain/process-assign.js';
 import type { CancelPlan, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
+import type { CompleteAtEndPlan } from '../domain/process-completion.js';
 import type { ProcessItem } from '../domain/process-items.js';
 import type {
   ProcessListCriteria,
@@ -342,6 +343,13 @@ export interface ProcessRepository {
    * responsabilidade ativa encerrada e a tramitação `CANCEL`. `false` = outra escrita venceu.
    */
   recordCancellation(tx: TenantTx, plan: CancelPlan): Promise<boolean>;
+  /**
+   * US-010 · FA-03 (RN-PROC-115/116): grava a conclusão com a etapa `END` já ativa — o processo
+   * (`WHERE version = expectedVersion`: `COMPLETED`, `completedAt/ById`, `overdueSince` limpo), a
+   * passagem ativa (`COMPLETED`, `exitedAt = completedAt`, `exitedViaMovementId`), a
+   * responsabilidade ativa encerrada e a tramitação `COMPLETE`. `false` = outra escrita venceu.
+   */
+  recordCompletionAtEnd(tx: TenantTx, plan: CompleteAtEndPlan): Promise<boolean>;
   /**
    * US-009: o status do processo não excluído, sem trava (`null` = inexistente, excluído ou de outro
    * tenant) — a leitura "na chegada" que separa a corrida perdida (412) do reenvio (409).

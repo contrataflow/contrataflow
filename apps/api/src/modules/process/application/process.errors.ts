@@ -6,6 +6,7 @@ import {
   PROCESS_ITEM_MESSAGES,
   PROCESS_RETURN_MESSAGES,
   PROCESS_CANCELLATION_MESSAGES,
+  PROCESS_COMPLETION_MESSAGES,
   PROCESS_SUSPENSION_MESSAGES,
   PROCESS_UPDATE_MESSAGES,
   TAG_MESSAGES,
@@ -694,18 +695,60 @@ export function processAlreadyNumbered(): ApiError {
   });
 }
 
+/** 412 `VERSION_CONFLICT` da conclusão (V-06). */
+export function completionVersionConflict(sentVersion: number, currentVersion: number): ApiError {
+  return new ApiError('VERSION_CONFLICT', {
+    detail: PROCESS_COMPLETION_MESSAGES.versionConflict,
+    extensions: { currentVersion, sentVersion },
+  });
+}
+
+/** 409 `INVALID_PROCESS_STATUS` (RN-PROC-111/114 · V-03): concluir fora de `IN_PROGRESS`. */
+export function processNotCompletable(status: ProcessStatus): ApiError {
+  return new ApiError('INVALID_PROCESS_STATUS', {
+    detail: PROCESS_COMPLETION_MESSAGES.invalidStatus,
+    extensions: { processStatus: status },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (POL-01 · V-01), auditado como `access.denied`. */
+export function completeNotCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: PROCESS_COMPLETION_MESSAGES.notCustodian,
+    auditDenial: true,
+  });
+}
+
+/** 422 `TRANSITION_BLOCKED` (RN-PROC-113 · V-04): TODAS as violações, inclusive os avisos. */
+export function completionBlocked(violations: readonly ChecklistViolation[]): ApiError {
+  return new ApiError('TRANSITION_BLOCKED', {
+    detail: PROCESS_COMPLETION_MESSAGES.blocked,
+    violations,
+  });
+}
+
+/** 422 `WARNINGS_NOT_ACKNOWLEDGED` (RN-PROC-113 · V-05): os avisos que faltam reconhecer. */
+export function completionWarningsNotAcknowledged(
+  warnings: readonly ChecklistViolation[],
+): ApiError {
+  return new ApiError('WARNINGS_NOT_ACKNOWLEDGED', {
+    detail: PROCESS_COMPLETION_MESSAGES.warningsNotAcknowledged,
+    violations: warnings,
+  });
+}
+
 let suspensionCounter: Counter | undefined;
 let suspensionDuration: Histogram | undefined;
 
 /** `cf_process_lifecycle_total{action}` e `cf_process_lifecycle_duration_ms` (US-008/US-009). */
 export function recordProcessLifecycle(
-  action: 'SUSPEND' | 'RESUME' | 'CANCEL' | 'DISCARD',
+  action: 'SUSPEND' | 'RESUME' | 'CANCEL' | 'DISCARD' | 'COMPLETE',
   durationMs: number,
 ): void {
   const meter = metrics.getMeter('contrataflow-api');
   suspensionCounter ??= meter.createCounter('cf_process_lifecycle_total', {
     description:
-      'Suspensões, retomadas, cancelamentos e descartes de processo (commit do PRC-23/24/25/06).',
+      'Suspensões, retomadas, cancelamentos, descartes e conclusões de processo (commit do PRC-23/24/25/06/26 e da aprovação final).',
   });
   suspensionDuration ??= meter.createHistogram('cf_process_lifecycle_duration_ms', {
     description: 'Duração do comando de ciclo de vida (bloqueio, efeitos e gravação).',
