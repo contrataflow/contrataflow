@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { TERM_MESSAGES } from '@contrataflow/validation';
+import { TERM_CONDITION_MESSAGES, TERM_MESSAGES } from '@contrataflow/validation';
 import type { TermDto, TermMeta, TermPatch } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -20,36 +20,48 @@ import { TERM_CLOCK, TERM_REPOSITORY, TERM_TRANSACTIONS } from './ports.js';
 import type { TermClock, TermRepository, TermTransactions } from './ports.js';
 import { toTermDto, toTermMeta } from './term.presenter.js';
 import { termNotFound } from './term.queries.js';
+import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import type { EditableTypedDocument } from '../../document/application/document.facade.js';
 import {
   applyTermHeader,
   estimatedFromResearch,
   estimatedValueIntent,
+  isConditionField,
   manualEstimated,
+  mergeTermConditions,
 } from '../domain/term-of-reference.js';
 import type {
   EstimatedValue,
   EstimatedValueIntent,
+  TermConditions,
   TermHeaderChange,
   TermOfReference,
 } from '../domain/term-of-reference.js';
 
 /*
- * TRM-04 — Atualizar o TR, painel "Dados do TR" (US-036 · RN-TR-08/10/14): objeto e valor estimado
- * com `If-Match: "<version>"` (as condições contratuais entram com a US-038). Numa transação: TR do
+ * TRM-04 — Atualizar o TR, painéis "Dados do TR" (US-036 · RN-TR-08/10/14) e "Condições
+ * contratuais" (US-038 · RN-TR-28..33): objeto, valor estimado e condições tipadas com
+ * `If-Match: "<version>"`. Numa transação: TR do
  * tenant (404) → documento travado, visível, `TERM_UPDATE` + POL-02 — custódia OU participação
  * `COLLABORATOR`/`CONSULTANT` (403), processo editável (409), tipo na etapa (422) — e editável (409
  * `DOCUMENT_NOT_EDITABLE`) → `If-Match` (412 `VERSION_CONFLICT` com o TR atual) → POL-09 (quem não
  * vê o valor também não o altera — 403) → origem/valor (422) e pesquisa do processo (V-12) →
  * `version + 1` condicionada → `document.draft_update` (objeto como hash + tamanho; valor mascarado
- * em processo sigiloso). Sem evento de domínio nem notificação. Logs sem valores.
+ * em processo sigiloso). US-038: as faixas vêm do schema; o par prazo × tipo de contagem é conferido
+ * sobre o estado resultante (422 `CONDITIONAL_REQUIRED`) e o critério de julgamento novo tem de ser
+ * item ativo do catálogo `JUDGMENT_CRITERION` do tenant (422 `REFERENCE_NOT_FOUND`/
+ * `REFERENCE_INACTIVE` — outro tenant é indistinguível do inexistente); o local de entrega vai à
+ * auditoria como hash + tamanho. Sem evento de domínio nem notificação. Logs sem valores.
  */
 
 /** Valor mascarado da estimativa sigilosa na auditoria (POL-09). */
 const MASKED = '[MASKED]';
 
 const VALUE_FIELDS = new Set(['estimatedTotalValue', 'priceResearchId', 'estimatedValueSource']);
+
+/** Campos de texto livre: na auditoria só hash + tamanho (story US-036/US-038 · "Logs"). */
+const FINGERPRINTED = new Set(['objectDefinition', 'deliveryLocation']);
 
 function fingerprint(text: unknown): unknown {
   if (typeof text !== 'string') return text;
@@ -113,6 +125,7 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
     @Inject(AUDIT_TRAIL) private readonly audit: AuditTrailPort,
     private readonly documents: DocumentFacade,
     private readonly researches: PriceResearchSummaryRegistry,
+    private readonly catalogs: CatalogFacade,
   ) {
     super('term.header_save', transactions);
   }
@@ -139,6 +152,7 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
     const intent = estimatedValueIntent(term, patch);
     if (!intent.ok) throw validationError([intent.error]);
     const estimated = await this.resolve(tx, term, intent.intent);
+    const conditions = await this.conditionsOf(tx, term, patch);
 
     const actorId = requireRequestContext().actor.userId ?? '';
     const { term: next, changes } = applyTermHeader(
@@ -148,6 +162,7 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
           ? {}
           : { objectDefinition: patch.objectDefinition }),
         ...(estimated === undefined ? {} : { estimated }),
+        ...(conditions === undefined ? {} : { conditions }),
       },
       { actorId, now: this.clock() },
     );
@@ -169,6 +184,20 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
 
   protected override committed(result: UpdatedTerm, durationMs: number): void {
     if (result.changedFields.length === 0) return;
+    const conditionFields = result.changedFields.filter(isConditionField);
+    if (conditionFields.length > 0) {
+      this.logger.log(
+        {
+          event: 'term.conditions_updated',
+          termId: result.dto.id,
+          fieldsChanged: conditionFields,
+          version: result.dto.version,
+          durationMs,
+        },
+        'term.conditions_updated',
+      );
+    }
+    if (conditionFields.length === result.changedFields.length) return;
     this.logger.log(
       {
         event: 'term.header_saved',
@@ -179,6 +208,37 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
       },
       'term.header_saved',
     );
+  }
+
+  /**
+   * As condições contratuais resultantes (US-038), ou `undefined` se o corpo não traz nenhuma:
+   * RN-TR-29 sobre o estado final e o critério de julgamento novo ativo no tenant (RN-TR-32 · V-09).
+   */
+  private async conditionsOf(
+    tx: TenantTx,
+    term: TermOfReference,
+    patch: TermPatch,
+  ): Promise<TermConditions | undefined> {
+    if (!Object.keys(patch).some(isConditionField)) return undefined;
+    const merged = mergeTermConditions(term, patch);
+    if (!merged.ok) throw validationError([merged.error]);
+    const criterionId = merged.conditions.selectionCriterionId;
+    if (criterionId !== null && criterionId !== term.selectionCriterionId) {
+      const criterion = await this.catalogs.find(tx, criterionId);
+      if (criterion?.catalogType !== 'JUDGMENT_CRITERION' || !criterion.isActive) {
+        throw validationError([
+          {
+            field: 'selectionCriterionId',
+            code:
+              criterion?.catalogType === 'JUDGMENT_CRITERION'
+                ? 'REFERENCE_INACTIVE'
+                : 'REFERENCE_NOT_FOUND',
+            message: TERM_CONDITION_MESSAGES.criterionInvalid,
+          },
+        ]);
+      }
+    }
+    return merged.conditions;
   }
 
   /**
@@ -247,7 +307,7 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
     view: EditableTypedDocument,
   ): Promise<void> {
     const auditChanges: AuditChange[] = changes.map((change) => {
-      if (change.field === 'objectDefinition') {
+      if (FINGERPRINTED.has(change.field)) {
         return { path: change.field, old: fingerprint(change.old), new: fingerprint(change.new) };
       }
       if (change.field === 'estimatedTotalValue' && view.isBudgetConfidential) {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { RICH_TEXT_MAX_BYTES, richTextProblem } from './rich-text.js';
+import { RICH_TEXT_MAX_BYTES, richTextPlainText, richTextProblem } from './rich-text.js';
+import type { RichTextDocValue } from './rich-text.js';
 import { quantitySchema } from '../common/decimal.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 
@@ -16,7 +17,11 @@ export const DOCUMENT_ITEM_LIMITS = Object.freeze({
   /** Linhas por documento: o mesmo teto dos itens do processo (RN-PROC-83). */
   itemsMax: 1000,
   notesMax: 1000,
+  /** TR (US-038 · RN-TR-26): observações do item até 5.000 caracteres. */
+  termNotesMax: 5000,
   quantityScale: 4,
+  /** TR (US-038 · RN-TR-26): especificação e critérios de aceitação até 50.000 caracteres. */
+  richTextCharsMax: 50_000,
 });
 
 export const DOCUMENT_ITEM_MESSAGES = Object.freeze({
@@ -31,7 +36,32 @@ export const DOCUMENT_ITEM_MESSAGES = Object.freeze({
   /** US-022 · V-03 (RN-ETP-27): memória de cálculo fora do schema ou acima de 1 MB. */
   calculationMemoInvalid: 'O conteúdo da memória de cálculo é inválido ou excede o limite.',
   calculationMemoTooLarge: 'Reduza o conteúdo da memória de cálculo.',
+  /** US-038 · V-02/V-04 (RN-TR-26). */
+  duplicate: 'Este item já está na lista.',
+  termNotesLength: `As observações do item devem ter no máximo ${DOCUMENT_ITEM_LIMITS.termNotesMax.toLocaleString('pt-BR')} caracteres.`,
+  richTextInvalid: 'Conteúdo não suportado no editor.',
+  richTextTooLarge: 'Reduza o conteúdo do texto do item (limite de 1 MB).',
+  richTextTooLong: `O texto deve ter no máximo ${DOCUMENT_ITEM_LIMITS.richTextCharsMax.toLocaleString('pt-BR')} caracteres.`,
 });
+
+/** Campos ricos do item do TR (US-038 · RN-TR-26). */
+export const DOCUMENT_ITEM_RICH_TEXT_FIELDS = ['specification', 'acceptanceCriteria'] as const;
+export type DocumentItemRichTextField = (typeof DOCUMENT_ITEM_RICH_TEXT_FIELDS)[number];
+
+/** Problema de especificação/critérios de aceitação do item (RN-TR-26 · V-04); `null` = aceito. */
+export type ItemRichTextIssue = CalculationMemoIssue | 'TOO_LONG';
+
+/**
+ * RN-TR-26 · DEC-056: rich text opcional, até 1 MB serializado (`PAYLOAD_TOO_LARGE`), só com os
+ * nós/marks permitidos (`RICH_TEXT_INVALID`) e até 50.000 caracteres de texto (`TOO_LONG`). A
+ * MESMA regra no editor e na API.
+ */
+export function itemRichTextIssue(value: unknown): ItemRichTextIssue | null {
+  const issue = calculationMemoIssue(value);
+  if (issue !== null || value === null || value === undefined) return issue;
+  const text = richTextPlainText(value as RichTextDocValue);
+  return Array.from(text).length > DOCUMENT_ITEM_LIMITS.richTextCharsMax ? 'TOO_LONG' : null;
+}
 
 /** Problema da memória de cálculo do item do ETP (RN-ETP-27 · V-03); `null` = aceita. */
 export type CalculationMemoIssue = 'RICH_TEXT_INVALID' | 'PAYLOAD_TOO_LARGE';
@@ -98,15 +128,22 @@ export function normalizeQuantity(quantity: string): string {
 
 // --- Contratos ---------------------------------------------------------------------------------
 
+const itemRichTextInput = z
+  .looseObject({ type: z.string() })
+  .nullable()
+  .optional()
+  .meta({ description: 'TipTapDoc (DEC-056), até 50.000 caracteres e 1 MB; `null` limpa.' });
+
 /** Linha do corpo do DOC-07 (campos-base do DFD; ETP/TR acrescentam os seus com as stories). */
 export const documentItemInputSchema = z.strictObject({
   processItemId: uuidV7Schema,
   /** Decimal como string (DEC-003): a forma é conferida aqui; a regra da unidade, no caso de uso. */
   quantity: z.string({ error: DOCUMENT_ITEM_MESSAGES.quantityRequired }).max(40),
+  /** ≤ 1.000 (DFD/ETP) ou ≤ 5.000 (TR — RN-TR-26): o teto do tipo é conferido no caso de uso. */
   notes: z
     .string()
     .trim()
-    .max(DOCUMENT_ITEM_LIMITS.notesMax, { error: DOCUMENT_ITEM_MESSAGES.notesLength })
+    .max(DOCUMENT_ITEM_LIMITS.termNotesMax, { error: DOCUMENT_ITEM_MESSAGES.termNotesLength })
     .nullable()
     .optional(),
   sortOrder: z.int().min(0).max(100_000).optional(),
@@ -120,6 +157,13 @@ export const documentItemInputSchema = z.strictObject({
     .nullable()
     .optional()
     .meta({ description: 'TipTapDoc (DEC-056), até 1 MB serializado; `null` limpa.' }),
+  /**
+   * TR (US-038 · RN-TR-26): especificação e critérios de aceitação em rich text. Ausente = mantém o
+   * gravado; `null` = limpa. Conferidos no caso de uso (413 `PAYLOAD_TOO_LARGE`, 422
+   * `RICH_TEXT_INVALID`, 422 `TOO_LONG` acima de 50.000 caracteres).
+   */
+  specification: itemRichTextInput,
+  acceptanceCriteria: itemRichTextInput,
 });
 export type DocumentItemInput = z.infer<typeof documentItemInputSchema>;
 
@@ -151,6 +195,14 @@ export const documentItemSchema = z
     sortOrder: z.int(),
     /** ETP (US-022 · RN-ETP-27): memória de cálculo (TipTapDoc) ou `null`. */
     calculationMemo: z
+      .looseObject({ type: z.literal('doc'), content: z.array(z.unknown()).optional() })
+      .nullable(),
+    /** TR (US-038 · RN-TR-26): especificação (TipTapDoc) ou `null`. */
+    specification: z
+      .looseObject({ type: z.literal('doc'), content: z.array(z.unknown()).optional() })
+      .nullable(),
+    /** TR (US-038 · RN-TR-26): critérios de aceitação (TipTapDoc) ou `null`. */
+    acceptanceCriteria: z
       .looseObject({ type: z.literal('doc'), content: z.array(z.unknown()).optional() })
       .nullable(),
   })

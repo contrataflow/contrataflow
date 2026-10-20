@@ -1,3 +1,4 @@
+import type { RichTextDocValue } from '@contrataflow/validation';
 import { describe, expect, it } from 'vitest';
 
 import { planDocumentItems } from './document-items.js';
@@ -21,6 +22,8 @@ const existing = (processItemId: string, quantity: string, sortOrder = 0): Docum
   notes: null,
   sortOrder,
   calculationMemo: null,
+  specification: null,
+  acceptanceCriteria: null,
   createdAt: EARLIER,
   updatedAt: EARLIER,
   createdById: 'u0',
@@ -164,5 +167,81 @@ describe('planDocumentItems — memória de cálculo do ETP (US-022 · RN-ETP-27
     });
     expect(result.items[0]).toBe(saved);
     expect(result.memoChanges).toEqual([]);
+  });
+});
+
+describe('planDocumentItems — especificação e critérios de aceitação do TR (US-038 · RN-TR-26)', () => {
+  const spec: RichTextDocValue = { type: 'doc', content: [{ type: 'paragraph' }] };
+  const criteria: RichTextDocValue = {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Laudo' }] }],
+  };
+
+  it('grava os textos novos e os lista em textChanges', () => {
+    const result = plan({
+      next: [
+        { processItemId: GLOVES, quantity: '1', specification: spec, acceptanceCriteria: criteria },
+      ],
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.items[0]).toMatchObject({ specification: spec, acceptanceCriteria: criteria });
+    expect(result.textChanges).toEqual([
+      { processItemId: GLOVES, field: 'specification', old: null, new: spec },
+      { processItemId: GLOVES, field: 'acceptanceCriteria', old: null, new: criteria },
+    ]);
+  });
+
+  it('ausente no corpo mantém o texto gravado (linha intacta); null limpa', () => {
+    const current = {
+      ...existing(GLOVES, '1.0000'),
+      specification: spec,
+      acceptanceCriteria: criteria,
+    };
+    const kept = plan({
+      current: [current],
+      next: [{ processItemId: GLOVES, quantity: '1', sortOrder: 0 }],
+    });
+    expect(kept.items[0]).toBe(current);
+    expect(kept.textChanges).toEqual([]);
+
+    const cleared = plan({
+      current: [current],
+      next: [{ processItemId: GLOVES, quantity: '1', sortOrder: 0, specification: null }],
+    });
+    expect(cleared.items[0]).toMatchObject({ specification: null, acceptanceCriteria: criteria });
+    expect(cleared.textChanges).toEqual([
+      { processItemId: GLOVES, field: 'specification', old: spec, new: null },
+    ]);
+  });
+
+  it('teto das observações por tipo: 1.000 por padrão e 5.000 no TR', () => {
+    const line = { processItemId: GLOVES, quantity: '1', notes: 'x'.repeat(1001) };
+    expect(plan({ next: [line] }).errors).toEqual([
+      expect.objectContaining({ field: 'items[0].notes', code: 'TOO_LONG' }),
+    ]);
+    expect(plan({ next: [line], notesMax: 5000 }).errors).toEqual([]);
+    expect(plan({ next: [{ ...line, notes: 'x'.repeat(5001) }], notesMax: 5000 }).errors).toEqual([
+      expect.objectContaining({
+        field: 'items[0].notes',
+        code: 'TOO_LONG',
+        message: 'As observações do item devem ter no máximo 5.000 caracteres.',
+      }),
+    ]);
+  });
+
+  it('item repetido: DUPLICATE_IN_LIST com "Este item já está na lista."', () => {
+    const result = plan({
+      next: [
+        { processItemId: GLOVES, quantity: '1' },
+        { processItemId: GLOVES, quantity: '2' },
+      ],
+    });
+    expect(result.errors).toEqual([
+      {
+        field: 'items[1].processItemId',
+        code: 'DUPLICATE_IN_LIST',
+        message: 'Este item já está na lista.',
+      },
+    ]);
   });
 });

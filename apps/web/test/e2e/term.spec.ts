@@ -4,9 +4,10 @@
 // marca "Não se aplica" em DELIVERY com justificativa, confere a completude da navegação lateral e o
 // painel "Dados do TR" (valor da pesquisa e valor manual com o aviso de FA-04). Num processo que já
 // tem o TR, o painel oferece "Abrir TR" no lugar de "Criar" (FA-02). axe-core no diálogo e no
-// editor e o diálogo legível em 360 px. A API é simulada (support/mock-api.mjs); a numeração, a
-// atomicidade, POL-02/09 e o isolamento por tenant são cobertos nos testes da API (módulo `term` e
-// suíte tenant leak).
+// editor e o diálogo legível em 360 px. US-038: os painéis "Itens" e "Condições contratuais"
+// (inclusão, especificação, reordenação, FA-04 e 360 px). A API é simulada
+// (support/mock-api.mjs); a numeração, a atomicidade, POL-02/09 e o isolamento por tenant são
+// cobertos nos testes da API (módulo `term` e suíte tenant leak).
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -144,5 +145,56 @@ test('o diálogo "Criar Termo de Referência" é legível em 360 px', async ({ p
   const dialog = page.getByRole('dialog', { name: 'Criar Termo de Referência' });
   await expect(dialog.getByRole('combobox', { name: 'Modelo' })).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: /Título/ })).toBeVisible();
+  expect(await hasHorizontalOverflow(page)).toBe(false);
+});
+
+test('US-038: incluir itens, especificar, reordenar e preencher as condições contratuais do TR', async ({
+  page,
+}) => {
+  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de mobiliário para a biblioteca');
+  await page.getByRole('link', { name: 'Abrir TR 0002/2026' }).click();
+  await expect(page).toHaveURL(TERM_PATH);
+
+  // Painel "Itens": a quantidade de referência pré-preenche a linha (US-037/US-006).
+  await page.getByRole('button', { name: /^Itens/ }).click();
+  const electric = page.getByTestId('term-item-1');
+  const hydraulic = page.getByTestId('term-item-2');
+  await electric.getByRole('checkbox').check();
+  await expect(electric.getByLabel('Quantidade')).toHaveValue('10');
+  await electric.getByLabel('Especificação').fill('Kit com disjuntores, fios e conectores.');
+  await electric.getByLabel('Critérios de aceitação').fill('Conferência item a item na entrega.');
+  await hydraulic.getByRole('checkbox').check();
+  await hydraulic.getByLabel('Quantidade').fill('0');
+  await page.getByRole('button', { name: 'Salvar itens' }).click();
+  await expect(hydraulic.getByRole('alert')).toHaveText('Informe uma quantidade maior que zero.');
+  await hydraulic.getByLabel('Quantidade').fill('5');
+  await page.getByRole('button', { name: 'Mover o item 2 para cima' }).click();
+  await page.getByRole('button', { name: 'Salvar itens' }).click();
+  await expect(page.getByText(/^Salvo às \d{2}:\d{2}$/).first()).toBeVisible();
+  await expect(page.getByText('2 itens no TR')).toBeVisible();
+  await expect(page.getByTestId(/^term-item-/).first()).toHaveAttribute(
+    'data-testid',
+    'term-item-2',
+  );
+
+  // Painel "Condições contratuais": prazo sem tipo de contagem bloqueia (FA-04); depois salva.
+  await page.getByRole('button', { name: /^Condições contratuais/ }).click();
+  await page.getByLabel('Vigência do contrato (meses)').fill('12');
+  await page.getByLabel('Prazo de execução/entrega').fill('30');
+  await page.getByLabel('Garantia contratual (%)').fill('5');
+  await page.getByRole('button', { name: 'Salvar condições' }).click();
+  await expect(page.getByText('Informe o tipo de contagem do prazo.')).toBeVisible();
+  await page.getByLabel('Dias corridos').check();
+  await page.getByLabel('Prazo de pagamento (dias)').fill('30');
+  await page.getByLabel('Critério de julgamento').selectOption({ label: 'Menor preço' });
+  await page.getByLabel('Tipo de adjudicação').selectOption({ label: 'Por item' });
+  await page.getByRole('button', { name: 'Salvar condições' }).click();
+  await expect(page.getByText(/^Salvo às \d{2}:\d{2}$/).last()).toBeVisible();
+
+  await expectNoSeriousA11yViolations(page, 'painéis Itens e Condições contratuais do TR');
+
+  // 360 px: a tabela de itens vira cartões, sem rolagem horizontal.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await expect(electric.getByLabel('Especificação')).toBeVisible();
   expect(await hasHorizontalOverflow(page)).toBe(false);
 });

@@ -7,8 +7,11 @@ import {
   estimatedValueIntent,
   headerDefaults,
   initialObjectDefinition,
+  isConditionField,
   manualEstimated,
+  mergeTermConditions,
   normalizeMoney,
+  normalizePercent,
 } from './term-of-reference.js';
 import type { TermOfReference } from './term-of-reference.js';
 
@@ -240,5 +243,90 @@ describe('applyTermHeader (TRM-04)', () => {
       'estimatedValueSource',
       'priceResearchId',
     ]);
+  });
+});
+
+describe('Condições contratuais (US-038 · RN-TR-28..32)', () => {
+  it('normalizePercent devolve a forma do numeric(9,4) lido do banco', () => {
+    expect(normalizePercent('5')).toBe('5');
+    expect(normalizePercent('05.50')).toBe('5.5');
+    expect(normalizePercent('10.0000')).toBe('10');
+    expect(normalizePercent('0.0001')).toBe('0.0001');
+    expect(normalizePercent('0')).toBe('0');
+  });
+
+  it('isConditionField separa as condições dos campos do painel "Dados do TR"', () => {
+    expect(isConditionField('awardType')).toBe(true);
+    expect(isConditionField('contractGuaranteePercent')).toBe(true);
+    expect(isConditionField('objectDefinition')).toBe(false);
+    expect(isConditionField('estimatedTotalValue')).toBe(false);
+  });
+
+  it('mescla o corpo sobre as atuais: ausente mantém, null limpa, texto aparado', () => {
+    const current = term({ contractDurationMonths: 12, paymentTermDays: 30 });
+    const merged = mergeTermConditions(current, {
+      contractDurationMonths: null,
+      deliveryLocation: '  Almoxarifado  ',
+      contractGuaranteePercent: '5.00',
+    });
+    expect(merged).toEqual({
+      ok: true,
+      conditions: expect.objectContaining({
+        contractDurationMonths: null,
+        paymentTermDays: 30,
+        deliveryLocation: 'Almoxarifado',
+        contractGuaranteePercent: '5',
+      }) as unknown,
+    });
+    const blank = mergeTermConditions(current, { deliveryLocation: '   ' });
+    expect(blank.ok && blank.conditions.deliveryLocation).toBeNull();
+  });
+
+  it('RN-TR-29: prazo e tipo de contagem, um exige o outro, sobre o estado resultante', () => {
+    expect(mergeTermConditions(term(), { executionDeadline: 30 })).toEqual({
+      ok: false,
+      error: expect.objectContaining({
+        field: 'executionDeadlineType',
+        code: 'CONDITIONAL_REQUIRED',
+      }) as unknown,
+    });
+    expect(mergeTermConditions(term(), { executionDeadlineType: 'BUSINESS' })).toEqual({
+      ok: false,
+      error: expect.objectContaining({ field: 'executionDeadline' }) as unknown,
+    });
+    const typed = term({ executionDeadline: 10, executionDeadlineType: 'CALENDAR' });
+    expect(mergeTermConditions(typed, { executionDeadline: 30 }).ok).toBe(true);
+    expect(mergeTermConditions(typed, { executionDeadline: null }).ok).toBe(false);
+    expect(
+      mergeTermConditions(typed, { executionDeadline: null, executionDeadlineType: null }).ok,
+    ).toBe(true);
+  });
+
+  it('applyTermHeader devolve só as condições alteradas e carimba o autor', () => {
+    const current = term({ awardType: 'GLOBAL' });
+    const merged = mergeTermConditions(current, { awardType: 'BY_ITEM', paymentTermDays: 30 });
+    if (!merged.ok) throw new Error('esperava ok');
+    const result = applyTermHeader(
+      current,
+      { conditions: merged.conditions },
+      { actorId: 'u-2', now: LATER },
+    );
+    expect(result.changes).toEqual([
+      { field: 'paymentTermDays', old: null, new: 30 },
+      { field: 'awardType', old: 'GLOBAL', new: 'BY_ITEM' },
+    ]);
+    expect(result.term).toMatchObject({
+      awardType: 'BY_ITEM',
+      updatedById: 'u-2',
+      updatedAt: LATER,
+    });
+
+    const same = applyTermHeader(
+      current,
+      { conditions: { ...merged.conditions, awardType: 'GLOBAL', paymentTermDays: null } },
+      { actorId: 'u-2', now: LATER },
+    );
+    expect(same.changes).toEqual([]);
+    expect(same.term).toBe(current);
   });
 });

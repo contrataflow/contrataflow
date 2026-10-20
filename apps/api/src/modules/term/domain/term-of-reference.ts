@@ -1,8 +1,16 @@
-import { AWARD_TYPES, DAY_COUNT_TYPES, TERM_LIMITS, TERM_MESSAGES } from '@contrataflow/validation';
+import {
+  AWARD_TYPES,
+  DAY_COUNT_TYPES,
+  TERM_CONDITION_FIELDS,
+  TERM_LIMITS,
+  TERM_MESSAGES,
+  termDeadlineIssue,
+} from '@contrataflow/validation';
 import type {
   AwardType,
   FieldConfig,
   FieldError,
+  TermConditionField,
   TermEstimatedValueSource,
   TermPatch,
 } from '@contrataflow/validation';
@@ -256,19 +264,92 @@ export function createTermOfReference(input: {
 
 export interface TermHeaderChange {
   readonly field:
-    'objectDefinition' | 'estimatedTotalValue' | 'estimatedValueSource' | 'priceResearchId';
+    | 'objectDefinition'
+    | 'estimatedTotalValue'
+    | 'estimatedValueSource'
+    | 'priceResearchId'
+    | TermConditionField;
   readonly old: unknown;
   readonly new: unknown;
 }
 
-/** Aplica o objeto e o valor estimado resolvidos; devolve só os campos que mudaram. */
+// --- Condições contratuais (US-038 · RN-TR-28..32) ----------------------------------------------
+
+/** As condições contratuais tipadas do TR (o painel "Condições contratuais"). */
+export type TermConditions = Pick<TermOfReference, TermConditionField>;
+
+const CONDITION_FIELDS: ReadonlySet<string> = new Set(TERM_CONDITION_FIELDS);
+
+/** `true` quando o campo do corpo do TRM-04 é uma condição contratual (US-038). */
+export function isConditionField(field: string): field is TermConditionField {
+  return CONDITION_FIELDS.has(field);
+}
+
+/**
+ * `"05.50"` → `"5.5"`; `"10.0000"` → `"10"` — a forma em que o `numeric(9,4)` volta do banco
+ * (`Decimal.toString()`), para a comparação de mudança (a string já passou pelo schema).
+ */
+export function normalizePercent(value: string): string {
+  const [integer = '0', fraction = ''] = value.trim().split('.');
+  const digits = fraction.replace(/0+$/, '');
+  const whole = integer.replace(/^0+(?=\d)/, '');
+  return digits === '' ? whole : `${whole}.${digits}`;
+}
+
+/**
+ * `TermOfReference.updateConditions` (RN-TR-28..32): as condições do corpo (ausente = mantém;
+ * `null` = limpa — exceto `allowsSubcontracting`, que é booleano) sobre as atuais. As faixas já
+ * vieram do schema; aqui a regra que depende do estado resultante — prazo e tipo de contagem, um
+ * exige o outro (RN-TR-29 · V-05 `CONDITIONAL_REQUIRED`).
+ */
+export function mergeTermConditions(
+  term: TermConditions,
+  patch: Pick<TermPatch, TermConditionField>,
+):
+  | { readonly ok: true; readonly conditions: TermConditions }
+  | { readonly ok: false; readonly error: FieldError } {
+  const pick = <K extends TermConditionField>(field: K): TermConditions[K] => {
+    const value = patch[field];
+    return value === undefined ? term[field] : (value as TermConditions[K]);
+  };
+  const percent = pick('contractGuaranteePercent');
+  const location = pick('deliveryLocation');
+  const conditions: TermConditions = {
+    contractDurationMonths: pick('contractDurationMonths'),
+    executionDeadline: pick('executionDeadline'),
+    executionDeadlineType: pick('executionDeadlineType'),
+    deliveryLocation: location === null || location.trim() === '' ? null : location.trim(),
+    paymentTermDays: pick('paymentTermDays'),
+    productWarrantyMonths: pick('productWarrantyMonths'),
+    contractGuaranteePercent: percent === null ? null : normalizePercent(percent),
+    allowsSubcontracting: pick('allowsSubcontracting'),
+    selectionCriterionId: pick('selectionCriterionId'),
+    awardType: pick('awardType'),
+  };
+  const issue = termDeadlineIssue(conditions.executionDeadline, conditions.executionDeadlineType);
+  if (issue !== null) return { ok: false, error: issue };
+  return { ok: true, conditions };
+}
+
+/** Aplica o objeto, o valor estimado e as condições resolvidos; devolve só os campos que mudaram. */
 export function applyTermHeader(
   term: TermOfReference,
-  update: { readonly objectDefinition?: string; readonly estimated?: EstimatedValue },
+  update: {
+    readonly objectDefinition?: string;
+    readonly estimated?: EstimatedValue;
+    readonly conditions?: TermConditions;
+  },
   stamp: { readonly actorId: string; readonly now: Date },
 ): { readonly term: TermOfReference; readonly changes: readonly TermHeaderChange[] } {
   const changes: TermHeaderChange[] = [];
   let next: TermOfReference = term;
+  if (update.conditions !== undefined) {
+    for (const field of TERM_CONDITION_FIELDS) {
+      const value = update.conditions[field];
+      if (value !== term[field]) changes.push({ field, old: term[field], new: value });
+    }
+    next = { ...next, ...update.conditions };
+  }
   if (update.objectDefinition !== undefined && update.objectDefinition !== term.objectDefinition) {
     changes.push({
       field: 'objectDefinition',

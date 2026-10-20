@@ -122,6 +122,8 @@ export function planImportedItems(input: {
         notes: line.notes ?? null,
         sortOrder: nextOrder,
         calculationMemo: null,
+        specification: null,
+        acceptanceCriteria: null,
         createdAt: input.now,
         updatedAt: input.now,
         createdById: input.actorId,

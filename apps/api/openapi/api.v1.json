@@ -3916,6 +3916,50 @@
               "type"
             ],
             "additionalProperties": {}
+          },
+          "specification": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "doc"
+                ]
+              },
+              "content": {
+                "type": "array",
+                "items": {}
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": {}
+          },
+          "acceptanceCriteria": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "doc"
+                ]
+              },
+              "content": {
+                "type": "array",
+                "items": {}
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -3926,7 +3970,9 @@
           "quantity",
           "notes",
           "sortOrder",
-          "calculationMemo"
+          "calculationMemo",
+          "specification",
+          "acceptanceCriteria"
         ]
       },
       "DocumentItemsReplace": {
@@ -3950,7 +3996,7 @@
                     "string",
                     "null"
                   ],
-                  "maxLength": 1000
+                  "maxLength": 5000
                 },
                 "sortOrder": {
                   "type": "integer",
@@ -3972,6 +4018,38 @@
                   ],
                   "additionalProperties": {},
                   "description": "TipTapDoc (DEC-056), até 1 MB serializado; `null` limpa."
+                },
+                "specification": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": {},
+                  "description": "TipTapDoc (DEC-056), até 50.000 caracteres e 1 MB; `null` limpa."
+                },
+                "acceptanceCriteria": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": {},
+                  "description": "TipTapDoc (DEC-056), até 50.000 caracteres e 1 MB; `null` limpa."
                 }
               },
               "required": [
@@ -19087,6 +19165,85 @@
               "PRICE_RESEARCH",
               "ETP",
               "MANUAL"
+            ]
+          },
+          "contractDurationMonths": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 120
+          },
+          "executionDeadline": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 36500
+          },
+          "executionDeadlineType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BUSINESS",
+              "CALENDAR",
+              null
+            ]
+          },
+          "deliveryLocation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "paymentTermDays": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 90
+          },
+          "productWarrantyMonths": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 120
+          },
+          "contractGuaranteePercent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Percentual de 0 a 10 com até 4 casas, ponto como separador (ex.: \"5\")."
+          },
+          "allowsSubcontracting": {
+            "type": "boolean"
+          },
+          "selectionCriterionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "awardType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "BY_ITEM",
+              "BY_LOT",
+              "GLOBAL",
+              null
             ]
           }
         },

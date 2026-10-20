@@ -10,9 +10,12 @@ import {
   isTermMoney,
   termCreateSchema,
   termDocumentTitle,
+  termDeadlineIssue,
   termPatchSchema,
+  TERM_CONDITION_MESSAGES,
   TERM_MESSAGES,
 } from './term.js';
+import { itemRichTextIssue } from '../document/document-items.js';
 import type { DraftContent } from '../document/document.js';
 import { richTextFromPlainText } from '../document/rich-text.js';
 
@@ -137,5 +140,82 @@ describe('termCompleteness (RN-TR-13)', () => {
 
   it('sem seções exigidas = 100%', () => {
     expect(completenessPercent(0, 0)).toBe(100);
+  });
+});
+
+describe('termPatchSchema — condições contratuais (US-038 · RN-TR-28..32)', () => {
+  const issue = (body: Record<string, unknown>) => {
+    const result = termPatchSchema.safeParse(body);
+    return result.success ? null : result.error.issues[0];
+  };
+
+  it('aceita as condições nos limites e null para limpar', () => {
+    expect(
+      termPatchSchema.safeParse({
+        contractDurationMonths: 120,
+        executionDeadline: 30,
+        executionDeadlineType: 'CALENDAR',
+        paymentTermDays: 90,
+        productWarrantyMonths: 0,
+        contractGuaranteePercent: '10.0000',
+        allowsSubcontracting: false,
+        awardType: 'BY_LOT',
+        deliveryLocation: null,
+        selectionCriterionId: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each([
+    [{ contractDurationMonths: 0 }, TERM_CONDITION_MESSAGES.durationRange],
+    [{ contractDurationMonths: 121 }, TERM_CONDITION_MESSAGES.durationRange],
+    [{ paymentTermDays: 91 }, TERM_CONDITION_MESSAGES.paymentRange],
+    [{ productWarrantyMonths: 121 }, TERM_CONDITION_MESSAGES.warrantyRange],
+    [{ executionDeadline: 0 }, TERM_CONDITION_MESSAGES.deadlineRange],
+    [{ contractGuaranteePercent: '10.0001' }, TERM_CONDITION_MESSAGES.guaranteeRange],
+    [{ contractGuaranteePercent: '15' }, TERM_CONDITION_MESSAGES.guaranteeRange],
+  ])('fora da faixa: %o', (body, message) => {
+    expect(issue(body)?.message).toBe(message);
+  });
+
+  it('garantia contratual: formato inválido é INVALID_DECIMAL, acima de 10 é OUT_OF_RANGE', () => {
+    expect(issue({ contractGuaranteePercent: '5,5' })).toMatchObject({
+      params: { code: 'INVALID_DECIMAL' },
+    });
+    expect(issue({ contractGuaranteePercent: '1.23456' })).toMatchObject({
+      params: { code: 'INVALID_DECIMAL' },
+    });
+    expect(issue({ contractGuaranteePercent: '15' })).toMatchObject({
+      params: { code: 'OUT_OF_RANGE' },
+    });
+  });
+
+  it('termDeadlineIssue (RN-TR-29): um exige o outro', () => {
+    expect(termDeadlineIssue(30, null)).toMatchObject({
+      field: 'executionDeadlineType',
+      code: 'CONDITIONAL_REQUIRED',
+      message: 'Informe o tipo de contagem do prazo.',
+    });
+    expect(termDeadlineIssue(null, 'BUSINESS')).toMatchObject({ field: 'executionDeadline' });
+    expect(termDeadlineIssue(30, 'BUSINESS')).toBeNull();
+    expect(termDeadlineIssue(null, null)).toBeNull();
+  });
+});
+
+describe('itemRichTextIssue (US-038 · RN-TR-26)', () => {
+  it('aceita ausente, null e texto até 50.000 caracteres', () => {
+    expect(itemRichTextIssue(undefined)).toBeNull();
+    expect(itemRichTextIssue(null)).toBeNull();
+    expect(itemRichTextIssue(richTextFromPlainText('a'.repeat(50_000)))).toBeNull();
+  });
+
+  it('acima de 50.000 caracteres → TOO_LONG; fora do schema → RICH_TEXT_INVALID; > 1 MB → PAYLOAD_TOO_LARGE', () => {
+    expect(itemRichTextIssue(richTextFromPlainText('a'.repeat(50_001)))).toBe('TOO_LONG');
+    expect(itemRichTextIssue({ type: 'doc', content: [{ type: 'iframe' }] })).toBe(
+      'RICH_TEXT_INVALID',
+    );
+    expect(itemRichTextIssue(richTextFromPlainText('a\n'.repeat(400_000)))).toBe(
+      'PAYLOAD_TOO_LARGE',
+    );
   });
 });

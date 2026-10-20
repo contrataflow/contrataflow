@@ -68,6 +68,8 @@ function item(n: number, quantity: string, extra: Partial<DocumentItemDto> = {})
     notes: null,
     sortOrder: n - 1,
     calculationMemo: null,
+    specification: null,
+    acceptanceCriteria: null,
     ...extra,
   };
 }

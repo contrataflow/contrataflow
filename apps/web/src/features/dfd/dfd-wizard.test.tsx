@@ -178,6 +178,8 @@ const line = (item: ProcessItemDto, quantity: string): DocumentItemDto => ({
   notes: null,
   sortOrder: 0,
   calculationMemo: null,
+  specification: null,
+  acceptanceCriteria: null,
 });
 
 const violation = (code: string, location: Partial<Violation>): Violation => ({

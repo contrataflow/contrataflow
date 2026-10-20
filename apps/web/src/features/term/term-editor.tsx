@@ -28,6 +28,7 @@ import { useId, useState } from 'react';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { ImportEtpPanel, StaleEtpBanner } from './import-etp-panel';
+import { TermConditionsPanel } from './term-conditions-panel';
 import {
   localCompleteness,
   termNavItems,
@@ -36,6 +37,7 @@ import {
 } from './term-editor-model';
 import type { TermNavItem } from './term-editor-model';
 import { EstimatedValueText, TermGeneralDataPanel } from './term-general-data-panel';
+import { TermItemsPanel } from './term-items-panel';
 import { useTerm } from './term.api';
 import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { AiSectionChange } from '../ai/ai-section-assistant';
@@ -55,7 +57,8 @@ import { TEXTAREA_CLASS } from '../processes/form-field';
  * valor estimado — TRM-04). Somente leitura sem `UPDATE` ou fora de `DRAFT`/`RETURNED` (FA-06).
  * Abaixo de 768 px a navegação recolhe para o menu "Seções". US-037: "Importar do ETP" (TRM-05/06 —
  * oculto sem `UPDATE`) e o aviso de ETP atualizado desde a última importação (RN-TR-24); depois da
- * importação o editor recarrega o TR e remonta com o rascunho novo.
+ * importação o editor recarrega o TR e remonta com o rascunho novo. US-038: os painéis "Itens"
+ * (DOC-06/07) e "Condições contratuais" (TRM-04), abertos sob demanda.
  */
 
 function timeOf(value: string | number, timeZone: string): string {
@@ -297,6 +300,8 @@ export function TermEditorLoaded({ processId, term, meta, onReload }: TermEditor
       ) : null}
 
       <TermGeneralDataPanel processId={processId} term={term} editable={allowed} />
+      <TermItemsPanel processId={processId} term={term} editable={allowed} />
+      <TermConditionsPanel term={term} editable={allowed} />
 
       <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start">
         <TermSectionNav items={nav} activeKey={active?.key ?? ''} onSelect={select} />

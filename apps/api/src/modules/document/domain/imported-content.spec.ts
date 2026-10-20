@@ -122,6 +122,8 @@ describe('planImportedItems (RN-TR-21 · DEC-019)', () => {
     notes: 'Obs. do TR',
     sortOrder,
     calculationMemo: null,
+    specification: null,
+    acceptanceCriteria: null,
     createdAt: NOW,
     updatedAt: NOW,
     createdById: CARLA,

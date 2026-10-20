@@ -20,6 +20,9 @@ import type { DocumentItem } from '../domain/document-items.js';
 
 type ItemRow = Prisma.DocumentItemGetPayload<object>;
 
+const richTextOf = (value: Prisma.JsonValue | null): RichTextDocValue | null =>
+  value === null ? null : (value as unknown as RichTextDocValue);
+
 function toItem(row: ItemRow): DocumentItem {
   return {
     id: row.id,
@@ -29,8 +32,9 @@ function toItem(row: ItemRow): DocumentItem {
     quantity: row.quantity.toFixed(4),
     notes: row.notes,
     sortOrder: row.sortOrder,
-    calculationMemo:
-      row.calculationMemo === null ? null : (row.calculationMemo as unknown as RichTextDocValue),
+    calculationMemo: richTextOf(row.calculationMemo),
+    specification: richTextOf(row.specification),
+    acceptanceCriteria: richTextOf(row.acceptanceCriteria),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     createdById: row.createdById,
@@ -76,6 +80,8 @@ export class PrismaDocumentItemRepository implements DocumentItemRepository {
             notes: item.notes,
             sortOrder: item.sortOrder,
             calculationMemo: memoJson(item.calculationMemo),
+            specification: memoJson(item.specification),
+            acceptanceCriteria: memoJson(item.acceptanceCriteria),
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
             createdById: item.createdById,
@@ -91,6 +97,8 @@ export class PrismaDocumentItemRepository implements DocumentItemRepository {
             notes: item.notes,
             sortOrder: item.sortOrder,
             calculationMemo: memoJson(item.calculationMemo),
+            specification: memoJson(item.specification),
+            acceptanceCriteria: memoJson(item.acceptanceCriteria),
             updatedAt: item.updatedAt,
             updatedById: item.updatedById,
           },
@@ -163,13 +171,19 @@ export class InMemoryDocumentItemRepository implements DocumentItemRepository {
     return Promise.resolve(
       new Set(
         this.inTenant()
-          .filter((item) => item.documentId === documentId && this.specified.has(item.id))
+          .filter(
+            (item) =>
+              item.documentId === documentId &&
+              (this.specified.has(item.id) ||
+                item.specification !== null ||
+                item.acceptanceCriteria !== null),
+          )
           .map((item) => item.processItemId),
       ),
     );
   }
 
-  /** Testes (US-037 · FA-04): a linha passa a ter especificação (as colunas são da US-038). */
+  /** Testes (US-037 · FA-04): marca a linha como especificada sem montar o rich text. */
   markSpecified(itemId: string): void {
     this.specified.add(itemId);
   }

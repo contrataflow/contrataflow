@@ -69,3 +69,21 @@ DFD/ETP (`etp/README.md`).
 - **Testes**: `domain/etp-import.spec.ts`, `presentation/term-etp-import.routes.spec.ts` (8 categorias
   - FA-02..06) e `test/tenant-leak/term-etp-import.spec.ts` (PostgreSQL: falha induzida na versão
     IMPORT, duas aplicações simultâneas, RLS).
+
+## US-038 — Itens e condições contratuais do TR (TRM-04 · DOC-06/07)
+
+- **Condições** (`UpdateTermHeaderCommand`, o mesmo TRM-04 do painel "Dados do TR"): faixas no
+  `termPatchSchema` (`TERM_CONDITION_LIMITS`/`TERM_CONDITION_MESSAGES`); `mergeTermConditions`
+  (domínio puro) aplica o corpo sobre o atual — ausente mantém, `null` limpa — e confere o par prazo ×
+  tipo de contagem no estado final (`termDeadlineIssue`, compartilhado com a tela); critério de
+  julgamento novo pelo `CatalogFacade.find` (ativo, do tipo `JUDGMENT_CRITERION`, do tenant). A
+  garantia volta do banco como `Decimal.toString()` (`"5"`) e o corpo é normalizado igual
+  (`normalizePercent`) para que reenviar o mesmo valor não grave nem audite.
+- **Itens**: o DOC-07 genérico (`document`) ganhou `specification`/`acceptanceCriteria` (rich text,
+  `itemRichTextIssue`) e o teto de `notes` por tipo (`notesMax` — 5.000 no TR). Sem versão nova
+  (RN-TR-33); `document.items_update` com os textos como hash + tamanho.
+- **Web**: `term-items-panel.tsx` (+ `term-items-model.ts`) e `term-conditions-panel.tsx`
+  (+ `term-conditions-model.ts`), abertos sob demanda na SCR-012.
+- **Testes**: `domain/term-of-reference.spec.ts`, `presentation/term-conditions.routes.spec.ts` (8
+  categorias + FA-01/02/03, V-04/V-09/V-10) e `test/tenant-leak/term-items.spec.ts` (PostgreSQL:
+  jsonb, CHECKs, unicidade, RLS, 5 PATCHes paralelos, falha induzida nos itens).

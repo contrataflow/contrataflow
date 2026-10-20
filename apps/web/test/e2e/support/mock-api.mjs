@@ -2337,6 +2337,64 @@ const TERM_RESEARCH = {
   totalEstimatedValue: '98000.00',
   completed: true,
 };
+// US-038: itens do processo do TR (PRC-13), critérios de julgamento (CAT-01) e condições (TRM-04).
+const TERM_UNIT = { id: '0192a000-0000-7000-8000-0000000e2911', label: 'UN' };
+const termProcessItems = (processId) =>
+  [
+    [1, 'Kit de manutenção elétrica', '10.0000'],
+    [2, 'Kit de manutenção hidráulica', null],
+  ].map(([sequence, description, referenceQuantity]) => ({
+    id: `${processId.slice(0, 24)}${String(9000 + sequence).padStart(12, '0')}`,
+    processId,
+    sequence,
+    lotNumber: null,
+    lotName: null,
+    kind: 'GOOD',
+    description,
+    unitOfMeasure: TERM_UNIT,
+    catalogSystem: null,
+    catalogCode: null,
+    notes: null,
+    referenceQuantity,
+    referenceQuantitySourceDocumentId: null,
+    referenceUnitPrice: null,
+    referenceUnitPriceMasked: false,
+    referenceUnitPriceSourceDocumentId: null,
+    references: [],
+    version: 1,
+  }));
+catalogItems.push(
+  ...[
+    ['MENOR_PRECO', 'Menor preço', 'I'],
+    ['MAIOR_DESCONTO', 'Maior desconto', 'II'],
+  ].map(([code, label, clause], index) => ({
+    id: `0192a000-0000-7000-8000-0000000e29c${String(index)}`,
+    catalogType: 'JUDGMENT_CRITERION',
+    code,
+    label,
+    description: null,
+    isSystem: true,
+    isActive: true,
+    sortOrder: index + 1,
+    parentId: null,
+    metadata: { legalBasis: `Lei 14.133/2021, art. 33, ${clause}` },
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z',
+    version: 1,
+  })),
+);
+const TERM_CONDITION_FIELDS = [
+  'contractDurationMonths',
+  'executionDeadline',
+  'executionDeadlineType',
+  'deliveryLocation',
+  'paymentTermDays',
+  'productWarrantyMonths',
+  'contractGuaranteePercent',
+  'allowsSubcontracting',
+  'selectionCriterionId',
+  'awardType',
+];
 const TERM_SECTIONS = [
   ['OBJECT', 'Definição do objeto', 'REQUIRED', 'TEXT', 'Lei 14.133/2021, art. 6º, XXIII, a'],
   ['JUSTIFICATION', 'Fundamentação da contratação', 'REQUIRED', 'TEXT', 'Art. 6º, XXIII, b'],
@@ -2392,6 +2450,9 @@ function buildTerm(fixture, { id, code, title }) {
     status: 'DRAFT',
     version: 1,
     objectDefinition: fixture.title,
+    conditions: Object.fromEntries(TERM_CONDITION_FIELDS.map((field) => [field, null])),
+    items: [],
+    documentVersion: 1,
     estimatedTotalValue: TERM_RESEARCH.totalEstimatedValue,
     estimatedValueSource: 'PRICE_RESEARCH',
     priceResearchId: TERM_RESEARCH.id,
@@ -2591,16 +2652,7 @@ function termDtoOf(term) {
     templateVersion: { id: TERM_TEMPLATE.versionId, versionNumber: 1 },
     responsibleId: TERM_AUTHOR_ID,
     objectDefinition: term.objectDefinition,
-    contractDurationMonths: null,
-    executionDeadline: null,
-    executionDeadlineType: null,
-    deliveryLocation: null,
-    paymentTermDays: null,
-    productWarrantyMonths: null,
-    contractGuaranteePercent: null,
-    allowsSubcontracting: null,
-    selectionCriterionId: null,
-    awardType: null,
+    ...term.conditions,
     estimatedTotalValue: term.estimatedTotalValue,
     estimatedTotalValueMasked: false,
     estimatedValueSource: term.estimatedValueSource,
@@ -2609,7 +2661,7 @@ function termDtoOf(term) {
     importedFromEtpVersionId: null,
     importedAt: null,
     importedById: null,
-    documentVersion: 1,
+    documentVersion: term.documentVersion,
     createdAt: term.createdAt,
     updatedAt: term.updatedAt,
     version: term.version,
@@ -5680,12 +5732,15 @@ createServer(async (request, response) => {
     );
   }
   // TR (US-036): documentos do processo (DOC-01), TRM-01/02, TRM-03/04, DOC-03 e DOC-05.
-  const termProcessRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(documents|terms)$/.exec(
+  const termProcessRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(documents|terms|items)$/.exec(
     url.pathname,
   );
   const termState = termProcessRoute ? termStates.get(termProcessRoute[1]) : undefined;
   if (termProcessRoute && termState) {
     const resource = termProcessRoute[2];
+    if (resource === 'items' && request.method === 'GET') {
+      return send(response, 200, { data: termProcessItems(termProcessRoute[1]) }, { ETag: '"5"' });
+    }
     if (resource === 'documents' && request.method === 'GET') {
       return send(response, 200, {
         data: [],
@@ -5787,6 +5842,39 @@ createServer(async (request, response) => {
       }
       termFound.objectDefinition = body.objectDefinition.trim();
     }
+    // US-038: condições contratuais (RN-TR-29 e o limite legal da garantia — RN-TR-31).
+    const conditions = { ...termFound.conditions };
+    for (const field of TERM_CONDITION_FIELDS) {
+      if (field in body) conditions[field] = body[field];
+    }
+    if ((conditions.executionDeadline === null) !== (conditions.executionDeadlineType === null)) {
+      const missing =
+        conditions.executionDeadline === null ? 'executionDeadline' : 'executionDeadlineType';
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [
+          {
+            field: missing,
+            code: 'CONDITIONAL_REQUIRED',
+            message: 'Informe o tipo de contagem do prazo.',
+          },
+        ],
+      });
+    }
+    if (
+      conditions.contractGuaranteePercent !== null &&
+      Number(conditions.contractGuaranteePercent) > 10
+    ) {
+      return problemWith(response, 422, 'VALIDATION_ERROR', String(correlationId), {
+        errors: [
+          {
+            field: 'contractGuaranteePercent',
+            code: 'OUT_OF_RANGE',
+            message: 'A garantia contratual não pode superar 10% (arts. 96–98).',
+          },
+        ],
+      });
+    }
+    termFound.conditions = conditions;
     if (body.estimatedValueSource === 'MANUAL') {
       termFound.estimatedValueSource = 'MANUAL';
       termFound.estimatedTotalValue = String(body.estimatedTotalValue);
@@ -5804,6 +5892,63 @@ createServer(async (request, response) => {
       { data: termDtoOf(termFound), meta: { allowedActions: ['UPDATE'] } },
       { ETag: `"${String(termFound.version)}"` },
     );
+  }
+  // DOC-06/07 do TR (US-038): a coleção inteira com `If-Match` da versão do documento.
+  const termItemsRoute = /^\/api\/v1\/documents\/([0-9a-f-]{36})\/items$/.exec(url.pathname);
+  const termWithItems = termItemsRoute ? termOf(termItemsRoute[1]) : undefined;
+  if (termWithItems) {
+    const catalog = new Map(
+      termProcessItems(termWithItems.processId).map((item) => [item.id, item]),
+    );
+    const lineOf = (row) => {
+      const item = catalog.get(row.processItemId);
+      return {
+        processItemId: row.processItemId,
+        sequence: item.sequence,
+        description: item.description,
+        unit: { id: TERM_UNIT.id, label: TERM_UNIT.label, allowsDecimal: true },
+        quantity: row.quantity,
+        notes: row.notes ?? null,
+        sortOrder: row.sortOrder,
+        calculationMemo: null,
+        specification: row.specification ?? null,
+        acceptanceCriteria: row.acceptanceCriteria ?? null,
+      };
+    };
+    const etag = `"${String(termWithItems.documentVersion)}"`;
+    if (request.method === 'GET') {
+      return send(response, 200, { data: termWithItems.items.map(lineOf) }, { ETag: etag });
+    }
+    if (request.method === 'PUT') {
+      if (String(request.headers['if-match'] ?? '') !== etag) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const previous = new Map(termWithItems.items.map((row) => [row.processItemId, row]));
+      termWithItems.items = (body.items ?? []).map((row, index) => {
+        const before = previous.get(row.processItemId);
+        const [whole, fraction = ''] = String(row.quantity).split('.');
+        return {
+          processItemId: row.processItemId,
+          quantity: `${whole}.${fraction.padEnd(4, '0')}`,
+          notes: row.notes ?? null,
+          sortOrder: row.sortOrder ?? index,
+          specification:
+            row.specification === undefined ? (before?.specification ?? null) : row.specification,
+          acceptanceCriteria:
+            row.acceptanceCriteria === undefined
+              ? (before?.acceptanceCriteria ?? null)
+              : row.acceptanceCriteria,
+        };
+      });
+      termWithItems.documentVersion += 1;
+      return send(
+        response,
+        200,
+        { data: termWithItems.items.map(lineOf) },
+        { ETag: `"${String(termWithItems.documentVersion)}"` },
+      );
+    }
   }
   const termDocumentRoute = /^\/api\/v1\/documents\/([0-9a-f-]{36})(\/sections\/([A-Z_]+))?$/.exec(
     url.pathname,

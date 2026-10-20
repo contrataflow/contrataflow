@@ -3,12 +3,16 @@ import { createHash } from 'node:crypto';
 import {
   calculationMemoBytes,
   calculationMemoIssue,
+  DOCUMENT_ITEM_LIMITS,
   DOCUMENT_ITEM_MESSAGES,
+  DOCUMENT_ITEM_RICH_TEXT_FIELDS,
+  itemRichTextIssue,
   richTextPlainText,
 } from '@contrataflow/validation';
 import type {
   DocumentItemDto,
   DocumentItemInput,
+  FieldError,
   RichTextDocValue,
 } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
@@ -55,7 +59,10 @@ import type { Document } from '../domain/document.js';
  * → gravação → `version + 1` do documento (novo `ETag`) → `document.items_update`. Sem evento.
  * US-022 (ETP): a memória de cálculo por item (RN-ETP-27) é conferida antes de tudo (413
  * `PAYLOAD_TOO_LARGE` acima de 1 MB, 422 `RICH_TEXT_INVALID` fora do schema) e entra na auditoria
- * só como hash + tamanho; ids e `sortOrder` das linhas existentes se preservam.
+ * só como hash + tamanho; ids e `sortOrder` das linhas existentes se preservam. US-038 (TR): a
+ * especificação e os critérios de aceitação seguem a mesma regra (413 acima de 1 MB, 422
+ * `RICH_TEXT_INVALID`, 422 `TOO_LONG` acima de 50.000 caracteres), as observações vão a 5.000
+ * caracteres no TR e os textos entram na auditoria como hash + tamanho.
  */
 
 /** Itens do documento como o DOC-06/07 os devolve, com a versão do documento (`ETag`). */
@@ -126,6 +133,8 @@ export class DocumentItemsPresenter {
       notes: line.notes,
       sortOrder: index,
       calculationMemo: null,
+      specification: null,
+      acceptanceCriteria: null,
       createdAt: now,
       updatedAt: now,
       createdById: actorId,
@@ -194,6 +203,8 @@ export class DocumentItemsPresenter {
           notes: row.notes,
           sortOrder: row.sortOrder,
           calculationMemo: row.calculationMemo,
+          specification: row.specification,
+          acceptanceCriteria: row.acceptanceCriteria,
         },
       ];
     });
@@ -251,6 +262,35 @@ function assertCalculationMemos(items: readonly DocumentItemInput[]): void {
   }
 }
 
+/**
+ * RN-TR-26 · V-04: especificação/critérios de aceitação acima de 1 MB → 413; fora do schema → 422
+ * `RICH_TEXT_INVALID`; acima de 50.000 caracteres → 422 `VALIDATION_ERROR` (`TOO_LONG`) no campo.
+ */
+function assertItemRichTexts(items: readonly DocumentItemInput[]): void {
+  const errors: FieldError[] = [];
+  items.forEach((item, index) => {
+    for (const field of DOCUMENT_ITEM_RICH_TEXT_FIELDS) {
+      const issue = itemRichTextIssue(item[field]);
+      if (issue === 'PAYLOAD_TOO_LARGE') {
+        throw new ApiError('PAYLOAD_TOO_LARGE', {
+          detail: DOCUMENT_ITEM_MESSAGES.richTextTooLarge,
+        });
+      }
+      if (issue === 'RICH_TEXT_INVALID') {
+        throw new ApiError('RICH_TEXT_INVALID', { detail: DOCUMENT_ITEM_MESSAGES.richTextInvalid });
+      }
+      if (issue === 'TOO_LONG') {
+        errors.push({
+          field: `items[${String(index)}].${field}`,
+          code: 'TOO_LONG',
+          message: DOCUMENT_ITEM_MESSAGES.richTextTooLong,
+        });
+      }
+    }
+  });
+  if (errors.length > 0) throw validationError(errors);
+}
+
 /** Impressão digital da memória na auditoria: hash do texto + tamanho serializado (nunca o texto). */
 function memoFingerprint(
   memo: RichTextDocValue | null,
@@ -289,6 +329,7 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
 
   protected async handle(tx: TenantTx, input: ReplaceDocumentItemsInput): Promise<ReplacedItems> {
     assertCalculationMemos(input.items);
+    assertItemRichTexts(input.items);
     // A trava serializa duas gravações: a segunda relê a versão e recebe 412 (Concorrência).
     await this.documents.lockForUpdate(tx, input.documentId);
     const context = await this.lifecycle.load(tx, input.documentId);
@@ -322,6 +363,10 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
       actorId: userId,
       now,
       newId,
+      notesMax:
+        context.type.code === 'TR'
+          ? DOCUMENT_ITEM_LIMITS.termNotesMax
+          : DOCUMENT_ITEM_LIMITS.notesMax,
     });
     if (plan.errors.length > 0) throw validationError(plan.errors);
 
@@ -375,7 +420,7 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
   private async recordAudit(
     tx: TenantTx,
     context: DocumentContext,
-    plan: Pick<DocumentItemsPlan, 'changes' | 'memoChanges'>,
+    plan: Pick<DocumentItemsPlan, 'changes' | 'memoChanges' | 'textChanges'>,
     itemsCount: number,
   ): Promise<void> {
     await this.audit.record(tx, {
@@ -392,6 +437,12 @@ export class ReplaceDocumentItemsCommand extends TransactionalCommandHandler<
         // Memória de cálculo como hash + tamanho (story US-022 · "Auditoria").
         ...plan.memoChanges.map((change) => ({
           path: `items.${change.processItemId}.calculationMemo`,
+          old: memoFingerprint(change.old),
+          new: memoFingerprint(change.new),
+        })),
+        // Especificação e critérios de aceitação também como hash + tamanho (US-038 · "Auditoria").
+        ...plan.textChanges.map((change) => ({
+          path: `items.${change.processItemId}.${change.field}`,
           old: memoFingerprint(change.old),
           new: memoFingerprint(change.new),
         })),
