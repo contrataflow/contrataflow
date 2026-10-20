@@ -206,7 +206,12 @@ describe('Feature: Pré-visualizar a numeração de processos e documentos (US-1
       silence();
       const response = await preview({ mask: '{seq:4}/{year}' }, { tenant: B });
       expectProblem(response, 403, 'MEMBERSHIP_INACTIVE');
-      expect(JSON.stringify(response.body)).not.toContain('901');
+      // O correlationId é aleatório e pode conter "901" por acaso.
+      const { correlationId: _correlationId, ...problem } = response.body as Record<
+        string,
+        unknown
+      >;
+      expect(JSON.stringify(problem)).not.toContain('901');
       expect(sequences.valueOf(B, 'PROCESS:*:2026')).toBe(900);
     });
 
