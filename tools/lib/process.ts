@@ -45,6 +45,8 @@ export function run(command: string, args: readonly string[], options: RunOption
     env: options.env ?? isolatedEnv(),
     encoding: 'utf8',
     timeout: options.timeoutMs ?? 120_000,
+    // O padrão do Node (1 MiB) mata o processo (ENOBUFS) no `git diff` de um lote grande.
+    maxBuffer: 256 * 1024 * 1024,
     windowsHide: true,
   } as const;
   const result =
