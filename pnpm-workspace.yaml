@@ -75,9 +75,9 @@ catalog:
   '@nestjs/testing': 11.2.7
   reflect-metadata: 0.2.2
   rxjs: 7.8.2
-  prisma: 7.10.0
-  '@prisma/client': 7.10.0
-  '@prisma/adapter-pg': 7.10.0
+  prisma: 7.10.1
+  '@prisma/client': 7.10.1
+  '@prisma/adapter-pg': 7.10.1
   pg: 8.23.1
   '@types/pg': 8.23.1
   decimal.js: 10.6.0
@@ -108,7 +108,7 @@ catalog:
   '@opentelemetry/instrumentation-nestjs-core': 0.68.0
   '@opentelemetry/instrumentation-pg': 0.74.0
   '@opentelemetry/instrumentation-ioredis': 0.70.0
-  '@prisma/instrumentation': 7.10.0
+  '@prisma/instrumentation': 7.10.1
   pino: 10.4.0
   nestjs-pino: 4.6.1
   pino-http: 11.0.0
