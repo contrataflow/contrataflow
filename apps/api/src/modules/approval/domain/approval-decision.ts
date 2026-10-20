@@ -19,6 +19,11 @@ export interface ApprovalRecord extends Approval {
   readonly decidedAt: Date | null;
   readonly decisionComment: string | null;
   readonly decidedAsDeputy: boolean;
+  /** Cancelamento sem decisão (retirada — US-053 — ou processo cancelado — US-009). */
+  readonly canceledAt: Date | null;
+  readonly canceledById: string | null;
+  /** Motivo codificado (`WITHDRAWN`, `PROCESS_CANCELED`…) — nunca o texto digitado. */
+  readonly cancellationReason: string | null;
   readonly updatedAt: Date;
   readonly version: number;
 }
@@ -32,6 +37,9 @@ export function recordOf(approval: Approval): ApprovalRecord {
     decidedAt: null,
     decisionComment: null,
     decidedAsDeputy: false,
+    canceledAt: null,
+    canceledById: null,
+    cancellationReason: null,
     updatedAt: approval.createdAt,
     version: 1,
   };

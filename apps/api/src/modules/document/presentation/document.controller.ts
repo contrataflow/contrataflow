@@ -12,6 +12,7 @@ import {
   documentUpdateSchema,
   documentUploadVersionSchema,
   documentValidationSchema,
+  withdrawApprovalSchema,
   documentVersionCompareQuerySchema,
   documentVersionComparisonSchema,
   documentVersionCreateSchema,
@@ -40,6 +41,7 @@ import type {
   DocumentVersionDto,
   DocumentVersionListQuery,
   DocumentVersionSummaryDto,
+  WithdrawApproval,
 } from '@contrataflow/validation';
 import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
@@ -66,6 +68,7 @@ import {
   ReopenDocumentCommand,
   SubmitDocumentCommand,
   UpdateDocumentHeaderCommand,
+  WithdrawDocumentCommand,
 } from '../application/document.commands.js';
 import { DocumentQueries } from '../application/document.queries.js';
 import { toDocumentDto } from '../application/document.view.js';
@@ -90,7 +93,7 @@ const TYPE_PERMISSION =
   'Permissão de edição/submissão do tipo do documento (DOCUMENT_*, DFD_*, ETP_*, TERM_*, RISK_*, PRICE_RESEARCH_*) conferida pelo caso de uso sobre o processo do documento, com POL-02.';
 
 /**
- * DOC-03/04/08/09/10/12/13/14 (api/03-documents.md · US-065): o documento genérico e o seu ciclo de
+ * DOC-03/04/08/09/10/11/12/13/14 (api/03-documents.md · US-065; DOC-11 — US-053): o documento genérico e o seu ciclo de
  * vida (DEC-018). Toda transição de `status` passa pelo `DocumentLifecycleService` (RN-DOC-41) —
  * nenhum `PATCH` muda o status. Documento de outro tenant/processo não visível → 404.
  */
@@ -102,6 +105,7 @@ export class DocumentController {
     private readonly updateHeader: UpdateDocumentHeaderCommand,
     private readonly finalize: FinalizeDocumentCommand,
     private readonly submit: SubmitDocumentCommand,
+    private readonly withdrawSubmission: WithdrawDocumentCommand,
     private readonly reopen: ReopenDocumentCommand,
     private readonly cancel: CancelDocumentCommand,
     private readonly remove: DeleteDocumentCommand,
@@ -235,6 +239,45 @@ export class DocumentController {
       expectedVersion: ifMatch?.value ?? 0,
       acknowledgedWarnings: body.acknowledgedWarnings ?? [],
       expectedDraftRevision: body.expectedDraftRevision ?? null,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    return this.respond(result, response);
+  }
+
+  @Post(':id/withdraw')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'DOC-11 (US-053): POL-17 no caso de uso — avulsa: permissão de submissão do tipo (a do DOC-09) cobrindo o processo; aprovação de etapa: custódia anterior com `PROCESS_FORWARD` sobre a unidade de origem.',
+  )
+  @Policy('POL-17')
+  @ApiOperation({
+    operationId: 'DOC-11',
+    summary: 'Retirar documento submetido',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['approval.withdraw', 'document.withdraw'],
+    responses: {
+      200: {
+        description:
+          'Documento de volta a `DRAFT` (`ETag` = nova versão) com a aprovação pendente cancelada (`WITHDRAWN`) — as mesmas regras e efeitos do APV-04. Documento fora de `IN_REVIEW` (aprovação já decidida ou retirada) = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); sem a permissão de submissão do tipo (POL-17) = 403 `PERMISSION_DENIED`; inexistente/de outro tenant = 404. Eventos `ApprovalCanceled` e `DocumentWithdrawn` (e, na etapa, `ProcessStageChanged`).',
+        schema: DOCUMENT_RESPONSE,
+      },
+    },
+  })
+  async withdrawDocument(
+    @ZodParams(documentIdParamsSchema) params: { id: string },
+    @ZodBody(withdrawApprovalSchema) body: WithdrawApproval,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DocumentResponse> {
+    const reason = body.reason?.trim() ?? '';
+    const result = await this.withdrawSubmission.execute({
+      documentId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      reason: reason === '' ? null : reason,
       idempotencyKey: idempotencyKey ?? null,
     });
     return this.respond(result, response);

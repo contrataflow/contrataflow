@@ -400,7 +400,8 @@ describe('Feature: Ciclo de vida do documento (US-065)', () => {
       const { data, meta } = bodyOf(response);
       expect(data).toMatchObject({ status: 'IN_REVIEW', submittedById: FAKE_USERS.lucia.id });
       expect(data.pendingApprovalId).not.toBeNull();
-      expect(meta.allowedActions).toEqual([]);
+      // US-053: em análise, só a retirada da submissão (DOC-11).
+      expect(meta.allowedActions).toEqual(['WITHDRAW']);
 
       const approval = approvalRepositoryOf(api)
         .approvals()

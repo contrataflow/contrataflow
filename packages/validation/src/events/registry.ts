@@ -10,6 +10,7 @@ import {
   ApprovalCanceled,
   ApprovalCompleted,
   ApprovalRejected,
+  ApprovalReassigned,
   ApprovalRequested,
   ApprovalReturned,
 } from '../approval/events.js';
@@ -143,6 +144,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessDraftDiscarded,
   ApprovalRequested,
   ApprovalCanceled,
+  ApprovalReassigned,
   ApprovalCompleted,
   ApprovalReturned,
   ApprovalRejected,

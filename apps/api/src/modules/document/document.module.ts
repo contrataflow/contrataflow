@@ -59,6 +59,7 @@ import {
   ReopenDocumentCommand,
   SubmitDocumentCommand,
   UpdateDocumentHeaderCommand,
+  WithdrawDocumentCommand,
 } from './application/document.commands.js';
 import { DocumentFacade } from './application/document.facade.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './application/document.ports.js';
@@ -305,6 +306,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApplyAiContentCommand,
     FinalizeDocumentCommand,
     SubmitDocumentCommand,
+    WithdrawDocumentCommand,
     ReopenDocumentCommand,
     CancelDocumentCommand,
     DeleteDocumentCommand,

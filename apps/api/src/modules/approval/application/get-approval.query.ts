@@ -1,19 +1,23 @@
-import type { ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
+import type { ApprovalAction, ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ApprovalSubjectRegistry } from '#shared/approval/approval-subject.js';
-import type { DecisionSubject } from '#shared/approval/approval-subject.js';
 import { ProcessAccessRegistry, isProcessVisible } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { ApprovalDecisionPolicy, approvalNotFound } from './approval-decision.policy.js';
+import { withdrawalSubjectOf } from './approval-withdrawal.service.js';
 import { ApprovalPresenter } from './approval.presenter.js';
 import { APPROVAL_CLOCK, APPROVAL_REPOSITORY, APPROVAL_TRANSACTIONS } from './ports.js';
 import type { ApprovalClock, ApprovalRepository, ApprovalTransactions } from './ports.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
-import { decisionBlockerOf, isSelfApproval } from '../domain/approval-decision.js';
+import {
+  decisionBlockerOf,
+  isDecidableProcessStatus,
+  isSelfApproval,
+} from '../domain/approval-decision.js';
 import type { ApprovalRecord, Designation } from '../domain/approval-decision.js';
 
 export interface ApprovalDetail {
@@ -28,6 +32,8 @@ export interface ApprovalDetail {
  * `PERMISSION_DENIED`; inexistente, de outro tenant ou não visível = 404 `APPROVAL_NOT_FOUND`.
  * `meta.allowedActions`/`decisionBlocker` repetem as checagens do APV-03 (SCR-015 oculta as ações
  * e explica o motivo) e `decisionOptions` traz as saídas do workflow com as regras `TRANSITION`.
+ * US-053: `WITHDRAW` (POL-17, pelo dono do sujeito) e `REASSIGN` (`APPROVAL_REASSIGN` cobrindo o
+ * processo) enquanto a aprovação está pendente e o processo nem suspenso nem final.
  */
 @Injectable()
 export class GetApprovalQuery {
@@ -49,17 +55,7 @@ export class GetApprovalQuery {
       if (found === null) throw approvalNotFound();
       const { approval } = found;
       const handler = this.subjects.handlerFor(approval.subjectType);
-      const subject: DecisionSubject = {
-        approvalId: approval.id,
-        processId: approval.processId,
-        subjectType: approval.subjectType,
-        processStageId: approval.processStageId,
-        documentId: approval.documentId,
-        coverage: found.coverage.map((item) => ({
-          documentId: item.documentId,
-          documentVersionId: item.documentVersionId,
-        })),
-      };
+      const subject = withdrawalSubjectOf(found);
       const view = handler === null ? null : await handler.describeSubject(tx, subject);
       if (handler === null || view === null) throw approvalNotFound();
       const designation = await this.policy.designationIn(tx, approval, view, userId, this.clock());
@@ -78,10 +74,19 @@ export class GetApprovalQuery {
         processStatus: view.processStatus,
       });
       const decisionOptions = blocker === null ? await handler.decisionOptions(tx, subject) : [];
+      const allowedActions: ApprovalAction[] = blocker === null ? ['DECIDE'] : [];
+      // US-053: retirar (POL-17) e redirecionar (`APPROVAL_REASSIGN` cobrindo o processo).
+      if (approval.status === 'PENDING' && isDecidableProcessStatus(view.processStatus)) {
+        if (await handler.canWithdraw(tx, subject, userId)) allowedActions.push('WITHDRAW');
+        const target = await this.processes.load(tx, approval.processId);
+        if (target !== null && (await this.access.canOnProcess('APPROVAL_REASSIGN', target))) {
+          allowedActions.push('REASSIGN');
+        }
+      }
       return {
         dto: await this.presenter.present(tx, approval, view),
         meta: {
-          allowedActions: blocker === null ? ['DECIDE'] : [],
+          allowedActions,
           decisionOptions,
           decidesAsDeputy: designation.asDeputy,
           decisionBlocker: blocker,

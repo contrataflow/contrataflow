@@ -75,6 +75,11 @@ export interface CanceledApprovalInput {
   readonly approvalId: string;
   /** Texto fixo da timeline ("Processo cancelado") — nunca texto do usuário. */
   readonly reason: string;
+  /**
+   * `false` = retirada pelo usuário (APV-04/DOC-11 — US-053); padrão `true` (automática do
+   * cancelamento do processo — US-009). Vai em `document.withdraw` `metadata.automatic`.
+   */
+  readonly automatic?: boolean;
 }
 
 @Injectable()
@@ -236,9 +241,10 @@ export class DocumentApprovalTransitions {
   }
 
   /**
-   * RN-PROC-106 · DEC-018 (US-009): a aprovação que cobria o documento foi cancelada com o processo.
-   * `IN_REVIEW` volta a `DRAFT` com `document.withdraw` e `DocumentWithdrawn` (timeline
-   * `DOCUMENT_WITHDRAWN` com o motivo); `FINALIZED`/`APPROVED` só perdem `pendingApprovalId`.
+   * RN-PROC-106 · DEC-018 (US-009): a aprovação que cobria o documento foi cancelada com o processo
+   * (ou retirada — US-053 · RN-TRAM-66/67). `IN_REVIEW` volta a `DRAFT` com `document.withdraw` e
+   * `DocumentWithdrawn` (timeline `DOCUMENT_WITHDRAWN` com o motivo); `FINALIZED`/`APPROVED` só
+   * perdem `pendingApprovalId`.
    * Documento inexistente ou sem essa pendência: `null`, nada muda.
    */
   async releaseCanceledApproval(
@@ -266,7 +272,7 @@ export class DocumentApprovalTransitions {
       changes: [{ path: 'status', old: document.status, new: saved.status }],
       metadata: {
         approvalId: input.approvalId,
-        automatic: true,
+        automatic: input.automatic ?? true,
         reason: input.reason,
         documentCode: saved.code,
         documentTypeCode: type.code,

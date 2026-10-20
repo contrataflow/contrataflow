@@ -33,15 +33,22 @@ const approval: Approval = {
   createdById: '0192d004-0000-7000-8000-000000000005',
 };
 
-/** US-052: a decisão não é exercida por estes testes da fachada. */
+/** US-052/US-053: a decisão, a retirada e o redirecionamento não são exercidos aqui. */
 const DECISION_STUBS = {
   findById: () => Promise.resolve(null),
   lockForUpdate: () => Promise.resolve(null),
   recordDecision: () => Promise.resolve(false),
+  recordWithdrawal: () => Promise.resolve(false),
+  recordReassignment: () => Promise.resolve(false),
   latestDecisionForDocument: () => Promise.resolve(null),
 } satisfies Pick<
   ApprovalRepository,
-  'findById' | 'lockForUpdate' | 'recordDecision' | 'latestDecisionForDocument'
+  | 'findById'
+  | 'lockForUpdate'
+  | 'recordDecision'
+  | 'recordWithdrawal'
+  | 'recordReassignment'
+  | 'latestDecisionForDocument'
 >;
 
 describe('ApprovalFacade', () => {

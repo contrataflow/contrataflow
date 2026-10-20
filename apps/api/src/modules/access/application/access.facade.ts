@@ -182,6 +182,19 @@ export class AccessFacade {
   }
 
   /**
+   * A permissão cobre a unidade (como `assertCanInDepartment`), sem MFA nem auditoria — decisões
+   * que o caso de uso nega com o próprio erro (US-053 · POL-17: `PROCESS_FORWARD` sobre a unidade de
+   * origem) e ações exibidas.
+   */
+  async canInDepartment(
+    permission: PermissionCode,
+    department: { readonly id: string; readonly organizationId: string | null },
+  ): Promise<boolean> {
+    const permissions = await this.authorization.current();
+    return permissions.coversDepartment(permission, department);
+  }
+
+  /**
    * Como `assertCan`, mas a permissão precisa cobrir o PROCESSO (perfil com escopo que o cubra ∪
    * participação — permissions.md §1.1/§4), com MFA (POL-14) e a recusa auditada como
    * `access.denied` — para recursos cujo processo vem do próprio recurso (documento — US-065) e não

@@ -15,6 +15,12 @@ import { jsonResponse, requestUrl } from './render';
 export const APPROVAL_ID = ID(1100);
 export const APPROVAL_URL = `/api/v1/approvals/${APPROVAL_ID}`;
 export const DECIDE_URL = `${APPROVAL_URL}/decide`;
+/** US-053: APV-04/APV-05 e as buscas de novo aprovador (USR-02/DEP-02). */
+export const WITHDRAW_URL = `${APPROVAL_URL}/withdraw`;
+export const REASSIGN_URL = `${APPROVAL_URL}/reassign`;
+export const USERS_LOOKUP_URL = '/api/v1/users/lookup';
+export const DEPARTMENTS_LOOKUP_URL = '/api/v1/departments/lookup';
+export const DIEGO = { id: ID(71), name: 'Diego Albuquerque', email: 'diego@prefeitura-a.test' };
 
 export const DOC_ETP = ID(1201);
 export const DOC_TR = ID(1202);
@@ -201,9 +207,15 @@ export interface ApprovalApiOptions {
   readonly approval?: Handler;
   /** APV-03 (padrão: 200 com a aprovação decidida). */
   readonly decide?: Handler;
+  /** APV-04 (padrão: 200 com a aprovação cancelada e a etapa anterior). */
+  readonly withdraw?: Handler;
+  /** APV-05 (padrão: 200 com a aprovação redirecionada a Diego). */
+  readonly reassign?: Handler;
+  /** USR-02/DEP-02 (padrão: Diego / Secretaria de Saúde). */
+  readonly lookup?: Handler;
 }
 
-/** `fetch` simulado do SCR-015: APV-02 e APV-03. */
+/** `fetch` simulado do SCR-015: APV-02, APV-03 e (US-053) APV-04, APV-05 e as buscas. */
 export function mockApprovalApi(options: ApprovalApiOptions = {}) {
   const approval: Handler =
     options.approval ??
@@ -211,12 +223,64 @@ export function mockApprovalApi(options: ApprovalApiOptions = {}) {
       jsonResponse({ data: approvalDto(), meta: approvalMeta() }, { headers: { ETag: '"3"' } }));
   const decide: Handler =
     options.decide ?? (() => jsonResponse({ data: decidedDto() }, { headers: { ETag: '"4"' } }));
+  const withdraw: Handler =
+    options.withdraw ??
+    (() =>
+      jsonResponse(
+        {
+          data: {
+            ...approvalDto({ status: 'CANCELED', version: 4 }),
+            processStage: { key: 'TERMO_REFERENCIA', name: 'Termo de Referência' },
+            processStatus: 'RETURNED',
+          },
+        },
+        { headers: { ETag: '"4"' } },
+      ));
+  const reassign: Handler =
+    options.reassign ??
+    (() =>
+      jsonResponse(
+        {
+          data: approvalDto({
+            version: 4,
+            approver: {
+              type: 'USER',
+              userId: DIEGO.id,
+              roleId: null,
+              departmentId: null,
+              label: DIEGO.name,
+            },
+          }),
+        },
+        { headers: { ETag: '"4"' } },
+      ));
+  const lookup: Handler =
+    options.lookup ??
+    ((url) =>
+      jsonResponse({
+        data: url.startsWith(USERS_LOOKUP_URL)
+          ? [
+              {
+                id: DIEGO.id,
+                name: DIEGO.name,
+                email: DIEGO.email,
+                membershipType: 'INTERNAL',
+                membershipExpiresAt: null,
+              },
+            ]
+          : [{ id: ID(901), name: 'Secretaria de Saúde', type: 'SECRETARIAT', path: '/x/' }],
+      }));
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
     const url = requestUrl(input);
     const method = init?.method ?? 'GET';
     const answer = (handler: Handler) => Promise.resolve(handler(url, init));
     if (method === 'GET' && url === APPROVAL_URL) return answer(approval);
     if (method === 'POST' && url === DECIDE_URL) return answer(decide);
+    if (method === 'POST' && url === WITHDRAW_URL) return answer(withdraw);
+    if (method === 'POST' && url === REASSIGN_URL) return answer(reassign);
+    if (url.startsWith(USERS_LOOKUP_URL) || url.startsWith(DEPARTMENTS_LOOKUP_URL)) {
+      return answer(lookup);
+    }
     return Promise.resolve(problemResponse(404, 'NOT_FOUND'));
   });
   vi.stubGlobal('fetch', fetchMock);

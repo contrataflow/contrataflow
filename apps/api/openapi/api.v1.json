@@ -1158,7 +1158,9 @@
             "items": {
               "type": "string",
               "enum": [
-                "DECIDE"
+                "DECIDE",
+                "WITHDRAW",
+                "REASSIGN"
               ]
             }
           },
@@ -1669,6 +1671,318 @@
         "required": [
           "decision"
         ],
+        "additionalProperties": false
+      },
+      "ReassignApprovalRequest": {
+        "type": "object",
+        "properties": {
+          "approverType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ROLE",
+              "DEPARTMENT_HEAD"
+            ]
+          },
+          "targetApproverUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetApproverRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetApproverDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "approverType"
+        ],
+        "additionalProperties": false
+      },
+      "WithdrawnApproval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectType": {
+            "type": "string",
+            "enum": [
+              "PROCESS_STAGE",
+              "DOCUMENT"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "RETURNED",
+              "REJECTED",
+              "CANCELED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "process": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "title"
+            ]
+          },
+          "processStageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approver": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "USER",
+                  "ROLE",
+                  "DEPARTMENT_HEAD"
+                ]
+              },
+              "userId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "roleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "departmentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "userId",
+              "roleId",
+              "departmentId",
+              "label"
+            ]
+          },
+          "allowDeputy": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "APPROVE",
+              "RETURN",
+              "REJECT",
+              null
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedAsDeputy": {
+            "type": "boolean"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalDocument"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "processStage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "name"
+            ]
+          },
+          "processStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "DRAFT",
+              "IN_PROGRESS",
+              "AWAITING_APPROVAL",
+              "RETURNED",
+              "SUSPENDED",
+              "CANCELED",
+              "COMPLETED",
+              "PUBLISHED",
+              null
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subjectType",
+          "status",
+          "title",
+          "process",
+          "processStageId",
+          "documentId",
+          "requestedBy",
+          "requestedAt",
+          "requestComment",
+          "dueAt",
+          "approver",
+          "allowDeputy",
+          "decision",
+          "decidedBy",
+          "decidedAt",
+          "decisionComment",
+          "decidedAsDeputy",
+          "documents",
+          "version",
+          "processStage",
+          "processStatus"
+        ]
+      },
+      "WithdrawApprovalRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "default": {},
         "additionalProperties": false
       },
       "AttachmentDownload": {
@@ -2414,7 +2728,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           },
@@ -3644,7 +3959,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           },
@@ -5111,7 +5427,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           },
@@ -6536,7 +6853,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           },
@@ -11835,7 +12153,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           }
@@ -16406,7 +16725,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           }
@@ -19037,7 +19357,8 @@
                 "SUBMIT",
                 "REOPEN",
                 "CANCEL",
-                "DELETE"
+                "DELETE",
+                "WITHDRAW"
               ]
             }
           },
@@ -22119,6 +22440,309 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/DecidedApproval"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/approvals/{id}/reassign": {
+      "post": {
+        "operationId": "APV-05",
+        "summary": "Redirecionar aprovação",
+        "tags": [
+          "Aprovações"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "approval.reassign"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReassignApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aprovação ainda `PENDING` com o novo aprovador (`ETag` = nova versão); título, prazo, solicitante e documentos cobertos preservados (RN-TRAM-70). Uma transação: já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED`; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; titular atual da unidade) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto com `approval.preventSelfApproval` = 403 `SELF_APPROVAL_FORBIDDEN`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`). Efeitos: `ApprovalReassigned` (timeline e troca do `ProcessAccess` `APPROVER`; aviso `APPROVAL_REASSIGNED`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Approval"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/approvals/{id}/withdraw": {
+      "post": {
+        "operationId": "APV-04",
+        "summary": "Retirar aprovação",
+        "tags": [
+          "Aprovações"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "approval.withdraw",
+          "document.withdraw"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aprovação `CANCELED` (`WITHDRAWN`; `ETag` = nova versão) com a etapa e o status atuais do processo (`null` na avulsa). Uma transação: trava do processo e da aprovação; já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); sem custódia anterior (POL-17) = 403 `PERMISSION_DENIED` auditado; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`. Efeitos: documentos cobertos `IN_REVIEW` → `DRAFT` (os demais só perdem `pendingApprovalId` — DEC-018) e, na etapa, a devolução à passagem de origem (tramitação `RETURN` com `metadata.withdrawn`, processo `RETURNED`, responsável anterior). Eventos `ApprovalCanceled` (`WITHDRAWN`), `ProcessStageChanged` (`return`), `ProcessStatusChanged`, `DocumentWithdrawn`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WithdrawnApproval"
                     }
                   },
                   "required": [
@@ -33389,6 +34013,162 @@
           },
           "403": {
             "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/withdraw": {
+      "post": {
+        "operationId": "DOC-11",
+        "summary": "Retirar documento submetido",
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "approval.withdraw",
+          "document.withdraw"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Documento de volta a `DRAFT` (`ETag` = nova versão) com a aprovação pendente cancelada (`WITHDRAWN`) — as mesmas regras e efeitos do APV-04. Documento fora de `IN_REVIEW` (aprovação já decidida ou retirada) = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); sem a permissão de submissão do tipo (POL-17) = 403 `PERMISSION_DENIED`; inexistente/de outro tenant = 404. Eventos `ApprovalCanceled` e `DocumentWithdrawn` (e, na etapa, `ProcessStageChanged`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Document"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/DocumentMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
             "content": {
               "application/problem+json": {
                 "schema": {

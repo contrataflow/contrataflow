@@ -58,6 +58,34 @@ export const ApprovalCanceled = defineDomainEvent({
   routingKey: 'approval.canceled',
 });
 
+/**
+ * `ApprovalReassigned` (events.md §4.2 · US-053 · APV-05): o aprovador da aprovação `PENDING` foi
+ * trocado (título, prazo e cobertura preservados — RN-TRAM-70). Consumidores: `TimelineProjector`
+ * (`APPROVAL_REASSIGNED`) e `ProcessAccessProjector` (revoga o `APPROVER` da aprovação e concede ao
+ * novo aprovador — e ao substituto, com `allowDeputy`) no mesmo `tx`; no worker,
+ * `APPROVAL_REASSIGNED` ao novo e ao anterior aprovador. Só ids — nunca o motivo (pode conter dado
+ * pessoal sensível, ex.: licença médica).
+ */
+export const ApprovalReassigned = defineDomainEvent({
+  eventType: 'ApprovalReassigned',
+  eventVersion: 1,
+  aggregateType: 'Approval',
+  payload: z.strictObject({
+    approvalId: uuid,
+    fromApproverType: z.enum(APPROVER_TYPES),
+    fromApproverUserId: uuid.nullable(),
+    fromApproverRoleId: uuid.nullable(),
+    fromApproverDepartmentId: uuid.nullable(),
+    approverType: z.enum(APPROVER_TYPES),
+    toApproverUserId: uuid.nullable(),
+    toApproverRoleId: uuid.nullable(),
+    toApproverDepartmentId: uuid.nullable(),
+    allowDeputy: z.boolean(),
+    hasReason: z.boolean(),
+  }),
+  routingKey: 'approval.reassigned',
+});
+
 /*
  * Decisão da aprovação (US-052 · events.md §4.2): `ApprovalCompleted` (`APPROVE`),
  * `ApprovalReturned` (`RETURN`) e `ApprovalRejected` (`REJECT`). Consumidores: `TimelineProjector`

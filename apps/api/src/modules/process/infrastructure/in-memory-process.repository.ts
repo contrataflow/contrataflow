@@ -537,6 +537,17 @@ export class InMemoryProcessRepository implements ProcessRepository {
     );
   }
 
+  revokeApproverAccess(_tx: TenantTx, approvalId: string, at: Date): Promise<void> {
+    for (let index = this.access.length - 1; index >= 0; index -= 1) {
+      const row = this.access[index];
+      if (row?.reason === 'APPROVER' && row.sourceId === approvalId) {
+        this.access.splice(index, 1);
+        this.revoked.push({ ...row, revokedAt: at });
+      }
+    }
+    return Promise.resolve();
+  }
+
   revokeParticipantAccess(_tx: TenantTx, participantId: string, at: Date): Promise<void> {
     for (let index = this.access.length - 1; index >= 0; index -= 1) {
       const row = this.access[index];

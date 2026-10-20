@@ -549,7 +549,8 @@ export interface DocumentProcessState {
  * painel e o visualizador. POL-02 (editar/finalizar/submeter/excluir): permissão do tipo + (custódia
  * ou participação) + rascunho + tipo permitido na etapa + processo editável. POL-11 (reabrir):
  * `DOCUMENT_REOPEN` + custódia + processo editável + tipo na etapa + sem aprovação pendente.
- * Cancelar: `DOCUMENT_CANCEL` + custódia + rascunho + processo editável.
+ * Cancelar: `DOCUMENT_CANCEL` + custódia + rascunho + processo editável. Retirar (DOC-11 · US-053):
+ * permissão de submissão do tipo + submissão avulsa em análise + processo nem suspenso nem final.
  */
 export function allowedDocumentActions(
   document: Document,
@@ -583,8 +584,25 @@ export function allowedDocumentActions(
   if (pol02 && actor.canEditType && document.status === 'DRAFT' && !hasLeftDraft(document)) {
     actions.push('DELETE');
   }
+  if (
+    actor.canSubmitType &&
+    type.requiresApproval &&
+    document.status === 'IN_REVIEW' &&
+    document.pendingApprovalId !== null &&
+    !WITHDRAW_BLOCKED_PROCESS_STATUSES.has(process.status)
+  ) {
+    actions.push('WITHDRAW');
+  }
   return actions;
 }
+
+/** POL-17 (US-053): processo suspenso ou em status final não tem retirada. */
+const WITHDRAW_BLOCKED_PROCESS_STATUSES: ReadonlySet<ProcessStatus> = new Set([
+  'SUSPENDED',
+  'CANCELED',
+  'COMPLETED',
+  'PUBLISHED',
+]);
 
 /**
  * `Document.copyAsDraft` (US-011 · RN-PROC-120 · DEC-033): o rascunho de trabalho da origem — o

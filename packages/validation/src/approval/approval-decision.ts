@@ -173,8 +173,11 @@ export const approvalSchema = z
   .meta({ id: 'Approval' });
 export type ApprovalDto = z.infer<typeof approvalSchema>;
 
-/** Ações da aprovação em `meta.allowedActions` (api.md §1.5): retirar/redirecionar na US-053. */
-export const APPROVAL_ACTIONS = ['DECIDE'] as const;
+/**
+ * Ações da aprovação em `meta.allowedActions` (api.md §1.5): decidir (US-052), retirar (POL-17) e
+ * redirecionar (`APPROVAL_REASSIGN`) — US-053.
+ */
+export const APPROVAL_ACTIONS = ['DECIDE', 'WITHDRAW', 'REASSIGN'] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
 /** Por que quem consulta não pode decidir (SCR-015 "oculta ações; explica o motivo"). */

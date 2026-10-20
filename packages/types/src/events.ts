@@ -59,6 +59,8 @@ export const DOMAIN_EVENT_NAMES = [
   'ApprovalCompleted',
   'ApprovalReturned',
   'ApprovalRejected',
+  // US-053: redirecionamento da aprovação pendente.
+  'ApprovalReassigned',
   'DocumentCreated',
   'DocumentVersionCreated',
   'DocumentSubmitted',

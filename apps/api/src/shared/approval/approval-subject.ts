@@ -21,6 +21,10 @@ import type { TenantTx } from '../database/prisma.js';
  * `planDecision` (regras do workflow, destino e aprovador da próxima etapa, SEM escrita) → a
  * aprovação é decidida → `applyDecision` (as escritas do sujeito) → auditoria. Qualquer erro
  * desfaz tudo; `afterCommit` só roda depois do commit (renderização assíncrona — RN-TRAM-58).
+ *
+ * US-053: a retirada (APV-04/DOC-11) e o redirecionamento (APV-05) usam a mesma porta —
+ * `prepareDecision` trava o processo e lê os fatos; `canWithdraw` (POL-17) e `applyWithdrawal`
+ * (documentos e devolução da etapa) são do dono do sujeito.
  */
 
 export type ApprovalSubjectKind = 'PROCESS_STAGE' | 'DOCUMENT';
@@ -93,6 +97,33 @@ export interface SubjectDecisionResult {
   readonly afterCommit: readonly (() => Promise<void>)[];
 }
 
+/** A aprovação `PENDING` sob retirada (US-053): o sujeito e quem a solicitou (POL-17). */
+export interface WithdrawalSubject extends DecisionSubject {
+  readonly requestedById: string;
+}
+
+export interface SubjectWithdrawalInput {
+  readonly subject: WithdrawalSubject;
+  /** Motivo informado (comentário da tramitação de devolução); nunca vai a log nem a payload. */
+  readonly reason: string | null;
+  readonly withdrawnById: string;
+  readonly now: Date;
+}
+
+/** Efeito da retirada aplicado pelo dono do sujeito. */
+export interface SubjectWithdrawalResult {
+  readonly fromStatus: ProcessStatus | null;
+  readonly toStatus: ProcessStatus | null;
+  /** Etapa em que o processo ficou (`null` na avulsa — FA-01). */
+  readonly processStage: { readonly key: string; readonly name: string } | null;
+  /** Tramitação de devolução (`RETURN`, `metadata.withdrawn`); `null` na avulsa. */
+  readonly movementId: string | null;
+  /** Responsável da etapa de destino (`null` = fila da unidade ou avulsa). */
+  readonly toUserId: string | null;
+  /** Códigos dos documentos cobertos (auditoria `approval.withdraw`). */
+  readonly documentCodes: readonly string[];
+}
+
 export interface ApprovalSubjectHandler<P = unknown> {
   readonly subjectType: ApprovalSubjectKind;
   /**
@@ -111,6 +142,18 @@ export interface ApprovalSubjectHandler<P = unknown> {
   describeSubject(tx: TenantTx, subject: DecisionSubject): Promise<DecisionSubjectView | null>;
   /** Opções de decisão para o SCR-015 (APV-02): destinos e regras não satisfeitas. Leitura. */
   decisionOptions(tx: TenantTx, subject: DecisionSubject): Promise<ApprovalDecisionOption[]>;
+  /**
+   * POL-17 (US-053): quem consulta pode retirar a aprovação — etapa: solicitante ou lotado na
+   * unidade de origem (custódia anterior), com `PROCESS_FORWARD` sobre essa unidade; avulsa:
+   * permissão de submissão do tipo cobrindo o processo. Leitura, sem auditoria (o comando nega).
+   */
+  canWithdraw(tx: TenantTx, subject: WithdrawalSubject, userId: string): Promise<boolean>;
+  /**
+   * Desfaz o encaminhamento da aprovação já cancelada (RN-TRAM-66..68), no `tx` de quem retira e
+   * com o processo travado por `prepareDecision`: documentos cobertos (`IN_REVIEW` → `DRAFT`, os
+   * demais só perdem `pendingApprovalId`) e, na etapa, a devolução à passagem de origem.
+   */
+  applyWithdrawal(tx: TenantTx, input: SubjectWithdrawalInput): Promise<SubjectWithdrawalResult>;
 }
 
 /** Registro dos donos de sujeito (implementado por `process` e `document`). */

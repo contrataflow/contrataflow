@@ -36,8 +36,8 @@ export type SectionState = (typeof SECTION_STATES)[number];
 /**
  * Ações do documento em `meta.allowedActions` (api.md §1.5 · RN-DOC-18): calculadas pelo
  * `DocumentLifecycleService` a partir do status, da custódia/participação, de POL-02/POL-11 e da
- * permissão do tipo — a UI nunca as reimplementa (RN-FND-92). A retirada (`DOC-11`) entra com a
- * US-053.
+ * permissão do tipo — a UI nunca as reimplementa (RN-FND-92). `WITHDRAW` = retirar a submissão
+ * (`DOC-11` — US-053).
  */
 export const DOCUMENT_ACTIONS = [
   'UPDATE',
@@ -46,6 +46,7 @@ export const DOCUMENT_ACTIONS = [
   'REOPEN',
   'CANCEL',
   'DELETE',
+  'WITHDRAW',
 ] as const;
 export type DocumentAction = (typeof DOCUMENT_ACTIONS)[number];
 

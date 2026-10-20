@@ -1,6 +1,7 @@
 import { withSpan } from '@contrataflow/observability';
 import {
   APPROVAL_DECISION_MESSAGES,
+  APPROVAL_WITHDRAWAL_MESSAGES,
   decisionRequiresComment,
   movementMetadataSchema,
   MOVEMENT_METADATA_VERSION,
@@ -22,6 +23,9 @@ import type {
   DecisionSubjectView,
   SubjectDecisionInput,
   SubjectDecisionResult,
+  SubjectWithdrawalInput,
+  SubjectWithdrawalResult,
+  WithdrawalSubject,
 } from '#shared/approval/approval-subject.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { newId } from '#shared/database/ids.js';
@@ -33,9 +37,11 @@ import type { ProcessAggregateRows, ProcessRepository, ProcessStageRow } from '.
 import { executionStateOf } from './process-actions.queries.js';
 import { ProcessCompletionRecorder } from './process-completion.recorder.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
+import { ProcessViewerResolver } from './process-viewer.js';
 import { processNotCompletable, transitionNotAvailable } from './process.errors.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
+import { AccessFacade } from '../../access/application/access.facade.js';
 import { ApprovalFacade } from '../../approval/application/approval.facade.js';
 import type { StageApprover, StageCoverage } from '../../approval/application/approval.facade.js';
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
@@ -58,6 +64,7 @@ import {
 } from '../domain/process-forward.js';
 import { resolvePreviousAssignee, returnDepartmentOf } from '../domain/process-return.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
+import { hasPreviousCustody, originPassOf } from '../domain/process-withdrawal.js';
 import type { Process } from '../domain/process.js';
 
 /*
@@ -75,6 +82,9 @@ import type { Process } from '../domain/process.js';
  *   — tramitação `APPROVE`/`RETURN`/`REJECT` com a aprovação; destino `END` conclui o processo —
  *   DOM-09), o efeito do tipo de cada documento coberto (US-017 — o DFD propaga valor, PCA,
  *   prioridade e quantidades) e a nova aprovação encadeada (US-051).
+ *
+ * US-053: a retirada (`canWithdraw` — POL-17; `applyWithdrawal` — documentos e devolução à passagem
+ * de origem com `metadata.withdrawn`).
  */
 
 const CAUSE_OF: Readonly<Record<ApprovalDecision, StageChangeCause>> = {
@@ -121,6 +131,8 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     private readonly transitions: StageTransitionService,
     private readonly support: StageTransitionSupport,
     private readonly completions: ProcessCompletionRecorder,
+    private readonly access: AccessFacade,
+    private readonly viewers: ProcessViewerResolver,
   ) {}
 
   async prepareDecision(
@@ -450,6 +462,168 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
       chainedApprovalId,
       approvedDocumentIds,
       afterCommit,
+    };
+  }
+
+  /**
+   * POL-17 (US-053 · RN-TRAM-64): custódia anterior — o solicitante ou quem está lotado na unidade
+   * da passagem de origem — e `PROCESS_FORWARD` cobrindo essa unidade. Leitura.
+   */
+  async canWithdraw(tx: TenantTx, subject: WithdrawalSubject, userId: string): Promise<boolean> {
+    const rows = await this.processes.loadAggregate(tx, subject.processId);
+    const origin = rows === null ? null : originPassOf(rows.stages, subject.processStageId);
+    if (rows === null || origin === null) return false;
+    const viewer = await this.viewers.resolve(tx);
+    const custody = hasPreviousCustody({
+      userId,
+      requestedById: subject.requestedById,
+      originDepartmentId: origin.departmentId,
+      viewerDepartmentIds: viewer.engine.departmentIds,
+    });
+    if (!custody) return false;
+    const reference = (await this.organization.departmentReferences(tx, [origin.departmentId])).get(
+      origin.departmentId,
+    );
+    return this.access.canInDepartment('PROCESS_FORWARD', {
+      id: origin.departmentId,
+      organizationId: reference?.organizationId ?? rows.process.organizationId,
+    });
+  }
+
+  /**
+   * US-053 (RN-TRAM-66..68 · passos 4.4–4.7): a aprovação já foi cancelada pelo `approval`. Os
+   * documentos cobertos voltam (`IN_REVIEW` → `DRAFT`, os demais só perdem `pendingApprovalId` —
+   * DEC-018) e o processo volta à passagem de origem pela mecânica da devolução (US-048): passagem
+   * de aprovação `RETURNED`, nova passagem na etapa de origem com o responsável anterior
+   * (RN-TRAM-28 — quem encaminhou, se ainda elegível; senão a fila da unidade), tramitação `RETURN`
+   * com `metadata.withdrawn` e o motivo como comentário, processo `RETURNED`.
+   */
+  async applyWithdrawal(
+    tx: TenantTx,
+    input: SubjectWithdrawalInput,
+  ): Promise<SubjectWithdrawalResult> {
+    const { subject, now } = input;
+    const context = requireRequestContext();
+    const rows = await this.processes.loadAggregate(tx, subject.processId);
+    const active = rows?.stages.find(
+      (stage) => stage.id === rows.process.currentStageId && stage.status === 'ACTIVE',
+    );
+    const origin = rows === null ? null : originPassOf(rows.stages, subject.processStageId);
+    if (rows === null || active?.id !== subject.processStageId || origin === null) {
+      throw transitionNotAvailable(APPROVAL_DECISION_MESSAGES.transitionNotAvailable);
+    }
+    const { process } = rows;
+
+    // 4.4 — documentos cobertos (DEC-018 · RN-TRAM-67).
+    const documentCodes: string[] = [];
+    for (const item of subject.coverage) {
+      const released = await this.documents.releaseCanceledApprovalIn(tx, {
+        documentId: item.documentId,
+        approvalId: subject.approvalId,
+        reason: APPROVAL_WITHDRAWAL_MESSAGES.documentWithdrawn,
+        automatic: false,
+      });
+      if (released?.code) documentCodes.push(released.code);
+    }
+
+    // 4.5 — a etapa de origem, a unidade dela, o responsável anterior e o prazo.
+    const snapshot = await this.workflow.publishedDefinitionIn(tx, process.workflowVersionId);
+    const fromStage = snapshot?.stages.find((stage) => stage.id === active.workflowStageId);
+    const toStage = snapshot?.stages.find((stage) => stage.id === origin.workflowStageId);
+    if (fromStage === undefined || toStage === undefined) {
+      throw transitionNotAvailable(APPROVAL_DECISION_MESSAGES.transitionNotAvailable);
+    }
+    const toDepartmentId = origin.departmentId;
+    const reference = (await this.organization.departmentReferences(tx, [toDepartmentId])).get(
+      toDepartmentId,
+    );
+    if (reference?.isActive !== true) {
+      throw transitionNotAvailable(PROCESS_FORWARD_MESSAGES.destinationInactive);
+    }
+    const toUserId = await this.previousAssignee(tx, process, toStage.id, toDepartmentId, now);
+    const dueAt =
+      toStage.slaDays === null
+        ? null
+        : await this.calendar.addBusinessDays(tx, now, toStage.slaDays, toStage.slaType);
+
+    // 4.6 / 4.7 — passagem, responsabilidade, tramitação RETURN (withdrawn) e status RETURNED.
+    const documents = await this.documents.movementDocumentsIn(tx, process.id);
+    const labels = await this.support.labels(tx, {
+      fromStage: fromStage.name,
+      toStage: toStage.name,
+      fromDepartmentId: process.currentDepartmentId,
+      toDepartmentId,
+      fromUserId: process.currentResponsibleId,
+      toUserId,
+    });
+    const metadata: MovementMetadata = movementMetadataSchema.parse({
+      v: MOVEMENT_METADATA_VERSION,
+      computedDueAt: dueAt?.toISOString() ?? null,
+      dueDateOverridden: false,
+      labels,
+      withdrawn: true,
+      clientChannel: 'WEB',
+    });
+    const plan = await this.transitions.apply(tx, {
+      transition: {
+        process,
+        active: {
+          id: active.id,
+          workflowStageId: active.workflowStageId,
+          sequence: active.sequence,
+          departmentId: active.departmentId,
+          assigneeId: active.assigneeId,
+        },
+        lastStageSequence: Math.max(...rows.stages.map((stage) => stage.sequence)),
+        lastMovementSequence: await this.processes.lastMovementSequence(tx, process.id),
+        action: 'RETURN',
+        closeAs: 'RETURNED',
+        transitionId: null,
+        toWorkflowStageId: toStage.id,
+        toDepartmentId,
+        toUserId,
+        assignedById: null,
+        assignmentType: 'RETURN',
+        slaDays: toStage.slaDays,
+        slaType: toStage.slaType,
+        dueAt,
+        dueDateOverrideReason: null,
+        statusTo: 'RETURNED',
+        // A tramitação `RETURN` exige comentário: sem motivo, o texto fixo da retirada.
+        comment: input.reason ?? APPROVAL_WITHDRAWAL_MESSAGES.movementComment,
+        documents: movementDocumentRefs(
+          movementDocumentIds(
+            subject.coverage.map((item) => item.documentId),
+            [],
+          ),
+          documents,
+        ),
+        approvalId: subject.approvalId,
+        metadata,
+        numbering: null,
+        actor: {
+          userId: input.withdrawnById,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          correlationId: context.correlationId,
+        },
+        now,
+        ids: { stage: newId(), assignment: newId(), movement: newId() },
+      },
+      cause: 'RETURN',
+      statusCause: 'RETURN',
+      fromStageKey: fromStage.key,
+      toStage: { key: toStage.key, type: toStage.type },
+      // `ProcessStageChanged.approvalId` = a aprovação retirada (APV-04 · "Efeitos").
+      requestedApprovalId: subject.approvalId,
+    });
+    return {
+      fromStatus: process.status,
+      toStatus: plan.process.status,
+      processStage: { key: toStage.key, name: toStage.name },
+      movementId: plan.movement.id,
+      toUserId,
+      documentCodes,
     };
   }
 

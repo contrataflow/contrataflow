@@ -14,6 +14,8 @@ import { useShellSession } from '@/lib/session/session-context';
 
 import { ApprovalDecisionPanel } from './approval-decision-panel';
 import { useApproval } from './approval-decision.api';
+import { ApprovalPendingActions } from './approval-pending-actions';
+import type { PendingActionNotice } from './approval-pending-actions';
 import { ApprovalStatusBadge } from './approval-status-badge';
 import { canDecide } from './decision-model';
 import type { DecisionProblem } from './decision-model';
@@ -28,13 +30,15 @@ export interface ApprovalDetailProps {
 /**
  * `ApprovalDetail` (US-052 · SCR-015): detalhe da aprovação — título, solicitante, prazo, situação,
  * aviso de substituto, comentário da solicitação, documentos cobertos (com a versão analisada) e
- * o painel de decisão. Sem `DECIDE` em `meta.allowedActions` o painel não aparece: a tela mostra a
+ * o painel de decisão e, na US-053, as ações "Retirar"/"Redirecionar" (`WITHDRAW`/`REASSIGN`).
+ * Sem `DECIDE` em `meta.allowedActions` o painel não aparece: a tela mostra a
  * decisão registrada (já decidida) ou explica por que a pessoa não pode decidir. Skeleton no
  * carregamento; 404 e erro de carga com "Tentar novamente"; 409/412 recarregam os dados.
  */
 export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
   const query = useApproval(approvalId);
   const [notice, setNotice] = useState<DecisionProblem | null>(null);
+  const [actionNotice, setActionNotice] = useState<PendingActionNotice | null>(null);
 
   if (query.data === undefined) {
     if (query.isError) {
@@ -57,6 +61,7 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
       <ApprovalHeader approval={approval} meta={meta} />
       <div aria-live="polite" className="flex flex-col gap-2">
         {notice === null ? null : <NoticeAlert problem={notice} />}
+        {actionNotice === null ? null : <ActionNoticeAlert notice={actionNotice} />}
       </div>
       <RequestComment comment={approval.requestComment} />
       {decidable ? null : <ClosedSection approval={approval} meta={meta} />}
@@ -72,8 +77,23 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
           }}
         />
       ) : null}
+      <ApprovalPendingActions
+        approval={approval}
+        meta={meta}
+        retry={retry}
+        onNotice={setActionNotice}
+        onRefresh={() => {
+          void query.refetch();
+        }}
+      />
     </div>
   );
+}
+
+/** Recusa da retirada/do redirecionamento explicada pela tela (US-053 · "Casos de erro"). */
+function ActionNoticeAlert({ notice }: { readonly notice: PendingActionNotice }) {
+  const t = useTranslations('approvals.pendingActions.notice');
+  return <Alert tone={notice.kind === 'denied' ? 'error' : 'warning'} title={t(notice.kind)} />;
 }
 
 function DetailSkeleton() {

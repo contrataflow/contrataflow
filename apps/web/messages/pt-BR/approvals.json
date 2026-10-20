@@ -123,5 +123,66 @@
     "denied": "Você não pode decidir esta aprovação.",
     "processStatus": "Esta aprovação não pode ser decidida no status atual do processo.",
     "notFound": "Não encontramos a aprovação solicitada."
+  },
+  "pendingActions": {
+    "heading": "Ações sobre a aprovação pendente",
+    "withdraw": "Retirar aprovação",
+    "reassign": "Redirecionar aprovação",
+    "withdrawDialog": {
+      "title": "Retirar aprovação",
+      "stageEffect": "O processo voltará para a etapa anterior, sob sua responsabilidade. A aprovação pendente será cancelada.",
+      "documentEffect": "O documento voltará para rascunho. A aprovação pendente será cancelada.",
+      "reason": "Motivo da retirada (opcional)",
+      "reasonHint": "Até 2.000 caracteres.",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar retirada",
+      "submitting": "Retirando…"
+    },
+    "reassignDialog": {
+      "title": "Redirecionar aprovação",
+      "description": "Escolha o novo aprovador. O título, o prazo e os documentos cobertos são mantidos.",
+      "typeLegend": "Novo aprovador",
+      "types": {
+        "USER": "Uma pessoa",
+        "DEPARTMENT_HEAD": "O titular de uma unidade"
+      },
+      "search": {
+        "USER": "Buscar pessoa por nome ou e-mail",
+        "DEPARTMENT_HEAD": "Buscar unidade pelo nome"
+      },
+      "searchHint": "Digite ao menos 2 caracteres.",
+      "searching": "Buscando…",
+      "noResults": "Nenhum resultado para a busca.",
+      "searchFailed": "Não foi possível buscar agora.",
+      "resultsLegend": "Resultados",
+      "reason": "Motivo do redirecionamento",
+      "reasonHint": "Mínimo de 10 e máximo de 2.000 caracteres (ex.: “Titular em licença médica”).",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar redirecionamento",
+      "submitting": "Redirecionando…"
+    },
+    "toast": {
+      "withdrawnStage": "Aprovação retirada. O processo voltou para você.",
+      "withdrawnDocument": "Aprovação retirada. O documento voltou para rascunho.",
+      "reassigned": "Aprovação redirecionada."
+    },
+    "errors": {
+      "fields": "Revise os campos destacados.",
+      "notEligible": "Selecione um aprovador diferente e elegível.",
+      "selfApproval": "Este usuário não pode aprovar por ser autor de um documento coberto.",
+      "idempotencyReused": "Esta solicitação já foi enviada com outros dados. Tente de novo.",
+      "unavailable": "Não foi possível concluir agora. Tente novamente.",
+      "retry": "Tentar novamente",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "copyCode": "Copiar código"
+    },
+    "notice": {
+      "notPending": "Esta aprovação já foi decidida ou retirada.",
+      "stale": "Esta aprovação foi atualizada por outra pessoa. Recarregamos os dados.",
+      "precondition": "Não foi possível processar. Recarregamos a aprovação; tente de novo.",
+      "processStatus": "Esta aprovação não pode ser retirada nem redirecionada no status atual do processo.",
+      "notFound": "Não encontramos a aprovação solicitada.",
+      "denied": "Você não pode retirar ou redirecionar esta aprovação."
+    }
   }
 }

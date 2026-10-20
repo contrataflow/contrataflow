@@ -80,6 +80,40 @@ unidade atual.
   que pode depender do `approval`, como o da US-051) e `test/tenant-leak/approval-decision.spec.ts`
   (PostgreSQL: falha induzida, corrida, RLS).
 
+## Retirar ou redirecionar aprovação pendente (US-053)
+
+- **Rotas:** APV-04 `POST /approvals/{id}/withdraw` (`@ImplicitAccess` + `@Policy('POL-17')` — a
+  regra é do dono do sujeito), APV-05 `POST /approvals/{id}/reassign` (`APPROVAL_REASSIGN` em algum
+  escopo no guard; cobrindo o processo no caso de uso) e DOC-11 `POST /documents/{id}/withdraw`
+  (no `document`, pela porta `DocumentApprovalRegistry.withdrawForDocument`). Todas com
+  `@Idempotent` e `@RequireIfMatch`. Contratos em
+  `packages/validation/src/approval/approval-withdrawal.ts`; evento `ApprovalReassigned` em
+  `approval/events.ts`.
+- **Retirada:** `ApprovalWithdrawalService.withdrawIn` (sem transação própria — o APV-04 roda no
+  `WithdrawApprovalCommand`, o DOC-11 no `WithdrawDocumentCommand`). Ordem: aprovação do tenant
+  (404) → `prepareDecision` do dono do sujeito (trava o processo) → `lockForUpdate` → não `PENDING`
+  = 409 antes do `If-Match` (412; no DOC-11 o `If-Match` é o do documento) → `canWithdraw` (POL-17,
+  403 `access.denied` com `reasonCode = APPROVAL_WITHDRAW`) → processo suspenso/final = 409 →
+  `CANCELED` (`cancellationReason = WITHDRAWN`) + `ApprovalCanceled` → `applyWithdrawal` → auditoria
+  `approval.withdraw`. Donos do sujeito: `process` (custódia anterior = solicitante ou lotado na
+  unidade da passagem de origem, com `PROCESS_FORWARD` sobre ela; devolução pelo
+  `StageTransitionService` à passagem `sequence − 1`, `RETURN` com `metadata.withdrawn`, comentário
+  = motivo ou texto fixo — a `RETURN` exige comentário no banco) e `document` (permissão de
+  submissão do tipo). Documentos: `releaseCanceledApproval` (`automatic: false`).
+- **Redirecionamento:** `ReassignApprovalCommand` — novo aprovador pela resolução da US-051
+  (`ApproverResolver.preview`; `ROLE` também precisa de `APPROVAL_DECIDE`), igual ao atual ou
+  inelegível = 422 `APPROVER_NOT_ELIGIBLE`, autor de documento coberto = 403
+  `SELF_APPROVAL_FORBIDDEN`. Só os campos do aprovador e `allowDeputy` mudam (RN-TRAM-70). O
+  `ProcessAccessProjector` (`approval.reassigned`) revoga os `APPROVER` com `sourceId` = aprovação e
+  concede ao novo (e ao substituto, com `allowDeputy`). O motivo NUNCA é persistido, logado ou
+  publicado — só `hasReason`.
+- **APV-02:** `meta.allowedActions` ganha `WITHDRAW` (POL-17) e `REASSIGN` (`APPROVAL_REASSIGN`
+  cobrindo o processo) enquanto a aprovação está pendente e o processo nem suspenso nem final.
+- **Testes:** `domain/approval-withdrawal.spec.ts`,
+  `process/presentation/approval-withdrawal.routes.spec.ts` (8 categorias, em memória) e
+  `test/tenant-leak/approval-withdrawal.spec.ts` (PostgreSQL: falha induzida, corrida com a decisão,
+  outbox `PENDING`, troca do `APPROVER`, outro tenant).
+
 ## Lista de aprovações (US-057)
 
 - **Rota:** APV-01 `GET /approvals` (`@ImplicitAccess` — sem cobertura, `data: []`, nunca 403).

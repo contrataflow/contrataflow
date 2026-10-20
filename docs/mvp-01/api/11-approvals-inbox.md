@@ -88,7 +88,7 @@
 - **Efeitos:**
   - Eventos: `ApprovalCanceled` (`approval.canceled`; `reason = WITHDRAWN`) · `ProcessStageChanged` (`process.stage_changed.return`; `cause = RETURN`, `approvalId` preenchido)
   - Auditoria: `approval.withdraw` (`WORKFLOW`; `metadata`: `processCode`/`documentCode`, `subjectType`, `hasReason`) · `access.denied` (`reasonCode`, `approvalId`)
-- **Notas:** POL-17 restringe a retirada a quem tramitou o processo para a etapa de aprovação atual (custódia anterior).
+- **Notas:** POL-17 restringe a retirada a quem tramitou o processo para a etapa de aprovação atual (custódia anterior). Aprovação avulsa (`subjectType = DOCUMENT`) também pode ser retirada aqui, com a regra do DOC-11 (permissão de submissão do tipo). O motivo vai como comentário da tramitação `RETURN`; sem motivo, o comentário é o texto fixo "Aprovação retirada por quem encaminhou o processo." (a tramitação `RETURN` sempre tem comentário). `cancellationReason` da aprovação = `WITHDRAWN`. `meta.allowedActions` do APV-02 traz `WITHDRAW`/`REASSIGN` quando aplicáveis.
 
 ### APV-05 — Redirecionar aprovação
 `POST /api/v1/approvals/{id}/reassign` · **Permissão:** `APPROVAL_REASSIGN` · **Story:** US-053
@@ -109,7 +109,7 @@
 - **Efeitos:**
   - Eventos: `ApprovalReassigned` (`approval.reassigned`; `fromApproverUserId?`, `toApproverUserId?`, `toApproverRoleId?`)
   - Auditoria: `approval.reassign` (`WORKFLOW`; `changes`: `approverUserId`/`approverRoleId`/`approverDepartmentId`; `metadata.hasReason`) · `access.denied` (`reasonCode`, `approvalId`)
-- **Notas:** exatamente um dos três campos `targetApprover*` deve ser informado, conforme `approverType` (RN-TRAM-69).
+- **Notas:** exatamente um dos três campos `targetApprover*` deve ser informado, conforme `approverType` (RN-TRAM-69). Elegibilidade = a resolução da US-051 (`USER` com vínculo ativo; `ROLE` ativo, com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; `DEPARTMENT_HEAD` = titular atual ativo da unidade, `allowDeputy = true`). O motivo não é persistido nem publicado (dado potencialmente sensível): só `hasReason` na auditoria e no evento.
 
 ### TSK-01 — Listar tarefas (caixa de tarefas)
 `GET /api/v1/tasks` · **Permissão:** `INBOX_VIEW` · **Story:** US-056

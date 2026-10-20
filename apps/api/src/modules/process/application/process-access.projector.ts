@@ -1,4 +1,5 @@
 import {
+  ApprovalReassigned,
   ApprovalRequested,
   ProcessAssigned,
   ProcessCreated,
@@ -33,7 +34,8 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) ou `MANUAL` (US-050) →
  * `RESPONSIBLE` do novo responsável; `approval.requested` (US-051) → `APPROVER` para o aprovador designado e, com
  * `allowDeputy`, o substituto da unidade (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já
- * tem o `CURRENT`).
+ * tem o `CURRENT`); `approval.reassigned` (US-053 · RN-TRAM-70) → revoga os `APPROVER` da aprovação
+ * e concede ao novo aprovador (e ao substituto, com `allowDeputy`).
  */
 @Injectable()
 export class ProcessAccessProjector implements SyncEventHandler {
@@ -44,6 +46,7 @@ export class ProcessAccessProjector implements SyncEventHandler {
     'process.stage_changed.*',
     'process.assigned',
     'approval.requested',
+    'approval.reassigned',
   ];
 
   constructor(
@@ -107,26 +110,24 @@ export class ProcessAccessProjector implements SyncEventHandler {
       case ApprovalRequested.eventType: {
         const payload = ApprovalRequested.payloadSchema.parse(event.payload);
         if (event.processId === null) return;
-        // RN-TRAM-53: o aprovador designado e, com `allowDeputy`, o substituto da unidade (lido no
-        // mesmo `tx` — RLS do tenant). `ROLE` decide pela unidade, que já tem o `CURRENT`.
-        const deputyUserId =
-          payload.allowDeputy && payload.approverDepartmentId !== null
-            ? ((await this.organization.findDepartmentForApproval(tx, payload.approverDepartmentId))
-                ?.deputyUserId ?? null)
-            : null;
-        const userIds = [
-          ...new Set([payload.approverUserId, deputyUserId].filter((id) => id !== null)),
-        ];
-        if (userIds.length === 0) return;
-        await this.processes.grantAccess(
+        await this.grantApprover(tx, event.processId, payload, at);
+        return;
+      }
+      case ApprovalReassigned.eventType: {
+        // US-053 (RN-TRAM-70): troca limpa — o anterior (e o substituto dele) perde o `APPROVER`
+        // desta aprovação; o novo aprovador ganha.
+        const payload = ApprovalReassigned.payloadSchema.parse(event.payload);
+        if (event.processId === null) return;
+        await this.processes.revokeApproverAccess(tx, payload.approvalId, at);
+        await this.grantApprover(
           tx,
           event.processId,
-          userIds.map((userId) => ({
-            principalType: 'USER' as const,
-            userId,
-            reason: 'APPROVER' as const,
-            sourceId: payload.approvalId,
-          })),
+          {
+            approvalId: payload.approvalId,
+            approverUserId: payload.toApproverUserId,
+            approverDepartmentId: payload.toApproverDepartmentId,
+            allowDeputy: payload.allowDeputy,
+          },
           at,
         );
         return;
@@ -134,5 +135,42 @@ export class ProcessAccessProjector implements SyncEventHandler {
       default:
         return;
     }
+  }
+
+  /**
+   * RN-TRAM-53: o aprovador designado e, com `allowDeputy`, o substituto da unidade (lido no mesmo
+   * `tx` — RLS do tenant). `ROLE` decide pela unidade, que já tem o `CURRENT`.
+   */
+  private async grantApprover(
+    tx: TenantTx,
+    processId: string,
+    approver: {
+      readonly approvalId: string;
+      readonly approverUserId: string | null;
+      readonly approverDepartmentId: string | null;
+      readonly allowDeputy: boolean;
+    },
+    at: Date,
+  ): Promise<void> {
+    const deputyUserId =
+      approver.allowDeputy && approver.approverDepartmentId !== null
+        ? ((await this.organization.findDepartmentForApproval(tx, approver.approverDepartmentId))
+            ?.deputyUserId ?? null)
+        : null;
+    const userIds = [
+      ...new Set([approver.approverUserId, deputyUserId].filter((id) => id !== null)),
+    ];
+    if (userIds.length === 0) return;
+    await this.processes.grantAccess(
+      tx,
+      processId,
+      userIds.map((userId) => ({
+        principalType: 'USER' as const,
+        userId,
+        reason: 'APPROVER' as const,
+        sourceId: approver.approvalId,
+      })),
+      at,
+    );
   }
 }

@@ -638,6 +638,22 @@ describe('allowedActions (RN-DOC-18 · POL-02/POL-11)', () => {
   it('documento excluído não tem ações', () => {
     expect(actions(inStatus('DRAFT', { deletedAt: FIXTURE_NOW }))).toEqual([]);
   });
+
+  it('US-053 (DOC-11): submissão avulsa em análise — retirar, com a permissão de submissão', () => {
+    const inReview = inStatus('IN_REVIEW', { pendingApprovalId: 'apv' });
+    expect(actions(inReview, {}, {}, WITH_APPROVAL)).toEqual(['WITHDRAW']);
+    // Mesmo sem custódia (POL-17 da avulsa é só a permissão do tipo).
+    expect(actions(inReview, { isCustodian: false }, {}, WITH_APPROVAL)).toEqual(['WITHDRAW']);
+    expect(actions(inReview, { canSubmitType: false }, {}, WITH_APPROVAL)).toEqual([]);
+    expect(actions(inReview, {}, {}, WITHOUT_APPROVAL)).toEqual([]);
+    expect(actions(inStatus('IN_REVIEW'), {}, {}, WITH_APPROVAL)).toEqual([]);
+    for (const status of ['SUSPENDED', 'CANCELED', 'COMPLETED'] as const) {
+      expect(actions(inReview, {}, { status }, WITH_APPROVAL)).toEqual([]);
+    }
+    expect(actions(inReview, {}, { status: 'AWAITING_APPROVAL' }, WITH_APPROVAL)).toEqual([
+      'WITHDRAW',
+    ]);
+  });
 });
 
 describe('draftContentCopy — cópia como rascunho na duplicação (US-011 · RN-PROC-120)', () => {

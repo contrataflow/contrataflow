@@ -1,5 +1,5 @@
 import type { ApprovalDecisionOption, ApprovalDocumentDto } from '@contrataflow/validation';
-import { decisionRequiresComment } from '@contrataflow/validation';
+import { APPROVAL_WITHDRAWAL_MESSAGES, decisionRequiresComment } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type {
@@ -10,6 +10,9 @@ import type {
   DecisionSubjectView,
   SubjectDecisionInput,
   SubjectDecisionResult,
+  SubjectWithdrawalInput,
+  SubjectWithdrawalResult,
+  WithdrawalSubject,
 } from '#shared/approval/approval-subject.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import { newId } from '#shared/database/ids.js';
@@ -32,6 +35,8 @@ import {
 import { RenditionAccess } from './rendition-access.js';
 import { DOCUMENT_RENDITION_REPOSITORY, RENDITION_SETTINGS } from './rendition.ports.js';
 import type { DocumentRenditionRepository, RenditionSettings } from './rendition.ports.js';
+import { AccessFacade } from '../../access/application/access.facade.js';
+import { typePermissionsOf } from '../domain/document-permissions.js';
 import { isReusable, requestVersionRendition } from '../domain/document-rendition.js';
 import type { ApprovalOutcome, Document } from '../domain/document.js';
 
@@ -245,7 +250,9 @@ export class DocumentApprovalOutcomes {
 
 /**
  * Dono do sujeito `DOCUMENT` (submissão avulsa — US-052 · FA-01): a decisão muda só o documento
- * (DEC-018); nenhuma etapa, status de processo, transição ou nova aprovação.
+ * (DEC-018); nenhuma etapa, status de processo, transição ou nova aprovação. A retirada (US-053 ·
+ * FA-01 · DOC-11/APV-04) exige a permissão de submissão do tipo cobrindo o processo (POL-17) e só
+ * devolve o documento a `DRAFT`.
  */
 @Injectable()
 export class DocumentApprovalSubjectHandler implements ApprovalSubjectHandler<SubjectDecisionInput> {
@@ -255,6 +262,8 @@ export class DocumentApprovalSubjectHandler implements ApprovalSubjectHandler<Su
     @Inject(DOCUMENT_REPOSITORY) private readonly documents: DocumentRepository,
     private readonly lifecycle: DocumentLifecycleService,
     private readonly outcomes: DocumentApprovalOutcomes,
+    private readonly transitions: DocumentApprovalTransitions,
+    private readonly access: AccessFacade,
   ) {}
 
   async prepareDecision(
@@ -312,6 +321,40 @@ export class DocumentApprovalSubjectHandler implements ApprovalSubjectHandler<Su
       chainedApprovalId: null,
       approvedDocumentIds,
       afterCommit,
+    };
+  }
+
+  /** POL-17 (avulsa): a permissão de submissão do tipo (a do DOC-09) cobrindo o processo. */
+  async canWithdraw(tx: TenantTx, subject: WithdrawalSubject): Promise<boolean> {
+    const document =
+      subject.documentId === null ? null : await this.documents.findById(tx, subject.documentId);
+    if (document === null) return false;
+    const { process, type } = await this.lifecycle.loadFor(tx, document);
+    return this.access.canOnProcess(typePermissionsOf(type.systemModule).submit, process.access);
+  }
+
+  /** RN-TRAM-67 · DEC-018: o documento `IN_REVIEW` volta a `DRAFT` (`DocumentWithdrawn`). */
+  async applyWithdrawal(
+    tx: TenantTx,
+    input: SubjectWithdrawalInput,
+  ): Promise<SubjectWithdrawalResult> {
+    const documentCodes: string[] = [];
+    for (const item of input.subject.coverage) {
+      const released = await this.transitions.releaseCanceledApproval(tx, {
+        documentId: item.documentId,
+        approvalId: input.subject.approvalId,
+        reason: APPROVAL_WITHDRAWAL_MESSAGES.documentWithdrawn,
+        automatic: false,
+      });
+      if (released?.code) documentCodes.push(released.code);
+    }
+    return {
+      fromStatus: null,
+      toStatus: null,
+      processStage: null,
+      movementId: null,
+      toUserId: null,
+      documentCodes,
     };
   }
 

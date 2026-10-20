@@ -77,6 +77,27 @@ export interface ApprovalRepository {
    */
   recordDecision(tx: TenantTx, decided: ApprovalRecord, expectedVersion: number): Promise<boolean>;
   /**
+   * US-053 (RN-TRAM-66/71): grava a retirada (`CANCELED`, `canceledAt`, `canceledById`,
+   * `cancellationReason`) SE a aprovação ainda está `PENDING` na versão lida. `false` = perdeu a
+   * corrida.
+   */
+  recordWithdrawal(
+    tx: TenantTx,
+    canceled: ApprovalRecord,
+    expectedVersion: number,
+  ): Promise<boolean>;
+  /**
+   * US-053 (RN-TRAM-70/71): grava o novo aprovador (`approverType`, ids, `allowDeputy`) SE a
+   * aprovação ainda está `PENDING` na versão lida; título, prazo e cobertura ficam. `false` = perdeu
+   * a corrida.
+   */
+  recordReassignment(
+    tx: TenantTx,
+    reassigned: ApprovalRecord,
+    expectedVersion: number,
+    userId: string,
+  ): Promise<boolean>;
+  /**
    * Grava a aprovação e os documentos cobertos no `tx` do chamador.
    * @throws PendingApprovalExistsError
    */

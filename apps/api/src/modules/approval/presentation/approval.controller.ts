@@ -6,6 +6,9 @@ import {
   dataEnvelope,
   decideApprovalSchema,
   decidedApprovalSchema,
+  reassignApprovalSchema,
+  withdrawApprovalSchema,
+  withdrawnApprovalSchema,
 } from '@contrataflow/validation';
 import type {
   ApprovalDto,
@@ -14,6 +17,9 @@ import type {
   ApprovalMeta,
   DecideApproval,
   DecidedApprovalDto,
+  ReassignApproval,
+  WithdrawApproval,
+  WithdrawnApprovalDto,
 } from '@contrataflow/validation';
 import { Controller, Get, Headers, HttpCode, Param, Post, Res } from '@nestjs/common';
 import { z } from 'zod';
@@ -32,6 +38,8 @@ import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 import { DecideApprovalCommand } from '../application/decide-approval.command.js';
 import { GetApprovalQuery } from '../application/get-approval.query.js';
 import { ListApprovalsHandler } from '../application/list-approvals.query.js';
+import { ReassignApprovalCommand } from '../application/reassign-approval.command.js';
+import { WithdrawApprovalCommand } from '../application/withdraw-approval.command.js';
 
 const TAGS = ['Aprovações'];
 
@@ -56,7 +64,8 @@ function noStore(response: HttpResponse): void {
  * Aprovações (api/11-approvals-inbox.md): APV-01 (lista da cobertura de aprovador — US-057), APV-02 (detalhe com `meta.allowedActions`,
  * opções de decisão e o motivo de não poder decidir) e APV-03 (decidir — aprovar, devolver ou
  * indeferir, com os efeitos atômicos no processo e nos documentos). `APPROVAL_DECIDE` em algum
- * escopo no guard (com o 2º fator — risco H, POL-14); POL-03 no caso de uso.
+ * escopo no guard (com o 2º fator — risco H, POL-14); POL-03 no caso de uso. US-053: APV-04
+ * (retirar — POL-17 no caso de uso) e APV-05 (redirecionar — `APPROVAL_REASSIGN`).
  */
 @Controller('approvals')
 @TenantScope('TENANT')
@@ -65,6 +74,8 @@ export class ApprovalController {
     private readonly list: ListApprovalsHandler,
     private readonly detail: GetApprovalQuery,
     private readonly decideCommand: DecideApprovalCommand,
+    private readonly withdrawCommand: WithdrawApprovalCommand,
+    private readonly reassignCommand: ReassignApprovalCommand,
   ) {}
 
   @Get()
@@ -153,6 +164,85 @@ export class ApprovalController {
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<DecidedApprovalDto> {
     const result = await this.decideCommand.execute({
+      approvalId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/withdraw')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ImplicitAccess(
+    'APV-04 (US-053): POL-17 no caso de uso — etapa: `PROCESS_FORWARD` sobre a unidade de origem e ser o solicitante ou lotado nela (custódia anterior); avulsa: permissão de submissão do tipo cobrindo o processo. Sem custódia/permissão = 403 PERMISSION_DENIED (`access.denied`).',
+  )
+  @Policy('POL-17')
+  @ApiOperation({
+    operationId: 'APV-04',
+    summary: 'Retirar aprovação',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['approval.withdraw', 'document.withdraw'],
+    responses: {
+      200: {
+        description:
+          'Aprovação `CANCELED` (`WITHDRAWN`; `ETag` = nova versão) com a etapa e o status atuais do processo (`null` na avulsa). Uma transação: trava do processo e da aprovação; já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); sem custódia anterior (POL-17) = 403 `PERMISSION_DENIED` auditado; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`. Efeitos: documentos cobertos `IN_REVIEW` → `DRAFT` (os demais só perdem `pendingApprovalId` — DEC-018) e, na etapa, a devolução à passagem de origem (tramitação `RETURN` com `metadata.withdrawn`, processo `RETURNED`, responsável anterior). Eventos `ApprovalCanceled` (`WITHDRAWN`), `ProcessStageChanged` (`return`), `ProcessStatusChanged`, `DocumentWithdrawn`.',
+        schema: dataEnvelope(withdrawnApprovalSchema),
+      },
+    },
+  })
+  async withdraw(
+    @ApprovalId() id: string,
+    @ZodBody(withdrawApprovalSchema) body: WithdrawApproval,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<WithdrawnApprovalDto> {
+    const result = await this.withdrawCommand.execute({
+      approvalId: id,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return result.dto;
+  }
+
+  @Post(':id/reassign')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('APPROVAL_REASSIGN', {
+    detail: 'Você não tem permissão para redirecionar aprovações.',
+  })
+  @ApiOperation({
+    operationId: 'APV-05',
+    summary: 'Redirecionar aprovação',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['approval.reassign'],
+    responses: {
+      200: {
+        description:
+          'Aprovação ainda `PENDING` com o novo aprovador (`ETag` = nova versão); título, prazo, solicitante e documentos cobertos preservados (RN-TRAM-70). Uma transação: já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED`; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; titular atual da unidade) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto com `approval.preventSelfApproval` = 403 `SELF_APPROVAL_FORBIDDEN`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`). Efeitos: `ApprovalReassigned` (timeline e troca do `ProcessAccess` `APPROVER`; aviso `APPROVAL_REASSIGNED`).',
+        schema: dataEnvelope(approvalSchema),
+      },
+    },
+  })
+  async reassign(
+    @ApprovalId() id: string,
+    @ZodBody(reassignApprovalSchema) body: ReassignApproval,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ApprovalDto> {
+    const result = await this.reassignCommand.execute({
       approvalId: id,
       body,
       expectedVersion: ifMatch?.value ?? 0,

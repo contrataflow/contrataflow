@@ -32,6 +32,8 @@ export const ERROR_CODES = [
   'APPROVAL_NOT_FOUND',
   'NOT_DESIGNATED_APPROVER',
   'SELF_APPROVAL_FORBIDDEN',
+  // US-053: novo aprovador do redirecionamento inelegível ou igual ao atual (APV-05 · POL-03).
+  'APPROVER_NOT_ELIGIBLE',
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
   'PRIMARY_ORGANIZATION_REQUIRED',

@@ -99,7 +99,7 @@ Legenda **Cons.**: T = timeline (síncrono), A = ProcessAccess (síncrono), N = 
 | `ApprovalReturned` | `approval.returned` | US-052 (decisão `RETURN`) | idem (`hasComment: true`) | T N M |
 | `ApprovalRejected` | `approval.rejected` | US-052 (decisão `REJECT`) | idem | T N M |
 | `ApprovalCanceled` | `approval.canceled` | US-053 (retirada), cancelamento do processo (US-009) | `approvalId`, `reason` (`WITHDRAWN`, `PROCESS_CANCELED`, `REASSIGNED`) | T |
-| `ApprovalReassigned` | `approval.reassigned` | US-053 (redirecionamento) | `approvalId`, `fromApproverUserId?`, `toApproverUserId?`, `toApproverRoleId?` | T A N |
+| `ApprovalReassigned` | `approval.reassigned` | US-053 (redirecionamento) | `approvalId`, `fromApproverType`, `fromApproverUserId?`, `fromApproverRoleId?`, `fromApproverDepartmentId?`, `approverType`, `toApproverUserId?`, `toApproverRoleId?`, `toApproverDepartmentId?`, `allowDeputy`, `hasReason` (nunca o motivo) | T A N |
 
 ### 4.3 Documentos (módulos `document`, `dfd`, `etp`, `price-research`, `risk`, `term`)
 Eventos genéricos com `documentTypeCode`; routing key `document.<fato>.<tipo_em_minúsculas>` (DEC-162).

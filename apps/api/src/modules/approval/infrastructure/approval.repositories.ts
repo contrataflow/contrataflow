@@ -47,6 +47,9 @@ function approvalOf(row: ApprovalRow): ApprovalRecord {
     decidedAt: row.decidedAt,
     decisionComment: row.decisionComment,
     decidedAsDeputy: row.decidedAsDeputy,
+    canceledAt: row.canceledAt,
+    canceledById: row.canceledById,
+    cancellationReason: row.cancellationReason,
     updatedAt: row.updatedAt,
     version: row.version,
   };
@@ -178,6 +181,48 @@ export class PrismaApprovalRepository implements ApprovalRepository {
         updatedAt: decided.updatedAt,
         updatedById: decided.decidedById,
         version: decided.version,
+      },
+    });
+    return updated.count === 1;
+  }
+
+  async recordWithdrawal(
+    tx: TenantTx,
+    canceled: ApprovalRecord,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    const updated = await tx.approval.updateMany({
+      where: { id: canceled.id, status: 'PENDING', version: expectedVersion },
+      data: {
+        status: 'CANCELED',
+        canceledAt: canceled.canceledAt,
+        canceledById: canceled.canceledById,
+        cancellationReason: canceled.cancellationReason,
+        updatedAt: canceled.updatedAt,
+        updatedById: canceled.canceledById,
+        version: canceled.version,
+      },
+    });
+    return updated.count === 1;
+  }
+
+  async recordReassignment(
+    tx: TenantTx,
+    reassigned: ApprovalRecord,
+    expectedVersion: number,
+    userId: string,
+  ): Promise<boolean> {
+    const updated = await tx.approval.updateMany({
+      where: { id: reassigned.id, status: 'PENDING', version: expectedVersion },
+      data: {
+        approverType: reassigned.approverType,
+        approverUserId: reassigned.approverUserId,
+        approverRoleId: reassigned.approverRoleId,
+        approverDepartmentId: reassigned.approverDepartmentId,
+        allowDeputy: reassigned.allowDeputy,
+        updatedAt: reassigned.updatedAt,
+        updatedById: userId,
+        version: reassigned.version,
       },
     });
     return updated.count === 1;
@@ -385,6 +430,22 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     }
     this.rows.set(decided.id, decided);
     return Promise.resolve(true);
+  }
+
+  recordWithdrawal(
+    tx: TenantTx,
+    canceled: ApprovalRecord,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    return this.recordDecision(tx, canceled, expectedVersion);
+  }
+
+  recordReassignment(
+    tx: TenantTx,
+    reassigned: ApprovalRecord,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    return this.recordDecision(tx, reassigned, expectedVersion);
   }
 
   listPendingByProcess(_tx: TenantTx, processId: string): Promise<Approval[]> {

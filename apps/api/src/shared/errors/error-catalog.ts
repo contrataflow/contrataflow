@@ -136,6 +136,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Autoaprovação vedada',
     detail: 'Você não pode decidir esta aprovação: é autor de um documento coberto.',
   },
+  APPROVER_NOT_ELIGIBLE: {
+    status: 422,
+    title: 'Aprovador não elegível',
+    detail: 'Selecione um aprovador diferente e elegível para este processo.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

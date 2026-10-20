@@ -287,6 +287,9 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     ApprovalCompleted: ['approval.completed'],
     ApprovalReturned: ['approval.returned'],
     ApprovalRejected: ['approval.rejected'],
+    // US-053: timeline (`APPROVAL_REASSIGNED`) e `ProcessAccess` (`APPROVER`) no mesmo `tx`; no
+    // worker, `APPROVAL_REASSIGNED` ao novo e ao anterior aprovador e métricas.
+    ApprovalReassigned: ['approval.reassigned'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

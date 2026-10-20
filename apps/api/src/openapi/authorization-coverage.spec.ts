@@ -82,6 +82,8 @@ describe('meta-teste de autorização das rotas (US-097 · RN-IAM-101)', () => {
       'POL-13',
       'POL-15',
       'POL-16',
+      // US-053: retirar aprovação (custódia anterior — aplicada pelo caso de uso).
+      'POL-17',
       // US-115: gerar com IA (AI_GENERATE + edição do tipo + POL-02 + portão do órgão).
       'POL-18',
     ]);

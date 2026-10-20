@@ -610,8 +610,9 @@ describe('Feature: Decidir aprovação (US-052)', () => {
         [...documents.values()].sort(),
       );
       expect(dto.documents.every((document) => document.versionNumber === 1)).toBe(true);
+      // US-053: Marta também redireciona (`APPROVAL_REASSIGN` pelo perfil).
       expect(meta).toMatchObject({
-        allowedActions: ['DECIDE'],
+        allowedActions: ['DECIDE', 'REASSIGN'],
         decidesAsDeputy: false,
         decisionBlocker: null,
       });
@@ -936,7 +937,7 @@ describe('Feature: Decidir aprovação (US-052)', () => {
       expect(effects(processId, approvalId)).toEqual(before);
       const detail = await getApproval(approvalId, 'sub-marta');
       expect((detail.body as { meta: ApprovalMeta }).meta).toMatchObject({
-        allowedActions: [],
+        allowedActions: ['REASSIGN'],
         decisionOptions: [],
         decisionBlocker: 'SELF_APPROVAL_FORBIDDEN',
       });
@@ -957,8 +958,9 @@ describe('Feature: Decidir aprovação (US-052)', () => {
       const response = await getApproval(approvalId, 'sub-ana');
 
       expect(response.status, JSON.stringify(response.body)).toBe(200);
+      // US-053: a solicitante pode retirar (POL-17), não decidir.
       expect((response.body as { meta: ApprovalMeta }).meta).toEqual({
-        allowedActions: [],
+        allowedActions: ['WITHDRAW'],
         decisionOptions: [],
         decidesAsDeputy: false,
         decisionBlocker: 'NOT_DESIGNATED_APPROVER',

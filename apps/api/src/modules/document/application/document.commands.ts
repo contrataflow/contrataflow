@@ -1,4 +1,5 @@
 import {
+  APPROVAL_WITHDRAWAL_MESSAGES,
   DocumentCanceled,
   DocumentFinalized,
   DocumentReopened,
@@ -651,6 +652,72 @@ export class CancelDocumentCommand extends DocumentTransitionCommand<CancelDocum
       action: 'CANCEL',
       fromStatus: document.status,
       toStatus: saved.status,
+    });
+  }
+}
+
+// --- Retirar a submissão (DOC-11) ---------------------------------------------------------------
+
+export interface WithdrawDocumentInput {
+  readonly documentId: string;
+  /** `If-Match` (versão do documento). */
+  readonly expectedVersion: number;
+  /** Motivo opcional (nunca vai a log nem a payload). */
+  readonly reason: string | null;
+  readonly idempotencyKey: string | null;
+}
+
+/** 409 `APPROVAL_NOT_PENDING` (DOC-11 · V-03): o documento não está em análise. */
+function documentNotUnderReview(): ApiError {
+  return new ApiError('APPROVAL_NOT_PENDING', {
+    detail: APPROVAL_WITHDRAWAL_MESSAGES.notPending,
+  });
+}
+
+/**
+ * `WithdrawDocumentCommand` — DOC-11 (US-053 · FA-01 · RN-DOC-46 · DEC-018): retira a aprovação
+ * pendente que cobre o documento em `IN_REVIEW`. Não `IN_REVIEW` (já decidido ou retirado) = 409
+ * `APPROVAL_NOT_PENDING` antes do `If-Match` do documento (412). A retirada é a do `approval`
+ * (porta `DocumentApprovalRegistry` — mesmas regras do APV-04): POL-17 (avulsa: permissão de
+ * submissão do tipo cobrindo o processo; etapa: custódia anterior), `ApprovalCanceled`
+ * (`WITHDRAWN`), `approval.withdraw`, o documento de volta a `DRAFT` (`document.withdraw`,
+ * `DocumentWithdrawn`) e, na etapa, a devolução do processo.
+ */
+@Injectable()
+export class WithdrawDocumentCommand extends DocumentTransitionCommand<WithdrawDocumentInput> {
+  constructor(
+    @Inject(DOCUMENT_TRANSACTIONS) transactions: DocumentTransactions,
+    lifecycle: DocumentLifecycleService,
+    @Inject(DOCUMENT_CLOCK) clock: DocumentClock,
+    @Inject(AUDIT_TRAIL) audit: AuditTrailPort,
+    @Inject(OUTBOX_WRITER) outbox: OutboxWriterPort,
+    private readonly approvals: DocumentApprovalRegistry,
+  ) {
+    super(transactions, lifecycle, clock, audit, outbox);
+  }
+
+  protected async handle(
+    tx: TenantTx,
+    input: WithdrawDocumentInput,
+  ): Promise<DocumentTransitionResult> {
+    const context = await this.lifecycle.load(tx, input.documentId);
+    const { document } = context;
+    if (document.status !== 'IN_REVIEW' || document.pendingApprovalId === null) {
+      throw documentNotUnderReview();
+    }
+    this.lifecycle.assertVersion(context, input.expectedVersion);
+    await this.approvals.withdrawForDocument(tx, {
+      approvalId: document.pendingApprovalId,
+      documentId: document.id,
+      reason: input.reason,
+      idempotencyKey: input.idempotencyKey,
+    });
+    const fresh = await this.lifecycle.load(tx, input.documentId);
+    const actor = await this.lifecycle.actorOf(fresh);
+    return this.result(fresh, actor, fresh.document, {
+      action: 'WITHDRAW',
+      fromStatus: document.status,
+      toStatus: fresh.document.status,
     });
   }
 }

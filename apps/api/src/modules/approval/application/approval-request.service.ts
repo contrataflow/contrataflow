@@ -71,7 +71,10 @@ export interface StageApprovalRequest {
  * síncronos gravam a timeline `APPROVAL_REQUESTED` e as concessões `APPROVER` no mesmo `tx`.
  */
 @Injectable()
-export class ApprovalRequestService implements DocumentApprovalRequester {
+export class ApprovalRequestService implements Omit<
+  DocumentApprovalRequester,
+  'withdrawForDocument'
+> {
   private readonly logger = new Logger('Approval');
 
   constructor(

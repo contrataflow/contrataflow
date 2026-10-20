@@ -50,6 +50,20 @@ export interface DocumentApprovalRequester {
     documentId: string,
     documentVersionId: string,
   ): Promise<boolean>;
+  /**
+   * DOC-11 (US-053): retira a aprovação pendente `approvalId` que cobre o documento, no `tx` do
+   * chamador — as mesmas regras e efeitos do APV-04 (POL-17, `APPROVAL_NOT_PENDING`,
+   * `approval.withdraw`, `ApprovalCanceled`; documento `IN_REVIEW` → `DRAFT`). A versão conferida
+   * é a do documento (o `If-Match` do DOC-11), não a da aprovação.
+   */
+  withdrawForDocument(tx: TenantTx, request: DocumentWithdrawalRequest): Promise<void>;
+}
+
+export interface DocumentWithdrawalRequest {
+  readonly approvalId: string;
+  readonly documentId: string;
+  readonly reason: string | null;
+  readonly idempotencyKey: string | null;
 }
 
 /** Registro do solicitante (implementado pelo módulo `approval`). */
@@ -65,6 +79,12 @@ export class DocumentApprovalRegistry {
   requestForDocumentSubmission(tx: TenantTx, request: DocumentApprovalRequest): Promise<void> {
     if (!this.requester) return Promise.reject(new ApiError('APPROVER_UNRESOLVED'));
     return this.requester.requestForDocumentSubmission(tx, request);
+  }
+
+  /** Sem o módulo de aprovações, não há aprovação pendente a retirar: 409 `APPROVAL_NOT_PENDING`. */
+  withdrawForDocument(tx: TenantTx, request: DocumentWithdrawalRequest): Promise<void> {
+    if (!this.requester) return Promise.reject(new ApiError('APPROVAL_NOT_PENDING'));
+    return this.requester.withdrawForDocument(tx, request);
   }
 
   /** Sem o módulo de aprovações, nenhuma aprovação existe para o selo. */

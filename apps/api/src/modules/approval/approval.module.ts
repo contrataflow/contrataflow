@@ -13,6 +13,7 @@ import {
 import { ApprovalCancellationService } from './application/approval-cancellation.service.js';
 import { ApprovalDecisionPolicy } from './application/approval-decision.policy.js';
 import { ApprovalRequestService } from './application/approval-request.service.js';
+import { ApprovalWithdrawalService } from './application/approval-withdrawal.service.js';
 import { ApprovalFacade } from './application/approval.facade.js';
 import { ApprovalPresenter } from './application/approval.presenter.js';
 import { ApproverResolver } from './application/approver-resolver.js';
@@ -25,6 +26,8 @@ import {
   APPROVAL_REPOSITORY,
   APPROVAL_TRANSACTIONS,
 } from './application/ports.js';
+import { ReassignApprovalCommand } from './application/reassign-approval.command.js';
+import { WithdrawApprovalCommand } from './application/withdraw-approval.command.js';
 import {
   InMemoryApprovalListReader,
   PrismaApprovalListReader,
@@ -54,6 +57,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * transação) com POL-03, delegando os efeitos ao dono do sujeito pela porta
  * `ApprovalSubjectRegistry` (`process` para `PROCESS_STAGE`, `document` para `DOCUMENT`). US-057:
  * a lista (APV-01 — `ListApprovalsHandler`) sobre `approvals` e a view `v_inbox_processes`.
+ * US-053: retirar (APV-04 — `WithdrawApprovalCommand`; DOC-11 pela mesma porta do documento,
+ * `ApprovalWithdrawalService`) e redirecionar (APV-05 — `ReassignApprovalCommand`).
  */
 @Module({
   imports: [
@@ -75,6 +80,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApprovalDecisionPolicy,
     ApprovalPresenter,
     DecideApprovalCommand,
+    ApprovalWithdrawalService,
+    WithdrawApprovalCommand,
+    ReassignApprovalCommand,
     GetApprovalQuery,
     ListApprovalsHandler,
     ApprovalListPresenter,
@@ -115,9 +123,18 @@ export class ApprovalModule implements OnModuleInit {
   constructor(
     private readonly registry: DocumentApprovalRegistry,
     private readonly requester: ApprovalRequestService,
+    private readonly withdrawals: ApprovalWithdrawalService,
   ) {}
 
   onModuleInit(): void {
-    this.registry.register(this.requester);
+    const { requester, withdrawals } = this;
+    this.registry.register({
+      requestForDocumentSubmission: (tx, request) =>
+        requester.requestForDocumentSubmission(tx, request),
+      coversDocumentVersion: (tx, approvalId, documentId, documentVersionId) =>
+        requester.coversDocumentVersion(tx, approvalId, documentId, documentVersionId),
+      // US-053 (DOC-11): a retirada do documento é a mesma do APV-04.
+      withdrawForDocument: (tx, request) => withdrawals.withdrawForDocument(tx, request),
+    });
   }
 }
