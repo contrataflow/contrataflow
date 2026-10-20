@@ -143,6 +143,25 @@ describe('EtpEstimateSynchronizer (US-022 · RN-ETP-29/31)', () => {
     );
   });
 
+  it('US-032 (FA-04): conclusão sem ETP vinculado não altera nada e avisa price_research.etp_sync_skipped', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { client, queries } = fakeClient([], 0);
+    await new EtpEstimateSynchronizer(() => NOW).handle(
+      envelope('document.finalized.price_research', { documentId: RESEARCH }),
+      contextOf(client),
+    );
+    expect(queries.some((query) => query.sql.includes('audit_logs'))).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'price_research.etp_sync_skipped',
+        priceResearchId: RESEARCH,
+      }),
+    );
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'etp.estimate_sync_retry' }),
+    );
+  });
+
   it('ignora outras routing keys, evento de plataforma e payload sem id da pesquisa', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const { client, queries } = fakeClient([ROW]);

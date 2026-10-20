@@ -1,4 +1,5 @@
 import {
+  belowMinimumJustificationIssue,
   manualPriceIssues,
   normalizeQuantity,
   PRICE_RESEARCH_CALCULATION_FIELDS,
@@ -458,7 +459,8 @@ export function createPriceItem(
 export type PriceItemEditable = Pick<
   PriceItem,
   'quantity' | 'methodOverride' | 'manualUnitPrice' | 'manualJustification'
->;
+> &
+  Partial<Pick<PriceItem, 'belowMinimumJustification'>>;
 
 export interface PriceItemUpdatePlan {
   /** Os campos editáveis depois do patch (normalizados); `null` quando há erro. */
@@ -517,10 +519,28 @@ export function planPriceItemUpdate(
       manualJustification = justification.trim();
     }
   }
+  // US-032 (RN-PRICE-58): justificativa de cotações abaixo do mínimo — vazio/`null` apaga.
+  const currentJustification = item.belowMinimumJustification ?? null;
+  let belowMinimumJustification = currentJustification;
+  if (patch.belowMinimumJustification !== undefined) {
+    const issue = belowMinimumJustificationIssue(patch.belowMinimumJustification);
+    if (issue === null) {
+      const trimmed = patch.belowMinimumJustification?.trim() ?? '';
+      belowMinimumJustification = trimmed === '' ? null : trimmed;
+    } else {
+      errors.push({ field: 'belowMinimumJustification', code: 'TOO_SHORT', message: issue });
+    }
+  }
   if (errors.length > 0) {
     return { next: null, errors, changed: false, methodChanged: false };
   }
-  const next = { quantity, methodOverride, manualUnitPrice, manualJustification };
+  const next = {
+    quantity,
+    methodOverride,
+    manualUnitPrice,
+    manualJustification,
+    belowMinimumJustification,
+  };
   const methodChanged = methodOverride !== item.methodOverride;
   return {
     next,
@@ -530,7 +550,8 @@ export function planPriceItemUpdate(
       methodChanged ||
       quantity !== item.quantity ||
       manualUnitPrice !== item.manualUnitPrice ||
-      manualJustification !== item.manualJustification,
+      manualJustification !== item.manualJustification ||
+      belowMinimumJustification !== currentJustification,
   };
 }
 

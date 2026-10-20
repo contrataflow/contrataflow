@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Decimal } from 'decimal.js';
 
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { Prisma, TenantTx } from '#shared/database/prisma.js';
@@ -187,6 +188,31 @@ export class PrismaProcessItemRepository implements ProcessItemRepository {
          AND i.deleted_at IS NULL`;
     return { count: row?.count ?? 0, hasLots: row?.has_lots ?? false };
   }
+
+  async updateReferenceUnitPrices(
+    tx: TenantTx,
+    processId: string,
+    input: {
+      readonly lines: readonly { readonly itemId: string; readonly unitPrice: string }[];
+      readonly sourceDocumentId: string;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number> {
+    if (input.lines.length === 0) return 0;
+    const ids = input.lines.map((line) => line.itemId);
+    const prices = input.lines.map((line) => line.unitPrice);
+    // Uma instrução para todos os itens (pesquisa com até 500 itens — p95 da conclusão).
+    return tx.$executeRaw`
+      UPDATE process_items i
+         SET reference_unit_price = c.price::numeric,
+             reference_unit_price_source_document_id = ${input.sourceDocumentId}::uuid,
+             updated_at = ${input.at}, updated_by_id = ${input.userId}::uuid
+        FROM unnest(${ids}::uuid[], ${prices}::text[]) AS c(id, price)
+       WHERE i.tenant_id = current_setting('app.tenant_id')::uuid
+         AND i.process_id = ${processId}::uuid
+         AND i.id = c.id AND i.deleted_at IS NULL`;
+  }
 }
 
 interface StoredItem extends ProcessItem {
@@ -345,6 +371,33 @@ export class InMemoryProcessItemRepository implements ProcessItemRepository {
       count: active.length,
       hasLots: active.some((item) => item.lotNumber !== null),
     });
+  }
+
+  updateReferenceUnitPrices(
+    _tx: TenantTx,
+    processId: string,
+    input: {
+      readonly lines: readonly { readonly itemId: string; readonly unitPrice: string }[];
+      readonly sourceDocumentId: string;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number> {
+    const active = new Map(this.active(processId).map((item) => [item.id, item]));
+    let updated = 0;
+    for (const line of input.lines) {
+      const current = active.get(line.itemId);
+      if (current === undefined) continue;
+      this.items.set(line.itemId, {
+        ...current,
+        referenceUnitPrice: new Decimal(line.unitPrice).toFixed(4),
+        referenceUnitPriceSourceDocumentId: input.sourceDocumentId,
+        updatedAt: input.at,
+        updatedById: input.userId,
+      });
+      updated += 1;
+    }
+    return Promise.resolve(updated);
   }
 }
 

@@ -35,7 +35,7 @@ function documentedActions(): string[] {
 describe('catálogo de ações de auditoria (events.md §7 · US-073)', () => {
   it('é exatamente o da tabela de events.md §7', () => {
     expect(AUDIT_ACTION_NAMES).toEqual(documentedActions());
-    expect(AUDIT_ACTION_NAMES).toHaveLength(149);
+    expect(AUDIT_ACTION_NAMES).toHaveLength(150);
   });
 
   it('cada ação segue `resource.action` e tem uma categoria válida', () => {

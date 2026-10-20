@@ -209,3 +209,31 @@ price-alert-badges.tsx` — texto + tooltip focável; sob POL-09 sem percentuais
   - FA-01/02/03/04/05, V-01/V-02, PDF pelo `document-render`), `test/tenant-leak/comparative-map.spec.ts`
     (PostgreSQL: auditoria EXPORT, 500 × 50 / 501 / 51 por SQL, POL-09, leituras sob exclusões concorrentes,
     tenant B) e `test/price-research/comparative-map-export.perf.ts` (500 × 50 < 1 s, suíte de performance).
+
+## US-032 — Concluir a pesquisa de preços (PRS-23 · PRS-07 com a justificativa)
+
+- **Rota** (`presentation/price-research.controller.ts`): PRS-23 `POST /price-research/{id}/complete`
+  (`{}`, `If-Match` = versão da pesquisa, `Idempotency-Key`). Contratos em
+  `packages/validation/src/price-research/completion.ts` (`priceItemCompletionIssue`, mensagens,
+  `completedPriceResearchSchema`, `PriceResearchCompletedSummary`) — os mesmos na SCR-009.
+- **Comando** (`application/price-research-completion.command.ts`): guarda com
+  `PRICE_RESEARCH_COMPLETE` (`COMPLETE_OPTIONS` — POL-02 estendida + POL-09 + `FOR UPDATE`; 404 próprio
+  `PRICE_RESEARCH_NOT_FOUND`) → `If-Match` (documento já concluído com versão velha = 412, não 409) →
+  completude (RN-PRICE-58/59 → 422 `PRICE_RESEARCH_INCOMPLETE`) → `DocumentFacade.finalizeIn` (a MESMA
+  finalização do DOC-10, avisos genéricos reconhecidos). Log `price_research.completed`/`_blocked`/
+  `_failed` e o histograma `price_research_complete_duration_ms` — sem valores.
+- **Validador** (`PriceResearchDocumentValidator`): `validate` devolve as mesmas violações (DOC-08/10);
+  `typedSummary` = `{ totalEstimatedValueMasked, itemsCount, itemsWithAlertsCount }`; `snapshotParts`
+  acrescenta às linhas `priceSummaryItems` os campos de exceção do item (FA-02); o gancho `finalized`
+  (porta nova do `document`) grava `completedAt`/`completedById`, chama
+  `ProcessFacade.applyPriceResearchReferenceIn` (itens + valor estimado com a precedência da DEC-032 —
+  `TERM` mantém o valor) e audita `price_research.complete` (valor anterior/novo; hash + `masked` se
+  sigiloso). Tudo na transação da finalização: falha em qualquer passo desfaz o documento.
+- **PRS-07**: `belowMinimumJustification` (20–4.000, vazio/`null` apaga — `TOO_SHORT`), sem recálculo
+  de preço novo; nunca em auditoria/evento.
+- **ETP**: sem código novo — o `EtpEstimateSynchronizer` do worker já assina
+  `document.finalized.price_research`; sem ETP vinculado avisa `price_research.etp_sync_skipped`.
+- **Testes**: `domain/price-research-completion.spec.ts`, `domain/price-item-update.spec.ts`,
+  `presentation/price-completion.routes.spec.ts` (8 categorias + FA-02/03, MANUAL, DEC-032, POL-09,
+  DOC-10) e `test/tenant-leak/price-completion.spec.ts` (PostgreSQL: atomicidade com falha induzida
+  depois da finalização, concorrência 200/412, RLS, outbox PENDING).

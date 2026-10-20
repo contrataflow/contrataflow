@@ -9,6 +9,7 @@ import { useState } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 
+import { BelowMinimumJustificationField } from './price-completion';
 import {
   isItemMasked,
   methodBadge,
@@ -48,6 +49,8 @@ const SELECT_CLASS = INPUT_CLASS;
 export interface PriceItemCalculationProps {
   readonly item: PriceItemDto;
   readonly unitPriceDecimals: 2 | 4;
+  /** `minQuotations` do snapshot (US-032: justificativa de cotações insuficientes). */
+  readonly minQuotations: number;
   /** `UPDATE` em `meta.allowedActions` (sem ela, somente leitura). */
   readonly canUpdate: boolean;
   /** Recarregar itens e cabeçalho depois de gravar. */
@@ -59,6 +62,7 @@ export interface PriceItemCalculationProps {
 export function PriceItemCalculation({
   item,
   unitPriceDecimals,
+  minQuotations,
   canUpdate,
   onSaved,
   onWriteError,
@@ -69,10 +73,18 @@ export function PriceItemCalculation({
       aria-labelledby={`pr-calc-${item.id}`}
       className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-4"
     >
-      <h3 id={`pr-calc-${item.id}`} className="text-base font-semibold">
+      <h3 id={`pr-calc-${item.id}`} tabIndex={-1} className="text-base font-semibold">
         {t('title', { number: item.sequence })}
       </h3>
       <PriceItemStatsCard item={item} unitPriceDecimals={unitPriceDecimals} />
+      <BelowMinimumJustificationField
+        key={`${item.id}-${String(item.version)}-justification`}
+        item={item}
+        minQuotations={minQuotations}
+        canUpdate={canUpdate}
+        onSaved={onSaved}
+        onWriteError={onWriteError}
+      />
       {canUpdate ? (
         <MethodForm
           // Novo rascunho quando o item gravado muda (outra versão).

@@ -178,3 +178,35 @@ describe('calculationParameterChanges (RN-PRICE-47)', () => {
     expect(calculationParameterChanges(current, {})).toEqual({ parameters: current, changed: [] });
   });
 });
+
+describe('planPriceItemUpdate — justificativa de cotações abaixo do mínimo (US-032)', () => {
+  const REASON = 'Mercado restrito na região.';
+
+  it('grava a justificativa sem os espaços das pontas e marca a mudança', () => {
+    const plan = planPriceItemUpdate(ITEM, { belowMinimumJustification: `  ${REASON} ` }, RULES);
+    expect(plan).toMatchObject({
+      next: { belowMinimumJustification: REASON },
+      changed: true,
+      methodChanged: false,
+      errors: [],
+    });
+  });
+
+  it('curta (< 20) → TOO_SHORT; vazia ou null apaga; igual à gravada não muda', () => {
+    expect(codes(planPriceItemUpdate(ITEM, { belowMinimumJustification: 'curta' }, RULES))).toEqual(
+      [['belowMinimumJustification', 'TOO_SHORT']],
+    );
+    const saved = { ...ITEM, belowMinimumJustification: REASON };
+    for (const cleared of ['', '   ', null]) {
+      expect(
+        planPriceItemUpdate(saved, { belowMinimumJustification: cleared }, RULES),
+      ).toMatchObject({ next: { belowMinimumJustification: null }, changed: true });
+    }
+    expect(planPriceItemUpdate(saved, { belowMinimumJustification: REASON }, RULES).changed).toBe(
+      false,
+    );
+    expect(planPriceItemUpdate(saved, { quantity: '50' }, RULES).next).toMatchObject({
+      belowMinimumJustification: REASON,
+    });
+  });
+});

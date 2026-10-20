@@ -217,6 +217,11 @@ export interface ConcludeDocumentInput {
   /** `draftRevision` revisado no DOC-08 (RN-DFD-43); `null` = sem conferência. */
   readonly expectedDraftRevision?: number | null;
   readonly idempotencyKey: string | null;
+  /**
+   * PRS-23 (US-032): a confirmação na tela do módulo tipado já reconhece os avisos (alertas não
+   * bloqueiam — FA-03); os avisos ficam registrados em `warningsAcknowledged` da auditoria.
+   */
+  readonly acknowledgeAllWarnings?: boolean;
 }
 
 /** Validação de completude + versão + transição, comum a finalizar e a submeter. */
@@ -253,7 +258,13 @@ abstract class ConcludeDocumentCommand extends DocumentTransitionCommand<Conclud
 
     // Defesa em profundidade (passo 4): a completude é reavaliada dentro da transação.
     const completeness = await this.lifecycle.evaluate(tx, context);
-    const gate = gateCompleteness(completeness.violations, input.acknowledgedWarnings);
+    const acknowledgedCodes =
+      input.acknowledgeAllWarnings === true
+        ? completeness.violations
+            .filter((item) => item.severity === 'WARNING')
+            .map((item) => item.code)
+        : input.acknowledgedWarnings;
+    const gate = gateCompleteness(completeness.violations, acknowledgedCodes);
     if (gate.kind === 'INCOMPLETE') {
       this.lifecycle.logCompletenessBlocked(document.id, gate.violations);
       throw documentIncomplete(gate.violations);
@@ -317,6 +328,17 @@ abstract class ConcludeDocumentCommand extends DocumentTransitionCommand<Conclud
             ...(typedSummary === null ? {} : { typedSummary: { ...typedSummary } }),
           },
         }),
+      );
+      // US-032: efeitos do módulo tipado na mesma transação (pesquisa → processo).
+      await this.lifecycle.finalized(
+        tx,
+        { ...context, document: saved },
+        {
+          documentVersionId: version.id,
+          actorId,
+          now,
+          idempotencyKey: input.idempotencyKey,
+        },
       );
     } else {
       await this.audit.record(tx, {
@@ -385,6 +407,19 @@ export class FinalizeDocumentCommand extends ConcludeDocumentCommand {
     @Inject(OUTBOX_WRITER) outbox: OutboxWriterPort,
   ) {
     super(transactions, lifecycle, clock, audit, outbox);
+  }
+
+  /**
+   * PRS-23 (US-032): a MESMA finalização no `tx` do módulo tipado, que já autorizou e travou o
+   * documento. O log e a métrica da transição vêm por `transitionCommitted`, depois do commit.
+   */
+  finalizeIn(tx: TenantTx, input: ConcludeDocumentInput): Promise<DocumentTransitionResult> {
+    return this.handle(tx, input);
+  }
+
+  /** `document.status_changed` + `document_transition_total` da finalização feita por `finalizeIn`. */
+  transitionCommitted(result: DocumentTransitionResult, durationMs: number): void {
+    this.committed(result, durationMs);
   }
 
   protected conclude(

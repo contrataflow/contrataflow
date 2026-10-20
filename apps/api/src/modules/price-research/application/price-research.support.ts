@@ -61,6 +61,9 @@ export interface WritableOptions {
   readonly deniedDetail?: string;
 }
 
+/** US-032: concluir a pesquisa (PRS-23) tem permissão própria (permissions.md — risco M). */
+export const COMPLETE_PERMISSION: PermissionCode = 'PRICE_RESEARCH_COMPLETE';
+
 export const EXCLUDE_QUOTATION_OPTIONS: WritableOptions = {
   permission: EXCLUDE_QUOTATION_PERMISSION,
   deniedDetail: PRICE_SOURCE_MESSAGES.excludePermissionDenied,
@@ -78,6 +81,8 @@ export interface PriceResearchReadContext {
   readonly lockReason: PriceResearchLockReason | null;
   /** US-027: o usuário pode desconsiderar/restaurar cotações agora (permissão + travas de edição). */
   readonly canExcludeQuotation: boolean;
+  /** US-032: o usuário pode concluir a pesquisa agora (`PRICE_RESEARCH_COMPLETE` + travas). */
+  readonly canComplete: boolean;
 }
 
 @Injectable()
@@ -103,7 +108,20 @@ export class PriceResearchGate {
       masked,
       lockReason: await this.lockReasonOf(tx, research, view),
       canExcludeQuotation: await this.canExcludeQuotation(tx, research, view),
+      canComplete: await this.canComplete(tx, research, view),
     };
+  }
+
+  /**
+   * US-032: o usuário pode concluir a pesquisa agora — `PRICE_RESEARCH_COMPLETE` cobrindo o processo
+   * + as travas da POL-02 (o botão "Concluir pesquisa" da SCR-009; a completude é do PRS-23).
+   */
+  async canComplete(
+    tx: TenantTx,
+    research: PriceResearch,
+    view: TypedDocumentView,
+  ): Promise<boolean> {
+    return (await this.lockReasonOf(tx, research, view, COMPLETE_PERMISSION)) === null;
   }
 
   /**
@@ -157,7 +175,14 @@ export class PriceResearchGate {
     }
     const research = await this.researches.lockById(tx, researchId);
     if (research === null) throw priceResearchNotFound();
-    return { research, view, masked: false, lockReason: null, canExcludeQuotation: true };
+    return {
+      research,
+      view,
+      masked: false,
+      lockReason: null,
+      canExcludeQuotation: true,
+      canComplete: true,
+    };
   }
 
   /** O processo visível (404) e o estado da coleção — PRS-01. */
@@ -326,12 +351,15 @@ export class PriceResearchPresenter {
     documentActions: TypedDocumentView['allowedActions'],
     lockReason: PriceResearchLockReason | null,
     canExcludeQuotation = false,
+    canComplete = false,
   ): PriceResearchMeta {
     return {
-      // `lockReason` explica só a edição; desconsiderar cotação tem permissão própria (US-027).
+      // `lockReason` explica só a edição; desconsiderar cotação (US-027) e concluir (US-032) têm
+      // permissão própria.
       allowedActions: [
         ...(lockReason === null ? EDIT_ACTIONS : []),
         ...(canExcludeQuotation ? (['EXCLUDE_QUOTATION'] as const) : []),
+        ...(canComplete ? (['COMPLETE'] as const) : []),
       ],
       documentActions: [...documentActions],
       lockReason,

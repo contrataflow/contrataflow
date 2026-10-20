@@ -16,6 +16,7 @@ import {
 } from '../domain/process-runtime-records.js';
 import { createProcess, draftProcess } from '../domain/process.js';
 import { InMemoryProcessRepository } from '../infrastructure/in-memory-process.repository.js';
+import { InMemoryProcessItemRepository } from '../infrastructure/process-item.repositories.js';
 import { InMemoryProcessParticipantRepository } from '../infrastructure/process-participant.repositories.js';
 import { InMemoryTagRepository } from '../infrastructure/tag.repositories.js';
 
@@ -66,6 +67,7 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
     () => NOW,
     {} as ProcessDfdDuplication,
     {} as ProcessListPresenter,
+    new InMemoryProcessItemRepository(),
   );
   const viewer = (
     userId: string,

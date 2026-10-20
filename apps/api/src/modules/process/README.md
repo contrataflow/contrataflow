@@ -532,3 +532,13 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<Input, Pr
 - Leituras de outros módulos dentro de `handle` usam o `tx` recebido (métodos `…In(tx, …)` das
   fachadas): abrir outra transação por requisição esgota o pool sob concorrência.
 - Trava de linha (sequência, agregado) o mais tarde possível dentro de `handle`.
+
+## Valores de referência da pesquisa de preços concluída (US-032)
+
+- `ProcessFacade.applyPriceResearchReferenceIn(tx, input)`: trava o processo, grava
+  `process_items.reference_unit_price` + `reference_unit_price_source_document_id` (uma instrução
+  com `unnest`; campos do sistema — sem `version + 1` do item) e o valor estimado com
+  `estimatedValueSource = PRICE_RESEARCH`, salvo origem de maior precedência (`TERM` — DEC-032,
+  `domain/derived-estimated-value.ts`). A versão do processo sobe nos dois casos (o `If-Match` da
+  edição aberta vira 412). Só o `price-research` chama, já autorizado (DEC-019: o PATCH do item e o
+  do processo nunca gravam esses valores).

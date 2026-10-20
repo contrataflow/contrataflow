@@ -31,6 +31,7 @@ import {
   DocumentValidatorRegistry,
 } from './document.ports.js';
 import type {
+  DocumentFinalizedFacts,
   DocumentRepository,
   DocumentValidationSubject,
   TypedSnapshotParts,
@@ -417,6 +418,17 @@ export class DocumentLifecycleService {
     const validator = this.validators.find(context.type.systemModule);
     if (!validator?.typedSummary) return null;
     return validator.typedSummary(tx, this.subjectOf(context));
+  }
+
+  /** Gancho `finalized` do módulo tipado (US-032), no `tx` da finalização; sem gancho, nada. */
+  async finalized(
+    tx: TenantTx,
+    context: DocumentContext,
+    facts: DocumentFinalizedFacts,
+  ): Promise<void> {
+    const validator = this.validators.find(context.type.systemModule);
+    if (!validator?.finalized) return;
+    await validator.finalized(tx, this.subjectOf(context), facts);
   }
 
   /**

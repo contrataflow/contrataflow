@@ -42,6 +42,8 @@ import type { CreateDocumentInput } from './document-creation.service.js';
 import { DocumentItemsPresenter } from './document-items.commands.js';
 import type { DocumentItemCopy, DocumentItemSnapshotLine } from './document-items.commands.js';
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
+import { FinalizeDocumentCommand } from './document.commands.js';
+import type { ConcludeDocumentInput, DocumentTransitionResult } from './document.commands.js';
 import { documentNotEditable, notProcessCustodian } from './document.errors.js';
 import { DOCUMENT_REPOSITORY, DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentRepository, DocumentValidator } from './document.ports.js';
@@ -66,10 +68,12 @@ import { draftContentCopy, isEditable, updateDocumentHeader } from '../domain/do
 import type { Document } from '../domain/document.js';
 
 export type {
+  DocumentFinalizedFacts,
   DocumentValidationSubject,
   DocumentValidator,
   TypedSnapshotParts,
 } from './document.ports.js';
+export type { ConcludeDocumentInput, DocumentTransitionResult } from './document.commands.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
 export type {
   ApprovalOutcomeInput,
@@ -217,7 +221,22 @@ export class DocumentFacade {
     private readonly lifecycle: DocumentLifecycleService,
     private readonly itemRows: DocumentItemsPresenter,
     private readonly outcomes: DocumentApprovalOutcomes,
+    private readonly finalizer: FinalizeDocumentCommand,
   ) {}
+
+  /**
+   * Finalização (DOC-10) no `tx` do módulo tipado (US-032 · PRS-23 — concluir a pesquisa de preços é
+   * finalizar o documento, DEC-018): a MESMA transição, com POL-02, `If-Match` do documento,
+   * completude, versão `FINALIZATION`, `document.finalize`, `DocumentFinalized` e o gancho
+   * `finalized` do validador. Depois do commit, `finalizationCommitted` registra log e métrica.
+   */
+  finalizeIn(tx: TenantTx, input: ConcludeDocumentInput): Promise<DocumentTransitionResult> {
+    return this.finalizer.finalizeIn(tx, input);
+  }
+
+  finalizationCommitted(result: DocumentTransitionResult, durationMs: number): void {
+    this.finalizer.transitionCommitted(result, durationMs);
+  }
 
   /**
    * Registra o `DocumentValidator` do módulo tipado (no `onModuleInit` dele): validação de

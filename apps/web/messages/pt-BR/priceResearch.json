@@ -479,5 +479,37 @@
       "retry": "Tentar novamente",
       "correlationId": "Código do erro: {id}"
     }
+  },
+  "completion": {
+    "action": "Concluir pesquisa",
+    "completing": "Concluindo…",
+    "badge": "Concluída",
+    "badgeAt": "Concluída em {date}",
+    "dialog": {
+      "title": "Concluir pesquisa de preços",
+      "description": "A conclusão cria a versão definitiva da pesquisa, bloqueia novas edições e atualiza o valor estimado do processo e o preço de referência de cada item.",
+      "summary": "Resumo da conclusão",
+      "items": "Itens",
+      "total": "Valor total estimado",
+      "notCalculated": "Ainda não calculado",
+      "pendingTitle": "Itens que ainda impedem a conclusão",
+      "cancel": "Cancelar",
+      "confirm": "Concluir pesquisa",
+      "retry": "Tentar novamente"
+    },
+    "incomplete": {
+      "title": "Não foi possível concluir: há itens pendentes",
+      "open": "Ir para o item {number}"
+    },
+    "documentIncomplete": "Preencha as seções obrigatórias do documento (aba Documento) antes de concluir.",
+    "justification": {
+      "label": "Justificativa de cotações insuficientes",
+      "hint": "Necessária para concluir com menos de {min} cotações válidas. Mínimo de 20 caracteres; deixe vazio para remover.",
+      "save": "Salvar justificativa",
+      "saving": "Salvando…",
+      "saved": "Justificativa do item {number} salva",
+      "failed": "Não foi possível salvar a justificativa agora. Tente novamente.",
+      "readOnly": "Justificativa de cotações insuficientes: {text}"
+    }
   }
 }

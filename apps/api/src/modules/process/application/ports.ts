@@ -1,4 +1,9 @@
-import type { DayCountType, ProcessStageStatus, ProcessStatus } from '@contrataflow/validation';
+import type {
+  DayCountType,
+  EstimatedValueSource,
+  ProcessStageStatus,
+  ProcessStatus,
+} from '@contrataflow/validation';
 
 import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import type { TenantTx } from '#shared/database/prisma.js';
@@ -267,6 +272,21 @@ export interface ProcessRepository {
    */
   touchProcess(tx: TenantTx, processId: string, at: Date, userId: string): Promise<number>;
   /**
+   * US-032 (DEC-032 · RN-PRICE-62): grava o valor estimado derivado de um documento e a origem, com
+   * `version + 1`, `updatedAt` e `updatedById` (processo já travado pelo chamador). Devolve a nova
+   * versão.
+   */
+  recordDerivedEstimatedValue(
+    tx: TenantTx,
+    processId: string,
+    value: {
+      readonly estimatedValue: string;
+      readonly source: EstimatedValueSource;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number>;
+  /**
    * US-012: revoga (`revokedAt`) a concessão `PARTICIPANT` ativa cuja origem é o participante.
    */
   revokeParticipantAccess(tx: TenantTx, participantId: string, at: Date): Promise<void>;
@@ -419,6 +439,22 @@ export interface ProcessItemRepository {
     userId: string,
   ): Promise<void>;
   stats(tx: TenantTx, processId: string): Promise<ProcessItemStats>;
+  /**
+   * DEC-019 (US-032 · RN-PRICE-61): `referenceUnitPrice` e `referenceUnitPriceSourceDocumentId` dos
+   * itens não excluídos do processo, gravados só pelo documento que os define (nunca pelo PATCH do
+   * item). Campos do sistema: sem `version + 1` do item (não invalidam o `If-Match` de quem o edita).
+   * Devolve quantos itens foram gravados.
+   */
+  updateReferenceUnitPrices(
+    tx: TenantTx,
+    processId: string,
+    input: {
+      readonly lines: readonly { readonly itemId: string; readonly unitPrice: string }[];
+      readonly sourceDocumentId: string;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number>;
 }
 
 export const PROCESS_ITEM_REPOSITORY = Symbol('ProcessItemRepository');

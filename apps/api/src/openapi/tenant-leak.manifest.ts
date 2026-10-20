@@ -262,6 +262,9 @@ const QUOTATION_EXCLUSION_ROUTE =
 const QUOTATION_IMPORT_ROUTE =
   'Importação de cotações por planilha (US-028): a suíte genérica não tem pesquisa nem fonte do tenant B e o corpo do PRS-18 é multipart. O isolamento (PRS-18/19/24 com pesquisa de B → 404 NOT_FOUND sem ler nem gravar nada; o token da prévia fica no Redis sob a chave do tenant do contexto — o de outro tenant não existe — e é amarrado à pesquisa e ao usuário: token de outra pesquisa → 404 sem alterar cotações; aplicação atômica com RLS de quotations/price_sources, um único PriceResearchRecalculated PENDING e a auditoria price_research.import na mesma transação, falha induzida não deixa nada) é coberto em test/tenant-leak/quotation-import.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/quotation-import.routes.spec.ts.';
 
+const PRICE_COMPLETION_ROUTE =
+  'Conclusão da pesquisa de preços (US-032): a suíte genérica não tem pesquisa do tenant B nem itens com preço para concluir. O isolamento (PRS-23 com pesquisa de B → 404 PRICE_RESEARCH_NOT_FOUND sem finalizar documento, sem tocar process_items/processes de B e sem auditoria nem evento; RLS de price_research, documents, document_versions, process_items e processes; atomicidade com falha induzida depois da finalização do documento; DocumentVersionCreated/DocumentFinalized PENDING no outbox) é coberto em test/tenant-leak/price-completion.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/price-completion.routes.spec.ts.';
+
 const COMPARATIVE_MAP_ROUTE =
   'Mapa comparativo (US-031): a suíte genérica não tem pesquisa, fonte nem cotação do tenant B e o PRS-22 devolve um arquivo .xlsx. O isolamento (PRS-21/22 com pesquisa de B → 404 PRICE_RESEARCH_NOT_FOUND sem revelar itens, fontes ou preços e sem auditoria; leitura numa única transação sob RLS de price_items/price_sources/quotations; price_research.export (EXPORT) gravada só na exportação concluída; teto 500 × 50 nos dois lados; POL-09 no mapa e no XLSX) é coberto em test/tenant-leak/comparative-map.spec.ts, com PostgreSQL real, e em src/modules/price-research/presentation/comparative-map.routes.spec.ts (inclusive o PDF mascarado pelo DOC-20).';
 
@@ -499,6 +502,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRS-20': { kind: 'exempt', reason: PRICE_CALCULATION_ROUTE },
   'PRS-21': { kind: 'exempt', reason: COMPARATIVE_MAP_ROUTE },
   'PRS-22': { kind: 'exempt', reason: COMPARATIVE_MAP_ROUTE },
+  'PRS-23': { kind: 'exempt', reason: PRICE_COMPLETION_ROUTE },
   'PRS-24': { kind: 'exempt', reason: QUOTATION_IMPORT_ROUTE },
   'AI-01': { kind: 'exempt', reason: AI_GENERATION_ROUTE },
   'AI-02': { kind: 'exempt', reason: AI_GENERATION_ROUTE },

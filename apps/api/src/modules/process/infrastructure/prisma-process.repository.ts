@@ -827,6 +827,30 @@ export class PrismaProcessRepository implements ProcessRepository {
     return row.version;
   }
 
+  async recordDerivedEstimatedValue(
+    tx: TenantTx,
+    processId: string,
+    value: {
+      readonly estimatedValue: string;
+      readonly source: EstimatedValueSource;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number> {
+    const rows = await tx.$queryRaw<{ version: number }[]>`
+      UPDATE processes
+         SET estimated_value = ${value.estimatedValue}::numeric,
+             estimated_value_source = ${value.source}::estimated_value_source,
+             version = version + 1, updated_at = ${value.at}, updated_by_id = ${value.userId}::uuid
+       WHERE tenant_id = current_setting('app.tenant_id')::uuid
+         AND id = ${processId}::uuid
+         AND deleted_at IS NULL
+      RETURNING version`;
+    const [row] = rows;
+    if (!row) throw new Error('Processo travado não encontrado ao gravar o valor estimado.');
+    return row.version;
+  }
+
   async syncRequestingAccess(tx: TenantTx, processId: string, at: Date): Promise<void> {
     const process = await tx.process.findFirst({
       where: { id: processId },

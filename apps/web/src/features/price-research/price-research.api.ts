@@ -18,7 +18,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 /*
- * Pesquisa de preços (US-024 · US-029 · SCR-009): PRS-01..08 e PRS-20 de api/07-price-research.md. O id da pesquisa é
+ * Pesquisa de preços (US-024 · US-029 · US-032 · SCR-009): PRS-01..08, PRS-20 e PRS-23 de api/07-price-research.md. O id da pesquisa é
  * o do documento. Chaves `['t', tenantId, 'price-research', id]` (cabeçalho) e
  * `['t', tenantId, 'price-research', id, 'items']` (sob a do cabeçalho: invalidar a pesquisa renova
  * os itens) e `['t', tenantId, 'processes', processId, 'price-research']` (PRS-01, sob a do processo).
@@ -240,4 +240,33 @@ export async function recalculatePriceResearch(
     { method: 'POST', body: {} },
   );
   return result.data;
+}
+
+/**
+ * PRS-23 (US-032): concluir a pesquisa — `If-Match` = versão da pesquisa e a MESMA
+ * `Idempotency-Key` em cada reenvio da mesma confirmação. `IDEMPOTENCY_IN_PROGRESS` repete a
+ * chamada após 2 s, até 3 vezes ("Estamos concluindo a pesquisa. Aguarde.").
+ */
+export async function completePriceResearch(
+  researchId: string,
+  version: number,
+  idempotencyKey: string,
+): Promise<PriceResearchResult> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return toResult(
+        await apiRequest<PriceResearchDto>(`/price-research/${researchId}/complete`, {
+          method: 'POST',
+          body: {},
+          ifMatch: ifMatchOf(version),
+          idempotencyKey,
+        }),
+      );
+    } catch (error) {
+      if (attempt >= 3 || !isApiError(error) || error.code !== 'IDEMPOTENCY_IN_PROGRESS') {
+        throw error;
+      }
+      await sleep((error.retryAfterSeconds ?? 2) * 1000);
+    }
+  }
 }

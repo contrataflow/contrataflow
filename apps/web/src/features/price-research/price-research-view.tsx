@@ -28,6 +28,13 @@ import { useShellSession } from '@/lib/session/session-context';
 
 import { comparativeMapHref } from './comparative-map.api';
 import { ParametersPanel } from './parameters-panel';
+import {
+  CompleteResearchButton,
+  CompletedBadge,
+  IncompleteItemsList,
+  justificationFieldId,
+} from './price-completion';
+import type { PendingItem } from './price-completion-model';
 import { PriceItemCalculation, RecalculateButton } from './price-item-calculation';
 import { PriceItemsTable } from './price-items-table';
 import { addItemsPayload, missingProcessItems } from './price-research-model';
@@ -60,7 +67,8 @@ type Tab = (typeof TABS)[number];
  * com a data-base editável, painel "Parâmetros" (snapshot) e as abas Itens, Fontes e Documento.
  * As ações vêm de `meta.allowedActions` (a UI nunca recalcula a regra); sem elas, a tela é somente
  * leitura com o motivo em `meta.lockReason`. A aba Fontes (fontes, grade de preços e anexos) é da
- * US-026.
+ * US-026. "Concluir pesquisa" (US-032) aparece com `COMPLETE`; a pesquisa concluída ganha o selo
+ * "Concluída" e fica somente leitura.
  */
 export function PriceResearchView({
   processId,
@@ -151,10 +159,13 @@ function LoadedView({
   });
   const [notice, setNotice] = useState<Notice | null>(null);
   const [removing, setRemoving] = useState<PriceItemDto | null>(null);
+  const [pending, setPending] = useState<readonly PendingItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const canUpdate = meta.allowedActions.includes('UPDATE');
   const canAdd = meta.allowedActions.includes('ADD_ITEMS');
   const canRemove = meta.allowedActions.includes('REMOVE_ITEMS');
+  const canComplete = meta.allowedActions.includes('COMPLETE');
   // `EXCLUDE_QUOTATION` (US-027) é independente da edição: sem as ações de edição a tela segue em
   // leitura e `lockReason` explica o porquê.
   const readOnly = !canUpdate && !canAdd && !canRemove;
@@ -201,6 +212,18 @@ function LoadedView({
   const [tab, setTab] = useState<Tab>('items');
   const tabsId = useId();
 
+  /** Link da lista de pendências: abre o item e leva o foco à justificativa (ou ao cálculo). */
+  const openPendingItem = (item: PendingItem) => {
+    setTab('items');
+    setSelectedId(item.itemId);
+    setTimeout(() => {
+      (
+        document.getElementById(justificationFieldId(item.itemId)) ??
+        document.getElementById(`pr-calc-${item.itemId}`)
+      )?.focus();
+    }, 0);
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -211,6 +234,9 @@ function LoadedView({
           <h1 className="text-2xl font-semibold">{research.code ?? t('title')}</h1>
           <DocumentStatusBadge status={research.status} />
           {research.pendingApprovalId === null ? null : <PendingApprovalBadge />}
+          {research.completedAt === null ? null : (
+            <CompletedBadge completedAt={research.completedAt} timeZone={timeZone} />
+          )}
           {research.confidentiality === 'RESTRICTED' ? (
             <span className="inline-flex items-center rounded-control border border-border px-2 py-0.5 text-xs font-medium">
               {t('confidential')}
@@ -218,7 +244,7 @@ function LoadedView({
           ) : null}
         </div>
         <p className="text-base">{research.title}</p>
-        <div>
+        <div className="flex flex-wrap gap-2">
           {/* SCR-010 (US-031): leitura e exportação para quem vê a pesquisa (PROCESS_VIEW). */}
           <Link
             href={comparativeMapHref(processId, research.id)}
@@ -226,6 +252,32 @@ function LoadedView({
           >
             {t('openMap')}
           </Link>
+          {canComplete && items !== undefined ? (
+            <CompleteResearchButton
+              research={research}
+              version={result.version}
+              items={items}
+              onCompleted={async (completed) => {
+                setPending([]);
+                setNotice(null);
+                queryClient.setQueryData(
+                  priceResearchKeys.detail(tenantId, research.id),
+                  completed,
+                );
+                await refresh();
+              }}
+              onIncomplete={(found) => {
+                setNotice(null);
+                setPending(found);
+                void refresh();
+              }}
+              onRejected={(rejected) => {
+                setPending([]);
+                setNotice(rejected);
+                void refresh();
+              }}
+            />
+          ) : null}
         </div>
         {process.data === undefined ? null : (
           <p className="text-sm text-muted-foreground">
@@ -242,6 +294,9 @@ function LoadedView({
         </Alert>
       ) : null}
       {notice === null ? null : <Alert tone={notice.tone} title={notice.text} />}
+      {pending.length === 0 || research.completedAt !== null ? null : (
+        <IncompleteItemsList pending={pending} onOpenItem={openPendingItem} />
+      )}
       <Summary research={research} />
       <ReferenceDateEditor
         research={research}
@@ -271,6 +326,8 @@ function LoadedView({
                 canUpdate={canUpdate}
                 canRemove={canRemove}
                 removing={remove.isPending}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
                 onRetry={onRetryItems}
                 onRemove={setRemoving}
                 onNotice={setNotice}
@@ -545,6 +602,8 @@ function ItemsPanel({
   canUpdate,
   canRemove,
   removing,
+  selectedId,
+  onSelect,
   onRetry,
   onRemove,
   onNotice,
@@ -559,6 +618,9 @@ function ItemsPanel({
   readonly canUpdate: boolean;
   readonly canRemove: boolean;
   readonly removing: boolean;
+  /** Item aberto no painel de cálculo (a lista de pendências da US-032 também o escolhe). */
+  readonly selectedId: string | null;
+  readonly onSelect: (itemId: string | null) => void;
   readonly onRetry: () => void;
   readonly onRemove: (item: PriceItemDto) => void;
   readonly onNotice: (notice: Notice | null) => void;
@@ -566,7 +628,6 @@ function ItemsPanel({
   readonly refresh: () => Promise<void>;
 }) {
   const t = useTranslations('priceResearch.items');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = items?.find((item) => item.id === selectedId) ?? null;
   if (items === undefined) {
     if (status === 'pending') {
@@ -620,13 +681,14 @@ function ItemsPanel({
             onRemove={onRemove}
             selectedId={selectedId}
             onSelect={(item) => {
-              setSelectedId((current) => (current === item.id ? null : item.id));
+              onSelect(selectedId === item.id ? null : item.id);
             }}
           />
           {selected === null ? null : (
             <PriceItemCalculation
               item={selected}
               unitPriceDecimals={research.parameters.unitPriceDecimals}
+              minQuotations={research.parameters.minQuotations}
               canUpdate={canUpdate}
               onSaved={refresh}
               onWriteError={onWriteError}

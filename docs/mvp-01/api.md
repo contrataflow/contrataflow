@@ -176,7 +176,7 @@ Formato único para regras de workflow (`TRANSITION_BLOCKED`, `WARNINGS_NOT_ACKN
 | `APPROVER_UNRESOLVED` | 422 | Ex.: unidade sem titular; perfil sem detentores no escopo |
 | `RECOMMENDED_ALTERNATIVE_EXISTS` | 409 | Já existe alternativa recomendada (use `replaceRecommended: true`) |
 | `QUOTATION_REQUIRED_FIELDS` | 422 | Campos exigidos pelo tipo de fonte ausentes |
-| `PRICE_RESEARCH_NOT_FOUND` | 404 | Mapa comparativo (`PRS-21`/`PRS-22`) de pesquisa inexistente, de outro tenant ou não visível (US-031) |
+| `PRICE_RESEARCH_NOT_FOUND` | 404 | Mapa comparativo (`PRS-21`/`PRS-22`) e conclusão (`PRS-23`) de pesquisa inexistente, de outro tenant ou não visível (US-031/US-032) |
 | `PRICE_RESEARCH_INCOMPLETE` | 422 | Conclusão com itens sem preço/justificativa (`violations[]`) |
 | `SUPPLIER_ALREADY_EXISTS` | 409 | Mesmo CNPJ/CPF no tenant |
 | `SUPPLIER_IN_USE` | 409 | Exclusão de fornecedor referenciado por fonte de preço não excluída (oferecer "Inativar") |

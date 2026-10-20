@@ -300,6 +300,7 @@ export class PrismaPriceResearchRepository implements PriceResearchRepository {
             methodOverride: item.methodOverride,
             manualUnitPrice: item.manualUnitPrice,
             manualJustification: item.manualJustification,
+            belowMinimumJustification: item.belowMinimumJustification,
             version: { increment: 1 },
           },
         }),
@@ -502,6 +503,7 @@ export class InMemoryPriceResearchRepository implements PriceResearchRepository 
       methodOverride: item.methodOverride,
       manualUnitPrice: item.manualUnitPrice,
       manualJustification: item.manualJustification,
+      belowMinimumJustification: item.belowMinimumJustification,
       version: expectedVersion + 1,
     });
     return Promise.resolve();

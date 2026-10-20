@@ -1,5 +1,7 @@
 import {
   addPriceItemsSchema,
+  completedPriceResearchSchema,
+  completePriceResearchSchema,
   createPriceResearchSchema,
   dataEnvelope,
   pageMetaSchema,
@@ -18,6 +20,7 @@ import {
 } from '@contrataflow/validation';
 import type {
   AddPriceItems,
+  CompletedPriceResearchDto,
   CreatePriceResearch,
   PriceItemDto,
   PriceItemListQuery,
@@ -42,6 +45,7 @@ import { ApiOperation } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
+import { CompletePriceResearchCommand } from '../application/price-research-completion.command.js';
 import {
   AddPriceItemsCommand,
   CreatePriceResearchCommand,
@@ -67,6 +71,9 @@ const WRITE_ACCESS =
 const WRITE_RULES =
   '`PRICE_RESEARCH_UPDATE` cobrindo o processo (403 `PERMISSION_DENIED`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo permitido na etapa (422 `DOCUMENT_TYPE_NOT_ALLOWED_IN_STAGE`) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE`) + POL-09 em processo sigiloso (403 `PERMISSION_DENIED`, `reasonCode = POL-09`).';
 
+const COMPLETE_ACCESS =
+  'PRICE_RESEARCH_COMPLETE cobrindo o processo — por perfil ou por participação COLLABORATOR/CONSULTANT — com a POL-02 estendida e POL-09 em processo sigiloso, conferidas no caso de uso; sem permissão = 403 PERMISSION_DENIED com access.denied.';
+
 const RESEARCH_RESPONSE = z.object({ data: priceResearchSchema, meta: priceResearchMetaSchema });
 
 function noStore(response: HttpResponse): void {
@@ -91,6 +98,7 @@ export class PriceResearchController {
     private readonly removeItem: RemovePriceItemCommand,
     private readonly updateItem: UpdatePriceItemCommand,
     private readonly recalculate: RecalculatePriceResearchCommand,
+    private readonly complete: CompletePriceResearchCommand,
   ) {}
 
   @Get('processes/:id/price-research')
@@ -311,6 +319,42 @@ export class PriceResearchController {
     const result = await this.recalculate.execute({ researchId: params.id });
     response.setHeader('ETag', `"${String(result.version)}"`);
     return result.dto;
+  }
+
+  @Post('price-research/:id/complete')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @ImplicitAccess(COMPLETE_ACCESS)
+  @Policy('POL-02')
+  @ApiOperation({
+    operationId: 'PRS-23',
+    summary: 'Concluir pesquisa de preços',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['document.finalize', 'document.version_create', 'price_research.complete'],
+    responses: {
+      200: {
+        description:
+          'Concluir = finalizar o documento `PRICE_RESEARCH` (DEC-018), numa transação (RN-PRICE-60..62): `PRICE_RESEARCH_COMPLETE` cobrindo o processo (403 `PERMISSION_DENIED` com `access.denied`, `reasonCode = PRICE_RESEARCH_COMPLETE`) + custódia ou participação `COLLABORATOR`/`CONSULTANT` (403) + processo em `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) + tipo na etapa (422) + documento em `DRAFT`/`RETURNED` (409 `DOCUMENT_NOT_EDITABLE` — já concluída) + POL-09 em processo sigiloso (403). `If-Match: "<version da pesquisa>"` obrigatório (428 sem ele; 412 `VERSION_CONFLICT` com `currentVersion` — qualquer gravação de cotação/item sobe a versão). Completude de cada item (RN-PRICE-58): `recommendedUnitPrice` definido (calculado ou manual) com ao menos uma cotação válida e, abaixo de `minQuotations`, `belowMinimumJustification` preenchida — senão 422 `PRICE_RESEARCH_INCOMPLETE` com um `violations[]` por item pendente (`code` `PRICE_ITEM_WITHOUT_PRICE`/`PRICE_ITEM_BELOW_MINIMUM_UNJUSTIFIED`, `itemId`, `params.sequence`, `severity = BLOCKING`) e nada muda. Seções obrigatórias do documento vazias → 422 `DOCUMENT_INCOMPLETE`. Alertas (`HIGH_CV`, `HAS_OUTLIERS`, `EXPIRED_QUOTES`) não bloqueiam. Efeitos: documento `FINALIZED` com a versão `FINALIZATION` (snapshot com o mapa e as justificativas de cada item, `contentHash`), `completedAt`/`completedById`, `ProcessItem.referenceUnitPrice` + origem = a pesquisa (RN-PRICE-61), `Process.estimatedValue` = soma dos `totalPrice` com `estimatedValueSource = PRICE_RESEARCH` (salvo TR aprovado — DEC-032; RN-PRICE-62); `document.finalize`, `document.version_create`, `price_research.complete` (valor anterior/novo — hash + mascarado se sigiloso); `DocumentVersionCreated` e `DocumentFinalized` (`document.finalized.price_research` — `PriceResearchCompleted`, `typedSummary: { totalEstimatedValueMasked, itemsCount, itemsWithAlertsCount }`) no outbox; o ETP vinculado é sincronizado pelo worker (RN-ETP-29). `Idempotency-Key` obrigatório: reenvio = a mesma resposta com `Idempotent-Replayed: true`. Inexistente, de outro tenant ou não visível = 404 `PRICE_RESEARCH_NOT_FOUND`; banco indisponível = 503 `DEPENDENCY_UNAVAILABLE` sem alterar nada.',
+        schema: z.object({ data: completedPriceResearchSchema, meta: priceResearchMetaSchema }),
+      },
+    },
+  })
+  async completeResearch(
+    @ZodParams(priceResearchIdParamsSchema) params: { id: string },
+    @ZodBody(completePriceResearchSchema) _body: Record<string, never>,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<CompletedPriceResearchDto, PriceResearchMeta>> {
+    const result = await this.complete.execute({
+      researchId: params.id,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${String(result.dto.version)}"`);
+    return new DataResult(result.dto, result.meta);
   }
 
   @Delete('price-items/:itemId')

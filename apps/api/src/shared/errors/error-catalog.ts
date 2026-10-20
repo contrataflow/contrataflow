@@ -523,6 +523,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Pesquisa não encontrada',
     detail: 'Pesquisa não encontrada.',
   },
+  // US-032: conclusão da pesquisa com pendências de completude (api/07 PRS-23 · RN-PRICE-59).
+  PRICE_RESEARCH_INCOMPLETE: {
+    status: 422,
+    title: 'Pesquisa incompleta',
+    detail: 'Há itens pendentes. Revise antes de concluir a pesquisa.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,

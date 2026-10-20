@@ -123,6 +123,15 @@ export interface TypedSnapshotParts {
   readonly collections: Readonly<Record<string, readonly unknown[]>>;
 }
 
+/** O que o módulo tipado recebe ao ser finalizado o seu documento (DOC-10 · PRS-23). */
+export interface DocumentFinalizedFacts {
+  /** A versão `FINALIZATION` criada na mesma transação. */
+  readonly documentVersionId: string;
+  readonly actorId: string;
+  readonly now: Date;
+  readonly idempotencyKey: string | null;
+}
+
 /**
  * Porta de extensão dos módulos tipados (DFD, ETP, TR, mapa de riscos, pesquisa de preços — fora do
  * EP-011): declarada aqui, implementada pelo módulo dono e registrada no `onModuleInit` dele com
@@ -147,6 +156,17 @@ export interface DocumentValidator {
   ): Promise<Readonly<Record<string, unknown>> | null>;
   /** Cabeçalho (`Dfd`, `Etp`…) e coleções (`items`, `risks`…) congelados na versão. */
   snapshotParts?(tx: TenantTx, subject: DocumentValidationSubject): Promise<TypedSnapshotParts>;
+  /**
+   * Efeitos do módulo tipado na finalização (US-032), no MESMO `tx`, depois da versão, da
+   * auditoria `document.finalize` e do `DocumentFinalized` — ex.: a pesquisa de preços concluída
+   * grava o preço de referência dos itens e o valor estimado do processo (RN-PRICE-61/62). Falha
+   * aqui desfaz a finalização inteira. `subject.document` é o documento já `FINALIZED`.
+   */
+  finalized?(
+    tx: TenantTx,
+    subject: DocumentValidationSubject,
+    facts: DocumentFinalizedFacts,
+  ): Promise<void>;
 }
 
 /** Registro único: no máximo um validador por `SystemDocumentModule`. */

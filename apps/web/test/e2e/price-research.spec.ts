@@ -19,6 +19,8 @@ const EXISTING_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100025';
 const EMPTY_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100026';
 /** Processo 0029/2026: pesquisa "PP 0005/2026" com a fonte "Painel de Preços" (US-028). */
 const IMPORT_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100029';
+/** Processo 0046/2026: pesquisa "PP 0006/2026" já calculada, com o item 3 abaixo do mínimo (US-032). */
+const COMPLETE_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100046';
 const RESEARCH_PATH = /\/processos\/[0-9a-f-]{36}\/pesquisa-precos\/[0-9a-f-]{36}$/;
 
 async function openProcess(page: Page, path: string, title: string): Promise<void> {
@@ -366,4 +368,49 @@ test('mapa comparativo (US-031): abrir a SCR-010, exportar o XLSX e gerar o PDF 
   await page.setViewportSize({ width: 360, height: 780 });
   await expect(grid).toBeVisible();
   expect(await hasHorizontalOverflow(page)).toBe(false);
+});
+
+// US-032 — concluir a pesquisa: a primeira tentativa volta com a pendência do item 3 (abaixo do
+// mínimo sem justificativa), o link leva ao campo de justificativa, a justificativa é salva e a
+// segunda tentativa conclui (selo "Concluída", toast com o valor e a tela somente leitura).
+test('concluir pesquisa (US-032): pendência com link, justificar o item e concluir', async ({
+  page,
+}) => {
+  await openProcess(
+    page,
+    COMPLETE_PROCESS_PATH,
+    'Aquisição de materiais elétricos para as escolas',
+  );
+  await page.getByRole('link', { name: 'Abrir pesquisa PP 0006/2026' }).click();
+  await expect(page).toHaveURL(RESEARCH_PATH);
+
+  await page.getByRole('button', { name: 'Concluir pesquisa' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Concluir pesquisa de preços' });
+  await expect(
+    dialog.getByText('Esta pesquisa será concluída com 1 item com alerta.'),
+  ).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'diálogo de conclusão da pesquisa');
+  await dialog.getByRole('button', { name: 'Concluir pesquisa' }).click();
+
+  const pending = page.getByRole('heading', {
+    name: 'Não foi possível concluir: há itens pendentes',
+  });
+  await expect(pending).toBeFocused();
+  await page.getByRole('button', { name: 'Ir para o item 3' }).click();
+  const justification = page.getByLabel('Justificativa de cotações insuficientes');
+  await expect(justification).toBeFocused();
+  await justification.fill('Mercado restrito na região para este material.');
+  await page.getByRole('button', { name: 'Salvar justificativa' }).click();
+  await expect(page.getByText('Justificativa do item 3 salva').first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Concluir pesquisa' }).click();
+  await dialog.getByRole('button', { name: 'Concluir pesquisa' }).click();
+  await expect(
+    page
+      .getByText('Pesquisa de preços concluída — valor estimado atualizado para R$ 900,00')
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByText('Concluída', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Concluir pesquisa' })).toHaveCount(0);
+  await expect(page.getByText('A pesquisa está concluída. Reabra-a para alterar.')).toBeVisible();
 });

@@ -208,6 +208,7 @@ PriceItem {
   methodOverride?: string | null; // MEAN|MEDIAN|LOWEST|MANUAL; vazio = segue padrão da pesquisa
   manualUnitPrice?: string;       // >0; condicional MANUAL; casas ≤ unitPriceDecimals
   manualJustification?: string;   // ≥20; condicional MANUAL (RN-PRICE-43)
+  belowMinimumJustification?: string | null; // US-032 (RN-PRICE-58): 20–4000; null/vazio apaga
 }
 ```
 - **Response:** `200 { data: PriceItem }` com estatísticas recalculadas
@@ -218,10 +219,10 @@ PriceItem {
 | 403 | `PERMISSION_DENIED` | Sem permissão |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Pesquisa não editável |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
-| 422 | `VALIDATION_ERROR` | `MANUAL` sem valor/justificativa (`CONDITIONAL_REQUIRED`); valor inválido (`INVALID_DECIMAL`); `methodOverride` fora do enum (`INVALID_ENUM`); campo calculado enviado (`NOT_ALLOWED`); `quantity` ≤0 (`OUT_OF_RANGE`) |
+| 422 | `VALIDATION_ERROR` | `MANUAL` sem valor/justificativa (`CONDITIONAL_REQUIRED`); valor inválido (`INVALID_DECIMAL`); `methodOverride` fora do enum (`INVALID_ENUM`); campo calculado enviado (`NOT_ALLOWED`); `quantity` ≤0 (`OUT_OF_RANGE`); `belowMinimumJustification` com menos de 20 caracteres (`TOO_SHORT`) |
 
 - **Efeitos:** Eventos: `PriceResearchRecalculated` (`price_research.recalculated`) no commit. Auditoria: `price_research.method_change` (`DATA_CHANGE`) quando `methodOverride` muda — `changes`: método anterior/novo; `metadata.priceItemId`.
-- **Notas:** estatísticas (`validQuotationsCount`, `meanPrice` etc.) e `effectiveMethod`/`recommendedUnitPrice`/`totalPrice` são somente leitura. Edição de `manualUnitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12.
+- **Notas:** estatísticas (`validQuotationsCount`, `meanPrice` etc.) e `effectiveMethod`/`recommendedUnitPrice`/`totalPrice` são somente leitura. Edição de `manualUnitPrice` em pesquisa sigilosa sujeita a POL-09/RN-PRICE-12. `belowMinimumJustification` (US-032) é a justificativa de cotações insuficientes exigida pela conclusão quando `0 < validQuotationsCount < minQuotations` (RN-PRICE-58): gravada sem os espaços das pontas, não recalcula preços e nunca vai para a auditoria nem para eventos.
 - **Implementação (US-029):** `If-Match` = `version` do item (412 `VERSION_CONFLICT` com `currentVersion`; 428 sem ele); `ETag` da resposta = versão nova do item. `methodOverride: null` volta ao método padrão e apaga `manualUnitPrice`/`manualJustification` (qualquer método diferente de `MANUAL` também os apaga). Com `MANUAL`, valor e justificativa ausentes no corpo vêm do item; faltando algum (ou justificativa < 20 sem os espaços das pontas) → `CONDITIONAL_REQUIRED` no campo; valor ≤ 0 ou com mais casas que `unitPriceDecimals` → `INVALID_DECIMAL` ("Informe um valor válido, com até {N} casas decimais."). `quantity` segue a regra do PRS-02/06 (> 0 → `OUT_OF_RANGE` "Informe uma quantidade maior que zero."; até 4 casas; inteira se a unidade não admite decimais). Campos calculados no corpo → `NOT_ALLOWED`. Reenvio sem mudança real responde 200 com o item atual, sem gravar, auditar nem emitir evento. Item inexistente, de outro tenant ou de processo não visível → 404 `NOT_FOUND` (o "`PRICE_ITEM_NOT_FOUND`" do Gherkin da story é este 404 — `detail` "Item da pesquisa não encontrado."). O item é gravado já recalculado e, na mesma transação, a pesquisa inteira é recalculada (`price_research.recalculate` com `trigger = ITEM_UPDATE` + `PriceResearchRecalculated`).
 
 ### PRS-08 — Remover item da pesquisa
@@ -569,14 +570,18 @@ QuotationImportIssue { severity: "ERROR" | "WARNING"; code: "REFERENCE_NOT_FOUND
 | HTTP | `code` | Quando |
 |---|---|---|
 | 403 | `PERMISSION_DENIED` | Sem permissão |
-| 404 | `NOT_FOUND` | Pesquisa inexistente/outro tenant |
+| 404 | `PRICE_RESEARCH_NOT_FOUND` | Pesquisa inexistente/outro tenant/não visível |
 | 409 | `DOCUMENT_NOT_EDITABLE` | Já concluída/não editável |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | Requisição idêntica em processamento |
+| 422 | `DOCUMENT_INCOMPLETE` | Seções obrigatórias do documento vazias (completude genérica do DOC-10) |
+| 428 | `PRECONDITION_REQUIRED` | `If-Match` ausente |
+| 503 | `DEPENDENCY_UNAVAILABLE` | Banco indisponível (nada é alterado) |
 | 412 | `VERSION_CONFLICT` | `If-Match` divergente |
 | 422 | `PRICE_RESEARCH_INCOMPLETE` | Item sem `recommendedUnitPrice` (`violations[].code = PRICE_ITEM_WITHOUT_PRICE`) ou abaixo do mínimo sem justificativa (`PRICE_ITEM_BELOW_MINIMUM_UNJUSTIFIED`) |
 
 - **Efeitos:** Eventos: `PriceResearchCompleted` (`DocumentFinalized`) (`document.finalized.price_research`) — forma tipada; `typedSummary: { totalEstimatedValueMasked, itemsCount, itemsWithAlertsCount }`; `DocumentVersionCreated` (`document.version_created.price_research`) — `reason = FINALIZATION`, `contentHash`. Auditoria: `price_research.complete` (`DATA_CHANGE`) — `changes`: `estimatedValue` anterior/novo (hash + mascarado se sigiloso); `metadata`: `documentVersionId`, `itemsCount`, `itemsWithAlertsCount`, `idempotencyKey`.
 - **Notas:** propaga `Process.estimatedValue`/`estimatedValueSource` e `ProcessItem.referenceUnitPrice` (RN-PRICE-61/62).
+- **Implementação (US-032):** `If-Match` = `version` da pesquisa (o `ETag` do PRS-03 — toda gravação de item/cotação a sobe); o perdedor de duas conclusões simultâneas recebe 412. A conclusão é a MESMA finalização do DOC-10 (`DocumentFacade.finalizeIn`): POL-02 com `PRICE_RESEARCH_COMPLETE`, completude genérica (avisos reconhecidos pela confirmação na tela), versão `FINALIZATION` com o mapa comparativo e os campos de exceção de cada item (`methodOverride`, `manualUnitPrice`, `manualJustification`, `belowMinimumJustification`), `document.finalize`, `document.version_create`; o gancho `finalized` do `DocumentValidator` da pesquisa grava `completedAt`/`completedById`, o preço de referência dos itens (`manualUnitPrice` com `MANUAL`) e o valor estimado do processo na mesma transação — salvo `estimatedValueSource = TERM` (DEC-032), quando só os itens mudam e a auditoria registra `estimatedValueApplied: false`. Finalizar a pesquisa pelo DOC-10 dá no mesmo (as regras RN-PRICE-58 também entram no DOC-08/10, como `DOCUMENT_INCOMPLETE`). `violations[]` traz `params.sequence` (nº do item no processo) e `field = belowMinimumJustification` no código `PRICE_ITEM_BELOW_MINIMUM_UNJUSTIFIED`. Resposta: o `PriceResearch` + `document: { status, currentVersionId }` e o `meta` (sem ações de edição, `lockReason = DOCUMENT_NOT_EDITABLE`). `meta.allowedActions` do PRS-03/04 ganha `COMPLETE` (permissão + travas da POL-02).
 
 ### PRS-24 — Obter modelo de planilha para importação
 `GET /api/v1/price-research/{id}/import-template` · **Permissão:** `PRICE_RESEARCH_UPDATE` + POL-02 · **Story:** US-028

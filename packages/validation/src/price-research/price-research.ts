@@ -44,6 +44,8 @@ export const PRICE_RESEARCH_ACTIONS = [
   'REMOVE_ITEMS',
   // US-027: `PRICE_RESEARCH_EXCLUDE_QUOTATION` cobrindo o processo + as mesmas travas de edição.
   'EXCLUDE_QUOTATION',
+  // US-032: `PRICE_RESEARCH_COMPLETE` cobrindo o processo + as mesmas travas de edição (PRS-23).
+  'COMPLETE',
 ] as const;
 export type PriceResearchAction = (typeof PRICE_RESEARCH_ACTIONS)[number];
 
@@ -368,7 +370,7 @@ export const PRICE_ITEM_CALCULATED_FIELDS = [
 
 /**
  * PRS-07 — `PATCH /price-items/{itemId}` (`If-Match` = versão do item): quantidade e método do item
- * (US-029). `methodOverride: null` volta ao método padrão da pesquisa (FA-02); as regras do valor
+ * (US-029) e a justificativa de cotações abaixo do mínimo (US-032). `methodOverride: null` volta ao método padrão da pesquisa (FA-02); as regras do valor
  * manual (V-01/V-02) e da quantidade (unidade inteira) são conferidas no caso de uso.
  */
 export const updatePriceItemSchema = z
@@ -380,6 +382,8 @@ export const updatePriceItemSchema = z
       .optional(),
     manualUnitPrice: z.string().max(40).nullable().optional(),
     manualJustification: z.string().max(4000).nullable().optional(),
+    // US-032 (RN-PRICE-58): justificativa de cotações abaixo do mínimo; `null`/vazio apaga.
+    belowMinimumJustification: z.string().max(4000).nullable().optional(),
     ...Object.fromEntries(
       PRICE_ITEM_CALCULATED_FIELDS.map((field) => [field, z.unknown().optional()]),
     ),
@@ -402,6 +406,7 @@ export interface UpdatePriceItem {
   readonly methodOverride?: PriceCalculationMethod | null | undefined;
   readonly manualUnitPrice?: string | null | undefined;
   readonly manualJustification?: string | null | undefined;
+  readonly belowMinimumJustification?: string | null | undefined;
 }
 
 /** PRS-20 — `POST /price-research/{id}/recalculate` (corpo `{}`). */

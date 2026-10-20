@@ -541,6 +541,8 @@ describe('Feature: Desconsiderar e restaurar cotação com justificativa (US-027
         'ADD_ITEMS',
         'REMOVE_ITEMS',
         'EXCLUDE_QUOTATION',
+        // US-032: o perfil de planejamento também conclui a pesquisa.
+        'COMPLETE',
       ]);
       expect(await meta(EVA)).toEqual([]);
     });

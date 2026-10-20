@@ -9,9 +9,15 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import { PROCESS_CLOCK, PROCESS_PARTICIPANT_REPOSITORY, PROCESS_REPOSITORY } from './ports.js';
+import {
+  PROCESS_CLOCK,
+  PROCESS_ITEM_REPOSITORY,
+  PROCESS_PARTICIPANT_REPOSITORY,
+  PROCESS_REPOSITORY,
+} from './ports.js';
 import type {
   ProcessClock,
+  ProcessItemRepository,
   ProcessParticipantReference,
   ProcessParticipantRepository,
   ProcessRepository,
@@ -27,6 +33,7 @@ import { accessGrantsOf } from './process-runtime.loader.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
+import { acceptsDerivedEstimatedValue } from '../domain/derived-estimated-value.js';
 import { canViewConfidentialBudget } from '../domain/process-list.js';
 
 const HISTORICAL_SETTING = 'access.historicalDepartmentsCanView';
@@ -71,6 +78,33 @@ export interface ProcessAiContext {
   readonly isBudgetConfidential: boolean;
 }
 
+/** Valores de referência de uma pesquisa de preços concluída (US-032 · RN-PRICE-61/62). */
+export interface PriceResearchReferenceInput {
+  readonly processId: string;
+  /** Documento da pesquisa (`referenceUnitPriceSourceDocumentId`). */
+  readonly sourceDocumentId: string;
+  /** Preço unitário de referência (Decimal(18,4) como string) por item do processo. */
+  readonly unitPrices: readonly { readonly processItemId: string; readonly unitPrice: string }[];
+  /** Soma dos `totalPrice` (Decimal(18,2) como string). */
+  readonly estimatedValue: string;
+  readonly at: Date;
+  readonly userId: string;
+}
+
+export interface PriceResearchReferenceResult {
+  readonly previousEstimatedValue: string | null;
+  readonly previousSource: EstimatedValueSource | null;
+  /** Valor e origem gravados (iguais aos anteriores quando a origem atual tem precedência). */
+  readonly estimatedValue: string | null;
+  readonly estimatedValueSource: EstimatedValueSource | null;
+  /** `false` = o processo manteve o valor de fonte de maior precedência (TR — DEC-032). */
+  readonly estimatedValueApplied: boolean;
+  readonly isBudgetConfidential: boolean;
+  readonly itemsUpdated: number;
+  /** Nova versão do processo (o `If-Match` da edição aberta vira 412). */
+  readonly processVersion: number;
+}
+
 /** A passagem ativa como o DTO `deadline` a lê (US-056: linhas da caixa de tarefas). */
 export interface StageDeadlineFacts {
   readonly dueAt: Date | null;
@@ -98,7 +132,55 @@ export class ProcessFacade {
     @Inject(PROCESS_CLOCK) private readonly clock: ProcessClock,
     private readonly dfdDuplication: ProcessDfdDuplication,
     private readonly listPresenter: ProcessListPresenter,
+    @Inject(PROCESS_ITEM_REPOSITORY) private readonly items: ProcessItemRepository,
   ) {}
+
+  /**
+   * Conclusão da pesquisa de preços (US-032 · DEC-019/DEC-032 · RN-PRICE-61/62), no `tx` do
+   * chamador, que já autorizou a conclusão: trava o processo, grava `referenceUnitPrice` e a origem
+   * de cada item e o valor estimado com `estimatedValueSource = PRICE_RESEARCH` — salvo origem de
+   * maior precedência (TR), que fica como está. A versão do processo sobe nos dois casos (os itens
+   * são do agregado — RN-PROC-81). Processo inexistente no tenant = erro interno (o documento existe).
+   */
+  async applyPriceResearchReferenceIn(
+    tx: TenantTx,
+    input: PriceResearchReferenceInput,
+  ): Promise<PriceResearchReferenceResult> {
+    if (!(await this.processes.lockForUpdate(tx, input.processId))) {
+      throw new Error('Processo da pesquisa de preços ausente ao propagar os valores.');
+    }
+    const rows = await this.processes.loadAggregate(tx, input.processId);
+    if (rows === null) throw new Error('Processo da pesquisa de preços ausente.');
+    const { process } = rows;
+    const itemsUpdated = await this.items.updateReferenceUnitPrices(tx, input.processId, {
+      lines: input.unitPrices.map((line) => ({
+        itemId: line.processItemId,
+        unitPrice: line.unitPrice,
+      })),
+      sourceDocumentId: input.sourceDocumentId,
+      at: input.at,
+      userId: input.userId,
+    });
+    const applied = acceptsDerivedEstimatedValue(process.estimatedValueSource, 'PRICE_RESEARCH');
+    const processVersion = applied
+      ? await this.processes.recordDerivedEstimatedValue(tx, input.processId, {
+          estimatedValue: input.estimatedValue,
+          source: 'PRICE_RESEARCH',
+          at: input.at,
+          userId: input.userId,
+        })
+      : await this.processes.touchProcess(tx, input.processId, input.at, input.userId);
+    return {
+      previousEstimatedValue: process.estimatedValue,
+      previousSource: process.estimatedValueSource,
+      estimatedValue: applied ? input.estimatedValue : process.estimatedValue,
+      estimatedValueSource: applied ? 'PRICE_RESEARCH' : process.estimatedValueSource,
+      estimatedValueApplied: applied,
+      isBudgetConfidential: process.isBudgetConfidential,
+      itemsUpdated,
+      processVersion,
+    };
+  }
 
   /**
    * DTO `deadline` (US-055 · `DueDateBadge`) de cada passagem ativa informada, no `tx` do chamador

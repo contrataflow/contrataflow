@@ -1808,6 +1808,8 @@ const PRICE_FIXTURES = [
   { n: 26, code: '0026/2026', title: 'Contratação de serviços de jardinagem' },
   // US-028: pesquisa só da jornada "Importar planilha" (não disputa estado com as outras).
   { n: 29, code: '0029/2026', title: 'Aquisição de material de pintura para as escolas' },
+  // US-032: pesquisa já calculada, só da jornada "Concluir pesquisa".
+  { n: 46, code: '0046/2026', title: 'Aquisição de materiais elétricos para as escolas' },
 ].map((fixture) => ({
   ...fixture,
   status: 'IN_PROGRESS',
@@ -1936,12 +1938,208 @@ function buildPriceResearch(state, { id, code, title, referenceDate, quantities 
   };
 }
 
-const priceMeta = () => ({
-  allowedActions: ['UPDATE', 'ADD_ITEMS', 'REMOVE_ITEMS', 'EXCLUDE_QUOTATION'],
-  documentActions: [],
-  lockReason: null,
-  template: null,
-});
+const priceMeta = (research) =>
+  research?.header.completedAt
+    ? {
+        allowedActions: [],
+        documentActions: [],
+        lockReason: 'DOCUMENT_NOT_EDITABLE',
+        template: null,
+      }
+    : {
+        allowedActions: [
+          'UPDATE',
+          'ADD_ITEMS',
+          'REMOVE_ITEMS',
+          'EXCLUDE_QUOTATION',
+          ...(research?.completable ? ['COMPLETE'] : []),
+        ],
+        documentActions: [],
+        lockReason: null,
+        template: null,
+      };
+
+// US-032 (PRS-23): a pesquisa do processo 0046/2026, já calculada — itens 1 e 2 com 3 cotações e o
+// item 3 com 1 cotação (abaixo do mínimo, sem justificativa: a primeira conclusão volta 422).
+{
+  const state = priceStates.get(listProcessId(46));
+  state.research = buildPriceResearch(state, {
+    id: '0192a000-0000-7000-8000-0000000e0046',
+    code: 'PP 0006/2026',
+    title: 'Pesquisa de preços — 0046/2026',
+    referenceDate: '2026-10-06',
+    quantities: new Map(state.items.map((item) => [item.id, '10.0000'])),
+  });
+  const priced = [
+    ['10.0000', '100.00', 3],
+    ['50.0000', '500.00', 3],
+    ['30.0000', '300.00', 1],
+  ];
+  state.research.items = state.research.items.map((item, index) => {
+    const [unit, total, valid] = priced[index];
+    return {
+      ...item,
+      effectiveMethod: 'MEAN',
+      validQuotationsCount: valid,
+      quotationsCount: valid,
+      meanPrice: unit,
+      medianPrice: unit,
+      lowestPrice: unit,
+      highestPrice: unit,
+      stdDeviation: valid > 1 ? '0.0000' : null,
+      coefficientOfVariation: valid > 1 ? '0.0000' : null,
+      recommendedUnitPrice: unit,
+      totalPrice: total,
+      alerts: valid < 3 ? [{ code: 'BELOW_MINIMUM_QUOTES' }] : [],
+    };
+  });
+  state.research.header = {
+    ...state.research.header,
+    itemsWithAlertsCount: 1,
+    totalEstimatedValue: '900.00',
+    lastCalculatedAt: '2026-10-06T15:00:00.000Z',
+  };
+  state.research.completable = true;
+}
+
+/** PRS-23 (US-032): pendências de completude por item (RN-PRICE-58), como a API. */
+function completionViolations(research) {
+  return research.items.flatMap((item) => {
+    const label = `Item ${String(item.sequence)}`;
+    if (item.recommendedUnitPrice === null || item.validQuotationsCount === 0) {
+      return [
+        {
+          code: 'PRICE_ITEM_WITHOUT_PRICE',
+          severity: 'BLOCKING',
+          message: `O item "${label}" não tem preço calculado. Registre cotações ou um valor manual.`,
+          ruleId: 'RN-PRICE-58',
+          sectionKey: null,
+          field: null,
+          itemId: item.id,
+          params: { sequence: item.sequence },
+        },
+      ];
+    }
+    if (
+      item.validQuotationsCount < research.header.parameters.minQuotations &&
+      (item.belowMinimumJustification ?? '').trim() === ''
+    ) {
+      return [
+        {
+          code: 'PRICE_ITEM_BELOW_MINIMUM_UNJUSTIFIED',
+          severity: 'BLOCKING',
+          message: `O item "${label}" tem menos cotações que o mínimo exigido. Informe a justificativa.`,
+          ruleId: 'RN-PRICE-58',
+          sectionKey: null,
+          field: 'belowMinimumJustification',
+          itemId: item.id,
+          params: { sequence: item.sequence },
+        },
+      ];
+    }
+    return [];
+  });
+}
+
+/**
+ * US-032: PRS-23 (concluir) e o PRS-07 só com a justificativa de cotações insuficientes, para a
+ * jornada da conclusão. Regras completas, idempotência e atomicidade: testes da API.
+ */
+async function handlePriceCompletion(request, response, url, correlationId) {
+  const complete = /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/complete$/.exec(url.pathname);
+  if (complete && request.method === 'POST') {
+    const research = priceResearchOf(complete[1]);
+    if (!research) {
+      problem(response, 404, 'PRICE_RESEARCH_NOT_FOUND', String(correlationId));
+      return true;
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"${String(research.header.version)}"`) {
+      problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      return true;
+    }
+    if (research.header.completedAt) {
+      problem(response, 409, 'DOCUMENT_NOT_EDITABLE', String(correlationId));
+      return true;
+    }
+    const violations = completionViolations(research);
+    if (violations.length > 0) {
+      send(
+        response,
+        422,
+        {
+          type: 'https://docs.contrataflow.com.br/errors/price-research-incomplete',
+          title: 'Pesquisa incompleta',
+          status: 422,
+          detail: 'Há itens com cotações insuficientes sem justificativa.',
+          instance: url.pathname,
+          code: 'PRICE_RESEARCH_INCOMPLETE',
+          correlationId: String(correlationId),
+          errors: [],
+          violations,
+        },
+        { 'Content-Type': 'application/problem+json' },
+      );
+      return true;
+    }
+    const now = new Date().toISOString();
+    research.header = {
+      ...research.header,
+      status: 'FINALIZED',
+      completedAt: now,
+      updatedAt: now,
+      version: research.header.version + 1,
+    };
+    send(
+      response,
+      200,
+      {
+        data: {
+          ...research.header,
+          document: { status: 'FINALIZED', currentVersionId: mockUuid() },
+        },
+        meta: priceMeta(research),
+      },
+      { ETag: `"${String(research.header.version)}"` },
+    );
+    return true;
+  }
+  const itemRoute = /^\/api\/v1\/price-items\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (itemRoute && request.method === 'PATCH') {
+    const research = [...priceStates.values()]
+      .map((state) => state.research)
+      .find((candidate) => candidate?.items.some((item) => item.id === itemRoute[1]));
+    const item = research?.items.find((candidate) => candidate.id === itemRoute[1]);
+    if (!research || !item) {
+      problem(response, 404, 'NOT_FOUND', String(correlationId));
+      return true;
+    }
+    if (String(request.headers['if-match'] ?? '') !== `"${String(item.version)}"`) {
+      problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      return true;
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const text =
+      typeof body.belowMinimumJustification === 'string'
+        ? body.belowMinimumJustification.trim()
+        : '';
+    if (text !== '' && text.length < 20) {
+      problem(response, 422, 'VALIDATION_ERROR', String(correlationId));
+      return true;
+    }
+    const updated = {
+      ...item,
+      belowMinimumJustification: text === '' ? null : text,
+      version: item.version + 1,
+    };
+    research.items = research.items.map((candidate) =>
+      candidate.id === updated.id ? updated : candidate,
+    );
+    research.header = { ...research.header, version: research.header.version + 1 };
+    send(response, 200, { data: updated }, { ETag: `"${String(updated.version)}"` });
+    return true;
+  }
+  return false;
+}
 
 // A pesquisa já existente do processo 0025/2026 (FA-01): os 3 itens, com as quantidades de referência.
 {
@@ -5881,6 +6079,7 @@ createServer(async (request, response) => {
   // Fontes e cotações (US-026 · PRS-09..15): só o necessário para a jornada da aba "Fontes"; regras
   // por tipo, POL-02/POL-09 e isolamento são cobertos nos testes da API.
   if (await handlePriceSources(request, response, url, correlationId)) return;
+  if (await handlePriceCompletion(request, response, url, correlationId)) return;
   const priceResearchRoute = /^\/api\/v1\/price-research\/([0-9a-f-]{36})(\/items)?$/.exec(
     url.pathname,
   );
@@ -5896,7 +6095,7 @@ createServer(async (request, response) => {
     return send(
       response,
       200,
-      { data: research.header, meta: priceMeta() },
+      { data: research.header, meta: priceMeta(research) },
       { ETag: `"${String(research.header.version)}"` },
     );
   }

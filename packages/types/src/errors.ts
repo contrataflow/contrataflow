@@ -134,6 +134,8 @@ export const ERROR_CODES = [
   'IMPORT_PREVIEW_EXPIRED',
   // US-031: mapa comparativo de pesquisa inexistente, de outro tenant ou não visível (api/07 PRS-21/22).
   'PRICE_RESEARCH_NOT_FOUND',
+  // US-032: conclusão com itens sem preço ou abaixo do mínimo sem justificativa (api/07 PRS-23).
+  'PRICE_RESEARCH_INCOMPLETE',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -317,6 +317,7 @@
       "republish": "Evento republicado"
     },
     "price_research": {
+      "complete": "Pesquisa de preços concluída",
       "export": "Pesquisa de preços exportada",
       "import": "Pesquisa de preços importada",
       "method_change": "Método da pesquisa de preços alterado",

@@ -1,5 +1,9 @@
 import { localDateOf } from '@contrataflow/types';
-import type { ProcessStageStatus, ProcessStatus } from '@contrataflow/validation';
+import type {
+  EstimatedValueSource,
+  ProcessStageStatus,
+  ProcessStatus,
+} from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { isProcessVisible } from '#shared/auth/process-access.js';
@@ -213,6 +217,31 @@ export class InMemoryProcessRepository implements ProcessRepository {
       return Promise.reject(new Error('processo ausente'));
     const version = current.version + 1;
     this.processes.set(processId, { ...current, version, updatedAt: at, updatedById: userId });
+    return Promise.resolve(version);
+  }
+
+  recordDerivedEstimatedValue(
+    _tx: TenantTx,
+    processId: string,
+    value: {
+      readonly estimatedValue: string;
+      readonly source: EstimatedValueSource;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number> {
+    const current = this.processes.get(processId);
+    if (current?.tenantId !== tenantOfContext())
+      return Promise.reject(new Error('processo ausente'));
+    const version = current.version + 1;
+    this.processes.set(processId, {
+      ...current,
+      estimatedValue: value.estimatedValue,
+      estimatedValueSource: value.source,
+      version,
+      updatedAt: value.at,
+      updatedById: value.userId,
+    });
     return Promise.resolve(version);
   }
 

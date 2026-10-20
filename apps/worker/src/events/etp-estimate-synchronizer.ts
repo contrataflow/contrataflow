@@ -286,6 +286,14 @@ export class EtpEstimateSynchronizer implements InlineEventHandler {
       this.logger.log({ event: 'etp.estimate_synced', etpId: etp.id, priceResearchId, trigger });
     }
     if (result.synced.length > 0) countSynced(trigger, result.synced.length);
+    if (trigger === 'completed' && result.synced.length === 0 && result.unchanged === 0) {
+      // US-032 (FA-04): pesquisa concluída sem ETP vinculado — só o processo recebeu o valor.
+      this.logger.warn({
+        event: 'price_research.etp_sync_skipped',
+        priceResearchId,
+        correlationId,
+      });
+    }
     if (result.unchanged > 0) {
       // Reentrega (ou recálculo sem mudança do total): nada aplicado, nenhum efeito duplicado.
       this.logger.warn({

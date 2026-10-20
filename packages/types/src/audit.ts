@@ -148,6 +148,7 @@ const TYPED_DATA_CHANGE = [
   'price_research.method_change',
   'price_research.recalculate',
   'price_research.import',
+  'price_research.complete',
   'risk.create',
   'risk.update',
   'risk.assess',

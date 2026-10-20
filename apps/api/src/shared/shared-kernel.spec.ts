@@ -137,12 +137,12 @@ describe('erros (RFC 9457)', () => {
         },
       ],
       // Código de domínio ainda fora do catálogo: o título cai no próprio código.
-      'PRICE_RESEARCH_INCOMPLETE',
+      'EXAMPLE_RULE_INCOMPLETE',
     );
     expect(error).toMatchObject({
       status: 422,
-      code: 'PRICE_RESEARCH_INCOMPLETE',
-      title: 'PRICE_RESEARCH_INCOMPLETE',
+      code: 'EXAMPLE_RULE_INCOMPLETE',
+      title: 'EXAMPLE_RULE_INCOMPLETE',
     });
     expect(
       new ApiError('STAGE_CHANGED', { status: 409, title: 'Etapa alterada', detail: 'd' }).status,

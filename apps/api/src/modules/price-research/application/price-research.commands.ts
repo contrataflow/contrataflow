@@ -480,6 +480,7 @@ export class UpdatePriceResearchHeaderCommand extends PriceResearchCommand<
         view.allowedActions,
         null,
         await this.gate.canExcludeQuotation(tx, next, view),
+        await this.gate.canComplete(tx, next, view),
       ),
     };
   }

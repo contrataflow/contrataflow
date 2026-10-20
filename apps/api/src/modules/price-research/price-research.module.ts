@@ -31,6 +31,7 @@ import {
 } from './application/ports.js';
 import { PriceCalculationService } from './application/price-calculation.service.js';
 import { PriceItemUsageReader } from './application/price-item-usage.reader.js';
+import { CompletePriceResearchCommand } from './application/price-research-completion.command.js';
 import { PriceResearchDocumentValidator } from './application/price-research-document.validator.js';
 import { PriceResearchSummaryReaderImpl } from './application/price-research-summary.reader.js';
 import {
@@ -98,6 +99,7 @@ import { QuotationImportController } from './presentation/quotation-import.contr
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { DocumentFacade } from '../document/application/document.facade.js';
 import { DocumentModule } from '../document/document.module.js';
+import { ProcessModule } from '../process/process.module.js';
 import { SupplierFacade } from '../supplier/application/supplier.facade.js';
 import { SupplierModule } from '../supplier/supplier.module.js';
 import { TenancyModule } from '../tenancy/tenancy.module.js';
@@ -120,6 +122,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   imports: [
     CatalogModule,
     DocumentModule,
+    ProcessModule,
     TenancyModule,
     SupplierModule,
     AttachmentTargetModule,
@@ -141,6 +144,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     RemovePriceItemCommand,
     UpdatePriceItemCommand,
     RecalculatePriceResearchCommand,
+    CompletePriceResearchCommand,
     PriceCalculationService,
     GetPriceResearchQuery,
     ListProcessPriceResearchQuery,

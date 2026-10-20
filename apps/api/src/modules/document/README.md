@@ -73,6 +73,12 @@ Tudo roda no `tx` do caso de uso (RLS), sem I/O externo. Um validador por `Syste
 (`DocumentValidatorRegistry` recusa o segundo). Tipo estruturado sem validador usa só as regras
 genéricas — a ausência de registro nunca falha a ação.
 
+US-032: o gancho opcional `finalized(tx, subject, facts)` roda na finalização (DOC-10), na mesma
+transação, depois da versão, de `document.finalize` e do `DocumentFinalized` (a pesquisa de preços
+propaga o preço de referência e o valor estimado ao processo). O módulo tipado que tem a própria rota
+de conclusão (PRS-23) chama `DocumentFacade.finalizeIn(tx, …)` — a MESMA transição, com
+`acknowledgeAllWarnings` — e `finalizationCommitted` depois do commit (log e métrica).
+
 ### Criação, singularidade e aprovações
 
 - `DocumentFacade.createIn(tx, input)` (`DocumentCreationService`) é o ÚNICO ponto de criação:

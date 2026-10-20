@@ -10,6 +10,7 @@ import type { DocumentCommentTargets } from './document-comment-target.js';
 import type { CreateDocumentInput, DocumentCreationService } from './document-creation.service.js';
 import type { DocumentItemsPresenter } from './document-items.commands.js';
 import type { DocumentLifecycleService } from './document-lifecycle.service.js';
+import type { FinalizeDocumentCommand } from './document.commands.js';
 import { DocumentFacade } from './document.facade.js';
 import { DocumentValidatorRegistry } from './document.ports.js';
 import type { DocumentValidator } from './document.ports.js';
@@ -48,6 +49,7 @@ function facadeWith(creation: Partial<DocumentCreationService> = {}) {
     {} as DocumentLifecycleService,
     {} as DocumentItemsPresenter,
     {} as DocumentApprovalOutcomes,
+    {} as FinalizeDocumentCommand,
   );
   return { facade, documents, types, validators };
 }
