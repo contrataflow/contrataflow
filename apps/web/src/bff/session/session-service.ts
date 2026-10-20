@@ -97,6 +97,8 @@ export interface SessionServiceOptions {
   readonly now?: () => number;
   /** Espera entre as conferências de quem aguarda a renovação de outra réplica (testes). */
   readonly sleep?: (ms: number) => Promise<void>;
+  /** Teto de sessões simultâneas por usuário (padrão `MAX_SESSIONS_PER_USER`). */
+  readonly maxPerUser?: number;
 }
 
 const NO_CLIENT: ClientDetails = { ip: null, userAgent: null };
@@ -111,6 +113,7 @@ export class SessionService {
   private readonly exclusiveTails = new Map<string, Promise<void>>();
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly maxPerUser: number;
 
   constructor(
     private readonly store: SessionStore,
@@ -119,6 +122,7 @@ export class SessionService {
   ) {
     const resolved = typeof options === 'function' ? { now: options } : options;
     this.now = resolved.now ?? Date.now;
+    this.maxPerUser = resolved.maxPerUser ?? MAX_SESSIONS_PER_USER;
     this.sleep =
       resolved.sleep ??
       ((ms) =>
@@ -161,7 +165,7 @@ export class SessionService {
       absoluteExpiresAt,
       pendingTenantSwitch: null,
     };
-    const evicted = await this.store.create(record, MAX_SESSIONS_PER_USER);
+    const evicted = await this.store.create(record, this.maxPerUser);
     return { record, evicted };
   }
 

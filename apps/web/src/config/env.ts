@@ -118,6 +118,11 @@ const envSchema = z
     INTERNAL_SERVICE_TOKEN: z.string().min(32).optional(),
     /** Limite por IP de `/api/auth/login|callback|step-up` (RN-IAM-15). */
     AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(1000).default(20),
+    /**
+     * Sessões simultâneas por usuário (RN-IAM-10: 10). Só a suíte E2E sobe o teto: os cenários
+     * paralelos entram todos com a mesma pessoa e o 11º login encerraria a sessão de um deles.
+     */
+    SESSION_MAX_PER_USER: z.coerce.number().int().min(1).max(1000).default(10),
     S3_PUBLIC_ENDPOINT: optionalText,
     S3_BUCKET_QUARANTINE: optionalText,
     S3_BUCKET_RENDITIONS: optionalText,
@@ -175,6 +180,8 @@ export interface WebConfig {
     readonly encryptionKey: Buffer | null;
     /** Prefixo das chaves do Redis de sessões (`cf:{env}:sess:` — US-087 Lacuna 3). */
     readonly keyPrefix: string;
+    /** Sessões simultâneas por usuário; acima disso, a mais antiga é encerrada (RN-IAM-10). */
+    readonly maxPerUser: number;
   };
   /** Credencial de serviço nas rotas `/internal/*` da API; `null` = não enviada. */
   readonly internalServiceToken: string | null;
@@ -234,6 +241,7 @@ export function loadWebConfig(env: EnvSource): WebConfig {
         ? Buffer.from(data.SESSION_ENCRYPTION_KEY, 'base64')
         : null,
       keyPrefix: `cf:${data.APP_ENV}:sess:`,
+      maxPerUser: data.SESSION_MAX_PER_USER,
     },
     internalServiceToken: data.INTERNAL_SERVICE_TOKEN ?? null,
     authRateLimitPerMinute: data.AUTH_RATE_LIMIT_PER_MIN,

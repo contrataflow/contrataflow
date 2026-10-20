@@ -54,9 +54,19 @@ describe('configuração do web (Campos da US-086)', () => {
       redisUrl: null,
       encryptionKey: null,
       keyPrefix: 'cf:test:sess:',
+      maxPerUser: 10,
     });
     expect(config.authRateLimitPerMinute).toBe(20);
     expect(config.internalServiceToken).toBeNull();
+  });
+
+  it('RN-IAM-10: teto de sessões por usuário configurável (E2E), inteiro entre 1 e 1000', () => {
+    expect(loadWebConfig({ ...BASE_ENV, SESSION_MAX_PER_USER: '500' }).session.maxPerUser).toBe(
+      500,
+    );
+    expect(() => loadWebConfig({ ...BASE_ENV, SESSION_MAX_PER_USER: '0' })).toThrow(
+      new WebConfigError(['SESSION_MAX_PER_USER']),
+    );
   });
 
   it('US-089: slug do flow de recuperação configurável, só com caracteres de slug', () => {

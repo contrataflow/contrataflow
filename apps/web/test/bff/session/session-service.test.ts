@@ -96,6 +96,17 @@ describe('SessionService', () => {
     expect(test.store.byUser(first.record.userId)).toHaveLength(MAX_SESSIONS_PER_USER);
   });
 
+  it('o teto vem da configuração (SESSION_MAX_PER_USER): com 2, o terceiro login encerra o primeiro', async () => {
+    const test = createTestRuntime({ env: { SESSION_MAX_PER_USER: '2' } });
+    const first = await signIn(test);
+    test.clock.now += 1_000;
+    await signIn(test);
+    test.clock.now += 1_000;
+    await signIn(test);
+    expect(test.store.byUser(first.record.userId)).toHaveLength(2);
+    expect(await test.store.get(first.record.key)).toBeNull();
+  });
+
   it('expira por ociosidade e pela duração absoluta (registro apagado)', async () => {
     const test = createTestRuntime();
     const { cookie } = await signIn(test);

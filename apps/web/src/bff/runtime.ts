@@ -158,7 +158,10 @@ export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides 
     identity,
     directory,
     recovery: overrides.recovery ?? recoveryFor(config, now, fetchImpl),
-    sessions: new SessionService(store, identity, now),
+    sessions: new SessionService(store, identity, {
+      now,
+      maxPerUser: config.session.maxPerUser,
+    }),
     authRateLimiter: new AuthRateLimiter(counter, {
       limit: config.authRateLimitPerMinute,
       keyPrefix: `cf:${config.appEnv}:rl:auth:`,
