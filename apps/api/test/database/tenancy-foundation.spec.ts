@@ -64,6 +64,7 @@ async function tenantTables(db: TestDatabase): Promise<string[]> {
   const rows = await db.admin<{ table_name: string }>(`
     SELECT c.table_name FROM information_schema.columns c
     JOIN pg_class k ON k.relname = c.table_name AND NOT k.relispartition
+      AND k.relkind IN ('r', 'p')
     JOIN pg_namespace n ON n.oid = k.relnamespace AND n.nspname = c.table_schema
     WHERE c.table_schema = 'public' AND c.column_name = 'tenant_id' ORDER BY 1`);
   return rows.map((row) => row.table_name);
@@ -446,6 +447,8 @@ describe('fundação do isolamento por tenant no banco (US-100)', () => {
         JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
         JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND a.attnotnull
         WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
+          -- Associação sem \`id\` (lista fechada de tools/ci/lib/migrations.ts — multi-tenancy.md §14).
+          AND c.relname <> 'process_tags'
           AND NOT EXISTS (
             SELECT 1 FROM pg_index i
             WHERE i.indrelid = c.oid AND i.indisunique AND i.indnatts = 2

@@ -691,6 +691,7 @@ model TenantSetting {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
   @@unique([tenantId, key], map: "tenant_settings_tenant_id_key_key")
   @@map("tenant_settings")
 }
@@ -789,6 +790,7 @@ model NumberSequence {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
   @@unique([tenantId, sequenceKey], map: "number_sequences_tenant_id_sequence_key_key")
   @@map("number_sequences")
 }
@@ -2305,6 +2307,7 @@ model DocumentItem {
   createdById        String?  @map("created_by_id") @db.Uuid
   updatedById        String?  @map("updated_by_id") @db.Uuid
 
+  @@unique([tenantId, id])
   @@unique([tenantId, documentId, processItemId], map: "document_items_document_process_item_key")
   @@index([tenantId, processItemId], map: "document_items_process_item_idx")
   @@map("document_items")

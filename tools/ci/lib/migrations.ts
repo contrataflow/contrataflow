@@ -81,7 +81,8 @@ const DESTRUCTIVE: readonly { rule: string; pattern: RegExp; what: string }[] = 
     what: 'SET NOT NULL',
   },
   { rule: 'drop-schema', pattern: /\bDROP\s+SCHEMA\b/i, what: 'DROP SCHEMA' },
-  { rule: 'truncate', pattern: /\bTRUNCATE\b/i, what: 'TRUNCATE' },
+  // Só o comando, no início da instrução: `BEFORE TRUNCATE ON` de gatilho não conta.
+  { rule: 'truncate', pattern: /(?:^|;)\s*TRUNCATE\b/i, what: 'TRUNCATE' },
 ];
 
 function stripComments(line: string): string {
@@ -103,7 +104,8 @@ function tableName(raw: string): string {
 /**
  * Lint de uma migração NOVA (ainda não publicada):
  * - expand/contract: operação destrutiva só com `-- cf:contract DEC-NNN` (release posterior);
- * - tabela criada com `tenant_id` precisa de RLS ENABLE + FORCE e política na mesma migração;
+ * - tabela criada com `tenant_id` precisa de RLS ENABLE + FORCE e política na mesma migração,
+ *   literais ou pela função padrão `SELECT cf_apply_tenant_rls('<tabela>')` (US-100 · RN-TEN-25);
  * - contexto de tenant nunca de sessão (`set_config(…, false)`/`SET app.*` — RN-FND-44).
  */
 export function lintMigration(item: Migration): MigrationFinding[] {
@@ -148,6 +150,12 @@ export function lintMigration(item: Migration): MigrationFinding[] {
       'i',
     );
     const policy = new RegExp(`CREATE\\s+POLICY\\s+"?\\w+"?\\s+ON\\s+${target}\\b`, 'i');
+    // A função padrão faz ENABLE + FORCE + política `tenant_isolation` (20261015120000).
+    const applied = new RegExp(
+      `\\b(?:SELECT|PERFORM)\\s+(?:"?public"?\\.)?cf_apply_tenant_rls\\s*\\(\\s*'${target}'(?:\\s*::\\s*regclass)?\\s*\\)`,
+      'i',
+    );
+    if (applied.test(code)) continue;
     const missing = [
       enable.test(code) ? undefined : 'ENABLE ROW LEVEL SECURITY',
       force.test(code) ? undefined : 'FORCE ROW LEVEL SECURITY',
@@ -159,7 +167,7 @@ export function lintMigration(item: Migration): MigrationFinding[] {
         file: item.file,
         line: lineOf(code, match.index),
         rule: 'tenant/rls',
-        message: `Tabela ${table} tem tenant_id sem ${missing.join(', ')} (DEC-082 · multi-tenancy.md §14).`,
+        message: `Tabela ${table} tem tenant_id sem ${missing.join(', ')} nem SELECT cf_apply_tenant_rls('${table}') (DEC-082 · multi-tenancy.md §14).`,
       });
     }
   }
@@ -210,6 +218,20 @@ export const PLATFORM_TABLES = ['tenants', 'users', 'permissions', '_prisma_migr
 /** Tabelas em que `tenant_id` nulo marca registro de plataforma (DEC-080 · multi-tenancy.md §6). */
 export const NULLABLE_TENANT_TABLES = ['audit_logs', 'outbox_events'] as const;
 
+/**
+ * Tabelas de tenant sem coluna `id`, logo sem `UNIQUE (tenant_id, id)` (lista fechada —
+ * DEC-081 · multi-tenancy.md §14): associações puras, com PK composta iniciada por `tenant_id`, que
+ * nenhuma FK referencia.
+ */
+export const KEYLESS_TENANT_TABLES = ['process_tags'] as const;
+
+/**
+ * Unicidades globais por desenho, sem `tenant_id` (lista fechada — DEC-080 · multi-tenancy.md §6):
+ * o hash do token de convite (SHA-256 de 256 bits aleatórios) é buscado entre tenants só pela
+ * função `cf_find_invitation` (USR-06 · US-091) e precisa identificar um único vínculo.
+ */
+export const GLOBAL_UNIQUE_INDEXES = ['tenant_memberships_invite_token_hash_key'] as const;
+
 /** Dono de todos os objetos do schema da aplicação (RN-FND-46). */
 export const OWNER_ROLE = 'cf_owner';
 
@@ -223,7 +245,8 @@ const sqlList = (items: readonly string[]) =>
  * `rls|<tabela>`, `fk|<tabela>|<constraint>` (FK entre tabelas de tenant sem `tenant_id` como
  * primeira coluna — RN-TEN-27), `unique|<tabela>|<índice>`, `nullable|<tabela>`,
  * `platform|<tabela>` (sem `tenant_id` fora da lista de plataforma), `key|<tabela>` (tabela de
- * negócio sem `UNIQUE (tenant_id, id)`, alvo das FKs compostas — DEC-081 · US-100) e
+ * negócio sem `UNIQUE (tenant_id, id)`, alvo das FKs compostas — DEC-081 · US-100; exceções
+ * em `KEYLESS_TENANT_TABLES` e `GLOBAL_UNIQUE_INDEXES`) e
  * `owner|<tabela>|<dono>` (estas duas só no schema `public`, que nasce das migrações).
  */
 export function catalogChecksSql(schemas: readonly string[]): string {
@@ -233,6 +256,7 @@ export function catalogChecksSql(schemas: readonly string[]): string {
 UNION ALL
 SELECT 'key|' || t.name FROM tenant_tables t
 WHERE t.name LIKE 'public.%' AND t.tenant_not_null AND t.oid = coalesce(pg_partition_root(t.oid), t.oid)
+  AND t.relname NOT IN (${sqlList(KEYLESS_TENANT_TABLES)})
   AND NOT EXISTS (
     SELECT 1 FROM pg_index i
     JOIN pg_attribute ida ON ida.attrelid = t.oid AND ida.attname = 'id'
@@ -269,6 +293,7 @@ SELECT 'unique|' || t.name || '|' || i.indexrelid::regclass::text
 FROM pg_index i
 JOIN tenant_tables t ON t.oid = i.indrelid
 WHERE i.indisunique AND NOT i.indisprimary AND NOT (t.tenant_attnum = ANY (i.indkey::int2[]))
+  AND i.indexrelid::regclass::text NOT IN (${sqlList(GLOBAL_UNIQUE_INDEXES)})
 UNION ALL
 SELECT 'nullable|' || t.name FROM tenant_tables t
 WHERE NOT t.tenant_not_null AND t.root_relname NOT IN (${sqlList(NULLABLE_TENANT_TABLES)})

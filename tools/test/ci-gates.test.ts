@@ -1,5 +1,7 @@
 // US-079 — helpers dos gates do CI (tools/ci/lib): anotações, retry, escopo da mudança, licenças,
 // CVE, política, título do PR, gitleaks, Semgrep, cobertura, migrações, ruleset, traces e ECS.
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -25,6 +27,8 @@ import {
   applyMigrations,
   catalogChecksSql,
   checkPublished,
+  GLOBAL_UNIQUE_INDEXES,
+  KEYLESS_TENANT_TABLES,
   lintMigration,
   newMigrations,
   parseCatalogViolations,
@@ -441,6 +445,27 @@ describe('lint de migrações (RN-FND-25)', () => {
     );
   });
 
+  it("SELECT cf_apply_tenant_rls('<tabela>') equivale a ENABLE + FORCE + política", () => {
+    const fixture = (name: string) =>
+      migration(
+        name,
+        readFileSync(
+          new URL(`../fixtures/migrations/${name}/migration.sql`, import.meta.url),
+          'utf8',
+        ).replace(/\r\n/g, '\n'),
+      );
+    // Com aspas, com schema e com cast; o gatilho BEFORE TRUNCATE não é um TRUNCATE.
+    expect(lintMigration(fixture('apply-tenant-rls'))).toEqual([]);
+    // A chamada precisa nomear a tabela criada: prefixo de nome e comentário não contam.
+    const findings = lintMigration(fixture('wrong-table-rls'));
+    expect(findings.map((item) => `${item.rule}@${String(item.line)}`)).toEqual(['tenant/rls@5']);
+    expect(findings[0]?.message).toContain(
+      "nem SELECT cf_apply_tenant_rls('fixture_items_archive')",
+    );
+    expect(lintMigration(migration('m', 'TRUNCATE TABLE a;'))).toHaveLength(1);
+    expect(lintMigration(migration('m', 'SELECT 1; TRUNCATE a;'))).toHaveLength(1);
+  });
+
   it('[Falha de integração] set_config de sessão bloqueia a migração (RN-FND-44)', () => {
     const findings = lintMigration(
       migration(
@@ -524,6 +549,16 @@ describe('lint de migrações (RN-FND-25)', () => {
       'Tabela public.processes sem UNIQUE (tenant_id, id), alvo das FKs compostas (DEC-081 · RN-TEN-27).',
       'Tabela public.processes pertence a cf_app, não a cf_owner: crie os objetos depois de SET ROLE cf_owner (RN-FND-46).',
     ]);
+  });
+
+  it('exceções de catálogo são listas fechadas (DEC-080/DEC-081 · multi-tenancy.md §14)', () => {
+    const sql = catalogChecksSql(['public']);
+    expect(KEYLESS_TENANT_TABLES).toEqual(['process_tags']);
+    expect(GLOBAL_UNIQUE_INDEXES).toEqual(['tenant_memberships_invite_token_hash_key']);
+    expect(sql).toContain("AND t.relname NOT IN ('process_tags')");
+    expect(sql).toContain(
+      "AND i.indexrelid::regclass::text NOT IN ('tenant_memberships_invite_token_hash_key')",
+    );
   });
 });
 
