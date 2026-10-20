@@ -13,3 +13,5 @@ Caixa de tarefas — somente consultas sobre views publicadas (DEC-040, DEC-026)
   (`AccessFacade.approverCompetenceIn`). Nomes e o DTO `deadline` vêm das fachadas donas
   (`workflow`, `organization`, `identity`, `ProcessFacade.stageDeadlinesIn`).
 - O "Assumir" da fila é o PRC-21 do `process` (US-049), com `Idempotency-Key` opcional.
+- As ações em lote da fila (US-058 · TSK-03/TSK-04) moram no `process` (`TaskBulkController`),
+  sobre o PRC-21/PRC-22 por item.

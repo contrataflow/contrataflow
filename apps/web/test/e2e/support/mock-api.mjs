@@ -3300,7 +3300,10 @@ const APPROVAL_LIST = [
 }));
 
 const INBOX_QUEUE_PROCESS_ID = '0192a000-0000-7000-8000-000000560012';
-const inboxState = { claimed: false };
+const inboxState = { claimed: false, bulkTaken: new Set() };
+/** US-058: processos da fila para as ações em lote; o 0015 "já foi assumido" no TSK-03. */
+const INBOX_BULK_NUMBERS = [13, 14, 15];
+const INBOX_TAKEN_BY_OTHER = 15;
 
 function inboxItem(n, overrides = {}) {
   const id = `0192a000-0000-7000-8000-0000005600${String(n).padStart(2, '0')}`;
@@ -3341,9 +3344,12 @@ function inboxViews() {
     currentResponsible: inboxItem(1).currentResponsible,
     canClaim: false,
   };
+  const bulkQueue = INBOX_BULK_NUMBERS.filter((n) => !inboxState.bulkTaken.has(n)).map((n) =>
+    inboxItem(n, { currentResponsible: null, canClaim: true }),
+  );
   return {
     MINE: inboxState.claimed ? [...mine, claimed] : mine,
-    UNIT_QUEUE: inboxState.claimed ? [] : [queued],
+    UNIT_QUEUE: [...(inboxState.claimed ? [] : [queued]), ...bulkQueue],
     PENDING_APPROVALS: [
       inboxItem(3, {
         id: '0192a000-0000-7000-8000-000000562003',
@@ -3582,7 +3588,8 @@ createServer(async (request, response) => {
         permissions: permissions.map((permission) => ({ ...permission, scopes: TENANT_WIDE })),
         // US-001: lotações do vínculo (a Ana é lotada no Gabinete) — pré-preenchimento do wizard.
         implicit: {
-          headOfDepartmentIds: [],
+          // US-058: a Ana é titular do Gabinete (atribuir em lote pela chefia).
+          headOfDepartmentIds: sub === 'sub-ana' ? [departments[0].id] : [],
           ownDepartmentIds: sub === 'sub-ana' ? [departments[0].id] : [],
         },
       },
@@ -5370,6 +5377,44 @@ createServer(async (request, response) => {
     return send(response, 200, {
       data: sorted,
       meta: { page: 1, pageSize: 20, totalItems: sorted.length, totalPages: 1 },
+    });
+  }
+  if (
+    (url.pathname === '/api/v1/tasks/bulk-claim' || url.pathname === '/api/v1/tasks/bulk-assign') &&
+    request.method === 'POST'
+  ) {
+    // TSK-03/TSK-04 (US-058): resultado por item; o 0015 falha no "assumir" (outra pessoa).
+    const claim = url.pathname.endsWith('bulk-claim');
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const results = (body.processIds ?? []).map((processId) => {
+      const n = Number(processId.slice(-2));
+      if (!INBOX_BULK_NUMBERS.includes(n) || inboxState.bulkTaken.has(n)) {
+        return {
+          processId,
+          ok: false,
+          code: 'REFERENCE_NOT_FOUND',
+          message: 'O processo não pôde ser processado.',
+        };
+      }
+      if (claim && n === INBOX_TAKEN_BY_OTHER) {
+        return {
+          processId,
+          ok: false,
+          code: 'PROCESS_ALREADY_ASSIGNED',
+          message: 'Este processo já foi assumido por Tiago Reis.',
+        };
+      }
+      inboxState.bulkTaken.add(n);
+      return {
+        processId,
+        ok: true,
+        process: { id: processId, code: inboxItem(n).code, version: 4, currentResponsible: null },
+      };
+    });
+    const successCount = results.filter((result) => result.ok).length;
+    return send(response, 200, {
+      data: results,
+      meta: { successCount, errorCount: results.length - successCount },
     });
   }
   if (

@@ -1,5 +1,6 @@
 // E2E da caixa de tarefas (US-056 · SCR-013 `/tarefas`): a Ana abre a caixa em "Comigo", troca de
-// aba, ordena, assume o processo da fila da unidade (PRC-21) e vê o contador das duas abas mudar.
+// aba, ordena, assume o processo da fila da unidade (PRC-21) e vê o contador das duas abas mudar;
+// depois (US-058) assume em lote com sucesso parcial e atribui em lote com motivo obrigatório.
 // axe-core na tela e a lista em cartões a 360 px. A API é simulada (support/mock-api.mjs); visões,
 // contadores, RLS, concorrência e reenvio idempotente são cobertos nos testes da API.
 import { expect, test } from '@playwright/test';
@@ -34,16 +35,58 @@ test('trocar de aba, ordenar e assumir da fila atualizando os contadores', async
   await expect(page.getByText('Bruno Lima')).toBeVisible();
 
   // Fila da unidade: "Assumir" move o processo para "Comigo".
-  await page.getByRole('tab', { name: 'Na fila da minha unidade: 1 item' }).click();
+  await page.getByRole('tab', { name: 'Na fila da minha unidade: 4 itens' }).click();
   await page.getByRole('button', { name: 'Assumir o processo 0012/2026' }).click();
-  await expect(page.getByText('Você assumiu este processo.')).toBeVisible();
-  await expect(page.getByText('Nenhum processo aguardando na fila da sua unidade.')).toBeVisible();
+  await expect(page.getByText('Você assumiu este processo.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '0012/2026' })).toBeHidden();
   await expect(page.getByRole('tab', { name: 'Comigo: 3 itens' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Na fila da minha unidade: 3 itens' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Comigo: 3 itens' }).click();
+  await expect(page.getByRole('link', { name: '0012/2026' })).toBeVisible();
+});
+
+test('US-058: assumir em lote com sucesso parcial e atribuir em lote com motivo', async ({
+  page,
+}) => {
+  await page.goto(login());
+  await page.getByRole('tab', { name: 'Na fila da minha unidade: 3 itens' }).click();
+  await page.getByRole('checkbox', { name: 'Selecionar o processo 0013/2026' }).check();
+  await page.getByRole('checkbox', { name: 'Selecionar o processo 0015/2026' }).check();
+  const bar = page.getByRole('region', { name: 'Ações em lote' });
+  await expect(bar.getByText('2 selecionados')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'barra de ações em lote');
+
+  await bar.getByRole('button', { name: 'Assumir selecionados' }).click();
+  await page
+    .getByRole('dialog', { name: 'Assumir 2 processos?' })
+    .getByRole('button', { name: 'Assumir' })
+    .click();
+  await expect(
+    page.getByText('1 de 2 processos assumidos. 1 não pôde ser assumido.'),
+  ).toBeVisible();
+  await page.getByText('Ver o erro').click();
+  await expect(
+    page.getByText('0015/2026 — já havia sido assumido por outra pessoa.'),
+  ).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Na fila da minha unidade: 2 itens' })).toBeVisible();
+
+  // Atribuir em lote (a Ana é titular da unidade): responsável e motivo obrigatórios.
+  await page.getByRole('checkbox', { name: 'Selecionar o processo 0014/2026' }).check();
+  await bar.getByRole('button', { name: 'Atribuir selecionados' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Atribuir 2 processos a' });
+  await dialog.getByRole('button', { name: 'Atribuir' }).click();
+  await expect(
+    dialog.getByText('Selecione o responsável e informe o motivo.').first(),
+  ).toBeVisible();
+  await dialog.getByLabel('Responsável').selectOption({ label: 'Juliana Prado' });
+  await dialog.getByLabel('Motivo').fill('Mutirão de triagem do exercício');
+  await expectNoSeriousA11yViolations(page, 'atribuir em lote');
+  await dialog.getByRole('button', { name: 'Atribuir' }).click();
+  await expect(page.getByText('2 processos atribuídos.')).toBeVisible();
   await expect(
     page.getByRole('tab', { name: 'Na fila da minha unidade: nenhum item' }),
   ).toBeVisible();
-  await page.getByRole('tab', { name: 'Comigo: 3 itens' }).click();
-  await expect(page.getByRole('link', { name: '0012/2026' })).toBeVisible();
+  await expect(bar).toBeHidden();
 });
 
 test('em 360 px: as linhas viram cartões, sem rolagem horizontal', async ({ page }) => {

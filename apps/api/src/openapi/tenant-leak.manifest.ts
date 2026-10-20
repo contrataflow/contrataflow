@@ -136,6 +136,9 @@ const PROCESS_PANEL_ROUTE =
 const TASK_INBOX_ROUTE =
   'Caixa de tarefas (US-056 · TSK-01/TSK-02): sem id no caminho nem corpo; a suíte genérica não tem processos, aprovações nem participações do tenant B. O isolamento (processo de outro tenant atribuído a um usuário com o mesmo e-mail nunca aparece em nenhuma visão nem nos contadores, RLS das views security_invoker v_inbox_* com app.tenant_id diferente retornando vazio) é coberto em test/tenant-leak/task-inbox.spec.ts, com PostgreSQL real, e em src/modules/inbox/presentation/tasks.routes.spec.ts.';
 
+const TASK_BULK_ROUTE =
+  'Ações em lote da caixa de tarefas (US-058 · TSK-03/TSK-04): exigem processos do tenant na fila de uma unidade, que a suíte genérica não tem; os ids do lote vão no corpo e a recusa é POR ITEM (200), não 422/404. O isolamento (processo de B no lote → item REFERENCE_NOT_FOUND sem revelar a existência nem alterar nada, enquanto os itens de A seguem; RLS de processes/process_stages/process_assignments/process_movements/process_access e ProcessAssigned PENDING no outbox) é coberto em test/tenant-leak/task-bulk.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/task-bulk.routes.spec.ts.';
+
 const PROCESS_LIST_ROUTE =
   'Lista de processos (US-002): a suíte genérica não tem processos do tenant B. O isolamento (filtros com unidade/órgão/ids de B → 200 com data vazio sem revelar nada, RLS com app.tenant_id diferente retornando vazio e X-Tenant-Id sem vínculo → 403) é coberto em test/tenant-leak/process-list.spec.ts, com PostgreSQL real.';
 
@@ -385,6 +388,8 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-23': { kind: 'exempt', reason: WORKFLOW_RULE_TEST_ROUTE },
   'TSK-01': { kind: 'exempt', reason: TASK_INBOX_ROUTE },
   'TSK-02': { kind: 'exempt', reason: TASK_INBOX_ROUTE },
+  'TSK-03': { kind: 'exempt', reason: TASK_BULK_ROUTE },
+  'TSK-04': { kind: 'exempt', reason: TASK_BULK_ROUTE },
   'PRC-01': { kind: 'exempt', reason: PROCESS_LIST_ROUTE },
   'PRC-02': { kind: 'exempt', reason: PROCESS_ROUTE },
   'PRC-03': { kind: 'exempt', reason: PROCESS_ROUTE },

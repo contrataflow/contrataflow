@@ -313,6 +313,30 @@ ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade invá
   `test/tenant-leak/process-assign.spec.ts` (PostgreSQL: falha induzida, simultâneos, `PENDING`,
   outro tenant).
 
+## Ações em lote da caixa de tarefas (US-058)
+
+- **Rotas:** TSK-03 `POST /tasks/bulk-claim` e TSK-04 `POST /tasks/bulk-assign`
+  (`TaskBulkController` — mora no `process`, dono do PRC-21/PRC-22; a leitura da caixa é do
+  `inbox`). `@Idempotent` (a chave cobre o lote inteiro); corpo `bulkClaimSchema`/`bulkAssignSchema`
+  (2 a 50 ids distintos — `TOO_SHORT`/`TOO_LONG`/`DUPLICATE_IN_LIST`; motivo 10–2.000 no lote).
+- **Permissão base:** TSK-03 = `PROCESS_CLAIM` no guard; TSK-04 = `@ImplicitAccess` +
+  `BulkAssignProcessesCommand.assertBasePermission` (`PROCESS_ASSIGN` em algum escopo OU
+  titular/substituto de alguma unidade; senão 403 do lote com `access.denied`
+  `reasonCode = PROCESS_ASSIGN`). Nada disso substitui POL-04/POL-05, que continuam por item.
+- **Orquestração:** `runBulkItems` (`application/task-bulk.support.ts`) chama, em sequência, o
+  `ClaimProcessCommand`/`AssignProcessCommand` inteiro por item (uma transação cada) com
+  `expectedVersion = null` (sem `If-Match` por item: a trava do processo decide a corrida) e
+  `batch = { batchId, idempotencyKey }` (vai para `metadata` de `process.claim`/`process.assign`).
+  Recusa de item → `{ ok: false, code, message }` (`domain/task-bulk.ts`: `PROCESS_NOT_FOUND` vira
+  `REFERENCE_NOT_FOUND`); banco fora no meio → o item e os seguintes saem `DEPENDENCY_UNAVAILABLE`
+  sem serem tentados.
+- **Observabilidade:** logs `tasks.bulk_claim`/`tasks.bulk_assign` (`info`),
+  `tasks.bulk_partial_failure` (`warn`, com os códigos) e `tasks.bulk_failed` (`error`); métricas
+  `cf_task_bulk_size` e `cf_task_bulk_items_total{action,outcome}`. Nunca o motivo.
+- **Testes:** `domain/task-bulk.spec.ts`, `presentation/task-bulk.routes.spec.ts` (8 categorias, em
+  memória) e `test/tenant-leak/task-bulk.spec.ts` (PostgreSQL: outro tenant no lote, lotes
+  concorrentes, `PENDING`).
+
 ### Mudança de etapa reutilizável (`StageTransitionService`)
 
 Base de toda tramitação (encaminhar — US-047; devolver — US-048; decidir — US-052; concluir —

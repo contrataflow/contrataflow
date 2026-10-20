@@ -32,6 +32,8 @@ import {
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
+import { batchAuditMetadata } from './task-bulk.support.js';
+import type { BulkItemContext } from './task-bulk.support.js';
 import { accessTargetOf } from './update-process.command.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
@@ -40,8 +42,13 @@ import { claimRefusal, planClaim } from '../domain/process-claim.js';
 
 export interface ClaimProcessInput {
   readonly processId: string;
-  /** `If-Match` (a versão que o painel leu — DEC-104; o 428 é do guard). */
-  readonly expectedVersion: number;
+  /**
+   * `If-Match` (a versão que o painel leu — DEC-104; o 428 é do guard). `null` só no lote do TSK-03
+   * (US-058), que não envia versão por item: a trava do processo decide a corrida.
+   */
+  readonly expectedVersion: number | null;
+  /** Item de um lote (US-058): `batchId` e a `Idempotency-Key` vão para a auditoria. */
+  readonly batch?: BulkItemContext;
 }
 
 export interface ClaimedProcess {
@@ -132,7 +139,11 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
     if (refusal === 'INVALID_STATUS') throw processNotClaimable(process.status);
     if (refusal === 'ALREADY_ASSIGNED') {
       const responsibleId = process.currentResponsibleId ?? '';
-      if (responsibleId === userId && input.expectedVersion !== process.version) {
+      if (
+        responsibleId === userId &&
+        input.expectedVersion !== null &&
+        input.expectedVersion !== process.version
+      ) {
         // FA-03: o reenvio do clique duplo já foi aplicado — 412, o front só atualiza a tela.
         throw claimVersionConflict(input.expectedVersion, process.version);
       }
@@ -149,7 +160,7 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
       throw processAlreadyAssigned({ id: responsibleId, name: name ?? null });
     }
     // 3.1 — `If-Match`.
-    if (input.expectedVersion !== process.version) {
+    if (input.expectedVersion !== null && input.expectedVersion !== process.version) {
       throw claimVersionConflict(input.expectedVersion, process.version);
     }
     const active = rows.stages.find(
@@ -188,7 +199,7 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
     });
     if (!(await this.processes.recordClaim(tx, plan))) {
       // A trava garante a versão; divergir aqui é escrita fora da trava (a rede do `WHERE version`).
-      throw claimVersionConflict(input.expectedVersion, process.version + 1);
+      throw claimVersionConflict(input.expectedVersion ?? process.version, process.version + 1);
     }
 
     // 3.7–3.8 — evento (a timeline `PROCESS_CLAIMED` e o `ProcessAccess` RESPONSIBLE vêm dele,
@@ -219,6 +230,7 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
         processCode: updated.code,
         processStageId: active.id,
         movementId: plan.movement.id,
+        ...batchAuditMetadata(input.batch),
       },
     });
 

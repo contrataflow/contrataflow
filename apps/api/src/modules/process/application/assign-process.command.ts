@@ -34,6 +34,8 @@ import {
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
+import { batchAuditMetadata } from './task-bulk.support.js';
+import type { BulkItemContext } from './task-bulk.support.js';
 import { accessTargetOf } from './update-process.command.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
@@ -44,8 +46,13 @@ import { assignReasonMissing, isAssignable, planAssign } from '../domain/process
 export interface AssignProcessInput {
   readonly processId: string;
   readonly body: AssignProcess;
-  /** `If-Match` (a versão que o painel leu — DEC-104; o 428 é do guard). */
-  readonly expectedVersion: number;
+  /**
+   * `If-Match` (a versão que o painel leu — DEC-104; o 428 é do guard). `null` só no lote do TSK-04
+   * (US-058), que não envia versão por item: a trava do processo decide a corrida.
+   */
+  readonly expectedVersion: number | null;
+  /** Item de um lote (US-058): `batchId` e a `Idempotency-Key` vão para a auditoria. */
+  readonly batch?: BulkItemContext;
 }
 
 export interface AssignedProcess {
@@ -137,7 +144,7 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
     // 5.3 — status e tipo da etapa (RN-TRAM-37); 5.1 — `If-Match`.
     const stage = await this.workflow.currentStage(executionStateOf(runtime));
     if (!isAssignable(process, stage?.type ?? null)) throw processNotAssignable(process.status);
-    if (input.expectedVersion !== process.version) {
+    if (input.expectedVersion !== null && input.expectedVersion !== process.version) {
       throw assignVersionConflict(input.expectedVersion, process.version);
     }
     const active = rows.stages.find(
@@ -192,7 +199,7 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
     });
     if (!(await this.processes.recordAssign(tx, plan))) {
       // A trava garante a versão; divergir aqui é escrita fora da trava (a rede do `WHERE version`).
-      throw assignVersionConflict(input.expectedVersion, process.version + 1);
+      throw assignVersionConflict(input.expectedVersion ?? process.version, process.version + 1);
     }
 
     // 5.9–5.10 — evento (a timeline `PROCESS_ASSIGNED` e o `ProcessAccess` RESPONSIBLE vêm dele,
@@ -227,6 +234,7 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
         toUserId: assigneeId,
         viaHeadOrDeputy,
         ...(reason === null ? {} : { reasonLength: reason.length }),
+        ...batchAuditMetadata(input.batch),
       },
     });
 

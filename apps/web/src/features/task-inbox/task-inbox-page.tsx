@@ -12,10 +12,24 @@ import type { KeyboardEvent } from 'react';
 import { CorrelationCode } from '@/components/errors/correlation-code';
 import { claimProcess } from '@/features/process-claim/process-claim.api';
 import { ConfidentialBadge, DueDateBadge } from '@/features/process-list/process-list-badges';
-import { usePermission } from '@/lib/permissions/use-permission';
+import {
+  hasPermission,
+  useEffectivePermissions,
+  usePermission,
+} from '@/lib/permissions/use-permission';
 import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { TaskBulkActions } from './task-bulk-actions';
+import {
+  EMPTY_SELECTION,
+  isFull,
+  isSelectable,
+  selectedItemOf,
+  togglePage,
+  toggleSelection,
+} from './task-bulk-model';
+import type { BulkSelection } from './task-bulk-model';
 import {
   DEFAULT_SORT,
   counterOf,
@@ -28,10 +42,18 @@ import {
 } from './task-inbox-model';
 import { useTaskInbox, useTaskInboxCounters } from './task-inbox.api';
 
+/** Seleção múltipla da fila da unidade (US-058): só existe com alguma ação em lote disponível. */
+interface BulkSelectionControl {
+  readonly selection: BulkSelection;
+  readonly onChange: (selection: BulkSelection) => void;
+}
+
 /**
  * SCR-013 — Caixa de tarefas (US-056): abas com contadores (TSK-02), a lista da aba ativa (TSK-01)
  * com ordenação e paginação, a ação rápida "Assumir" (PRC-21) na fila da unidade e o polling de
- * 60 s (RN-INBOX-13). Acesso por `INBOX_VIEW`; a API decide cada requisição.
+ * 60 s (RN-INBOX-13). Acesso por `INBOX_VIEW`; a API decide cada requisição. Na fila da unidade,
+ * a seleção múltipla e as ações em lote (US-058 · TSK-03/TSK-04): "Assumir selecionados" com
+ * `PROCESS_CLAIM`; "Atribuir selecionados" com `PROCESS_ASSIGN` ou chefia de unidade.
  */
 export function TaskInboxPage() {
   const t = useTranslations('taskInbox');
@@ -43,9 +65,20 @@ export function TaskInboxPage() {
   const counters = useTaskInboxCounters(allowed);
   const list = useTaskInbox(view, sort, page, allowed);
   const tabs = visibleTabs(counters.data);
+  const effective = useEffectivePermissions().data;
+  const canBulkClaim = hasPermission(effective, 'PROCESS_CLAIM');
+  const canBulkAssign =
+    hasPermission(effective, 'PROCESS_ASSIGN') ||
+    (effective?.implicit.headOfDepartmentIds.length ?? 0) > 0;
+  const [selection, setSelection] = useState<BulkSelection>(EMPTY_SELECTION);
+  const bulk: BulkSelectionControl | null =
+    view === 'UNIT_QUEUE' && (canBulkClaim || canBulkAssign)
+      ? { selection, onChange: setSelection }
+      : null;
 
   const select = (next: TaskInboxView) => {
     setView(next);
+    setSelection(EMPTY_SELECTION);
     setSort((current) => sortForView(current, next));
     // A página só vale dentro da aba (RN-INBOX-10); a ordenação é mantida.
     setPage(1);
@@ -102,8 +135,26 @@ export function TaskInboxPage() {
                 setPage(1);
               }}
             />
+            {bulk === null ? null : (
+              <TaskBulkActions
+                selection={selection}
+                canClaim={canBulkClaim}
+                canAssign={canBulkAssign}
+                onClear={() => {
+                  setSelection(EMPTY_SELECTION);
+                }}
+                onProcessed={(succeeded) => {
+                  setSelection((current) => {
+                    const next = new Map(current);
+                    for (const id of succeeded) next.delete(id);
+                    return next;
+                  });
+                }}
+              />
+            )}
             <InboxList
               view={view}
+              bulk={bulk}
               query={list}
               onPage={setPage}
               onRetry={() => {
@@ -239,11 +290,13 @@ function SortSelect({
 
 function InboxList({
   view,
+  bulk,
   query,
   onPage,
   onRetry,
 }: {
   readonly view: TaskInboxView;
+  readonly bulk: BulkSelectionControl | null;
   readonly query: ReturnType<typeof useTaskInbox>;
   readonly onPage: (page: number) => void;
   readonly onRetry: () => void;
@@ -278,7 +331,7 @@ function InboxList({
           <p className="font-medium">{t(`empty.${view}`)}</p>
         </div>
       ) : (
-        <InboxTable view={view} items={items} />
+        <InboxTable view={view} items={items} bulk={bulk} />
       )}
       {data && data.meta.totalPages > 1 ? (
         <nav aria-label={t('pagination.label')} className="flex items-center justify-between gap-2">
@@ -352,20 +405,41 @@ function LoadError({
 function InboxTable({
   view,
   items,
+  bulk,
 }: {
   readonly view: TaskInboxView;
   readonly items: readonly TaskInboxItemDto[];
+  readonly bulk: BulkSelectionControl | null;
 }) {
   const t = useTranslations('taskInbox');
   const format = useFormatter();
   const approvals = view === 'PENDING_APPROVALS';
   const queue = view === 'UNIT_QUEUE';
+  const selectable = bulk === null ? [] : items.filter(isSelectable).map(selectedItemOf);
+  const pageSelected =
+    bulk !== null &&
+    selectable.length > 0 &&
+    selectable.every((item) => bulk.selection.has(item.processId));
   return (
     <div className="rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
       <table className="w-full text-left text-sm md:min-w-[48rem]">
         <caption className="sr-only">{t('table.caption', { view: t(`tabs.${view}`) })}</caption>
         <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">
           <tr>
+            {bulk === null ? null : (
+              <th scope="col" className="w-10 px-3 py-2">
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  aria-label={t('bulk.selectPage')}
+                  checked={pageSelected}
+                  disabled={selectable.length === 0}
+                  onChange={() => {
+                    bulk.onChange(togglePage(bulk.selection, selectable));
+                  }}
+                />
+              </th>
+            )}
             <th scope="col" className="px-3 py-2">
               {t('table.process')}
             </th>
@@ -404,6 +478,22 @@ function InboxTable({
               key={item.id}
               className="border-t border-border max-md:flex max-md:flex-col max-md:gap-1 max-md:p-3"
             >
+              {bulk === null ? null : (
+                <td className="px-3 py-2 align-top max-md:p-0">
+                  {isSelectable(item) ? (
+                    <input
+                      type="checkbox"
+                      className="size-4"
+                      aria-label={t('bulk.selectRow', { code: item.code ?? item.title })}
+                      checked={bulk.selection.has(item.processId)}
+                      disabled={!bulk.selection.has(item.processId) && isFull(bulk.selection)}
+                      onChange={() => {
+                        bulk.onChange(toggleSelection(bulk.selection, selectedItemOf(item)));
+                      }}
+                    />
+                  ) : null}
+                </td>
+              )}
               <td className="px-3 py-2 align-top max-md:p-0">
                 <Link
                   href={`/processos/${item.processId}`}

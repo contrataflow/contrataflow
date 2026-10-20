@@ -63,6 +63,67 @@
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
     }
   },
+  "bulk": {
+    "label": "Ações em lote",
+    "selectPage": "Selecionar todos os processos desta página",
+    "selectRow": "Selecionar o processo {code}",
+    "selected": "{count, plural, one {# selecionado} other {# selecionados}}",
+    "processing": "Processando {count, plural, one {# processo} other {# processos}}…",
+    "minimum": "Selecione ao menos 2 processos.",
+    "limit": "Selecione no máximo 50 processos por vez.",
+    "claim": "Assumir selecionados",
+    "assign": "Atribuir selecionados",
+    "clear": "Cancelar seleção",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "confirmClaim": {
+      "title": "Assumir {count, plural, one {# processo} other {# processos}}?",
+      "description": "Você passará a ser o responsável pelos processos selecionados. Os que não puderem ser assumidos serão listados no resumo.",
+      "submit": "Assumir"
+    },
+    "assignDialog": {
+      "title": "Atribuir {count, plural, one {# processo} other {# processos}} a",
+      "description": "Todos os processos selecionados irão para a mesma pessoa, com o mesmo motivo.",
+      "assignee": "Responsável",
+      "placeholder": "Selecione o responsável",
+      "loading": "Carregando as pessoas da unidade…",
+      "loadError": "Não foi possível carregar as pessoas da unidade.",
+      "mixedDepartments": "Os processos selecionados estão em unidades diferentes. Selecione processos de uma mesma unidade para atribuir em lote.",
+      "reason": "Motivo",
+      "reasonHint": "Obrigatório. De 10 a 2.000 caracteres; fica registrado na tramitação de cada processo.",
+      "cancel": "Cancelar",
+      "submit": "Atribuir",
+      "close": "Fechar"
+    },
+    "summary": {
+      "claim": {
+        "success": "{count, plural, one {# processo assumido.} other {# processos assumidos.}}",
+        "partial": "{success, number} de {total, number} processos assumidos. {errors, plural, one {# não pôde ser assumido.} other {# não puderam ser assumidos.}}"
+      },
+      "assign": {
+        "success": "{count, plural, one {# processo atribuído.} other {# processos atribuídos.}}",
+        "partial": "{success, number} de {total, number} processos atribuídos. {errors, plural, one {# não pôde ser atribuído.} other {# não puderam ser atribuídos.}}"
+      },
+      "failure": "Nenhum processo pôde ser processado.",
+      "details": "Ver {count, plural, one {o erro} other {os # erros}}",
+      "dismiss": "Fechar resumo",
+      "items": {
+        "alreadyAssigned": "{code} — já havia sido assumido por outra pessoa.",
+        "notFound": "{code} — não pôde ser processado.",
+        "other": "{code} — {message}"
+      }
+    },
+    "errors": {
+      "tooShort": "Selecione ao menos 2 processos.",
+      "tooLong": "Selecione no máximo 50 processos por vez.",
+      "denied": "Você não tem permissão para esta ação em lote.",
+      "reused": "Esta solicitação já foi enviada com outros dados.",
+      "inProgress": "Esta solicitação ainda está sendo processada. Aguarde alguns segundos.",
+      "unavailable": "Não foi possível concluir a ação agora.",
+      "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
+      "retry": "Tentar novamente"
+    }
+  },
   "empty": {
     "MINE": "Nenhum processo pendente com você. Bom trabalho!",
     "UNIT_QUEUE": "Nenhum processo aguardando na fila da sua unidade.",

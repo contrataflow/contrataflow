@@ -291,7 +291,7 @@ flowchart TD
 - **Objetivo:** reunir, por abas, os processos sob responsabilidade, na fila da unidade e aprovações pendentes do usuário, com ações rápidas de assumir/atribuir.
 - **Layout e regiões:** `InboxTabs` com contadores; `InboxTable`/lista por aba; barra de ações em lote (visão "Na fila da minha unidade").
 - **Componentes:** `InboxTabs`, `InboxTable`, `QuickClaimButton`, `OverdueBadge`, `DueDateBadge` (US-055), `EmptyState` por visão; `BulkActionBar` ("{N} selecionados"), `BulkResultSummary`, `AssigneeSelect` (US-058).
-- **Dados e endpoints:** TSK-01 `GET /tasks`, TSK-02 `GET /tasks/counters`; TSK-03 `POST /tasks/bulk-claim` (Idem., lote de 2 a 50), TSK-04 `POST /tasks/bulk-assign` (Idem., lote de 1 a 50).
+- **Dados e endpoints:** TSK-01 `GET /tasks`, TSK-02 `GET /tasks/counters`; TSK-03 `POST /tasks/bulk-claim` (Idem., lote de 2 a 50), TSK-04 `POST /tasks/bulk-assign` (Idem., lote de 2 a 50).
 - **Ações:** Assumir (linha única) → PRC-21 ou TSK-03 → `PROCESS_CLAIM` + POL-04 → toast de sucesso; Atribuir em lote → SCR-115 (variante múltipla) → TSK-04 → `PROCESS_ASSIGN`/titular → resumo por item.
 - **Estados:** *skeleton* nas abas/tabela; vazio por visão; erro com "Tentar novamente"; linha em "assumindo…" durante a chamada; barra de ações oculta sem seleção, botões desabilitados durante o processamento ("Processando {N} processos…").
 - **Validações e mensagens:** erro inline se outro usuário já assumiu o processo; resumo de lote com lista expansível de erros.
@@ -423,7 +423,7 @@ flowchart TD
 - **Objetivo:** assumir um processo sem responsável, ou atribuir/reatribuir o responsável — individualmente ou em lote.
 - **Layout e regiões:** esta tela agrega **duas interações distintas**: Assumir é uma ação direta (sem diálogo de confirmação — US-049, por ser reversível e sem efeito colateral sensível); Atribuir/Reatribuir é um diálogo (US-050), com variante para múltiplos processos a partir de SCR-013 (US-058).
 - **Componentes:** `ClaimButton` (estado de carregamento, desaparece após sucesso — assumir); `DepartmentMemberSelect` (membros da unidade atual + "Deixar na fila da unidade"), `TextareaField` (motivo, condicional), `ConfirmButton` (atribuir).
-- **Dados e endpoints:** PRC-21 `POST /processes/{id}/claim` (IM) → POL-04; PRC-22 `POST /processes/{id}/assign` (IM) → POL-05; em lote, TSK-03/TSK-04 (Idem., 1 a 50 itens).
+- **Dados e endpoints:** PRC-21 `POST /processes/{id}/claim` (IM) → POL-04; PRC-22 `POST /processes/{id}/assign` (IM) → POL-05; em lote, TSK-03/TSK-04 (Idem., 2 a 50 itens).
 - **Ações:** Assumir → PRC-21 → POL-04 → toast de sucesso, botão desaparece; Atribuir/Reatribuir → PRC-22 (ou TSK-04 em lote) → POL-05 → fecha o diálogo e atualiza o painel/lista.
 - **Estados:** botão de assumir visível só quando elegível, desabilitado durante o envio; *skeleton* ao carregar membros (atribuir); vazio ("Nenhum outro membro ativo nesta unidade"); erro inline se outro usuário já assumiu (`PROCESS_ALREADY_ASSIGNED`, 409); erro de carregamento.
 - **Validações e mensagens:** motivo obrigatório na reatribuição (`aria-required`); novo responsável deve ter vínculo ativo, lotação na unidade atual e `PROCESS_VIEW`.

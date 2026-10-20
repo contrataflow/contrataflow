@@ -120,6 +120,10 @@ import {
   SetProcessTagsCommand,
   UpdateTagCommand,
 } from './application/tags.commands.js';
+import {
+  BulkAssignProcessesCommand,
+  BulkClaimProcessesCommand,
+} from './application/task-bulk.commands.js';
 import { UpdateProcessCommand } from './application/update-process.command.js';
 import { InMemoryProcessRepository } from './infrastructure/in-memory-process.repository.js';
 import {
@@ -152,6 +156,7 @@ import { ProcessParticipantsController } from './presentation/process-participan
 import { ProcessController } from './presentation/process.controller.js';
 import { SavedViewsController } from './presentation/saved-views.controller.js';
 import { ProcessTagsController, TagsController } from './presentation/tags.controller.js';
+import { TaskBulkController } from './presentation/task-bulk.controller.js';
 import { AccessModule } from '../access/access.module.js';
 import { ApprovalModule } from '../approval/approval.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
@@ -227,6 +232,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessParticipantsController,
     TagsController,
     ProcessTagsController,
+    // US-058: TSK-03/TSK-04 (ações em lote da caixa de tarefas sobre o PRC-21/PRC-22).
+    TaskBulkController,
   ],
   providers: [
     ProcessAttachmentTargets,
@@ -251,6 +258,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ReturnProcessCommand,
     ClaimProcessCommand,
     AssignProcessCommand,
+    BulkClaimProcessesCommand,
+    BulkAssignProcessesCommand,
     ProcessLifecycleSupport,
     SuspendProcessCommand,
     ResumeProcessCommand,
