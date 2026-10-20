@@ -21,11 +21,21 @@ import type { QueueAuditPort } from './platform-audit.js';
  * painel exige operador de plataforma com `PLATFORM_QUEUE_ADMIN` + MFA e registra
  * `queue_dashboard.access` (concedido ou negado, uma vez por token). Os adaptadores rodam em
  * `readOnlyMode` e, por garantia, qualquer método além de GET/HEAD é recusado antes do painel:
- * retry, descarte e limpeza só pela CLI auditada. Fora do painel, só `/health`.
+ * retry, descarte e limpeza só pela CLI auditada. Antes de tudo, um limite de taxa por endereço de
+ * origem (a autenticação relê `users` a cada chamada). Fora do painel, só `/health`.
  */
 
 export const DASHBOARD_BASE_PATH = '/queues';
 export const OPS_TOKEN_COOKIE = 'cf_ops_token';
+
+/** Janela fixa por endereço de origem, em memória (por réplica — queues.md §15.1). */
+export interface DashboardRateLimit {
+  readonly limit: number;
+  readonly windowMs: number;
+}
+
+export const DASHBOARD_RATE_LIMIT: DashboardRateLimit = { limit: 300, windowMs: 60_000 };
+const RATE_LIMITED_MESSAGE = 'Muitas tentativas. Aguarde alguns segundos.';
 
 const MESSAGES: Readonly<Record<OperatorAccessCode, string>> = {
   UNAUTHENTICATED: 'Sua sessão de operação expirou. Entre novamente.',
@@ -37,6 +47,9 @@ export interface QueueDashboardDeps {
   readonly queues: readonly Queue[];
   readonly authenticator: Pick<OperatorAuthenticator, 'authenticate'>;
   readonly audit: QueueAuditPort;
+  /** Padrão: `DASHBOARD_RATE_LIMIT`. */
+  readonly rateLimit?: DashboardRateLimit;
+  readonly now?: () => number;
 }
 
 function tokenOf(request: Request): string | null {
@@ -76,6 +89,33 @@ export function createQueueDashboardApp(deps: QueueDashboardDeps): express.Expre
       userAgent: request.headers['user-agent'] ?? null,
     });
     audited.add(key);
+  };
+
+  const { limit, windowMs } = deps.rateLimit ?? DASHBOARD_RATE_LIMIT;
+  const now = deps.now ?? Date.now;
+  /** Janela aberta por endereço de origem; as vencidas saem quando outra janela abre. */
+  const windows = new Map<string, { start: number; count: number }>();
+
+  const rateLimit = (request: Request, response: Response, next: NextFunction) => {
+    const at = now();
+    const key = request.socket.remoteAddress ?? 'desconhecido';
+    let window = windows.get(key);
+    if (window === undefined || at - window.start >= windowMs) {
+      for (const [other, open] of windows) if (at - open.start >= windowMs) windows.delete(other);
+      window = { start: at, count: 0 };
+      windows.set(key, window);
+    }
+    window.count += 1;
+    if (window.count <= limit) {
+      next();
+      return;
+    }
+    const retryAfterSeconds = Math.max(1, Math.ceil((window.start + windowMs - at) / 1000));
+    logger.warn({ event: 'queue_dashboard.rate_limited' });
+    response
+      .status(429)
+      .setHeader('Retry-After', String(retryAfterSeconds))
+      .json({ code: 'RATE_LIMITED', message: RATE_LIMITED_MESSAGE });
   };
 
   const readOnly = (request: Request, response: Response, next: NextFunction) => {
@@ -126,7 +166,13 @@ export function createQueueDashboardApp(deps: QueueDashboardDeps): express.Expre
   app.get('/health', (_request, response) => {
     response.json({ status: 'ok' });
   });
-  app.use(DASHBOARD_BASE_PATH, readOnly, authenticate, serverAdapter.getRouter() as express.Router);
+  app.use(
+    DASHBOARD_BASE_PATH,
+    rateLimit,
+    readOnly,
+    authenticate,
+    serverAdapter.getRouter() as express.Router,
+  );
   return app;
 }
 
