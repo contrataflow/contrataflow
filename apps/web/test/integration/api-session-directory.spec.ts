@@ -44,7 +44,7 @@ async function startApi(): Promise<{ process: ChildProcess; url: string }> {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       // eslint-disable-next-line contrataflow/no-process-env -- o processo filho herda PATH etc.
-      ...process.env,
+      ...process.env, // nosemgrep: cf-no-process-env -- o processo filho herda PATH etc.
       NODE_ENV: 'test',
       APP_ENV: 'test',
       PORT: String(port),

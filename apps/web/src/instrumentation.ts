@@ -6,7 +6,7 @@ export async function register(): Promise<void> {
   // O Next substitui `process.env.NEXT_RUNTIME` no build: a comparação literal tira o SDK (e o
   // pino) do bundle Edge, o que uma função de `src/config` não permitiria.
   // eslint-disable-next-line contrataflow/no-process-env -- ver comentário acima
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return; // nosemgrep: cf-no-process-env -- ver acima
   const { startWebTelemetry } = await import('@/bff/telemetry');
   startWebTelemetry();
 }

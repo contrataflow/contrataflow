@@ -61,7 +61,7 @@ export function runPrisma(args: string[], url: string): Promise<{ stdout: string
     cwd: API_ROOT,
     env: {
       // eslint-disable-next-line contrataflow/no-process-env -- o processo filho herda PATH etc.
-      ...process.env,
+      ...process.env, // nosemgrep: cf-no-process-env -- o processo filho herda PATH etc.
       DATABASE_MIGRATION_URL: url,
       CHECKPOINT_DISABLE: '1',
       PRISMA_HIDE_UPDATE_MESSAGE: '1',

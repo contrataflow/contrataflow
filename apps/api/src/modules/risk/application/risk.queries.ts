@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 import type {
   RiskDto,
   RiskListMetaDto,
@@ -98,7 +100,7 @@ export class GetRiskMatrixQuery {
       const risks = await this.risks.listByProcess(tx, processId, filter);
       return { matrix: riskMatrixOf(risks, current), riskCount: risks.length };
     });
-    if (Math.random() < MATRIX_LOG_SAMPLE_RATE) {
+    if (randomInt(100) < MATRIX_LOG_SAMPLE_RATE * 100) {
       this.logger.log(
         {
           event: 'risk_map.matrix_viewed',

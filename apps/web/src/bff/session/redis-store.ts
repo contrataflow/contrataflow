@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 
 import {
   DEFAULT_SESSION_POLICY,
@@ -67,7 +67,8 @@ export const SESSION_UPDATE_ATTEMPTS = 64;
 const SESSION_UPDATE_MAX_BACKOFF_MS = 10;
 
 function backoff(attempt: number): Promise<void> {
-  const ms = Math.random() * Math.min(SESSION_UPDATE_MAX_BACKOFF_MS, 1 + attempt * 2);
+  const maxMs = Math.min(SESSION_UPDATE_MAX_BACKOFF_MS, 1 + attempt * 2);
+  const ms = randomInt(maxMs * 1000) / 1000;
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });

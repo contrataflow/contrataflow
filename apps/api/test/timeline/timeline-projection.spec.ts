@@ -5,6 +5,8 @@
 // `DEPARTMENT` leem tabelas criadas só neste contêiner, com a mesma RLS das tabelas de negócio.
 // Também na suíte "tenant leak" (`test:tenant-leak`).
 // `pnpm --filter @contrataflow/api test:integration`.
+import { randomInt } from 'node:crypto';
+
 import { defineDomainEvent } from '@contrataflow/validation';
 import { Logger } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -240,7 +242,7 @@ describe('TimelineProjector no PostgreSQL (US-059)', () => {
     asUser(tenantId, user, () =>
       app.$tenantTransaction(async (tx) => {
         const id = newId();
-        const code = `${String(Math.floor(Math.random() * 9000) + 1000)}/2026`;
+        const code = `${String(randomInt(1000, 10000))}/2026`;
         const title = options.title ?? 'Manutenção predial';
         await tx.$executeRaw`
           INSERT INTO test_processes (id, tenant_id, code, title, is_budget_confidential)

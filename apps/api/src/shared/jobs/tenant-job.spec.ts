@@ -190,10 +190,13 @@ describe('contexto de tenant em jobs (US-100 · FA-03 · RN-TEN-31)', () => {
     const metaA = await enqueueFrom(A);
     const metaB = await enqueueFrom(B);
     const seen: (string | null | undefined)[][] = [];
+    let started = 0;
     class SlowJob extends TenantJob<z.infer<typeof payloadSchema>> {
       protected readonly payloadSchema = payloadSchema;
       protected async handle(_payload: unknown, meta: JobMeta): Promise<void> {
-        await new Promise((resolve) => setTimeout(resolve, Math.random() * 5));
+        // Atrasos de 0/1/2 ms alternados fazem os jobs terminarem fora da ordem de início.
+        const delayMs = started++ % 3;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
         seen.push([meta.tenantId, currentRequestContext()?.tenantId]);
       }
     }
