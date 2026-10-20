@@ -66,7 +66,7 @@ describe('seleção de instituição (FA-01)', () => {
     const { assign } = renderSelection(null);
     await userEvent.click(screen.getByRole('button', { name: 'Prefeitura B' }));
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith('/processos');
+      expect(assign).toHaveBeenCalledWith('/painel');
     });
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(url).toBe('/api/auth/switch-tenant');
@@ -204,7 +204,7 @@ describe('seleção de instituição (FA-01)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith('/processos');
+      expect(assign).toHaveBeenCalledWith('/painel');
     });
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -262,7 +262,7 @@ describe('seleção de instituição (FA-01)', () => {
     await userEvent.click(toggle);
     await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith('/processos');
+      expect(assign).toHaveBeenCalledWith('/painel');
     });
     const init = fetchMock.mock.calls[0]?.[1];
     expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toEqual({

@@ -147,6 +147,33 @@ export function inboxViewerOf(facts: InboxViewerFacts): InboxViewer {
   };
 }
 
+/**
+ * Recorte opcional dos contadores pela unidade solicitante do processo (US-076 · RN-DASH-09: os
+ * filtros do dashboard, sempre DENTRO da visibilidade). `null` = sem recorte naquele campo.
+ */
+export interface InboxProcessRestriction {
+  readonly secretariatId: string | null;
+  /** O setor filtrado e a sua subárvore (já resolvidos). */
+  readonly departmentIds: readonly string[] | null;
+}
+
+export function matchesRestriction(
+  row: Pick<InboxProcessRow, 'requestingSecretariatId' | 'requestingDepartmentId'>,
+  restriction: InboxProcessRestriction | null,
+): boolean {
+  if (restriction === null) return true;
+  if (
+    restriction.secretariatId !== null &&
+    row.requestingSecretariatId !== restriction.secretariatId
+  ) {
+    return false;
+  }
+  return (
+    restriction.departmentIds === null ||
+    restriction.departmentIds.includes(row.requestingDepartmentId)
+  );
+}
+
 /** FA-01 · RN-INBOX-04: a aba "Na fila da minha unidade" existe para o usuário. */
 export function unitQueueApplies(viewer: InboxViewer): boolean {
   return viewer.queueDepartmentIds.length > 0;

@@ -170,7 +170,7 @@ describe('[Tenant incorreto] seletor de instituição (US-093)', () => {
     });
     // RN-IAM-72: nenhum dado do tenant anterior quando a navegação começa.
     expect(order).toEqual(['push:0']);
-    expect(router.push).toHaveBeenCalledWith('/processos');
+    expect(router.push).toHaveBeenCalledWith('/painel');
     const call = fetchMock.mock.calls.find(([url]) => url === '/api/auth/switch-tenant');
     const body = call?.[1]?.body;
     expect(JSON.parse(typeof body === 'string' ? body : '')).toEqual({ membershipId: 'm-b' });

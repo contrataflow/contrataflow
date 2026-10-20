@@ -35,7 +35,7 @@
   | 422 | `VALIDATION_ERROR` (`REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE`) | `secretariatId`/`departmentId` inválido |
   | 422 | `VALIDATION_ERROR` (`DEPARTMENT_NOT_IN_SECRETARIAT`) | `departmentId` fora da subárvore de `secretariatId` |
 - **Efeitos:** — (leitura agregada, mesma convenção de TSK-01/02 — DEC-026)
-- **Notas:** resposta cacheada (`meta.cache`); contadores sem recorte de secretaria/unidade quando os filtros não são informados (todas as visíveis ao usuário).
+- **Notas:** resposta cacheada (`meta.cache`); contadores sem recorte de secretaria/unidade quando os filtros não são informados (todas as visíveis ao usuário). `pendingCount` = "Comigo" + "Aprovações pendentes" de TSK-02 (mesmos predicados); `overdueCount`/`dueSoonCount` só com o prazo correndo (`IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`); `openCount` = `IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`, `SUSPENDED` (DEC-088).
 
 ### DSH-02 — Obter indicador do dashboard
 `GET /api/v1/dashboard/widgets/{widgetKey}` · **Permissão:** `DASHBOARD_VIEW` · **Story:** US-076
@@ -61,7 +61,16 @@
   | 422 | `VALIDATION_ERROR` (`DEPARTMENT_NOT_IN_SECRETARIAT`) | `departmentId` fora da subárvore de `secretariatId` |
   | 422 | `VALIDATION_ERROR` (`OUT_OF_RANGE`) | `limit` de `RECENT_ACTIVITY` fora de 1–100 |
 - **Efeitos:** — (leitura agregada)
-- **Notas:** agregados que somam processos de orçamento sigiloso sem POL-09 excluem a linha do cálculo e marcam `confidentialExcluded: true` (POL-09), em vez de mascarar o valor (diferente da convenção `<campo>Masked` de api.md §1.4). A story detalha o formato de resposta apenas para `VALUE_BY_SECRETARIAT` (campo `series`) e cita `items`/`limit` para `RECENT_ACTIVITY`; o formato exato dos outros 7 indicadores (`PENDING_ITEMS`, `BY_STATUS`, `BY_STAGE`, `OVERDUE`, `DUE_SOON`, `AVG_STAGE_DURATION`, `OPENED_BY_MONTH`) não está detalhado — a definir na implementação.
+- **Notas:** agregados que somam processos de orçamento sigiloso sem POL-09 excluem a linha do cálculo e marcam `confidentialExcluded: true` (POL-09), em vez de mascarar o valor (diferente da convenção `<campo>Masked` de api.md §1.4). Formato de cada indicador (definido na US-076 — DEC-088; `series` de contagem = `{ key, label, value }`, `label` nulo quando o front traduz a chave):
+  - `PENDING_ITEMS`: `total` (= `pendingCount`: "Comigo" + "Aprovações pendentes") e `series` com os contadores de TSK-02 por visão (`key` = `TaskInboxView`; `UNIT_QUEUE` só quando a fila se aplica).
+  - `BY_STATUS`: `total` e `series` com os 8 `ProcessStatus` (zero incluído; soma = total visível).
+  - `BY_STAGE`: abertos por etapa atual (`key` = `workflowStageId`, `label` = nome da etapa), `total`.
+  - `OVERDUE` / `DUE_SOON`: por secretaria solicitante (`key` = id da unidade, `label` = nome), `total`; `DUE_SOON` traz `warnBeforeBusinessDays`.
+  - `AVG_STAGE_DURATION`: `windowDays` (90) e `series` `{ key: workflowStageId, label, value: média em segundos, sampleSize }`.
+  - `OPENED_BY_MONTH`: `total` e `series` dos 12 meses (`key` = `YYYY-MM` no fuso do tenant, do mais antigo ao corrente).
+  - `VALUE_BY_SECRETARIAT`: `series` `{ key, label, value: decimal, confidentialExcluded }` dos processos abertos com valor.
+  - `RECENT_ACTIVITY`: `items` = `TimelineEntry` + `process: { id, code }`, mais recentes primeiro.
+  - "Abertos" = `IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`, `SUSPENDED`; filtros recortam pela unidade solicitante (`departmentId` com a subárvore); `secretariatId` que não é secretaria → 422 `NOT_ALLOWED`.
 
 ### NTF-01 — Listar notificações
 `GET /api/v1/notifications` · **Permissão:** usuário autenticado (lista apenas as próprias) · **Story:** US-111

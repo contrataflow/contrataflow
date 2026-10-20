@@ -19,7 +19,8 @@ export interface NavItem {
 }
 
 export const MAIN_NAV: readonly NavItem[] = [
-  { href: '/painel', labelKey: 'dashboard', icon: 'dashboard' },
+  // US-076: sem `DASHBOARD_VIEW` o menu some; a rota responde com o estado 403.
+  { href: '/painel', labelKey: 'dashboard', icon: 'dashboard', permission: 'DASHBOARD_VIEW' },
   // US-056: sem `INBOX_VIEW` (caso excepcional) o menu some; a rota responde com o estado 403.
   { href: '/tarefas', labelKey: 'tasks', icon: 'inbox', permission: 'INBOX_VIEW' },
   { href: '/aprovacoes', labelKey: 'approvals', icon: 'stamp' },

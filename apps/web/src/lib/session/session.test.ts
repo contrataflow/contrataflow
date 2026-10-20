@@ -125,7 +125,7 @@ describe('[Tenant incorreto] troca de tenant limpa o cache de dados (US-093)', (
     ).resolves.toEqual({ kind: 'step-up', href: '/api/auth/step-up?returnTo=%2Fexemplo' });
     await expect(
       switchTenant('membership-b', { ...deps, fetchImpl: reply('https://evil.example/') }),
-    ).resolves.toEqual({ kind: 'step-up', href: '/api/auth/step-up?returnTo=%2Fprocessos' });
+    ).resolves.toEqual({ kind: 'step-up', href: '/api/auth/step-up?returnTo=%2Fpainel' });
     expect(queryClient.getQueryData(tenantKey(A, 'x'))).toBe(1);
     expect(deps.refresh).not.toHaveBeenCalled();
   });

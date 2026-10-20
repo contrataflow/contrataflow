@@ -274,6 +274,69 @@ departments.push({
 departments.push(
   newDepartment(organizations[0].id, null, { type: 'SECRETARIAT', name: 'Licitações' }),
 );
+/** DSH-02 (US-076): um indicador fixo por chave (`null` = fora do registro → 404). */
+function dashboardWidgetOf(key, gabinete) {
+  const generatedAt = new Date().toISOString();
+  const count = (series) => series.reduce((total, item) => total + item.value, 0);
+  const bySecretariat = (value) => [{ key: gabinete.id, label: gabinete.name, value }];
+  const widgets = {
+    PENDING_ITEMS: [
+      { key: 'MINE', label: null, value: 2 },
+      { key: 'PENDING_APPROVALS', label: null, value: 0 },
+    ],
+    BY_STATUS: [
+      { key: 'DRAFT', label: null, value: 1 },
+      { key: 'IN_PROGRESS', label: null, value: 42 },
+    ],
+    BY_STAGE: [{ key: randomUUID(), label: 'Estudos preliminares', value: 42 }],
+    OVERDUE: bySecretariat(3),
+    DUE_SOON: bySecretariat(5),
+  };
+  if (key in widgets) {
+    const series = widgets[key];
+    return {
+      widgetKey: key,
+      total: key === 'PENDING_ITEMS' ? 2 : count(series),
+      series,
+      ...(key === 'DUE_SOON' ? { warnBeforeBusinessDays: 2 } : {}),
+      generatedAt,
+    };
+  }
+  switch (key) {
+    case 'AVG_STAGE_DURATION':
+      return {
+        widgetKey: key,
+        windowDays: 90,
+        series: [{ key: randomUUID(), label: 'Abertura', value: 2 * 86_400, sampleSize: 3 }],
+        generatedAt,
+      };
+    case 'OPENED_BY_MONTH':
+      return {
+        widgetKey: key,
+        total: 42,
+        series: [{ key: generatedAt.slice(0, 7), label: null, value: 42 }],
+        generatedAt,
+      };
+    case 'VALUE_BY_SECRETARIAT':
+      return {
+        widgetKey: key,
+        series: [
+          {
+            key: gabinete.id,
+            label: gabinete.name,
+            value: '125000.00',
+            confidentialExcluded: true,
+          },
+        ],
+        generatedAt,
+      };
+    case 'RECENT_ACTIVITY':
+      return { widgetKey: key, items: [], generatedAt };
+    default:
+      return null;
+  }
+}
+
 /** Lista plana na ordem da árvore (pais antes dos filhos; irmãos por ordem e nome). */
 function departmentTree(organizationId) {
   const units = departments.filter((unit) => unit.organizationId === organizationId);
@@ -3581,6 +3644,7 @@ createServer(async (request, response) => {
             { code: 'TAG_MANAGE', scopes: [] },
             { code: 'INBOX_VIEW', scopes: [] },
             { code: 'PROCESS_CLAIM', scopes: [] },
+            { code: 'DASHBOARD_VIEW', scopes: [] },
           ]
         : [];
     return send(response, 200, {
@@ -4294,7 +4358,12 @@ createServer(async (request, response) => {
     return send(response, 200, { data: roleSummary(role) }, { ETag: `"${role.version}"` });
   }
   if (url.pathname === '/api/v1/departments' && request.method === 'GET') {
-    const tree = departmentTree(url.searchParams.get('organizationId') ?? '');
+    // Sem `organizationId`, todas as unidades do tenant (filtro do painel — US-076).
+    const organizationId = url.searchParams.get('organizationId');
+    const tree =
+      organizationId === null
+        ? organizations.flatMap((organization) => departmentTree(organization.id))
+        : departmentTree(organizationId);
     return send(response, 200, {
       data: tree.map(departmentView),
       meta: { page: 1, pageSize: 100, totalItems: tree.length, totalPages: 1 },
@@ -5353,6 +5422,34 @@ createServer(async (request, response) => {
     return send(response, 200, {
       data: items,
       meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 },
+    });
+  }
+  if (url.pathname === '/api/v1/dashboard/summary' && request.method === 'GET') {
+    // DSH-01 (US-076): o recorte por secretaria muda os números (o "Gabinete" tem tudo).
+    const filtered = url.searchParams.has('secretariatId');
+    const gabinete = url.searchParams.get('secretariatId') === departments[0].id;
+    const factor = !filtered || gabinete ? 1 : 0;
+    return send(response, 200, {
+      data: {
+        pendingCount: 2 * factor,
+        overdueCount: 3 * factor,
+        dueSoonCount: 5 * factor,
+        openCount: 42 * factor,
+        generatedAt: new Date().toISOString(),
+      },
+      meta: { cache: { hit: false, expiresAt: new Date(Date.now() + 60_000).toISOString() } },
+    });
+  }
+  const dashboardWidget = /^\/api\/v1\/dashboard\/widgets\/([A-Z_]+)$/.exec(url.pathname);
+  if (dashboardWidget && request.method === 'GET') {
+    const widget = dashboardWidgetOf(dashboardWidget[1], departments[0]);
+    if (!widget) return problem(response, 404, 'WIDGET_NOT_FOUND', String(correlationId));
+    return send(response, 200, {
+      data: widget,
+      meta: {
+        generatedAt: widget.generatedAt,
+        cache: { hit: false, expiresAt: widget.generatedAt },
+      },
     });
   }
   if (url.pathname === '/api/v1/tasks/counters' && request.method === 'GET') {

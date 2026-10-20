@@ -16,12 +16,13 @@ import type {
   InboxReader,
   InboxTransactions,
 } from '../application/ports.js';
-import { compareItems, itemsOfView } from '../domain/task-inbox.js';
+import { compareItems, itemsOfView, matchesRestriction } from '../domain/task-inbox.js';
 import type {
   InboxApprovalRow,
   InboxApproverType,
   InboxItemRow,
   InboxParticipationRow,
+  InboxProcessRestriction,
   InboxProcessRow,
   InboxViewer,
 } from '../domain/task-inbox.js';
@@ -93,10 +94,15 @@ export class PrismaInboxReader implements InboxReader {
     };
   }
 
-  async counts(tx: TenantTx, viewer: InboxViewer, now: Date): Promise<InboxCounts> {
+  async counts(
+    tx: TenantTx,
+    viewer: InboxViewer,
+    now: Date,
+    restriction: InboxProcessRestriction | null = null,
+  ): Promise<InboxCounts> {
     await tx.$executeRaw`SELECT set_config('statement_timeout', ${String(INBOX_STATEMENT_TIMEOUT_MS)}, true)`;
     const [row] = await tx.$queryRaw<Record<string, number>[]>(
-      buildTaskInboxCountsSql(viewer, now),
+      buildTaskInboxCountsSql(viewer, now, restriction),
     );
     const count = (key: string) => row?.[key] ?? 0;
     return {
@@ -155,19 +161,31 @@ export class InMemoryInboxReader implements InboxReader {
     });
   }
 
-  counts(_tx: TenantTx, viewer: InboxViewer, now: Date): Promise<InboxCounts> {
+  counts(
+    _tx: TenantTx,
+    viewer: InboxViewer,
+    now: Date,
+    restriction: InboxProcessRestriction | null = null,
+  ): Promise<InboxCounts> {
     const counts = Object.fromEntries(
-      TASK_INBOX_VIEWS.map((view) => [view, this.items(view, viewer, now).length]),
+      TASK_INBOX_VIEWS.map((view) => [view, this.items(view, viewer, now, restriction).length]),
     ) as Record<(typeof TASK_INBOX_VIEWS)[number], number>;
     return Promise.resolve(counts);
   }
 
-  private items(view: InboxPageSearch['view'], viewer: InboxViewer, now: Date): InboxItemRow[] {
+  private items(
+    view: InboxPageSearch['view'],
+    viewer: InboxViewer,
+    now: Date,
+    restriction: InboxProcessRestriction | null = null,
+  ): InboxItemRow[] {
     const tenantId = currentRequestContext()?.tenantId ?? null;
     const inTenant = <T extends { readonly tenantId: string }>(rows: readonly T[]) =>
       rows.filter((row) => row.tenantId === tenantId);
     const processes = inTenant(this.processes).filter(
-      (row) => row.visibleTo === undefined || row.visibleTo.includes(viewer.userId),
+      (row) =>
+        (row.visibleTo === undefined || row.visibleTo.includes(viewer.userId)) &&
+        matchesRestriction(row, restriction),
     );
     return itemsOfView(
       view,

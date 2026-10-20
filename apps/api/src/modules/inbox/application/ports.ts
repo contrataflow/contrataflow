@@ -2,7 +2,7 @@ import type { TaskInboxSort, TaskInboxView } from '@contrataflow/validation';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
-import type { InboxItemRow, InboxViewer } from '../domain/task-inbox.js';
+import type { InboxItemRow, InboxProcessRestriction, InboxViewer } from '../domain/task-inbox.js';
 
 /*
  * Portas do módulo `inbox` (US-056): a leitura das views publicadas (`InboxReader` — SQL sobre
@@ -29,8 +29,16 @@ export type InboxCounts = Readonly<Record<TaskInboxView, number>>;
 export interface InboxReader {
   /** Página e total da visão numa única leitura (mesmo snapshot — RN-INBOX-09). */
   page(tx: TenantTx, search: InboxPageSearch): Promise<InboxPage>;
-  /** Contadores de todas as visões numa única leitura, com os predicados de `page`. */
-  counts(tx: TenantTx, viewer: InboxViewer, now: Date): Promise<InboxCounts>;
+  /**
+   * Contadores de todas as visões numa única leitura, com os predicados de `page`; `restriction`
+   * recorta pela unidade solicitante (dashboard — US-076).
+   */
+  counts(
+    tx: TenantTx,
+    viewer: InboxViewer,
+    now: Date,
+    restriction?: InboxProcessRestriction | null,
+  ): Promise<InboxCounts>;
 }
 
 export interface InboxTransactions {

@@ -540,6 +540,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'ETP necessário',
     detail: 'Este processo não tem um ETP para importar.',
   },
+  // US-076: indicador fora do registro `DashboardWidgetKey` (api/13 DSH-02 · RN-DASH-02).
+  WIDGET_NOT_FOUND: {
+    status: 404,
+    title: 'Indicador não encontrado',
+    detail: 'Indicador não encontrado.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,

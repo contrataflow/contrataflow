@@ -85,6 +85,14 @@ export class OrganizationFacade {
     }));
   }
 
+  /**
+   * A unidade e toda a sua subárvore (caminho materializado — RN-TEN-45), no tenant da transação
+   * (US-076: filtro do dashboard por unidade "com subárvore" — RN-DASH-09). Inexistente = `[]`.
+   */
+  async subtreeDepartmentIds(tx: TenantTx, departmentId: string): Promise<string[]> {
+    return (await this.departments.subtreeIds(tx, [departmentId])).get(departmentId) ?? [];
+  }
+
   /** Nomes das unidades do tenant da transação (timeline e apresentação de processos — US-001). */
   async departmentNames(tx: TenantTx, ids: readonly string[]): Promise<Map<string, string>> {
     const references = await this.departmentReferences(tx, ids);

@@ -43,14 +43,14 @@ describe('raiz / (redirecionamento pela sessão)', () => {
 
   it('com sessão ativa leva ao destino padrão da área autenticada', async () => {
     server.lookup = { status: 'active' };
-    expect(await redirectOf()).toBe('/processos');
+    expect(await redirectOf()).toBe('/painel');
   });
 
   it('sessão vencida ou vínculo encerrado seguem para o layout de (app), que trata cada caso', async () => {
     server.lookup = { status: 'expired' };
-    expect(await redirectOf()).toBe('/processos');
+    expect(await redirectOf()).toBe('/painel');
     server.lookup = { status: 'membership_ended' };
-    expect(await redirectOf()).toBe('/processos');
+    expect(await redirectOf()).toBe('/painel');
   });
 
   it('Redis de sessões fora do ar cai na entrada, que continua acessível (DEC-131)', async () => {

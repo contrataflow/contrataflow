@@ -140,6 +140,8 @@ export const ERROR_CODES = [
   'PRICE_RESEARCH_INCOMPLETE',
   // US-037: importação do ETP para o TR sem ETP não cancelado no processo (api/09 TRM-05/06).
   'ETP_REQUIRED_FOR_IMPORT',
+  // US-076: indicador fora do registro `DashboardWidgetKey` (api/13 DSH-02).
+  'WIDGET_NOT_FOUND',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

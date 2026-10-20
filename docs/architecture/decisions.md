@@ -629,6 +629,17 @@ Decisões de implementação da US-099 (detalhes em [multi-tenancy.md](multi-ten
 - **Consequências:** o MVP 1 ganha um subprocessador externo (provedor de IA) — inventário de dados e termos de uso atualizados; a suíte "tenant leak" e os testes de autorização cobrem AI-01..06, DOC-26/27 e RSK-11/12; o MVP 5 reutiliza a camada, o módulo e o registro de gerações.
 - Registrado em 2026-10-16 (spec-473, prd-3).
 
+### DEC-088 — Dashboard operacional: leitura agregada sobre views publicadas · `Aceita` · complementa DEC-024, DEC-026, DEC-030 e DEC-040
+Decisões de implementação da US-076 (guia em `apps/api/src/modules/dashboard/README.md`):
+- **Sem entidade, com views:** o módulo `dashboard` (nível 5) agrega as views `security_invoker` publicadas pelos donos na migração `20261020090000_dashboard_views` — `v_dashboard_processes` e `v_dashboard_stage_passages` (`process`) e `v_dashboard_timeline` (`timeline`) —, como a caixa de tarefas faz com as `v_inbox_*` (DEC-026). Cada indicador é UMA instrução, sempre com o predicado de visibilidade único (`buildVisibilityPredicate` — DEC-024) e o recorte dos filtros.
+- **Exceção de nível `dashboard → inbox`:** `PENDING_ITEMS` e o `pendingCount` de DSH-01 vêm da `InboxFacade.countersIn` (mesmos predicados e instrução de TSK-02 — RN-DASH-03), embora os dois módulos sejam do nível 5. Registrada em `allow` de `tools/module-levels.json`; o `inbox` nunca importa o `dashboard`. `pendingCount` = "Comigo" + "Aprovações pendentes".
+- **Filtros (RN-DASH-09):** recortam pela unidade SOLICITANTE do processo — `secretariatId` = `requestingSecretariatId`; `departmentId` = `requestingDepartmentId` na subárvore da unidade (caminho materializado). Inexistente/outro tenant → `REFERENCE_NOT_FOUND`; inativa → `REFERENCE_INACTIVE`; secretaria que não é `SECRETARIAT`/`BOARD` nem raiz → `NOT_ALLOWED`.
+- **Definições:** "abertos" = `IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`, `SUSPENDED` (`openCount`, `BY_STAGE`, `VALUE_BY_SECRETARIAT`); `OVERDUE`/`DUE_SOON` só com o prazo correndo (`IN_PROGRESS`, `AWAITING_APPROVAL`, `RETURNED`); "a vencer" = `currentStageDueAt` de hoje até a véspera do `(warn + 1)`-ésimo dia útil (o mesmo `isDueSoon` do DTO `deadline`); `BY_STATUS` cobre todos os status (soma = total visível).
+- **POL-09 nos agregados:** o predicado de desmascaramento por linha passa a morar no shared kernel (`buildConfidentialBudgetPredicate`, reaproveitado pela lista de processos); `RECENT_ACTIVITY` o avalia como se o processo fosse sigiloso (RN-TML-13).
+- **Cache:** `TenantCache`, módulo `dashboard`, chave `{userId}:{widget}:{sha256 dos filtros}` e TTL de 60 s; Redis fora → `warn dashboard.cache_unavailable` e cálculo direto no banco.
+- **Índices:** criados `process_stages_exited_idx` `(tenant_id, exited_at, workflow_stage_id) WHERE exited_at IS NOT NULL` (no lugar do sugerido pela story, que exigiria uma varredura por etapa) e `process_timeline_entries_tenant_recent_idx` `(tenant_id, occurred_at DESC, id DESC)`. Read model dedicado segue como débito monitorado (mesma postura do DEC-026).
+- Registrado em 2026-10-20 (US-076).
+
 
 ---
 

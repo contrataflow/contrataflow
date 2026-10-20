@@ -395,6 +395,8 @@ model ProcessTimelineEntry {
   @@unique([tenantId, id])
   @@unique([tenantId, sourceEventId, type], map: "process_timeline_entries_source_key")
   @@index([tenantId, processId, occurredAt(sort: Desc), id(sort: Desc)], map: "process_timeline_entries_process_idx")
+  // US-076 (RECENT_ACTIVITY do dashboard): as últimas entradas do tenant.
+  @@index([tenantId, occurredAt(sort: Desc), id(sort: Desc)], map: "process_timeline_entries_tenant_recent_idx")
   @@map("process_timeline_entries")
 }
 
@@ -1477,6 +1479,8 @@ model ProcessStage {
   @@index([tenantId, departmentId], map: "process_stages_department_idx")
   @@index([tenantId, assigneeId], map: "process_stages_assignee_idx")
   @@index([tenantId, dueAt], map: "process_stages_due_idx")
+  // US-076 (AVG_STAGE_DURATION do dashboard): parcial na migração (`WHERE exited_at IS NOT NULL`).
+  @@index([tenantId, exitedAt, workflowStageId], map: "process_stages_exited_idx")
   @@map("process_stages")
 }
 

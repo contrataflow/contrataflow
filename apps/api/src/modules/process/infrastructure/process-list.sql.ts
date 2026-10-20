@@ -8,7 +8,10 @@ import type {
 
 import type { ProcessVisibilityScope } from '#shared/auth/process-access.js';
 import { Prisma } from '#shared/database/prisma.js';
-import { buildVisibilityPredicate } from '#shared/database/process-visibility.js';
+import {
+  buildConfidentialBudgetPredicate,
+  buildVisibilityPredicate,
+} from '#shared/database/process-visibility.js';
 
 import type {
   BudgetVisibility,
@@ -38,24 +41,14 @@ function reasonsOf(historicalDepartmentsCanView: boolean): string[] {
 /**
  * `BudgetVisibilityService.sqlCanView` (POL-09 · RN-PROC-25): o valor do processo sigiloso é
  * visível com `PROCESS_VIEW_CONFIDENTIAL_BUDGET` cobrindo-o (tenant, órgão ou unidade com
- * `ProcessAccess`) ou com a custódia atual (responsável, ou fila de uma lotação do vínculo).
+ * `ProcessAccess`) ou com a custódia atual (responsável, ou fila de uma lotação do vínculo). O
+ * predicado é o compartilhado (`buildConfidentialBudgetPredicate` — também usado pelo dashboard).
  */
 export function budgetVisibilitySql(
   budget: BudgetVisibility,
   historicalDepartmentsCanView: boolean,
 ): Prisma.Sql {
-  return Prisma.sql`(
-        NOT p.is_budget_confidential
-     OR ${budget.tenantWide}
-     OR p.organization_id = ANY(${[...budget.organizationIds]}::uuid[])
-     OR p.current_responsible_id = ${budget.userId}::uuid
-     OR (p.current_responsible_id IS NULL
-         AND p.current_department_id = ANY(${[...budget.custodyDepartmentIds]}::uuid[]))
-     OR EXISTS (SELECT 1 FROM process_access ba
-                 WHERE ba.tenant_id = p.tenant_id AND ba.process_id = p.id
-                   AND ba.revoked_at IS NULL AND ba.principal_type = 'DEPARTMENT'
-                   AND ba.department_id = ANY(${[...budget.departmentIds]}::uuid[])
-                   AND ba.reason::text = ANY(${reasonsOf(historicalDepartmentsCanView)}::text[])))`;
+  return buildConfidentialBudgetPredicate(budget, { historicalDepartmentsCanView });
 }
 
 const uuidIn = (column: Prisma.Sql, ids: readonly string[]) =>

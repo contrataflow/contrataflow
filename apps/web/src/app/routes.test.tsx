@@ -364,7 +364,7 @@ describe('SCR-111 — páginas /erro/*', () => {
     });
     renderIntl(element);
     expect(screen.getByRole('link', { name: 'Entrar novamente' }).getAttribute('href')).toBe(
-      '/api/auth/login?returnTo=%2Fprocessos',
+      '/api/auth/login?returnTo=%2Fpainel',
     );
     expect(screen.queryByText(/Código/)).toBeNull();
   });
@@ -459,13 +459,13 @@ describe('SCR-001 — /entrar', () => {
         LoginPage({ searchParams: Promise.resolve({ returnTo: '/processos?x=1' }) }),
       ),
     ).toBe('/processos?x=1');
-    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe('/processos');
+    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe('/painel');
     // Mesmo com motivo, e nunca de volta para a própria entrada.
     expect(
       await redirectOf(
         LoginPage({ searchParams: Promise.resolve({ motivo: 'saiu', returnTo: '/entrar?x=1' }) }),
       ),
-    ).toBe('/processos');
+    ).toBe('/painel');
   });
 
   it('Redis de sessões indisponível: a página continua acessível e segue o fluxo normal', async () => {
@@ -753,7 +753,7 @@ describe('SCR-101 — /selecionar-orgao', () => {
     renderIntl(await SelectTenantPage(pageProps({ returnTo: '//evil.com' })));
     await userEvent.click(screen.getByRole('button', { name: /Prefeitura A/ }));
     await waitFor(() => {
-      expect(assign).toHaveBeenCalledWith('/processos');
+      expect(assign).toHaveBeenCalledWith('/painel');
     });
   });
 

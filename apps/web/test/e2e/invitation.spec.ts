@@ -24,7 +24,7 @@ test('aceita o convite, troca para a instituição e abre o painel', async ({ pa
   await expectNoSeriousA11yViolations(page, 'aceite de convite');
 
   await page.getByRole('button', { name: 'Aceitar convite' }).click();
-  await expect(page).toHaveURL(/\/processos$/);
+  await expect(page).toHaveURL(/\/painel$/);
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura B' })).toBeVisible();
 });
 

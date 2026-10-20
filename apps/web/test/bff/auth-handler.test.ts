@@ -111,7 +111,7 @@ describe('login e callback', () => {
   it('returnTo externo é recusado (cai no destino padrão) e registrado', async () => {
     const test = createTestRuntime();
     const { callback } = await login(test, '?returnTo=https%3A%2F%2Fevil.com');
-    expect(callback.headers.get('Location')).toBe('/processos');
+    expect(callback.headers.get('Location')).toBe('/painel');
     expect(logs.lines.some((line) => line.includes('"auth.return_to_rejected"'))).toBe(true);
   });
 

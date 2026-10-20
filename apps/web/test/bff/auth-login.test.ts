@@ -318,7 +318,7 @@ describe('Feature: Login OIDC com Authentik e sessão segura no BFF (US-087)', (
     const h = harness();
     const { state, transactions } = await begin(h, '?returnTo=%2F%2Fsite-malicioso.com%2Fx');
     const callback = await finish(h, state, transactions);
-    expect(callback.headers.get('Location')).toBe('/processos');
+    expect(callback.headers.get('Location')).toBe('/painel');
     expect(logged('auth.return_to_rejected')).toHaveLength(1);
   });
 

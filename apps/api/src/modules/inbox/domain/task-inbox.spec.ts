@@ -12,6 +12,7 @@ import {
   isOverdueTask,
   isReturned,
   itemsOfView,
+  matchesRestriction,
   unitQueueApplies,
 } from './task-inbox.js';
 import type {
@@ -351,5 +352,21 @@ describe('RN-INBOX-10: ordenação', () => {
     );
     expect(dueAtOf(withDue)?.toISOString()).toBe('2026-10-21T00:00:00.000Z');
     expect(dueAtOf(item(2, { dueAt: stageDue }, { approval: approval(2) }))).toBe(stageDue);
+  });
+});
+
+describe('matchesRestriction (US-076 · RN-DASH-09)', () => {
+  const row = { requestingSecretariatId: OBRAS, requestingDepartmentId: MANUT };
+
+  it('sem recorte, qualquer processo', () => {
+    expect(matchesRestriction(row, null)).toBe(true);
+    expect(matchesRestriction(row, { secretariatId: null, departmentIds: null })).toBe(true);
+  });
+
+  it('secretaria e subárvore do setor, combinadas por E', () => {
+    expect(matchesRestriction(row, { secretariatId: OBRAS, departmentIds: null })).toBe(true);
+    expect(matchesRestriction(row, { secretariatId: COMPRAS, departmentIds: null })).toBe(false);
+    expect(matchesRestriction(row, { secretariatId: OBRAS, departmentIds: [MANUT] })).toBe(true);
+    expect(matchesRestriction(row, { secretariatId: null, departmentIds: [COMPRAS] })).toBe(false);
   });
 });

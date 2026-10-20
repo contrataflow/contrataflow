@@ -17,12 +17,13 @@ test('com sessão, / leva ao destino padrão autenticado, em pt-BR e sem violaç
   await page.goto('/api/auth/login?as=ana&returnTo=%2Fprocessos');
   await expect(page).toHaveURL(/\/processos$/);
 
+  // US-076: o destino padrão passa a ser o painel (SCR-003).
   const response = await page.request.get('/', { maxRedirects: 0 });
   expect(response.status()).toBe(307);
-  expect(response.headers().location).toBe('/processos');
+  expect(response.headers().location).toBe('/painel');
 
   await page.goto('/');
-  await expect(page).toHaveURL(/\/processos$/);
+  await expect(page).toHaveURL(/\/painel$/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
   await expectNoSeriousA11yViolations(page, 'destino padrão pós-login');
 });

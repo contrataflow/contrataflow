@@ -32,6 +32,7 @@
     ["organization", "access"],
     ["organization", "identity"],
     ["organization", "tenancy"],
-    ["access", "identity"]
+    ["access", "identity"],
+    ["dashboard", "inbox"]
   ]
 }

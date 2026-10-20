@@ -5,7 +5,7 @@ import { Prisma } from '#shared/database/prisma.js';
 import { buildVisibilityPredicate } from '#shared/database/process-visibility.js';
 
 import type { InboxPageSearch } from '../application/ports.js';
-import type { InboxViewer } from '../domain/task-inbox.js';
+import type { InboxProcessRestriction, InboxViewer } from '../domain/task-inbox.js';
 
 /*
  * `TaskInboxQueryBuilder` (US-056 · DEC-026): cada visão é UMA consulta sobre as views publicadas
@@ -83,12 +83,30 @@ const NO_APPROVAL_COLUMNS = Prisma.sql`NULL::uuid AS approval_id, NULL::text AS 
        NULL::text AS approver_type, NULL::uuid AS approver_user_id, NULL::uuid AS approver_role_id,
        NULL::uuid AS approver_department_id, NULL::boolean AS allow_deputy`;
 
+/** `matchesRestriction` (US-076): recorte pela unidade solicitante; `TRUE` sem recorte. */
+function restrictionSql(restriction: InboxProcessRestriction | null): Prisma.Sql {
+  if (restriction === null) return Prisma.sql`TRUE`;
+  const parts: Prisma.Sql[] = [];
+  if (restriction.secretariatId !== null) {
+    parts.push(Prisma.sql`pr.requesting_secretariat_id = ${restriction.secretariatId}::uuid`);
+  }
+  if (restriction.departmentIds !== null) {
+    parts.push(uuidAny(Prisma.sql`pr.requesting_department_id`, restriction.departmentIds));
+  }
+  return parts.length === 0 ? Prisma.sql`TRUE` : Prisma.join(parts, ' AND ');
+}
+
 /** O conjunto da visão (uma linha por chave), já com visibilidade (DEC-024). */
-export function itemsSql(view: TaskInboxView, viewer: InboxViewer, now: Date): Prisma.Sql {
-  const visible = buildVisibilityPredicate(viewer.visibility, {
+export function itemsSql(
+  view: TaskInboxView,
+  viewer: InboxViewer,
+  now: Date,
+  restriction: InboxProcessRestriction | null = null,
+): Prisma.Sql {
+  const visible = Prisma.sql`${buildVisibilityPredicate(viewer.visibility, {
     processAlias: 'pr',
     historicalDepartmentsCanView: viewer.historicalDepartmentsCanView,
-  });
+  })} AND ${restrictionSql(restriction)}`;
   if (view === 'PENDING_APPROVALS') {
     return Prisma.sql`
       SELECT ap.id AS row_key, ${PROCESS_COLUMNS},
@@ -154,10 +172,14 @@ export function buildTaskInboxPageSql(search: InboxPageSearch): Prisma.Sql {
 }
 
 /** Os contadores de todas as visões numa instrução (mesmo snapshot — RN-INBOX-09). */
-export function buildTaskInboxCountsSql(viewer: InboxViewer, now: Date): Prisma.Sql {
+export function buildTaskInboxCountsSql(
+  viewer: InboxViewer,
+  now: Date,
+  restriction: InboxProcessRestriction | null = null,
+): Prisma.Sql {
   const counts = TASK_INBOX_VIEWS.map(
     (view) =>
-      Prisma.sql`(SELECT count(*) FROM (${itemsSql(view, viewer, now)}) c)::int AS ${Prisma.raw(
+      Prisma.sql`(SELECT count(*) FROM (${itemsSql(view, viewer, now, restriction)}) c)::int AS ${Prisma.raw(
         `"${view}"`,
       )}`,
   );

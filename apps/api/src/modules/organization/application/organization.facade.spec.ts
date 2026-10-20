@@ -31,6 +31,11 @@ describe('OrganizationFacade (US-102)', () => {
   const facade = new OrganizationFacade(repository);
   const tx = {} as TenantTx;
 
+  it('subtreeDepartmentIds (US-076): a unidade e a subárvore; de outro tenant = vazio', async () => {
+    await expect(inTenant(A, () => facade.subtreeDepartmentIds(tx, UNIT))).resolves.toEqual([UNIT]);
+    await expect(inTenant(B, () => facade.subtreeDepartmentIds(tx, UNIT))).resolves.toEqual([]);
+  });
+
   it('findDepartmentForApproval: unidade do tenant com situação e titular', async () => {
     await expect(inTenant(A, () => facade.findDepartmentForApproval(tx, UNIT))).resolves.toEqual({
       id: UNIT,
