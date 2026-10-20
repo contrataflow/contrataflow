@@ -18,8 +18,6 @@ import { Logger } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InMemoryEtpAlternativeRepository } from '#modules/etp/infrastructure/etp-alternative.repositories.js';
-import { InMemoryEtpRepository } from '#modules/etp/infrastructure/etp.repositories.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 import { DatabaseUnavailableError } from '#shared/database/errors.js';
 import { newId } from '#shared/database/ids.js';
@@ -44,6 +42,10 @@ import {
   filledSection,
 } from '../../../../test/support/document-fixtures.js';
 import type { DocumentTransactions } from '../../../../test/support/document-fixtures.js';
+import {
+  etpAlternativeRepositoryOf,
+  etpRepositoryOf,
+} from '../../../../test/support/etp-fixtures.js';
 import { seedPriceResearch } from '../../../../test/support/price-research-fixtures.js';
 import {
   catalogItemId,
@@ -209,13 +211,11 @@ describe('Feature: Gerar o rascunho do ETP com IA a partir do DFD (US-118)', () 
     return found;
   };
   const etpRowOf = (id: string) =>
-    api.app
-      .get(InMemoryEtpRepository, { strict: false })
+    etpRepositoryOf(api)
       .snapshot()
       .find((row) => row.id === id);
   const alternativesOf = (etpId: string) =>
-    api.app
-      .get(InMemoryEtpAlternativeRepository, { strict: false })
+    etpAlternativeRepositoryOf(api)
       .snapshot()
       .filter((row) => row.etpId === etpId);
   const stored = (id: string) =>
