@@ -109,7 +109,7 @@ test('jornada completa: Identificação → Origem e planejamento → Revisão �
   await expect(page.getByRole('heading', { level: 2, name: 'Onde está' })).toBeVisible();
   await expect(page.getByText('Formalização da demanda').first()).toBeVisible();
   await expect(page.getByText(/^Processo \d{4}\/\d{4} criado$/)).toBeVisible();
-  await expect(page.getByText('R$ 15.000,50')).toBeVisible();
+  await expect(page.getByText('R$ 15.000,50').first()).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'painel do processo');
 });
 

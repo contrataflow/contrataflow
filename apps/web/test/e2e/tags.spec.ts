@@ -47,7 +47,7 @@ test('cadastrar a etiqueta na aba "Etiquetas" da administração', async ({ page
   await expect(dialog).toBeHidden();
   const table = page.getByRole('table', { name: 'Etiquetas do órgão' });
   await expect(table.getByText(TAG)).toBeVisible();
-  await expect(table.getByText('Ativa')).toBeVisible();
+  await expect(table.getByRole('cell', { name: 'Ativa', exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'aba Etiquetas');
 });
 
@@ -72,7 +72,7 @@ test('filtrar a lista de processos pela etiqueta', async ({ page }) => {
   const table = page.getByRole('table', { name: TABLE });
   await expect(table).toBeVisible();
   await expect(table.getByRole('row')).toHaveCount(4); // cabeçalho + 3 processos
-  await page.getByRole('button', { name: 'Filtros' }).click();
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
   const filters = page.getByRole('dialog');
   await filters
     .getByRole('group', { name: 'Etiquetas', exact: true })
@@ -92,7 +92,7 @@ test('desativar a etiqueta: continua no processo, esmaecida com "(inativa)", e p
   const row = page.getByRole('table', { name: 'Etiquetas do órgão' }).getByRole('row', {
     name: new RegExp(TAG),
   });
-  await expect(row.getByText('Inativa')).toBeVisible();
+  await expect(row.getByRole('cell', { name: 'Inativa', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: `Reativar a etiqueta ${TAG}` })).toBeVisible();
 
   await openProcess(page);

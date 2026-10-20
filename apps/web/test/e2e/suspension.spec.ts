@@ -49,7 +49,9 @@ test('J-06: suspender com motivo, ver o painel suspenso, retomar e voltar à sit
   await suspend.getByLabel('Motivo').fill(REASON);
   await suspend.getByRole('button', { name: 'Suspender' }).click();
   await expect(suspend).toBeHidden();
-  await expect(page.getByText('Processo suspenso. Os prazos estão pausados.')).toBeVisible();
+  await expect(
+    page.getByText('Processo suspenso. Os prazos estão pausados.', { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText(new RegExp(`^Suspenso desde \\d{2}/\\d{2}/\\d{4} — ${REASON}$`)),
   ).toBeVisible();
@@ -63,7 +65,9 @@ test('J-06: suspender com motivo, ver o painel suspenso, retomar e voltar à sit
   await resume.getByLabel('Comentário (opcional)').fill('Dotação definida pela Secretaria.');
   await resume.getByRole('button', { name: 'Retomar' }).click();
   await expect(resume).toBeHidden();
-  await expect(page.getByText('Processo retomado. Novo prazo da etapa: 07/10/2026.')).toBeVisible();
+  await expect(
+    page.getByText('Processo retomado. Novo prazo da etapa: 07/10/2026.', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(/^Suspenso desde/)).toHaveCount(0);
 });
 

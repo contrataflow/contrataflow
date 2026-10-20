@@ -45,7 +45,7 @@ test('desliga o e-mail de um tipo, salva e a escolha persiste ao recarregar', as
   await emailSwitch(page).click();
   await expect(emailSwitch(page)).not.toBeChecked();
   await page.getByRole('button', { name: 'Salvar' }).click();
-  await expect(page.getByText('Preferências salvas')).toBeVisible();
+  await expect(page.getByText('Preferências salvas', { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole('heading', { level: 3, name: 'Processos' })).toBeVisible();
@@ -55,7 +55,7 @@ test('desliga o e-mail de um tipo, salva e a escolha persiste ao recarregar', as
   await page.getByRole('button', { name: `Usar padrão: ${TYPE}` }).click();
   await expect(emailSwitch(page)).toBeChecked();
   await page.getByRole('button', { name: 'Salvar' }).click();
-  await expect(page.getByText('Preferências salvas').first()).toBeVisible();
+  await expect(page.getByText('Preferências salvas', { exact: true }).first()).toBeVisible();
 });
 
 test('em 360 px: tipos em cartões e sem rolagem horizontal', async ({ page }) => {

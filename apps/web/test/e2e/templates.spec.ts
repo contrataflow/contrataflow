@@ -83,22 +83,24 @@ test('configura o layout de impressão e gera a prévia em PDF', async ({ page }
   await expect(page.getByLabel('Margem superior (mm)')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'aba Layout do template');
 
-  await page.getByLabel('Fonte').selectOption('Times New Roman');
-  await expect(page.getByText('Layout salvo.')).toBeAttached();
+  await page.getByLabel('Fonte', { exact: true }).selectOption('Times New Roman');
+  await expect(page.getByText('Layout salvo.', { exact: true })).toBeAttached();
   await page.getByLabel('Margem superior (mm)').fill('25');
   await page
     .getByRole('button', { name: 'Inserir a variável organization.name no campo Cabeçalho' })
     .click();
   await page.getByRole('button', { name: 'Gerar prévia' }).click();
-  await expect(page.getByText('Prévia pronta.')).toBeVisible();
+  await expect(page.getByText('Prévia pronta.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Baixar prévia' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'prévia do template pronta');
 
   await page.reload();
   await page.getByRole('tab', { name: 'Layout' }).click();
-  await expect(page.getByLabel('Fonte')).toHaveValue('Times New Roman');
+  await expect(page.getByLabel('Fonte', { exact: true })).toHaveValue('Times New Roman');
   await expect(page.getByLabel('Margem superior (mm)')).toHaveValue('25');
-  await expect(page.getByLabel('Cabeçalho')).toHaveValue('{{organization.name}}');
+  await expect(page.getByRole('textbox', { name: 'Cabeçalho' })).toHaveValue(
+    '{{organization.name}}',
+  );
 });
 
 // US-108: publicar o rascunho, iniciar nova versão, definir o padrão do tipo e aposentar.
@@ -136,7 +138,9 @@ test('publica a versão, inicia nova versão, define o padrão do tipo e aposent
   const select = page.getByRole('combobox', { name: 'Template padrão de Ofício' });
   await select.selectOption({ label: 'Despacho padrão — v1' });
   await expect(
-    page.getByText('Template padrão de "Ofício" definido: Despacho padrão.').first(),
+    page
+      .getByText('Template padrão de "Ofício" definido: Despacho padrão.', { exact: true })
+      .first(),
   ).toBeVisible();
 
   await page.goBack();

@@ -14,6 +14,9 @@ export default defineConfig({
   testDir: 'test/e2e',
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
+  // Um servidor web e uma API simulada para todos: com mais workers a máquina local satura (o BFF
+  // responde 500 por falta de CPU) e os testes ficam instáveis. 2 é o que o runner do CI usa.
+  workers: 2,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
   reporter: CI ? [['list'], ['html', { open: 'never' }]] : 'list',
@@ -51,6 +54,9 @@ export default defineConfig({
         OIDC_ISSUER_URL:
           process.env.OIDC_ISSUER_URL ?? 'http://localhost:9080/application/o/contrataflow/',
         OIDC_FAKE_SIGNING_KEY: 'dev-only-fake-jwt-signing-key-000000000000',
+        // RN-IAM-10 limita a 10 sessões por pessoa; quase todo cenário entra como "ana" e, em
+        // paralelo, o 11º login encerraria a sessão de um teste ainda em andamento.
+        SESSION_MAX_PER_USER: '1000',
       },
     },
   ],

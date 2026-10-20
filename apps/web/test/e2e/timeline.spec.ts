@@ -7,28 +7,15 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { createProcessViaWizard } from './support/process-wizard';
 
 const TITLE = 'Contratação de serviços de jardinagem do parque central';
 
 async function createProcess(page: Page): Promise<void> {
-  await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/processos/novo')}`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Novo processo' })).toBeVisible();
-  await page.getByLabel('Título *').fill(TITLE);
-  await page
-    .getByLabel('Objeto *')
-    .fill('Serviços contínuos de jardinagem e paisagismo do parque central.');
-  await page.getByLabel('Tipo de contratação *').selectOption({ label: 'Aquisição de bens' });
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(
-    page.getByRole('heading', { level: 2, name: 'Origem e planejamento' }),
-  ).toBeVisible();
-  await page.getByLabel('Origem *').selectOption({ label: 'Demanda não prevista' });
-  await page.getByRole('radio', { name: 'Não se aplica' }).check();
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(page.getByRole('heading', { level: 2, name: 'Revisão' })).toBeVisible();
-  await page.getByRole('button', { name: 'Criar processo' }).click();
-  await expect(page).toHaveURL(/\/processos\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible();
+  await createProcessViaWizard(page, {
+    title: TITLE,
+    object: 'Serviços contínuos de jardinagem e paisagismo do parque central.',
+  });
 }
 
 test('aba "Timeline": dias agrupados, filtro por grupo e scroll infinito até o início', async ({
@@ -67,7 +54,7 @@ test('em 360 px: filtros colapsáveis e sem rolagem horizontal', async ({ page }
   await expect(page.getByRole('heading', { level: 3, name: 'Hoje' })).toBeVisible();
 
   await expect(page.getByRole('checkbox', { name: 'Aprovações' })).toBeHidden();
-  await page.getByRole('button', { name: 'Filtros' }).click();
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Aprovações' })).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

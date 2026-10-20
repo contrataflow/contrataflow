@@ -52,7 +52,7 @@ test('filtrar → ver detalhe → exportar CSV com fórmulas neutralizadas', asy
   const content = await readFile(await download.path(), 'utf8');
   expect(content).toContain(",'=SOMA(1;2),");
   expect(content).not.toMatch(/,=SOMA/);
-  await expect(page.getByText('Exportação concluída: 3 registros')).toBeVisible();
+  await expect(page.getByText('Exportação concluída: 3 registros', { exact: true })).toBeVisible();
 });
 
 test('em 360 px: a página não rola na horizontal e a tabela mostra data, ação e resultado', async ({

@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { refetchOf } from './support/refetch';
 
 // O cadastro da API simulada é global: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -103,10 +104,15 @@ test('edita o telefone com o documento bloqueado e inativa o fornecedor', async 
   await expect(dialog.getByLabel('Número do documento *')).toHaveAttribute('readonly', '');
   await expect(dialog.getByLabel('Tipo de documento *')).toBeDisabled();
   await dialog.getByLabel('Telefone').fill('4833810000');
+  const listRefetched = refetchOf(page, {
+    mutation: /^\/api\/v1\/suppliers\/[0-9a-f-]{36}$/,
+    refetch: /^\/api\/v1\/suppliers$/,
+  });
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(
     page.getByText('Fornecedor Construtora ABC Ltda atualizado.', { exact: true }),
   ).toBeVisible();
+  await listRefetched;
 
   await page.getByRole('button', { name: 'Inativar Construtora ABC Ltda' }).click();
   const confirm = page.getByRole('dialog', { name: 'Inativar Construtora ABC Ltda?' });
@@ -122,11 +128,12 @@ test('edita o telefone com o documento bloqueado e inativa o fornecedor', async 
 
 test('filtra por situação e busca por razão social', async ({ page }) => {
   await openScreen(page);
-  await page.getByLabel('Situação').selectOption('false');
+  // Logo após o login o HTML do SSR ainda pode estar no DOM, oculto (<div hidden id="S:0">).
+  await page.getByLabel('Situação').filter({ visible: true }).selectOption('false');
   await expect(page.getByRole('row', { name: /Acme GmbH/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /João da Silva/ })).toHaveCount(0);
   await page.getByLabel('Situação').selectOption('');
-  await page.getByLabel('Buscar').fill('acme');
+  await page.getByLabel('Buscar', { exact: true }).fill('acme');
   await expect(page.getByRole('row', { name: /Acme GmbH/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /João da Silva/ })).toHaveCount(0);
 });

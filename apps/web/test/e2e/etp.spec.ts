@@ -26,32 +26,47 @@ function hasHorizontalOverflow(page: Page): Promise<boolean> {
   return page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
 }
 
-test('criar o ETP importando o DFD a partir do painel e abrir a SCR-008', async ({ page }) => {
-  await openProcess(page, CREATE_PROCESS_PATH, 'Manutenção predial preventiva das escolas');
+// Os dois cenários usam o processo 0027/2026 da API simulada, cujo ETP só pode ser criado uma vez:
+// rodam em ordem no mesmo worker, o de 360 px (que só abre o diálogo) antes da criação.
+test.describe('Criar ETP do processo 0027/2026', () => {
+  test.describe.configure({ mode: 'default' });
 
-  await page.getByRole('button', { name: 'Criar ETP' }).first().click();
-  const dialog = page.getByRole('dialog', { name: 'Criar Estudo Técnico Preliminar' });
-  await expect(
-    dialog.getByRole('heading', { name: 'Importar dados do DFD 0005/2026?' }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByText('Manutenção predial preventiva das escolas municipais'),
-  ).toBeVisible();
-  await expect(dialog.getByText('2 itens')).toBeVisible();
-  await expect(dialog.getByText('Previsto no PCA')).toBeVisible();
-  await expect(dialog.getByRole('checkbox', { name: 'Importar dados do DFD' })).toBeChecked();
-  await expectNoSeriousA11yViolations(page, 'diálogo Criar ETP (cartão de importação)');
-
-  await dialog.getByRole('button', { name: 'Criar ETP' }).click();
-
-  await expect(page).toHaveURL(ETP_PATH);
-  const heading = page.getByRole('heading', {
-    level: 1,
-    name: 'Estudo Técnico Preliminar — 0027/2026',
+  test('o diálogo "Criar ETP" é legível em 360 px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openProcess(page, CREATE_PROCESS_PATH, 'Manutenção predial preventiva das escolas');
+    await page.getByRole('button', { name: 'Criar ETP' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Criar Estudo Técnico Preliminar' });
+    await expect(dialog.getByRole('checkbox', { name: 'Importar dados do DFD' })).toBeVisible();
+    expect(await hasHorizontalOverflow(page)).toBe(false);
   });
-  await expect(heading).toBeVisible();
-  await expect(heading).toBeFocused();
-  await expect(page.getByText('ETP 0001/2026').first()).toBeVisible();
+
+  test('criar o ETP importando o DFD a partir do painel e abrir a SCR-008', async ({ page }) => {
+    await openProcess(page, CREATE_PROCESS_PATH, 'Manutenção predial preventiva das escolas');
+
+    await page.getByRole('button', { name: 'Criar ETP' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Criar Estudo Técnico Preliminar' });
+    await expect(
+      dialog.getByRole('heading', { name: 'Importar dados do DFD 0005/2026?' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText('Manutenção predial preventiva das escolas municipais'),
+    ).toBeVisible();
+    await expect(dialog.getByText('2 itens')).toBeVisible();
+    await expect(dialog.getByText('Previsto no PCA')).toBeVisible();
+    await expect(dialog.getByRole('checkbox', { name: 'Importar dados do DFD' })).toBeChecked();
+    await expectNoSeriousA11yViolations(page, 'diálogo Criar ETP (cartão de importação)');
+
+    await dialog.getByRole('button', { name: 'Criar ETP' }).click();
+
+    await expect(page).toHaveURL(ETP_PATH);
+    const heading = page.getByRole('heading', {
+      level: 1,
+      name: 'Estudo Técnico Preliminar — 0027/2026',
+    });
+    await expect(heading).toBeVisible();
+    await expect(heading).toBeFocused();
+    await expect(page.getByText('ETP 0001/2026').first()).toBeVisible();
+  });
 });
 
 test('FA-03: com ETP ativo o painel oferece "Abrir ETP" e não "Criar ETP"', async ({ page }) => {
@@ -64,13 +79,4 @@ test('FA-03: com ETP ativo o painel oferece "Abrir ETP" e não "Criar ETP"', asy
   await expect(
     page.getByRole('heading', { level: 1, name: 'Estudo Técnico Preliminar — 0028/2026' }),
   ).toBeVisible();
-});
-
-test('o diálogo "Criar ETP" é legível em 360 px', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 780 });
-  await openProcess(page, CREATE_PROCESS_PATH, 'Manutenção predial preventiva das escolas');
-  await page.getByRole('button', { name: 'Criar ETP' }).first().click();
-  const dialog = page.getByRole('dialog', { name: 'Criar Estudo Técnico Preliminar' });
-  await expect(dialog.getByRole('checkbox', { name: 'Importar dados do DFD' })).toBeVisible();
-  expect(await hasHorizontalOverflow(page)).toBe(false);
 });

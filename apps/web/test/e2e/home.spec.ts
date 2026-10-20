@@ -33,7 +33,7 @@ test('o gate de acessibilidade barra violação séria (V-10)', async ({ page })
     '<!doctype html><html lang="pt-BR"><head><title>Fixture</title></head><body><main><img src="data:,"></main></body></html>',
   );
   await expect(expectNoSeriousA11yViolations(page, 'fixture')).rejects.toThrow(
-    /Violação de acessibilidade: image-alt em fixture\./,
+    /Violação de acessibilidade: image-alt em fixture \(img\)\./,
   );
 });
 

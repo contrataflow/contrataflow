@@ -27,7 +27,11 @@ async function openDocumentsTab(page: Page): Promise<void> {
 async function createOficio(page: Page, title: string): Promise<void> {
   await openDocumentsTab(page);
   await page.getByRole('button', { name: 'Criar documento' }).first().click();
-  await page.getByRole('menuitem', { name: 'Ofício' }).click();
+  // No desktop o "Criar documento" abre um menu; no celular, uma folha (diálogo) com botões.
+  await page
+    .getByRole('menuitem', { name: 'Ofício' })
+    .or(page.getByRole('dialog').getByRole('button', { name: 'Ofício', exact: true }))
+    .click();
   const dialog = page.getByRole('dialog', { name: 'Novo documento: Ofício' });
   await expect(dialog.getByText('Em branco, o responsável é você.')).toBeVisible();
   await dialog.getByLabel('Título').fill(title);

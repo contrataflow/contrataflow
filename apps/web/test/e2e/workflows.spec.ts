@@ -54,7 +54,9 @@ test('torna a contratação direta o padrão com confirmação, toast e selo atu
   await expectNoSeriousA11yViolations(page, 'confirmação de tornar padrão');
   await dialog.getByRole('button', { name: 'Tornar padrão' }).click();
 
-  await expect(page.getByText(`Workflow ${DIRECT} agora é o padrão.`)).toBeVisible();
+  await expect(
+    page.getByText(`Workflow ${DIRECT} agora é o padrão.`, { exact: true }),
+  ).toBeVisible();
   await expect(cardOf(page, DIRECT).getByText('Padrão', { exact: true })).toBeVisible();
   await expect(cardOf(page, STANDARD).getByText('Padrão', { exact: true })).toHaveCount(0);
 });
@@ -145,7 +147,7 @@ test('"Criar rascunho" a partir da versão publicada libera a edição', async (
   await expect(page.getByText(/Esta é a versão publicada/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar etapa' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Criar rascunho' }).click();
-  await expect(page.getByText('Rascunho v2 criado.')).toBeVisible();
+  await expect(page.getByText('Rascunho v2 criado.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar etapa' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'rascunho criado a partir da publicada');
 });
@@ -179,7 +181,7 @@ test('versões (US-045): validar → corrigir → publicar; a corrente única n�
   await expectNoSeriousA11yViolations(page, 'diálogo de publicação');
   await dialog.getByLabel('Notas da versão (obrigatório)').fill('Inclui a etapa de abertura.');
   await dialog.getByRole('button', { name: 'Publicar' }).click();
-  await expect(page.getByText('Versão 2 publicada')).toBeVisible();
+  await expect(page.getByText('Versão 2 publicada', { exact: true })).toBeVisible();
 
   await expect(versions.getByText('Inclui a etapa de abertura.').first()).toBeVisible();
   await expect(versions.getByText('Aposentada').first()).toBeVisible();

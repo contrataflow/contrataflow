@@ -72,7 +72,7 @@ test('salvar a visão → aplicar → definir como padrão → exportar o CSV �
   expect(content).toContain('0045/2026;Aquisição de medicamentos da farmácia básica;');
   expect(content).not.toContain('0012/2026');
   expect(content).toContain('\r\n');
-  await expect(page.getByText('Exportação concluída: 1 processo.')).toBeVisible();
+  await expect(page.getByText('Exportação concluída: 1 processo.', { exact: true })).toBeVisible();
   await expect(exportDialog).toBeHidden();
 
   // Definir como padrão em "Gerenciar visões".

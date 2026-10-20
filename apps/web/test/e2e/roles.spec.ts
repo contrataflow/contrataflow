@@ -45,8 +45,10 @@ test('cria um perfil, ajusta a matriz e vê as permissões fora do seu alcance t
 
   await expect(page).toHaveURL(/\/admin\/perfis\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Fiscal de Obras' })).toBeVisible();
-  await expect(switchOf(page, 'USER_MANAGE')).toHaveAttribute('aria-disabled', 'true');
-  await expect(switchOf(page, 'USER_MANAGE')).toHaveAttribute(
+  // Fora do alcance da Ana: o ME-03 simulado não traz PROCESS_VIEW (USER_MANAGE entrou com a
+  // US-092 para a gestão de usuários).
+  await expect(switchOf(page, 'PROCESS_VIEW')).toHaveAttribute('aria-disabled', 'true');
+  await expect(switchOf(page, 'PROCESS_VIEW')).toHaveAttribute(
     'title',
     'Você não possui esta permissão e por isso não pode concedê-la.',
   );

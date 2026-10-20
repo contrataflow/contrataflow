@@ -10,6 +10,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { refetchOf } from './support/refetch';
 
 /** Processo 0024/2026 da API simulada: itens 1 (100 SC), 2 (12 M3) e 3 sem quantidade de referência. */
 const CREATE_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100024';
@@ -149,162 +150,170 @@ test('no celular (360 px) a SCR-009 empilha os itens e o painel de parâmetros, 
 
 // US-026 — aba "Fontes" da SCR-009: registrar uma fonte de sítio eletrônico (campos do tipo), lançar
 // os preços na grade num único envio, editar e remover a fonte (com a confirmação das cotações).
-test('fontes: registrar fonte de sítio eletrônico, lançar preços na grade, editar e remover', async ({
-  page,
-}) => {
-  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
-  await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
-  await expect(page).toHaveURL(RESEARCH_PATH);
-  await page.getByRole('tab', { name: 'Fontes' }).click();
-  await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
+// Os três cenários abaixo mexem nas fontes da mesma pesquisa (PP 0004/2026) da API simulada: rodam
+// em ordem no mesmo worker, com "fontes" (que parte da lista vazia) primeiro.
+test.describe('fontes da PP 0004/2026', () => {
+  test.describe.configure({ mode: 'default' });
 
-  await page.getByRole('button', { name: 'Nova fonte' }).click();
-  const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
-  await form
-    .getByLabel(/Tipo de fonte/)
-    .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
-  await expect(
-    form.getByText(/Campos exigidos para .*: URL, data\/hora de acesso\./),
-  ).toBeVisible();
-  await form.getByLabel(/Descrição/).fill('Painel de Preços');
-  await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
-  await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
-  await expectNoSeriousA11yViolations(page, 'diálogo Nova fonte de pesquisa');
-  await form.getByRole('button', { name: 'Salvar fonte' }).click();
-  await expect(page.getByText('Fonte registrada')).toBeVisible();
+  test('fontes: registrar fonte de sítio eletrônico, lançar preços na grade, editar e remover', async ({
+    page,
+  }) => {
+    await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
+    await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
+    await expect(page).toHaveURL(RESEARCH_PATH);
+    await page.getByRole('tab', { name: 'Fontes' }).click();
+    await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
 
-  // Com a fonte criada, a grade de preços dela abre (uma linha por item da pesquisa).
-  const grid = page.getByRole('table', { name: 'Preços da fonte Painel de Preços' });
-  await expect(grid.getByText('Cimento CP II 50 kg')).toBeVisible();
-  await grid.getByLabel('Preço unitário do item 1').fill('25,90');
-  await grid.getByLabel('Preço unitário do item 2').fill('120');
-  await grid.getByLabel('Preço unitário do item 3').fill('95,5');
-  await grid.getByLabel('Marca/modelo do item 1').fill('Votoran');
-  await expectNoSeriousA11yViolations(page, 'grade de preços da fonte');
-  await page.getByRole('button', { name: 'Salvar preços' }).click();
-  await expect(page.getByText('Preços salvos')).toBeVisible();
-  const sources = page.getByRole('list', { name: 'Fontes registradas' });
-  await expect(sources.getByText('3 preços lançados')).toBeVisible();
-  await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
-
-  // Em 360 px a grade rola dentro do próprio contêiner, sem rolagem horizontal da página.
-  await page.setViewportSize({ width: 360, height: 780 });
-  expect(await hasHorizontalOverflow(page)).toBe(false);
-  await page.setViewportSize({ width: 1280, height: 800 });
-
-  // FA-01: editar a fonte.
-  await sources.getByRole('button', { name: 'Editar' }).click();
-  const edit = page.getByRole('dialog', { name: 'Editar fonte de pesquisa' });
-  await edit.getByLabel(/Descrição/).fill('Painel de Preços do Governo Federal');
-  await edit.getByRole('button', { name: 'Salvar fonte' }).click();
-  await expect(page.getByText('Fonte atualizada')).toBeVisible();
-  await expect(sources.getByText('Painel de Preços do Governo Federal')).toBeVisible();
-
-  // FA-02: remover a fonte (as cotações vão junto) depois da confirmação.
-  await sources.getByRole('button', { name: 'Remover', exact: true }).click();
-  const confirm = page.getByRole('dialog', { name: /Remover a fonte/ });
-  await expect(
-    confirm.getByText(
-      '3 preços lançados nesta fonte serão perdidos. Esta ação não pode ser desfeita.',
-    ),
-  ).toBeVisible();
-  await confirm.getByRole('button', { name: 'Remover fonte' }).click();
-  await expect(page.getByText('Fonte removida')).toBeVisible();
-  await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
-});
-
-// US-027 — desconsiderar uma cotação com motivo e justificativa (a célula fica esmaecida, com o motivo
-// em dica) e restaurá-la; o diálogo passa pela verificação de acessibilidade (axe).
-test('cotação: desconsiderar com justificativa, ver a célula esmaecida e restaurar', async ({
-  page,
-}) => {
-  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
-  await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
-  await expect(page).toHaveURL(RESEARCH_PATH);
-  await page.getByRole('tab', { name: 'Fontes' }).click();
-  await page.getByRole('button', { name: 'Nova fonte' }).click();
-  const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
-  await form
-    .getByLabel(/Tipo de fonte/)
-    .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
-  await form.getByLabel(/Descrição/).fill('Painel de Preços');
-  await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
-  await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
-  await form.getByRole('button', { name: 'Salvar fonte' }).click();
-  const grid = page.getByRole('table', { name: 'Preços da fonte Painel de Preços' });
-  await grid.getByLabel('Preço unitário do item 1').fill('25,90');
-  await grid.getByLabel('Preço unitário do item 2').fill('120');
-  await page.getByRole('button', { name: 'Salvar preços' }).click();
-  await expect(page.getByText('Preços salvos')).toBeVisible();
-
-  await grid.getByRole('button', { name: 'Desconsiderar preço do item 1' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Desconsiderar o preço do item 1' });
-  await expect(dialog.getByLabel(/Motivo/)).toBeFocused();
-  await expectNoSeriousA11yViolations(page, 'diálogo Desconsiderar cotação');
-  await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
-  await expect(dialog.getByText('Selecione o motivo.')).toBeVisible();
-  await dialog.getByLabel(/Motivo/).selectOption({ label: 'Excessivo' });
-  await dialog
-    .getByLabel(/Justificativa/)
-    .fill('Preço muito acima das demais cotações do mesmo item');
-  await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
-  await expect(page.getByText('Preço desconsiderado')).toBeVisible();
-
-  const excludedCell = grid.getByText('Desconsiderada');
-  await expect(excludedCell).toBeVisible();
-  await expect(excludedCell).toHaveAttribute('title', /excessivo/);
-  await expect(grid.getByLabel('Preço unitário do item 1')).toHaveCount(0);
-
-  await grid.getByRole('button', { name: 'Restaurar preço do item 1' }).click();
-  await expect(page.getByText('Preço restaurado')).toBeVisible();
-  await expect(grid.getByText('Desconsiderada')).toHaveCount(0);
-  await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
-});
-
-// US-030 — cotação destoante: ao salvar a terceira fonte com um preço muito abaixo da mediana das
-// demais, o selo "Abaixo da mediana" aparece na grade e "Valores atípicos" na aba Itens, sem recarregar
-// a página e sem nenhuma cotação desconsiderada automaticamente. O item 3 recebe um preço tão baixo
-// que continua destoante mesmo com fontes de outros testes em paralelo.
-test('cotação destoante: o selo aparece na grade e o alerta no item, sem recarregar', async ({
-  page,
-}) => {
-  await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
-  await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
-  await expect(page).toHaveURL(RESEARCH_PATH);
-  await page.getByRole('tab', { name: 'Fontes' }).click();
-  for (const [description, price] of [
-    ['Painel A', '100'],
-    ['Painel B', '100'],
-    ['Painel C', '1'],
-  ] as const) {
     await page.getByRole('button', { name: 'Nova fonte' }).click();
     const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
     await form
       .getByLabel(/Tipo de fonte/)
       .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
-    await form.getByLabel(/Descrição/).fill(description);
+    await expect(
+      form.getByText(/Campos exigidos para .*: URL, data\/hora de acesso\./),
+    ).toBeVisible();
+    await form.getByLabel(/Descrição/).fill('Painel de Preços');
+    await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
+    await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
+    await expectNoSeriousA11yViolations(page, 'diálogo Nova fonte de pesquisa');
+    await form.getByRole('button', { name: 'Salvar fonte' }).click();
+    await expect(page.getByText('Fonte registrada', { exact: true })).toBeVisible();
+
+    // Com a fonte criada, a grade de preços dela abre (uma linha por item da pesquisa).
+    const grid = page.getByRole('table', { name: 'Preços da fonte Painel de Preços' });
+    await expect(grid.getByText('Cimento CP II 50 kg')).toBeVisible();
+    await grid.getByLabel('Preço unitário do item 1').fill('25,90');
+    await grid.getByLabel('Preço unitário do item 2').fill('120');
+    await grid.getByLabel('Preço unitário do item 3').fill('95,5');
+    await grid.getByLabel('Marca/modelo do item 1').fill('Votoran');
+    await expectNoSeriousA11yViolations(page, 'grade de preços da fonte');
+    await page.getByRole('button', { name: 'Salvar preços' }).click();
+    await expect(page.getByText('Preços salvos', { exact: true })).toBeVisible();
+    const sources = page.getByRole('list', { name: 'Fontes registradas' });
+    await expect(sources.getByText('3 preços lançados')).toBeVisible();
+    await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
+
+    // Em 360 px a grade rola dentro do próprio contêiner, sem rolagem horizontal da página.
+    await page.setViewportSize({ width: 360, height: 780 });
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // FA-01: editar a fonte.
+    await sources.getByRole('button', { name: 'Editar' }).click();
+    const edit = page.getByRole('dialog', { name: 'Editar fonte de pesquisa' });
+    await edit.getByLabel(/Descrição/).fill('Painel de Preços do Governo Federal');
+    await edit.getByRole('button', { name: 'Salvar fonte' }).click();
+    await expect(page.getByText('Fonte atualizada', { exact: true })).toBeVisible();
+    await expect(
+      sources.getByRole('heading', { name: 'Painel de Preços do Governo Federal' }),
+    ).toBeVisible();
+
+    // FA-02: remover a fonte (as cotações vão junto) depois da confirmação.
+    await sources.getByRole('button', { name: 'Remover', exact: true }).click();
+    const confirm = page.getByRole('dialog', { name: /Remover a fonte/ });
+    await expect(
+      confirm.getByText(
+        '3 preços lançados nesta fonte serão perdidos. Esta ação não pode ser desfeita.',
+      ),
+    ).toBeVisible();
+    await confirm.getByRole('button', { name: 'Remover fonte' }).click();
+    await expect(page.getByText('Fonte removida', { exact: true })).toBeVisible();
+    await expect(page.getByText('Nenhuma fonte registrada ainda')).toBeVisible();
+  });
+
+  // US-027 — desconsiderar uma cotação com motivo e justificativa (a célula fica esmaecida, com o motivo
+  // em dica) e restaurá-la; o diálogo passa pela verificação de acessibilidade (axe).
+  test('cotação: desconsiderar com justificativa, ver a célula esmaecida e restaurar', async ({
+    page,
+  }) => {
+    await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
+    await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
+    await expect(page).toHaveURL(RESEARCH_PATH);
+    await page.getByRole('tab', { name: 'Fontes' }).click();
+    await page.getByRole('button', { name: 'Nova fonte' }).click();
+    const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
+    await form
+      .getByLabel(/Tipo de fonte/)
+      .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+    await form.getByLabel(/Descrição/).fill('Painel de Preços');
     await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
     await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
     await form.getByRole('button', { name: 'Salvar fonte' }).click();
-    const grid = page.getByRole('table', { name: `Preços da fonte ${description}` });
-    await grid.getByLabel('Preço unitário do item 3').fill(price);
+    const grid = page.getByRole('table', { name: 'Preços da fonte Painel de Preços' });
+    await grid.getByLabel('Preço unitário do item 1').fill('25,90');
+    await grid.getByLabel('Preço unitário do item 2').fill('120');
     await page.getByRole('button', { name: 'Salvar preços' }).click();
-    await expect(page.getByText('Preços salvos').first()).toBeVisible();
-  }
-  const outlierGrid = page.getByRole('table', { name: 'Preços da fonte Painel C' });
-  const badge = outlierGrid.getByText('Abaixo da mediana');
-  await expect(badge).toBeVisible();
-  await badge.focus();
-  await expect(
-    page.getByRole('tooltip').filter({ hasText: /abaixo de 70% da mediana/ }),
-  ).toBeVisible();
-  await expect(outlierGrid.getByText('Desconsiderada')).toHaveCount(0);
-  await expectNoSeriousA11yViolations(page, 'selos de destaque na grade de preços');
+    await expect(page.getByText('Preços salvos', { exact: true })).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Itens' }).click();
-  const items = page.getByRole('table', { name: 'Itens da pesquisa de preços' });
-  // Linha 0 = cabeçalho; o item 3 é a terceira linha de dados.
-  await expect(items.getByRole('row').nth(3).getByText('Valores atípicos')).toBeVisible();
+    await grid.getByRole('button', { name: 'Desconsiderar preço do item 1' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Desconsiderar o preço do item 1' });
+    await expect(dialog.getByLabel(/Motivo/)).toBeFocused();
+    await expectNoSeriousA11yViolations(page, 'diálogo Desconsiderar cotação');
+    await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
+    await expect(dialog.getByText('Selecione o motivo.')).toBeVisible();
+    await dialog.getByLabel(/Motivo/).selectOption({ label: 'Excessivo' });
+    await dialog
+      .getByLabel(/Justificativa/)
+      .fill('Preço muito acima das demais cotações do mesmo item');
+    await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
+    await expect(page.getByText('Preço desconsiderado', { exact: true })).toBeVisible();
+
+    const excludedCell = grid.getByText('Desconsiderada');
+    await expect(excludedCell).toBeVisible();
+    await expect(excludedCell).toHaveAttribute('title', /excessivo/);
+    await expect(grid.getByLabel('Preço unitário do item 1')).toHaveCount(0);
+
+    await grid.getByRole('button', { name: 'Restaurar preço do item 1' }).click();
+    await expect(page.getByText('Preço restaurado', { exact: true })).toBeVisible();
+    await expect(grid.getByText('Desconsiderada')).toHaveCount(0);
+    await expect(grid.getByLabel('Preço unitário do item 1')).toHaveValue('25,90');
+  });
+
+  // US-030 — cotação destoante: ao salvar a terceira fonte com um preço muito abaixo da mediana das
+  // demais, o selo "Abaixo da mediana" aparece na grade e "Valores atípicos" na aba Itens, sem recarregar
+  // a página e sem nenhuma cotação desconsiderada automaticamente. O item 3 recebe um preço tão baixo
+  // que continua destoante mesmo com fontes de outros testes em paralelo.
+  test('cotação destoante: o selo aparece na grade e o alerta no item, sem recarregar', async ({
+    page,
+  }) => {
+    await openProcess(page, EXISTING_PROCESS_PATH, 'Aquisição de agregados para a obra da escola');
+    await page.getByRole('link', { name: 'Abrir pesquisa PP 0004/2026' }).click();
+    await expect(page).toHaveURL(RESEARCH_PATH);
+    await page.getByRole('tab', { name: 'Fontes' }).click();
+    for (const [description, price] of [
+      ['Painel A', '100'],
+      ['Painel B', '100'],
+      ['Painel C', '1'],
+    ] as const) {
+      await page.getByRole('button', { name: 'Nova fonte' }).click();
+      const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
+      await form
+        .getByLabel(/Tipo de fonte/)
+        .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+      await form.getByLabel(/Descrição/).fill(description);
+      await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
+      await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
+      await form.getByRole('button', { name: 'Salvar fonte' }).click();
+      const grid = page.getByRole('table', { name: `Preços da fonte ${description}` });
+      await grid.getByLabel('Preço unitário do item 3').fill(price);
+      await page.getByRole('button', { name: 'Salvar preços' }).click();
+      await expect(page.getByText('Preços salvos', { exact: true }).first()).toBeVisible();
+    }
+    const outlierGrid = page.getByRole('table', { name: 'Preços da fonte Painel C' });
+    const badge = outlierGrid.getByText('Abaixo da mediana');
+    await expect(badge).toBeVisible();
+    await badge.focus();
+    await expect(
+      page.getByRole('tooltip').filter({ hasText: /abaixo de 70% da mediana/ }),
+    ).toBeVisible();
+    await expect(outlierGrid.getByText('Desconsiderada')).toHaveCount(0);
+    await expectNoSeriousA11yViolations(page, 'selos de destaque na grade de preços');
+
+    await page.getByRole('tab', { name: 'Itens' }).click();
+    const items = page.getByRole('table', { name: 'Itens da pesquisa de preços' });
+    // Linha 0 = cabeçalho; o item 3 é a terceira linha de dados.
+    await expect(items.getByRole('row').nth(3).getByText('Valores atípicos')).toBeVisible();
+  });
 });
 
 test('importar planilha: baixar o modelo, revisar a prévia com erro, corrigir e aplicar', async ({
@@ -338,7 +347,9 @@ test('importar planilha: baixar o modelo, revisar a prévia com erro, corrigir e
   await dialog.getByRole('button', { name: 'Enviar planilha' }).click();
   await expect(dialog.getByText('Nenhum problema encontrado na planilha.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Aplicar importação' }).click();
-  await expect(page.getByText('Importação concluída: 3 preços atualizados')).toBeVisible();
+  await expect(
+    page.getByText('Importação concluída: 3 preços atualizados', { exact: true }),
+  ).toBeVisible();
   await expect(dialog).toBeHidden();
 });
 
@@ -400,8 +411,15 @@ test('concluir pesquisa (US-032): pendência com link, justificar o item e concl
   const justification = page.getByLabel('Justificativa de cotações insuficientes');
   await expect(justification).toBeFocused();
   await justification.fill('Mercado restrito na região para este material.');
+  const researchRefetched = refetchOf(page, {
+    mutation: /^\/api\/v1\/price-items\/[0-9a-f-]{36}$/,
+    refetch: /^\/api\/v1\/price-research\/[0-9a-f-]{36}$/,
+  });
   await page.getByRole('button', { name: 'Salvar justificativa' }).click();
-  await expect(page.getByText('Justificativa do item 3 salva').first()).toBeVisible();
+  await expect(
+    page.getByText('Justificativa do item 3 salva', { exact: true }).first(),
+  ).toBeVisible();
+  await researchRefetched;
 
   await page.getByRole('button', { name: 'Concluir pesquisa' }).click();
   await dialog.getByRole('button', { name: 'Concluir pesquisa' }).click();

@@ -64,7 +64,7 @@ test('J-07: descartar rascunho sem número e voltar à lista', async ({ page }) 
   await dialog.getByRole('button', { name: 'Descartar' }).click();
 
   await expect(page).toHaveURL(/\/processos$/);
-  await expect(page.getByText('Rascunho descartado')).toBeVisible();
+  await expect(page.getByText('Rascunho descartado', { exact: true })).toBeVisible();
 });
 
 test('J-07: tentar descartar rascunho já numerado oferece "Cancelar processo"', async ({

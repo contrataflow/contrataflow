@@ -17,7 +17,8 @@ async function openScreen(page: Page): Promise<void> {
     page.getByRole('heading', { level: 1, name: 'Calendário de dias úteis' }),
   ).toBeVisible();
   // A API simulada guarda os feriados de 2026.
-  await page.getByLabel('Ano').selectOption('2026');
+  // Logo após o login o HTML do SSR ainda pode estar no DOM, oculto (<div hidden id="S:0">).
+  await page.getByLabel('Ano').filter({ visible: true }).selectOption('2026');
   await expect(page.getByRole('table', { name: 'Feriados de 2026' })).toBeVisible();
 }
 

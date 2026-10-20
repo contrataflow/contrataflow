@@ -33,7 +33,7 @@ test('liga a IA aceitando os termos de uso; "Ativar" só com o aceite', async ({
   await dialog.getByLabel('Li e aceito os termos de uso da versão 2026-10').check();
   await dialog.getByRole('button', { name: 'Ativar' }).click();
 
-  await expect(page.getByText('Configuração salva')).toBeVisible();
+  await expect(page.getByText('Configuração salva', { exact: true })).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByText('Termos de uso aceitos: versão 2026-10.')).toBeVisible();
 });
@@ -49,7 +49,7 @@ test('ajusta o limite diário e acompanha o consumo do mês', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Salvar limites' })).toBeDisabled();
   await daily.fill('20');
   await page.getByRole('button', { name: 'Salvar limites' }).click();
-  await expect(page.getByText('Configuração salva')).toBeVisible();
+  await expect(page.getByText('Configuração salva', { exact: true })).toBeVisible();
 
   await page.reload();
   await page.getByRole('tab', { name: 'Inteligência artificial' }).click();

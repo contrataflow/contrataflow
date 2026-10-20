@@ -7,6 +7,13 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { refetchOf } from './support/refetch';
+
+/** POST de atribuição (PRC-22) e a releitura do processo, de onde o diálogo tira o If-Match. */
+const ASSIGNED = {
+  mutation: /^\/api\/v1\/processes\/[0-9a-f-]{36}\/assign$/,
+  refetch: /^\/api\/v1\/processes\/[0-9a-f-]{36}$/,
+};
 
 // A atribuição da API simulada é global: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -30,9 +37,13 @@ test('atribuir da fila, reatribuir com motivo e devolver à fila da unidade', as
   await expect(first.getByLabel('Novo responsável')).toBeFocused();
   await expectNoSeriousA11yViolations(page, 'diálogo Atribuir responsável');
   await first.getByLabel('Novo responsável').selectOption({ label: 'Juliana Prado' });
+  let processRefetched = refetchOf(page, ASSIGNED);
   await first.getByRole('button', { name: 'Atribuir' }).click();
   await expect(first).toBeHidden();
-  await expect(page.getByText('Processo atribuído a Juliana Prado.')).toBeVisible();
+  await expect(
+    page.getByText('Processo atribuído a Juliana Prado.', { exact: true }),
+  ).toBeVisible();
+  await processRefetched;
 
   // 2. Reatribuição: motivo obrigatório (V-02 no front) e a pessoa atual fora da lista.
   await page.getByRole('button', { name: 'Mais ações do processo' }).click();
@@ -43,9 +54,11 @@ test('atribuir da fila, reatribuir com motivo e devolver à fila da unidade', as
   await second.getByRole('button', { name: 'Atribuir' }).click();
   await expect(second.getByText('Informe o motivo da troca de responsável.')).toBeVisible();
   await second.getByLabel('Motivo').fill('Juliana está de férias');
+  processRefetched = refetchOf(page, ASSIGNED);
   await second.getByRole('button', { name: 'Atribuir' }).click();
   await expect(second).toBeHidden();
-  await expect(page.getByText('Processo atribuído a Tiago Reis.')).toBeVisible();
+  await expect(page.getByText('Processo atribuído a Tiago Reis.', { exact: true })).toBeVisible();
+  await processRefetched;
 
   // 3. Remover o responsável: o processo volta para a fila da unidade.
   await page.getByRole('button', { name: 'Mais ações do processo' }).click();
@@ -55,7 +68,9 @@ test('atribuir da fila, reatribuir com motivo e devolver à fila da unidade', as
   await third.getByLabel('Motivo').fill('Redistribuir na equipe');
   await third.getByRole('button', { name: 'Atribuir' }).click();
   await expect(third).toBeHidden();
-  await expect(page.getByText('Processo devolvido para a fila da unidade.')).toBeVisible();
+  await expect(
+    page.getByText('Processo devolvido para a fila da unidade.', { exact: true }),
+  ).toBeVisible();
 });
 
 test('em 360 px: o diálogo de atribuição ocupa a tela, sem rolagem horizontal', async ({

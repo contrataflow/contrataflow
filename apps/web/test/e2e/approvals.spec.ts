@@ -32,7 +32,9 @@ test('filtrar, ordenar e abrir a aprovação para decidir', async ({ page }) => 
   // Período invertido: aviso e nenhuma chamada nova.
   await page.getByLabel('Solicitada de').fill('2026-10-20');
   await page.getByLabel('Solicitada até').fill('2026-10-01');
-  await expect(page.getByRole('alert')).toHaveText('O período informado é inválido.');
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'O período informado é inválido.' }),
+  ).toBeVisible();
   await page.getByLabel('Solicitada até').fill('');
 
   // Tipo sem resultado → "Limpar filtros".

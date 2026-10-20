@@ -22,7 +22,7 @@ async function openVersions(page: Page): Promise<void> {
 test('salva uma versão, lista e compara com a anterior', async ({ page }) => {
   await openVersions(page);
   const list = page.getByRole('list', { name: 'Versões do documento' });
-  await expect(list.getByText('Versão 1')).toBeVisible();
+  await expect(list.getByText('Versão 1', { exact: true })).toBeVisible();
   await expect(list.getByText('Primeira redação do objeto')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'lista com uma versão');
 

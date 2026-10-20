@@ -48,7 +48,9 @@ test('convida um usuário interno e o convite aparece na lista pendente', async 
   await expectNoSeriousA11yViolations(page, 'formulário de convite');
 
   await dialog.getByRole('button', { name: 'Enviar convite' }).click();
-  await expect(page.getByText('Convite enviado para marta@exemplo.gov.br.')).toBeVisible();
+  await expect(
+    page.getByText('Convite enviado para marta@exemplo.gov.br.', { exact: true }),
+  ).toBeVisible();
   await expect(dialog).toBeHidden();
   const row = page.getByRole('row', { name: /Marta Lima/ });
   await expect(row).toContainText('marta@exemplo.gov.br');
@@ -84,13 +86,15 @@ test('reenvia e cancela um convite pendente (com confirmação)', async ({ page 
   await openList(page);
   const row = page.getByRole('row', { name: /Marta Lima/ });
   await row.getByRole('button', { name: 'Reenviar convite para Marta Lima' }).click();
-  await expect(page.getByText('Convite reenviado para marta@exemplo.gov.br.')).toBeVisible();
+  await expect(
+    page.getByText('Convite reenviado para marta@exemplo.gov.br.', { exact: true }),
+  ).toBeVisible();
 
   await row.getByRole('button', { name: 'Cancelar convite de Marta Lima' }).click();
   const confirm = page.getByRole('alertdialog', { name: 'Cancelar o convite de Marta Lima?' });
   await expectNoSeriousA11yViolations(page, 'cancelar convite');
   await confirm.getByRole('button', { name: 'Cancelar convite' }).click();
-  await expect(page.getByText('Convite de Marta Lima cancelado.')).toBeVisible();
+  await expect(page.getByText('Convite de Marta Lima cancelado.', { exact: true })).toBeVisible();
   await expect(page.getByText('Nenhum convite pendente')).toBeVisible();
 });
 
@@ -133,7 +137,9 @@ test('edita o cargo do usuário e o dado persiste', async ({ page }) => {
 
   await cargo.fill('Coordenador de Compras');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await expect(page.getByText('Dados do vínculo de Diego Ramos atualizados.')).toBeVisible();
+  await expect(
+    page.getByText('Dados do vínculo de Diego Ramos atualizados.', { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Cargo ou função' })).toHaveValue(
     'Coordenador de Compras',
@@ -150,7 +156,9 @@ test('troca a lotação principal do usuário', async ({ page }) => {
   await expectNoSeriousA11yViolations(page, 'lotações do usuário');
 
   await page.getByRole('button', { name: 'Salvar lotações' }).click();
-  await expect(page.getByText('Lotações de Diego Ramos atualizadas.')).toBeVisible();
+  await expect(
+    page.getByText('Lotações de Diego Ramos atualizadas.', { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect(page.getByRole('list', { name: 'Unidades selecionadas' })).toContainText(
     'Licitações',
@@ -166,13 +174,13 @@ test('suspende e reativa o usuário (com confirmação e motivo)', async ({ page
   await expectNoSeriousA11yViolations(page, 'suspender usuário');
   await dialog.getByRole('textbox', { name: 'Motivo (opcional)' }).fill('Licença');
   await dialog.getByRole('button', { name: 'Suspender acesso' }).click();
-  await expect(page.getByText('Acesso de Diego Ramos suspenso.')).toBeVisible();
+  await expect(page.getByText('Acesso de Diego Ramos suspenso.', { exact: true })).toBeVisible();
   await expect(page.getByText('Motivo: Licença')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Suspender acesso' })).toBeHidden();
   await expectNoSeriousA11yViolations(page, 'usuário suspenso');
 
   await page.getByRole('button', { name: 'Reativar' }).click();
-  await expect(page.getByText('Acesso de Diego Ramos reativado.')).toBeVisible();
+  await expect(page.getByText('Acesso de Diego Ramos reativado.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Suspender acesso' })).toBeVisible();
 });
 

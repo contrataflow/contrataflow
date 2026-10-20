@@ -62,7 +62,7 @@ test('US-058: assumir em lote com sucesso parcial e atribuir em lote com motivo'
     .getByRole('button', { name: 'Assumir' })
     .click();
   await expect(
-    page.getByText('1 de 2 processos assumidos. 1 não pôde ser assumido.'),
+    page.getByText('1 de 2 processos assumidos. 1 não pôde ser assumido.', { exact: true }),
   ).toBeVisible();
   await page.getByText('Ver o erro').click();
   await expect(
@@ -82,7 +82,7 @@ test('US-058: assumir em lote com sucesso parcial e atribuir em lote com motivo'
   await dialog.getByLabel('Motivo').fill('Mutirão de triagem do exercício');
   await expectNoSeriousA11yViolations(page, 'atribuir em lote');
   await dialog.getByRole('button', { name: 'Atribuir' }).click();
-  await expect(page.getByText('2 processos atribuídos.')).toBeVisible();
+  await expect(page.getByText('2 processos atribuídos.', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('tab', { name: 'Na fila da minha unidade: nenhum item' }),
   ).toBeVisible();

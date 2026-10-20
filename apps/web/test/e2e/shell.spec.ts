@@ -47,7 +47,7 @@ test('jornada do shell: dados pré-carregados, CSP com nonce, permissões e logo
   await expect(page.getByRole('navigation', { name: 'Menu principal' })).toBeVisible();
   await expect(page.getByRole('search')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' })).toBeVisible();
-  await expect(page.getByText('item-01')).toBeVisible();
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
   // Hidratado: o formulário protegido por <Can> só aparece com o JS rodando sob a CSP.
   await expect(page.getByRole('button', { name: 'Criar registro' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'página de exemplo');
@@ -88,13 +88,14 @@ test('troca de instituição (US-093): mesma sessão, dados do novo tenant e avi
   page,
 }) => {
   await signIn(page);
-  await expect(page.getByText('item-01')).toBeVisible();
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
   const cookiesBefore = await page.context().cookies();
   await page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }).click();
   await page.getByRole('menuitem', { name: 'Prefeitura B' }).click();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura B' })).toBeVisible();
   await expect(page.getByText('Agora você está em Prefeitura B.', { exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/exemplo$/);
+  // Fluxo principal 7 da US-093: depois da troca o front navega ao Dashboard (US-076).
+  await expect(page).toHaveURL(/\/painel$/);
   // A API passa a receber o X-Tenant-Id da Prefeitura B, na MESMA sessão (RN-IAM-66).
   const ping = await page.request.get('/api/v1/_internal/ping');
   expect(((await ping.json()) as { data: { tenantId: string } }).data.tenantId).toBe(
@@ -108,7 +109,7 @@ test('troca de instituição (US-093): mesma sessão, dados do novo tenant e avi
 
 test('503 da API: error.tsx com correlationId copiável e "Tentar novamente"', async ({ page }) => {
   await signIn(page);
-  await expect(page.getByText('item-01')).toBeVisible();
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
   await failApi('/api/v1/_internal/ping', 503, 'DEPENDENCY_UNAVAILABLE');
   await page.reload();
   await expect(
@@ -127,7 +128,7 @@ test('401 da API após renovar: modal "Sua sessão expirou" e nova entrada com r
   page,
 }) => {
   await signIn(page);
-  await expect(page.getByText('item-01')).toBeVisible();
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
   await failApi('/api/v1/_internal/items', 401, 'SESSION_EXPIRED');
   await page.getByRole('button', { name: /Próxima página/ }).click();
   // A tela fica onde estava (o que foi digitado é preservado); o modal bloqueia (CA-T-09).
@@ -149,7 +150,7 @@ test('aviso de ociosidade 2 min antes e "Continuar conectado" (relógio simulado
 }) => {
   await page.clock.install();
   await signIn(page);
-  await expect(page.getByText('item-01')).toBeVisible();
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
   // Página carregada por completo (permissões incluídas): nenhuma requisição em voo durante o salto
   // do relógio — uma resposta atrasada contaria como atividade e fecharia o aviso (FA-02).
   await expect(page.getByRole('button', { name: 'Criar registro' })).toBeVisible();

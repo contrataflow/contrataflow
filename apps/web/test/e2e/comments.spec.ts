@@ -7,26 +7,15 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { createProcessViaWizard } from './support/process-wizard';
 
 const TITLE = 'Aquisição de material de expediente para as escolas municipais';
 
 async function openComments(page: Page): Promise<void> {
-  await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/processos/novo')}`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Novo processo' })).toBeVisible();
-  await page.getByLabel('Título *').fill(TITLE);
-  await page.getByLabel('Objeto *').fill('Material de expediente para o ano letivo das escolas.');
-  await page.getByLabel('Tipo de contratação *').selectOption({ label: 'Aquisição de bens' });
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(
-    page.getByRole('heading', { level: 2, name: 'Origem e planejamento' }),
-  ).toBeVisible();
-  await page.getByLabel('Origem *').selectOption({ label: 'Demanda não prevista' });
-  await page.getByRole('radio', { name: 'Não se aplica' }).check();
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(page.getByRole('heading', { level: 2, name: 'Revisão' })).toBeVisible();
-  await page.getByRole('button', { name: 'Criar processo' }).click();
-  await expect(page).toHaveURL(/\/processos\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible();
+  await createProcessViaWizard(page, {
+    title: TITLE,
+    object: 'Material de expediente para o ano letivo das escolas.',
+  });
   await page.getByRole('tab', { name: /^Comentários/ }).click();
   await expect(page.getByText('Favor anexar a planilha de quantitativos do item 2.')).toBeVisible();
 }
@@ -49,7 +38,11 @@ test('comentar, responder, editar, excluir e moderar na aba "Comentários"', asy
   const claudia = panel.getByRole('article', { name: /^Comentário de Cláudia Ramos/ });
   await claudia.getByRole('button', { name: 'Responder' }).click();
   await panel.getByLabel('Resposta').fill('Planilha anexada na versão 2.');
-  await panel.getByRole('button', { name: 'Responder' }).click();
+  // O envio da resposta é o "Responder" de submit; os artigos também têm um "Responder".
+  await panel
+    .getByRole('button', { name: 'Responder' })
+    .and(panel.locator('[type="submit"]'))
+    .click();
   await expect(
     panel.getByRole('list', { name: 'Respostas' }).getByText('Planilha anexada na versão 2.'),
   ).toBeVisible();

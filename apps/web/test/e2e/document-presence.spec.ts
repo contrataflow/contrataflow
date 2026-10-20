@@ -45,6 +45,9 @@ test('duas sessões no mesmo documento se veem em até 20 s; ao fechar a aba, o 
 
     // Lúcia chega e já vê Ana no primeiro heartbeat; Ana vê Lúcia no próximo ciclo (≤ 20 s).
     await expect(lucia.getByText(SAME_SECTION('Ana Souza'))).toBeVisible({ timeout: 10_000 });
+    // O heartbeat só bate com a aba em foco (US-070): a Ana volta para a frente, como quem
+    // retoma a própria janela, e o próximo batimento já traz a Lúcia.
+    await ana.bringToFront();
     await expect(ana.getByText(SAME_SECTION('Lúcia Matos'))).toBeVisible({ timeout: 25_000 });
     const indicator = ana.getByRole('region', { name: 'Outras pessoas editando este documento' });
     await expect(indicator).toContainText('Lúcia Matos');

@@ -563,6 +563,11 @@ function listMovements(found, query) {
 // Cláudia (para responder e moderar); a Ana é a autora dos novos — edição até 15 min.
 const comments = new Map();
 const COMMENT_EDIT_MS = 15 * 60_000;
+/** Corpo TipTap de um parágrafo (CommentBody — RN-CMT-03). */
+const commentDocument = (text) => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+});
 function commentsOf(processId) {
   if (!comments.has(processId)) {
     const createdAt = new Date(Date.now() - 60 * 60_000).toISOString();
@@ -576,7 +581,7 @@ function commentsOf(processId) {
         parentId: null,
         authorId: 'sub-claudia',
         authorName: 'Cláudia Ramos',
-        body: plainDocument('Favor anexar a planilha de quantitativos do item 2.'),
+        body: commentDocument('Favor anexar a planilha de quantitativos do item 2.'),
         createdAt,
         editedAt: null,
         deletedAt: null,
@@ -706,6 +711,56 @@ const WORKFLOW_RESOLUTION = {
   versionNumber: 1,
   initialStage: { id: randomUUID(), key: 'ABERTURA', name: 'Formalização da demanda' },
 };
+/** PRC-07 (US-004) do processo criado pelo wizard: rascunho na etapa inicial, com o criador. */
+function createdSummary({ view }) {
+  return {
+    header: {
+      code: view.code,
+      title: view.title,
+      status: view.status,
+      priority: view.priority,
+      tags: [],
+      isBudgetConfidential: false,
+      estimatedValue: view.estimatedValue,
+      estimatedValueMasked: false,
+      estimatedValueSource: view.estimatedValueSource,
+      organization: view.organization,
+      showOrganization: false,
+    },
+    where: {
+      stage: {
+        key: view.currentStage.key,
+        name: view.currentStage.name,
+        type: 'TASK',
+        groupLabel: 'Formalização',
+      },
+      department: view.currentDepartment,
+      status: view.status,
+      statusBeforeSuspension: null,
+      suspensionReason: null,
+      suspendedAt: null,
+      completedAt: null,
+      canceledAt: null,
+      cancellationReason: null,
+    },
+    responsible: {
+      user: { ...view.currentResponsible, jobTitle: null },
+      queueDepartment: null,
+      since: view.createdAt,
+      approver: null,
+    },
+    pending: { blockingCount: 0, warningCount: 0, items: [] },
+    nextStep: { action: null, instructions: 'Elabore o DFD para formalizar a demanda.' },
+    deadline: null,
+    target: view.targetDate
+      ? { targetDate: view.targetDate, isOverdue: false, overdueDays: null }
+      : null,
+    documents: [],
+    approvals: [],
+    counts: { documents: 0, items: 0, comments: 0, participants: 0 },
+    version: view.version,
+  };
+}
 const DUPLICATE_WINDOW_MS = 10 * 60_000;
 function titleTokens(text) {
   return new Set(
@@ -6879,13 +6934,16 @@ createServer(async (request, response) => {
       },
     });
   }
-  const processRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/available-actions)?$/.exec(
-    url.pathname,
-  );
+  const processRoute =
+    /^\/api\/v1\/processes\/([0-9a-f-]{36})(\/available-actions|\/summary|\/stages)?$/.exec(
+      url.pathname,
+    );
   if (processRoute && request.method === 'GET') {
-    // PRC-04 e PRC-08 (US-004/US-041): o processo criado e as ações do painel (nenhuma no mock).
+    // PRC-04, PRC-07, PRC-08 e PRC-10 (US-004/US-041): o processo criado, o painel situacional
+    // na etapa inicial do workflow e as ações/etapas (nenhuma no mock).
     const found = processes.find((item) => item.view.id === processRoute[1]);
     if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
+    if (processRoute[2] === '/summary') return send(response, 200, { data: createdSummary(found) });
     return send(response, 200, { data: processRoute[2] ? [] : found.view });
   }
   return problem(response, 404, 'NOT_FOUND', String(correlationId));

@@ -116,7 +116,7 @@ test('criar o TR a partir do painel, redigir seções, "não se aplica" em DELIV
   ).toBeVisible();
   await page.getByLabel('Valor estimado (R$)').fill('100000.00');
   await page.getByRole('button', { name: 'Confirmar valor' }).click();
-  await expect(page.getByText('Valor estimado atualizado.')).toBeVisible();
+  await expect(page.getByText('Valor estimado atualizado.', { exact: true })).toBeVisible();
   await expect(page.getByTestId('term-estimated-value')).toContainText('100.000,00');
   await expect(page.getByText(/Informado manualmente/)).toBeVisible();
 
