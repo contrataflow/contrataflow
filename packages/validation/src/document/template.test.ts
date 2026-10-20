@@ -161,6 +161,13 @@ describe('variáveis (entities.md §5.2 · RN-TPL-06)', () => {
       'today',
     ]);
     expect(templateVariablesIn('sem variáveis {chave}')).toEqual([]);
+    expect(templateVariablesIn('{{ }} e {{\n process.code\t}}')).toEqual(['', 'process.code']);
+  });
+
+  it('entrada adversarial ({{ seguido de muitos espaços, sem fechamento) roda em tempo linear', () => {
+    const startedAt = performance.now();
+    expect(templateVariablesIn(`{{{{${' '.repeat(100_000)}`)).toEqual([]);
+    expect(performance.now() - startedAt).toBeLessThan(500);
   });
 
   it('variáveis de renderização ficam fora das seções e a mensagem segue V-05', () => {

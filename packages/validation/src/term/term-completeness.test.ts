@@ -267,4 +267,12 @@ describe('canonicalQuantity', () => {
     expect(canonicalQuantity('-1')).toBeNull();
     expect(canonicalQuantity('abc')).toBeNull();
   });
+
+  it('fração adversarial (muitos zeros antes de um dígito) roda em tempo linear', () => {
+    const zeros = '0'.repeat(100_000);
+    const startedAt = performance.now();
+    expect(canonicalQuantity(`1.${zeros}1`)).toBe(`1.${zeros}1`);
+    expect(canonicalQuantity(`1.${zeros}`)).toBe('1');
+    expect(performance.now() - startedAt).toBeLessThan(500);
+  });
 });

@@ -122,16 +122,27 @@ const slaDaysSchema = z
 const colorSchema = z.string().regex(COLOR_PATTERN, { error: 'Use uma cor no formato #RRGGBB.' });
 
 const MARKDOWN_LINK = /\]\(\s*<?([^)\s>]*)/g;
-const AUTOLINK = /<([a-z][a-z0-9+.-]*:[^>\s]*)>/gi;
+// Destino sem `<` (como no CommonMark): com `[^>\s]*`, cada `<a:` sem `>` relia o resto do texto.
+const AUTOLINK = /<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi;
 const BARE_URL = /\b(?:https?|ftp|javascript|data|vbscript|file):[^\s)>\]]*/gi;
-const HTML_TAG = /<\/?[a-z][a-z0-9-]*(?:\s[^>]*)?>/i;
+const HTML_TAG_START = /<\/?[a-z][a-z0-9-]*(?=[\s>])/i;
+
+/**
+ * `<tag>` ou `<tag atributos…>` no texto. Basta a primeira abertura: se não houver `>` depois dela,
+ * não há depois de nenhuma outra. Sem o `[^>]*` da regex única, que relia o resto do texto a cada
+ * `<a ` sem fechamento (CodeQL `js/polynomial-redos`).
+ */
+function hasHtmlTag(text: string): boolean {
+  const start = HTML_TAG_START.exec(text);
+  return start !== null && text.includes('>', start.index + start[0].length);
+}
 
 /**
  * Markdown restrito das orientações (RN-WF-18): sem HTML bruto e com links somente `https`.
  * Devolve a mensagem do problema ou `null`.
  */
 export function restrictedMarkdownProblem(text: string): string | null {
-  if (HTML_TAG.test(text)) return 'As orientações não podem conter HTML.';
+  if (hasHtmlTag(text)) return 'As orientações não podem conter HTML.';
   const targets = [
     ...[...text.matchAll(MARKDOWN_LINK)].map((match) => match[1] ?? ''),
     ...[...text.matchAll(AUTOLINK)].map((match) => match[1] ?? ''),

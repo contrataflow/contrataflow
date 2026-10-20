@@ -98,10 +98,14 @@ export const SECTION_TEMPLATE_VARIABLES: readonly TemplateVariable[] = TEMPLATE_
   (variable) => !(RENDER_ONLY_TEMPLATE_VARIABLES as readonly string[]).includes(variable),
 );
 
-/** Variáveis `{{...}}` citadas no texto, na ordem e sem repetição (espaços internos ignorados). */
+/**
+ * Variáveis `{{...}}` citadas no texto, na ordem e sem repetição (espaços internos ignorados). Os
+ * espaços saem no `trim`, não na regex: `\s*` em volta de `[^{}]*?` é quadrático em `{{` seguido de
+ * muitos espaços sem fechamento (CodeQL `js/polynomial-redos`).
+ */
 export function templateVariablesIn(text: string): string[] {
   const found = new Set<string>();
-  for (const match of text.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)) found.add(match[1] ?? '');
+  for (const match of text.matchAll(/\{\{([^{}]*)\}\}/g)) found.add((match[1] ?? '').trim());
   return [...found];
 }
 

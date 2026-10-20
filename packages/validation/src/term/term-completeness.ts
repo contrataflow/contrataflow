@@ -112,8 +112,15 @@ export function canonicalQuantity(value: string | null): string | null {
   const match = /^\s*(\d+)(?:\.(\d+))?\s*$/.exec(value);
   if (match === null) return null;
   const integer = (match[1] ?? '0').replace(/^0+(?=\d)/, '');
-  const fraction = (match[2] ?? '').replace(/0+$/, '');
+  const fraction = withoutTrailingZeros(match[2] ?? '');
   return fraction === '' ? integer : `${integer}.${fraction}`;
+}
+
+/** Corte por índice: `/0+$/` é quadrático em "000…01" (CodeQL `js/polynomial-redos`). */
+function withoutTrailingZeros(digits: string): string {
+  let end = digits.length;
+  while (end > 0 && digits[end - 1] === '0') end -= 1;
+  return digits.slice(0, end);
 }
 
 const hasQuantity = (quantity: string | null) => {

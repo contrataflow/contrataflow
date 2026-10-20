@@ -187,6 +187,23 @@ describe('restrictedMarkdownProblem (RN-WF-18)', () => {
     expect(restrictedMarkdownProblem('[x](javascript:alert(1))')).toMatch(/https/);
     expect(restrictedMarkdownProblem('Acesse <http://exemplo.com>')).toMatch(/HTML|https/);
   });
+
+  it('HTML com atributos (inclusive após aberturas sem fechamento) e autolink fora de https', () => {
+    expect(restrictedMarkdownProblem('<a href="https://x.gov.br">x</a>')).toMatch(/HTML/);
+    expect(restrictedMarkdownProblem('a <b\nclass="x"> b')).toMatch(/HTML/);
+    expect(restrictedMarkdownProblem('<x <y >')).toMatch(/HTML/);
+    expect(restrictedMarkdownProblem('2 <a 3 e nada mais')).toBeNull();
+    expect(restrictedMarkdownProblem('a < b e c > d')).toBeNull();
+    expect(restrictedMarkdownProblem('Escreva para <mailto:contato@x.gov.br>')).toMatch(/https/);
+    expect(restrictedMarkdownProblem('Veja <https://exemplo.gov.br/a>')).toBeNull();
+  });
+
+  it('entradas adversariais (muitos "<a " ou "<a:" sem fechamento) rodam em tempo linear', () => {
+    const startedAt = performance.now();
+    expect(restrictedMarkdownProblem('<a '.repeat(50_000))).toBeNull();
+    expect(restrictedMarkdownProblem('<a:'.repeat(50_000))).toBeNull();
+    expect(performance.now() - startedAt).toBeLessThan(500);
+  });
 });
 
 describe('workflowTransitionSchema (WF-13 · RN-WF-09)', () => {
