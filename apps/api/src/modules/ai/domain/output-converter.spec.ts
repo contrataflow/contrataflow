@@ -55,6 +55,23 @@ describe('OutputConverter — texto em linha (RN-AI-07)', () => {
     expect(cleanText('tab\tok')).toBe('tab\tok');
   });
 
+  it('não remonta tags ao remover outras nem ao tirar caracteres de controle', () => {
+    expect(cleanText('<<b>script>alert(1)<</b>/script>')).toBe('alert(1)');
+    expect(cleanText('<scr<script>ipt>x')).toBe('ipt>x');
+    expect(cleanText('<\u0001script>x')).toBe('x');
+    expect(cleanText('</<i>b>texto')).toBe('texto');
+    expect(cleanText('<a <b>c')).toBe('c');
+    expect(cleanText('a < b e c > d; x<y sem fechar')).toBe('a < b e c > d; x<y sem fechar');
+    expect(cleanText('<>texto<1>')).toBe('<>texto<1>');
+  });
+
+  it('entrada longa adversarial (tags aninhadas ou sem fechamento) roda em tempo linear', () => {
+    const startedAt = performance.now();
+    expect(cleanText(`${'<'.repeat(50_000)}a${'>a'.repeat(50_000)}`)).toBe('a');
+    expect(cleanText('<a'.repeat(50_000))).toBe('<a'.repeat(50_000));
+    expect(performance.now() - startedAt).toBeLessThan(500);
+  });
+
   it.each([
     ['valor estimado', 'VALUE'],
     ['percentual de reajuste', 'VALUE'],

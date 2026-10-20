@@ -68,19 +68,38 @@ export type ConversionResult =
 
 const TO_CONFIRM = /\[a confirmar(?:\s*:\s*([^\]]{0,200}))?\]/gi;
 const EMPHASIS = /\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*/g;
-const HTML_TAG = /<\/?[a-zA-Z][^>]*>/g;
 const DEFAULT_TO_CONFIRM_LABEL = 'informação';
 const MAX_LABEL = 120;
 
-/** Remove caracteres de controle (exceto quebra de linha e tabulação) e marcação HTML. */
+const isAsciiLetter = (char: string) =>
+  (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
+
+/**
+ * Remove caracteres de controle (exceto quebra de linha e tabulação) e marcação HTML (`<tag…>`,
+ * `</tag>`), numa passada só: a tag aberta na saída é cortada quando chega o `>`, inclusive a que a
+ * remoção de outra remonta (`<<b>script>`) — o `replace` único deixava sobrar `<script>` (CodeQL
+ * `js/incomplete-multi-character-sanitization`). Nenhum `<` seguido de letra fica com `>` depois.
+ */
 export function cleanText(text: string): string {
-  let out = '';
-  for (const char of text.replace(HTML_TAG, '')) {
+  const out: string[] = [];
+  /** Primeira abertura de tag na saída ainda sem `>` (`<`, `/` opcional e letra); -1 se não há. */
+  let open = -1;
+  for (const char of text) {
     const code = char.charCodeAt(0);
-    const control = (code < 32 && code !== 9 && code !== 10) || code === 127;
-    if (!control) out += char;
+    if ((code < 32 && code !== 9 && code !== 10) || code === 127) continue;
+    if (char === '>' && open !== -1) {
+      out.length = open;
+      open = -1;
+      continue;
+    }
+    out.push(char);
+    if (open === -1 && isAsciiLetter(char)) {
+      const before = out.length - 2;
+      if (out[before] === '<') open = before;
+      else if (out[before] === '/' && out[before - 1] === '<') open = before - 1;
+    }
   }
-  return out;
+  return out.join('');
 }
 
 /** Categoria do `toConfirm` pelo rótulo (entities.md §5.10 — rótulos padrão do GroundingGuard). */
