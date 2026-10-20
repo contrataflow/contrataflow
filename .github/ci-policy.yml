@@ -40,6 +40,32 @@ licenses:
       reason: >-
         Pacote de plataforma do sharp que embute o mesmo libvips (LGPL, linkagem dinâmica).
       approvedBy: Tech Lead + segurança (revisão do PR da US-079)
+    - package: nodemailer
+      license: MIT-0
+      reason: >-
+        Envio dos e-mails transacionais do worker (US-112). MIT sem a cláusula de atribuição:
+        não impõe obrigação alguma (mesma família do 0BSD, já aceito).
+      approvedBy: Mantenedor (revisão do PR #7, lote de 2026-10-20)
+    - package: postgres
+      license: Unlicense
+      reason: >-
+        Transitiva de prisma@7 (@prisma/client depende da CLI): driver usado pelo Prisma Studio,
+        que as apps não executam. Domínio público, sem obrigação.
+      approvedBy: Mantenedor (revisão do PR #7, lote de 2026-10-20)
+    - package: robust-predicates
+      license: Unlicense
+      reason: >-
+        Transitiva de prisma@7 → @prisma/studio-core → visx/d3-delaunay (interface do Prisma
+        Studio, que as apps não executam). Domínio público, sem obrigação.
+      approvedBy: Mantenedor (revisão do PR #7, lote de 2026-10-20)
+    - package: elkjs
+      license: EPL-2.0
+      reason: >-
+        Transitiva de prisma@7 → @prisma/studio-core (layout de diagramas do Prisma Studio, que as
+        apps não executam). Biblioteca distribuída sem modificação, em módulo separado: as
+        obrigações da EPL-2.0 (fonte do próprio elkjs e avisos) ficam atendidas pelo pacote
+        publicado. Trocar por exceção com prazo se o Prisma deixar de embutir o Studio.
+      approvedBy: Mantenedor (revisão do PR #7, lote de 2026-10-20)
 
 cve:
   # RN-FND-26 · FA-03 — CVE crítica/alta SEM correção disponível vira exceção com prazo de revisão
