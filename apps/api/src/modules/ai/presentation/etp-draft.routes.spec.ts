@@ -196,7 +196,12 @@ describe('Feature: Gerar o rascunho do ETP com IA a partir do DFD (US-118)', () 
     maxContextChars: 240_000,
   };
   let catalog: { contractingType: string; origin: string; un: string };
-  const words = () => randomUUID().replaceAll('-', '').slice(0, 10);
+  // Só letras: o teste confere que o custo (777…) não vaza, e um hexadecimal podia conter "777".
+  const words = () =>
+    randomUUID()
+      .replaceAll('-', '')
+      .slice(0, 10)
+      .replace(/\d/g, (digit) => String.fromCharCode(103 + Number(digit)));
 
   const auth = (call: request.Test, subject = CARLA, tenant: string = A) =>
     call
