@@ -37,6 +37,7 @@ import type {
   DocumentApprovalDecidedFacts,
   DocumentReopenedFacts,
   TypedSnapshotParts,
+  TypedSummaryFacts,
 } from './document.ports.js';
 import { DOCUMENT_TYPE_REPOSITORY } from './ports.js';
 import type { DocumentTypeRepository } from './ports.js';
@@ -415,11 +416,12 @@ export class DocumentLifecycleService {
   async typedSummary(
     tx: TenantTx,
     context: DocumentContext,
+    facts?: TypedSummaryFacts,
   ): Promise<Readonly<Record<string, unknown>> | null> {
     if (context.type.kind !== 'STRUCTURED') return null;
     const validator = this.validators.find(context.type.systemModule);
     if (!validator?.typedSummary) return null;
-    return validator.typedSummary(tx, this.subjectOf(context));
+    return validator.typedSummary(tx, this.subjectOf(context), facts);
   }
 
   /** Gancho `approvalDecided` do módulo tipado (US-017), no `tx` da decisão; sem gancho, nada. */

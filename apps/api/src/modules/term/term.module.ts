@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
@@ -18,6 +19,7 @@ import {
   TERM_REPOSITORY,
   TERM_TRANSACTIONS,
 } from './application/ports.js';
+import { TermDocumentValidator } from './application/term-document.validator.js';
 import { CreateTermCommand } from './application/term.commands.js';
 import { TermFacade } from './application/term.facade.js';
 import { GetTermQuery, ListProcessTermsQuery } from './application/term.queries.js';
@@ -30,7 +32,9 @@ import {
 } from './infrastructure/term.repositories.js';
 import { TermController } from './presentation/term.controller.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
+import { DocumentFacade } from '../document/application/document.facade.js';
 import { DocumentModule } from '../document/document.module.js';
+import { ProcessModule } from '../process/process.module.js';
 
 /** Modo de identidade fake (local/dev/test sem banco — FA-02 da US-080): TRs em memória. */
 const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
@@ -55,10 +59,18 @@ function importTokenKey(config: AppConfig): Buffer {
  * pelo padrão de documento tipado (`createStructuredIn`); a pesquisa de preços concluída, da porta
  * `PriceResearchSummaryRegistry` (o `price-research` é do mesmo nível). US-037: TRM-05/06 —
  * importação do ETP (seções e itens pelo `document`, cabeçalho do ETP pela porta
- * `EtpHeaderRegistry`, data local pelo calendário do `catalog`).
+ * `EtpHeaderRegistry`, data local pelo calendário do `catalog`). US-039: o `TermDocumentValidator`
+ * (completude `TR_*`, `typedSummary` e snapshot da versão) entra no registro do `document` —
+ * DOC-08/DOC-09/DOC-10 genéricos; o sigilo do orçamento vem do `process`.
  */
 @Module({
-  imports: [DocumentModule, CatalogModule, PriceResearchSummaryModule, EtpHeaderModule],
+  imports: [
+    DocumentModule,
+    CatalogModule,
+    ProcessModule,
+    PriceResearchSummaryModule,
+    EtpHeaderModule,
+  ],
   controllers: [TermController],
   providers: [
     TermFacade,
@@ -67,6 +79,7 @@ function importTokenKey(config: AppConfig): Buffer {
     TermEtpImportReader,
     PreviewTermEtpImportQuery,
     ApplyTermEtpImportCommand,
+    TermDocumentValidator,
     ListProcessTermsQuery,
     GetTermQuery,
     PrismaTermRepository,
@@ -96,4 +109,14 @@ function importTokenKey(config: AppConfig): Buffer {
   ],
   exports: [TermFacade],
 })
-export class TermModule {}
+export class TermModule implements OnModuleInit {
+  constructor(
+    private readonly documents: DocumentFacade,
+    private readonly validator: TermDocumentValidator,
+  ) {}
+
+  /** US-039: o validador de completude, o resumo e o snapshot do TR. */
+  onModuleInit(): void {
+    this.documents.registerValidator(this.validator);
+  }
+}

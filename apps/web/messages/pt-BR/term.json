@@ -297,5 +297,25 @@
     },
     "criterionUnavailable": "Não foi possível carregar as opções.",
     "criterionRetry": "Tentar novamente"
+  },
+  "completion": {
+    "title": "Completude do TR",
+    "loading": "Verificando as pendências do TR…",
+    "loadFailed": "Não foi possível verificar as pendências do TR.",
+    "retry": "Tentar novamente",
+    "none": "Nenhuma pendência: o TR está pronto para ser concluído.",
+    "onlyWarnings": "Nenhuma pendência bloqueante. Reconheça os avisos ao concluir o TR.",
+    "blocking": "{count, plural, one {# pendência impede a conclusão} other {# pendências impedem a conclusão}}",
+    "blockingTitle": "Pendências bloqueantes",
+    "warningsTitle": "{count, plural, one {Aviso de consistência} other {Avisos de consistência}}",
+    "warningsHint": "Os avisos não impedem a conclusão, mas precisam ser reconhecidos em \"Concluir TR\".",
+    "toggle": "Mostrar ou ocultar as pendências",
+    "panel": {
+      "items": "em Itens",
+      "conditions": "em Condições contratuais",
+      "general": "em Dados do TR"
+    },
+    "finalized": "TR concluído. A edição está bloqueada até a reabertura.",
+    "inReview": "TR enviado para aprovação. A edição está bloqueada durante a análise."
   }
 }

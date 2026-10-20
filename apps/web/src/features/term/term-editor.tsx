@@ -28,6 +28,7 @@ import { useId, useState } from 'react';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { ImportEtpPanel, StaleEtpBanner } from './import-etp-panel';
+import { TermCompletionPanel } from './term-completion-panel';
 import { TermConditionsPanel } from './term-conditions-panel';
 import {
   localCompleteness,
@@ -261,6 +262,13 @@ export function TermEditorLoaded({ processId, term, meta, onReload }: TermEditor
       </div>
 
       <CompletenessBar completeness={completeness} />
+      {/* US-039: "Completude do TR" (DOC-08) — pendências bloqueantes e avisos de consistência. */}
+      <TermCompletionPanel
+        term={term}
+        sections={sections}
+        revision={savedDrafts}
+        onSelectSection={select}
+      />
 
       {readOnlyReason === null ? null : (
         <Alert tone="info" live={false} title={t('readOnly.title')}>

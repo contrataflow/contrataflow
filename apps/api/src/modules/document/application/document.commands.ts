@@ -314,7 +314,9 @@ abstract class ConcludeDocumentCommand extends DocumentTransitionCommand<Conclud
       message: item.message,
     }));
     if (this.action === 'FINALIZE') {
-      const typedSummary = await this.lifecycle.typedSummary(tx, context);
+      const typedSummary = await this.lifecycle.typedSummary(tx, context, {
+        acknowledgedWarnings: acknowledged.map((item) => item.code),
+      });
       await this.audit.record(tx, {
         action: 'document.finalize',
         entityType: 'Document',

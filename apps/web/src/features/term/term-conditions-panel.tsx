@@ -56,6 +56,7 @@ export function TermConditionsPanel({ term, editable }: TermConditionsPanelProps
   return (
     <section
       aria-labelledby={`${contentId}-title`}
+      data-term-panel="conditions"
       className="flex min-w-0 flex-col gap-3 rounded-card border border-border p-4"
     >
       <h3 id={`${contentId}-title`} className="text-base font-semibold">

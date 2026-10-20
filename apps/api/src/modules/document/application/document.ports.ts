@@ -123,6 +123,15 @@ export interface TypedSnapshotParts {
   readonly collections: Readonly<Record<string, readonly unknown[]>>;
 }
 
+/**
+ * Fatos da finalização para o `typedSummary` (US-039 — `warningsAcknowledgedCount` do TR). Ausente
+ * no cartão do painel (US-062), que resume o documento sem uma finalização em curso.
+ */
+export interface TypedSummaryFacts {
+  /** Código de cada aviso reconhecido na finalização (um por aviso — `acknowledgedWarnings`). */
+  readonly acknowledgedWarnings: readonly string[];
+}
+
 /** O que o módulo tipado recebe ao ser finalizado o seu documento (DOC-10 · PRS-23). */
 export interface DocumentFinalizedFacts {
   /** A versão `FINALIZATION` criada na mesma transação. */
@@ -173,6 +182,7 @@ export interface DocumentValidator {
   typedSummary?(
     tx: TenantTx,
     subject: DocumentValidationSubject,
+    facts?: TypedSummaryFacts,
   ): Promise<Readonly<Record<string, unknown>> | null>;
   /** Cabeçalho (`Dfd`, `Etp`…) e coleções (`items`, `risks`…) congelados na versão. */
   snapshotParts?(tx: TenantTx, subject: DocumentValidationSubject): Promise<TypedSnapshotParts>;

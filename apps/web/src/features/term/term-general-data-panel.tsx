@@ -142,6 +142,7 @@ export function TermGeneralDataPanel({ processId, term, editable }: TermGeneralD
   return (
     <section
       aria-labelledby="term-general-title"
+      data-term-panel="general"
       className="flex min-w-0 flex-col gap-4 rounded-card border border-border p-4"
     >
       <h3 id="term-general-title" className="text-base font-semibold">

@@ -44,26 +44,44 @@ const keepFocus = (event: Event) => {
   event.preventDefault();
 };
 
+type TypedLabels = {
+  readonly actions: Partial<Record<LifecycleAction, string>>;
+  readonly toasts: Partial<Record<TransitionRequest['action'], string>>;
+} | null;
+
+/**
+ * Rótulos próprios do ciclo de vida por módulo tipado (`documents.typed.<módulo>`) — US-023:
+ * "Concluir ETP"; US-039: "Concluir TR"/"Submeter para aprovação" e os toasts "TR concluído"/"TR
+ * enviado para aprovação". Ausente = os genéricos.
+ */
+function useTypedLabels(systemModule: DocumentDto['documentType']['systemModule']): TypedLabels {
+  const t = useTranslations('documents.typed');
+  if (systemModule === 'ETP') {
+    return { actions: { FINALIZE: t('ETP.FINALIZE') }, toasts: { FINALIZE: t('ETP.finalized') } };
+  }
+  if (systemModule === 'TERM_OF_REFERENCE') {
+    return {
+      actions: {
+        FINALIZE: t('TERM_OF_REFERENCE.FINALIZE'),
+        SUBMIT: t('TERM_OF_REFERENCE.SUBMIT'),
+      },
+      toasts: {
+        FINALIZE: t('TERM_OF_REFERENCE.finalized'),
+        SUBMIT: t('TERM_OF_REFERENCE.submitted'),
+      },
+    };
+  }
+  return null;
+}
+
 /**
  * Ciclo de vida do documento na SCR-105 (US-065): `DocumentActionsBar` e o fluxo que cada ação
  * abre — painel de pendências (Finalizar/Submeter) com o diálogo de reconhecimento de avisos,
  * `ReopenDialog`, `CancelDialog` e a confirmação de exclusão. Quem manda é a API: os botões vêm de
  * `meta.allowedActions` e toda recusa (412, 409, 403, 422) volta como o estado novo da tela.
  */
-/** Módulos tipados com rótulos próprios do ciclo de vida (`documents.typed.<módulo>`). */
-const TYPED_LABELS = new Set(['ETP']);
-
 export function DocumentLifecycle({ document, meta, fallbackFocus }: DocumentLifecycleProps) {
-  const tTyped = useTranslations('documents.typed');
-  const typedModule = document.documentType.systemModule;
-  // US-023: "Concluir ETP" e o toast "ETP concluído" com o próximo passo.
-  const typed =
-    typedModule !== null && TYPED_LABELS.has(typedModule)
-      ? {
-          actions: { FINALIZE: tTyped(`${typedModule as 'ETP'}.FINALIZE`) },
-          toasts: { FINALIZE: tTyped(`${typedModule as 'ETP'}.finalized`) },
-        }
-      : null;
+  const typed = useTypedLabels(document.documentType.systemModule);
   const lifecycle = useDocumentLifecycle(document, typed?.toasts);
   const [flow, setFlow] = useState<Flow>(null);
   const [feedback, setFeedback] = useState<DocumentOutcome | null>(null);

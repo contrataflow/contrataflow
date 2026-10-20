@@ -79,6 +79,7 @@ export type {
   DocumentValidationSubject,
   DocumentValidator,
   TypedSnapshotParts,
+  TypedSummaryFacts,
 } from './document.ports.js';
 export type { ConcludeDocumentInput, DocumentTransitionResult } from './document.commands.js';
 export type { CreateDocumentInput } from './document-creation.service.js';

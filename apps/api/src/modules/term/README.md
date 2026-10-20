@@ -39,7 +39,7 @@ DFD/ETP (`etp/README.md`).
   Gherkin) e `test/tenant-leak/terms.spec.ts` (PostgreSQL: atomicidade com falha induzida,
   concorrência, POL-09, RLS, checks e FKs).
 - **Fora desta story**: condições contratuais e itens (US-038), validador tipado e conclusão
-  (US-039).
+  (US-039 — abaixo).
 
 ## US-037 — Importar dados do ETP para o TR (TRM-05/06)
 
@@ -87,3 +87,36 @@ DFD/ETP (`etp/README.md`).
 - **Testes**: `domain/term-of-reference.spec.ts`, `presentation/term-conditions.routes.spec.ts` (8
   categorias + FA-01/02/03, V-04/V-09/V-10) e `test/tenant-leak/term-items.spec.ts` (PostgreSQL:
   jsonb, CHECKs, unicidade, RLS, 5 PATCHes paralelos, falha induzida nos itens).
+
+## US-039 — Validar e concluir o TR (DOC-08/09/10 genéricos)
+
+- **Validador** (`application/term-document.validator.ts` · `TermDocumentValidator`, registrado no
+  `onModuleInit` do `term.module.ts`): o `document` compõe as regras genéricas (seções e
+  `fieldConfig.required` sobre o cabeçalho do snapshot) com `evaluateTermCompleteness`
+  (`packages/validation/src/term/term-completeness.ts`, pura — catálogo `TR_*` em api.md §2.1.2).
+  O DOC-08 e a revalidação na MESMA transação do DOC-10/DOC-09 usam o mesmo registro.
+- **Bloqueantes** (RN-TR-35): `TR_ESTIMATED_VALUE_REQUIRED` (precede a justificativa — sem valor,
+  só ele), `TR_ESTIMATED_VALUE_JUSTIFICATION_REQUIRED` (valor `MANUAL` sem a seção `ESTIMATED_VALUE`
+  preenchida ou "não se aplica" justificado — lacuna 3), `TR_ITEMS_REQUIRED`,
+  `TR_SELECTION_CRITERION_REQUIRED`, `TR_AWARD_TYPE_REQUIRED`.
+- **Avisos** (RN-TR-36): `TR_ITEM_QUANTITY_DIVERGENT` — só com ETP `FINALIZED`/`APPROVED`
+  (`DocumentFacade.importableEtpIn` — o `etp` é do mesmo nível), um por item comum pelo
+  `processItemId`, comparação exata de decimais (`canonicalQuantity`), `itemId` = linha do TR;
+  `TR_GUARANTEE_NOT_DEFINED` — garantia do produto e contratual nulas (independe do ETP). O
+  reconhecimento é por código (`gateCompleteness`): um código cobre todos os itens divergentes.
+- **Conclusão**: `DocumentFinalized` (`document.finalized.tr`, alias `TermCompleted`) com
+  `typedSummary: { estimatedTotalValueMasked, itemsCount, warningsAcknowledgedCount }` — nunca o
+  valor; o sigilo vem do `ProcessFacade.isBudgetConfidentialIn`. `warningsAcknowledgedCount` vem do
+  `TypedSummaryFacts` que o DOC-10 passa ao `typedSummary` (ausente no cartão do painel). O snapshot
+  congela o cabeçalho tipado (`termSnapshotHeader`) e os itens com especificação/critérios.
+- **Concorrência**: o `If-Match` do DOC-10 é a versão do DOCUMENTO. O TRM-04 (condições, valor) muda
+  só a versão do TR — a corrida "condição editada entre a consulta e o clique" é barrada pela
+  revalidação na transação (422), não por 412; DOC-05/DOC-07 mudam a versão do documento (412).
+- **Web**: `apps/web/src/features/term/term-completion-panel.tsx` (+ `term-completion-model.ts`) —
+  painel "Completude do TR" no editor (links para a seção ou para o campo no painel marcado com
+  `data-term-panel`); "Concluir TR"/"Submeter para aprovação" são os rótulos tipados do
+  `DocumentLifecycle` (`documents.typed.TERM_OF_REFERENCE`); concluído, o editor recarrega o TR.
+- **Testes**: `packages/validation/src/term/term-completeness.test.ts`,
+  `presentation/term-conclusion.routes.spec.ts` (8 categorias + FA-01/02/03, V-01..V-08) e
+  `test/tenant-leak/term-conclusion.spec.ts` (PostgreSQL: falha induzida no outbox desfaz a
+  conclusão, RLS, duas conclusões paralelas, outbox PENDING).

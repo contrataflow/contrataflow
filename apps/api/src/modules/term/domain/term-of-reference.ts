@@ -381,3 +381,31 @@ export function applyTermHeader(
     changes,
   };
 }
+
+// --- Conclusão (US-039 · RN-TR-37) --------------------------------------------------------------
+
+/**
+ * Cabeçalho tipado congelado na versão `FINALIZATION`/`SUBMISSION` (entities.md §5.3.2) e conferido
+ * pelos `fieldConfig.required` do template (RN-TR-35 — `FIELD_REQUIRED` genérico). POL-09 é de quem
+ * lê: o `document` mascara o valor estimado do snapshot.
+ */
+export function termSnapshotHeader(term: TermOfReference): Readonly<Record<string, unknown>> {
+  return {
+    objectDefinition: term.objectDefinition,
+    contractDurationMonths: term.contractDurationMonths,
+    executionDeadline: term.executionDeadline,
+    executionDeadlineType: term.executionDeadlineType,
+    deliveryLocation: term.deliveryLocation,
+    paymentTermDays: term.paymentTermDays,
+    productWarrantyMonths: term.productWarrantyMonths,
+    contractGuaranteePercent: term.contractGuaranteePercent,
+    allowsSubcontracting: term.allowsSubcontracting,
+    selectionCriterionId: term.selectionCriterionId,
+    awardType: term.awardType,
+    estimatedTotalValue: term.estimatedTotalValue,
+    estimatedValueSource: term.estimatedValueSource,
+    priceResearchId: term.priceResearchId,
+    importedFromEtpId: term.importedFromEtpId,
+    importedFromEtpVersionId: term.importedFromEtpVersionId,
+  };
+}

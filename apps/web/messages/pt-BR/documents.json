@@ -461,6 +461,12 @@
     "ETP": {
       "FINALIZE": "Concluir ETP",
       "finalized": "ETP concluído. Próximo passo: aguarde a etapa de aprovação ou encaminhe o processo."
+    },
+    "TERM_OF_REFERENCE": {
+      "FINALIZE": "Concluir TR",
+      "SUBMIT": "Submeter para aprovação",
+      "finalized": "TR concluído. Próximo passo: aguarde a etapa de aprovação ou encaminhe o processo.",
+      "submitted": "TR enviado para aprovação."
     }
   }
 }
