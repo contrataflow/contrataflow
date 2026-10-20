@@ -9,6 +9,7 @@ import {
   createSampler,
   createTelemetrySdk,
   isIgnoredHttpPath,
+  otlpTracesUrl,
 } from './telemetry.js';
 
 class FakeExporter implements SpanExporter {
@@ -118,5 +119,19 @@ describe('createTelemetrySdk', () => {
     });
     expect(sdk).toBeDefined();
     await sdk.shutdown();
+  });
+});
+
+describe('otlpTracesUrl', () => {
+  it('acrescenta /v1/traces sem barras duplicadas', () => {
+    expect(otlpTracesUrl('http://collector:4318')).toBe('http://collector:4318/v1/traces');
+    expect(otlpTracesUrl('http://collector:4318///')).toBe('http://collector:4318/v1/traces');
+  });
+
+  it('entrada adversarial (muitas barras seguidas de outro caractere) roda em tempo linear', () => {
+    const endpoint = `http://x${'/'.repeat(100_000)}y`;
+    const startedAt = performance.now();
+    expect(otlpTracesUrl(endpoint)).toBe(`${endpoint}/v1/traces`);
+    expect(performance.now() - startedAt).toBeLessThan(500);
   });
 });

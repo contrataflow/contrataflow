@@ -108,10 +108,19 @@ export function createSampler(ratio: number): Sampler {
   return new ParentBasedSampler({ root });
 }
 
+/**
+ * URL OTLP/HTTP de traces a partir do endpoint base (barras finais descartadas). Corte por índice:
+ * `/\/+$/` é quadrático em muitas `/` seguidas de outro caractere (CodeQL `js/polynomial-redos`).
+ */
+export function otlpTracesUrl(endpoint: string): string {
+  let end = endpoint.length;
+  while (end > 0 && endpoint[end - 1] === '/') end -= 1;
+  return `${endpoint.slice(0, end)}/v1/traces`;
+}
+
 export function createTelemetrySdk(options: TelemetryOptions): NodeSDK {
   const exporter =
-    options.exporter ??
-    new OTLPTraceExporter({ url: `${options.endpoint.replace(/\/+$/, '')}/v1/traces` });
+    options.exporter ?? new OTLPTraceExporter({ url: otlpTracesUrl(options.endpoint) });
   return new NodeSDK({
     resource: resources.resourceFromAttributes({
       'service.name': options.serviceName,
