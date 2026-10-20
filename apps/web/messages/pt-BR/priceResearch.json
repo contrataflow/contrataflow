@@ -92,7 +92,8 @@
       "items": "Itens",
       "sources": "Fontes",
       "document": "Documento"
-    }
+    },
+    "openMap": "Ver mapa comparativo"
   },
   "parameters": {
     "title": "Parâmetros",
@@ -423,5 +424,60 @@
     "recalculating": "Recalculando…",
     "recalculated": "Estatísticas recalculadas",
     "correlation": "Código: {id}"
+  },
+  "map": {
+    "title": "Mapa comparativo — {code}",
+    "caption": "Mapa comparativo de preços: itens por fonte",
+    "loading": "Carregando o mapa comparativo…",
+    "loadError": "Não foi possível carregar o mapa comparativo agora.",
+    "retry": "Tentar novamente",
+    "back": "Voltar à pesquisa de preços",
+    "backToProcesses": "Voltar aos processos",
+    "referenceDate": "Data-base {date}",
+    "calculatedAt": "Calculado em {when}",
+    "notCalculatedYet": "Ainda não calculado",
+    "total": "Valor total estimado:",
+    "masked": "Sigiloso",
+    "maskedHint": "Orçamento sigiloso: os valores só são visíveis a quem tem acesso ao orçamento sigiloso ou está com o processo — também nos arquivos exportados.",
+    "notCalculated": "—",
+    "noQuotation": "Sem cotação",
+    "noItems": "A pesquisa ainda não tem itens.",
+    "percent": "{value} %",
+    "itemLabel": "{number}. {description}",
+    "quantity": "{quantity} {unit}",
+    "excluded": "Desconsiderada",
+    "excludedReason": "Desconsiderada: {reason}",
+    "reasons": {
+      "UNFEASIBLE": "inexequível",
+      "EXCESSIVE": "excessivo",
+      "INCONSISTENT": "inconsistente",
+      "EXPIRED": "vencido",
+      "NON_COMPLIANT": "não conforme",
+      "OTHER": "outro motivo"
+    },
+    "columns": {
+      "item": "Item",
+      "sources": "Fontes",
+      "validCount": "Cotações válidas",
+      "mean": "Média",
+      "median": "Mediana",
+      "lowest": "Menor",
+      "highest": "Maior",
+      "cv": "CV",
+      "method": "Método",
+      "recommended": "Valor unitário estimado",
+      "total": "Valor total",
+      "alerts": "Alertas"
+    },
+    "export": {
+      "label": "Exportar o mapa comparativo",
+      "xlsx": "Exportar XLSX",
+      "exporting": "Exportando…",
+      "pdf": "Gerar PDF",
+      "done": "Planilha do mapa comparativo baixada",
+      "tooLargeHint": "Use \"Gerar PDF\" para esta pesquisa ou exporte por lote de itens.",
+      "retry": "Tentar novamente",
+      "correlationId": "Código do erro: {id}"
+    }
   }
 }

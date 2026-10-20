@@ -26,6 +26,7 @@ import { isApiError } from '@/lib/api/api-error';
 import { formatCivilDate, formatMoney } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
 
+import { comparativeMapHref } from './comparative-map.api';
 import { ParametersPanel } from './parameters-panel';
 import { PriceItemCalculation, RecalculateButton } from './price-item-calculation';
 import { PriceItemsTable } from './price-items-table';
@@ -217,6 +218,15 @@ function LoadedView({
           ) : null}
         </div>
         <p className="text-base">{research.title}</p>
+        <div>
+          {/* SCR-010 (US-031): leitura e exportação para quem vê a pesquisa (PROCESS_VIEW). */}
+          <Link
+            href={comparativeMapHref(processId, research.id)}
+            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+          >
+            {t('openMap')}
+          </Link>
+        </div>
         {process.data === undefined ? null : (
           <p className="text-sm text-muted-foreground">
             {t('processLine', {

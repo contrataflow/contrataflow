@@ -517,6 +517,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Prévia expirada',
     detail: 'A prévia expirou. Envie a planilha novamente.',
   },
+  // US-031: mapa comparativo (api/07 PRS-21/22) — pesquisa inexistente, de outro tenant ou não visível.
+  PRICE_RESEARCH_NOT_FOUND: {
+    status: 404,
+    title: 'Pesquisa não encontrada',
+    detail: 'Pesquisa não encontrada.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,

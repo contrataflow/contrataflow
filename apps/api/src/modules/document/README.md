@@ -271,7 +271,8 @@ revision, updatedAt, updatedBy, draftRevision }` + `ETag: "s<revision>"`. Genér
   condicional por `version` (`canClaim`: `PENDING`, tentativa anterior ou trava vencida de 60 s) →
   snapshot da versão ou `DocumentLifecycleService.snapshotOf` do rascunho → `buildRenditionHtml`
   (`domain/rendition-html.ts`: `packages/editor` `richTextToHtml`, variáveis do layout, marca d’água
-  na prévia, hash da versão no rodapé) → Gotenberg (`infrastructure/gotenberg.client.ts`) →
+  na prévia, hash da versão no rodapé; seção computada `PRICE_SUMMARY` = mapa comparativo das coleções
+  `priceSummary*` do snapshot, em `domain/price-summary-html.ts` — US-031) → Gotenberg (`infrastructure/gotenberg.client.ts`) →
   `inspectPdf` (SHA-256/tamanho/páginas) → `StorageService.putObject` (bucket `renditions`,
   `cf-retention`) → `READY` + `DocumentRenditionReady`. Erros (`RenderDeferredError` sem consumir
   tentativa com o disjuntor ABERTO; `RenderRetryableError` transitório; `RenderFailedError` depois de

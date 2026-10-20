@@ -132,6 +132,8 @@ export const ERROR_CODES = [
   'RECOMMENDED_ALTERNATIVE_EXISTS',
   // US-028: token da prévia de importação de cotações vencido (api/07 PRS-19 · api.md §2.2).
   'IMPORT_PREVIEW_EXPIRED',
+  // US-031: mapa comparativo de pesquisa inexistente, de outro tenant ou não visível (api/07 PRS-21/22).
+  'PRICE_RESEARCH_NOT_FOUND',
 ] as const satisfies readonly string[];
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

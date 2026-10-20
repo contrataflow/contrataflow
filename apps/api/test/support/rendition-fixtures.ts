@@ -13,6 +13,15 @@ import type {
 } from '../../src/modules/document/application/rendition.ports.js';
 import type { InMemoryDocumentRenditionRepository } from '../../src/modules/document/infrastructure/in-memory-document-rendition.repository.js';
 
+// Para os specs de outros módulos que geram o PDF de um documento tipado (ex.: o mapa comparativo
+// da US-031) sem importar os internos do `document` (fronteira de módulo — RN-FND-05).
+export { PdfRendererCircuit } from '../../src/modules/document/application/pdf-renderer-circuit.js';
+export {
+  RenderFailedError,
+  RenderRetryableError,
+} from '../../src/modules/document/application/render-document.processor.js';
+export { PDF_RENDERER } from '../../src/modules/document/application/rendition.ports.js';
+
 /*
  * Dublês da renderização em PDF (US-067): um PDF mínimo com N páginas, o conversor falso (grava o
  * HTML recebido para as asserções e simula Gotenberg fora/recusando) e a execução do job como o

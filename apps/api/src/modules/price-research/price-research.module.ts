@@ -18,6 +18,12 @@ import {
 } from '#shared/process/process-item-usage.js';
 
 import {
+  ComparativeMapAssembler,
+  ComparativeMapReader,
+  ExportComparativeMapXlsxCommand,
+  GetComparativeMapQuery,
+} from './application/comparative-map.queries.js';
+import {
   PRICE_RESEARCH_CLOCK,
   PRICE_RESEARCH_REPOSITORY,
   PRICE_RESEARCH_TRANSACTIONS,
@@ -25,6 +31,7 @@ import {
 } from './application/ports.js';
 import { PriceCalculationService } from './application/price-calculation.service.js';
 import { PriceItemUsageReader } from './application/price-item-usage.reader.js';
+import { PriceResearchDocumentValidator } from './application/price-research-document.validator.js';
 import { PriceResearchSummaryReaderImpl } from './application/price-research-summary.reader.js';
 import {
   AddPriceItemsCommand,
@@ -84,10 +91,12 @@ import {
   InMemoryPriceSourceRepository,
   PrismaPriceSourceRepository,
 } from './infrastructure/price-source.repositories.js';
+import { ComparativeMapController } from './presentation/comparative-map.controller.js';
 import { PriceResearchController } from './presentation/price-research.controller.js';
 import { PriceSourceController } from './presentation/price-source.controller.js';
 import { QuotationImportController } from './presentation/quotation-import.controller.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
+import { DocumentFacade } from '../document/application/document.facade.js';
 import { DocumentModule } from '../document/document.module.js';
 import { SupplierFacade } from '../supplier/application/supplier.facade.js';
 import { SupplierModule } from '../supplier/supplier.module.js';
@@ -118,7 +127,12 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessItemUsageModule,
     PriceResearchSummaryModule,
   ],
-  controllers: [PriceResearchController, PriceSourceController, QuotationImportController],
+  controllers: [
+    PriceResearchController,
+    PriceSourceController,
+    QuotationImportController,
+    ComparativeMapController,
+  ],
   providers: [
     PriceResearchFacade,
     CreatePriceResearchCommand,
@@ -159,6 +173,11 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ApplyQuotationImportCommand,
     ImportItemsReader,
     QuotationImportStore,
+    ComparativeMapAssembler,
+    ComparativeMapReader,
+    GetComparativeMapQuery,
+    ExportComparativeMapXlsxCommand,
+    PriceResearchDocumentValidator,
     PrismaPriceSourceRepository,
     PrismaPriceResearchRepository,
     PrismaPriceResearchTransactions,
@@ -220,18 +239,22 @@ export class PriceResearchModule implements OnModuleInit {
     private readonly sourceAttachments: PriceSourceAttachmentTargets,
     private readonly summaries: PriceResearchSummaryRegistry,
     private readonly summaryReader: PriceResearchSummaryReaderImpl,
+    private readonly documents: DocumentFacade,
+    private readonly documentValidator: PriceResearchDocumentValidator,
   ) {}
 
   /**
    * US-024: os itens do processo referenciados por pesquisas (ITEM_IN_USE — US-006). US-026: os
    * fornecedores referenciados por fontes (SUPPLIER_IN_USE — RN-PRICE-19) e o alvo de anexo
    * `PRICE_SOURCE` (RN-PRICE-28). US-036: as pesquisas concluídas para o valor estimado do TR
-   * (RN-TR-07 — `PriceResearchSummaryRegistry`).
+   * (RN-TR-07 — `PriceResearchSummaryRegistry`). US-031: o mapa comparativo no snapshot do
+   * documento (seção `PRICE_SUMMARY` do PDF — `PriceResearchDocumentValidator`).
    */
   onModuleInit(): void {
     this.itemUsage.register(this.priceItemUsage);
     this.summaries.register(this.summaryReader);
     this.suppliers.registerUsageProvider(this.supplierUsage);
     this.attachmentTargets.register(this.sourceAttachments);
+    this.documents.registerValidator(this.documentValidator);
   }
 }

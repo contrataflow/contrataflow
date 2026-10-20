@@ -339,3 +339,31 @@ test('importar planilha: baixar o modelo, revisar a prévia com erro, corrigir e
   await expect(page.getByText('Importação concluída: 3 preços atualizados')).toBeVisible();
   await expect(dialog).toBeHidden();
 });
+
+test('mapa comparativo (US-031): abrir a SCR-010, exportar o XLSX e gerar o PDF até ficar pronto', async ({
+  page,
+}) => {
+  await openProcess(page, IMPORT_PROCESS_PATH, 'Aquisição de material de pintura para as escolas');
+  await page.getByRole('link', { name: 'Abrir pesquisa PP 0005/2026' }).click();
+  await expect(page).toHaveURL(RESEARCH_PATH);
+  await page.getByRole('link', { name: 'Ver mapa comparativo' }).click();
+  await expect(page).toHaveURL(/\/pesquisa-precos\/[0-9a-f-]{36}\/mapa$/);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Mapa comparativo — PP 0005/2026' }),
+  ).toBeVisible();
+  const grid = page.getByRole('grid', { name: 'Mapa comparativo de preços: itens por fonte' });
+  await expect(grid.getByRole('columnheader', { name: /Painel de Preços/ })).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'SCR-010 mapa comparativo');
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exportar XLSX' }).click();
+  expect((await download).suggestedFilename()).toBe('mapa-comparativo-pp-0005-2026.xlsx');
+
+  await page.getByRole('button', { name: 'Gerar PDF' }).click();
+  await expect(page.getByRole('button', { name: 'Baixar PDF' })).toBeVisible();
+
+  // 360 px: a página não rola na horizontal; a matriz rola dentro da própria área.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await expect(grid).toBeVisible();
+  expect(await hasHorizontalOverflow(page)).toBe(false);
+});

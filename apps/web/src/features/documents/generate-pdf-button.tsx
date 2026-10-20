@@ -39,6 +39,8 @@ export interface GeneratePdfButtonProps {
   readonly navigate?: ((url: string) => void) | undefined;
   /** Rótulo do botão inicial da tela dona (ex.: "Pré-visualizar PDF" no wizard do DFD — US-014). */
   readonly label?: string | undefined;
+  /** Mensagem de `FAILED` da tela dona (ex.: "Não foi possível gerar o PDF agora." — US-031). */
+  readonly failedMessage?: string | undefined;
 }
 
 type OutcomeOrigin = 'request' | 'download' | 'poll';
@@ -56,6 +58,7 @@ export function GeneratePdfButton({
   source,
   navigate = startDownload,
   label,
+  failedMessage = RENDITION_MESSAGES.failed,
 }: GeneratePdfButtonProps) {
   const t = useTranslations('documents.renditions');
   const tenantId = useTenantId();
@@ -184,7 +187,7 @@ export function GeneratePdfButton({
 
   const message =
     status === 'FAILED'
-      ? RENDITION_MESSAGES.failed
+      ? failedMessage
       : status === 'EXPIRED'
         ? RENDITION_MESSAGES.previewExpired
         : null;

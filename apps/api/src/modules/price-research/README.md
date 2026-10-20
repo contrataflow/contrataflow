@@ -183,3 +183,29 @@ price-alert-badges.tsx` — texto + tooltip focável; sob POL-09 sem percentuais
   FA-01/03/04/05, V-01/V-02), `test/tenant-leak/price-alerts.spec.ts` (PostgreSQL: colunas, jsonb, rollback,
   concorrência, RLS), `test/price-research/price-outliers.perf.ts` (50 fontes/item < 300 ms) e o E2E
   "cotação destoante" em `apps/web/test/e2e/price-research.spec.ts`.
+
+## US-031 — Visualizar e exportar o mapa comparativo (PRS-21/22 · PDF pelo DOC-20..23)
+
+- **Rotas** (`presentation/comparative-map.controller.ts`): PRS-21 `GET /price-research/{id}/comparative-map`
+  e PRS-22 `GET …/comparative-map/export?format=xlsx` (_rate limit_ `export`). Contratos em
+  `packages/validation/src/price-research/comparative-map.ts` (`comparativeMapSchema`, limites, mensagens,
+  rótulos do arquivo e `PRICE_SUMMARY_COLLECTIONS`). 404 próprio: `PRICE_RESEARCH_NOT_FOUND`.
+- **Domínio** (`domain/comparative-map.ts`, puro): `buildComparativeMap` (RN-PRICE-53 — linhas/colunas por
+  `sortOrder`, células só onde há cotação), `maskComparativeMap`/`comparativeMapFor` (POL-09 num passo único,
+  o mesmo para a tela e o XLSX) e `comparativeMapSnapshot` (coleções do PDF).
+- **Leitura** (`application/comparative-map.queries.ts`): `ComparativeMapAssembler` monta o mapa no `tx` de
+  quem chama; `ComparativeMapReader` confere a visibilidade (DEC-024) e decide a POL-09; PRS-21/22 leem numa
+  única transação de leitura (FA-05). `ExportComparativeMapXlsxCommand`: teto 500 × 50 (422 antes de
+  montar), aviso `price_research.export_near_limit` acima de 80%, `price_research.export` gravado depois de
+  montar o arquivo (falha → 503 sem bytes), logs `price_research.map_exported`/`export_failed` sem preços.
+- **Planilha** (`application/comparative-map.xlsx.ts`): reaproveita `#shared/spreadsheet/xlsx`; preços
+  numéricos, selos na coluna "Observações", "Sigiloso" quando mascarado; determinística.
+- **PDF**: `PriceResearchDocumentValidator` (porta `DocumentValidator`, registrado no `onModuleInit`) põe o
+  mapa sem máscara nas coleções `priceSummary*` do snapshot (prévia = estado vigente; versão = congelado);
+  o `document` mascara pela rendition e renderiza a seção `PRICE_SUMMARY` (`document/domain/price-summary-html.ts`).
+  `validate` não acrescenta regras (a conclusão é da US-032).
+- **Testes**: `domain/comparative-map.spec.ts`, `application/comparative-map.xlsx.spec.ts`,
+  `document/domain/price-summary-html.spec.ts`, `presentation/comparative-map.routes.spec.ts` (8 categorias
+  - FA-01/02/03/04/05, V-01/V-02, PDF pelo `document-render`), `test/tenant-leak/comparative-map.spec.ts`
+    (PostgreSQL: auditoria EXPORT, 500 × 50 / 501 / 51 por SQL, POL-09, leituras sob exclusões concorrentes,
+    tenant B) e `test/price-research/comparative-map-export.perf.ts` (500 × 50 < 1 s, suíte de performance).

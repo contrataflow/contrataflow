@@ -6560,6 +6560,345 @@
         },
         "additionalProperties": false
       },
+      "ComparativeMap": {
+        "type": "object",
+        "properties": {
+          "priceResearchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "referenceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastCalculatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "unitPriceDecimals": {
+            "type": "integer"
+          },
+          "totalEstimatedValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "masked": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComparativeMapItem"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComparativeMapSource"
+            }
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComparativeMapCell"
+            }
+          }
+        },
+        "required": [
+          "priceResearchId",
+          "code",
+          "title",
+          "referenceDate",
+          "lastCalculatedAt",
+          "unitPriceDecimals",
+          "totalEstimatedValue",
+          "masked",
+          "items",
+          "sources",
+          "cells"
+        ]
+      },
+      "ComparativeMapItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "lotNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "unitLabel": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,13})(?:\\.\\d{1,4})?$"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "effectiveMethod": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "MEAN",
+              "MEDIAN",
+              "LOWEST",
+              "MANUAL",
+              null
+            ]
+          },
+          "validQuotationsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "meanPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "medianPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lowestPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "highestPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stdDeviation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "coefficientOfVariation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recommendedUnitPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "totalPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valuesMasked": {
+            "type": "boolean"
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "NO_VALID_QUOTES",
+                    "BELOW_MINIMUM_QUOTES",
+                    "HIGH_CV",
+                    "HAS_OUTLIERS",
+                    "EXPIRED_QUOTES"
+                  ]
+                }
+              },
+              "required": [
+                "code"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "processItemId",
+          "sequence",
+          "lotNumber",
+          "description",
+          "unitLabel",
+          "quantity",
+          "sortOrder",
+          "effectiveMethod",
+          "validQuotationsCount",
+          "meanPrice",
+          "medianPrice",
+          "lowestPrice",
+          "highestPrice",
+          "stdDeviation",
+          "coefficientOfVariation",
+          "recommendedUnitPrice",
+          "totalPrice",
+          "valuesMasked",
+          "alerts"
+        ]
+      },
+      "ComparativeMapSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "label"
+            ]
+          },
+          "supplierName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quoteDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "sortOrder": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "sourceType",
+          "supplierName",
+          "quoteDate",
+          "sortOrder"
+        ]
+      },
+      "ComparativeMapCell": {
+        "type": "object",
+        "properties": {
+          "priceItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quotationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unitPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unitPriceMasked": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "EXCLUDED"
+            ]
+          },
+          "exclusionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "UNFEASIBLE",
+              "EXCESSIVE",
+              "INCONSISTENT",
+              "EXPIRED",
+              "NON_COMPLIANT",
+              "OTHER",
+              null
+            ]
+          },
+          "outlierFlag": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "LOW",
+              "HIGH"
+            ]
+          },
+          "isExpired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "priceItemId",
+          "priceSourceId",
+          "quotationId",
+          "unitPrice",
+          "unitPriceMasked",
+          "status",
+          "exclusionReason",
+          "outlierFlag",
+          "isExpired"
+        ]
+      },
       "QuotationImportResult": {
         "type": "object",
         "properties": {
@@ -38735,6 +39074,246 @@
                     "data",
                     "meta"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-research/{id}/comparative-map": {
+      "get": {
+        "operationId": "PRS-21",
+        "summary": "Obter mapa comparativo",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mapa comparativo da pesquisa. Linhas = itens por `sortOrder`; colunas = fontes por `sortOrder`; células = a cotação de cada cruzamento item × fonte (ausente quando não há) com `unitPrice`, `status`, `outlierFlag` e `isExpired`; cada linha termina com as estatísticas e os `alerts` do item (RN-PRICE-53). Sempre o estado do último recálculo consolidado (`lastCalculatedAt`), lido numa única transação — nunca um estado parcial (RN-PRICE-57). Sem `PROCESS_VIEW_CONFIDENTIAL_BUDGET` nem custódia atual em processo sigiloso: `masked: true`, toda célula com `unitPrice: null` + `unitPriceMasked: true`, estatísticas e totais `null` com `valuesMasked: true` (RN-PRICE-56). Pesquisa inexistente, de outro tenant ou não visível = 404 `PRICE_RESEARCH_NOT_FOUND`; banco indisponível = 503 `DEPENDENCY_UNAVAILABLE`. Somente leitura: sem auditoria nem eventos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ComparativeMap"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/price-research/{id}/comparative-map/export": {
+      "get": {
+        "operationId": "PRS-22",
+        "summary": "Exportar mapa comparativo (xlsx)",
+        "tags": [
+          "Pesquisa de preços"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "price_research.export"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx"
+              ]
+            },
+            "required": true,
+            "name": "format",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo `.xlsx` (`Content-Disposition: attachment`, `mapa-comparativo-<código>.xlsx`), síncrono, com uma aba: a mesma matriz do PRS-21 (preços numéricos; selos das células na coluna \"Observações\"), a legenda das fontes e o resumo (data-base, cálculo, total). Linhas = itens por `sortOrder`; colunas = fontes por `sortOrder`; células = a cotação de cada cruzamento item × fonte (ausente quando não há) com `unitPrice`, `status`, `outlierFlag` e `isExpired`; cada linha termina com as estatísticas e os `alerts` do item (RN-PRICE-53). Sempre o estado do último recálculo consolidado (`lastCalculatedAt`), lido numa única transação — nunca um estado parcial (RN-PRICE-57). Sem `PROCESS_VIEW_CONFIDENTIAL_BUDGET` nem custódia atual em processo sigiloso: `masked: true`, toda célula com `unitPrice: null` + `unitPriceMasked: true`, estatísticas e totais `null` com `valuesMasked: true` (RN-PRICE-56). Pesquisa inexistente, de outro tenant ou não visível = 404 `PRICE_RESEARCH_NOT_FOUND`; banco indisponível = 503 `DEPENDENCY_UNAVAILABLE`. Mascarado = \"Sigiloso\" nas células monetárias. Conteúdo determinístico: sem recálculo entre duas exportações, os bytes são idênticos. Acima de 500 itens ou 50 fontes = 422 `EXPORT_TOO_LARGE` (`meta.itemsCount`/`sourcesCount`) antes de montar o arquivo (RN-PRICE-54); `format` ausente ou diferente de `xlsx` = 422 `VALIDATION_ERROR` (V-02). Cada exportação grava `price_research.export` (`format`, `itemsCount`, `sourcesCount`, `masked`); nenhum byte é enviado se a gravação falhar.",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

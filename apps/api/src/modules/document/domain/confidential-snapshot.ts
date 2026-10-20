@@ -27,6 +27,8 @@ export const MONETARY_SNAPSHOT_FIELDS: ReadonlySet<string> = new Set([
   'lowestPrice',
   'highestPrice',
   'stdDeviation',
+  // US-031: o CV é adimensional, mas revela a dispersão dos preços sigilosos (como no PRS-05).
+  'coefficientOfVariation',
 ]);
 
 /** Sufixo da marca de campo mascarado (`estimatedValueMasked: true`). */

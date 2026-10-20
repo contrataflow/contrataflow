@@ -1,12 +1,19 @@
 import { escapeHtml, resolveTemplateVariables, richTextToHtml } from '@contrataflow/editor';
 import type { HtmlRichTextNode } from '@contrataflow/editor';
-import { DEFAULT_TEMPLATE_LAYOUT, layoutDefinitionSchema } from '@contrataflow/validation';
+import {
+  DEFAULT_TEMPLATE_LAYOUT,
+  layoutDefinitionSchema,
+  PRICE_SUMMARY_COLLECTIONS,
+} from '@contrataflow/validation';
 import type {
   DocumentSnapshot,
   LayoutDefinition,
   RenditionKind,
   SectionDefinition,
+  SectionRender,
 } from '@contrataflow/validation';
+
+import { priceSummaryHtml } from './price-summary-html.js';
 
 /*
  * HTML do PDF (US-067 · RN-DOC-65 · ADR-007 · DEC-056): o snapshot (já mascarado por POL-09 quando
@@ -18,7 +25,9 @@ import type {
  * conteúdo de IA não revisado ganha a nota "Conteúdo gerado por IA — revisão pendente" e as
  * marcações `toConfirm` saem destacadas (US-122 · RN-AI-58); a proveniência nunca é impressa nas
  * versões. O logo do layout (US-109 · RN-TPL-23) chega já como `data:` URI e sai no cabeçalho, na
- * posição e altura máxima configuradas. Função pura: nunca loga nada.
+ * posição e altura máxima configuradas. Seções computadas: `PRICE_SUMMARY` (US-031 · RN-PRICE-55) sai
+ * como o mapa comparativo das coleções `priceSummary*` do snapshot (`price-summary-html.ts`), que não
+ * se repetem nas tabelas genéricas do fim. Função pura: nunca loga nada.
  */
 
 /** Layout inválido no template (V-04): falha permanente, sem nova tentativa. */
@@ -218,20 +227,40 @@ function collectionTable(name: string, items: readonly unknown[]): string {
 
 // --- Seções ---------------------------------------------------------------------------------------
 
-function orderedSections(input: RenditionHtmlInput): { key: string; title: string }[] {
+interface OrderedSection {
+  readonly key: string;
+  readonly title: string;
+  readonly render: SectionRender;
+}
+
+function orderedSections(input: RenditionHtmlInput): OrderedSection[] {
   const keys = Object.keys(input.snapshot.sections);
   if (input.template === null || input.template.sections.length === 0) {
-    return keys.sort().map((key) => ({ key, title: humanize(key) }));
+    return keys.sort().map((key) => ({ key, title: humanize(key), render: 'TEXT' }));
   }
   const defined = [...input.template.sections].sort((a, b) => a.order - b.order);
   const known = new Set(defined.map((section) => section.key));
   return [
-    ...defined.map((section) => ({ key: section.key, title: section.title })),
+    ...defined.map((section) => ({
+      key: section.key,
+      title: section.title,
+      // `render` tem padrão `TEXT` no schema; templates gravados antes do campo chegam sem ele.
+      render: (section.render as SectionRender | undefined) ?? 'TEXT',
+    })),
     ...keys
       .filter((key) => !known.has(key))
       .sort()
-      .map((key) => ({ key, title: humanize(key) })),
+      .map((key): OrderedSection => ({ key, title: humanize(key), render: 'TEXT' })),
   ];
+}
+
+/** Coleções do snapshot que uma seção computada consome (fora das tabelas genéricas do fim). */
+const COMPUTED_COLLECTIONS: ReadonlySet<string> = new Set(Object.values(PRICE_SUMMARY_COLLECTIONS));
+
+/** Corpo da seção computada a partir das coleções do snapshot; `null` = seção narrativa. */
+function computedBody(render: SectionRender, snapshot: DocumentSnapshot): string | null {
+  if (render === 'PRICE_SUMMARY') return priceSummaryHtml(snapshot.collections);
+  return null;
 }
 
 function sectionsHtml(
@@ -239,10 +268,14 @@ function sectionsHtml(
   variables: Readonly<Record<string, string>>,
 ): string {
   return orderedSections(input)
-    .map(({ key, title }, index) => {
+    .map(({ key, title, render }, index) => {
       const section = input.snapshot.sections[key];
+      const computed = computedBody(render, input.snapshot);
       let body: string;
-      if (section === undefined || section.state === 'EMPTY') {
+      if (computed !== null) {
+        // Seção gerada a partir dos dados (não editável); a narrativa opcional vem antes.
+        body = (section?.state === 'FILLED' ? richText(section.content, variables) : '') + computed;
+      } else if (section === undefined || section.state === 'EMPTY') {
         body = '<p class="cf-empty">Seção não preenchida.</p>';
       } else if (section.state === 'NOT_APPLICABLE') {
         body =
@@ -368,6 +401,7 @@ export function buildRenditionHtml(input: RenditionHtmlInput): RenditionHtml {
     .filter((part): part is string => part !== null && part !== '')
     .join(' — ');
   const collections = Object.entries(snapshot.collections)
+    .filter(([name]) => !COMPUTED_COLLECTIONS.has(name))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, items]) => collectionTable(name, items))
     .join('');

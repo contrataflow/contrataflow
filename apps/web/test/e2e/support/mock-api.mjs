@@ -2640,7 +2640,153 @@ function assessOutliers(research) {
   ).length;
 }
 
+/**
+ * Mapa comparativo (US-031 · PRS-21/22) a partir do estado simulado da pesquisa: itens, fontes e
+ * cotações; o XLSX é um arquivo qualquer. A montagem real da planilha, POL-09, o teto 500 × 50 e as
+ * 8 categorias são cobertos nos testes da API.
+ */
+function handleComparativeMap(request, response, url, correlationId) {
+  const match = /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/comparative-map(\/export)?$/.exec(
+    url.pathname,
+  );
+  if (!match || request.method !== 'GET') return false;
+  const research = priceResearchOf(match[1]);
+  if (!research) {
+    problem(response, 404, 'PRICE_RESEARCH_NOT_FOUND', String(correlationId));
+    return true;
+  }
+  const slug = research.header.code.replaceAll(/[^0-9A-Za-z]+/g, '-').toLowerCase();
+  if (match[2]) {
+    response.writeHead(200, {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="mapa-comparativo-${slug}.xlsx"`,
+    });
+    response.end(Buffer.from('PK'));
+    return true;
+  }
+  const sources = research.sources ?? [];
+  const quotations = research.quotations ?? [];
+  send(response, 200, {
+    data: {
+      priceResearchId: research.header.id,
+      code: research.header.code,
+      title: research.header.title,
+      referenceDate: research.header.referenceDate,
+      lastCalculatedAt: research.header.lastCalculatedAt,
+      unitPriceDecimals: research.header.parameters.unitPriceDecimals,
+      totalEstimatedValue: research.header.totalEstimatedValue,
+      masked: false,
+      items: research.items.map((item) => ({
+        id: item.id,
+        processItemId: item.processItemId,
+        sequence: item.sequence,
+        lotNumber: item.lotNumber,
+        description: item.description,
+        unitLabel: item.unit.label,
+        quantity: item.quantity,
+        sortOrder: item.sortOrder,
+        effectiveMethod: item.effectiveMethod,
+        validQuotationsCount: item.validQuotationsCount,
+        meanPrice: item.meanPrice,
+        medianPrice: item.medianPrice,
+        lowestPrice: item.lowestPrice,
+        highestPrice: item.highestPrice,
+        stdDeviation: item.stdDeviation,
+        coefficientOfVariation: item.coefficientOfVariation,
+        recommendedUnitPrice: item.recommendedUnitPrice,
+        totalPrice: item.totalPrice,
+        valuesMasked: false,
+        alerts: item.alerts,
+      })),
+      sources: sources.map((source) => {
+        const type = catalogItems.find((candidate) => candidate.id === source.sourceTypeId);
+        return {
+          id: source.id,
+          description: source.description,
+          sourceType: { code: type?.code ?? '', label: type?.label ?? '' },
+          supplierName: null,
+          quoteDate: source.quoteDate,
+          sortOrder: source.sortOrder,
+        };
+      }),
+      cells: quotations.map((quotation) => ({
+        priceItemId: quotation.priceItemId,
+        priceSourceId: quotation.priceSourceId,
+        quotationId: quotation.id,
+        unitPrice: quotation.unitPrice,
+        unitPriceMasked: false,
+        status: quotation.status,
+        exclusionReason: quotation.exclusionReason ?? null,
+        outlierFlag: quotation.outlierFlag ?? 'NONE',
+        isExpired: quotation.isExpired ?? false,
+      })),
+    },
+  });
+  return true;
+}
+
+/** PDFs (US-067 · DOC-20/22/23) só para a jornada da SCR-010: a prévia fica pronta na 1ª consulta. */
+const mockRenditions = new Map();
+
+function handleRenditions(request, response, url) {
+  const preview = /^\/api\/v1\/documents\/([0-9a-f-]{36})\/preview$/.exec(url.pathname);
+  if (preview && request.method === 'POST') {
+    const now = new Date().toISOString();
+    const rendition = {
+      id: mockUuid(),
+      documentId: preview[1],
+      documentVersionId: null,
+      draftRevision: 1,
+      approvalId: null,
+      kind: 'PREVIEW',
+      status: 'PENDING',
+      masked: false,
+      sha256: null,
+      sizeBytes: null,
+      pageCount: null,
+      errorCode: null,
+      attempts: 0,
+      requestedById: mockUuid(),
+      requestedAt: now,
+      startedAt: null,
+      readyAt: null,
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockRenditions.set(rendition.id, rendition);
+    send(response, 202, { data: rendition });
+    return true;
+  }
+  const detail = /^\/api\/v1\/document-renditions\/([0-9a-f-]{36})(\/download)?$/.exec(
+    url.pathname,
+  );
+  if (!detail || request.method !== 'GET') return false;
+  const rendition = mockRenditions.get(detail[1]);
+  if (!rendition) return false;
+  if (detail[2]) {
+    send(response, 200, {
+      data: { url: 'https://storage.example/mapa.pdf', expiresAt: rendition.expiresAt },
+    });
+    return true;
+  }
+  if (rendition.status === 'PENDING') {
+    Object.assign(rendition, {
+      status: 'READY',
+      sha256: 'ab'.repeat(32),
+      sizeBytes: 20480,
+      pageCount: 2,
+      attempts: 1,
+      readyAt: new Date().toISOString(),
+    });
+  }
+  send(response, 200, { data: rendition });
+  return true;
+}
+
 async function handlePriceSources(request, response, url, correlationId) {
+  if (handleComparativeMap(request, response, url, correlationId)) return true;
+  if (handleRenditions(request, response, url)) return true;
   if (await handleQuotationImport(request, response, url, correlationId)) return true;
   const list = /^\/api\/v1\/price-research\/([0-9a-f-]{36})\/sources$/.exec(url.pathname);
   if (list) {

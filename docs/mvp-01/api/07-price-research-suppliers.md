@@ -536,6 +536,7 @@ QuotationImportIssue { severity: "ERROR" | "WARNING"; code: "REFERENCE_NOT_FOUND
 
 - **Efeitos:** —
 - **Notas:** visão somente leitura sobre `PriceItem`/`PriceSource`/`Quotation` (editados em PRS-06..PRS-17/PRS-07).
+- **Implementação (US-031):** `data = { priceResearchId, code, title, referenceDate, lastCalculatedAt, unitPriceDecimals, totalEstimatedValue, masked, items[], sources[], cells[] }`. `items[]` por `sortOrder` (`sequence`, `lotNumber`, `description`, `unitLabel`, `quantity`, `effectiveMethod`, `validQuotationsCount`, estatísticas de US-029, `recommendedUnitPrice`, `totalPrice`, `valuesMasked`, `alerts[]`); `sources[]` por `sortOrder` (`description`, `sourceType { code, label }`, `supplierName`, `quoteDate`); `cells[]` só nos cruzamentos com cotação, por item e fonte (`priceItemId`, `priceSourceId`, `quotationId`, `unitPrice`, `unitPriceMasked`, `status`, `exclusionReason`, `outlierFlag`, `isExpired`). POL-09: `masked: true`, `unitPrice: null` + `unitPriceMasked: true` em toda célula, estatísticas/CV/totais `null` + `valuesMasked: true`; selos e alertas continuam visíveis. Leitura numa única transação (`READ COMMITTED`); banco indisponível → 503 `DEPENDENCY_UNAVAILABLE`.
 
 ### PRS-22 — Exportar mapa comparativo (xlsx)
 `GET /api/v1/price-research/{id}/comparative-map/export?format=xlsx` · **Permissão:** `PROCESS_VIEW` (+ POL-09) · **Story:** US-031
@@ -554,6 +555,7 @@ QuotationImportIssue { severity: "ERROR" | "WARNING"; code: "REFERENCE_NOT_FOUND
 
 - **Efeitos:** Auditoria: `price_research.export` (`EXPORT`) — `metadata`: `format`, `itemsCount`, `sourcesCount`, `masked: boolean`.
 - **Notas:** —
+- **Implementação (US-031):** `format` obrigatório (ausente → 422 `REQUIRED`; outro valor → 422 `INVALID_ENUM`). Arquivo `mapa-comparativo-<código>.xlsx` (`Content-Disposition: attachment`), uma aba: cabeçalho `Item`/`Descrição`/`Unidade`/`Quantidade`, uma coluna de preço por fonte (descrições repetidas ganham ` (n)`), depois estatísticas, método, valor unitário/total estimado, alertas e "Observações" (selos das células: desconsiderada com o motivo, acima/abaixo da mediana, vencida — os preços continuam numéricos); abaixo, a legenda das fontes e o resumo (data-base, calculado em, total). POL-09 = texto "Sigiloso" nas células monetárias. 422 `EXPORT_TOO_LARGE` traz `meta: { itemsCount, sourcesCount, maxItems, maxSources }` e sai antes de montar o arquivo (sem auditoria). Conteúdo determinístico (sem data de geração): duas exportações sem recálculo entre elas geram bytes idênticos. A auditoria é gravada depois de montar o arquivo e antes de enviar: falha → 503 sem arquivo. Classe de *rate limit* `export`. PDF: a seção `PRICE_SUMMARY` do documento `PRICE_RESEARCH` renderiza a mesma matriz a partir das coleções `priceSummary`/`priceSummarySources`/`priceSummaryItems` do snapshot (`PriceResearchDocumentValidator.snapshotParts`), mascarada pela rendition (`masked`).
 
 ### PRS-23 — Concluir pesquisa de preços
 `POST /api/v1/price-research/{id}/complete` · **Permissão:** `PRICE_RESEARCH_COMPLETE` + POL-02 · **Story:** US-032
