@@ -647,9 +647,6 @@ importers:
       '@bull-board/express':
         specifier: 'catalog:'
         version: 9.10.2(bullmq@5.81.5)(typescript@5.9.3)
-      '@contrataflow/api':
-        specifier: workspace:*
-        version: link:../api
       '@contrataflow/editor':
         specifier: workspace:*
         version: link:../../packages/editor
