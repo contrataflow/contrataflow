@@ -79,12 +79,14 @@ export function useAutosave<V>(options: UseAutosaveOptions<V>): UseAutosaveResul
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const enabled = options.enabled !== false;
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // A fila sobrevive à desmontagem simulada do StrictMode (monta → desmonta → monta): é a mesma
+    // instância, então reativa na montagem e descarta de novo na desmontagem real.
+    queue.resume();
+    return () => {
       queue.dispose();
-    },
-    [queue],
-  );
+    };
+  }, [queue]);
 
   useEffect(() => {
     if (!enabled) return;

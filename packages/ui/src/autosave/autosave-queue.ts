@@ -229,6 +229,15 @@ export class AutosaveQueue<V> {
     this.listeners.clear();
   }
 
+  /**
+   * Volta a aceitar alterações depois de `dispose()`. Em desenvolvimento o StrictMode do React
+   * monta, desmonta e monta de novo o componente: a instância guardada no `useState` é a mesma e,
+   * sem isto, ficaria descartada para sempre — `change()` passaria a ignorar tudo em silêncio.
+   */
+  resume(): void {
+    this.disposed = false;
+  }
+
   // --- Execução --------------------------------------------------------------------------------
 
   private record(target: string): TargetRecord<V> {
