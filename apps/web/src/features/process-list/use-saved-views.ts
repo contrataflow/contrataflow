@@ -114,6 +114,9 @@ export function useSavedViews(args: SavedViewsArgs) {
     }
     if (query.isPending || defaultRequested.current) return;
     if (defaultView === undefined) {
+      // Uma vez só: rodar de novo (ex.: as opções dos filtros chegando) apagaria a visão que a
+      // pessoa acabou de escolher enquanto a URL ainda não mudou.
+      defaultRequested.current = true;
       setAppliedId(null);
       return;
     }

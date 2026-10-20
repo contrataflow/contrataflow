@@ -578,6 +578,32 @@ describe('Feature: aplicar visão (US-003)', () => {
     ).toBeNull();
   });
 
+  it('[Concorrência] escolher a visão antes de as opções dos filtros chegarem não a solta (sem padrão)', async () => {
+    nav.set('/processos');
+    const { fetchMock } = mockApi({ views: [view()] });
+    // As unidades chegam depois da escolha, e a navegação do `push` ainda não trocou a URL.
+    const { promise: unitsArrived, resolve: releaseUnits } = Promise.withResolvers<undefined>();
+    const mocked = fetchMock.getMockImplementation();
+    if (mocked === undefined) throw new Error('mockApi sem implementação.');
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = new URL(requestUrl(input), 'http://localhost').pathname;
+      if (path === '/api/v1/departments/lookup') await unitsArrived;
+      return mocked(input, init);
+    });
+    nav.push.mockImplementationOnce(() => undefined);
+    renderPage();
+    await screen.findByRole('option', { name: 'Atrasados por prioridade' });
+    await applyView(ID(900));
+    expect(screen.getByText('Visão: Atrasados por prioridade')).toBeTruthy();
+
+    releaseUnits(undefined);
+    await waitFor(() => {
+      expect(callsTo(fetchMock, '/api/v1/departments/lookup').length).toBeGreaterThan(0);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByText('Visão: Atrasados por prioridade')).toBeTruthy();
+  });
+
   it('[Sucesso] a visão padrão de outro dono não é aplicada e a URL com parâmetros é respeitada', async () => {
     nav.set('/processos');
     const { fetchMock } = mockApi({
