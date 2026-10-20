@@ -292,7 +292,12 @@ describe('Aba "Fontes" da SCR-009 (US-026)', () => {
     expect(await within(dialog).findByText('Selecione o fornecedor')).toBeTruthy();
     expect(callsTo(fetchMock, 'POST', SOURCES_URL)).toHaveLength(0);
 
-    await user.type(within(dialog).getByRole('searchbox', { name: /Fornecedor/ }), 'Constru');
+    // aria-controls só aponta para a lista de resultados quando ela existe (axe: aria-valid-attr-value).
+    const search = within(dialog).getByRole('searchbox', { name: /Fornecedor/ });
+    expect(search.getAttribute('aria-controls')).toBeNull();
+    await user.type(search, 'Constru');
+    const resultsId = search.getAttribute('aria-controls');
+    expect(resultsId && document.getElementById(resultsId)).toBeTruthy();
     await user.click(await within(dialog).findByRole('button', { name: /Construtora XYZ Ltda\./ }));
     await user.type(within(dialog).getByLabelText(/Data do orçamento/), '2026-09-30');
     await user.type(

@@ -254,7 +254,11 @@ describe('SCR-006 · seletor de etiquetas do processo (US-007)', () => {
     expect(
       within(dialog).getByText('Nenhuma etiqueta cadastrada. Peça ao gestor para criar etiquetas.'),
     ).toBeTruthy();
-    await user.type(within(dialog).getByRole('combobox'), 'Nova etiqueta');
+    // Sem lista, o combobox fica recolhido e sem aria-controls (axe: aria-required-attr).
+    const combobox = within(dialog).getByRole('combobox');
+    expect(combobox.getAttribute('aria-expanded')).toBe('false');
+    expect(combobox.getAttribute('aria-controls')).toBeNull();
+    await user.type(combobox, 'Nova etiqueta');
     expect(within(dialog).queryByRole('option', { name: /Criar etiqueta/ })).toBeNull();
   });
 

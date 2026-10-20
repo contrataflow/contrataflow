@@ -90,6 +90,8 @@ export function TagPicker({
     }
   };
 
+  const hasList = options.length > 0 || createName !== null;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-2">
@@ -104,8 +106,9 @@ export function TagPicker({
         id={inputId}
         type="text"
         role="combobox"
-        aria-expanded="true"
-        aria-controls={options.length === 0 && createName === null ? undefined : listId}
+        // Sem lista renderizada o combobox fica recolhido: expandido sem `aria-controls` reprova no axe.
+        aria-expanded={hasList}
+        aria-controls={hasList ? listId : undefined}
         aria-autocomplete="list"
         aria-describedby={hintId}
         aria-activedescendant={current >= 0 ? optionId(current) : undefined}
@@ -126,7 +129,7 @@ export function TagPicker({
         {t('announce', { count: selected.length, max: TAG_LIMITS.perProcess })}
       </p>
 
-      {options.length === 0 && createName === null ? (
+      {!hasList ? (
         <p className="rounded-card border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
           {canCreate ? t('emptyManage') : t('empty')}
         </p>

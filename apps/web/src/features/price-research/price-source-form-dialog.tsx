@@ -342,7 +342,8 @@ function SupplierPicker({
               type="search"
               className={INPUT_CLASS}
               placeholder={t('supplierSearch')}
-              aria-controls={resultsId}
+              // Só aponta para a lista quando ela existe; um id ausente reprova no axe.
+              aria-controls={term.length < 2 ? undefined : resultsId}
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
