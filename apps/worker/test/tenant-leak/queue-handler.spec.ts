@@ -1,5 +1,5 @@
 // Suíte "tenant leak" aplicada a um handler de fila (US-083 · DoD · RN-FND-64): o job de
-// `deadlines` da Prefeitura A roda na TenantTransaction de A (RLS do papel cf_worker) e não lê nem
+// `file-scan` da Prefeitura A roda na TenantTransaction de A (RLS do papel cf_worker) e não lê nem
 // altera dados da Prefeitura B, mesmo com o id de B no payload — a política falha fechada.
 import type { DeadLetterRecord } from '@contrataflow/types';
 import { Logger } from '@nestjs/common';
@@ -45,11 +45,11 @@ interface ScanResult {
   readonly updated: number;
 }
 
-/** `DeadlineScanner` de teste: lê e "marca" a entidade do payload no tenant do job. */
+/** Handler de teste (fila `file-scan`, sem handler de produção): lê e "marca" a entidade do payload no tenant do job. */
 function scanner(results: ScanResult[]): JobHandler<never> {
   const handler: JobHandler<z.infer<typeof payloadSchema>> = {
-    queue: 'deadlines',
-    name: 'scan-tenant',
+    queue: 'file-scan',
+    name: 'scan',
     payloadSchema,
     handle: async (payload, context) => {
       await context.tenantTransaction(async (client) => {
@@ -83,19 +83,19 @@ const config = () => ({
   admin: null,
 });
 
-describe('tenant leak — handler de fila (deadlines)', () => {
+describe('tenant leak — handler de fila (file-scan)', () => {
   it('[Tenant incorreto] job da Prefeitura A com id da Prefeitura B no payload termina sem efeito', async () => {
     const results: ScanResult[] = [];
     worker = await startRuntime(config(), [scanner(results)]);
     const id = await worker.add(
-      'deadlines',
-      'scan-tenant',
+      'file-scan',
+      'scan',
       { meta: jobMeta(TENANT_A), payload: { documentTypeId: DOC_TYPE_B, mode: 'read' } },
       { jobId: 'leak-read' },
     );
     await vi.waitFor(
       async () => {
-        expect(await worker?.queue('deadlines').getJobState(id)).toBe('completed');
+        expect(await worker?.queue('file-scan').getJobState(id)).toBe('completed');
       },
       { timeout: 15_000 },
     );
@@ -110,19 +110,19 @@ describe('tenant leak — handler de fila (deadlines)', () => {
   it('escrita no tenant errado é recusada pela RLS: falha de segurança, sem retry, com cópia na DLQ', async () => {
     worker = await startRuntime(config(), [scanner([])]);
     const id = await worker.add(
-      'deadlines',
-      'scan-tenant',
+      'file-scan',
+      'scan',
       { meta: jobMeta(TENANT_A), payload: { documentTypeId: DOC_TYPE_B, mode: 'write' } },
       { jobId: 'leak-write' },
     );
     await vi.waitFor(
       async () => {
-        expect(await worker?.queue('deadlines').getJobState(id)).toBe('failed');
+        expect(await worker?.queue('file-scan').getJobState(id)).toBe('failed');
       },
       { timeout: 15_000 },
     );
-    expect((await worker.queue('deadlines').getJob(id))?.attemptsMade).toBe(1);
-    const copy = await worker.queue('dead-letter').getJob('deadlines.leak-write');
+    expect((await worker.queue('file-scan').getJob(id))?.attemptsMade).toBe(1);
+    const copy = await worker.queue('dead-letter').getJob('file-scan.leak-write');
     expect((copy?.data as DeadLetterRecord).error.class).toBe('SECURITY');
     const invaded = await db.admin("SELECT 1 FROM document_types WHERE code = 'INVASAO'");
     expect(invaded).toEqual([]);

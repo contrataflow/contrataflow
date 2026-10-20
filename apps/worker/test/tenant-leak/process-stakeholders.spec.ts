@@ -48,7 +48,7 @@ function processRow(
   return `INSERT INTO processes (id, tenant_id, organization_id, year, title, object, contracting_type_id,
       requesting_secretariat_id, requesting_department_id, current_department_id, workflow_version_id,
       origin_id, pca_status, created_by_id, current_responsible_id, deleted_at)
-    VALUES ('${processId}', '${tenantId}', '${org}', 2026, 'Processo', 'Objeto', '${org}', '${unit}',
+    VALUES ('${processId}', '${tenantId}', '${org}', 2026, 'Processo', 'Objeto do processo', '${org}', '${unit}',
       '${unit}', '${unit}', '${org}', '${org}', 'NOT_APPLICABLE', '${USERS.ana}', '${USERS.juliana}',
       ${deleted ? "'2026-10-01T00:00:00Z'" : 'NULL'});`;
 }

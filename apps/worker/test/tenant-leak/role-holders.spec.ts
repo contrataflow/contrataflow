@@ -102,7 +102,7 @@ beforeAll(async () => {
     INSERT INTO processes (id, tenant_id, organization_id, year, title, object, contracting_type_id,
       requesting_secretariat_id, requesting_department_id, current_department_id, workflow_version_id,
       origin_id, pca_status, created_by_id)
-    VALUES ('${PROCESS}', '${TENANT_A}', '${ORG}', 2026, 'Processo', 'Objeto', '${ORG}', '${SEC}',
+    VALUES ('${PROCESS}', '${TENANT_A}', '${ORG}', 2026, 'Processo', 'Objeto do processo', '${ORG}', '${SEC}',
       '${SETOR}', '${CURRENT}', '${ORG}', '${ORG}', 'NOT_APPLICABLE', '${USERS.tenantWide}');
     INSERT INTO process_access (id, tenant_id, process_id, principal_type, department_id, user_id, reason, source_id) VALUES
       ('${next()}', '${TENANT_A}', '${PROCESS}', 'DEPARTMENT', '${SEC}', NULL, 'REQUESTING', NULL),

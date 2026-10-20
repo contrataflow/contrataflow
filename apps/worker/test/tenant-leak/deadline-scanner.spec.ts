@@ -40,13 +40,13 @@ const processSql = (id: string, tenantId: string) => `
   INSERT INTO processes (id, tenant_id, organization_id, year, title, object, contracting_type_id,
     requesting_secretariat_id, requesting_department_id, current_department_id, workflow_version_id,
     origin_id, pca_status, created_by_id)
-  VALUES ('${id}', '${tenantId}', '${ANY}', 2026, 'Processo', 'Objeto', '${ANY}', '${ANY}', '${ANY}',
+  VALUES ('${id}', '${tenantId}', '${ANY}', 2026, 'Processo', 'Objeto do processo', '${ANY}', '${ANY}', '${ANY}',
     '${ANY}', '${ANY}', '${ANY}', 'NOT_APPLICABLE', '${ANY}');`;
 
 const stageDefinitionSql = (id: string, tenantId: string) => `
   INSERT INTO workflow_stages (id, tenant_id, workflow_version_id, key, name, type, display_order,
     department_resolution)
-  VALUES ('${id}', '${tenantId}', '${ANY}', 'estudos_preliminares', 'Estudos preliminares', 'TASK',
+  VALUES ('${id}', '${tenantId}', '${ANY}', 'ESTUDOS_PRELIMINARES', 'Estudos preliminares', 'TASK',
     1, 'REQUESTING_DEPARTMENT');`;
 
 let sequence = 0;
@@ -148,7 +148,7 @@ describe('DeadlineScanner sobre PostgreSQL (US-055)', () => {
         event_type: 'ProcessStageDueSoon',
         payload: expect.objectContaining({
           processStageId: WEDNESDAY_A,
-          stageKey: 'estudos_preliminares',
+          stageKey: 'ESTUDOS_PRELIMINARES',
           businessDaysLeft: 2,
           departmentId: DEPARTMENT,
         }) as unknown,
@@ -177,7 +177,7 @@ describe('DeadlineScanner sobre PostgreSQL (US-055)', () => {
         entity_id: LATE_A,
         params: {
           stageName: 'Estudos preliminares',
-          stageKey: 'estudos_preliminares',
+          stageKey: 'ESTUDOS_PRELIMINARES',
           dueAt: new Date(endOf('2026-10-16')).toISOString(),
         },
       },
