@@ -16,3 +16,19 @@ paths = [
 description = "Identificadores SCREAMING_SNAKE_CASE da especificação (chaves de catálogo e de workflow — DEC-001), não segredos"
 targetRules = ["generic-api-key"]
 regexes = ['''^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$''']
+
+[[allowlists]]
+description = "Manifesto de tenant leak: as constantes *_ROUTE guardam justificativas em prosa (pt-BR), não segredos"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)apps/api/src/openapi/tenant-leak\.manifest\.ts$''']
+regexTarget = "match"
+regexes = ['''[A-Z][A-Z0-9_]*_ROUTE =''']
+
+[[allowlists]]
+description = "Valor de exemplo do teste de redação dos logs (US-084), não segredo"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)packages/observability/src/redaction\.test\.ts$''']
+regexTarget = "match"
+regexes = ['''SECRET = 'valor-secreto-\d+''']
