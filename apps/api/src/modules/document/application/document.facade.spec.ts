@@ -8,6 +8,7 @@ import type { DocumentApprovalOutcomes } from './document-approval.outcomes.js';
 import type { DocumentApprovalTransitions } from './document-approval.transitions.js';
 import type { DocumentCommentTargets } from './document-comment-target.js';
 import type { CreateDocumentInput, DocumentCreationService } from './document-creation.service.js';
+import type { DocumentImportService } from './document-import.service.js';
 import type { DocumentItemsPresenter } from './document-items.commands.js';
 import type { DocumentLifecycleService } from './document-lifecycle.service.js';
 import type { FinalizeDocumentCommand } from './document.commands.js';
@@ -50,6 +51,7 @@ function facadeWith(creation: Partial<DocumentCreationService> = {}) {
     {} as DocumentItemsPresenter,
     {} as DocumentApprovalOutcomes,
     {} as FinalizeDocumentCommand,
+    {} as DocumentImportService,
   );
   return { facade, documents, types, validators };
 }

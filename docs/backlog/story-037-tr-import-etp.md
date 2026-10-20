@@ -206,7 +206,7 @@ Feature: Importar dados do ETP para o TR
 - **Stories:** US-020 (seções do ETP, fonte dos dados), US-036 (cria o TR e o editor de seções), US-110 (mapeamento padrão semeado do template). Indiretas: US-019, US-006 (itens do processo). Habilita: US-039.
 - **Decisões/ADRs:** DEC-017, DEC-018, DEC-019, DEC-030, DEC-032, DEC-056, DEC-104, DEC-105, DEC-161; ADR-006.
 - **Configurações:** `DocumentTemplateVersion.importMappings` (por versão do template do TR).
-- **Lacunas nas fontes canônicas:**
+- **Lacunas nas fontes canônicas** (resolvidas na implementação: 1 em api.md §2.2, 2 em entities.md §4.8, 3 em api.md §1.3):
   1. `IMPORT_PREVIEW_EXPIRED` (api.md §2.2) está documentado só como "token de prévia expirado (15 min)"; esta story reaproveita o mesmo código quando o ETP ou o TR mudam entre a prévia e a aplicação, pois o efeito prático é idêntico (recalcular a prévia) — propor ampliar a descrição em api.md.
   2. O campo calculado `etpChangedSinceImport` (resposta de `TRM-03`) não consta de entities.md; segue o mesmo padrão dos campos derivados `...Masked` (DEC-030) — propor registrar em entities.md §4.8/api.md.
   3. O formato do `importToken` (assinado, com TTL, sem estado em Redis) não está especificado em nenhuma fonte canônica — propor nota em api.md §1.3 ou um ADR curto.

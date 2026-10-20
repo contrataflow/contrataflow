@@ -35,6 +35,7 @@ import { DocumentApprovalTransitions } from './application/document-approval.tra
 import { DocumentAttachmentTargets } from './application/document-attachment-targets.js';
 import { DocumentCommentTargets } from './application/document-comment-target.js';
 import { DocumentCreationService } from './application/document-creation.service.js';
+import { DocumentImportService } from './application/document-import.service.js';
 import {
   DocumentItemsPresenter,
   DocumentItemsQuery,
@@ -317,6 +318,8 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentItemsPresenter,
     DocumentItemsQuery,
     ReplaceDocumentItemsCommand,
+    // US-037: importação de conteúdo pelo módulo dono (TR ← ETP).
+    DocumentImportService,
     DocumentItemUsageReader,
     // US-015: autosave de seção (DOC-05) — genérico para todos os tipos.
     SaveDocumentSectionCommand,

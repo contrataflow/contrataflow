@@ -529,6 +529,12 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Pesquisa incompleta',
     detail: 'Há itens pendentes. Revise antes de concluir a pesquisa.',
   },
+  // US-037: importação do ETP para o TR sem ETP não cancelado (api/09 TRM-05/06 · RN-TR-16).
+  ETP_REQUIRED_FOR_IMPORT: {
+    status: 422,
+    title: 'ETP necessário',
+    detail: 'Este processo não tem um ETP para importar.',
+  },
   // US-047: encaminhamento do processo (story "Casos de erro" · api/02-processes.md PRC-19).
   STAGE_CHANGED: {
     status: 409,

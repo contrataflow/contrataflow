@@ -615,6 +615,26 @@ describe('SCR-012 — modo leitura e estados', () => {
   });
 });
 
+describe('SCR-012 — importar do ETP (US-037)', () => {
+  it('com UPDATE mostra "Importar do ETP"; sem permissão o botão não aparece', async () => {
+    mockApi();
+    const first = renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
+    expect(await screen.findByRole('button', { name: 'Importar do ETP' })).toBeTruthy();
+    first.unmount();
+    mockApi({ meta: { ...META, allowedActions: [] } });
+    renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
+    expect(await screen.findByText('Você não pode editar este TR agora.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Importar do ETP' })).toBeNull();
+  });
+
+  it('RN-TR-24: ETP atualizado desde a importação — aviso com "Importar novamente"', async () => {
+    mockApi({ term: termDto({ etpChangedSinceImport: true }) });
+    renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
+    expect(await screen.findByText('O ETP foi atualizado desde a última importação.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Importar novamente' })).toBeTruthy();
+  });
+});
+
 describe('SCR-012 — conflito de seção (FA-03)', () => {
   const conflict = () =>
     problemResponse(412, 'SECTION_REVISION_CONFLICT', {

@@ -38,5 +38,34 @@ DFD/ETP (`etp/README.md`).
 - **Testes**: `domain/term-of-reference.spec.ts`, `presentation/term.routes.spec.ts` (8 categorias do
   Gherkin) e `test/tenant-leak/terms.spec.ts` (PostgreSQL: atomicidade com falha induzida,
   concorrência, POL-09, RLS, checks e FKs).
-- **Fora desta story**: importação do ETP (TRM-05/06, US-037), condições contratuais e itens
-  (US-038), validador tipado e conclusão (US-039).
+- **Fora desta story**: condições contratuais e itens (US-038), validador tipado e conclusão
+  (US-039).
+
+## US-037 — Importar dados do ETP para o TR (TRM-05/06)
+
+- **Rotas** (`presentation/term.controller.ts`): TRM-05 `POST /terms/{id}/import-etp/preview` (somente
+  leitura) e TRM-06 `POST /terms/{id}/import-etp` (`If-Match: "<version>"` + Idem.). Contratos em
+  `packages/validation/src/term/term-import.ts`; evento `TermImportedFromEtp` em `term/events.ts`.
+- **Abertura comum** (`application/etp-import.commands.ts` · `TermEtpImportReader`): TR → POL-02 de
+  edição (`openEditableTerm`, trava a linha do documento) → TR **relido depois da trava** (a
+  aplicação concorrente vencedora já gravou → 412) → ETP do processo (`DocumentFacade.importableEtpIn`
+  — rascunho mais recente, versão vigente e itens; 422 `ETP_REQUIRED_FOR_IMPORT`) → cabeçalho do ETP
+  pela porta `#shared/etp/etp-header.ts` (`EtpHeaderRegistry`, registrado pelo `etp` — mesmo nível) →
+  `planEtpImport` (`domain/etp-import.ts`, puro) com o `importMappings` da versão do template fixada.
+- **Token** (`domain/etp-import.ts`): `v1.<claims>.<HMAC>` sem estado, 15 min, com a impressão digital
+  (`importFingerprint`) do ETP e do TR lidos na prévia; a chave (`TERM_IMPORT_TOKEN_KEY`) é derivada
+  da `BLIND_INDEX_KEY` no `term.module.ts` (sem variável de ambiente nova). A aplicação recalcula:
+  vencido/alterado → 410; adulterado ou de outro TR/tenant → 422 em `importToken`.
+- **Aplicação** (uma transação): `selectImport` (V-01, NOT_ALLOWED, RN-TR-22) → `applyEtpFields` +
+  `recordImport` (valor/origem `ETP`/pesquisa + `importedFromEtp*`, `version + 1`) →
+  `DocumentFacade.importIn` (`document/application/document-import.service.ts`: seções `FILLED` com a
+  proveniência de IA de entities.md §5.10, upsert de itens por `processItemId`, versão `IMPORT` +
+  `DocumentVersionCreated`) → `term.import_etp` (chaves, valor mascarado se sigiloso) →
+  `TermImportedFromEtp` (timeline). Itens especificados: `DocumentItemRepository.specifiedProcessItemIds`
+  lê as colunas `specification`/`acceptance_criteria` (ainda sem edição — US-038).
+- **TRM-03**: `etpChangedSinceImport` = versão vigente do ETP ≠ `importedFromEtpVersionId`.
+- **Web**: `apps/web/src/features/term/import-etp-panel.tsx` (painel, campos, itens, confirmação da
+  origem do valor e o aviso de defasagem) e `etp-import-model.ts`.
+- **Testes**: `domain/etp-import.spec.ts`, `presentation/term-etp-import.routes.spec.ts` (8 categorias
+  - FA-02..06) e `test/tenant-leak/term-etp-import.spec.ts` (PostgreSQL: falha induzida na versão
+    IMPORT, duas aplicações simultâneas, RLS).

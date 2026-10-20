@@ -19092,6 +19092,316 @@
         },
         "additionalProperties": false
       },
+      "TermImportResult": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "$ref": "#/components/schemas/Term"
+          },
+          "sectionsImported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fieldsImported": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "estimatedTotalValue",
+                "priceResearchId"
+              ]
+            }
+          },
+          "itemsImported": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "documentVersion": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "versionNumber": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "id",
+              "versionNumber"
+            ]
+          }
+        },
+        "required": [
+          "term",
+          "sectionsImported",
+          "fieldsImported",
+          "itemsImported",
+          "documentVersion"
+        ]
+      },
+      "TermImportApplyRequest": {
+        "type": "object",
+        "properties": {
+          "importToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "maxItems": 200
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "estimatedTotalValue",
+                "priceResearchId"
+              ]
+            },
+            "maxItems": 2
+          },
+          "copyItems": {
+            "type": "boolean",
+            "default": true
+          },
+          "overwriteExisting": {
+            "type": "boolean"
+          },
+          "confirmReplaceValueSource": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "importToken",
+          "sections",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "TermImportPreview": {
+        "type": "object",
+        "properties": {
+          "importToken": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "etp": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "IN_REVIEW",
+                  "RETURNED",
+                  "FINALIZED",
+                  "APPROVED",
+                  "REJECTED",
+                  "CANCELED"
+                ]
+              },
+              "versionNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "inProgress": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "status",
+              "versionNumber",
+              "inProgress"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermImportSectionPreview"
+            }
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermImportFieldPreview"
+            }
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "copyQuantities": {
+                "type": "boolean"
+              },
+              "copyCalculationMemoToNotes": {
+                "type": "boolean"
+              },
+              "preview": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TermImportItemPreview"
+                }
+              }
+            },
+            "required": [
+              "count",
+              "copyQuantities",
+              "copyCalculationMemoToNotes",
+              "preview"
+            ]
+          },
+          "replacesPriceResearchValue": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "importToken",
+          "expiresAt",
+          "etp",
+          "sections",
+          "fields",
+          "items",
+          "replacesPriceResearchValue"
+        ]
+      },
+      "TermImportSectionPreview": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "REPLACE",
+              "APPEND"
+            ]
+          },
+          "before": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "sources",
+          "mode",
+          "before",
+          "preview"
+        ]
+      },
+      "TermImportFieldPreview": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "estimatedTotalValue",
+              "priceResearchId"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valueMasked": {
+            "type": "boolean"
+          },
+          "current": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "source",
+          "value",
+          "valueMasked",
+          "current"
+        ]
+      },
+      "TermImportItemPreview": {
+        "type": "object",
+        "properties": {
+          "processItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "etpQuantity": {
+            "type": "string"
+          },
+          "trCurrentQuantity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "specified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "processItemId",
+          "sequence",
+          "description",
+          "etpQuantity",
+          "trCurrentQuantity",
+          "specified"
+        ]
+      },
       "TenantMembership": {
         "type": "object",
         "properties": {
@@ -58881,6 +59191,280 @@
                   "required": [
                     "data",
                     "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terms/{id}/import-etp": {
+      "post": {
+        "operationId": "TRM-06",
+        "summary": "Aplicar importação do ETP",
+        "tags": [
+          "Termo de Referência"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "term.import_etp",
+          "document.version_create"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermImportApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Uma transação (US-037 · RN-TR-19..24): `If-Match: \"<version>\"` do TR (428 sem ele; 412 `VERSION_CONFLICT`) → `importToken` do TRM-05 deste TR (ausente/adulterado/de outro TR = 422 `VALIDATION_ERROR` em `importToken`; vencido ou ETP/TR alterados desde a prévia = 410 `IMPORT_PREVIEW_EXPIRED`) → só o selecionado (V-01: ao menos uma seção, campo ou os itens; seção fora da prévia = `NOT_ALLOWED`): seções `REPLACE`/`APPEND`, `estimatedTotalValue` (origem `ETP`; sobre `PRICE_RESEARCH` exige `confirmReplaceValueSource` — senão 422 `CONDITIONAL_REQUIRED`) e `priceResearchId`, itens por `processItemId` com a quantidade do ETP (os já especificados só com `overwriteExisting`). Grava `importedFromEtpId`/`importedFromEtpVersionId`/`importedAt`/`importedById`, a `DocumentVersion` `reason = IMPORT` (`DocumentVersionCreated` `document.version_created.tr`), `term.import_etp` (chaves alteradas, sem conteúdo; `etpId`, `etpVersionId`, `itemsImported`, `idempotencyKey`) e `TermImportedFromEtp` (`term.imported_from_etp` — timeline `TERM_IMPORTED_FROM_ETP`). Sem notificação. `ETag` = nova versão do TR; reenvio com a mesma chave = mesma resposta com `Idempotent-Replayed: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TermImportResult"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/TermMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terms/{id}/import-etp/preview": {
+      "post": {
+        "operationId": "TRM-05",
+        "summary": "Pré-visualizar importação do ETP",
+        "tags": [
+          "Termo de Referência"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-exempt": "Prévia somente leitura (RN-TR-18): calcula a importação a partir do estado atual, sem gravar nada nem gerar evento.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Somente leitura (US-037 · RN-TR-16..18): aplica o `importMappings` da versão do template FIXADA no TR ao ETP não cancelado do processo (o rascunho mais recente — FA-02: `etp.inProgress` em `DRAFT`/`RETURNED`/`IN_REVIEW`). `sections[]` = destinos do mapeamento presentes no template e com conteúdo na origem (`REPLACE` substitui; `APPEND` acrescenta ao fim com \"Importado do ETP v{n} em {data}\"), com o texto `before`/`preview`; `fields[]` = `estimatedTotalValue`/`priceResearchId` com valor no ETP (sem POL-09 o valor sai `null` com `valueMasked: true` e não é importado — FA-05); `items` = itens do ETP com a quantidade do ETP e a atual do TR (`specified` = já especificado — FA-04). `replacesPriceResearchValue` avisa que importar o valor troca a origem `PRICE_RESEARCH` (RN-TR-22). `importToken` assinado (HMAC, sem estado) válido por 15 min (`expiresAt`). Sem ETP = 422 `ETP_REQUIRED_FOR_IMPORT`; TR inexistente, de outro tenant ou não visível = 404 `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TermImportPreview"
+                    }
+                  },
+                  "required": [
+                    "data"
                   ]
                 }
               }

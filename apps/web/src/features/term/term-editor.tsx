@@ -27,6 +27,7 @@ import { useId, useState } from 'react';
 
 import { useShellSession } from '@/lib/session/session-context';
 
+import { ImportEtpPanel, StaleEtpBanner } from './import-etp-panel';
 import {
   localCompleteness,
   termNavItems,
@@ -52,7 +53,9 @@ import { TEXTAREA_CLASS } from '../processes/form-field';
  * mecanismo do ETP/DFD sobre o DOC-05, com `If-Match: "s<revision>"` e o diálogo de conflito) e o
  * "Não se aplica" justificado (só fora das `REQUIRED` — RN-TR-12); o painel "Dados do TR" (objeto e
  * valor estimado — TRM-04). Somente leitura sem `UPDATE` ou fora de `DRAFT`/`RETURNED` (FA-06).
- * Abaixo de 768 px a navegação recolhe para o menu "Seções".
+ * Abaixo de 768 px a navegação recolhe para o menu "Seções". US-037: "Importar do ETP" (TRM-05/06 —
+ * oculto sem `UPDATE`) e o aviso de ETP atualizado desde a última importação (RN-TR-24); depois da
+ * importação o editor recarrega o TR e remonta com o rascunho novo.
  */
 
 function timeOf(value: string | number, timeZone: string): string {
@@ -76,6 +79,8 @@ export function TermEditor({
 }) {
   const t = useTranslations('term.editor');
   const query = useTerm(termId);
+  // US-037: a importação troca o rascunho no servidor — o editor remonta com o TR recarregado.
+  const [generation, setGeneration] = useState(0);
   if (query.data === undefined) {
     if (query.isPending) {
       return (
@@ -103,10 +108,14 @@ export function TermEditor({
   }
   return (
     <TermEditorLoaded
-      key={query.data.term.documentId}
+      key={`${query.data.term.documentId}:${String(generation)}`}
       processId={processId}
       term={query.data.term}
       meta={query.data.meta}
+      onReload={async () => {
+        await query.refetch();
+        setGeneration((value) => value + 1);
+      }}
     />
   );
 }
@@ -115,9 +124,11 @@ export interface TermEditorLoadedProps {
   readonly processId: string;
   readonly term: TermDetailDto;
   readonly meta: TermDetailMeta;
+  /** US-037: recarregar o TR (depois da importação do ETP ou de um conflito). */
+  readonly onReload?: () => Promise<void>;
 }
 
-export function TermEditorLoaded({ processId, term, meta }: TermEditorLoadedProps) {
+export function TermEditorLoaded({ processId, term, meta, onReload }: TermEditorLoadedProps) {
   const t = useTranslations('term.editor');
   const session = useShellSession();
   const timeZone = session.activeTenant.timezone;
@@ -183,6 +194,12 @@ export function TermEditorLoaded({ processId, term, meta }: TermEditorLoadedProp
     await autosave.commit(key, draft);
   };
 
+  const [importing, setImporting] = useState(false);
+  const reload = async () => {
+    await autosave.flush();
+    await onReload?.();
+  };
+
   const [busy, setBusy] = useState(false);
   const run = (work: () => Promise<void>) => {
     setBusy(true);
@@ -208,8 +225,20 @@ export function TermEditorLoaded({ processId, term, meta }: TermEditorLoadedProp
           </span>
         ) : null}
         {allowed ? (
-          <AutosaveIndicator
+          <Button
+            size="sm"
+            variant="secondary"
             className="ml-auto"
+            onClick={() => {
+              void autosave.flush();
+              setImporting(true);
+            }}
+          >
+            {t('import.action')}
+          </Button>
+        ) : null}
+        {allowed ? (
+          <AutosaveIndicator
             status={autosave.snapshot.status}
             savedAt={autosave.snapshot.savedAt}
             message={autosave.snapshot.message}
@@ -258,6 +287,15 @@ export function TermEditorLoaded({ processId, term, meta }: TermEditorLoadedProp
         />
       )}
 
+      {term.etpChangedSinceImport ? (
+        <StaleEtpBanner
+          editable={allowed}
+          onReimport={() => {
+            setImporting(true);
+          }}
+        />
+      ) : null}
+
       <TermGeneralDataPanel processId={processId} term={term} editable={allowed} />
 
       <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start">
@@ -287,6 +325,21 @@ export function TermEditorLoaded({ processId, term, meta }: TermEditorLoadedProp
           />
         )}
       </div>
+
+      {allowed ? (
+        <ImportEtpPanel
+          open={importing}
+          processId={processId}
+          termId={term.id}
+          version={term.version}
+          sections={sections}
+          onClose={() => {
+            setImporting(false);
+          }}
+          onImported={reload}
+          onStale={reload}
+        />
+      ) : null}
 
       {conflict === null ? null : (
         <ConflictDialog

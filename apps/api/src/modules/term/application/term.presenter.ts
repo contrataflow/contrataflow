@@ -152,6 +152,8 @@ export function toTermDetailDto(
     readonly completeness: TermCompletenessDto;
     readonly priceResearch: PriceResearchSummary | null;
     readonly completedPriceResearch: PriceResearchSummary | null;
+    /** RN-TR-24 (US-037): a versão vigente do ETP é outra que a importada. */
+    readonly etpChangedSinceImport: boolean;
   },
   masking: TermMasking,
 ): TermDetailDto {
@@ -166,8 +168,7 @@ export function toTermDetailDto(
       extras.completedPriceResearch === null
         ? null
         : toPriceResearchRef(extras.completedPriceResearch, masking),
-    // RN-TR-24 (US-037): sem importação do ETP ainda não há defasagem a sinalizar.
-    etpChangedSinceImport: false,
+    etpChangedSinceImport: extras.etpChangedSinceImport,
   };
 }
 

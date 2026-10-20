@@ -77,6 +77,8 @@ export const DOMAIN_EVENT_NAMES = [
   'QuotationRestored',
   // US-021: decisão RECOMMENDED de alternativa do ETP (RN-ETP-21).
   'EtpAlternativeRecommended',
+  // US-037: importação do ETP para o TR (TRM-06 · RN-TR-24).
+  'TermImportedFromEtp',
   'RiskCreated',
   'RiskAssessed',
   'RiskDeleted',

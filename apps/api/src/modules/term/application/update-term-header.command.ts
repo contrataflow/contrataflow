@@ -59,6 +59,35 @@ function fingerprint(text: unknown): unknown {
   };
 }
 
+/**
+ * POL-02 de edição pelo `document` (TERM_UPDATE + custódia OU participação, processo editável, tipo
+ * na etapa, TR em `DRAFT`/`RETURNED`), com as mensagens do TR; `null` = o 404 do TR. Usada também
+ * pela importação do ETP (US-037).
+ */
+export async function openEditableTerm(
+  documents: DocumentFacade,
+  tx: TenantTx,
+  term: TermOfReference,
+  messages: { readonly permissionDenied: string; readonly notEditable: string } = TERM_MESSAGES,
+): Promise<EditableTypedDocument> {
+  let view: EditableTypedDocument | null;
+  try {
+    view = await documents.editableTypedDocumentIn(tx, term.documentId, {
+      notCustodianDetail: messages.permissionDenied,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'DOCUMENT_NOT_EDITABLE') {
+      throw new ApiError('DOCUMENT_NOT_EDITABLE', {
+        detail: messages.notEditable,
+        extensions: error.extensions,
+      });
+    }
+    throw error;
+  }
+  if (view === null) throw termNotFound();
+  return view;
+}
+
 export interface UpdateTermHeaderInput {
   readonly termId: string;
   readonly expectedVersion: number;
@@ -95,7 +124,7 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
   protected async handle(tx: TenantTx, input: UpdateTermHeaderInput): Promise<UpdatedTerm> {
     const term = await this.terms.findById(tx, input.termId);
     if (term === null) throw termNotFound();
-    const view = await this.editable(tx, term);
+    const view = await openEditableTerm(this.documents, tx, term);
     const masked = view.isBudgetConfidential && !view.canViewConfidentialBudget;
     if (term.version !== input.expectedVersion) throw this.conflict(term, view, masked);
     const { patch } = input;
@@ -150,26 +179,6 @@ export class UpdateTermHeaderCommand extends TransactionalCommandHandler<
       },
       'term.header_saved',
     );
-  }
-
-  /** POL-02 de edição pelo `document`, com as mensagens da US-036; `null` = o 404 do TR. */
-  private async editable(tx: TenantTx, term: TermOfReference): Promise<EditableTypedDocument> {
-    let view: EditableTypedDocument | null;
-    try {
-      view = await this.documents.editableTypedDocumentIn(tx, term.documentId, {
-        notCustodianDetail: TERM_MESSAGES.permissionDenied,
-      });
-    } catch (error) {
-      if (error instanceof ApiError && error.code === 'DOCUMENT_NOT_EDITABLE') {
-        throw new ApiError('DOCUMENT_NOT_EDITABLE', {
-          detail: TERM_MESSAGES.notEditable,
-          extensions: error.extensions,
-        });
-      }
-      throw error;
-    }
-    if (view === null) throw termNotFound();
-    return view;
   }
 
   /**

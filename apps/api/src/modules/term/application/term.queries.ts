@@ -23,6 +23,7 @@ import {
 } from './term.presenter.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import type { TypedDocumentView } from '../../document/application/document.facade.js';
+import { etpChangedSinceImport } from '../domain/etp-import.js';
 import type { TermOfReference } from '../domain/term-of-reference.js';
 
 /*
@@ -98,6 +99,12 @@ export async function readTermDetail(
       : (all.find((summary) => summary.id === term.priceResearchId) ?? null);
   const completed = await researches.completedOf(tx, term.processId);
   const sections = (await documents.sectionCompletenessIn(tx, term.documentId)) ?? [];
+  const etp =
+    term.importedFromEtpId === null
+      ? null
+      : ((await documents.documentStatesIn(tx, [term.importedFromEtpId])).get(
+          term.importedFromEtpId,
+        ) ?? null);
   return {
     dto: toTermDetailDto(
       term,
@@ -106,6 +113,7 @@ export async function readTermDetail(
         completeness: toTermCompleteness(sections),
         priceResearch: linked,
         completedPriceResearch: completed,
+        etpChangedSinceImport: etpChangedSinceImport(term, etp),
       },
       { masked },
     ),

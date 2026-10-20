@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
+import { EtpHeaderModule, EtpHeaderRegistry } from '#shared/etp/etp-header.js';
 import { PriceResearchSummaryModule } from '#shared/price-research/price-research-summary.js';
 
 import {
@@ -16,6 +18,7 @@ import {
   EtpAlternativeRecorder,
 } from './application/etp-alternative.support.js';
 import { UpdateEtpEstimateCommand } from './application/etp-estimate.command.js';
+import { EtpHeaderSource } from './application/etp-header.source.js';
 import { CreateEtpCommand } from './application/etp.commands.js';
 import { EtpFacade } from './application/etp.facade.js';
 import { GetEtpQuery, ListProcessEtpsQuery } from './application/etp.queries.js';
@@ -51,13 +54,15 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  * `ETP_ALTERNATIVE` da timeline). O documento, a
  * numeração, as seções e os itens vêm do `document` pelo padrão de documento tipado
  * (`createStructuredIn`); o DFD de origem é lido do snapshot da versão (`importableDfdIn`), sem
- * depender do módulo `dfd`.
+ * depender do módulo `dfd`. US-037: registra o leitor do cabeçalho na porta `EtpHeaderRegistry`
+ * (importação do ETP no TR — o `term` é do mesmo nível).
  */
 @Module({
-  imports: [DocumentModule, PriceResearchSummaryModule],
+  imports: [DocumentModule, PriceResearchSummaryModule, EtpHeaderModule],
   controllers: [EtpController, EtpAlternativeController],
   providers: [
     EtpFacade,
+    EtpHeaderSource,
     CreateEtpCommand,
     UpdateEtpEstimateCommand,
     ListProcessEtpsQuery,
@@ -109,4 +114,14 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
   ],
   exports: [EtpFacade],
 })
-export class EtpModule {}
+export class EtpModule implements OnModuleInit {
+  constructor(
+    private readonly headers: EtpHeaderRegistry,
+    private readonly headerSource: EtpHeaderSource,
+  ) {}
+
+  /** US-037: o cabeçalho do ETP para a importação no TR (porta do shared kernel). */
+  onModuleInit(): void {
+    this.headers.register(this.headerSource);
+  }
+}

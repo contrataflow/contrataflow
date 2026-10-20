@@ -992,17 +992,21 @@ const termImportedFromEtp = defineMapping({
   entryTypes: ['TERM_IMPORTED_FROM_ETP'],
   payload: z.looseObject({
     termId: uuid,
-    etpVersionId: uuid,
+    // US-037 (FA-02): ETP ainda sem versão importa do rascunho — sem número de versão.
+    etpVersionId: uuid.nullable(),
     sectionsImported: z.array(z.string()),
     itemsImported: z.int().min(0),
   }),
   plan: (payload) => ({
-    refs: lookupRef('DOCUMENT_VERSION', payload.etpVersionId),
+    refs: payload.etpVersionId === null ? [] : lookupRef('DOCUMENT_VERSION', payload.etpVersionId),
     build: ({ lookups }) => [
       entry(
         'TERM_IMPORTED_FROM_ETP',
         {
-          etpVersion: lookups.get('DOCUMENT_VERSION', payload.etpVersionId)?.versionNumber ?? null,
+          etpVersion:
+            payload.etpVersionId === null
+              ? null
+              : (lookups.get('DOCUMENT_VERSION', payload.etpVersionId)?.versionNumber ?? null),
           sectionsCount: payload.sectionsImported.length,
           itemsImported: payload.itemsImported,
         },

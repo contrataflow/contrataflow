@@ -257,7 +257,7 @@ export const termDetailSchema = termSchema
     completeness: termCompletenessSchema,
     priceResearch: termPriceResearchRefSchema.nullable(),
     completedPriceResearch: termPriceResearchRefSchema.nullable(),
-    /** Calculado (RN-TR-24 — US-037): `false` enquanto não houver importação do ETP. */
+    /** Calculado (RN-TR-24 — US-037): a versão vigente do ETP é outra que a importada. */
     etpChangedSinceImport: z.boolean(),
   })
   .meta({ id: 'TermDetail' });

@@ -4,6 +4,9 @@ import type {
   TermDetailDto,
   TermDetailMeta,
   TermDto,
+  TermImportApplyInput,
+  TermImportPreviewDto,
+  TermImportResultDto,
   TermListMeta,
   TermMeta,
   TermPatch,
@@ -17,7 +20,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 /*
- * Termo de Referência (US-036 · SCR-006/SCR-012): TRM-01..04 de api/09-term-of-reference.md. O id do
+ * Termo de Referência (US-036/037 · SCR-006/SCR-012): TRM-01..06 de api/09-term-of-reference.md. O id do
  * TR é o do documento. Chaves `['t', tenantId, 'processes', processId, 'terms']` (TRM-01, sob a do
  * processo: invalidar o processo renova a lista) e `['t', tenantId, 'terms', termId]` (TRM-03).
  */
@@ -26,6 +29,9 @@ export const termKeys = {
   ofProcess: (tenantId: string, processId: string) =>
     tenantKey(tenantId, 'processes', processId, 'terms'),
   detail: (tenantId: string, termId: string) => tenantKey(tenantId, 'terms', termId),
+  /** TRM-05 (US-037): a prévia da importação do ETP, sem cache. */
+  importPreview: (tenantId: string, termId: string) =>
+    tenantKey(tenantId, 'terms', termId, 'import-etp-preview'),
 };
 
 /** Rota da SCR-012. */
@@ -143,4 +149,41 @@ export async function patchTerm(
     term: result.data,
     meta: Array.isArray(allowed) ? { allowedActions: allowed as TermMeta['allowedActions'] } : null,
   };
+}
+
+/** TRM-05: prévia somente leitura da importação do ETP (US-037 · RN-TR-18). */
+export async function previewEtpImport(termId: string): Promise<TermImportPreviewDto> {
+  const result = await apiRequest<TermImportPreviewDto>(`/terms/${termId}/import-etp/preview`, {
+    method: 'POST',
+    body: {},
+  });
+  return result.data;
+}
+
+/**
+ * TRM-06: `If-Match: "<version>"` do TR e a mesma `Idempotency-Key` em cada reenvio da mesma
+ * aplicação; `IDEMPOTENCY_IN_PROGRESS` repete após 2 s, até 3 vezes.
+ */
+export async function applyEtpImport(
+  termId: string,
+  body: TermImportApplyInput,
+  version: number,
+  idempotencyKey: string,
+): Promise<TermImportResultDto> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const result = await apiRequest<TermImportResultDto>(`/terms/${termId}/import-etp`, {
+        method: 'POST',
+        body,
+        ifMatch: `"${String(version)}"`,
+        idempotencyKey,
+      });
+      return result.data;
+    } catch (error) {
+      if (attempt >= 3 || !isApiError(error) || error.code !== 'IDEMPOTENCY_IN_PROGRESS') {
+        throw error;
+      }
+      await sleep((error.retryAfterSeconds ?? 2) * 1000);
+    }
+  }
 }

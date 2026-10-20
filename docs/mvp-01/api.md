@@ -37,6 +37,7 @@ Sumário: [1. Convenções](#1-convenções) · [2. Erros](#2-erros) · [3. Cat�
 ### 1.3 Concorrência e idempotência
 - `version` de cada recurso é exposto como `ETag`. Mutação com `If-Match` divergente → **412** `VERSION_CONFLICT` (corpo traz `currentVersion` e, quando útil, o recurso atual em `meta.current`). Sem `If-Match` onde exigido → **428** `PRECONDITION_REQUIRED`.
 - Autosave de seção usa a **revisão da seção** no `If-Match` (`"s<revision>"`) → `SECTION_REVISION_CONFLICT` (412).
+- Token de prévia sem estado (US-037 · TRM-05/06): `importToken` = `v1.<claims base64url>.<HMAC-SHA256 base64url>` com tenant, recurso, origem, a impressão digital (SHA-256 do JSON canônico) do estado lido na prévia e a validade (15 min); a chave HMAC é derivada da chave do *blind index* (DEC-086). A aplicação recalcula a impressão digital: vencido ou origem/destino alterados → **410** `IMPORT_PREVIEW_EXPIRED`; adulterado ou de outro recurso/tenant → **422** `VALIDATION_ERROR` no campo do token.
 - `Idempotency-Key`: mesma chave + mesmo corpo em 24 h → mesma resposta (`Idempotent-Replayed: true`); mesma chave + corpo diferente → **422** `IDEMPOTENCY_KEY_REUSED`; requisição original ainda em processamento → **409** `IDEMPOTENCY_IN_PROGRESS`.
 
 ### 1.4 Valores sigilosos

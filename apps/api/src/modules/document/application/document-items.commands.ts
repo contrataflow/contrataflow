@@ -100,6 +100,11 @@ export class DocumentItemsPresenter {
     return this.items.listByDocument(tx, documentId);
   }
 
+  /** Itens do processo com linha já especificada no documento (US-037 · RN-TR-21). */
+  specifiedOf(tx: TenantTx, documentId: string): Promise<ReadonlySet<string>> {
+    return this.items.specifiedProcessItemIds(tx, documentId);
+  }
+
   /**
    * Linhas de um documento recém-criado (duplicação — US-018 · RN-DFD-75): as quantidades e
    * observações já validadas na origem, apontando para os itens do processo de destino. Sem versão

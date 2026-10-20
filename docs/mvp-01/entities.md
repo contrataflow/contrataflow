@@ -1280,6 +1280,7 @@ Seções de template (chaves): `OBJECT`, `JUSTIFICATION`, `SPECIFICATIONS`, `ACC
 | `importedFromEtpVersionId` | uuid | sim | — | Versão do ETP usada na importação |
 | `importedAt` / `importedById` | timestamptz / uuid | sim | — | |
 
+- **Derivado (não persistido — US-037 · RN-TR-24):** `etpChangedSinceImport` (TRM-03) = houve importação e a versão vigente do ETP (`Document.currentVersionId`) é outra que `importedFromEtpVersionId`; mesmo padrão dos `...Masked` (DEC-030). `importedFromEtpVersionId` fica nulo quando o ETP importado ainda não tinha versão (FA-02 — o rascunho).
 - **Unique:** `(tenant_id, document_id)`.
 - **Check:** `execution_deadline IS NULL OR execution_deadline_type IS NOT NULL`; `contract_guarantee_percent IS NULL OR contract_guarantee_percent BETWEEN 0 AND 10`.
 

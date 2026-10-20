@@ -132,7 +132,7 @@ TermListMeta { templates: { id; name; isDefault; versionId; versionNumber }[]; d
 | 422 | `ETP_REQUIRED_FOR_IMPORT` | Processo sem ETP não cancelado |
 
 - **Efeitos:** — (não grava nada, não gera evento).
-- **Notas:** o `importToken` é **assinado e sem estado** (stateless), válido por 15 min; consumido por TRM-06.
+- **Notas:** o `importToken` é **assinado e sem estado** (stateless), válido por 15 min; consumido por TRM-06. **Implementação (US-037):** a origem é o rascunho mais recente do ETP não cancelado (FA-02: `etp.inProgress` em `DRAFT`/`RETURNED`/`IN_REVIEW`; `etp.versionNumber` = versão vigente ou `null`); a resposta acrescenta `etp.code`/`status`/`inProgress`, `sections[].before` (texto atual do TR), `fields[].current`, `items.preview[].specified` (FA-04) e `replacesPriceResearchValue` (RN-TR-22). Só entram seções do mapeamento presentes no template e com conteúdo na origem, e campos com valor no ETP; sem `importMappings` na versão do template, só os itens (quantidades). Formato do token: api.md §1.3.
 
 ### TRM-06 — Aplicar importação do ETP
 `POST /api/v1/terms/{id}/import-etp` · **Permissão:** `TERM_UPDATE` + POL-02 · **Story:** US-037
@@ -166,4 +166,4 @@ TermListMeta { templates: { id; name; isDefault; versionId; versionNumber }[]; d
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Mesma chave, corpo diferente |
 
 - **Efeitos:** Eventos: `TermImportedFromEtp` (`term.imported_from_etp`) — `termId`, `etpId`, `etpVersionId`, `sectionsImported[]`, `itemsImported`; `DocumentVersionCreated` (`document.version_created.tr`), `reason = IMPORT`, mesmo commit. Auditoria: `term.import_etp` (`DATA_CHANGE`) — `changes`: chaves de seções/campos/itens alterados (sem conteúdo); `metadata`: `etpId`, `etpVersionId`, `itemsImported`, `idempotencyKey`. Timeline: `TERM_IMPORTED_FROM_ETP`.
-- **Notas:** o campo calculado `etpChangedSinceImport` (ver TRM-03) é a forma de a UI detectar nova defasagem após esta importação (RN-TR-24).
+- **Notas:** o campo calculado `etpChangedSinceImport` (ver TRM-03) é a forma de a UI detectar nova defasagem após esta importação (RN-TR-24). **Implementação (US-037):** a resposta traz também `fieldsImported[]` e `documentVersion` (`id`, `versionNumber` da versão `IMPORT`); `ETag` = nova versão do TR. Seção fora da prévia → 422 `NOT_ALLOWED` em `sections`; conteúdo acima do limite da seção → 422 `TOO_LONG` em `sections`; `priceResearchId` sozinho sobre valor vinculado a outra pesquisa → 422 `NOT_ALLOWED` em `fields`; campo mascarado (POL-09) é ignorado (FA-05). Itens: `itemsImported` conta as linhas do ETP gravadas no TR (as iguais contam; as especificadas sem `overwriteExisting` não). Seções `APPEND` repetem a referência a cada importação.

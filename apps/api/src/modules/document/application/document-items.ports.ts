@@ -21,6 +21,11 @@ export interface DocumentItemRepository {
    * linhas fora de `items`, grava as alteradas e insere as novas.
    */
   replace(tx: TenantTx, documentId: string, items: readonly DocumentItem[]): Promise<void>;
+  /**
+   * Itens do processo cujas linhas no documento já têm especificação ou critérios de aceitação
+   * (TR — US-037 · RN-TR-21: a importação do ETP não os sobrescreve sem `overwriteExisting`).
+   */
+  specifiedProcessItemIds(tx: TenantTx, documentId: string): Promise<ReadonlySet<string>>;
   /** Linhas que referenciam os itens do processo (no tenant da transação). */
   referencesTo(tx: TenantTx, processItemIds: readonly string[]): Promise<DocumentItemReference[]>;
 }

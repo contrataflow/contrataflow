@@ -110,6 +110,64 @@
         "generic": "Não foi possível continuar salvando este TR.",
         "kept": "Suas últimas alterações foram guardadas neste navegador."
       }
+    },
+    "import": {
+      "action": "Importar do ETP",
+      "title": "Importar do ETP",
+      "description": "Revise o que será trazido do Estudo Técnico Preliminar. Desmarque o que não quiser importar; o TR continua editável depois.",
+      "loading": "Gerando a prévia da importação…",
+      "source": "Origem: {code} (rascunho)",
+      "sourceVersion": "Origem: {code}, versão {version}",
+      "summary": "Prévia: {sections, plural, one {# seção} other {# seções}}, {fields, plural, one {# campo} other {# campos}} e {items, plural, one {# item} other {# itens}}.",
+      "createEtp": "Ir para o processo e criar o ETP",
+      "close": "Fechar",
+      "cancel": "Cancelar",
+      "retry": "Tentar novamente",
+      "apply": "Aplicar importação",
+      "applying": "Aplicando importação…",
+      "selected": "Selecionado: {sections, plural, =0 {nenhuma seção} one {# seção} other {# seções}} e {items, plural, =0 {nenhum item} one {# item} other {# itens}}.",
+      "unexpected": "Ocorreu um erro inesperado.",
+      "reimport": "Importar novamente",
+      "sections": {
+        "legend": "Seções",
+        "empty": "O ETP não tem conteúdo para as seções mapeadas.",
+        "mode": {
+          "REPLACE": "Substitui o conteúdo atual",
+          "APPEND": "Acrescenta ao final, com referência ao ETP"
+        }
+      },
+      "diff": {
+        "label": "Comparação",
+        "before": "Antes",
+        "after": "Depois",
+        "empty": "(vazia)"
+      },
+      "fields": {
+        "legend": "Dados do TR",
+        "estimatedTotalValue": "Valor estimado",
+        "priceResearchId": "Pesquisa de preços vinculada",
+        "change": "Atual: {current} → ETP: {next}",
+        "masked": "Valor sigiloso",
+        "none": "nenhum",
+        "linked": "pesquisa do ETP"
+      },
+      "items": {
+        "legend": "Itens",
+        "copy": "Copiar {count, plural, one {o item} other {os # itens}} com as quantidades do ETP",
+        "overwrite": "Sobrescrever itens já especificados",
+        "caption": "Itens do ETP e quantidades atuais do TR",
+        "sequence": "Nº",
+        "description": "Descrição",
+        "etpQuantity": "Qtd. no ETP",
+        "trQuantity": "Qtd. no TR",
+        "new": "novo",
+        "specified": "(já especificado)"
+      },
+      "confirmSource": {
+        "title": "Substituir o valor da pesquisa de preços?",
+        "confirm": "Substituir e importar",
+        "cancel": "Manter o valor atual"
+      }
     }
   },
   "general": {

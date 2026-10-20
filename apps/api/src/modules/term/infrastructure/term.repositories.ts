@@ -123,6 +123,28 @@ export class PrismaTermRepository implements TermRepository {
         }),
     );
   }
+
+  async recordImport(tx: TenantTx, term: TermOfReference, expectedVersion: number): Promise<void> {
+    await updateVersioned(
+      { aggregateType: 'TermOfReference', aggregateId: term.id, expectedVersion },
+      () =>
+        tx.termOfReference.updateMany({
+          where: { id: term.id, version: expectedVersion },
+          data: {
+            estimatedTotalValue: term.estimatedTotalValue,
+            estimatedValueSource: term.estimatedValueSource,
+            priceResearchId: term.priceResearchId,
+            importedFromEtpId: term.importedFromEtpId,
+            importedFromEtpVersionId: term.importedFromEtpVersionId,
+            importedAt: term.importedAt,
+            importedById: term.importedById,
+            updatedAt: term.updatedAt,
+            updatedById: term.updatedById,
+            version: { increment: 1 },
+          },
+        }),
+    );
+  }
 }
 
 /** TRs em memória: mesma semântica do adaptador Prisma, isolados pelo tenant do contexto. */
@@ -172,6 +194,33 @@ export class InMemoryTermRepository implements TermRepository {
       estimatedTotalValue: term.estimatedTotalValue,
       estimatedValueSource: term.estimatedValueSource,
       priceResearchId: term.priceResearchId,
+      updatedAt: term.updatedAt,
+      updatedById: term.updatedById,
+      version: expectedVersion + 1,
+    });
+    return Promise.resolve();
+  }
+
+  recordImport(_tx: TenantTx, term: TermOfReference, expectedVersion: number): Promise<void> {
+    const current = this.inTenant().find((row) => row.id === term.id);
+    if (current?.version !== expectedVersion) {
+      return Promise.reject(
+        new VersionConflictError({
+          aggregateType: 'TermOfReference',
+          aggregateId: term.id,
+          expectedVersion,
+        }),
+      );
+    }
+    this.rows.set(term.id, {
+      ...current,
+      estimatedTotalValue: term.estimatedTotalValue,
+      estimatedValueSource: term.estimatedValueSource,
+      priceResearchId: term.priceResearchId,
+      importedFromEtpId: term.importedFromEtpId,
+      importedFromEtpVersionId: term.importedFromEtpVersionId,
+      importedAt: term.importedAt,
+      importedById: term.importedById,
       updatedAt: term.updatedAt,
       updatedById: term.updatedById,
       version: expectedVersion + 1,

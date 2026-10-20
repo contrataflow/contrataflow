@@ -99,6 +99,20 @@ export class PrismaDocumentItemRepository implements DocumentItemRepository {
     }
   }
 
+  async specifiedProcessItemIds(tx: TenantTx, documentId: string): Promise<ReadonlySet<string>> {
+    const rows = await tx.documentItem.findMany({
+      where: {
+        documentId,
+        OR: [
+          { specification: { not: Prisma.AnyNull } },
+          { acceptanceCriteria: { not: Prisma.AnyNull } },
+        ],
+      },
+      select: { processItemId: true },
+    });
+    return new Set(rows.map((row) => row.processItemId));
+  }
+
   async referencesTo(
     tx: TenantTx,
     processItemIds: readonly string[],
@@ -115,6 +129,7 @@ export class PrismaDocumentItemRepository implements DocumentItemRepository {
 @Injectable()
 export class InMemoryDocumentItemRepository implements DocumentItemRepository {
   private readonly rows = new Map<string, DocumentItem>();
+  private readonly specified = new Set<string>();
 
   private inTenant(): DocumentItem[] {
     const tenantId = currentRequestContext()?.tenantId ?? null;
@@ -142,6 +157,21 @@ export class InMemoryDocumentItemRepository implements DocumentItemRepository {
     }
     for (const item of items) this.rows.set(item.id, item);
     return Promise.resolve();
+  }
+
+  specifiedProcessItemIds(_tx: TenantTx, documentId: string): Promise<ReadonlySet<string>> {
+    return Promise.resolve(
+      new Set(
+        this.inTenant()
+          .filter((item) => item.documentId === documentId && this.specified.has(item.id))
+          .map((item) => item.processItemId),
+      ),
+    );
+  }
+
+  /** Testes (US-037 · FA-04): a linha passa a ter especificação (as colunas são da US-038). */
+  markSpecified(itemId: string): void {
+    this.specified.add(itemId);
   }
 
   referencesTo(_tx: TenantTx, processItemIds: readonly string[]): Promise<DocumentItemReference[]> {

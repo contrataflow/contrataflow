@@ -18,6 +18,12 @@ export interface TermRepository {
    * @throws VersionConflictError
    */
   updateHeader(tx: TenantTx, term: TermOfReference, expectedVersion: number): Promise<void>;
+  /**
+   * US-037 (TRM-06): valor estimado, origem, pesquisa e a rastreabilidade da importação do ETP
+   * (`importedFromEtp*`, `importedAt`/`importedById`) com `version = expectedVersion + 1`,
+   * condicionado à versão (DEC-055). @throws VersionConflictError
+   */
+  recordImport(tx: TenantTx, term: TermOfReference, expectedVersion: number): Promise<void>;
 }
 
 export const TERM_REPOSITORY = Symbol('TermRepository');
@@ -33,3 +39,6 @@ export const TERM_TRANSACTIONS = Symbol('TermTransactions');
 export type TermClock = () => Date;
 
 export const TERM_CLOCK = Symbol('TermClock');
+
+/** Chave HMAC do `importToken` da importação do ETP (US-037 · RN-TR-18). */
+export const TERM_IMPORT_TOKEN_KEY = Symbol('TermImportTokenKey');

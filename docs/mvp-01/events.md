@@ -142,7 +142,7 @@ Eventos próprios de módulos tipados:
 | `RiskAssessed` | `risk.assessed` | US-033 (alteração de P×I) | `riskId`, `fromLevel`, `toLevel`, `score` | T |
 | `RiskTreatmentChanged` | `risk.treatment_changed` | US-034, US-119 (RSK-11) | `riskId`, `treatmentId`, `change` (`CREATED`, `UPDATED`, `STATUS_CHANGED`, `DELETED`), `status` | — |
 | `RiskDeleted` | `risk.deleted` | US-033 | `riskId`, `code` | T |
-| `TermImportedFromEtp` | `term.imported_from_etp` | US-037 | `termId`, `etpId`, `etpVersionId`, `sectionsImported[]`, `itemsImported` | T |
+| `TermImportedFromEtp` | `term.imported_from_etp` | US-037 | `termId`, `etpId`, `etpVersionId` (nulo se o ETP ainda não tem versão), `sectionsImported[]`, `itemsImported` | T |
 
 ### 4.4 Colaboração e arquivos (módulos `collaboration`, `files`)
 | Evento | Routing key | Produtor | Payload | Cons. |

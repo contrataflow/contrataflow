@@ -2,6 +2,8 @@ import { ETP_IMPORTABLE_DFD_STATUSES, richTextPlainText } from '@contrataflow/va
 import type {
   Confidentiality,
   DocumentAction,
+  DraftContent,
+  RichTextDocValue,
   DocumentSnapshot,
   DocumentStatus,
   SectionRequirement,
@@ -40,6 +42,8 @@ import { DocumentCommentTargets } from './document-comment-target.js';
 import type { CommentDocumentLabel, CommentDocumentTarget } from './document-comment-target.js';
 import { DocumentCreationService } from './document-creation.service.js';
 import type { CreateDocumentInput } from './document-creation.service.js';
+import { DocumentImportService } from './document-import.service.js';
+import type { DocumentImportInput, DocumentImportResult } from './document-import.service.js';
 import { DocumentItemsPresenter } from './document-items.commands.js';
 import type { DocumentItemCopy, DocumentItemSnapshotLine } from './document-items.commands.js';
 import { DocumentLifecycleService } from './document-lifecycle.service.js';
@@ -78,6 +82,9 @@ export type {
 } from './document.ports.js';
 export type { ConcludeDocumentInput, DocumentTransitionResult } from './document.commands.js';
 export type { CreateDocumentInput } from './document-creation.service.js';
+export type { DocumentImportInput, DocumentImportResult } from './document-import.service.js';
+export type { ImportedItemLine, ImportedSection } from '../domain/imported-content.js';
+export { ImportedSectionRejectedError } from '../domain/imported-content.js';
 export type {
   ApprovalOutcomeInput,
   ApprovalOutcomeResult,
@@ -164,6 +171,8 @@ export interface DocumentState {
   readonly status: DocumentStatus;
   readonly version: number;
   readonly currentVersionNumber: number | null;
+  /** Versão corrente (US-037 — defasagem do ETP desde a importação no TR). */
+  readonly currentVersionId: string | null;
   readonly approvedAt: Date | null;
 }
 
@@ -179,6 +188,31 @@ export interface ImportableDfdSource {
   readonly versionId: string;
   readonly versionNumber: number;
   readonly snapshot: DocumentSnapshot;
+}
+
+/**
+ * O ETP do processo como origem da importação no TR (US-037 · RN-TR-16/17): o documento não
+ * cancelado nem excluído do tipo `ETP`, com o rascunho mais recente (seções), a versão vigente e as
+ * linhas de item (com o número e a descrição do item do processo). `version`/`draftRevision` mudam a
+ * cada gravação — a prévia os usa para detectar mudança (RN-TR-19).
+ */
+export interface ImportableEtpSource {
+  readonly documentId: string;
+  readonly code: string | null;
+  readonly status: DocumentStatus;
+  readonly version: number;
+  readonly draftRevision: number;
+  readonly currentVersionId: string | null;
+  readonly currentVersionNumber: number | null;
+  readonly sections: DraftContent['sections'];
+  readonly items: readonly {
+    readonly processItemId: string;
+    readonly sequence: number;
+    readonly description: string;
+    /** Decimal(18,4) como string. */
+    readonly quantity: string;
+    readonly calculationMemo: RichTextDocValue | null;
+  }[];
 }
 
 /** Documento como a tramitação o registra (US-047 · entities.md §5.6). */
@@ -226,6 +260,7 @@ export class DocumentFacade {
     private readonly itemRows: DocumentItemsPresenter,
     private readonly outcomes: DocumentApprovalOutcomes,
     private readonly finalizer: FinalizeDocumentCommand,
+    private readonly importer: DocumentImportService,
   ) {}
 
   /**
@@ -473,6 +508,49 @@ export class DocumentFacade {
     };
   }
 
+  /**
+   * O ETP do processo para a importação no TR (US-037 · RN-TR-16), no `tx` do chamador; `null` sem
+   * ETP não cancelado. Sem checar visibilidade: quem chama já autorizou a edição do TR do processo.
+   */
+  async importableEtpIn(tx: TenantTx, processId: string): Promise<ImportableEtpSource | null> {
+    const type = (await this.types.list(tx)).find((candidate) => candidate.systemModule === 'ETP');
+    if (type === undefined) return null;
+    const document = await this.documents.findActiveOfType(tx, processId, type.id);
+    if (document === null || document.status === 'CANCELED') return null;
+    const items = await this.itemRows.present(tx, document);
+    return {
+      documentId: document.id,
+      code: document.code,
+      status: document.status,
+      version: document.version,
+      draftRevision: document.draftRevision,
+      currentVersionId: document.currentVersionId,
+      currentVersionNumber: document.currentVersionNumber,
+      sections: document.draftContent.sections,
+      items: items.map((item) => ({
+        processItemId: item.processItemId,
+        sequence: item.sequence,
+        description: item.description,
+        quantity: item.quantity,
+        calculationMemo: item.calculationMemo ?? null,
+      })),
+    };
+  }
+
+  /** Itens do documento já especificados (US-037 · RN-TR-21 — a importação não os sobrescreve). */
+  specifiedItemsIn(tx: TenantTx, documentId: string): Promise<ReadonlySet<string>> {
+    return this.itemRows.specifiedOf(tx, documentId);
+  }
+
+  /**
+   * Importação no documento tipado pelo módulo dono (US-037 · TRM-06): seções, upsert de itens e a
+   * versão `IMPORT` (ver `DocumentImportService`). O chamador já travou e autorizou o documento
+   * (`editableTypedDocumentIn`) e gravou o cabeçalho tipado no mesmo `tx`.
+   */
+  importIn(tx: TenantTx, input: DocumentImportInput): Promise<DocumentImportResult> {
+    return this.importer.importIn(tx, input);
+  }
+
   /** Código, status e versão dos documentos não excluídos (inclusive cancelados) por id. */
   async documentStatesIn(
     tx: TenantTx,
@@ -489,6 +567,7 @@ export class DocumentFacade {
         status: document.status,
         version: document.version,
         currentVersionNumber: document.currentVersionNumber,
+        currentVersionId: document.currentVersionId,
         approvedAt: document.approvedAt,
       });
     }

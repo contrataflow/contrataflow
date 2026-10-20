@@ -89,6 +89,7 @@ import {
   TenantSettingsChanged,
   TenantSuspended,
 } from '../tenancy/events.js';
+import { TermImportedFromEtp } from '../term/events.js';
 import {
   WorkflowCreated,
   WorkflowDefaultChanged,
@@ -151,6 +152,7 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   QuotationExcluded,
   QuotationRestored,
   EtpAlternativeRecommended,
+  TermImportedFromEtp,
   RiskCreated,
   RiskAssessed,
   RiskDeleted,
