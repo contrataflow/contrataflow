@@ -8,11 +8,13 @@ import { cx } from './cx.js';
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 export type ButtonSize = 'sm' | 'md' | 'icon';
 
+// O hover eleva o botão sem mexer nas cores: opacidade ou brilho mudariam o par texto/fundo que os
+// tokens (e o tema do tenant) validam em 4,5:1 — com `opacity-90` o primário caía para 4,1:1.
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-primary-foreground hover:opacity-90',
+  primary: 'bg-primary text-primary-foreground hover:shadow-md',
   secondary: 'border border-border bg-surface text-foreground hover:bg-muted',
   ghost: 'text-foreground hover:bg-muted',
-  destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
+  destructive: 'bg-destructive text-destructive-foreground hover:shadow-md',
 };
 
 // Alvo de toque ≥ 24 px em todos os tamanhos (RN-FND-96 · WCAG 2.2 — 2.5.8).
