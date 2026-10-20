@@ -60,6 +60,7 @@ import {
   DiscardDraftProcessCommand,
 } from './application/process-cancellation.commands.js';
 import { ProcessCompletionRecorder } from './application/process-completion.recorder.js';
+import { ProcessDfdApprovalSync } from './application/process-dfd-approval.sync.js';
 import { ProcessDfdDuplication } from './application/process-dfd-duplication.js';
 import { ProcessItemCatalogLoader } from './application/process-item-catalog.loader.js';
 import {
@@ -240,6 +241,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     CreateProcessCommand,
     DuplicateProcessCommand,
     ProcessDfdDuplication,
+    ProcessDfdApprovalSync,
     UpdateProcessCommand,
     SetProcessConfidentialityCommand,
     StageTransitionService,

@@ -11,6 +11,7 @@ import { PendingApprovalExistsError } from '../application/ports.js';
 import type {
   ApprovalRepository,
   ApprovalSummaryRow,
+  DocumentDecisionRow,
   ApprovalTransactions,
   ApprovalWithCoverage,
 } from '../application/ports.js';
@@ -253,6 +254,32 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     });
   }
 
+  async latestDecisionForDocument(
+    tx: TenantTx,
+    documentId: string,
+  ): Promise<DocumentDecisionRow | null> {
+    const covering = await tx.approvalDocument.findMany({
+      where: { documentId },
+      select: { approvalId: true },
+    });
+    const row = await tx.approval.findFirst({
+      where: {
+        OR: [{ id: { in: covering.map((item) => item.approvalId) } }, { documentId }],
+        status: { in: [...DECIDED_STATUSES] },
+        decidedAt: { not: null },
+      },
+      orderBy: { decidedAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        decisionComment: true,
+        decidedAt: true,
+        decidedById: true,
+      },
+    });
+    return row === null ? null : decisionRowOf(row);
+  }
+
   async coversDocumentVersion(
     tx: TenantTx,
     approvalId: string,
@@ -265,6 +292,26 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     });
     return row !== null;
   }
+}
+
+const DECIDED_STATUSES = ['APPROVED', 'RETURNED', 'REJECTED'] as const;
+
+function decisionRowOf(row: {
+  readonly id: string;
+  readonly status: ApprovalStatus;
+  readonly decisionComment: string | null;
+  readonly decidedAt: Date | null;
+  readonly decidedById: string | null;
+}): DocumentDecisionRow | null {
+  const status = DECIDED_STATUSES.find((candidate) => candidate === row.status);
+  if (status === undefined || row.decidedAt === null) return null;
+  return {
+    approvalId: row.id,
+    status,
+    decisionComment: row.decisionComment,
+    decidedAt: row.decidedAt,
+    decidedById: row.decidedById,
+  };
 }
 
 /** A etapa ou o documento sob aprovação (o alvo dos índices de pendência única). */
@@ -385,6 +432,24 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
           decision: row.decision,
         })),
     );
+  }
+
+  latestDecisionForDocument(
+    _tx: TenantTx,
+    documentId: string,
+  ): Promise<DocumentDecisionRow | null> {
+    const tenantId = currentRequestContext()?.tenantId;
+    const rows = [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.tenantId === tenantId &&
+          (row.documentId === documentId ||
+            (this.coverage.get(row.id) ?? []).some((item) => item.documentId === documentId)),
+      )
+      .map((row) => decisionRowOf(row))
+      .filter((row): row is DocumentDecisionRow => row !== null)
+      .sort((a, b) => b.decidedAt.getTime() - a.decidedAt.getTime());
+    return Promise.resolve(rows[0] ?? null);
   }
 
   findPendingForStage(_tx: TenantTx, processStageId: string): Promise<Approval | null> {

@@ -1,5 +1,17 @@
 {
   "title": "DFD — Documento de Formalização da Demanda",
+  "decision": {
+    "titles": {
+      "APPROVED": "DFD aprovado",
+      "RETURNED": "DFD devolvido para ajuste",
+      "REJECTED": "DFD indeferido"
+    },
+    "byline": "Decisão de {name} em {at}.",
+    "unknownDecider": "aprovador",
+    "reason": "Motivo:",
+    "returnedHint": "Ajuste o DFD e envie novamente para aprovação.",
+    "reopen": "Reabrir DFD"
+  },
   "backToProcess": "Voltar ao processo",
   "processLine": "Processo {code} — {title}",
   "draftCode": "em rascunho",

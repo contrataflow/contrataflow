@@ -1,4 +1,10 @@
-import type { DfdDto, DfdMeta, DfdSummaryDto, DocumentAction } from '@contrataflow/validation';
+import type {
+  DfdDecisionDto,
+  DfdDto,
+  DfdMeta,
+  DfdSummaryDto,
+  DocumentAction,
+} from '@contrataflow/validation';
 
 import type { Document, TypedDocumentView } from '../../document/application/document.facade.js';
 import type { Dfd } from '../domain/dfd.js';
@@ -62,13 +68,18 @@ export function toDfdSummaryDto(
   };
 }
 
-/** `meta` do DFD-02/03: ações e a versão de template fixada no documento (seções e `fieldConfig`). */
+/**
+ * `meta` do DFD-02/03: ações e a versão de template fixada no documento (seções e `fieldConfig`); no
+ * DFD-03, também a decisão mais recente (US-017 · `DecisionBanner`).
+ */
 export function toDfdMeta(
   template: TypedDocumentView['template'],
   allowedActions: readonly DocumentAction[],
+  decision?: DfdDecisionDto | null,
 ): DfdMeta {
   return {
     allowedActions: [...allowedActions],
+    ...(decision === undefined ? {} : { decision }),
     template:
       template === null
         ? null

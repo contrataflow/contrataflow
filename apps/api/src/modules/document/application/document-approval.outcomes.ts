@@ -68,6 +68,12 @@ export interface ApprovalOutcomeInput {
   readonly analyzedVersionId: string;
 }
 
+/** Efeitos do módulo tipado na decisão de etapa (US-017), depois da mudança de etapa. */
+export interface TypedApprovalEffectsInput extends ApprovalOutcomeInput {
+  readonly decidedById: string;
+  readonly now: Date;
+}
+
 export interface ApprovalOutcomeResult {
   readonly document: Document;
   /** Enfileira o selo depois do commit (`null` = nada a enfileirar). */
@@ -125,6 +131,24 @@ export class DocumentApprovalOutcomes {
     };
     for (const listener of this.approvedListeners) await listener(tx, event);
     return { document, afterCommit };
+  }
+
+  /**
+   * US-017 ("efeito de decisão por tipo de documento"): o gancho `approvalDecided` do módulo tipado
+   * do documento coberto, no `tx` da decisão — chamado pelo dono do sujeito `PROCESS_STAGE` depois da
+   * mudança de etapa. Documento sem módulo tipado (ou sem gancho) = nada.
+   */
+  async applyTypedEffects(tx: TenantTx, input: TypedApprovalEffectsInput): Promise<void> {
+    const document = await this.documents.findById(tx, input.documentId);
+    if (document === null) throw new Error(`Documento coberto ${input.documentId} ausente.`);
+    const context = await this.lifecycle.loadFor(tx, document);
+    await this.lifecycle.approvalDecided(tx, context, {
+      approvalId: input.approvalId,
+      outcome: input.outcome,
+      analyzedVersionId: input.analyzedVersionId,
+      decidedById: input.decidedById,
+      now: input.now,
+    });
   }
 
   /** Documentos cobertos (na ordem da cobertura) e os autores; documento de fora do tenant some. */

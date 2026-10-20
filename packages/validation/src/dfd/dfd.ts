@@ -187,9 +187,30 @@ export type DfdTemplateSectionDto = z.infer<typeof dfdTemplateSectionSchema>;
  * template FIXADA no documento (seções, `helpText`, `legalBasis` e `fieldConfig`). Vem aqui porque o
  * TPL-07 exige `TEMPLATE_VIEW`, que a área requisitante não tem.
  */
+/** Desfechos da decisão de aprovação que o DFD exibe (US-017 · `DecisionBanner`). */
+export const DFD_DECISION_OUTCOMES = ['APPROVED', 'RETURNED', 'REJECTED'] as const;
+export type DfdDecisionOutcome = (typeof DFD_DECISION_OUTCOMES)[number];
+
+/**
+ * DFD-03 `meta.decision` (US-017): a decisão mais recente de uma aprovação que cobriu o DFD — o
+ * desfecho, o motivo informado pelo aprovador e quem decidiu. `null` = nunca decidido.
+ */
+export const dfdDecisionSchema = z
+  .object({
+    approvalId: z.uuid(),
+    outcome: z.enum(DFD_DECISION_OUTCOMES),
+    comment: z.string().nullable(),
+    decidedAt: isoDateTimeSchema,
+    decidedBy: z.object({ id: z.uuid(), name: z.string() }).nullable(),
+  })
+  .meta({ id: 'DfdDecision' });
+export type DfdDecisionDto = z.infer<typeof dfdDecisionSchema>;
+
 export const dfdMetaSchema = z
   .object({
     allowedActions: z.array(z.enum(DOCUMENT_ACTIONS)),
+    /** Só no DFD-03 (US-017); as demais respostas omitem. */
+    decision: dfdDecisionSchema.nullable().optional(),
     template: z
       .object({
         versionId: z.uuid(),

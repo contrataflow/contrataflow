@@ -41,7 +41,12 @@ function toResult(result: ApiResult<DfdDto>): DfdResult {
   const meta = result.meta as Partial<DfdMeta>;
   return {
     dfd: result.data,
-    meta: { allowedActions: meta.allowedActions ?? [], template: meta.template ?? null },
+    meta: {
+      allowedActions: meta.allowedActions ?? [],
+      template: meta.template ?? null,
+      // US-017: só o DFD-03 traz a decisão; as demais respostas a omitem.
+      ...(meta.decision === undefined ? {} : { decision: meta.decision }),
+    },
   };
 }
 

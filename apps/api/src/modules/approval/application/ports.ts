@@ -48,6 +48,15 @@ export interface ApprovalSummaryRow {
   readonly decision: ApprovalDecision | null;
 }
 
+/** A decisão mais recente que cobriu um documento (US-017 · DFD-03 `meta.decision`). */
+export interface DocumentDecisionRow {
+  readonly approvalId: string;
+  readonly status: 'APPROVED' | 'RETURNED' | 'REJECTED';
+  readonly decisionComment: string | null;
+  readonly decidedAt: Date;
+  readonly decidedById: string | null;
+}
+
 /** A aprovação com a cobertura (`ApprovalDocument`, na ordem de gravação). */
 export interface ApprovalWithCoverage {
   readonly approval: ApprovalRecord;
@@ -101,6 +110,11 @@ export interface ApprovalRepository {
   ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]>;
   /** Resumos das aprovações do tenant da transação por id, numa leitura; ids de fora não voltam. */
   summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]>;
+  /**
+   * US-017: a decisão (aprovada, devolvida ou indeferida) mais recente de uma aprovação que cobriu o
+   * documento — pela cobertura (`ApprovalDocument`) ou como sujeito da avulsa. `null` = nenhuma.
+   */
+  latestDecisionForDocument(tx: TenantTx, documentId: string): Promise<DocumentDecisionRow | null>;
   /** A aprovação cobre exatamente esta versão do documento (selo de aprovação — US-067)? */
   coversDocumentVersion(
     tx: TenantTx,

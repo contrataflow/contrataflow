@@ -38,7 +38,11 @@ const DECISION_STUBS = {
   findById: () => Promise.resolve(null),
   lockForUpdate: () => Promise.resolve(null),
   recordDecision: () => Promise.resolve(false),
-} satisfies Pick<ApprovalRepository, 'findById' | 'lockForUpdate' | 'recordDecision'>;
+  latestDecisionForDocument: () => Promise.resolve(null),
+} satisfies Pick<
+  ApprovalRepository,
+  'findById' | 'lockForUpdate' | 'recordDecision' | 'latestDecisionForDocument'
+>;
 
 describe('ApprovalFacade', () => {
   it('listPendingForProcess: as aprovações pendentes do processo, sem o comentário do pedido', async () => {

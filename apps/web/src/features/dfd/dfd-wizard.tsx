@@ -28,6 +28,7 @@ import type { DfdHeaderDraft } from './dfd-autosave';
 import { DfdAutosavePanels } from './dfd-autosave-panels';
 import { inApprovalOf } from './dfd-conclusion-model';
 import { DfdConclusionStep } from './dfd-conclusion-step';
+import { DecisionBanner } from './dfd-decision-banner';
 import { DfdIdentificationStep } from './dfd-identification-step';
 import { DfdJustificationStep } from './dfd-justification-step';
 import {
@@ -392,6 +393,14 @@ function LoadedWizard({
         timeZone={timeZone}
         sections={sections}
         templateSections={meta.template?.sections ?? []}
+      />
+      {/* US-017: o desfecho da aprovação, o motivo do aprovador e "Reabrir DFD". */}
+      <DecisionBanner
+        decision={meta.decision}
+        document={document}
+        dfdId={dfd.id}
+        allowedActions={meta.allowedActions}
+        timeZone={timeZone}
       />
       {allowed ? null : (
         <Alert tone="info" title={t('readOnly.title')}>

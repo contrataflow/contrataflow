@@ -6,11 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
-import {
-  ConfidentialBadge,
-  ConfidentialValue,
-  PriorityBadge,
-} from '../process-list/process-list-badges';
+import { EstimatedValueBadge } from './estimated-value-badge';
+import { ConfidentialBadge, PriorityBadge } from '../process-list/process-list-badges';
 import { ProcessStatusBadge } from '../processes/process-status-badge';
 import { TagChip } from '../tags/tag-chip';
 
@@ -81,14 +78,11 @@ export function ProcessHeader({
       ) : null}
       <p className="flex flex-wrap items-center gap-x-2 text-sm">
         <span className="text-muted-foreground">{t('header.estimatedValue')}:</span>
-        <ConfidentialValue value={header.estimatedValue} masked={header.estimatedValueMasked} />
-        {header.estimatedValueSource ? (
-          <span className="text-xs text-muted-foreground">
-            {t('header.valueSource', {
-              source: t(`header.sources.${header.estimatedValueSource}`),
-            })}
-          </span>
-        ) : null}
+        <EstimatedValueBadge
+          value={header.estimatedValue}
+          masked={header.estimatedValueMasked}
+          source={header.estimatedValueSource}
+        />
       </p>
     </header>
   );

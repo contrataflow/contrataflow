@@ -10,7 +10,7 @@ import type { StageApprovalRequest } from './approval-request.service.js';
 import { ApproverResolver } from './approver-resolver.js';
 import type { StageApprover } from './approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './ports.js';
-import type { ApprovalRepository, ApprovalSummaryRow } from './ports.js';
+import type { ApprovalRepository, ApprovalSummaryRow, DocumentDecisionRow } from './ports.js';
 import type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
 export type { CanceledApproval } from './approval-cancellation.service.js';
@@ -20,6 +20,9 @@ export type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.
 
 /** Resumo de uma aprovação vinculada a uma tramitação (US-054 · FA-03). */
 export type ApprovalSummaryFact = Omit<ApprovalSummaryRow, 'id'>;
+
+/** Decisão mais recente que cobriu um documento (US-017 · DFD-03 `meta.decision`). */
+export type DocumentDecisionFact = DocumentDecisionRow;
 
 /** Aprovação pendente como o painel situacional a mostra (US-004 · RN-PROC-48(2)/(7)). */
 export interface PendingApprovalFact {
@@ -147,6 +150,18 @@ export class ApprovalFacade {
       at,
       userId,
     });
+  }
+
+  /**
+   * US-017 (DFD-03 · `DecisionBanner`): a decisão mais recente de uma aprovação que cobriu o
+   * documento, com o motivo informado pelo aprovador, no `tx` do chamador. `null` = nunca decidido.
+   * A visibilidade do documento é de quem chama.
+   */
+  latestDecisionForDocumentIn(
+    tx: TenantTx,
+    documentId: string,
+  ): Promise<DocumentDecisionFact | null> {
+    return this.approvals.latestDecisionForDocument(tx, documentId);
   }
 
   /** Aprovações `PENDING` do processo (mais antigas primeiro), no `tx` do chamador. Leitura. */

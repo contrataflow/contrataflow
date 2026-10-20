@@ -11,7 +11,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import type { DocumentVersionRecord } from '../domain/document-snapshot.js';
 import type { DocumentTemplateVersion } from '../domain/document-template.js';
 import type { DocumentType } from '../domain/document-type.js';
-import type { Document } from '../domain/document.js';
+import type { ApprovalOutcome, Document } from '../domain/document.js';
 
 /*
  * Portas do ciclo de vida do documento (US-065): repositório de `documents`/`document_versions`
@@ -133,6 +133,26 @@ export interface DocumentFinalizedFacts {
 }
 
 /**
+ * O que o módulo tipado recebe na decisão da aprovação de etapa que cobre o seu documento (US-017 ·
+ * "efeito de decisão por tipo de documento"): o documento já está no status da decisão (DEC-018).
+ */
+export interface DocumentApprovalDecidedFacts {
+  readonly approvalId: string;
+  readonly outcome: ApprovalOutcome;
+  /** Versão exata analisada (`ApprovalDocument.documentVersionId`). */
+  readonly analyzedVersionId: string;
+  readonly decidedById: string;
+  readonly now: Date;
+}
+
+/** O que o módulo tipado recebe na reabertura do seu documento (DOC-12 · US-017 RN-DFD-69). */
+export interface DocumentReopenedFacts {
+  readonly fromStatus: Document['status'];
+  readonly actorId: string;
+  readonly now: Date;
+}
+
+/**
  * Porta de extensão dos módulos tipados (DFD, ETP, TR, mapa de riscos, pesquisa de preços — fora do
  * EP-011): declarada aqui, implementada pelo módulo dono e registrada no `onModuleInit` dele com
  * `DocumentFacade.registerValidator(...)`. Tudo roda no `tx` do caso de uso (RLS do tenant), sem
@@ -166,6 +186,22 @@ export interface DocumentValidator {
     tx: TenantTx,
     subject: DocumentValidationSubject,
     facts: DocumentFinalizedFacts,
+  ): Promise<void>;
+  /**
+   * Efeitos do módulo tipado na decisão da aprovação de etapa (US-017 — o DFD propaga valor, PCA,
+   * prioridade e quantidades ao processo), no `tx` da decisão (US-052), DEPOIS da mudança de etapa.
+   * Falha aqui desfaz a decisão inteira. `subject.document` já está no status da decisão.
+   */
+  approvalDecided?(
+    tx: TenantTx,
+    subject: DocumentValidationSubject,
+    facts: DocumentApprovalDecidedFacts,
+  ): Promise<void>;
+  /** Efeitos do módulo tipado na reabertura (DOC-12), no MESMO `tx`, depois do documento salvo. */
+  reopened?(
+    tx: TenantTx,
+    subject: DocumentValidationSubject,
+    facts: DocumentReopenedFacts,
   ): Promise<void>;
 }
 

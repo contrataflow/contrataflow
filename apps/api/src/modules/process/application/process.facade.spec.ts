@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { runWithRequestContext, updateRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import type { ProcessDfdApprovalSync } from './process-dfd-approval.sync.js';
 import type { ProcessDfdDuplication } from './process-dfd-duplication.js';
 import type { ProcessListPresenter } from './process-list.presenter.js';
 import { ProcessFacade } from './process.facade.js';
@@ -68,6 +69,7 @@ describe('ProcessFacade (US-001 · fontes PROCESS e PROCESS_STAGE da timeline)',
     {} as ProcessDfdDuplication,
     {} as ProcessListPresenter,
     new InMemoryProcessItemRepository(),
+    {} as ProcessDfdApprovalSync,
   );
   const viewer = (
     userId: string,

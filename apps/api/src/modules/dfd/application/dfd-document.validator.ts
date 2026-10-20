@@ -5,11 +5,14 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 
+import { ApplyDfdApprovalEffectsHandler } from './dfd-approval-effects.js';
 import { DFD_CLOCK, DFD_REPOSITORY } from './ports.js';
 import type { DfdClock, DfdRepository } from './ports.js';
 import { NumberingFacade } from '../../catalog/application/numbering.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import type {
+  DocumentApprovalDecidedFacts,
+  DocumentReopenedFacts,
   DocumentValidationSubject,
   DocumentValidator,
   TypedSnapshotParts,
@@ -41,7 +44,26 @@ export class DfdDocumentValidator implements DocumentValidator {
     private readonly identity: IdentityFacade,
     private readonly organization: OrganizationFacade,
     private readonly numbering: NumberingFacade,
+    private readonly effects: ApplyDfdApprovalEffectsHandler,
   ) {}
+
+  /** US-017: o efeito da decisão de `APROVACAO_DFD` (no `tx` da decisão — RN-DFD-62). */
+  approvalDecided(
+    tx: TenantTx,
+    subject: DocumentValidationSubject,
+    facts: DocumentApprovalDecidedFacts,
+  ): Promise<void> {
+    return this.effects.approvalDecided(tx, subject, facts);
+  }
+
+  /** US-017 (RN-DFD-69): reaberto, o wizard volta à revisão. */
+  reopened(
+    tx: TenantTx,
+    subject: DocumentValidationSubject,
+    facts: DocumentReopenedFacts,
+  ): Promise<void> {
+    return this.effects.reopened(tx, subject, facts);
+  }
 
   async validate(tx: TenantTx, subject: DocumentValidationSubject): Promise<readonly Violation[]> {
     const startedAt = performance.now();

@@ -213,6 +213,30 @@ export class PrismaProcessItemRepository implements ProcessItemRepository {
          AND i.process_id = ${processId}::uuid
          AND i.id = c.id AND i.deleted_at IS NULL`;
   }
+
+  async updateReferenceQuantities(
+    tx: TenantTx,
+    processId: string,
+    input: {
+      readonly lines: readonly { readonly itemId: string; readonly quantity: string }[];
+      readonly sourceDocumentId: string;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number> {
+    if (input.lines.length === 0) return 0;
+    const ids = input.lines.map((line) => line.itemId);
+    const quantities = input.lines.map((line) => line.quantity);
+    return tx.$executeRaw`
+      UPDATE process_items i
+         SET reference_quantity = c.quantity::numeric,
+             reference_quantity_source_document_id = ${input.sourceDocumentId}::uuid,
+             updated_at = ${input.at}, updated_by_id = ${input.userId}::uuid
+        FROM unnest(${ids}::uuid[], ${quantities}::text[]) AS c(id, quantity)
+       WHERE i.tenant_id = current_setting('app.tenant_id')::uuid
+         AND i.process_id = ${processId}::uuid
+         AND i.id = c.id AND i.deleted_at IS NULL`;
+  }
 }
 
 interface StoredItem extends ProcessItem {
@@ -392,6 +416,33 @@ export class InMemoryProcessItemRepository implements ProcessItemRepository {
         ...current,
         referenceUnitPrice: new Decimal(line.unitPrice).toFixed(4),
         referenceUnitPriceSourceDocumentId: input.sourceDocumentId,
+        updatedAt: input.at,
+        updatedById: input.userId,
+      });
+      updated += 1;
+    }
+    return Promise.resolve(updated);
+  }
+
+  updateReferenceQuantities(
+    _tx: TenantTx,
+    processId: string,
+    input: {
+      readonly lines: readonly { readonly itemId: string; readonly quantity: string }[];
+      readonly sourceDocumentId: string;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number> {
+    const active = new Map(this.active(processId).map((item) => [item.id, item]));
+    let updated = 0;
+    for (const line of input.lines) {
+      const current = active.get(line.itemId);
+      if (current === undefined) continue;
+      this.items.set(line.itemId, {
+        ...current,
+        referenceQuantity: new Decimal(line.quantity).toFixed(4),
+        referenceQuantitySourceDocumentId: input.sourceDocumentId,
         updatedAt: input.at,
         updatedById: input.userId,
       });

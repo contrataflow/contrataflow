@@ -22,6 +22,11 @@ import type {
   ProcessParticipantRepository,
   ProcessRepository,
 } from './ports.js';
+import { ProcessDfdApprovalSync } from './process-dfd-approval.sync.js';
+import type {
+  DfdApprovalPropagationInput,
+  DfdApprovalPropagationResult,
+} from './process-dfd-approval.sync.js';
 import { ProcessDfdDuplication } from './process-dfd-duplication.js';
 import type {
   CloneItemsForDfdInput,
@@ -35,6 +40,8 @@ import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import { acceptsDerivedEstimatedValue } from '../domain/derived-estimated-value.js';
 import { canViewConfidentialBudget } from '../domain/process-list.js';
+
+export type { DfdApprovalPropagationInput, DfdApprovalPropagationResult };
 
 const HISTORICAL_SETTING = 'access.historicalDepartmentsCanView';
 
@@ -133,7 +140,20 @@ export class ProcessFacade {
     private readonly dfdDuplication: ProcessDfdDuplication,
     private readonly listPresenter: ProcessListPresenter,
     @Inject(PROCESS_ITEM_REPOSITORY) private readonly items: ProcessItemRepository,
+    private readonly dfdApproval: ProcessDfdApprovalSync,
   ) {}
+
+  /**
+   * Aprovação do DFD (US-017 · RN-DFD-62..66), no `tx` da decisão (US-052) e depois da mudança de
+   * etapa: valor estimado (DEC-032), PCA, prioridade e `referenceQuantity` dos itens do DFD, com
+   * `process.update`/`process.items_update` (`metadata.source = DFD_APPROVAL`) e os eventos.
+   */
+  applyDfdApprovalIn(
+    tx: TenantTx,
+    input: DfdApprovalPropagationInput,
+  ): Promise<DfdApprovalPropagationResult> {
+    return this.dfdApproval.apply(tx, input);
+  }
 
   /**
    * Conclusão da pesquisa de preços (US-032 · DEC-019/DEC-032 · RN-PRICE-61/62), no `tx` do

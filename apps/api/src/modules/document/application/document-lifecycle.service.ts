@@ -34,6 +34,8 @@ import type {
   DocumentFinalizedFacts,
   DocumentRepository,
   DocumentValidationSubject,
+  DocumentApprovalDecidedFacts,
+  DocumentReopenedFacts,
   TypedSnapshotParts,
 } from './document.ports.js';
 import { DOCUMENT_TYPE_REPOSITORY } from './ports.js';
@@ -418,6 +420,28 @@ export class DocumentLifecycleService {
     const validator = this.validators.find(context.type.systemModule);
     if (!validator?.typedSummary) return null;
     return validator.typedSummary(tx, this.subjectOf(context));
+  }
+
+  /** Gancho `approvalDecided` do módulo tipado (US-017), no `tx` da decisão; sem gancho, nada. */
+  async approvalDecided(
+    tx: TenantTx,
+    context: DocumentContext,
+    facts: DocumentApprovalDecidedFacts,
+  ): Promise<void> {
+    const validator = this.validators.find(context.type.systemModule);
+    if (!validator?.approvalDecided) return;
+    await validator.approvalDecided(tx, this.subjectOf(context), facts);
+  }
+
+  /** Gancho `reopened` do módulo tipado (US-017 · DOC-12), no `tx` da reabertura; sem gancho, nada. */
+  async reopened(
+    tx: TenantTx,
+    context: DocumentContext,
+    facts: DocumentReopenedFacts,
+  ): Promise<void> {
+    const validator = this.validators.find(context.type.systemModule);
+    if (!validator?.reopened) return;
+    await validator.reopened(tx, this.subjectOf(context), facts);
   }
 
   /** Gancho `finalized` do módulo tipado (US-032), no `tx` da finalização; sem gancho, nada. */

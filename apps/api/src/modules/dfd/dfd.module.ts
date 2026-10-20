@@ -4,6 +4,7 @@ import type { OnModuleInit } from '@nestjs/common';
 import { APP_CONFIG } from '#config/config.module.js';
 import type { AppConfig } from '#config/env.js';
 
+import { ApplyDfdApprovalEffectsHandler } from './application/dfd-approval-effects.js';
 import { DfdDocumentCreator } from './application/dfd-document.creator.js';
 import { DfdDocumentValidator } from './application/dfd-document.validator.js';
 import { DfdRuleContextContributor } from './application/dfd-rule-context.js';
@@ -20,6 +21,7 @@ import {
   PrismaDfdTransactions,
 } from './infrastructure/dfd.repositories.js';
 import { DfdController } from './presentation/dfd.controller.js';
+import { ApprovalModule } from '../approval/approval.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { DocumentFacade } from '../document/application/document.facade.js';
 import { DocumentModule } from '../document/document.module.js';
@@ -42,6 +44,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
  */
 @Module({
   imports: [
+    ApprovalModule,
     CatalogModule,
     DocumentModule,
     FilesModule,
@@ -60,6 +63,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     GetDfdQuery,
     ListProcessDfdsQuery,
     DfdDocumentValidator,
+    ApplyDfdApprovalEffectsHandler,
     DfdRuleContextContributor,
     PrismaDfdRepository,
     PrismaDfdTransactions,

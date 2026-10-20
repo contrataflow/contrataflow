@@ -2418,6 +2418,9 @@
               ]
             }
           },
+          "decision": {
+            "$ref": "#/components/schemas/DfdDecision"
+          },
           "template": {
             "type": [
               "object",
@@ -2513,6 +2516,62 @@
         "required": [
           "allowedActions",
           "template"
+        ]
+      },
+      "DfdDecision": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "approvalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "RETURNED",
+              "REJECTED"
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "approvalId",
+          "outcome",
+          "comment",
+          "decidedAt",
+          "decidedBy"
         ]
       },
       "DfdPatchRequest": {
@@ -27717,7 +27776,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Cabeçalho do DFD, resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07) e `meta.allowedActions`; estimativa mascarada (`estimatedValueMasked`) sem POL-09 em processo sigiloso. `ETag` = versão do DFD. Inexistente, de outro tenant ou não visível = 404 `DFD_NOT_FOUND`.",
+            "description": "Cabeçalho do DFD, resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07) e `meta.allowedActions`; estimativa mascarada (`estimatedValueMasked`) sem POL-09 em processo sigiloso. `meta.decision` (US-017) = a decisão mais recente de uma aprovação que cobriu o DFD (`outcome` `APPROVED`/`RETURNED`/`REJECTED`, `comment` = o motivo do aprovador, `decidedAt`, `decidedBy`) ou `null`. `ETag` = versão do DFD. Inexistente, de outro tenant ou não visível = 404 `DFD_NOT_FOUND`.",
             "content": {
               "application/json": {
                 "schema": {

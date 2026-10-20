@@ -13,6 +13,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession } from '@/lib/session/session-context';
 
+import { CancelSuggestionCallout } from './cancel-suggestion-callout';
 import { ProcessActionBar } from './process-action-bar';
 import { ProcessDataCard } from './process-data-card';
 import { PROCESS_STATUS_HEADER_ID, ProcessHeader } from './process-header';
@@ -376,6 +377,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
       ) : null}
       {stale.conflict ? <Alert tone="info" title={t('actions.conflict')} /> : null}
       <SuspendedBanner where={data.where} timeZone={timeZone} />
+      {/* US-017 · RN-DFD-68: DFD indeferido — sugestão de cancelamento (PEND-02). */}
+      <CancelSuggestionCallout summary={data} />
       <ProcessActionBar
         summary={data}
         actions={actions.data}

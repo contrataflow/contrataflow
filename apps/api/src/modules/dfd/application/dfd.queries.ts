@@ -1,12 +1,15 @@
-import type { DfdDto, DfdMeta, DfdSummaryDto } from '@contrataflow/validation';
+import type { DfdDecisionDto, DfdDto, DfdMeta, DfdSummaryDto } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
+import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { toDfdDto, toDfdMeta, toDfdSummaryDto } from './dfd.presenter.js';
 import { DFD_REPOSITORY, DFD_TRANSACTIONS } from './ports.js';
 import type { DfdRepository, DfdTransactions } from './ports.js';
+import { ApprovalFacade } from '../../approval/application/approval.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
+import { IdentityFacade } from '../../identity/application/identity.facade.js';
 
 /*
  * Consultas do DFD (US-014 · DFD-01/DFD-03): `PROCESS_VIEW` pela visibilidade do processo
@@ -29,9 +32,14 @@ export class GetDfdQuery {
     @Inject(DFD_TRANSACTIONS) private readonly transactions: DfdTransactions,
     @Inject(DFD_REPOSITORY) private readonly dfds: DfdRepository,
     private readonly documents: DocumentFacade,
+    private readonly approvals: ApprovalFacade,
+    private readonly identity: IdentityFacade,
   ) {}
 
-  /** DFD-03: o cabeçalho, o resumo do documento e `meta.allowedActions` (POL-09 na estimativa). */
+  /**
+   * DFD-03: o cabeçalho, o resumo do documento, `meta.allowedActions` (POL-09 na estimativa) e
+   * `meta.decision` — a decisão mais recente com o motivo do aprovador (US-017).
+   */
   execute(dfdId: string): Promise<DfdView> {
     return this.transactions.read(async (tx) => {
       const dfd = await this.dfds.findById(tx, dfdId);
@@ -42,9 +50,30 @@ export class GetDfdQuery {
         dto: toDfdDto(dfd, view.document, {
           masked: view.isBudgetConfidential && !view.canViewConfidentialBudget,
         }),
-        meta: toDfdMeta(view.template, view.allowedActions),
+        meta: toDfdMeta(
+          view.template,
+          view.allowedActions,
+          await this.decisionOf(tx, dfd.documentId),
+        ),
       };
     });
+  }
+
+  private async decisionOf(tx: TenantTx, documentId: string): Promise<DfdDecisionDto | null> {
+    const decision = await this.approvals.latestDecisionForDocumentIn(tx, documentId);
+    if (decision === null) return null;
+    const { decidedById } = decision;
+    const name =
+      decidedById === null
+        ? null
+        : ((await this.identity.userDisplayNames(tx, [decidedById])).get(decidedById) ?? null);
+    return {
+      approvalId: decision.approvalId,
+      outcome: decision.status,
+      comment: decision.decisionComment,
+      decidedAt: decision.decidedAt.toISOString(),
+      decidedBy: decidedById === null ? null : { id: decidedById, name: name ?? decidedById },
+    };
   }
 }
 

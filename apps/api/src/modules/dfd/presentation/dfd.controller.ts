@@ -131,7 +131,7 @@ export class DfdController {
     responses: {
       200: {
         description:
-          'Cabeçalho do DFD, resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07) e `meta.allowedActions`; estimativa mascarada (`estimatedValueMasked`) sem POL-09 em processo sigiloso. `ETag` = versão do DFD. Inexistente, de outro tenant ou não visível = 404 `DFD_NOT_FOUND`.',
+          'Cabeçalho do DFD, resumo do documento (código, status, `documentVersion` — o `If-Match` do DOC-07) e `meta.allowedActions`; estimativa mascarada (`estimatedValueMasked`) sem POL-09 em processo sigiloso. `meta.decision` (US-017) = a decisão mais recente de uma aprovação que cobriu o DFD (`outcome` `APPROVED`/`RETURNED`/`REJECTED`, `comment` = o motivo do aprovador, `decidedAt`, `decidedBy`) ou `null`. `ETag` = versão do DFD. Inexistente, de outro tenant ou não visível = 404 `DFD_NOT_FOUND`.',
         schema: DFD_RESPONSE,
       },
     },

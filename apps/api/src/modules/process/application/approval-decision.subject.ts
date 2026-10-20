@@ -73,7 +73,8 @@ import type { Process } from '../domain/process.js';
  * - `applyDecision`: o status de cada documento coberto (DEC-018, selo `APPROVAL_STAMPED`), a
  *   submissão dos cobertos da próxima etapa `APPROVAL`, a mudança de etapa (`StageTransitionService`
  *   — tramitação `APPROVE`/`RETURN`/`REJECT` com a aprovação; destino `END` conclui o processo —
- *   DOM-09) e a nova aprovação encadeada (US-051).
+ *   DOM-09), o efeito do tipo de cada documento coberto (US-017 — o DFD propaga valor, PCA,
+ *   prioridade e quantidades) e a nova aprovação encadeada (US-051).
  */
 
 const CAUSE_OF: Readonly<Record<ApprovalDecision, StageChangeCause>> = {
@@ -378,6 +379,19 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
       toStage: { key: toStage.key, type: toStage.type },
       requestedApprovalId: chainedApprovalId,
     });
+
+    // US-017: o efeito do tipo de cada documento coberto (o DFD propaga ao processo), DEPOIS da
+    // mudança de etapa — grava sobre a versão que a transição deixou, no mesmo `tx`.
+    for (const item of subject.coverage) {
+      await this.documents.applyApprovalEffectsIn(tx, {
+        documentId: item.documentId,
+        approvalId: subject.approvalId,
+        outcome: OUTCOME_OF[decision],
+        analyzedVersionId: item.documentVersionId,
+        decidedById: input.decidedById,
+        now,
+      });
+    }
 
     // US-010 · RN-PROC-115: `process.complete` (cause APPROVAL, completedById = aprovador).
     const { completion } = transitionPlan;

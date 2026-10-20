@@ -92,7 +92,7 @@ Dfd {
 | 404 | `DFD_NOT_FOUND` | Inexistente, outro tenant ou não visível |
 
 - **Efeitos:** —
-- **Notas:** —
+- **Notas:** **US-017 (2026-10-20):** `meta.decision` = a decisão mais recente de uma aprovação que cobriu o DFD — `{ approvalId, outcome: 'APPROVED'|'RETURNED'|'REJECTED', comment (motivo do aprovador), decidedAt, decidedBy: { id, name } | null }` — ou `null` (nunca decidido); só no DFD-03 (as demais respostas omitem). Alimenta o `DecisionBanner` da SCR-007.
 
 ### DFD-04 — Atualizar cabeçalho do DFD
 `PATCH /api/v1/dfds/{id}` · **Permissão:** `DFD_UPDATE` + POL-02 · **Story:** US-015

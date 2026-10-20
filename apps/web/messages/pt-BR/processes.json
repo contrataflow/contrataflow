@@ -169,6 +169,10 @@
   },
   "panel": {
     "loading": "Carregando o processo…",
+    "cancelSuggestion": {
+      "title": "Considere cancelar este processo",
+      "body": "O DFD foi indeferido. Se a demanda não for mais necessária, cancele o processo pelo menu \"Mais\"; para seguir, reabra o DFD e ajuste a demanda."
+    },
     "noNumber": "Rascunho (sem número)",
     "backToList": "Processos",
     "header": {

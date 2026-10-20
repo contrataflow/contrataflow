@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   applyDfdPatch,
   createDfdFromProcess,
+  dfdApprovalPropagation,
   dfdHeaderValues,
   duplicateDfd,
   isInSecretariat,
   normalizeCompletedSteps,
+  returnDfdToReview,
 } from './dfd.js';
 import type { DfdProcessSource } from './dfd.js';
 
@@ -288,5 +290,40 @@ describe('duplicateDfd (US-018 · RN-DFD-76/77)', () => {
   it('estimativa só é copiada quando permitido (POL-09)', () => {
     const copy = duplicateDfd(from(), { ...duplicateInput, copyEstimatedValue: false });
     expect(copy.estimatedValue).toBeNull();
+  });
+});
+
+describe('efeitos da decisão no DFD (US-017 · RN-DFD-63..69)', () => {
+  const approved = {
+    ...createDfdFromProcess(PROCESS, input),
+    estimatedValue: '15000.00',
+    wizardStep: 'CONCLUSION' as const,
+    completedSteps: ['IDENTIFICATION', 'JUSTIFICATION', 'PLANNING', 'REVIEW'] as const,
+  };
+
+  it('dfdApprovalPropagation: valor, prioridade e PCA do DFD aprovado', () => {
+    expect(dfdApprovalPropagation(approved)).toEqual({
+      estimatedValue: '15000.00',
+      priority: 'HIGH',
+      pcaStatus: 'PLANNED',
+      pcaYear: 2026,
+      pcaItemCode: 'PCA-12',
+      pcaJustification: null,
+    });
+  });
+
+  it('returnDfdToReview: volta ao passo REVIEW e preserva os passos concluídos; já na revisão = null', () => {
+    const later = new Date('2026-10-20T12:00:00.000Z');
+    const back = returnDfdToReview(approved, { actorId: 'marta', now: later });
+    expect(back).toMatchObject({
+      wizardStep: 'REVIEW',
+      completedSteps: ['IDENTIFICATION', 'JUSTIFICATION', 'PLANNING', 'REVIEW'],
+      updatedAt: later,
+      updatedById: 'marta',
+      version: approved.version,
+    });
+    expect(
+      returnDfdToReview({ ...approved, wizardStep: 'REVIEW' }, { actorId: 'x', now: later }),
+    ).toBeNull();
   });
 });

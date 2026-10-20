@@ -543,6 +543,12 @@ export class ReopenDocumentCommand extends DocumentTransitionCommand<ReopenDocum
       reopenDocument(document, { actorId, now, reason: input.reason, baseSections }),
     );
     const saved = await this.lifecycle.save(tx, next, input.expectedVersion);
+    // US-017 (RN-DFD-69): efeitos do módulo tipado na reabertura (o DFD volta à revisão).
+    await this.lifecycle.reopened(
+      tx,
+      { ...context, document: saved },
+      { fromStatus: document.status, actorId, now },
+    );
     await this.audit.record(tx, {
       action: 'document.reopen',
       entityType: 'Document',

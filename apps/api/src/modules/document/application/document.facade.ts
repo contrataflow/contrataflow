@@ -27,6 +27,7 @@ import type {
   ApprovalOutcomeResult,
   CoverageFacts,
   DocumentApprovedListener,
+  TypedApprovalEffectsInput,
 } from './document-approval.outcomes.js';
 import type {
   ApprovalDecisionInput,
@@ -68,7 +69,9 @@ import { draftContentCopy, isEditable, updateDocumentHeader } from '../domain/do
 import type { Document } from '../domain/document.js';
 
 export type {
+  DocumentApprovalDecidedFacts,
   DocumentFinalizedFacts,
+  DocumentReopenedFacts,
   DocumentValidationSubject,
   DocumentValidator,
   TypedSnapshotParts,
@@ -80,6 +83,7 @@ export type {
   ApprovalOutcomeResult,
   CoverageFacts,
   DocumentApprovedHookEvent,
+  TypedApprovalEffectsInput,
 } from './document-approval.outcomes.js';
 export type { PublishedTemplateOption } from './structured-document.creator.js';
 export type {
@@ -579,6 +583,14 @@ export class DocumentFacade {
     input: ApprovalOutcomeInput,
   ): Promise<ApprovalOutcomeResult> {
     return this.outcomes.apply(tx, input);
+  }
+
+  /**
+   * US-017: os efeitos do módulo tipado (ex.: o DFD propaga ao processo) na decisão da aprovação de
+   * etapa, no `tx` da decisão e depois da mudança de etapa. Falha desfaz a decisão inteira.
+   */
+  applyApprovalEffectsIn(tx: TenantTx, input: TypedApprovalEffectsInput): Promise<void> {
+    return this.outcomes.applyTypedEffects(tx, input);
   }
 
   /**

@@ -227,6 +227,8 @@ export interface ItemsChangeRecord {
   readonly removed: readonly string[];
   readonly itemsCount: number;
   readonly processVersion: number;
+  /** Metadados extras da auditoria (US-017: `source = DFD_APPROVAL`, `sourceDocumentId`). */
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 const audited = (field: string, value: unknown) =>
@@ -256,6 +258,7 @@ export class ProcessItemsChangeRecorder {
         operation: change.operation,
         itemsCount: change.itemsCount,
         version: change.processVersion,
+        ...change.metadata,
       },
     });
     await this.outbox.record(

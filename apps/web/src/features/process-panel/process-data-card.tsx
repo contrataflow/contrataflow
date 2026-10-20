@@ -6,8 +6,8 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId } from 'react';
 
+import { EstimatedValueBadge } from './estimated-value-badge';
 import { PanelError } from '../process-actions/panel-error';
-import { ConfidentialValue } from '../process-list/process-list-badges';
 
 /** "Dados do processo" (PRC-04): objeto, catálogos, fluxo e valor estimado (mascarado — POL-09). */
 export function ProcessDataCard({ query }: { readonly query: UseQueryResult<ProcessDto> }) {
@@ -51,9 +51,11 @@ export function ProcessDataCard({ query }: { readonly query: UseQueryResult<Proc
         <div className="contents">
           <dt className="text-muted-foreground">{t('estimatedValue')}</dt>
           <dd>
-            <ConfidentialValue
+            {/* US-017: o valor propagado pela aprovação do DFD sai com a origem "DFD". */}
+            <EstimatedValueBadge
               value={process.estimatedValue}
               masked={process.estimatedValueMasked}
+              source={process.estimatedValueSource}
             />
           </dd>
         </div>

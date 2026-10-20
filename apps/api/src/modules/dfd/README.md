@@ -28,7 +28,7 @@ padrão aqui é o que ETP, TR, pesquisa de preços e mapa de riscos repetem.
   não vê o orçamento (`DocumentFacade.typedDocumentIn` → `canViewConfidentialBudget`).
 - **Testes**: `domain/dfd.spec.ts`, `presentation/dfd.routes.spec.ts` (8 categorias do Gherkin +
   FA-02/05/06/09/10/11) e `test/tenant-leak/dfds.spec.ts` (PostgreSQL).
-- **Fora desta story**: conclusão/envio = US-016 (abaixo); devolução = US-017; duplicação = US-018.
+- **Fora desta story**: conclusão/envio = US-016 (abaixo); decisão/devolução = US-017; duplicação = US-018.
 
 ## US-015 — Autosave do cabeçalho (DFD-04)
 
@@ -72,6 +72,29 @@ padrão aqui é o que ETP, TR, pesquisa de preços e mapa de riscos repetem.
   faixa "Em aprovação" e "Baixar PDF (versão N)") e as regras puras em `dfd-conclusion-model.ts`.
 - **Testes:** `process/presentation/dfd-conclusion.routes.spec.ts` (8 categorias) e
   `test/tenant-leak/dfd-conclusion.spec.ts` (PostgreSQL: transação única, falha induzida, tenant).
+
+## US-017 — Efeitos da decisão sobre o DFD (APV-03 · DFD-03 · DOC-12)
+
+- **Sem rota própria:** a decisão é o APV-03 da US-052. O efeito do tipo entra pelo gancho
+  `approvalDecided` do `DocumentValidator` (`DfdDocumentValidator` → `ApplyDfdApprovalEffectsHandler`),
+  que o `ProcessApprovalSubjectHandler` chama para cada documento coberto DEPOIS da mudança de etapa,
+  no `tx` da decisão (RN-DFD-62 — qualquer falha desfaz a decisão inteira; a avulsa não aciona).
+- **APPROVED** (RN-DFD-63..66): `ProcessFacade.applyDfdApprovalIn` — `syncFromDfd` (valor só sobre
+  origem `MANUAL`/`DFD`/nula — DEC-032; PCA e prioridade sempre) e `referenceQuantityUpdates`
+  (`ProcessItem.referenceQuantity` + origem = o documento do DFD, sem `version + 1` do item);
+  `process.update` e `process.items_update` com `metadata.source = DFD_APPROVAL` (valor sigiloso como
+  hash + `masked`), `ProcessUpdated`/`ProcessItemsChanged` (timeline no mesmo `tx`). Logs
+  `dfd.approval_effects_applied`/`_skipped_precedence`/`_failed`, span `dfd.approval_effects`,
+  métrica `dfd_decision_effects_total{outcome}`.
+- **RETURNED:** nada vai ao processo; o wizard volta a `REVIEW` (passos concluídos preservados).
+  **REJECTED:** nada muda no DFD; a reabertura (DOC-12, gancho `reopened`) volta o wizard a `REVIEW`.
+- **DFD-03 `meta.decision`:** a decisão mais recente (`ApprovalFacade.latestDecisionForDocumentIn`)
+  com o motivo do aprovador e o nome de quem decidiu.
+- **Front:** `apps/web/src/features/dfd/dfd-decision-banner.tsx` (`DecisionBanner` + "Reabrir DFD"),
+  `process-panel/cancel-suggestion-callout.tsx` e `process-panel/estimated-value-badge.tsx`.
+- **Testes:** `process/presentation/dfd-decision.routes.spec.ts` (8 categorias), `process/domain/process-dfd-sync.spec.ts`
+  e `test/tenant-leak/dfd-decision-effects.spec.ts` (PostgreSQL: falha induzida depois de gravar a
+  quantidade desfaz tudo; RLS; outbox `PENDING`).
 
 ## US-018 — Duplicar DFD (DFD-05)
 

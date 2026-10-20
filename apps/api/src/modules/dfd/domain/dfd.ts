@@ -234,3 +234,37 @@ export function applyDfdPatch(
     changes,
   };
 }
+
+/** Os dados do DFD aprovado que o processo recebe (US-017 · RN-DFD-63..66). */
+export interface DfdApprovalPropagation {
+  readonly estimatedValue: string | null;
+  readonly priority: Priority;
+  readonly pcaStatus: PcaStatus;
+  readonly pcaYear: number | null;
+  readonly pcaItemCode: string | null;
+  readonly pcaJustification: string | null;
+}
+
+/** RN-DFD-63..66: valor estimado, prioridade e situação no PCA do DFD aprovado. */
+export function dfdApprovalPropagation(dfd: Dfd): DfdApprovalPropagation {
+  return {
+    estimatedValue: dfd.estimatedValue,
+    priority: dfd.priority,
+    pcaStatus: dfd.pcaStatus,
+    pcaYear: dfd.pcaYear,
+    pcaItemCode: dfd.pcaItemCode,
+    pcaJustification: dfd.pcaJustification,
+  };
+}
+
+/**
+ * RN-DFD-67/69: devolvido ou reaberto, o wizard volta ao passo `REVIEW` com `completedSteps`
+ * preservado. `null` = já está na revisão (nada a gravar).
+ */
+export function returnDfdToReview(
+  dfd: Dfd,
+  stamp: { readonly actorId: string; readonly now: Date },
+): Dfd | null {
+  if (dfd.wizardStep === 'REVIEW') return null;
+  return { ...dfd, wizardStep: 'REVIEW', updatedAt: stamp.now, updatedById: stamp.actorId };
+}

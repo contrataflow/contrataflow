@@ -463,6 +463,21 @@ export interface ProcessItemRepository {
       readonly userId: string;
     },
   ): Promise<number>;
+  /**
+   * DEC-019 (US-017 · RN-DFD-64): `referenceQuantity` e `referenceQuantitySourceDocumentId` dos itens
+   * não excluídos do processo, gravados pela aprovação do documento com itens (nunca pelo PATCH do
+   * item). Campos do sistema: sem `version + 1` do item. Devolve quantos itens foram gravados.
+   */
+  updateReferenceQuantities(
+    tx: TenantTx,
+    processId: string,
+    input: {
+      readonly lines: readonly { readonly itemId: string; readonly quantity: string }[];
+      readonly sourceDocumentId: string;
+      readonly at: Date;
+      readonly userId: string;
+    },
+  ): Promise<number>;
 }
 
 export const PROCESS_ITEM_REPOSITORY = Symbol('ProcessItemRepository');
