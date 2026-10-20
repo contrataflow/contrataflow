@@ -15,13 +15,14 @@ import { MfaStatusBadge } from './mfa-status-badge';
 import { NotificationPreferencesGrid } from './notification-preferences-grid';
 import {
   PROFILE_DENSITIES,
+  PROFILE_TABS,
   PROFILE_THEMES,
   buildPatch,
   isDirty,
   toDraft,
   validateDraft,
 } from './profile-model';
-import type { ProfileDraft, ProfileField } from './profile-model';
+import type { ProfileDraft, ProfileField, ProfileTab } from './profile-model';
 import { PROFILE_STALE_TIME_MS, fetchMyProfile, profileKeys, updateMyProfile } from './profile.api';
 
 const INPUT =
@@ -32,15 +33,6 @@ export interface AuthentikLinks {
   readonly password: string | null;
   /** Dispositivos de autenticação em duas etapas no Authentik. */
   readonly mfa: string | null;
-}
-
-/** Abas de SCR-039; `/perfil?aba=notificacoes` abre a segunda (atalho do sininho — US-113). */
-export const PROFILE_TABS = ['general', 'notifications'] as const;
-export type ProfileTab = (typeof PROFILE_TABS)[number];
-
-/** Valor de `?aba=` → aba; qualquer outro valor cai na primeira. */
-export function profileTabFromParam(param: string | undefined): ProfileTab {
-  return param === 'notificacoes' ? 'notifications' : 'general';
 }
 
 /**

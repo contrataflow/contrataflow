@@ -12,6 +12,19 @@ import type { MyProfileDto, UpdateMyProfile } from '@contrataflow/validation';
  * `updateMyProfileSchema` da API (RN-IAM-109) e o corpo do `PATCH /me` só com o que mudou.
  */
 
+/**
+ * Abas de SCR-039; `/perfil?aba=notificacoes` abre a segunda (atalho do sininho — US-113).
+ * Fica aqui, fora do módulo `'use client'` da tela, porque a página (componente de servidor) resolve
+ * a aba inicial a partir do `searchParams`.
+ */
+export const PROFILE_TABS = ['general', 'notifications'] as const;
+export type ProfileTab = (typeof PROFILE_TABS)[number];
+
+/** Valor de `?aba=` → aba; qualquer outro valor cai na primeira. */
+export function profileTabFromParam(param: string | undefined): ProfileTab {
+  return param === 'notificacoes' ? 'notifications' : 'general';
+}
+
 export interface ProfileDraft {
   readonly name: string;
   readonly socialName: string;

@@ -1,5 +1,6 @@
 import { bffRuntime } from '@/bff/runtime';
-import { ProfileView, profileTabFromParam } from '@/features/profile/profile-view';
+import { profileTabFromParam } from '@/features/profile/profile-model';
+import { ProfileView } from '@/features/profile/profile-view';
 import type { AuthentikLinks } from '@/features/profile/profile-view';
 
 /**

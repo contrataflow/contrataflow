@@ -9,7 +9,13 @@ import { seriousA11yViolations } from '@test/support/axe';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
 import { PreferencesApplier } from './preferences-applier';
-import { buildPatch, displayNameOf, toDraft, validateDraft } from './profile-model';
+import {
+  buildPatch,
+  displayNameOf,
+  profileTabFromParam,
+  toDraft,
+  validateDraft,
+} from './profile-model';
 import { ProfileView } from './profile-view';
 
 configure({ asyncUtilTimeout: 5000 });
@@ -131,6 +137,14 @@ describe('profile-model (RN-IAM-109..110)', () => {
     expect(displayNameOf({ name: 'Elisa Prado', socialName: 'Eli' })).toBe('Eli');
     expect(displayNameOf({ name: 'Elisa Prado', socialName: null })).toBe('Elisa Prado');
     expect(displayNameOf({ name: 'Elisa Prado', socialName: '  ' })).toBe('Elisa Prado');
+  });
+
+  it('`?aba=` resolve a aba inicial no servidor; valor desconhecido cai em "Geral" (US-113)', () => {
+    // A página (componente de servidor) chama esta função: ela não pode viver no módulo
+    // `'use client'` da tela — no `next start` isso quebrava `/perfil` (spec-497).
+    expect(profileTabFromParam('notificacoes')).toBe('notifications');
+    expect(profileTabFromParam(undefined)).toBe('general');
+    expect(profileTabFromParam('outra')).toBe('general');
   });
 });
 
