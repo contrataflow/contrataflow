@@ -34,204 +34,203 @@ const booleanFlag = z.preprocess(
 /** Ambientes em que a identidade fake (FA-02) pode ser ligada. */
 const FAKE_IDENTITY_ENVS: ReadonlySet<string> = new Set(['local', 'dev', 'test']);
 
+/** Variáveis de ambiente da API (RN-FND-30 · architecture.md §10.1), antes das regras cruzadas. */
+const envObject = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /** Ambiente lógico; compõe o prefixo das chaves Redis `cf:{env}:…` (multi-tenancy.md §7). */
+  APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+  /**
+   * Porta INTERNA de `/metrics` (HLT-03 · US-085), separada da pública — nunca atrás do ALB
+   * público (V-03). Padrão 9464 (porta de referência do exportador Prometheus do OpenTelemetry).
+   */
+  METRICS_PORT: z.coerce.number().int().min(1).max(65_535).default(9464),
+  /** Validade do resultado de `/health/ready` no processo (RN-FND-80 · FA-03). */
+  HEALTH_CACHE_TTL_MS: z.coerce.number().int().positive().default(5_000),
+  /** Timeout de cada *check*; ausente = 1 000 ms PostgreSQL e 500 ms Redis (observability.md §6.2). */
+  HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  /** Papel `cf_app` (multi-tenancy.md §5.2): sem BYPASSRLS e sem DDL (US-081 · RN-FND-46). */
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  /** Conexões por réplica (architecture.md §12.1). */
+  DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+  /**
+   * Papel `cf_platform` do `SystemDbService` (US-100 · RN-TEN-28): sem BYPASSRLS, DML em `tenants`,
+   * auditoria de plataforma e as funções entre tenants. Obrigatória fora de local/dev/test;
+   * ausente (só nesses ambientes) → o `SystemDbService` recusa as chamadas.
+   */
+  DATABASE_URL_PLATFORM: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+  ),
+  REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
+  /**
+   * Redis de sessões do BFF (DEC-131), lido só pela varredura de encerramentos de sessão
+   * (US-088 · RN-IAM-28). Obrigatória fora de local/dev/test; ausente (só nesses ambientes) → a
+   * varredura fica desligada e nenhum `auth.session_end`/`auth.session_expired` é gravado.
+   */
+  REDIS_SESSION_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url({ protocol: /^rediss?$/ }).optional(),
+  ),
+  OIDC_ISSUER_URL: z.url(),
+  /** Uma ou mais audiências aceitas, separadas por vírgula. */
+  OIDC_AUDIENCE: z.string().trim().min(1).default('contrataflow-api'),
+  OIDC_CLOCK_TOLERANCE_SECONDS: z.coerce.number().int().min(0).max(60).default(30),
+  /**
+   * Modo de identidade fake (FA-02 da US-080 · FA-06 da US-086): chave HS256 do
+   * `FakeJwksProvider` e diretório em memória, para testes e desenvolvimento sem Authentik. Só em
+   * local/dev/test; ausente (padrão) → JWKS do Authentik e tabelas reais (US-087).
+   */
+  OIDC_FAKE_SIGNING_KEY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(32).optional(),
+  ),
+  /**
+   * Credencial de serviço do BFF nas rotas `/internal/*` (US-087): comparada em tempo constante
+   * com `X-CF-Service-Token`. Obrigatória em staging/produção; ausente → rotas internas recusadas.
+   */
+  INTERNAL_SERVICE_TOKEN: z.string().min(32).optional(),
+  /** API administrativa do Authentik (vínculo do `sub` no primeiro login — RN-IAM-06). */
+  AUTHENTIK_API_URL: z.url().optional(),
+  AUTHENTIK_API_TOKEN: z.string().min(16).optional(),
+  /*
+   * Proteção de campos sensíveis (DEC-086 · US-025): chave mestra AES-256 (32 bytes em base64) que
+   * cifra as chaves de dados do CPF e chave HMAC do *blind index* (≥ 32 bytes em base64).
+   * Obrigatórias fora de local/dev/test (em produção, a chave mestra vem do KMS pelo Secrets
+   * Manager); ausentes lá, usam-se chaves fixas de desenvolvimento — nunca com dados reais.
+   */
+  FIELD_ENCRYPTION_KEY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .trim()
+      .refine((value) => Buffer.from(value, 'base64').length === 32, 'Informe 32 bytes em base64.')
+      .optional(),
+  ),
+  BLIND_INDEX_KEY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .trim()
+      .refine(
+        (value) => Buffer.from(value, 'base64').length >= 32,
+        'Informe ao menos 32 bytes em base64.',
+      )
+      .optional(),
+  ),
+  CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
+  /**
+   * Origens confiáveis de `X-Forwarded-For` e `X-CF-Session-Id-Hash` (o BFF — security.md §8),
+   * CIDRs IPv4/IPv6 separados por vírgula. Ausente: o IP do socket vale como IP do cliente.
+   */
+  TRUSTED_PROXY_CIDRS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .trim()
+      .refine((value) => value.split(',').every((entry) => isCidr(entry.trim())), 'CIDR inválido.')
+      .optional(),
+  ),
+  PAGINATION_MAX_PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(100),
+  RATE_LIMIT_READ_PER_MIN: z.coerce.number().int().positive().default(600),
+  RATE_LIMIT_WRITE_PER_MIN: z.coerce.number().int().positive().default(120),
+  IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().positive().default(24),
+  /** Nível mínimo de log (RN-FND-72); `debug`/`trace` nunca em produção (V-03). */
+  LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+  /** `<versão>+g<commit>`, injetado no build (US-079). */
+  APP_VERSION: z.string().trim().min(1).default('0.0.0+local'),
+  /*
+   * Auditoria (US-073 · RN-AUD-06/07): parâmetros de PLATAFORMA — nenhum tenant reduz a própria
+   * trilha, e nenhuma variável desliga a gravação.
+   */
+  AUDIT_COALESCE_WINDOW_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
+  AUDIT_COALESCE_MAX_REVISION_GAP: z.coerce.number().int().min(1).max(1_000).default(20),
+  AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT: z.coerce.number().min(1).max(1_000).default(30),
+  AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(3_600)
+    .default(60),
+  AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10_000)
+    .default(20),
+  /** `audit.sealVerification.maxPeriods` (US-074 · FA-04): selos por verificação (AUD-05). */
+  AUDIT_SEAL_VERIFICATION_MAX_PERIODS: z.coerce.number().int().min(1).max(8_760).default(720),
+  /** `audit.export.maxRows` (US-075 · RN-AUD-19): linhas por exportação (AUD-03). */
+  AUDIT_EXPORT_MAX_ROWS: z.coerce.number().int().min(1).max(1_000_000).default(100_000),
+  /*
+   * IA (US-115 · RN-AI-14 · DEC-079): provedor e modelos são configuração de PLATAFORMA. `fake`
+   * (padrão em local/dev/test) ou `none` (padrão nos demais: desliga para todos — 503). Os
+   * provedores reais entram com o adaptador da ADR-013 (PEND-21); segredos no Secrets Manager.
+   */
+  AI_PROVIDER: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['fake', 'none', 'anthropic', 'bedrock', 'openai', 'azure-openai']).optional(),
+  ),
+  AI_MODEL_DRAFT: z.string().trim().min(1).max(100).default('fake-draft-1'),
+  AI_MODEL_SECTION: z.string().trim().min(1).max(100).default('fake-section-1'),
+  /** Timeout de cada chamada ao provedor (RN-AI-08: 120 s). */
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+  /*
+   * IA no órgão (US-116 · DEC-079): versão vigente dos termos de uso (texto versionado em
+   * `@contrataflow/validation` — `AI_TERMS_DOCUMENTS`) e teto do `ai.monthlyTokenLimit` do tenant.
+   */
+  AI_TERMS_VERSION: z.string().trim().min(1).max(20).default(AI_TERMS_CURRENT_VERSION),
+  AI_TENANT_MAX_MONTHLY_TOKENS: z.coerce
+    .number()
+    .int()
+    .min(AI_MONTHLY_TOKEN_LIMIT_MIN)
+    .max(AI_MONTHLY_TOKEN_LIMIT_CEILING)
+    .default(AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT),
+  /*
+   * Storage S3/MinIO (US-068 · storage.md §2.2). Sem os buckets, o storage fica desligado e as
+   * rotas de anexo respondem 503. `S3_PUBLIC_ENDPOINT` é o host que o NAVEGADOR alcança (assina as
+   * URLs); `S3_ENDPOINT`, o da rede interna. Credenciais estáticas só fora de produção (task role).
+   */
+  S3_ENDPOINT: optionalUrl,
+  S3_PUBLIC_ENDPOINT: optionalUrl,
+  S3_REGION: z.string().trim().min(1).max(40).default('us-east-1'),
+  S3_FORCE_PATH_STYLE: booleanFlag,
+  S3_ACCESS_KEY_ID: optionalText,
+  S3_SECRET_ACCESS_KEY: optionalText,
+  S3_BUCKET_QUARANTINE: optionalText,
+  S3_BUCKET_DOCUMENTS: optionalText,
+  S3_BUCKET_RENDITIONS: optionalText,
+  /** ClamAV (`clamd`, INSTREAM — storage.md §5.3); ausente = varredura pausada (RN-DOC-75). */
+  CLAMAV_HOST: optionalText,
+  CLAMAV_PORT: z.coerce.number().int().min(1).max(65_535).default(3310),
+  CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(60_000),
+  /** Gotenberg (HTML → PDF, US-067 · ADR-007); ausente = renderização pausada (sem PDF). */
+  GOTENBERG_URL: optionalUrl,
+  GOTENBERG_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+  /** Limite técnico de armazenamento por tenant (storage.md §8 · PEND-17 — proposta 50 GB). */
+  STORAGE_TENANT_QUOTA_GB: z.coerce.number().int().min(1).max(100_000).default(50),
+});
+
 /**
- * Schema único das variáveis de ambiente da API (RN-FND-30 · architecture.md §10.1). Toda
- * variável lida pela aplicação está aqui; `process.env` não é lido fora de `src/config/**`.
+ * Onde a configuração é usada: `http` = processo da API; `jobs` = contexto de jobs da API dentro do
+ * worker (DEC-052 · `@contrataflow/api/jobs`), sem as variáveis só de HTTP.
  */
-export const envSchema = z
-  .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    /** Ambiente lógico; compõe o prefixo das chaves Redis `cf:{env}:…` (multi-tenancy.md §7). */
-    APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
-    PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
-    /**
-     * Porta INTERNA de `/metrics` (HLT-03 · US-085), separada da pública — nunca atrás do ALB
-     * público (V-03). Padrão 9464 (porta de referência do exportador Prometheus do OpenTelemetry).
-     */
-    METRICS_PORT: z.coerce.number().int().min(1).max(65_535).default(9464),
-    /** Validade do resultado de `/health/ready` no processo (RN-FND-80 · FA-03). */
-    HEALTH_CACHE_TTL_MS: z.coerce.number().int().positive().default(5_000),
-    /** Timeout de cada *check*; ausente = 1 000 ms PostgreSQL e 500 ms Redis (observability.md §6.2). */
-    HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
-    /** Papel `cf_app` (multi-tenancy.md §5.2): sem BYPASSRLS e sem DDL (US-081 · RN-FND-46). */
-    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-    /** Conexões por réplica (architecture.md §12.1). */
-    DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
-    /**
-     * Papel `cf_platform` do `SystemDbService` (US-100 · RN-TEN-28): sem BYPASSRLS, DML em `tenants`,
-     * auditoria de plataforma e as funções entre tenants. Obrigatória fora de local/dev/test;
-     * ausente (só nesses ambientes) → o `SystemDbService` recusa as chamadas.
-     */
-    DATABASE_URL_PLATFORM: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z.url({ protocol: /^postgres(ql)?$/ }).optional(),
-    ),
-    REDIS_CACHE_URL: z.url({ protocol: /^rediss?$/ }),
-    /**
-     * Redis de sessões do BFF (DEC-131), lido só pela varredura de encerramentos de sessão
-     * (US-088 · RN-IAM-28). Obrigatória fora de local/dev/test; ausente (só nesses ambientes) → a
-     * varredura fica desligada e nenhum `auth.session_end`/`auth.session_expired` é gravado.
-     */
-    REDIS_SESSION_URL: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z.url({ protocol: /^rediss?$/ }).optional(),
-    ),
-    OIDC_ISSUER_URL: z.url(),
-    /** Uma ou mais audiências aceitas, separadas por vírgula. */
-    OIDC_AUDIENCE: z.string().trim().min(1).default('contrataflow-api'),
-    OIDC_CLOCK_TOLERANCE_SECONDS: z.coerce.number().int().min(0).max(60).default(30),
-    /**
-     * Modo de identidade fake (FA-02 da US-080 · FA-06 da US-086): chave HS256 do
-     * `FakeJwksProvider` e diretório em memória, para testes e desenvolvimento sem Authentik. Só em
-     * local/dev/test; ausente (padrão) → JWKS do Authentik e tabelas reais (US-087).
-     */
-    OIDC_FAKE_SIGNING_KEY: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z.string().min(32).optional(),
-    ),
-    /**
-     * Credencial de serviço do BFF nas rotas `/internal/*` (US-087): comparada em tempo constante
-     * com `X-CF-Service-Token`. Obrigatória em staging/produção; ausente → rotas internas recusadas.
-     */
-    INTERNAL_SERVICE_TOKEN: z.string().min(32).optional(),
-    /** API administrativa do Authentik (vínculo do `sub` no primeiro login — RN-IAM-06). */
-    AUTHENTIK_API_URL: z.url().optional(),
-    AUTHENTIK_API_TOKEN: z.string().min(16).optional(),
-    /*
-     * Proteção de campos sensíveis (DEC-086 · US-025): chave mestra AES-256 (32 bytes em base64) que
-     * cifra as chaves de dados do CPF e chave HMAC do *blind index* (≥ 32 bytes em base64).
-     * Obrigatórias fora de local/dev/test (em produção, a chave mestra vem do KMS pelo Secrets
-     * Manager); ausentes lá, usam-se chaves fixas de desenvolvimento — nunca com dados reais.
-     */
-    FIELD_ENCRYPTION_KEY: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z
-        .string()
-        .trim()
-        .refine(
-          (value) => Buffer.from(value, 'base64').length === 32,
-          'Informe 32 bytes em base64.',
-        )
-        .optional(),
-    ),
-    BLIND_INDEX_KEY: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z
-        .string()
-        .trim()
-        .refine(
-          (value) => Buffer.from(value, 'base64').length >= 32,
-          'Informe ao menos 32 bytes em base64.',
-        )
-        .optional(),
-    ),
-    CORRELATION_HEADER_NAME: z.literal('X-Correlation-Id').default('X-Correlation-Id'),
-    /**
-     * Origens confiáveis de `X-Forwarded-For` e `X-CF-Session-Id-Hash` (o BFF — security.md §8),
-     * CIDRs IPv4/IPv6 separados por vírgula. Ausente: o IP do socket vale como IP do cliente.
-     */
-    TRUSTED_PROXY_CIDRS: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z
-        .string()
-        .trim()
-        .refine(
-          (value) => value.split(',').every((entry) => isCidr(entry.trim())),
-          'CIDR inválido.',
-        )
-        .optional(),
-    ),
-    PAGINATION_MAX_PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(100),
-    RATE_LIMIT_READ_PER_MIN: z.coerce.number().int().positive().default(600),
-    RATE_LIMIT_WRITE_PER_MIN: z.coerce.number().int().positive().default(120),
-    IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().positive().default(24),
-    /** Nível mínimo de log (RN-FND-72); `debug`/`trace` nunca em produção (V-03). */
-    LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
-    /** `<versão>+g<commit>`, injetado no build (US-079). */
-    APP_VERSION: z.string().trim().min(1).default('0.0.0+local'),
-    /*
-     * Auditoria (US-073 · RN-AUD-06/07): parâmetros de PLATAFORMA — nenhum tenant reduz a própria
-     * trilha, e nenhuma variável desliga a gravação.
-     */
-    AUDIT_COALESCE_WINDOW_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
-    AUDIT_COALESCE_MAX_REVISION_GAP: z.coerce.number().int().min(1).max(1_000).default(20),
-    AUDIT_COALESCE_MAX_SIZE_VARIATION_PCT: z.coerce.number().min(1).max(1_000).default(30),
-    AUDIT_ACCESS_DENIED_SAMPLING_WINDOW_SECONDS: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(3_600)
-      .default(60),
-    AUDIT_ACCESS_DENIED_SAMPLING_MAX_PER_WINDOW: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(10_000)
-      .default(20),
-    /** `audit.sealVerification.maxPeriods` (US-074 · FA-04): selos por verificação (AUD-05). */
-    AUDIT_SEAL_VERIFICATION_MAX_PERIODS: z.coerce.number().int().min(1).max(8_760).default(720),
-    /** `audit.export.maxRows` (US-075 · RN-AUD-19): linhas por exportação (AUD-03). */
-    AUDIT_EXPORT_MAX_ROWS: z.coerce.number().int().min(1).max(1_000_000).default(100_000),
-    /*
-     * IA (US-115 · RN-AI-14 · DEC-079): provedor e modelos são configuração de PLATAFORMA. `fake`
-     * (padrão em local/dev/test) ou `none` (padrão nos demais: desliga para todos — 503). Os
-     * provedores reais entram com o adaptador da ADR-013 (PEND-21); segredos no Secrets Manager.
-     */
-    AI_PROVIDER: z.preprocess(
-      (value) => (value === '' ? undefined : value),
-      z.enum(['fake', 'none', 'anthropic', 'bedrock', 'openai', 'azure-openai']).optional(),
-    ),
-    AI_MODEL_DRAFT: z.string().trim().min(1).max(100).default('fake-draft-1'),
-    AI_MODEL_SECTION: z.string().trim().min(1).max(100).default('fake-section-1'),
-    /** Timeout de cada chamada ao provedor (RN-AI-08: 120 s). */
-    AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
-    /*
-     * IA no órgão (US-116 · DEC-079): versão vigente dos termos de uso (texto versionado em
-     * `@contrataflow/validation` — `AI_TERMS_DOCUMENTS`) e teto do `ai.monthlyTokenLimit` do tenant.
-     */
-    AI_TERMS_VERSION: z.string().trim().min(1).max(20).default(AI_TERMS_CURRENT_VERSION),
-    AI_TENANT_MAX_MONTHLY_TOKENS: z.coerce
-      .number()
-      .int()
-      .min(AI_MONTHLY_TOKEN_LIMIT_MIN)
-      .max(AI_MONTHLY_TOKEN_LIMIT_CEILING)
-      .default(AI_PLATFORM_MAX_MONTHLY_TOKENS_DEFAULT),
-    /*
-     * Storage S3/MinIO (US-068 · storage.md §2.2). Sem os buckets, o storage fica desligado e as
-     * rotas de anexo respondem 503. `S3_PUBLIC_ENDPOINT` é o host que o NAVEGADOR alcança (assina as
-     * URLs); `S3_ENDPOINT`, o da rede interna. Credenciais estáticas só fora de produção (task role).
-     */
-    S3_ENDPOINT: optionalUrl,
-    S3_PUBLIC_ENDPOINT: optionalUrl,
-    S3_REGION: z.string().trim().min(1).max(40).default('us-east-1'),
-    S3_FORCE_PATH_STYLE: booleanFlag,
-    S3_ACCESS_KEY_ID: optionalText,
-    S3_SECRET_ACCESS_KEY: optionalText,
-    S3_BUCKET_QUARANTINE: optionalText,
-    S3_BUCKET_DOCUMENTS: optionalText,
-    S3_BUCKET_RENDITIONS: optionalText,
-    /** ClamAV (`clamd`, INSTREAM — storage.md §5.3); ausente = varredura pausada (RN-DOC-75). */
-    CLAMAV_HOST: optionalText,
-    CLAMAV_PORT: z.coerce.number().int().min(1).max(65_535).default(3310),
-    CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(60_000),
-    /** Gotenberg (HTML → PDF, US-067 · ADR-007); ausente = renderização pausada (sem PDF). */
-    GOTENBERG_URL: optionalUrl,
-    GOTENBERG_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
-    /** Limite técnico de armazenamento por tenant (storage.md §8 · PEND-17 — proposta 50 GB). */
-    STORAGE_TENANT_QUOTA_GB: z.coerce.number().int().min(1).max(100_000).default(50),
-  })
-  .superRefine((env, context) => {
+type ConfigTarget = 'http' | 'jobs';
+
+/** Regras cruzadas entre variáveis; as só de HTTP não valem para o contexto de jobs. */
+function refineEnv(target: ConfigTarget) {
+  return (env: z.infer<typeof envObject>, context: z.RefinementCtx): void => {
     if (env.NODE_ENV === 'production' && PRODUCTION_FORBIDDEN_LEVELS.includes(env.LOG_LEVEL)) {
       context.addIssue({ code: 'custom', path: ['LOG_LEVEL'], message: 'Proibido em produção.' });
     }
-    if (env.OIDC_FAKE_SIGNING_KEY && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+    if (target === 'http' && env.OIDC_FAKE_SIGNING_KEY && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
         code: 'custom',
         path: ['OIDC_FAKE_SIGNING_KEY'],
         message: 'Identidade fake proibida neste ambiente.',
       });
     }
-    if (!env.INTERNAL_SERVICE_TOKEN && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+    if (target === 'http' && !env.INTERNAL_SERVICE_TOKEN && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
         code: 'custom',
         path: ['INTERNAL_SERVICE_TOKEN'],
@@ -276,14 +275,36 @@ export const envSchema = z
         message: 'Credencial estática proibida em produção: use a task role (storage.md §2.2).',
       });
     }
-    if (!env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
+    if (target === 'http' && !env.REDIS_SESSION_URL && !FAKE_IDENTITY_ENVS.has(env.APP_ENV)) {
       context.addIssue({
         code: 'custom',
         path: ['REDIS_SESSION_URL'],
         message: 'Obrigatória fora de local/dev/test.',
       });
     }
-  });
+  };
+}
+
+/**
+ * Schema único das variáveis de ambiente da API (RN-FND-30 · architecture.md §10.1). Toda
+ * variável lida pela aplicação está aqui; `process.env` não é lido fora de `src/config/**`.
+ */
+export const envSchema = envObject.superRefine(refineEnv('http'));
+
+/**
+ * Emissor fictício do contexto de jobs: nenhum token é verificado ali (o worker não tem rotas da
+ * API); o `.invalid` (RFC 2606) nunca resolve.
+ */
+const JOBS_ISSUER_PLACEHOLDER = 'http://jobs.invalid/';
+
+/**
+ * Contexto de jobs (DEC-052): `OIDC_ISSUER_URL` deixa de ser obrigatória; as regras de
+ * `INTERNAL_SERVICE_TOKEN` (rotas `/internal/*`), `REDIS_SESSION_URL` (varredura de sessões, que é
+ * da API) e da identidade fake não se aplicam — `toAppConfig` desliga as duas últimas.
+ */
+const jobsEnvSchema = envObject
+  .extend({ OIDC_ISSUER_URL: z.url().default(JOBS_ISSUER_PLACEHOLDER) })
+  .superRefine(refineEnv('jobs'));
 
 export type Env = z.infer<typeof envSchema>;
 
@@ -542,12 +563,33 @@ function s3ConfigOf(env: Env): S3Config | null {
 
 /** Valida o ambiente e devolve a configuração congelada (falha rápida no bootstrap). */
 export function loadConfig(source: Readonly<Record<string, string | undefined>>): AppConfig {
-  const parsed = envSchema.safeParse(source);
+  return deepFreeze(toAppConfig(parseEnv(envSchema, source)));
+}
+
+/**
+ * Configuração do contexto de jobs da API no worker (DEC-052 · `@contrataflow/api/jobs`): o mesmo
+ * `.env`, sem exigir as variáveis só de HTTP. A identidade fake (repositórios em memória) e o Redis
+ * de sessões ficam desligados: o worker sempre persiste no banco e a varredura de sessões é da API.
+ */
+export function loadJobsConfig(source: Readonly<Record<string, string | undefined>>): AppConfig {
+  const config = toAppConfig(parseEnv(jobsEnvSchema, source));
+  return deepFreeze({
+    ...config,
+    redis: { ...config.redis, sessionUrl: null },
+    oidc: { ...config.oidc, fakeSigningKey: null },
+  });
+}
+
+function parseEnv(
+  schema: z.ZodType<Env>,
+  source: Readonly<Record<string, string | undefined>>,
+): Env {
+  const parsed = schema.safeParse(source);
   if (!parsed.success) {
     const keys = [...new Set(parsed.error.issues.map((issue) => String(issue.path[0])))].sort();
     throw new ConfigValidationError(keys);
   }
-  return deepFreeze(toAppConfig(parsed.data));
+  return parsed.data;
 }
 
 /** Lê `process.env` — único ponto da API autorizado a fazê-lo (RN-FND-06). */

@@ -138,6 +138,11 @@ export abstract class TenantJob<P> {
 
   protected abstract handle(payload: P, meta: JobMeta): Promise<void>;
 
+  /** Schema do payload, para o `runJob` do worker validar antes de abrir o contexto (DEC-052). */
+  get payloadContract(): z.ZodType<P> {
+    return this.payloadSchema;
+  }
+
   async process(job: TenantJobRun): Promise<TenantJobOutcome> {
     const meta = jobMetaSchema.safeParse(job.data.meta);
     if (!meta.success) throw new InvalidJobDataError('meta');

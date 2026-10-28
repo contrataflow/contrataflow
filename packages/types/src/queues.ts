@@ -31,7 +31,8 @@ export const QUEUE_JOBS = Object.freeze({
   'domain-events': ['event'],
   notifications: ['event'],
   email: ['send'],
-  'document-render': ['render'],
+  // US-109: a prévia do template usa a mesma fila e o mesmo Gotenberg do PDF dos documentos.
+  'document-render': ['render', 'template-preview'],
   'file-scan': ['scan'],
   deadlines: ['tick', 'scan-tenant'],
   'audit-seal': ['tick', 'seal-tenant', 'seal-platform'],

@@ -4,6 +4,12 @@
   "private": true,
   "description": "API REST /api/v1 (NestJS 11, monólito modular — DEC-040/041).",
   "type": "module",
+  "exports": {
+    "./jobs": {
+      "types": "./src/jobs/index.ts",
+      "default": "./dist/jobs/index.js"
+    }
+  },
   "imports": {
     "#config/*": {
       "types": "./src/config/*",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ConfigValidationError, loadConfig } from '#config/env.js';
+import { ConfigValidationError, loadConfig, loadJobsConfig } from '#config/env.js';
 
 const REQUIRED = {
   DATABASE_URL: 'postgresql://cf_app:devpassword@localhost:5432/contrataflow',
@@ -281,5 +281,42 @@ describe('loadConfig', () => {
     expect(
       loadConfig({ ...REQUIRED, NODE_ENV: 'production', LOG_LEVEL: 'warn' }).observability.logLevel,
     ).toBe('warn');
+  });
+});
+
+describe('loadJobsConfig (contexto de jobs da API no worker — DEC-052)', () => {
+  const { OIDC_ISSUER_URL: _issuer, ...withoutIssuer } = REQUIRED;
+  const staging = {
+    ...withoutIssuer,
+    ...FIELD_KEYS,
+    APP_ENV: 'staging',
+    DATABASE_URL_PLATFORM: 'postgresql://cf_platform:x@db:5432/contrataflow',
+  };
+
+  it('não exige as variáveis só de HTTP (emissor OIDC, token interno, Redis de sessões)', () => {
+    expect(() => loadConfig(staging)).toThrow(ConfigValidationError);
+    const config = loadJobsConfig(staging);
+    expect(config.appEnv).toBe('staging');
+    expect(config.database.url).toBe(REQUIRED.DATABASE_URL);
+    expect(config.internal.serviceToken).toBeNull();
+    expect(Object.isFrozen(config.oidc)).toBe(true);
+  });
+
+  it('desliga a identidade fake e a varredura de sessões: o worker persiste no banco', () => {
+    const config = loadJobsConfig({
+      ...REQUIRED,
+      OIDC_FAKE_SIGNING_KEY: 'k'.repeat(32),
+      REDIS_SESSION_URL: 'redis://localhost:6379',
+    });
+    expect(config.oidc.fakeSigningKey).toBeNull();
+    expect(config.redis.sessionUrl).toBeNull();
+  });
+
+  it('mantém as regras que valem para os jobs (banco, chaves de campo, provedor de IA)', () => {
+    expect(() => loadJobsConfig({ ...staging, DATABASE_URL: undefined })).toThrow(/DATABASE_URL/);
+    expect(() => loadJobsConfig({ ...staging, FIELD_ENCRYPTION_KEY: undefined })).toThrow(
+      /FIELD_ENCRYPTION_KEY/,
+    );
+    expect(() => loadJobsConfig({ ...REQUIRED, AI_PROVIDER: 'bedrock' })).toThrow(/AI_PROVIDER/);
   });
 });
