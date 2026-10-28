@@ -131,7 +131,7 @@ export function SealList({
           </div>
           <div
             aria-busy={seals.isPlaceholderData}
-            className="overflow-x-auto rounded-card border border-border bg-surface shadow-card"
+            className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card"
           >
             <table className="w-full min-w-[34rem] text-left text-sm">
               <caption className="sr-only">{t('caption')}</caption>

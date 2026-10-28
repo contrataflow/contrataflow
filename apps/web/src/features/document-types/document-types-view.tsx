@@ -227,7 +227,7 @@ function TypeGroup({
       <h2 id={headingId} className="text-lg font-semibold">
         {t(`groups.${kind}`)}
       </h2>
-      <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
+      <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
         <table className="w-full min-w-[56rem] text-left text-sm">
           <caption className="sr-only">
             {t('table.caption', { group: t(`groups.${kind}`) })}

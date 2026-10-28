@@ -248,7 +248,7 @@ function DuplicateForm({
             {t('searchHint')}
           </p>
           {needsTarget ? (
-            <p role="alert" className="text-danger text-sm">
+            <p role="alert" className="text-sm text-destructive">
               {t('errors.targetRequired')}
             </p>
           ) : null}

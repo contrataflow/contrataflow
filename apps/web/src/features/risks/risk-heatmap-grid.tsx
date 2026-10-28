@@ -33,7 +33,7 @@ export function RiskHeatmapGrid({ matrix, onSelectRisk }: RiskHeatmapGridProps) 
   const probabilities = [...rows.keys()].sort((a, b) => b - a);
 
   return (
-    <div className="overflow-x-auto rounded-card border border-border">
+    <div className="relative overflow-x-auto rounded-card border border-border">
       <table className="w-full min-w-[36rem] border-separate border-spacing-1 text-sm">
         <caption className="sr-only">{t('caption')}</caption>
         <thead>

@@ -1029,7 +1029,7 @@ function FieldConfigPanel({
       {fields.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('fieldConfig.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-card border border-border">
+        <div className="relative overflow-x-auto rounded-card border border-border">
           <table className="w-full min-w-[36rem] text-left text-sm">
             <thead className="bg-muted text-xs text-muted-foreground uppercase">
               <tr>

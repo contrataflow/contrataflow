@@ -24,7 +24,7 @@ test('filtrar → ver detalhe → exportar CSV com fórmulas neutralizadas', asy
   await expectNoSeriousA11yViolations(page, 'aba Registros');
 
   // Filtrar por ação.
-  await page.getByLabel('Ação').selectOption(['process.create']);
+  await page.getByLabel('Ação', { exact: true }).selectOption(['process.create']);
   await page.getByRole('button', { name: 'Pesquisar' }).click();
   await expect(table.getByRole('row')).toHaveCount(2);
 

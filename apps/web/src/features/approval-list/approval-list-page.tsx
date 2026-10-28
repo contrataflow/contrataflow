@@ -421,7 +421,7 @@ function ApprovalTable({ items }: { readonly items: readonly ApprovalListItemDto
   const format = useFormatter();
   const date = (value: string) => format.dateTime(new Date(value), { dateStyle: 'short' });
   return (
-    <div className="rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
+    <div className="relative rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
       <table className="w-full text-left text-sm md:min-w-[56rem]">
         <caption className="sr-only">{t('table.caption')}</caption>
         <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">

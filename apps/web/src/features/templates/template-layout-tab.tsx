@@ -178,7 +178,7 @@ export function TemplateLayoutTab({
   const errorText = (field: LayoutField) => {
     const message = errorOf(field);
     return message ? (
-      <p id={`${fieldId(field)}-error`} className="text-error text-xs">
+      <p id={`${fieldId(field)}-error`} className="text-xs text-destructive">
         {message}
       </p>
     ) : null;

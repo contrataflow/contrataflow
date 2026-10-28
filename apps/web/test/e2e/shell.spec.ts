@@ -107,6 +107,23 @@ test('troca de instituição (US-093): mesma sessão, dados do novo tenant e avi
   await expectNoSeriousA11yViolations(page, 'troca de instituição');
 });
 
+test('em 390 px a barra superior mostra um só sino e a busca sem o atalho sobre o texto', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
+  await expect(
+    page
+      .getByRole('link', { name: /^Notificações/ })
+      .or(page.getByRole('button', { name: /^Notificações/ })),
+  ).toHaveCount(1);
+  await expect(page.getByRole('search').getByText('Ctrl K')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});
+
 test('503 da API: error.tsx com correlationId copiável e "Tentar novamente"', async ({ page }) => {
   await signIn(page);
   await expect(page.getByRole('main').getByText('item-01')).toBeVisible();

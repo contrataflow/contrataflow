@@ -283,7 +283,7 @@ export function AuditDetailPanel({
                 {data.changes === null || data.changes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t('noChanges')}</p>
                 ) : (
-                  <div className="overflow-x-auto rounded-card border border-border">
+                  <div className="relative overflow-x-auto rounded-card border border-border">
                     <table className="w-full text-left text-sm">
                       <caption className="sr-only">{t('changesCaption')}</caption>
                       <thead className="bg-muted text-xs text-muted-foreground uppercase">

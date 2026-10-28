@@ -59,10 +59,7 @@ export function GlobalSearch() {
           aria-keyshortcuts="Control+K"
           className="h-11 w-full rounded-control border border-border-strong bg-background pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground sm:pr-18"
         />
-        <Kbd
-          aria-hidden="true"
-          className="pointer-events-none absolute right-3 hidden sm:inline-flex"
-        >
+        <Kbd aria-hidden="true" className="pointer-events-none absolute right-3 max-sm:hidden">
           {t('shortcut')}
         </Kbd>
       </div>

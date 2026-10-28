@@ -122,7 +122,7 @@ function LoadFailure({
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
         <Alert tone="error" title={t('notFound')}>
-          <Link href="/aprovacoes" className="text-sm text-primary underline">
+          <Link href="/aprovacoes" className="text-sm font-medium underline">
             {t('backToApprovals')}
           </Link>
         </Alert>

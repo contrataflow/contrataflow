@@ -205,7 +205,7 @@ function TemplateTable({
     return <p className="text-muted-foreground">{t('filters.noResults')}</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
+    <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
       <table className="w-full min-w-[48rem] text-left text-sm">
         <caption className="sr-only">{t('table.caption')}</caption>
         <thead className="bg-muted text-xs text-muted-foreground uppercase">

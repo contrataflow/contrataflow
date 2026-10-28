@@ -59,7 +59,7 @@ export function CatalogItemTable({
   const [dragging, setDragging] = useState<number | null>(null);
 
   return (
-    <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
+    <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
       <table className="w-full min-w-[44rem] text-left text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-muted text-xs text-muted-foreground uppercase">

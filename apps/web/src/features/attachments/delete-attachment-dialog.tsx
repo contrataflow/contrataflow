@@ -105,7 +105,7 @@ function Body({
           onChange={(event) => {
             setReason(event.target.value);
           }}
-          className="border-input min-h-20 rounded-md border bg-background px-3 py-2 text-sm"
+          className="min-h-20 rounded-control border border-border-strong bg-background px-3 py-2 text-sm"
         />
         {error === null ? null : (
           <p id={`${id}-error`} className="text-sm text-destructive">

@@ -74,7 +74,7 @@ export function AuditResultsTable({
       </p>
       <div
         aria-busy={busy}
-        className="overflow-x-auto rounded-card border border-border bg-surface shadow-card"
+        className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card"
       >
         <table className="w-full text-left text-sm">
           <caption className="sr-only">{t('caption')}</caption>

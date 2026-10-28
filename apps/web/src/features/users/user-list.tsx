@@ -232,7 +232,7 @@ export function UserList() {
       {items.length > 0 ? (
         <div
           aria-busy={users.isPlaceholderData}
-          className="rounded-card border border-border bg-surface shadow-card md:overflow-x-auto"
+          className="relative rounded-card border border-border bg-surface shadow-card md:overflow-x-auto"
         >
           <table className="w-full text-left text-sm md:min-w-[56rem]">
             <caption className="sr-only">{t('directory.caption')}</caption>

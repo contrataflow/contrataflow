@@ -7,7 +7,8 @@ export type AlertTone = 'info' | 'warning' | 'error' | 'success';
 const TONES: Record<AlertTone, string> = {
   info: 'border-primary/30 bg-primary-soft',
   warning: 'border-warning/30 bg-warning-soft',
-  error: 'border-destructive/30 bg-destructive-soft',
+  // Link primário sobre o fundo suave de erro dá 4,45:1; o texto do tom fica ≥ 4,5:1.
+  error: 'border-destructive/30 bg-destructive-soft [&_a]:text-destructive-soft-foreground',
   success: 'border-success/30 bg-success-soft',
 };
 

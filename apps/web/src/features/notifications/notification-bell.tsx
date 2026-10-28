@@ -171,7 +171,7 @@ export function NotificationBell() {
             variant="secondary"
             size="icon"
             aria-label={label}
-            className="relative hidden md:grid md:place-items-center"
+            className="relative max-md:hidden md:grid md:place-items-center"
           >
             <Icon name="bell" className="size-5 text-muted-foreground" />
             <Badge count={count} />

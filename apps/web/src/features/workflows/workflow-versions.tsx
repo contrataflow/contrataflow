@@ -394,7 +394,7 @@ function VersionList({
 
   return (
     <>
-      <div className="hidden overflow-x-auto rounded-card border border-border bg-surface shadow-card md:block">
+      <div className="relative hidden overflow-x-auto rounded-card border border-border bg-surface shadow-card md:block">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">{t('caption')}</caption>
           <thead className="bg-muted text-xs text-muted-foreground uppercase">

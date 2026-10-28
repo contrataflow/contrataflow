@@ -419,7 +419,7 @@ function InboxTable({
     selectable.length > 0 &&
     selectable.every((item) => bulk.selection.has(item.processId));
   return (
-    <div className="rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
+    <div className="relative rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
       <table className="w-full text-left text-sm md:min-w-[48rem]">
         <caption className="sr-only">{t('table.caption', { view: t(`tabs.${view}`) })}</caption>
         <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">

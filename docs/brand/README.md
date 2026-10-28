@@ -72,6 +72,24 @@ além dos existentes. Tons semânticos: `info`, `success`, `warning`, `danger`, 
 história no Storybook (`pnpm --filter @contrataflow/ui storybook`, com seletor de tema) e passa no
 axe do CI.
 
+### Capturas da primeira leva (2026-10)
+
+Build de produção com a API simulada (`apps/web/test/e2e/support/mock-api.mjs`), em
+`screenshots/repaginacao-2026-10/`. Servem de referência visual para a segunda leva; regenerar
+quando uma tela mudar de aspecto.
+
+| Tela | Claro (1280 px) | Escuro | Celular (390 px) |
+|---|---|---|---|
+| Login (`/entrar`) | `login.png` | — | `login-celular.png` |
+| Painel | `painel.png` | `painel-escuro.png` | `painel-celular.png` |
+| Lista de processos | `lista-de-processos.png` | `lista-de-processos-escuro.png` | `lista-de-processos-celular.png` |
+| Página do processo | `pagina-do-processo.png` | `pagina-do-processo-escuro.png` | `pagina-do-processo-celular.png` |
+
+Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
+editores (DFD, ETP, TR, pesquisa de preços, riscos, documentos), aprovações, caixa de tarefas,
+fornecedores, auditoria, notificações, perfil e administração. Contraste e rolagem horizontal foram
+varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA sem violações).
+
 ## Tokens (`packages/ui/src/styles.css`)
 
 - Fixos: `--color-brand-navy`, `--color-brand-blue`, `--color-brand-blue-deep` e `--color-on-navy` /

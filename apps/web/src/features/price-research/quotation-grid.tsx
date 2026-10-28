@@ -198,7 +198,7 @@ export function QuotationGrid({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <p className="text-xs text-muted-foreground">{t('keyboardHint')}</p>
-      <div className="min-w-0 overflow-x-auto rounded-card border border-border">
+      <div className="relative min-w-0 overflow-x-auto rounded-card border border-border">
         <table className="w-full min-w-[40rem] text-sm">
           <caption className="sr-only">{t('label', { description: source.description })}</caption>
           <thead>

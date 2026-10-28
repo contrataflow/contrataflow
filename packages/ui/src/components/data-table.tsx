@@ -31,9 +31,10 @@ export function TableContainer({
       )}
       {...props}
     >
-      {/* Região rolável focável: WCAG 2.1.1 (axe `scrollable-region-focusable`). */}
+      {/* Região rolável focável: WCAG 2.1.1 (axe `scrollable-region-focusable`). O `relative` ancora
+          os `sr-only` (absolutos) das células: sem ele alargariam a página. */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- rolagem por teclado. */}
-      <div role="region" aria-label={label} tabIndex={0} className="overflow-x-auto">
+      <div role="region" aria-label={label} tabIndex={0} className="relative overflow-x-auto">
         {children}
       </div>
       {footer}
