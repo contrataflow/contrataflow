@@ -85,6 +85,7 @@ INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status) VALUES
   ('0192c049-0000-7000-8000-0000000010d3', '${B}', '${BETO}', 'INTERNAL', 'ACTIVE');
 INSERT INTO membership_departments (id, tenant_id, membership_id, department_id, is_primary) VALUES
   ('0192c049-0000-7000-8000-0000000010e1', '${A}', '${ANA_M}', '${PLANEJAMENTO}', true),
+  ('0192c049-0000-7000-8000-0000000010e3', '${A}', '${ANA_M}', '${MANUTENCAO}', false),
   ('0192c049-0000-7000-8000-0000000010e2', '${A}', '${CARLA_M}', '${MANUTENCAO}', true),
   ('0192c049-0000-7000-8000-0000000010e4', '${A}', '${DANI_M}', '${PLANEJAMENTO}', true);
 `;

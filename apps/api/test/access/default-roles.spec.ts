@@ -116,7 +116,7 @@ describe('catálogo de permissões e perfis padrão no PostgreSQL (US-094)', () 
           is_deprecated: permission.isDeprecated,
           introduced_in: permission.introducedIn,
         }));
-      expect(rows).toHaveLength(68);
+      expect(rows).toHaveLength(69);
       expect(rows).toEqual(expected);
     });
 

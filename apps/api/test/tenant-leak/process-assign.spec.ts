@@ -90,6 +90,7 @@ INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status) VALUES
   ('0192c050-0000-7000-8000-0000000010d3', '${B}', '${BETO}', 'INTERNAL', 'ACTIVE');
 INSERT INTO membership_departments (id, tenant_id, membership_id, department_id, is_primary) VALUES
   ('0192c050-0000-7000-8000-0000000010e1', '${A}', '${ANA_M}', '${PLANEJAMENTO}', true),
+  ('0192c050-0000-7000-8000-0000000010e3', '${A}', '${ANA_M}', '${MANUTENCAO}', false),
   ('0192c050-0000-7000-8000-0000000010e2', '${A}', '${CARLA_M}', '${MANUTENCAO}', true),
   ('0192c050-0000-7000-8000-0000000010e4', '${A}', '${DANI_M}', '${PLANEJAMENTO}', true),
   ('0192c050-0000-7000-8000-0000000010e5', '${A}', '${RENATA_M}', '${OBRAS}', true);
@@ -282,6 +283,12 @@ describe('Feature: Atribuir e reatribuir responsável sobre PostgreSQL (US-050)'
       'document.systemTypes',
       'workflow.seedWorkflows',
     ]);
+    // Elegibilidade da Dani (RN-TRAM-38: PROCESS_VIEW) lida das atribuições gravadas no banco.
+    await db.admin(
+      `INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope_type, granted_by_id)
+       SELECT $1, $2, $3, r.id, 'OWN_DEPARTMENTS', $4 FROM roles r WHERE r.tenant_id = $2 AND r.key = 'REQUISITANTE'`,
+      [randomUUID(), A, DANI_M, RENATA],
+    );
     catalog = {
       contractingType: await catalogId(A, 'CONTRACTING_TYPE', 'AQUISICAO_BENS'),
       origin: await catalogId(A, 'PROCESS_ORIGIN', 'DEMANDA_NAO_PREVISTA'),

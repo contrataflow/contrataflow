@@ -242,7 +242,9 @@ describe('Feature: suíte "tenant leak" sobre a API inteira (US-100)', () => {
       'LEAK-03',
       'LEAK-04',
       'ME-01',
+      'ME-03',
       'ME-04',
+      'ME-05',
     ]);
     for (const operation of covered) {
       const entry = manifest[operation.spec.operationId];

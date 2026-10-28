@@ -12,6 +12,7 @@ import { Logger } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_ROLE_GRANTS } from '#modules/access/domain/default-roles.js';
 import { FakeJwksProvider } from '#modules/identity/infrastructure/fake-jwks.provider.js';
 import { PrismaIdentityRepository } from '#modules/identity/infrastructure/prisma-identity.repository.js';
 import { MEMBERSHIP_PORT, TOKEN_VERIFIER } from '#shared/auth/ports.js';
@@ -98,6 +99,10 @@ INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope_type,
   ('0192d000-0000-7000-8000-0000000926a1', '${A}', '${M_ANA}', '${ADMIN_A}', 'TENANT', '${ANA}'),
   ('0192d000-0000-7000-8000-0000000926a2', '${A}', '${M_ZECA}', '${ADMIN_A}', 'TENANT', '${ANA}'),
   ('0192d000-0000-7000-8000-0000000926b1', '${B}', '${M_BETO}', '${ADMIN_B}', 'TENANT', '${BETO}');
+INSERT INTO role_permissions (id, tenant_id, role_id, permission_code)
+SELECT gen_random_uuid(), r.tenant_id, r.id, p.code
+  FROM roles r CROSS JOIN unnest(ARRAY[${DEFAULT_ROLE_GRANTS.ADMIN_ORGAO.map((code) => `'${code}'`).join(', ')}]) AS p(code)
+ WHERE r.id IN ('${ADMIN_A}', '${ADMIN_B}');
 `;
 
 /** Perfis do vínculo por usuário, sobre a `MembershipPort` real (leitura de atribuições: US-097). */

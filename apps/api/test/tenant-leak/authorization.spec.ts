@@ -280,13 +280,18 @@ describe('Feature: autorização sobre PostgreSQL e Redis reais (US-097)', () =>
     };
 
     beforeAll(async () => {
-      // As tabelas do agregado nascem com a US-001: aqui, só as colunas que o predicado usa.
+      // Só as colunas que o predicado usa, num schema próprio (as tabelas reais do agregado já
+      // existem desde a US-001): a consulta resolve os nomes pelo `search_path` (`visible`).
       await db.admin(`
+      CREATE SCHEMA ci_visibility;
+      SET search_path TO ci_visibility;
       CREATE TABLE processes (id uuid PRIMARY KEY, tenant_id uuid NOT NULL,
                               organization_id uuid, deleted_at timestamptz);
       CREATE TABLE process_access (tenant_id uuid NOT NULL, process_id uuid NOT NULL,
                                    principal_type text NOT NULL, department_id uuid, user_id uuid,
-                                   reason text NOT NULL, revoked_at timestamptz);
+                                   reason text NOT NULL, revoked_at timestamptz, source_id uuid);
+      CREATE TABLE process_participants (id uuid PRIMARY KEY, tenant_id uuid NOT NULL,
+                                         expires_at timestamptz);
       INSERT INTO processes (id, tenant_id, organization_id, deleted_at) VALUES
         ('${ids.requesting}', '${T}', NULL, NULL),
         ('${ids.current}', '${T}', NULL, NULL),
@@ -317,6 +322,7 @@ describe('Feature: autorização sobre PostgreSQL e Redis reais (US-097)', () =>
       await client.connect();
       try {
         await client.query('BEGIN');
+        await client.query('SET LOCAL search_path TO ci_visibility');
         await client.query("SELECT set_config('app.tenant_id', $1, true)", [T]);
         const rows = await client.query<{ id: string }>(
           `SELECT p.id FROM processes p WHERE ${predicate.text} ORDER BY p.id`,
@@ -350,12 +356,14 @@ describe('Feature: autorização sobre PostgreSQL e Redis reais (US-097)', () =>
       );
     });
 
-    it('escopo de unidade expandido: REQUESTING/CURRENT/HISTORICAL; PARTICIPANT de unidade não conta', async () => {
+    // permissions.md §4 (US-012): a unidade participante dá visibilidade como REQUESTING/CURRENT;
+    // o `revoked` entra pela unidade OBRAS participante, não pela concessão própria revogada.
+    it('escopo de unidade expandido: REQUESTING/CURRENT/HISTORICAL e a unidade PARTICIPANT', async () => {
       expect(await visible(scope({ departmentIds: [OBRAS, PROJETOS] }))).toEqual(
-        [ids.requesting, ids.current, ids.historical, ids.ownGrant].sort(),
+        [ids.requesting, ids.current, ids.historical, ids.ownGrant, ids.revoked].sort(),
       );
       expect(await visible(scope({ departmentIds: [OBRAS, PROJETOS] }), false)).toEqual(
-        [ids.requesting, ids.current, ids.ownGrant].sort(),
+        [ids.requesting, ids.current, ids.ownGrant, ids.revoked].sort(),
       );
     });
 

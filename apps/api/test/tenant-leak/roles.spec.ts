@@ -104,7 +104,7 @@ describe('Feature: perfis padrão isolados por tenant (US-094 · tenant leak)', 
         tx.permission.findMany({ orderBy: { code: 'asc' } }),
       );
     const [ofA, ofB] = await Promise.all([read(A), read(B)]);
-    expect(ofA).toHaveLength(68);
+    expect(ofA).toHaveLength(69);
     expect(ofA).toEqual(ofB);
   });
 });
