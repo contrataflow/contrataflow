@@ -156,6 +156,8 @@ module.exports = {
           `${API_MODULES}[^/]+/(domain|application|infrastructure)/`,
           `${API_MODULES}[^/]+/[^/]+\\.module\\.ts$`,
           '^apps/api/src/shared/',
+          // DEC-052: entrada pública `@contrataflow/api/jobs` (contexto de jobs sem HTTP).
+          '^apps/api/src/jobs/',
         ],
       },
     },

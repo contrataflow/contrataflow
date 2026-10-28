@@ -22,3 +22,9 @@
   produção), `EMAIL_FROM`, `APP_BASE_URL` (base dos links) e `EMAIL_RATE_PER_SECOND` (padrão 10/s,
   `limiter` da fila `email`). Lida pelo `main` só quando as filas estão ligadas; obrigatória fora de
   `local`/`dev`/`test` (lá, sem `SMTP_URL`, o `EmailSender` não é registrado e os jobs esperam na fila).
+- `api-jobs.ts` — jobs dos módulos da API (DEC-052 · `@contrataflow/api/jobs`): PDF (`document-render`),
+  varredura de anexos (`file-scan`) e IA (`ai-generation`). Lê o mesmo `.env` da API pelo schema dela no
+  modo "jobs" (`loadJobsConfig`, sem `OIDC_ISSUER_URL`/`INTERNAL_SERVICE_TOKEN`/`REDIS_SESSION_URL`).
+  Liga com `DATABASE_URL` (papel `cf_app`); obrigatória fora de `local`/`dev`/`test` (lá, ausente, os
+  jobs da API ficam desligados). Lida pelo `main` só com as filas ligadas. Sem `GOTENBERG_URL`,
+  `CLAMAV_HOST` ou os buckets S3, só as filas dependentes ficam pausadas (`worker.queue_unconfigured`).

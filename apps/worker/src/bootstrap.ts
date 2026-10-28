@@ -1,3 +1,4 @@
+import type { AppConfig as ApiJobsConfig, RunningApiJobs } from '@contrataflow/api/jobs';
 import type { Logger as PinoLogger } from '@contrataflow/observability';
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
@@ -8,6 +9,7 @@ import type { OutboxRuntimeConfig } from '#config/outbox.js';
 import type { QueueRuntimeConfig } from '#config/queues.js';
 import type { SessionsRuntimeConfig } from '#config/sessions.js';
 
+import { attachApiJobs } from './api-jobs/api-jobs.js';
 import { registerGracefulShutdown } from './graceful-shutdown.js';
 import type { ShutdownProcess, ShutdownSignal } from './graceful-shutdown.js';
 import { createWorkerLogger } from './observability/worker-logger.js';
@@ -33,10 +35,17 @@ export interface StartWorkerOptions {
    * transições de saúde é o `rootLogger`.
    */
   readonly ops?: Omit<WorkerOpsOptions, 'logger'> | null;
+  /**
+   * Jobs dos módulos da API — PDF, varredura de anexos e IA (DEC-052); ausente = não consumidos
+   * (os jobs esperam na fila). Só sobem com as filas.
+   */
+  readonly apiJobs?: ApiJobsConfig | null;
 }
 
 export interface RunningWorker {
   readonly context: INestApplicationContext;
+  /** Contexto de jobs da API (`null` sem `apiJobs` ou sem filas). */
+  readonly apiJobs: RunningApiJobs | null;
   /** Porta interna de administração (`null` sem `ops`). */
   readonly ops: RunningWorkerOps | null;
   /** Resolvida após o encerramento limpo disparado por sinal. */
@@ -62,6 +71,19 @@ export async function startWorker(options: StartWorkerOptions = {}): Promise<Run
   );
   if (!silent) context.useLogger(context.get(NestPinoLogger));
   const logger = new Logger('Bootstrap');
+  let apiJobs: RunningApiJobs | null = null;
+  if (options.apiJobs) {
+    try {
+      // Depois do bootstrap: o contexto da API usa o logger pino do worker (sem segundo OTel).
+      apiJobs = await attachApiJobs(context, {
+        config: options.apiJobs,
+        logger: silent ? false : context.get(NestPinoLogger),
+      });
+    } catch (error) {
+      await context.close();
+      throw error;
+    }
+  }
   const keepAlive = setInterval(() => undefined, 60_000);
   // Readiness só depois do startup (observability.md §6.1): a porta sobe com o contexto pronto.
   const ops = options.ops ? await startWorkerOps({ ...options.ops, logger: rootLogger }) : null;
@@ -75,10 +97,12 @@ export async function startWorker(options: StartWorkerOptions = {}): Promise<Run
       close: async () => {
         clearInterval(keepAlive);
         await ops?.close();
+        // Os `Worker`s terminam os jobs em curso antes de o contexto da API fechar o banco.
         await context.close();
+        await apiJobs?.close();
       },
     },
     { name: 'worker', logger, ...(options.proc ? { proc: options.proc } : {}) },
   );
-  return { context, ops, stopped };
+  return { context, apiJobs, ops, stopped };
 }

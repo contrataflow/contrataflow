@@ -33,6 +33,7 @@
   "dependencies": {
     "@bull-board/api": "catalog:",
     "@bull-board/express": "catalog:",
+    "@contrataflow/api": "workspace:*",
     "@contrataflow/editor": "workspace:*",
     "@contrataflow/observability": "workspace:*",
     "@contrataflow/types": "workspace:*",

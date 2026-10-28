@@ -299,6 +299,20 @@ export class QueueRuntime implements OnModuleInit, OnApplicationBootstrap, OnMod
     );
   }
 
+  /**
+   * Handlers que chegam depois do bootstrap — os jobs dos módulos da API, resolvidos num contexto
+   * Nest próprio (DEC-052): registra e sobe o `Worker` das filas que ainda não tinham um.
+   */
+  consume(handlers: readonly JobHandler<never>[]): void {
+    const running = new Set(this.registry.queues());
+    for (const handler of handlers) this.registry.register(handler);
+    const started = this.registry.queues().filter((queue) => !running.has(queue));
+    for (const queue of started) this.startWorker(queue as ConsumedQueue);
+    if (started.length > 0) {
+      this.logger.log({ event: 'worker.queues_started', queues: started }, 'queue workers started');
+    }
+  }
+
   private every(intervalMs: number, task: () => Promise<void>): void {
     const timer = setInterval(() => {
       task().catch((error: unknown) => {

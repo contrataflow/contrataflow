@@ -14,6 +14,9 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.spec.ts'],
+    // `@contrataflow/api/jobs` (DEC-052) roda do dist da API pelo Node: os `#shared/*` dela
+    // resolvem pelo `package.json` da API, não pelo alias acima (que é só do worker).
+    server: { deps: { external: [/[\\/]apps[\\/]api[\\/]dist[\\/]/] } },
     environment: 'node',
     // lcov alimenta o gate de cobertura do código novo do CI (US-079 — RN-FND-24).
     coverage: {

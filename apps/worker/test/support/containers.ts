@@ -23,7 +23,8 @@ function postgresImage(): string {
   return image;
 }
 
-export type Role = 'postgres' | 'cf_app' | 'cf_relay' | 'cf_maintenance' | 'cf_worker';
+export type Role =
+  'postgres' | 'cf_app' | 'cf_platform' | 'cf_relay' | 'cf_maintenance' | 'cf_worker';
 
 export interface TestPostgres {
   url(role: Role): string;
@@ -69,7 +70,7 @@ export async function startPostgres(): Promise<TestPostgres> {
   for (const folder of folders) {
     await admin(readFileSync(`${MIGRATIONS}/${folder}/migration.sql`, 'utf8'));
   }
-  for (const role of ['cf_app', 'cf_relay', 'cf_maintenance', 'cf_worker']) {
+  for (const role of ['cf_app', 'cf_platform', 'cf_relay', 'cf_maintenance', 'cf_worker']) {
     await admin(`ALTER ROLE ${role} PASSWORD '${PASSWORD}'`);
   }
   return {
