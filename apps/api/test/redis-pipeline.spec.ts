@@ -8,6 +8,7 @@ import { GenericContainer } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { RedisClient } from '#modules/platform/infrastructure/redis/redis.client.js';
 import { FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
 
 import { createTestApi, testConfig } from './support/api-test-app.js';
@@ -35,13 +36,11 @@ describe('pipeline com Redis real', () => {
       controllers: [PipelineTestController],
     });
     // Aguarda a conexão inicial (o cliente conecta em segundo plano no bootstrap): enquanto não
-    // conecta, o rate limit falha aberto e não devolve `RateLimit-*`. Carla não é usada adiante.
+    // conecta, o rate limit falha aberto e não devolve `RateLimit-*`.
+    const client = api.app.get(RedisClient, { strict: false }).redis;
     await vi.waitFor(
-      async () => {
-        const response = await request(api.server)
-          .get('/api/v1/_test/without-tenant')
-          .set('Authorization', api.bearer(FAKE_USERS.carla.subject));
-        expect(response.headers['ratelimit-limit']).toBeDefined();
+      () => {
+        expect(client.status).toBe('ready');
       },
       { timeout: 10_000, interval: 100 },
     );

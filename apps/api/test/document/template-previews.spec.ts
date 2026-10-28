@@ -4,7 +4,7 @@
 // `pnpm --filter @contrataflow/api test:integration`.
 import { GenericContainer } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { TemplatePreviewStore } from '#modules/document/application/template-preview.store.js';
 import { requestTemplatePreview } from '#modules/document/domain/template-preview.js';
@@ -36,6 +36,14 @@ describe('prévia efêmera do template com Redis real (US-109)', () => {
       stores: 'redis',
       config: testConfig({ REDIS_CACHE_URL: redisUrl }),
     });
+    // O cliente conecta em segundo plano no bootstrap e, sem fila offline, recusa comandos antes.
+    const client = api.app.get(RedisClient, { strict: false }).redis;
+    await vi.waitFor(
+      () => {
+        expect(client.status).toBe('ready');
+      },
+      { timeout: 10_000, interval: 100 },
+    );
   });
 
   afterAll(async () => {
