@@ -90,11 +90,11 @@ INSERT INTO users (id, external_subject, email, email_verified, name) VALUES
   ('${RUI}', '${SUBJECTS.rui}', 'rui@a.test', true, 'Rui Costa'),
   ('${BETO}', '${SUBJECTS.beto}', 'beto@b.test', true, 'Beto LEAK-B'),
   ('${LIA}', '${SUBJECTS.lia}', 'lia@a.test', true, 'Lia Consultora');
-INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status) VALUES
-  ('${ANA_M}', '${A}', '${ANA}', 'INTERNAL', 'ACTIVE'),
-  ('0192c036-0000-7000-8000-0000000010d2', '${A}', '${RUI}', 'INTERNAL', 'ACTIVE'),
-  ('0192c036-0000-7000-8000-0000000010d3', '${B}', '${BETO}', 'INTERNAL', 'ACTIVE'),
-  ('0192c036-0000-7000-8000-0000000010d4', '${A}', '${LIA}', 'EXTERNAL', 'ACTIVE');
+INSERT INTO tenant_memberships (id, tenant_id, user_id, type, status, expires_at) VALUES
+  ('${ANA_M}', '${A}', '${ANA}', 'INTERNAL', 'ACTIVE', NULL),
+  ('0192c036-0000-7000-8000-0000000010d2', '${A}', '${RUI}', 'INTERNAL', 'ACTIVE', NULL),
+  ('0192c036-0000-7000-8000-0000000010d3', '${B}', '${BETO}', 'INTERNAL', 'ACTIVE', NULL),
+  ('0192c036-0000-7000-8000-0000000010d4', '${A}', '${LIA}', 'EXTERNAL', 'ACTIVE', '2027-10-19T15:00:00Z');
 INSERT INTO membership_departments (id, tenant_id, membership_id, department_id, is_primary) VALUES
   ('0192c036-0000-7000-8000-0000000010e1', '${A}', '${ANA_M}', '${MANUTENCAO}', true);
 `;
@@ -159,6 +159,10 @@ describe('Feature: Criar TR sobre PostgreSQL (US-036)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({ kind: 'GOOD', description: 'Notebook 14 polegadas', unitOfMeasureId: catalog.un });
     expect(item.status, JSON.stringify(item.body)).toBe(201);
+    // DEC-019: a quantidade de referência só é gravada pelos documentos/pesquisa — aqui por SQL.
+    await db.admin('UPDATE process_items SET reference_quantity = 10 WHERE id = $1', [
+      (item.body as { data: { id: string } }).data.id,
+    ]);
     let researchId: string | null = null;
     if (options.research === true) {
       await moveTo(process.id, 'PESQUISA_PRECOS');
@@ -369,11 +373,14 @@ describe('Feature: Criar TR sobre PostgreSQL (US-036)', () => {
     expect((await effects(process.id)).documents).toEqual([
       expect.objectContaining({ confidentiality: 'RESTRICTED' }),
     ]);
-    await db.admin(
-      `INSERT INTO process_participants (id, tenant_id, process_id, user_id, role, granted_by_id)
-       VALUES ($1, $2, $3, $4, 'CONSULTANT', $5)`,
-      [randomUUID(), A, process.id, LIA, RUI],
-    );
+    // PRC-31 (US-012): o participante e a concessão USER/PARTICIPANT que dá a visibilidade.
+    const participant = await call(
+      request(api.server).post(`/api/v1/processes/${process.id}/participants`),
+    )
+      .set('Idempotency-Key', randomUUID())
+      // Dentro da validade do vínculo externo da Lia (senão, 422 EXPIRES_AFTER_MEMBERSHIP).
+      .send({ userId: LIA, role: 'CONSULTANT', expiresAt: '2027-10-01T00:00:00.000Z' });
+    expect(participant.status, JSON.stringify(participant.body)).toBe(201);
     const masked = await call(request(api.server).get(`/api/v1/terms/${term.id}`), SUBJECTS.lia);
     expect(masked.status, JSON.stringify(masked.body)).toBe(200);
     expect((masked.body as { data: TermDetailDto }).data).toMatchObject({
