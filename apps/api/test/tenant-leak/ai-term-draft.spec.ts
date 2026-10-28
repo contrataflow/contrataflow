@@ -342,7 +342,8 @@ describe('Feature: Rascunho do TR com IA sobre PostgreSQL (US-120)', () => {
     expect(String(generation?.refs)).toContain('TERM_CONDITIONS');
     const sent = JSON.stringify(provider.calls.at(-1));
     expect(sent).not.toContain('LEAK-B');
-    expect(sent).not.toContain('777');
+    // O total de B (777777.77) em qualquer formatação; só '777' colidia com o hex aleatório do título.
+    expect(sent).not.toMatch(/777\D?777/);
     expect(sent).toContain(SPECIFICATION);
     expect(sent).toContain('12 meses');
 

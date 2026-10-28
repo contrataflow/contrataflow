@@ -287,7 +287,9 @@ describe('Feature: Configurar numeração de processos e documentos sobre Postgr
     for (const response of [crossPatch, crossPreview]) {
       expect(response.status).toBe(403);
       expect(problemDetailsSchema.parse(response.body).code).toBe('MEMBERSHIP_INACTIVE');
-      expect(JSON.stringify(response.body)).not.toContain('901');
+      // Sem o `correlationId`: o hex aleatório do UUIDv7 pode conter '901' por acaso.
+      const { correlationId: _correlationId, ...rest } = response.body as Record<string, unknown>;
+      expect(JSON.stringify(rest)).not.toContain('901');
     }
     expect(await settingOf(B, MASK)).toEqual(before);
 
