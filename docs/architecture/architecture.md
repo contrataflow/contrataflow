@@ -334,12 +334,12 @@ contrataflow/
 | `packages/observability` | ✔ | ✘ | ✘ | ✘ | — | ✘ | ✘ | ✘ |
 | `apps/web` | ✔ | ✔ | ✔ | ✔ | ✔ | ✘ (só HTTP) | — | ✘ |
 | `apps/api` | ✔ | ✔ | ✔ | ✘ | ✔ | — | ✘ | ✘ |
-| `apps/worker` | ✔ | ✔ | ✔ | ✘ | ✔ | ✔ (somente `src/modules/*/{application,infrastructure,domain}`, `*.module.ts` e `src/shared`) | ✘ | — |
+| `apps/worker` | ✔ | ✔ | ✔ | ✘ | ✔ | ✔ (somente `src/modules/*/{application,infrastructure,domain}`, `*.module.ts`, `src/shared` e a entrada pública `@contrataflow/api/jobs` — `src/jobs`) | ✘ | — |
 
 Regras adicionais dentro de `apps/api` (DEC-041):
 1. `modules/<m>/domain/**` não importa `@nestjs/*`, `@prisma/*`, `ioredis`, SDKs de nuvem nem outro módulo.
 2. Um módulo só importa de outro módulo o arquivo `application/<m>.facade.ts` (e tipos públicos em `application/dto/**`), respeitando os níveis do §3.3.
-3. `presentation/**` só é importado pelo próprio módulo (o worker nunca carrega controllers).
+3. `presentation/**` só é importado pelo próprio módulo (o worker nunca carrega controllers). Os jobs dos módulos da API chegam ao worker pela entrada de pacote `@contrataflow/api/jobs` (`exports` do `package.json` da API), que sobe um contexto Nest sem HTTP com cópias dos módulos sem controllers — nunca por alias de caminho, porque os `#shared/*` das duas apps colidiriam ([queues.md](queues.md) §4.10).
 4. Acesso a Prisma somente em `infrastructure/**` e no shared kernel (`shared/database/**`).
 5. `SystemDbService` (papel de plataforma — [`multi-tenancy.md`](multi-tenancy.md#53-acesso-de-plataforma-systemprisma)) só pode ser importado por arquivos na allowlist (`modules/tenancy/application/provisioning/**`, `worker/src/outbox/**`, `worker/src/schedulers/**`).
 6. Sem ciclos (`no-circular`), inclusive entre fachadas.

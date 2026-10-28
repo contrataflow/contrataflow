@@ -399,6 +399,8 @@ packages/
 ### DEC-052 — Worker separado · `Aceita`
 `apps/worker` reutiliza os módulos de domínio/aplicação e executa: consumidores BullMQ, jobs agendados, relay do outbox. Escala independente da API.
 
+**Complemento (2026-10-28 · US-083/US-067/US-068/US-115):** os jobs dos módulos da API (`document-render`, `file-scan`, `ai-generation`) chegam ao worker pelo limite de pacote — `@contrataflow/api/jobs` (`exports` do `package.json` da API, `apps/worker` depende de `@contrataflow/api` no workspace) —, e não por alias de caminho: os `#shared/*`/`#config/*` de cada app resolvem pelo próprio `package.json` (Node subpath imports) e não colidem. O worker sobe um contexto Nest **sem HTTP** (`ApiJobsModule`: config, banco, storage, Gotenberg, antivírus, provedor de IA e os módulos de DEC-040 copiados sem controllers), com o seu logger, e executa os `TenantJob` pelo próprio `runJob` (timeouts, concorrência, DLQ). Configuração: o mesmo `.env`, sem as variáveis só de HTTP; dependência ausente pausa só a fila que depende dela. Detalhes em [queues.md](queues.md) §4.10.
+
 ### DEC-053 — BFF no Next.js · `Aceita` · [ADR-003](../adr/adr-003-authentication.md)
 Browser → `apps/web` (`/api/auth/*` para login/callback/logout/sessão; `/api/v1/*` proxy para a API) → `apps/api`. Tokens nunca chegam ao browser. A API NestJS não é exposta à internet no MVP 1 (somente rede privada); a API pública chega no MVP 3.
 
