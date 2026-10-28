@@ -31,7 +31,7 @@ test('salvar a visão → aplicar → definir como padrão → exportar o CSV �
 }) => {
   await openList(page);
   await expect(rows(page)).toHaveCount(4); // cabeçalho + 3 processos
-  await page.getByRole('button', { name: 'Atrasados' }).click();
+  await page.getByRole('link', { name: /^Atrasados/ }).click();
   await expect(page).toHaveURL(/overdue=true/);
   await expect(rows(page)).toHaveCount(2);
 
@@ -60,7 +60,7 @@ test('salvar a visão → aplicar → definir como padrão → exportar o CSV �
   const exportDialog = page.getByRole('dialog', { name: 'Exportar CSV' });
   await expect(exportDialog.getByText('1 processo na consulta atual')).toBeVisible();
   await expect(exportDialog.getByRole('list', { name: 'Colunas do arquivo' })).toContainText(
-    'Prioridade',
+    'Situação',
   );
   await expectNoSeriousA11yViolations(page, 'diálogo Exportar CSV');
   const downloadPromise = page.waitForEvent('download');
@@ -68,7 +68,8 @@ test('salvar a visão → aplicar → definir como padrão → exportar o CSV �
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('processos-20261005-1432.csv');
   const content = await readFile(await download.path(), 'utf8');
-  expect(content.startsWith('\uFEFFCódigo;Título;Situação;')).toBe(true);
+  // Colunas na ordem da tela (padrão da repaginação: Número, Objeto, Secretaria, …).
+  expect(content.startsWith('\uFEFFCódigo;Título;')).toBe(true);
   expect(content).toContain('0045/2026;Aquisição de medicamentos da farmácia básica;');
   expect(content).not.toContain('0012/2026');
   expect(content).toContain('\r\n');

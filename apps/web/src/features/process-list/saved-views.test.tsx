@@ -237,7 +237,11 @@ const callsTo = (fetchMock: Fetch, pathname: string, method = 'GET') =>
     )
     .map(([input, init]) => ({ url: new URL(requestUrl(input), 'http://localhost'), init }));
 
-const listCalls = (fetchMock: Fetch) => callsTo(fetchMock, '/api/v1/processes').map((c) => c.url);
+/** Consultas da lista (sem os contadores das abas, que pedem `pageSize=1`). */
+const listCalls = (fetchMock: Fetch) =>
+  callsTo(fetchMock, '/api/v1/processes')
+    .map((c) => c.url)
+    .filter((url) => url.searchParams.get('pageSize') !== '1');
 
 function csvResponse(
   body: BodyInit,
@@ -355,12 +359,11 @@ describe('Feature: salvar visão (US-003 · PRC-36)', () => {
       columns: [
         'code',
         'title',
-        'status',
+        'requestingSecretariat',
         'stage',
-        'currentDepartment',
         'currentResponsible',
         'deadline',
-        'priority',
+        'status',
       ],
       isShared: false,
       isDefault: true,
@@ -506,9 +509,9 @@ describe('Feature: aplicar visão (US-003)', () => {
     const { fetchMock } = mockApi({ views: [view(), SHARED] });
     renderPage();
     await screen.findByText('0012/2026');
-    // Colunas da tela antes: inclui Prioridade e Etapa.
+    // Colunas da tela antes: inclui Secretaria e Etapa.
     const table = screen.getByRole('table');
-    expect(within(table).getByRole('columnheader', { name: /Prioridade/ })).toBeTruthy();
+    expect(within(table).getByRole('columnheader', { name: /Secretaria/ })).toBeTruthy();
 
     const picker = await select();
     const groups = Array.from(picker.querySelectorAll('optgroup')).map((group) => group.label);
@@ -527,9 +530,9 @@ describe('Feature: aplicar visão (US-003)', () => {
         true,
       );
     });
-    // Colunas da visão: code, title, status, responsible — sem Prioridade nem Etapa.
+    // Colunas da visão: code, title, status, responsible — sem Secretaria nem Etapa.
     await waitFor(() => {
-      expect(within(table).queryByRole('columnheader', { name: /Prioridade/ })).toBeNull();
+      expect(within(table).queryByRole('columnheader', { name: /Secretaria/ })).toBeNull();
     });
     expect(within(table).getByRole('columnheader', { name: /Responsável/ })).toBeTruthy();
     expect(within(table).queryByRole('columnheader', { name: /Etapa/ })).toBeNull();
@@ -555,7 +558,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     );
     expect(new URLSearchParams(nav.get()).get('overdue')).toBeNull();
     expect(
-      within(screen.getByRole('table')).getByRole('columnheader', { name: /Prioridade/ }),
+      within(screen.getByRole('table')).getByRole('columnheader', { name: /Secretaria/ }),
     ).toBeTruthy();
   });
 
@@ -574,7 +577,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((url) => url.searchParams.get('overdue') === 'true')).toBe(true);
     expect(
-      within(screen.getByRole('table')).queryByRole('columnheader', { name: /Prioridade/ }),
+      within(screen.getByRole('table')).queryByRole('columnheader', { name: /Secretaria/ }),
     ).toBeNull();
   });
 
@@ -692,7 +695,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     await applyView(ID(900));
     expect(screen.queryByText('Alterações não salvas')).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Devolvidos' }));
+    await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     expect(await screen.findByText('Alterações não salvas')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Atualizar visão' }));
 
@@ -702,9 +705,10 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     const [patch] = callsTo(fetchMock, `/api/v1/saved-views/${ID(900)}`, 'PATCH');
     expect(headerOf(patch?.init, 'If-Match')).toBe('"3"');
     expect(bodyOf(patch?.init)).toEqual({
-      filters: { v: 1, status: ['RETURNED'], overdue: true },
+      // As abas são exclusivas: "Devolvidos" tira o atalho "Atrasados" da visão.
+      filters: { v: 1, status: ['RETURNED'] },
       sort: '-priority',
-      columns: ['code', 'title', 'status', 'currentResponsible'],
+      columns: ['code', 'title', 'currentResponsible', 'status'],
     });
     expect(await screen.findByText('Visão Atrasados por prioridade atualizada.')).toBeTruthy();
   });
@@ -729,7 +733,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     renderPage();
     await screen.findByText('0012/2026');
     await applyView(ID(900));
-    await userEvent.click(screen.getByRole('button', { name: 'Devolvidos' }));
+    await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'Atualizar visão' }));
 
     const alert = await screen.findByText('Esta visão foi alterada em outra janela.');
@@ -753,7 +757,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     renderPage();
     await screen.findByText('0012/2026');
     await applyView(ID(900));
-    await userEvent.click(screen.getByRole('button', { name: 'Devolvidos' }));
+    await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'Atualizar visão' }));
     const message = await screen.findByText('Somente quem criou a visão pode alterá-la.');
     const box = alertBox(message);
@@ -769,7 +773,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     renderPage();
     await screen.findByText('0012/2026');
     await applyView(ID(900));
-    await userEvent.click(screen.getByRole('button', { name: 'Devolvidos' }));
+    await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     state.views = [];
     await userEvent.click(await screen.findByRole('button', { name: 'Atualizar visão' }));
     expect(await screen.findByText('Visão não encontrada.')).toBeTruthy();
@@ -789,7 +793,7 @@ describe('Feature: visão compartilhada por outro dono (US-003 · FA-04)', () =>
     await screen.findByText('0012/2026');
     await applyView(SHARED.id);
     expect(new URLSearchParams(nav.get()).get('status')).toBe('RETURNED');
-    await userEvent.click(screen.getByRole('button', { name: 'Atrasados' }));
+    await userEvent.click(screen.getByRole('link', { name: /^Atrasados/ }));
     expect(await screen.findByText('Alterações não salvas')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Atualizar visão' })).toBeNull();
 
@@ -820,7 +824,8 @@ describe('Feature: visão compartilhada por outro dono (US-003 · FA-04)', () =>
     const [post] = callsTo(fetchMock, '/api/v1/saved-views', 'POST');
     expect(bodyOf(post?.init)).toMatchObject({
       name: 'Devolvidos da Saúde',
-      filters: { v: 1, status: ['RETURNED'], overdue: true },
+      // A aba "Atrasados" substituiu o atalho "Devolvidos" da visão (abas exclusivas).
+      filters: { v: 1, overdue: true },
       isShared: false,
       isDefault: false,
     });
@@ -986,14 +991,13 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
         .getAllByRole('listitem')
         .map((node) => node.textContent),
     ).toEqual([
-      'Código',
-      'Título',
-      'Status',
-      'Etapa',
-      'Unidade atual',
+      'Número',
+      'Objeto',
+      'Secretaria',
+      'Etapa atual',
       'Responsável',
       'Prazo da etapa',
-      'Prioridade',
+      'Situação',
     ]);
     expect(await seriousA11yViolations()).toEqual([]);
 
@@ -1006,7 +1010,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
     const query = call?.url.searchParams;
     expect(query?.get('status')).toBe('IN_PROGRESS');
     expect(query?.get('columns')).toBe(
-      'code,title,status,stage,currentDepartment,currentResponsible,deadline,priority',
+      'code,title,requestingSecretariat,stage,currentResponsible,deadline,status',
     );
     expect(query?.has('page')).toBe(false);
     expect(query?.has('savedViewId')).toBe(false);
@@ -1035,7 +1039,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
       expect(callsTo(fetchMock, '/api/v1/processes/export')).toHaveLength(1);
     });
     const query = callsTo(fetchMock, '/api/v1/processes/export')[0]?.url.searchParams;
-    expect(query?.get('columns')).toBe('code,title,status,currentResponsible');
+    expect(query?.get('columns')).toBe('code,title,currentResponsible,status');
     expect(query?.get('overdue')).toBe('true');
     expect(query?.get('sort')).toBe('-priority');
     expect(query?.get('savedViewId')).toBe(ID(900));
@@ -1046,7 +1050,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
     renderPage();
     await screen.findByText('0012/2026');
     await applyView(ID(900));
-    await userEvent.click(screen.getByRole('button', { name: 'Devolvidos' }));
+    await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     expect(await screen.findByText('Alterações não salvas')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Ações da visão' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Exportar CSV' }));

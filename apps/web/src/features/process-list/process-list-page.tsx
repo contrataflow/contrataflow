@@ -1,7 +1,32 @@
 'use client';
 
-import { Alert, Button, Skeleton, buttonClassName } from '@contrataflow/ui';
-import { PROCESS_LIST_MESSAGES } from '@contrataflow/validation';
+import {
+  Alert,
+  Avatar,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  EmptyState,
+  FilterChip,
+  Skeleton,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+  ViewTabs,
+  buttonClassName,
+} from '@contrataflow/ui';
+import type { LinkComponent } from '@contrataflow/ui';
+import { PROCESS_LIST_DEFAULT_PAGE_SIZE, PROCESS_LIST_MESSAGES } from '@contrataflow/validation';
 import type {
   ProcessListItemDto,
   ProcessListParamKey,
@@ -9,15 +34,18 @@ import type {
   ProcessStageOptionDto,
   ProcessStatus,
 } from '@contrataflow/validation';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentProps, MouseEvent } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
 import { ErrorView } from '@/components/errors/error-view';
+import { Icon } from '@/components/shell/icons';
 import { AppPageHeader } from '@/components/shell/page-header';
+import { NEW_PROCESS_PATH } from '@/features/processes/new-process-button';
 import { ProcessStatusBadge } from '@/features/processes/process-status-badge';
 import type { Messages } from '@/i18n/messages';
 import { isApiError } from '@/lib/api/api-error';
@@ -25,31 +53,35 @@ import { usePermission } from '@/lib/permissions/use-permission';
 import { HOME_PATH } from '@/lib/routes';
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
+import { ExportCsvDialog } from './export-csv-dialog';
 import { ProcessFiltersPanel } from './process-filters-panel';
 import type { FilterOptions } from './process-filters-panel';
 import {
   ConfidentialBadge,
   ConfidentialValue,
-  DueDateBadge,
+  DueDateText,
   PriorityBadge,
   formatBrl,
 } from './process-list-badges';
 import {
+  LIST_TABS,
   activeFilterKeys,
+  activeTabOf,
   clearFilters,
   hasValueFilter,
   isQuickFilterActive,
   primarySort,
   resolveListState,
   searchValue,
+  tabCountQuery,
   toApiQuery,
   toSearchString,
-  toggleQuickFilter,
   toggleSort,
   valuesOf,
   withParam,
+  withTab,
 } from './process-list-state';
-import type { ListParams, QuickFilter } from './process-list-state';
+import type { ListParams, ListTab, SortState } from './process-list-state';
 import {
   FILTER_OPTIONS_STALE_TIME_MS,
   PROCESS_LIST_STALE_TIME_MS,
@@ -76,9 +108,10 @@ import { useTags } from '../tags/tags.api';
 
 /*
  * SCR-004 — Processos (`/processos` · US-002): tabela paginada no servidor (modo manual: a API
- * filtra, ordena e pagina), busca com debounce, atalhos, painel de filtros, chips e escolha de
- * colunas. A URL é o estado da consulta (link compartilhável); abaixo de 768 px cada linha vira um
- * cartão (FA-09). A API decide visibilidade e sigilo; a tela só apresenta.
+ * filtra, ordena e pagina), busca com debounce, atalhos em abas com contador, painel de filtros,
+ * chips, menu de ordenação e escolha de colunas (repaginação — prd-4). A URL é o estado da consulta
+ * (link compartilhável); abaixo de 768 px cada linha vira um cartão (FA-09). A API decide
+ * visibilidade e sigilo; a tela só apresenta.
  */
 
 export const PROCESS_LIST_PATH = '/processos';
@@ -117,17 +150,21 @@ interface ColumnDef {
   readonly card?: boolean;
 }
 
-/** Colunas da tabela "Colunas" da US-002 ("Etiquetas" — US-007 — fica fora do padrão). */
+/**
+ * Colunas da tabela "Colunas" da US-002, na ordem da repaginação (prd-4): o padrão segue o mockup
+ * (Número, Objeto, Secretaria, Etapa atual, Responsável, Prazo da etapa, Situação); "Etiquetas"
+ * (US-007), unidade atual e prioridade ficam no seletor de colunas.
+ */
 export const PROCESS_COLUMNS: readonly ColumnDef[] = [
   { id: 'code', sort: 'code', fixed: true, card: true },
   { id: 'title', sort: 'title', fixed: true, card: true },
-  { id: 'status', sort: 'status', visibleByDefault: true, card: true },
+  { id: 'requestingSecretariat', visibleByDefault: true },
   { id: 'stage', visibleByDefault: true, card: true },
-  { id: 'currentDepartment', visibleByDefault: true },
   { id: 'responsible', visibleByDefault: true, card: true },
   { id: 'deadline', sort: 'currentStageDueAt', visibleByDefault: true, card: true },
-  { id: 'priority', sort: 'priority', visibleByDefault: true },
-  { id: 'requestingSecretariat' },
+  { id: 'status', sort: 'status', visibleByDefault: true, card: true },
+  { id: 'currentDepartment' },
+  { id: 'priority', sort: 'priority' },
   { id: 'requestingDepartment' },
   { id: 'contractingType' },
   { id: 'modality' },
@@ -145,7 +182,13 @@ const DEFAULT_COLUMNS: readonly ColumnId[] = PROCESS_COLUMNS.filter(
   (column) => column.visibleByDefault,
 ).map((column) => column.id);
 
-const QUICK_ORDER: readonly QuickFilter[] = ['mine', 'myUnit', 'overdue', 'returned'];
+/** Atalhos do menu ⋯ da linha: abas do processo (`?aba=`) — as ações com diálogo ficam no processo. */
+const ROW_LINKS = [
+  { key: 'open', tab: null },
+  { key: 'documents', tab: 'documentos' },
+  { key: 'movements', tab: 'tramitacao' },
+  { key: 'comments', tab: 'comentarios' },
+] as const;
 
 /** Rótulo do chip de cada filtro (namespace `processList.filters`). */
 const CHIP_LABELS: Partial<Record<ProcessListParamKey, keyof Messages['processList']['filters']>> =
@@ -176,6 +219,7 @@ const CHIP_LABELS: Partial<Record<ProcessListParamKey, keyof Messages['processLi
 
 export function ProcessListPage() {
   const t = useTranslations('processList');
+  const tExport = useTranslations('processList.export');
   const tErrors = useTranslations('errors');
   const tStatus = useTranslations('processes.statuses');
   const tPriority = useTranslations('processes.priorities');
@@ -353,8 +397,33 @@ export function ProcessListPage() {
     retry: false,
   });
 
+  // Contadores das abas: o total de cada aba com os demais filtros (`pageSize=1`); a aba ativa usa
+  // o total da própria lista. Sem contrato novo na API (prd-4).
+  const activeTab = activeTabOf(params);
+  const countedTabs = LIST_TABS.filter((tab) => tab !== activeTab);
+  const tabCounts = useQueries({
+    queries: countedTabs.map((tab) => {
+      const query = tabCountQuery(params, tab);
+      return {
+        queryKey: processListKeys.list(tenantId, query),
+        queryFn: async ({ signal }: { signal: AbortSignal }) =>
+          (await fetchProcessList(query, signal)).meta.totalItems,
+        enabled: !views.awaitingDefault,
+        staleTime: PROCESS_LIST_STALE_TIME_MS,
+        throwOnError: false,
+        retry: false,
+      };
+    }),
+  });
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersKey, setFiltersKey] = useState(0);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportReturnFocus = useRef<HTMLElement | null>(null);
+  const openExport = (trigger: HTMLElement | null) => {
+    exportReturnFocus.current = trigger;
+    setExportOpen(true);
+  };
 
   // --- Estados de erro ---------------------------------------------------------------------
   const error = list.error;
@@ -445,15 +514,39 @@ export function ProcessListPage() {
   const showNoProcesses =
     page !== undefined && total === 0 && (activeKeys.length === 0 || state.usedDefaults);
 
+  const isExternal = membershipType === 'EXTERNAL';
+  const pageSize = page?.meta.pageSize ?? PROCESS_LIST_DEFAULT_PAGE_SIZE;
+  const firstShown = items.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastShown = items.length === 0 ? 0 : firstShown + items.length - 1;
+  const countOf = (tab: ListTab): number | undefined =>
+    tab === activeTab ? page?.meta.totalItems : tabCounts[countedTabs.indexOf(tab)]?.data;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <AppPageHeader
+        breadcrumbs={[{ label: t('breadcrumbHome'), href: HOME_PATH }, { label: t('title') }]}
         title={t('title')}
         description={t('description')}
         actions={
-          <p className="text-sm font-medium" aria-hidden="true">
-            {page ? t('total', { count: total }) : null}
-          </p>
+          <>
+            {canExport ? (
+              <Button
+                variant="secondary"
+                onClick={(event) => {
+                  openExport(event.currentTarget);
+                }}
+              >
+                <Icon name="download" />
+                {tExport('button')}
+              </Button>
+            ) : null}
+            {canCreate && !isExternal ? (
+              <Link href={NEW_PROCESS_PATH} className={buttonClassName({})}>
+                <Icon name="plus" />
+                {t('newProcess')}
+              </Link>
+            ) : null}
+          </>
         }
       />
 
@@ -468,18 +561,30 @@ export function ProcessListPage() {
       <SavedViewsToolbar
         controller={views}
         canExport={canExport}
-        exportTotal={page && !list.isFetching ? total : undefined}
-        exportColumns={exportColumns}
-        buildExportQuery={() =>
-          exportQuery(params, columnKeysFromVisible(visibleIds), exportViewId)
-        }
+        onExport={openExport}
         summarize={() => summarizeCriteria(params, criteriaLabels)}
       />
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-start">
-        <div className="flex flex-1 flex-col gap-1">
-          <label className="relative block">
+      <ViewTabs
+        label={t('tabs.label')}
+        value={activeTab ?? ''}
+        linkComponent={RouterLink}
+        tabs={LIST_TABS.map((tab) => ({
+          id: tab,
+          label: t(`tabs.${tab}`),
+          count: countOf(tab),
+          href: `${pathname}?${toSearchString(withTab(params, tab))}`,
+        }))}
+      />
+
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-1 md:max-w-sm">
+          <label className="relative flex items-center">
             <span className="sr-only">{t('search.label')}</span>
+            <Icon
+              name="search"
+              className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
+            />
             <input
               type="search"
               value={searchText}
@@ -488,7 +593,7 @@ export function ProcessListPage() {
               onChange={(event) => {
                 setSearchText(event.target.value);
               }}
-              className="h-11 w-full rounded-control border border-border bg-surface px-3 text-sm md:h-9"
+              className="h-11 w-full rounded-control border border-border-strong bg-surface pr-3 pl-9 text-sm md:h-10"
             />
           </label>
           {searchTooShort ? (
@@ -497,19 +602,61 @@ export function ProcessListPage() {
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
+
+        {activeKeys.length > 0 ? (
+          <ul aria-label={t('filters.active')} className="flex flex-wrap items-center gap-2">
+            {activeKeys.map((key) => {
+              const label = chipLabel(key);
+              const value = chipValue(key, params[key] ?? '');
+              return (
+                <li key={key}>
+                  <FilterChip
+                    removeLabel={t('filters.remove', { label: `${label}: ${value}` })}
+                    onRemove={() => {
+                      navigate(withParam(params, key, undefined));
+                    }}
+                  >
+                    {t('filters.chip', { label, value })}
+                  </FilterChip>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            setFiltersKey((key) => key + 1);
+            setFiltersOpen(true);
+          }}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-dashed border-border-strong bg-surface px-3 text-[0.8125rem] font-semibold text-foreground hover:border-primary hover:text-primary-soft-foreground md:min-h-9"
+        >
+          <Icon name="plus" className="size-3.5" />
+          {t('filters.open')}
+        </button>
+        {activeKeys.length > 0 ? (
+          <button
+            type="button"
+            className="min-h-11 px-1 text-[0.8125rem] font-semibold text-primary-soft-foreground underline-offset-2 hover:underline md:min-h-9"
             onClick={() => {
-              setFiltersKey((key) => key + 1);
-              setFiltersOpen(true);
+              navigate(clearFilters(params));
             }}
           >
-            {t('filters.open')}
-          </Button>
+            {t('filters.clear')}
+          </button>
+        ) : null}
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <SortMenu
+            sort={sort}
+            onSelect={(value) => {
+              navigate(withParam(params, 'sort', value));
+            }}
+          />
           <div className="relative hidden md:block">
             <Button
               variant="secondary"
+              size="sm"
               aria-expanded={chooserOpen}
               aria-controls="process-column-chooser"
               onClick={() => {
@@ -521,11 +668,11 @@ export function ProcessListPage() {
             {chooserOpen ? (
               <fieldset
                 id="process-column-chooser"
-                className="absolute right-0 z-20 mt-1 flex w-64 flex-col gap-1 rounded-card border border-border bg-surface p-3 shadow-card"
+                className="absolute right-0 z-20 mt-1 flex w-64 flex-col gap-1 rounded-card border border-border bg-surface p-3 shadow-lg"
               >
                 <legend className="sr-only">{t('columns.chooserTitle')}</legend>
                 {offered.map((column) => (
-                  <label key={column.id} className="flex items-center gap-2 text-sm">
+                  <label key={column.id} className="flex min-h-8 items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={column.fixed === true || columns.includes(column.id)}
@@ -533,6 +680,7 @@ export function ProcessListPage() {
                       onChange={() => {
                         toggleColumn(column.id);
                       }}
+                      className="size-4 accent-primary"
                     />
                     {column.fixed
                       ? t('columns.fixed', { label: t(`columns.${column.id}`) })
@@ -545,67 +693,13 @@ export function ProcessListPage() {
         </div>
       </div>
 
-      <div role="group" aria-label={t('quick.label')} className="flex flex-wrap gap-2">
-        {QUICK_ORDER.map((filter) => {
-          const active = isQuickFilterActive(params, filter);
-          return (
-            <button
-              key={filter}
-              type="button"
-              aria-pressed={active}
-              onClick={() => {
-                navigate(toggleQuickFilter(params, filter));
-              }}
-              className={`min-h-11 rounded-full border px-3 text-sm font-medium md:min-h-8 ${
-                active
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-surface text-foreground'
-              }`}
-            >
-              {t(`quick.${filter}`)}
-            </button>
-          );
-        })}
-        {isQuickFilterActive(params, 'mine') ? (
-          <Link href="/aprovacoes" className="self-center text-sm text-primary underline">
-            {t('quick.pendingApprovals')}
-          </Link>
-        ) : null}
-      </div>
-
-      {activeKeys.length > 0 ? (
-        <ul aria-label={t('filters.active')} className="flex flex-wrap gap-2">
-          {activeKeys.map((key) => {
-            const label = chipLabel(key);
-            const value = chipValue(key, params[key] ?? '');
-            return (
-              <li key={key}>
-                <button
-                  type="button"
-                  aria-label={t('filters.remove', { label: `${label}: ${value}` })}
-                  onClick={() => {
-                    navigate(withParam(params, key, undefined));
-                  }}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-full bg-muted px-3 text-xs md:min-h-7"
-                >
-                  {t('filters.chip', { label, value })}
-                  <span aria-hidden="true">×</span>
-                </button>
-              </li>
-            );
-          })}
-          <li>
-            <button
-              type="button"
-              className="min-h-11 px-2 text-xs text-primary underline md:min-h-7"
-              onClick={() => {
-                navigate(clearFilters(params));
-              }}
-            >
-              {t('filters.clear')}
-            </button>
-          </li>
-        </ul>
+      {isQuickFilterActive(params, 'mine') ? (
+        <Link
+          href="/aprovacoes"
+          className="self-start text-sm font-semibold text-primary-soft-foreground underline-offset-2 hover:underline"
+        >
+          {t('quick.pendingApprovals')}
+        </Link>
       ) : null}
 
       {hasValueFilter(params) && page?.meta.valueFilterExcludesConfidential ? (
@@ -634,14 +728,7 @@ export function ProcessListPage() {
         <ListError error={error} onRetry={() => void list.refetch()} compact />
       ) : null}
 
-      {list.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('loading')}</span>
-          {Array.from({ length: 10 }, (_, index) => (
-            <Skeleton key={index} className="h-10 w-full" />
-          ))}
-        </div>
-      ) : null}
+      {list.isPending ? <ListSkeleton label={t('loading')} /> : null}
 
       {list.isFetching && page ? (
         <div
@@ -652,22 +739,26 @@ export function ProcessListPage() {
       ) : null}
 
       {page && items.length === 0 ? (
-        <div className="rounded-card border border-dashed border-border p-6 text-center">
-          {showNoProcesses ? (
-            <>
-              <p className="font-medium">
-                {membershipType === 'EXTERNAL' ? t('empty.external') : t('empty.none')}
-              </p>
-              {canCreate && membershipType !== 'EXTERNAL' ? (
-                <Link href="/processos/novo" className={`${buttonClassName({})} mt-3`}>
-                  {t('empty.newProcess')}
+        <EmptyState
+          icon={<Icon name="folder" />}
+          title={t('empty.title')}
+          description={
+            showNoProcesses
+              ? isExternal
+                ? t('empty.external')
+                : t('empty.none')
+              : t('empty.filtered')
+          }
+          action={
+            showNoProcesses ? (
+              canCreate && !isExternal ? (
+                <Link href={NEW_PROCESS_PATH} className={buttonClassName({})}>
+                  <Icon name="plus" />
+                  {t('empty.create')}
                 </Link>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="font-medium">{t('empty.filtered')}</p>
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
+              ) : null
+            ) : (
+              <>
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -686,101 +777,88 @@ export function ProcessListPage() {
                     {t('filters.searchAllStatuses')}
                   </Button>
                 ) : null}
-              </div>
-            </>
-          )}
-        </div>
+              </>
+            )
+          }
+        />
       ) : null}
 
       {items.length > 0 ? (
-        <div className="rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
-          <table className="w-full text-left text-sm md:min-w-[56rem]">
+        <TableContainer
+          label={t('table.caption')}
+          footer={
+            <TableFooter
+              summary={t('pagination.showing', {
+                from: firstShown,
+                to: lastShown,
+                total,
+              })}
+            >
+              {totalPages > 1 ? (
+                <Pagination
+                  page={currentPage}
+                  totalPages={totalPages}
+                  onChange={(next) => {
+                    navigate(withParam(params, 'page', String(next)));
+                  }}
+                />
+              ) : null}
+            </TableFooter>
+          }
+        >
+          <Table className="md:min-w-[64rem]">
             <caption className="sr-only">{t('table.caption')}</caption>
-            <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">
-              <tr>
+            <TableHead className="max-md:sr-only">
+              <Tr>
                 {visible.map((column) => {
-                  const label = t(`columns.${column.id}`);
                   const sorted = sort?.field === column.sort ? sort : null;
+                  const field = column.sort;
                   return (
-                    <th
+                    <Th
                       key={column.id}
-                      scope="col"
-                      className="px-3 py-2"
-                      aria-sort={
+                      sort={
                         sorted
                           ? sorted.direction === 'asc'
                             ? 'ascending'
                             : 'descending'
                           : undefined
                       }
+                      onSort={
+                        field
+                          ? () => {
+                              navigate(toggleSort(params, field));
+                            }
+                          : undefined
+                      }
                     >
-                      {column.sort ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 uppercase"
-                          aria-label={t('table.sortBy', { label })}
-                          onClick={() => {
-                            if (column.sort) navigate(toggleSort(params, column.sort));
-                          }}
-                        >
-                          {label}
-                          <span aria-hidden="true">
-                            {sorted ? (sorted.direction === 'asc' ? '▲' : '▼') : '↕'}
-                          </span>
-                        </button>
-                      ) : (
-                        label
-                      )}
-                    </th>
+                      {t(`columns.${column.id}`)}
+                    </Th>
                   );
                 })}
-              </tr>
-            </thead>
-            <tbody>
+                <Th className="w-14">
+                  <span className="sr-only">{t('row.actionsColumn')}</span>
+                </Th>
+              </Tr>
+            </TableHead>
+            <TableBody>
               {items.map((item) => (
-                <tr
+                <Tr
                   key={item.id}
-                  className="border-t border-border max-md:flex max-md:flex-col max-md:gap-1 max-md:p-3"
+                  className="max-md:relative max-md:flex max-md:flex-col max-md:gap-1.5 max-md:p-4 max-md:pr-14"
                 >
                   {visible.map((column) => (
-                    <td
-                      key={column.id}
-                      className={`px-3 py-2 align-top max-md:p-0 ${column.card ? '' : 'max-md:hidden'}`}
-                    >
+                    <Td key={column.id} className={column.card ? 'max-md:p-0' : 'max-md:hidden'}>
                       <Cell column={column.id} item={item} />
-                    </td>
+                    </Td>
                   ))}
-                </tr>
+                  <Td className="text-right max-md:absolute max-md:top-2 max-md:right-2 max-md:p-0">
+                    <RowMenu item={item} />
+                  </Td>
+                </Tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {page && totalPages > 1 ? (
-        <nav aria-label={t('pagination.label')} className="flex items-center justify-between gap-2">
-          <Button
-            variant="secondary"
-            disabled={currentPage <= 1}
-            onClick={() => {
-              navigate(withParam(params, 'page', String(currentPage - 1)));
-            }}
-          >
-            {t('pagination.previous')}
-          </Button>
-          <span className="text-sm">
-            {t('pagination.page', { page: currentPage, total: totalPages })}
-          </span>
-          <Button
-            variant="secondary"
-            disabled={currentPage >= totalPages}
-            onClick={() => {
-              navigate(withParam(params, 'page', String(currentPage + 1)));
-            }}
-          >
-            {t('pagination.next')}
-          </Button>
-        </nav>
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : null}
 
       <ProcessFiltersPanel
@@ -800,7 +878,251 @@ export function ProcessListPage() {
           navigate(next);
         }}
       />
+      {exportOpen ? (
+        <ExportCsvDialog
+          open
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setExportOpen(false);
+          }}
+          total={page && !list.isFetching ? total : undefined}
+          columns={exportColumns}
+          buildQuery={() => exportQuery(params, columnKeysFromVisible(visibleIds), exportViewId)}
+          returnFocusRef={exportReturnFocus}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/** Link das abas: navega pelo roteador sem rolar; o `href` real mantém "abrir em nova aba". */
+function RouterLink({ href, className, children, ...rest }: ComponentProps<LinkComponent>) {
+  const router = useRouter();
+  return (
+    <a
+      href={href}
+      className={className}
+      aria-current={rest['aria-current']}
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+          return;
+        event.preventDefault();
+        router.push(href, { scroll: false });
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+/** Campos do menu "Ordenar" (os mesmos do cabeçalho — RN-PROC-27). */
+const SORTABLE_COLUMNS = PROCESS_COLUMNS.filter(
+  (column): column is ColumnDef & { readonly sort: ProcessListSortField } =>
+    column.sort !== undefined,
+);
+
+/** "Ordenar: Prazo da etapa": escolhe o campo e a direção; com busca e sem `sort`, relevância. */
+function SortMenu({
+  sort,
+  onSelect,
+}: {
+  readonly sort: SortState | null;
+  readonly onSelect: (sort: string) => void;
+}) {
+  const t = useTranslations('processList');
+  const column = SORTABLE_COLUMNS.find((candidate) => candidate.sort === sort?.field);
+  const current = sort ? (column ? t(`columns.${column.id}`) : sort.field) : t('sort.relevance');
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex min-h-11 items-center gap-2 rounded-control border border-border-strong bg-surface px-3 text-[0.8125rem] font-medium text-foreground hover:bg-muted md:min-h-9"
+        >
+          {t('sort.trigger', { label: current })}
+          {sort ? (
+            <span className="sr-only">
+              {`, ${t(sort.direction === 'asc' ? 'sort.ascShort' : 'sort.descShort')}`}
+            </span>
+          ) : null}
+          <Icon name="chevronDown" className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuLabel>{t('sort.menu')}</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          {SORTABLE_COLUMNS.map((option) => {
+            const active = sort !== null && sort.field === option.sort;
+            return (
+              <DropdownMenuItem
+                key={option.id}
+                onSelect={() => {
+                  onSelect(active && sort.direction === 'desc' ? `-${option.sort}` : option.sort);
+                }}
+              >
+                <span className="flex-1">{t(`columns.${option.id}`)}</span>
+                {active ? (
+                  <>
+                    <Icon name="check" className="size-4 text-primary" />
+                    <span className="sr-only">{t('sort.current')}</span>
+                  </>
+                ) : null}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+        {sort ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t('sort.direction')}</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              {(['asc', 'desc'] as const).map((direction) => (
+                <DropdownMenuItem
+                  key={direction}
+                  onSelect={() => {
+                    onSelect(`${direction === 'desc' ? '-' : ''}${sort.field}`);
+                  }}
+                >
+                  <span className="flex-1">{t(`sort.${direction}`)}</span>
+                  {sort.direction === direction ? (
+                    <>
+                      <Icon name="check" className="size-4 text-primary" />
+                      <span className="sr-only">{t('sort.current')}</span>
+                    </>
+                  ) : null}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Até 5 páginas numeradas em volta da atual. */
+function pageWindow(page: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  readonly page: number;
+  readonly totalPages: number;
+  readonly onChange: (page: number) => void;
+}) {
+  const t = useTranslations('processList.pagination');
+  return (
+    <nav aria-label={t('label')} className="flex flex-wrap items-center gap-1.5">
+      <Button
+        variant="secondary"
+        size="sm"
+        className="max-md:min-h-11"
+        disabled={page <= 1}
+        onClick={() => {
+          onChange(page - 1);
+        }}
+      >
+        {t('previous')}
+      </Button>
+      {pageWindow(page, totalPages).map((number) => (
+        <button
+          key={number}
+          type="button"
+          aria-label={t('goTo', { page: number })}
+          aria-current={number === page ? 'page' : undefined}
+          onClick={() => {
+            onChange(number);
+          }}
+          className={
+            number === page
+              ? 'grid size-11 place-items-center rounded-control bg-primary text-[0.8125rem] font-bold text-primary-foreground md:size-9'
+              : 'grid size-11 place-items-center rounded-control border border-border-strong bg-surface text-[0.8125rem] text-foreground hover:bg-muted md:size-9'
+          }
+        >
+          {number}
+        </button>
+      ))}
+      <Button
+        variant="secondary"
+        size="sm"
+        className="max-md:min-h-11"
+        disabled={page >= totalPages}
+        onClick={() => {
+          onChange(page + 1);
+        }}
+      >
+        {t('next')}
+      </Button>
+    </nav>
+  );
+}
+
+/** Esqueleto da tabela enquanto a primeira consulta não volta. */
+function ListSkeleton({ label }: { readonly label: string }) {
+  return (
+    <div
+      role="status"
+      className="overflow-hidden rounded-card border border-border bg-surface shadow-card"
+    >
+      <span className="sr-only">{label}</span>
+      <div className="h-11 border-b border-border bg-muted/60" />
+      {Array.from({ length: 8 }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-4 border-b border-border px-3.5 py-3.5 last:border-b-0"
+        >
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 flex-1" />
+          <Skeleton className="hidden h-4 w-28 md:block" />
+          <Skeleton className="size-7 flex-none rounded-full" />
+          <Skeleton className="hidden h-4 w-28 md:block" />
+          <Skeleton className="h-5 w-24 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Menu ⋯ da linha: atalhos para o processo e suas abas (sem ação em lote nesta tela). */
+function RowMenu({ item }: { readonly item: ProcessListItemDto }) {
+  const t = useTranslations('processList');
+  const code = item.code ?? t('table.draftCode');
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('row.actions', { code })}
+          className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[1.125rem] fill-current">
+            <circle cx="5" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="19" cy="12" r="2" />
+          </svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {ROW_LINKS.map((link) => (
+          <DropdownMenuItem key={link.key} asChild>
+            <Link
+              href={
+                link.tab === null
+                  ? `/processos/${item.id}`
+                  : `/processos/${item.id}?aba=${link.tab}`
+              }
+            >
+              {t(`row.${link.key}`)}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -861,17 +1183,28 @@ function Cell({ column, item }: { readonly column: ColumnId; readonly item: Proc
       return (
         <Link
           href={`/processos/${item.id}`}
-          className="font-medium text-primary underline-offset-2 hover:underline"
+          className="font-bold whitespace-nowrap text-primary-soft-foreground underline-offset-2 hover:underline"
         >
           {item.code ?? t('table.draftCode')}
         </Link>
       );
     case 'title':
       return (
-        <div className="flex flex-col gap-1">
-          <Link href={`/processos/${item.id}`} className="font-medium hover:underline">
+        <div className="flex min-w-48 flex-col items-start gap-0.5">
+          <Link
+            href={`/processos/${item.id}`}
+            className="font-semibold text-brand-ink underline-offset-2 hover:underline"
+          >
             {item.title}
           </Link>
+          <span className="text-xs text-muted-foreground">
+            {item.modality
+              ? t('row.typeLine', {
+                  modality: item.modality.label,
+                  type: item.contractingType.label,
+                })
+              : item.contractingType.label}
+          </span>
           {item.isBudgetConfidential ? <ConfidentialBadge /> : null}
         </div>
       );
@@ -882,13 +1215,18 @@ function Cell({ column, item }: { readonly column: ColumnId; readonly item: Proc
     case 'currentDepartment':
       return <>{item.currentDepartment.name}</>;
     case 'responsible':
-      return (
-        <>
-          {item.currentResponsible?.name ?? t('table.queue', { unit: item.currentDepartment.name })}
-        </>
+      return item.currentResponsible ? (
+        <span className="inline-flex items-center gap-2 whitespace-nowrap">
+          <Avatar name={item.currentResponsible.name} size="sm" />
+          <span>{item.currentResponsible.name}</span>
+        </span>
+      ) : (
+        <span className="text-muted-foreground">
+          {t('table.queue', { unit: item.currentDepartment.name })}
+        </span>
       );
     case 'deadline':
-      return <DueDateBadge deadline={item.deadline} overdueSince={item.overdueSince} />;
+      return <DueDateText deadline={item.deadline} overdueSince={item.overdueSince} />;
     case 'priority':
       return <PriorityBadge priority={item.priority} />;
     case 'requestingSecretariat':

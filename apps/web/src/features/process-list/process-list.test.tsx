@@ -4,6 +4,7 @@ import { act, configure, fireEvent, screen, waitFor, within } from '@testing-lib
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { seriousA11yViolations } from '@test/support/axe';
 import { jsonResponse, problem, renderWithShell, requestUrl, TENANT_A } from '@test/support/render';
 
 import { ProcessListPage } from './process-list-page';
@@ -186,10 +187,16 @@ const page = (data: ProcessListItemDto[], meta: Record<string, unknown> = {}) =>
     meta: { page: 1, pageSize: 20, totalItems: data.length, totalPages: 1, ...meta },
   });
 
-const listCalls = (fetchMock: ReturnType<typeof mockApi>) =>
+const processCalls = (fetchMock: ReturnType<typeof mockApi>) =>
   fetchMock.mock.calls
     .map(([input]) => new URL(requestUrl(input), 'http://localhost'))
     .filter((url) => url.pathname === '/api/v1/processes');
+/** Consultas da lista (sem os contadores das abas, que pedem `pageSize=1`). */
+const listCalls = (fetchMock: ReturnType<typeof mockApi>) =>
+  processCalls(fetchMock).filter((url) => url.searchParams.get('pageSize') !== '1');
+/** Contadores das abas (`pageSize=1`). */
+const countCalls = (fetchMock: ReturnType<typeof mockApi>) =>
+  processCalls(fetchMock).filter((url) => url.searchParams.get('pageSize') === '1');
 
 beforeEach(() => {
   nav.set('/processos');
@@ -256,7 +263,7 @@ describe('estado da URL (US-002 · SCR-004)', () => {
 
 describe('Feature: SCR-004 — Processos (US-002)', () => {
   it('[Sucesso] filtros e ordenação: tabela, total anunciado, valor sigiloso visível e URL', async () => {
-    nav.set('/processos?status=IN_PROGRESS%2CRETURNED&sort=-priority');
+    nav.set('/processos?status=IN_PROGRESS%2CRETURNED&sort=-currentStageDueAt');
     const fetchMock = mockApi(() => page([item(), P31]));
     renderWithShell(<ProcessListPage />);
     const table = await screen.findByRole('table', { name: 'Processos encontrados' });
@@ -272,8 +279,11 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(within(row as HTMLElement).getByText('Ana Souza')).toBeTruthy();
     expect(within(table).getByText('Na fila de Setor de Cotações')).toBeTruthy();
     expect(within(table).getAllByText('Vence em 2 dias úteis')).toHaveLength(2);
-    const priority = within(table).getByRole('columnheader', { name: /Prioridade/ });
-    expect(priority.getAttribute('aria-sort')).toBe('descending');
+    const deadline = within(table).getByRole('columnheader', { name: /Prazo da etapa/ });
+    expect(deadline.getAttribute('aria-sort')).toBe('descending');
+    expect(screen.getByRole('button', { name: /^Ordenar: Prazo da etapa/ }).textContent).toContain(
+      'decrescente',
+    );
     expect(listCalls(fetchMock)[0]?.searchParams.get('status')).toBe('IN_PROGRESS,RETURNED');
     expect(listCalls(fetchMock)[0]?.searchParams.get('includeStageOptions')).toBe('true');
 
@@ -283,7 +293,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(await screen.findByText('R$ 1.200.000,00')).toBeTruthy();
   });
 
-  it('[Sucesso] atalho "Atrasados": URL, aria-pressed e badge com ícone e texto', async () => {
+  it('[Sucesso] aba "Atrasados": URL, aba ativa e prazo com ícone e texto', async () => {
     const fetchMock = mockApi((url) =>
       url.searchParams.get('overdue') === 'true' ? page([P45]) : page([item(), P31, P45]),
     );
@@ -293,15 +303,16 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(listCalls(fetchMock)[0]?.searchParams.get('status')).toBe(
       'DRAFT,IN_PROGRESS,AWAITING_APPROVAL,RETURNED,SUSPENDED',
     );
-    const overdue = screen.getByRole('button', { name: 'Atrasados' });
-    expect(overdue.getAttribute('aria-pressed')).toBe('false');
+    const overdue = screen.getByRole('link', { name: /^Atrasados/ });
+    expect(overdue.getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: /^Todos/ }).getAttribute('aria-current')).toBe('page');
     await userEvent.click(overdue);
     await waitFor(() => {
       expect(screen.queryByText('0031/2026')).toBeNull();
     });
     expect(nav.get()).toContain('overdue=true');
-    expect(screen.getByRole('button', { name: 'Atrasados' }).getAttribute('aria-pressed')).toBe(
-      'true',
+    expect(screen.getByRole('link', { name: /^Atrasados/ }).getAttribute('aria-current')).toBe(
+      'page',
     );
     const badge = screen.getByText('Atrasado há 3 dias úteis');
     expect(badge.querySelector('svg')).not.toBeNull();
@@ -395,6 +406,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     mockApi(() => page([]));
     const { unmount } = renderWithShell(<ProcessListPage />);
     expect(await screen.findByText('Nenhum processo encontrado com estes filtros.')).toBeTruthy();
+    expect(screen.getByText('Nenhum processo por aqui')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Buscar em todos os status' }));
     expect(nav.get()).toBe('q=cimento');
     unmount();
@@ -402,7 +414,12 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     mockApi(() => page([]));
     renderWithShell(<ProcessListPage />);
     expect(await screen.findByText('Você ainda não tem processos para acompanhar.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Criar processo' }).getAttribute('href')).toBe(
+      '/processos/novo',
+    );
+    // Cabeçalho: "Novo processo" com PROCESS_CREATE (sem PROCESS_EXPORT, sem "Exportar CSV").
     expect(screen.getByRole('link', { name: 'Novo processo' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).toBeNull();
   });
 
   it('[Falha de banco] 503: mantém filtros, mensagem com correlationId e "Tentar novamente"', async () => {
@@ -419,7 +436,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText('Código: corr-503')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Status: Em andamento/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Situação: Em andamento/ })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     expect(await screen.findByText('0012/2026')).toBeTruthy();
   });
@@ -428,13 +445,13 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     mockApi(() => page([item()]), { me: () => problem(503, 'DEPENDENCY_UNAVAILABLE') });
     renderWithShell(<ProcessListPage />);
     const table = await screen.findByRole('table');
-    expect(within(table).getByRole('columnheader', { name: /Prioridade/ })).toBeTruthy();
+    expect(within(table).getByRole('columnheader', { name: /Situação/ })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Colunas' }));
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Prioridade' }));
-    expect(within(table).queryByRole('columnheader', { name: /Prioridade/ })).toBeNull();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Situação' }));
+    expect(within(table).queryByRole('columnheader', { name: /Situação/ })).toBeNull();
     expect(
       JSON.parse(localStorage.getItem(columnsPreferenceKey(TENANT_A.id)) ?? '[]'),
-    ).not.toContain('priority');
+    ).not.toContain('status');
     expect(
       await screen.findByText(
         'Não foi possível salvar suas colunas neste dispositivo para outros acessos.',
@@ -512,5 +529,148 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     });
     expect(new URLSearchParams(nav.get()).get('tagId')).toBe(`${ID(61)},${ID(63)}`);
     expect(await screen.findByText(/Obras emergenciais, Antiga/)).toBeTruthy();
+  });
+});
+
+describe('Feature: repaginação da lista (prd-4 · SCR-004)', () => {
+  it('[Sucesso] abas com contador por aba, "Mostrando x–y de n" e paginação numerada', async () => {
+    const TAB_TOTALS: Record<string, number> = {
+      currentResponsibleId: 5,
+      currentDepartmentId: 3,
+      overdue: 4,
+    };
+    const fetchMock = mockApi((url) => {
+      if (url.searchParams.get('pageSize') === '1') {
+        const key = Object.keys(TAB_TOTALS).find((name) => url.searchParams.has(name));
+        const returned = url.searchParams.get('status') === 'RETURNED';
+        return page([item()], { totalItems: key ? TAB_TOTALS[key] : returned ? 2 : 24 });
+      }
+      return page([item(), P31], { totalItems: 24, totalPages: 2 });
+    });
+    renderWithShell(<ProcessListPage />);
+    const tabs = await screen.findByRole('navigation', { name: 'Visões da lista' });
+    await waitFor(() => {
+      expect(within(tabs).getByRole('link', { name: 'Comigo 5' })).toBeTruthy();
+    });
+    expect(within(tabs).getByRole('link', { name: 'Todos 24' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(within(tabs).getByRole('link', { name: 'Na fila da minha unidade 3' })).toBeTruthy();
+    expect(within(tabs).getByRole('link', { name: 'Atrasados 4' })).toBeTruthy();
+    expect(within(tabs).getByRole('link', { name: 'Devolvidos 2' })).toBeTruthy();
+    // "Acompanhando" não tem filtro na API: não aparece.
+    expect(within(tabs).queryByRole('link', { name: /Acompanhando/ })).toBeNull();
+    // A aba guarda os demais filtros na URL e troca só o atalho.
+    const mine = new URLSearchParams(
+      within(tabs).getByRole('link', { name: 'Comigo 5' }).getAttribute('href')?.split('?')[1],
+    );
+    expect(mine.get('currentResponsibleId')).toBe('me');
+    expect(mine.get('status')).toBe('DRAFT,IN_PROGRESS,AWAITING_APPROVAL,RETURNED,SUSPENDED');
+    // Contadores: só o total (uma linha, sem ordenação); a aba ativa usa o total da lista.
+    expect(countCalls(fetchMock)).toHaveLength(4);
+    expect(countCalls(fetchMock).every((url) => !url.searchParams.has('sort'))).toBe(true);
+
+    expect(screen.getByText('Mostrando 1–2 de 24 processos')).toBeTruthy();
+    const pagination = screen.getByRole('navigation', { name: 'Paginação' });
+    expect(
+      within(pagination).getByRole('button', { name: 'Página 1' }).getAttribute('aria-current'),
+    ).toBe('page');
+    await userEvent.click(within(pagination).getByRole('button', { name: 'Página 2' }));
+    expect(new URLSearchParams(nav.get()).get('page')).toBe('2');
+  });
+
+  it('[Sucesso] chips removíveis, "Limpar filtros" e menu "Ordenar" com campo e direção', async () => {
+    nav.set('/processos?status=RETURNED&overdue=true');
+    mockApi(() => page([P31]));
+    renderWithShell(<ProcessListPage />);
+    await screen.findByText('0031/2026');
+    // Dois atalhos ao mesmo tempo (vindos do painel ou de um link): nenhuma aba fica ativa.
+    const tabs = screen.getByRole('navigation', { name: 'Visões da lista' });
+    expect(within(tabs).queryByRole('link', { current: 'page' })).toBeNull();
+    const chips = screen.getByRole('list', { name: 'Filtros ativos' });
+    expect(within(chips).getByText('Situação: Devolvido')).toBeTruthy();
+    await userEvent.click(
+      within(chips).getByRole('button', { name: 'Remover filtro Somente atrasados: Sim' }),
+    );
+    expect(nav.get()).toBe('status=RETURNED');
+    expect(screen.getByRole('link', { name: /^Devolvidos/ }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+
+    // Padrão `-updatedAt`; escolher "Prazo da etapa" ordena crescente, depois "Decrescente".
+    await userEvent.click(screen.getByRole('button', { name: /^Ordenar: Atualizado em/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Prazo da etapa' }));
+    expect(new URLSearchParams(nav.get()).get('sort')).toBe('currentStageDueAt');
+    await userEvent.click(screen.getByRole('button', { name: /^Ordenar: Prazo da etapa/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Decrescente' }));
+    expect(new URLSearchParams(nav.get()).get('sort')).toBe('-currentStageDueAt');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(nav.get()).toBe('sort=-currentStageDueAt');
+  });
+
+  it('[Sucesso] linha: responsável com avatar, tipo/modalidade, prazo colorido, situação e menu ⋯', async () => {
+    const today = item({
+      id: ID(77),
+      code: '0077/2026',
+      title: 'Merenda escolar',
+      modality: { id: ID(8), code: 'PREGAO_ELETRONICO', label: 'Pregão eletrônico' },
+      deadline: { ...item().deadline, daysLeft: 0, isDueSoon: true },
+    });
+    mockApi(() => page([item(), P31, P45, today]), {
+      permissions: ['PROCESS_CREATE', 'PROCESS_EXPORT'],
+    });
+    renderWithShell(<ProcessListPage />);
+    const table = await screen.findByRole('table', { name: 'Processos encontrados' });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual([
+      'Número',
+      'Objeto',
+      'Secretaria',
+      'Etapa atual',
+      'Responsável',
+      'Prazo da etapa',
+      'Situação',
+      'Ações',
+    ]);
+    const row = (code: string) => within(table).getByText(code).closest('tr') as HTMLElement;
+    // Responsável: avatar decorativo com as iniciais + nome; sem responsável, a fila da unidade.
+    expect(within(row('0031/2026')).getByText('AS').getAttribute('aria-hidden')).toBe('true');
+    expect(within(row('0031/2026')).getByText('Ana Souza')).toBeTruthy();
+    expect(
+      within(row('0077/2026')).getByText('Pregão eletrônico · Aquisição de bens'),
+    ).toBeTruthy();
+    expect(within(row('0012/2026')).getByText('Aquisição de bens')).toBeTruthy();
+    // Prazo: atrasado em vermelho, "Vence hoje" em âmbar, os demais neutros (texto sempre presente).
+    expect(within(row('0045/2026')).getByText('Atrasado há 3 dias úteis').className).toContain(
+      'text-destructive',
+    );
+    expect(within(row('0077/2026')).getByText('Vence hoje').className).toContain('text-warning');
+    expect(within(row('0012/2026')).getByText('Vence em 2 dias úteis').className).toContain(
+      'text-muted-foreground',
+    );
+    expect(within(row('0045/2026')).getByText('Aguardando aprovação')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
+
+    await userEvent.click(
+      within(row('0045/2026')).getByRole('button', { name: 'Ações de 0045/2026' }),
+    );
+    expect(
+      (await screen.findByRole('menuitem', { name: 'Abrir processo' })).getAttribute('href'),
+    ).toBe(`/processos/${ID(45)}`);
+    expect(screen.getByRole('menuitem', { name: 'Tramitação' }).getAttribute('href')).toBe(
+      `/processos/${ID(45)}?aba=tramitacao`,
+    );
+  });
+
+  it('[Sucesso] carregando: esqueleto de linhas com anúncio', async () => {
+    mockApi(() => new Promise<Response>(() => undefined));
+    renderWithShell(<ProcessListPage />);
+    expect(await screen.findByText('Carregando processos…')).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });

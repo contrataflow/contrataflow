@@ -123,6 +123,43 @@ export function toggleQuickFilter(params: ListParams, filter: QuickFilter): List
   return withParam(params, key, isQuickFilterActive(params, filter) ? undefined : value);
 }
 
+/**
+ * Visões em abas (repaginação — prd-4): "Todos" e um atalho por aba. As abas são exclusivas entre
+ * si (trocar de aba tira o atalho da anterior); combinar atalhos continua possível pelo painel de
+ * filtros. Os demais filtros da URL ficam.
+ */
+export const LIST_TABS = ['all', 'mine', 'myUnit', 'overdue', 'returned'] as const;
+export type ListTab = (typeof LIST_TABS)[number];
+
+/** Aba ativa: nenhum atalho = "Todos"; um só = a aba dele; vários (painel ou link) = nenhuma. */
+export function activeTabOf(params: ListParams): ListTab | null {
+  const active = LIST_TABS.filter(
+    (tab): tab is QuickFilter => tab !== 'all' && isQuickFilterActive(params, tab),
+  );
+  if (active.length === 0) return 'all';
+  return active.length === 1 ? (active[0] ?? null) : null;
+}
+
+/** Parâmetros da aba: tira os atalhos ativos e aplica o da aba (volta à página 1). */
+export function withTab(params: ListParams, tab: ListTab): ListParams {
+  let next = withParam(params, 'page', undefined);
+  for (const filter of LIST_TABS) {
+    if (filter !== 'all' && isQuickFilterActive(next, filter)) {
+      next = withParam(next, QUICK_FILTERS[filter].key, undefined);
+    }
+  }
+  return tab === 'all' ? next : withParam(next, QUICK_FILTERS[tab].key, QUICK_FILTERS[tab].value);
+}
+
+/** Query do contador da aba: só o total importa (sem ordenação; uma linha por página). */
+export function tabCountQuery(params: ListParams, tab: ListTab): Record<string, string> {
+  const query = toApiQuery(withTab(params, tab));
+  delete query.sort;
+  delete query.page;
+  query.pageSize = '1';
+  return query;
+}
+
 /** Filtros ativos (sem os técnicos), na ordem da tabela "Campos". */
 export function activeFilterKeys(params: ListParams): ProcessListParamKey[] {
   return PROCESS_LIST_PARAM_KEYS.filter(

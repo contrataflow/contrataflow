@@ -84,6 +84,33 @@ export function DueDateBadge({
   );
 }
 
+/**
+ * Prazo da etapa como texto colorido (tabela de SCR-004 — prd-4): atrasado em vermelho, "Vence
+ * hoje" em âmbar, os demais neutros. O texto diz o estado; a cor e o ícone só reforçam.
+ */
+export function DueDateText({
+  deadline,
+  overdueSince = null,
+}: {
+  readonly deadline: ProcessDeadlineDto;
+  readonly overdueSince?: string | null;
+}) {
+  const { label, tone } = useDeadlineLabel(deadline, overdueSince);
+  const today = tone === 'soon' && deadline.daysLeft === 0;
+  const color =
+    tone === 'late' ? 'text-destructive' : today ? 'text-warning' : 'text-muted-foreground';
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap ${color}`}
+    >
+      <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5 fill-current">
+        <path d={ICONS[tone === 'soon' && !today ? 'ok' : tone]} />
+      </svg>
+      {label}
+    </span>
+  );
+}
+
 const PRIORITY_BARS: Readonly<Record<Priority, number>> = { LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 4 };
 
 export function PriorityBadge({ priority }: { readonly priority: Priority }) {

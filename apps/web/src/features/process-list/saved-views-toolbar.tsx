@@ -5,8 +5,6 @@ import { SAVED_VIEW_MESSAGES } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
 
-import { ExportCsvDialog } from './export-csv-dialog';
-import type { ExportColumn } from './export-csv-dialog';
 import { ManageViewsDialog } from './manage-views-dialog';
 import { SaveViewDialog } from './save-view-dialog';
 import { SavedViewSelect } from './saved-view-select';
@@ -14,22 +12,20 @@ import { viewFailureMessage } from './saved-views-model';
 import type { SavedViewsController } from './use-saved-views';
 
 /*
- * Barra de visões e exportação de SCR-004 (US-003): seletor de visões, "Salvar visão", "Exportar
- * CSV" (só com `PROCESS_EXPORT`), chip "Visão: {nome}" com "Limpar" (FA-01), indicador "Alterações
+ * Barra de visões de SCR-004 (US-003): seletor de visões, "Salvar visão", chip "Visão: {nome}" com "Limpar" (FA-01), indicador "Alterações
  * não salvas" com "Atualizar visão"/"Salvar como nova" (FA-02), aviso de filtros desatualizados
  * (FA-05) e os conflitos de PRC-37 (412 → "Recarregar a visão" / "Salvar como nova"; 403 →
- * "Salvar como minha"). No mobile ocupa o topo da lista, em coluna.
+ * "Salvar como minha"). "Exportar CSV" (só com `PROCESS_EXPORT`) fica no cabeçalho da página
+ * (prd-4); o item "Exportar CSV" do menu da visão (FA-06) pede a exportação por `onExport`.
  */
 
-type Dialog = 'save' | 'copy' | 'manage' | 'export' | null;
+type Dialog = 'save' | 'copy' | 'manage' | null;
 
 export interface SavedViewsToolbarProps {
   readonly controller: SavedViewsController;
   readonly canExport: boolean;
-  /** Total da consulta atual (`undefined` enquanto consulta). */
-  readonly exportTotal: number | undefined;
-  readonly exportColumns: readonly ExportColumn[];
-  readonly buildExportQuery: () => Record<string, string>;
+  /** Abre a exportação da página; `trigger` recebe o foco de volta ao fechar. */
+  readonly onExport: (trigger: HTMLElement | null) => void;
   /** Resumo textual dos critérios atuais ("Status: Em andamento · Atrasados"). */
   readonly summarize: () => string;
 }
@@ -37,13 +33,10 @@ export interface SavedViewsToolbarProps {
 export function SavedViewsToolbar({
   controller,
   canExport,
-  exportTotal,
-  exportColumns,
-  buildExportQuery,
+  onExport,
   summarize,
 }: SavedViewsToolbarProps) {
   const t = useTranslations('processList.views');
-  const tExport = useTranslations('processList.export');
   const [dialog, setDialog] = useState<Dialog>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const menuTrigger = useRef<HTMLButtonElement | null>(null);
@@ -74,7 +67,7 @@ export function SavedViewsToolbar({
           onExportView={() => {
             // FA-06: aplica a visão (se a lista divergiu dela) e abre a exportação.
             if (applied !== null && unsaved) controller.apply(applied);
-            open('export', menuTrigger.current);
+            onExport(menuTrigger.current);
           }}
           onSaveAsMine={() => {
             open('copy', menuTrigger.current);
@@ -93,16 +86,6 @@ export function SavedViewsToolbar({
           >
             {t('save')}
           </Button>
-          {canExport ? (
-            <Button
-              variant="secondary"
-              onClick={(event) => {
-                open('export', event.currentTarget);
-              }}
-            >
-              {tExport('button')}
-            </Button>
-          ) : null}
         </div>
       </div>
 
@@ -222,16 +205,6 @@ export function SavedViewsToolbar({
           onSetDefault={(view, isDefault) => controller.patch(view, { isDefault })}
           onDelete={controller.remove}
           onStale={() => void controller.refetch()}
-          returnFocusRef={returnFocus}
-        />
-      ) : null}
-      {dialog === 'export' ? (
-        <ExportCsvDialog
-          open
-          onOpenChange={close}
-          total={exportTotal}
-          columns={exportColumns}
-          buildQuery={buildExportQuery}
           returnFocusRef={returnFocus}
         />
       ) : null}

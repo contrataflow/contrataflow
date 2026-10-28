@@ -7,7 +7,7 @@
   "refreshing": "Atualizando a lista…",
   "search": {
     "label": "Buscar processos",
-    "placeholder": "Código, título ou objeto",
+    "placeholder": "Número, título ou objeto",
     "tooShort": "Digite ao menos 2 caracteres para buscar."
   },
   "quick": {
@@ -28,7 +28,7 @@
     "active": "Filtros ativos",
     "remove": "Remover filtro {label}",
     "any": "Qualquer",
-    "status": "Status",
+    "status": "Situação",
     "priority": "Prioridade",
     "stage": "Etapa",
     "currentDepartment": "Unidade atual",
@@ -71,15 +71,15 @@
   "columns": {
     "choose": "Colunas",
     "chooserTitle": "Colunas visíveis",
-    "code": "Código",
-    "title": "Título",
-    "status": "Status",
-    "stage": "Etapa",
+    "code": "Número",
+    "title": "Objeto",
+    "status": "Situação",
+    "stage": "Etapa atual",
     "currentDepartment": "Unidade atual",
     "responsible": "Responsável",
     "deadline": "Prazo da etapa",
     "priority": "Prioridade",
-    "requestingSecretariat": "Secretaria solicitante",
+    "requestingSecretariat": "Secretaria",
     "requestingDepartment": "Setor solicitante",
     "contractingType": "Tipo de contratação",
     "modality": "Modalidade",
@@ -118,13 +118,17 @@
     "label": "Paginação",
     "previous": "Anterior",
     "next": "Próxima",
-    "page": "Página {page} de {total}"
+    "page": "Página {page} de {total}",
+    "showing": "Mostrando {from}–{to} de {total, plural, one {# processo} other {# processos}}",
+    "goTo": "Página {page}"
   },
   "empty": {
     "filtered": "Nenhum processo encontrado com estes filtros.",
     "none": "Você ainda não tem processos para acompanhar.",
     "external": "Você ainda não participa de nenhum processo neste órgão.",
-    "newProcess": "Novo processo"
+    "newProcess": "Novo processo",
+    "title": "Nenhum processo por aqui",
+    "create": "Criar processo"
   },
   "errors": {
     "unavailable": "Não foi possível carregar os processos agora. Tente novamente em instantes.",
@@ -234,5 +238,35 @@
     "tooLargeHint": "Use os filtros para reduzir a consulta e tente de novo.",
     "retryAfter": "Tente novamente em {seconds, plural, one {# segundo} other {# segundos}}.",
     "code": "Código: {correlationId}"
+  },
+  "breadcrumbHome": "Painel",
+  "newProcess": "Novo processo",
+  "tabs": {
+    "label": "Visões da lista",
+    "all": "Todos",
+    "mine": "Comigo",
+    "myUnit": "Na fila da minha unidade",
+    "overdue": "Atrasados",
+    "returned": "Devolvidos"
+  },
+  "sort": {
+    "trigger": "Ordenar: {label}",
+    "menu": "Ordenar por",
+    "relevance": "Relevância",
+    "direction": "Direção",
+    "asc": "Crescente",
+    "desc": "Decrescente",
+    "ascShort": "crescente",
+    "descShort": "decrescente",
+    "current": "(atual)"
+  },
+  "row": {
+    "actions": "Ações de {code}",
+    "actionsColumn": "Ações",
+    "open": "Abrir processo",
+    "documents": "Documentos",
+    "movements": "Tramitação",
+    "comments": "Comentários",
+    "typeLine": "{modality} · {type}"
   }
 }
