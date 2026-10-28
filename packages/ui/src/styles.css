@@ -61,13 +61,14 @@
   --color-on-navy-accent: #6b9eff;
 
   /*
-   * Menu lateral do shell (alias até o card do shell da repaginação, que o torna claro); o logo
-   * `onDark` usa os tokens `on-navy*`, não estes.
+   * Menu lateral do shell (prd-4 · padrão 1): claro, com texto ardósia e rótulos de grupo no cinza
+   * secundário; `sidebar-accent` é o foco visível. O item ativo usa `primary-soft` com o indicador
+   * na `primary` (que o tenant pode trocar). O logo `onDark` usa os tokens `on-navy*`, não estes.
    */
-  --color-sidebar: #141e2b;
-  --color-sidebar-foreground: #ffffff;
-  --color-sidebar-muted: #b3bdcb;
-  --color-sidebar-accent: #6b9eff;
+  --color-sidebar: #ffffff;
+  --color-sidebar-foreground: #334155;
+  --color-sidebar-muted: #5b6b80;
+  --color-sidebar-accent: #005bf9;
 
   /* Superfície invertida (toasts): navy no tema claro; ícones de estado legíveis sobre ela. */
   --color-inverse: #141e2b;
@@ -138,6 +139,7 @@
   --color-sidebar: #0b1118;
   --color-sidebar-foreground: #e6ecf4;
   --color-sidebar-muted: #a9b4c3;
+  --color-sidebar-accent: #6b9eff;
   --color-inverse: #e6ecf4;
   --color-inverse-foreground: #0b1118;
   --color-inverse-muted: #4a5668;
@@ -184,6 +186,7 @@
     --color-sidebar: #0b1118;
     --color-sidebar-foreground: #e6ecf4;
     --color-sidebar-muted: #a9b4c3;
+    --color-sidebar-accent: #6b9eff;
     --color-inverse: #e6ecf4;
     --color-inverse-foreground: #0b1118;
     --color-inverse-muted: #4a5668;

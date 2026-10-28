@@ -1,7 +1,6 @@
 {
   "skipLink": "Pular para o conteúdo",
   "appName": "ContrataFlow",
-  "footer": "Lei 14.133/2021 · MVP 1",
   "loading": "Carregando…",
   "nav": {
     "label": "Menu principal",
@@ -13,8 +12,22 @@
     "processes": "Processos",
     "suppliers": "Fornecedores",
     "audit": "Auditoria",
+    "admin": "Administração",
     "example": "Exemplo do shell",
-    "administration": "Administração"
+    "groups": {
+      "operation": "Operação",
+      "governance": "Governança"
+    },
+    "count": "({count, plural, one {# pendente} other {# pendentes}})",
+    "countOverflow": "99+"
+  },
+  "help": {
+    "title": "Precisa de ajuda?",
+    "description": "Fale com o suporte da plataforma.",
+    "link": "Falar com o suporte →"
+  },
+  "pageHeader": {
+    "breadcrumb": "Trilha de navegação"
   },
   "admin": {
     "label": "Navegação de administração",
@@ -31,8 +44,9 @@
     "settings": "Configurações"
   },
   "search": {
-    "label": "Buscar processos",
-    "placeholder": "Buscar processo (número, título, objeto)"
+    "label": "Busca global",
+    "placeholder": "Buscar processo, documento ou fornecedor",
+    "shortcut": "Ctrl K"
   },
   "tenant": {
     "label": "Instituição ativa: {name}",

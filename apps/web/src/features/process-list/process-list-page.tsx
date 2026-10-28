@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
 import { ErrorView } from '@/components/errors/error-view';
+import { AppPageHeader } from '@/components/shell/page-header';
 import { ProcessStatusBadge } from '@/features/processes/process-status-badge';
 import type { Messages } from '@/i18n/messages';
 import { isApiError } from '@/lib/api/api-error';
@@ -446,15 +447,15 @@ export function ProcessListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('description')}</p>
-        </div>
-        <p className="text-sm font-medium" aria-hidden="true">
-          {page ? t('total', { count: total }) : null}
-        </p>
-      </div>
+      <AppPageHeader
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <p className="text-sm font-medium" aria-hidden="true">
+            {page ? t('total', { count: total }) : null}
+          </p>
+        }
+      />
 
       <div role="status" aria-live="polite" className="sr-only">
         {page ? t('announce', { count: total }) : ''}

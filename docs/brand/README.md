@@ -74,11 +74,12 @@ axe do CI.
 
 ## Tokens (`packages/ui/src/styles.css`)
 
-- Fixos: `--color-brand-navy`, `--color-brand-blue`, `--color-brand-blue-deep`, `--color-sidebar-accent`
-  e `--color-on-navy` / `-muted` / `-accent` (marca sobre navy: login e logo `onDark`).
+- Fixos: `--color-brand-navy`, `--color-brand-blue`, `--color-brand-blue-deep` e `--color-on-navy` /
+  `-muted` / `-accent` (marca sobre navy: login e logo `onDark`).
 - Por tema: `--color-brand-ink` / `--color-brand-accent` (cores da palavra-marca sobre o fundo do
-  tema) e `--color-sidebar` / `-foreground` / `-muted` (menu lateral, ainda navy até o card do shell
-  da repaginação).
+  tema) e `--color-sidebar` / `-foreground` / `-muted` / `-accent` (barra lateral: branca no claro,
+  `#0B1118` no escuro; `-accent` é o foco visível). O item ativo do menu usa `primary-soft` com
+  indicador de 3 px na `primary`.
 - Semânticos (`background`, `foreground`, `surface`, `muted`, `border`, `ring`, `primary`…) derivam
   da paleta; todo par texto/fundo tem contraste ≥ 4,5:1 nos dois temas, e os ícones dos toasts ≥ 3:1
   (`packages/ui/src/lib/tokens-contrast.test.ts`). Os nomes do v1 seguem definidos (aliases) até a

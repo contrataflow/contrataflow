@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { SuppliersView } from '@/features/suppliers/suppliers-view';
 
 /**
@@ -11,10 +12,7 @@ export default async function SuppliersPage() {
   const t = await getTranslations('suppliers');
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-      </header>
+      <AppPageHeader title={t('title')} description={t('description')} />
       <SuppliersView />
     </div>
   );

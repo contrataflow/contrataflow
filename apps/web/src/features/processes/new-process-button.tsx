@@ -19,7 +19,10 @@ export function NewProcessButton() {
   const t = useTranslations('processes.newButton');
   return (
     <Can permission="PROCESS_CREATE">
-      <Link href={NEW_PROCESS_PATH} className={buttonClassName({ size: 'sm' })}>
+      <Link
+        href={NEW_PROCESS_PATH}
+        className={buttonClassName({ className: 'px-3 sm:px-[1.125rem]' })}
+      >
         <Icon name="plus" />
         <span className="sr-only sm:not-sr-only">{t('label')}</span>
       </Link>

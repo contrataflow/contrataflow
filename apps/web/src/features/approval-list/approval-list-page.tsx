@@ -19,6 +19,7 @@ import { useId, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
+import { AppPageHeader } from '@/components/shell/page-header';
 import { ConfidentialBadge } from '@/features/process-list/process-list-badges';
 import {
   FILTER_OPTIONS_STALE_TIME_MS,
@@ -62,10 +63,7 @@ export function ApprovalListPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-      </header>
+      <AppPageHeader title={t('title')} description={t('description')} />
       <ApprovalFiltersForm
         key={formKey}
         filters={filters}

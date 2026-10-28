@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
@@ -65,21 +66,22 @@ export function WorkflowsView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-        </div>
-        {canManage ? (
-          <Button
-            onClick={() => {
-              setCreating(true);
-            }}
-          >
-            {t('form.open')}
-          </Button>
-        ) : null}
-      </header>
+      <AppPageHeader
+        section="admin"
+        title={t('title')}
+        description={t('description')}
+        actions={
+          canManage ? (
+            <Button
+              onClick={() => {
+                setCreating(true);
+              }}
+            >
+              {t('form.open')}
+            </Button>
+          ) : null
+        }
+      />
 
       {workflows.isPending ? (
         <div role="status" className="flex flex-col gap-2">

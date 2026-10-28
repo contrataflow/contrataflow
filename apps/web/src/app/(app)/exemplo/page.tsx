@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { apiServerClient, currentShellSession } from '@/bff/server-session';
+import { AppPageHeader } from '@/components/shell/page-header';
 import { isExamplePageEnabled } from '@/config/env';
 import { ExampleView } from '@/features/_example/example-view';
 import { examplePaths, exampleKeys, itemsQuery } from '@/features/_example/example.api';
@@ -42,10 +43,7 @@ export default async function ExamplePage() {
   }
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-      </header>
+      <AppPageHeader title={t('title')} description={t('description')} />
       <HydrationBoundary state={dehydrate(queryClient)}>
         <ExampleView />
       </HydrationBoundary>

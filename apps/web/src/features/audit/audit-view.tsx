@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -52,10 +53,7 @@ export function AuditView({ defaultTab = 'records' }: AuditViewProps) {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-      </header>
+      <AppPageHeader title={t('title')} description={t('description')} />
 
       {status === 'pending' ? (
         <div role="status" className="flex flex-col gap-3">

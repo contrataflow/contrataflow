@@ -5,22 +5,41 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+import { useTaskInboxCounters } from '@/features/task-inbox/task-inbox.api';
 import { usePermission } from '@/lib/permissions/use-permission';
 
 import { Icon } from './icons';
-import { ADMIN_NAV, MAIN_NAV, isActivePath } from './navigation';
+import { ADMIN_NAV, MAIN_NAV, NAV_GROUPS, isActivePath } from './navigation';
 import type { AdminNavItem, NavItem } from './navigation';
 
 /*
- * Itens do menu sobre o navy do menu lateral (DEC-185): ativo na primária (o tenant pode trocá-la,
- * sempre com contraste validado); foco no azul claro da marca, legível sobre o navy.
+ * Itens da barra lateral clara (prd-4 · padrão 1): ativo em azul suave com indicador de 3 px na
+ * primária (o tenant pode trocá-la, sempre com contraste validado); alvo de toque de 44 px.
  */
 const SIDEBAR_LINK =
-  'flex min-h-10 items-center gap-3 rounded-control px-3 text-sm focus-visible:outline-sidebar-accent';
-const SIDEBAR_LINK_ACTIVE = 'bg-primary text-primary-foreground';
-const SIDEBAR_LINK_IDLE = 'text-sidebar-foreground hover:bg-sidebar-foreground/10';
+  'flex min-h-11 items-center gap-3 rounded-control px-3 text-sm focus-visible:outline-sidebar-accent';
+const SIDEBAR_LINK_ACTIVE =
+  'bg-primary-soft font-bold text-primary-soft-foreground shadow-[inset_3px_0_0_var(--color-primary)]';
+const SIDEBAR_LINK_IDLE = 'font-medium text-sidebar-foreground hover:bg-muted';
 
-/** Menu principal (barra lateral e gaveta móvel): página atual com `aria-current`. */
+/** Contadores das entradas com fila (TSK-02), na mesma chave que a caixa de tarefas consulta. */
+type NavCounters = Partial<Record<NonNullable<NavItem['counter']>, number>>;
+
+/**
+ * Contadores da barra lateral: só com `INBOX_VIEW` confirmada (sem ela a API responderia 403). A
+ * leitura é a mesma da caixa de tarefas (repete a cada 60 s com a aba visível); falha não mostra
+ * contador.
+ */
+function useNavCounters(): NavCounters {
+  const { allowed, status } = usePermission('INBOX_VIEW');
+  const { data } = useTaskInboxCounters(status === 'success' && allowed);
+  return data ? { mine: data.mine, pendingApprovals: data.pendingApprovals } : {};
+}
+
+/**
+ * Menu principal (barra lateral e gaveta móvel) em grupos "Operação" e "Governança": página atual
+ * com `aria-current`, contadores de pendências na caixa de tarefas e nas aprovações.
+ */
 export function MainNav({
   onNavigate,
   showExample = false,
@@ -32,64 +51,88 @@ export function MainNav({
   const t = useTranslations('shell');
   const handleClick = () => onNavigate?.();
   const pathname = usePathname();
+  const counters = useNavCounters();
+  const items = MAIN_NAV.filter((item) => showExample || item.labelKey !== 'example');
   return (
-    <nav aria-label={t('nav.label')} className="flex-1 space-y-1 overflow-y-auto p-3">
-      {MAIN_NAV.filter((item) => showExample || item.labelKey !== 'example').map((item) =>
-        item.permission ? (
-          <GatedMainLink key={item.href} item={item} pathname={pathname} onNavigate={handleClick} />
-        ) : (
-          <MainLink key={item.href} item={item} pathname={pathname} onNavigate={handleClick} />
-        ),
-      )}
-      <p className="mt-6 px-3 pb-1 text-xs font-semibold tracking-wide text-sidebar-muted uppercase">
-        {t('nav.administration')}
-      </p>
-      <Link
-        href="/admin"
-        onClick={handleClick}
-        aria-current={pathname === '/admin' ? 'page' : undefined}
-        className={cx(
-          SIDEBAR_LINK,
-          isActivePath(pathname, '/admin') ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE,
-        )}
-      >
-        <Icon
-          name="settings"
-          className={cx(
-            'size-4',
-            isActivePath(pathname, '/admin') ? 'text-primary-foreground' : 'text-sidebar-muted',
-          )}
-        />
-        {t('admin.title')}
-      </Link>
+    <nav aria-label={t('nav.label')} className="flex flex-1 flex-col gap-6 overflow-y-auto px-3.5">
+      {NAV_GROUPS.map((group) => (
+        <div key={group} className="flex flex-col gap-1">
+          <p
+            id={`nav-grupo-${group}`}
+            className="px-3 pb-1.5 text-[0.6875rem] font-bold tracking-[0.12em] text-sidebar-muted uppercase"
+          >
+            {t(`nav.groups.${group}`)}
+          </p>
+          <ul aria-labelledby={`nav-grupo-${group}`} className="flex flex-col gap-1">
+            {items
+              .filter((item) => item.group === group)
+              .map((item) =>
+                item.permission ? (
+                  <GatedMainLink
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    count={item.counter ? counters[item.counter] : undefined}
+                    onNavigate={handleClick}
+                  />
+                ) : (
+                  <MainLink
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    count={item.counter ? counters[item.counter] : undefined}
+                    onNavigate={handleClick}
+                  />
+                ),
+              )}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 }
 
+const MAX_COUNT = 99;
+
 function MainLink({
   item,
   pathname,
+  count,
   onNavigate,
 }: {
   readonly item: NavItem;
   readonly pathname: string;
+  readonly count: number | undefined;
   readonly onNavigate: () => void;
 }) {
   const t = useTranslations('shell');
   const active = isActivePath(pathname, item.href);
   return (
-    <Link
-      href={item.href}
-      onClick={onNavigate}
-      aria-current={active ? 'page' : undefined}
-      className={cx(SIDEBAR_LINK, 'font-medium', active ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE)}
-    >
-      <Icon
-        name={item.icon}
-        className={cx('size-4', active ? 'text-primary-foreground' : 'text-sidebar-muted')}
-      />
-      {t(`nav.${item.labelKey}`)}
-    </Link>
+    <li>
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? 'page' : undefined}
+        className={cx(SIDEBAR_LINK, active ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE)}
+      >
+        <Icon
+          name={item.icon}
+          className={cx('size-5 flex-none', active ? 'text-primary' : 'text-sidebar-muted')}
+        />
+        <span className="flex-1">{t(`nav.${item.labelKey}`)}</span>
+        {count !== undefined && count > 0 ? (
+          <>
+            <span
+              aria-hidden="true"
+              className="inline-flex h-[1.375rem] min-w-[1.375rem] items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground"
+            >
+              {count > MAX_COUNT ? t('nav.countOverflow') : count}
+            </span>{' '}
+            <span className="sr-only">{t('nav.count', { count })}</span>
+          </>
+        ) : null}
+      </Link>
+    </li>
   );
 }
 
@@ -97,6 +140,7 @@ function MainLink({
 function GatedMainLink(props: {
   readonly item: NavItem;
   readonly pathname: string;
+  readonly count: number | undefined;
   readonly onNavigate: () => void;
 }) {
   const { allowed, status } = usePermission(props.item.permission ?? '');

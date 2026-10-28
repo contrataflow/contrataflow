@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { AiSettingsSection } from '@/features/ai/ai-settings-section';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
@@ -181,10 +182,7 @@ export function SettingsView() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-      </header>
+      <AppPageHeader section="admin" title={t('title')} description={t('description')} />
 
       {settings.isPending ? (
         <div role="status" className="flex flex-col gap-3">

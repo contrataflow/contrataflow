@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { NotificationItem } from './notification-item';
@@ -43,18 +44,18 @@ export function NotificationList() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-        </div>
-        <Link
-          href="/perfil?aba=notificacoes"
-          className="text-sm font-medium text-primary hover:underline"
-        >
-          {t('actions.preferences')}
-        </Link>
-      </header>
+      <AppPageHeader
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <Link
+            href="/perfil?aba=notificacoes"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            {t('actions.preferences')}
+          </Link>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <fieldset className="flex items-center gap-2">

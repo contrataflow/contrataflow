@@ -51,7 +51,7 @@ function Badge({ count }: { readonly count: number }) {
   return (
     <span
       aria-hidden="true"
-      className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] leading-none font-semibold text-primary-foreground"
+      className="absolute -top-1.5 -right-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1.5 text-[0.6875rem] leading-none font-bold text-destructive-foreground"
     >
       {count > MAX_BADGE ? t('overflow') : count}
     </span>
@@ -160,7 +160,7 @@ export function NotificationBell() {
       <Link
         href="/notificacoes"
         aria-label={label}
-        className="relative grid size-9 place-items-center rounded-control hover:bg-muted md:hidden"
+        className="relative grid size-11 place-items-center rounded-control border border-border-strong bg-surface hover:bg-muted md:hidden"
       >
         <Icon name="bell" className="size-5 text-muted-foreground" />
         <Badge count={count} />
@@ -168,7 +168,7 @@ export function NotificationBell() {
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="icon"
             aria-label={label}
             className="relative hidden md:grid md:place-items-center"

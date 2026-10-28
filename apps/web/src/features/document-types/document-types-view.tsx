@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { DefaultTemplateSelect } from '@/features/templates/default-template-select';
 import {
   fetchTemplates,
@@ -95,21 +96,22 @@ export function DocumentTypesView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-        </div>
-        {types.data ? (
-          <Button
-            onClick={() => {
-              setCreating(true);
-            }}
-          >
-            {t('new')}
-          </Button>
-        ) : null}
-      </header>
+      <AppPageHeader
+        section="admin"
+        title={t('title')}
+        description={t('description')}
+        actions={
+          types.data ? (
+            <Button
+              onClick={() => {
+                setCreating(true);
+              }}
+            >
+              {t('new')}
+            </Button>
+          ) : null
+        }
+      />
 
       {types.isPending ? (
         <div role="status" className="flex flex-col gap-2">

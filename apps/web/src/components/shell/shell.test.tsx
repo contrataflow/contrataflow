@@ -91,13 +91,92 @@ describe('[Sucesso] AppShell', () => {
     const nav = screen.getByRole('navigation', { name: 'Menu principal' });
     expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('Exemplo do shell');
     expect(screen.getByRole('search')).toBeTruthy();
-    expect(screen.getByRole('searchbox', { name: 'Buscar processos' })).toBeTruthy();
+    const search = screen.getByRole('searchbox', { name: 'Busca global' });
+    expect(search.getAttribute('placeholder')).toBe('Buscar processo, documento ou fornecedor');
+    expect(search.getAttribute('aria-keyshortcuts')).toBe('Control+K');
     expect(screen.getByRole('link', { name: 'Notificações' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Menu do usuário Ana Souza' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy();
     expect(screen.getByRole('main').id).toBe('conteudo');
     expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('agrupa o menu em Operação e Governança, com ajuda no rodapé', () => {
+    pathname = '/admin/usuarios';
+    renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
+    const nav = screen.getByRole('navigation', { name: 'Menu principal' });
+    const operation = within(nav).getByRole('list', { name: 'Operação' });
+    const governance = within(nav).getByRole('list', { name: 'Governança' });
+    expect(
+      within(operation)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([
+      'Painel',
+      'Caixa de tarefas',
+      'Aprovações',
+      'Processos',
+      'Fornecedores',
+      'Exemplo do shell',
+    ]);
+    expect(
+      within(governance)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Auditoria', 'Administração']);
+    expect(
+      within(governance).getByRole('link', { name: 'Administração' }).getAttribute('aria-current'),
+    ).toBe('page');
+    expect(screen.getByRole('link', { name: 'Falar com o suporte →' }).getAttribute('href')).toBe(
+      'mailto:suporte@contrataflow.com.br',
+    );
+  });
+
+  it('Ctrl K (e ⌘ K) foca a busca global de qualquer ponto; outras teclas não', async () => {
+    renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
+    const search = screen.getByRole('searchbox', { name: 'Busca global' });
+    await userEvent.keyboard('{Control>}k{/Control}');
+    expect(document.activeElement).toBe(search);
+    search.blur();
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}');
+    expect(document.activeElement).not.toBe(search);
+    await userEvent.keyboard('{Meta>}K{/Meta}');
+    expect(document.activeElement).toBe(search);
+    expect(search.closest('form')?.getAttribute('action')).toBe('/processos');
+  });
+
+  it('contadores da caixa de tarefas e das aprovações vêm de TSK-02 com INBOX_VIEW', async () => {
+    const fetchMock = stubFetch((url) =>
+      url.endsWith('/tasks/counters')
+        ? jsonResponse({
+            data: { mine: 7, pendingApprovals: 120, returned: 0, overdue: 1, following: 0 },
+          })
+        : jsonResponse({ data: { permissions: [{ code: 'INBOX_VIEW', scopes: ['TENANT'] }] } }),
+    );
+    renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
+    const nav = screen.getByRole('navigation', { name: 'Menu principal' });
+    expect(
+      await within(nav).findByRole('link', { name: 'Caixa de tarefas (7 pendentes)' }),
+    ).toBeTruthy();
+    const approvals = within(nav).getByRole('link', { name: 'Aprovações (120 pendentes)' });
+    expect(within(approvals).getByText('99+').getAttribute('aria-hidden')).toBe('true');
+    expect(
+      fetchMock.mock.calls.some(([input]) => requestUrl(input).endsWith('/tasks/counters')),
+    ).toBe(true);
+  });
+
+  it('sem INBOX_VIEW não consulta os contadores', async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ data: { permissions: [] } }));
+    renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
+    const nav = screen.getByRole('navigation', { name: 'Menu principal' });
+    await waitFor(() => {
+      expect(within(nav).queryByRole('link', { name: 'Caixa de tarefas' })).toBeNull();
+    });
+    expect(within(nav).getByRole('link', { name: 'Aprovações' })).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(([input]) => requestUrl(input).endsWith('/tasks/counters')),
+    ).toBe(false);
   });
 
   it('tema do tenant só com cor de contraste válido; faixa de somente leitura', () => {
@@ -118,7 +197,8 @@ describe('[Sucesso] AppShell', () => {
     renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
     await userEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
     const dialog = await screen.findByRole('dialog', { name: 'ContrataFlow' });
-    expect(dialog.querySelector('nav')).toBeTruthy();
+    expect(within(dialog).getByRole('list', { name: 'Governança' })).toBeTruthy();
+    expect(within(dialog).getByText('Precisa de ajuda?')).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('link', { name: 'Processos' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();

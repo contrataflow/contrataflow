@@ -108,12 +108,12 @@ export function TenantSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="secondary"
-          size="sm"
+          className="px-3.5"
           aria-label={t('label', { name: active.name })}
           aria-busy={pending !== null}
         >
-          <Icon name="building" className="size-4 text-muted-foreground" />
-          <span className="hidden max-w-48 truncate sm:inline">
+          <Icon name="building" className="size-[1.125rem] text-muted-foreground" />
+          <span className="hidden max-w-48 truncate font-medium sm:inline">
             {pending ? t('switching') : active.name}
           </span>
           <Icon name="chevronDown" className="size-4 text-muted-foreground" />

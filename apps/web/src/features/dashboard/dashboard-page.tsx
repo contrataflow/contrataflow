@@ -17,6 +17,7 @@ import type { ReactNode } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
 import { Icon } from '@/components/shell/icons';
+import { AppPageHeader } from '@/components/shell/page-header';
 import { formatMoney } from '@/lib/i18n/format';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useShellSession } from '@/lib/session/session-context';
@@ -69,10 +70,7 @@ export function DashboardPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">{t('description')}</p>
-      </header>
+      <AppPageHeader title={t('title')} description={t('description')} />
 
       {status === 'pending' ? (
         <div role="status" className="flex flex-col gap-3">

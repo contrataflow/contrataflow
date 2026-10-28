@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Avatar,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -17,17 +18,8 @@ import { useShellSession } from '@/lib/session/session-context';
 
 import { Icon } from './icons';
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
-}
-
 /**
- * Menu do usuário: perfil e "Sair" — logout por POST com CSRF (DEC-131 · security.md §7), com
+ * Menu do usuário (avatar de iniciais e nome — prd-4 · padrão 2): perfil e "Sair" — logout por POST com CSRF (DEC-131 · security.md §7), com
  * confirmação quando há rascunho local não sincronizado (`LogoutGuard` — US-088).
  */
 export function UserMenu() {
@@ -37,14 +29,13 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={t('menu', { name: user.displayName })}>
-          <span
-            aria-hidden="true"
-            className="grid size-8 place-items-center rounded-full bg-foreground text-xs font-semibold text-surface"
-          >
-            {initials(user.displayName)}
-          </span>
-          <span className="hidden max-w-40 truncate xl:inline">{user.displayName}</span>
+        <Button
+          variant="secondary"
+          aria-label={t('menu', { name: user.displayName })}
+          className="gap-2.5 pr-3 pl-1.5 font-medium"
+        >
+          <Avatar name={user.displayName} />
+          <span className="hidden max-w-40 truncate md:inline">{user.displayName}</span>
           <Icon name="chevronDown" className="size-4 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
