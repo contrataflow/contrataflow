@@ -16,7 +16,7 @@ export const PROFILE_PREFERENCE_UNKNOWN_MESSAGE = 'Preferência não reconhecida
 /** Registro de preferências de interface aceitas (RN-IAM-111 · entities.md `User.preferences`). */
 export const PROFILE_PREFERENCE_DEFINITIONS = {
   density: { values: ['comfortable', 'compact'], default: 'comfortable' },
-  theme: { values: ['light', 'dark', 'system'], default: 'system' },
+  theme: { values: ['light', 'dark', 'system'], default: 'light' },
 } as const;
 
 export const PROFILE_DENSITIES = PROFILE_PREFERENCE_DEFINITIONS.density.values;

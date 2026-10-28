@@ -26,9 +26,9 @@ describe('BrandLogo', () => {
 
   it('sobre fundo escuro usa as cores do menu lateral', () => {
     render(<BrandLogo tone="onDark" tagline="Slogan" />);
-    expect(classes(screen.getByText('Contrata'))).toContain('text-sidebar-foreground');
-    expect(classes(screen.getByText('Flow'))).toContain('text-sidebar-accent');
-    expect(classes(screen.getByText('Slogan'))).toContain('text-sidebar-muted');
+    expect(classes(screen.getByText('Contrata'))).toContain('text-on-navy');
+    expect(classes(screen.getByText('Flow'))).toContain('text-on-navy-accent');
+    expect(classes(screen.getByText('Slogan'))).toContain('text-on-navy-muted');
   });
 });
 
@@ -40,6 +40,6 @@ describe('BrandMark', () => {
     expect(classes(svg)).toContain('text-brand-ink');
     expect(svg?.querySelectorAll('path')).toHaveLength(3);
     rerender(<BrandMark tone="onDark" />);
-    expect(classes(container.querySelector('svg'))).toContain('text-sidebar-foreground');
+    expect(classes(container.querySelector('svg'))).toContain('text-on-navy');
   });
 });

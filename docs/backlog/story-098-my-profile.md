@@ -63,7 +63,7 @@ Permitir que qualquer usuário atualize seus dados editáveis e preferências em
 | Nome social | `socialName` | texto curto | Não | 2–200 caracteres | — |
 | Telefone | `phone` | texto curto | Não | formato BR | — |
 | Densidade | `preferences.density` | seleção | Não | registro (RN-IAM-111) | `comfortable` |
-| Tema | `preferences.theme` | seleção | Não | registro (RN-IAM-111) | `system` |
+| Tema | `preferences.theme` | seleção | Não | registro (RN-IAM-111) | `light` (DEC-186; era `system`) |
 
 ## Validações
 | # | Validação | Camada | Mensagem ao usuário | Código de erro |

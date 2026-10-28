@@ -117,7 +117,7 @@ describe('Feature: Meu perfil sobre PostgreSQL (US-098)', () => {
       name: 'Elisa Prado',
       email: 'elisa@a.test',
       membership: { jobTitle: 'Analista de Compras', departments: [] },
-      preferences: { density: 'comfortable', theme: 'system' },
+      preferences: { density: 'comfortable', theme: 'light' },
     });
 
     const response = await patch(

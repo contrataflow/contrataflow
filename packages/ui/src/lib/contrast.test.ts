@@ -37,6 +37,7 @@ describe('brandingTheme (tema por tenant — RN-FND-91)', () => {
     expect(brandingTheme('#1D4ED8')).toEqual({
       '--color-primary': '#1d4ed8',
       '--color-primary-foreground': LIGHT_TEXT,
+      '--color-primary-hover': '#1d4ed8',
     });
   });
 
@@ -44,6 +45,7 @@ describe('brandingTheme (tema por tenant — RN-FND-91)', () => {
     expect(brandingTheme('#fbbf24')).toEqual({
       '--color-primary': '#fbbf24',
       '--color-primary-foreground': DARK_TEXT,
+      '--color-primary-hover': '#fbbf24',
     });
   });
 

@@ -40,11 +40,11 @@ describe('User (entities.md §4.2)', () => {
   it('interfacePreferences: padrões do registro quando ausentes ou inválidas', () => {
     expect(interfacePreferences({ preferences: {} })).toEqual({
       density: 'comfortable',
-      theme: 'system',
+      theme: 'light',
     });
     expect(interfacePreferences({ preferences: { density: 'compact', theme: 1 } })).toEqual({
       density: 'compact',
-      theme: 'system',
+      theme: 'light',
     });
   });
 
@@ -113,7 +113,7 @@ describe('User.updateProfile (US-098 · RN-IAM-109..113)', () => {
       { path: 'name', old: 'Ana Souza', new: 'Ana Maria Souza' },
       { path: 'socialName', old: null, new: 'Aninha' },
       { path: 'phone', old: null, new: '***5678' },
-      { path: 'preferences.theme', old: 'system', new: 'dark' },
+      { path: 'preferences.theme', old: 'light', new: 'dark' },
     ]);
   });
 
@@ -138,7 +138,7 @@ describe('User.updateProfile (US-098 · RN-IAM-109..113)', () => {
 
   it('valores iguais aos atuais (inclusive padrão de preferência) não geram mudança', () => {
     expect(
-      updateProfile(user, { name: 'Ana Souza', preferences: { theme: 'system' } }).changes,
+      updateProfile(user, { name: 'Ana Souza', preferences: { theme: 'light' } }).changes,
     ).toEqual([]);
   });
 

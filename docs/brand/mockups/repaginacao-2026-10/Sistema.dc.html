@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sistema de design · ContrataFlow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Inter,'Segoe UI',system-ui,sans-serif;color:#0F172A;background:#FFFFFF}
+a{color:#004BE3}a:hover{color:#141E2B}
+</style>
+</helmet>
+<div style="width:1440px;height:820px;box-sizing:border-box;padding:40px 48px;display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:32px;background:#FFFFFF">
+
+  <section style="display:flex;flex-direction:column;gap:16px;min-width:0">
+    <div><h2 style="margin:0;font-size:18px;font-weight:800;color:#141E2B;letter-spacing:-0.01em">Cores</h2><p style="margin:4px 0 0;font-size:13px;color:#64748B">Marca navy + azul vivo, neutros frios e semânticas com fundo suave. Todos os pares passam no contraste AA.</p></div>
+    <ul style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:10px">
+      <sc-for list="{{ cores }}" as="c" hint-placeholder-count="14">
+        <li style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #E2E8F0;border-radius:10px">
+          <span style="width:40px;height:40px;border-radius:8px;flex:0 0 40px;background:{{ c.hex }};border:1px solid rgba(15,23,42,0.08)"></span>
+          <span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:13px;font-weight:700;color:#141E2B">{{ c.name }}</span><span style="font-size:11px;color:#64748B;font-family:ui-monospace,Consolas,monospace">{{ c.hex }}</span><span style="font-size:11px;color:#64748B">{{ c.use }}</span></span>
+        </li>
+      </sc-for>
+    </ul>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:20px;min-width:0">
+    <div><h2 style="margin:0;font-size:18px;font-weight:800;color:#141E2B;letter-spacing:-0.01em">Tipografia e componentes</h2><p style="margin:4px 0 0;font-size:13px;color:#64748B">Inter em toda a interface. Escala curta, pesos fortes nos títulos e números.</p></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid #E2E8F0;border-radius:12px">
+      <span style="font-size:28px;font-weight:800;letter-spacing:-0.02em;color:#141E2B;line-height:1.1">Título de página · 28/800</span>
+      <span style="font-size:16px;font-weight:700;color:#141E2B">Título de seção · 16/700</span>
+      <span style="font-size:14px;color:#0F172A">Corpo de texto · 14/400. Da demanda à publicação, todo o processo em um único lugar.</span>
+      <span style="font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#64748B">Rótulo de coluna · 12/600</span>
+      <span style="font-size:34px;font-weight:800;letter-spacing:-0.03em;color:#141E2B;line-height:1">24 <span style="font-size:13px;font-weight:500;letter-spacing:0;color:#64748B">número de KPI · 34/800</span></span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <button type="button" style="height:44px;padding:0 18px;border:0;border-radius:10px;background:#005BF9;color:#FFFFFF;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Primário</button>
+      <button type="button" style="height:44px;padding:0 18px;border:1px solid #CBD5E1;border-radius:10px;background:#FFFFFF;color:#141E2B;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Secundário</button>
+      <button type="button" style="height:44px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#004BE3;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Fantasma</button>
+      <button type="button" style="height:44px;padding:0 18px;border:0;border-radius:10px;background:#B91C1C;color:#FFFFFF;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Perigo</button>
+      <button type="button" disabled style="height:44px;padding:0 18px;border:0;border-radius:10px;background:#E2E8F0;color:#94A3B8;font-size:14px;font-weight:600;font-family:inherit">Desabilitado</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;max-width:360px">
+      <label for="ex-campo" style="font-size:14px;font-weight:600;color:#141E2B">Objeto da contratação <span style="color:#B91C1C">*</span></label>
+      <input id="ex-campo" type="text" value="Aquisição de insumos de saúde" style="height:44px;padding:0 14px;border:1px solid #CBD5E1;border-radius:10px;font-size:14px;font-family:inherit;color:#0F172A;background:#FFFFFF;box-sizing:border-box;width:100%">
+      <span style="font-size:12px;color:#64748B">Texto de apoio curto, com o limite de caracteres. 32/200</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{ chips }}" as="s" hint-placeholder-count="7">
+        <span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }}">{{ s.label }}</span>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px;min-width:0">
+    <div><h2 style="margin:0;font-size:18px;font-weight:800;color:#141E2B;letter-spacing:-0.01em">Padrões de tela</h2><p style="margin:4px 0 0;font-size:13px;color:#64748B">Blocos que se repetem em todas as páginas.</p></div>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px;background:#F4F6FA;border-radius:12px">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:16px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600;color:#334155">Cartão de KPI</span><span style="width:32px;height:32px;border-radius:9px;background:#FEF3C7;color:#B45309;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span></div>
+        <span style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:#141E2B;line-height:1">4</span>
+        <span style="font-size:12px;color:#64748B">Ícone colorido, número grande, contexto e variação.</span>
+      </div>
+      <div role="status" style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:#141E2B;color:#FFFFFF;border-radius:10px;font-size:13px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 18px"><path d="M20 6 9 17l-5-5"></path></svg><span><strong>Processo salvo.</strong> Toast escuro, curto, com ação opcional.</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px;background:#FFFFFF;border:1px dashed #CBD5E1;border-radius:12px;text-align:center">
+        <span style="width:44px;height:44px;border-radius:12px;background:#E8F0FF;color:#005BF9;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
+        <span style="font-size:14px;font-weight:700;color:#141E2B">Nenhum processo por aqui</span>
+        <span style="font-size:12px;color:#64748B">Estado vazio sempre explica e oferece a ação seguinte.</span>
+        <a href="#" style="height:40px;padding:0 14px;border-radius:10px;background:#005BF9;color:#FFFFFF;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center">Criar processo</a>
+      </div>
+    </div>
+    <ul style="margin:0;padding:0 0 0 18px;font-size:12px;color:#334155;line-height:1.7">
+      <li>Grade de 8 px, raio de 10 a 14 px, sombras quase nulas, bordas finas.</li>
+      <li>Alvos de toque de 44 px, foco visível de 3 px, contraste AA em todo texto.</li>
+      <li>Tabelas com filtros em chips, visões salvas e ação em linha.</li>
+      <li>Tema escuro mantido como opção no perfil, com os mesmos tokens.</li>
+    </ul>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      cores: [
+        { name: 'Navy da marca', hex: '#141E2B', use: 'Títulos, logo, toasts' },
+        { name: 'Azul da marca', hex: '#005BF9', use: 'Ação primária, item ativo' },
+        { name: 'Azul escuro', hex: '#004BE3', use: 'Links e hover' },
+        { name: 'Azul suave', hex: '#E8F0FF', use: 'Fundo de destaque' },
+        { name: 'Fundo da página', hex: '#F4F6FA', use: 'Ground das telas' },
+        { name: 'Superfície', hex: '#FFFFFF', use: 'Cartões e tabelas' },
+        { name: 'Borda', hex: '#E2E8F0', use: 'Divisores e cartões' },
+        { name: 'Texto', hex: '#0F172A', use: 'Corpo' },
+        { name: 'Texto secundário', hex: '#64748B', use: 'Apoio e rótulos' },
+        { name: 'Sucesso', hex: '#15803D', use: 'Concluído · fundo #DCFCE7' },
+        { name: 'Atenção', hex: '#B45309', use: 'Prazo próximo · fundo #FEF3C7' },
+        { name: 'Erro', hex: '#B91C1C', use: 'Atrasado · fundo #FEE2E2' },
+        { name: 'Aprovação', hex: '#7C3AED', use: 'Aguardando · fundo #EDE9FE' },
+        { name: 'Neutro', hex: '#94A3B8', use: 'Rascunho e desabilitado' }
+      ],
+      chips: [
+        { label: 'Rascunho', bg: '#F1F5F9', fg: '#334155' },
+        { label: 'Em andamento', bg: '#E8F0FF', fg: '#004BE3' },
+        { label: 'Aguardando aprovação', bg: '#EDE9FE', fg: '#5B21B6' },
+        { label: 'Devolvido', bg: '#FEF3C7', fg: '#92400E' },
+        { label: 'Atrasado', bg: '#FEE2E2', fg: '#991B1B' },
+        { label: 'Suspenso', bg: '#FEE2E2', fg: '#991B1B' },
+        { label: 'Concluído', bg: '#DCFCE7', fg: '#166534' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -78,6 +78,49 @@ export type {
   BrandSize,
   BrandTone,
 } from './components/brand-logo.js';
+export { Avatar, avatarToneOf, initialsOf } from './components/avatar.js';
+export type { AvatarProps } from './components/avatar.js';
+export { BarList, barPercent } from './components/bar-list.js';
+export type { BarListItem, BarListProps } from './components/bar-list.js';
+export { Card } from './components/card.js';
+export type { CardProps } from './components/card.js';
+export { ColumnChart } from './components/column-chart.js';
+export type { ColumnChartItem, ColumnChartProps } from './components/column-chart.js';
+export {
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+} from './components/data-table.js';
+export type {
+  SortDirection,
+  TableContainerProps,
+  TableFooterProps,
+  TableProps,
+  ThProps,
+} from './components/data-table.js';
+export { Donut, donutArcs } from './components/donut.js';
+export type { DonutArc, DonutProps, DonutSegment } from './components/donut.js';
+export { EmptyState } from './components/empty-state.js';
+export type { EmptyStateProps } from './components/empty-state.js';
+export { FilterChip } from './components/filter-chip.js';
+export type { FilterChipProps } from './components/filter-chip.js';
+export { Kbd } from './components/kbd.js';
+export type { KbdProps } from './components/kbd.js';
+export { KpiTile } from './components/kpi-tile.js';
+export type { KpiTileProps } from './components/kpi-tile.js';
+export { PageHeader } from './components/page-header.js';
+export type { BreadcrumbItem, PageHeaderProps } from './components/page-header.js';
+export { StatusChip } from './components/status-chip.js';
+export type { StatusChipProps } from './components/status-chip.js';
+export { ViewTabs } from './components/view-tabs.js';
+export type { ViewTab, ViewTabsProps } from './components/view-tabs.js';
+export { STATUS_TONES } from './lib/tones.js';
+export type { ChartTone, LinkComponent, StatusTone } from './lib/tones.js';
 export { Button } from './components/button.js';
 export type { ButtonProps } from './components/button.js';
 export { buttonClassName } from './lib/button-class.js';

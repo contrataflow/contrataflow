@@ -366,7 +366,7 @@ describe('ME-01 e ME-04', () => {
       socialName: 'Fabi Nunes',
       email: FAKE_USERS.fabio.email,
       phone: null,
-      preferences: { density: 'comfortable', theme: 'system' },
+      preferences: { density: 'comfortable', theme: 'light' },
       membership: { jobTitle: null, departments: [] },
       mfaVerified: false,
       version: 1,

@@ -74,7 +74,7 @@ describe('Feature: Login OIDC — API (US-087)', () => {
           socialName: null,
           email: FAKE_USERS.ana.email,
           phone: null,
-          preferences: { density: 'comfortable', theme: 'system' },
+          preferences: { density: 'comfortable', theme: 'light' },
           membership: { jobTitle: null, departments: [] },
           mfaVerified: false,
           version: 1,

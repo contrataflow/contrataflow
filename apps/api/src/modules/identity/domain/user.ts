@@ -1,4 +1,8 @@
-import { isPreferenceKey, isPreferenceValue } from '@contrataflow/validation';
+import {
+  PROFILE_PREFERENCE_DEFINITIONS,
+  isPreferenceKey,
+  isPreferenceValue,
+} from '@contrataflow/validation';
 import type { UpdateMyProfile } from '@contrataflow/validation';
 
 import type { UserStatus } from '#shared/auth/ports.js';
@@ -61,8 +65,8 @@ export function interfacePreferences(user: Pick<User, 'preferences'>): {
 } {
   const { density, theme } = user.preferences;
   return {
-    density: typeof density === 'string' ? density : 'comfortable',
-    theme: typeof theme === 'string' ? theme : 'system',
+    density: typeof density === 'string' ? density : PROFILE_PREFERENCE_DEFINITIONS.density.default,
+    theme: typeof theme === 'string' ? theme : PROFILE_PREFERENCE_DEFINITIONS.theme.default,
   };
 }
 

@@ -14,7 +14,7 @@ const MARK_BLUE = [
   'M830 777 L857 782 L1069 899 L965 956 L742 823 Z',
 ] as const;
 
-/** Tom da marca: `default` sobre fundos do tema; `onDark` sobre navy (menu lateral, login). */
+/** Tom da marca: `default` sobre fundos do tema; `onDark` sobre o navy da marca (login). */
 export type BrandTone = 'default' | 'onDark';
 export type BrandSize = 'sm' | 'md' | 'lg';
 
@@ -32,7 +32,7 @@ export function BrandMark({ tone = 'default', className }: BrandMarkProps) {
       focusable="false"
       className={cx(
         'size-10 flex-none',
-        tone === 'onDark' ? 'text-sidebar-foreground' : 'text-brand-ink',
+        tone === 'onDark' ? 'text-on-navy' : 'text-brand-ink',
         className,
       )}
     >
@@ -81,15 +81,15 @@ export function BrandLogo({
         <span className={cx('leading-none font-extrabold tracking-[-0.03em]', sizes.name)}>
           <span className="sr-only">{name}</span>
           <span aria-hidden="true">
-            <span className={onDark ? 'text-sidebar-foreground' : 'text-brand-ink'}>Contrata</span>
-            <span className={onDark ? 'text-sidebar-accent' : 'text-brand-accent'}>Flow</span>
+            <span className={onDark ? 'text-on-navy' : 'text-brand-ink'}>Contrata</span>
+            <span className={onDark ? 'text-on-navy-accent' : 'text-brand-accent'}>Flow</span>
           </span>
         </span>
         {tagline ? (
           <span
             className={cx(
               'mt-1.5 leading-none font-normal tracking-[0.25em] uppercase',
-              onDark ? 'text-sidebar-muted' : 'text-muted-foreground',
+              onDark ? 'text-on-navy-muted' : 'text-muted-foreground',
               sizes.tagline,
             )}
           >

@@ -49,11 +49,13 @@ export function contrastRatio(foreground: string, background: string): number | 
 export interface BrandingTheme {
   readonly '--color-primary': string;
   readonly '--color-primary-foreground': string;
+  readonly '--color-primary-hover': string;
 }
 
 /**
  * Variáveis CSS do tema do tenant a partir de `branding.primaryColor`. Escolhe o texto (claro ou
  * escuro) com maior contraste; devolve `null` quando a cor é inválida ou nenhum texto atinge 4,5:1.
+ * O hover fica na própria cor do tenant: o azul profundo da marca não combina com outra primária.
  */
 export function brandingTheme(primaryColor: string | null | undefined): BrandingTheme | null {
   if (!primaryColor) return null;
@@ -63,5 +65,9 @@ export function brandingTheme(primaryColor: string | null | undefined): Branding
   if (light === null || dark === null) return null;
   const [text, ratio] = light >= dark ? [LIGHT_TEXT, light] : [DARK_TEXT, dark];
   if (ratio < MIN_TEXT_CONTRAST) return null;
-  return { '--color-primary': color, '--color-primary-foreground': text };
+  return {
+    '--color-primary': color,
+    '--color-primary-foreground': text,
+    '--color-primary-hover': color,
+  };
 }

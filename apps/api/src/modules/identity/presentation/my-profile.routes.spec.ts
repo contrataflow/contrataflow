@@ -130,7 +130,7 @@ describe('Feature: Meu perfil e preferências (US-098)', () => {
       expect(audit?.changes).toEqual([
         { path: 'socialName', old: null, new: 'Eli' },
         { path: 'phone', old: null, new: '***5678' },
-        { path: 'preferences.theme', old: 'system', new: 'dark' },
+        { path: 'preferences.theme', old: 'light', new: 'dark' },
       ]);
       // Telefone completo nunca na trilha (RN-IAM-113 · Logs).
       expect(JSON.stringify(audit)).not.toContain('91234');

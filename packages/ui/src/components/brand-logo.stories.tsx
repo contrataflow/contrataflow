@@ -20,7 +20,7 @@ export const WithTagline: Story = {
 export const OnDark: Story = {
   args: { tone: 'onDark', size: 'lg', tagline: 'Do planejamento à contratação' },
   render: (args) => (
-    <div className="bg-sidebar p-6">
+    <div className="bg-brand-navy p-6">
       <BrandLogo {...args} />
     </div>
   ),
@@ -34,7 +34,7 @@ export const Mark: Story = {
   render: () => (
     <div className="flex items-center gap-4">
       <BrandMark />
-      <span className="bg-sidebar p-2">
+      <span className="bg-brand-navy p-2">
         <BrandMark tone="onDark" />
       </span>
     </div>
