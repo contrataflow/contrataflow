@@ -227,6 +227,27 @@ describe('SCR-006 · aba "Documentos" (US-062)', () => {
     expect(within(dialog).getByRole('button', { name: 'Criar e redigir' })).toBeTruthy();
   });
 
+  it('US-067 · repaginação: o cartão traz versão e o PDF — oficial da versão atual ou prévia do rascunho', async () => {
+    renderPanel({
+      items: [
+        doc(20, DESPACHO, { title: 'Despacho de encaminhamento', code: 'DES-0001/2026' }),
+        doc(21, ETP, {
+          title: 'Estudo Técnico Preliminar',
+          status: 'APPROVED',
+          currentVersionId: ID(70),
+          currentVersionNumber: 2,
+        }),
+      ],
+    });
+    const etp = await waitFor(() => card('Estudo Técnico Preliminar'));
+    expect(etp.getByText('v2')).toBeTruthy();
+    expect(etp.getByText('Aprovado')).toBeTruthy();
+    expect(etp.getByRole('button', { name: /^Gerar PDF desta versão/ })).toBeTruthy();
+    const despacho = card('Despacho');
+    expect(despacho.getByText('Sem versão')).toBeTruthy();
+    expect(despacho.getByRole('button', { name: 'Gerar prévia em PDF' })).toBeTruthy();
+  });
+
   it('US-024: "Pesquisa de preços" no menu abre o diálogo de criação (PRS-02)', async () => {
     const user = userEvent.setup();
     renderPanel(

@@ -2,7 +2,7 @@
 
 import { renderTimelineEntry } from '@contrataflow/types';
 import type { TimelineGroup } from '@contrataflow/types';
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, EmptyState, Skeleton, cx } from '@contrataflow/ui';
 import type { TimelineEntryDto } from '@contrataflow/validation';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -36,6 +36,15 @@ const GROUP_ICONS: Readonly<Record<TimelineGroup, IconName>> = {
   COMENTARIOS: 'message',
 };
 
+/** Marcador colorido por grupo (o texto da entrada diz o que aconteceu — nunca só a cor). */
+const GROUP_TONES: Readonly<Record<TimelineGroup, string>> = {
+  PROCESSO: 'bg-primary-soft text-primary-soft-foreground',
+  TRAMITACAO: 'bg-warning-soft text-warning-soft-foreground',
+  DOCUMENTOS: 'bg-success-soft text-success-soft-foreground',
+  APROVACOES: 'bg-approval-soft text-approval-soft-foreground',
+  COMENTARIOS: 'bg-neutral-soft text-neutral-soft-foreground',
+};
+
 function formatTime(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short', timeZone }).format(new Date(iso));
 }
@@ -47,7 +56,10 @@ function formatDay(date: string): string {
   );
 }
 
-/** `TimelineEntryItem`: ícone do grupo, mensagem do dicionário (RN-TML-14), ator e horário. */
+/**
+ * `TimelineEntryItem`: marcador colorido com o ícone do grupo sobre o trilho vertical, mensagem do
+ * dicionário com ator e ação (RN-TML-14), horário e unidade.
+ */
 export function TimelineEntryItem({
   entry,
   timeZone,
@@ -58,16 +70,23 @@ export function TimelineEntryItem({
   const t = useTranslations('timeline');
   const { message, detail } = renderTimelineEntry(entry);
   const time = formatTime(entry.occurredAt, timeZone);
+  const group = entryGroup(entry);
   return (
-    <li className="flex min-w-0 gap-3 py-3" aria-label={t('entryLabel', { message, time })}>
+    <li
+      className="relative flex min-w-0 gap-3 pb-5 before:absolute before:top-9 before:bottom-1 before:left-4 before:w-px before:bg-border last:pb-0 last:before:hidden"
+      aria-label={t('entryLabel', { message, time })}
+    >
       <span
         aria-hidden="true"
-        className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        className={cx(
+          'relative flex size-8 shrink-0 items-center justify-center rounded-full ring-4 ring-surface',
+          GROUP_TONES[group],
+        )}
       >
-        <Icon name={GROUP_ICONS[entryGroup(entry)]} />
+        <Icon name={GROUP_ICONS[group]} />
       </span>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <p className="text-sm break-words">{message}</p>
+      <div className="flex min-w-0 flex-col gap-0.5 pt-1">
+        <p className="text-sm break-words text-foreground">{message}</p>
         {detail ? <p className="text-sm break-words text-muted-foreground">“{detail}”</p> : null}
         <p className="text-xs text-muted-foreground">
           <time dateTime={entry.occurredAt}>{time}</time>
@@ -94,9 +113,9 @@ export function TimelineDayGroup({
         ? t('yesterday')
         : formatDay(day.date);
   return (
-    <section className="flex flex-col">
-      <h3 className="border-b border-border pb-1 text-sm font-semibold capitalize">{label}</h3>
-      <ol className="divide-y divide-border">
+    <section className="flex flex-col gap-3">
+      <h3 className="text-label font-semibold text-muted-foreground uppercase">{label}</h3>
+      <ol className="flex flex-col">
         {day.entries.map((entry) => (
           <TimelineEntryItem key={entry.id} entry={entry} timeZone={timeZone} />
         ))}
@@ -238,20 +257,24 @@ export function TimelineFeed({ processId }: { readonly processId: string }) {
     body = <FeedError error={feed.error} onRetry={() => void feed.refetch()} />;
   } else if (entries.length === 0) {
     body = hasActiveFilters(filters) ? (
-      <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-border p-8 text-center">
-        <p className="font-medium">{t('emptyFiltered')}</p>
-        <Button size="sm" variant="secondary" onClick={clearFilters}>
-          {t('filters.clear')}
-        </Button>
-      </div>
+      <EmptyState
+        title={t('emptyFiltered')}
+        action={
+          <Button size="sm" variant="secondary" onClick={clearFilters}>
+            {t('filters.clear')}
+          </Button>
+        }
+      />
     ) : (
-      <div className="rounded-card border border-dashed border-border p-8 text-center">
-        <p className="font-medium">{t('empty')}</p>
-      </div>
+      <EmptyState icon={<Icon name="clock" />} title={t('empty')} description={t('emptyHint')} />
     );
   } else {
     body = (
-      <div className="flex flex-col gap-4" aria-label={t('listLabel')} role="region">
+      <div
+        className="flex flex-col gap-6 rounded-card border border-border bg-surface p-5 shadow-card"
+        aria-label={t('listLabel')}
+        role="region"
+      >
         {feed.isError && !isCursorError(feed.error) ? (
           <FeedError error={feed.error} onRetry={() => void feed.fetchNextPage()} />
         ) : null}

@@ -63,7 +63,7 @@ export function ProcessActionBar({ summary, actions, frozen, onAction }: Process
     } else if (responsible.queueDepartment !== null) {
       text = t('inQueue', { department: responsible.queueDepartment.name });
     }
-    primaryArea = <p className="text-sm font-medium">{text}</p>;
+    primaryArea = <p className="self-center text-sm font-medium text-muted-foreground">{text}</p>;
   } else {
     const disabled = frozen || !primary.enabled;
     const blocked = primary.reasons.find((reason) => reason.code === 'TRANSITION_BLOCKED');
@@ -100,7 +100,7 @@ export function ProcessActionBar({ summary, actions, frozen, onAction }: Process
         </Button>
       );
     primaryArea = (
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1 md:items-end md:text-right">
         {button}
         {hint === null ? null : (
           <p id={hintId} className="text-xs text-muted-foreground">
@@ -119,7 +119,7 @@ export function ProcessActionBar({ summary, actions, frozen, onAction }: Process
   return (
     <section
       aria-label={t('label')}
-      className="fixed inset-x-0 bottom-0 z-30 flex items-start justify-between gap-3 border-t border-border bg-surface p-3 shadow-card md:static md:z-auto md:border-0 md:bg-transparent md:p-0 md:shadow-none"
+      className="fixed inset-x-0 bottom-0 z-30 flex items-start justify-between gap-3 border-t border-border bg-surface p-3 shadow-card md:static md:z-auto md:max-w-md md:flex-none md:justify-end md:gap-2 md:border-0 md:bg-transparent md:p-0 md:shadow-none"
     >
       {primaryArea}
       {others.length > 0 ? (
@@ -128,6 +128,11 @@ export function ProcessActionBar({ summary, actions, frozen, onAction }: Process
             className={buttonClassName({ variant: 'secondary', size: 'md' })}
             aria-label={t('moreLabel')}
           >
+            <svg aria-hidden="true" viewBox="0 0 16 16" className="size-4 fill-current">
+              <circle cx="3" cy="8" r="1.5" />
+              <circle cx="8" cy="8" r="1.5" />
+              <circle cx="13" cy="8" r="1.5" />
+            </svg>
             {t('more')}
           </DropdownMenuTrigger>
           <DropdownMenuContent>

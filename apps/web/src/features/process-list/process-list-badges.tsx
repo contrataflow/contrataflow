@@ -8,11 +8,12 @@ import { useTranslations } from 'next-intl';
 
 type DeadlineTone = 'ok' | 'soon' | 'late' | 'neutral';
 
+/** Prazo colorido (design system v2 — prd-4): atrasado em vermelho, vencendo em âmbar, demais neutros. */
 const TONES: Readonly<Record<DeadlineTone, string>> = {
-  ok: 'bg-muted text-foreground',
-  soon: 'bg-warning-soft text-warning',
-  late: 'bg-destructive-soft text-destructive',
-  neutral: 'bg-muted text-muted-foreground',
+  ok: 'bg-neutral-soft text-neutral-soft-foreground',
+  soon: 'bg-warning-soft text-warning-soft-foreground',
+  late: 'bg-destructive-soft text-destructive-soft-foreground',
+  neutral: 'bg-neutral-soft text-neutral-soft-foreground',
 };
 
 const ICONS: Readonly<Record<DeadlineTone, string>> = {
@@ -73,7 +74,7 @@ export function DueDateBadge({
   const { label, tone } = useDeadlineLabel(deadline, overdueSince);
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-control px-2 py-0.5 text-xs font-medium ${TONES[tone]}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${TONES[tone]}`}
     >
       <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3 fill-current">
         <path d={ICONS[tone]} />

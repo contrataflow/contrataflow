@@ -415,12 +415,15 @@ describe('SCR-006 · etiquetas no cabeçalho do processo', () => {
   it('mostra os chips com cor e nome, a inativa esmaecida com "(inativa)", e o botão no slot', () => {
     renderWithShell(
       <ProcessHeader
-        header={{
-          ...summaryDto().header,
-          tags: [
-            { id: EMERGENCIAIS.id, name: EMERGENCIAIS.name, color: '#B45309', isActive: true },
-            { id: ANTIGA.id, name: ANTIGA.name, color: '#64748B', isActive: false },
-          ],
+        summary={{
+          ...summaryDto(),
+          header: {
+            ...summaryDto().header,
+            tags: [
+              { id: EMERGENCIAIS.id, name: EMERGENCIAIS.name, color: '#B45309', isActive: true },
+              { id: ANTIGA.id, name: ANTIGA.name, color: '#64748B', isActive: false },
+            ],
+          },
         }}
         tagsAction={<span>slot-etiquetas</span>}
       />,

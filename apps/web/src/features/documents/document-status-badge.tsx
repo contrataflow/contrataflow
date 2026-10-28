@@ -1,31 +1,27 @@
+import { StatusChip } from '@contrataflow/ui';
+import type { StatusTone } from '@contrataflow/ui';
 import type { DocumentStatus } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
-const TONES: Record<DocumentStatus, string> = {
-  DRAFT: 'bg-muted text-foreground',
-  IN_REVIEW: 'bg-primary-soft text-foreground',
-  RETURNED: 'bg-warning-soft text-foreground',
-  FINALIZED: 'bg-success-soft text-foreground',
-  APPROVED: 'bg-success-soft text-foreground',
-  REJECTED: 'bg-destructive-soft text-foreground',
-  CANCELED: 'bg-muted text-muted-foreground',
+/** Tom semântico de cada status (design system v2 — prd-4). */
+export const DOCUMENT_STATUS_TONE: Readonly<Record<DocumentStatus, StatusTone>> = {
+  DRAFT: 'neutral',
+  IN_REVIEW: 'info',
+  RETURNED: 'warning',
+  FINALIZED: 'success',
+  APPROVED: 'success',
+  REJECTED: 'danger',
+  CANCELED: 'neutral',
 };
-
-const BASE =
-  'inline-flex items-center rounded-control px-2 py-0.5 text-xs font-medium whitespace-nowrap';
 
 /** Status do documento (DEC-018): o texto — nunca só a cor — diz a situação. */
 export function DocumentStatusBadge({ status }: { readonly status: DocumentStatus }) {
   const t = useTranslations('documents.statuses');
-  return <span className={`${BASE} ${TONES[status]}`}>{t(status)}</span>;
+  return <StatusChip tone={DOCUMENT_STATUS_TONE[status]}>{t(status)}</StatusChip>;
 }
 
 /** Selo derivado "Em aprovação" (DEC-018): `pendingApprovalId` preenchido. */
 export function PendingApprovalBadge() {
   const t = useTranslations('documents.view');
-  return (
-    <span className={`${BASE} border border-primary/30 bg-primary-soft`}>
-      {t('pendingApproval')}
-    </span>
-  );
+  return <StatusChip tone="approval">{t('pendingApproval')}</StatusChip>;
 }

@@ -30,6 +30,7 @@
     "clear": "Limpar filtros"
   },
   "empty": "Nenhum evento registrado ainda.",
+  "emptyHint": "Criações, tramitações, documentos, aprovações e comentários deste processo aparecem aqui, agrupados por dia.",
   "emptyFiltered": "Nenhum evento encontrado para os filtros selecionados.",
   "errors": {
     "unavailable": "Não foi possível carregar a timeline agora. Tente novamente em instantes.",

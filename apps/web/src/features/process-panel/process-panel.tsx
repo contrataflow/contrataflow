@@ -1,8 +1,13 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
-import { PROCESS_PANEL_TABS, processPanelTabOf } from '@contrataflow/validation';
-import type { ProcessPanelTab, ProcessSummaryDto } from '@contrataflow/validation';
+import { Alert, Button, Skeleton, cx, toast } from '@contrataflow/ui';
+import { processPanelTabOf } from '@contrataflow/validation';
+import type {
+  ActionEntry,
+  ProcessPanelTab,
+  ProcessSummaryDto,
+  SummaryAction,
+} from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -68,9 +73,33 @@ const COUNTED: Partial<Record<ProcessPanelTab, keyof ProcessSummaryDto['counts']
   participantes: 'participants',
 };
 
+/** Aba visível: `timeline` é uma das duas visões da aba "Tramitação". */
+type VisibleTab = Exclude<ProcessPanelTab, 'timeline'>;
+
+/** Abas na ordem da tela (repaginação — prd-4). */
+const VISIBLE_TABS: readonly VisibleTab[] = [
+  'resumo',
+  'documentos',
+  'tramitacao',
+  'itens',
+  'comentarios',
+  'participantes',
+  'anexos',
+];
+
+const visibleTabOf = (tab: ProcessPanelTab): VisibleTab =>
+  tab === 'timeline' ? 'tramitacao' : tab;
+
+const TAB =
+  'relative -mb-px inline-flex min-h-11 flex-none items-center gap-2 px-3.5 text-sm whitespace-nowrap transition-colors';
+const ACTIVE_TAB =
+  'font-bold text-primary-soft-foreground shadow-[inset_0_-2px_0_var(--color-primary)]';
+const IDLE_TAB = 'font-medium text-muted-foreground hover:text-foreground';
+
 /**
- * `ProcessTabs` (RN-PROC-57 · V-06): aba ativa na URL (`?aba=`), roláveis no mobile, padrão
- * WAI-ARIA (setas e Home/End movem o foco e ativam a aba).
+ * `ProcessTabs` (RN-PROC-57 · V-06): aba ativa na URL (`?aba=`), roláveis na horizontal no mobile,
+ * padrão WAI-ARIA (setas e Home/End movem o foco e ativam a aba). O contador vai num selo; o nome
+ * acessível segue "Documentos (2)".
  */
 function ProcessTabs({
   active,
@@ -78,16 +107,16 @@ function ProcessTabs({
   onChange,
   idPrefix,
 }: {
-  readonly active: ProcessPanelTab;
+  readonly active: VisibleTab;
   readonly counts: ProcessSummaryDto['counts'];
-  readonly onChange: (tab: ProcessPanelTab) => void;
+  readonly onChange: (tab: VisibleTab) => void;
   readonly idPrefix: string;
 }) {
   const t = useTranslations('processes.panel.tabs');
-  const refs = useRef<Partial<Record<ProcessPanelTab, HTMLButtonElement | null>>>({});
+  const refs = useRef<Partial<Record<VisibleTab, HTMLButtonElement | null>>>({});
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const index = PROCESS_PANEL_TABS.indexOf(active);
-    const last = PROCESS_PANEL_TABS.length - 1;
+    const index = VISIBLE_TABS.indexOf(active);
+    const last = VISIBLE_TABS.length - 1;
     const moves: Record<string, number> = {
       ArrowRight: index === last ? 0 : index + 1,
       ArrowLeft: index === 0 ? last : index - 1,
@@ -97,7 +126,7 @@ function ProcessTabs({
     const next = moves[event.key];
     if (next === undefined) return;
     event.preventDefault();
-    const tab = PROCESS_PANEL_TABS[next] ?? 'resumo';
+    const tab = VISIBLE_TABS[next] ?? 'resumo';
     onChange(tab);
     refs.current[tab]?.focus();
   };
@@ -107,12 +136,10 @@ function ProcessTabs({
       aria-label={t('label')}
       className="flex gap-1 overflow-x-auto border-b border-border"
     >
-      {PROCESS_PANEL_TABS.map((tab) => {
+      {VISIBLE_TABS.map((tab) => {
         const counted = COUNTED[tab];
-        const label =
-          counted === undefined || counts[counted] === 0
-            ? t(tab)
-            : t('count', { label: t(tab), count: counts[counted] });
+        const count = counted === undefined ? 0 : counts[counted];
+        const selected = active === tab;
         return (
           <button
             key={tab}
@@ -122,23 +149,87 @@ function ProcessTabs({
             type="button"
             role="tab"
             id={`${idPrefix}-tab-${tab}`}
-            aria-selected={active === tab}
+            aria-selected={selected}
             aria-controls={`${idPrefix}-panel-${tab}`}
-            tabIndex={active === tab ? 0 : -1}
-            className={
-              active === tab
-                ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium whitespace-nowrap text-primary'
-                : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground'
-            }
+            tabIndex={selected ? 0 : -1}
+            className={cx(TAB, selected ? ACTIVE_TAB : IDLE_TAB)}
             onKeyDown={onKeyDown}
             onClick={() => {
               onChange(tab);
             }}
           >
-            {label}
+            {t(tab)}
+            {count === 0 ? null : (
+              <>
+                {' '}
+                <span className="sr-only">{`(${String(count)})`}</span>
+                <span
+                  aria-hidden="true"
+                  className={cx(
+                    'rounded-full px-2 py-px text-xs font-bold',
+                    selected
+                      ? 'bg-primary-soft text-primary-soft-foreground'
+                      : 'bg-neutral-soft text-neutral-soft-foreground',
+                  )}
+                >
+                  {count}
+                </span>
+              </>
+            )}
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Aba "Tramitação": o histórico de tramitações (US-054 · `?aba=tramitacao`) e a linha do tempo de
+ * todos os eventos (US-060 · `?aba=timeline`), alternados por um seletor de visão.
+ */
+function MovementsTab({
+  processId,
+  view,
+  onChange,
+}: {
+  readonly processId: string;
+  readonly view: 'tramitacao' | 'timeline';
+  readonly onChange: (view: 'tramitacao' | 'timeline') => void;
+}) {
+  const t = useTranslations('processes.panel.tabs.views');
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div
+        role="group"
+        aria-label={t('label')}
+        className="inline-flex max-w-full self-start overflow-x-auto rounded-control border border-border bg-surface p-1"
+      >
+        {(['tramitacao', 'timeline'] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={view === option}
+            className={cx(
+              'min-h-9 rounded-[0.5rem] px-3 text-sm whitespace-nowrap transition-colors',
+              view === option
+                ? 'bg-primary-soft font-bold text-primary-soft-foreground'
+                : 'font-medium text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => {
+              onChange(option);
+            }}
+          >
+            {t(option)}
+          </button>
+        ))}
+      </div>
+      {view === 'timeline' ? (
+        // US-060: linha do tempo de todos os eventos (PRC-12).
+        <TimelineFeed processId={processId} />
+      ) : (
+        // US-054: histórico de tramitações (PRC-11).
+        <MovementTimeline processId={processId} />
+      )}
     </div>
   );
 }
@@ -147,15 +238,24 @@ function ProcessTabs({
 function PanelSkeleton() {
   const t = useTranslations('processes.panel');
   return (
-    <div role="status" className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+    <div role="status" className="mx-auto flex w-full max-w-7xl flex-col gap-4">
       <span className="sr-only">{t('loading')}</span>
-      <Skeleton className="h-4 w-32" />
-      <Skeleton className="h-8 w-96 max-w-full" />
-      <Skeleton className="h-10 w-64 max-w-full" />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 7 }, (_, index) => (
-          <Skeleton key={index} className="h-32" />
-        ))}
+      <Skeleton className="h-4 w-48" />
+      <Skeleton className="h-9 w-[32rem] max-w-full" />
+      <Skeleton className="h-6 w-64 max-w-full" />
+      <Skeleton className="h-20 w-full" />
+      <Skeleton className="h-11 w-full" />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="flex flex-col gap-6">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton key={index} className="h-36" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-4">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton key={index} className="h-28" />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -294,18 +394,60 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     new Date(summary.dataUpdatedAt),
   );
 
+  const onAction = (action: SummaryAction | ActionEntry) => {
+    // US-005: "Editar dados" abre o painel lateral; as demais ações, os diálogos das stories donas.
+    if (action.action === 'EDIT') setEditing(true);
+    // US-006: "Gerenciar itens" leva à aba Itens.
+    else if (action.action === 'MANAGE_ITEMS') changeTab('itens');
+    // US-007: "Etiquetas" abre o seletor.
+    else if (action.action === 'MANAGE_TAGS') setTagging(true);
+    // US-011: "Duplicar processo" abre o diálogo SCR-113.
+    else if (action.action === 'DUPLICATE') setDuplicating(true);
+    // US-047: "Encaminhar" abre o painel lateral SCR-103.
+    else if (action.action === 'FORWARD') {
+      setForwardKey(action.transitionKey ?? null);
+      setForwarding(true);
+    }
+    // US-049: "Assumir" chama o PRC-21 direto, com a versão do PRC-04 no `If-Match`.
+    else if (action.action === 'CLAIM') void claiming.claim(detail.data?.version);
+    // US-050: "Atribuir responsável" abre o diálogo SCR-115.
+    else if (action.action === 'ASSIGN') setAssigning(true);
+    // US-048: "Devolver" abre o diálogo SCR-104.
+    else if (action.action === 'RETURN') {
+      setReturnStageId('toStageId' in action ? (action.toStageId ?? null) : null);
+      setReturning(true);
+    }
+    // US-008: "Suspender"/"Retomar" abrem os diálogos SCR-116.
+    else if (action.action === 'SUSPEND') setSuspending(true);
+    else if (action.action === 'RESUME') setResuming(true);
+    // US-009: "Cancelar processo"/"Descartar rascunho" abrem os diálogos SCR-116.
+    else if (action.action === 'CANCEL') setCanceling(true);
+    else if (action.action === 'DISCARD') setDiscarding(true);
+    // US-010: "Concluir processo" abre o diálogo SCR-116 com o checklist da etapa.
+    else if (action.action === 'COMPLETE') setCompleting(true);
+    else toast({ title: t('actions.notYet') });
+  };
+
   let content: ReactNode;
   if (tab === 'resumo') {
     content = (
-      <div className="flex min-w-0 flex-col gap-6">
-        <SituationalPanel summary={data} processId={processId} timeZone={timeZone} />
-        <ProcessDataCard query={detail} />
-        {/* US-068/US-069: anexos do processo (alvo `PROCESS`) — envio, lista, prévia e download. */}
-        <AttachmentsSection targetType="PROCESS" targetId={processId} processId={processId} />
-      </div>
+      <SituationalPanel
+        summary={data}
+        processId={processId}
+        timeZone={timeZone}
+        onOpenDocuments={() => {
+          changeTab('documentos');
+        }}
+        aside={
+          <ProcessDataCard query={detail} timeZone={timeZone}>
+            {/* US-013: "Orçamento sigiloso" (PRC-33) com o estado e a versão do PRC-04. */}
+            <ConfidentialBudgetToggle processId={processId} process={detail.data} frozen={frozen} />
+          </ProcessDataCard>
+        }
+      />
     );
-  } else if (tab === 'timeline') {
-    content = <TimelineFeed processId={processId} />;
+  } else if (tab === 'timeline' || tab === 'tramitacao') {
+    content = <MovementsTab processId={processId} view={tab} onChange={changeTab} />;
   } else if (tab === 'documentos') {
     // US-062: documentos agrupados por tipo e o menu "Criar documento" (DOC-01 + DTY-01).
     content = <DocumentsPanel processId={processId} />;
@@ -321,46 +463,53 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
     // US-012: participantes (PRC-28..30 — SCR-112).
     content = <ParticipantsTab processId={processId} />;
   } else {
-    // US-054: histórico de tramitações (PRC-11).
-    content = <MovementTimeline processId={processId} />;
+    // US-068/US-069: anexos do processo (alvo `PROCESS`) — envio, lista, prévia e download.
+    content = (
+      <AttachmentsSection targetType="PROCESS" targetId={processId} processId={processId} />
+    );
   }
+  const visibleTab = visibleTabOf(tab);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 pb-24 md:pb-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <ProcessHeader
-          header={data.header}
-          tagsAction={
-            // US-007: "Etiquetas" (PRC-08 `MANAGE_TAGS`) abre o seletor; PRC-18 grava o conjunto.
-            <ProcessTagsButton
-              entry={actions.data?.find((entry) => entry.action === 'MANAGE_TAGS')}
-              count={data.header.tags.length}
-              frozen={frozen}
-              onClick={() => {
-                setTagging(true);
-              }}
-            />
-          }
-        />
-        <div className="flex flex-col items-end gap-3">
-          {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
-          {/* US-014: "Elaborar DFD" quando o DOC-01 libera o tipo DFD (fluxo principal 1). */}
-          <ElaborateDfdButton processId={processId} />
-          {/* US-019: "Criar ETP" / "Abrir ETP {código}" (DOC-01 + ETP-01). */}
-          <CreateEtpButton processId={processId} />
-          {/* US-024: "Criar pesquisa de preços" / "Abrir pesquisa {código}" (DOC-01 + PRS-01). */}
-          <CreatePriceResearchButton processId={processId} />
-          {/* US-036: "Criar Termo de Referência" / "Abrir TR {código}" (DOC-01 + TRM-01). */}
-          <CreateTermButton processId={processId} />
-          <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-6 pb-24 md:pb-0">
+      <ProcessHeader
+        summary={data}
+        actions={
+          <ProcessActionBar
+            summary={data}
+            actions={actions.data}
+            frozen={frozen || claiming.isPending}
+            onAction={onAction}
+          />
+        }
+        tagsAction={
+          // US-007: "Etiquetas" (PRC-08 `MANAGE_TAGS`) abre o seletor; PRC-18 grava o conjunto.
+          <ProcessTagsButton
+            entry={actions.data?.find((entry) => entry.action === 'MANAGE_TAGS')}
+            count={data.header.tags.length}
+            frozen={frozen}
+            onClick={() => {
+              setTagging(true);
+            }}
+          />
+        }
+        toolbar={
+          <>
+            {/* US-014: "Elaborar DFD" quando o DOC-01 libera o tipo DFD (fluxo principal 1). */}
+            <ElaborateDfdButton processId={processId} />
+            {/* US-019: "Criar ETP" / "Abrir ETP {código}" (DOC-01 + ETP-01). */}
+            <CreateEtpButton processId={processId} />
+            {/* US-024: "Criar pesquisa de preços" / "Abrir pesquisa {código}" (DOC-01 + PRS-01). */}
+            <CreatePriceResearchButton processId={processId} />
+            {/* US-036: "Criar Termo de Referência" / "Abrir TR {código}" (DOC-01 + TRM-01). */}
+            <CreateTermButton processId={processId} />
             {/* US-033: acesso à tela de riscos (SCR-011). */}
             <RisksLink processId={processId} />
+            {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
             <FollowToggleButton processId={processId} />
-          </div>
-          {/* US-013: "Orçamento sigiloso" (PRC-33) com o estado e a versão do PRC-04. */}
-          <ConfidentialBudgetToggle processId={processId} process={detail.data} frozen={frozen} />
-        </div>
-      </div>
+          </>
+        }
+      />
       {frozen ? (
         <Alert tone="warning" title={t('actions.stale', { time: updatedAt })}>
           <Button
@@ -379,44 +528,6 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
       <SuspendedBanner where={data.where} timeZone={timeZone} />
       {/* US-017 · RN-DFD-68: DFD indeferido — sugestão de cancelamento (PEND-02). */}
       <CancelSuggestionCallout summary={data} />
-      <ProcessActionBar
-        summary={data}
-        actions={actions.data}
-        frozen={frozen || claiming.isPending}
-        onAction={(action) => {
-          // US-005: "Editar dados" abre o painel lateral; as demais ações, os diálogos das stories donas.
-          if (action.action === 'EDIT') setEditing(true);
-          // US-006: "Gerenciar itens" leva à aba Itens.
-          else if (action.action === 'MANAGE_ITEMS') changeTab('itens');
-          // US-007: "Etiquetas" abre o seletor.
-          else if (action.action === 'MANAGE_TAGS') setTagging(true);
-          // US-011: "Duplicar processo" abre o diálogo SCR-113.
-          else if (action.action === 'DUPLICATE') setDuplicating(true);
-          // US-047: "Encaminhar" abre o painel lateral SCR-103.
-          else if (action.action === 'FORWARD') {
-            setForwardKey(action.transitionKey ?? null);
-            setForwarding(true);
-          }
-          // US-049: "Assumir" chama o PRC-21 direto, com a versão do PRC-04 no `If-Match`.
-          else if (action.action === 'CLAIM') void claiming.claim(detail.data?.version);
-          // US-050: "Atribuir responsável" abre o diálogo SCR-115.
-          else if (action.action === 'ASSIGN') setAssigning(true);
-          // US-048: "Devolver" abre o diálogo SCR-104.
-          else if (action.action === 'RETURN') {
-            setReturnStageId('toStageId' in action ? (action.toStageId ?? null) : null);
-            setReturning(true);
-          }
-          // US-008: "Suspender"/"Retomar" abrem os diálogos SCR-116.
-          else if (action.action === 'SUSPEND') setSuspending(true);
-          else if (action.action === 'RESUME') setResuming(true);
-          // US-009: "Cancelar processo"/"Descartar rascunho" abrem os diálogos SCR-116.
-          else if (action.action === 'CANCEL') setCanceling(true);
-          else if (action.action === 'DISCARD') setDiscarding(true);
-          // US-010: "Concluir processo" abre o diálogo SCR-116 com o checklist da etapa.
-          else if (action.action === 'COMPLETE') setCompleting(true);
-          else toast({ title: t('actions.notYet') });
-        }}
-      />
       <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
       <ForwardPanel
         processId={processId}
@@ -510,11 +621,16 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         }}
         timeZone={timeZone}
       />
-      <ProcessTabs active={tab} counts={data.counts} onChange={changeTab} idPrefix={tabsId} />
+      <ProcessTabs
+        active={visibleTab}
+        counts={data.counts}
+        onChange={changeTab}
+        idPrefix={tabsId}
+      />
       <div
         role="tabpanel"
-        id={`${tabsId}-panel-${tab}`}
-        aria-labelledby={`${tabsId}-tab-${tab}`}
+        id={`${tabsId}-panel-${visibleTab}`}
+        aria-labelledby={`${tabsId}-tab-${visibleTab}`}
         className="min-w-0"
       >
         {content}

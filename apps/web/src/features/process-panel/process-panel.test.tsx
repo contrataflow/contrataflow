@@ -464,10 +464,21 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     unmount();
 
     nav.set(`/processos/${PROCESS_ID}?aba=xyz`);
+    const second = renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
+    expect(
+      (await screen.findByRole('tab', { name: 'Visão geral' })).getAttribute('aria-selected'),
+    ).toBe('true');
+    second.unmount();
+
+    // `?aba=anexos` abre a aba Anexos (US-068 — os anexos saíram da visão geral).
+    nav.set(`/processos/${PROCESS_ID}?aba=anexos`);
     renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
-    expect((await screen.findByRole('tab', { name: 'Resumo' })).getAttribute('aria-selected')).toBe(
+    expect((await screen.findByRole('tab', { name: 'Anexos' })).getAttribute('aria-selected')).toBe(
       'true',
     );
+    expect(
+      await within(screen.getByRole('tabpanel')).findByRole('heading', { name: 'Anexos' }),
+    ).toBeTruthy();
   });
 
   it('FA-06/FA-07/FA-08: suspenso com prazo pausado, concluído em modo leitura e rascunho sem número', async () => {

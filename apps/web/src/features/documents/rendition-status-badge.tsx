@@ -1,16 +1,15 @@
+import { StatusChip } from '@contrataflow/ui';
+import type { StatusTone } from '@contrataflow/ui';
 import type { RenditionStatus } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
-const TONES: Record<RenditionStatus, string> = {
-  PENDING: 'bg-primary-soft text-foreground',
-  PROCESSING: 'bg-primary-soft text-foreground',
-  READY: 'bg-success-soft text-foreground',
-  FAILED: 'bg-destructive-soft text-foreground',
-  EXPIRED: 'bg-muted text-muted-foreground',
+const TONES: Readonly<Record<RenditionStatus, StatusTone>> = {
+  PENDING: 'info',
+  PROCESSING: 'info',
+  READY: 'success',
+  FAILED: 'danger',
+  EXPIRED: 'neutral',
 };
-
-const BASE =
-  'inline-flex items-center rounded-control px-2 py-0.5 text-xs font-medium whitespace-nowrap';
 
 /**
  * Situação do PDF (US-067): "Gerando PDF…" (`PENDING`/`PROCESSING`), "PDF pronto", "Falha ao
@@ -19,8 +18,8 @@ const BASE =
 export function RenditionStatusBadge({ status }: { readonly status: RenditionStatus }) {
   const t = useTranslations('documents.renditions.status');
   return (
-    <span data-status={status} className={`${BASE} ${TONES[status]}`}>
+    <StatusChip data-status={status} tone={TONES[status]}>
       {t(status)}
-    </span>
+    </StatusChip>
   );
 }

@@ -1,8 +1,8 @@
-// E2E da aba "Timeline" de SCR-006 (US-060): processo criado pelo wizard, aba "Timeline" com
-// agrupamento por dia ("Hoje"/"Ontem" como <h3>), filtro por grupo, scroll infinito até o início da
-// timeline, axe-core e viewport de 360 px (filtros colapsáveis, sem rolagem horizontal). A API é
-// simulada (support/mock-api.mjs — 60 eventos); SQL, POL-09, RLS e cursor sob concorrência são
-// cobertos nos testes da API.
+// E2E da linha do tempo de SCR-006 (US-060): processo criado pelo wizard, aba "Tramitação" na visão
+// "Linha do tempo" (`?aba=timeline`) com agrupamento por dia ("Hoje"/"Ontem" como <h3>), filtro
+// por grupo, scroll infinito até o início da timeline, axe-core e viewport de 360 px (filtros
+// colapsáveis, sem rolagem horizontal). A API é simulada (support/mock-api.mjs — 60 eventos); SQL,
+// POL-09, RLS e cursor sob concorrência são cobertos nos testes da API.
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -22,7 +22,8 @@ test('aba "Timeline": dias agrupados, filtro por grupo e scroll infinito até o 
   page,
 }) => {
   await createProcess(page);
-  await page.getByRole('tab', { name: 'Timeline' }).click();
+  await page.getByRole('tab', { name: 'Tramitação' }).click();
+  await page.getByRole('button', { name: 'Linha do tempo' }).click();
 
   const feed = page.getByRole('region', { name: 'Eventos do processo' });
   await expect(page.getByRole('heading', { level: 3, name: 'Hoje' })).toBeVisible();
@@ -50,7 +51,8 @@ test('aba "Timeline": dias agrupados, filtro por grupo e scroll infinito até o 
 test('em 360 px: filtros colapsáveis e sem rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await createProcess(page);
-  await page.getByRole('tab', { name: 'Timeline' }).click();
+  await page.getByRole('tab', { name: 'Tramitação' }).click();
+  await page.getByRole('button', { name: 'Linha do tempo' }).click();
   await expect(page.getByRole('heading', { level: 3, name: 'Hoje' })).toBeVisible();
 
   await expect(page.getByRole('checkbox', { name: 'Aprovações' })).toBeHidden();

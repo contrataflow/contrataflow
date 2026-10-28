@@ -187,7 +187,13 @@
       },
       "organization": "Órgão: {name}",
       "tags": "Etiquetas",
-      "statusLabel": "Situação do processo"
+      "statusLabel": "Situação do processo",
+      "stage": "Etapa atual",
+      "noStage": "Sem etapa ativa",
+      "responsible": "Responsável",
+      "approver": "Aprovação com {name}",
+      "queue": "Fila de {department}",
+      "noResponsible": "Sem responsável"
     },
     "actions": {
       "label": "Ações do processo",
@@ -261,7 +267,9 @@
       "inApproval": "Em aprovação",
       "restricted": "Conteúdo restrito (orçamento sigiloso)",
       "noCode": "Sem número",
-      "item": "{code} — {status}"
+      "item": "{code} — {status}",
+      "noVersion": "Sem versão gerada",
+      "seeAll": "Ver todos os documentos"
     },
     "approvals": {
       "title": "Aprovações pendentes",
@@ -294,25 +302,36 @@
     },
     "data": {
       "title": "Dados do processo",
+      "secretariat": "Secretaria requisitante",
+      "department": "Unidade requisitante",
       "object": "Objeto",
       "contractingType": "Tipo de contratação",
       "modality": "Modalidade",
       "origin": "Origem",
+      "pca": "Plano de contratações (PCA)",
       "workflow": "Fluxo",
       "workflowValue": "{name} (versão {version})",
       "estimatedValue": "Valor estimado",
-      "undefinedModality": "A definir"
+      "undefinedModality": "A definir",
+      "openedAt": "Aberto em",
+      "targetDate": "Prazo alvo",
+      "noTarget": "Sem prazo alvo"
     },
     "tabs": {
       "label": "Seções do processo",
-      "resumo": "Resumo",
+      "resumo": "Visão geral",
       "documentos": "Documentos",
       "itens": "Itens",
       "tramitacao": "Tramitação",
-      "timeline": "Timeline",
+      "timeline": "Linha do tempo",
       "comentarios": "Comentários",
       "participantes": "Participantes",
-      "count": "{label} ({count})"
+      "anexos": "Anexos",
+      "views": {
+        "label": "Visão da tramitação",
+        "tramitacao": "Histórico de tramitação",
+        "timeline": "Linha do tempo"
+      }
     },
     "errors": {
       "notFound": "Processo não encontrado ou você não tem acesso a ele.",
@@ -345,7 +364,8 @@
         "unavailable": "Não foi possível salvar agora. Tente novamente em instantes.",
         "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
       }
-    }
+    },
+    "asideLabel": "Resumo do processo"
   },
   "edit": {
     "title": "Editar dados do processo",

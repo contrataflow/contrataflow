@@ -321,22 +321,31 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
     });
   });
 
-  it('painel: a aba "Timeline" abre o feed; setas do teclado alternam as abas', async () => {
+  it('painel: "Linha do tempo" na aba Tramitação abre o feed (`?aba=timeline`); setas alternam as abas', async () => {
     mockTimeline();
     renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
-    const tab = await screen.findByRole('tab', { name: 'Timeline' });
-    expect(screen.getByRole('tab', { name: 'Resumo' }).getAttribute('aria-selected')).toBe('true');
-    fireEvent.click(tab);
-    expect(tab.getAttribute('aria-selected')).toBe('true');
-    expect(await screen.findByRole('heading', { level: 3, name: 'Hoje' })).toBeTruthy();
-    expect(screen.getByRole('tabpanel', { name: 'Timeline' })).toBeTruthy();
-    expect(nav.get()).toBe('aba=timeline');
-    fireEvent.keyDown(tab, { key: 'ArrowLeft' });
-    expect(screen.getByRole('tab', { name: 'Tramitação' }).getAttribute('aria-selected')).toBe(
+    const tab = await screen.findByRole('tab', { name: 'Tramitação' });
+    expect(screen.getByRole('tab', { name: 'Visão geral' }).getAttribute('aria-selected')).toBe(
       'true',
     );
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Tramitação' }), { key: 'Home' });
-    expect(screen.getByRole('tab', { name: 'Resumo' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(tab);
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(await screen.findByRole('button', { name: 'Linha do tempo' }));
+    expect(nav.get()).toBe('aba=timeline');
+    expect(await screen.findByRole('heading', { level: 3, name: 'Hoje' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Linha do tempo' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    // A linha do tempo é uma visão da aba "Tramitação": a aba segue selecionada.
+    expect(screen.getByRole('tabpanel', { name: 'Tramitação' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Tramitação' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: /^Documentos/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    fireEvent.keyDown(screen.getByRole('tab', { name: /^Documentos/ }), { key: 'Home' });
+    expect(screen.getByRole('tab', { name: 'Visão geral' }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
     expect(nav.get()).toBe('');
     expect(await screen.findByRole('heading', { level: 2, name: 'Onde está' })).toBeTruthy();
   });

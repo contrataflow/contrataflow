@@ -21,7 +21,10 @@ import { RULE_SEVERITIES, RULE_TYPES, STAGE_TYPES } from '../workflow/workflow.j
 export const RULE_EVALUATION_FAILED_MESSAGE =
   'Não foi possível verificar esta regra. Tente novamente ou fale com o administrador.';
 
-/** Abas do SCR-006 (RN-PROC-57), na ordem da tela; o valor é o de `?aba=`. */
+/**
+ * Valores de `?aba=` do SCR-006 (RN-PROC-57). `tramitacao` e `timeline` são as duas visões da aba
+ * "Tramitação" e `anexos` separa os anexos do processo da visão geral (repaginação — prd-4).
+ */
 export const PROCESS_PANEL_TABS = [
   'resumo',
   'documentos',
@@ -30,6 +33,7 @@ export const PROCESS_PANEL_TABS = [
   'timeline',
   'comentarios',
   'participantes',
+  'anexos',
 ] as const;
 export type ProcessPanelTab = (typeof PROCESS_PANEL_TABS)[number];
 

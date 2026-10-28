@@ -1,22 +1,51 @@
 'use client';
 
-import { Skeleton } from '@contrataflow/ui';
+import { Card, Skeleton } from '@contrataflow/ui';
 import type { ProcessDto } from '@contrataflow/validation';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId } from 'react';
+import type { ReactNode } from 'react';
+
+import { formatCivilDate, formatDate } from '@/lib/i18n/format';
 
 import { EstimatedValueBadge } from './estimated-value-badge';
 import { PanelError } from '../process-actions/panel-error';
 
-/** "Dados do processo" (PRC-04): objeto, catálogos, fluxo e valor estimado (mascarado — POL-09). */
-export function ProcessDataCard({ query }: { readonly query: UseQueryResult<ProcessDto> }) {
+/** Situação no PCA em uma linha ("Previsto no PCA — exercício 2026, item 12"). */
+function PcaValue({ process }: { readonly process: ProcessDto }) {
+  const t = useTranslations('processes');
+  if (process.pcaStatus === 'PLANNED') {
+    return process.pcaItemCode
+      ? t('review.pcaDetail.PLANNED_ITEM', {
+          year: process.pcaYear ?? '—',
+          item: process.pcaItemCode,
+        })
+      : t('review.pcaDetail.PLANNED', { year: process.pcaYear ?? '—' });
+  }
+  return t(`pcaStatuses.${process.pcaStatus}`);
+}
+
+/**
+ * "Dados do processo" (PRC-04) no resumo lateral: secretaria e unidade requisitantes, objeto,
+ * catálogos, PCA, fluxo, datas e valor estimado (mascarado — POL-09). `children` vem ao pé do
+ * cartão (o "Orçamento sigiloso" da US-013).
+ */
+export function ProcessDataCard({
+  query,
+  timeZone,
+  children,
+}: {
+  readonly query: UseQueryResult<ProcessDto>;
+  readonly timeZone: string;
+  readonly children?: ReactNode;
+}) {
   const t = useTranslations('processes.panel.data');
-  const headingId = useId();
+  const id = useId();
   const process = query.data;
   let body;
   if (process === undefined && query.isPending) {
-    body = <Skeleton className="h-24 w-full" />;
+    body = <Skeleton className="h-40 w-full" />;
   } else if (process === undefined) {
     body = (
       <PanelError
@@ -27,11 +56,14 @@ export function ProcessDataCard({ query }: { readonly query: UseQueryResult<Proc
       />
     );
   } else {
-    const rows = [
+    const rows: { readonly label: string; readonly value: ReactNode }[] = [
+      { label: t('secretariat'), value: process.requestingSecretariat.name },
+      { label: t('department'), value: process.requestingDepartment.name },
       { label: t('object'), value: process.object },
       { label: t('contractingType'), value: process.contractingType.label },
       { label: t('modality'), value: process.modality?.label ?? t('undefinedModality') },
       { label: t('origin'), value: process.origin.label },
+      { label: t('pca'), value: <PcaValue process={process} /> },
       {
         label: t('workflow'),
         value: t('workflowValue', {
@@ -39,38 +71,43 @@ export function ProcessDataCard({ query }: { readonly query: UseQueryResult<Proc
           version: process.workflow.versionNumber,
         }),
       },
+      {
+        label: t('openedAt'),
+        value: formatDate(process.openedAt ?? process.createdAt, timeZone),
+      },
+      {
+        label: t('targetDate'),
+        value: process.targetDate === null ? t('noTarget') : formatCivilDate(process.targetDate),
+      },
+      {
+        label: t('estimatedValue'),
+        // US-017: o valor propagado pela aprovação do DFD sai com a origem "DFD".
+        value: (
+          <EstimatedValueBadge
+            value={process.estimatedValue}
+            masked={process.estimatedValueMasked}
+            source={process.estimatedValueSource}
+          />
+        ),
+      },
     ];
     body = (
-      <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
+      <dl className="flex flex-col gap-3 text-sm">
         {rows.map((row) => (
-          <div key={row.label} className="contents">
-            <dt className="text-muted-foreground">{row.label}</dt>
+          <div key={row.label} className="flex min-w-0 flex-col gap-0.5">
+            <dt className="text-label font-semibold text-muted-foreground uppercase">
+              {row.label}
+            </dt>
             <dd className="min-w-0 break-words">{row.value}</dd>
           </div>
         ))}
-        <div className="contents">
-          <dt className="text-muted-foreground">{t('estimatedValue')}</dt>
-          <dd>
-            {/* US-017: o valor propagado pela aprovação do DFD sai com a origem "DFD". */}
-            <EstimatedValueBadge
-              value={process.estimatedValue}
-              masked={process.estimatedValueMasked}
-              source={process.estimatedValueSource}
-            />
-          </dd>
-        </div>
       </dl>
     );
   }
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4 shadow-card"
-    >
-      <h2 id={headingId} className="text-base font-semibold">
-        {t('title')}
-      </h2>
+    <Card id={id} title={t('title')} className="min-w-0 gap-3">
       {body}
-    </section>
+      {children ? <div className="border-t border-border pt-3">{children}</div> : null}
+    </Card>
   );
 }

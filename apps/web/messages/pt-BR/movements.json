@@ -74,6 +74,7 @@
     "clear": "Limpar filtros"
   },
   "empty": "Nenhuma tramitação registrada ainda.",
+  "emptyHint": "Cada encaminhamento, devolução, atribuição e decisão do processo aparece aqui, do mais recente ao mais antigo.",
   "emptyFiltered": "Nenhuma tramitação encontrada para os filtros selecionados.",
   "errors": {
     "unavailable": "Não foi possível carregar o histórico agora.",

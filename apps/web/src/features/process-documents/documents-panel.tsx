@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  EmptyState,
   Skeleton,
   toast,
 } from '@contrataflow/ui';
@@ -40,6 +41,8 @@ import { useActiveDocumentTypes, useProcessDocuments } from './process-documents
 import { ElaborateDfdOutcome, useElaborateDfd } from '../dfd/elaborate-dfd';
 import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
+import { GeneratePdfButton } from '../documents/generate-pdf-button';
+import type { PdfSource } from '../documents/generate-pdf-button';
 import { CreateEtpDialog } from '../etp/create-etp-dialog';
 import { CreatePriceResearchDialog } from '../price-research/create-price-research-dialog';
 import { CreateTermDialog } from '../term/create-term-dialog';
@@ -68,7 +71,23 @@ function ConfidentialityLock() {
   );
 }
 
-/** Uma linha de documento: código, título, status, selo, responsável e última atualização. */
+/**
+ * PDF do cartão (US-067): o oficial da versão atual (DOC-21) quando há versão; senão, a prévia do
+ * rascunho (DOC-20). Documento externo (`UPLOADED`) já é o próprio arquivo — sem botão.
+ */
+function pdfSourceOf(document: ProcessDocumentDto): PdfSource | null {
+  if (document.documentType.kind === 'UPLOADED') return null;
+  if (document.currentVersionId !== null && document.currentVersionNumber !== null) {
+    return {
+      kind: 'version',
+      versionId: document.currentVersionId,
+      versionNumber: document.currentVersionNumber,
+    };
+  }
+  return { kind: 'preview', documentId: document.id };
+}
+
+/** Um cartão de documento: código, status, selo, título, versão, responsável, PDF e atualização. */
 function DocumentRow({
   processId,
   document,
@@ -80,23 +99,29 @@ function DocumentRow({
 }) {
   const t = useTranslations('documents.panel');
   const value = summaryValueOf(document);
+  const pdf = pdfSourceOf(document);
   const updatedAt = new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
     timeZone,
   }).format(new Date(document.updatedAt));
   return (
-    <li className="flex flex-col gap-1 rounded-control border border-border p-3">
+    <li className="flex min-w-0 flex-col gap-2 rounded-control border border-border p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
+        <span className="text-xs font-semibold text-muted-foreground tabular-nums">
           {document.code ?? t('noNumber')}
         </span>
         <DocumentStatusBadge status={document.status} />
         {document.pendingApprovalId === null ? null : <PendingApprovalBadge />}
+        <span className="text-xs text-muted-foreground">
+          {document.currentVersionNumber === null
+            ? t('noVersion')
+            : t('version', { number: document.currentVersionNumber })}
+        </span>
       </div>
       <Link
         href={documentHref(processId, document)}
-        className="text-sm font-medium break-words text-primary underline-offset-2 hover:underline focus-visible:underline"
+        className="text-sm font-semibold break-words text-primary underline-offset-2 hover:text-primary-hover hover:underline focus-visible:underline"
       >
         {document.title}
       </Link>
@@ -106,6 +131,7 @@ function DocumentRow({
           updatedAt,
         })}
       </p>
+      {pdf === null ? null : <GeneratePdfButton source={pdf} />}
       {document.documentType.systemModule === 'DFD' ? (
         <div>
           <DuplicateDfdButton dfd={{ id: document.id, processId, code: document.code }} />
@@ -142,14 +168,14 @@ function DocumentTypeCard({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4"
+      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-5 shadow-card"
     >
       <header className="flex items-center justify-between gap-2">
-        <h3 id={headingId} className="text-sm font-semibold">
+        <h3 id={headingId} className="text-section-title text-brand-ink">
           {group.type.name}
         </h3>
         {group.type.singular ? null : (
-          <span className="text-xs text-muted-foreground">
+          <span className="rounded-full bg-neutral-soft px-2 py-px text-xs font-bold text-neutral-soft-foreground">
             {t('count', { count: group.documents.length })}
           </span>
         )}
@@ -378,6 +404,15 @@ function PanelError({ error, onRetry }: { readonly error: unknown; readonly onRe
   );
 }
 
+function DocumentIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
 function PanelSkeleton() {
   const t = useTranslations('documents.panel');
   return (
@@ -467,8 +502,8 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{t('title')}</h2>
-        <CreateDocumentMenu types={menu} onCreate={onCreate} prominent={empty} />
+        <h2 className="text-section-title text-brand-ink">{t('title')}</h2>
+        {empty ? null : <CreateDocumentMenu types={menu} onCreate={onCreate} prominent={false} />}
       </div>
       <ElaborateDfdOutcome processId={processId} outcome={elaborate.outcome} />
       <CreateEtpDialog processId={processId} open={creatingEtp} onOpenChange={setCreatingEtp} />
@@ -496,12 +531,27 @@ export function DocumentsPanel({ processId }: { readonly processId: string }) {
         />
       ) : null}
       {empty ? (
-        <div className="flex flex-col items-start gap-2 rounded-card border border-dashed border-border p-6">
-          <p className="text-sm font-medium">{t('empty')}</p>
-          <p className="text-sm text-muted-foreground">{t('emptyHint')}</p>
-        </div>
+        <EmptyState
+          icon={<DocumentIcon />}
+          title={t('empty')}
+          description={t('emptyHint')}
+          action={<CreateDocumentMenu types={menu} onCreate={onCreate} prominent />}
+        />
       ) : groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('noMatches')}</p>
+        <EmptyState
+          title={t('noMatches')}
+          action={
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setFilter(EMPTY_FILTER);
+              }}
+            >
+              {t('filters.clear')}
+            </Button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {groups.map((group) => (

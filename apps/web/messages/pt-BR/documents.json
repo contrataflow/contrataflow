@@ -248,6 +248,8 @@
     "createMenu": "Tipos de documento que você pode criar",
     "noNumber": "Sem número",
     "noResponsible": "sem responsável",
+    "version": "v{number}",
+    "noVersion": "Sem versão",
     "meta": "Responsável: {responsible} · Atualizado em {updatedAt}",
     "totalValue": "Valor total:",
     "confidential": "Sigiloso",
@@ -263,7 +265,8 @@
       "type": "Tipo",
       "status": "Status",
       "responsible": "Responsável",
-      "all": "Todos"
+      "all": "Todos",
+      "clear": "Limpar filtros"
     },
     "errors": {
       "notFound": "Processo não encontrado.",

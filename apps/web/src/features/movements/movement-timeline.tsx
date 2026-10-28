@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, EmptyState, Skeleton, cx } from '@contrataflow/ui';
 import type { MovementAction, MovementItemDto } from '@contrataflow/validation';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -115,6 +115,21 @@ export function ApprovalLinkBadge({ item }: { readonly item: MovementItemDto }) 
 }
 
 /** `MovementRow`: ícone da ação, de → para, ator, comentário, prazo, documentos e (FA-02) IP. */
+/** Marcador colorido por ação: avanço em azul, devolução em âmbar, decisão e encerramento. */
+const ACTION_TONES: Readonly<Record<MovementAction, string>> = {
+  CREATE: 'bg-neutral-soft text-neutral-soft-foreground',
+  FORWARD: 'bg-primary-soft text-primary-soft-foreground',
+  RETURN: 'bg-warning-soft text-warning-soft-foreground',
+  CLAIM: 'bg-primary-soft text-primary-soft-foreground',
+  ASSIGN: 'bg-primary-soft text-primary-soft-foreground',
+  APPROVE: 'bg-success-soft text-success-soft-foreground',
+  REJECT: 'bg-destructive-soft text-destructive-soft-foreground',
+  COMPLETE: 'bg-success-soft text-success-soft-foreground',
+  CANCEL: 'bg-destructive-soft text-destructive-soft-foreground',
+  SUSPEND: 'bg-warning-soft text-warning-soft-foreground',
+  RESUME: 'bg-approval-soft text-approval-soft-foreground',
+};
+
 export function MovementRow({
   item,
   processId,
@@ -139,17 +154,20 @@ export function MovementRow({
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- cada item focável (lista navegável por teclado — US-054)
       tabIndex={0}
       aria-label={t('label', { action, sequence: item.sequence, date: when })}
-      className="flex min-w-0 gap-3 rounded-control py-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="relative flex min-w-0 gap-3 rounded-control pb-5 before:absolute before:top-9 before:bottom-1 before:left-4 before:w-px before:bg-border last:pb-0 last:before:hidden focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:outline-none"
     >
       <span
         aria-hidden="true"
-        className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        className={cx(
+          'relative flex size-8 shrink-0 items-center justify-center rounded-full ring-4 ring-surface',
+          ACTION_TONES[item.action],
+        )}
       >
         <Icon name={ACTION_ICONS[item.action]} />
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <p className="text-sm font-medium">{action}</p>
+          <p className="text-sm font-semibold text-brand-ink">{action}</p>
           <time dateTime={item.occurredAt} className="text-xs text-muted-foreground">
             {when}
           </time>
@@ -368,24 +386,24 @@ export function MovementTimeline({ processId }: { readonly processId: string }) 
     body = <FeedError error={feed.error} onRetry={() => void feed.refetch()} />;
   } else if (items.length === 0) {
     body = hasActiveFilters(filters) ? (
-      <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-border p-8 text-center">
-        <p className="font-medium">{t('emptyFiltered')}</p>
-        <Button size="sm" variant="secondary" onClick={clearFilters}>
-          {t('filters.clear')}
-        </Button>
-      </div>
+      <EmptyState
+        title={t('emptyFiltered')}
+        action={
+          <Button size="sm" variant="secondary" onClick={clearFilters}>
+            {t('filters.clear')}
+          </Button>
+        }
+      />
     ) : (
-      <div className="rounded-card border border-dashed border-border p-8 text-center">
-        <p className="font-medium">{t('empty')}</p>
-      </div>
+      <EmptyState icon={<Icon name="truck" />} title={t('empty')} description={t('emptyHint')} />
     );
   } else {
     body = (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5 shadow-card">
         {feed.isError && !isCursorError(feed.error) ? (
           <FeedError error={feed.error} onRetry={() => void feed.fetchNextPage()} />
         ) : null}
-        <ol aria-label={t('listLabel')} className="divide-y divide-border">
+        <ol aria-label={t('listLabel')} className="flex flex-col">
           {items.map((item) => (
             <MovementRow
               key={item.id}

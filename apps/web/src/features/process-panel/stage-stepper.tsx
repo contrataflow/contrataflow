@@ -29,6 +29,14 @@ const MARKS: Readonly<Record<string, string>> = {
   ACTIVE: '●',
 };
 
+/** Marcador colorido por situação da última passagem (o texto ao lado diz a situação). */
+const MARK_TONES: Readonly<Record<string, string>> = {
+  COMPLETED: 'border-success bg-success-soft text-success-soft-foreground',
+  RETURNED: 'border-warning bg-warning-soft text-warning-soft-foreground',
+  CANCELED: 'border-destructive bg-destructive-soft text-destructive-soft-foreground',
+  ACTIVE: 'border-primary bg-primary text-primary-foreground',
+};
+
 function StageItem({
   stage,
   timeZone,
@@ -46,8 +54,8 @@ function StageItem({
     <li
       aria-current={stage.isCurrent ? 'step' : undefined}
       className={cx(
-        'flex min-w-0 flex-col gap-1 rounded-control border p-2 text-sm md:min-w-40',
-        stage.isCurrent ? 'border-primary bg-primary-soft' : 'border-border',
+        'flex min-w-0 flex-col gap-1 rounded-control border p-3 text-sm md:min-w-44',
+        stage.isCurrent ? 'border-primary bg-primary-soft' : 'border-border bg-surface',
       )}
     >
       <span className="flex items-center gap-2 font-medium">
@@ -55,7 +63,9 @@ function StageItem({
           aria-hidden="true"
           className={cx(
             'grid size-5 flex-none place-items-center rounded-full border text-xs',
-            status === null ? 'border-border text-muted-foreground' : 'border-primary text-primary',
+            status === null
+              ? 'border-border-strong text-muted-foreground'
+              : (MARK_TONES[status] ?? 'border-primary text-primary'),
           )}
         >
           {status === null ? '' : (MARKS[status] ?? '')}
@@ -125,7 +135,7 @@ export function StageStepper({ stages, isPending, error, onRetry, timeZone }: St
         <summary className="cursor-pointer text-sm font-medium text-muted-foreground md:hidden">
           {t('toggle')}
         </summary>
-        <ol className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start">
+        <ol className="flex flex-col gap-3 md:flex-row md:items-start md:overflow-x-auto md:pb-1">
           {groupStages(stages).map((group, index) => (
             <li
               key={`${String(index)}:${group.label ?? ''}`}
@@ -136,7 +146,7 @@ export function StageStepper({ stages, isPending, error, onRetry, timeZone }: St
                   {group.label}
                 </span>
               ) : null}
-              <ol className="flex flex-col gap-2 md:flex-row">
+              <ol className="flex flex-col gap-2 md:flex-row md:flex-nowrap">
                 {group.stages.map((stage) => (
                   <StageItem key={stage.workflowStageId} stage={stage} timeZone={timeZone} />
                 ))}
@@ -148,8 +158,11 @@ export function StageStepper({ stages, isPending, error, onRetry, timeZone }: St
     );
   }
   return (
-    <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-2">
-      <h2 id={headingId} className="text-base font-semibold">
+    <section
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-5 shadow-card"
+    >
+      <h2 id={headingId} className="text-section-title text-brand-ink">
         {t('title')}
       </h2>
       {body}
