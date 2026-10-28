@@ -3,12 +3,11 @@ import { useTranslations } from 'next-intl';
 
 /*
  * Motivos de retorno a `/entrar?motivo=` (SCR-001): vêm só de redirecionamentos do próprio
- * app/BFF e nunca de entrada livre — qualquer outro valor é ignorado e a página segue direto
- * para o login.
+ * app/BFF e nunca de entrada livre — qualquer outro valor é ignorado e a página mostra só o
+ * formulário. `saiu-parcial` deixou de existir com o logout sem *end-session* (DEC-187).
  */
 export const LOGIN_REASONS = [
   'saiu',
-  'saiu-parcial',
   'sessao-expirada',
   'senha-redefinida',
   'erro',
@@ -22,16 +21,22 @@ export function isLoginReason(value: string | undefined): value is LoginReason {
 }
 
 /** Motivos que pedem atenção (aviso) em vez de só informar. */
-const WARNING_REASONS: readonly LoginReason[] = ['saiu-parcial', 'erro', 'indisponivel'];
+const WARNING_REASONS: readonly LoginReason[] = ['erro', 'indisponivel'];
 
 /** Mensagem do motivo, anunciada por leitores de tela (`role="status"` — o `Alert` informativo). */
-export function LoginReasonMessage({ reason }: { readonly reason: LoginReason }) {
+export function LoginReasonMessage({
+  reason,
+  className = 'mt-6',
+}: {
+  readonly reason: LoginReason;
+  readonly className?: string;
+}) {
   const t = useTranslations('auth.login.reasons');
   return (
     <Alert
       tone={WARNING_REASONS.includes(reason) ? 'warning' : 'info'}
       title={t(reason)}
-      className="mt-6"
+      className={className}
     />
   );
 }

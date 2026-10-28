@@ -24,6 +24,10 @@ export type LogEvent =
   | 'auth.session_store_unavailable'
   | 'auth.login_started'
   | 'auth.login_unavailable'
+  // Login nativo (DEC-187): trilha de segurança das tentativas (nunca a senha nem o usuário).
+  | 'auth.login_failed'
+  | 'auth.login_succeeded'
+  | 'auth.mfa_required'
   // US-090: *step-up* concluído (sem o fator usado) e Authentik fora durante o desafio.
   | 'auth.step_up_completed'
   | 'auth.step_up_unavailable'
@@ -41,7 +45,7 @@ export type LogEvent =
   | 'auth.logout'
   | 'auth.session_expired'
   | 'auth.refresh_failed'
-  | 'auth.rp_logout_unavailable'
+  | 'auth.revocation_unavailable'
   | 'auth.reauthentication_required'
   | 'auth.recovery_redirect'
   | 'auth.recovery_unavailable'

@@ -1,8 +1,12 @@
 import 'server-only';
 
+import { createHmac } from 'node:crypto';
+
 import { switchTenantRequestSchema } from '@contrataflow/validation';
 import type { z } from 'zod';
 
+import { isLoginChallengeId, LOGIN_CHALLENGE_MAX_ATTEMPTS } from './auth/login-challenge';
+import type { LoginChallenge } from './auth/login-challenge';
 import {
   addTransaction,
   LOGIN_TRANSACTION_COOKIE,
@@ -13,6 +17,7 @@ import {
 } from './auth/login-transaction';
 import type { LoginTransaction } from './auth/login-transaction';
 import { OidcIdentityProvider } from './auth/oidc-provider';
+import type { PasswordLoginStep } from './auth/password-login';
 import {
   PasswordRecoveryUnavailableError,
   RECOVERY_RETURN_COOKIE,
@@ -30,6 +35,7 @@ import { DEFAULT_RETURN_TO, safeReturnTo } from './return-to';
 import { bffRuntime } from './runtime';
 import type { BffRuntime } from './runtime';
 import { hashSessionId, newSessionId } from './session/session-service';
+import type { SessionLookup } from './session/session-service';
 import { IdentityProviderUnavailableError, SessionStoreUnavailableError } from './session/types';
 import type {
   ClientDetails,
@@ -38,6 +44,7 @@ import type {
   DirectoryResult,
   LoginFailureReason,
   PendingTenantSwitch,
+  ProviderLogin,
   SessionRecord,
 } from './session/types';
 import { toShellSession } from './session/view';
@@ -48,16 +55,19 @@ import {
 } from './session-responses';
 
 /*
- * Rotas de sessão do BFF `/api/auth/*` (authentication.md §3/§7/§15 · US-087/US-088): login OIDC
- * com PKCE e transação cifrada, callback (troca do código, `id_token`, identidade na API, sessão
- * nova no Redis, instituição ativa), consulta da sessão (sondagem ou *keepalive*), troca de
- * instituição, step-up e logout por POST (revogação + RP-initiated logout) e o redirecionamento
- * ao *flow* de recuperação de senha do Authentik (US-089).
+ * Rotas de sessão do BFF `/api/auth/*` (authentication.md §3/§7/§15 · US-087/US-088 · DEC-187):
+ * login nativo por POST (usuário e senha conduzidos no *flow* do IdP, etapa de código quando há
+ * MFA), callback OIDC do *step-up* (troca do código, `id_token`, identidade na API, sessão nova no
+ * Redis, instituição ativa), consulta da sessão (sondagem ou *keepalive*), troca de instituição,
+ * logout por POST (revogação, sem passar pelo IdP) e o redirecionamento ao *flow* de recuperação
+ * de senha do Authentik (US-089).
  */
 
-/** Destinos do logout (SCR-001): completo, ou só local quando o Authentik não respondeu (FA-06). */
+/** Destino do logout (SCR-001). */
 export const LOGOUT_DONE_URL = '/entrar?motivo=saiu';
-export const LOGOUT_PARTIAL_URL = '/entrar?motivo=saiu-parcial';
+
+/** Tela de entrada nativa (SCR-001 · DEC-187). */
+export const LOGIN_PAGE = '/entrar';
 
 export const AUTH_ACTIONS = [
   'login',
@@ -70,14 +80,15 @@ export const AUTH_ACTIONS = [
 ] as const;
 export type AuthAction = (typeof AUTH_ACTIONS)[number];
 
-const METHODS: Record<AuthAction, 'GET' | 'POST'> = {
-  login: 'GET',
-  callback: 'GET',
-  session: 'GET',
-  'step-up': 'GET',
-  logout: 'POST',
-  'switch-tenant': 'POST',
-  'forgot-password': 'GET',
+const METHODS: Record<AuthAction, readonly ('GET' | 'POST')[]> = {
+  // GET: compatibilidade de links (leva a `/entrar`); POST: o login nativo (DEC-187).
+  login: ['GET', 'POST'],
+  callback: ['GET'],
+  session: ['GET'],
+  'step-up': ['GET'],
+  logout: ['POST'],
+  'switch-tenant': ['POST'],
+  'forgot-password': ['GET'],
 };
 
 /** Rotas sujeitas ao limite de tentativas por IP (RN-IAM-15 · RN-IAM-38). */
@@ -155,10 +166,11 @@ export async function handleAuthRequest(
     client: { ip: clientIp, userAgent },
   };
   if (!isAuthAction(action)) return problemResponse('NOT_FOUND', context);
-  if (request.method !== METHODS[action]) {
+  const allowed: readonly string[] = METHODS[action];
+  if (!allowed.includes(request.method)) {
     return problemResponse('METHOD_NOT_ALLOWED', {
       ...context,
-      headers: { Allow: METHODS[action] },
+      headers: { Allow: allowed.join(', ') },
     });
   }
   try {
@@ -168,7 +180,7 @@ export async function handleAuthRequest(
     }
     switch (action) {
       case 'login':
-        return await beginLogin(context, false);
+        return request.method === 'POST' ? await passwordLogin(context) : await loginEntry(context);
       case 'step-up':
         return await beginStepUp(context);
       case 'callback':
@@ -335,9 +347,304 @@ async function beginLogin(context: Context, stepUp: boolean, hint?: string): Pro
 
 async function beginStepUp(context: Context): Promise<Response> {
   const lookup = await context.runtime.sessions.lookup(sessionCookieValue(context), context.client);
-  // Sem sessão, step-up vira login completo preservando o destino.
-  if (lookup.status !== 'active') return beginLogin(context, false);
+  // Sem sessão, step-up vira login completo (a tela nativa) preservando o destino.
+  if (lookup.status !== 'active') return loginEntry(context);
   return beginLogin(context, true, lookup.record.subject);
+}
+
+/**
+ * `GET /api/auth/login` (compatibilidade de links — DEC-187): a entrada é a tela nativa
+ * `/entrar`, com o `returnTo` validado e, vindo do "Entrar novamente" de uma sessão expirada
+ * (`reauth=1` ou a marca do BFF), com o aviso de expiração. Só o provedor fake mantém o atalho
+ * `?as=<pessoa>` (desenvolvimento e E2E), que conclui pelo callback sem tela.
+ */
+async function loginEntry(context: Context): Promise<Response> {
+  const { url, runtime, correlationId } = context;
+  if (runtime.identity.kind === 'fake' && url.searchParams.get('as')) {
+    return beginLogin(context, false);
+  }
+  const requested = url.searchParams.get('returnTo');
+  const returnTo = safeReturnTo(requested);
+  if (requested !== null && returnTo === null) {
+    log('warn', 'auth.return_to_rejected', { correlationId });
+  }
+  const query = new URLSearchParams();
+  if (
+    url.searchParams.get('reauth') === '1' ||
+    reauthenticationRequested(context.request.headers)
+  ) {
+    query.set('motivo', 'sessao-expirada');
+  }
+  if (returnTo && returnTo !== DEFAULT_RETURN_TO) query.set('returnTo', returnTo);
+  const search = query.toString();
+  return Promise.resolve(
+    redirectResponse(search ? `${LOGIN_PAGE}?${search}` : LOGIN_PAGE, { correlationId }),
+  );
+}
+
+/** Limites do formulário de entrada (DEC-187). */
+const USERNAME_MAX_LENGTH = 254;
+const PASSWORD_MAX_LENGTH = 1024;
+const MFA_CODE_PATTERN = /^\d{6}$/;
+
+/** Falhas do login nativo que viram problem+json (mensagens genéricas — RN-IAM-18). */
+type PasswordLoginFailureCode =
+  'INVALID_CREDENTIALS' | 'LOCKED' | 'MFA_INVALID' | 'MFA_EXPIRED' | 'IDP_UNAVAILABLE';
+
+/** Uma tentativa de login nativo em curso (senha, ou código de uma transação aberta). */
+interface PasswordAttempt {
+  readonly returnTo: string;
+  /** HMAC do usuário normalizado: chave do limite por usuário e campo dos logs (nunca o nome). */
+  readonly userKey: string;
+  readonly started: number;
+  /** Transação de MFA retirada do Redis, quando é a etapa de código. */
+  readonly challenge: { readonly id: string; readonly value: LoginChallenge } | null;
+}
+
+function userKeyOf(context: Context, username: string): string {
+  return createHmac('sha256', context.runtime.transactionKey)
+    .update(username.trim().toLowerCase())
+    .digest('hex');
+}
+
+/**
+ * Login nativo (`POST /api/auth/login` · DEC-187 · SCR-001): `{ username, password, returnTo? }`
+ * ou, na etapa de código, `{ transaction, code }`. CSRF do BFF (DEC-135), limite por IP (o da rota)
+ * e por usuário, e mensagens que nunca revelam se a conta existe. Resposta: `{ data: { step:
+ * 'done', redirectTo } }`, `{ data: { step: 'mfa', transaction, methods } }` ou problem+json com
+ * `INVALID_CREDENTIALS`, `LOCKED`, `MFA_INVALID`, `MFA_EXPIRED` ou `IDP_UNAVAILABLE`. A senha
+ * nunca vai para log, métrica ou armazenamento.
+ */
+async function passwordLogin(context: Context): Promise<Response> {
+  const { request, runtime, correlationId } = context;
+  const csrf = checkCsrf(request.method, request.headers, runtime.config.appOrigin);
+  if (!csrf.ok) {
+    log('warn', 'bff.csrf_rejected', {
+      reason: csrf.reason,
+      method: request.method,
+      correlationId,
+    });
+    return problemResponse('CSRF_REJECTED', context);
+  }
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return problemResponse('MALFORMED_REQUEST', context);
+  }
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return problemResponse('MALFORMED_REQUEST', context);
+  }
+  const input = payload as Record<string, unknown>;
+  if (input.transaction !== undefined || input.code !== undefined) {
+    return verifyLoginCode(context, input.transaction, input.code);
+  }
+
+  const username = typeof input.username === 'string' ? input.username.trim() : '';
+  const password = typeof input.password === 'string' ? input.password : '';
+  const errors: BffFieldError[] = [];
+  if (username === '' || username.length > USERNAME_MAX_LENGTH) {
+    errors.push({
+      field: 'username',
+      code: username === '' ? 'REQUIRED' : 'TOO_LONG',
+      message: 'Informe o usuário ou e-mail.',
+    });
+  }
+  if (password === '' || password.length > PASSWORD_MAX_LENGTH) {
+    errors.push({
+      field: 'password',
+      code: password === '' ? 'REQUIRED' : 'TOO_LONG',
+      message: 'Informe a senha.',
+    });
+  }
+  if (errors.length > 0) return problemResponse('VALIDATION_ERROR', { ...context, errors });
+
+  const requested = typeof input.returnTo === 'string' ? input.returnTo : null;
+  const accepted = safeReturnTo(requested);
+  if (requested !== null && accepted === null) {
+    log('warn', 'auth.return_to_rejected', { correlationId });
+  }
+  const userKey = userKeyOf(context, username);
+  // Só as falhas contam: quem entra não gasta o limite (o de IP vale para toda tentativa).
+  const verdict = await runtime.loginUserRateLimiter.peek(userKey);
+  if (!verdict.allowed) {
+    log('warn', 'auth.rate_limited', {
+      route: '/api/auth/login',
+      scope: 'user',
+      user: userKey.slice(0, 12),
+      ip: maskIp(context.clientIp),
+      correlationId,
+    });
+    recordLogin('RATE_LIMITED');
+    return problemResponse('RATE_LIMITED', {
+      ...context,
+      headers: { 'Retry-After': String(verdict.retryAfterSeconds) },
+    });
+  }
+  const attempt: PasswordAttempt = {
+    returnTo: accepted ?? DEFAULT_RETURN_TO,
+    userKey,
+    started: runtime.now(),
+    challenge: null,
+  };
+  const step = await runtime.passwordLogin.authenticate({ username, password });
+  return passwordLoginOutcome(context, step, attempt);
+}
+
+/** Etapa de código (DEC-187): a transação é de uso único e volta ao Redis se o código errar. */
+async function verifyLoginCode(
+  context: Context,
+  transaction: unknown,
+  rawCode: unknown,
+): Promise<Response> {
+  const { runtime, correlationId } = context;
+  const code = typeof rawCode === 'string' ? rawCode.trim() : '';
+  if (!MFA_CODE_PATTERN.test(code)) {
+    return problemResponse('VALIDATION_ERROR', {
+      ...context,
+      errors: [
+        {
+          field: 'code',
+          code: code === '' ? 'REQUIRED' : 'INVALID_FORMAT',
+          message: 'Informe o código de 6 dígitos.',
+        },
+      ],
+    });
+  }
+  const started = runtime.now();
+  const challenge = isLoginChallengeId(transaction)
+    ? await runtime.loginChallenges.take(transaction)
+    : null;
+  if (!isLoginChallengeId(transaction) || !challenge) {
+    log('warn', 'auth.login_failed', {
+      reason: 'MFA_EXPIRED',
+      ip: maskIp(context.clientIp),
+      correlationId,
+    });
+    recordLogin('MFA_EXPIRED');
+    return problemResponse('MFA_EXPIRED', context);
+  }
+  const step = await runtime.passwordLogin.verifyCode(challenge.pending, code);
+  return passwordLoginOutcome(context, step, {
+    returnTo: challenge.returnTo,
+    userKey: challenge.userKey,
+    started,
+    challenge: { id: transaction, value: challenge },
+  });
+}
+
+async function passwordLoginOutcome(
+  context: Context,
+  step: PasswordLoginStep,
+  attempt: PasswordAttempt,
+): Promise<Response> {
+  const { runtime, correlationId } = context;
+  const challenges = runtime.loginChallenges;
+  switch (step.kind) {
+    case 'authenticated':
+      return completePasswordLogin(context, step.login, attempt);
+    case 'mfa_required': {
+      const transaction = await challenges.open(step.pending, attempt.returnTo, attempt.userKey);
+      log('info', 'auth.mfa_required', {
+        user: attempt.userKey.slice(0, 12),
+        methods: step.methods.join(','),
+        ip: maskIp(context.clientIp),
+        correlationId,
+      });
+      return jsonResponse(
+        { data: { step: 'mfa', transaction, methods: step.methods } },
+        { correlationId },
+      );
+    }
+    case 'mfa_invalid': {
+      const current = attempt.challenge;
+      const attempts = (current?.value.attempts ?? 0) + 1;
+      if (current && attempts < LOGIN_CHALLENGE_MAX_ATTEMPTS) {
+        await challenges.save(current.id, { ...current.value, pending: step.pending, attempts });
+        return passwordLoginFailed(context, 'MFA_INVALID', attempt);
+      }
+      // Códigos demais na mesma transação: recomeça do usuário e senha.
+      return passwordLoginFailed(context, 'MFA_EXPIRED', attempt);
+    }
+    case 'invalid_credentials':
+      return passwordLoginFailed(context, 'INVALID_CREDENTIALS', attempt);
+    case 'locked':
+      return passwordLoginFailed(context, 'LOCKED', attempt);
+    case 'unavailable': {
+      // IdP fora no meio da etapa de código: a transação continua valendo para nova tentativa.
+      if (attempt.challenge) await challenges.save(attempt.challenge.id, attempt.challenge.value);
+      log('error', 'auth.login_unavailable', {
+        step: step.failure.step,
+        providerStatus: step.failure.providerStatus,
+        component: step.failure.component,
+        correlationId,
+      });
+      recordLogin('PROVIDER_UNAVAILABLE', runtime.now() - attempt.started);
+      return problemResponse('IDP_UNAVAILABLE', context);
+    }
+  }
+}
+
+async function passwordLoginFailed(
+  context: Context,
+  code: PasswordLoginFailureCode,
+  attempt: PasswordAttempt,
+): Promise<Response> {
+  await context.runtime.loginUserRateLimiter.record(attempt.userKey);
+  log('warn', 'auth.login_failed', {
+    reason: code,
+    user: attempt.userKey.slice(0, 12),
+    ip: maskIp(context.clientIp),
+    correlationId: context.correlationId,
+  });
+  recordLogin(code, context.runtime.now() - attempt.started);
+  return problemResponse(code, context);
+}
+
+/** Login aceito pelo IdP: a mesma criação de sessão do callback, com resposta em JSON. */
+async function completePasswordLogin(
+  context: Context,
+  login: ProviderLogin,
+  attempt: PasswordAttempt,
+): Promise<Response> {
+  const { runtime, correlationId } = context;
+  const headers = new Headers();
+  const current = await runtime.sessions.lookup(sessionCookieValue(context), context.client);
+  const established = await establishSession(
+    context,
+    login,
+    attempt.returnTo,
+    current,
+    headers,
+    attempt.started,
+  );
+  if (established.kind === 'store_unavailable') {
+    return problemResponse('DEPENDENCY_UNAVAILABLE', { ...context, headers });
+  }
+  if (established.kind === 'rejected') {
+    log('warn', 'auth.login_failed', {
+      reason: established.reason,
+      user: attempt.userKey.slice(0, 12),
+      ip: maskIp(context.clientIp),
+      correlationId,
+    });
+    recordLogin(established.reason, runtime.now() - attempt.started);
+  } else {
+    log('info', 'auth.login_succeeded', {
+      userId: established.record.userId,
+      mfa: login.amr.some((method) => method !== 'pwd'),
+      ip: maskIp(context.clientIp),
+      correlationId,
+    });
+    // O destino guardado por uma recuperação de senha já veio no `returnTo` (FA-05 da US-089).
+    if (readCookie(context.request.headers, RECOVERY_RETURN_COOKIE)) {
+      headers.append('Set-Cookie', clearCookie(RECOVERY_RETURN_COOKIE));
+    }
+  }
+  return jsonResponse(
+    { data: { step: 'done', redirectTo: established.location } },
+    { correlationId, headers },
+  );
 }
 
 /** Recusa no callback: nenhuma sessão, log `warn auth.callback_rejected` e volta a SCR-001. */
@@ -393,7 +700,7 @@ export function selectTenant(
 
 async function callback(context: Context): Promise<Response> {
   const { url, runtime, correlationId } = context;
-  const { config, sessions } = runtime;
+  const { sessions } = runtime;
   const started = runtime.now();
 
   // Transação de uso único pelo `state` (login CSRF e reenvio do callback — RN-IAM-02/14).
@@ -474,6 +781,49 @@ async function callback(context: Context): Promise<Response> {
     return redirectResponse(transaction.returnTo, { correlationId, headers });
   }
 
+  const established = await establishSession(
+    context,
+    login,
+    transaction.returnTo,
+    current,
+    headers,
+    started,
+  );
+  if (established.kind === 'store_unavailable') {
+    return problemResponse('DEPENDENCY_UNAVAILABLE', { ...context, headers });
+  }
+  if (established.kind === 'rejected') {
+    return rejectCallback(context, headers, established.reason, established.location, started);
+  }
+  return redirectResponse(established.location, { correlationId, headers });
+}
+
+type Establishment =
+  | { readonly kind: 'session'; readonly record: SessionRecord; readonly location: string }
+  | {
+      readonly kind: 'rejected';
+      readonly reason: ReturnType<typeof identityRejection>['reason'];
+      readonly location: string;
+    }
+  /** Redis de sessões fora: 503 sem cookie de sessão (DEC-131); já registrado no log. */
+  | { readonly kind: 'store_unavailable' };
+
+/**
+ * Sessão nova a partir de um login concluído no IdP — callback OIDC e login nativo (DEC-187):
+ * identidade na API, anti-fixação, sessão no Redis, instituição ativa (RN-IAM-09) e o destino.
+ * Os cookies vão em `headers`.
+ */
+async function establishSession(
+  context: Context,
+  login: ProviderLogin,
+  returnTo: string,
+  current: SessionLookup,
+  headers: Headers,
+  started: number,
+): Promise<Establishment> {
+  const { runtime, correlationId } = context;
+  const { config, sessions } = runtime;
+
   // Sessão nova a cada login (anti-fixação — RN-IAM-10); o hash vai para a auditoria.
   const sessionId = newSessionId();
   const directoryContext: DirectoryContext = {
@@ -485,12 +835,12 @@ async function callback(context: Context): Promise<Response> {
   };
   const identity = await runtime.directory.startSession(directoryContext);
   if (identity.kind !== 'ok') {
-    const rejection = identityRejection(identity, context, transaction.returnTo);
+    const rejection = identityRejection(identity, context, returnTo);
     if (identity.kind === 'unavailable') {
       // A causa (status/código ou erro de rede) e o endereço usado (spec-486).
       log('error', 'auth.directory_unavailable', { ...identity.cause, correlationId });
     }
-    return rejectCallback(context, headers, rejection.reason, rejection.location, started);
+    return { kind: 'rejected', ...rejection };
   }
 
   // Novo login no mesmo navegador encerra a sessão anterior (anti-fixação), como um logout.
@@ -518,10 +868,10 @@ async function callback(context: Context): Promise<Response> {
   } catch (error) {
     if (!(error instanceof SessionStoreUnavailableError)) throw error;
     // Redis de sessões fora: 503 sem cookie de sessão (DEC-131).
-    log('error', 'auth.session_store_unavailable', { route: '/api/auth/callback', correlationId });
+    log('error', 'auth.session_store_unavailable', { route: context.instance, correlationId });
     recordLogin('SESSION_STORE_UNAVAILABLE', runtime.now() - started);
     headers.set('Retry-After', STORE_RETRY_AFTER_SECONDS);
-    return problemResponse('DEPENDENCY_UNAVAILABLE', { ...context, headers });
+    return { kind: 'store_unavailable' };
   }
 
   const choice = selectTenant(identity);
@@ -562,15 +912,15 @@ async function callback(context: Context): Promise<Response> {
   recordLogin(record.activeTenantId ? 'SUCCESS' : 'SUCCESS_WITHOUT_TENANT', durationMs);
 
   const usable = record.memberships.some((membership) => membership.usable);
-  const destination = record.activeTenantId
-    ? transaction.returnTo
+  const location = record.activeTenantId
+    ? returnTo
     : usable
-      ? `/selecionar-orgao?${new URLSearchParams({ returnTo: transaction.returnTo }).toString()}`
-      : transaction.returnTo.startsWith(INVITE_RETURN_PREFIX)
+      ? `/selecionar-orgao?${new URLSearchParams({ returnTo }).toString()}`
+      : returnTo.startsWith(INVITE_RETURN_PREFIX)
         ? // US-091: a pessoa convidada ainda não tem vínculo ativo; o aceite do convite cria um.
-          transaction.returnTo
+          returnTo
         : '/erro/sem-vinculo';
-  return redirectResponse(destination, { correlationId, headers });
+  return { kind: 'session', record, location };
 }
 
 /** `keepalive=true` ("Continuar conectado"); aceita também `1`. */
@@ -592,10 +942,13 @@ async function session(context: Context): Promise<Response> {
 }
 
 /**
- * Logout (RN-IAM-20): revoga o refresh token (melhor esforço, 2 s), encerra a sessão (`LOGOUT`,
- * tokens apagados, fora dos índices), expira o cookie e devolve o *RP-initiated logout* do
- * Authentik. Idempotente: sem sessão, 200 com a SCR-001. Authentik fora do ar → logout local
- * concluído e `saiu-parcial` (FA-06).
+ * Logout (RN-IAM-20 · DEC-187): revoga o refresh token no IdP (melhor esforço, 2 s), encerra a
+ * sessão (`LOGOUT`, tokens apagados, fora dos índices), expira o cookie e devolve a SCR-001
+ * (`/entrar?motivo=saiu`). Não passa mais pelo *end-session* do IdP no navegador: o login nativo
+ * encerra a sessão do IdP logo depois da troca do código, e o Authentik 2026.8 recusa o
+ * *end-session* com `post_logout_redirect_uri` sem `id_token_hint` (o "Bad Request" de antes).
+ * Authentik fora do ar: o logout local se conclui do mesmo jeito (o refresh token, já apagado do
+ * BFF, expira sozinho no IdP). Idempotente: sem sessão, 200 com a SCR-001.
  */
 async function logout(context: Context): Promise<Response> {
   const { request, runtime, correlationId } = context;
@@ -616,29 +969,18 @@ async function logout(context: Context): Promise<Response> {
   const { record } = lookup;
   const revocation = await runtime.identity.revokeRefreshToken(record);
   const ended = await runtime.sessions.end(record, 'LOGOUT', { client: context.client });
-  let endSessionUrl: string | null = null;
-  let providerReachable = revocation !== 'unavailable';
-  if (providerReachable) {
-    try {
-      endSessionUrl = await runtime.identity.endSessionUrl();
-    } catch (error) {
-      if (!(error instanceof IdentityProviderUnavailableError)) throw error;
-      providerReachable = false;
-    }
-  }
-  if (!providerReachable) {
-    log('warn', 'auth.rp_logout_unavailable', { revocation, correlationId });
+  if (revocation === 'unavailable') {
+    log('warn', 'auth.revocation_unavailable', { correlationId });
   }
   if (ended) {
     log('info', 'auth.logout', {
       userId: record.userId,
       tenantId: record.activeTenantId,
-      rpLogout: providerReachable ? 'success' : 'partial',
+      revocation,
       correlationId,
     });
   }
-  const logoutUrl = providerReachable ? (endSessionUrl ?? LOGOUT_DONE_URL) : LOGOUT_PARTIAL_URL;
-  return jsonResponse({ data: { logoutUrl } }, { correlationId, headers });
+  return jsonResponse({ data: { logoutUrl: LOGOUT_DONE_URL } }, { correlationId, headers });
 }
 
 /**

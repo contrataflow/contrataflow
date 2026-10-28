@@ -1,6 +1,6 @@
 // US-089 — "Esqueci minha senha" no build de produção com o provedor fake (FA-06): SCR-001 →
 // GET /api/auth/forgot-password → (Authentik simulado: fluxo concluído) → /entrar?motivo=senha-
-// redefinida, com axe nas páginas. A jornada dentro do Authentik real (e-mail, política de senha,
+// redefinida → entrada nativa (DEC-187) no destino guardado, com axe nas páginas. A jornada dentro do Authentik real (e-mail, política de senha,
 // link de uso único) está em tools/test/integration/authentik-recovery.test.ts.
 import { expect, test } from '@playwright/test';
 
@@ -21,12 +21,12 @@ test('SCR-001: "Esqueci minha senha" leva à recuperação e volta com "Senha re
   await forgot.click();
   await expect(page).toHaveURL(/\/entrar\?motivo=senha-redefinida$/);
   await expect(page.getByRole('status')).toHaveText('Senha redefinida. Entre com sua nova senha.');
-  // Nenhuma sessão criada; "Entrar" segue o login normal para o destino guardado (FA-05).
-  await expect(page.getByRole('link', { name: 'Entrar' })).toHaveAttribute(
-    'href',
-    '/api/auth/login?returnTo=%2Fexemplo%3Faba%3D2',
-  );
   await expectNoSeriousA11yViolations(page, 'SCR-001 após a redefinição');
+  // Nenhuma sessão criada; a entrada nativa leva ao destino guardado na recuperação (FA-05).
+  await page.getByLabel('Usuário ou e-mail').fill('ana');
+  await page.getByLabel('Senha', { exact: true }).fill('senha-fake');
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/exemplo\?aba=2$/);
 });
 
 test('SCR-002 com o IdP indisponível: mensagem, "Tentar novamente" e volta à entrada', async ({

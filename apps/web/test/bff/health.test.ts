@@ -132,7 +132,6 @@ describe('readiness do BFF', () => {
       clientSecret: 'secret',
       scopes: 'openid',
       redirectUri: 'http://localhost:3000/api/auth/callback',
-      postLogoutRedirectUri: 'http://localhost:3000/entrar',
       fetch: idpFetch,
       now: () => now,
     });
@@ -170,7 +169,6 @@ describe('readiness do BFF', () => {
       clientSecret: 'secret',
       scopes: 'openid',
       redirectUri: 'http://localhost:3000/api/auth/callback',
-      postLogoutRedirectUri: 'http://localhost:3000/entrar',
       fetch: () => Promise.reject(new TypeError('fetch failed')),
     });
     const test = createTestRuntime({ identity });

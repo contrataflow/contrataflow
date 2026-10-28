@@ -7,25 +7,31 @@ import { LoginBrandPanel } from './login-brand-panel';
 import { PrivacyNotice } from './privacy-notice';
 
 /**
- * Moldura de entrada de duas colunas (SCR-001 · referência `prototype/entrar.html`): painel
- * institucional à esquerda (a partir de 1024 px) e painel de acesso à direita, com ajuda no topo,
- * o conteúdo da página (`children`) e o selo de privacidade. Abaixo de 1024 px fica só o painel
- * de acesso, com a marca no topo; mínimo de 360 px. Sem identidade visual de instituição.
+ * Moldura de entrada (SCR-001 · mockup `docs/brand/mockups/repaginacao-2026-10/Main.dc.html`):
+ * tela inteira com o painel institucional navy à esquerda (a partir de 1024 px) e o acesso em
+ * fundo branco à direita — ajuda no topo, o conteúdo da página (`children`) centrado em até
+ * 420 px e o aviso de privacidade no rodapé. Abaixo de 1024 px fica só o acesso, com a marca no
+ * topo. Sem imagem de fundo com texto e sem identidade de instituição.
  */
 export function LoginFrame({ children }: { readonly children: ReactNode }) {
   const t = useTranslations('auth.login.brand');
   return (
-    <div className="grid w-full max-w-6xl overflow-hidden rounded-2xl bg-surface shadow-2xl lg:grid-cols-2">
+    <div className="flex min-h-screen w-full bg-surface">
       <LoginBrandPanel />
-      <section className="flex flex-col px-6 py-8 sm:px-12 lg:px-16 lg:py-12">
-        <HelpLink />
-        <div className="mt-6 lg:hidden">
-          <BrandLogo size="md" name={t('name')} tagline={t('slogan')} />
+      <section
+        aria-label={t('accessLabel')}
+        className="flex min-w-0 flex-1 flex-col px-4 py-5 sm:px-12 lg:py-7"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
+          <span className="lg:hidden">
+            <BrandLogo size="md" name={t('name')} tagline={t('slogan')} />
+          </span>
+          <span className="ml-auto">
+            <HelpLink />
+          </span>
         </div>
-        <div className="my-auto w-full max-w-md self-center py-8 lg:py-6">
-          {children}
-          <PrivacyNotice />
-        </div>
+        <div className="mx-auto my-auto w-full max-w-[420px] py-8">{children}</div>
+        <PrivacyNotice />
       </section>
     </div>
   );

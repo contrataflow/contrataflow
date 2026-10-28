@@ -9,7 +9,7 @@ export const LOGIN_PATH = '/entrar';
 
 /**
  * Casca do grupo `(auth)` (architecture.md §8.2 · RN-FND-87): sem shell, sem menu. A página de
- * entrada usa o fundo em degradê cinza e a marca da própria moldura; as demais páginas do grupo
+ * entrada ocupa a tela inteira com a marca da própria moldura; as demais páginas do grupo
  * (recuperar senha, convite, seleção de instituição, erros) levam o cabeçalho com a marca.
  *
  * Decide pelo caminho no cliente porque layouts não são renderizados de novo ao navegar entre
@@ -21,14 +21,9 @@ export function AuthChrome({ children }: { readonly children: ReactNode }) {
 
   if (pathname === LOGIN_PATH) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-slate-200 via-slate-100 to-slate-300">
-        <main
-          id="conteudo"
-          className="flex min-h-screen flex-col items-center justify-center px-4 py-6 sm:px-6 lg:py-10"
-        >
-          {children}
-        </main>
-      </div>
+      <main id="conteudo" className="min-h-screen bg-surface">
+        {children}
+      </main>
     );
   }
 

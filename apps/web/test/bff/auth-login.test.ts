@@ -59,8 +59,10 @@ function stubProvider(clock: { now: number }) {
     fail: null,
     subject: 'sub-claudia',
   };
+  // `fake`: a transação OIDC no navegador agora só nasce do atalho `?as=` (DEC-187); o callback e a
+  // criação da sessão são os mesmos do step-up e do login nativo.
   const provider: IdentityProvider = {
-    kind: 'oidc',
+    kind: 'fake',
     beginLogin: () => {
       const secrets = newLoginSecrets();
       return Promise.resolve({
@@ -90,7 +92,6 @@ function stubProvider(clock: { now: number }) {
     },
     refresh: () => Promise.resolve({ kind: 'transient' }),
     revokeRefreshToken: () => Promise.resolve('skipped' as const),
-    endSessionUrl: () => Promise.resolve(null),
   };
   return { provider, state };
 }
@@ -167,8 +168,11 @@ function setCookieFor(response: Response, name: string): string | undefined {
 }
 
 async function begin(h: Harness, query = '?returnTo=%2Fprocessos%2F0192aa', cookie = '') {
+  const separator = query.includes('?') ? '&' : '?';
   const response = await handleAuthRequest(
-    browserRequest(`/api/auth/login${query}`, { headers: { ...BEHIND_ALB, Cookie: cookie } }),
+    browserRequest(`/api/auth/login${query}${separator}as=claudia`, {
+      headers: { ...BEHIND_ALB, Cookie: cookie },
+    }),
     'login',
     h.test.runtime,
   );

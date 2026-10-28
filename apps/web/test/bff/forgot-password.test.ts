@@ -311,11 +311,12 @@ describe('Feature: Recuperar senha — GET /api/auth/forgot-password (US-089)', 
   });
 });
 
-describe('FA-05 — recuperação iniciada no formulário do Authentik', () => {
+describe('FA-05 — recuperação iniciada no formulário do Authentik (step-up)', () => {
   it('o returnTo do login em curso é o destino após a redefinição', async () => {
     const test = createTestRuntime();
+    // Transação OIDC no navegador: só o step-up (e o atalho fake ?as=) ainda passam pelo IdP.
     const start = await handleAuthRequest(
-      browserRequest('/api/auth/login?returnTo=%2Fprocessos%2F7', { headers: BEHIND_ALB }),
+      browserRequest('/api/auth/login?returnTo=%2Fprocessos%2F7&as=ana', { headers: BEHIND_ALB }),
       'login',
       test.runtime,
     );

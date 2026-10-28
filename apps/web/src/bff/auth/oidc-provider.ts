@@ -6,7 +6,6 @@ import { createRemoteJWKSet, customFetch, errors, jwtVerify } from 'jose';
 import type { JWTPayload } from 'jose';
 
 import { codeChallenge, newLoginSecrets } from './pkce';
-import { IdentityProviderUnavailableError } from '../session/types';
 import type {
   IdentityProvider,
   LoginCompletion,
@@ -36,7 +35,6 @@ export interface OidcProviderOptions {
   readonly clientSecret: string;
   readonly scopes: string;
   readonly redirectUri: string;
-  readonly postLogoutRedirectUri: string;
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
   readonly timeoutMs?: number;
@@ -48,7 +46,6 @@ interface Discovery {
   readonly authorization_endpoint: string;
   readonly token_endpoint: string;
   readonly jwks_uri: string;
-  readonly end_session_endpoint?: string;
   readonly revocation_endpoint?: string;
 }
 
@@ -258,28 +255,6 @@ export class OidcIdentityProvider implements IdentityProvider {
     } catch {
       return 'unavailable';
     }
-  }
-
-  /**
-   * URL do *RP-initiated logout* (`end_session_endpoint`) com `client_id` e
-   * `post_logout_redirect_uri` (`/entrar?motivo=saiu`, registrado no Authentik como `logout`).
-   * Sem `id_token_hint` (DEC-070): o token nunca vai para uma URL do navegador — em computador
-   * compartilhado ficaria no histórico. O endpoint é por aplicação, então o Authentik identifica
-   * o cliente sem ele.
-   */
-  async endSessionUrl(): Promise<string | null> {
-    let doc: Discovery;
-    try {
-      doc = await this.discover(LOGOUT_TIMEOUT_MS);
-    } catch (error) {
-      throw new IdentityProviderUnavailableError({ cause: error });
-    }
-    const endpoint = doc.end_session_endpoint;
-    if (!endpoint) return null;
-    const url = new URL(endpoint);
-    url.searchParams.set('client_id', this.options.clientId);
-    url.searchParams.set('post_logout_redirect_uri', this.options.postLogoutRedirectUri);
-    return url.href;
   }
 
   private tokensFrom(

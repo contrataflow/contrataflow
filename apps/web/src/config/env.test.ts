@@ -37,7 +37,6 @@ describe('configuração do web (Campos da US-086)', () => {
       cspReportUri: '/api/csp-report',
       trustedProxies: [{ network: 167772160, prefix: 8 }],
       connectSources: ['https://s3.sa-east-1.amazonaws.com'],
-      formActionSources: ['http://localhost:9080'],
     });
     expect(config.oidc).toEqual({
       issuerUrl: BASE_ENV.OIDC_ISSUER_URL,
@@ -47,8 +46,9 @@ describe('configuração do web (Campos da US-086)', () => {
       clientSecret: null,
       scopes: 'openid profile email offline_access',
       redirectUri: 'http://localhost:3000/api/auth/callback',
-      postLogoutRedirectUri: 'http://localhost:3000/entrar?motivo=saiu',
       recoveryFlowSlug: 'contrataflow-recovery',
+      loginFlowSlug: 'contrataflow-authentication',
+      invalidationFlowSlug: 'default-invalidation-flow',
     });
     expect(config.session).toEqual({
       redisUrl: null,
@@ -207,14 +207,13 @@ describe('configuração do processo', () => {
     for (const [key, value] of Object.entries(BASE_ENV)) vi.stubEnv(key, value);
     const first = webConfig();
     expect(webConfig()).toBe(first);
-    expect(cspSources().formActionSources).toEqual(['http://localhost:9080']);
+    expect(cspSources().connectSources).toEqual([]);
   });
 
   it('cspSources tolera BFF não configurado (cabeçalhos continuam saindo)', () => {
     vi.stubEnv('APP_BASE_URL', '');
     expect(cspSources()).toEqual({
       connectSources: [],
-      formActionSources: [],
       cspReportUri: '/api/csp-report',
       secure: false,
     });

@@ -9,8 +9,6 @@ export interface PageCspOptions {
   readonly nonce: string;
   /** Origens extras de `connect-src` (buckets S3 de upload e pré-visualização). */
   readonly connectSources: readonly string[];
-  /** Origens extras de `form-action` (end-session do Authentik). */
-  readonly formActionSources: readonly string[];
   readonly reportUri: string;
   /** HTTPS: liga `upgrade-insecure-requests` (em http://localhost quebraria os recursos). */
   readonly secure: boolean;
@@ -38,7 +36,8 @@ export function buildPageCsp(options: PageCspOptions): string {
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'none'",
-    `form-action ${["'self'", ...options.formActionSources].join(' ')}`,
+    // Só a própria origem: o login é nativo e o logout não passa pelo IdP (DEC-187).
+    "form-action 'self'",
     ...(options.secure ? ['upgrade-insecure-requests'] : []),
     `report-uri ${options.reportUri}`,
     `report-to ${CSP_REPORT_GROUP}`,

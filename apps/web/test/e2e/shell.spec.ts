@@ -142,6 +142,12 @@ test('401 da API após renovar: modal "Sua sessão expirou" e nova entrada com r
   await modal.getByRole('link', { name: 'Entrar novamente' }).click();
   await login;
   await failApi('/api/v1/_internal/items');
+  // Entrada nativa (DEC-187) com o aviso de expiração e o destino preservado.
+  await expect(page).toHaveURL(/\/entrar\?motivo=sessao-expirada&returnTo=%2Fexemplo$/);
+  await expect(page.getByRole('main').getByRole('status')).toContainText('Sua sessão expirou');
+  await page.getByLabel('Usuário ou e-mail').fill('ana');
+  await page.getByLabel('Senha', { exact: true }).fill('senha-fake');
+  await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Exemplo do shell' })).toBeVisible();
 });
 

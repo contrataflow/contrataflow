@@ -1,6 +1,8 @@
 // Fábricas dos testes do BFF: configuração válida, runtime com API simulada e sessões prontas.
 import { vi } from 'vitest';
 
+import type { LoginChallengeBackend } from '@/bff/auth/login-challenge';
+import type { PasswordLogin } from '@/bff/auth/password-login';
 import type { PasswordRecovery } from '@/bff/auth/password-recovery';
 import { MemoryRateLimitCounter } from '@/bff/auth/rate-limit';
 import { createBffRuntime } from '@/bff/runtime';
@@ -52,6 +54,10 @@ export function createTestRuntime(
     readonly directory?: SessionDirectory;
     /** *Flow* de recuperação de senha (padrão: o fake, que volta direto a SCR-001). */
     readonly recovery?: PasswordRecovery;
+    /** Login nativo (padrão: o fake das pessoas do diretório fake — DEC-187). */
+    readonly passwordLogin?: PasswordLogin;
+    /** Armazenamento das transações de MFA (padrão: em memória, no relógio do teste). */
+    readonly loginChallenges?: LoginChallengeBackend;
     /** Store alternativo (ex.: um que falha); o `store` devolvido continua o em memória. */
     readonly sessionStore?: SessionStore;
     readonly upstreamTimeoutMs?: number;
@@ -70,6 +76,8 @@ export function createTestRuntime(
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.directory ? { directory: options.directory } : {}),
     ...(options.recovery ? { recovery: options.recovery } : {}),
+    ...(options.passwordLogin ? { passwordLogin: options.passwordLogin } : {}),
+    ...(options.loginChallenges ? { loginChallenges: options.loginChallenges } : {}),
     ...(options.upstreamTimeoutMs ? { upstreamTimeoutMs: options.upstreamTimeoutMs } : {}),
   });
   return { runtime, store, api, clock };

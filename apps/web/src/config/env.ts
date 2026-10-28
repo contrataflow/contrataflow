@@ -82,6 +82,12 @@ const encryptionKey = z
     message: 'Informe 32 bytes em base64.',
   });
 
+/** Slug de *flow* do Authentik. */
+const flowSlug = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9_-]{1,50}$/);
+
 const envSchema = z
   .object({
     APP_ENV: z.enum(['local', 'dev', 'test', 'staging', 'production']).default('local'),
@@ -103,13 +109,14 @@ const envSchema = z
     OIDC_CLIENT_SECRET: optionalText,
     OIDC_SCOPES: z.string().trim().min(1).default('openid profile email offline_access'),
     OIDC_REDIRECT_URI: z.url().optional(),
-    OIDC_POST_LOGOUT_REDIRECT_URI: z.url().optional(),
+    // `OIDC_POST_LOGOUT_REDIRECT_URI` ficou obsoleta (DEC-187: o logout não passa pelo
+    // *end-session* do IdP); um `.env` antigo que ainda a traga continua válido — é ignorada.
     /** Slug do *flow* de recuperação de senha do Authentik (US-089 · RN-IAM-34). */
-    OIDC_RECOVERY_FLOW_SLUG: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9_-]{1,50}$/)
-      .default('contrataflow-recovery'),
+    OIDC_RECOVERY_FLOW_SLUG: flowSlug.default('contrataflow-recovery'),
+    /** *Flow* de autenticação conduzido pelo login nativo (DEC-187 · blueprint 15). */
+    OIDC_LOGIN_FLOW_SLUG: flowSlug.default('contrataflow-authentication'),
+    /** *Flow* que encerra a sessão do IdP logo depois do login nativo (DEC-187). */
+    OIDC_INVALIDATION_FLOW_SLUG: flowSlug.default('default-invalidation-flow'),
     /** Redis de sessões (DEC-131): crítico, separado do cache/filas. */
     REDIS_SESSION_URL: z.url({ protocol: /^rediss?$/ }).optional(),
     /** Chave AES-256-GCM dos tokens na sessão e do cookie de transação (DEC-137). */
@@ -169,9 +176,11 @@ export interface WebConfig {
     readonly clientSecret: string | null;
     readonly scopes: string;
     readonly redirectUri: string;
-    readonly postLogoutRedirectUri: string;
     /** *Flow* de recuperação de senha no Authentik (`/if/flow/<slug>/` na origem do emissor). */
     readonly recoveryFlowSlug: string;
+    /** *Flows* do login nativo: autenticação e invalidação da sessão do IdP (DEC-187). */
+    readonly loginFlowSlug: string;
+    readonly invalidationFlowSlug: string;
   };
   readonly session: {
     /** `null` (só local/dev/test): sessões em memória do processo. */
@@ -188,8 +197,6 @@ export interface WebConfig {
   readonly authRateLimitPerMinute: number;
   /** Origens extras de `connect-src` (buckets S3 — security.md §8). */
   readonly connectSources: readonly string[];
-  /** Origens extras de `form-action` (Authentik — security.md §8). */
-  readonly formActionSources: readonly string[];
 }
 
 function bucketOrigin(endpoint: string | undefined, bucket: string | undefined): string | null {
@@ -231,9 +238,9 @@ export function loadWebConfig(env: EnvSource): WebConfig {
       clientSecret: data.OIDC_CLIENT_SECRET ?? null,
       scopes: data.OIDC_SCOPES,
       redirectUri: data.OIDC_REDIRECT_URI ?? new URL('/api/auth/callback', appUrl.origin).href,
-      postLogoutRedirectUri:
-        data.OIDC_POST_LOGOUT_REDIRECT_URI ?? new URL('/entrar?motivo=saiu', appUrl.origin).href,
       recoveryFlowSlug: data.OIDC_RECOVERY_FLOW_SLUG,
+      loginFlowSlug: data.OIDC_LOGIN_FLOW_SLUG,
+      invalidationFlowSlug: data.OIDC_INVALIDATION_FLOW_SLUG,
     },
     session: {
       redisUrl: data.REDIS_SESSION_URL ?? null,
@@ -246,7 +253,6 @@ export function loadWebConfig(env: EnvSource): WebConfig {
     internalServiceToken: data.INTERNAL_SERVICE_TOKEN ?? null,
     authRateLimitPerMinute: data.AUTH_RATE_LIMIT_PER_MIN,
     connectSources: [...new Set(connectSources)],
-    formActionSources: [new URL(data.OIDC_ISSUER_URL).origin],
   };
 }
 
@@ -275,16 +281,12 @@ export function resetWebConfigForTests(): void {
  * Fontes extras da CSP lidas sem exigir o restante da configuração: o `proxy.ts` aplica os
  * cabeçalhos de segurança em toda resposta, inclusive quando o BFF ainda não está configurado.
  */
-export function cspSources(): Pick<
-  WebConfig,
-  'connectSources' | 'formActionSources' | 'cspReportUri' | 'secure'
-> {
+export function cspSources(): Pick<WebConfig, 'connectSources' | 'cspReportUri' | 'secure'> {
   try {
     return webConfig();
   } catch {
     return {
       connectSources: [],
-      formActionSources: [],
       cspReportUri: '/api/csp-report',
       secure: false,
     };

@@ -4,14 +4,27 @@ import { webConfig } from '@/config/env';
 import type { WebConfig } from '@/config/env';
 
 import { ApiSessionDirectory } from './auth/api-session-directory';
+import { AuthentikPasswordLogin } from './auth/authentik-flow';
+import {
+  LoginChallengeStore,
+  MemoryLoginChallengeBackend,
+  RedisLoginChallengeBackend,
+} from './auth/login-challenge';
+import type { LoginChallengeBackend } from './auth/login-challenge';
 import { OidcIdentityProvider } from './auth/oidc-provider';
+import { UnconfiguredPasswordLogin } from './auth/password-login';
+import type { PasswordLogin } from './auth/password-login';
 import { AuthentikPasswordRecovery, FakePasswordRecovery } from './auth/password-recovery';
 import type { PasswordRecovery } from './auth/password-recovery';
 import { AuthRateLimiter, MemoryRateLimitCounter, RedisRateLimitCounter } from './auth/rate-limit';
 import type { RateLimitCounter } from './auth/rate-limit';
 import { deriveKey, masterKey } from './crypto';
 import { log } from './logger';
-import { FakeIdentityProvider, FakeSessionDirectory } from './session/fake-identity';
+import {
+  FakeIdentityProvider,
+  FakePasswordLogin,
+  FakeSessionDirectory,
+} from './session/fake-identity';
 import { MemorySessionStore } from './session/memory-store';
 import { createSessionRedis } from './session/redis-connection';
 import { RedisSessionStore } from './session/redis-store';
@@ -27,16 +40,30 @@ import type {
 } from './session/types';
 import { UPSTREAM_TIMEOUT_MS } from './upstream';
 
+/**
+ * Falhas de login nativo por usuário (DEC-187): com 10 a cada 15 min, o BFF recusa antes de chegar
+ * ao IdP — o bloqueio da conta continua sendo do IdP (5 senhas erradas). Logins concluídos não
+ * contam.
+ */
+export const LOGIN_USER_ATTEMPTS = 10;
+export const LOGIN_USER_WINDOW_MS = 15 * 60_000;
+
 /** Dependências do BFF montadas uma vez por processo (substituíveis nos testes). */
 export interface BffRuntime {
   readonly config: WebConfig;
   readonly identity: IdentityProvider;
+  /** Login nativo: usuário e senha no *flow* do IdP, conduzido pelo BFF (DEC-187). */
+  readonly passwordLogin: PasswordLogin;
+  /** Transações de MFA do login nativo (Redis de sessões, 5 min). */
+  readonly loginChallenges: LoginChallengeStore;
   /** A API como diretório de identidade (`POST /internal/session-events`). */
   readonly directory: SessionDirectory;
   /** *Flow* de recuperação de senha do IdP (US-089). */
   readonly recovery: PasswordRecovery;
   readonly sessions: SessionService;
   readonly authRateLimiter: AuthRateLimiter;
+  /** Falhas de login nativo por usuário (DEC-187), além do limite por IP. */
+  readonly loginUserRateLimiter: AuthRateLimiter;
   /** Subchave AES-256 do cookie de transação do login (RN-IAM-02). */
   readonly transactionKey: Buffer;
   readonly fetch: typeof fetch;
@@ -70,10 +97,6 @@ export class UnconfiguredIdentityProvider implements IdentityProvider {
   revokeRefreshToken(): Promise<RevocationResult> {
     return Promise.resolve('skipped');
   }
-
-  endSessionUrl(): Promise<string | null> {
-    return Promise.resolve(null);
-  }
 }
 
 function identityFor(config: WebConfig, now: () => number, fetchImpl: typeof fetch) {
@@ -92,12 +115,31 @@ function identityFor(config: WebConfig, now: () => number, fetchImpl: typeof fet
       clientSecret: config.oidc.clientSecret,
       scopes: config.oidc.scopes,
       redirectUri: config.oidc.redirectUri,
-      postLogoutRedirectUri: config.oidc.postLogoutRedirectUri,
       fetch: fetchImpl,
       now,
     });
   }
   return new UnconfiguredIdentityProvider();
+}
+
+function passwordLoginFor(
+  config: WebConfig,
+  identity: IdentityProvider,
+  fetchImpl: typeof fetch,
+): PasswordLogin {
+  if (identity instanceof FakeIdentityProvider) return new FakePasswordLogin(identity);
+  if (identity instanceof OidcIdentityProvider) {
+    return new AuthentikPasswordLogin({
+      issuerUrl: config.oidc.issuerUrl,
+      appOrigin: config.appOrigin,
+      redirectUri: config.oidc.redirectUri,
+      loginFlowSlug: config.oidc.loginFlowSlug,
+      invalidationFlowSlug: config.oidc.invalidationFlowSlug,
+      identity,
+      fetch: fetchImpl,
+    });
+  }
+  return new UnconfiguredPasswordLogin();
 }
 
 function recoveryFor(config: WebConfig, now: () => number, fetchImpl: typeof fetch) {
@@ -115,6 +157,8 @@ export interface RuntimeOverrides {
   readonly identity?: IdentityProvider;
   readonly directory?: SessionDirectory;
   readonly recovery?: PasswordRecovery;
+  readonly passwordLogin?: PasswordLogin;
+  readonly loginChallenges?: LoginChallengeBackend;
   readonly store?: SessionStore;
   readonly rateLimitCounter?: RateLimitCounter;
   readonly fetch?: typeof fetch;
@@ -153,9 +197,23 @@ export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides 
   const counter =
     overrides.rateLimitCounter ??
     (redis ? new RedisRateLimitCounter(redis) : new MemoryRateLimitCounter());
+  const challenges =
+    overrides.loginChallenges ??
+    (redis ? new RedisLoginChallengeBackend(redis) : new MemoryLoginChallengeBackend(now));
+  const onRateLimitError = (error: unknown) => {
+    log('warn', 'auth.rate_limit_degraded', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
+  };
   return {
     config,
     identity,
+    passwordLogin: overrides.passwordLogin ?? passwordLoginFor(config, identity, fetchImpl),
+    loginChallenges: new LoginChallengeStore(challenges, {
+      key: deriveKey(master, 'login-challenge'),
+      keyPrefix: `cf:${config.appEnv}:login-mfa:`,
+      now,
+    }),
     directory,
     recovery: overrides.recovery ?? recoveryFor(config, now, fetchImpl),
     sessions: new SessionService(store, identity, {
@@ -166,11 +224,14 @@ export function createBffRuntime(config: WebConfig, overrides: RuntimeOverrides 
       limit: config.authRateLimitPerMinute,
       keyPrefix: `cf:${config.appEnv}:rl:auth:`,
       now,
-      onError: (error) => {
-        log('warn', 'auth.rate_limit_degraded', {
-          errorName: error instanceof Error ? error.name : 'unknown',
-        });
-      },
+      onError: onRateLimitError,
+    }),
+    loginUserRateLimiter: new AuthRateLimiter(counter, {
+      limit: LOGIN_USER_ATTEMPTS,
+      windowMs: LOGIN_USER_WINDOW_MS,
+      keyPrefix: `cf:${config.appEnv}:rl:login-user:`,
+      now,
+      onError: onRateLimitError,
     }),
     transactionKey: deriveKey(master, 'login-transaction'),
     fetch: fetchImpl,

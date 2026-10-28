@@ -63,7 +63,6 @@ function withRefresh(test: TestRuntime, refresh: IdentityProvider['refresh']): I
     completeLogin: (params, secrets) => identity.completeLogin(params, secrets),
     refresh,
     revokeRefreshToken: (record) => identity.revokeRefreshToken(record),
-    endSessionUrl: () => identity.endSessionUrl(),
   };
 }
 
@@ -284,7 +283,6 @@ describe('trava de renovação entre réplicas (RN-IAM-25)', () => {
       completeLogin: () => Promise.resolve({ ok: false, reason: 'PROVIDER_ERROR' }),
       refresh,
       revokeRefreshToken: () => Promise.resolve('skipped'),
-      endSessionUrl: () => Promise.resolve(null),
     };
   }
 

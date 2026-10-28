@@ -187,7 +187,7 @@ export type RevocationResult =
   /** IdP fora do ar ou lento (> 2 s): o logout local segue (FA-06). */
   | 'unavailable';
 
-/** O IdP não respondeu ao montar o *RP-initiated logout* (FA-06). */
+/** O IdP não respondeu (recuperação de senha — US-089). */
 export class IdentityProviderUnavailableError extends Error {
   constructor(options?: { cause?: unknown }) {
     super('Provedor de identidade indisponível.', options);
@@ -207,11 +207,6 @@ export interface IdentityProvider {
   completeLogin(params: URLSearchParams, secrets: LoginSecrets): Promise<LoginCompletion>;
   refresh(record: SessionRecord): Promise<RefreshResult>;
   revokeRefreshToken(record: SessionRecord): Promise<RevocationResult>;
-  /**
-   * URL de *end-session* do IdP (RP-initiated logout); `null` quando não há.
-   * @throws IdentityProviderUnavailableError IdP fora do ar (descoberta)
-   */
-  endSessionUrl(): Promise<string | null>;
 }
 
 /** Identidade da aplicação resolvida pela API (`POST /internal/session-events`). */

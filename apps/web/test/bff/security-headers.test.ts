@@ -12,7 +12,6 @@ import {
 
 const CSP_OPTIONS = {
   connectSources: ['https://q.s3.sa-east-1.amazonaws.com'],
-  formActionSources: ['https://auth.contrataflow.com.br'],
   reportUri: '/api/csp-report',
   secure: true,
   development: false,
@@ -32,7 +31,7 @@ describe('CSP das páginas (security.md §8 · RN-FND-94)', () => {
       "frame-ancestors 'none'",
       "object-src 'none'",
       "base-uri 'none'",
-      "form-action 'self' https://auth.contrataflow.com.br",
+      "form-action 'self'",
       'upgrade-insecure-requests',
       'report-uri /api/csp-report',
       'report-to csp-endpoint',

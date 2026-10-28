@@ -10,6 +10,7 @@ import type {
   LoginSecrets,
   LoginStart,
   MembershipSummary,
+  ProviderLogin,
   RefreshResult,
   RevocationResult,
   SessionDirectory,
@@ -18,6 +19,12 @@ import type {
   TenantActivation,
   TenantSummary,
 } from './types';
+import type {
+  PasswordLogin,
+  PasswordLoginCredentials,
+  PasswordLoginStep,
+  PendingLogin,
+} from '../auth/password-login';
 import { newLoginSecrets } from '../auth/pkce';
 
 /*
@@ -235,15 +242,12 @@ export class FakeIdentityProvider implements IdentityProvider {
     }
     const persona: FakePersona = FAKE_PERSONAS[name];
     const amr = factor === 'mfa' ? ['pwd', 'otp'] : ['pwd'];
-    return Promise.resolve({
-      ok: true,
-      login: {
-        subject: persona.subject,
-        tokens: this.signAccessToken(persona.subject, amr),
-        amr,
-        authTime: this.now(),
-      },
-    });
+    return Promise.resolve({ ok: true, login: this.providerLogin(persona.subject, amr) });
+  }
+
+  /** Login concluído no IdP fake (tokens assinados agora). */
+  providerLogin(subject: string, amr: readonly string[]): ProviderLogin {
+    return { subject, tokens: this.signAccessToken(subject, amr), amr, authTime: this.now() };
   }
 
   refresh(record: SessionRecord): Promise<RefreshResult> {
@@ -257,9 +261,57 @@ export class FakeIdentityProvider implements IdentityProvider {
   revokeRefreshToken(): Promise<RevocationResult> {
     return Promise.resolve('skipped');
   }
+}
 
-  endSessionUrl(): Promise<string | null> {
-    return Promise.resolve(null);
+/** Senha de todas as pessoas no login nativo fake (`/entrar` sem Authentik). */
+export const FAKE_PASSWORD = 'senha-fake';
+/** Código do segundo fator das pessoas com MFA no login fake. */
+export const FAKE_MFA_CODE = '123456';
+/** Pessoas que passam pela etapa de código no login fake (Lúcia — US-090). */
+const FAKE_MFA_PERSONAS: ReadonlySet<FakePersonaName> = new Set(['lucia']);
+/** Usuários especiais do login fake: bloqueio pelo IdP e IdP fora do ar. */
+export const FAKE_LOCKED_USERNAME = 'bloqueada';
+export const FAKE_UNAVAILABLE_USERNAME = 'indisponivel';
+
+/**
+ * Login nativo fake (DEC-187): usuário = nome da pessoa (`ana`, `lucia`…), senha
+ * `FAKE_PASSWORD`; `lucia` pede o código `FAKE_MFA_CODE`. Emite os mesmos tokens do provedor fake.
+ */
+export class FakePasswordLogin implements PasswordLogin {
+  constructor(private readonly identity: FakeIdentityProvider) {}
+
+  authenticate(credentials: PasswordLoginCredentials): Promise<PasswordLoginStep> {
+    const username = credentials.username.trim().toLowerCase();
+    if (username === FAKE_LOCKED_USERNAME) return Promise.resolve({ kind: 'locked' });
+    if (username === FAKE_UNAVAILABLE_USERNAME) {
+      return Promise.resolve({
+        kind: 'unavailable',
+        failure: { step: 'flow', providerStatus: null, component: null },
+      });
+    }
+    if (!isFakePersona(username) || credentials.password !== FAKE_PASSWORD) {
+      return Promise.resolve({ kind: 'invalid_credentials' });
+    }
+    if (FAKE_MFA_PERSONAS.has(username)) {
+      return Promise.resolve({
+        kind: 'mfa_required',
+        pending: { cookies: { persona: username } },
+        methods: ['totp'],
+      });
+    }
+    return Promise.resolve({ kind: 'authenticated', login: this.login(username, ['pwd']) });
+  }
+
+  verifyCode(pending: PendingLogin, code: string): Promise<PasswordLoginStep> {
+    const name = pending.cookies.persona;
+    if (!isFakePersona(name)) return Promise.resolve({ kind: 'invalid_credentials' });
+    if (code !== FAKE_MFA_CODE) return Promise.resolve({ kind: 'mfa_invalid', pending });
+    return Promise.resolve({ kind: 'authenticated', login: this.login(name, ['pwd', 'otp']) });
+  }
+
+  private login(name: FakePersonaName, amr: readonly string[]): ProviderLogin {
+    const persona: FakePersona = FAKE_PERSONAS[name];
+    return this.identity.providerLogin(persona.subject, amr);
   }
 }
 

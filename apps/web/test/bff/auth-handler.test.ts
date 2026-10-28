@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOGIN_TRANSACTION_COOKIE } from '@/bff/auth/login-transaction';
 import { OidcIdentityProvider } from '@/bff/auth/oidc-provider';
@@ -44,7 +44,6 @@ function oidcProvider(idp: FakeIdp): OidcIdentityProvider {
     clientSecret: IDP_CLIENT_SECRET,
     scopes: 'openid offline_access',
     redirectUri: IDP_REDIRECT_URI,
-    postLogoutRedirectUri: 'http://localhost:3000/entrar?motivo=saiu',
     fetch: idp.fetch,
   });
 }
@@ -110,7 +109,7 @@ describe('login e callback', () => {
 
   it('returnTo externo é recusado (cai no destino padrão) e registrado', async () => {
     const test = createTestRuntime();
-    const { callback } = await login(test, '?returnTo=https%3A%2F%2Fevil.com');
+    const { callback } = await login(test, '?returnTo=https%3A%2F%2Fevil.com&as=ana');
     expect(callback.headers.get('Location')).toBe('/painel');
     expect(logs.lines.some((line) => line.includes('"auth.return_to_rejected"'))).toBe(true);
   });
@@ -168,7 +167,7 @@ describe('login e callback', () => {
     expect(test.store.size).toBe(1);
   });
 
-  it('provedor não configurado ou fora do ar → SCR-001 "indisponível" mantendo o returnTo', async () => {
+  it('GET /api/auth/login leva à tela nativa /entrar preservando o returnTo (DEC-187)', async () => {
     const test = createTestRuntime({ identity: new UnconfiguredIdentityProvider() });
     const response = await handleAuthRequest(
       browserRequest('/api/auth/login?returnTo=%2Fprocessos%2F1'),
@@ -176,10 +175,15 @@ describe('login e callback', () => {
       test.runtime,
     );
     expect(response.status).toBe(302);
-    expect(response.headers.get('Location')).toBe(
-      '/entrar?motivo=indisponivel&returnTo=%2Fprocessos%2F1',
-    );
+    expect(response.headers.get('Location')).toBe('/entrar?returnTo=%2Fprocessos%2F1');
     expect(response.headers.get('Set-Cookie')).toBeNull();
+    // Sem provedor fake, o atalho ?as= não existe: também vai à tela.
+    const shortcut = await handleAuthRequest(
+      browserRequest('/api/auth/login?as=ana'),
+      'login',
+      test.runtime,
+    );
+    expect(shortcut.headers.get('Location')).toBe('/entrar');
     const runtime = createBffRuntime(test.runtime.config);
     expect(runtime.identity.kind).toBe('fake');
   });
@@ -318,33 +322,28 @@ describe('GET /api/auth/session', () => {
 });
 
 describe('login após expiração (RN-IAM-32)', () => {
-  it('reauth=1 ou a marca de reautenticação pedem max_age=0; o callback apaga a marca', async () => {
-    const reauthenticate: boolean[] = [];
-    const base = createTestRuntime();
-    const identity = base.runtime.identity;
-    const test = createTestRuntime({
-      identity: {
-        kind: identity.kind,
-        beginLogin: (input) => {
-          reauthenticate.push(input.reauthenticate === true);
-          return identity.beginLogin(input);
-        },
-        completeLogin: (params, secrets) => identity.completeLogin(params, secrets),
-        refresh: (record) => identity.refresh(record),
-        revokeRefreshToken: (record) => identity.revokeRefreshToken(record),
-        endSessionUrl: () => identity.endSessionUrl(),
-      },
-    });
-    await login(test, '?returnTo=%2Fprocessos&reauth=1');
-    const start = await handleAuthRequest(
-      browserRequest('/api/auth/login?returnTo=%2Fprocessos', {
-        headers: { Cookie: '__Host-cf_reauth=1' },
-      }),
+  it('GET /api/auth/login após expiração (reauth=1 ou a marca do BFF) leva a /entrar com o aviso', async () => {
+    const test = createTestRuntime();
+    const byQuery = await handleAuthRequest(
+      browserRequest('/api/auth/login?returnTo=%2Fprocessos&reauth=1'),
       'login',
       test.runtime,
     );
-    await login(test);
-    expect(reauthenticate).toEqual([true, true, false]);
+    expect(byQuery.headers.get('Location')).toBe(
+      '/entrar?motivo=sessao-expirada&returnTo=%2Fprocessos',
+    );
+    const byMark = await handleAuthRequest(
+      browserRequest('/api/auth/login', { headers: { Cookie: '__Host-cf_reauth=1' } }),
+      'login',
+      test.runtime,
+    );
+    expect(byMark.headers.get('Location')).toBe('/entrar?motivo=sessao-expirada');
+    // O callback do atalho de desenvolvimento apaga a marca.
+    const start = await handleAuthRequest(
+      browserRequest('/api/auth/login?as=ana'),
+      'login',
+      test.runtime,
+    );
     const transaction = cookieValue(start.headers.get('Set-Cookie'), LOGIN_TRANSACTION_COOKIE);
     const callbackUrl = new URL(start.headers.get('Location') ?? '');
     const callback = await handleAuthRequest(
@@ -402,7 +401,7 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
     expect(logouts).toHaveLength(1);
   });
 
-  it('[Sucesso] logout com Authentik: revoga o refresh token e devolve o end-session', async () => {
+  it('[Sucesso] logout com Authentik: revoga o refresh token e volta à SCR-001 sem passar pelo IdP', async () => {
     const idp = await createFakeIdp(() => Date.now());
     const test = createTestRuntime({ identity: oidcProvider(idp) });
     const { cookie, record } = await signIn(test);
@@ -419,14 +418,8 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
       'logout',
       test.runtime,
     );
-    const { data } = (await response.json()) as { data: { logoutUrl: string } };
-    const url = new URL(data.logoutUrl);
-    expect(`${url.origin}${url.pathname}`).toBe(
-      'http://localhost:9080/application/o/contrataflow/end-session/',
-    );
-    expect(url.searchParams.get('post_logout_redirect_uri')).toBe(
-      'http://localhost:3000/entrar?motivo=saiu',
-    );
+    // Sem end-session (DEC-187): o navegador nunca é levado ao IdP no logout.
+    expect(await response.json()).toEqual({ data: { logoutUrl: '/entrar?motivo=saiu' } });
     expect(Object.fromEntries(idp.revocations[0]?.form ?? [])).toMatchObject({
       token: record.tokens.refreshToken,
     });
@@ -434,7 +427,7 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
       { key: record.key, reason: 'LOGOUT', userAgent: 'Firefox', ip: '200.1.2.3' },
     ]);
     const line = logs.lines.find((entry) => entry.includes('"event":"auth.logout"')) ?? '';
-    expect(JSON.parse(line)).toMatchObject({ rpLogout: 'success', userId: record.userId });
+    expect(JSON.parse(line)).toMatchObject({ revocation: 'revoked', userId: record.userId });
     // Nunca logar sid, tokens ou cookie.
     const all = logs.lines.join('\n');
     expect(all).not.toContain(cookie.split('=')[1]);
@@ -442,7 +435,7 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
     expect(all).not.toContain(record.key);
   });
 
-  it('[Falha de integração] FA-06 Authentik fora do ar: logout local concluído e saiu-parcial', async () => {
+  it('[Falha de integração] FA-06 Authentik fora do ar: o logout local se conclui e volta à SCR-001', async () => {
     const idp = await createFakeIdp(() => Date.now());
     idp.state.down = true;
     const test = createTestRuntime({ identity: oidcProvider(idp) });
@@ -456,27 +449,9 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
       test.runtime,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ data: { logoutUrl: '/entrar?motivo=saiu-parcial' } });
+    expect(await response.json()).toEqual({ data: { logoutUrl: '/entrar?motivo=saiu' } });
     expect(test.store.size).toBe(0);
-    expect(logs.lines.some((line) => line.includes('auth.rp_logout_unavailable'))).toBe(true);
-
-    // Revogação ok, mas a descoberta do end-session falha → também parcial.
-    const flaky = await createFakeIdp(() => Date.now());
-    const provider = oidcProvider(flaky);
-    const second = createTestRuntime({ identity: provider });
-    const session = await signIn(second);
-    vi.spyOn(provider, 'endSessionUrl').mockRejectedValueOnce(
-      new IdentityProviderUnavailableError(),
-    );
-    const partial = await handleAuthRequest(
-      browserRequest('/api/auth/logout', {
-        method: 'POST',
-        headers: { ...MUTATION, Cookie: session.cookie },
-      }),
-      'logout',
-      second.runtime,
-    );
-    expect(await partial.json()).toEqual({ data: { logoutUrl: '/entrar?motivo=saiu-parcial' } });
+    expect(logs.lines.some((line) => line.includes('auth.revocation_unavailable'))).toBe(true);
   });
 
   it('[Concorrência] logout na aba A durante comando na aba B → B recebe 401', async () => {
@@ -576,7 +551,6 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
         completeLogin: (params, secrets) => identity.completeLogin(params, secrets),
         refresh: (record) => identity.refresh(record),
         revokeRefreshToken: (record) => identity.revokeRefreshToken(record),
-        endSessionUrl: () => identity.endSessionUrl(),
       },
     });
     const { cookie, record } = await signIn(test);
@@ -628,14 +602,14 @@ describe('POST /api/auth/logout e GET /api/auth/step-up', () => {
     expect(kept?.tokens.accessToken).toBe(record.tokens.accessToken);
   });
 
-  it('step-up sem sessão vira login completo', async () => {
+  it('step-up sem sessão vira login completo, na tela nativa e com o destino', async () => {
     const test = createTestRuntime();
     const response = await handleAuthRequest(
-      browserRequest('/api/auth/step-up'),
+      browserRequest('/api/auth/step-up?returnTo=%2Fadmin%2Fperfis'),
       'step-up',
       test.runtime,
     );
-    expect(new URL(response.headers.get('Location') ?? '').searchParams.get('code')).toBe('ana');
+    expect(response.headers.get('Location')).toBe('/entrar?returnTo=%2Fadmin%2Fperfis');
   });
 });
 

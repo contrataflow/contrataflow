@@ -72,6 +72,32 @@ export const BFF_PROBLEMS = {
     title: 'Requisição malformada',
     detail: 'Não foi possível interpretar a requisição.',
   },
+  // Login nativo (DEC-187): mensagens genéricas, sem revelar se a conta existe (RN-IAM-18).
+  INVALID_CREDENTIALS: {
+    status: 401,
+    title: 'Credenciais inválidas',
+    detail: 'Usuário ou senha inválidos.',
+  },
+  LOCKED: {
+    status: 403,
+    title: 'Acesso bloqueado temporariamente',
+    detail: 'O acesso foi bloqueado temporariamente. Tente mais tarde ou redefina a senha.',
+  },
+  MFA_INVALID: {
+    status: 401,
+    title: 'Código inválido',
+    detail: 'Código inválido. Confira o aplicativo autenticador e tente de novo.',
+  },
+  MFA_EXPIRED: {
+    status: 401,
+    title: 'Verificação expirada',
+    detail: 'A verificação expirou. Informe usuário e senha novamente.',
+  },
+  IDP_UNAVAILABLE: {
+    status: 503,
+    title: 'Autenticação indisponível',
+    detail: 'O serviço de autenticação está indisponível. Tente novamente em instantes.',
+  },
   RATE_LIMITED: {
     status: 429,
     title: 'Muitas tentativas',

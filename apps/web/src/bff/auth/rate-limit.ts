@@ -4,18 +4,22 @@ import 'server-only';
  * Limite de tentativas de login por IP (RN-IAM-15 · api.md §1.6): 20 req/min em
  * `/api/auth/login`, `/api/auth/callback` e `/api/auth/step-up`, janela fixa de 1 min no Redis de
  * sessões (`cf:{env}:rl:auth:{ip}:{janela}`). Falha do Redis → falha aberta (o WAF continua
- * limitando por IP); sem IP conhecido (sem balanceador — só local), não limita.
+ * limitando por IP); sem IP conhecido (sem balanceador — só local), não limita. O login nativo
+ * (DEC-187) usa o mesmo mecanismo para as falhas por usuário (`peek` + `record`).
  */
 
 export interface RateLimitCounter {
   /** Incrementa o contador da janela e devolve o total. */
   hit(key: string, windowMs: number): Promise<number>;
+  /** Total da janela sem incrementar (limite que só conta falhas — DEC-187). */
+  peek(key: string): Promise<number>;
 }
 
 /** Subconjunto do ioredis usado pelo contador. */
 export interface RateLimitRedis {
   incr(key: string): Promise<number>;
   pexpire(key: string, ttlMs: number): Promise<number>;
+  get(key: string): Promise<string | null>;
 }
 
 export class RedisRateLimitCounter implements RateLimitCounter {
@@ -25,6 +29,10 @@ export class RedisRateLimitCounter implements RateLimitCounter {
     const count = await this.redis.incr(key);
     if (count === 1) await this.redis.pexpire(key, windowMs);
     return count;
+  }
+
+  async peek(key: string): Promise<number> {
+    return Number((await this.redis.get(key)) ?? 0);
   }
 }
 
@@ -37,6 +45,10 @@ export class MemoryRateLimitCounter implements RateLimitCounter {
     this.counts.set(key, count);
     if (this.counts.size > 10_000) this.counts.clear();
     return Promise.resolve(count);
+  }
+
+  peek(key: string): Promise<number> {
+    return Promise.resolve(this.counts.get(key) ?? 0);
   }
 }
 
@@ -65,24 +77,58 @@ export class AuthRateLimiter {
     this.now = options.now ?? Date.now;
   }
 
-  async check(ip: string | null): Promise<RateLimitVerdict> {
-    if (!ip) return { allowed: true };
-    const now = this.now();
-    const windowStart = Math.floor(now / this.windowMs) * this.windowMs;
+  /** Conta a tentativa e decide (limite de tentativas: toda chamada conta). */
+  async check(subject: string | null): Promise<RateLimitVerdict> {
+    if (!subject) return { allowed: true };
+    const window = this.window();
     let count: number;
     try {
-      count = await this.counter.hit(
-        `${this.options.keyPrefix}${ip}:${windowStart}`,
-        this.windowMs,
-      );
+      count = await this.counter.hit(this.key(subject, window.start), this.windowMs);
     } catch (error) {
       this.options.onError?.(error);
       return { allowed: true };
     }
-    if (count <= this.options.limit) return { allowed: true };
+    return count <= this.options.limit ? { allowed: true } : this.denied(window);
+  }
+
+  /**
+   * Decide sem contar (limite de falhas — DEC-187): bloqueia quando a janela já tem `limit`
+   * falhas registradas por `record`.
+   */
+  async peek(subject: string): Promise<RateLimitVerdict> {
+    const window = this.window();
+    let count: number;
+    try {
+      count = await this.counter.peek(this.key(subject, window.start));
+    } catch (error) {
+      this.options.onError?.(error);
+      return { allowed: true };
+    }
+    return count < this.options.limit ? { allowed: true } : this.denied(window);
+  }
+
+  /** Registra uma falha (falha aberta se o contador estiver fora). */
+  async record(subject: string): Promise<void> {
+    try {
+      await this.counter.hit(this.key(subject, this.window().start), this.windowMs);
+    } catch (error) {
+      this.options.onError?.(error);
+    }
+  }
+
+  private window(): { readonly now: number; readonly start: number } {
+    const now = this.now();
+    return { now, start: Math.floor(now / this.windowMs) * this.windowMs };
+  }
+
+  private key(subject: string, windowStart: number): string {
+    return `${this.options.keyPrefix}${subject}:${windowStart}`;
+  }
+
+  private denied(window: { readonly now: number; readonly start: number }): RateLimitVerdict {
     return {
       allowed: false,
-      retryAfterSeconds: Math.max(1, Math.ceil((windowStart + this.windowMs - now) / 1000)),
+      retryAfterSeconds: Math.max(1, Math.ceil((window.start + this.windowMs - window.now) / 1000)),
     };
   }
 }

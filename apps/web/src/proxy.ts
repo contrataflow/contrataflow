@@ -13,7 +13,6 @@ export function proxy(request: NextRequest) {
     request.headers,
     {
       connectSources: sources.connectSources,
-      formActionSources: sources.formActionSources,
       reportUri: sources.cspReportUri,
       secure: sources.secure,
       development: isDevelopmentBuild(),

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createTranslator } from 'next-intl';
 import type { ReactElement } from 'react';
@@ -392,14 +392,9 @@ describe('SCR-111 — páginas /erro/*', () => {
   });
 });
 
-describe('SCR-001 — /entrar', () => {
+describe('SCR-001 — /entrar (login nativo — DEC-187)', () => {
   const REASON_MESSAGES = [
     ['saiu', 'Você saiu com segurança.', 'bg-primary-soft'],
-    [
-      'saiu-parcial',
-      'Você saiu do ContrataFlow. Para encerrar também a conta institucional neste navegador, feche-o.',
-      'bg-warning-soft',
-    ],
     [
       'sessao-expirada',
       'Sua sessão expirou por inatividade. Entre novamente para continuar de onde parou.',
@@ -414,41 +409,23 @@ describe('SCR-001 — /entrar', () => {
     ],
   ] as const;
 
-  /** Impede a navegação real do jsdom ao clicar em links. */
-  function blockNavigation() {
-    const block = (event: Event) => {
-      event.preventDefault();
-    };
-    document.addEventListener('click', block);
-    return () => {
-      document.removeEventListener('click', block);
-    };
-  }
-
-  it('sem motivo segue direto para o login do BFF, preservando o returnTo validado', async () => {
-    expect(
-      await redirectOf(LoginPage({ searchParams: Promise.resolve({ returnTo: '/processos' }) })),
-    ).toBe('/api/auth/login?returnTo=%2Fprocessos');
-    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe(
-      '/api/auth/login',
-    );
-    // Motivo desconhecido não renderiza nada próprio.
-    expect(
-      await redirectOf(LoginPage({ searchParams: Promise.resolve({ motivo: '<script>' }) })),
-    ).toBe('/api/auth/login');
+  it('sem motivo mostra o formulário (nada de redirecionar ao IdP); motivo desconhecido é ignorado', async () => {
+    renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: '<script>' }) }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Entrar' })).toBeTruthy();
+    expect(screen.getByLabelText('Usuário ou e-mail')).toBeTruthy();
+    expect(screen.getByLabelText('Senha')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('returnTo externo é descartado (open redirect)', async () => {
-    expect(
-      await redirectOf(LoginPage({ searchParams: Promise.resolve({ returnTo: '//evil.com/x' }) })),
-    ).toBe('/api/auth/login');
     renderIntl(
       await LoginPage({
         searchParams: Promise.resolve({ motivo: 'erro', returnTo: 'https://evil.com' }),
       }),
     );
-    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
-      '/api/auth/login',
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' }).getAttribute('href')).toBe(
+      '/api/auth/forgot-password',
     );
   });
 
@@ -468,93 +445,64 @@ describe('SCR-001 — /entrar', () => {
     ).toBe('/painel');
   });
 
-  it('Redis de sessões indisponível: a página continua acessível e segue o fluxo normal', async () => {
+  it('Redis de sessões indisponível: a página continua acessível', async () => {
     server.lookup = { status: 'unavailable' };
-    expect(
-      await redirectOf(LoginPage({ searchParams: Promise.resolve({ returnTo: '/processos' }) })),
-    ).toBe('/api/auth/login?returnTo=%2Fprocessos');
     renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'indisponivel' }) }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Entrar' })).toBeTruthy();
   });
 
   it.each(REASON_MESSAGES)(
-    'motivo %s: mensagem em role=status e botão "Entrar"',
+    'motivo %s: aviso em role=status acima do formulário',
     async (motivo, message, tone) => {
       renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo }) }));
       const status = screen.getByRole('status');
       expect(status.textContent).toBe(message);
       expect(status.className).toContain(tone);
-      expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
-        '/api/auth/login',
-      );
+      expect(screen.getByRole('button', { name: 'Entrar' })).toBeTruthy();
     },
   );
 
-  it('moldura de login: título focado, Entrar com returnTo, esqueci a senha, ajuda e painel — sem gov.br, sem violação de a11y', async () => {
+  it('moldura: formulário com foco no usuário, esqueci a senha, ajuda, painel e LGPD — sem gov.br, sem violação de a11y', async () => {
     renderIntl(
       await LoginPage({
         searchParams: Promise.resolve({ motivo: 'sessao-expirada', returnTo: '/processos?x=1' }),
       }),
     );
-    const heading = screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' });
-    expect(document.activeElement).toBe(heading);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByText('Entre para continuar no ContrataFlow.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
-      '/api/auth/login?returnTo=%2Fprocessos%3Fx%3D1',
-    );
+    expect(screen.getByText('Use o usuário e a senha fornecidos pelo seu órgão.')).toBeTruthy();
+    const username = screen.getByLabelText('Usuário ou e-mail');
+    expect(document.activeElement).toBe(username);
+    expect(username.getAttribute('autocomplete')).toBe('username');
+    expect(screen.getByLabelText('Senha').getAttribute('autocomplete')).toBe('current-password');
     expect(screen.getByRole('link', { name: 'Esqueci minha senha' }).getAttribute('href')).toBe(
       '/api/auth/forgot-password?returnTo=%2Fprocessos%3Fx%3D1',
     );
-    expect(screen.getByRole('link', { name: 'Suporte' }).getAttribute('href')).toMatch(/^mailto:/);
-    expect(screen.getByText(/Precisa de ajuda\?/)).toBeTruthy();
-    // Painel institucional (decorativo) e selo de privacidade.
+    expect(screen.getByRole('link', { name: 'Precisa de ajuda?' }).getAttribute('href')).toMatch(
+      /^mailto:/,
+    );
+    // Painel institucional e aviso de privacidade.
     for (const text of [
       'Contratações públicas mais simples, seguras e eficientes.',
-      'Da demanda à publicação, todo o processo em um único lugar.',
+      'Da demanda à publicação, todo o processo em um único lugar, com rastreabilidade completa sob a Lei 14.133/2021.',
       'Processos padronizados',
-      'ETP, TR, pesquisas, riscos e mais.',
+      'DFD, ETP, pesquisa de preços, riscos e TR com regras da lei.',
       'Tramitação e aprovações',
-      'Fluxos personalizados por órgão.',
+      'Fluxos configuráveis por órgão, com prazo por etapa.',
       'Transparência e controle',
-      'Acompanhamento em tempo real.',
-      'Tecnologia a serviço da gestão pública.',
-      'Planejamento, conformidade e resultados.',
-      'Ambiente seguro',
+      'Trilha de evidências imutável e painel situacional.',
+      'Lei 14.133/2021 · MVP 1',
     ]) {
       expect(screen.getByText(text)).toBeTruthy();
     }
-    expect(document.querySelector('img[src="/login-predio.svg"]')?.getAttribute('alt')).toBe('');
-    // Sem login gov.br no MVP 1 (PEND-18) e sem dados de instituição.
+    expect(screen.getByText(/Ao entrar, seus dados são tratados conforme a LGPD/)).toBeTruthy();
+    // Sem imagem de fundo, sem login gov.br no MVP 1 (PEND-18) e sem dados de instituição.
+    expect(document.querySelector('img')).toBeNull();
     expect(screen.queryByText(/gov\.br/i)).toBeNull();
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
-  it('"Entrar" mostra "Redirecionando…" após o clique e ignora o segundo clique', async () => {
-    const unblock = blockNavigation();
-    renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'saiu' }) }));
-    await userEvent.click(screen.getByRole('link', { name: 'Entrar' }));
-    const busy = screen.getByRole('link', { name: 'Redirecionando…' });
-    expect(busy.getAttribute('aria-busy')).toBe('true');
-    expect(busy.getAttribute('aria-disabled')).toBe('true');
-    const secondClick = new MouseEvent('click', { bubbles: true, cancelable: true });
-    busy.dispatchEvent(secondClick);
-    expect(secondClick.defaultPrevented).toBe(true);
-    // Voltar do provedor pelo histórico (bfcache) restaura o botão.
-    act(() => {
-      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
-    });
-    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('aria-busy')).toBe('false');
-    unblock();
-  });
-
   it('"Saiba mais" abre o aviso de privacidade completo', async () => {
     renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'saiu' }) }));
-    expect(
-      screen.getByText('Seus dados são protegidos e utilizados conforme a LGPD.', {
-        exact: false,
-      }),
-    ).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Saiba mais' }));
     const dialog = await screen.findByRole('dialog', { name: 'Privacidade e proteção de dados' });
     expect(dialog.textContent).toContain(
@@ -576,37 +524,31 @@ describe('SCR-001 — /entrar', () => {
     expect((await loginMetadata()).title).toBe('Entrar — ContrataFlow');
   });
 
-  it('US-089: "Esqueci minha senha" vai direto à rota do BFF, sempre visível e habilitado', async () => {
-    renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'erro' }) }));
-    const forgot = screen.getByRole('link', { name: 'Esqueci minha senha' });
-    expect(forgot.getAttribute('href')).toBe('/api/auth/forgot-password');
-    expect(forgot.getAttribute('aria-disabled')).toBeNull();
-    expect(await seriousA11yViolations()).toEqual([]);
-  });
-
   it('US-089 FA-05: senha redefinida sem returnTo na URL usa o destino guardado na recuperação', async () => {
     server.pendingReturnTo = '/processos/42';
     renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'senha-redefinida' }) }));
     expect(screen.getByRole('status').textContent).toBe(
       'Senha redefinida. Entre com sua nova senha.',
     );
-    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
-      '/api/auth/login?returnTo=%2Fprocessos%2F42',
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' }).getAttribute('href')).toBe(
+      '/api/auth/forgot-password?returnTo=%2Fprocessos%2F42',
     );
   });
 
   it('US-089 FA-05: o returnTo da URL prevalece e outros motivos ignoram o destino guardado', async () => {
     server.pendingReturnTo = '/processos/42';
-    renderIntl(
+    const first = renderIntl(
       await LoginPage({
         searchParams: Promise.resolve({ motivo: 'senha-redefinida', returnTo: '/tarefas' }),
       }),
     );
-    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe(
-      '/api/auth/login?returnTo=%2Ftarefas',
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' }).getAttribute('href')).toBe(
+      '/api/auth/forgot-password?returnTo=%2Ftarefas',
     );
-    expect(await redirectOf(LoginPage({ searchParams: Promise.resolve({}) }))).toBe(
-      '/api/auth/login',
+    first.unmount();
+    renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'saiu' }) }));
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' }).getAttribute('href')).toBe(
+      '/api/auth/forgot-password',
     );
   });
 });
@@ -772,7 +714,7 @@ describe('grupo (auth): casca', () => {
     );
     expect(screen.getByRole('main').textContent).toBe('Moldura de login');
     expect(screen.queryByText('ContrataFlow')).toBeNull();
-    expect(login.container.querySelector('.bg-linear-to-br')).toBeTruthy();
+    expect(login.container.querySelector('main.min-h-screen.bg-surface')).toBeTruthy();
     login.unmount();
 
     server.clientPathname = '/recuperar-senha';

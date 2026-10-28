@@ -129,7 +129,6 @@ describe('apiServerClient (Server Components — RN-FND-88)', () => {
       completeLogin: base.runtime.identity.completeLogin.bind(base.runtime.identity),
       refresh: () => Promise.resolve({ kind: 'invalid_grant' as const }),
       revokeRefreshToken: () => Promise.resolve('skipped' as const),
-      endSessionUrl: () => Promise.resolve(null),
     };
     const expiring = createTestRuntime({ identity });
     const { cookie, record } = await signIn(expiring);
@@ -190,7 +189,6 @@ describe('runtime do processo', () => {
         codeVerifier: 'v',
       }),
     ).toEqual({ ok: false, reason: 'PROVIDER_UNAVAILABLE' });
-    expect(await runtime.identity.endSessionUrl()).toBeNull();
     expect(await new UnconfiguredIdentityProvider().revokeRefreshToken()).toBe('skipped');
   });
 
@@ -237,7 +235,7 @@ describe('US-089 — recuperação de senha em Server Components e no App Router
 
     request.cookies.clear();
     const start = await handleAuthRequest(
-      new Request(`${APP_ORIGIN}/api/auth/login?returnTo=%2Ftarefas`),
+      new Request(`${APP_ORIGIN}/api/auth/login?returnTo=%2Ftarefas&as=ana`),
       'login',
       test.runtime,
     );

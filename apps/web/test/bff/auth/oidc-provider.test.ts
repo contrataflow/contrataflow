@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OidcIdentityProvider } from '@/bff/auth/oidc-provider';
 import { codeChallenge } from '@/bff/auth/pkce';
-import { IdentityProviderUnavailableError } from '@/bff/session/types';
 import type { LoginStart, SessionRecord } from '@/bff/session/types';
 import {
   IDP_CLIENT_ID,
@@ -29,7 +28,6 @@ function create(issuer = IDP_ISSUER) {
     clientSecret: IDP_CLIENT_SECRET,
     scopes: 'openid profile email offline_access',
     redirectUri: IDP_REDIRECT_URI,
-    postLogoutRedirectUri: 'http://localhost:3000/',
     fetch: idp.fetch,
     now: () => clock.now,
   });
@@ -282,19 +280,6 @@ describe('renovação e logout', () => {
     expect(await create().refresh(record('r1'))).toEqual({ kind: 'transient' });
   });
 
-  it('end-session (RP-initiated) sem id_token_hint — o token nunca vai à URL do navegador', async () => {
-    const url = new URL((await provider.endSessionUrl()) ?? '');
-    expect(`${url.origin}${url.pathname}`).toBe(
-      'http://localhost:9080/application/o/contrataflow/end-session/',
-    );
-    expect(Object.fromEntries(url.searchParams)).toEqual({
-      client_id: IDP_CLIENT_ID,
-      post_logout_redirect_uri: 'http://localhost:3000/',
-    });
-    idp.state.down = true;
-    await expect(create().endSessionUrl()).rejects.toBeInstanceOf(IdentityProviderUnavailableError);
-  });
-
   it('logout revoga o refresh token (RFC 7009) com client_secret_basic', async () => {
     expect(await provider.revokeRefreshToken(record('r1'))).toBe('revoked');
     const [revocation] = idp.revocations;
@@ -323,7 +308,7 @@ describe('renovação e logout', () => {
     idp.state.down = false;
     idp.state.revokeStatus = 200;
     const cached = create();
-    await cached.endSessionUrl();
+    await cached.warmUp();
     idp.fetch.mockImplementationOnce(() => Promise.reject(new TypeError('fetch failed')));
     expect(await cached.revokeRefreshToken(record('r1'))).toBe('unavailable');
   });

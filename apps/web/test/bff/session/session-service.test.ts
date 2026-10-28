@@ -40,7 +40,6 @@ function stubIdentity(refresh: () => Promise<RefreshResult>): IdentityProvider {
     completeLogin: () => Promise.resolve({ ok: false, reason: 'PROVIDER_ERROR' }),
     refresh,
     revokeRefreshToken: () => Promise.resolve('skipped' as const),
-    endSessionUrl: () => Promise.resolve(null),
   };
 }
 
@@ -347,7 +346,6 @@ describe('FakeIdentityProvider e FakeSessionDirectory (FA-06)', () => {
     ).toEqual({ ok: false, reason: 'PROVIDER_ERROR' });
     expect(isFakePersona('toString')).toBe(false);
     expect(findFakePersona('ninguém')).toBeNull();
-    expect(await identity.endSessionUrl()).toBeNull();
     expect(await identity.revokeRefreshToken()).toBe('skipped');
   });
 

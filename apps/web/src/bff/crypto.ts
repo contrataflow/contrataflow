@@ -8,7 +8,7 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:cr
  * Uma chave mestra (`SESSION_ENCRYPTION_KEY`) gera uma subchave por finalidade (HKDF-SHA256).
  */
 
-export type KeyPurpose = 'session-tokens' | 'login-transaction';
+export type KeyPurpose = 'session-tokens' | 'login-transaction' | 'login-challenge';
 
 /** Formato: versão (1 byte) · IV (12) · texto cifrado · tag (16), em base64url. */
 const FORMAT_VERSION = 1;

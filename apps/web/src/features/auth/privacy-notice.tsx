@@ -21,18 +21,16 @@ export const TERMS_OF_USE_HREF = '/termos';
 const LINK_CLASS = 'font-medium text-primary underline underline-offset-2 hover:opacity-80';
 
 /**
- * Selo "Ambiente seguro" (LGPD, DEC-140): resumo na moldura e aviso completo no "Saiba mais".
- * A instituição contratante é a controladora dos dados de acesso (art. 7º, II e III, e art. 23).
+ * Aviso de privacidade no rodapé da entrada (LGPD, DEC-140): uma linha na moldura e o aviso
+ * completo no "Saiba mais". A instituição contratante é a controladora dos dados de acesso
+ * (art. 7º, II e III, e art. 23).
  */
 export function PrivacyNotice() {
   const t = useTranslations('auth.login.privacy');
   return (
-    <div className="mt-6 flex items-center gap-4 rounded-xl bg-primary-soft p-4">
-      <span className="grid size-11 flex-none place-items-center rounded-lg bg-surface text-primary shadow-sm">
-        <AuthIcon name="shieldCheck" />
-      </span>
-      <p className="min-w-0 text-sm text-muted-foreground">
-        <span className="block font-semibold text-foreground">{t('badge')}</span>
+    <div className="mx-auto flex w-full max-w-[420px] items-start gap-2 text-xs leading-normal text-muted-foreground">
+      <AuthIcon name="shieldCheck" className="mt-px size-4 flex-none text-success" />
+      <p className="min-w-0">
         {t('summary')}{' '}
         <Dialog>
           <DialogTrigger asChild>
