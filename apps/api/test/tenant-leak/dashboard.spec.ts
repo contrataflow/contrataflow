@@ -317,24 +317,25 @@ describe('Feature: Dashboard operacional sobre PostgreSQL (US-076)', () => {
         WHERE process_id = $1`,
       [processes.foreign],
     );
-    // Atividade recente: restrita do sigiloso, comum dele e uma de B (todas mais recentes).
+    // Atividade recente: restrita do sigiloso, comum dele e uma de B (todas mais recentes). Relativas
+    // ao relógio do banco: as entradas projetadas do arranjo usam o `now()` real, não o NOW do teste.
     const entry = (
       id: string,
       tenantId: string,
       processId: string,
-      at: string,
+      minutesAhead: number,
       visibility: string,
     ) =>
       db.admin(
         `INSERT INTO process_timeline_entries (id, tenant_id, process_id, occurred_at, type,
                                                actor_type, params, visibility, source_event_id)
-         VALUES ($1, $2, $3, $4, 'PROCESS_UPDATED', 'SYSTEM', '{}'::jsonb,
-                 $5::timeline_visibility, $6)`,
-        [id, tenantId, processId, at, visibility, randomUUID()],
+         VALUES ($1, $2, $3, now() + make_interval(mins => $4), 'PROCESS_UPDATED', 'SYSTEM',
+                 '{}'::jsonb, $5::timeline_visibility, $6)`,
+        [id, tenantId, processId, minutesAhead, visibility, randomUUID()],
       );
-    await entry(RESTRICTED, A, processes.confidential, '2026-10-20T14:58:00Z', 'BUDGET_RESTRICTED');
-    await entry(STANDARD, A, processes.confidential, '2026-10-20T14:57:00Z', 'STANDARD');
-    await entry(FOREIGN_ENTRY, B, processes.foreign, '2026-10-20T14:59:00Z', 'STANDARD');
+    await entry(RESTRICTED, A, processes.confidential, 2, 'BUDGET_RESTRICTED');
+    await entry(STANDARD, A, processes.confidential, 1, 'STANDARD');
+    await entry(FOREIGN_ENTRY, B, processes.foreign, 3, 'STANDARD');
   });
 
   afterAll(async () => {

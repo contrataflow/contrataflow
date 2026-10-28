@@ -316,7 +316,8 @@ describe('Feature: Devolver processo sobre PostgreSQL (US-048)', () => {
       current_department_id: MANUTENCAO,
       current_responsible_id: ANA,
     });
-    expect(new Date(String(after.process?.current_stage_due_at)).toISOString()).toBe(DUE_13_10);
+    // O `pg` devolve `Date`: `String(date)` descartaria os milissegundos do `23:59:59.999`.
+    expect((after.process?.current_stage_due_at as Date).toISOString()).toBe(DUE_13_10);
     const [opening, studies, back, ...more] = after.stages;
     expect(more).toEqual([]);
     expect(opening).toMatchObject({ status: 'COMPLETED' });

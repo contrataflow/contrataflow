@@ -336,7 +336,8 @@ describe('Feature: Encaminhar processo sobre PostgreSQL (US-047)', () => {
       current_responsible_id: null,
     });
     expect(after.process?.opened_at).not.toBeNull();
-    expect(new Date(String(after.process?.current_stage_due_at)).toISOString()).toBe(DUE_20_10);
+    // O `pg` devolve `Date`: `String(date)` descartaria os milissegundos do `23:59:59.999`.
+    expect((after.process?.current_stage_due_at as Date).toISOString()).toBe(DUE_20_10);
     const [opening, studies, pesquisa, ...more] = after.stages;
     expect(more).toEqual([]);
     expect(opening).toMatchObject({ status: 'COMPLETED' });

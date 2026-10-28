@@ -328,10 +328,11 @@ describe('Feature: Gerenciar participantes do processo sobre PostgreSQL (US-012)
       created.id,
     );
 
+    // Vencida no relógio da API (NOW) e, por consequência, no `now()` do banco (predicado SQL).
     await db.admin(
-      `UPDATE process_participants SET expires_at = now() - interval '1 day'
+      `UPDATE process_participants SET expires_at = $3::timestamptz - interval '1 day'
         WHERE process_id = $1 AND user_id = $2`,
-      [created.id, DIEGO],
+      [created.id, DIEGO, NOW.toISOString()],
     );
     const listed = await call(request(api.server).get('/api/v1/processes'), SUBJECTS.diego);
     expect((listed.body as { data: { id: string }[] }).data.map((row) => row.id)).not.toContain(
