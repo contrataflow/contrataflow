@@ -1,10 +1,13 @@
-import { contrastRatio } from '@contrataflow/ui';
+import type { ChartTone, StatusTone } from '@contrataflow/ui';
 import { DASHBOARD_DEADLINE_STATUSES, DASHBOARD_OPEN_STATUSES } from '@contrataflow/validation';
 import type {
   DashboardFilters,
   DashboardWidgetDto,
   DashboardWidgetKey,
   DepartmentDto,
+  ProcessDeadlineDto,
+  ProcessStatus,
+  TaskInboxView,
 } from '@contrataflow/validation';
 import { z } from 'zod';
 
@@ -136,12 +139,6 @@ export function monthLabel(month: string): string {
   }).format(new Date(`${month}-15T12:00:00Z`));
 }
 
-/** Largura relativa da barra (0–100), com um mínimo visível para valores > 0. */
-export function barPercent(value: number, max: number): number {
-  if (max <= 0 || value <= 0) return 0;
-  return Math.max(2, Math.round((value / max) * 100));
-}
-
 /** O cartão não tem o que mostrar (estado vazio contextual — FA-01). */
 export function isWidgetEmpty(widget: DashboardWidgetDto): boolean {
   switch (widget.widgetKey) {
@@ -182,23 +179,91 @@ export function describeDashboardError(error: unknown): DashboardLoadProblem {
   return { kind: 'unavailable' };
 }
 
-/**
- * RN-DASH-12: cores das barras sobre o cartão (`--color-surface`, tema claro), com contraste de
- * objeto gráfico ≥ 3:1 (WCAG 1.4.11). A cor nunca é a única informação: cada barra tem rótulo,
- * valor em texto e, nos alertas, padrão listrado e ícone.
+/*
+ * RN-DASH-12: as cores dos gráficos são os tons do design system v2 (`STATUS_CHART_TONE`,
+ * `VIEW_CHIP_TONE`), com contraste validado em `packages/ui` (`tokens-contrast.test.ts`); a cor
+ * nunca é a única informação — rótulo e valor em texto em todo gráfico, e a tabela alternativa.
  */
-export const DASHBOARD_PALETTE = Object.freeze({
-  surface: '#ffffff',
-  neutral: '#005bf9',
-  danger: '#b91c1c',
-  warning: '#92400e',
-  success: '#15803d',
-});
 
-export type DashboardTone = Exclude<keyof typeof DASHBOARD_PALETTE, 'surface'>;
+/** Período da saudação ("Bom dia/Boa tarde/Boa noite") pela hora no fuso do órgão. */
+export function greetingPeriod(now: Date, timeZone: string): 'morning' | 'afternoon' | 'evening' {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone }).format(now),
+  );
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 18) return 'afternoon';
+  return 'evening';
+}
 
-/** Menor contraste da paleta contra o fundo do cartão. */
-export function paletteMinContrast(): number {
-  const { surface, ...tones } = DASHBOARD_PALETTE;
-  return Math.min(...Object.values(tones).map((color) => contrastRatio(color, surface) ?? 0));
+/** Primeiro nome para a saudação ("Ana Souza" → "Ana"). */
+export function firstName(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] ?? '';
+}
+
+/** Tom de cada situação no donut e na legenda (prd-4: semânticas com texto ao lado). */
+export const STATUS_CHART_TONE: Readonly<Record<ProcessStatus, ChartTone>> = {
+  DRAFT: 'neutral',
+  IN_PROGRESS: 'info',
+  AWAITING_APPROVAL: 'approval',
+  RETURNED: 'warning',
+  SUSPENDED: 'danger',
+  CANCELED: 'navy',
+  COMPLETED: 'success',
+  PUBLISHED: 'success',
+};
+
+/** Tom do chip de cada visão da caixa de tarefas em "Minhas pendências". */
+export const VIEW_CHIP_TONE: Readonly<Record<TaskInboxView, StatusTone>> = {
+  MINE: 'info',
+  UNIT_QUEUE: 'neutral',
+  PENDING_APPROVALS: 'approval',
+  RETURNED: 'warning',
+  OVERDUE: 'danger',
+  FOLLOWING: 'neutral',
+};
+
+/** Itens de "Minhas pendências" lidos da visão "Comigo" (TSK-01, uma página curta). */
+export const PENDING_PREVIEW_SIZE = 5;
+
+export type PendingDeadline =
+  | { readonly kind: 'overdue'; readonly count: number; readonly calendar: boolean }
+  | { readonly kind: 'dueToday' }
+  | {
+      readonly kind: 'dueIn';
+      readonly count: number;
+      readonly calendar: boolean;
+      readonly soon: boolean;
+    }
+  | { readonly kind: 'paused' | 'overduePaused' | 'none' };
+
+/**
+ * Prazo de uma pendência como texto colorido: atrasado (vermelho), vence hoje ou em breve (âmbar)
+ * e os demais com a contagem de dias (neutro) — a lista mostra "Vence em N dias" mesmo fora da
+ * janela de alerta, diferente do selo "No prazo" da lista de processos.
+ */
+export function pendingDeadline(
+  deadline: ProcessDeadlineDto,
+  overdueSince: string | null,
+): PendingDeadline {
+  const calendar = deadline.slaType === 'CALENDAR';
+  if (deadline.isPaused) return { kind: overdueSince === null ? 'paused' : 'overduePaused' };
+  if (deadline.isOverdue) return { kind: 'overdue', count: deadline.overdueDays ?? 0, calendar };
+  if (deadline.dueAt === null || deadline.daysLeft === null) return { kind: 'none' };
+  if (deadline.daysLeft === 0) return { kind: 'dueToday' };
+  return { kind: 'dueIn', count: deadline.daysLeft, calendar, soon: deadline.isDueSoon };
+}
+
+/** Tom do texto do prazo da pendência. */
+export function pendingDeadlineTone(deadline: PendingDeadline): StatusTone {
+  switch (deadline.kind) {
+    case 'overdue':
+    case 'overduePaused':
+      return 'danger';
+    case 'dueToday':
+      return 'warning';
+    case 'dueIn':
+      return deadline.soon ? 'warning' : 'neutral';
+    default:
+      return 'neutral';
+  }
 }

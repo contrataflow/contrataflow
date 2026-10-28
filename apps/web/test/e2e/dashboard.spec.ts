@@ -14,10 +14,10 @@ test('abrir o painel, filtrar por secretaria e ir à lista filtrada pelo cartão
   page,
 }) => {
   await page.goto(login());
-  await expect(page.getByRole('heading', { level: 1, name: 'Painel' })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Atrasados: 3 processos. Ver a lista.' }),
+    page.getByRole('heading', { level: 1, name: /^(Bom dia|Boa tarde|Boa noite), Ana$/ }),
   ).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Atrasados 3 / })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Processos por situação' })).toBeVisible();
   await expect(page.getByText('Valores sigilosos não somados')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'painel');
@@ -26,7 +26,7 @@ test('abrir o painel, filtrar por secretaria e ir à lista filtrada pelo cartão
     .getByRole('combobox', { name: 'Secretaria', exact: true })
     .selectOption({ label: 'Gabinete' });
   await expect(page).toHaveURL(/\/painel\?secretariatId=[0-9a-f-]{36}$/);
-  const overdue = page.getByRole('link', { name: 'Atrasados: 3 processos. Ver a lista.' });
+  const overdue = page.getByRole('link', { name: /^Atrasados 3 / });
   await expect(overdue).toHaveAttribute('href', /requestingSecretariatId=/);
 
   await overdue.click();
@@ -37,7 +37,7 @@ test('abrir o painel, filtrar por secretaria e ir à lista filtrada pelo cartão
 test('o painel cabe em 360 px sem rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto(login());
-  await expect(page.getByRole('heading', { level: 1, name: 'Painel' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /, Ana$/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Atividade recente' })).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

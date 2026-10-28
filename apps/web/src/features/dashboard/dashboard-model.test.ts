@@ -1,18 +1,19 @@
-import { MIN_TEXT_CONTRAST } from '@contrataflow/ui';
-import type { DepartmentDto } from '@contrataflow/validation';
+import type { DepartmentDto, ProcessDeadlineDto } from '@contrataflow/validation';
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
 
 import {
-  barPercent,
   departmentOptions,
   describeDashboardError,
+  firstName,
   formatDuration,
+  greetingPeriod,
   isWidgetEmpty,
   monthLabel,
-  paletteMinContrast,
   parseDashboardFilters,
+  pendingDeadline,
+  pendingDeadlineTone,
   processListHref,
   secretariatOptions,
   seriesItemHref,
@@ -122,10 +123,6 @@ describe('formatação', () => {
     expect(formatDuration(1.25 * 86_400)).toEqual({ unit: 'days', value: 1.3 });
     expect(formatDuration(5400)).toEqual({ unit: 'hours', value: 1.5 });
     expect(monthLabel('2026-10')).toMatch(/out/);
-    expect(barPercent(5, 10)).toBe(50);
-    expect(barPercent(1, 1000)).toBe(2);
-    expect(barPercent(0, 10)).toBe(0);
-    expect(barPercent(3, 0)).toBe(0);
   });
 
   it('estado vazio por indicador (FA-01)', () => {
@@ -181,8 +178,54 @@ describe('Casos de erro', () => {
   });
 });
 
-describe('RN-DASH-12 — paleta', () => {
-  it('toda cor de barra tem contraste ≥ 3:1 com o cartão (objeto gráfico) e ≥ AA de texto', () => {
-    expect(paletteMinContrast()).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
+describe('saudação do cabeçalho', () => {
+  it('período pela hora no fuso do órgão e o primeiro nome', () => {
+    // 11:30 UTC = 08:30 em São Paulo, 07:30 em Manaus.
+    const morning = new Date('2026-10-28T11:30:00Z');
+    expect(greetingPeriod(morning, 'America/Sao_Paulo')).toBe('morning');
+    expect(greetingPeriod(new Date('2026-10-28T15:00:00Z'), 'America/Sao_Paulo')).toBe('afternoon');
+    expect(greetingPeriod(new Date('2026-10-28T21:00:00Z'), 'America/Sao_Paulo')).toBe('evening');
+    // 03:00 em São Paulo ainda é "Boa noite".
+    expect(greetingPeriod(new Date('2026-10-28T06:00:00Z'), 'America/Sao_Paulo')).toBe('evening');
+    expect(firstName('  Ana   Souza ')).toBe('Ana');
+  });
+});
+
+describe('prazo de "Minhas pendências"', () => {
+  const base: ProcessDeadlineDto = {
+    dueAt: '2026-10-30T02:59:59.000Z',
+    slaType: 'BUSINESS',
+    daysLeft: 6,
+    overdueDays: null,
+    isDueSoon: false,
+    isOverdue: false,
+    isPaused: false,
+  };
+
+  it('atrasado em vermelho, hoje/em breve em âmbar e os demais neutros com a contagem', () => {
+    const overdue = pendingDeadline(
+      { ...base, daysLeft: null, overdueDays: 3, isOverdue: true },
+      '2026-10-25T00:00:00Z',
+    );
+    expect(overdue).toEqual({ kind: 'overdue', count: 3, calendar: false });
+    expect(pendingDeadlineTone(overdue)).toBe('danger');
+    const today = pendingDeadline({ ...base, daysLeft: 0, isDueSoon: true }, null);
+    expect(today).toEqual({ kind: 'dueToday' });
+    expect(pendingDeadlineTone(today)).toBe('warning');
+    const soon = pendingDeadline({ ...base, daysLeft: 2, isDueSoon: true }, null);
+    expect(pendingDeadlineTone(soon)).toBe('warning');
+    const later = pendingDeadline({ ...base, slaType: 'CALENDAR' }, null);
+    expect(later).toEqual({ kind: 'dueIn', count: 6, calendar: true, soon: false });
+    expect(pendingDeadlineTone(later)).toBe('neutral');
+  });
+
+  it('pausado, atrasado e suspenso, e sem prazo', () => {
+    expect(pendingDeadline({ ...base, isPaused: true }, null)).toEqual({ kind: 'paused' });
+    const pausedLate = pendingDeadline({ ...base, isPaused: true }, '2026-10-20T00:00:00Z');
+    expect(pausedLate).toEqual({ kind: 'overduePaused' });
+    expect(pendingDeadlineTone(pausedLate)).toBe('danger');
+    const none = pendingDeadline({ ...base, dueAt: null, daysLeft: null }, null);
+    expect(none).toEqual({ kind: 'none' });
+    expect(pendingDeadlineTone(none)).toBe('neutral');
   });
 });

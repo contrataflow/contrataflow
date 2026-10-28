@@ -4,6 +4,7 @@ import type {
   DashboardWidgetDto,
   DashboardWidgetKey,
   DepartmentDto,
+  TaskInboxItemDto,
 } from '@contrataflow/validation';
 import { DASHBOARD_WIDGET_KEYS } from '@contrataflow/validation';
 import { configure, screen, waitFor, within } from '@testing-library/react';
@@ -19,9 +20,10 @@ configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
 /*
- * US-076 — SCR-003 (`/painel`): resumo (DSH-01) e cartões independentes (DSH-02) com carregamento,
- * vazio e erro próprios, filtros na URL, atalhos para a lista/caixa, POL-09 no agregado, 403 e
- * acessibilidade (axe).
+ * US-076 — SCR-003 (`/painel`): resumo (DSH-01) em KPIs e cartões independentes (DSH-02) com
+ * carregamento, vazio (com ação) e erro próprios, filtros na URL, atalhos para a lista/caixa,
+ * "Minhas pendências" com os itens de "Comigo" (TSK-01), POL-09 no agregado, 403 e acessibilidade
+ * (axe). Repaginação do prd-4.
  */
 
 /** Navegação simulada: a URL é estado observável (`useSearchParams`) e o roteador a altera. */
@@ -195,8 +197,57 @@ const WIDGETS: Record<DashboardWidgetKey, DashboardWidgetDto> = {
   },
 };
 
+function task(n: number, patch: Partial<TaskInboxItemDto> = {}): TaskInboxItemDto {
+  return {
+    id: ID(200 + n),
+    processId: ID(300 + n),
+    code: `00${String(10 + n)}/2026`,
+    title: `Processo ${String(n)}`,
+    status: 'IN_PROGRESS',
+    version: 1,
+    currentStage: { key: 'ETP', name: 'Estudo técnico preliminar' },
+    currentDepartment: { id: OBRAS, name: 'Secretaria de Obras' },
+    currentResponsible: null,
+    enteredAt: AT,
+    dueAt: AT,
+    isOverdue: false,
+    overdueSince: null,
+    deadline: {
+      dueAt: AT,
+      slaType: 'BUSINESS',
+      daysLeft: 4,
+      overdueDays: null,
+      isDueSoon: false,
+      isOverdue: false,
+      isPaused: false,
+    },
+    isBudgetConfidential: false,
+    canClaim: false,
+    ...patch,
+  };
+}
+
+const TASKS = [
+  task(1, {
+    title: 'Insumos de saúde',
+    isOverdue: true,
+    overdueSince: AT,
+    deadline: {
+      dueAt: AT,
+      slaType: 'BUSINESS',
+      daysLeft: null,
+      overdueDays: 2,
+      isDueSoon: false,
+      isOverdue: true,
+      isPaused: false,
+    },
+  }),
+  task(2, { title: 'Manutenção de vias' }),
+];
+
 interface MockOptions {
   readonly permissions?: readonly string[];
+  readonly tasks?: readonly TaskInboxItemDto[];
   readonly summary?: (url: URL) => Response;
   readonly widget?: (key: string, url: URL) => Response | undefined;
 }
@@ -223,6 +274,15 @@ function mockApi(options: MockOptions = {}) {
         jsonResponse({
           data: UNITS,
           meta: { page: 1, pageSize: 100, totalItems: UNITS.length, totalPages: 1 },
+        }),
+      );
+    }
+    if (url.pathname === '/api/v1/tasks') {
+      const tasks = options.tasks ?? TASKS;
+      return Promise.resolve(
+        jsonResponse({
+          data: tasks,
+          meta: { page: 1, pageSize: 5, totalItems: tasks.length, totalPages: 1 },
         }),
       );
     }
@@ -275,19 +335,29 @@ afterEach(() => {
 });
 
 describe('SCR-003 — Painel (US-076)', () => {
-  it('[Sucesso] resumo com atalhos, os 9 indicadores em cartões e a atividade recente — sem violação de a11y', async () => {
-    const fetchMock = mockApi();
+  it('[Sucesso] saudação, KPIs com atalhos, os 9 indicadores em cartões e a atividade recente — sem violação de a11y', async () => {
+    const fetchMock = mockApi({ permissions: ['DASHBOARD_VIEW', 'INBOX_VIEW', 'PROCESS_CREATE'] });
     renderWithShell(<DashboardPage />);
-    const overdue = await screen.findByRole('link', {
-      name: 'Atrasados: 3 processos. Ver a lista.',
-    });
-    expect(overdue.getAttribute('href')).toContain('overdue=true');
     expect(
-      screen
-        .getByRole('link', { name: 'Pendências: 14 processos. Ver a lista.' })
-        .getAttribute('href'),
-    ).toBe('/tarefas');
-    expect(screen.getByRole('link', { name: 'Abertos: 42 processos. Ver a lista.' })).toBeTruthy();
+      screen.getByRole('heading', { level: 1, name: /^(Bom dia|Boa tarde|Boa noite), Ana$/ }),
+    ).toBeTruthy();
+    expect((await screen.findByRole('link', { name: 'Novo processo' })).getAttribute('href')).toBe(
+      '/processos/novo',
+    );
+    const overdue = await screen.findByRole('link', { name: /^Atrasados 3 Prazo da etapa/ });
+    expect(overdue.getAttribute('href')).toContain('overdue=true');
+    expect(screen.getByRole('link', { name: /^Pendências 14/ }).getAttribute('href')).toBe(
+      '/tarefas',
+    );
+    expect(screen.getByRole('link', { name: /^Abertos 42/ }).getAttribute('href')).toContain(
+      'status=IN_PROGRESS',
+    );
+    // A janela de "próximos do prazo" vem do indicador DUE_SOON.
+    expect(
+      await screen.findByRole('link', {
+        name: /^Próximos do prazo 5 Vencem nos próximos 2 dias úteis$/,
+      }),
+    ).toBeTruthy();
     // Cada indicador é uma requisição própria (DSH-02).
     await waitFor(() => {
       for (const key of DASHBOARD_WIDGET_KEYS) {
@@ -295,9 +365,20 @@ describe('SCR-003 — Painel (US-076)', () => {
       }
     });
     const status = await card('Processos por situação');
-    expect(await within(status).findByRole('link', { name: /Em andamento\s*42/ })).toBeTruthy();
+    expect(
+      (await within(status).findByRole('link', { name: 'Em andamento' })).getAttribute('href'),
+    ).toContain('status=IN_PROGRESS');
+    expect(
+      within(status).getByRole('img', { name: '44 processos: 42 Em andamento, 2 Rascunho' }),
+    ).toBeTruthy();
     const average = await card('Tempo médio por etapa (90 dias)');
-    expect(await within(average).findByText('3 dias')).toBeTruthy();
+    expect(
+      await within(average).findByRole('img', {
+        name: 'Tempo médio por etapa: Estudos preliminares 3 dias',
+      }),
+    ).toBeTruthy();
+    // As passagens ficam na tabela.
+    await userEvent.click(within(average).getByRole('button', { name: 'Ver como tabela' }));
     expect(within(average).getByText('4 passagens')).toBeTruthy();
     const activity = await card('Atividade recente');
     expect(
@@ -313,7 +394,8 @@ describe('SCR-003 — Painel (US-076)', () => {
     renderWithShell(<DashboardPage />);
     const value = await card('Valor estimado por secretaria');
     const saude = await within(value).findByRole('link', { name: /Secretaria de Saúde/ });
-    expect(saude.textContent).toContain('R$');
+    expect(saude.getAttribute('href')).toContain(`requestingSecretariatId=${SAUDE}`);
+    expect(value.textContent).toMatch(/R\$\s320\.000,00/);
     expect(within(value).getByText('Valores sigilosos não somados')).toBeTruthy();
     // Só um grupo tem exclusão.
     expect(within(value).getAllByText('Valores sigilosos não somados')).toHaveLength(1);
@@ -341,6 +423,87 @@ describe('SCR-003 — Painel (US-076)', () => {
     expect(
       await within(dueSoon).findByText('Nenhum processo vencendo nos próximos 2 dias úteis.'),
     ).toBeTruthy();
+  });
+
+  it('Minhas pendências: contagens por visão e os primeiros itens de "Comigo" com o prazo em texto', async () => {
+    const fetchMock = mockApi();
+    renderWithShell(<DashboardPage />);
+    const pending = await card('Minhas pendências');
+    const views = await within(pending).findByRole('list', { name: 'Pendências por visão' });
+    expect(within(views).getByText('Comigo · 12')).toBeTruthy();
+    expect(within(views).getByText('Aprovações pendentes · 2')).toBeTruthy();
+    const items = await within(pending).findByRole('list', {
+      name: 'Próximas pendências com você',
+    });
+    const first = within(items).getByRole('link', { name: 'Insumos de saúde' });
+    expect(first.getAttribute('href')).toBe(`/processos/${ID(301)}`);
+    expect(within(items).getByText('Atrasado há 2 dias úteis').className).toContain(
+      'text-destructive',
+    );
+    expect(within(items).getByText('Vence em 4 dias úteis')).toBeTruthy();
+    expect(within(items).getByText('0011/2026 · Estudo técnico preliminar')).toBeTruthy();
+    expect(within(pending).getByRole('link', { name: 'Ver todas' }).getAttribute('href')).toBe(
+      '/tarefas',
+    );
+    // Uma página curta da visão "Comigo", pelo prazo mais próximo.
+    const request = calls(fetchMock, '/api/v1/tasks')[0];
+    expect(request?.searchParams.get('view')).toBe('MINE');
+    expect(request?.searchParams.get('sort')).toBe('dueAt');
+    expect(request?.searchParams.get('pageSize')).toBe('5');
+  });
+
+  it('[Permissão] sem INBOX_VIEW: pendências só com as contagens e sem consultar a caixa', async () => {
+    const fetchMock = mockApi({ permissions: ['DASHBOARD_VIEW'] });
+    renderWithShell(<DashboardPage />);
+    const pending = await card('Minhas pendências');
+    expect(await within(pending).findByText('Comigo · 12')).toBeTruthy();
+    expect(
+      within(pending).queryByRole('list', { name: 'Próximas pendências com você' }),
+    ).toBeNull();
+    expect(calls(fetchMock, '/api/v1/tasks')).toHaveLength(0);
+    // Sem PROCESS_CREATE, sem o botão "Novo processo".
+    expect(screen.queryByRole('link', { name: 'Novo processo' })).toBeNull();
+  });
+
+  it('painel vazio: estados vazios explicam e oferecem a próxima ação', async () => {
+    mockApi({
+      permissions: ['DASHBOARD_VIEW', 'INBOX_VIEW', 'PROCESS_CREATE'],
+      tasks: [],
+      widget: (key) => {
+        const empty: Partial<Record<DashboardWidgetKey, DashboardWidgetDto>> = {
+          PENDING_ITEMS: { widgetKey: 'PENDING_ITEMS', total: 0, series: [], generatedAt: AT },
+          BY_STATUS: { widgetKey: 'BY_STATUS', total: 0, series: [], generatedAt: AT },
+          BY_STAGE: { widgetKey: 'BY_STAGE', total: 0, series: [], generatedAt: AT },
+          RECENT_ACTIVITY: { widgetKey: 'RECENT_ACTIVITY', items: [], generatedAt: AT },
+        };
+        const data = empty[key as DashboardWidgetKey];
+        return data
+          ? jsonResponse({ data, meta: { generatedAt: AT, cache: { hit: false, expiresAt: AT } } })
+          : undefined;
+      },
+    });
+    renderWithShell(<DashboardPage />);
+    const pending = await card('Minhas pendências');
+    expect(
+      await within(pending).findByText('Nenhuma pendência com você. Bom trabalho!'),
+    ).toBeTruthy();
+    expect(
+      within(pending).getByRole('link', { name: 'Ver caixa de tarefas' }).getAttribute('href'),
+    ).toBe('/tarefas');
+    const status = await card('Processos por situação');
+    expect(await within(status).findByText('Nenhum processo por aqui ainda.')).toBeTruthy();
+    expect(within(status).getByRole('link', { name: 'Criar processo' }).getAttribute('href')).toBe(
+      '/processos/novo',
+    );
+    // Sem dados, sem alternância para tabela.
+    expect(within(status).queryByRole('button', { name: 'Ver como tabela' })).toBeNull();
+    const stage = await card('Abertos por etapa');
+    expect(
+      await within(stage).findByText('Nenhum processo aberto em etapa do workflow.'),
+    ).toBeTruthy();
+    const activity = await card('Atividade recente');
+    expect(await within(activity).findByText('Nenhuma atividade recente.')).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
   });
 
   it('filtro de secretaria/unidade: URL atualizada e cartões reconsultados com o recorte', async () => {
@@ -372,9 +535,9 @@ describe('SCR-003 — Painel (US-076)', () => {
       calls(fetchMock, '/api/v1/dashboard/summary').at(-1)?.searchParams.get('secretariatId'),
     ).toBe(OBRAS);
     // O atalho do resumo leva o recorte para a lista de processos.
-    expect((await screen.findByRole('link', { name: /Atrasados/ })).getAttribute('href')).toContain(
-      `requestingSecretariatId=${OBRAS}`,
-    );
+    expect(
+      (await screen.findByRole('link', { name: /^Atrasados 3/ })).getAttribute('href'),
+    ).toContain(`requestingSecretariatId=${OBRAS}`);
     await userEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     expect(nav.replace).toHaveBeenLastCalledWith('/painel', { scroll: false });
   });
@@ -393,7 +556,7 @@ describe('SCR-003 — Painel (US-076)', () => {
     const alert = await within(stage).findByRole('alert');
     expect(alert.textContent).toContain('Não foi possível carregar os indicadores agora.');
     // Os demais seguem carregados.
-    expect(await screen.findByRole('link', { name: /Em andamento\s*42/ })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Em andamento' })).toBeTruthy();
     await userEvent.click(within(stage).getByRole('button', { name: 'Tentar novamente' }));
     expect(await within(stage).findByText('Estudos preliminares')).toBeTruthy();
     expect(calls(fetchMock, '/api/v1/dashboard/widgets/BY_STAGE')).toHaveLength(2);

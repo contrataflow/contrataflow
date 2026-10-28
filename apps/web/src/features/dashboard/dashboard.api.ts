@@ -5,6 +5,7 @@ import type {
   DashboardWidgetDto,
   DashboardWidgetKey,
   DepartmentDto,
+  TaskInboxItemDto,
 } from '@contrataflow/validation';
 import { DASHBOARD_POLL_INTERVAL_MS } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +13,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api/client';
 import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
+
+import { PENDING_PREVIEW_SIZE } from './dashboard-model';
 
 /*
  * Leituras do painel (US-076 · SCR-003): DSH-01 (resumo) e DSH-02 (um indicador por cartão), com
@@ -27,6 +30,9 @@ export const dashboardKeys = {
   widget: (tenantId: string, widgetKey: DashboardWidgetKey, filters: DashboardFilters) =>
     tenantKey(tenantId, 'dashboard', 'widget', widgetKey, filters),
   units: (tenantId: string) => tenantKey(tenantId, 'dashboard', 'units'),
+  /** Sob a raiz `tasks`: as ações de tramitação que invalidam a caixa também a renovam. */
+  pendingPreview: (tenantId: string) =>
+    tenantKey(tenantId, 'tasks', 'preview', { view: 'MINE', sort: 'dueAt' }),
 };
 
 export interface DashboardRead<T> {
@@ -86,6 +92,18 @@ export async function fetchDashboardUnits(signal?: AbortSignal): Promise<Departm
   }
 }
 
+/**
+ * TSK-01 na visão "Comigo", só a primeira página curta e pelo prazo mais próximo: os itens de
+ * "Minhas pendências" sem endpoint novo (prd-4 · sem alteração de contrato).
+ */
+export async function fetchPendingPreview(signal?: AbortSignal): Promise<TaskInboxItemDto[]> {
+  const result = await apiRequest<TaskInboxItemDto[]>('/tasks', {
+    query: { view: 'MINE', sort: 'dueAt', page: 1, pageSize: PENDING_PREVIEW_SIZE },
+    signal,
+  });
+  return Array.isArray(result.data) ? result.data.slice(0, PENDING_PREVIEW_SIZE) : [];
+}
+
 const pollingOptions = {
   refetchInterval: DASHBOARD_POLL_INTERVAL_MS,
   refetchIntervalInBackground: false,
@@ -127,5 +145,16 @@ export function useDashboardUnits(enabled: boolean) {
     enabled,
     staleTime: 5 * 60_000,
     throwOnError: false,
+  });
+}
+
+/** Itens de "Minhas pendências"; só com `INBOX_VIEW` (sem ela, o cartão fica nas contagens). */
+export function usePendingPreview(enabled: boolean) {
+  const tenantId = useTenantId();
+  return useQuery({
+    queryKey: dashboardKeys.pendingPreview(tenantId),
+    queryFn: ({ signal }) => fetchPendingPreview(signal),
+    enabled,
+    ...pollingOptions,
   });
 }
