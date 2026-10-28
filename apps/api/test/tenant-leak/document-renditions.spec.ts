@@ -286,7 +286,11 @@ describe('Feature: PDFs dos documentos sobre PostgreSQL (US-067)', () => {
       await requestContent(versionId, asBeto),
     ]) {
       expect(response.status, JSON.stringify(response.body)).toBe(404);
-      expect(JSON.stringify(response.body)).not.toContain(versionId);
+      // `instance` ecoa o caminho pedido (o ID que o próprio B enviou); o resto não traz nada de A.
+      const { instance, ...rest } = response.body as { instance?: string };
+      expect(instance).toBe(new URL(response.request.url).pathname);
+      expect(JSON.stringify(rest)).not.toContain(versionId);
+      expect(JSON.stringify(rest)).not.toContain(id);
     }
     const client = db.client('cf_app');
     const visible = await asTenant(B, () =>

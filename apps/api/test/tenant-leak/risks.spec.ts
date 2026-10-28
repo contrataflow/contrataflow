@@ -339,6 +339,10 @@ describe('Feature: Registrar e avaliar riscos sobre PostgreSQL (US-033)', () => 
   it('[Concorrência] edição com If-Match desatualizado: 412 VERSION_CONFLICT com currentVersion, sem alterar', async () => {
     const process = await createProcess();
     const risk = ((await create(process.id)).body as { data: RiskDto }).data;
+    // Sem responsável: Ana e Carla têm custódia pela fila de Manutenção (POL-02 vem antes do If-Match).
+    await db.admin('UPDATE processes SET current_responsible_id = NULL WHERE id = $1', [
+      process.id,
+    ]);
     expect((await patch(risk.id, { impact: 3 }, '"1"')).status).toBe(200);
     const stale = await patch(risk.id, { impact: 1 }, '"1"', SUBJECTS.carla);
     expect(stale.status).toBe(412);

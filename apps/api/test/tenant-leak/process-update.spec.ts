@@ -322,7 +322,7 @@ describe('Feature: Editar dados do processo sobre PostgreSQL (US-005)', () => {
             UPDATE processes SET current_responsible_id = ${LUCIA}::uuid, version = version + 1
              WHERE id = ${created.id}::uuid`;
           locked();
-          await tx.$queryRaw`SELECT pg_sleep(1)`;
+          await tx.$executeRaw`SELECT pg_sleep(1)`;
         }),
       );
       await lockTaken;

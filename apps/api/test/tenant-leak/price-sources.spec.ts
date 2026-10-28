@@ -334,10 +334,13 @@ describe('Feature: Registrar fontes de pesquisa e cotações sobre PostgreSQL (U
       },
     ]);
     expect(after.items.map((row) => row.valid_quotations_count)).toEqual([1, 1]);
+    // US-029: o motor de recálculo audita `price_research.recalculate` em cada commit.
     expect(after.audit.map((row) => row.action)).toEqual([
       'price_research.source_create',
+      'price_research.recalculate',
       'price_research.quotation_create',
       'price_research.quotation_create',
+      'price_research.recalculate',
     ]);
     expect(after.events).toEqual([
       { routing_key: 'price_research.recalculated', status: 'PENDING' },

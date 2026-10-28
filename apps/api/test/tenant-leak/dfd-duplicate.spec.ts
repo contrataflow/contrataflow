@@ -18,6 +18,7 @@ import { FakeJwksProvider } from '#modules/identity/infrastructure/fake-jwks.pro
 import { PrismaIdentityRepository } from '#modules/identity/infrastructure/prisma-identity.repository.js';
 import { MEMBERSHIP_PORT, TOKEN_VERIFIER } from '#shared/auth/ports.js';
 import type { MembershipPort, MembershipRecord } from '#shared/auth/ports.js';
+import { newId } from '#shared/database/ids.js';
 
 import { CATALOG_CLOCK } from '../../src/modules/catalog/application/catalog-ports.js';
 import { DFD_CLOCK } from '../../src/modules/dfd/application/ports.js';
@@ -472,7 +473,8 @@ describe('Feature: Duplicar DFD sobre PostgreSQL (US-018)', () => {
     expect(problemDetailsSchema.parse(notFound.body).code).toBe('DFD_NOT_FOUND');
     expect(JSON.stringify(notFound.body)).not.toContain(source.dfd.code ?? '#');
 
-    for (const targetProcessId of [foreign.id, randomUUID()]) {
+    // UUIDv7 inexistente (um v4 cairia no INVALID_FORMAT do schema, antes da referência).
+    for (const targetProcessId of [foreign.id, newId()]) {
       const refused = await duplicate(source.dfd.id, {
         targetType: 'EXISTING_PROCESS',
         targetProcessId,

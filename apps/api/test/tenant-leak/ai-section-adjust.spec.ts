@@ -161,7 +161,7 @@ describe('Feature: Ajuste de seção com IA sobre PostgreSQL (US-121)', () => {
     expect(response.status, JSON.stringify(response.body)).toBe(200);
   }
 
-  /** Processo (PRC-02) + DFD (DFD-02) com a "JUSTIFICATION" preenchida (revisão 1). */
+  /** Processo (PRC-02) + DFD (DFD-02) com a "JUSTIFICATION" preenchida (um autosave). */
   async function newDfd(tenant = A, text = TEXT): Promise<Target> {
     const created = await call(request(api.server).post('/api/v1/processes'), tenant)
       .set('Idempotency-Key', randomUUID())
@@ -277,20 +277,22 @@ describe('Feature: Ajuste de seção com IA sobre PostgreSQL (US-121)', () => {
 
   it('[Concorrência + Sucesso] seção editada no meio → 410 sem tocar em nada; ajuste novo aplica no mesmo commit, sem versão', async () => {
     const target = await newDfd();
+    // A revisão de partida depende do modelo publicado do tipo (US-110): a sugestão fixa a vigente.
+    const base = Number((await sectionRow(target.documentId))?.revision);
     const stale = await suggestion(target);
     const [generation] = await db.admin<Row>(
       'SELECT base_revision, kind, action, section_key, prompt_key FROM ai_generations WHERE id = $1',
       [stale],
     );
     expect(generation).toMatchObject({
-      base_revision: 1,
+      base_revision: base,
       kind: 'SECTION',
       action: 'REWRITE',
       section_key: 'JUSTIFICATION',
       prompt_key: 'section.rewrite',
     });
 
-    // Autosave do colega entre o pedido e a aplicação (revisão 2): a sugestão ficou obsoleta.
+    // Autosave do colega entre o pedido e a aplicação (base + 1): a sugestão ficou obsoleta.
     await saveSection(target, `${TEXT} Ajuste manual feito pela equipe.`);
     const edited = await sectionRow(target.documentId);
     const refused = await apply(target.documentId, stale);
@@ -304,8 +306,9 @@ describe('Feature: Ajuste de seção com IA sobre PostgreSQL (US-121)', () => {
     const response = await apply(target.documentId, fresh);
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect((response.body as { data: { versionCreated: unknown } }).data.versionCreated).toBeNull();
+    // O autosave do colega e a aplicação: duas revisões depois da base.
     expect(await sectionRow(target.documentId)).toMatchObject({
-      revision: 3,
+      revision: base + 2,
       state: 'FILLED',
       generation: fresh,
       reviewed: null,

@@ -342,7 +342,7 @@ describe('Feature: Duplicar processo sobre PostgreSQL (US-011)', () => {
 
     const attachments = await db.admin<Row>(
       `SELECT target_type::text, target_id, source_attachment_id, storage_key, status::text
-         FROM attachments WHERE process_id = $1 ORDER BY target_type`,
+         FROM attachments WHERE process_id = $1 ORDER BY target_type::text DESC`,
       [created.id],
     );
     const storageOf = (id: string) =>
@@ -368,6 +368,8 @@ describe('Feature: Duplicar processo sobre PostgreSQL (US-011)', () => {
     const events = await db.admin<Row>(
       `SELECT event_type, status::text FROM outbox_events
         WHERE aggregate_id IN ($1, $2, $3) AND event_type IN ('ProcessCreated', 'ProcessDuplicated', 'DocumentCreated')
+          -- a origem também nasce pelo PRC-02: o ProcessCreated dela não é efeito da duplicação.
+          AND NOT (aggregate_id = $2 AND event_type = 'ProcessCreated')
         ORDER BY event_type`,
       [created.id, source.id, copyId],
     );

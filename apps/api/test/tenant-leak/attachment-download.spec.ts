@@ -22,6 +22,8 @@ import { PrismaIdentityRepository } from '#modules/identity/infrastructure/prism
 import { MEMBERSHIP_PORT, TOKEN_VERIFIER } from '#shared/auth/ports.js';
 import type { MembershipPort, MembershipRecord } from '#shared/auth/ports.js';
 import type { TenantPrismaClient } from '#shared/database/prisma-client.js';
+import { InMemoryObjectStorage } from '#shared/storage/in-memory-object-storage.js';
+import { OBJECT_STORAGE } from '#shared/storage/storage.service.js';
 
 import { CATALOG_CLOCK } from '../../src/modules/catalog/application/catalog-ports.js';
 import { PROCESS_CLOCK } from '../../src/modules/process/application/ports.js';
@@ -35,7 +37,7 @@ import {
 } from '../support/api-test-app.js';
 import type { TestApi } from '../support/api-test-app.js';
 import { openStageForAnyType } from '../support/document-fixtures.js';
-import { runTenantSeeders } from '../support/process-fixtures.js';
+import { PROCESS_PREREQUISITE_SEEDERS, runTenantSeeders } from '../support/process-fixtures.js';
 
 const A = '0192c069-0000-7000-8000-00000000010a';
 const B = '0192c069-0000-7000-8000-00000000010b';
@@ -214,6 +216,8 @@ describe('Feature: Visualizar e baixar anexos sobre PostgreSQL (US-069)', () => 
       config,
       providers: [
         { token: MEMBERSHIP_PORT, value: membership },
+        // Sem S3 configurado o ATT-05 responde 503: a assinatura vem do armazenamento em memória.
+        { token: OBJECT_STORAGE, value: new InMemoryObjectStorage() },
         { token: PROCESS_CLOCK, value: () => NOW },
         { token: CATALOG_CLOCK, value: () => NOW },
         {
@@ -228,8 +232,10 @@ describe('Feature: Visualizar e baixar anexos sobre PostgreSQL (US-069)', () => 
       ],
     });
     membership.inner = api.app.get(PrismaIdentityRepository);
-    await runTenantSeeders(api, A);
-    await runTenantSeeders(api, B);
+    // US-110: criar documento exige o modelo publicado do tipo (biblioteca do provisionamento).
+    const seeders = [...PROCESS_PREREQUISITE_SEEDERS, 'document.templateLibrary'];
+    await runTenantSeeders(api, A, seeders);
+    await runTenantSeeders(api, B, seeders);
     openStages = openStageForAnyType(api);
     const [type] = await db.admin<{ id: string }>(
       "SELECT id FROM document_types WHERE tenant_id = $1 AND code = 'DESPACHO'",
@@ -290,8 +296,11 @@ describe('Feature: Visualizar e baixar anexos sobre PostgreSQL (US-069)', () => 
     ]) {
       const response = await call(url, asBeto);
       expect(response.status, `${url} ${JSON.stringify(response.body)}`).toBe(404);
-      expect(JSON.stringify(response.body)).not.toContain('LEAK-A');
-      expect(JSON.stringify(response.body)).not.toContain(id);
+      // `instance` ecoa o caminho pedido (o ID que o próprio B enviou); o resto não traz nada de A.
+      const { instance, ...rest } = response.body as { instance?: string };
+      expect(instance).toBe(`/api/v1${url}`);
+      expect(JSON.stringify(rest)).not.toContain('LEAK-A');
+      expect(JSON.stringify(rest)).not.toContain(id);
     }
     expect(await downloadAudits(id)).toBe(0);
 

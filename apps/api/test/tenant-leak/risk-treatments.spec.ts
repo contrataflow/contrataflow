@@ -326,6 +326,10 @@ describe('Feature: Gerenciar ações de tratamento sobre PostgreSQL (US-034)', (
   it('[Concorrência] edição com If-Match desatualizado: 412 VERSION_CONFLICT com currentVersion, sem alterar', async () => {
     const { process, risk } = await createRisk();
     const treatment = ((await create(risk.id)).body as { data: RiskTreatmentDto }).data;
+    // Sem responsável: Ana e Carla têm custódia pela fila de Manutenção (POL-02 vem antes do If-Match).
+    await db.admin('UPDATE processes SET current_responsible_id = NULL WHERE id = $1', [
+      process.id,
+    ]);
     expect((await patch(treatment.id, { notes: 'Ana primeiro' }, '"1"')).status).toBe(200);
     const stale = await patch(treatment.id, { notes: 'Carla depois' }, '"1"', SUBJECTS.carla);
     expect(stale.status).toBe(412);

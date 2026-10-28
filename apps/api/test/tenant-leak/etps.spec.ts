@@ -266,8 +266,11 @@ describe('Feature: Criar ETP sobre PostgreSQL (US-019)', () => {
       [processId],
     ),
     timeline: await db.admin<Row>(
-      `SELECT count(*)::int AS count FROM process_timeline_entries
-        WHERE process_id = $1 AND type::text = 'DOCUMENT_CREATED'`,
+      // Só a do ETP: o DFD do arranjo (DFD-02) também gera o seu DOCUMENT_CREATED.
+      `SELECT count(*)::int AS count FROM process_timeline_entries t
+         JOIN documents d ON d.id = t.entity_id
+         JOIN document_types dt ON dt.id = d.document_type_id
+        WHERE t.process_id = $1 AND t.type::text = 'DOCUMENT_CREATED' AND dt.code = 'ETP'`,
       [processId],
     ),
     audit: await db.admin<Row>(
