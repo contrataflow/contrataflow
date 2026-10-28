@@ -1,11 +1,12 @@
-# Tela de login do Authentik no tema do ContrataFlow (US-087 · SCR-001 · Lacunas 7 e 8 · DEC-130).
-# Fluxo de autenticação próprio na moldura de prototype/entrar.html: formulário à direita
-# (`sidebar_right`), painel institucional como imagem de fundo decorativa servida pelo web
-# (`/auth-theme/*`), e-mail e senha na mesma etapa, "mostrar senha" e "Lembrar de mim" (lembra só
-# o e-mail neste dispositivo; não prolonga a sessão — DEC-131). A sessão do próprio Authentik dura
-# no máximo o teto absoluto da plataforma (RN-IAM-32). O segundo fator reaproveita a etapa padrão
-# de MFA (política da US-090). "Esqueci minha senha" no formulário leva ao fluxo de recuperação
-# do blueprint 12 (US-089). Idempotente por `identifiers`; nenhum segredo neste arquivo.
+# Fluxo de autenticação do ContrataFlow no Authentik (US-087 · US-090 · DEC-130 · DEC-187).
+# Desde o login nativo (DEC-187) o formulário é o `/entrar` do app: o BFF conduz este *flow* pela
+# API do executor (`/api/v3/flows/executor/contrataflow-authentication/`), sem o navegador ver o
+# IdP. As telas do Authentik só aparecem no *step-up* e na recuperação de senha, com o tema claro
+# (fundo limpo `/auth-theme/login-background.svg`, sem texto). Etapas: e-mail ou usuário e senha
+# na mesma etapa, negação por reputação (5 senhas erradas → bloqueio temporário), o segundo fator
+# padrão quando o usuário tem dispositivo (política da US-090) e o login (12 h no máximo; o BFF
+# encerra a sessão do IdP logo depois de trocar o código). "Esqueci minha senha" leva ao fluxo de
+# recuperação do blueprint 12 (US-089). Idempotente por `identifiers`; nenhum segredo aqui.
 version: 1
 metadata:
   name: 'ContrataFlow — tela de login'
@@ -56,6 +57,27 @@ entries:
       # "Esqueci minha senha" no formulário (SCR-001 → SCR-002 · US-089).
       recovery_flow: !Find [authentik_flows.flow, [slug, contrataflow-recovery]]
 
+  # Bloqueio por tentativas (DEC-187 · login nativo): cada senha errada baixa em 1 a reputação do
+  # usuário; com 5 erros (-5) o *flow* passa a negar o acesso — mesmo com a senha certa — até a
+  # reputação expirar (`AUTHENTIK_REPUTATION__EXPIRY`, 24 h por padrão) ou um administrador
+  # limpá-la (Admin → Reputation scores). Só por usuário: no login nativo todas as tentativas
+  # chegam do IP do BFF. O BFF mostra "acesso bloqueado temporariamente" (`LOCKED`).
+  - model: authentik_policies_reputation.reputationpolicy
+    id: lockout-policy
+    identifiers:
+      name: contrataflow-login-lockout
+    attrs:
+      check_ip: false
+      check_username: true
+      threshold: -5
+
+  - model: authentik_stages_deny.denystage
+    id: locked
+    identifiers:
+      name: contrataflow-login-locked
+    attrs:
+      deny_message: 'Acesso bloqueado temporariamente após tentativas inválidas.'
+
   - model: authentik_stages_user_login.userloginstage
     id: login
     identifiers:
@@ -80,6 +102,21 @@ entries:
       target: !KeyOf flow
       stage: !KeyOf identification
       order: 10
+  # Negação por reputação: avaliada depois da identificação, com o usuário já conhecido.
+  - model: authentik_flows.flowstagebinding
+    id: locked-binding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf locked
+      order: 20
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf lockout-policy
+      target: !KeyOf locked-binding
+      order: 0
   - model: authentik_flows.flowstagebinding
     identifiers:
       target: !KeyOf flow
@@ -107,19 +144,33 @@ entries:
       flow_authentication: !KeyOf flow
       # Recuperação da marca: também é o fluxo dos links de recuperação gerados pela API do IdP.
       flow_recovery: !Find [authentik_flows.flow, [slug, contrataflow-recovery]]
+      # Tema claro do sistema de design v2 (DEC-186). Desde o login nativo (DEC-187) o IdP só
+      # aparece na recuperação de senha e no *step-up*: fundo limpo, sem texto, e sem o rodapé
+      # "Powered by authentik".
       branding_custom_css: |
-        /* Tema do ContrataFlow (SCR-001 · prototype/entrar.html · paleta oficial — DEC-185). */
+        /* Tema do ContrataFlow (SCR-002 · sistema de design v2 — DEC-185/DEC-186). */
         :root {
           --pf-global--FontFamily--sans-serif: Inter, 'Segoe UI', Roboto, Arial, sans-serif;
-          --pf-global--primary-color--100: #141E2B;
-          --pf-global--primary-color--200: #0B1118;
+          --pf-global--primary-color--100: #005BF9;
+          --pf-global--primary-color--200: #004BE3;
           --pf-global--link--Color: #004BE3;
           --pf-global--link--Color--hover: #141E2B;
-          --ak-accent: #141E2B;
+          --pf-global--BackgroundColor--100: #FFFFFF;
+          --ak-accent: #005BF9;
+        }
+        .pf-c-login__main {
+          background-color: #FFFFFF;
+          border: 1px solid #E2E8F0;
+          border-radius: 0.875rem;
+          box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+        }
+        .pf-c-title {
+          color: #141E2B;
+          font-weight: 800;
         }
         .pf-c-button.pf-m-primary {
-          background-color: #141E2B;
-          border-radius: 0.5rem;
+          background-color: #005BF9;
+          border-radius: 0.625rem;
           font-weight: 600;
           min-height: 3rem;
         }
@@ -127,6 +178,10 @@ entries:
           background-color: #004BE3;
         }
         .pf-c-form-control {
-          border-radius: 0.5rem;
+          border-radius: 0.625rem;
           min-height: 3rem;
+        }
+        /* Sem o combinador de filho: o Authentik escapa o caractere ao embutir o CSS e a regra cai. */
+        ak-brand-links .pf-c-list li:last-child {
+          display: none;
         }
