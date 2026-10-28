@@ -140,12 +140,12 @@ flowchart LR
     OBS["Backend de observabilidade<br/>Grafana/Loki/Tempo/Prometheus<br/>ou gerenciado"]
 
     BR -->|"HTTPS, cookie __Host-cf_session"| WAF --> WEB
-    BR -->|"HTTPS, login OIDC"| WAF --> AK
+    BR -->|"HTTPS, recuperação de senha e step-up"| WAF --> AK
     BR -->|"PUT/GET URL pré-assinada"| S3
     WEB -->|"HTTP interno, Bearer + X-Tenant-Id"| API
     WEB -->|"sessões"| RDS
     WEB -->|"rate limit"| RD
-    WEB -->|"token, refresh, revogação"| AK
+    WEB -->|"login nativo (executor de fluxos), token, refresh, revogação"| AK
     API --> PG
     API --> RD
     API -->|"pré-assinatura"| S3
@@ -165,7 +165,7 @@ flowchart LR
 
 | Contêiner | Tecnologia | Responsabilidade | Exposição | Escala |
 |---|---|---|---|---|
-| `apps/web` | Next.js (App Router), React | UI (Server e Client Components) e **BFF**: login OIDC, sessão, proteção CSRF, proxy autenticado para a API (DEC-053). | Pública via ALB (`app.<domínio>`†). | Horizontal, *stateless* (sessão no Redis). |
+| `apps/web` | Next.js (App Router), React | UI (Server e Client Components) e **BFF**: login nativo conduzido no Authentik pelo executor de fluxos (DEC-187), sessão, proteção CSRF, proxy autenticado para a API (DEC-053). | Pública via ALB (`app.<domínio>`†). | Horizontal, *stateless* (sessão no Redis). |
 | `apps/api` | NestJS, Prisma | Casos de uso, autorização, persistência, auditoria, outbox. | **Somente rede privada** no MVP 1 (DEC-053). | Horizontal, *stateless*. |
 | `apps/worker` | NestJS standalone, BullMQ | Consumidores de filas, jobs agendados, relay do outbox (DEC-052). | Nenhuma porta pública. | Horizontal por grupo de filas (§9). |
 | PostgreSQL | PostgreSQL 17 (mín. 16) | Fonte da verdade; RLS por tenant; FTS; outbox. | Rede de dados privada. | Vertical + réplica de leitura futura. |
@@ -974,7 +974,8 @@ export const envSchema = z.object({
 | `API_INTERNAL_URL` | ✔ | | | URL privada da API (Cloud Map / service connect) |
 | `OIDC_ISSUER_URL` | ✔ | ✔ | | Issuer do provider Authentik (`…/application/o/<slug>/`) |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | ✔ | | | Cliente confidencial do BFF (DEC-130) — segredo |
-| `OIDC_REDIRECT_URI`, `OIDC_POST_LOGOUT_REDIRECT_URI` | ✔ | | | Callback e retorno de logout |
+| `OIDC_REDIRECT_URI` | ✔ | | | Callback do código (login nativo e step-up). `OIDC_POST_LOGOUT_REDIRECT_URI` ficou obsoleta (DEC-187) |
+| `OIDC_LOGIN_FLOW_SLUG`, `OIDC_INVALIDATION_FLOW_SLUG`, `OIDC_RECOVERY_FLOW_SLUG` | ✔ | | | *Flows* do Authentik: autenticação conduzida pelo login nativo (`contrataflow-authentication`), encerramento da sessão do IdP depois do login (`default-invalidation-flow`) e recuperação de senha (`contrataflow-recovery`) — DEC-187/US-089 |
 | `OIDC_AUDIENCE`, `OIDC_CLOCK_TOLERANCE_SECONDS` | | ✔ | | Validação do JWT (DEC-132) |
 | `OIDC_SCOPES`, `AUTH_RATE_LIMIT_PER_MIN` | ✔ | | | Escopos pedidos ao Authentik (`openid profile email offline_access`) e limite por IP de `/api/auth/login|callback|step-up` (20 — RN-IAM-15) — US-087 |
 | `OIDC_FAKE_SIGNING_KEY` | ✔ | ✔ | | Modo de identidade fake, só `local`/`dev`/`test` (recusado nos demais): na API, `FakeJwksProvider` HS256 + diretório em memória; no BFF, provedor e diretório fake (US-086 FA-06). Ausente (padrão): JWKS do Authentik e tabelas reais (US-087) |

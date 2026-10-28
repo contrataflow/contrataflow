@@ -122,6 +122,12 @@ minúsculas e `-` no lugar de `_` — por exemplo `requisitante.a` (Ana Ribeiro,
 do Authentik são só informativos: perfis e vínculos por tenant ficam no banco (o Authentik
 autentica, o ContrataFlow autoriza).
 
+Para entrar, abra `http://localhost:3000/entrar` e use `<perfil>.<a|b>` (ou o e-mail) com
+`CF_DEV_USER_PASSWORD`: a tela é do próprio app e o BFF conduz o _flow_ do Authentik por trás
+(DEC-187). Cinco senhas erradas bloqueiam o usuário pela reputação do Authentik — para liberar,
+apague a pontuação em Admin → Reputation scores. Sem Authentik (`OIDC_FAKE_SIGNING_KEY`), as pessoas
+do diretório fake (`ana`, `lucia`…) entram com a senha `senha-fake`; `lucia` pede o código `123456`.
+
 Os dados do seed ficam no schema provisório `dev_seed` do banco `contrataflow` (DEC-065), com RLS e
 o papel `dev_seed_reader` para testar isolamento. Desde a US-087, `tenants`, `users` (com o `sub` do
 Authentik) e `tenant_memberships` também são espelhados nas tabelas reais — no fim do `env:seed` e

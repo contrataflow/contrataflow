@@ -201,6 +201,10 @@ Nenhuma tabela nova nem transação de domínio: a rota do BFF é um redireciona
 - [ ] Logs sem dados sensíveis (e-mail, senha, token); acessibilidade (axe) do link em SCR-001
 - [ ] Revisão de segurança aprovada; documentação (este card) atualizada
 
+## Como funciona (revisão de 2026-10-28 · DEC-187)
+- "Esqueci minha senha" fica no formulário nativo de `/entrar` e continua indo a `GET /api/auth/forgot-password` → *flow* de recuperação no Authentik (esta leva não traz recuperação nativa). As telas do Authentik usam o tema claro do sistema de design v2 e um fundo sem texto (`apps/web/public/auth-theme/login-background.svg`) — nada mais "cortado" pelo cartão do IdP.
+- Na volta (`/entrar?motivo=senha-redefinida`), o aviso aparece acima do formulário e a entrada nativa leva ao destino guardado quando a recuperação começou (FA-05). O cookie do destino guardado é apagado no login concluído.
+
 ## Estimativa
 **S** — fluxo majoritariamente delegado ao Authentik; o ContrataFlow só adiciona um link e uma rota de redirecionamento sem estado.
 

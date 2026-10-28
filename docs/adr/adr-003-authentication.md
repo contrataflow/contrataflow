@@ -5,7 +5,7 @@
 | **Status** | Aceito |
 | **Data** | 2026-10-06 |
 | **Decisores** | Arquitetura/Tech Lead · Segurança · Produto |
-| **Decisões relacionadas** | DEC-012, DEC-053, DEC-130, DEC-131, DEC-132, DEC-133, DEC-135, DEC-138, DEC-139 |
+| **Decisões relacionadas** | DEC-012, DEC-053, DEC-130, DEC-131, DEC-132, DEC-133, DEC-135, DEC-138, DEC-139, DEC-187 (adendo de 2026-10-28: login nativo) |
 | **Documentos** | [authentication.md](../architecture/authentication.md) · [security.md](../architecture/security.md) · [entities.md — `User`, `TenantMembership`](../mvp-01/entities.md) · [api.md §3.1](../mvp-01/api.md) |
 
 ## Contexto
@@ -87,9 +87,19 @@ sequenceDiagram
 - Incidente de disponibilidade recorrente do Authentik ou do Redis de sessões → reavaliar a topologia de HA ou um IdP alternativo.
 - Volume de tenants/usuários que torne o custo operacional do Authentik maior que um IdP gerenciado equivalente → reavaliar Auth0/Cognito.
 
+## Adendo de 2026-10-28 — login nativo pelo executor de fluxos (DEC-187)
+
+Revisão pedida pelo usuário na repaginação do frontend (prd-4, spec-509), ciente da ressalva de que o formulário de senha deixa de ser hospedado pelo IdP.
+
+- **O que muda:** a tela de usuário e senha (e a do código de MFA) é do ContrataFlow (`/entrar`). O BFF conduz, no servidor, o *flow* de autenticação do Authentik pela API do executor de fluxos (`/api/v3/flows/executor/contrataflow-authentication/`), com um jar de cookies só daquela transação; com a sessão do IdP aberta no jar, pede o `authorize` (Authorization Code + PKCE, como antes), lê o código do redirecionamento sem segui-lo, troca o código e, em seguida, encerra a sessão do IdP pelo *flow* de invalidação. O navegador nunca vê o IdP no login. O refresh token sobrevive ao fim da sessão do IdP (Authentik 2026.8 — `RefreshToken.session` com `SET_DEFAULT`).
+- **O que não muda:** o Authentik continua o IdP e a fonte das políticas — senha, bloqueio por tentativas (política de reputação no *flow*), MFA, recuperação de senha (ainda nas telas do Authentik, com o tema claro) e a futura federação. Tokens continuam só no servidor; a API continua validando JWT pelo JWKS.
+- **Logout:** encerra a sessão do BFF e revoga o refresh token, sem levar o navegador ao `end-session` — que, no Authentik 2026.8, recusa `post_logout_redirect_uri` sem `id_token_hint` (o "Bad Request" de 2026-10-28) e a DEC-070 proíbe o token na URL.
+- **Controles do BFF:** CSRF de DEC-135 na submissão, limite por IP (20/min) e por usuário (10 a cada 15 min), mensagens genéricas (RN-IAM-18), transação de MFA cifrada no Redis de sessões (5 min, 5 códigos), nenhuma senha em log e trilha `auth.login_failed`/`auth.login_succeeded`/`auth.mfa_required`.
+- **Riscos novos:** a API do executor muda entre versões do Authentik (mitigação: cliente isolado em `apps/web/src/bff/auth/authentik-flow.ts`, testes com respostas gravadas da 2026.8.3 e smoke contra o Authentik do Docker); a senha passa pelo BFF (só em memória, por TLS, nunca registrada); etapas que o login nativo não conduz (WebAuthn, cadastro de MFA, captcha, consentimento explícito) viram "serviço indisponível" com log claro até ganharem tela própria. O *step-up* (US-090) segue pelo navegador no Authentik nesta leva.
+
 ## Referências
 
-- DEC-012, DEC-053, DEC-130, DEC-131, DEC-132, DEC-133, DEC-135, DEC-138, DEC-139 — [decisions.md](../architecture/decisions.md).
+- DEC-012, DEC-053, DEC-130, DEC-131, DEC-132, DEC-133, DEC-135, DEC-138, DEC-139, DEC-187 — [decisions.md](../architecture/decisions.md).
 - [authentication.md](../architecture/authentication.md) (especificação completa de fluxos, sessão e rotas do BFF).
 - [security.md](../architecture/security.md) §3 (autenticação), §4 (MFA), §7 (CORS/CSRF), §8 (cabeçalhos), §22 (suporte da plataforma).
 - [entities.md](../mvp-01/entities.md) (`User`, `TenantMembership`), [api.md](../mvp-01/api.md) §3.1 (rotas do BFF).

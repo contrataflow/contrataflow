@@ -16,7 +16,7 @@ Derivados no código (regenerar a partir daqui quando a marca mudar):
 - `apps/web/src/app/icon.svg` — favicon vetorial (a faixa navy clareia em aba escura);
 - `apps/web/src/app/apple-icon.png` — 180×180, ícone sobre branco com margem (Pillow, a partir de
   `contrataflow-icone.png`);
-- `apps/web/public/auth-theme/contrataflow-logo.svg` e `login-background.svg` — tema do Authentik.
+- `apps/web/public/auth-theme/contrataflow-logo.svg` e `login-background.svg` — tema do Authentik (recuperação de senha e step-up; o login é nativo desde a DEC-187). O fundo é claro e só decorativo, **sem texto**: o cartão do IdP pode cobrir qualquer parte dele.
 
 ## Paleta
 

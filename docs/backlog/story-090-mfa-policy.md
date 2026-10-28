@@ -228,6 +228,12 @@ Feature: Política de MFA por tenant com step-up
 - [ ] Acessibilidade (axe) do diálogo e do aviso de step-up
 - [ ] Revisão de código e de segurança aprovadas
 
+## Como funciona (revisão de 2026-10-28 · DEC-187)
+- **Login com segundo fator:** o formulário nativo (`/entrar`) envia usuário e senha a `POST /api/auth/login`; o BFF conduz o *flow* do Authentik pelo executor e, quando o usuário tem dispositivo de código (TOTP, estático, e-mail ou SMS), responde `{ step: 'mfa', transaction, methods }`. A tela mostra "Confirme sua identidade" e o código de 6 dígitos; a transação fica no Redis de sessões (cifrada, 5 min, 5 códigos). Código errado → `MFA_INVALID`; prazo ou tentativas esgotados → `MFA_EXPIRED` (volta à senha). A sessão nasce com `amr` contendo o fator, como antes.
+- **Limites:** WebAuthn/Duo e o cadastro de MFA dentro do login ainda não têm tela nativa (viram "serviço indisponível" com log); códigos errados contam para o bloqueio por reputação do *flow* (5 erros).
+- **Step-up:** continua pelo navegador no Authentik nesta leva (`GET /api/auth/step-up`, `max_age=0`); sem sessão, cai na tela nativa com o destino.
+- **Código:** `apps/web/src/bff/auth/authentik-flow.ts`, `apps/web/src/bff/auth/login-challenge.ts`, `apps/web/src/features/auth/login-form.tsx`.
+
 ## Estimativa
 **M** — estende o pipeline de autorização (US-097) com verificação de `amr`, orquestra o *step-up* preservando a ação original e integra com a API administrativa do Authentik, sem novas tabelas.
 

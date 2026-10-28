@@ -287,6 +287,11 @@ Feature: Logout, expiração e renovação de sessão
 - [ ] Diálogos acessíveis (axe, teclado, leitor de tela) e responsivos
 - [ ] Revisão de código e de segurança aprovadas
 
+## Como funciona (revisão de 2026-10-28 · DEC-187)
+- **Logout:** "Sair" faz `POST /api/auth/logout` (CSRF de DEC-135); o BFF revoga o refresh token no Authentik (melhor esforço, 2 s), encerra a sessão (`LOGOUT`, tokens apagados) e responde `{ data: { logoutUrl: '/entrar?motivo=saiu' } }`. O navegador **não** passa mais pelo `end-session` do Authentik: o login nativo já encerra a sessão do IdP logo depois de trocar o código, e o Authentik 2026.8 recusava o `end-session` com `post_logout_redirect_uri` sem `id_token_hint` (o "Bad Request" visto em 2026-10-28). Authentik fora do ar: o logout local se conclui do mesmo jeito e o BFF registra `warn auth.revocation_unavailable`; `saiu-parcial` deixou de existir.
+- **Expiração:** o "Entrar novamente" leva a `/api/auth/login?reauth=1`, que agora é só um atalho para `/entrar?motivo=sessao-expirada&returnTo=…` — o login nativo sempre pede a senha, então a reautenticação (RN-IAM-32) vale sem `prompt=login`.
+- **Código:** `apps/web/src/bff/auth-handler.ts` (`logout`, `loginEntry`).
+
 ## Estimativa
 **M** — lógica concentrada no BFF (renovação concorrente, ociosidade, logout completo), um consumidor e um job no worker e componentes globais de interface; reutiliza a sessão da US-087.
 

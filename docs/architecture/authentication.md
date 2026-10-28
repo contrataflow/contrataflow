@@ -58,6 +58,8 @@ flowchart LR
 
 ## 3. Login OIDC (Authorization Code com PKCE)
 
+> **Desde 2026-10-28 (DEC-187 · adendo da ADR-003): login nativo.** A tela de usuário e senha é o `/entrar` do app e `POST /api/auth/login` conduz o *flow* `contrataflow-authentication` pela API do executor do Authentik, no servidor (jar de cookies por transação; etapa de código quando há MFA; transação no Redis de sessões por 5 min). Com a sessão do IdP no jar, o BFF chama o `authorize` abaixo (PKCE, mesmo cliente confidencial), lê o código do 302 sem segui-lo, troca o código e cria a sessão como no callback — depois encerra a sessão do IdP (`default-invalidation-flow`). O diagrama abaixo continua valendo para o *step-up* (US-090), único fluxo que ainda leva o navegador ao Authentik, e para o atalho `?as=` do provedor fake. Código: `apps/web/src/bff/auth/authentik-flow.ts`, `login-challenge.ts`, `password-login.ts`.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -176,7 +178,7 @@ Pipeline de guards fixo e global (as etapas 4 e 5 — permissão e política —
 
 ## 7. Logout e expiração
 
-- `POST /api/auth/logout` encerra a sessão local (revoga o refresh token, troca o registro no Redis pelo de encerramento e expira o cookie) **e** inicia o *RP-initiated logout* no Authentik (DEC-131 · detalhes em §4.1): o navegador é redirecionado ao *end-session* do IdP, encerrando também a sessão global do Authentik na mesma operação — logout local e global não são rotas separadas. Exigido por `POST` para que logout forçado por terceiros não seja possível (security.md §7).
+- `POST /api/auth/logout` encerra a sessão local (revoga o refresh token, troca o registro no Redis pelo de encerramento e expira o cookie) e devolve `/entrar?motivo=saiu` (DEC-131 · detalhes em §4.1). **Desde a DEC-187 o navegador não passa mais pelo *end-session* do Authentik:** o login nativo já encerra a sessão do IdP logo depois da troca do código, e o Authentik 2026.8 recusa `post_logout_redirect_uri` sem `id_token_hint` (o "Bad Request" de 2026-10-28). Authentik fora do ar: o logout local se conclui (`warn auth.revocation_unavailable`).
 - **Encerramento por mudança de vínculo:** ao consumir `MembershipSuspended`, `MembershipRevoked` ou `MembershipExpired`, o worker encerra apenas as sessões cujo `activeTenantId` é o do evento, gravando `auth.session_end` com o motivo correspondente; sessões em outras instituições continuam. O efeito de acesso é imediato porque a API revalida o vínculo em toda requisição (DEC-132); o consumidor é idempotente por `eventId` (RN-IAM-27).
 - **Auditoria:** `auth.session_end` para `LOGOUT`, `SESSION_LIMIT` e encerramentos por vínculo; `auth.session_expired` para `IDLE`, `ABSOLUTE` e `REFRESH_FAILED` (RN-IAM-28, ver §4).
 - Logout explícito com rascunho não sincronizado exige confirmação; ao sair, o shell limpa o cache de consultas (TanStack Query), os rascunhos locais do usuário e o `sessionStorage` (RN-IAM-31).
@@ -262,10 +264,11 @@ Não fazem parte da API NestJS; implementadas em `apps/web/src/app/api/auth/[act
 
 | Rota | Método | Descrição | Story |
 |---|---|---|---|
-| `/api/auth/login` | GET | Inicia o Authorization Code + PKCE; aceita `returnTo` | US-087 |
-| `/api/auth/callback` | GET | Recebe o retorno do Authentik, troca `code` por tokens e cria a sessão | US-087 |
+| `/api/auth/login` | POST | Login nativo (DEC-187): `{ username, password, returnTo? }` ou `{ transaction, code }` → `{ step: 'done', redirectTo }`, `{ step: 'mfa', transaction, methods }` ou `INVALID_CREDENTIALS`/`LOCKED`/`MFA_INVALID`/`MFA_EXPIRED`/`IDP_UNAVAILABLE`/`RATE_LIMITED` | US-087 / US-090 |
+| `/api/auth/login` | GET | Atalho para `/entrar` (preserva `returnTo`; `reauth=1` → `motivo=sessao-expirada`); com o provedor fake, `?as=<pessoa>` entra direto | US-087 |
+| `/api/auth/callback` | GET | Recebe o retorno do Authentik (step-up e atalho fake), troca `code` por tokens e cria a sessão | US-087 |
 | `/api/auth/session` | GET | Consulta a sessão atual; suporta modo *keepalive* sem renovar ociosidade | US-087 / US-088 |
-| `/api/auth/logout` | POST | Encerra a sessão local e inicia o *RP-initiated logout* no Authentik | US-088 |
+| `/api/auth/logout` | POST | Encerra a sessão local e revoga o refresh token (sem *end-session* — DEC-187) | US-088 |
 | `/api/auth/switch-tenant` | POST | Troca a instituição ativa da sessão | US-093 |
 | `/api/auth/step-up` | GET | Força reautenticação de MFA sem exigir novo login completo | US-090 |
 | `/api/auth/forgot-password` | GET | Redireciona (302) ao *flow* de recuperação de senha do Authentik | US-089 |
