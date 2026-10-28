@@ -517,7 +517,9 @@ describe('padrão de persistência (PostgreSQL real)', () => {
         await second.end();
       }
       // Banco só com as migrações (sem as tabelas de exemplo deste teste): o schema Prisma e as
-      // migrações não divergem.
+      // migrações não divergem em tabelas, colunas e tipos — o que o cliente usa. O SQL bruto das
+      // migrações (RN-FND-47) cria o que o Prisma não expressa: FKs compostas por tenant, índices
+      // parciais/trigram/FTS e a coluna gerada `search_vector`, que o diff lista sem que sejam drift.
       const diff = await runPrisma(
         [
           'migrate',
@@ -525,11 +527,23 @@ describe('padrão de persistência (PostgreSQL real)', () => {
           '--from-config-datasource',
           '--to-schema',
           'prisma/schema.prisma',
-          '--exit-code',
+          '--script',
         ],
         url,
       );
-      expect(diff.stdout).toContain('No difference detected');
+      const statements = diff.stdout
+        .split(';')
+        .map((statement) => statement.replace(/^\s*--.*$/gm, '').trim())
+        .filter((statement) => statement !== '');
+      const RAW_SQL_ONLY = [
+        /^ALTER TABLE "\w+" DROP CONSTRAINT "\w+_fkey"$/,
+        /^ALTER TABLE "\w+" ADD CONSTRAINT "\w+_fkey" FOREIGN KEY [\s\S]*$/,
+        /^(CREATE( UNIQUE)?|DROP) INDEX "\w+"( ON [\s\S]*)?$/,
+        /^ALTER TABLE "processes" ALTER COLUMN "search_vector" DROP DEFAULT$/,
+      ];
+      expect(
+        statements.filter((statement) => !RAW_SQL_ONLY.some((pattern) => pattern.test(statement))),
+      ).toEqual([]);
     });
   });
 });
