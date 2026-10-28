@@ -169,7 +169,7 @@ describe('Feature: Editar seções do ETP sobre PostgreSQL (US-020)', () => {
     db.admin<Row>(
       `SELECT metadata->>'sectionKey' AS section_key, metadata->>'state' AS state
          FROM audit_logs WHERE entity_id = $1 AND action = 'document.draft_update'
-        ORDER BY created_at, id`,
+        ORDER BY occurred_at, id`,
       [documentId],
     );
   const catalogId = async (tenantId: string, type: string, code: string) => {

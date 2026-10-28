@@ -299,7 +299,7 @@ describe('Feature: Gerenciar alternativas de solução sobre PostgreSQL (US-021)
     ]);
     const audits = await db.admin<{ action: string }>(
       `SELECT action FROM audit_logs WHERE entity_id = ANY($1::uuid[])
-          AND action LIKE 'etp.alternative_%' ORDER BY created_at, id`,
+          AND action LIKE 'etp.alternative_%' ORDER BY occurred_at, id`,
       [[first.id, second.id]],
     );
     expect(audits.map((row) => row.action)).toEqual([

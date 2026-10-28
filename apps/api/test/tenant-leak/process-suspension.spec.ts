@@ -234,7 +234,7 @@ describe('Feature: Suspender e retomar processo sobre PostgreSQL (US-008)', () =
     ),
     events: await db.admin<Row>(
       `SELECT event_type, routing_key, status::text FROM outbox_events
-        WHERE process_id = $1 AND event_type <> 'ProcessCreated' ORDER BY created_at, routing_key`,
+        WHERE process_id = $1 AND event_type <> 'ProcessCreated' ORDER BY occurred_at, routing_key`,
       [id],
     ),
   });
