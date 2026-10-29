@@ -28,7 +28,11 @@
   },
   "dependencies": {
     "@contrataflow/types": "workspace:*",
-    "radix-ui": "catalog:"
+    "cmdk": "catalog:",
+    "date-fns": "catalog:",
+    "lucide-react": "catalog:",
+    "radix-ui": "catalog:",
+    "react-day-picker": "catalog:"
   },
   "devDependencies": {
     "@contrataflow/eslint-config": "workspace:*",

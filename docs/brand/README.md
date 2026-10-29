@@ -41,7 +41,7 @@ referência visual dos cards seguintes: [`mockups/repaginacao-2026-10/`](mockups
 
 | Papel | Token | Hex | Uso |
 |---|---|---|---|
-| Fundo da página | `background` | `#F4F6FA` | ground das telas |
+| Fundo da página | `background` | `#F7F8FA` | ground das telas (era `#F4F6FA` até a 2ª leva) |
 | Superfície | `surface` | `#FFFFFF` | cartões, tabelas, menus |
 | Borda | `border` / `border-strong` | `#E2E8F0` / `#CBD5E1` | divisores e cartões / campos e botões secundários |
 | Texto | `foreground` | `#0F172A` | corpo |
@@ -58,7 +58,8 @@ referência visual dos cards seguintes: [`mockups/repaginacao-2026-10/`](mockups
 
 Tipografia Inter: `text-page-title` 28/800, `text-section-title` 16/700, corpo `text-sm` 14/400,
 `text-label` 12/600 caixa alta, `text-kpi` 34/800. Grade de 8 px, raio `rounded-control` 10 px e
-`rounded-card` 14 px, sombra `shadow-card` quase nula, foco visível de 3 px, alvos de 44 px
+`rounded-card` 14 px, sombra `shadow-card` (contorno de 1 px + elevação mínima: cartões sem borda
+desde a 2ª leva), foco visível de 3 px, alvos de 44 px
 (`Button` `md` e `icon`).
 
 ### Componentes (`packages/ui`)
@@ -71,6 +72,45 @@ além dos existentes. Tons semânticos: `info`, `success`, `warning`, `danger`, 
 `role="img"` com descrição completa): a cor nunca é a única informação. Cada componente tem
 história no Storybook (`pnpm --filter @contrataflow/ui storybook`, com seletor de tema) e passa no
 axe do CI.
+
+### Kit de componentes da 2ª leva (prd-5 · DEC-188)
+
+Padrão **shadcn/ui sobre Radix** (o pacote `radix-ui` já presente) e ícones **Lucide**, para as
+telas deixarem de usar controles nativos (`<select>`, checkbox, `type="date"`, radio):
+
+- **Formulário:** `Field` (rótulo + ajuda + erro; liga `id`, `aria-describedby`, `aria-invalid` e
+  `aria-required` ao controle de dentro; `group` vira `fieldset`/`legend`), `Label`, `Input` (com
+  `icon`), `Textarea` (cresce com o texto), `Select`, `Combobox` (busca + "nenhum resultado"),
+  `Checkbox` (com estado misto), `RadioGroup`, `Switch`, `Calendar`, `DatePicker` e
+  `DateRangePicker` (pt-BR, `dd/MM/aaaa`; `toIsoDate`/`fromIsoDate` para o `aaaa-MM-dd` da API).
+- **Sobreposição:** `Popover`, `Tooltip` e `InfoTooltip` (ajuda em ícone — regra 7), `Sheet`
+  (painel lateral, `size="wide"`; `SheetHeader`/`SheetBody`/`SheetFooter`, só o corpo rola),
+  `CommandDialog` (paleta Ctrl K) e `Command*`.
+- **Navegação e estrutura:** `Tabs` (Radix; `ViewTabs` usa por baixo), `Breadcrumb` (usado pelo
+  `PageHeader`), `StageProgress` (etapas como pontos ligados, detalhe só na atual), `Separator`,
+  `Progress`, `Collapsible` ("Ver mais") e `Accordion`.
+- **Listas:** `FilterToolbar` — busca inline, botão "Filtros" com contador (popover fechado por
+  padrão), ordenação e chips do que está ativo.
+- **Ajustes:** `Button` com `iconLeft`/`iconRight` e variante `link`; `Card`, `TableContainer` e
+  `Dialog` sem borda (sombra); `StatusChip` com `icon`; `EmptyState` com ícone Lucide (`Inbox` por
+  padrão, `icon={null}` para nenhum).
+
+Como usar: tudo sai de `@contrataflow/ui`, inclusive os ícones (`import { Plus } from
+'@contrataflow/ui'`) — o app nunca importa `lucide-react` direto; ícone novo entra em
+`packages/ui/src/icons.ts`. Textos padrão dos componentes estão em pt-BR (`*_LABELS`) e podem ser
+trocados pela prop `labels` com as mensagens do app. Quem copiar um trecho do shadcn encontra as
+variáveis que ele espera (`--background`, `--primary`, `--radius`… e as utilitárias `bg-popover`,
+`bg-accent`, `border-input`) como apelidos dos tokens do design system. **Só a página rola**
+(regra 8): abas, etapas, chips e barras quebram linha; rolagem interna só em `TableContainer`, corpo
+de Dialog/Sheet, listas de Select/Command e blocos de código.
+
+Peso (esbuild, minificado + gzip, sem React/Radix): os 23 ícones do shell ≈ 3,8 KB; `Select` +
+`Input` + `Field` + `Checkbox` ≈ 3,2 KB; `Combobox` + `CommandDialog` (cmdk) ≈ 8 KB;
+`DatePicker` + `DateRangePicker` (react-day-picker + date-fns pt-BR) ≈ 27 KB — nas telas, carregar
+o seletor de data com `next/dynamic` quando ele não aparece de cara.
+
+Capturas das histórias do kit (Storybook estático, 720 px): `screenshots/kit-2026-10/kit-claro.png`
+e `kit-escuro.png`.
 
 ### Capturas da primeira leva (2026-10)
 
@@ -98,6 +138,11 @@ varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA se
   tema) e `--color-sidebar` / `-foreground` / `-muted` / `-accent` (barra lateral: branca no claro,
   `#0B1118` no escuro; `-accent` é o foco visível). O item ativo do menu usa `primary-soft` com
   indicador de 3 px na `primary`.
+- Apelidos do shadcn/ui (2ª leva): `--background`, `--foreground`, `--card`, `--popover`,
+  `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`,
+  `--ring` e `--radius` (+ `-foreground`) no `:root`, apontando para os `--color-*`; resolvem no
+  tema do `:root` — o tema por tenant (num elemento interno) vale para os `--color-*`, que são o
+  que os componentes do kit usam. `--shadow-popover` é a sombra de popovers, menus e diálogos.
 - Semânticos (`background`, `foreground`, `surface`, `muted`, `border`, `ring`, `primary`…) derivam
   da paleta; todo par texto/fundo tem contraste ≥ 4,5:1 nos dois temas, e os ícones dos toasts ≥ 3:1
   (`packages/ui/src/lib/tokens-contrast.test.ts`). Os nomes do v1 seguem definidos (aliases) até a

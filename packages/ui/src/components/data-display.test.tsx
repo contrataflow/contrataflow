@@ -216,7 +216,9 @@ describe('cartões, cabeçalho e chips', () => {
       />,
     );
     const trail = screen.getByRole('navigation', { name: 'Trilha' });
-    expect(trail.textContent).toBe('Painel/Processos');
+    // O separador é um ícone decorativo (›), fora do texto lido.
+    expect(trail.textContent).toBe('PainelProcessos');
+    expect(trail.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Painel' }).getAttribute('href')).toBe('/painel');
     expect(screen.getByText('Processos', { selector: '[aria-current="page"]' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1, name: 'Processos' })).toBeTruthy();

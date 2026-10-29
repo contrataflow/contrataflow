@@ -4,7 +4,7 @@ import { buttonClassName } from './button-class.js';
 
 describe('buttonClassName', () => {
   // O axe do E2E reprovou o "Salvar" sob o cursor: `hover:opacity-90` levava o primário a 4,1:1.
-  it.each(['primary', 'secondary', 'ghost', 'destructive'] as const)(
+  it.each(['primary', 'secondary', 'ghost', 'destructive', 'link'] as const)(
     'o hover de %s não esmaece nem muda o brilho do par texto/fundo',
     (variant) => {
       const hoverClasses = buttonClassName({ variant })
@@ -22,6 +22,13 @@ describe('buttonClassName', () => {
       expect(classes.some((name) => name.includes('opacity'))).toBe(false);
     },
   );
+
+  it('link fica no fluxo do texto: sem altura mínima nem respiro lateral', () => {
+    const classes = buttonClassName({ variant: 'link' }).split(' ');
+    expect(classes).toContain('text-primary');
+    expect(classes).not.toContain('min-h-11');
+    expect(classes).toContain('p-0');
+  });
 
   it('alvo de toque de 44 px no tamanho padrão e no ícone (prd-4)', () => {
     expect(buttonClassName().split(' ')).toContain('min-h-11');

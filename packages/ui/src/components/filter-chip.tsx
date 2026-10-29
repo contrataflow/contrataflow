@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 
+import { X } from '../icons.js';
 import { cx } from '../lib/cx.js';
 
 export interface FilterChipProps {
@@ -29,17 +30,7 @@ export function FilterChip({ children, onRemove, removeLabel, className }: Filte
         onClick={onRemove}
         className="grid size-6 place-items-center rounded-full hover:bg-primary-soft-foreground/10"
       >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          className="size-3.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
+        <X className="size-3.5" strokeWidth={2.5} />
       </button>
     </span>
   );

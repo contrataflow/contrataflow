@@ -14,7 +14,8 @@ export interface CardProps extends Omit<ComponentPropsWithoutRef<'section'>, 'ti
 }
 
 /**
- * Cartão do design system v2: superfície branca, borda fina, raio de 14 px e sombra quase nula.
+ * Cartão do design system (prd-5 · regra 4): superfície branca sem borda, raio de 14 px e a sombra
+ * `shadow-card` (contorno de 1 px + elevação mínima). Nunca um cartão dentro de outro.
  * Com `title`, ganha cabeçalho com título de seção (16/700) e ação opcional à direita.
  */
 export function Card({
@@ -28,7 +29,7 @@ export function Card({
   ...props
 }: CardProps) {
   const classes = cx(
-    'flex flex-col gap-4 rounded-card border border-border bg-surface p-5 text-foreground shadow-card',
+    'flex flex-col gap-4 rounded-card bg-surface p-5 text-foreground shadow-card',
     className,
   );
   if (title === undefined) {

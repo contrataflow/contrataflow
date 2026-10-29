@@ -49,6 +49,9 @@
 | Front-end | `@tanstack/react-query` · `@tanstack/react-table` | 5.104.1 · 8.21.3 | web — cache por tenant (US-086); Table reservado |
 | Front-end | `react-hook-form` · `@hookform/resolvers` · `next-intl` | 7.89.0 · 5.9.1 · 4.14.9 | web — formulários com `zodResolver` e i18n pt-BR (US-086) |
 | Front-end | `radix-ui` | 1.7.0 | ui — primitives acessíveis do shadcn/ui (pacote unificado; US-086) |
+| Front-end | `lucide-react` | 1.61.0 | ui — ícones do design system (prd-5 · DEC-188), reexportados por `packages/ui/src/icons.ts`; ISC, sem dependências. 1.62/1.63 ainda dentro do `minimumReleaseAge` |
+| Front-end | `cmdk` | 1.1.1 | ui — `Command`/`CommandDialog` (paleta Ctrl K) e `Combobox` (prd-5 · DEC-188); MIT, usa os `@radix-ui/*` que já vinham no lockfile |
+| Front-end | `react-day-picker` · `date-fns` | 10.0.2 · 4.4.0 | ui — `Calendar`, `DatePicker` e `DateRangePicker` em pt-BR (prd-5 · DEC-188); MIT. A linha 10 tira os calendários persa/hijri das dependências da 9.x; `date-fns` direto para formatar e converter `aaaa-MM-dd` |
 | Front-end | `server-only` | 0.0.1 | web — `src/bff/**` nunca vai ao bundle do cliente (RN-FND-88) |
 | Front-end | `storybook` · `@storybook/react-vite` · `@storybook/addon-a11y` | 10.6.1 | ui — histórias por componente com axe (RN-FND-91) |
 | Front-end | `@tiptap/core` · `@tiptap/pm` · `@tiptap/starter-kit` | 3.31.4 | reservado — editor rico (DEC-056) |

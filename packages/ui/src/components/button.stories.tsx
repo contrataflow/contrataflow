@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
+import { ChevronDown, Plus } from '../icons.js';
 import { Button } from './button.js';
 
 const meta = {
@@ -23,4 +24,17 @@ export const Disabled: Story = { args: { disabled: true, children: 'Indisponíve
 
 export const AsLink: Story = {
   args: { asChild: true, variant: 'secondary', children: <a href="#processos">Ver processos</a> },
+};
+
+export const Link: Story = { args: { variant: 'link', children: 'Ver todas as tarefas' } };
+
+export const WithIcons: Story = {
+  args: {
+    iconLeft: <Plus />,
+    children: 'Novo processo',
+  },
+};
+
+export const WithTrailingIcon: Story = {
+  args: { variant: 'secondary', iconRight: <ChevronDown />, children: 'Mais' },
 };

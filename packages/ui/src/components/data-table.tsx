@@ -15,7 +15,10 @@ export interface TableContainerProps extends ComponentPropsWithoutRef<'div'> {
   readonly footer?: ReactNode;
 }
 
-/** Caixa da tabela: borda, raio e rolagem horizontal dentro dela em telas estreitas. */
+/**
+ * Caixa da tabela: cartão sem borda e a única rolagem horizontal permitida (prd-5 · regra 8), dentro
+ * dela, em telas estreitas.
+ */
 export function TableContainer({
   label,
   footer,
@@ -25,10 +28,7 @@ export function TableContainer({
 }: TableContainerProps) {
   return (
     <div
-      className={cx(
-        'overflow-hidden rounded-card border border-border bg-surface shadow-card',
-        className,
-      )}
+      className={cx('overflow-hidden rounded-card bg-surface shadow-card', className)}
       {...props}
     >
       {/* Região rolável focável: WCAG 2.1.1 (axe `scrollable-region-focusable`). O `relative` ancora

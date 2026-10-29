@@ -31,7 +31,7 @@
   --text-kpi--letter-spacing: -0.03em;
   --text-kpi--font-weight: 800;
 
-  --color-background: #f4f6fa;
+  --color-background: #f7f8fa;
   --color-foreground: #0f172a;
   --color-surface: #ffffff;
   --color-muted: #f1f5f9;
@@ -106,11 +106,59 @@
   --color-neutral-soft: #f1f5f9;
   --color-neutral-soft-foreground: #334155;
 
-  /* Grade de 8 px; raio de 10 a 14 px; sombras quase nulas, bordas finas. */
+  /*
+   * Grade de 8 px; raio de 10 a 14 px. Cartões sem borda (prd-5 · regra 4): a sombra desenha o
+   * contorno de 1 px e a elevação mínima sobre o fundo `#f7f8fa`.
+   */
   --radius-control: 0.625rem;
   --radius-card: 0.875rem;
 
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --shadow-popover: 0 8px 24px -4px rgb(15 23 42 / 0.12), 0 0 0 1px rgb(15 23 42 / 0.06);
+}
+
+/*
+ * Variáveis do padrão shadcn/ui (prd-5 · kit de componentes), como apelidos dos tokens acima: um
+ * trecho copiado do shadcn (`var(--primary)`, `bg-popover`, `border-input`) usa as mesmas cores do
+ * design system. Ficam só no `:root`: o valor de cada apelido é resolvido no próprio `:root`, onde
+ * os blocos de tema (`data-theme` claro, escuro e `system`) já trocaram os `--color-*`. Os
+ * componentes do kit usam os nomes `--color-*` diretamente, então o tema por tenant (que troca
+ * `--color-primary` num elemento interno) vale para eles; os apelidos seguem o tema do `:root`.
+ */
+:root {
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-foreground);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-foreground);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-primary-foreground);
+  --secondary: var(--color-muted);
+  --secondary-foreground: var(--color-foreground);
+  --muted: var(--color-muted);
+  --muted-foreground: var(--color-muted-foreground);
+  --accent: var(--color-muted);
+  --accent-foreground: var(--color-foreground);
+  --destructive: var(--color-destructive);
+  --destructive-foreground: var(--color-destructive-foreground);
+  --border: var(--color-border);
+  --input: var(--color-border-strong);
+  --ring: var(--color-ring);
+  --radius: var(--radius-card);
+}
+
+/* Utilitárias com os nomes do shadcn que não existiam no design system (`bg-popover`…). */
+@theme inline {
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-foreground);
+  --color-secondary: var(--color-muted);
+  --color-secondary-foreground: var(--color-foreground);
+  --color-accent: var(--color-muted);
+  --color-accent-foreground: var(--color-foreground);
+  --color-input: var(--color-border-strong);
 }
 
 /*
@@ -163,7 +211,8 @@
   --color-neutral: #64748b;
   --color-neutral-soft: #1f2a38;
   --color-neutral-soft-foreground: #cbd5e1;
-  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -210,7 +259,8 @@
     --color-neutral: #64748b;
     --color-neutral-soft: #1f2a38;
     --color-neutral-soft-foreground: #cbd5e1;
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 0 0 1px rgb(255 255 255 / 0.06);
+    --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.08);
   }
 }
 

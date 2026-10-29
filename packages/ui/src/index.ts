@@ -71,6 +71,112 @@ export type { HeaderMergeResult, HeaderMergeRules, HeaderValues } from './autosa
 export { diffParagraphs } from './autosave/text-diff.js';
 export type { TextDiffPart } from './autosave/text-diff.js';
 export type { AlertProps, AlertTone } from './components/alert.js';
+export {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from './components/accordion.js';
+export type { AccordionTriggerProps } from './components/accordion.js';
+export { Breadcrumb } from './components/breadcrumb.js';
+export type { BreadcrumbProps } from './components/breadcrumb.js';
+export { Calendar } from './components/calendar.js';
+export type { CalendarProps } from './components/calendar.js';
+export { Checkbox } from './components/checkbox.js';
+export { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/collapsible.js';
+export type { CollapsibleTriggerProps } from './components/collapsible.js';
+export { COMBOBOX_LABELS, Combobox } from './components/combobox.js';
+export type { ComboboxLabels, ComboboxOption, ComboboxProps } from './components/combobox.js';
+export {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from './components/command.js';
+export type { CommandDialogProps } from './components/command.js';
+export {
+  DATE_PICKER_LABELS,
+  DATE_RANGE_PICKER_LABELS,
+  DatePicker,
+  DateRangePicker,
+  formatDisplayDate,
+  formatDisplayRange,
+  fromIsoDate,
+  toIsoDate,
+} from './components/date-picker.js';
+export type {
+  DatePickerLabels,
+  DatePickerProps,
+  DateRange,
+  DateRangePickerLabels,
+  DateRangePickerProps,
+} from './components/date-picker.js';
+export { Field, Label, fieldControlProps, useFieldControl } from './components/field.js';
+export type { FieldControlState, FieldProps } from './components/field.js';
+export { FILTER_TOOLBAR_LABELS, FilterToolbar } from './components/filter-toolbar.js';
+export type {
+  FilterToolbarChip,
+  FilterToolbarLabels,
+  FilterToolbarProps,
+  FilterToolbarSortOption,
+} from './components/filter-toolbar.js';
+export { Input, Textarea } from './components/input.js';
+export type { InputProps, TextareaProps } from './components/input.js';
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from './components/popover.js';
+export { Progress } from './components/progress.js';
+export type { ProgressProps } from './components/progress.js';
+export { RadioGroup, RadioGroupItem } from './components/radio-group.js';
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from './components/select.js';
+export { Separator } from './components/separator.js';
+export {
+  Sheet,
+  SheetBody,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from './components/sheet.js';
+export type { SheetContentProps } from './components/sheet.js';
+export { STAGE_PROGRESS_LABELS, StageProgress } from './components/stage-progress.js';
+export type {
+  StageProgressLabels,
+  StageProgressProps,
+  StageProgressStep,
+} from './components/stage-progress.js';
+export { Switch } from './components/switch.js';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs.js';
+export {
+  InfoTooltip,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './components/tooltip.js';
+export type { InfoTooltipProps } from './components/tooltip.js';
+export * from './icons.js';
 export { BrandLogo, BrandMark } from './components/brand-logo.js';
 export type {
   BrandLogoProps,
@@ -134,7 +240,6 @@ export {
   DialogFooter,
   DialogTitle,
   DialogTrigger,
-  SheetContent,
 } from './components/dialog.js';
 export type { DialogContentProps } from './components/dialog.js';
 export {

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Caixa de tarefas · ContrataFlow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Inter,'Segoe UI',system-ui,sans-serif;color:#0F172A;background:#F7F8FA}
+a{color:#004BE3}a:hover{color:#141E2B}
+table{border-collapse:collapse;width:100%;min-width:960px}
+th{font-size:12px;font-weight:600;color:#5B6B80;text-transform:uppercase;letter-spacing:0.06em;text-align:left;padding:10px 16px;border-bottom:1px solid #EEF1F5;white-space:nowrap}
+td{font-size:14px;padding:14px 16px;border-bottom:1px solid #F1F4F8;vertical-align:middle}
+tr:hover td{background:#F8FAFC}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh;background:#F7F8FA">
+
+  <nav aria-label="Navegação principal" style="flex:0 0 240px;background:#FFFFFF;border-right:1px solid #EEF1F5;display:flex;flex-direction:column;gap:20px;padding:20px 12px;box-sizing:border-box">
+    <a href="Painel.dc.html" style="display:flex;align-items:center;gap:10px;padding:4px 10px;text-decoration:none">
+      <svg width="30" height="30" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 10 L22 4 L32 10 L18 16 Z" fill="#6B9EFF"></path><path d="M8 10 L18 16 L18 34 L8 28 Z" fill="#005BF9"></path><path d="M18 16 L32 10 L32 28 L18 34 Z" fill="#2563EB"></path></svg>
+      <span style="font-weight:800;font-size:19px;letter-spacing:-0.02em;color:#141E2B">Contrata<span style="color:#005BF9">Flow</span></span>
+    </a>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="5">
+        <a href="{{ item.href }}" style="display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:10px;text-decoration:none;font-size:14px;background:{{ item.bg }};color:{{ item.color }};font-weight:{{ item.weight }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ item.d }}"></path></svg>
+          <span style="flex:1">{{ item.label }}</span>
+          <sc-if value="{{ item.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:{{ item.badgeBg }};color:{{ item.badgeFg }};font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">{{ item.badge }}</span></sc-if>
+        </a>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#5B6B80;padding:4px 12px 6px">Governança</span>
+      <sc-for list="{{ navGov }}" as="item" hint-placeholder-count="2">
+        <a href="#" style="display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:10px;text-decoration:none;font-size:14px;color:#334155;font-weight:500">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ item.d }}"></path></svg>
+          <span style="flex:1">{{ item.label }}</span>
+        </a>
+      </sc-for>
+    </div>
+    <a href="#" style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;text-decoration:none;font-size:13px;font-weight:500;color:#334155"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"></path></svg>Ajuda e suporte</a>
+  </nav>
+
+  <div style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column">
+    <header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 32px;background:#FFFFFF;border-bottom:1px solid #EEF1F5">
+      <label style="flex:1 1 300px;max-width:520px;position:relative;display:flex;align-items:center">
+        <span style="position:absolute;left:12px;display:flex;color:#5B6B80"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></span>
+        <input type="search" placeholder="Buscar em tudo" aria-label="Buscar" style="height:40px;width:100%;padding:0 64px 0 38px;border:1px solid #E5E9F0;border-radius:10px;font-size:14px;font-family:inherit;background:#F7F8FA;box-sizing:border-box;color:#0F172A">
+        <kbd style="position:absolute;right:10px;font-size:11px;color:#5B6B80;border:1px solid #E5E9F0;border-radius:6px;padding:2px 6px;background:#FFFFFF;font-family:inherit">Ctrl K</kbd>
+      </label>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <a href="#" style="height:40px;padding:0 16px;border-radius:10px;background:#005BF9;color:#FFFFFF;font-size:14px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Novo processo</a>
+        <button type="button" style="height:40px;padding:0 12px;border:1px solid #E5E9F0;border-radius:10px;background:#FFFFFF;font-size:14px;font-weight:500;font-family:inherit;color:#141E2B;display:inline-flex;align-items:center;gap:8px;cursor:pointer">Prefeitura A<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button type="button" aria-label="Notificações" style="width:40px;height:40px;border:1px solid #E5E9F0;border-radius:10px;background:#FFFFFF;color:#334155;display:inline-flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg></button>
+        <button type="button" aria-label="Menu de Ana Ribeiro" style="width:40px;height:40px;border:0;border-radius:999px;background:#005BF9;color:#FFFFFF;font-size:13px;font-weight:700;cursor:pointer">AR</button>
+      </div>
+    </header>
+
+    <main style="padding:28px 32px 40px;display:flex;flex-direction:column;gap:20px;max-width:1280px;width:100%;box-sizing:border-box">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-0.02em;color:#141E2B">Caixa de tarefas</h1>
+          <p style="margin:0;font-size:14px;color:#5B6B80">Os processos que exigem sua atenção, em um só lugar.</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" style="height:40px;padding:0 12px;border:1px solid #E5E9F0;border-radius:10px;background:#FFFFFF;font-size:13px;font-weight:500;font-family:inherit;color:#334155;display:inline-flex;align-items:center;gap:8px;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M7 12h10M10 18h4"></path></svg>Filtros</button>
+          <button type="button" style="height:40px;padding:0 12px;border:1px solid #E5E9F0;border-radius:10px;background:#FFFFFF;font-size:13px;font-weight:500;font-family:inherit;color:#334155;display:inline-flex;align-items:center;gap:8px;cursor:pointer">Prazo mais próximo<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Visões" style="display:flex;gap:2px;border-bottom:1px solid #E5E9F0;flex-wrap:wrap">
+        <sc-for list="{{ visoes }}" as="v" hint-placeholder-count="6">
+          <button type="button" role="tab" aria-selected="{{ v.selected }}" style="height:44px;padding:0 12px;border:0;background:transparent;font-size:14px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:8px;color:{{ v.color }};font-weight:{{ v.weight }};box-shadow:inset 0 -2px 0 {{ v.bar }}">{{ v.label }}<span style="font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:{{ v.countBg }};color:{{ v.countFg }}">{{ v.count }}</span></button>
+        </sc-for>
+      </div>
+
+      <div style="background:#FFFFFF;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,0.06), 0 0 0 1px rgba(15,23,42,0.04);overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" aria-label="Selecionar todos" style="width:16px;height:16px;accent-color:#005BF9;margin:0"></th>
+              <th>Processo</th><th>Etapa</th><th>Unidade atual</th><th>Responsável</th><th>Prazo</th><th style="width:44px"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Ações</span></th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="2">
+                <tr>
+                  <td><input type="checkbox" aria-label="Selecionar {{ r.number }}" style="width:16px;height:16px;accent-color:#005BF9;margin:0"></td>
+                  <td><div style="display:flex;flex-direction:column;gap:2px"><a href="Processo.dc.html" style="font-weight:700;color:#141E2B;text-decoration:none">{{ r.title }}</a><span style="font-size:12px;color:#5B6B80">{{ r.number }} · {{ r.type }}</span></div></td>
+                  <td style="color:#334155">{{ r.stage }}</td>
+                  <td style="color:#334155">{{ r.unit }}</td>
+                  <td><span style="display:inline-flex;align-items:center;gap:8px;color:#334155"><span style="width:26px;height:26px;border-radius:999px;background:#005BF9;color:#FFFFFF;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">AR</span>{{ r.owner }}</span></td>
+                  <td><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:{{ r.dueBg }};color:{{ r.dueFg }};white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>{{ r.due }}</span></td>
+                  <td><button type="button" aria-label="Ações de {{ r.number }}" style="width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5B6B80;cursor:pointer;display:inline-flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg></button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;font-size:13px;color:#5B6B80"><span>2 processos com você</span><a href="#" style="font-weight:600;color:#004BE3;text-decoration:none">Ver todos os processos →</a></div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const nav = (label, d, active, badge, badgeTone, href) => ({
+      label, d, href: href || '#', badge: badge || '', hasBadge: Boolean(badge),
+      badgeBg: badgeTone === 'danger' ? '#FEE2E2' : '#E8F0FF', badgeFg: badgeTone === 'danger' ? '#991B1B' : '#004BE3',
+      bg: active ? '#E8F0FF' : 'transparent', color: active ? '#004BE3' : '#334155', weight: active ? 700 : 500
+    });
+    const view = (label, count, selected, danger) => ({
+      label, count, selected: selected ? 'true' : 'false',
+      color: selected ? '#004BE3' : '#5B6B80', weight: selected ? 700 : 500, bar: selected ? '#005BF9' : 'transparent',
+      countBg: danger ? '#FEE2E2' : (selected ? '#E8F0FF' : '#F1F4F8'), countFg: danger ? '#991B1B' : (selected ? '#004BE3' : '#334155')
+    });
+    return {
+      navMain: [
+        nav('Painel', 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z', false, '', '', 'Painel.dc.html'),
+        nav('Caixa de tarefas', 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5.2 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.8A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.2z', true, '2', 'danger'),
+        nav('Aprovações', 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11', false, '', '', 'Aprovacoes.dc.html'),
+        nav('Processos', 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z', false, '', '', 'Processos.dc.html'),
+        nav('Fornecedores', 'M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM10 5h4v2h-4z', false)
+      ],
+      navGov: [
+        { label: 'Auditoria', d: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
+        { label: 'Administração', d: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z' }
+      ],
+      visoes: [view('Comigo', 2, true, false), view('Na fila da minha unidade', 0, false, false), view('Aprovações pendentes', 0, false, false), view('Devolvidos', 0, false, false), view('Atrasados', 2, false, true), view('Acompanhando', 1, false, false)],
+      rows: [
+        { number: '0002/2026', title: 'Teste', type: 'Dispensa eletrônica', stage: 'Formalização da demanda', unit: 'Setor de Manutenção', owner: 'Ana Ribeiro', due: 'Atrasado · 3 dias úteis', dueBg: '#FEE2E2', dueFg: '#991B1B' },
+        { number: '0001/2026', title: 'Aquisição de cimento para manutenção de vias', type: 'Pregão eletrônico', stage: 'Formalização da demanda', unit: 'Setor de Manutenção', owner: 'Ana Ribeiro', due: 'Atrasado · 3 dias úteis', dueBg: '#FEE2E2', dueFg: '#991B1B' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

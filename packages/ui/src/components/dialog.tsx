@@ -3,6 +3,7 @@
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import type { ComponentPropsWithRef } from 'react';
 
+import { X } from '../icons.js';
 import { cx } from '../lib/cx.js';
 
 /*
@@ -31,7 +32,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cx(
           'fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
-          'rounded-card border border-border bg-surface p-6 text-foreground shadow-lg',
+          'rounded-card bg-surface p-6 text-foreground shadow-popover',
           className,
         )}
         {...props}
@@ -42,60 +43,7 @@ export function DialogContent({
             className="absolute top-3 right-3 grid size-8 place-items-center rounded-control text-muted-foreground hover:bg-muted"
             aria-label={closeLabel}
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </DialogPrimitive.Portal>
-  );
-}
-
-/**
- * Painel lateral (Sheet) sobre o mesmo Radix Dialog: preso à direita em tela grande, em tela cheia
- * abaixo de 768 px; rolagem própria e rodapé fixo por conta de quem usa (`flex` em coluna).
- */
-export function SheetContent({
-  className,
-  children,
-  closeLabel = 'Fechar',
-  ...props
-}: DialogContentProps) {
-  return (
-    <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/45" />
-      <DialogPrimitive.Content
-        className={cx(
-          'fixed inset-0 z-50 flex flex-col bg-surface text-foreground shadow-lg',
-          'md:inset-y-0 md:right-0 md:left-auto md:w-full md:max-w-xl md:border-l md:border-border',
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {closeLabel === null ? null : (
-          <DialogPrimitive.Close
-            className="absolute top-3 right-3 grid size-8 place-items-center rounded-control text-muted-foreground hover:bg-muted"
-            aria-label={closeLabel}
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <X className="size-4" />
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>

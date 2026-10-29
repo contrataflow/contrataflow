@@ -5,7 +5,7 @@ import { cx } from './cx.js';
  * aparência de botão a links (`<Link className={buttonClassName()}>`).
  */
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'link';
 export type ButtonSize = 'sm' | 'md' | 'icon';
 
 // O hover troca o fundo por um token validado (`primary-hover`, `muted`) ou eleva o botão; nunca
@@ -16,6 +16,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   secondary: 'border border-border-strong bg-surface text-brand-ink hover:bg-muted',
   ghost: 'text-foreground hover:bg-muted',
   destructive: 'bg-destructive text-destructive-foreground hover:shadow-md',
+  link: 'text-primary underline-offset-4 hover:text-primary-hover hover:underline',
 };
 
 // Desabilitado em cinza neutro, sem depender de opacidade (prévia do sistema de design v2).
@@ -24,6 +25,7 @@ const DISABLED: Record<ButtonVariant, string> = {
   secondary: 'disabled:border-border aria-disabled:border-border',
   ghost: '',
   destructive: 'disabled:bg-muted aria-disabled:bg-muted',
+  link: 'disabled:no-underline',
 };
 
 // Alvo de toque de 44 px no tamanho padrão e no ícone (prd-4); `sm` (36 px) só em barras densas,
@@ -33,6 +35,9 @@ const SIZES: Record<ButtonSize, string> = {
   md: 'min-h-11 px-[1.125rem] text-sm',
   icon: 'size-11 p-0',
 };
+
+// O link vive no fluxo do texto: sem altura mínima nem respiro lateral (o alvo é a própria frase).
+const LINK_SIZE = 'p-0 text-sm';
 
 /** Classes do botão, reaproveitáveis por links com aparência de botão. */
 export function buttonClassName({
@@ -46,11 +51,12 @@ export function buttonClassName({
 } = {}): string {
   return cx(
     'inline-flex items-center justify-center gap-2 rounded-control font-semibold transition-colors',
+    '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4',
     'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:shadow-none',
     'aria-disabled:cursor-not-allowed aria-disabled:text-muted-foreground aria-disabled:shadow-none',
     VARIANTS[variant],
     DISABLED[variant],
-    SIZES[size],
+    variant === 'link' ? LINK_SIZE : SIZES[size],
     className,
   );
 }

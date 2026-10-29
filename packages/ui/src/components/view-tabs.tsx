@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import { Tabs as TabsPrimitive } from 'radix-ui';
+import type { ReactNode } from 'react';
 
 import { cx } from '../lib/cx.js';
 import { PlainLink } from '../lib/tones.js';
@@ -53,7 +53,8 @@ function Count({ value, active }: { readonly value: number; readonly active: boo
 
 /**
  * Visões salvas em abas com contador (prd-4 · padrão 6). Com `href`, é uma navegação por links;
- * sem, um `tablist` com seta esquerda/direita, Home e End (WAI-ARIA Tabs, ativação automática).
+ * sem, um `tablist` (Radix Tabs) com seta esquerda/direita, Home e End (WAI-ARIA Tabs, ativação
+ * automática). Quebra linha em vez de rolar (prd-5 · regra 8).
  */
 export function ViewTabs({
   tabs,
@@ -64,7 +65,6 @@ export function ViewTabs({
   linkComponent: Link = PlainLink,
   className,
 }: ViewTabsProps) {
-  const listRef = useRef<HTMLDivElement>(null);
   const container = cx('flex flex-wrap gap-1 border-b border-border', className);
 
   if (tabs.every((tab) => tab.href !== undefined)) {
@@ -89,51 +89,32 @@ export function ViewTabs({
     );
   }
 
-  function select(index: number) {
-    const tab = tabs[(index + tabs.length) % tabs.length];
-    if (!tab) return;
-    onValueChange?.(tab.id);
-    listRef.current?.querySelector<HTMLButtonElement>(`[data-tab-id="${tab.id}"]`)?.focus();
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const moves: Record<string, number> = {
-      ArrowRight: index + 1,
-      ArrowLeft: index - 1,
-      Home: 0,
-      End: tabs.length - 1,
-    };
-    const next = moves[event.key];
-    if (next === undefined) return;
-    event.preventDefault();
-    select(next);
-  }
-
+  // Sem URL: Radix Tabs por baixo (setas, Home/End, ativação automática, foco itinerante). Só a
+  // lista é renderizada; o painel fica com quem usa, ligado por `panelId`.
   return (
-    <div ref={listRef} role="tablist" aria-label={label} className={container}>
-      {tabs.map((tab, index) => {
-        const active = tab.id === value;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            data-tab-id={tab.id}
-            aria-selected={active}
-            aria-controls={panelId}
-            tabIndex={active ? 0 : -1}
-            onClick={() => onValueChange?.(tab.id)}
-            onKeyDown={(event) => {
-              onKeyDown(event, index);
-            }}
-            className={cx(TAB, active ? ACTIVE : IDLE)}
-          >
-            {tab.label}
-            {tab.count === undefined ? null : ' '}
-            {tab.count === undefined ? null : <Count value={tab.count} active={active} />}
-          </button>
-        );
-      })}
-    </div>
+    <TabsPrimitive.Root
+      value={value}
+      onValueChange={(id) => onValueChange?.(id)}
+      activationMode="automatic"
+    >
+      <TabsPrimitive.List aria-label={label} className={container}>
+        {tabs.map((tab) => {
+          const active = tab.id === value;
+          return (
+            <TabsPrimitive.Trigger
+              key={tab.id}
+              value={tab.id}
+              data-tab-id={tab.id}
+              aria-controls={panelId}
+              className={cx(TAB, active ? ACTIVE : IDLE)}
+            >
+              {tab.label}
+              {tab.count === undefined ? null : ' '}
+              {tab.count === undefined ? null : <Count value={tab.count} active={active} />}
+            </TabsPrimitive.Trigger>
+          );
+        })}
+      </TabsPrimitive.List>
+    </TabsPrimitive.Root>
   );
 }

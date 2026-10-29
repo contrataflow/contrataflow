@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 
+import { Inbox } from '../icons.js';
 import { cx } from '../lib/cx.js';
 
 export interface EmptyStateProps {
-  /** Ícone decorativo (SVG com `aria-hidden`). */
+  /** Ícone decorativo (Lucide, de `icons`); `Inbox` quando omitido, `null` para nenhum. */
   readonly icon?: ReactNode;
   readonly title: ReactNode;
   /** Por que está vazio e o que fazer. */
@@ -15,9 +16,11 @@ export interface EmptyStateProps {
   readonly className?: string | undefined;
 }
 
-/** Estado vazio (prd-4 · padrão 7): sempre explica e oferece a ação seguinte. */
+/**
+ * Estado vazio (prd-5 · regra 7): ícone, uma frase e a ação seguinte.
+ */
 export function EmptyState({
-  icon,
+  icon = <Inbox />,
   title,
   description,
   action,
