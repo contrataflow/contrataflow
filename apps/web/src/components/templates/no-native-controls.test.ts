@@ -13,20 +13,6 @@ const NATIVE_CONTROL = /<select\b|type="(checkbox|radio|date)"/;
  * zero no card 11 (varredura final); o teste reprova entrada que já não tem controle nativo.
  */
 const NOT_MIGRATED: Readonly<Record<string, string>> = {
-  // Card 5 — DFD, ETP e TR.
-  'dfd-duplicate/duplicate-dfd-dialog.tsx': 'card 5',
-  'dfd/dfd-conclusion-step.tsx': 'card 5',
-  'dfd/dfd-identification-step.tsx': 'card 5',
-  'dfd/dfd-planning-step.tsx': 'card 5',
-  'etp/create-etp-dialog.tsx': 'card 5',
-  'etp/etp-alternatives-section.tsx': 'card 5',
-  'etp/etp-conclusion-section.tsx': 'card 5',
-  'etp/etp-estimates-section.tsx': 'card 5',
-  'implementation-assistant/implementation-assistant.tsx': 'card 5',
-  'term/create-term-dialog.tsx': 'card 5',
-  'term/import-etp-panel.tsx': 'card 5',
-  'term/term-conditions-panel.tsx': 'card 5',
-  'term/term-items-panel.tsx': 'card 5',
   // Card 6 — pesquisa de preços, riscos, documentos, versões e anexos.
   'documents/acknowledge-warnings-dialog.tsx': 'card 6',
   'documents/ai-review.tsx': 'card 6',

@@ -4,11 +4,25 @@ import {
   Alert,
   AutosaveIndicator,
   Button,
+  Circle,
+  CircleCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   ConflictDialog,
   cx,
+  Field,
+  FormActionBar,
+  Minus,
   RecoveredDraftBanner,
   Skeleton,
+  Textarea,
+  Upload,
 } from '@contrataflow/ui';
+import type { IconComponent } from '@contrataflow/ui';
 import {
   etpSectionHasNarrative,
   richTextPlainText,
@@ -48,7 +62,6 @@ import { NotApplicableSummary, NotApplicableToggle } from '../etp/etp-editor';
 import { draftState, EMPTY_SECTION_DRAFT, sectionDraftOf } from '../etp/etp-editor-model';
 import type { EtpSectionDraft } from '../etp/etp-editor-model';
 import { useEtpAutosave } from '../etp/use-etp-autosave';
-import { TEXTAREA_CLASS } from '../processes/form-field';
 
 /*
  * `TermEditor` (SCR-012 · US-036): o TR seção por seção. Navegação lateral com o estado de cada
@@ -72,10 +85,10 @@ function timeOf(value: string | number, timeZone: string): string {
   );
 }
 
-const STATE_ICON: Readonly<Record<SectionState, string>> = {
-  EMPTY: '○',
-  FILLED: '●',
-  NOT_APPLICABLE: '⊘',
+const STATE_ICON: Readonly<Record<SectionState, IconComponent>> = {
+  EMPTY: Circle,
+  FILLED: CircleCheck,
+  NOT_APPLICABLE: Minus,
 };
 
 export function TermEditor({
@@ -229,10 +242,32 @@ export function TermEditorLoaded({
   const { conflict, recovered, blocked } = autosave;
   const conflictSection = sections.find((section) => section.key === conflict?.key);
 
+  const indicator = allowed ? (
+    <AutosaveIndicator
+      status={autosave.snapshot.status}
+      savedAt={autosave.snapshot.savedAt}
+      message={autosave.snapshot.message}
+      labels={{
+        dirty: t('autosave.indicator.dirty'),
+        saving: t('autosave.indicator.saving'),
+        saved: (time) => t('autosave.indicator.saved', { time }),
+        savedShort: t('autosave.indicator.savedShort'),
+        error: t('autosave.indicator.error'),
+        offline: t('autosave.indicator.offline'),
+        offlineShort: t('autosave.indicator.offlineShort'),
+        conflict: t('autosave.indicator.conflict'),
+        blocked: t('autosave.indicator.blocked'),
+      }}
+    />
+  ) : null;
+  const previous = nav[activeIndex - 1];
+  const next = nav[activeIndex + 1];
+
   return (
-    <section aria-labelledby="term-editor-title" className="flex min-w-0 flex-col gap-4">
+    <section aria-labelledby="term-editor-title" className="flex min-w-0 flex-col gap-5">
+      {/* Faixa compacta: título, situação e ações do documento (o salvamento fica na barra fixa). */}
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id="term-editor-title" className="text-lg font-semibold">
+        <h2 id="term-editor-title" className="text-section-title text-brand-ink">
           {t('heading')}
         </h2>
         {term.inApproval ? (
@@ -243,73 +278,50 @@ export function TermEditorLoaded({
             {t('inApproval')}
           </span>
         ) : null}
-        {allowed ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="ml-auto"
-            onClick={() => {
-              void autosave.flush();
-              setImporting(true);
-            }}
-          >
-            {t('import.action')}
-          </Button>
-        ) : null}
-        {/* US-120: rascunho do TR com IA (SCR-117) — aplicado pelo DOC-26, adotado pelo autosave. */}
-        <AiAssistant
-          processId={processId}
-          documentId={term.documentId}
-          targetModule="TERM_OF_REFERENCE"
-          editable={term.status === 'DRAFT' || term.status === 'RETURNED'}
-          initialGenerationId={aiGenerationId}
-          requestGuide={<TermAiRequestGuide term={term} />}
-          onApplied={(document) => {
-            const sections = document.draftContent.sections;
-            setStates((previous) => ({
-              ...previous,
-              ...Object.fromEntries(
-                Object.entries(sections).map(([key, section]) => [key, section.state]),
-              ),
-            }));
-            setSavedDrafts((previous) => ({
-              ...previous,
-              ...Object.fromEntries(
-                Object.entries(sections).map(([key, section]) => [key, sectionDraftOf(section)]),
-              ),
-            }));
-            setRecalculated(true);
-            void autosave.adoptSections(document);
-          }}
-        />
-        {allowed ? (
-          <AutosaveIndicator
-            status={autosave.snapshot.status}
-            savedAt={autosave.snapshot.savedAt}
-            message={autosave.snapshot.message}
-            labels={{
-              dirty: t('autosave.indicator.dirty'),
-              saving: t('autosave.indicator.saving'),
-              saved: (time) => t('autosave.indicator.saved', { time }),
-              savedShort: t('autosave.indicator.savedShort'),
-              error: t('autosave.indicator.error'),
-              offline: t('autosave.indicator.offline'),
-              offlineShort: t('autosave.indicator.offlineShort'),
-              conflict: t('autosave.indicator.conflict'),
-              blocked: t('autosave.indicator.blocked'),
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {allowed ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                void autosave.flush();
+                setImporting(true);
+              }}
+            >
+              <Upload className="size-4" />
+              {t('import.action')}
+            </Button>
+          ) : null}
+          {/* US-120: rascunho do TR com IA (SCR-117) — aplicado pelo DOC-26, adotado pelo autosave. */}
+          <AiAssistant
+            processId={processId}
+            documentId={term.documentId}
+            targetModule="TERM_OF_REFERENCE"
+            editable={term.status === 'DRAFT' || term.status === 'RETURNED'}
+            initialGenerationId={aiGenerationId}
+            requestGuide={<TermAiRequestGuide term={term} />}
+            onApplied={(document) => {
+              const sections = document.draftContent.sections;
+              setStates((previous) => ({
+                ...previous,
+                ...Object.fromEntries(
+                  Object.entries(sections).map(([key, section]) => [key, section.state]),
+                ),
+              }));
+              setSavedDrafts((previous) => ({
+                ...previous,
+                ...Object.fromEntries(
+                  Object.entries(sections).map(([key, section]) => [key, sectionDraftOf(section)]),
+                ),
+              }));
+              setRecalculated(true);
+              void autosave.adoptSections(document);
             }}
           />
-        ) : null}
+        </div>
       </div>
 
       <CompletenessBar completeness={completeness} />
-      {/* US-039: "Completude do TR" (DOC-08) — pendências bloqueantes e avisos de consistência. */}
-      <TermCompletionPanel
-        term={term}
-        sections={sections}
-        revision={savedDrafts}
-        onSelectSection={select}
-      />
 
       {readOnlyReason === null ? null : (
         <Alert tone="info" live={false} title={t('readOnly.title')}>
@@ -348,37 +360,66 @@ export function TermEditorLoaded({
         />
       ) : null}
 
-      <TermGeneralDataPanel processId={processId} term={term} editable={allowed} />
-      <TermItemsPanel processId={processId} term={term} editable={allowed} />
-      <TermConditionsPanel term={term} editable={allowed} />
+      {/* US-039: "O que falta" (DOC-08) — pendências bloqueantes e avisos de consistência. */}
+      <TermCompletionPanel
+        term={term}
+        sections={sections}
+        revision={savedDrafts}
+        onSelectSection={select}
+      />
 
-      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start">
+      <div className="flex min-w-0 flex-col gap-5 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-6">
         <TermSectionNav items={nav} activeKey={active?.key ?? ''} onSelect={select} />
-        {active === undefined ? null : (
-          <TermSectionPanel
-            key={active.key}
-            term={term}
-            section={active}
-            item={activeItem}
-            draft={drafts[active.key] ?? EMPTY_SECTION_DRAFT}
-            editable={editable}
-            previous={nav[activeIndex - 1]}
-            next={nav[activeIndex + 1]}
-            onSelect={select}
-            onChange={(draft) => {
-              change(active.key, draft);
-            }}
-            onCommit={(draft) => commit(active.key, draft)}
-            onBlur={() => {
-              if (editable) void autosave.flush();
-            }}
-            onAiChange={(aiChange) => {
-              setStates((previous) => ({ ...previous, [aiChange.key]: aiChange.state }));
-              void autosave.adopt(aiChange.key, aiChange);
-            }}
-          />
-        )}
+        <div className="flex min-w-0 flex-col gap-5">
+          <TermGeneralDataPanel processId={processId} term={term} editable={allowed} />
+          <TermItemsPanel processId={processId} term={term} editable={allowed} />
+          <TermConditionsPanel term={term} editable={allowed} />
+          {active === undefined ? null : (
+            <TermSectionPanel
+              key={active.key}
+              term={term}
+              section={active}
+              item={activeItem}
+              draft={drafts[active.key] ?? EMPTY_SECTION_DRAFT}
+              editable={editable}
+              onChange={(draft) => {
+                change(active.key, draft);
+              }}
+              onCommit={(draft) => commit(active.key, draft)}
+              onBlur={() => {
+                if (editable) void autosave.flush();
+              }}
+              onAiChange={(aiChange) => {
+                setStates((previous) => ({ ...previous, [aiChange.key]: aiChange.state }));
+                void autosave.adopt(aiChange.key, aiChange);
+              }}
+            />
+          )}
+        </div>
       </div>
+
+      <FormActionBar status={indicator} label={t('actionsLabel')}>
+        <Button
+          variant="secondary"
+          disabled={previous === undefined}
+          onClick={() => {
+            if (previous !== undefined) select(previous.key);
+          }}
+        >
+          <ChevronLeft className="size-4" />
+          {t('previous')}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={next === undefined}
+          onClick={() => {
+            if (next !== undefined) select(next.key);
+          }}
+        >
+          {t('next')}
+          <ChevronRight className="size-4" />
+        </Button>
+      </FormActionBar>
 
       {allowed ? (
         <ImportEtpPanel
@@ -467,7 +508,7 @@ function blockedKey(code: string) {
 function CompletenessBar({ completeness }: { readonly completeness: TermCompletenessDto }) {
   const t = useTranslations('term.editor.completeness');
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <p className="text-sm text-muted-foreground">
         {t('label')}:{' '}
         <span className="font-medium text-foreground" data-testid="term-completeness">
@@ -485,7 +526,7 @@ function CompletenessBar({ completeness }: { readonly completeness: TermComplete
         aria-valuemax={100}
         aria-valuenow={completeness.percent}
         aria-valuetext={t('progress', { percent: completeness.percent })}
-        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
       >
         <div className="h-full bg-primary" style={{ width: `${String(completeness.percent)}%` }} />
       </div>
@@ -510,6 +551,7 @@ export function TermSectionNav({
     <ol className="flex flex-col gap-1">
       {items.map((item, index) => {
         const current = item.key === activeKey;
+        const Icon = STATE_ICON[item.state];
         return (
           <li key={item.key}>
             <button
@@ -518,17 +560,22 @@ export function TermSectionNav({
               data-state={item.state}
               data-requirement={item.requirement}
               className={cx(
-                'flex w-full items-start gap-2 rounded-control px-2 py-1.5 text-left text-sm',
-                current ? 'bg-primary-soft font-medium text-primary' : 'hover:bg-muted',
+                'flex min-h-9 w-full items-start gap-2 rounded-control px-2 py-1.5 text-left text-sm',
+                current
+                  ? 'bg-primary-soft font-bold text-primary-soft-foreground'
+                  : 'hover:bg-muted',
               )}
               onClick={() => {
                 setOpen(false);
                 onSelect(item.key);
               }}
             >
-              <span aria-hidden="true" className="w-4 shrink-0 text-center">
-                {STATE_ICON[item.state]}
-              </span>
+              <Icon
+                className={cx(
+                  'mt-0.5 size-4 shrink-0',
+                  item.state === 'FILLED' ? 'text-success' : 'text-muted-foreground',
+                )}
+              />
               <span className="min-w-0 flex-1 break-words">
                 {index + 1}. {item.title}
                 <span className="sr-only">
@@ -548,7 +595,7 @@ export function TermSectionNav({
   );
   return (
     <>
-      <div className="md:hidden">
+      <div className="lg:hidden">
         <Button
           size="sm"
           variant="secondary"
@@ -559,14 +606,21 @@ export function TermSectionNav({
           }}
         >
           {t('sectionsMenu')}
+          <ChevronDown
+            className={cx('size-4 transition-transform', open ? 'rotate-180' : undefined)}
+          />
         </Button>
         {open ? (
-          <nav id="term-sections-menu" aria-label={t('sectionsNav')} className="mt-2">
+          <nav
+            id="term-sections-menu"
+            aria-label={t('sectionsNav')}
+            className="mt-2 rounded-card bg-surface p-3 shadow-card"
+          >
             {list}
           </nav>
         ) : null}
       </div>
-      <nav aria-label={t('sectionsNav')} className="hidden w-64 shrink-0 md:block">
+      <nav aria-label={t('sectionsNav')} className="hidden lg:sticky lg:top-24 lg:block">
         {list}
       </nav>
     </>
@@ -581,9 +635,6 @@ interface TermSectionPanelProps {
   readonly item: TermNavItem | undefined;
   readonly draft: EtpSectionDraft;
   readonly editable: boolean;
-  readonly previous: TermNavItem | undefined;
-  readonly next: TermNavItem | undefined;
-  readonly onSelect: (key: string) => void;
   readonly onChange: (draft: EtpSectionDraft) => void;
   readonly onCommit: (draft: EtpSectionDraft) => Promise<void>;
   readonly onBlur: () => void;
@@ -597,9 +648,6 @@ function TermSectionPanel({
   item,
   draft,
   editable,
-  previous,
-  next,
-  onSelect,
   onChange,
   onCommit,
   onBlur,
@@ -613,11 +661,11 @@ function TermSectionPanel({
   return (
     <article
       aria-labelledby={`${id}-title`}
-      className="flex min-w-0 flex-1 flex-col gap-3 rounded-control border border-border p-4"
+      className="flex min-w-0 flex-1 flex-col gap-4 rounded-card bg-surface p-6 shadow-card"
     >
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h3 id={`${id}-title`} className="text-base font-semibold break-words">
+          <h3 id={`${id}-title`} className="text-section-title break-words text-brand-ink">
             {section.title}
           </h3>
           <AiSectionMenu
@@ -631,7 +679,7 @@ function TermSectionPanel({
             onSectionChanged={onAiChange}
           />
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{t(`requirement.${section.requirement}`)}</span>
           <span>· {t(`state.${item?.state ?? 'EMPTY'}`)}</span>
           {section.legalBasis ? (
@@ -640,10 +688,12 @@ function TermSectionPanel({
         </div>
       </header>
       {section.helpText ? (
-        <details className="rounded-control border border-border p-3 text-sm">
-          <summary className="cursor-pointer font-medium">{t('help')}</summary>
-          <p className="mt-2 text-muted-foreground">{section.helpText}</p>
-        </details>
+        <Collapsible className="flex flex-col gap-2">
+          <CollapsibleTrigger>{t('help')}</CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="text-sm text-muted-foreground">{section.helpText}</p>
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
 
       {draft.notApplicable ? (
@@ -665,14 +715,15 @@ function TermSectionPanel({
             <p className="text-sm text-muted-foreground">{t(`structured.${structured}`)}</p>
           ) : null}
           {narrative ? (
-            <div className="flex flex-col gap-1">
-              <label htmlFor={textId} className="text-sm font-medium">
-                {t(structured === null ? 'textLabel' : 'narrativeLabel', { title: section.title })}
-              </label>
-              <textarea
-                id={textId}
-                aria-describedby={`${textId}-hint`}
-                className={`${TEXTAREA_CLASS} min-h-48`}
+            <Field
+              id={textId}
+              label={t(structured === null ? 'textLabel' : 'narrativeLabel', {
+                title: section.title,
+              })}
+              description={t('maxChars', { max: section.maxChars.toLocaleString('pt-BR') })}
+            >
+              <Textarea
+                className="min-h-48"
                 maxLength={section.maxChars}
                 value={draft.text}
                 readOnly={!editable}
@@ -681,10 +732,7 @@ function TermSectionPanel({
                 }}
                 onBlur={onBlur}
               />
-              <span id={`${textId}-hint`} className="text-xs text-muted-foreground">
-                {t('maxChars', { max: section.maxChars.toLocaleString('pt-BR') })}
-              </span>
-            </div>
+            </Field>
           ) : null}
           {editable && termSectionAllowsNotApplicable(section.requirement) ? (
             <NotApplicableToggle
@@ -698,29 +746,6 @@ function TermSectionPanel({
           ) : null}
         </>
       )}
-
-      <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={previous === undefined}
-          onClick={() => {
-            if (previous !== undefined) onSelect(previous.key);
-          }}
-        >
-          {t('previous')}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={next === undefined}
-          onClick={() => {
-            if (next !== undefined) onSelect(next.key);
-          }}
-        >
-          {t('next')}
-        </Button>
-      </div>
     </article>
   );
 }

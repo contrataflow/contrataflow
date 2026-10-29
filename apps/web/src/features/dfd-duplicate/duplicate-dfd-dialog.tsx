@@ -8,6 +8,12 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Search,
   Skeleton,
   buttonClassName,
   cx,
@@ -37,7 +43,6 @@ import {
 import type { DuplicateDfdValues, DuplicateProblem } from './duplicate-dfd-model';
 import { duplicateDfd, searchTargetProcesses } from './duplicate-dfd.api';
 import { dfdHref } from '../dfd/dfd.api';
-import { INPUT_CLASS } from '../processes/form-field';
 
 export interface DuplicateDfdDialogProps {
   /** DFD de origem: id, processo e código (para o toast). */
@@ -179,62 +184,52 @@ function DuplicateForm({
         onRetry={submit}
       />
 
-      <fieldset className="flex flex-col gap-3 rounded-control border border-border p-3">
-        <legend className="px-1 text-sm font-medium">{t('target')}</legend>
-        <div className="flex items-start gap-2 text-sm">
-          <input
-            id={`${ids}-new`}
-            type="radio"
-            name={`${ids}-target`}
-            className="mt-1"
-            checked={values.targetType === 'NEW_PROCESS'}
-            disabled={!canCreateProcess}
-            aria-describedby={`${ids}-new-hint`}
-            onChange={() => {
-              chooseType('NEW_PROCESS');
-            }}
-          />
-          <div className="flex flex-col gap-0.5">
-            <label htmlFor={`${ids}-new`} className="font-medium">
-              {t('newProcess')}
-            </label>
-            <span id={`${ids}-new-hint`} className="text-xs text-muted-foreground">
-              {canCreateProcess ? t('newProcessHint') : t('newProcessDenied')}
-            </span>
+      <Field label={t('target')} group>
+        <RadioGroup
+          value={values.targetType}
+          onValueChange={(value) => {
+            chooseType(value as DuplicateDfdValues['targetType']);
+          }}
+        >
+          <div className="flex items-start gap-2.5 text-sm">
+            <RadioGroupItem
+              id={`${ids}-new`}
+              value="NEW_PROCESS"
+              className="mt-0.5"
+              disabled={!canCreateProcess}
+              aria-describedby={`${ids}-new-hint`}
+            />
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor={`${ids}-new`}>{t('newProcess')}</Label>
+              <span id={`${ids}-new-hint`} className="text-xs text-muted-foreground">
+                {canCreateProcess ? t('newProcessHint') : t('newProcessDenied')}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-start gap-2 text-sm">
-          <input
-            id={`${ids}-existing`}
-            type="radio"
-            name={`${ids}-target`}
-            className="mt-1"
-            checked={existing}
-            aria-describedby={`${ids}-existing-hint`}
-            onChange={() => {
-              chooseType('EXISTING_PROCESS');
-            }}
-          />
-          <div className="flex flex-col gap-0.5">
-            <label htmlFor={`${ids}-existing`} className="font-medium">
-              {t('existingProcess')}
-            </label>
-            <span id={`${ids}-existing-hint`} className="text-xs text-muted-foreground">
-              {t('existingProcessHint')}
-            </span>
+          <div className="flex items-start gap-2.5 text-sm">
+            <RadioGroupItem
+              id={`${ids}-existing`}
+              value="EXISTING_PROCESS"
+              className="mt-0.5"
+              aria-describedby={`${ids}-existing-hint`}
+            />
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor={`${ids}-existing`}>{t('existingProcess')}</Label>
+              <span id={`${ids}-existing-hint`} className="text-xs text-muted-foreground">
+                {t('existingProcessHint')}
+              </span>
+            </div>
           </div>
-        </div>
-      </fieldset>
+        </RadioGroup>
+      </Field>
 
       {existing ? (
         <div className="flex flex-col gap-2">
-          <label htmlFor={`${ids}-search`} className="text-sm font-medium">
-            {t('search')}
-          </label>
-          <input
+          <Label htmlFor={`${ids}-search`}>{t('search')}</Label>
+          <Input
             id={`${ids}-search`}
             type="search"
-            className={INPUT_CLASS}
+            icon={<Search />}
             value={search}
             aria-describedby={`${ids}-search-hint`}
             aria-invalid={needsTarget ? true : undefined}
@@ -290,7 +285,9 @@ function DuplicateForm({
                         }}
                         className={cx(
                           'flex w-full min-w-0 flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left text-sm',
-                          selected ? 'border-primary bg-primary/10' : 'border-border',
+                          selected
+                            ? 'border-primary bg-primary-soft'
+                            : 'border-border hover:bg-muted',
                         )}
                       >
                         <span className="w-full truncate font-medium">
@@ -388,6 +385,12 @@ function ProblemAlert({
   }
 }
 
+/** Quem tem `DFD_CREATE` em algum escopo vê "Duplicar DFD" (a API decide de novo, 403). */
+export function useCanDuplicateDfd(): boolean {
+  const permissions = useEffectivePermissions();
+  return hasPermission(permissions.data, 'DFD_CREATE');
+}
+
 /**
  * "Duplicar DFD" (SCR-007 e lista de documentos): visível só com `DFD_CREATE` em algum escopo — a
  * UI esconde, a API decide (403) em toda requisição. Abre o diálogo SCR-113.
@@ -400,9 +403,9 @@ export function DuplicateDfdButton({
   readonly size?: 'sm' | 'md';
 }) {
   const t = useTranslations('dfd.duplicate');
-  const permissions = useEffectivePermissions();
+  const allowed = useCanDuplicateDfd();
   const [open, setOpen] = useState(false);
-  if (!hasPermission(permissions.data, 'DFD_CREATE')) return null;
+  if (!allowed) return null;
   return (
     <>
       <Button

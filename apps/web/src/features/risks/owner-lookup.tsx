@@ -46,6 +46,9 @@ export interface OwnerLookupProps {
   readonly error?: string | undefined;
   /** Impede nova busca/troca (gravação em andamento). */
   readonly disabled?: boolean | undefined;
+  /** Rótulo e dica próprios de quem reutiliza a busca (ex.: responsável pelo DFD, obrigatório). */
+  readonly label?: string | undefined;
+  readonly hint?: string | undefined;
 }
 
 /**
@@ -61,12 +64,14 @@ export function OwnerLookup({
   onChange,
   error,
   disabled,
+  label: customLabel,
+  hint,
 }: OwnerLookupProps) {
   const t = useTranslations('risks.form.owner');
   const tenantId = useTenantId();
   const [text, setText] = useState('');
   const q = useDebounced(text.trim());
-  const label = kind === 'USER' ? t('userLabel') : t('departmentLabel');
+  const label = customLabel ?? (kind === 'USER' ? t('userLabel') : t('departmentLabel'));
   const selected = value !== '';
   const enabled = q.length >= 2 && !selected;
   const results = useQuery({
@@ -121,7 +126,7 @@ export function OwnerLookup({
     );
   }
   return (
-    <FormField id={id} label={label} hint={t('hint')} error={error}>
+    <FormField id={id} label={label} hint={hint ?? t('hint')} error={error}>
       {(control) => (
         <div className="flex flex-col gap-1">
           <input

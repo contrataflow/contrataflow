@@ -1,6 +1,21 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Field,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from '@contrataflow/ui';
 import { AWARD_TYPES, TERM_CONDITION_LIMITS } from '@contrataflow/validation';
 import type {
   AwardType,
@@ -10,17 +25,17 @@ import type {
 } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
+import { TermCollapsiblePanel } from './term-collapsible-panel';
 import { conditionsBody, conditionsFormOf } from './term-conditions-model';
 import type { DayCount, TermConditionsErrors, TermConditionsForm } from './term-conditions-model';
 import { patchTerm, termKeys } from './term.api';
 import type { TermResult } from './term.api';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 import {
   WIZARD_CATALOG_STALE_TIME_MS,
   fetchActiveCatalog,
@@ -42,7 +57,8 @@ type Notice =
   | { readonly kind: 'error'; readonly message: string }
   | { readonly kind: 'conflict' };
 
-const SELECT_CLASS = INPUT_CLASS;
+/** Valor da opção que limpa o campo (o Radix não aceita `SelectItem value=""`). */
+const CLEAR_VALUE = '__clear__';
 
 export interface TermConditionsPanelProps {
   readonly term: TermDetailDto;
@@ -51,34 +67,10 @@ export interface TermConditionsPanelProps {
 
 export function TermConditionsPanel({ term, editable }: TermConditionsPanelProps) {
   const t = useTranslations('term.conditions');
-  const [open, setOpen] = useState(false);
-  const contentId = useId();
   return (
-    <section
-      aria-labelledby={`${contentId}-title`}
-      data-term-panel="conditions"
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border p-4"
-    >
-      <h3 id={`${contentId}-title`} className="text-base font-semibold">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between gap-2 text-left"
-          aria-expanded={open}
-          aria-controls={contentId}
-          onClick={() => {
-            setOpen((value) => !value);
-          }}
-        >
-          <span>{t('title')}</span>
-          <span aria-hidden="true">{open ? '−' : '+'}</span>
-        </button>
-      </h3>
-      {open ? (
-        <div id={contentId} className="flex min-w-0 flex-col gap-4">
-          <ConditionsForm term={term} editable={editable} />
-        </div>
-      ) : null}
-    </section>
+    <TermCollapsiblePanel panel="conditions" title={t('title')}>
+      <ConditionsForm term={term} editable={editable} />
+    </TermCollapsiblePanel>
   );
 }
 
@@ -192,24 +184,20 @@ function ConditionsForm({ term, editable }: TermConditionsPanelProps) {
     hint: string | undefined,
     limits: { readonly min: number; readonly max: number },
   ) => (
-    <FormField id={`term-${field}`} label={label} hint={hint} error={errors[field]}>
-      {(control) => (
-        <input
-          {...control}
-          type="number"
-          inputMode="numeric"
-          min={limits.min}
-          max={limits.max}
-          step={1}
-          className={INPUT_CLASS}
-          value={form[field]}
-          readOnly={!editable}
-          onChange={(event) => {
-            set(field, event.target.value);
-          }}
-        />
-      )}
-    </FormField>
+    <Field id={`term-${field}`} label={label} description={hint} error={errors[field]}>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={limits.min}
+        max={limits.max}
+        step={1}
+        value={form[field]}
+        readOnly={!editable}
+        onChange={(event) => {
+          set(field, event.target.value);
+        }}
+      />
+    </Field>
   );
 
   return (
@@ -236,63 +224,53 @@ function ConditionsForm({ term, editable }: TermConditionsPanelProps) {
             set('executionDeadlineType', value);
           }}
         />
-        <FormField
+        <Field
           id="term-deliveryLocation"
           label={t('deliveryLocation')}
           error={errors.deliveryLocation}
           className="md:col-span-2"
         >
-          {(control) => (
-            <textarea
-              {...control}
-              className={TEXTAREA_CLASS}
-              value={form.deliveryLocation}
-              maxLength={TERM_CONDITION_LIMITS.deliveryLocationMax}
-              readOnly={!editable}
-              onChange={(event) => {
-                set('deliveryLocation', event.target.value);
-              }}
-            />
-          )}
-        </FormField>
+          <Textarea
+            value={form.deliveryLocation}
+            maxLength={TERM_CONDITION_LIMITS.deliveryLocationMax}
+            readOnly={!editable}
+            onChange={(event) => {
+              set('deliveryLocation', event.target.value);
+            }}
+          />
+        </Field>
         {number('productWarrantyMonths', t('warranty'), t('warrantyHint'), {
           min: TERM_CONDITION_LIMITS.productWarrantyMin,
           max: TERM_CONDITION_LIMITS.productWarrantyMax,
         })}
-        <FormField
+        <Field
           id="term-contractGuaranteePercent"
           label={t('guarantee')}
-          hint={t('guaranteeHint')}
+          description={t('guaranteeHint')}
           error={errors.contractGuaranteePercent}
         >
-          {(control) => (
-            <input
-              {...control}
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              className={INPUT_CLASS}
-              value={form.contractGuaranteePercent}
-              readOnly={!editable}
-              onChange={(event) => {
-                set('contractGuaranteePercent', event.target.value);
-              }}
-            />
-          )}
-        </FormField>
-        <label className="flex items-center gap-2 text-sm font-medium md:col-span-2">
-          <input
-            id="term-allowsSubcontracting"
-            type="checkbox"
-            role="switch"
-            checked={form.allowsSubcontracting}
-            disabled={!editable}
+          <Input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={form.contractGuaranteePercent}
+            readOnly={!editable}
             onChange={(event) => {
-              set('allowsSubcontracting', event.target.checked);
+              set('contractGuaranteePercent', event.target.value);
             }}
           />
-          {t('subcontracting')}
-        </label>
+        </Field>
+        <div className="flex items-center gap-3 md:col-span-2">
+          <Switch
+            id="term-allowsSubcontracting"
+            checked={form.allowsSubcontracting}
+            disabled={!editable}
+            onCheckedChange={(checked) => {
+              set('allowsSubcontracting', checked);
+            }}
+          />
+          <Label htmlFor="term-allowsSubcontracting">{t('subcontracting')}</Label>
+        </div>
         <JudgmentCriterionSelect
           value={form.selectionCriterionId}
           error={errors.selectionCriterionId}
@@ -301,26 +279,27 @@ function ConditionsForm({ term, editable }: TermConditionsPanelProps) {
             set('selectionCriterionId', value);
           }}
         />
-        <FormField id="term-awardType" label={t('awardType')} error={errors.awardType}>
-          {(control) => (
-            <select
-              {...control}
-              className={SELECT_CLASS}
-              value={form.awardType}
-              disabled={!editable}
-              onChange={(event) => {
-                set('awardType', event.target.value as AwardType | '');
-              }}
-            >
-              <option value="">{t('award.NONE')}</option>
+        <Field id="term-awardType" label={t('awardType')} error={errors.awardType}>
+          <Select
+            value={form.awardType === '' ? CLEAR_VALUE : form.awardType}
+            disabled={!editable}
+            onValueChange={(value) => {
+              set('awardType', value === CLEAR_VALUE ? '' : (value as AwardType));
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CLEAR_VALUE}>{t('award.NONE')}</SelectItem>
               {AWARD_TYPES.map((award) => (
-                <option key={award} value={award}>
+                <SelectItem key={award} value={award}>
                   {t(`award.${award}`)}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          )}
-        </FormField>
+            </SelectContent>
+          </Select>
+        </Field>
       </div>
 
       <div aria-live="polite">
@@ -383,40 +362,31 @@ function DayCountFieldset({
   readonly onType: (value: DayCount | '') => void;
 }) {
   const t = useTranslations('term.conditions');
-  const errorId = 'term-executionDeadlineType-error';
   const error = errors.executionDeadlineType;
   return (
-    <div className="flex min-w-0 flex-col gap-3 md:col-span-2 md:grid md:grid-cols-2 md:gap-4">
+    <div className="flex min-w-0 flex-col gap-4 md:col-span-2 md:grid md:grid-cols-2">
       {deadlineInput}
-      <fieldset
-        className="flex min-w-0 flex-col gap-1"
-        aria-describedby={error === undefined ? undefined : errorId}
-      >
-        <legend className="text-sm font-medium">{t('deadlineType')}</legend>
-        <div className="flex flex-wrap gap-4">
-          {(['CALENDAR', 'BUSINESS'] as const).map((value, index) => (
-            <label key={value} className="flex items-center gap-2 text-sm">
-              <input
-                id={index === 0 ? 'term-executionDeadlineType' : undefined}
-                type="radio"
-                name="term-executionDeadlineType"
-                value={value}
-                checked={form.executionDeadlineType === value}
-                disabled={!editable}
-                onChange={() => {
-                  onType(value);
-                }}
-              />
-              {t(`dayCount.${value}`)}
-            </label>
+      <Field label={t('deadlineType')} group error={error}>
+        <RadioGroup
+          id="term-executionDeadlineType"
+          className="flex-row flex-wrap gap-4"
+          value={form.executionDeadlineType}
+          disabled={!editable}
+          orientation="horizontal"
+          onValueChange={(value) => {
+            onType(value as DayCount);
+          }}
+        >
+          {(['CALENDAR', 'BUSINESS'] as const).map((value) => (
+            <div key={value} className="flex items-center gap-2">
+              <RadioGroupItem id={`term-executionDeadlineType-${value}`} value={value} />
+              <Label htmlFor={`term-executionDeadlineType-${value}`} className="font-normal">
+                {t(`dayCount.${value}`)}
+              </Label>
+            </div>
           ))}
-        </div>
-        {error === undefined ? null : (
-          <p id={errorId} role="alert" className="text-xs text-destructive">
-            {error}
-          </p>
-        )}
-      </fieldset>
+        </RadioGroup>
+      </Field>
     </div>
   );
 }
@@ -468,26 +438,29 @@ function JudgmentCriterionSelect({
   const missing =
     value !== '' && options.data !== undefined && !items.some((item) => item.id === value);
   return (
-    <FormField id="term-selectionCriterionId" label={t('criterion')} error={error}>
-      {(control) => (
-        <select
-          {...control}
-          className={SELECT_CLASS}
-          value={value}
-          disabled={!editable || options.isPending}
-          onChange={(event) => {
-            onChange(event.target.value);
-          }}
-        >
-          <option value="">{options.isPending ? t('criterionLoading') : t('criterionNone')}</option>
-          {missing ? <option value={value}>{t('criterionInactive')}</option> : null}
+    <Field id="term-selectionCriterionId" label={t('criterion')} error={error}>
+      <Select
+        value={value === '' ? CLEAR_VALUE : value}
+        disabled={!editable || options.isPending}
+        onValueChange={(next) => {
+          onChange(next === CLEAR_VALUE ? '' : next);
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CLEAR_VALUE}>
+            {options.isPending ? t('criterionLoading') : t('criterionNone')}
+          </SelectItem>
+          {missing ? <SelectItem value={value}>{t('criterionInactive')}</SelectItem> : null}
           {items.map((item) => (
-            <option key={item.id} value={item.id}>
+            <SelectItem key={item.id} value={item.id}>
               {item.label}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-      )}
-    </FormField>
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }

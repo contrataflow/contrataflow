@@ -1,12 +1,16 @@
 'use client';
 
+import { InfoTooltip, Textarea } from '@contrataflow/ui';
 import type { DfdTemplateSectionDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import { AttachmentsSection } from '../attachments/attachments-section';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
-import { FormField, TEXTAREA_CLASS } from '../processes/form-field';
+import { FormField } from '../processes/form-field';
+
+/** Cartão sem borda de um grupo de campos do passo (prd-5 · regra 4). */
+export const STEP_CARD = 'flex min-w-0 flex-col gap-5 rounded-card bg-surface p-6 shadow-card';
 
 export interface DfdSectionFieldProps {
   readonly section: DfdTemplateSectionDto;
@@ -34,7 +38,16 @@ export function DfdSectionField({
   const required = section.requirement !== 'OPTIONAL';
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      {aiMenu ? <div className="flex justify-end">{aiMenu}</div> : null}
+      {aiMenu || section.helpText ? (
+        <div className="flex items-center justify-end gap-2">
+          {section.helpText ? (
+            <InfoTooltip label={t('helpOf', { section: section.title })}>
+              {section.helpText}
+            </InfoTooltip>
+          ) : null}
+          {aiMenu}
+        </div>
+      ) : null}
       <FormField
         id={id}
         label={`${section.title}${required ? ' *' : ''}`}
@@ -51,9 +64,10 @@ export function DfdSectionField({
         required={required}
       >
         {(control) => (
-          <textarea
+          <Textarea
             {...control}
-            className={`${TEXTAREA_CLASS} min-h-40`}
+            rows={6}
+            className="min-h-40"
             maxLength={section.maxChars}
             value={value}
             readOnly={!editable}
@@ -63,12 +77,6 @@ export function DfdSectionField({
           />
         )}
       </FormField>
-      {section.helpText ? (
-        <details className="rounded-control border border-border p-3 text-sm">
-          <summary className="cursor-pointer font-medium">{t('help')}</summary>
-          <p className="mt-2 text-muted-foreground">{section.helpText}</p>
-        </details>
-      ) : null}
     </div>
   );
 }
@@ -106,16 +114,18 @@ export function DfdJustificationStep({
 }: DfdJustificationStepProps) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      {sections.map((section) => (
-        <DfdSectionField
-          key={section.key}
-          section={section}
-          value={values[section.key] ?? ''}
-          editable={editable}
-          onChange={onChange}
-          aiMenu={aiMenuFor?.(section)}
-        />
-      ))}
+      <div className={STEP_CARD}>
+        {sections.map((section) => (
+          <DfdSectionField
+            key={section.key}
+            section={section}
+            value={values[section.key] ?? ''}
+            editable={editable}
+            onChange={onChange}
+            aiMenu={aiMenuFor?.(section)}
+          />
+        ))}
+      </div>
       <div id="dfd-field-attachments" tabIndex={-1}>
         <AttachmentsSection
           targetType="DOCUMENT"

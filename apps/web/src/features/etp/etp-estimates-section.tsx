@@ -1,6 +1,28 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Field,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Textarea,
+  Th,
+  Tr,
+} from '@contrataflow/ui';
 import { ETP_ESTIMATE_MESSAGES } from '@contrataflow/validation';
 import type { DocumentItemDto, EtpDetailDto } from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,7 +62,6 @@ import {
 } from '../dfd/dfd.api';
 import type { DocumentItemList } from '../dfd/dfd.api';
 import { priceResearchHref, useProcessPriceResearch } from '../price-research/price-research.api';
-import { INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 import { formatMoneyText } from '../processes/money';
 import { MoneyInput } from '../processes/money-input';
 
@@ -194,7 +215,7 @@ function ItemsEstimateTable({
           return (
             <li
               key={item.processItemId}
-              className="grid min-w-0 gap-3 rounded-control border border-border p-3 md:grid-cols-[minmax(0,1fr)_10rem]"
+              className="grid min-w-0 gap-3 rounded-card bg-muted p-4 md:grid-cols-[minmax(0,1fr)_10rem]"
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="text-sm font-medium break-words">
@@ -204,53 +225,43 @@ function ItemsEstimateTable({
                   {t('unit', { unit: item.unit.label })}
                 </span>
               </div>
-              <div className="flex min-w-0 flex-col gap-1">
-                <label htmlFor={quantityId} className="text-sm font-medium">
-                  {t('quantity')}
-                </label>
-                <input
-                  id={quantityId}
-                  type="text"
+              <Field
+                id={quantityId}
+                label={t('quantity')}
+                required
+                requiredMark=""
+                error={error === undefined ? undefined : <span role="alert">{error}</span>}
+              >
+                <Input
                   inputMode="decimal"
                   autoComplete="off"
-                  className={`${INPUT_CLASS} text-right tabular-nums`}
+                  className="text-right tabular-nums"
                   value={draft.quantity}
-                  aria-invalid={error === undefined ? undefined : true}
-                  aria-describedby={error === undefined ? undefined : `${quantityId}-error`}
-                  aria-required
                   onChange={(event) => {
                     set(item.processItemId, { quantity: event.target.value });
                   }}
                 />
-                {error === undefined ? null : (
-                  <p id={`${quantityId}-error`} role="alert" className="text-xs text-destructive">
-                    {error}
-                  </p>
-                )}
-              </div>
+              </Field>
               <div className="flex min-w-0 flex-col gap-1 md:col-span-2">
-                <label htmlFor={memoId} className="text-sm font-medium">
-                  {t('memo')}
-                </label>
-                <textarea
+                <Field
                   id={memoId}
-                  aria-describedby={`${memoId}-hint`}
-                  className={TEXTAREA_CLASS}
-                  value={draft.memo}
-                  onChange={(event) => {
-                    const text = event.target.value;
-                    // FA-06: acima de 1 MB, novos caracteres não entram.
-                    if (text.length > draft.memo.length && !memoFits(text)) {
-                      setMemoFull(item.processItemId);
-                      return;
-                    }
-                    setMemoFull(null);
-                    set(item.processItemId, { memo: text });
-                  }}
-                />
-                <p id={`${memoId}-hint`} className="text-xs text-muted-foreground">
-                  {memoFull === item.processItemId ? t('memoTooLarge') : t('memoHint')}
-                </p>
+                  label={t('memo')}
+                  description={memoFull === item.processItemId ? t('memoTooLarge') : t('memoHint')}
+                >
+                  <Textarea
+                    value={draft.memo}
+                    onChange={(event) => {
+                      const text = event.target.value;
+                      // FA-06: acima de 1 MB, novos caracteres não entram.
+                      if (text.length > draft.memo.length && !memoFits(text)) {
+                        setMemoFull(item.processItemId);
+                        return;
+                      }
+                      setMemoFull(null);
+                      set(item.processItemId, { memo: text });
+                    }}
+                  />
+                </Field>
               </div>
             </li>
           );
@@ -279,33 +290,27 @@ function ItemsEstimateTable({
             diff.length === 0 ? (
               <p className="mt-2 text-sm">{t('diffEmpty')}</p>
             ) : (
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full min-w-0 text-left text-sm">
+              <TableContainer label={t('showDiff')} className="mt-2">
+                <Table>
                   <caption className="sr-only">{t('showDiff')}</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className="pr-3 font-medium">
-                        {t('diffItem')}
-                      </th>
-                      <th scope="col" className="pr-3 font-medium">
-                        {t('diffMine')}
-                      </th>
-                      <th scope="col" className="font-medium">
-                        {t('diffServer')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <TableHead>
+                    <Tr>
+                      <Th>{t('diffItem')}</Th>
+                      <Th>{t('diffMine')}</Th>
+                      <Th>{t('diffServer')}</Th>
+                    </Tr>
+                  </TableHead>
+                  <TableBody>
                     {diff.map((row) => (
-                      <tr key={row.sequence}>
-                        <td className="pr-3">{row.sequence}</td>
-                        <td className="pr-3 tabular-nums">{row.mine}</td>
-                        <td className="tabular-nums">{row.server}</td>
-                      </tr>
+                      <Tr key={row.sequence}>
+                        <Td>{row.sequence}</Td>
+                        <Td className="tabular-nums">{row.mine}</Td>
+                        <Td className="tabular-nums">{row.server}</Td>
+                      </Tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )
           ) : null}
         </Alert>
@@ -492,42 +497,39 @@ function EstimatedValuePanel({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {view}
-      <fieldset
+      <Field
+        group
         id={`${id}-source`}
-        tabIndex={-1}
-        aria-describedby={sourceError === undefined ? undefined : `${id}-source-error`}
-        className="flex flex-col gap-2"
+        label={t('sourceLegend')}
+        error={sourceError === undefined ? undefined : <span role="alert">{sourceError}</span>}
       >
-        <legend className="text-sm font-medium">{t('sourceLegend')}</legend>
-        {(['MANUAL', 'PRICE_RESEARCH'] as const).map((source) => (
-          <label key={source} className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name={`${id}-source`}
-              value={source}
-              checked={form.source === source}
-              onChange={() => {
-                setFieldError(null);
-                // FA-02: ao voltar ao manual, o último valor fica como ponto de partida.
-                setForm((current) => ({
-                  ...current,
-                  source,
-                  money:
-                    current.money === '' && etp.estimatedTotalValue !== null
-                      ? formatMoneyText(etp.estimatedTotalValue)
-                      : current.money,
-                }));
-              }}
-            />
-            {source === 'MANUAL' ? t('manual') : t('research')}
-          </label>
-        ))}
-        {sourceError === undefined ? null : (
-          <p id={`${id}-source-error`} role="alert" className="text-xs text-destructive">
-            {sourceError}
-          </p>
-        )}
-      </fieldset>
+        <RadioGroup
+          id={`${id}-source`}
+          value={form.source}
+          onValueChange={(value) => {
+            const source = value === 'PRICE_RESEARCH' ? 'PRICE_RESEARCH' : 'MANUAL';
+            setFieldError(null);
+            // FA-02: ao voltar ao manual, o último valor fica como ponto de partida.
+            setForm((current) => ({
+              ...current,
+              source,
+              money:
+                current.money === '' && etp.estimatedTotalValue !== null
+                  ? formatMoneyText(etp.estimatedTotalValue)
+                  : current.money,
+            }));
+          }}
+        >
+          {(['MANUAL', 'PRICE_RESEARCH'] as const).map((source) => (
+            <div key={source} className="flex items-center gap-2">
+              <RadioGroupItem id={`${id}-source-${source}`} value={source} />
+              <Label htmlFor={`${id}-source-${source}`} className="font-normal">
+                {source === 'MANUAL' ? t('manual') : t('research')}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </Field>
 
       {form.source === 'MANUAL' ? (
         <div className="flex min-w-0 flex-col gap-1 md:max-w-xs">
@@ -555,42 +557,35 @@ function EstimatedValuePanel({
         options.length === 0 && !researches.isPending ? (
           <p className="text-sm text-muted-foreground">{t('noResearch')}</p>
         ) : (
-          <div className="flex min-w-0 flex-col gap-1 md:max-w-sm">
-            <label htmlFor={`${id}-priceResearchId`} className="text-sm font-medium">
-              {t('researchLabel')}
-            </label>
-            <select
-              id={`${id}-priceResearchId`}
-              className={INPUT_CLASS}
+          <Field
+            id={`${id}-priceResearchId`}
+            label={t('researchLabel')}
+            className="md:max-w-sm"
+            error={
+              researchError === undefined ? undefined : <span role="alert">{researchError}</span>
+            }
+          >
+            <Select
               value={researchId}
-              aria-invalid={researchError === undefined ? undefined : true}
-              aria-describedby={
-                researchError === undefined ? undefined : `${id}-priceResearchId-error`
-              }
-              onChange={(event) => {
-                setForm((current) => ({ ...current, priceResearchId: event.target.value }));
+              onValueChange={(value) => {
+                setForm((current) => ({ ...current, priceResearchId: value }));
               }}
             >
-              <option value="">{t('researchPlaceholder')}</option>
-              {options.map((research) => (
-                <option key={research.id} value={research.id}>
-                  {t('researchOption', {
-                    code: research.code ?? research.title,
-                    status: research.status,
-                  })}
-                </option>
-              ))}
-            </select>
-            {researchError === undefined ? null : (
-              <p
-                id={`${id}-priceResearchId-error`}
-                role="alert"
-                className="text-xs text-destructive"
-              >
-                {researchError}
-              </p>
-            )}
-          </div>
+              <SelectTrigger>
+                <SelectValue placeholder={t('researchPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((research) => (
+                  <SelectItem key={research.id} value={research.id}>
+                    {t('researchOption', {
+                      code: research.code ?? research.title,
+                      status: research.status,
+                    })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         )
       ) : null}
 

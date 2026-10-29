@@ -198,7 +198,8 @@ describe('ImplementationAssistant (SCR-032 · US-099)', () => {
     const { createDepartment, user } = setup();
     const [firstType] = screen.getAllByRole('combobox', { name: 'Tipo' });
     if (!firstType) throw new Error('sem campo de tipo');
-    await user.selectOptions(firstType, 'BOARD');
+    await user.click(firstType);
+    await user.click(await screen.findByRole('option', { name: 'Diretoria' }));
     await user.click(screen.getByRole('button', { name: 'Criar estrutura' }));
     await screen.findByRole('heading', { name: 'Primeiros passos' });
     expect(createDepartment.mock.calls[0]?.[0]).toMatchObject({ name: 'Gabinete', type: 'BOARD' });

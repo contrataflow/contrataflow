@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import { Alert, Button, Field, Input, Textarea } from '@contrataflow/ui';
 import { isTermMoney, TERM_LIMITS, TERM_MESSAGES } from '@contrataflow/validation';
 import type { TermDetailDto, TermPatch } from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -19,7 +19,6 @@ import type { TermResult } from './term.api';
 import { documentKeys } from '../documents/documents.api';
 import { priceResearchHref } from '../price-research/price-research.api';
 import { processDocumentKeys } from '../process-documents/process-documents.api';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 import { toDecimalMoney } from '../processes/money';
 
 /*
@@ -143,9 +142,9 @@ export function TermGeneralDataPanel({ processId, term, editable }: TermGeneralD
     <section
       aria-labelledby="term-general-title"
       data-term-panel="general"
-      className="flex min-w-0 flex-col gap-4 rounded-card border border-border p-4"
+      className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-6 shadow-card"
     >
-      <h3 id="term-general-title" className="text-base font-semibold">
+      <h3 id="term-general-title" className="text-section-title text-brand-ink">
         {t('title')}
       </h3>
       <div aria-live="polite">
@@ -157,27 +156,24 @@ export function TermGeneralDataPanel({ processId, term, editable }: TermGeneralD
           />
         )}
       </div>
-      <FormField
+      <Field
         id="term-object"
         label={t('object.label')}
-        hint={t('object.hint')}
+        description={t('object.hint')}
         required
         error={objectError}
       >
-        {(control) => (
-          <textarea
-            {...control}
-            className={`${TEXTAREA_CLASS} min-h-24`}
-            value={objectText}
-            maxLength={TERM_LIMITS.objectMax}
-            readOnly={!editable}
-            onChange={(event) => {
-              setObjectDraft(event.target.value);
-              setObjectError(undefined);
-            }}
-          />
-        )}
-      </FormField>
+        <Textarea
+          className="min-h-24"
+          value={objectText}
+          maxLength={TERM_LIMITS.objectMax}
+          readOnly={!editable}
+          onChange={(event) => {
+            setObjectDraft(event.target.value);
+            setObjectError(undefined);
+          }}
+        />
+      </Field>
       {editable ? (
         <div>
           <Button
@@ -308,7 +304,7 @@ export function EstimatedValueCard({
   return (
     <section
       aria-labelledby="term-value-title"
-      className="flex min-w-0 flex-col gap-3 rounded-control border border-border p-3"
+      className="flex min-w-0 flex-col gap-3 border-t border-border pt-4"
     >
       <h4 id="term-value-title" className="text-sm font-semibold">
         {t('title')}
@@ -344,27 +340,22 @@ export function EstimatedValueCard({
               {useResearch === null ? null : <div className="mt-2">{useResearch}</div>}
             </Alert>
           )}
-          <FormField
+          <Field
             id="term-manual-value"
             label={t('manualLabel')}
-            hint={t('manualHint')}
+            description={t('manualHint')}
             required
             error={manualError}
           >
-            {(control) => (
-              <input
-                {...control}
-                type="text"
-                inputMode="decimal"
-                className={INPUT_CLASS}
-                value={manualText}
-                onChange={(event) => {
-                  setManualText(event.target.value);
-                  setManualError(undefined);
-                }}
-              />
-            )}
-          </FormField>
+            <Input
+              inputMode="decimal"
+              value={manualText}
+              onChange={(event) => {
+                setManualText(event.target.value);
+                setManualError(undefined);
+              }}
+            />
+          </Field>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" disabled={pending} onClick={confirmManual}>
               {pending ? t('saving') : t('confirm')}

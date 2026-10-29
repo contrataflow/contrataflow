@@ -8,6 +8,14 @@
     "REJECTED": "Indeferido",
     "CANCELED": "Cancelado"
   },
+  "header": {
+    "breadcrumb": "Trilha de navegação",
+    "processes": "Processos",
+    "process": "Processo {code}",
+    "processFallback": "Processo",
+    "more": "Mais",
+    "moreLabel": "Mais ações do documento"
+  },
   "view": {
     "loading": "Carregando o documento…",
     "backToProcess": "Voltar ao processo",

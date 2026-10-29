@@ -3,14 +3,24 @@
 import {
   Alert,
   Button,
+  Checkbox,
   cx,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
   Skeleton,
+  Switch,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Th,
   toast,
+  Tr,
 } from '@contrataflow/ui';
 import { TERM_IMPORT_MESSAGES } from '@contrataflow/validation';
 import type {
@@ -394,23 +404,22 @@ function SectionImportList({
         const checkboxId = `${id}-${section.target}`;
         const title = titles.get(section.target) ?? section.target;
         return (
-          <div key={section.target} className="rounded-control border border-border p-3">
+          <div key={section.target} className="rounded-control bg-muted/50 p-3">
             <div className="flex items-start gap-2">
-              <input
+              <Checkbox
                 id={checkboxId}
-                type="checkbox"
-                className="mt-1 size-4"
+                className="mt-0.5"
                 checked={selected.includes(section.target)}
-                onChange={(event) => {
-                  onToggle(section.target, event.target.checked);
+                onCheckedChange={(checked) => {
+                  onToggle(section.target, checked === true);
                 }}
               />
-              <label htmlFor={checkboxId} className="flex min-w-0 flex-col gap-0.5">
+              <Label htmlFor={checkboxId} className="flex min-w-0 flex-col gap-0.5 font-normal">
                 <span className="font-medium break-words">{title}</span>
                 <span className="text-xs text-muted-foreground">
                   {t(`sections.mode.${section.mode}`)}
                 </span>
-              </label>
+              </Label>
             </div>
             <BeforeAfter before={section.before} after={section.preview} />
           </div>
@@ -436,7 +445,7 @@ function BeforeAfter({ before, after }: { readonly before: string; readonly afte
   );
   return (
     <div className="mt-2 flex flex-col gap-2">
-      <div role="group" aria-label={t('diff.label')} className="flex gap-1 md:hidden">
+      <div role="group" aria-label={t('diff.label')} className="flex flex-wrap gap-1 md:hidden">
         {(['before', 'after'] as const).map((side) => (
           <Button
             key={side}
@@ -485,17 +494,16 @@ export function FieldImportList({
         const checkboxId = `${id}-${field.target}`;
         return (
           <div key={field.target} className="flex items-start gap-2">
-            <input
+            <Checkbox
               id={checkboxId}
-              type="checkbox"
-              className="mt-1 size-4"
+              className="mt-0.5"
               disabled={field.valueMasked}
               checked={!field.valueMasked && selected.includes(field.target)}
-              onChange={(event) => {
-                onToggle(field.target, event.target.checked);
+              onCheckedChange={(checked) => {
+                onToggle(field.target, checked === true);
               }}
             />
-            <label htmlFor={checkboxId} className="flex min-w-0 flex-col text-sm">
+            <Label htmlFor={checkboxId} className="flex min-w-0 flex-col text-sm font-normal">
               <span className="font-medium">{t(`fields.${field.target}`)}</span>
               <span className="text-muted-foreground">
                 {t('fields.change', {
@@ -503,7 +511,7 @@ export function FieldImportList({
                   next: valueOf(field, field.value),
                 })}
               </span>
-            </label>
+            </Label>
           </div>
         );
       })}
@@ -544,78 +552,56 @@ export function ItemsImportTable({
     <fieldset className="flex min-w-0 flex-col gap-2">
       <legend className="mb-2 text-sm font-semibold">{t('items.legend')}</legend>
       <div className="flex items-center gap-2">
-        <input
-          id={`${id}-copy`}
-          type="checkbox"
-          role="switch"
-          className="size-4"
-          checked={copyItems}
-          onChange={(event) => {
-            onCopyItems(event.target.checked);
-          }}
-        />
-        <label htmlFor={`${id}-copy`} className="text-sm">
+        <Switch id={`${id}-copy`} checked={copyItems} onCheckedChange={onCopyItems} />
+        <Label htmlFor={`${id}-copy`} className="font-normal">
           {t('items.copy', { count: items.length })}
-        </label>
+        </Label>
       </div>
       {specified ? (
         <div className="flex items-center gap-2">
-          <input
+          <Switch
             id={`${id}-overwrite`}
-            type="checkbox"
-            role="switch"
-            className="size-4"
             disabled={!copyItems}
             checked={overwriteExisting}
-            onChange={(event) => {
-              onOverwrite(event.target.checked);
-            }}
+            onCheckedChange={onOverwrite}
           />
-          <label htmlFor={`${id}-overwrite`} className="text-sm">
+          <Label htmlFor={`${id}-overwrite`} className="font-normal">
             {t('items.overwrite')}
-          </label>
+          </Label>
         </div>
       ) : null}
-      <div className="max-w-full overflow-x-auto">
-        <table className="w-full min-w-[28rem] text-left text-sm">
+      <TableContainer label={t('items.caption')}>
+        <Table>
           <caption className="sr-only">{t('items.caption')}</caption>
-          <thead>
-            <tr className="border-b border-border">
-              <th scope="col" className="py-1 pr-2">
-                {t('items.sequence')}
-              </th>
-              <th scope="col" className="py-1 pr-2">
-                {t('items.description')}
-              </th>
-              <th scope="col" className="py-1 pr-2 text-right">
-                {t('items.etpQuantity')}
-              </th>
-              <th scope="col" className="py-1 text-right">
-                {t('items.trQuantity')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+          <TableHead>
+            <Tr>
+              <Th>{t('items.sequence')}</Th>
+              <Th>{t('items.description')}</Th>
+              <Th className="text-right">{t('items.etpQuantity')}</Th>
+              <Th className="text-right">{t('items.trQuantity')}</Th>
+            </Tr>
+          </TableHead>
+          <TableBody>
             {items.map((item) => (
-              <tr key={item.processItemId} className="border-b border-border last:border-b-0">
-                <td className="py-1 pr-2">{item.sequence}</td>
-                <td className="py-1 pr-2 break-words">
+              <Tr key={item.processItemId}>
+                <Td>{item.sequence}</Td>
+                <Td className="break-words">
                   {item.description}
                   {item.specified ? (
                     <span className="ml-1 text-xs text-warning">{t('items.specified')}</span>
                   ) : null}
-                </td>
-                <td className="py-1 pr-2 text-right">{quantity(item.etpQuantity)}</td>
-                <td className="py-1 text-right">
+                </Td>
+                <Td className="text-right">{quantity(item.etpQuantity)}</Td>
+                <Td className="text-right">
                   {item.trCurrentQuantity === null
                     ? t('items.new')
                     : quantity(item.trCurrentQuantity)}
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
     </fieldset>
   );
 }

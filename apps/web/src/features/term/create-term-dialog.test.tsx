@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption, optionLabels } from '@test/support/kit';
 import { stubWithRoutes } from '@test/support/price-research-fixtures';
 import type { Route } from '@test/support/price-research-fixtures';
 import {
@@ -124,7 +125,7 @@ function setup(...routes: Route[]) {
 }
 
 const submitButton = () => screen.getByRole('button', { name: 'Criar TR' });
-const templateSelect = () => screen.findByRole<HTMLSelectElement>('combobox', { name: 'Modelo' });
+const templateSelect = () => screen.findByRole('combobox', { name: 'Modelo' });
 const titleInput = () => screen.findByRole<HTMLInputElement>('textbox', { name: /Título/ });
 
 beforeEach(() => {
@@ -140,9 +141,11 @@ describe('CreateTermDialog (US-036 · fluxo principal 2–5)', () => {
   it('pré-seleciona o modelo padrão e preenche o título com "Termo de Referência — {processo}"', async () => {
     setup(list(TEMPLATES));
     const select = await templateSelect();
-    expect(select.value).toBe(ID(832));
-    expect(screen.getByRole('option', { name: 'TR — Padrão (padrão)' })).toBeTruthy();
-    expect(screen.getByRole('option', { name: 'TR — Serviços contínuos' })).toBeTruthy();
+    expect(select.textContent).toBe('TR — Padrão (padrão)');
+    expect(await optionLabels(userEvent.setup(), 'Modelo')).toEqual([
+      'TR — Serviços contínuos',
+      'TR — Padrão (padrão)',
+    ]);
     expect((await titleInput()).value).toBe(DEFAULT_TITLE);
     expect(await seriousA11yViolations()).toEqual([]);
   });
@@ -165,7 +168,8 @@ describe('CreateTermDialog (US-036 · fluxo principal 2–5)', () => {
   it('FA-01: escolher outro modelo e editar o título', async () => {
     const user = userEvent.setup();
     const { fetchMock } = setup(list(TEMPLATES), created);
-    await user.selectOptions(await templateSelect(), ID(830));
+    await templateSelect();
+    await chooseOption(user, 'Modelo', 'TR — Serviços contínuos');
     const title = await titleInput();
     await user.clear(title);
     await user.type(title, 'TR da manutenção das escolas');

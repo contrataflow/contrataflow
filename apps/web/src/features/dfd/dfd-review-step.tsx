@@ -1,6 +1,15 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  CircleAlert,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Skeleton,
+  TriangleAlert,
+} from '@contrataflow/ui';
 import type {
   DfdHeaderValues,
   DfdWizardStep,
@@ -12,6 +21,7 @@ import { useTranslations } from 'next-intl';
 
 import { useTenantId } from '@/lib/session/session-context';
 
+import { STEP_CARD } from './dfd-justification-step';
 import { fieldAnchor, violationsByStep } from './dfd-model';
 import { documentKeys, fetchDocumentValidation } from '../documents/documents.api';
 import { GeneratePdfButton } from '../documents/generate-pdf-button';
@@ -52,28 +62,41 @@ export function DfdReviewStep({
 }: DfdReviewStepProps) {
   const t = useTranslations('dfd');
   const validation = useDfdValidation(documentId);
+  const pending = validation.data?.violations.length ?? 0;
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <section aria-labelledby="dfd-checklist-title" className="flex flex-col gap-3">
-        <h3 id="dfd-checklist-title" className="text-base font-semibold">
-          {t('review.title')}
-        </h3>
-        <div aria-live="polite">
-          <Checklist
-            validation={validation.data}
-            error={validation.error !== null}
-            onRetry={() => {
-              void validation.refetch();
-            }}
-            onGoTo={onGoTo}
-          />
-        </div>
-      </section>
-      <section aria-labelledby="dfd-summary-title" className="flex flex-col gap-3">
-        <h3 id="dfd-summary-title" className="text-base font-semibold">
+      <Collapsible defaultOpen asChild>
+        <section aria-labelledby="dfd-checklist-title" className={STEP_CARD}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 id="dfd-checklist-title" className="text-section-title text-brand-ink">
+              {t('review.title')}
+              {pending > 0 ? (
+                <span className="ml-2 text-sm font-semibold text-muted-foreground">
+                  {t('review.pendingCount', { count: pending })}
+                </span>
+              ) : null}
+            </h3>
+            <CollapsibleTrigger>{t('review.toggle')}</CollapsibleTrigger>
+          </div>
+          <CollapsibleContent>
+            <div aria-live="polite">
+              <Checklist
+                validation={validation.data}
+                error={validation.error !== null}
+                onRetry={() => {
+                  void validation.refetch();
+                }}
+                onGoTo={onGoTo}
+              />
+            </div>
+          </CollapsibleContent>
+        </section>
+      </Collapsible>
+      <section aria-labelledby="dfd-summary-title" className={STEP_CARD}>
+        <h3 id="dfd-summary-title" className="text-section-title text-brand-ink">
           {t('review.summaryTitle')}
         </h3>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm md:grid-cols-2">
           <SummaryRow label={t('identification.requestDate')} value={header.requestDate} />
           <SummaryRow label={t('identification.department')} value={departmentName} />
           <SummaryRow label={t('identification.responsible')} value={responsibleName} />
@@ -99,8 +122,8 @@ export function DfdReviewStep({
           />
         </dl>
       </section>
-      <section aria-labelledby="dfd-preview-title" className="flex flex-col gap-2">
-        <h3 id="dfd-preview-title" className="text-base font-semibold">
+      <section aria-labelledby="dfd-preview-title" className={STEP_CARD}>
+        <h3 id="dfd-preview-title" className="text-section-title text-brand-ink">
           {t('review.previewTitle')}
         </h3>
         <p className="text-sm text-muted-foreground">{t('review.previewHint')}</p>
@@ -125,8 +148,10 @@ function SummaryRow({
   const t = useTranslations('dfd.summary');
   return (
     <div className={wide ? 'md:col-span-2' : undefined}>
-      <dt className="font-medium">{label.replace(' *', '')}</dt>
-      <dd className="text-muted-foreground">
+      <dt className="text-label font-semibold text-muted-foreground uppercase">
+        {label.replace(' *', '')}
+      </dt>
+      <dd className="font-medium break-words">
         {value === null || value === '' ? t('empty') : value}
       </dd>
     </div>
@@ -164,7 +189,7 @@ function Checklist({
   }
   if (validation.violations.length === 0) {
     return (
-      <Alert tone="success" title={`✓ ${t('review.clean')}`}>
+      <Alert tone="success" title={t('review.clean')}>
         <p>{t('review.cleanHint')}</p>
       </Alert>
     );
@@ -201,20 +226,26 @@ function ViolationGroup({
   return (
     <div className="flex flex-col gap-2">
       <h4 className="text-sm font-semibold">{title}</h4>
-      <ul aria-label={title} className="flex flex-col gap-2">
+      <ul aria-label={title} className="flex flex-col divide-y divide-border">
         {entries.map(({ item, step }, index) => (
           <li
             key={`${item.code}:${item.field ?? ''}:${item.sectionKey ?? ''}:${String(index)}`}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border p-3 text-sm"
+            className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
           >
-            <span>
-              <span aria-hidden="true">{item.severity === 'BLOCKING' ? '⛔ ' : '⚠ '}</span>
-              {item.message}
-              <span className="ml-1 text-muted-foreground">· {t(`steps.${step}`)}</span>
+            <span className="flex min-w-0 items-start gap-2">
+              {item.severity === 'BLOCKING' ? (
+                <CircleAlert className="mt-0.5 size-4 flex-none text-destructive" />
+              ) : (
+                <TriangleAlert className="mt-0.5 size-4 flex-none text-warning" />
+              )}
+              <span className="min-w-0">
+                {item.message}
+                <span className="ml-1 text-muted-foreground">· {t(`steps.${step}`)}</span>
+              </span>
             </span>
             <Button
               size="sm"
-              variant="secondary"
+              variant="ghost"
               aria-label={t('review.goToStep', { step: t(`steps.${step}`) })}
               onClick={() => {
                 onGoTo(step, fieldAnchor(item));

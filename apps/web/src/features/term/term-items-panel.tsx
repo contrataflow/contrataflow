@@ -1,6 +1,17 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  ChevronDown,
+  ChevronUp,
+  Field,
+  Input,
+  Label,
+  Skeleton,
+  Textarea,
+} from '@contrataflow/ui';
 import type { DocumentItemDto, ProcessItemDto, TermDetailDto } from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -9,6 +20,7 @@ import { useId, useState } from 'react';
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
+import { TermCollapsiblePanel } from './term-collapsible-panel';
 import {
   includedIds,
   moveItem,
@@ -24,7 +36,6 @@ import { termKeys } from './term.api';
 import { dfdKeys, replaceDocumentItems, useDocumentItems } from '../dfd/dfd.api';
 import type { DocumentItemList } from '../dfd/dfd.api';
 import { itemKeys, useProcessItems } from '../process-items/process-items.api';
-import { INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 
 /*
  * `TermItemsPanel` (SCR-012 · US-038 · fluxo principal 1–4 · FA-01/03): o painel "Itens" do TR. Ao
@@ -47,34 +58,10 @@ export interface TermItemsPanelProps {
 
 export function TermItemsPanel({ processId, term, editable }: TermItemsPanelProps) {
   const t = useTranslations('term.items');
-  const [open, setOpen] = useState(false);
-  const contentId = useId();
   return (
-    <section
-      aria-labelledby={`${contentId}-title`}
-      data-term-panel="items"
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border p-4"
-    >
-      <h3 id={`${contentId}-title`} className="text-base font-semibold">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between gap-2 text-left"
-          aria-expanded={open}
-          aria-controls={contentId}
-          onClick={() => {
-            setOpen((value) => !value);
-          }}
-        >
-          <span>{t('title')}</span>
-          <span aria-hidden="true">{open ? '−' : '+'}</span>
-        </button>
-      </h3>
-      {open ? (
-        <div id={contentId} className="flex min-w-0 flex-col gap-3">
-          <TermItemsContent processId={processId} term={term} editable={editable} />
-        </div>
-      ) : null}
-    </section>
+    <TermCollapsiblePanel panel="items" title={t('title')}>
+      <TermItemsContent processId={processId} term={term} editable={editable} />
+    </TermCollapsiblePanel>
   );
 }
 
@@ -268,7 +255,7 @@ function TermItemsEditor({
     <div className="flex min-w-0 flex-col gap-3">
       <p className="text-sm text-muted-foreground">{editable ? t('hint') : t('readOnly')}</p>
       <p className="text-sm font-medium">{t('includedCount', { count })}</p>
-      <ul aria-label={t('caption')} className="flex flex-col gap-3">
+      <ul aria-label={t('caption')} className="flex flex-col divide-y divide-border">
         {rows.map(({ item }, index) => {
           const draft = state.drafts[item.id];
           if (draft === undefined) return null;
@@ -295,28 +282,27 @@ function TermItemsEditor({
               onDragEnd={() => {
                 setDragging(null);
               }}
-              className="flex min-w-0 flex-col gap-3 rounded-control border border-border p-3"
+              className="flex min-w-0 flex-col gap-3 py-4 first:pt-0 last:pb-0"
               data-testid={`term-item-${String(item.sequence)}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-2 text-sm">
-                  <input
+                  <Checkbox
                     id={`${rowId}-include`}
-                    type="checkbox"
-                    className="mt-1"
+                    className="mt-0.5"
                     checked={draft.included}
                     disabled={!editable}
                     aria-describedby={`${rowId}-unit`}
-                    onChange={(event) => {
-                      set(item.id, { included: event.target.checked });
+                    onCheckedChange={(checked) => {
+                      set(item.id, { included: checked === true });
                     }}
                   />
-                  <label htmlFor={`${rowId}-include`} className="min-w-0 break-words">
+                  <Label htmlFor={`${rowId}-include`} className="min-w-0 break-words">
                     <span className="font-medium">
                       {t('item', { sequence: item.sequence, description: item.description })}
                     </span>
                     <span className="sr-only"> — {t('include')}</span>
-                  </label>
+                  </Label>
                 </div>
                 {editable && draft.included ? (
                   <div className="flex gap-1">
@@ -330,7 +316,7 @@ function TermItemsEditor({
                         move(item.id, -1);
                       }}
                     >
-                      ↑
+                      <ChevronUp className="size-4" />
                     </Button>
                     <Button
                       type="button"
@@ -342,7 +328,7 @@ function TermItemsEditor({
                         move(item.id, 1);
                       }}
                     >
-                      ↓
+                      <ChevronDown className="size-4" />
                     </Button>
                   </div>
                 ) : null}
@@ -352,31 +338,25 @@ function TermItemsEditor({
               </span>
               {draft.included ? (
                 <div className="grid min-w-0 gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <label htmlFor={`${rowId}-quantity`} className="text-sm font-medium">
-                      {t('quantity')}
-                    </label>
-                    <input
-                      id={`${rowId}-quantity`}
+                  <Field
+                    id={`${rowId}-quantity`}
+                    label={t('quantity')}
+                    required
+                    requiredMark=""
+                    error={error}
+                  >
+                    <Input
                       type="text"
                       inputMode="decimal"
                       autoComplete="off"
-                      className={`${INPUT_CLASS} text-right tabular-nums`}
+                      className="text-right tabular-nums"
                       value={draft.quantity}
                       readOnly={!editable}
-                      aria-required
-                      aria-invalid={error === undefined ? undefined : true}
-                      aria-describedby={error === undefined ? undefined : `${rowId}-error`}
                       onChange={(event) => {
                         set(item.id, { quantity: event.target.value });
                       }}
                     />
-                    {error === undefined ? null : (
-                      <p id={`${rowId}-error`} role="alert" className="text-xs text-destructive">
-                        {error}
-                      </p>
-                    )}
-                  </div>
+                  </Field>
                   <TextField
                     id={`${rowId}-specification`}
                     label={t('specification')}
@@ -455,19 +435,14 @@ function TextField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div className={`flex min-w-0 flex-col gap-1 ${className ?? ''}`}>
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <textarea
-        id={id}
-        className={TEXTAREA_CLASS}
+    <Field id={id} label={label} className={className}>
+      <Textarea
         value={value}
         readOnly={!editable}
         onChange={(event) => {
           onChange(event.target.value);
         }}
       />
-    </div>
+    </Field>
   );
 }

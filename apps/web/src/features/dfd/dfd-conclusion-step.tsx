@@ -1,12 +1,24 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  FormActionBar,
+  Label,
+  Skeleton,
+  Textarea,
+  TriangleAlert,
+  cx,
+  toast,
+} from '@contrataflow/ui';
 import { PROCESS_FORWARD_LIMITS } from '@contrataflow/validation';
 import type { DocumentAction, DocumentDto, ProcessDto } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import type { RetryOptions } from '@/lib/api/client';
 import { useIdempotentMutation } from '@/lib/api/use-idempotent-mutation';
@@ -23,13 +35,13 @@ import {
   isMessageTooLong,
 } from './dfd-conclusion-model';
 import type { ConclusionProblem } from './dfd-conclusion-model';
+import { STEP_CARD } from './dfd-justification-step';
 import { useDfdValidation } from './dfd-review-step';
 import { dfdKeys } from './dfd.api';
 import { documentKeys, fetchDocument, transitionDocument } from '../documents/documents.api';
 import { GeneratePdfButton } from '../documents/generate-pdf-button';
 import { useAvailableActions, useProcessChecklist } from '../process-actions/process-actions.api';
 import { useForwardProcess } from '../process-forward/process-forward.api';
-import { TEXTAREA_CLASS } from '../processes/form-field';
 
 /** RN-DFD-42 · FA-10: espera do descarregamento do autosave antes de concluir. */
 const AUTOSAVE_FLUSH_TIMEOUT_MS = 10_000;
@@ -52,6 +64,17 @@ export interface DfdConclusionStepProps {
   readonly autosave: ConclusionAutosave | null;
   /** Retentativas automáticas das mutações (padrão do cliente); os testes as zeram. */
   readonly retry?: RetryOptions | undefined;
+  /**
+   * Barra fixa do wizard (prd-5 · FormPage): o passo 5 a desenha com "Voltar" e o estado do
+   * salvamento, e põe nela a ação primária (enviar ou finalizar).
+   */
+  readonly bar?: ConclusionBar | undefined;
+}
+
+export interface ConclusionBar {
+  readonly back: ReactNode;
+  readonly status?: ReactNode;
+  readonly label: string;
 }
 
 type Phase = 'idle' | 'saving' | 'sending';
@@ -73,6 +96,7 @@ export function DfdConclusionStep({
   process,
   autosave,
   retry,
+  bar,
 }: DfdConclusionStepProps) {
   const t = useTranslations('dfd.conclusion');
   const tDfd = useTranslations('dfd');
@@ -146,15 +170,27 @@ export function DfdConclusionStep({
           />
         )}
         {versionPdf}
+        {bar ? (
+          <FormActionBar status={bar.status} label={bar.label} className="justify-start">
+            {bar.back}
+          </FormActionBar>
+        ) : null}
       </div>
     );
   }
 
   if (validation.data === undefined || actions.data === undefined) {
     return (
-      <div role="status">
-        <span className="sr-only">{t('loading')}</span>
-        <Skeleton className="h-16 w-full" />
+      <div className="flex flex-col gap-4">
+        <div role="status">
+          <span className="sr-only">{t('loading')}</span>
+          <Skeleton className="h-16 w-full" />
+        </div>
+        {bar ? (
+          <FormActionBar status={bar.status} label={bar.label} className="justify-start">
+            {bar.back}
+          </FormActionBar>
+        ) : null}
       </div>
     );
   }
@@ -296,7 +332,7 @@ export function DfdConclusionStep({
     <div className="flex flex-col gap-4" data-testid="dfd-conclusion-actions">
       <div aria-live="polite">
         {blocking === 0 ? (
-          <Alert tone="success" title={`✓ ${t('ready')}`} />
+          <Alert tone="success" title={t('ready')} />
         ) : (
           <Alert tone="warning" title={t('pending', { count: blocking })}>
             <p>{t('pendingHint')}</p>
@@ -313,11 +349,8 @@ export function DfdConclusionStep({
           </p>
         </Alert>
       ) : (
-        <section
-          aria-labelledby="dfd-ready-title"
-          className="flex flex-col gap-3 rounded-card border border-border p-4"
-        >
-          <h3 id="dfd-ready-title" className="font-semibold">
+        <section aria-labelledby="dfd-ready-title" className={STEP_CARD}>
+          <h3 id="dfd-ready-title" className="text-section-title text-brand-ink">
             {mode.kind === 'SEND' ? t('card.title') : t('card.finalizeTitle')}
           </h3>
           <dl className="grid gap-2 text-sm sm:grid-cols-[max-content_1fr] sm:gap-x-4">
@@ -350,36 +383,38 @@ export function DfdConclusionStep({
           {selfApproval ? <Alert tone="info" title={t('selfApproval')} /> : null}
 
           {warnings.length > 0 ? (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-semibold">{t('warnings.title')}</legend>
+            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+              <legend className="mb-1.5 p-0 text-sm font-semibold">{t('warnings.title')}</legend>
               {warnings.map((warning) => {
                 const id = `${messageId}-warning-${warning.key}`;
                 return (
                   <div
                     key={warning.key}
-                    className={`flex flex-col gap-1 rounded-control border p-3 text-sm ${
+                    className={cx(
+                      'flex flex-col gap-2 rounded-control border p-3 text-sm',
                       problem?.key === 'warnings' && !acknowledged.has(warning.key)
                         ? 'border-warning'
-                        : 'border-border'
-                    }`}
+                        : 'border-border',
+                    )}
                   >
-                    <p>
-                      <span aria-hidden="true">⚠ </span>
-                      {warning.message}
+                    <p className="flex items-start gap-2">
+                      <TriangleAlert className="mt-0.5 size-4 flex-none text-warning" />
+                      <span>{warning.message}</span>
                     </p>
-                    <label htmlFor={id} className="flex items-center gap-2">
-                      <input
+                    <div className="flex items-center gap-2">
+                      <Checkbox
                         id={id}
-                        type="checkbox"
                         checked={acknowledged.has(warning.key)}
                         disabled={busy}
-                        onChange={(event) => {
-                          toggle(warning.key, event.target.checked);
+                        onCheckedChange={(checked) => {
+                          toggle(warning.key, checked === true);
                         }}
                       />
-                      {t('warnings.acknowledge')}
-                      <span className="sr-only">: {warning.message}</span>
-                    </label>
+                      <Label htmlFor={id} className="font-medium">
+                        {t('warnings.acknowledge')}
+                        <span className="sr-only">: {warning.message}</span>
+                      </Label>
+                    </div>
                   </div>
                 );
               })}
@@ -388,12 +423,9 @@ export function DfdConclusionStep({
 
           {mode.kind === 'SEND' ? (
             <div className="flex flex-col gap-1">
-              <label htmlFor={messageId} className="text-sm font-medium">
-                {t('message.label')}
-              </label>
-              <textarea
+              <Label htmlFor={messageId}>{t('message.label')}</Label>
+              <Textarea
                 id={messageId}
-                className={TEXTAREA_CLASS}
                 rows={3}
                 value={message}
                 disabled={busy}
@@ -434,9 +466,10 @@ export function DfdConclusionStep({
         )}
       </div>
 
-      {mode.kind === 'NONE' ? null : (
-        <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-border bg-background py-3">
-          {mode.kind === 'SEND' ? (
+      {mode.kind === 'NONE' && !bar ? null : (
+        <FormActionBar status={bar?.status} label={bar?.label}>
+          {bar?.back}
+          {mode.kind === 'NONE' ? null : mode.kind === 'SEND' ? (
             <Button variant="primary" disabled={disabled} onClick={() => void send()}>
               {phase === 'sending' ? t('sending') : t('send')}
             </Button>
@@ -445,7 +478,7 @@ export function DfdConclusionStep({
               {phase === 'sending' ? t('finalizing') : t('finalize')}
             </Button>
           )}
-        </div>
+        </FormActionBar>
       )}
     </div>
   );

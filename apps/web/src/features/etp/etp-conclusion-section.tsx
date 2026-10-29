@@ -1,6 +1,20 @@
 'use client';
 
-import { Alert } from '@contrataflow/ui';
+import {
+  Alert,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Field,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@contrataflow/ui';
 import { ETP_COMPLETENESS_MESSAGES, PARCELING_DECISIONS } from '@contrataflow/validation';
 import type {
   EtpDetailDto,
@@ -71,67 +85,64 @@ export const EtpConclusionFieldset = forwardRef<HTMLFieldSetElement, EtpConclusi
         ref={ref}
         tabIndex={-1}
         aria-describedby={`${id}-hint`}
-        className="flex min-w-0 flex-col gap-3 rounded-control border border-border p-4"
+        className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-6 shadow-card"
       >
-        <legend className="px-1 text-base font-semibold">{t('title')}</legend>
+        <legend className="mb-1 p-0 text-section-title text-brand-ink">{t('title')}</legend>
         <p id={`${id}-hint`} className="text-sm text-muted-foreground">
           {t('hint')}
         </p>
 
-        <div role="radiogroup" aria-labelledby={`${id}-conclusion`} className="flex flex-col gap-1">
-          <span id={`${id}-conclusion`} className="text-sm font-medium">
-            {t('conclusionLabel')} *
-          </span>
-          <div className="flex flex-wrap gap-4">
-            {CONCLUSIONS.map((value) => (
-              <label key={value} className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name={`${id}-conclusion`}
-                  value={value}
-                  checked={conclusion === value}
-                  disabled={disabled}
-                  data-field="conclusion"
-                  onChange={() => {
-                    save.mutate({ conclusion: value });
-                  }}
-                />
-                {t(`conclusionOption.${value}`)}
-              </label>
-            ))}
-          </div>
-          {conclusion === null ? (
-            <span className="text-xs text-muted-foreground">{t('conclusionPending')}</span>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${id}-parceling`} className="text-sm font-medium">
-            {t('parcelingLabel')} *
-          </label>
-          <select
-            id={`${id}-parceling`}
-            data-field="parcelingDecision"
-            className="h-9 w-full max-w-sm rounded-control border border-border bg-background px-2 text-sm"
-            value={etp.parcelingDecision ?? ''}
+        <Field
+          group
+          label={t('conclusionLabel')}
+          required
+          description={conclusion === null ? t('conclusionPending') : undefined}
+        >
+          <RadioGroup
+            value={conclusion ?? ''}
             disabled={disabled}
-            onChange={(event) => {
-              const value = PARCELING_DECISIONS.find((option) => option === event.target.value);
-              if (value !== undefined) save.mutate({ parcelingDecision: value });
+            className="flex-row flex-wrap gap-x-6 gap-y-2"
+            onValueChange={(value) => {
+              const next = CONCLUSIONS.find((option) => option === value);
+              if (next !== undefined) save.mutate({ conclusion: next });
             }}
           >
-            {etp.parcelingDecision === null ? (
-              <option value="" disabled>
-                {t('parcelingPlaceholder')}
-              </option>
-            ) : null}
-            {PARCELING_DECISIONS.map((value: ParcelingDecision) => (
-              <option key={value} value={value}>
-                {t(`parcelingOption.${value}`)}
-              </option>
+            {CONCLUSIONS.map((value) => (
+              <div key={value} className="flex items-center gap-2">
+                <RadioGroupItem
+                  id={`${id}-conclusion-${value}`}
+                  value={value}
+                  data-field="conclusion"
+                />
+                <Label htmlFor={`${id}-conclusion-${value}`} className="font-normal">
+                  {t(`conclusionOption.${value}`)}
+                </Label>
+              </div>
             ))}
-          </select>
-        </div>
+          </RadioGroup>
+        </Field>
+
+        <Field label={t('parcelingLabel')} required className="max-w-sm">
+          <Select
+            value={etp.parcelingDecision ?? ''}
+            disabled={disabled}
+            onValueChange={(value) => {
+              const next = PARCELING_DECISIONS.find((option) => option === value);
+              if (next !== undefined) save.mutate({ parcelingDecision: next });
+            }}
+          >
+            <SelectTrigger data-field="parcelingDecision">
+              <SelectValue placeholder={t('parcelingPlaceholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {PARCELING_DECISIONS.map((value: ParcelingDecision) => (
+                <SelectItem key={value} value={value}>
+                  {t(`parcelingOption.${value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
         {save.isPending ? (
           <p role="status" className="text-xs text-muted-foreground">
@@ -206,30 +217,40 @@ export function EtpPendingSummary({
       </li>
     );
   };
+  const count = blocking.length + warnings.length;
+  // Aberta enquanto houver o que fazer; a pessoa pode recolher/abrir (a escolha vence).
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const open = chosen ?? count > 0;
   return (
-    <section
-      aria-labelledby={`${id}-title`}
-      className="flex min-w-0 flex-col gap-2 rounded-control border border-border p-4"
-    >
-      <h3 id={`${id}-title`} className="text-base font-semibold">
-        {t('title')}
-      </h3>
-      <p aria-live="polite" className="text-sm text-muted-foreground">
-        {!loaded
-          ? t('loading')
-          : blocking.length === 0
-            ? t(warnings.length === 0 ? 'none' : 'onlyWarnings')
-            : t('blocking', { count: blocking.length })}
-      </p>
-      {blocking.length > 0 ? (
-        <ul className="list-disc pl-5 text-sm">{blocking.map(render)}</ul>
-      ) : null}
-      {warnings.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-warning">{t('warningsTitle')}</span>
-          <ul className="list-disc pl-5 text-sm">{warnings.map(render)}</ul>
+    <Collapsible open={open} onOpenChange={setChosen} asChild>
+      <section
+        aria-labelledby={`${id}-title`}
+        className="flex min-w-0 flex-col gap-2 rounded-card bg-surface p-4 shadow-card"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h3 id={`${id}-title`} className="text-base font-semibold">
+            <CollapsibleTrigger disabled={count === 0}>{t('title')}</CollapsibleTrigger>
+          </h3>
+          <p aria-live="polite" className="text-sm text-muted-foreground">
+            {!loaded
+              ? t('loading')
+              : blocking.length === 0
+                ? t(warnings.length === 0 ? 'none' : 'onlyWarnings')
+                : t('blocking', { count: blocking.length })}
+          </p>
         </div>
-      ) : null}
-    </section>
+        <CollapsibleContent className="flex flex-col gap-2">
+          {blocking.length > 0 ? (
+            <ul className="list-disc pl-5 text-sm">{blocking.map(render)}</ul>
+          ) : null}
+          {warnings.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-warning">{t('warningsTitle')}</span>
+              <ul className="list-disc pl-5 text-sm">{warnings.map(render)}</ul>
+            </div>
+          ) : null}
+        </CollapsibleContent>
+      </section>
+    </Collapsible>
   );
 }

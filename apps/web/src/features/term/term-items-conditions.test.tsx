@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption, optionLabels } from '@test/support/kit';
 import { processItem, stubWithRoutes } from '@test/support/price-research-fixtures';
 import type { Route } from '@test/support/price-research-fixtures';
 import {
@@ -338,9 +339,8 @@ describe('Painel "Itens" (US-038 · SCR-012)', () => {
     await userEvent.clear(within(cement).getByLabelText('Quantidade'));
     await userEvent.type(within(cement).getByLabelText('Quantidade'), '0');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar itens' }));
-    expect((await within(cement).findByRole('alert')).textContent).toContain(
-      'Informe uma quantidade maior que zero.',
-    );
+    expect(await within(cement).findByText('Informe uma quantidade maior que zero.')).toBeTruthy();
+    expect(within(cement).getByLabelText('Quantidade').getAttribute('aria-invalid')).toBe('true');
     expect(puts(fetchMock)).toHaveLength(0);
   });
 
@@ -445,11 +445,10 @@ describe('Painel "Condições contratuais" (US-038 · SCR-012)', () => {
     await userEvent.click(screen.getByLabelText('Dias corridos'));
     await userEvent.type(screen.getByLabelText('Prazo de pagamento (dias)'), '30');
     await userEvent.type(screen.getByLabelText('Garantia contratual (%)'), '5');
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Critério de julgamento'),
-      'Menor preço',
-    );
-    await userEvent.selectOptions(screen.getByLabelText('Tipo de adjudicação'), 'Por item');
+    await screen.findByRole('combobox', { name: 'Critério de julgamento' });
+    const user = userEvent.setup();
+    await chooseOption(user, 'Critério de julgamento', 'Menor preço');
+    await chooseOption(user, 'Tipo de adjudicação', 'Por item');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar condições' }));
 
     await waitFor(() => {
@@ -496,10 +495,8 @@ describe('Painel "Condições contratuais" (US-038 · SCR-012)', () => {
         }),
     });
     await openPanel(/^Condições contratuais/);
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Critério de julgamento'),
-      'Maior desconto',
-    );
+    await screen.findByRole('combobox', { name: 'Critério de julgamento' });
+    await chooseOption(userEvent.setup(), 'Critério de julgamento', 'Maior desconto');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar condições' }));
     expect(await screen.findByText('Selecione um critério de julgamento válido.')).toBeTruthy();
   });
@@ -529,7 +526,11 @@ describe('Painel "Condições contratuais" (US-038 · SCR-012)', () => {
     expect(callsTo(api, 'PATCH', URL_TERM)[0]?.body).toEqual({ paymentTermDays: 15 });
     catalogState.down = false;
     await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    expect(await screen.findByRole('option', { name: 'Menor preço' })).toBeTruthy();
+    await waitFor(async () => {
+      expect(await optionLabels(userEvent.setup(), 'Critério de julgamento')).toContain(
+        'Menor preço',
+      );
+    });
   });
 
   it('[Permissão] sem edição: somente leitura, sem "Salvar condições"; axe sem violações sérias', async () => {
@@ -541,9 +542,11 @@ describe('Painel "Condições contratuais" (US-038 · SCR-012)', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Vigência do contrato (meses)').readOnly).toBe(
       true,
     );
-    expect(screen.getByLabelText<HTMLInputElement>('Tipo de adjudicação').disabled).toBe(true);
+    expect(
+      screen.getByRole<HTMLButtonElement>('combobox', { name: 'Tipo de adjudicação' }).disabled,
+    ).toBe(true);
     expect(screen.queryByRole('button', { name: 'Salvar condições' })).toBeNull();
-    await screen.findByRole('option', { name: 'Menor preço' });
+    await screen.findByRole('combobox', { name: 'Critério de julgamento' });
     expect(await seriousA11yViolations(container)).toEqual([]);
   });
 });

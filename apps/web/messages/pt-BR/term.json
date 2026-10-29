@@ -36,6 +36,7 @@
     "heading": "Termo de Referência",
     "sectionsNav": "Seções do TR",
     "sectionsMenu": "Seções",
+    "actionsLabel": "Ações do editor do TR",
     "completeness": {
       "label": "Completude do TR",
       "summary": "{percent}% — {satisfied} de {required} seções exigidas",
@@ -299,7 +300,7 @@
     "criterionRetry": "Tentar novamente"
   },
   "completion": {
-    "title": "Completude do TR",
+    "title": "O que falta",
     "loading": "Verificando as pendências do TR…",
     "loadFailed": "Não foi possível verificar as pendências do TR.",
     "retry": "Tentar novamente",
@@ -309,7 +310,6 @@
     "blockingTitle": "Pendências bloqueantes",
     "warningsTitle": "{count, plural, one {Aviso de consistência} other {Avisos de consistência}}",
     "warningsHint": "Os avisos não impedem a conclusão, mas precisam ser reconhecidos em \"Concluir TR\".",
-    "toggle": "Mostrar ou ocultar as pendências",
     "panel": {
       "items": "em Itens",
       "conditions": "em Condições contratuais",

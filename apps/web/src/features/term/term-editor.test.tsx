@@ -382,7 +382,7 @@ describe('SCR-012 — editar seções do TR (US-036)', () => {
     expect(second.getAttribute('aria-current')).toBeNull();
     // orientação e base legal da seção ativa
     expect(screen.getByText(/Base legal: Lei 14\.133\/2021, art\. 6º, XXIII, a/)).toBeTruthy();
-    expect(screen.getByText('Orientação para o preenchimento')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Orientação para o preenchimento' }));
     expect(
       screen.getByText('Descreva a natureza, os quantitativos e o prazo do contrato.'),
     ).toBeTruthy();
@@ -436,7 +436,7 @@ describe('SCR-012 — editar seções do TR (US-036)', () => {
     renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
     await user.click(await screen.findByRole('button', { name: /^2\. Local e condições/ }));
     await user.click(screen.getByRole('button', { name: 'Não se aplica' }));
-    const justification = screen.getByLabelText('Justificativa *');
+    const justification = screen.getByLabelText(/^Justificativa/);
     await user.type(justification, 'Serviço remoto');
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
     expect((await screen.findByRole('alert')).textContent).toBe(
@@ -453,7 +453,7 @@ describe('SCR-012 — editar seções do TR (US-036)', () => {
     renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
     await user.click(await screen.findByRole('button', { name: /^2\. Local e condições/ }));
     await user.click(screen.getByRole('button', { name: 'Não se aplica' }));
-    await user.type(screen.getByLabelText('Justificativa *'), JUSTIFICATION_30);
+    await user.type(screen.getByLabelText(/^Justificativa/), JUSTIFICATION_30);
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => {
       expect(sectionPuts(fetchMock)).toHaveLength(1);
@@ -542,7 +542,7 @@ describe('SCR-012 — painel "Dados do TR" (TRM-04)', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: /^Usar o valor da pesquisa/ })).toBeTruthy();
-    await user.type(screen.getByLabelText('Valor estimado (R$)'), '100000.00');
+    await user.type(screen.getByLabelText(/^Valor estimado [(]R[$][)]/), '100000.00');
     await user.click(screen.getByRole('button', { name: 'Confirmar valor' }));
     await waitFor(() => {
       expect(patches(fetchMock)).toHaveLength(1);
@@ -599,7 +599,7 @@ describe('SCR-012 — painel "Dados do TR" (TRM-04)', () => {
     await user.click(screen.getByRole('button', { name: 'Informar manualmente' }));
     expect(screen.queryByText(/Existe pesquisa de preços concluída/)).toBeNull();
     expect(screen.queryByRole('button', { name: /^Usar o valor da pesquisa/ })).toBeNull();
-    await user.type(screen.getByLabelText('Valor estimado (R$)'), '10,555');
+    await user.type(screen.getByLabelText(/^Valor estimado [(]R[$][)]/), '10,555');
     await user.click(screen.getByRole('button', { name: 'Confirmar valor' }));
     expect(
       await screen.findByText('Informe um valor válido, com até 2 casas decimais.'),
@@ -611,7 +611,7 @@ describe('SCR-012 — painel "Dados do TR" (TRM-04)', () => {
     const fetchMock = mockApi();
     const user = userEvent.setup();
     renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
-    const object = await screen.findByLabelText('Objeto (resumo)');
+    const object = await screen.findByLabelText(/^Objeto [(]resumo[)]/);
     await user.clear(object);
     await user.type(object, 'Curto');
     await user.click(screen.getByRole('button', { name: 'Salvar objeto' }));
@@ -635,7 +635,7 @@ describe('SCR-012 — painel "Dados do TR" (TRM-04)', () => {
     });
     const user = userEvent.setup();
     renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} />);
-    const object = await screen.findByLabelText('Objeto (resumo)');
+    const object = await screen.findByLabelText(/^Objeto [(]resumo[)]/);
     await user.clear(object);
     await user.type(object, 'Manutenção predial e reparos');
     const gets = () =>

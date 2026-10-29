@@ -199,15 +199,15 @@ describe('ImportEtpPanel (US-037 · SCR-012)', () => {
       applying(() => jsonResponse({ data: RESULT, meta: { allowedActions: ['UPDATE'] } })),
     );
     const object = await screen.findByRole('checkbox', { name: /Definição do objeto/ });
-    expect((object as HTMLInputElement).checked).toBe(true);
-    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: /Justificativa/ }).checked).toBe(
-      true,
-    );
+    expect(object.getAttribute('aria-checked')).toBe('true');
+    expect(
+      screen.getByRole('checkbox', { name: /Justificativa/ }).getAttribute('aria-checked'),
+    ).toBe('true');
     expect(screen.getAllByText('Objeto antigo').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Notebooks educacionais').length).toBeGreaterThan(0);
-    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: /Valor estimado/ }).checked).toBe(
-      true,
-    );
+    expect(
+      screen.getByRole('checkbox', { name: /Valor estimado/ }).getAttribute('aria-checked'),
+    ).toBe('true');
     expect(screen.getByText(/R\$\s?125\.000,00/)).toBeTruthy();
     expect(screen.getByText('Origem: ETP 0001/2026, versão 2')).toBeTruthy();
     const table = screen.getByRole('table', { name: 'Itens do ETP e quantidades atuais do TR' });
@@ -312,7 +312,7 @@ describe('ImportEtpPanel (US-037 · SCR-012)', () => {
     ).toBeTruthy();
     const value = screen.getByRole('checkbox', { name: /Valor estimado/ });
     expect((value as HTMLButtonElement).disabled).toBe(true);
-    expect((value as HTMLInputElement).checked).toBe(false);
+    expect(value.getAttribute('aria-checked')).toBe('false');
     expect(screen.getAllByText(/Valor sigiloso/).length).toBeGreaterThan(0);
     expect(screen.getByText('Origem: ETP (rascunho)')).toBeTruthy();
   });

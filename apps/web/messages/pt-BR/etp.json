@@ -50,6 +50,11 @@
     "loading": "Carregando as seções do ETP…",
     "sectionsNav": "Seções do ETP",
     "sectionsMenu": "Seções",
+    "actions": {
+      "label": "Navegação entre seções",
+      "previous": "Seção anterior",
+      "next": "Próxima seção"
+    },
     "summary": "{done} de {total} seções resolvidas",
     "pendingCount": "{count, plural, one {# seção com pendência} other {# seções com pendência}}",
     "state": {
@@ -182,6 +187,9 @@
       "discardNamed": "Descartar {name}",
       "reopen": "Voltar à análise",
       "reopenNamed": "Voltar {name} à análise",
+      "menu": "Ações de {name}",
+      "up": "Mover para cima",
+      "down": "Mover para baixo",
       "moveUp": "Mover {name} para cima",
       "moveDown": "Mover {name} para baixo",
       "remove": "Excluir",
@@ -334,7 +342,7 @@
       "unexpected": "Ocorreu um erro inesperado."
     },
     "pending": {
-      "title": "Pendências para concluir",
+      "title": "O que falta para concluir",
       "loading": "Verificando as pendências do ETP…",
       "none": "Nenhuma pendência: o ETP está pronto para ser concluído.",
       "onlyWarnings": "Nenhuma pendência bloqueante. Há aviso a confirmar ao concluir.",

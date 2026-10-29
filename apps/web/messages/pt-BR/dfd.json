@@ -1,5 +1,6 @@
 {
   "title": "DFD — Documento de Formalização da Demanda",
+  "shortTitle": "DFD",
   "decision": {
     "titles": {
       "APPROVED": "DFD aprovado",
@@ -31,7 +32,11 @@
     "REVIEW": "Revisão",
     "CONCLUSION": "Conclusão"
   },
+  "header": {
+    "version": "Versão {number}"
+  },
   "nav": {
+    "label": "Ações do passo",
     "back": "Voltar",
     "continue": "Continuar",
     "fixErrors": "Revise os campos destacados."
@@ -54,8 +59,11 @@
     "requestDate": "Data *",
     "department": "Setor *",
     "departmentPlaceholder": "Selecione o setor",
+    "datePlaceholder": "Selecione a data",
+    "dateCalendar": "Escolher a data do pedido",
     "departmentHint": "Unidades da {secretariat} solicitante do processo.",
     "responsible": "Responsável pela demanda *",
+    "responsibleHint": "Digite ao menos 2 caracteres para buscar.",
     "object": "Objeto *",
     "objectHint": "Descreva de forma sucinta o que será contratado (10 a 2.000 caracteres).",
     "priority": "Prioridade *",
@@ -75,11 +83,14 @@
   },
   "justification": {
     "help": "Orientação",
+    "helpOf": "Orientação sobre {section}",
     "legalBasis": "Base legal: {basis}",
     "maxChars": "Até {max} caracteres."
   },
   "planning": {
     "itemsTitle": "Itens e quantidades",
+    "datePlaceholder": "Selecione a data",
+    "dateCalendar": "Escolher a previsão de contratação",
     "itemsHint": "Marque os itens do processo atendidos por este DFD e informe a quantidade.",
     "number": "Nº",
     "description": "Descrição",
@@ -104,7 +115,9 @@
     "notesHint": "Vinculação ou dependência com outras demandas, restrições de prazo e unidades envolvidas."
   },
   "review": {
-    "title": "Checklist de completude",
+    "title": "O que falta",
+    "pendingCount": "{count, plural, one {# item} other {# itens}}",
+    "toggle": "Mostrar ou ocultar",
     "loading": "Verificando as pendências…",
     "error": "Não foi possível verificar as pendências agora.",
     "clean": "Sem pendências",

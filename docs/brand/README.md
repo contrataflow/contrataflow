@@ -164,9 +164,14 @@ segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K ab
 | Diálogo Cancelar processo | `dialogo-cancelar.png` | `dialogo-cancelar-escuro.png` | `dialogo-cancelar-celular.png` |
 | Aba Tramitação | `aba-tramitacao.png` | `aba-tramitacao-escuro.png` | `aba-tramitacao-celular.png` |
 | Aba Itens | `aba-itens.png` | `aba-itens-escuro.png` | `aba-itens-celular.png` |
+| DFD · Identificação (card 5) | `dfd-identificacao.png` | `dfd-identificacao-escuro.png` | `dfd-identificacao-celular.png` |
+| DFD · Planejamento | `dfd-planejamento.png` | `dfd-planejamento-escuro.png` | `dfd-planejamento-celular.png` |
+| ETP · seção e "O que falta" | `etp-secao.png` | `etp-secao-escuro.png` | `etp-secao-celular.png` |
+| ETP · quadro de alternativas | `etp-alternativas.png` | `etp-alternativas-escuro.png` | `etp-alternativas-celular.png` |
+| TR · itens | `tr-itens.png` | `tr-itens-escuro.png` | `tr-itens-celular.png` |
 
 Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
-editores (DFD, ETP, TR, pesquisa de preços, riscos, documentos), fornecedores, auditoria, notificações, perfil e administração. Contraste e rolagem horizontal foram
+editores (pesquisa de preços, riscos, documentos), fornecedores, auditoria, notificações, perfil e administração. Contraste e rolagem horizontal foram
 varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA sem violações).
 
 ## Tokens (`packages/ui/src/styles.css`)

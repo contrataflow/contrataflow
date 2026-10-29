@@ -15,6 +15,7 @@ import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { AiReviewPanel } from './ai-review';
+import { DocumentHeader } from './document-header';
 import { DocumentLifecycle } from './document-lifecycle';
 import { DocumentStatusBadge, PendingApprovalBadge } from './document-status-badge';
 import { documentKeys, documentVersionsHref, fetchDocument } from './documents.api';
@@ -128,61 +129,61 @@ export function DocumentView({
 
   const { document, meta } = query.data;
   return (
-    <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6">
-      <header className="flex min-w-0 flex-col gap-2">
-        <Link href={`/processos/${processId}`} className="text-sm text-primary underline">
-          {t('backToProcess')}
-        </Link>
-        <p className="text-sm font-medium text-muted-foreground">
-          {document.code ?? t('noNumber')}
-        </p>
-        <h1
-          ref={heading}
-          tabIndex={-1}
-          className="text-2xl font-semibold tracking-tight break-words outline-none"
-        >
-          {document.title}
-        </h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <DocumentStatusBadge status={document.status} />
-          {document.pendingApprovalId ? <PendingApprovalBadge /> : null}
-          <span className="text-sm text-muted-foreground">
-            {t('type', { type: document.documentType.name })}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {document.currentVersionNumber === null
-              ? t('noVersion')
-              : t('version', { number: document.currentVersionNumber })}
-          </span>
-          <Link
-            href={documentVersionsHref(processId, document.id)}
-            className="text-sm text-primary underline"
-          >
-            {t('versionsLink')}
-          </Link>
-        </div>
-        {/* US-066: "Salvar versão" segue POL-02 (`UPDATE`); externo cria versão por upload (FA-02). */}
-        {meta.allowedActions.includes('UPDATE') && document.documentType.kind !== 'UPLOADED' ? (
-          <div>
-            <SaveVersionAction document={document} />
-          </div>
-        ) : null}
-        {/* US-067: prévia em PDF do rascunho (DOC-20); quem vê o documento (PROCESS_VIEW) pode gerar. */}
-        {document.documentType.kind !== 'UPLOADED' ? (
-          <GeneratePdfButton source={{ kind: 'preview', documentId: document.id }} />
-        ) : null}
-        {showAiAssistant && isAiTarget(document.documentType.systemModule) ? (
-          <div>
-            <AiAssistant
-              processId={processId}
-              documentId={document.id}
-              targetModule={document.documentType.systemModule}
-              editable={document.status === 'DRAFT' || document.status === 'RETURNED'}
-              initialGenerationId={aiGenerationId}
-            />
-          </div>
-        ) : null}
-      </header>
+    <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-5">
+      <DocumentHeader
+        processId={processId}
+        current={document.code ?? t('noNumber')}
+        title={document.title}
+        titleRef={heading}
+        status={
+          <>
+            <DocumentStatusBadge status={document.status} />
+            {document.pendingApprovalId ? <PendingApprovalBadge /> : null}
+          </>
+        }
+        facts={[
+          { id: 'type', content: t('type', { type: document.documentType.name }) },
+          {
+            id: 'version',
+            content:
+              document.currentVersionNumber === null
+                ? t('noVersion')
+                : t('version', { number: document.currentVersionNumber }),
+          },
+          {
+            id: 'versions',
+            content: (
+              <Link
+                href={documentVersionsHref(processId, document.id)}
+                className="font-semibold text-primary hover:underline"
+              >
+                {t('versionsLink')}
+              </Link>
+            ),
+          },
+        ]}
+        actions={
+          <>
+            {showAiAssistant && isAiTarget(document.documentType.systemModule) ? (
+              <AiAssistant
+                processId={processId}
+                documentId={document.id}
+                targetModule={document.documentType.systemModule}
+                editable={document.status === 'DRAFT' || document.status === 'RETURNED'}
+                initialGenerationId={aiGenerationId}
+              />
+            ) : null}
+            {/* US-066: "Salvar versão" segue POL-02 (`UPDATE`); externo cria versão por upload (FA-02). */}
+            {meta.allowedActions.includes('UPDATE') && document.documentType.kind !== 'UPLOADED' ? (
+              <SaveVersionAction document={document} />
+            ) : null}
+          </>
+        }
+      />
+      {/* US-067: prévia em PDF do rascunho (DOC-20); quem vê o documento (PROCESS_VIEW) pode gerar. */}
+      {document.documentType.kind !== 'UPLOADED' ? (
+        <GeneratePdfButton source={{ kind: 'preview', documentId: document.id }} />
+      ) : null}
 
       {document.status === 'CANCELED' && document.cancellationReason ? (
         <Alert tone="warning" live={false} title={t('cancellationReason')}>

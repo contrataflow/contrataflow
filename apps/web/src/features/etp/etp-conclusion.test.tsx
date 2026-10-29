@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   ID,
   PROCESS_ID,
@@ -207,10 +208,7 @@ describe('Conclusão do ETP (US-023 · SCR-008)', () => {
     );
     expect(screen.getByText(NOT_VIABLE_TEXT)).toBeTruthy();
 
-    await user.selectOptions(
-      screen.getByLabelText(/Decisão sobre o parcelamento/),
-      'Não parcelar a contratação',
-    );
+    await chooseOption(user, /Decisão sobre o parcelamento/, 'Não parcelar a contratação');
     await waitFor(() => {
       expect(patchCalls(fetchMock)).toHaveLength(2);
     });
@@ -238,11 +236,12 @@ describe('Conclusão do ETP (US-023 · SCR-008)', () => {
       </>,
     );
     expect(
-      screen.getByRole<HTMLInputElement>('radio', { name: 'A contratação é viável' }).disabled,
+      screen.getByRole<HTMLButtonElement>('radio', { name: 'A contratação é viável' }).disabled,
     ).toBe(true);
-    expect(screen.getByLabelText<HTMLSelectElement>(/Decisão sobre o parcelamento/).disabled).toBe(
-      true,
-    );
+    expect(
+      screen.getByRole<HTMLButtonElement>('combobox', { name: /Decisão sobre o parcelamento/ })
+        .disabled,
+    ).toBe(true);
     expect(screen.queryByRole('button', { name: 'Concluir ETP' })).toBeNull();
   });
 

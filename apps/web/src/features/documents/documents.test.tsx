@@ -251,7 +251,7 @@ describe('SCR-105 · cabeçalho do documento', () => {
     expect(screen.getByText('Tipo: Parecer técnico')).toBeTruthy();
     expect(screen.getByText('Versão 2')).toBeTruthy();
     expect(screen.queryByText('Em aprovação')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Voltar ao processo' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Processo' }).getAttribute('href')).toBe(
       `/processos/${PROCESS_ID}`,
     );
     expect(await seriousA11yViolations()).toEqual([]);

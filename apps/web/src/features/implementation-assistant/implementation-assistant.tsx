@@ -1,6 +1,17 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@contrataflow/ui';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -15,8 +26,6 @@ import {
   nameErrors,
 } from './suggested-structure';
 import type { DepartmentType, SuggestedUnit } from './suggested-structure';
-
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
 
 export interface CreateDepartmentInput {
   readonly name: string;
@@ -168,52 +177,51 @@ export function ImplementationAssistant({
               }
             >
               <div className="flex flex-wrap items-end gap-3">
-                <input
-                  type="checkbox"
-                  className="mb-3 size-4"
+                <Checkbox
+                  className="mb-3"
                   checked={unit.selected && selectable}
                   disabled={!selectable}
                   aria-label={t('include', { name: unit.name || t('unnamed') })}
-                  onChange={(event) => {
-                    update(unit.key, { selected: event.target.checked });
+                  onCheckedChange={(checked) => {
+                    update(unit.key, { selected: checked === true });
                   }}
                 />
                 <div className="flex min-w-48 flex-1 flex-col gap-1">
-                  <label htmlFor={nameId} className="text-sm font-medium">
+                  <Label htmlFor={nameId}>
                     {unit.parentKey === null ? t('fields.unit') : t('fields.subunit')}
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id={nameId}
                     value={unit.name}
                     maxLength={UNIT_NAME_MAX + 1}
                     disabled={!unit.selected || !selectable}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? `${nameId}-error` : undefined}
-                    className={INPUT}
                     onChange={(event) => {
                       update(unit.key, { name: event.target.value });
                     }}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label htmlFor={typeId} className="text-sm font-medium">
-                    {t('fields.type')}
-                  </label>
-                  <select
-                    id={typeId}
+                  <Label htmlFor={typeId}>{t('fields.type')}</Label>
+                  <Select
                     value={unit.type}
-                    disabled={!unit.selected || !selectable}
-                    className={INPUT}
-                    onChange={(event) => {
-                      update(unit.key, { type: event.target.value as DepartmentType });
+                    disabled={locked || !unit.selected || !selectable}
+                    onValueChange={(value) => {
+                      update(unit.key, { type: value as DepartmentType });
                     }}
                   >
-                    {DEPARTMENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {t(`types.${type}`)}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id={typeId} className="min-w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {t(`types.${type}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {state ? (
                   <span className="mb-2 text-sm text-muted-foreground">

@@ -12,6 +12,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 
 /** Processo 0033/2026 da API simulada: sem TR. */
 const CREATE_PROCESS_PATH = '/processos/0192a000-0000-7000-8000-000000100033';
@@ -92,13 +93,13 @@ test('criar o TR a partir do painel, redigir seções, "não se aplica" em DELIV
   // "Não se aplica" em DELIVERY: justificativa curta é recusada; a válida é gravada.
   await nav.getByRole('button', { name: /^3\. Local e condições/ }).click();
   await page.getByRole('button', { name: 'Não se aplica' }).click();
-  await page.getByLabel('Justificativa *').fill('Serviço remoto');
+  await page.getByLabel(/^Justificativa( \*)?$/).fill('Serviço remoto');
   await page.getByRole('button', { name: 'Confirmar' }).click();
   await expect(
     page.getByRole('alert').filter({ hasText: 'Justifique com pelo menos 20 caracteres.' }),
   ).toBeVisible();
   await page
-    .getByLabel('Justificativa *')
+    .getByLabel(/^Justificativa( \*)?$/)
     .fill('Serviço prestado nas próprias unidades escolares.');
   await page.getByRole('button', { name: 'Confirmar' }).click();
   await expect(page.getByText('Esta seção não se aplica')).toBeVisible();
@@ -166,7 +167,7 @@ test('US-038: incluir itens, especificar, reordenar e preencher as condições c
   await hydraulic.getByRole('checkbox').check();
   await hydraulic.getByLabel('Quantidade').fill('0');
   await page.getByRole('button', { name: 'Salvar itens' }).click();
-  await expect(hydraulic.getByRole('alert')).toHaveText('Informe uma quantidade maior que zero.');
+  await expect(hydraulic.getByText('Informe uma quantidade maior que zero.')).toBeVisible();
   await hydraulic.getByLabel('Quantidade').fill('5');
   await page.getByRole('button', { name: 'Mover o item 2 para cima' }).click();
   await page.getByRole('button', { name: 'Salvar itens' }).click();
@@ -186,8 +187,8 @@ test('US-038: incluir itens, especificar, reordenar e preencher as condições c
   await expect(page.getByText('Informe o tipo de contagem do prazo.')).toBeVisible();
   await page.getByLabel('Dias corridos').check();
   await page.getByLabel('Prazo de pagamento (dias)').fill('30');
-  await page.getByLabel('Critério de julgamento').selectOption({ label: 'Menor preço' });
-  await page.getByLabel('Tipo de adjudicação').selectOption({ label: 'Por item' });
+  await chooseOption(page, 'Critério de julgamento', 'Menor preço');
+  await chooseOption(page, 'Tipo de adjudicação', 'Por item');
   await page.getByRole('button', { name: 'Salvar condições' }).click();
   await expect(page.getByText(/^Salvo às \d{2}:\d{2}$/).last()).toBeVisible();
 

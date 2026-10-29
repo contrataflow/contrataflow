@@ -1,7 +1,24 @@
 'use client';
 
 import type { CatalogType } from '@contrataflow/types';
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  DatePicker,
+  EmptyState,
+  Input,
+  Skeleton,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+  fromIsoDate,
+  toIsoDate,
+} from '@contrataflow/ui';
 import type {
   DfdHeaderField,
   DfdHeaderValues,
@@ -16,7 +33,7 @@ import type { ReactNode } from 'react';
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
-import { DfdSectionField } from './dfd-justification-step';
+import { DfdSectionField, STEP_CARD } from './dfd-justification-step';
 import { itemRows, itemsPayload, mergeItemEdits, rowQuantityError } from './dfd-model';
 import type { ItemEdit, ItemRow } from './dfd-model';
 import { dfdKeys, fetchDocumentItems, replaceDocumentItems, useDocumentItems } from './dfd.api';
@@ -25,7 +42,7 @@ import { useAvailableActions } from '../process-actions/process-actions.api';
 import { ProcessItemForm } from '../process-items/process-item-form';
 import { itemKindsOf } from '../process-items/process-items-model';
 import { itemKeys, useProcessItems } from '../process-items/process-items.api';
-import { FormField, INPUT_CLASS } from '../processes/form-field';
+import { FormField } from '../processes/form-field';
 import { formatMoneyText, toDecimalMoney } from '../processes/money';
 import { MoneyInput } from '../processes/money-input';
 import { PcaFieldset } from '../processes/pca-fieldset';
@@ -197,78 +214,80 @@ export function DocumentItemsGrid({
       </p>
       {failure ? <Alert tone="error" title={failure} /> : null}
       {rows.length === 0 ? (
-        <div className="flex flex-col items-start gap-2 rounded-card border border-dashed border-border p-6">
-          <p className="text-sm font-medium">{t('emptyItems')}</p>
-          {canAddItem ? null : (
-            <p className="text-sm text-muted-foreground">{t('emptyItemsGuidance')}</p>
-          )}
-        </div>
+        <EmptyState
+          title={t('emptyItems')}
+          description={canAddItem ? undefined : t('emptyItemsGuidance')}
+        />
       ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((row) => {
-            const error = rowQuantityError(row);
-            const quantityId = `dfd-item-quantity-${row.processItemId}`;
-            return (
-              <li
-                key={row.processItemId}
-                className="grid grid-cols-1 items-start gap-2 rounded-card border border-border p-3 md:grid-cols-[auto_3rem_1fr_8rem_10rem]"
-              >
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="size-4"
-                    checked={row.included}
-                    disabled={!editable || save.isPending}
-                    aria-label={t('includeItem', { number: row.sequence })}
-                    onChange={(event) => {
-                      change(row, { included: event.target.checked }, true);
-                    }}
-                  />
-                  <span className="md:sr-only">{t('include')}</span>
-                </label>
-                <span className="text-sm font-medium">
-                  <span className="sr-only">{t('number')} </span>
-                  {row.sequence}
-                </span>
-                <span className="text-sm">{row.description}</span>
-                <span className="text-sm text-muted-foreground">
-                  <span className="sr-only">{t('unit')}: </span>
-                  {row.unitLabel}
-                </span>
-                <div className="flex flex-col gap-1">
-                  <label htmlFor={quantityId} className="sr-only">
-                    {t('quantityOf', { number: row.sequence })}
-                  </label>
-                  <input
-                    id={quantityId}
-                    className={INPUT_CLASS}
-                    inputMode={row.allowsDecimal ? 'decimal' : 'numeric'}
-                    placeholder={t('quantity')}
-                    value={row.quantity}
-                    disabled={!editable || !row.included}
-                    aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? `${quantityId}-error` : undefined}
-                    onChange={(event) => {
-                      change(row, { quantity: event.target.value.replace(',', '.') }, false);
-                    }}
-                    onBlur={() => {
-                      if (edits[row.processItemId] !== undefined) change(row, {}, true);
-                    }}
-                  />
-                  {error ? (
-                    <p
-                      id={`${quantityId}-error`}
-                      className="text-sm text-destructive"
-                      aria-live="polite"
-                    >
-                      {error}
-                    </p>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <TableContainer label={t('itemsTitle')}>
+          <Table>
+            <TableHead>
+              <Tr>
+                <Th className="w-12">
+                  <span className="sr-only">{t('include')}</span>
+                </Th>
+                <Th className="w-12">{t('number')}</Th>
+                <Th>{t('description')}</Th>
+                <Th>{t('unit')}</Th>
+                <Th className="w-40">{t('quantity')}</Th>
+              </Tr>
+            </TableHead>
+            <TableBody>
+              {rows.map((row) => {
+                const error = rowQuantityError(row);
+                const quantityId = `dfd-item-quantity-${row.processItemId}`;
+                return (
+                  <Tr key={row.processItemId}>
+                    <Td>
+                      <Checkbox
+                        checked={row.included}
+                        disabled={!editable || save.isPending}
+                        aria-label={t('includeItem', { number: row.sequence })}
+                        onCheckedChange={(checked) => {
+                          change(row, { included: checked === true }, true);
+                        }}
+                      />
+                    </Td>
+                    <Td className="font-medium">{row.sequence}</Td>
+                    <Td className="min-w-48">{row.description}</Td>
+                    <Td className="text-muted-foreground">{row.unitLabel}</Td>
+                    <Td>
+                      <div className="flex min-w-32 flex-col gap-1">
+                        <label htmlFor={quantityId} className="sr-only">
+                          {t('quantityOf', { number: row.sequence })}
+                        </label>
+                        <Input
+                          id={quantityId}
+                          inputMode={row.allowsDecimal ? 'decimal' : 'numeric'}
+                          placeholder={t('quantity')}
+                          value={row.quantity}
+                          disabled={!editable || !row.included}
+                          aria-invalid={error ? true : undefined}
+                          aria-describedby={error ? `${quantityId}-error` : undefined}
+                          onChange={(event) => {
+                            change(row, { quantity: event.target.value.replace(',', '.') }, false);
+                          }}
+                          onBlur={() => {
+                            if (edits[row.processItemId] !== undefined) change(row, {}, true);
+                          }}
+                        />
+                        {error ? (
+                          <p
+                            id={`${quantityId}-error`}
+                            className="text-[0.8125rem] font-semibold text-destructive"
+                            aria-live="polite"
+                          >
+                            {error}
+                          </p>
+                        ) : null}
+                      </div>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
       {adding ? (
         <ProcessItemForm
@@ -353,91 +372,89 @@ export function DfdPlanningStep({
         editable={editable}
         process={process}
       />
-      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-        <FormField
-          id="dfd-field-expectedDate"
-          label={t('expectedDate')}
-          error={errors.expectedDate}
-          required
-        >
-          {(control) => (
-            <input
-              {...control}
-              type="date"
-              className={INPUT_CLASS}
-              value={header.expectedDate ?? ''}
-              readOnly={!editable}
-              onChange={(event) => {
-                onChange('expectedDate', event.target.value || null);
+      <div className={STEP_CARD}>
+        <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
+          <FormField
+            id="dfd-field-expectedDate"
+            label={t('expectedDate')}
+            error={errors.expectedDate}
+            required
+          >
+            {(control) => (
+              <DatePicker
+                {...control}
+                value={fromIsoDate(header.expectedDate ?? '')}
+                disabled={!editable}
+                onValueChange={(date) => {
+                  onChange('expectedDate', date ? toIsoDate(date) : null);
+                }}
+                labels={{
+                  placeholder: t('datePlaceholder'),
+                  calendar: t('dateCalendar'),
+                }}
+              />
+            )}
+          </FormField>
+          <FormField
+            id="dfd-field-estimatedValue"
+            label={t('estimatedValue')}
+            hint={masked ? undefined : t('estimatedValueHint')}
+            error={errors.estimatedValue}
+          >
+            {(control) =>
+              masked ? (
+                <Input {...control} value={t('confidentialValue')} readOnly aria-readonly />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <MoneyInput
+                    {...control}
+                    value={estimatedValueText}
+                    readOnly={!editable}
+                    onValueChange={onEstimatedValueText}
+                  />
+                  {editable && processValue !== null ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        onEstimatedValueText(formatMoneyText(processValue));
+                      }}
+                    >
+                      {t('useProcessValue', { value: moneyFormat.format(Number(processValue)) })}
+                    </Button>
+                  ) : null}
+                </div>
+              )
+            }
+          </FormField>
+          <fieldset disabled={!editable} className="min-w-0 md:col-span-2">
+            <PcaFieldset
+              idPrefix="dfd-field"
+              values={{
+                pcaStatus: header.pcaStatus ?? '',
+                pcaYear: header.pcaYear === null ? '' : String(header.pcaYear),
+                pcaItemCode: header.pcaItemCode ?? '',
+                pcaJustification: header.pcaJustification ?? '',
+              }}
+              errors={errors}
+              currentYear={currentYear}
+              onChange={(field, value) => {
+                if (field === 'pcaYear') onChange('pcaYear', value === '' ? null : Number(value));
+                else onChange(field, value === '' ? null : value);
               }}
             />
-          )}
-        </FormField>
-        <FormField
-          id="dfd-field-estimatedValue"
-          label={t('estimatedValue')}
-          hint={masked ? undefined : t('estimatedValueHint')}
-          error={errors.estimatedValue}
-        >
-          {(control) =>
-            masked ? (
-              <input
-                {...control}
-                className={INPUT_CLASS}
-                value={t('confidentialValue')}
-                readOnly
-                aria-readonly
-              />
-            ) : (
-              <div className="flex flex-col gap-2">
-                <MoneyInput
-                  {...control}
-                  value={estimatedValueText}
-                  readOnly={!editable}
-                  onValueChange={onEstimatedValueText}
-                />
-                {editable && processValue !== null ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      onEstimatedValueText(formatMoneyText(processValue));
-                    }}
-                  >
-                    {t('useProcessValue', { value: moneyFormat.format(Number(processValue)) })}
-                  </Button>
-                ) : null}
-              </div>
-            )
-          }
-        </FormField>
-        <fieldset disabled={!editable} className="min-w-0 md:col-span-2">
-          <PcaFieldset
-            idPrefix="dfd-field"
-            values={{
-              pcaStatus: header.pcaStatus ?? '',
-              pcaYear: header.pcaYear === null ? '' : String(header.pcaYear),
-              pcaItemCode: header.pcaItemCode ?? '',
-              pcaJustification: header.pcaJustification ?? '',
-            }}
-            errors={errors}
-            currentYear={currentYear}
-            onChange={(field, value) => {
-              if (field === 'pcaYear') onChange('pcaYear', value === '' ? null : Number(value));
-              else onChange(field, value === '' ? null : value);
-            }}
+          </fieldset>
+        </div>
+        {notesSection === null ? null : (
+          <DfdSectionField
+            section={notesSection}
+            value={notes}
+            editable={editable}
+            onChange={onSectionChange}
+            aiMenu={notesAiMenu}
           />
-        </fieldset>
+        )}
       </div>
-      {notesSection === null ? null : (
-        <DfdSectionField
-          section={notesSection}
-          value={notes}
-          editable={editable}
-          onChange={onSectionChange}
-          aiMenu={notesAiMenu}
-        />
-      )}
     </div>
   );
 }

@@ -1,7 +1,17 @@
 'use client';
 
 import { localDateOf } from '@contrataflow/types';
-import { Alert, AutosaveIndicator, Button, Skeleton, Stepper } from '@contrataflow/ui';
+import {
+  Alert,
+  ArrowLeft,
+  ArrowRight,
+  AutosaveIndicator,
+  Button,
+  Copy,
+  DropdownMenuItem,
+  Skeleton,
+  WizardShell,
+} from '@contrataflow/ui';
 import { DFD_WIZARD_STEPS, dfdStepIssues } from '@contrataflow/validation';
 import type {
   DfdDto,
@@ -14,7 +24,6 @@ import type {
   ProcessDto,
 } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
@@ -46,7 +55,8 @@ import { sectionText, useDfdAutosave } from './use-dfd-autosave';
 import { AiAssistant } from '../ai/ai-assistant';
 import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
-import { DuplicateDfdButton } from '../dfd-duplicate/duplicate-dfd-dialog';
+import { DuplicateDfdDialog, useCanDuplicateDfd } from '../dfd-duplicate/duplicate-dfd-dialog';
+import { DocumentHeader } from '../documents/document-header';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { documentKeys, fetchDocument } from '../documents/documents.api';
 import { formatMoneyText } from '../processes/money';
@@ -339,103 +349,177 @@ function LoadedWizard({
       : '');
 
   const steps = DFD_WIZARD_STEPS.map((id) => ({ id, label: t(`steps.${id}`) }));
+  const canDuplicate = useCanDuplicateDfd();
+  const [duplicating, setDuplicating] = useState(false);
   // Selo derivado "Em aprovação" (DEC-018 · RN-DFD-39) e a faixa do modo leitura (US-016).
   const inApproval = inApprovalOf(document);
 
+  const back = (
+    <Button
+      variant="secondary"
+      disabled={current === 0}
+      onClick={() => {
+        const previous = DFD_WIZARD_STEPS[current - 1];
+        if (previous !== undefined) goTo(previous);
+      }}
+    >
+      <ArrowLeft aria-hidden="true" className="size-4" />
+      {t('nav.back')}
+    </Button>
+  );
+  const conclusionStep = step === 'CONCLUSION';
+  const facts = [
+    ...(process === undefined
+      ? []
+      : [
+          {
+            id: 'process',
+            content: t('processLine', {
+              code: process.code ?? t('draftCode'),
+              title: process.title,
+            }),
+          },
+        ]),
+    ...(document.currentVersionNumber === null
+      ? []
+      : [
+          {
+            id: 'version',
+            content: t('header.version', { number: document.currentVersionNumber }),
+          },
+        ]),
+  ];
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <Link href={`/processos/${processId}`} className="text-sm text-primary underline">
-          {t('backToProcess')}
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{dfd.code ?? t('title')}</h1>
-          <DocumentStatusBadge status={dfd.status} />
-          {document.pendingApprovalId ? <PendingApprovalBadge /> : null}
-          <AiAssistant
-            processId={processId}
-            documentId={dfd.documentId}
-            targetModule="DFD"
-            editable={dfd.status === 'DRAFT' || dfd.status === 'RETURNED'}
-            initialGenerationId={searchParams.get('ia')}
-            onApplied={(applied) => void autosave.adoptSections(applied)}
-          />
-          <DuplicateDfdButton dfd={dfd} />
-          {allowed ? (
-            <AutosaveIndicator
-              className="ml-auto"
-              status={autosave.snapshot.status}
-              savedAt={autosave.snapshot.savedAt}
-              message={autosave.snapshot.message}
-              labels={{
-                dirty: t('autosave.indicator.dirty'),
-                saving: t('autosave.indicator.saving'),
-                saved: (time) => t('autosave.indicator.saved', { time }),
-                savedShort: t('autosave.indicator.savedShort'),
-                error: t('autosave.indicator.error'),
-                offline: t('autosave.indicator.offline'),
-                offlineShort: t('autosave.indicator.offlineShort'),
-                conflict: t('autosave.indicator.conflict'),
-                blocked: t('autosave.indicator.blocked'),
-              }}
+    <WizardShell
+      header={
+        <DocumentHeader
+          processId={processId}
+          processCode={process?.code}
+          current={dfd.code ?? t('shortTitle')}
+          title={dfd.code ?? t('title')}
+          status={
+            <>
+              <DocumentStatusBadge status={dfd.status} />
+              {document.pendingApprovalId ? <PendingApprovalBadge /> : null}
+            </>
+          }
+          facts={facts}
+          autosave={
+            allowed ? (
+              <AutosaveIndicator
+                status={autosave.snapshot.status}
+                savedAt={autosave.snapshot.savedAt}
+                message={autosave.snapshot.message}
+                labels={{
+                  dirty: t('autosave.indicator.dirty'),
+                  saving: t('autosave.indicator.saving'),
+                  saved: (time) => t('autosave.indicator.saved', { time }),
+                  savedShort: t('autosave.indicator.savedShort'),
+                  error: t('autosave.indicator.error'),
+                  offline: t('autosave.indicator.offline'),
+                  offlineShort: t('autosave.indicator.offlineShort'),
+                  conflict: t('autosave.indicator.conflict'),
+                  blocked: t('autosave.indicator.blocked'),
+                }}
+              />
+            ) : null
+          }
+          more={
+            canDuplicate ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  setDuplicating(true);
+                }}
+              >
+                <Copy aria-hidden="true" className="size-4" />
+                {t('duplicate.action')}
+              </DropdownMenuItem>
+            ) : null
+          }
+          actions={
+            <AiAssistant
+              processId={processId}
+              documentId={dfd.documentId}
+              targetModule="DFD"
+              editable={dfd.status === 'DRAFT' || dfd.status === 'RETURNED'}
+              initialGenerationId={searchParams.get('ia')}
+              onApplied={(applied) => void autosave.adoptSections(applied)}
             />
-          ) : null}
-        </div>
-        {process === undefined ? null : (
-          <p className="text-sm text-muted-foreground">
-            {t('processLine', { code: process.code ?? t('draftCode'), title: process.title })}
-          </p>
-        )}
-      </div>
-      <DfdAutosavePanels
-        autosave={autosave}
-        userId={session.user.id}
-        timeZone={timeZone}
-        sections={sections}
-        templateSections={meta.template?.sections ?? []}
-      />
-      {/* US-017: o desfecho da aprovação, o motivo do aprovador e "Reabrir DFD". */}
-      <DecisionBanner
-        decision={meta.decision}
-        document={document}
-        dfdId={dfd.id}
-        allowedActions={meta.allowedActions}
-        timeZone={timeZone}
-      />
-      {allowed ? null : (
-        <Alert tone="info" title={t('readOnly.title')}>
-          <p>
-            {inApproval === null
-              ? t(`readOnly.status.${dfd.status}`)
-              : inApproval.sentAt === null
-                ? t('conclusion.inApproval', { version: inApproval.versionNumber ?? 1 })
-                : t('conclusion.inApprovalSent', {
-                    version: inApproval.versionNumber ?? 1,
-                    at: formatDateTime(inApproval.sentAt, timeZone),
-                  })}
-            {dfd.status === 'DRAFT' || dfd.status === 'RETURNED'
-              ? ` · ${t('readOnly.noPermission')}`
-              : ''}
-          </p>
-        </Alert>
-      )}
-      <Stepper
-        steps={steps}
-        current={current}
-        label={t('stepper.label')}
-        progressLabel={t('stepper.progress', { current: current + 1, total: steps.length })}
-        completeLabel={t('stepper.complete')}
-        onStepSelect={(index) => {
-          const target = DFD_WIZARD_STEPS[index];
-          if (target !== undefined) goTo(target);
-        }}
-      />
+          }
+        />
+      }
+      steps={steps}
+      current={current}
+      stepsLabel={t('stepper.label')}
+      stepLabels={{
+        done: t('stepper.complete'),
+        position: (position, total) => t('stepper.progress', { current: position, total }),
+      }}
+      onStepSelect={(index) => {
+        const target = DFD_WIZARD_STEPS[index];
+        if (target !== undefined) goTo(target);
+      }}
+      notices={
+        <>
+          <DfdAutosavePanels
+            autosave={autosave}
+            userId={session.user.id}
+            timeZone={timeZone}
+            sections={sections}
+            templateSections={meta.template?.sections ?? []}
+          />
+          {/* US-017: o desfecho da aprovação, o motivo do aprovador e "Reabrir DFD". */}
+          <DecisionBanner
+            decision={meta.decision}
+            document={document}
+            dfdId={dfd.id}
+            allowedActions={meta.allowedActions}
+            timeZone={timeZone}
+          />
+          {allowed ? null : (
+            <Alert tone="info" title={t('readOnly.title')}>
+              <p>
+                {inApproval === null
+                  ? t(`readOnly.status.${dfd.status}`)
+                  : inApproval.sentAt === null
+                    ? t('conclusion.inApproval', { version: inApproval.versionNumber ?? 1 })
+                    : t('conclusion.inApprovalSent', {
+                        version: inApproval.versionNumber ?? 1,
+                        at: formatDateTime(inApproval.sentAt, timeZone),
+                      })}
+                {dfd.status === 'DRAFT' || dfd.status === 'RETURNED'
+                  ? ` · ${t('readOnly.noPermission')}`
+                  : ''}
+              </p>
+            </Alert>
+          )}
+        </>
+      }
+      actionsLabel={t('nav.label')}
+      actions={
+        conclusionStep ? undefined : (
+          <>
+            <span className="mr-auto">{back}</span>
+            <Button variant="primary" onClick={onContinue}>
+              {t('nav.continue')}
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </Button>
+          </>
+        )
+      }
+    >
       <section
         ref={stepSection}
         aria-labelledby="dfd-step-title"
-        className="flex min-w-0 flex-col gap-4"
+        className="flex min-w-0 flex-col gap-5"
       >
-        <h2 id="dfd-step-title" ref={heading} tabIndex={-1} className="text-lg font-semibold">
+        <h2
+          id="dfd-step-title"
+          ref={heading}
+          tabIndex={-1}
+          className="text-section-title text-brand-ink outline-none"
+        >
           {t(`steps.${step}`)}
         </h2>
         {step === 'IDENTIFICATION' ? (
@@ -503,7 +587,7 @@ function LoadedWizard({
             onGoTo={goTo}
           />
         ) : null}
-        {step === 'CONCLUSION' ? (
+        {conclusionStep ? (
           <DfdConclusionStep
             processId={processId}
             documentId={dfd.documentId}
@@ -511,26 +595,11 @@ function LoadedWizard({
             allowedActions={meta.allowedActions}
             process={process}
             autosave={editable ? autosave : null}
+            bar={{ back, label: t('nav.label') }}
           />
         ) : null}
       </section>
-      <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-4">
-        <Button
-          variant="secondary"
-          disabled={current === 0}
-          onClick={() => {
-            const previous = DFD_WIZARD_STEPS[current - 1];
-            if (previous !== undefined) goTo(previous);
-          }}
-        >
-          {t('nav.back')}
-        </Button>
-        {current < DFD_WIZARD_STEPS.length - 1 ? (
-          <Button variant="primary" onClick={onContinue}>
-            {t('nav.continue')}
-          </Button>
-        ) : null}
-      </div>
-    </div>
+      <DuplicateDfdDialog dfd={dfd} open={duplicating} onOpenChange={setDuplicating} />
+    </WizardShell>
   );
 }

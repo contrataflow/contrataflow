@@ -2,13 +2,26 @@
 
 import {
   Alert,
+  ArrowLeft,
+  ArrowRight,
   AutosaveIndicator,
   Button,
+  Circle,
+  CircleAlert,
+  CircleCheck,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   ConflictDialog,
   cx,
+  Field,
+  FormActionBar,
+  Minus,
   RecoveredDraftBanner,
   Skeleton,
+  Textarea,
 } from '@contrataflow/ui';
+import type { IconComponent } from '@contrataflow/ui';
 import {
   etpCompletionSummary,
   etpSectionHasNarrative,
@@ -43,7 +56,6 @@ import { AiAssistant } from '../ai/ai-assistant';
 import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { AiSectionChange } from '../ai/ai-section-assistant';
 import { documentKeys, fetchDocumentValidation } from '../documents/documents.api';
-import { TEXTAREA_CLASS } from '../processes/form-field';
 
 /*
  * `EtpEditor` (SCR-008 · US-020): o ETP seção por seção. `SectionSidebarNav` com o estado de cada
@@ -65,10 +77,10 @@ function timeOf(value: string | number, timeZone: string): string {
   );
 }
 
-const STATE_ICON: Readonly<Record<SectionState, string>> = {
-  EMPTY: '○',
-  FILLED: '●',
-  NOT_APPLICABLE: '⊘',
+const STATE_ICON: Readonly<Record<SectionState, { Icon: IconComponent; className: string }>> = {
+  EMPTY: { Icon: Circle, className: 'text-muted-foreground' },
+  FILLED: { Icon: CircleCheck, className: 'text-success' },
+  NOT_APPLICABLE: { Icon: Minus, className: 'text-muted-foreground' },
 };
 
 export function EtpEditor({
@@ -185,16 +197,19 @@ export function EtpEditorLoaded({
     });
   }, [etp.version, etp.documentId, tenantId, queryClient]);
   const conclusionRef = useRef<HTMLFieldSetElement>(null);
+  const goToSection = (key: string) => {
+    void autosave.flush();
+    setActiveKey(key);
+    setTimeout(() => {
+      document.getElementById(ACTIVE_SECTION_ID)?.focus();
+    }, 0);
+  };
   const navigate = (target: Exclude<PendingTarget, { kind: 'none' }>) => {
     if (target.kind === 'conclusion') {
       conclusionRef.current?.querySelector<HTMLElement>(`[data-field="${target.field}"]`)?.focus();
       return;
     }
-    void autosave.flush();
-    setActiveKey(target.key);
-    setTimeout(() => {
-      document.getElementById(ACTIVE_SECTION_ID)?.focus();
-    }, 0);
+    goToSection(target.key);
   };
   const nav = etpSectionNav(sections, { sections: {} }, violations).map((item) => ({
     ...item,
@@ -203,6 +218,9 @@ export function EtpEditorLoaded({
   const summary = etpCompletionSummary(nav);
   const active = sections.find((section) => section.key === activeKey) ?? sections[0];
   const activeItem = nav.find((item) => item.key === active?.key);
+  const activeIndex = sections.findIndex((section) => section.key === active?.key);
+  const previousSection = activeIndex > 0 ? sections[activeIndex - 1] : undefined;
+  const nextSection = activeIndex >= 0 ? sections[activeIndex + 1] : undefined;
 
   const change = (key: string, draft: EtpSectionDraft) => {
     setDrafts((previous) => ({ ...previous, [key]: draft }));
@@ -224,9 +242,9 @@ export function EtpEditorLoaded({
   const conflictSection = sections.find((section) => section.key === conflict?.key);
 
   return (
-    <section aria-labelledby="etp-editor-title" className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id="etp-editor-title" className="text-lg font-semibold">
+    <section aria-labelledby="etp-editor-title" className="flex min-w-0 flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 id="etp-editor-title" className="text-section-title text-brand-ink">
           {t('sectionsNav')}
         </h2>
         <span className="text-sm text-muted-foreground">
@@ -237,44 +255,27 @@ export function EtpEditorLoaded({
           {summary.pending > 0 ? ` · ${t('pendingCount', { count: summary.pending })}` : ''}
         </span>
         {/* US-118: rascunho do ETP com IA (SCR-117) — aplicado pelo DOC-26, adotado pelo autosave. */}
-        <AiAssistant
-          processId={processId}
-          documentId={etp.documentId}
-          targetModule="ETP"
-          editable={etp.status === 'DRAFT' || etp.status === 'RETURNED'}
-          initialGenerationId={aiGenerationId}
-          onApplied={(document) => {
-            setStates((previous) => ({
-              ...previous,
-              ...Object.fromEntries(
-                Object.entries(document.draftContent.sections).map(([key, section]) => [
-                  key,
-                  section.state,
-                ]),
-              ),
-            }));
-            void autosave.adoptSections(document);
-          }}
-        />
-        {allowed ? (
-          <AutosaveIndicator
-            className="ml-auto"
-            status={autosave.snapshot.status}
-            savedAt={autosave.snapshot.savedAt}
-            message={autosave.snapshot.message}
-            labels={{
-              dirty: t('autosave.indicator.dirty'),
-              saving: t('autosave.indicator.saving'),
-              saved: (time) => t('autosave.indicator.saved', { time }),
-              savedShort: t('autosave.indicator.savedShort'),
-              error: t('autosave.indicator.error'),
-              offline: t('autosave.indicator.offline'),
-              offlineShort: t('autosave.indicator.offlineShort'),
-              conflict: t('autosave.indicator.conflict'),
-              blocked: t('autosave.indicator.blocked'),
+        <div className="ml-auto">
+          <AiAssistant
+            processId={processId}
+            documentId={etp.documentId}
+            targetModule="ETP"
+            editable={etp.status === 'DRAFT' || etp.status === 'RETURNED'}
+            initialGenerationId={aiGenerationId}
+            onApplied={(document) => {
+              setStates((previous) => ({
+                ...previous,
+                ...Object.fromEntries(
+                  Object.entries(document.draftContent.sections).map(([key, section]) => [
+                    key,
+                    section.state,
+                  ]),
+                ),
+              }));
+              void autosave.adoptSections(document);
             }}
           />
-        ) : null}
+        </div>
       </div>
 
       {allowed ? null : (
@@ -309,17 +310,14 @@ export function EtpEditorLoaded({
         />
       )}
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <EtpPendingSummary
-          violations={violations}
-          loaded={validation.data !== undefined}
-          sections={sections}
-          onNavigate={navigate}
-        />
-        <EtpConclusionFieldset ref={conclusionRef} etp={etp} editable={allowed} />
-      </div>
+      <EtpPendingSummary
+        violations={violations}
+        loaded={validation.data !== undefined}
+        sections={sections}
+        onNavigate={navigate}
+      />
 
-      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start">
+      <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-start">
         <SectionSidebarNav
           items={nav}
           activeKey={active?.key ?? ''}
@@ -328,29 +326,76 @@ export function EtpEditorLoaded({
             setActiveKey(key);
           }}
         />
-        {active === undefined ? null : (
-          <EtpSectionPanel
-            key={active.key}
-            processId={processId}
-            documentId={etp.documentId}
-            section={active}
-            item={activeItem}
-            draft={drafts[active.key] ?? EMPTY_SECTION_DRAFT}
-            editable={editable}
-            onChange={(draft) => {
-              change(active.key, draft);
-            }}
-            onCommit={(draft) => commit(active.key, draft)}
-            onBlur={() => {
-              if (editable) void autosave.flush();
-            }}
-            onAiChange={(aiChange) => {
-              setStates((previous) => ({ ...previous, [aiChange.key]: aiChange.state }));
-              void autosave.adopt(aiChange.key, aiChange);
-            }}
-          />
-        )}
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
+          {active === undefined ? null : (
+            <EtpSectionPanel
+              key={active.key}
+              processId={processId}
+              documentId={etp.documentId}
+              section={active}
+              item={activeItem}
+              draft={drafts[active.key] ?? EMPTY_SECTION_DRAFT}
+              editable={editable}
+              onChange={(draft) => {
+                change(active.key, draft);
+              }}
+              onCommit={(draft) => commit(active.key, draft)}
+              onBlur={() => {
+                if (editable) void autosave.flush();
+              }}
+              onAiChange={(aiChange) => {
+                setStates((previous) => ({ ...previous, [aiChange.key]: aiChange.state }));
+                void autosave.adopt(aiChange.key, aiChange);
+              }}
+            />
+          )}
+          <EtpConclusionFieldset ref={conclusionRef} etp={etp} editable={allowed} />
+        </div>
       </div>
+
+      <FormActionBar
+        label={t('actions.label')}
+        status={
+          allowed ? (
+            <AutosaveIndicator
+              status={autosave.snapshot.status}
+              savedAt={autosave.snapshot.savedAt}
+              message={autosave.snapshot.message}
+              labels={{
+                dirty: t('autosave.indicator.dirty'),
+                saving: t('autosave.indicator.saving'),
+                saved: (time) => t('autosave.indicator.saved', { time }),
+                savedShort: t('autosave.indicator.savedShort'),
+                error: t('autosave.indicator.error'),
+                offline: t('autosave.indicator.offline'),
+                offlineShort: t('autosave.indicator.offlineShort'),
+                conflict: t('autosave.indicator.conflict'),
+                blocked: t('autosave.indicator.blocked'),
+              }}
+            />
+          ) : undefined
+        }
+      >
+        <Button
+          variant="secondary"
+          disabled={previousSection === undefined}
+          onClick={() => {
+            if (previousSection !== undefined) goToSection(previousSection.key);
+          }}
+        >
+          <ArrowLeft aria-hidden="true" className="size-4" />
+          {t('actions.previous')}
+        </Button>
+        <Button
+          disabled={nextSection === undefined}
+          onClick={() => {
+            if (nextSection !== undefined) goToSection(nextSection.key);
+          }}
+        >
+          {t('actions.next')}
+          <ArrowRight aria-hidden="true" className="size-4" />
+        </Button>
+      </FormActionBar>
 
       {conflict === null ? null : (
         <ConflictDialog
@@ -431,6 +476,7 @@ export function SectionSidebarNav({
     <ol className="flex flex-col gap-1">
       {items.map((item, index) => {
         const current = item.key === activeKey;
+        const { Icon, className } = STATE_ICON[item.state];
         return (
           <li key={item.key}>
             <button
@@ -446,9 +492,7 @@ export function SectionSidebarNav({
                 onSelect(item.key);
               }}
             >
-              <span aria-hidden="true" className="w-4 shrink-0 text-center">
-                {STATE_ICON[item.state]}
-              </span>
+              <Icon aria-hidden="true" className={cx('mt-0.5 size-4 shrink-0', className)} />
               <span className="min-w-0 flex-1 break-words">
                 {index + 1}. {item.title}
                 <span className="sr-only">
@@ -457,9 +501,11 @@ export function SectionSidebarNav({
                 </span>
               </span>
               {item.issues.length > 0 ? (
-                <span aria-hidden="true" title={t('pending')} className="text-warning">
-                  !
-                </span>
+                <CircleAlert
+                  aria-hidden="true"
+                  className="mt-0.5 size-4 shrink-0 text-warning"
+                  data-pending="true"
+                />
               ) : null}
             </button>
           </li>
@@ -487,7 +533,10 @@ export function SectionSidebarNav({
           </nav>
         ) : null}
       </div>
-      <nav aria-label={t('sectionsNav')} className="hidden w-64 shrink-0 md:block">
+      <nav
+        aria-label={t('sectionsNav')}
+        className="hidden w-64 shrink-0 md:sticky md:top-4 md:block md:self-start"
+      >
         {list}
       </nav>
     </>
@@ -533,11 +582,11 @@ function EtpSectionPanel({
       id={ACTIVE_SECTION_ID}
       tabIndex={-1}
       aria-labelledby={`${id}-title`}
-      className="flex min-w-0 flex-1 flex-col gap-3 rounded-control border border-border p-4"
+      className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-6 shadow-card"
     >
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h3 id={`${id}-title`} className="text-base font-semibold break-words">
+          <h3 id={`${id}-title`} className="text-section-title break-words text-brand-ink">
             {section.title}
           </h3>
           <AiSectionMenu
@@ -551,7 +600,7 @@ function EtpSectionPanel({
             onSectionChanged={onAiChange}
           />
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{t(`requirement.${section.requirement}`)}</span>
           <span>· {t(`state.${item?.state ?? 'EMPTY'}`)}</span>
           {section.legalBasis ? (
@@ -560,10 +609,12 @@ function EtpSectionPanel({
         </div>
       </header>
       {section.helpText ? (
-        <details className="rounded-control border border-border p-3 text-sm">
-          <summary className="cursor-pointer font-medium">{t('help')}</summary>
-          <p className="mt-2 text-muted-foreground">{section.helpText}</p>
-        </details>
+        <Collapsible className="flex flex-col gap-1">
+          <CollapsibleTrigger className="self-start">{t('help')}</CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="text-sm text-muted-foreground">{section.helpText}</p>
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
       {issues.length > 0 ? (
         <div role="note" aria-label={t('issuesTitle')} className="text-sm text-warning">
@@ -592,14 +643,14 @@ function EtpSectionPanel({
             />
           )}
           {narrative ? (
-            <div className="flex flex-col gap-1">
-              <label htmlFor={textId} className="text-sm font-medium">
-                {t(kind === null ? 'textLabel' : 'narrativeLabel', { title: section.title })}
-              </label>
-              <textarea
-                id={textId}
-                aria-describedby={`${textId}-hint`}
-                className={`${TEXTAREA_CLASS} min-h-48`}
+            <Field
+              id={textId}
+              label={t(kind === null ? 'textLabel' : 'narrativeLabel', { title: section.title })}
+              description={t('maxChars', { max: section.maxChars.toLocaleString('pt-BR') })}
+            >
+              <Textarea
+                rows={8}
+                className="min-h-48"
                 maxLength={section.maxChars}
                 value={draft.text}
                 readOnly={!editable}
@@ -608,10 +659,7 @@ function EtpSectionPanel({
                 }}
                 onBlur={onBlur}
               />
-              <span id={`${textId}-hint`} className="text-xs text-muted-foreground">
-                {t('maxChars', { max: section.maxChars.toLocaleString('pt-BR') })}
-              </span>
-            </div>
+            </Field>
           ) : null}
           {editable ? (
             <NotApplicableToggle
@@ -639,7 +687,7 @@ export function NotApplicableSummary({
 }) {
   const t = useTranslations('etp.editor.notApplicable');
   return (
-    <div className="flex flex-col gap-2 rounded-control border border-border bg-muted/40 p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-muted p-4">
       <p className="text-sm font-medium">{t('title')}</p>
       <p className="text-sm break-words whitespace-pre-line">{draft.justification}</p>
       {editable ? (
@@ -714,30 +762,24 @@ export function NotApplicableToggle({
     void onConfirm(text.trim());
   };
   return (
-    <div className="flex flex-col gap-2 rounded-control border border-border p-3">
-      <label htmlFor={fieldId} className="text-sm font-medium">
-        {t('justificationLabel')} *
-      </label>
-      <textarea
-        ref={field}
+    <div className="flex flex-col gap-3 rounded-card bg-muted p-4">
+      <Field
         id={fieldId}
-        className={`${TEXTAREA_CLASS} min-h-24`}
-        value={text}
-        aria-invalid={error !== null}
-        aria-describedby={`${fieldId}-hint${error === null ? '' : ` ${fieldId}-error`}`}
-        onChange={(event) => {
-          setText(event.target.value);
-        }}
-      />
-      <span id={`${fieldId}-hint`} className="text-xs text-muted-foreground">
-        {t('justificationHint')}
-        {required ? ` ${t('requiredNote')}` : ''}
-      </span>
-      {error === null ? null : (
-        <p id={`${fieldId}-error`} role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
+        label={t('justificationLabel')}
+        required
+        requiredMark=" *"
+        description={`${t('justificationHint')}${required ? ` ${t('requiredNote')}` : ''}`}
+        error={error === null ? undefined : <span role="alert">{error}</span>}
+      >
+        <Textarea
+          ref={field}
+          rows={4}
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+          }}
+        />
+      </Field>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={confirm}>
           {t('confirm')}

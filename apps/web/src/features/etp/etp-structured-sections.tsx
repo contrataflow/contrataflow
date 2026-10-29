@@ -1,6 +1,16 @@
 'use client';
 
-import { Button, Skeleton } from '@contrataflow/ui';
+import {
+  Button,
+  Skeleton,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+} from '@contrataflow/ui';
 import type { EtpStructuredKind } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -66,37 +76,29 @@ export function ItemsTableReadonly({
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('empty')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-0 text-left text-sm">
+        <TableContainer label={t('caption')}>
+          <Table>
             <caption className="sr-only">{t('caption')}</caption>
-            <thead>
-              <tr className="border-b border-border">
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  {t('sequence')}
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  {t('description')}
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  {t('unit')}
-                </th>
-                <th scope="col" className="py-2 text-right font-medium">
-                  {t('quantity')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+            <TableHead>
+              <Tr>
+                <Th>{t('sequence')}</Th>
+                <Th>{t('description')}</Th>
+                <Th>{t('unit')}</Th>
+                <Th className="text-right">{t('quantity')}</Th>
+              </Tr>
+            </TableHead>
+            <TableBody>
               {rows.map((row) => (
-                <tr key={row.processItemId} className="border-b border-border last:border-0">
-                  <td className="py-2 pr-3">{row.sequence}</td>
-                  <td className="py-2 pr-3 break-words">{row.description}</td>
-                  <td className="py-2 pr-3">{row.unit.label}</td>
-                  <td className="py-2 text-right tabular-nums">{formatQuantity(row.quantity)}</td>
-                </tr>
+                <Tr key={row.processItemId}>
+                  <Td>{row.sequence}</Td>
+                  <Td className="break-words">{row.description}</Td>
+                  <Td>{row.unit.label}</Td>
+                  <Td className="text-right tabular-nums">{formatQuantity(row.quantity)}</Td>
+                </Tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
       <Link href={`/processos/${processId}`} className="text-sm text-primary underline">
         {t('manage')}
@@ -129,7 +131,7 @@ export function RiskListReadonly({ processId }: { readonly processId: string }) 
           {rows.map((risk) => (
             <li
               key={risk.id}
-              className="flex flex-wrap items-center gap-2 rounded-control border border-border p-2 text-sm"
+              className="flex flex-wrap items-center gap-2 rounded-card bg-muted p-3 text-sm"
             >
               <span className="font-medium">{risk.code}</span>
               <span className="min-w-0 flex-1 break-words">{risk.title}</span>
@@ -161,7 +163,7 @@ export function StructuredSectionContent({
   return (
     <section
       aria-label={t(`${kind}.title`)}
-      className="flex min-w-0 flex-col gap-2 rounded-control border border-border bg-muted/40 p-3"
+      className="flex min-w-0 flex-col gap-2 rounded-card bg-muted p-3"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">{t(`${kind}.title`)}</h3>

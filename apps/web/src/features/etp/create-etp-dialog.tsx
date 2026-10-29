@@ -3,11 +3,13 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
   Skeleton,
   buttonClassName,
   cx,
@@ -95,7 +97,7 @@ export function ImportFromDfdCard({
   const checkboxId = useId();
   const hintId = useId();
   return (
-    <section className="flex min-w-0 flex-col gap-3 rounded-card border border-border p-4">
+    <section className="flex min-w-0 flex-col gap-3 rounded-card bg-muted p-4">
       <h3 className="text-sm font-semibold">
         {dfd.code === null ? t('titleNoCode') : t('title', { code: dfd.code })}
       </h3>
@@ -108,21 +110,18 @@ export function ImportFromDfdCard({
         <dd>{t(`pcaStatus.${dfd.pcaStatus ?? 'unknown'}`)}</dd>
       </dl>
       <div className="flex items-start gap-2">
-        <input
+        <Checkbox
           id={checkboxId}
-          type="checkbox"
-          className="mt-0.5 size-4"
+          className="mt-0.5"
           checked={checked}
           disabled={disabled}
           aria-describedby={hintId}
-          onChange={(event) => {
-            onChange(event.target.checked);
+          onCheckedChange={(value) => {
+            onChange(value === true);
           }}
         />
         <div className="flex flex-col gap-1">
-          <label htmlFor={checkboxId} className="text-sm font-medium">
-            {t('label')}
-          </label>
+          <Label htmlFor={checkboxId}>{t('label')}</Label>
           <p id={hintId} className="text-xs text-muted-foreground">
             {t('hint')}
           </p>

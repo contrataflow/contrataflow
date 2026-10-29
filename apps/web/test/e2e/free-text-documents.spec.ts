@@ -65,14 +65,14 @@ test('criar um ofício pelo painel, redigir com autosave, "não se aplica" justi
   // "Não se aplica" em "Anexos referidos": justificativa curta recusada; a válida é gravada.
   await nav.getByRole('button', { name: /^2\. Anexos referidos/ }).click();
   await page.getByRole('button', { name: 'Não se aplica' }).click();
-  await page.getByLabel('Justificativa *').fill('Sem anexos');
+  await page.getByLabel(/^Justificativa( \*)?$/).fill('Sem anexos');
   await page.getByRole('button', { name: 'Confirmar' }).click();
   await expect(
     page
       .getByRole('alert')
       .filter({ hasText: 'Justifique por que esta seção não se aplica (mín. 20 caracteres).' }),
   ).toBeVisible();
-  await page.getByLabel('Justificativa *').fill('O ofício não encaminha documentos anexos.');
+  await page.getByLabel(/^Justificativa( \*)?$/).fill('O ofício não encaminha documentos anexos.');
   await page.getByRole('button', { name: 'Confirmar' }).click();
   await expect(page.getByText('Esta seção não se aplica')).toBeVisible();
   await expect(nav.getByRole('button', { name: /Anexos referidos.*Não se aplica/ })).toBeVisible();

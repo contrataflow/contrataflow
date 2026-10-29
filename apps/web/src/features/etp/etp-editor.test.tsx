@@ -382,7 +382,7 @@ describe('SCR-008 — editar seções do ETP (US-020)', () => {
     renderWithShell(<EtpEditor processId={PROCESS_ID} etpId={ETP_ID} />);
     await user.click(await screen.findByRole('button', { name: /^2\. Levantamento de mercado/ }));
     await user.click(screen.getByRole('button', { name: 'Não se aplica' }));
-    await user.type(screen.getByLabelText('Justificativa *'), JUSTIFICATION_30);
+    await user.type(screen.getByLabelText(/^Justificativa/), JUSTIFICATION_30);
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => {
       expect(sectionPuts(fetchMock)).toHaveLength(1);
@@ -419,7 +419,7 @@ describe('SCR-008 — editar seções do ETP (US-020)', () => {
     renderWithShell(<EtpEditor processId={PROCESS_ID} etpId={ETP_ID} />);
     await user.click(await screen.findByRole('button', { name: /^2\. Levantamento de mercado/ }));
     await user.click(screen.getByRole('button', { name: 'Não se aplica' }));
-    const justification = screen.getByLabelText('Justificativa *');
+    const justification = screen.getByLabelText(/^Justificativa/);
     await user.type(justification, '0123456789');
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
     expect((await screen.findByRole('alert')).textContent).toBe(

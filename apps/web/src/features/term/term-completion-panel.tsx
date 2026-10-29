@@ -1,10 +1,19 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  ChevronDown,
+  CircleCheck,
+  Skeleton,
+} from '@contrataflow/ui';
 import type { TermDetailDto, TermTemplateSectionDto, Violation } from '@contrataflow/validation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -35,11 +44,16 @@ export interface TermCompletionPanelProps {
 function focusPanelField(panel: TermPanelKey, field: string) {
   const container = document.querySelector<HTMLElement>(`[data-term-panel="${panel}"]`);
   if (container === null) return;
-  container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')?.click();
+  // O gatilho do painel recolhido (não os seletores, que também têm `aria-expanded`).
+  container
+    .querySelector<HTMLButtonElement>('button[aria-expanded="false"]:not([role="combobox"])')
+    ?.click();
   setTimeout(() => {
     const target =
       document.getElementById(`term-${field}`) ??
-      container.querySelector<HTMLElement>('input, select, textarea, button');
+      container.querySelector<HTMLElement>(
+        'input, textarea, [role="combobox"], [role="checkbox"], [role="radio"], button',
+      );
     target?.focus();
   }, 0);
 }
@@ -54,6 +68,7 @@ export function TermCompletionPanel({
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const id = useId();
+  const [open, setOpen] = useState(true);
   const editable = term.status === 'DRAFT' || term.status === 'RETURNED';
 
   const validation = useQuery({
@@ -145,61 +160,76 @@ export function TermCompletionPanel({
       data-testid="term-completion"
       className={
         clean
-          ? 'flex min-w-0 flex-col gap-2 rounded-control border border-success/40 bg-success/5 p-4'
-          : 'flex min-w-0 flex-col gap-2 rounded-control border border-border p-4'
+          ? 'flex min-w-0 flex-col gap-2 rounded-card bg-success/10 p-4'
+          : 'flex min-w-0 flex-col gap-2 rounded-card bg-surface p-4 shadow-card'
       }
     >
-      <h3 id={`${id}-title`} className="text-base font-semibold">
-        {t('title')}
-      </h3>
-      <p
-        aria-live="polite"
-        className={clean ? 'text-sm text-success' : 'text-sm text-muted-foreground'}
-      >
-        {!loaded
-          ? validation.isError
-            ? t('loadFailed')
-            : t('loading')
-          : blocking.length === 0
-            ? t(warnings.length === 0 ? 'none' : 'onlyWarnings')
-            : t('blocking', { count: blocking.length })}
-      </p>
-      {validation.isPending ? <Skeleton className="h-10 w-full" /> : null}
-      {validation.isError && !loaded ? (
-        <Alert tone="error" live={false} title={t('loadFailed')}>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="mt-2"
-            onClick={() => {
-              void validation.refetch();
-            }}
-          >
-            {t('retry')}
-          </Button>
-        </Alert>
-      ) : null}
-      {violations.length > 0 ? (
-        // Expansível (accordion) — recolhível em telas estreitas; aberto por padrão.
-        <details open className="flex flex-col gap-2">
-          <summary className="cursor-pointer text-sm font-medium">{t('toggle')}</summary>
-          {blocking.length > 0 ? (
-            <div className="mt-2 flex flex-col gap-1">
-              <span className="text-sm font-medium text-destructive">{t('blockingTitle')}</span>
-              <ul className="list-disc pl-5 text-sm">{blocking.map(render)}</ul>
-            </div>
-          ) : null}
-          {warnings.length > 0 ? (
-            <div className="mt-2 flex flex-col gap-1">
-              <span className="text-sm font-medium text-warning">
-                {t('warningsTitle', { count: warnings.length })}
-              </span>
-              <ul className="list-disc pl-5 text-sm">{warnings.map(render)}</ul>
-              <p className="text-xs text-muted-foreground">{t('warningsHint')}</p>
-            </div>
-          ) : null}
-        </details>
-      ) : null}
+      <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-2">
+        <h3 id={`${id}-title`} className="text-base font-semibold">
+          {violations.length > 0 ? (
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="group flex min-h-9 w-full items-center justify-between gap-2 text-left"
+              >
+                <span>{t('title')}</span>
+                <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </button>
+            </CollapsibleTrigger>
+          ) : (
+            <span className="flex items-center gap-2">
+              {clean ? <CircleCheck className="size-4 text-success" /> : null}
+              {t('title')}
+            </span>
+          )}
+        </h3>
+        <p
+          aria-live="polite"
+          className={clean ? 'text-sm text-success' : 'text-sm text-muted-foreground'}
+        >
+          {!loaded
+            ? validation.isError
+              ? t('loadFailed')
+              : t('loading')
+            : blocking.length === 0
+              ? t(warnings.length === 0 ? 'none' : 'onlyWarnings')
+              : t('blocking', { count: blocking.length })}
+        </p>
+        {validation.isPending ? <Skeleton className="h-10 w-full" /> : null}
+        {validation.isError && !loaded ? (
+          <Alert tone="error" live={false} title={t('loadFailed')}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-2"
+              onClick={() => {
+                void validation.refetch();
+              }}
+            >
+              {t('retry')}
+            </Button>
+          </Alert>
+        ) : null}
+        {violations.length > 0 ? (
+          <CollapsibleContent className="flex flex-col gap-2">
+            {blocking.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-destructive">{t('blockingTitle')}</span>
+                <ul className="list-disc pl-5 text-sm">{blocking.map(render)}</ul>
+              </div>
+            ) : null}
+            {warnings.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-warning">
+                  {t('warningsTitle', { count: warnings.length })}
+                </span>
+                <ul className="list-disc pl-5 text-sm">{warnings.map(render)}</ul>
+                <p className="text-xs text-muted-foreground">{t('warningsHint')}</p>
+              </div>
+            ) : null}
+          </CollapsibleContent>
+        ) : null}
+      </Collapsible>
     </section>
   );
 }

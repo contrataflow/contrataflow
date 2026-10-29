@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { ID, bodyOf, mockProcessApi, problemResponse } from '@test/support/process-fixtures';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
@@ -169,7 +170,7 @@ describe('EtpAlternativesSection (US-021 · SCR-008)', () => {
     await user.type(within(drawer).getByLabelText('Nome'), 'Locação de equipamentos');
     await user.type(within(drawer).getByLabelText('Descrição'), 'Locação mensal com manutenção.');
     await user.type(within(drawer).getByLabelText('Custo estimado'), '15000');
-    await user.selectOptions(within(drawer).getByLabelText('Nível de risco'), 'LOW');
+    await chooseOption(user, 'Nível de risco', 'Baixo', drawer);
     await user.click(within(drawer).getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
@@ -209,9 +210,10 @@ describe('EtpAlternativesSection (US-021 · SCR-008)', () => {
     renderWithShell(<EtpAlternativesSection etpId={ETP_ID} />);
     await user.click(
       await within(await screen.findByRole('table')).findByRole('button', {
-        name: 'Descartar Aquisição direta',
+        name: 'Ações de Aquisição direta',
       }),
     );
+    await user.click(await screen.findByRole('menuitem', { name: 'Descartar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Descartar alternativa' });
     await user.click(within(dialog).getByRole('button', { name: 'Descartar' }));
     expect(
@@ -269,7 +271,8 @@ describe('EtpAlternativesSection (US-021 · SCR-008)', () => {
     });
     expect(recommendedRow.getAttribute('aria-current')).toBe('true');
 
-    await user.click(within(table()).getByRole('button', { name: 'Recomendar Aquisição direta' }));
+    await user.click(within(table()).getByRole('button', { name: 'Ações de Aquisição direta' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Recomendar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Recomendar alternativa' });
     await user.type(
       within(dialog).getByLabelText('Justificativa (mín. 20 caracteres)'),
@@ -309,9 +312,10 @@ describe('EtpAlternativesSection (US-021 · SCR-008)', () => {
     renderWithShell(<EtpAlternativesSection etpId={ETP_ID} />);
     await user.click(
       await within(await screen.findByRole('table')).findByRole('button', {
-        name: 'Excluir Locação',
+        name: 'Ações de Locação',
       }),
     );
+    await user.click(await screen.findByRole('menuitem', { name: 'Excluir' }));
     const blocked = await screen.findByRole('dialog', { name: 'Excluir alternativa' });
     expect(
       within(blocked).getByText('Altere a decisão desta alternativa antes de excluí-la.'),
@@ -319,7 +323,8 @@ describe('EtpAlternativesSection (US-021 · SCR-008)', () => {
     expect(within(blocked).queryByRole('button', { name: 'Excluir' })).toBeNull();
     await user.click(within(blocked).getByRole('button', { name: 'Cancelar' }));
 
-    await user.click(within(table()).getByRole('button', { name: 'Excluir Comodato' }));
+    await user.click(within(table()).getByRole('button', { name: 'Ações de Comodato' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Excluir' }));
     const dialog = await screen.findByRole('dialog', { name: 'Excluir alternativa' });
     await user.click(within(dialog).getByRole('button', { name: 'Excluir' }));
     await waitFor(() => {
@@ -340,11 +345,16 @@ describe('EtpAlternativesSection (US-021 · SCR-008)', () => {
       ],
     });
     renderWithShell(<EtpAlternativesSection etpId={ETP_ID} />);
-    const up = await within(await screen.findByRole('table')).findByRole('button', {
-      name: 'Mover Primeira para cima',
-    });
-    expect((up as HTMLButtonElement).disabled).toBe(true);
-    await user.click(within(table()).getByRole('button', { name: 'Mover Segunda para cima' }));
+    await user.click(
+      await within(await screen.findByRole('table')).findByRole('button', {
+        name: 'Ações de Primeira',
+      }),
+    );
+    const up = await screen.findByRole('menuitem', { name: 'Mover para cima' });
+    expect(up.getAttribute('aria-disabled')).toBe('true');
+    await user.keyboard('{Escape}');
+    await user.click(within(table()).getByRole('button', { name: 'Ações de Segunda' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Mover para cima' }));
     await waitFor(() => {
       expect(callsOf(fetchMock, 'PATCH', '/etp-alternatives/')).toHaveLength(2);
     });

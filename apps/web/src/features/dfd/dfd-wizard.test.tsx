@@ -303,8 +303,9 @@ describe('SCR-007 — DFD em wizard (US-014)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'DFD 0005/2026' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Identificação' })).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>('Número').value).toBe('DFD 0005/2026');
-    expect(screen.getByLabelText<HTMLInputElement>('Data *').value).toBe('2026-10-17');
-    expect(screen.getByRole('navigation', { name: 'Passos do DFD' })).toBeTruthy();
+    expect(screen.getByLabelText('Data *').textContent).toContain('17/10/2026');
+    // Passos à esquerda (telas largas) e a barra `StageProgress` (telas estreitas).
+    expect(screen.getAllByRole('navigation', { name: 'Passos do DFD' })).toHaveLength(2);
     expect(await seriousA11yViolations()).toEqual([]);
 
     const object = screen.getByLabelText('Objeto *');
@@ -329,7 +330,13 @@ describe('SCR-007 — DFD em wizard (US-014)', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Justificativa' })).toBeTruthy();
     expect(screen.getByLabelText('Justificativa da necessidade *')).toBeTruthy();
     expect(screen.getByText('Base legal: Lei 14.133/2021, art. 12, VII')).toBeTruthy();
-    expect(screen.getByText('Descreva a necessidade da contratação.')).toBeTruthy();
+    // A orientação da seção fica no ícone com tooltip (prd-5 · regra 7).
+    await user.hover(
+      screen.getByRole('button', { name: 'Orientação sobre Justificativa da necessidade' }),
+    );
+    expect((await screen.findByRole('tooltip')).textContent).toBe(
+      'Descreva a necessidade da contratação.',
+    );
   });
 
   it('Revisão: pendências obrigatórias por passo; "Ir para o campo" abre o Planejamento com foco nos itens; Conclusão "Há 3 pendências obrigatórias"', async () => {

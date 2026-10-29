@@ -2,14 +2,40 @@
 
 import {
   Alert,
+  BadgeCheck,
   Button,
+  ChevronDown,
+  ChevronUp,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Ellipsis,
+  Input,
+  Pencil,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   SheetContent,
   Skeleton,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Textarea,
+  Th,
+  Tr,
+  Trash2,
+  buttonClassName,
   toast,
 } from '@contrataflow/ui';
 import {
@@ -57,7 +83,7 @@ import {
   useEtpAlternatives,
 } from './etp-alternatives.api';
 import { etpKeys } from './etp.api';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
+import { FormField } from '../processes/form-field';
 import { formatMoneyText } from '../processes/money';
 import { MoneyInput } from '../processes/money-input';
 
@@ -237,7 +263,8 @@ function CostCell({ row }: { readonly row: AlternativeComparisonRow }) {
   );
 }
 
-function RowButtons({
+/** Ações da linha no menu "⋯" (prd-5 · regra 3): editar, decidir, reordenar e excluir. */
+function RowMenu({
   alternative,
   index,
   total,
@@ -250,87 +277,81 @@ function RowButtons({
 }) {
   const t = useTranslations('etp.alternatives');
   if (!actions.canManage) return null;
-  const name = alternative.name;
   return (
-    <div className="flex flex-wrap gap-1">
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={() => {
-          actions.onEdit(alternative);
-        }}
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={buttonClassName({ variant: 'ghost', size: 'sm' })}
+        aria-label={t('actions.menu', { name: alternative.name })}
       >
-        <span aria-hidden="true">{t('actions.edit')}</span>
-        <span className="sr-only">{t('actions.editNamed', { name })}</span>
-      </Button>
-      {alternative.decision === 'RECOMMENDED' ? (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            actions.onDecide(alternative, 'UNDER_ANALYSIS');
+        <Ellipsis aria-hidden="true" className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onSelect={() => {
+            actions.onEdit(alternative);
           }}
         >
-          <span aria-hidden="true">{t('actions.reopen')}</span>
-          <span className="sr-only">{t('actions.reopenNamed', { name })}</span>
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            actions.onDecide(alternative, 'RECOMMENDED');
+          <Pencil aria-hidden="true" className="size-4" />
+          {t('actions.edit')}
+        </DropdownMenuItem>
+        {alternative.decision === 'RECOMMENDED' ? (
+          <DropdownMenuItem
+            onSelect={() => {
+              actions.onDecide(alternative, 'UNDER_ANALYSIS');
+            }}
+          >
+            {t('actions.reopen')}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onSelect={() => {
+              actions.onDecide(alternative, 'RECOMMENDED');
+            }}
+          >
+            <BadgeCheck aria-hidden="true" className="size-4" />
+            {t('actions.recommend')}
+          </DropdownMenuItem>
+        )}
+        {alternative.decision === 'DISCARDED' ? null : (
+          <DropdownMenuItem
+            onSelect={() => {
+              actions.onDecide(alternative, 'DISCARDED');
+            }}
+          >
+            {t('actions.discard')}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={actions.pending || index === 0}
+          onSelect={() => {
+            actions.onMove(alternative, -1);
           }}
         >
-          <span aria-hidden="true">{t('actions.recommend')}</span>
-          <span className="sr-only">{t('actions.recommendNamed', { name })}</span>
-        </Button>
-      )}
-      {alternative.decision === 'DISCARDED' ? null : (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            actions.onDecide(alternative, 'DISCARDED');
+          <ChevronUp aria-hidden="true" className="size-4" />
+          {t('actions.up')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={actions.pending || index === total - 1}
+          onSelect={() => {
+            actions.onMove(alternative, 1);
           }}
         >
-          <span aria-hidden="true">{t('actions.discard')}</span>
-          <span className="sr-only">{t('actions.discardNamed', { name })}</span>
-        </Button>
-      )}
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={actions.pending || index === 0}
-        onClick={() => {
-          actions.onMove(alternative, -1);
-        }}
-      >
-        <span aria-hidden="true">↑</span>
-        <span className="sr-only">{t('actions.moveUp', { name })}</span>
-      </Button>
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={actions.pending || index === total - 1}
-        onClick={() => {
-          actions.onMove(alternative, 1);
-        }}
-      >
-        <span aria-hidden="true">↓</span>
-        <span className="sr-only">{t('actions.moveDown', { name })}</span>
-      </Button>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() => {
-          actions.onRemove(alternative);
-        }}
-      >
-        <span aria-hidden="true">{t('actions.remove')}</span>
-        <span className="sr-only">{t('actions.removeNamed', { name })}</span>
-      </Button>
-    </div>
+          <ChevronDown aria-hidden="true" className="size-4" />
+          {t('actions.down')}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive"
+          onSelect={() => {
+            actions.onRemove(alternative);
+          }}
+        >
+          <Trash2 aria-hidden="true" className="size-4" />
+          {t('actions.remove')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -347,78 +368,78 @@ export function AlternativesComparisonTable({
   const t = useTranslations('etp.alternatives');
   return (
     <>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-0 text-left text-sm">
+      <TableContainer label={t('caption')} className="hidden md:block">
+        <Table>
           <caption className="sr-only">{t('caption')}</caption>
-          <thead>
-            <tr className="border-b border-border">
-              <th scope="col" className="py-2 pr-3 font-medium">
-                {t('columns.name')}
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                {t('columns.decision')}
-              </th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">
-                {t('columns.cost')}
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                {t('columns.risk')}
-              </th>
+          <TableHead>
+            <Tr>
+              <Th>{t('columns.name')}</Th>
+              <Th>{t('columns.decision')}</Th>
+              <Th className="text-right">{t('columns.cost')}</Th>
+              <Th>{t('columns.risk')}</Th>
               {actions.canManage ? (
-                <th scope="col" className="py-2 font-medium">
+                <Th>
                   <span className="sr-only">{t('columns.actions')}</span>
-                </th>
+                </Th>
               ) : null}
-            </tr>
-          </thead>
-          <tbody>
+            </Tr>
+          </TableHead>
+          <TableBody>
             {rows.map((row, index) => {
               const alternative = byId.get(row.id);
               return (
-                <tr
+                <Tr
                   key={row.id}
                   aria-current={row.isRecommended ? 'true' : undefined}
-                  className={`border-b border-border last:border-0 ${row.isRecommended ? 'bg-success/10' : ''}`}
+                  className={row.isRecommended ? 'bg-success-soft' : ''}
                 >
-                  <th scope="row" className="py-2 pr-3 font-medium break-words">
+                  <th scope="row" className="min-w-48 px-3.5 py-3 text-left font-semibold">
                     {row.name}
                   </th>
-                  <td className="py-2 pr-3">
+                  <Td>
                     <DecisionBadge row={row} />
-                  </td>
-                  <td className="py-2 pr-3 text-right">
+                  </Td>
+                  <Td className="text-right">
                     <CostCell row={row} />
-                  </td>
-                  <td className="py-2 pr-3">
-                    {row.riskLevel === null ? '—' : RISK_LEVEL_LABELS[row.riskLevel]}
-                  </td>
+                  </Td>
+                  <Td>{row.riskLevel === null ? '—' : RISK_LEVEL_LABELS[row.riskLevel]}</Td>
                   {actions.canManage && alternative ? (
-                    <td className="py-2">
-                      <RowButtons
+                    <Td className="w-12 text-right">
+                      <RowMenu
                         alternative={alternative}
                         index={index}
                         total={rows.length}
                         actions={actions}
                       />
-                    </td>
+                    </Td>
                   ) : null}
-                </tr>
+                </Tr>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
       <ul aria-label={t('caption')} className="flex flex-col gap-2 md:hidden">
         {rows.map((row, index) => {
           const alternative = byId.get(row.id);
           return (
             <li
               key={row.id}
-              className={`flex flex-col gap-2 rounded-control border p-3 text-sm ${row.isRecommended ? 'border-success' : 'border-border'}`}
+              className={`flex flex-col gap-2 rounded-card p-3 text-sm ${row.isRecommended ? 'bg-success-soft' : 'bg-muted'}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="min-w-0 font-medium break-words">{row.name}</span>
-                <DecisionBadge row={row} />
+                <span className="min-w-0 font-semibold break-words">{row.name}</span>
+                <span className="flex items-center gap-1">
+                  <DecisionBadge row={row} />
+                  {alternative ? (
+                    <RowMenu
+                      alternative={alternative}
+                      index={index}
+                      total={rows.length}
+                      actions={actions}
+                    />
+                  ) : null}
+                </span>
               </div>
               <dl className="grid grid-cols-2 gap-1 text-xs">
                 <dt className="text-muted-foreground">{t('columns.cost')}</dt>
@@ -428,14 +449,6 @@ export function AlternativesComparisonTable({
                 <dt className="text-muted-foreground">{t('columns.risk')}</dt>
                 <dd>{row.riskLevel === null ? '—' : RISK_LEVEL_LABELS[row.riskLevel]}</dd>
               </dl>
-              {alternative ? (
-                <RowButtons
-                  alternative={alternative}
-                  index={index}
-                  total={rows.length}
-                  actions={actions}
-                />
-              ) : null}
             </li>
           );
         })}
@@ -456,6 +469,9 @@ interface AlternativeFormDrawerProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly onChanged: () => Promise<void> | void;
 }
+
+/** Valor da opção "sem risco informado" (o Radix não aceita `SelectItem value=""`). */
+const NO_RISK = '__none__';
 
 /** `AlternativeFormDrawer` (passos 1 e 7): painel lateral de cadastro e edição. */
 export function AlternativeFormDrawer(props: AlternativeFormDrawerProps) {
@@ -614,9 +630,8 @@ function AlternativeForm({
           required
         >
           {(control) => (
-            <input
+            <Input
               {...control}
-              className={INPUT_CLASS}
               maxLength={ETP_ALTERNATIVE_LIMITS.nameMax}
               value={values.name}
               onChange={(event) => {
@@ -632,9 +647,8 @@ function AlternativeForm({
           required
         >
           {(control) => (
-            <textarea
+            <Textarea
               {...control}
-              className={TEXTAREA_CLASS}
               value={values.description}
               onChange={(event) => {
                 set('description', event.target.value);
@@ -649,9 +663,8 @@ function AlternativeForm({
             error={messages.advantages}
           >
             {(control) => (
-              <textarea
+              <Textarea
                 {...control}
-                className={TEXTAREA_CLASS}
                 value={values.advantages}
                 onChange={(event) => {
                   set('advantages', event.target.value);
@@ -665,9 +678,8 @@ function AlternativeForm({
             error={messages.disadvantages}
           >
             {(control) => (
-              <textarea
+              <Textarea
                 {...control}
-                className={TEXTAREA_CLASS}
                 value={values.disadvantages}
                 onChange={(event) => {
                   set('disadvantages', event.target.value);
@@ -706,21 +718,24 @@ function AlternativeForm({
             error={messages.riskLevel}
           >
             {(control) => (
-              <select
-                {...control}
-                className={INPUT_CLASS}
-                value={values.riskLevel}
-                onChange={(event) => {
-                  set('riskLevel', event.target.value as RiskLevel | '');
+              <Select
+                value={values.riskLevel === '' ? NO_RISK : values.riskLevel}
+                onValueChange={(value) => {
+                  set('riskLevel', value === NO_RISK ? '' : (value as RiskLevel));
                 }}
               >
-                <option value="">{t('form.noRisk')}</option>
-                {RISK_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {RISK_LEVEL_LABELS[level]}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger {...control}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_RISK}>{t('form.noRisk')}</SelectItem>
+                  {RISK_LEVELS.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {RISK_LEVEL_LABELS[level]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </FormField>
         </div>
@@ -730,9 +745,8 @@ function AlternativeForm({
           error={messages.observations}
         >
           {(control) => (
-            <textarea
+            <Textarea
               {...control}
-              className={TEXTAREA_CLASS}
               maxLength={ETP_ALTERNATIVE_LIMITS.observationsMax}
               value={values.observations}
               onChange={(event) => {
@@ -905,9 +919,8 @@ function DecideForm({
         <label htmlFor={fieldId} className="text-sm font-medium">
           {needsJustification ? t('justification') : t('justificationOptional')}
         </label>
-        <textarea
+        <Textarea
           id={fieldId}
-          className={TEXTAREA_CLASS}
           maxLength={ETP_ALTERNATIVE_LIMITS.justificationMax}
           aria-invalid={message !== null ? true : undefined}
           aria-required={needsJustification ? true : undefined}

@@ -120,7 +120,7 @@ describe('SCR-113 · Diálogo "Duplicar DFD" (US-018)', () => {
 
     const newProcess = await screen.findByRole('radio', { name: 'Novo processo' });
     await waitFor(() => {
-      expect((newProcess as HTMLInputElement).checked).toBe(true);
+      expect(newProcess.getAttribute('aria-checked')).toBe('true');
     });
     await user.click(screen.getByRole('button', { name: 'Duplicar' }));
 
@@ -209,11 +209,11 @@ describe('SCR-113 · Diálogo "Duplicar DFD" (US-018)', () => {
     renderDialog({ permissions: ['DFD_CREATE'] });
     const newProcess = await screen.findByRole('radio', { name: 'Novo processo' });
     await waitFor(() => {
-      expect((newProcess as HTMLInputElement).disabled).toBe(true);
+      expect((newProcess as HTMLButtonElement).disabled).toBe(true);
     });
     expect(
-      screen.getByRole<HTMLInputElement>('radio', { name: 'Processo existente' }).checked,
-    ).toBe(true);
+      screen.getByRole('radio', { name: 'Processo existente' }).getAttribute('aria-checked'),
+    ).toBe('true');
     expect(
       screen.getByText('Você não tem permissão para abrir processos neste órgão.'),
     ).toBeTruthy();

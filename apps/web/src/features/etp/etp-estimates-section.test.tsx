@@ -262,9 +262,9 @@ describe('Seção "Estimativas" do ETP (US-022 · SCR-008)', () => {
     const user = userEvent.setup();
     renderSection();
     await user.click(await screen.findByRole('radio', { name: 'Vincular à pesquisa de preços' }));
-    const select = await screen.findByLabelText<HTMLSelectElement>('Pesquisa de preços');
+    const select = await screen.findByRole('combobox', { name: 'Pesquisa de preços' });
     await waitFor(() => {
-      expect(select.value).toBe(RESEARCH_ID);
+      expect(select.textContent).not.toBe('Selecione a pesquisa');
     });
     await user.click(screen.getByRole('button', { name: 'Salvar valor' }));
     expect(await screen.findByText('R$ 125.000,00')).toBeTruthy();

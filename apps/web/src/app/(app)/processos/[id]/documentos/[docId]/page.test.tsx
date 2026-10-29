@@ -60,7 +60,7 @@ describe('/processos/[id]/documentos/[docId] (SCR-105 · US-065)', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Parecer de teste' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reabrir' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Voltar ao processo' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Processo' }).getAttribute('href')).toBe(
       `/processos/${PROCESS_ID}`,
     );
     expect(callsTo(fetchMock, 'GET', `/api/v1/documents/${DOC}`)).toHaveLength(1);

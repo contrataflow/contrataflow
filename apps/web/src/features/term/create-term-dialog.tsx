@@ -8,6 +8,13 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   buttonClassName,
   cx,
@@ -34,7 +41,6 @@ import {
   useProcessDocuments,
 } from '../process-documents/process-documents.api';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
-import { FormField, INPUT_CLASS } from '../processes/form-field';
 
 /** Resultado de uma tentativa recusada pelo servidor (a faixa acima do formulário). */
 type Outcome =
@@ -217,46 +223,42 @@ function DialogBody({
   } else {
     body = (
       <>
-        <FormField id="term-template" label={t('fields.template')} error={errors.templateId}>
-          {(control) => (
-            <select
-              {...control}
-              className={INPUT_CLASS}
-              value={templateId}
-              disabled={submit.isPending}
-              onChange={(event) => {
-                setTemplateDraft(event.target.value);
-                setServerErrors(({ templateId: _removed, ...rest }) => rest);
-                setClientErrors(({ templateId: _removed, ...rest }) => rest);
-              }}
-            >
+        <Field id="term-template" label={t('fields.template')} error={errors.templateId}>
+          <Select
+            value={templateId}
+            disabled={submit.isPending}
+            onValueChange={(value) => {
+              setTemplateDraft(value);
+              setServerErrors(({ templateId: _removed, ...rest }) => rest);
+              setClientErrors(({ templateId: _removed, ...rest }) => rest);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
               {templates.map((template) => (
-                <option key={template.id} value={template.id}>
+                <SelectItem key={template.id} value={template.id}>
                   {template.isDefault
                     ? t('fields.templateDefault', { name: template.name })
                     : template.name}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          )}
-        </FormField>
-        <FormField id="term-title" label={t('fields.title')} required error={errors.title}>
-          {(control) => (
-            <input
-              {...control}
-              type="text"
-              className={INPUT_CLASS}
-              value={title}
-              maxLength={300}
-              disabled={submit.isPending}
-              onChange={(event) => {
-                setTitleDraft(event.target.value);
-                setServerErrors(({ title: _removed, ...rest }) => rest);
-                setClientErrors(({ title: _removed, ...rest }) => rest);
-              }}
-            />
-          )}
-        </FormField>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field id="term-title" label={t('fields.title')} required error={errors.title}>
+          <Input
+            value={title}
+            maxLength={300}
+            disabled={submit.isPending}
+            onChange={(event) => {
+              setTitleDraft(event.target.value);
+              setServerErrors(({ title: _removed, ...rest }) => rest);
+              setClientErrors(({ title: _removed, ...rest }) => rest);
+            }}
+          />
+        </Field>
       </>
     );
   }

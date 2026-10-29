@@ -100,8 +100,7 @@ function setup(...routes: Route[]) {
 }
 
 const submitButton = () => screen.getByRole('button', { name: 'Criar ETP' });
-const importBox = () =>
-  screen.findByRole<HTMLInputElement>('checkbox', { name: 'Importar dados do DFD' });
+const importBox = () => screen.findByRole('checkbox', { name: 'Importar dados do DFD' });
 
 beforeEach(() => {
   push.mockClear();
@@ -118,7 +117,7 @@ describe('CreateEtpDialog (US-019 · fluxo principal 2–7)', () => {
     expect(
       await screen.findByRole('heading', { name: 'Importar dados do DFD 0005/2026?' }),
     ).toBeTruthy();
-    expect((await importBox()).checked).toBe(true);
+    expect((await importBox()).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Manutenção predial preventiva dos prédios')).toBeTruthy();
     expect(screen.getByText('2 itens')).toBeTruthy();
     expect(screen.getByText('Previsto no PCA')).toBeTruthy();

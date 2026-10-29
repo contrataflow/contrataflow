@@ -1,11 +1,27 @@
 'use client';
 
+import {
+  DatePicker,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+  cx,
+  fromIsoDate,
+  toIsoDate,
+} from '@contrataflow/ui';
 import { PRIORITIES } from '@contrataflow/validation';
 import type { DfdHeaderField, DfdHeaderValues, Priority } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
 import { raisesProcessPriority } from './dfd-model';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
+import { FormField } from '../processes/form-field';
 import { OwnerLookup } from '../risks/owner-lookup';
 
 export interface DfdIdentificationStepProps {
@@ -45,11 +61,9 @@ export function DfdIdentificationStep({
   const t = useTranslations('dfd.identification');
   const raised = raisesProcessPriority(header.priority, processPriority);
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-5 rounded-card bg-surface p-6 shadow-card md:grid-cols-2">
       <FormField id="dfd-field-code" label={t('number')}>
-        {(control) => (
-          <input {...control} className={INPUT_CLASS} value={code ?? ''} readOnly aria-readonly />
-        )}
+        {(control) => <Input {...control} value={code ?? ''} readOnly aria-readonly />}
       </FormField>
       <FormField
         id="dfd-field-requestDate"
@@ -58,15 +72,17 @@ export function DfdIdentificationStep({
         required
       >
         {(control) => (
-          <input
+          <DatePicker
             {...control}
-            type="date"
-            className={INPUT_CLASS}
-            max={today}
-            value={header.requestDate ?? ''}
-            readOnly={!editable}
-            onChange={(event) => {
-              onChange('requestDate', event.target.value || null);
+            value={fromIsoDate(header.requestDate ?? '')}
+            disabled={!editable}
+            disabledDays={{ after: fromIsoDate(today) ?? new Date() }}
+            onValueChange={(date) => {
+              onChange('requestDate', date ? toIsoDate(date) : null);
+            }}
+            labels={{
+              placeholder: t('datePlaceholder'),
+              calendar: t('dateCalendar'),
             }}
           />
         )}
@@ -79,29 +95,32 @@ export function DfdIdentificationStep({
         required
       >
         {(control) => (
-          <select
-            {...control}
-            className={INPUT_CLASS}
+          <Select
             value={header.requestingDepartmentId ?? ''}
             disabled={!editable}
-            onChange={(event) => {
-              onChange('requestingDepartmentId', event.target.value || null);
+            onValueChange={(value) => {
+              onChange('requestingDepartmentId', value || null);
             }}
           >
-            <option value="">{t('departmentPlaceholder')}</option>
-            {departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger {...control}>
+              <SelectValue placeholder={t('departmentPlaceholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {departments.map((department) => (
+                <SelectItem key={department.id} value={department.id}>
+                  {department.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </FormField>
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-sm font-medium">{t('responsible')}</span>
         <OwnerLookup
           id="dfd-field-responsibleId"
           kind="USER"
+          label={t('responsible')}
+          hint={t('responsibleHint')}
           value={header.responsibleId ?? ''}
           name={responsibleName}
           error={errors.responsibleId}
@@ -118,9 +137,8 @@ export function DfdIdentificationStep({
         className="md:col-span-2"
       >
         {(control) => (
-          <textarea
+          <Textarea
             {...control}
-            className={TEXTAREA_CLASS}
             maxLength={2000}
             value={header.objectSummary ?? ''}
             readOnly={!editable}
@@ -131,35 +149,38 @@ export function DfdIdentificationStep({
         )}
       </FormField>
       <fieldset
-        className="flex min-w-0 flex-col gap-2 md:col-span-2"
+        className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0 md:col-span-2"
         aria-describedby={errors.priority ? 'dfd-field-priority-error' : undefined}
       >
-        <legend className="text-sm font-medium">{t('priority')}</legend>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <legend className="mb-1.5 p-0 text-sm font-semibold">{t('priority')}</legend>
+        <RadioGroup
+          value={header.priority ?? ''}
+          disabled={!editable}
+          aria-invalid={errors.priority ? true : undefined}
+          className="grid grid-cols-1 gap-2 md:grid-cols-2"
+          onValueChange={(value) => {
+            onChange('priority', value);
+          }}
+        >
           {PRIORITIES.map((priority, index) => {
             const inputId = index === 0 ? 'dfd-field-priority' : `dfd-field-priority-${priority}`;
+            const checked = header.priority === priority;
             return (
               <div
                 key={priority}
-                className="flex items-start gap-2 rounded-control border border-border p-3 text-sm"
+                className={cx(
+                  'flex items-start gap-2.5 rounded-control border p-3 text-sm',
+                  checked ? 'border-primary bg-primary-soft' : 'border-border',
+                )}
               >
-                <input
+                <RadioGroupItem
                   id={inputId}
-                  type="radio"
-                  name="dfd-priority"
                   value={priority}
-                  className="mt-1 size-4"
-                  checked={header.priority === priority}
-                  disabled={!editable}
+                  className="mt-0.5"
                   aria-describedby={`${inputId}-description`}
-                  onChange={() => {
-                    onChange('priority', priority);
-                  }}
                 />
                 <div className="flex flex-col">
-                  <label htmlFor={inputId} className="font-medium">
-                    {t(`priorities.${priority}`)}
-                  </label>
+                  <Label htmlFor={inputId}>{t(`priorities.${priority}`)}</Label>
                   <span id={`${inputId}-description`} className="text-muted-foreground">
                     {t(`priorityDescriptions.${priority}`)}
                   </span>
@@ -167,9 +188,13 @@ export function DfdIdentificationStep({
               </div>
             );
           })}
-        </div>
+        </RadioGroup>
         {errors.priority ? (
-          <p id="dfd-field-priority-error" className="text-sm text-destructive" aria-live="polite">
+          <p
+            id="dfd-field-priority-error"
+            className="text-[0.8125rem] font-semibold text-destructive"
+            aria-live="polite"
+          >
             {errors.priority}
           </p>
         ) : null}
